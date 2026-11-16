@@ -17,6 +17,7 @@ import { AgentRecord } from "./agent-record.tsx";
 import { SignDataProvider } from "../../places/files/sign/data.tsx";
 import type { SignData } from "../../places/files/sign/data.tsx";
 import { notices } from "../noticeslot/model.ts";
+import { GATE, allows } from "../session/gates.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export async function resolveRecordType(call: ShellRuntime["call"], recordId: string, hint?: string): Promise<string> {
@@ -186,6 +187,7 @@ export function RecordDetail({
       call: rt.call,
       clock: rt.clock,
       ...(rt.baseUrl ? { origin: rt.baseUrl } : {}),
+      canSend: allows(rt, GATE.sendSignature),
       openFile: (id) => rt.open({ subject: { type: "file", id } }),
       say: (t) => notices.pass(t),
     }),

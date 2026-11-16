@@ -83,7 +83,7 @@ test("the sent links list each person with the address and a Copy that names the
 
 const env = (o: Record<string, unknown>) => envelopeOf({ envelopeId: "env_1", title: "Northwind NDA.pdf", ...o })!;
 
-test("a file waiting for signature says who, and offers Remind, Copy link and Cancel request", () => {
+test("a file waiting for signature says who, and offers Remind and Copy link (Cancel is in the menu)", () => {
   const out = html(
     <SignBar
       env={env({
@@ -97,7 +97,7 @@ test("a file waiting for signature says who, and offers Remind, Copy link and Ca
     />,
   );
   assert.ok(out.includes("Waiting for Andrea"));
-  for (const w of ["Remind", "Copy link", "Cancel request"]) assert.ok(out.includes(w), w);
+  for (const w of ["Remind", "Copy link"]) assert.ok(out.includes(w), w);
 });
 
 test("a signed file says the day and offers the signed copy; a declined one says who and can be sent again", () => {

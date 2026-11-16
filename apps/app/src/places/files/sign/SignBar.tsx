@@ -1,7 +1,7 @@
 // The quiet line a file (and a record) shows about its signature request: Waiting for Andrea, Signed on 14 Nov, Andrea declined. Remind, Copy link and Cancel are one press away; the signed copy opens in the viewer.
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Dialog } from "../../../../../../ui/src/Dialog/index.tsx";
 import { Status } from "../../../../../../ui/src/Status/index.tsx";
 import { cancelRequest, remind, sayError } from "./actions.ts";
@@ -114,17 +114,6 @@ export function SignBar({
         ]}
         testID={`${testID}-status`}
       />
-      {open ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Cancel request"
-          onPress={cancel}
-          testID={`${testID}-cancel`}
-          style={({ hovered }: { hovered?: boolean }) => [st.cancelBtn, hovered === true && st.over]}
-        >
-          <Text style={st.cancel}>Cancel request</Text>
-        </Pressable>
-      ) : null}
       {error ? (
         <Text accessibilityRole="alert" role="alert" style={st.error} testID={`${testID}-error`}>
           {error}
@@ -152,16 +141,6 @@ export function SignBar({
 
 const st = StyleSheet.create({
   wrap: { paddingHorizontal: 16, paddingTop: 6 },
-  cancelBtn: {
-    alignSelf: "flex-start",
-    marginLeft: 8,
-    marginBottom: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  cancel: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  over: { backgroundColor: "var(--hover)" as string },
   error: { fontSize: 12.5, color: "var(--danger)" as string, marginLeft: 16, marginBottom: 6 },
   stack: { gap: 10 },
   said: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },

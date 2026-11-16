@@ -49,6 +49,7 @@ function show(...nodes) {
 }
 function sentence(text, retry) {
   topbar.hidden = true;
+  document.querySelector(".skip").hidden = true;
   show(
     h(
       "div",
@@ -584,8 +585,7 @@ function declined(v) {
 
 function done(v, name, out) {
   const tick = h("div", { class: "tick", "aria-hidden": "true" });
-  tick.innerHTML =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.500"/></svg>';
+  tick.textContent = "\u2713";
   const status = h("p", { class: "lead", role: "status", id: "copystate" });
   const holder = h("div", { class: "row" });
   const get = async (manual) => {

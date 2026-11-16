@@ -34,6 +34,7 @@ import type { KnowRoute } from "../../places/files/memory/know.ts";
 import { reviewData } from "./files-review.ts";
 import { SidebarContent } from "../sidebar/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
+import { GATE, allows } from "../session/gates.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
@@ -181,6 +182,7 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
             call: rt.call,
             clock: rt.clock,
             ...(rt.baseUrl ? { origin: rt.baseUrl } : {}),
+            canSend: allows(rt, GATE.sendSignature),
             openFile: (id) => rt.open({ subject: { type: "file", id } }),
             say: (t) => notices.pass(t),
           }
@@ -198,7 +200,9 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
                   shareFile: (id: string, name: string) => setSharing({ id, file: name }),
                 }
               : {}),
-            signFile: (id: string, name: string) => setSigning({ id, name }),
+            ...(allows(rt, GATE.sendSignature)
+              ? { signFile: (id: string, name: string) => setSigning({ id, name }) }
+              : {}),
             newFolder: (scope, parentId) => setAsk({ kind: "folder", scope, parentId }),
             rename: (kind, id, current) => setAsk({ kind: "rename", entry: kind, id, current }),
             upload: (folderId) => {

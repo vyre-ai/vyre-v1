@@ -70,6 +70,18 @@ test("an envelope reads from whatever the server returned, and says Waiting for 
   assert.deepEqual(statusLine(e, NOW), { tone: "quiet", label: "Waiting for Andrea" });
 });
 
+test("once someone has opened it the line still says who it waits for, and the note says who opened it", () => {
+  const e = envelopeOf({
+    envelopeId: "env_1",
+    status: "viewed",
+    signers: [
+      { name: "Imran Ibarra", status: "signed" },
+      { name: "Andrea Lindahl", status: "viewed" },
+    ],
+  })!;
+  assert.deepEqual(statusLine(e, NOW), { tone: "quiet", label: "Waiting for Andrea", note: "Andrea opened it" });
+});
+
 test("signed says the day and by whom; declined names the person; the other ends are plain", () => {
   const signed = envelopeOf({
     envelopeId: "env_2",

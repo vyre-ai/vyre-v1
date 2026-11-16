@@ -13,6 +13,7 @@ import { FolderShareSheet } from "./files-share.tsx";
 import { SignDataProvider } from "../../places/files/sign/data.tsx";
 import type { SignData } from "../../places/files/sign/data.tsx";
 import { notices } from "../noticeslot/model.ts";
+import { GATE, allows } from "../session/gates.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function FileDetail({ rt, fileId }: { rt: ShellRuntime; fileId: string }): ReactElement {
@@ -51,6 +52,7 @@ export function FileDetail({ rt, fileId }: { rt: ShellRuntime; fileId: string })
       call: rt.call,
       clock: rt.clock,
       ...(rt.baseUrl ? { origin: rt.baseUrl } : {}),
+      canSend: allows(rt, GATE.sendSignature),
       openFile: (id) => rt.open({ subject: { type: "file", id } }),
       say: (t) => notices.pass(t),
     }),

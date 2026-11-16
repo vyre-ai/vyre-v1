@@ -82,7 +82,7 @@ export function FilesTab({
           <Row
             id={`sign:${e.id}`}
             title={e.title}
-            note={line.note ?? line.label}
+            {...(line.note ? { note: line.note } : {})}
             trailing={<Status inline tone={line.tone} label={line.label} testID={`sign-state-${e.id}`} />}
             {...(open && sign.openFile ? { onPress: () => sign.openFile?.(open) } : {})}
           />
@@ -108,7 +108,7 @@ export function FilesTab({
             id={`file:${x.fileId}`}
             title={x.name}
             titleSuffix={size(x.size)}
-            {...(sign && canSignFile(x.name)
+            {...(sign && sign.canSend !== false && canSignFile(x.name)
               ? {
                   trailing: (
                     <Tooltip text="Send for signature">

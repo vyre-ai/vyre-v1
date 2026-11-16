@@ -5,8 +5,20 @@ import { hiddenTitle } from "../../../../../../ui/src/blocks/link-card/state.ts"
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { TypeDef } from "../recordpage/model.ts";
 import { activityLine } from "./model.ts";
+import { envelopeOf, statusLine } from "../../files/sign/model.ts";
 
-export type Kind = "edit" | "comment" | "mail" | "text" | "call" | "meeting" | "file" | "task" | "run" | "chat";
+export type Kind =
+  | "edit"
+  | "comment"
+  | "mail"
+  | "text"
+  | "call"
+  | "meeting"
+  | "file"
+  | "task"
+  | "run"
+  | "chat"
+  | "signature";
 export interface Item {
   /** unique across sources */
   id: string;
@@ -36,6 +48,7 @@ export const KIND_LABEL: Readonly<Record<Kind, string>> = {
   task: "Task",
   run: "Run",
   chat: "Chat",
+  signature: "Signature",
 };
 
 const clip = (s: string, n = 120): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -154,6 +167,25 @@ export const fromMeetings = (rows: readonly Meeting[]): Item[] =>
     subject: { type: "meeting", id: m.meetingId },
   }));
 
+/** The signature requests made from this record: one row each with where it stands (Waiting for Andrea, Signed on 14 Nov); a tap opens the signed copy, or the file that was sent. */
+export const fromSignatures = (rows: readonly unknown[], now: number, zoneOffsetMin = 0): Item[] =>
+  rows.flatMap((r): Item[] => {
+    const e = envelopeOf(r);
+    if (!e) return [];
+    const line = statusLine(e, now, zoneOffsetMin);
+    const file = e.signedFileId ?? e.fileId;
+    return [
+      {
+        id: `signature:${e.id}`,
+        kind: "signature",
+        at: e.at ?? now,
+        title: e.title,
+        note: line.note ? `${line.label} · ${line.note}` : line.label,
+        ...(file ? { subject: { type: "file", id: file } } : {}),
+      },
+    ];
+  });
+
 /** Newest first, one item per id, at most `limit`. */
 export function merge(lists: readonly (readonly Item[])[], limit = 100): Item[] {
   const seen = new Set<string>();
@@ -180,6 +212,8 @@ export async function loadEverything(o: {
   def?: TypeDef | undefined;
   names: (id: string) => string;
   folderOf: () => Promise<string | null>;
+  /** The time now and the zone's offset, for the day a request was signed. Left out: the device's clock. */
+  clock?: () => { now: number; offsetMin?: number };
 }): Promise<Item[]> {
   const ask = async <T>(cap: string, input: unknown): Promise<T | null> => {
     try {
@@ -188,7 +222,7 @@ export async function loadEverything(o: {
       return null;
     }
   };
-  const [activity, comments, thread, tasks, runs, threads, files, meetings] = await Promise.all([
+  const [activity, comments, thread, tasks, runs, threads, files, meetings, signatures] = await Promise.all([
     ask<CapMap["records.activity"]["out"]>("records.activity", { type: o.type, recordId: o.recordId, limit: 50 }),
     ask<CapMap["records.comments.list"]["out"]>("records.comments.list", {
       type: o.type,
@@ -208,7 +242,9 @@ export async function loadEverything(o: {
       return folder ? ask<CapMap["files.list"]["out"]>("files.list", { folder, limit: 50 }) : null;
     })(),
     ask<CapMap["meetings.closeout.list"]["out"]>("meetings.closeout.list", { recordId: o.recordId, limit: 50 }),
+    ask<{ envelopes?: unknown[] }>("esign.list", { recordId: o.recordId }),
   ]);
+  const clock = o.clock?.() ?? { now: Date.now(), offsetMin: 0 };
   const feed = merge([
     fromActivity(activity?.entries ?? [], o.def, o.names),
     fromComments(comments?.comments ?? [], o.names),
@@ -218,6 +254,7 @@ export async function loadEverything(o: {
     fromRuns(runs?.runs ?? []),
     fromThreads(threads?.threads ?? []),
     fromMeetings(meetings?.meetings ?? []),
+    fromSignatures(signatures?.envelopes ?? [], clock.now, clock.offsetMin ?? 0),
   ]);
   return withReach(o.call, feed);
 }

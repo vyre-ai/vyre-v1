@@ -25,6 +25,7 @@ import { redactedCopy } from "../../../../../../ui/src/Viewer/rich/pdf-copy.ts";
 import { noTextLayer } from "../../../../../../ui/src/Viewer/rich/pdf-model.ts";
 import { useFilesViewerData } from "./data.tsx";
 import { useMaybeSignData } from "../sign/data.tsx";
+import { cancelRequest } from "../sign/actions.ts";
 import { canSignFile, isOpen as signOpen } from "../sign/model.ts";
 import { SignBar } from "../sign/SignBar.tsx";
 import { SignSheet } from "../sign/SignSheet.tsx";
@@ -656,7 +657,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     }
   };
   // the pen: a PDF with no request waiting (one request at a time; a finished one can be sent again)
-  const canSend = sign !== null && canSignFile(file.name, file.mime) && !(reqs.now !== null && signOpen(reqs.now));
+  const canSend =
+    sign !== null &&
+    sign.canSend !== false &&
+    canSignFile(file.name, file.mime) &&
+    !(reqs.now !== null && signOpen(reqs.now));
   const openMore = (x: number, y: number, hidden: { label: string; onSelect: () => void }[] = []): void => {
     const name = load.status === "ready" ? load.data.file.name : "";
     accessMenu.show(
@@ -673,6 +678,17 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
           : []),
         ...(d.share ? [{ label: "Share…", onSelect: () => d.share?.(fileId, name) }] : []),
         ...(canSend ? [{ label: "Send for signature…", onSelect: () => setSigning(true) }] : []),
+        ...(sign !== null && reqs.now !== null && signOpen(reqs.now)
+          ? [
+              {
+                label: "Cancel signature request",
+                onSelect: () => {
+                  const id = reqs.now?.id;
+                  if (id) void cancelRequest(sign.call, id).then(reqs.reload, say);
+                },
+              },
+            ]
+          : []),
         {
           label: "Copy Link",
           onSelect: () =>

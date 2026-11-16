@@ -73,6 +73,8 @@ export function edge(
   const base = path.resolve(dist);
   const proxied = (p: string): boolean =>
     p.startsWith("/v1/") ||
+    // the public path: what the relay carries to the daemon for people with no session (a form, a signing link)
+    p.startsWith("/p/") ||
     p.startsWith("/sync/") ||
     /^\/spaces\/[^/]+\/blobs\//.test(p) ||
     p === "/healthz" ||

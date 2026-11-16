@@ -198,15 +198,20 @@ export function statusLine(e: Envelope, now: number, zone = 0): { tone: Tone; la
         ...(e.signers.length > 0 ? { note: `By ${names(e.signers.map((s) => s.name))}` } : {}),
       };
     case "declined":
-      return { tone: "bad", label: e.declinedBy ? `${first(e.declinedBy)} declined` : "Declined" };
+      return { tone: "bad", label: e.declinedBy ? `${first(e.declinedBy)} declined` : "Signing declined" };
     case "cancelled":
       return { tone: "quiet", label: "Cancelled" };
     case "expired":
       return { tone: "warn", label: "Not signed in time" };
-    case "viewed":
-      return { tone: "quiet", label: waiting.length > 0 ? `${names(waiting)} opened it` : "Opened" };
-    default:
-      return { tone: "quiet", label: waiting.length > 0 ? `Waiting for ${names(waiting)}` : "Sent" };
+    default: {
+      // sent or opened: the line names who it waits for; who has opened it is the quiet note
+      const opened = e.signers.filter((x) => x.state === "viewed").map((x) => x.name);
+      return {
+        tone: "quiet",
+        label: waiting.length > 0 ? `Waiting for ${names(waiting)}` : "Sent",
+        ...(opened.length > 0 ? { note: `${names(opened)} opened it` } : {}),
+      };
+    }
   }
 }
 

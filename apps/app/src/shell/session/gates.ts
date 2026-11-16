@@ -17,6 +17,8 @@ export const GATE = {
   takeOver: "computers.take_over",
   /** Set up an agent's computer: computers.provision takes Manage on the Space, which only owners and admins hold, the same people as access.manage */
   provisionComputer: "access.manage",
+  /** Send for signature: the pen in the Files viewer, a file's menu, a record's Files tab and the command palette */
+  sendSignature: "comms.shared_send",
   /** Invite People in the Space menu */
   invite: "members.invite",
 } as const;

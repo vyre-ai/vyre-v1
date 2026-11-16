@@ -11,6 +11,8 @@ export interface SignData {
   openFile?(fileId: string): void;
   /** A record by id opens its page. */
   openRecord?(recordId: string): void;
+  /** The person's roles lack the permission to send (the controls are left out, not shown dead). Default: allowed. */
+  canSend?: boolean;
   /** The Space's address, put in front of a link the server gave as a path only. */
   origin?: string;
   /** A passing notice in the top bar ("Reminded Andrea"). */

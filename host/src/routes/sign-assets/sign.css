@@ -449,9 +449,10 @@ textarea:focus {
   align-items: center;
   justify-content: center;
 }
-.tick svg {
-  width: 22px;
-  height: 22px;
+.tick {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
 }
 .foot {
   color: var(--ink-3);
