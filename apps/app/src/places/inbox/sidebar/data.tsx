@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { canSend } from "./model.ts";
+import type { InboxAddress } from "./model.ts";
 import { ScreensProvider } from "../../../load/screens.tsx";
 
 export interface Connection {
@@ -19,6 +20,8 @@ export interface InboxNav {
   openThread(threadId: string): void;
   openCall(callId: string): void;
   openCalendar(): void;
+  /** A sidebar row (an inbox, a list) as a tab of its own: the row's Open in New Tab. Left out where the shell has no tabs. */
+  openScopeTab?(a: InboxAddress): void;
   openDialer(): void;
   /** The "Match to a record" link on a row that needs a match. */
   openMatch(conversationId: string): void;

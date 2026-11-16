@@ -49,6 +49,11 @@ export function isMacShell(
   return /Mac/.test(text) && !/iPhone|iPad|iPod/.test(text);
 }
 
+// read when the app loads: the first address of this tab (the invite link) is what the tab came in by, even when the gate rewrites it later
+let cameByInvite = /^\/join(\/|$)/.test((globalThis as { location?: { pathname?: string } }).location?.pathname ?? "");
+/** This tab was opened on an invite link (the address was rewritten by consumeBrowserInvite): the page behind it is the spent link, so Back must not go there. */
+export const joinedByLink = (): boolean => cameByInvite;
+
 /** Remove a spent or dismissed browser invite before shell navigation can remount the gate. */
 export function consumeBrowserInvite(
   browser: {
@@ -57,7 +62,10 @@ export function consumeBrowserInvite(
   } = globalThis as never,
 ): void {
   const p = browser.location?.pathname ?? "";
-  if (p === "/join" || p.startsWith("/join/")) browser.history?.replaceState(null, "", "/chat");
+  if (p === "/join" || p.startsWith("/join/")) {
+    cameByInvite = true;
+    browser.history?.replaceState(null, "", "/chat");
+  }
 }
 
 /** The name rule alone: <name>.vyre.run, the shape of a relay phone address. Not an answer by itself: a Space server can hold a vyre.run name with its own DNS record and TLS (northwind.vyre.run).

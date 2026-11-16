@@ -79,7 +79,46 @@ export function tabKey(place: PlaceId, hash?: string): string {
     return `${place}:page=${page}`;
   const type = t.args["type"];
   if (type !== undefined && type !== "") return `${place}:type=${type}`;
+  // a row of the Vault's or the Inbox's sidebar is a tab of its own when opened beside (Open in New Tab); the place's own tab keeps the place's key however far it moves
+  if (place === "vault") {
+    if (t.args["folder"]) return `vault:folder=${t.args["folder"]}`;
+    if (t.args["select"]) return `vault:select=${t.args["select"]}`;
+  }
+  if (place === "inbox") {
+    const at = [t.args["main"], t.args["scope"], t.args["view"]].filter((x) => x !== undefined && x !== "").join(",");
+    if (at !== "") return `inbox:${at}`;
+  }
   return place;
+}
+
+const VAULT_ROWS: Readonly<Record<string, string>> = {
+  all: "All items",
+  providers: "AI accounts",
+  google: "Google",
+  connections: "Connections",
+  keys: "Keys",
+  logins: "Logins",
+  cards: "Cards",
+  health: "Health",
+  mine: "Mine",
+};
+const INBOX_VIEWS: Readonly<Record<string, string>> = {
+  calendar: "Calendar",
+  meetings: "Meetings",
+  replies: "Replies",
+};
+
+/** The name of a tab opened on a row of the Vault's or the Inbox's sidebar. */
+function rowTitle(args: Readonly<Record<string, string>>): string | undefined {
+  if (args["folder"]) return "Shared folder";
+  if (args["select"]) return VAULT_ROWS[args["select"]];
+  if (args["main"]) return INBOX_VIEWS[args["main"]];
+  const scope = args["scope"];
+  if (scope === undefined) return undefined;
+  if (scope === "starred") return "Starred";
+  if (scope === "follow") return "Following";
+  if (scope === "all") return args["view"] === "thread" ? "All inboxes" : "By contact";
+  return "Inbox";
 }
 
 /** Screens inside Chats that are a tab of their own, with the tab's name. */
@@ -117,6 +156,10 @@ export function screenTitle(hash: string | undefined): string | undefined {
   if (typeof page === "string" && page !== "") {
     if (t.screen?.startsWith("console.") === true) return CONSOLE_PAGES.find((x) => x.id === page)?.title;
     if (t.screen === "settings.page") return SETTINGS_PAGES.find((x) => x.key === page)?.title;
+  }
+  if (t.screen === "vault.layout" || t.screen === "inbox.contact-list") {
+    const row = rowTitle(t.args);
+    if (row !== undefined) return row;
   }
   return t.screen === undefined ? undefined : OWN_TAB[t.screen];
 }

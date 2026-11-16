@@ -157,3 +157,8 @@ test("an agent's page is a screen of its own on the Chats tab, so the phone draw
   assert.equal(headerBack(e), false, "the shell's Back bar, not a conversation header");
   assert.deepEqual(placeOf(e), { place: "chats", hash: "screen=chats.agent-page&agentId=agt_1" });
 });
+
+test("Settings on a phone draws its own back chevron (list, then out), as the conversations do", () => {
+  assert.equal(headerBack({ tab: "you", screen: "you:settings" }), true);
+  assert.equal(headerBack({ tab: "you", screen: "you" }), false);
+});

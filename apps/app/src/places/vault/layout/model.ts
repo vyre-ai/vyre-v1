@@ -29,6 +29,29 @@ export type Selection =
 
 export const ALL: Selection = { kind: "all" };
 
+const KINDS: readonly Selection["kind"][] = [
+  "all",
+  "providers",
+  "google",
+  "connections",
+  "keys",
+  "logins",
+  "cards",
+  "health",
+  "requested",
+  "mine",
+];
+/** The address of a sidebar row, so a tab can open on it (Open in New Tab): a folder by its id, any other row by its kind. */
+export function selectionArgs(s: Selection): Record<string, string> {
+  return s.kind === "folder" ? { folder: s.folderId } : { select: s.kind };
+}
+/** The row an address names, or undefined when it names none. */
+export function selectionOfArgs(args: Readonly<Record<string, string>>): Selection | undefined {
+  if (args["folder"]) return { kind: "folder", folderId: args["folder"] };
+  const k = KINDS.find((x) => x === args["select"]);
+  return k === undefined ? undefined : ({ kind: k } as Selection);
+}
+
 export const selectionKey = (s: Selection): string => (s.kind === "folder" ? `folder:${s.folderId}` : s.kind);
 export const sameSelection = (a: Selection, b: Selection): boolean => selectionKey(a) === selectionKey(b);
 

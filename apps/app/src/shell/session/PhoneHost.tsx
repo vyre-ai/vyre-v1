@@ -8,8 +8,9 @@ import type { ReactElement, ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { useResume } from "../../onboarding/ResumeChip.tsx";
-import { DesktopOnly, InstallRow, MobileShell, YouScreen } from "../../mobile/shell/index.ts";
-import type { Entry, MobileNav } from "../../mobile/shell/index.ts";
+import { DesktopOnly, InstallRow, MobileShell, YouScreen, canBack, current } from "../../mobile/shell/index.ts";
+import type { Entry, MobileNav, NavState } from "../../mobile/shell/index.ts";
+import { registerPhoneBack } from "./phone-back.ts";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { PlaceHash } from "../hash/context.tsx";
@@ -137,6 +138,26 @@ export function PhoneHost({
   onSwitchSpace,
 }: PhoneHostProps): ReactElement {
   const navRef = useRef<MobileNav | null>(null);
+  const stateRef = useRef<NavState | null>(null);
+  // the browser's Back on the phone pops the phone's own stack, then goes to the first screen (phone-back.ts)
+  useEffect(
+    () =>
+      registerPhoneBack(() => {
+        const nav = navRef.current;
+        const s = stateRef.current;
+        if (!nav || !s) return false;
+        if (canBack(s)) {
+          nav.back();
+          return true;
+        }
+        if (current(s).tab !== "chats") {
+          nav.selectTab("chats");
+          return true;
+        }
+        return false;
+      }),
+    [],
+  );
 
   const go = useCallback((place: PlaceId, hash: string): void => {
     const nav = navRef.current;
@@ -199,6 +220,9 @@ export function PhoneHost({
     <MobileShell
       {...(start.current.initialEntry ? { initialEntry: start.current.initialEntry } : {})}
       renderScreen={render}
+      onNav={(s) => {
+        stateRef.current = s;
+      }}
       needsYou={needsYou}
       initialTab={start.current.initialTab}
       ownsHeader={(entry) => ownsHeaderScreen(entry.screen, placeOf(entry)?.hash)}

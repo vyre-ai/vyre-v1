@@ -1,6 +1,8 @@
 // The Settings place: You, and under the Space's own name what applies to everyone here, with one search (Cmd-F) over all of it. Changes save as they are made. The Console's pages open
 // inside a Space page, with a way back. On a phone the page list and a page are two screens with a back arrow.
 import { openIn, takeOpenHow } from "../../shell/tabs/open-how.ts";
+import { useMobileBack } from "../../mobile/shell/back.ts";
+import { useOpenRowMenu } from "../../shell/tabs/row-menu.tsx";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { SidebarContent, useInSidebarSlot, useOptionalSidebarSlot } from "../../shell/sidebar/index.ts";
 import { portalInto } from "../../shell/sidebar/portal.ts";
@@ -56,14 +58,12 @@ export function SettingsPlace(props: SettingsProps): ReactElement {
   );
 }
 
-function SettingsBody({
-  initialAccount,
-  initialPage = "profile",
-  initialQuery = "",
-  initialView = "page",
-  initialFound = null,
-  width: given,
-}: SettingsProps): ReactElement {
+function SettingsBody(props: SettingsProps): ReactElement {
+  const { initialAccount, initialPage = "profile", initialQuery = "", initialFound = null, width: given } = props;
+  // a phone opens on the list of pages; a link that names a page, an account or a search opens that page (Back then goes list, then out)
+  const initialView =
+    props.initialView ??
+    (props.initialPage !== undefined || initialAccount !== undefined || initialQuery !== "" ? "page" : "nav");
   const data = useSettingsData();
   const measured = useWindowDimensions().width;
   const phone = belowPhone(given ?? measured);
@@ -121,6 +121,8 @@ function SettingsBody({
     return () => clearTimeout(t);
   }, [found, page]);
 
+  const rowMenu = useOpenRowMenu();
+  const leave = useMobileBack();
   const open = (key: PageKey, row: string | null = null): void => {
     // Cmd-press or the middle button on a page of the list: that page opens as a tab beside this one (tabs/open-rule.ts)
     const how = takeOpenHow();
@@ -171,15 +173,23 @@ function SettingsBody({
   for (const p of PAGES)
     if (p.group === "you" && p.hidden !== true)
       pageRows.push(
-        <Row
+        <View
           key={p.key}
-          id={`page-${p.key}`}
-          title={p.title}
-          {...(p.key === "computer" && update ? { note: "Update available" } : {})}
-          selected={!q.trim() && page === p.key}
-          leading={<IconBox name={p.icon} />}
-          onPress={() => open(p.key)}
-        />,
+          {...rowMenu.on({
+            label: p.title,
+            open: () => open(p.key),
+            ...(data.openPageTab ? { openTab: () => open(p.key) } : {}),
+          })}
+        >
+          <Row
+            id={`page-${p.key}`}
+            title={p.title}
+            {...(p.key === "computer" && update ? { note: "Update available" } : {})}
+            selected={!q.trim() && page === p.key}
+            leading={<IconBox name={p.icon} />}
+            onPress={() => open(p.key)}
+          />
+        </View>,
       );
   if (spacePages.length > 0) {
     pageRows.push(
@@ -193,14 +203,22 @@ function SettingsBody({
     for (const key of spacePages) {
       const p = pageByKey(key);
       pageRows.push(
-        <Row
+        <View
           key={p.key}
-          id={`page-${p.key}`}
-          title={p.title}
-          selected={!q.trim() && page === p.key}
-          leading={<IconBox name={p.icon} />}
-          onPress={() => open(p.key)}
-        />,
+          {...rowMenu.on({
+            label: p.title,
+            open: () => open(p.key),
+            ...(data.openPageTab ? { openTab: () => open(p.key) } : {}),
+          })}
+        >
+          <Row
+            id={`page-${p.key}`}
+            title={p.title}
+            selected={!q.trim() && page === p.key}
+            leading={<IconBox name={p.icon} />}
+            onPress={() => open(p.key)}
+          />
+        </View>,
       );
     }
   }
@@ -278,6 +296,19 @@ function SettingsBody({
         ) : null
       ) : (
         <View style={n.top}>
+          {phone && leave ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              testID="settings-leave"
+              onPress={leave}
+              style={[n.back, pointer]}
+            >
+              <View style={{ transform: [{ rotate: "90deg" }] }}>
+                <Glyph name="chevD" size={14} color="var(--ink-2)" />
+              </View>
+            </Pressable>
+          ) : null}
           <Text numberOfLines={1} accessibilityRole="header" style={n.space}>
             Settings
           </Text>
@@ -320,6 +351,7 @@ function SettingsBody({
       <ScrollView style={{ flex: 1 }} contentContainerStyle={n.scroll} keyboardShouldPersistTaps="handled">
         {phone && searching ? searchPage : pageRows}
       </ScrollView>
+      {rowMenu.element}
     </View>
   );
 

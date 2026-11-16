@@ -124,12 +124,7 @@ test('"N more", "Show less" and a head share the head menu; Tasks has its own', 
   const head = l.entries.find((e) => e.type === "head" && e.section === "chats")!;
   const more = l.entries.find((e) => e.type === "more")!;
   assert.deepEqual(labels(more), labels(head));
-  assert.deepEqual(labels(l.entries.find((e) => e.type === "tasks")!), [
-    "Open",
-    "Open in a new tab",
-    "Fold",
-    "New task",
-  ]);
+  assert.deepEqual(labels(l.entries.find((e) => e.type === "tasks")!), ["Open", "Open in New Tab", "Fold", "New task"]);
 });
 
 test("a pinned row's menu says Unpin; the same row elsewhere says Pin", () => {

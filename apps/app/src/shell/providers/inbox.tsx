@@ -22,6 +22,7 @@ import { ConnectChannel } from "../../places/inbox/connect/index.ts";
 import { InboxDataProvider, useCanSend } from "../../places/inbox/sidebar/data.tsx";
 import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import { InboxSidebar, SidebarLoading } from "../../places/inbox/sidebar/InboxSidebar.tsx";
+import { scopeOfArgs } from "../../places/inbox/sidebar/model.ts";
 import { InboxStateProvider, useInboxState } from "../../places/inbox/sidebar/state.tsx";
 import { MobileBackContext } from "../../mobile/shell/back.ts";
 import { InboxPhoneDock } from "../../places/inbox/softphone/phone.tsx";
@@ -418,7 +419,7 @@ function InboxView({ rt }: { rt: ShellRuntime }): ReactElement {
   }
   return (
     <InboxDataProvider value={data}>
-      <InboxStateProvider>
+      <InboxStateProvider initial={scopeOfArgs(target.args)}>
         <InboxFrame rt={rt} openId={openId} close={() => setOpenId("")} />
       </InboxStateProvider>
     </InboxDataProvider>

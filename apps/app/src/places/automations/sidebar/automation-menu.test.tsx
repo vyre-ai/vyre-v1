@@ -89,3 +89,19 @@ test("an automation row: Run Now, Turn Off or On by state, Test, Runs, a Persona
     [{ automationId: id }],
   );
 });
+
+test("an automation row's menu offers Open in New Tab right after Open (lane r32-nav)", async () => {
+  const s = createSampleAutomations(northwind);
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={s.data}>
+      <AutomationsList selectedId={null} query="" onChoose={() => undefined} />
+    </AutomationsDataProvider>,
+  );
+  await flush();
+  const row = rowIdOf(root as never);
+  assert.ok(row, "a row is drawn");
+  await rightClick(root as never, row);
+  const labels = ids(root as never);
+  assert.deepEqual(labels.slice(0, 2), ["Open", "Open in New Tab"]);
+});

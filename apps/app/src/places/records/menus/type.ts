@@ -2,6 +2,7 @@
 // makes (the type opens, stars.toggle on the record_type, the Record types list where fields are edited). Pure: facts in, entries out.
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { item, tidy } from "../../../../../../ui/src/Menu/entries.ts";
+import { openEntries } from "../../../../../../ui/src/Menu/open-entries.ts";
 
 export interface TypeFacts {
   starred: boolean;
@@ -18,8 +19,7 @@ export interface TypeDo {
 
 export function typeMenu(f: TypeFacts, d: TypeDo): MenuEntry[] {
   return tidy([
-    item("Open", d.open, { hint: "Enter" }),
-    d.openTab ? item("Open in New Tab", d.openTab) : null,
+    ...openEntries({ open: d.open, ...(d.openTab ? { openTab: d.openTab } : {}) }),
     d.star ? item(f.starred ? "Remove Star" : "Star", () => d.star?.(!f.starred)) : null,
     d.copyName ? item("Copy Name", d.copyName) : null,
     f.canEdit && d.editType ? item("Edit Type…", d.editType) : null,

@@ -1043,6 +1043,7 @@ export function createSampleVault(
     openOutsideActors: () => void opened.push("outside-actors"),
     openPolicy: () => void opened.push("policy"),
     openRequests: () => void opened.push("requests"),
+    openSelection: (sel) => void opened.push(`select:${sel.kind}`),
     openAgent: (id) => void opened.push(`agent:${id}`),
     addToAutomations: (item) => void opened.push(`automate:${item.id}:${item.handle}`),
     syncToRecords: (item) => void opened.push(`records-sync:${item.id}:${item.handle}`),

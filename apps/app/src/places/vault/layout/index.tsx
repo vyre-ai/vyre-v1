@@ -8,6 +8,8 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { openEntries } from "../../../../../../ui/src/Menu/open-entries.ts";
+import { openIn } from "../../../shell/tabs/open-how.ts";
 import { AddAnything, EditSheet, ItemEnv, NoItem } from "../itemenv/index.ts";
 import {
   VaultDataProvider,
@@ -109,7 +111,7 @@ interface QuietNote {
 const LINE_MS = 9000;
 
 export type VaultRoute =
-  | { surface: "layout"; addProvider?: true; addApp?: string }
+  | { surface: "layout"; addProvider?: true; addApp?: string; select?: Selection }
   | { surface: "share"; itemId: string }
   | { surface: "export"; folderId: string }
   | { surface: "advanced" }
@@ -153,7 +155,9 @@ function Page({
       ? { kind: "requested" }
       : route.surface === "export"
         ? { kind: "folder", folderId: route.folderId }
-        : undefined;
+        : route.surface === "layout"
+          ? route.select
+          : undefined;
   const [selection, setSelection] = useState<Selection>(routeSelection ?? initial ?? ALL);
   const [query, setQuery] = useState("");
   const [sharingFolder, setSharingFolder] = useState<Folder | null>(null);
@@ -466,8 +470,14 @@ function Page({
   };
 
   const folderMenu = (f: Folder, x: number, y: number): void => {
+    const toTab = data.nav.openSelection;
     menu.show(
       [
+        ...openEntries({
+          open: () => select({ kind: "folder", folderId: f.id }),
+          ...(toTab ? { openTab: () => openIn("tab", () => toTab({ kind: "folder", folderId: f.id })) } : {}),
+        }),
+        { separator: true } as MenuEntry,
         ...(f.yourLevel === "edit" || f.yourLevel === "manage"
           ? [
               {
@@ -827,6 +837,15 @@ function Page({
       />
     ) : null;
 
+  // a phone opens on the Vault's sections (the list) and a row opens its list on top: Back goes list, then out (the same order as Chats, Inbox and Files)
+  const phoneList =
+    !wide &&
+    initial === undefined &&
+    route.surface === "layout" &&
+    route.select === undefined &&
+    route.addProvider !== true &&
+    route.addApp === undefined &&
+    data.nav.openSelection !== undefined;
   return (
     <View style={s.page} testID="vault-place">
       {menu.element}
@@ -838,12 +857,17 @@ function Page({
           onClose={() => setSharingFolder(null)}
         />
       ) : null}
-      {wide ? (
+      {wide || phoneList ? (
         <Sidebar
           counts={counts}
           folders={folderList}
           selection={selection}
-          onSelect={select}
+          onSelect={
+            phoneList
+              ? (sel) => (sel.kind === "requested" ? data.nav.openRequests() : data.nav.openSelection?.(sel))
+              : select
+          }
+          {...(phoneList ? { phone: true } : {})}
           onAdvanced={data.nav.openAdvanced}
           advanced={route.surface === "advanced" || route.surface === "policy"}
           {...(data.nav.openConnections
@@ -851,12 +875,13 @@ function Page({
             : {})}
           onNewFolder={createFolder}
           onFolderMenu={folderMenu}
+          {...(data.nav.openSelection ? { onOpenTab: data.nav.openSelection } : {})}
           canCreateShared={canShare}
           hideShared={data.personal === true}
         />
       ) : null}
       {routed ??
-        (sectionPage ? (
+        (phoneList ? null : sectionPage ? (
           <View style={[s.listPane, { flex: 1 }]} testID="vault-section-page">
             {header}
             {sectionPage}

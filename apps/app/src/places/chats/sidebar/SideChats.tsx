@@ -326,7 +326,7 @@ export function SideChats({
   const refOf = (x: Item): SideRow | undefined => built?.refs.get(x.key);
 
   const openItem = (x: Item, how0: "here" | "tab"): void => {
-    // a Cmd-press or a middle press on the row asks for a new tab, as the menu's "Open in a new tab" does (tabs/open-rule.ts: one rule for every row)
+    // a Cmd-press or a middle press on the row asks for a new tab, as the menu's "Open in New Tab" does (tabs/open-rule.ts: one rule for every row)
     const asked = takeOpenHow();
     const mode: "here" | "tab" | "behind" = asked !== "here" ? asked : how0;
     const how: "here" | "tab" = mode === "here" ? "here" : "tab";

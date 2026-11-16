@@ -1,0 +1,1 @@
+Every row in every place can be opened in a new tab from its right-click menu (or the Menu key, or Shift+F10): Automations, the Console, Settings, the Vault and the Inbox now have it beside Chats, Files and Records, with the same words and the same key everywhere.

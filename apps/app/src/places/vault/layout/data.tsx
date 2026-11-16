@@ -1,5 +1,6 @@
 // Vault data: the one context the place reads. Lists are live screen queries over the local copy (generated/screens.ts: vault.layout, vault.item), so the place paints from what
 // the device keeps and updates when it changes. Writes go through `call`, one capability per action. Values never come through a query: only vault.item.reveal returns them.
+import type { Selection } from "./model.ts";
 import type { AiHome } from "../../../ai-signin/own-ai.ts";
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -30,6 +31,8 @@ export interface VaultNav {
   openCompany?(): void;
   /** The Automation or agent that is asking for a key. */
   openRequests(): void;
+  /** A sidebar row (a section or a folder) as a tab of its own: the row's Open in New Tab. Left out where the shell has no tabs. */
+  openSelection?(sel: Selection): void;
   openAgent(agentId: string): void;
   /** Starts a new thread (or hands the task over) with an agent about an item. Without it Ask still lists the agents and does nothing. */
   ask?(agentId: string, mode: "chat" | "do", about: { kind: string; id: string; title: string }): void;

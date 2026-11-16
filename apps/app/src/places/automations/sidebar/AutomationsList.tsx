@@ -6,6 +6,8 @@ import { Text } from "react-native";
 import { automationMenu } from "../../chats/menus/kinds-b.ts";
 import { copyToClipboard, createMenuApiB, vyreLink } from "../../chats/menus/actions-b.ts";
 import { tidy } from "../../../../../../ui/src/Menu/entries.ts";
+import { openEntries } from "../../../../../../ui/src/Menu/open-entries.ts";
+import { openIn } from "../../../shell/tabs/open-how.ts";
 import { SIDEBAR, useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
 import type { ListRowIn } from "../list/model.ts";
 import { ListView } from "../screens/ListView.tsx";
@@ -51,13 +53,12 @@ export function AutomationsList({
     if (jr) {
       show(
         tidy([
-          {
-            label: "Open",
-            onSelect: () => {
+          ...openEntries({
+            open: () => {
               data.nav.openJourney(id);
               onChoose();
             },
-          },
+          }),
           { separator: true },
           { label: "Copy Link", onSelect: () => copyToClipboard(vyreLink("journey", id)) },
           { separator: true },
@@ -109,6 +110,7 @@ export function AutomationsList({
             data.nav.openAutomation(a.id);
             onChoose();
           },
+          openTab: () => openIn("tab", () => data.nav.openAutomation(a.id)),
           run: () => once(() => api.automationRun(a.id)),
           setEnabled: (on) => once(() => api.automationSetEnabled(a.id, on)),
           test: () => once(() => api.automationTest(a.id)),
