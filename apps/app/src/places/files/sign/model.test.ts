@@ -191,3 +191,12 @@ test("a request that finishes while it is open says so once; nothing else does",
   assert.equal(changeWords(null, signed), null, "first read");
   assert.equal(changeWords(open, open), null);
 });
+
+test("a sealed file says so with the short fingerprint; an unsealed one says nothing", () => {
+  const base = { envelopeId: "env_1", status: "signed", signers: [{ name: "Imran Ibarra", status: "signed" }] };
+  assert.match(
+    statusLine(envelopeOf({ ...base, sealed: true, sealFingerprint: "586ff7c43e196ae1" })!, NOW).note ?? "",
+    /Sealed 586ff7c4$/,
+  );
+  assert.ok(!/Sealed/.test(statusLine(envelopeOf(base)!, NOW).note ?? ""));
+});
