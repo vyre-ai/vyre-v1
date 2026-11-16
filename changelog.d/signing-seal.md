@@ -1,0 +1,1 @@
+Every finished signed PDF now carries a real digital signature made with the Space's own key, so any later change to the file shows as altered in Adobe Reader and other PDF readers, and the sender can check a file in Vyre.

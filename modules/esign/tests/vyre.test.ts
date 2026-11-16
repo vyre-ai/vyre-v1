@@ -5,7 +5,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { FILE, FOLDER, RECORD, dana, harness, toBase64 } from "../fixtures/db.ts";
+import { FILE, FOLDER, RECORD, dana, harness, toBase64, withSeal } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { samplePdf, samplePng, textOf } from "../fixtures/pdf.ts";
 import { REFUSAL } from "../handlers/vyre.ts";
@@ -16,7 +16,9 @@ const ANDREA = { name: "Andrea Lindahl", email: "andrea@northwind.example" };
 const SAM = { name: "Sam Okafor", email: "sam@northwind.example" };
 
 async function setup(over: Parameters<typeof harness>[0] = {}): Promise<Harness> {
-  return harness({ builtIn: { pdf: await samplePdf(2) }, ...over });
+  const h = harness({ builtIn: { pdf: await samplePdf(2) }, ...over });
+  await withSeal(h);
+  return h;
 }
 const tokenOf = (l: { path: string }): string => l.path.split("/")[3] as string;
 async function send(h: Harness, signers: unknown[] = [ANDREA], extra: Record<string, unknown> = {}) {

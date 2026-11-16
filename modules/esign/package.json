@@ -5,6 +5,8 @@
   "type": "module",
   "description": "E-signature module. @cantoo/pdf-lib (MIT) stamps signatures and appends the audit page for built-in signing.",
   "dependencies": {
-    "@cantoo/pdf-lib": "2.11.1"
+    "@cantoo/pdf-lib": "2.11.1",
+    "pkijs": "4.0.1",
+    "asn1js": "4.0.0"
   }
 }
