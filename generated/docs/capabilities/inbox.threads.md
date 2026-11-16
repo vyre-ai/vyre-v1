@@ -159,8 +159,8 @@ type Out = {
         "role": "cc",
         "participants": [
           {
-            "address": "andrey@example.com",
-            "name": "Andrey Volkov"
+            "address": "andrea@example.com",
+            "name": "Andrea Volkov"
           },
           {
             "address": "josh@example.com",
@@ -187,23 +187,23 @@ type Out = {
               },
               "to": [
                 {
-                  "address": "andrey@example.com"
+                  "address": "andrea@example.com"
                 }
               ],
               "cc": [
                 {
-                  "address": "irfad@example.com"
+                  "address": "imran@example.com"
                 }
               ],
               "subject": "RE: Welcome to Scout, Josh",
-              "body": "Thanks Andrey. I am in and the team is set up.",
-              "quoted": "From: Andrey Volkov <andrey@example.com>",
+              "body": "Thanks Andrea. I am in and the team is set up.",
+              "quoted": "From: Andrea Volkov <andrea@example.com>",
               "signature": "Josh Cohen",
               "reactions": [
                 {
                   "emoji": "❤️",
                   "from": {
-                    "address": "irfad@example.com"
+                    "address": "imran@example.com"
                   },
                   "at": 1792857700000
                 }

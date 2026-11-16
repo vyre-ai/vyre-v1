@@ -1,5 +1,5 @@
 // @reads /modules/computers/migrations/0004_migration.sql
-// The one-time move of an existing agent computer (Dex on MLA) to the new model (6 Nov design, "Migration"): the agent gets a workspace and a Space browser profile, and the profile keeps
+// The one-time move of an existing agent computer (Dex on Northwind) to the new model (6 Nov design, "Migration"): the agent gets a workspace and a Space browser profile, and the profile keeps
 // the logins of the computer's Chrome, because Chrome's user-data folder is copied into it. Run by the idle pass (sleepIdle), so it happens at the first pass after an update installs the code and
 // never again for a computer that finished.
 //   The workspace and the browser profile belong to l-ws and l-sbrowser; they bind `bindMigration` with three calls. Unbound, nothing runs and nothing is marked, so the move happens on the first

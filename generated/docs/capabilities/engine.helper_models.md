@@ -95,7 +95,7 @@ type Out = {
   "output": {
     "accounts": [
       {
-        "label": "OpenAI · irfad@mylegalacademy.com",
+        "label": "OpenAI · imran@northwind.example",
         "mine": true,
         "models": [
           {

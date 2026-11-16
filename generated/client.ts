@@ -437,6 +437,7 @@ export function createClient(transport: Transport) {
       composer: {
         suggest: call("chat.composer.suggest", 1),
       },
+      connect_line: call("chat.connect_line", 1),
       crew_line: call("chat.crew_line", 1),
       delete_message: call("chat.delete_message", 1),
       edit: call("chat.edit", 1),
@@ -663,6 +664,7 @@ export function createClient(transport: Transport) {
       undo: call("conflicts.undo", 1),
     },
     connections: {
+      approve_hosts: call("connections.approve_hosts", 1),
       complete_auth: call("connections.complete_auth", 1),
       create: call("connections.create", 1),
       delete: call("connections.delete", 1),
@@ -3052,6 +3054,8 @@ export function createClient(transport: Transport) {
         ask_admin: call("vault.connect_card.ask_admin", 1),
         disconnect: call("vault.connect_card.disconnect", 1),
         get: call("vault.connect_card.get", 1),
+        line: call("vault.connect_card.line", 1),
+        may_discard: call("vault.connect_card.may_discard", 1),
         options: call("vault.connect_card.options", 1),
         reopen: call("vault.connect_card.reopen", 1),
         submit: call("vault.connect_card.submit", 1),

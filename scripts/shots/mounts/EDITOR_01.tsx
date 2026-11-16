@@ -5,7 +5,7 @@ import { Composer } from "../../../ui/src/Composer/index.tsx";
 export const title = "Composer mentions";
 
 const DRAFT = [
-  "Kickoff notes for the Meier file, written the morning after the call so nothing is lost.",
+  "Kickoff notes for the Moore file, written the morning after the call so nothing is lost.",
   "@Aliza please confirm that the engagement letter went out and that the client was able to sign it on the first try.",
   "The retainer is paid, the intake form is complete, and the conflict check came back clean.",
   "Two open questions remain about the trust schedule and who holds the originals.",

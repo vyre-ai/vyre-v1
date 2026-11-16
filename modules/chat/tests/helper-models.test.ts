@@ -16,10 +16,10 @@ const CAT = (policy: "same_provider" | "any" | "ask" = "same_provider") => ({
     {
       ref: "#Mine_Claude",
       provider: "anthropic",
-      label: "Claude · Irfad",
+      label: "Claude · Imran",
       models: [model("claude-haiku-5-5"), model("claude-opus-5-5"), model("claude-sonnet-5-5", false)],
     },
-    { ref: "#Mine_OpenAI", provider: "openai", label: "OpenAI · irfad@mylegalacademy.com", models: [model("gpt-6")] },
+    { ref: "#Mine_OpenAI", provider: "openai", label: "OpenAI · imran@northwind.example", models: [model("gpt-6")] },
     {
       ref: "#Space_OCG",
       provider: "opencode-go",
@@ -82,14 +82,14 @@ test("two helpers across two accounts: one on OpenAI from the person's own accou
   const hn = world("any");
   const threadId = await chatOf(hn);
   const a = (
-    await startHelper(hn, threadId, { account: "OpenAI · irfad@mylegalacademy.com", model: "gpt-6", why: "you asked" })
+    await startHelper(hn, threadId, { account: "OpenAI · imran@northwind.example", model: "gpt-6", why: "you asked" })
   ).helper["threadId"] as string;
   const b = (await startHelper(hn, threadId, { account: "#Space_OCG", model: "glm-5.3", why: "you asked" })).helper[
     "threadId"
   ] as string;
   assert.deepEqual(pickOf(hn, a), {
     accountRef: "#Mine_OpenAI",
-    accountLabel: "OpenAI · irfad@mylegalacademy.com",
+    accountLabel: "OpenAI · imran@northwind.example",
     provider: "openai",
     model: "gpt-6",
     why: "you asked",

@@ -4791,7 +4791,7 @@
     {
       "deferred": false,
       "name": "inbox_counts",
-      "summary": "Unread counts for the sidebar: per inbox, per number and the Needs a match total",
+      "summary": "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
       "toolset": "inbox"
     },
     {
@@ -10024,42 +10024,6 @@
       "deferred": false,
       "name": "vault_connect",
       "summary": "Is X connected, connect X (Fathom, Slack), or before saying you cannot reach X. The person gets one card; you get connected, waiting or declined.",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_ask_admin",
-      "summary": "Ask an admin to connect the service when this person may not",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_disconnect",
-      "summary": "Disconnect the service; the key stays in the Vault",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_get",
-      "summary": "The connect card of one request: its state, the fields, who can fill it, where the key is kept",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_options",
-      "summary": "Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_reopen",
-      "summary": "Open a card the person folded with Not now",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_submit",
-      "summary": "Try the key, connect the service and keep the key; nothing is kept unless the key works. The values are in this call only",
       "toolset": "vault"
     },
     {

@@ -21,7 +21,7 @@ test("no account: a plain sentence and Connect your AI, nothing internal in the 
   assert.equal(v.block.type, "error");
   assert.equal(d.message, "Connect your AI to get replies.");
   assert.deepEqual(d.next, [{ key: "connect_ai", label: "Connect your AI" }]);
-  assert.equal(d.retryable, false);
+  assert.equal(d.retryable, true, "Try again is on the no-AI card (G67)");
   assert.ok(!/turn.?status|no_account/i.test(JSON.stringify([d.message])));
 });
 

@@ -312,7 +312,7 @@ test("a Journey record's page leads with the stages and the subject as a link; a
   const restore = installDom();
   const page = createSamplePage({
     id: "northwind",
-    people: { usr_irfad: "Irfad Imtiaz" },
+    people: { usr_imran: "Imran Ibarra" },
     types: [CLIENT, PROJECT, JOURNEY],
   });
   page.replica.put(`records:${JOURNEY.key}`, [jrow(1, "stage2", "cl_0") as never]);

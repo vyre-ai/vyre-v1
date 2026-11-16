@@ -2,6 +2,7 @@
 import { actorOf } from "../../projections.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { ensureExtra } from "./schema.ts";
+import { backgroundCount } from "../../own-subagents.ts";
 
 type Row = Record<string, unknown>;
 const MAX = 200;
@@ -47,7 +48,8 @@ export function threadStates(
     // Only the turns the caller asked: the kernel's view of a chat is wider than who may open it (a private chat is the chat module's own rule), so a state is never told for a chat by its id alone.
     if (String(r["asker"]) !== actorOf(ctx)) continue;
     if (ctx.authorize({ perm: null, level: "view" }, { type: "thread", id: threadId }).effect !== "allow") continue;
-    const state = STATE[String(r["state"])] ?? "done";
+    // helpers or jobs still working in the background keep the chat "running", whatever its last turn said
+    const state = backgroundCount(threadId) > 0 ? ("running" as const) : (STATE[String(r["state"])] ?? "done");
     states.push({ threadId, state, ...(state === "failed" ? { failedLine: failedLineOf(r["error"]) } : {}) });
   }
   return { states };

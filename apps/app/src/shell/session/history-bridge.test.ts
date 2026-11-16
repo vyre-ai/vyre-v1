@@ -67,7 +67,7 @@ const boot = () => {
   const hub = createShellHub({
     spaces: SEED_DEFS,
     openId: SEED_DEFS[0]!.spaceId,
-    personId: "irfad",
+    personId: "imran",
     deviceId: "web",
     storage: null,
     skeletonMs: 0,
@@ -127,7 +127,7 @@ test("once the address names another Space, the leaving Space's hub no longer wr
   const hub = createShellHub({
     spaces: SEED_DEFS,
     openId: SEED_DEFS[0]!.spaceId,
-    personId: "irfad",
+    personId: "imran",
     deviceId: "web",
     storage: null,
     skeletonMs: 0,

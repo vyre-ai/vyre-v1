@@ -136,8 +136,8 @@ test("the page list in a Team Space is You, then one way to the Console, and no 
 
 test("Profile: the card, then About you, Availability and Contact", () => {
   const out = html(createSampleSettings(northwind));
-  assert.ok(has(out, 'data-testid="profile-card"') && has(out, "Irfad Imtiaz"));
-  assert.ok(has(out, "@irfad · Owner · Head of operations"));
+  assert.ok(has(out, 'data-testid="profile-card"') && has(out, "Imran Ibarra"));
+  assert.ok(has(out, "@imran · Owner · Head of operations"));
   for (const t of ["About you", "Availability", "Contact"]) assert.ok(has(out, `>${t}<`), t);
   assert.ok(!has(out, "Your day"), "the digest time has no reader, and Home is gone");
   const order = ["About you", "Availability", "Contact"].map((t) => out.indexOf(`>${t}<`));
@@ -148,7 +148,7 @@ test("Profile: the card, then About you, Availability and Contact", () => {
   assert.ok(has(out, "Pacific Time, Los Angeles"));
   assert.match(out, /It is 3:00\s*AM for you now/);
   assert.ok(has(out, "Mon to Fri, 9:00 AM to 5:30 PM"));
-  assert.ok(has(out, 'value="irfad@northwind.example"') && has(out, 'value="+1 415 555 0132"'));
+  assert.ok(has(out, 'value="imran@northwind.example"') && has(out, 'value="+1 415 555 0132"'));
   assert.ok(has(out, 'aria-label="Copy from another Space"'));
 });
 
@@ -159,7 +159,7 @@ test("a change saves as it is made and Undo puts the previous value back", async
   };
   assert.equal(out.previous, "Head of operations");
   assert.equal(valueOf(s, "profile.title"), "Chief of staff");
-  assert.ok(has(html(s), "@irfad · Owner · Chief of staff"));
+  assert.ok(has(html(s), "@imran · Owner · Chief of staff"));
   await s.data.call("settings.set", { key: "profile.title", value: out.previous });
   assert.equal(valueOf(s, "profile.title"), "Head of operations");
 });
@@ -167,7 +167,7 @@ test("a change saves as it is made and Undo puts the previous value back", async
 test("a value the rules refuse says why and changes nothing", async () => {
   const s = createSampleSettings(northwind);
   await assert.rejects(() => s.data.call("settings.set", { key: "profile.handle", value: "A B" }), /2 to 32 letters/);
-  assert.equal(valueOf(s, "profile.handle"), "irfad");
+  assert.equal(valueOf(s, "profile.handle"), "imran");
 });
 
 test("a row that differs from the Space default shows Reset, and Reset puts the default back", async () => {
@@ -293,12 +293,12 @@ test("AI accounts: Codex on an API key reads 'Codex, with an API key' next to th
 test("Email and calendar lists mailboxes with their state and a way to pause, calendars, your numbers, and the connect tiles to add another", () => {
   const out = mailHtml(createSampleSettings(northwind));
   assert.ok(
-    has(out, "irfad@northwind.example") &&
+    has(out, "imran@northwind.example") &&
       has(out, "Google, private to you") &&
       has(out, "Syncing") &&
       has(out, "Pause"),
   );
-  assert.ok(has(out, "irfad.imtiaz@outlook.example") && has(out, "Paused") && has(out, "Resume"));
+  assert.ok(has(out, "imran.ibarra@outlook.example") && has(out, "Paused") && has(out, "Resume"));
   assert.ok(
     has(out, 'data-testid="mailbox-remove-mbx_1"') && has(out, 'data-testid="calendar-remove-cld_work"'),
     "a source of your own can be removed here",
@@ -347,7 +347,7 @@ test("Email and calendar lists mailboxes with their state and a way to pause, ca
   );
   const conn = html(createSampleSettings(northwind), { initialPage: "connected" });
   assert.ok(
-    !has(conn, "irfad@northwind.example") && !has(conn, "Through your Space"),
+    !has(conn, "imran@northwind.example") && !has(conn, "Through your Space"),
     "mail and calendars live on their own page now",
   );
 });
@@ -366,7 +366,7 @@ test("removing the last source empties Email and calendar back to the connect ti
 test("Sign-in and devices: this device first, the others with Sign out, a signed-out device goes from the list", async () => {
   const s = createSampleSettings(northwind);
   const out = html(s, { initialPage: "signin" });
-  assert.ok(out.indexOf("Irfad&#x27;s MacBook Pro") < out.indexOf("Irfad&#x27;s iPhone"), "this device first");
+  assert.ok(out.indexOf("Imran&#x27;s MacBook Pro") < out.indexOf("Imran&#x27;s iPhone"), "this device first");
   assert.ok(
     has(out, "This device") &&
       has(out, "Last seen 3 hours ago, San Francisco") &&
@@ -379,7 +379,7 @@ test("Sign-in and devices: this device first, the others with Sign out, a signed
     "each Space has its own sign-in card",
   );
   await s.data.call("devices.revoke", { deviceId: "dev_phone" });
-  assert.ok(!has(html(s, { initialPage: "signin" }), "Irfad&#x27;s iPhone"));
+  assert.ok(!has(html(s, { initialPage: "signin" }), "Imran&#x27;s iPhone"));
   await s.data.call("devices.revoke_others", {});
   assert.ok(!has(html(s, { initialPage: "signin" }), "Sign out of every other device"));
   assert.equal(whenLabel(undefined, 0), "never");
@@ -485,8 +485,8 @@ test("Copy from another Space offers only what that Space has, never the title, 
     fields: ["handle", "timezone"],
     values: copyValues(src2, ["handle", "timezone"]),
   });
-  assert.equal(valueOf(w, "profile.handle"), "irfad");
-  assert.deepEqual(copyValues(src2, ["handle"]), { handle: "irfad" });
+  assert.equal(valueOf(w, "profile.handle"), "imran");
+  assert.deepEqual(copyValues(src2, ["handle"]), { handle: "imran" });
 });
 
 test("a phone shows the page list or one page with a back arrow; a wide window shows both", () => {
@@ -668,7 +668,7 @@ test("a Personal Space has no Console, shows its own Space rows here, and no tea
   );
   const mine = mailHtml(createSampleSettings(personalSpace));
   assert.ok(
-    has(mine, "irfad@northwind.example") && !has(mine, "Through your Space"),
+    has(mine, "imran@northwind.example") && !has(mine, "Through your Space"),
     "a Personal Space with its own Google mail still has no suite section",
   );
   assert.ok(has(mailHtml(s), 'data-testid="connect-gmail"'));

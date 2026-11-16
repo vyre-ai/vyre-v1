@@ -216,6 +216,9 @@ for (const SIZE of ["wide", "phone"] as const)
         );
         await shot("1b-codex-not-installed");
         await p.getByTestId("ai-continue-anyway").click();
+        // an account is connected, so How you work is the talk with the Assistant (walked in onboarding.howyouwork); this one has no program to answer, so the person fills it in themselves
+        await p.getByTestId("interview-knows").waitFor({ timeout: 30_000 });
+        await p.getByTestId("interview-by-hand").click();
         await p.getByTestId("interview-card").waitFor({ timeout: 30_000 });
         const afterCodex = (await call("providers.list", {})).providers as Array<{ providerKey: string; id: string }>;
         assert.deepEqual(

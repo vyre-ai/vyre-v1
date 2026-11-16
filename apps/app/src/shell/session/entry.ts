@@ -60,7 +60,7 @@ export function consumeBrowserInvite(
   if (p === "/join" || p.startsWith("/join/")) browser.history?.replaceState(null, "", "/chat");
 }
 
-/** The name rule alone: <name>.vyre.run, the shape of a relay phone address. Not an answer by itself: a Space server can hold a vyre.run name with its own DNS record and TLS (mla.vyre.run).
+/** The name rule alone: <name>.vyre.run, the shape of a relay phone address. Not an answer by itself: a Space server can hold a vyre.run name with its own DNS record and TLS (northwind.vyre.run).
  * Use isRelayAddress, which asks the address; this is its fallback when the address does not answer as a Space. */
 export function isPhoneAddress(address: string): boolean {
   try {

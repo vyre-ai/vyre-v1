@@ -41,7 +41,7 @@ function runtimeOver(
       getSnapshot: () => ({ status: "ready", data: [{ id: "usr_maya", name: "Maya Chen", kind: "person" }] }),
     },
     recordTitle: () => undefined,
-    me: { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+    me: { id: "usr_imran", name: "Imran Ibarra", kind: "person" },
     clock: () => ({ now: 0, offsetMin: 0 }),
     space: { id: "northwind", kind: "team", name: "Northwind" },
     assistant: { id: "agt_assistant", name: "Assistant" },
@@ -169,7 +169,7 @@ test("a name is looked up from the Space's people, then yourself, else a plain w
   const rt = runtimeOver(createSampleFiles());
   const name = nameLookup(rt);
   assert.equal(name("usr_maya"), "Maya Chen");
-  assert.equal(name("usr_irfad"), "Irfad Imtiaz");
+  assert.equal(name("usr_imran"), "Imran Ibarra");
   assert.equal(name("usr_zed"), "Someone");
   assert.equal(name("svc_host"), "Vyre", "the server itself reads as Vyre");
   assert.equal(name("agt_gone"), "An agent");

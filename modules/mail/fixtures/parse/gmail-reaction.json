@@ -5,13 +5,13 @@
   "SENT"
  ],
  "internalDate": "1792857600000",
- "snippet": "❤️ Irfad Imtiaz reacted via Gmail",
+ "snippet": "❤️ Imran Ibarra reacted via Gmail",
  "payload": {
   "mimeType": "multipart/alternative",
   "headers": [
    {
     "name": "From",
-    "value": "Irfad Imtiaz <irfad@northwind.example>"
+    "value": "Imran Ibarra <imran@northwind.example>"
    },
    {
     "name": "To",
@@ -23,7 +23,7 @@
    },
    {
     "name": "Message-ID",
-    "value": "<r1.irfad@northwind.example>"
+    "value": "<r1.imran@northwind.example>"
    },
    {
     "name": "In-Reply-To",
@@ -31,7 +31,7 @@
    },
    {
     "name": "References",
-    "value": "<c2.irfad@northwind.example> <c3.josh@cohenshah.example>"
+    "value": "<c2.imran@northwind.example> <c3.josh@cohenshah.example>"
    }
   ],
   "parts": [
@@ -45,7 +45,7 @@
     ],
     "body": {
      "size": 120,
-     "data": "4p2k77iPIElyZmFkIEltdGlheiByZWFjdGVkIHZpYSBHbWFpbCA8aHR0cHM6Ly93d3cuZ29vZ2xlLmNvbS9nbWFpbC9hYm91dC8_dXRtX3NvdXJjZT1nbWFpbC1pbi1wcm9kdWN0JnV0bV9tZWRpdW09ZXQmdXRtX2NhbXBhaWduPWVtb2ppcmVhY3Rpb25lbWFpbCNhcHA-DQo"
+     "data": "4p2k77iPIEltcmFuIEliYXJyYSByZWFjdGVkIHZpYSBHbWFpbCA8aHR0cHM6Ly93d3cuZ29vZ2xlLmNvbS9nbWFpbC9hYm91dC8_dXRtX3NvdXJjZT1nbWFpbC1pbi1wcm9kdWN0JnV0bV9tZWRpdW09ZXQmdXRtX2NhbXBhaWduPWVtb2ppcmVhY3Rpb25lbWFpbCNhcHA-DQo"
     }
    },
    {
@@ -71,7 +71,7 @@
     ],
     "body": {
      "size": 200,
-     "data": "PHA-4p2k77iPIElyZmFkIEltdGlheiByZWFjdGVkIHZpYSA8YSBocmVmPSJodHRwczovL3d3dy5nb29nbGUuY29tL2dtYWlsL2Fib3V0LyI-R21haWw8L2E-PC9wPg"
+     "data": "PHA-4p2k77iPIEltcmFuIEliYXJyYSByZWFjdGVkIHZpYSA8YSBocmVmPSJodHRwczovL3d3dy5nb29nbGUuY29tL2dtYWlsL2Fib3V0LyI-R21haWw8L2E-PC9wPg"
     }
    }
   ]

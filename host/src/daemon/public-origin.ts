@@ -2,8 +2,8 @@ import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 
 // The one answer to "what address do people outside reach this Space at?". Every public link (a form, a booking page, a signed link, an unsubscribe) starts from it.
 // An address the Space was given wins. Otherwise a phone name it holds at the relay is the address: a relay Space has no cfg.address, because claiming <name>.vyre.run only writes network_phone.
-// "Reached through the relay" is a fact about the Space (it holds that phone name at the relay), never a guess from how an address ends: a Space whose address is mla.vyre.run with its DNS pointing straight at its
-// own server is an own-address Space, and the relay answers nothing for it (13 Nov 2026: that guess handed such a Space the artifact host mla-a.vyre.run, which only the relay's wildcard answers).
+// "Reached through the relay" is a fact about the Space (it holds that phone name at the relay), never a guess from how an address ends: a Space whose address is northwind.vyre.run with its DNS pointing straight at its
+// own server is an own-address Space, and the relay answers nothing for it (13 Nov 2026: that guess handed such a Space the artifact host northwind-a.vyre.run, which only the relay's wildcard answers).
 const ZONE = "vyre.run";
 
 export interface PublicOrigin {
@@ -33,7 +33,7 @@ export function publicOriginOf(
 
 /**
  * The host artifacts are served from, apart from the app's origin (host/src/routes/artifact-host.ts): a phone name `harbor` this Space holds at the relay is `harbor-a.vyre.run`, and an own address
- * `vyre.example.com` (under any zone, vyre.run included: `mla.vyre.run` is `a.mla.vyre.run`) is `a.vyre.example.com` (the daemon writes the Caddy route for it; its DNS record is the person's to add). Null where there is no public address to hang one on: a local http address,
+ * `vyre.example.com` (under any zone, vyre.run included: `northwind.vyre.run` is `a.northwind.vyre.run`) is `a.vyre.example.com` (the daemon writes the Caddy route for it; its DNS record is the person's to add). Null where there is no public address to hang one on: a local http address,
  * an IP address, a port. An address that is already an artifact host is not given another.
  */
 export function artifactHostOf(address: string | null | undefined, claimed: string | null | undefined): string | null {

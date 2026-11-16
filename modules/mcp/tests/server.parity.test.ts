@@ -13,6 +13,9 @@ import type { McpCaller } from "../../../agent/src/mcp/index.ts";
 import { fakeInvoke, loadGenerated } from "../../../agent/src/tools/harness.ts";
 import type { McpToolRow } from "../../../agent/src/tools/types.ts";
 
+// the connect card is on by default from rc.29 (lib/connect-switch.ts): the counts below are derived for both states, and the first tests run with the card OFF (VYRE_CONNECT_CARD=0, set before the lists load) so
+// the off numbers are the ones checked; the last test turns it on and checks the whole generated list
+process.env["VYRE_CONNECT_CARD"] = "0";
 const read = (f: string): string => readFileSync(new URL(`../../../${f}`, import.meta.url), "utf8");
 interface Cap {
   name: string;
@@ -79,8 +82,10 @@ test("agent-optout is exactly the automation plumbing and the provider check, an
     "automations.watches.check",
     "automations.watches.remove",
     "automations.watches.save",
+    "chat.connect_line",
     "chat.crew_line",
     "chat.note_offer.answer",
+    "connections.approve_hosts",
     "engine.mcp.oauth_complete",
     "engine.mcp.oauth_start",
     "engine.mcp.oauth_status",
@@ -111,7 +116,16 @@ test("agent-optout is exactly the automation plumbing and the provider check, an
     "threads.delete",
     "threads.leave",
     "threads.restore",
-    // a destructive erase bound to the connect request (b-connect review r-keyreach-9-b-connect): never an agent tool, with the card on or off
+    // the connect card's own acts are a person's press on their own card (review r-keyreach-9-b-connect, item A): the agent learns nothing of what a person has or chooses
+    "vault.connect_card.ask_admin",
+    "vault.connect_card.disconnect",
+    "vault.connect_card.get",
+    "vault.connect_card.line",
+    "vault.connect_card.may_discard",
+    "vault.connect_card.options",
+    "vault.connect_card.reopen",
+    "vault.connect_card.submit",
+    // a destructive erase bound to the connect request (item C): never an agent tool, with the card on or off
     "vault.item.discard_new",
   ]); // plugins.connection.checked: the host's record of what a connection last did (l-connections), never an agent's
   const pre = reg.capabilities.filter((c) => c.caller === "anonymous" || c.caller === "pending").map((c) => c.name);
@@ -133,7 +147,7 @@ test("the default listed set is in the catalog; everything else is found with to
 test("mcp.toolsets.list counts every toolset from the generated list, and engineer is allowed only with engineer.mcp", () => {
   const hn = harness();
   const out = toolsetsList(hn.ctx, {});
-  assert.equal(connectCardOn(), false, "the product default: the connect card is off");
+  assert.equal(connectCardOn(), false, "set to 0 above: the connect card is off");
   assert.equal(
     out.toolsets.reduce((n, t) => n + t.tools, 0),
     offeredWith(false),
@@ -176,7 +190,7 @@ test("mcp.tools.list: the default set, or with includeDeferred every tool the ca
   assert.ok(files.tools.length > 20 && files.tools.every((t) => t.toolset === "files"));
 });
 
-test("with the connect card on, the seven connect tools are offered too, and the count is the whole generated list", () => {
+test("with the connect card on, the connect tool is offered too, and the count is the whole generated list", () => {
   const was = process.env["VYRE_CONNECT_CARD"];
   process.env["VYRE_CONNECT_CARD"] = "1";
   try {
@@ -294,4 +308,26 @@ test("mcp.health reports the registry hash served, the live sessions and whether
   assert.equal(out.sessions, 0);
   assert.equal(out.state, "degraded", "no MCP endpoint bound on a bare test host");
   assert.ok(out.detail);
+});
+
+test("the real default, with the variable unset, is what lib/connect-switch.ts says it is: the card is on (rc.29), off only for 0, off or false, and the tools offered follow", () => {
+  const was = process.env["VYRE_CONNECT_CARD"];
+  delete process.env["VYRE_CONNECT_CARD"];
+  try {
+    assert.equal(connectCardOn(), true, "unset means on");
+    for (const off of ["0", "off", "false", "OFF"]) {
+      process.env["VYRE_CONNECT_CARD"] = off;
+      assert.equal(connectCardOn(), false, `${off} turns it off`);
+    }
+    for (const on of ["1", "on", "true", ""]) {
+      process.env["VYRE_CONNECT_CARD"] = on;
+      assert.equal(connectCardOn(), true, `"${on}" leaves it on`);
+    }
+    delete process.env["VYRE_CONNECT_CARD"];
+    const hn = harness();
+    assert.equal(toolsList(hn.ctx, { includeDeferred: true }).total, offeredWith(true));
+  } finally {
+    if (was === undefined) delete process.env["VYRE_CONNECT_CARD"];
+    else process.env["VYRE_CONNECT_CARD"] = was;
+  }
 });

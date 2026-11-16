@@ -348,7 +348,7 @@ test("the claim form and the invite form offer I already have a Vyre account; th
 
 test("Use one account everywhere: the sheet offers the two accounts; the link sends the kept username and password, the proof, and a bundle the kept password opens with the other Space's data key", async () => {
   const kept = await makeBundle("kept password", "KEPT-CODE-AAAA-BBBB", { argon: FAST, spaceId: "spc_personal" });
-  const other = await makeBundle("other password", "OTHR-CODE-AAAA-BBBB", { argon: FAST, spaceId: "spc_mla" });
+  const other = await makeBundle("other password", "OTHR-CODE-AAAA-BBBB", { argon: FAST, spaceId: "spc_northwind" });
   const wire = (b: typeof kept) => ({
     personKeyByPassword: b.personKeyByPassword,
     personKeyByRecovery: b.personKeyByRecovery,
@@ -358,10 +358,10 @@ test("Use one account everywhere: the sheet offers the two accounts; the link se
   });
   const sent: Record<string, unknown>[] = [];
   const keepCall = async (cap: string): Promise<unknown> =>
-    cap === "identity.keys_get" ? { keys: wire(kept) } : { username: "irfad" };
+    cap === "identity.keys_get" ? { keys: wire(kept) } : { username: "imran" };
   const otherCall = async (cap: string, input: unknown): Promise<unknown> => {
     if (cap === "identity.keys_get") return { keys: wire(other) };
-    if (cap === "identity.security.get") return { username: "irfad.mla" };
+    if (cap === "identity.security.get") return { username: "imran.northwind" };
     if (cap === "identity.link_account") {
       sent.push(input as Record<string, unknown>);
       return { status: "ok", session: { token: "vst_new" } };
@@ -369,8 +369,14 @@ test("Use one account everywhere: the sheet offers the two accounts; the link se
     throw new Error(cap);
   };
   const sides = [
-    { name: "Personal", spaceId: "spc_personal", call: keepCall, username: "irfad", publicKey: kept.publicKey },
-    { name: "MLA", spaceId: "spc_mla", call: otherCall, username: "irfad.mla", publicKey: other.publicKey },
+    { name: "Personal", spaceId: "spc_personal", call: keepCall, username: "imran", publicKey: kept.publicKey },
+    {
+      name: "Northwind",
+      spaceId: "spc_northwind",
+      call: otherCall,
+      username: "imran.northwind",
+      publicKey: other.publicKey,
+    },
   ];
   installDom();
   const sheetText = async (el: Parameters<typeof mount>[1]): Promise<string> =>
@@ -387,10 +393,10 @@ test("Use one account everywhere: the sheet offers the two accounts; the link se
   for (const t of [
     "Use one account everywhere",
     "Your account in Personal",
-    "Your account in MLA",
-    "Password for irfad",
-    "Password or recovery code for irfad.mla in MLA",
-    "MLA will sign you in as irfad",
+    "Your account in Northwind",
+    "Password for imran",
+    "Password or recovery code for imran.northwind in Northwind",
+    "Northwind will sign you in as imran",
   ])
     assert.ok(html.includes(t), t);
   const stored: string[] = [];
@@ -403,9 +409,9 @@ test("Use one account everywhere: the sheet offers the two accounts; the link se
     (id, token, username) => stored.push(`${id} ${token} ${username}`),
     { argon: FAST },
   );
-  assert.deepEqual(stored, ["spc_mla vst_new irfad"]);
+  assert.deepEqual(stored, ["spc_northwind vst_new imran"]);
   const input = sent[0]!;
-  assert.equal(input["username"], "irfad");
+  assert.equal(input["username"], "imran");
   assert.equal(input["password"], "kept password");
   assert.equal(input["currentPassword"], "other password");
   const keys = input["keys"] as Parameters<typeof openBundle>[1];
@@ -436,7 +442,7 @@ test("Use one account everywhere: the sheet offers the two accounts; the link se
       initial={{ sides, keep: "spc_personal", done: true }}
     />,
   );
-  assert.ok(done.includes("MLA now signs you in as irfad"));
+  assert.ok(done.includes("Northwind now signs you in as imran"));
   const none = await sheetText(
     <LinkSheet
       spaces={[]}

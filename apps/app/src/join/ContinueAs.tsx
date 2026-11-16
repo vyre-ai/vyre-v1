@@ -31,7 +31,7 @@ export interface ContinueAsProps {
   username: string;
   /** The line under the title: what the password is for. */
   sub: string;
-  /** The title while it works, e.g. "Setting up MLA". */
+  /** The title while it works, e.g. "Setting up Northwind". */
   working: string;
   /** Rejects with an error whose `line` (or message) is shown; the password field is cleared. */
   onContinue(password: string): Promise<void>;

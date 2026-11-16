@@ -83,7 +83,7 @@ const SAMPLE: Record<string, Record<string, unknown>> = {
   },
   "space.deletion_cancelled": { title: "The scheduled deletion of the Space was cancelled." },
   "ci.paused": { title: "CI paused: this month's cap of $10 is reached" },
-  "item.shared": { from: "Irfad", title: "Dex" },
+  "item.shared": { from: "Imran", title: "Dex" },
 };
 for (const def of KINDS.filter((k) => k.key !== "vault.rotation_due")) {
   test(`kind ${def.key}: lands at ${def.level} in ${def.place} with its actions and a readable line`, async () => {
@@ -574,14 +574,14 @@ test("the fanout consumer files a row for the events that name a kind and ignore
       to: alice.id,
       resource: { type: "agent", id: "agt_dex" },
       level: "use",
-      byName: "Irfad",
+      byName: "Imran",
       title: "Dex",
       message: "Take a look",
     },
   });
   assert.equal(shared.length, 1);
   assert.equal(row(h, shared[0]!).kind, "item.shared");
-  assert.match(String(row(h, shared[0]!).title), /Irfad shared Dex with you/);
+  assert.match(String(row(h, shared[0]!).title), /Imran shared Dex with you/);
   const a = await fan.run(ctx, {
     name: "task.requested",
     payload: { taskId: "tsk_1", kind: "approve", title: "Retainer", assigned: { kind: "person", id: alice.id } },
@@ -660,7 +660,7 @@ test("a request to join files one line for each admin, naming the person who ask
 test("probe: the turn of a person on handed-in work is a notification naming the task and who handed it in", async () => {
   const h = harness();
   h.callee("access.principals.get", (i: { principal: { id: string } }) => ({
-    principal: { name: i.principal.id === "agt_scout" ? "Irfad Imtiaz (Agent)" : "Maya" },
+    principal: { name: i.principal.id === "agt_scout" ? "Imran Ibarra (Agent)" : "Maya" },
   }));
   h.callee("tasks.get", () => ({
     task: {
@@ -698,7 +698,7 @@ test("probe: the turn of a person on handed-in work is a notification naming the
   });
   assert.equal(
     row(h, back[0]!).title,
-    'Irfad Imtiaz (Agent) sent "Draft the letter" back: Fix the date',
+    'Imran Ibarra (Agent) sent "Draft the letter" back: Fix the date',
     "a private agent is named as its person",
   );
   const given = await fan.run(ctx, {

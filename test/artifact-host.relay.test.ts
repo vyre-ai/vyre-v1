@@ -71,9 +71,9 @@ test("cookies cross only for the artifact host: its cookie goes in, its Set-Cook
   const head = (sent: unknown[]): { status: number; headers: Record<string, string> } =>
     sent.find((m) => (m as { t: string }).t === "p.res") as never;
 
-  const on = await ask("/sit_abc/", { a: true, host: "mla-a.vyre.run" });
+  const on = await ask("/sit_abc/", { a: true, host: "northwind-a.vyre.run" });
   assert.equal(seen.at(-1)!.headers.cookie, "__vyre_a=abc; other=1");
-  assert.equal(seen.at(-1)!.headers.host, "mla-a.vyre.run");
+  assert.equal(seen.at(-1)!.headers.host, "northwind-a.vyre.run");
   assert.match(head(on).headers["set-cookie"] ?? "", /^__vyre_a=s1; Path=\/; HttpOnly; Secure; SameSite=Lax/);
 
   const app = await ask("/p/forms/quote", {});
@@ -83,7 +83,7 @@ test("cookies cross only for the artifact host: its cookie goes in, its Set-Cook
   const before = seen.length;
   assert.equal(head(await ask("/sit_abc/", {})).status, 400, "an artifact path on the app's origin is refused");
   assert.equal(
-    head(await ask("/p/forms/quote", { a: true, host: "mla-a.vyre.run" })).status,
+    head(await ask("/p/forms/quote", { a: true, host: "northwind-a.vyre.run" })).status,
     400,
     "and the app's paths are not the artifact host's",
   );

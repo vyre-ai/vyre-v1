@@ -26,7 +26,7 @@ const at = (s: string, n: string): number => {
 const tag = (out: string, id: string): string =>
   new RegExp(`<[^<>]*data-testid="${id}"[^<>]*>[^<]*`).exec(out)?.[0] ?? "";
 const NAMES: Readonly<Record<string, string>> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_imran: "Imran Ibarra",
   usr_maya: "Maya Chen",
   usr_omar: "Omar Haddad",
   agt_intake: "Intake",
@@ -45,9 +45,9 @@ const who = (shares: readonly Share[], over: Partial<Parameters<typeof WhoCanUse
   renderToStaticMarkup(
     <WhoCanUse
       shares={shares}
-      you={{ name: "Irfad Imtiaz", level: "manage", owner: true }}
+      you={{ name: "Imran Ibarra", level: "manage", owner: true }}
       nameOf={nameOf}
-      meId="usr_irfad"
+      meId="usr_imran"
       canManage
       onLevel={() => undefined}
       onRemove={() => undefined}
@@ -60,7 +60,7 @@ const who = (shares: readonly Share[], over: Partial<Parameters<typeof WhoCanUse
 test("Who can use it, from the real grants: you first as Owner with Manage, then people, agents and the Automation, in that order", async () => {
   const shares = await grantsOf(createSampleVault(), "vit_ghl");
   assert.ok(
-    shares.some((s) => s.through === "owner" && s.subject.id === "usr_irfad"),
+    shares.some((s) => s.through === "owner" && s.subject.id === "usr_imran"),
     "the sample item has its owner grant",
   );
   const out = who(shares);
@@ -80,7 +80,7 @@ test("Who can use it, from the real grants: you first as Owner with Manage, then
   assert.match(tag(out, "who-level-you"), />Manage$/);
   assert.ok(has(out, ">You<") && has(out, ">Owner<"), "the first row says You and Owner");
   assert.equal(
-    (out.match(/data-testid="row-who:person:usr_irfad"/g) ?? []).length,
+    (out.match(/data-testid="row-who:person:usr_imran"/g) ?? []).length,
     0,
     "you are not listed a second time under your own name",
   );

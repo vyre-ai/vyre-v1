@@ -1,0 +1,1 @@
+Activity reads as a story in words: one line for each thing that happened, who did it as a face, the time at the right, repeated check-ins folded into one line, a failure said in plain words with no code, and long text cut at a word with a way to read the rest.

@@ -27,7 +27,7 @@ function rig(openId = "nw", extra: Partial<Omit<HubOptions, "spaces">> = {}) {
     removeProperty: () => undefined,
   };
   const theme = createThemeController({
-    personId: "irfad",
+    personId: "imran",
     spaceId: openId,
     spaceSkin: seedSpaceSkin(),
     prefersDark: false,

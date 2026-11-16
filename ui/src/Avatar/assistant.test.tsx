@@ -18,7 +18,7 @@ const html = (p: Parameters<typeof Avatar>[0]): string => renderToStaticMarkup(<
 test("the assistant is the Vyre mark by id, even after a rename", () => {
   resetAssistant();
   setAssistantId("agt_a");
-  for (const name of ["Assistant", "Irfad Assistant", "Irfad’s Assistant"]) {
+  for (const name of ["Assistant", "Imran Assistant", "Imran’s Assistant"]) {
     const h = html({ ...avatarOf({ id: "agt_a", name, kind: "agent" }), size: 20 });
     assert.match(h, /data-avatar="assistant"/, name);
     assert.match(h, /class="vmark"/, name);
@@ -73,11 +73,11 @@ test("a look set in Settings replaces the mark, and clearing it brings the mark 
   resetAssistant();
   setAssistantId("agt_a");
   setAssistantLook("look-tide");
-  const looked = html({ ...avatarOf({ id: "agt_a", name: "Irfad’s Assistant", kind: "agent" }), size: 20 });
+  const looked = html({ ...avatarOf({ id: "agt_a", name: "Imran’s Assistant", kind: "agent" }), size: 20 });
   assert.doesNotMatch(looked, /class="vmark"/);
   setAssistantLook(null);
   assert.match(
-    html({ ...avatarOf({ id: "agt_a", name: "Irfad’s Assistant", kind: "agent" }), size: 20 }),
+    html({ ...avatarOf({ id: "agt_a", name: "Imran’s Assistant", kind: "agent" }), size: 20 }),
     /class="vmark"/,
   );
 });

@@ -167,7 +167,7 @@ export default function Mount(): ReactNode {
       turnId: "trn_a1",
       traceId: "0123456789abcdef0123456789abcdef",
       agentId: "agt_intake",
-      asker: "usr_irfad",
+      asker: "usr_imran",
       model: "claude-sonnet-5-5",
       effort: "medium",
       engine: "anthropic",
@@ -199,8 +199,8 @@ export default function Mount(): ReactNode {
     const actions = {
       read: async () => ({ details, accounts: new Map([["#OpenCode_Team", "OpenCode Go · Team key"]]) }) as never,
       open: () => undefined,
-      meId: "usr_irfad",
-      nameOf: (id: string) => (id === "usr_irfad" ? "Irfad Imtiaz" : id === "agt_intake" ? "Intake" : id),
+      meId: "usr_imran",
+      nameOf: (id: string) => (id === "usr_imran" ? "Imran Ibarra" : id === "agt_intake" ? "Intake" : id),
     };
     return (
       <View style={{ height, backgroundColor: "var(--win)" as string }}>
@@ -221,8 +221,8 @@ export default function Mount(): ReactNode {
           openVault={() => undefined}
           sharing={{
             directory: sample.extras.directory,
-            meName: "Irfad Imtiaz",
-            meId: "usr_irfad",
+            meName: "Imran Ibarra",
+            meId: "usr_imran",
             nameOf: (id) => sample.data.name(id),
           }}
         />

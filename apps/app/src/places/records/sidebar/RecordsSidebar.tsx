@@ -1,5 +1,6 @@
 // Records > sidebar (spec 3.4), drawn in the shell's shared place sidebar slot (P-L9d_22: the slot gives the title, the collapse button, the search field and the phone list): record types in their groups with row counts (Records first, a Sites group for site tables), the saved views of the open type, and Manage
 // (Record types, Schema map). Every row is a ui/Row with a leading glyph and a trailing count; click opens; folded sections stay folded.
+import { openIn, takeOpenHow } from "../../../shell/tabs/open-how.ts";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -204,6 +205,14 @@ function Sidebar({
   const closed = (k: string): boolean => q === "" && state.closed.includes(k);
   const fold = (k: string) => (): void => dispatch({ type: "section", key: k });
   const choose = (): void => slot?.openBody();
+  // Cmd-press and the middle button open the type's table as a tab beside this one (tabs/open-rule.ts); true when that is what the press asked for
+  const asTab = (typeKey: string): boolean => {
+    const how = takeOpenHow();
+    const openType = data.nav.openType;
+    if (how === "here" || openType === undefined) return false;
+    openIn(how, () => openType(typeKey));
+    return true;
+  };
   const saved = allSaved.filter((v) => hit(v.title));
   const canEdit = data.canEditSchema === true;
   const [making, setMaking] = useState(false);
@@ -255,6 +264,14 @@ function Sidebar({
               dispatch({ type: "open", key: t.key });
               choose();
             },
+            ...(data.nav.openType
+              ? {
+                  openTab: () => {
+                    const openType = data.nav.openType;
+                    if (openType !== undefined) openIn("tab", () => openType(t.key));
+                  },
+                }
+              : {}),
             star: (on) => {
               void Promise.resolve(
                 data.call("stars.toggle", { resource: { type: "record_type", id: t.key }, on }),
@@ -306,6 +323,8 @@ function Sidebar({
               </>
             }
             onPress={() => {
+              // Cmd-press and the middle button open the type's table as a tab beside this one (tabs/open-rule.ts)
+              if (asTab(t.key)) return;
               dispatch({ type: "open", key: t.key });
               choose();
             }}
@@ -353,6 +372,7 @@ function Sidebar({
               ),
             })}
         onPress={() => {
+          if (asTab(MANAGE_TYPE)) return;
           dispatch({ type: "open", key: MANAGE_TYPE });
           choose();
         }}

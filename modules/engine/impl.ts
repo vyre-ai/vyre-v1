@@ -413,22 +413,25 @@ export const consumers = keptWhileStopping({
       // a connect card (b-connect) is answered in the person's own few words: no key, no handle, nothing to explain back
       const text = p.service
         ? event.name === "vault.request_fulfilled"
-          ? `${p.service} is connected. Carry on.`
-          : `Not now. Carry on without ${p.service}.`
+          ? `${p.service} is connected.`
+          : `Not connecting ${p.service} now. Carry on without it.`
         : event.name === "vault.request_fulfilled"
           ? `I added the ${key} key${p.handle ? ` as ${p.handle}` : ""}. Carry on.`
           : `I did not add the ${key} key${p.note ? `: ${p.note}` : "."}`;
       try {
-        await host.call(
-          "chat.post",
-          {
-            threadId: p.threadId,
-            body: text,
-            mentions: [{ kind: "agent", id: p.agentId }],
-            idempotencyKey: `${p.requestId}:carry`,
-          },
-          p.asker,
-        );
+        // a connect card is answered with a quiet line that is no message of the person (it starts the agent's turn all the same); a plain key request keeps its line as the person's own
+        if (p.service) await host.call("chat.connect_line", { requestId: p.requestId }, p.asker);
+        else
+          await host.call(
+            "chat.post",
+            {
+              threadId: p.threadId,
+              body: text,
+              mentions: [{ kind: "agent", id: p.agentId }],
+              idempotencyKey: `${p.requestId}:carry`,
+            },
+            p.asker,
+          );
       } catch (e) {
         host.log?.("the agent was not told its key was answered", {
           requestId: p.requestId,

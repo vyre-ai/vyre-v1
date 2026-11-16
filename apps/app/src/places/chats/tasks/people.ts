@@ -1,5 +1,5 @@
 // Who can hold a task and what to call them, for every Tasks screen: the shell's directory (people and agents; someone else's private agent is already named as its person,
-// "Irfad Imtiaz (Agent)", by the server) plus the Space's teams and roles, read once per Space. Never a raw id: an id with no name reads as a plain word (names.ts).
+// "Imran Ibarra (Agent)", by the server) plus the Space's teams and roles, read once per Space. Never a raw id: an id with no name reads as a plain word (names.ts).
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { QueryState } from "../../../../../../client/src/index.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";

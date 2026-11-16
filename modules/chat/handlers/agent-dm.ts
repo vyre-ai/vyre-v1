@@ -4,7 +4,7 @@
 //   people_status    who is in: online, away or offline and last seen (lib/presence.ts reads devices.presence), local time and working hours (settings.public_of), a mute, and when a message would go.
 //   message_person   one message in the person's own direct chat with the teammate (made when there is none), written by the agent with an `on_behalf` block naming the person: everyone reads it as
 //                    "<Person> (Agent)" with the person's face. Asking first is the Gate's: the capability holds a send for an agent, and the Auto rules let it through when the person asked this turn
-//                    ("tell Andrey ...") or a task or automation holds the permission; anything else is a "Send this to Rubab?" card in the person's chat.
+//                    ("tell Andrea ...") or a task or automation holds the permission; anything else is a "Send this to Rubab?" card in the person's chat.
 //   when it goes     now, when they are next online, or at a set time; never during away or outside the teammate's working hours unless urgent; at most 3 an hour from one person's agents to one
 //                    teammate; nothing while the teammate muted that person for today. A message that waits is a row here, the person sees "Scheduled for Rubab" in their chat, and a periodic job
 //                    sends it when its time comes (checking everything again).

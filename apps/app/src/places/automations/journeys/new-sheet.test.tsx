@@ -63,7 +63,7 @@ function rig(handler: (cap: string, input: Record<string, unknown>) => unknown =
       ask() {},
       connect() {},
     },
-    me: { id: "usr_irfad", name: "Irfad" },
+    me: { id: "usr_imran", name: "Imran" },
     name: (id: string) => id,
     keys: [],
     screens: {},

@@ -18,7 +18,7 @@ export const title = "Thread replies";
 const none: never[] = [];
 const at = (h: number, min: number, sec = 0): number => Date.UTC(2025, 9, 24, h, min, sec);
 const intake = { kind: "agent" as const, id: "agt_intake" };
-const me = { kind: "person" as const, id: "usr_irfad" };
+const me = { kind: "person" as const, id: "usr_imran" };
 const msg = (
   id: string,
   thread: string,
@@ -126,7 +126,7 @@ function build(part: string, name?: string | null, dex = false) {
     cap === "chat.message.get"
       ? {
           message: {
-            author: { id: "usr_irfad" },
+            author: { id: "usr_imran" },
             body: "Find a time for the vendor call next week, and compare the two quotes.",
             createdAt: at(9, 21),
           },

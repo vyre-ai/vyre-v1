@@ -70,7 +70,7 @@ const STATUS_WORDS: Record<
     message: "Connect your AI to get replies.",
     cause: "No AI account is saved for this chat yet.",
     next: [{ key: "connect_ai", label: "Connect your AI" }],
-    retryable: false,
+    retryable: true, // Try again is on the card at once: after connecting, one press sends the same message again
   },
   account_unavailable: {
     message: "Your AI account could not be reached just now.",

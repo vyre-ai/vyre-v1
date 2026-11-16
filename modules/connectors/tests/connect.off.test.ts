@@ -1,10 +1,13 @@
-// connectors.for_service and connectors.check_key are part of the connect card, which is OFF by default (lib/connect-switch.ts, rc.28; review r-keyreach-9-b-connect). Through the module's own handler table both
+// connectors.for_service and connectors.check_key are part of the connect card, which is OFF only when VYRE_CONNECT_CARD=0 (lib/connect-switch.ts; it was off by default in rc.28). Through the module's own handler table both
 // refuse for every caller with one plain message, before the connector or a connection is looked up: the context is a trap that fails the test on any use but the trace id. A typed key is never sent anywhere.
-// This file never turns the switch on.
+// This file never turns the switch on; it sets it to 0.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { CONNECT_OFF_CODE, CONNECT_OFF_MESSAGE } from "../../../lib/connect-switch.ts";
+
+// the switch is on by default from rc.29; this file tests it OFF, so it turns it off for itself (VYRE_CONNECT_CARD=0)
+process.env["VYRE_CONNECT_CARD"] = "0";
 
 const trap = () => {
   const touched: string[] = [];

@@ -611,7 +611,7 @@ const privacy = (h?: string[]) => never(h);
 const W = {
   watchId: "wch_1",
   title: "Lab 8",
-  url: "https://events.example/mla-ai-event-8",
+  url: "https://events.example/northwind-ai-event-8",
   mode: "region",
   region: { label: "Guest count", selector: "#going" },
   state: "on",
@@ -664,7 +664,7 @@ test("a page that cannot be read is reported with the reason; a never-site is no
 test("the Watch sheet saves with the part, the rhythm and where it runs, and a baseline read from the page the person is on; incognito and never-sites are refused", async () => {
   const { w, calls } = await watchWorld();
   const out: any = await w.save(
-    { id: 5, url: "https://events.example/mla-ai-event-8", title: "AI Lab 8", incognito: false },
+    { id: 5, url: "https://events.example/northwind-ai-event-8", title: "AI Lab 8", incognito: false },
     {
       mode: "region",
       region: { label: "Guest count", selector: "#going" },
@@ -676,7 +676,7 @@ test("the Watch sheet saves with the part, the rhythm and where it runs, and a b
   const save = calls.find((c) => c.c === "automations.watches.save")!.i;
   assert.deepEqual(save, {
     title: "AI Lab 8",
-    url: "https://events.example/mla-ai-event-8",
+    url: "https://events.example/northwind-ai-event-8",
     mode: "region",
     region: { label: "Guest count", selector: "#going" },
     everyMinutes: 30,

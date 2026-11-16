@@ -699,7 +699,18 @@ const manifest = defineManifest({
       offline: "queue",
     }),
     read("mail.drafts.list", "List drafts for a mailbox or contact", {
-      in: { mailboxId: t.opt(id.mailbox), contactId: t.opt(id.record), ...pageIn },
+      in: {
+        mailboxId: t.opt(id.mailbox),
+        contactId: t.opt(id.record),
+        address: t.opt(
+          t.str({
+            description:
+              "Only drafts written to this address (To or Cc): a conversation with someone who is not a contact yet",
+            examples: ["maya@example.com"],
+          }),
+        ),
+        ...pageIn,
+      },
       out: { drafts: t.arr(messageRow), ...pageOut },
       tool: "inbox",
       label: "filter",

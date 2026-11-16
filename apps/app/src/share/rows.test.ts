@@ -52,15 +52,15 @@ test("a link is made from the Space's own address, never from the page the app r
   put("location", { origin: "tauri://localhost" });
   put("navigator", { clipboard: { writeText: async (t: string) => void copied.push(t) } });
   try {
-    setLinkOrigin("https://mla.vyre.run");
-    assert.equal(itemLink("site", "sit_ab12"), "https://mla.vyre.run/a/sit_ab12");
-    assert.equal(itemLink("note", "not_1"), "https://mla.vyre.run/open/note/not_1");
-    assert.equal(messageLink("thr_1", "msg_1"), "https://mla.vyre.run/open/message/thr_1/msg_1");
+    setLinkOrigin("https://northwind.vyre.run");
+    assert.equal(itemLink("site", "sit_ab12"), "https://northwind.vyre.run/a/sit_ab12");
+    assert.equal(itemLink("note", "not_1"), "https://northwind.vyre.run/open/note/not_1");
+    assert.equal(messageLink("thr_1", "msg_1"), "https://northwind.vyre.run/open/message/thr_1/msg_1");
     copyItemLink("site", "sit_ab12");
-    assert.deepEqual(copied, ["https://mla.vyre.run/a/sit_ab12"], "what lands on the clipboard on desktop");
+    assert.deepEqual(copied, ["https://northwind.vyre.run/a/sit_ab12"], "what lands on the clipboard on desktop");
     // Windows desktop
     put("location", { origin: "http://tauri.localhost" });
-    assert.equal(itemLink("site", "sit_ab12"), "https://mla.vyre.run/a/sit_ab12");
+    assert.equal(itemLink("site", "sit_ab12"), "https://northwind.vyre.run/a/sit_ab12");
     // a web app opened at the Space itself
     setLinkOrigin(null);
     put("location", { origin: "https://team.example.com" });
@@ -121,7 +121,7 @@ test("a sign-in comes back to exactly what rc.26 sent on the web (the page's ori
   try {
     // web, by shape: served at the Space's own address; at the phone name with the Space known by another address; at a local address; with the session pointing elsewhere (?space=)
     for (const [page, space] of [
-      ["https://mla.vyre.run", "https://mla.vyre.run"],
+      ["https://northwind.vyre.run", "https://northwind.vyre.run"],
       ["https://harbor.vyre.run", "https://team.example.com"],
       ["http://127.0.0.1:8420", "http://127.0.0.1:8420"],
       ["http://192.168.1.5:8420", "http://192.168.1.5:8420"],
@@ -132,11 +132,11 @@ test("a sign-in comes back to exactly what rc.26 sent on the web (the page's ori
       assert.equal(callbackOrigin(), rc26(), `web at ${page} with the Space at ${space}`);
     }
     // desktop
-    setLinkOrigin("https://mla.vyre.run");
+    setLinkOrigin("https://northwind.vyre.run");
     put({ origin: "tauri://localhost" });
-    assert.equal(callbackOrigin(), "https://mla.vyre.run");
+    assert.equal(callbackOrigin(), "https://northwind.vyre.run");
     put({ origin: "http://tauri.localhost" });
-    assert.equal(callbackOrigin(), "https://mla.vyre.run");
+    assert.equal(callbackOrigin(), "https://northwind.vyre.run");
     setLinkOrigin("http://127.0.0.1:8420");
     assert.equal(
       callbackOrigin(),

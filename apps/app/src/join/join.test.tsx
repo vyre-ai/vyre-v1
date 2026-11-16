@@ -28,9 +28,9 @@ import { createSampleShell, samplePlace } from "../shell/spaces/sample.tsx";
 const INVITE: JoinInvite = {
   space: "Northwind",
   host: "northwind",
-  by: "Irfad Imtiaz",
+  by: "Imran Ibarra",
   role: "Member",
-  email: "irfad@northwind.example",
+  email: "imran@northwind.example",
   names: { first: "Dana", last: "Whitfield" },
   deviceName: "Dana's MacBook",
   starting: { agents: ["Intake", "Billing"], projects: ["Rivera matter"] },
@@ -38,7 +38,7 @@ const INVITE: JoinInvite = {
   github: true,
   adminKey: true,
 };
-const TAKEN = ["irfad", "maya", "admin"];
+const TAKEN = ["imran", "maya", "admin"];
 const rules = { isTaken: (u: string) => TAKEN.includes(u) };
 const step = (s: FlowState, ...actions: Action[]): FlowState => actions.reduce((acc, a) => reduce(acc, a, rules), s);
 const html = (initial: Partial<FlowState>, extra: Partial<Parameters<typeof JoinFlow>[0]> = {}): string =>
@@ -56,7 +56,7 @@ test("password strength, usernames and suggestions follow the rules", () => {
   for (const ok of ["dana", "d.whit", "a_b-c9"]) assert.ok(usernameOk(ok), ok);
   for (const bad of ["ab", "1dana", "Dana", "has space", "x".repeat(25)]) assert.ok(!usernameOk(bad), bad);
   assert.deepEqual(
-    suggestions("Dana", "Whitfield", "irfad", (u) => !TAKEN.includes(u)),
+    suggestions("Dana", "Whitfield", "imran", (u) => !TAKEN.includes(u)),
     ["dana.whitfield", "danaw", "dana-ops"],
   );
   assert.deepEqual(
@@ -79,7 +79,7 @@ test("Space addresses require HTTPS outside explicit local development", () => {
     "",
     "http://northwind.example",
     "tauri://localhost",
-    "file:///Users/irfad",
+    "file:///Users/imran",
     "vyre://join",
     "mailto:hello@example.com",
   ]) {
@@ -203,7 +203,7 @@ test("each step enables Continue only when it can go on", () => {
   assert.equal(valid({ ...s0, last: " " }, rules), false);
   const s1 = { ...s0, step: 1 as const };
   assert.equal(valid({ ...s1, ...FILLED }, rules), true);
-  assert.equal(valid({ ...s1, ...FILLED, user: "irfad" }, rules), false, "a taken username");
+  assert.equal(valid({ ...s1, ...FILLED, user: "imran" }, rules), false, "a taken username");
   assert.equal(valid({ ...s1, ...FILLED, pw2: "different" }, rules), false, "passwords differ");
   assert.equal(valid({ ...s1, ...FILLED, pw: "short", pw2: "short" }, rules), false, "too short");
   assert.equal(
@@ -278,7 +278,7 @@ test("the invite landing offers supported app/download actions, browser and sign
   const out = html({}, { onOpenApp: () => undefined, onDownload: () => undefined });
   for (const text of [
     "Join Northwind",
-    "Irfad Imtiaz invited you",
+    "Imran Ibarra invited you",
     "Member",
     "Open in Vyre",
     "Get Vyre",
@@ -323,8 +323,8 @@ test("step 2: the username at the Space address, the strength meter and the mess
   for (const text of ["Your Vyre account", "Username", "Password", "Confirm"]) assert.ok(ok.includes(text), text);
   assert.match(ok, /data-testid="username-ok"/);
   assert.match(ok, /aria-label="Password strength 3 of 3"/);
-  const taken = html({ stage: "steps", step: 1, ...FILLED, user: "irfad" });
-  assert.match(taken, /@irfad is taken\./);
+  const taken = html({ stage: "steps", step: 1, ...FILLED, user: "imran" });
+  assert.match(taken, /@imran is taken\./);
   assert.match(taken, /data-testid="suggest-dana.whitfield"/);
   assert.doesNotMatch(taken, /data-testid="username-ok"/);
   const mism = html({ stage: "steps", step: 1, ...FILLED, pw2: "nope" });
@@ -388,12 +388,12 @@ test("taken usernames give a truthful fallback when no suggestions are available
   const out = renderToStaticMarkup(
     <JoinFlow
       invite={{ ...INVITE, names: { first: "", last: "" } }}
-      initial={{ stage: "steps", step: 1, ...FILLED, user: "irfad" }}
+      initial={{ stage: "steps", step: 1, ...FILLED, user: "imran" }}
       isTaken={rules.isTaken}
       hold
     />,
   );
-  assert.match(out, /@irfad is taken\. Choose a different username\./);
+  assert.match(out, /@imran is taken\. Choose a different username\./);
   assert.doesNotMatch(out, /Try one of the suggestions below\.|data-testid="suggestions"/);
 });
 
@@ -438,10 +438,10 @@ test("setup shows a progress bar and the current line; done says welcome and off
 
 test("an expired invite says who to ask and offers their address", () => {
   const out = html({}, { expired: true });
-  for (const text of ["This invite expired", "Ask Irfad for a new one", "Email Irfad", "irfad@northwind.example"])
+  for (const text of ["This invite expired", "Ask Imran for a new one", "Email Imran", "imran@northwind.example"])
     assert.ok(out.includes(text), text);
   const noAddress = html({}, { expired: true, invite: { ...INVITE, email: undefined } as never });
-  assert.ok(noAddress.includes("Ask Irfad for a new one"));
+  assert.ok(noAddress.includes("Ask Imran for a new one"));
   assert.doesNotMatch(noAddress, /data-testid="email-inviter"/, "no button that can do nothing");
 });
 

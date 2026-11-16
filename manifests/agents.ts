@@ -1041,7 +1041,7 @@ export default defineManifest({
       p: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool(), by: t.str() },
       subject: ["entity", "/name"],
     }),
-    // private: the person's own assistant or an outside agent they connected (owner ruling 3 Nov): to everyone else it is named as its person, "Irfad Imtiaz (Agent)", never by its own name
+    // private: the person's own assistant or an outside agent they connected (owner ruling 3 Nov): to everyone else it is named as its person, "Imran Ibarra (Agent)", never by its own name
     ev("agent.created", "An agent was created", {
       p: {
         agentId: id.agent,

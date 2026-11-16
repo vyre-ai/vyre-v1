@@ -32,7 +32,7 @@ export interface CompatOptions {
   modelsUrl?: string;
   /**
    * OpenCode Go: every request (chat and models) carries `user-agent: vyre/<version>`, and a chat carries `x-opencode-session`, a stable id of the conversation. Without both the
-   * provider answers 400 MissingSessionID (rc.16 on MLA; proved with curl by the lead, 3 Nov 2026), while the model list still answers.
+   * provider answers 400 MissingSessionID (rc.16 on Northwind; proved with curl by the lead, 3 Nov 2026), while the model list still answers.
    */
   opencode?: boolean;
 }

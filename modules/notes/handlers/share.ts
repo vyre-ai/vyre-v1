@@ -30,7 +30,7 @@ export async function shareNote(ctx: NotesCtx, input: ShareIn) {
   r.updated_at = ctx.now();
   saveNote(ctx, r);
   emit(ctx, "notes.shared", r, { people: sharedWith(r).map(([p]) => p), space: r.share_space });
-  // the sharer asked to tell the people just added: a notification and an Inbox line, "Irfad shared Lab 8 notes with you"
+  // the sharer asked to tell the people just added: a notification and an Inbox line, "Imran shared Lab 8 notes with you"
   if (input.notify !== undefined && told.length > 0) {
     const name = await ctx.call("access.principals.get", { principal: { kind: "person", id: person } }).then(
       (o) => (o as { principal?: { name?: string } } | null)?.principal?.name,

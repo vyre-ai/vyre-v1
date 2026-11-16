@@ -319,8 +319,8 @@ export function chatList(ctx: ChatCtx, asker: string): ChatListRow[] {
 export function chatListFast(
   ctx: ChatCtx,
   asker: string,
-  o: { pinned: readonly string[]; muted: ReadonlySet<string>; want: number },
-): { rows: ChatListRow[]; total: number; asks: ChatListRow[] } {
+  o: { pinned: readonly string[]; muted: ReadonlySet<string>; want: number; after?: string },
+): { rows: ChatListRow[]; total: number; asks: ChatListRow[]; skipped?: number } {
   ensureReadTable(ctx);
   ensureLast(ctx.db);
   archivedIds(ctx, asker); // makes the archive tables
@@ -351,6 +351,7 @@ export function chatListFast(
   const ids = new Set<string>();
   const mutedIds: string[] = [];
   let nonMuted = 0;
+  let skipped: number | undefined;
   for (const r of run(
     () =>
       `WITH c AS (
@@ -365,20 +366,40 @@ export function chatListFast(
                      ELSE 'row' END AS w
            FROM c
        )
+       ${
+         o.after === undefined
+           ? ""
+           : // a later page: the chat the last page ended on, if it is one of the listed rows (a pinned, muted or one-to-one chat is not a place in this order)
+             `, cur AS (SELECT k, id FROM v WHERE id = ? AND w = 'row')`
+       }
        SELECT w, id, 0 AS n FROM v WHERE w IN ('dm', 'muted')
-       UNION ALL SELECT w, id, 0 AS n FROM (SELECT w, id FROM v WHERE w = 'row' ORDER BY k DESC, id LIMIT ?)
-       UNION ALL SELECT 'count' AS w, NULL AS id, COUNT(*) AS n FROM v WHERE w = 'row'`,
+       UNION ALL SELECT w, id, 0 AS n FROM (${
+         o.after === undefined
+           ? `SELECT w, id FROM v WHERE w = 'row' ORDER BY k DESC, id LIMIT ?`
+           : `SELECT v.w AS w, v.id AS id FROM v, cur WHERE v.w = 'row' AND (v.k < cur.k OR (v.k = cur.k AND v.id > cur.id)) ORDER BY v.k DESC, v.id LIMIT ?`
+       })
+       UNION ALL SELECT 'count' AS w, NULL AS id, COUNT(*) AS n FROM v WHERE w = 'row'
+       ${
+         o.after === undefined
+           ? ""
+           : `UNION ALL SELECT 'before' AS w, cur.id AS id, COUNT(*) AS n FROM v, cur WHERE v.w = 'row' AND (v.k > cur.k OR (v.k = cur.k AND v.id <= cur.id))`
+       }`,
     ...mutedHere,
     ...excl,
+    ...(o.after === undefined ? [] : [o.after]),
     Math.max(1, o.want),
   )) {
     const w = String(r["w"]);
     if (w === "count") nonMuted = Number(r["n"] ?? 0);
     else if (w === "muted") mutedIds.push(String(r["id"]));
-    else ids.add(String(r["id"])); // a one-to-one (the team's rows) or one of the newest page
+    // how many listed rows stand at or before the last page's end; no id means that chat is not a listed row and this was no later page
+    else if (w === "before") skipped = r["id"] === null || r["id"] === undefined ? undefined : Number(r["n"] ?? 0);
+    else ids.add(String(r["id"])); // a one-to-one (the team's rows) or one of the page's rows
   }
+  // asked for a later page whose cursor is not a listed row: the caller reads it the long way
+  if (o.after !== undefined && skipped === undefined) return { rows: [], total: 0, asks: [] };
   const mutedTotal = mutedIds.length;
-  if (o.want >= nonMuted) for (const id of mutedIds) ids.add(id);
+  if ((skipped ?? 0) + o.want >= nonMuted) for (const id of mutedIds) ids.add(id);
   // The caller's Ask panes (askList's rows, newest first, at most 100), in one read with their agents: the Asks filter needs them and they are never in the chats list.
   const asks: ChatListRow[] = [];
   for (const r of run(
@@ -402,7 +423,12 @@ export function chatListFast(
     });
   }
   for (const id of o.pinned) ids.add(id);
-  return { rows: chatDetails(ctx, asker, [...ids]), total: nonMuted + mutedTotal, asks };
+  return {
+    rows: chatDetails(ctx, asker, [...ids]),
+    total: nonMuted + mutedTotal,
+    asks,
+    ...(skipped !== undefined ? { skipped } : {}),
+  };
 }
 
 /** The rows of these chats (the caller's own: a chat they are not in gives nothing), with their agents, people and unread. */
@@ -645,15 +671,34 @@ export async function chatsSidebar(
   let chatsTotal: number | undefined;
   const workingThreads = new Set((workingOut?.working ?? []).flatMap((w) => (w.threadId ? [w.threadId] : [])));
   const dmOf = new Map<string, Record<string, any>>(); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const wantChats = await wantedChats(ctx, me, input.more, pins);
-  const fastList =
-    filter === "all"
+  // A later page of chats is read from where the last one ended, inside the same one scan: only that page's rows get their details. It used to read every row
+  // up to the page's end (a count scan, the scan, then details for the thousands of rows before the cursor), which put a later page at its 100 ms budget on a busy
+  // computer (sidebar.read.perf.test.ts; V1-WHOLE row 16). A cursor that is not a listed row (a muted chat in the tail, a key the caller does not hold) is read the long way.
+  const pinnedChats = [...pins.keys()].filter((k) => k.startsWith("c:")).map((k) => k.slice(2));
+  const afterChat =
+    filter === "all" && input.more?.section === "chats" && input.more.after?.startsWith("c:") === true
+      ? input.more.after.slice(2)
+      : undefined;
+  const pageList =
+    afterChat !== undefined
       ? chatListFast(ctx, me, {
-          pinned: [...pins.keys()].filter((k) => k.startsWith("c:")).map((k) => k.slice(2)),
+          pinned: pinnedChats,
           muted,
-          want: wantChats,
+          want: Math.min(input.more?.limit ?? SIDEBAR_PAGE, SIDEBAR_PAGE_MAX) + 1,
+          after: afterChat,
         })
       : null;
+  const chatsSkipped = pageList?.skipped;
+  const fastList =
+    chatsSkipped !== undefined
+      ? pageList
+      : filter === "all"
+        ? chatListFast(ctx, me, {
+            pinned: pinnedChats,
+            muted,
+            want: await wantedChats(ctx, me, input.more, pins),
+          })
+        : null;
   chatsTotal = fastList?.total;
   for (const r of fastList?.rows ?? chatList(ctx, me)) {
     if (r.goalId) continue;
@@ -894,15 +939,17 @@ export async function chatsSidebar(
   const section = (id: Exclude<SectionId, "needs">) => {
     const list = sec[id];
     const m = input.more?.section === id ? input.more : undefined;
-    const from = m?.after !== undefined ? Math.max(0, list.findIndex((x) => x.key === m.after) + 1) : 0;
+    // a later page of chats read from its cursor: the list holds only the rows after it, and `chatsSkipped` rows stand before them
+    const cut = id === "chats" && m !== undefined && chatsSkipped !== undefined;
+    const from = cut ? 0 : m?.after !== undefined ? Math.max(0, list.findIndex((x) => x.key === m.after) + 1) : 0;
     const limit = Math.min(m?.limit ?? SIDEBAR_PAGE, SIDEBAR_PAGE_MAX);
     const page = list.slice(from, from + limit);
-    const end = from + page.length;
+    const end = (cut ? (chatsSkipped ?? 0) : from) + page.length;
     const total = id === "chats" && chatsTotal !== undefined ? chatsTotal : list.length;
     return {
       total,
       rows: page.map((x) => outOf(byKey.get(x.key)!)),
-      ...(end < total ? { next: page[page.length - 1]!.key } : {}),
+      ...(end < total && page.length > 0 ? { next: page[page.length - 1]!.key } : {}),
     };
   };
   // mentions in chats this page does not carry still count in the rail (the fast listing reads only a page of chats)

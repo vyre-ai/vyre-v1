@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, hooks, mcp, members.
 
-## Capabilities (123)
+## Capabilities (124)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -37,6 +37,7 @@ Requires: engine, hooks, mcp, members.
 - [chat.chapters](../capabilities/chat.chapters.md): The chapters of a long chat: where each starts (a Fresh context line, a gap of 3 hours, or 80 messages), its title and one line of what it settled. Empty for a chat of 40 messages or fewer. Worked out from the messages on every read
 - [chat.chapters_write](../capabilities/chat.chapters_write.md): Head closed chapters of a long chat, each at most once ever: a cheap model on the asker's own api_key account (never a subscription, never someone else's), only for a chapter the asker opened, at most about 750 tokens in and 40 out. Anything else keeps the plain words. Never holds a post
 - [chat.composer.suggest](../capabilities/chat.composer.suggest.md): Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates
+- [chat.connect_line](../capabilities/chat.connect_line.md): The engine only: after a connect card is answered, leave one quiet line (not a message of the person) in the chat that wakes the agent that asked. It takes the answered request's id and reads the chat, the agent, the asker and the words from that request; only the request's own asker may call it
 - [chat.crew_line](../capabilities/chat.crew_line.md): The crew only: after Merge lands a teammate's branch, leave one quiet line in the chat. The text is built from the merge record ("Merged crew/ember-1 into main · +2 -0"); no words are passed in, only the job, and only the person who merged it can ask. It wakes no agent
 - [chat.delete_message](../capabilities/chat.delete_message.md): Delete a message you wrote (kept in the audit trail)
 - [chat.edit](../capabilities/chat.edit.md): Edit the text of a message you wrote

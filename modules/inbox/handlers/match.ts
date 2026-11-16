@@ -331,6 +331,65 @@ async function emailFacts(
   }
 }
 
+/**
+ * The name a person signs their mail with ("Maya Lin" in the From line), when the message is FROM this conversation's address. A conversation with someone who is not a
+ * contact yet was named by their bare address although every mail of theirs carried their name (owner's Inbox, 16 Nov 2026). Empty when the mail has no name, when the
+ * name is only the address again, or when mail will not show the message.
+ */
+export async function senderName(ctx: InboxCtx, messageId: string, address: string): Promise<string> {
+  try {
+    const m = obj(obj(await ctx.call("mail.message.get", { messageId })).message);
+    const from = obj(m.from);
+    if (text(from.address).toLowerCase() !== address.toLowerCase()) return "";
+    const name = text(from.name)
+      .replace(/^["'\s]+|["'\s]+$/g, "")
+      .trim();
+    if (name === "" || name.toLowerCase() === address.toLowerCase() || name.includes("@")) return "";
+    return name.slice(0, 120);
+  } catch {
+    return "";
+  }
+}
+
+/** Name a conversation that still shows its bare address after the person who wrote from it. Does nothing once it has a name (a matched contact's name is never replaced). */
+export async function nameFromMail(ctx: InboxCtx, conversationId: string, messageId: string): Promise<boolean> {
+  const c = getConversation(ctx, conversationId);
+  if (!c || strOrNull(c, "contactId")) return false;
+  const address = str(c, "address");
+  if (str(c, "displayName").toLowerCase() !== address.toLowerCase()) return false;
+  const name = await senderName(ctx, messageId, address);
+  if (name === "") return false;
+  ctx.db.run(
+    `UPDATE inbox_conversation SET "displayName" = ?, version = ?, updated_at = ? WHERE id = ? AND lower("displayName") = lower(address)`,
+    name,
+    nextVersion(c),
+    ctx.now(),
+    conversationId,
+  );
+  return true;
+}
+
+/**
+ * The conversations filed before names were read from mail still show a bare address. One pass names up to `limit` of them from their newest mail (a conversation whose
+ * mail carries no name is left as it is and looked at again on a later pass). Safe to run any number of times.
+ */
+export async function nameOldConversations(ctx: InboxCtx, limit = 400): Promise<{ looked: number; named: number }> {
+  const rows = ctx.db.all(
+    `SELECT c.id AS id,
+            (SELECT i."refId" FROM inbox_item i WHERE i."conversationId" = c.id AND i.kind = 'email' AND i.direction = 'in' ORDER BY i.at DESC LIMIT 1) AS ref
+       FROM inbox_conversation c
+      WHERE c."contactId" IS NULL AND lower(c."displayName") = lower(c.address) AND instr(c.address, '@') > 0
+      ORDER BY c."lastMessageAt" DESC LIMIT ?`,
+    limit,
+  ) as Row[];
+  let named = 0;
+  for (const r of rows) {
+    const ref = strOrNull(r, "ref");
+    if (ref && (await nameFromMail(ctx, str(r, "id"), ref))) named += 1;
+  }
+  return { looked: rows.length, named };
+}
+
 /** A message from a person's private mailbox: the person's own conversation with this address, never matched to a record and never merged with shared mail. */
 async function linkPrivate(
   ctx: InboxCtx,
@@ -399,6 +458,7 @@ async function linkPrivate(
     arrival,
   );
   refresh(ctx, id);
+  if (input.channel === "email" && input.direction === "in") await nameFromMail(ctx, id, input.ref.id);
   await noteItem(ctx, { conversationId: id, direction: input.direction, arrival, at: input.at });
   return { conversationId: id, linked: "none" };
 }
@@ -545,6 +605,7 @@ export async function linkMessage(
     id = str(folded.conversation, "id");
   }
   refresh(ctx, id);
+  if (input.channel === "email" && input.direction === "in") await nameFromMail(ctx, id, input.ref.id);
   conv = getConversation(ctx, id) as Row;
 
   // an unowned conversation goes to the right person

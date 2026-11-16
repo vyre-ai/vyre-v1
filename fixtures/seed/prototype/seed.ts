@@ -42,7 +42,7 @@ export const VYRE_SEED = {
     domain: "northwind.example",
     kind: "team",
     people: [
-      { id: "irfad", name: "Irfad Imtiaz", role: "owner", email: "irfad@northwind.example" },
+      { id: "imran", name: "Imran Ibarra", role: "owner", email: "imran@northwind.example" },
       { id: "maya", name: "Maya Chen", role: "admin", email: "maya@northwind.example" },
       { id: "omar", name: "Omar Haddad", role: "member", email: "omar@northwind.example" },
       { id: "lena", name: "Lena Ortiz", role: "member", email: "lena@northwind.example" },
@@ -116,7 +116,7 @@ export const VYRE_SEED = {
     name: "Personal",
     domain: "",
     kind: "personal",
-    people: [{ id: "irfad", name: "Irfad Imtiaz", role: "owner", email: "irfadimtiaz7@gmail.com" }],
+    people: [{ id: "imran", name: "Imran Ibarra", role: "owner", email: "imran@northwind.example" }],
     clients: [],
     agents: ["Assistant"],
   },

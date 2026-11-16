@@ -4,6 +4,7 @@
 // @reads /modules/connectors/migrations/0002_source_folders.sql
 // @reads /modules/connectors/migrations/0003_oauth.sql
 // @reads /modules/connectors/migrations/0004_sync_specs.sql
+// @reads /modules/connectors/migrations/0005_hosts.sql
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { secretForms } from "../../lib/redact.ts";
@@ -234,6 +235,7 @@ export function ensureTables(tx: Tx): void {
   tx.exec(readFileSync(new URL("./migrations/0002_source_folders.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0003_oauth.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0004_sync_specs.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0005_hosts.sql", import.meta.url), "utf8"));
   ready.add(tx);
 }
 
@@ -400,11 +402,47 @@ export function builtinDef(b: BuiltinRow): ConnectorDef {
 
 /** Built-in connectors from the registry go into cn_connectors once (a later change by a person is never overwritten). */
 const seeded = new WeakSet<object>();
+
+/**
+ * A key that a release makes built in, held by a connector a person made before: the person-made one moves aside to `<key>-yours` (its definition, versions, drafts, connections, synced types and source folder go with it, so
+ * nothing is dropped and its connections keep working), and the built-in takes the key. Without this the person-made row would shadow the built-in for good with builtin = 0.
+ */
+export function makeRoomForBuiltin(tx: Tx, key: string, now: number): void {
+  const mine = tx.get<{ key: string; title: string; def: string }>(
+    "SELECT key, title, def FROM cn_connectors WHERE key = ? AND builtin = 0",
+    key,
+  );
+  if (!mine) return;
+  let aside = `${key}-yours`;
+  for (let n = 2; tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", aside); n++) aside = `${key}-yours-${n}`;
+  const def = { ...(JSON.parse(mine.def) as ConnectorDef), key: aside, title: `${mine.title} (yours)` };
+  tx.run(
+    "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) SELECT ?, ?, mode, scope, 0, version, state, ?, created_at, ? FROM cn_connectors WHERE key = ?",
+    aside,
+    def.title,
+    JSON.stringify(def),
+    now,
+    key,
+  );
+  for (const [table, col] of [
+    ["cn_connections", "connector"],
+    ["cn_drafts", "key"],
+    ["cn_versions", "key"],
+    ["cn_sync_specs", "connector"],
+    ["cn_sync_spec_types", "connector"],
+    ["cn_sync_hooks", "connector"],
+    ["cn_source_folders", "key"],
+  ] as const)
+    tx.run(`UPDATE ${table} SET ${col} = ? WHERE ${col} = ?`, aside, key);
+  tx.run("DELETE FROM cn_connectors WHERE key = ?", key);
+}
+
 export function seedBuiltins(deps: ConnectorsDeps): void {
   if (seeded.has(deps.tx)) return;
   ensureTables(deps.tx);
   const now = nowOf(deps);
   for (const b of deps.builtins) {
+    makeRoomForBuiltin(deps.tx, b.key, now);
     if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", b.key)) continue;
     const def = builtinDef(b);
     deps.tx.run(
@@ -420,6 +458,7 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
     );
   }
   for (const def of activeCodeBuiltins() as readonly ConnectorDef[]) {
+    makeRoomForBuiltin(deps.tx, def.key, now);
     if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", def.key)) continue;
     deps.tx.run(
       "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, 'live', ?, ?, ?)",
@@ -433,5 +472,84 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
       now,
     );
   }
+  backfillHosts(deps.tx);
   seeded.add(deps.tx);
 }
+
+/** The host record every connection gets when it is made (cn_connection_hosts): a connection from before that table exists gets the same one from its connector's actions, once at start-up (a row that exists is never touched). */
+export function backfillHosts(tx: Tx): void {
+  const rows = tx.all<{ connection_id: string; def: string }>(
+    "SELECT c.connection_id AS connection_id, k.def AS def FROM cn_connections c JOIN cn_connectors k ON k.key = c.connector WHERE NOT EXISTS (SELECT 1 FROM cn_connection_hosts h WHERE h.connection_id = c.connection_id)",
+  );
+  for (const r of rows) {
+    const def = JSON.parse(r.def) as ConnectorDef;
+    if (hostFromInput(def) || keyHosts(def).length === 0) continue;
+    tx.run(
+      "INSERT OR IGNORE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
+      r.connection_id,
+      JSON.stringify(recordHosts(def)),
+    );
+  }
+}
+
+/** A host with its port, the default when none is given: what a connection's record holds and what a request is compared with, so the same host on another port gets nothing. */
+export const originKey = (u: URL): string =>
+  `${u.hostname.toLowerCase().replace(/\.$/, "")}:${u.port || (u.protocol === "http:" ? "80" : "443")}`;
+/** The hosts (with ports) the connector's actions call now: what a connection's record is written from. */
+export const recordHosts = (def: ConnectorDef): string[] => {
+  const out: string[] = [];
+  const add = (raw: string | undefined): void => {
+    try {
+      if (raw) {
+        const k = originKey(new URL(raw.replace(/\{[^}]*\}/g, "x")));
+        if (!out.includes(k)) out.push(k);
+      }
+    } catch {
+      /* not an address */
+    }
+  };
+  add(def.actions.find((a) => a.name === (def.health ?? probeOf(def)))?.url);
+  for (const a of def.actions) add(a.url);
+  return out;
+};
+
+/** Does any action take its host from the caller's input (`https://{input.host}/...`)? Such a connection has no fixed host to record. */
+export const hostFromInput = (def: ConnectorDef): boolean =>
+  def.actions.some((a) => a.url !== undefined && /^[a-z]+:\/\/[^/]*\{/i.test(a.url));
+
+/** The call that tries a key: the connector's health action, else its first GET that takes nothing from the caller. */
+/** The host a key tried by the connector's check is sent to: the host of that call's own address. */
+/** Every host a key kept for this connector can be sent to: the check's, then each action's own address. */
+export const keyHosts = (def: ConnectorDef): string[] => {
+  const out: string[] = [];
+  const first = probeHost(def);
+  if (first) out.push(first);
+  for (const a of def.actions) {
+    try {
+      const h = a.url ? new URL(a.url.replace(/\{[^}]*\}/g, "x")).hostname : "";
+      if (h && !out.includes(h)) out.push(h);
+    } catch {
+      /* not an address */
+    }
+  }
+  return out;
+};
+
+export const probeHost = (def: ConnectorDef): string | undefined => {
+  const name = def.health ?? probeOf(def);
+  const url = def.actions.find((a) => a.name === name)?.url;
+  try {
+    return url ? new URL(url.replace(/\{[^}]*\}/g, "x")).hostname : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+export const probeOf = (def: ConnectorDef): string | undefined =>
+  def.health ??
+  def.actions.find(
+    (a) =>
+      (a.method ?? "GET") === "GET" &&
+      a.url !== undefined &&
+      !/\{input[.}]/.test(JSON.stringify([a.url, a.query, a.headers, a.body])),
+  )?.name;

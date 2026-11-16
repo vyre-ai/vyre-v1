@@ -36,7 +36,7 @@ export default function Mount(): ReactNode {
     };
     // every Space starts on the skin the screenshot asks for, so both skins can be compared
     const theme = createThemeController({
-      personId: "irfad",
+      personId: "imran",
       spaceId: openId,
       spaceSkin: { nw: skin, hb: skin, me: skin },
       prefersDark: skin === "graphite",

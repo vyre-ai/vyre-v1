@@ -89,7 +89,7 @@ export type PostAs = (agentId: string, post: AgentPost) => Promise<unknown>;
 export type CallAs = (cap: string, input: unknown, personId: string) => Promise<unknown>;
 
 /**
- * "Tell Andrey the deck is ready": a name the person typed is also the teammate it names (lane l-agentdm). For each send to a bare name, every active person in the Space whose first name, last name or full
+ * "Tell Andrea the deck is ready": a name the person typed is also the teammate it names (lane l-agentdm). For each send to a bare name, every active person in the Space whose first name, last name or full
  * name is that name gets a row of their own (their id), so the Gate lets an agent's message_person to them through this turn. Read as the person who typed it; a name that matches nobody adds nothing.
  */
 export async function withTeammates(
@@ -163,6 +163,8 @@ export type StreamEvent =
       parent?: string;
       /** What a subagent returned, on the result of the call that started it. Never sent to a screen's live line (live-coalesce.ts drops it); the crew row keeps it. */
       result?: string;
+      /** The result only says the work STARTED (a helper or shell job in the background): it is not finished, and the crew row stays working until its own end. */
+      launched?: boolean;
     }
   /** Steps gathered to about one frame a second for the screens (live-coalesce.ts): what the fan-out sends instead of each `step`. */
   | {
@@ -1037,7 +1039,13 @@ export function createBridge(o: BridgeOptions): Bridge {
                 id,
                 ...(call?.name ? { name: call.name } : {}),
                 ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}),
-                ...(said !== "" ? { detail: said } : {}),
+                ...((p as { launched?: unknown }).launched === true ? { launched: true } : {}),
+                ...((p as { launched?: unknown }).launched === true &&
+                typeof (p as { title?: unknown }).title === "string"
+                  ? { detail: (p as { title: string }).title }
+                  : said !== ""
+                    ? { detail: said }
+                    : {}),
                 // what a subagent returned is for its crew row; the reply keeps only that it ran
                 ...(call && /^(Agent|Task)$/.test(call.name) && typeof (p as { result?: unknown }).result === "string"
                   ? { result: (p as { result: string }).result }
@@ -1045,6 +1053,10 @@ export function createBridge(o: BridgeOptions): Bridge {
               });
               if (typeof (p as { result?: unknown }).result === "string") {
                 const { result: _gone, ...rest } = data as Record<string, unknown>;
+                data = rest;
+              }
+              if (typeof (p as { title?: unknown }).title === "string") {
+                const { title: _t, ...rest } = data as Record<string, unknown>;
                 data = rest;
               }
               if (typeof (p as { detail?: unknown }).detail === "string") {

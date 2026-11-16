@@ -1,5 +1,7 @@
 // The data contexts the Chats place hands its three parts, built from the Space's runtime. Each part reads the same ScreenHooks and `call`; what differs is the nav: a click
 // says what to open and this place decides (the open chat is local state of the place, the pane is a toggle). Nothing here touches the network.
+import { openIn } from "../tabs/open-how.ts";
+import { chatWith } from "../../places/chats/mounts/data.ts";
 import { askVaultUnlock } from "../session/vault-gate.ts";
 import { computersAvailableNow } from "../computers-available.ts";
 import type { ComposerLists, ListItem } from "../../../../../ui/src/Composer/index.tsx";
@@ -45,7 +47,7 @@ export interface OwnAssistant {
   name: string;
 }
 /**
- * An agent someone else's person is credited for ("Irfad Imtiaz (Agent)": an outside agent such as Claude Code or Codex, or another person's Assistant) is never a mention. The server names such an agent
+ * An agent someone else's person is credited for ("Imran Ibarra (Agent)": an outside agent such as Claude Code or Codex, or another person's Assistant) is never a mention. The server names such an agent
  * so; a Space agent never carries that suffix.
  */
 const credited = (p: Principal): boolean => creditedToPerson(p);
@@ -127,7 +129,12 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
         screen: "chats.agent-page",
         args: { agentId, ...(section === "instructions" ? { tab: "settings" } : section ? { tab: section } : {}) },
       }),
-    openChatTab: (threadId) => rt.open({ subject: { type: "thread", id: threadId }, background: true }),
+    openAgentChatIn: (agentId, how) => {
+      void chatWith(rt, agentId).then((id) => {
+        if (id) openIn(how, () => rt.open({ subject: { type: "thread", id } }));
+      });
+    },
+    openChatTab: (threadId) => openIn("tab", () => rt.open({ subject: { type: "thread", id: threadId } })),
     openArtifacts: () => rt.open({ screen: "chats.artifacts" }),
     openSearch: () => rt.open({ screen: "shell.cmdk" }),
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),
@@ -276,6 +283,15 @@ export function conversationData(
     directory: candidates(principals, rt.me.id, { id: rt.assistant.id, name: rt.assistant.name }),
     newKey,
     mayChat: allows(rt, GATE.newChat),
+    ...(rt.typing
+      ? {
+          typingLive: {
+            who: (t: string) => rt.typing!.who(t),
+            say: (t: string) => rt.typing!.say(t),
+            subscribe: (l: () => void) => rt.typing!.subscribe(l),
+          },
+        }
+      : {}),
     streamOf: (id) => rt.turns?.streamOf(id),
     activityOf: (id) => rt.turns?.activityOf(id),
     ...(rt.turns

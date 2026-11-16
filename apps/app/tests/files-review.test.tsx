@@ -383,12 +383,12 @@ test("history: the shared tab lists versions newest first with who and why; rest
     at("Allow texts in the daytime") < at("Before the Lab") && at("Before the Lab") < at("First draft"),
     "newest first, the named version shows its name",
   );
-  assert.ok(has(text(out), "Irfad Imtiaz") && has(text(out), "Maya Chen"), "who");
+  assert.ok(has(text(out), "Imran Ibarra") && has(text(out), "Maya Chen"), "who");
   assert.ok(has(out, 'data-testid="history-name-open"') && has(out, 'data-testid="history-restore"'));
   const versions = historyVersions(
     [
       { versionId: "a", n: 1, by: "usr_maya", at: 0, reason: "r" },
-      { versionId: "b", n: 2, by: "usr_irfad", at: 1, name: "Named" },
+      { versionId: "b", n: 2, by: "usr_imran", at: 1, name: "Named" },
     ],
     s.data.nameOf,
   );
@@ -871,7 +871,7 @@ test("agent file page: header with where it lives and who saved it, View and Edi
   assert.ok(
     has(text(out), "AGENT.md") &&
       has(text(out), "Agents/Intake") &&
-      has(text(out), "Irfad Imtiaz") &&
+      has(text(out), "Imran Ibarra") &&
       has(text(out), "Oct 24"),
     "name, path, author, date",
   );

@@ -105,6 +105,8 @@ export function stripTitle(t: CrewTotals): string {
   const parts = [noun];
   if (t.needsYou > 0) parts.push(`${t.needsYou} needs you`);
   else parts.push("working");
+  // "2 of 4 done" while the rest still work: the count of what is truly finished, never of what was only started
+  if (t.done > 0) parts.push(`${t.done} of ${t.members} done`);
   parts.push(clock(t.elapsedMs));
   return parts.join(" · ");
 }
@@ -409,8 +411,14 @@ export function subagentsOfActivity(
 /** The crew read with the subagents of a running turn added (the live ones win for the same id): the strip, island, chip and pane all see one list. */
 export function withLive(status: CrewStatusOut | null, live: readonly CrewMember[]): CrewStatusOut | null {
   if (live.length === 0) return status;
-  const have = new Set(live.map((m) => m.id));
-  const members = [...(status?.members ?? []).filter((m) => !have.has(m.id)), ...live];
+  // A subagent the live frames call done while the read still says it works is one that was only LAUNCHED (a helper in the background: its call's result says it started): the read knows, the frames do not
+  const readOf = new Map((status?.members ?? []).map((m) => [m.id, m] as const));
+  const kept = live.map((m) => {
+    const r = readOf.get(m.id);
+    return r !== undefined && r.kind === "subagent" && r.state === "working" && m.state !== "working" ? r : m;
+  });
+  const have = new Set(kept.map((m) => m.id));
+  const members = [...(status?.members ?? []).filter((m) => !have.has(m.id)), ...kept];
   const t = totalsOf(members);
   return {
     members,
@@ -422,3 +430,14 @@ export function withLive(status: CrewStatusOut | null, live: readonly CrewMember
     },
   } as CrewStatusOut;
 }
+
+/** The line above the composer while helpers or jobs work and nobody is writing: "3 helpers working, 1 of 4 done, 2 min". Only what is true: working now, done so far, the time since the first started. */
+export function backgroundWords(t: CrewTotals): string {
+  const noun = t.working === 1 ? "1 helper" : `${t.working} helpers`;
+  const done = t.done > 0 ? `, ${t.done} of ${t.members} done` : "";
+  return `${noun} working${done}, ${span(t.elapsedMs)}`;
+}
+
+/** "Side by side" (who ran when) means something only for two or more helpers that have each run long enough to compare: a second at least. */
+export const sideBySide = (members: readonly Pick<CrewMember, "elapsedMs">[]): boolean =>
+  members.filter((m) => m.elapsedMs >= 1000).length >= 2;

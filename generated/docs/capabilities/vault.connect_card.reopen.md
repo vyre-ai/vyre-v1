@@ -17,7 +17,7 @@ Open a card the person folded with Not now
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/vault/connect_card/reopen |
-| MCP tool | vault_connect_card_reopen (vault) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

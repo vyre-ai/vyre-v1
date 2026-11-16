@@ -30,7 +30,7 @@ function rig(): { data: ConversationData; calls: Call[] } {
       if (cap === "agents.list")
         return {
           agents: [
-            { agentId: "agt_docs", name: "Docs", ownerId: "usr_irfad", kind: "agent" },
+            { agentId: "agt_docs", name: "Docs", ownerId: "usr_imran", kind: "agent" },
             { agentId: "agt_intake", name: "Intake", ownerId: "usr_maya", kind: "assistant" },
           ],
         };
@@ -80,7 +80,7 @@ test("the quiet line under your unanswered message opens the picker, the room's 
   }
 });
 
-test("every message in a channel, yours or someone else's, has Ask an agent… in its menu and its hover bar; a chat without the action has neither", () => {
+test("every message in a channel, yours or someone else's, has Ask an agent… in its menu (behind More; in the phone sheet at once) and its hover bar; a chat without the action has neither", () => {
   const theirs = {
     messageId: "c1",
     threadId: "c1",
@@ -117,10 +117,12 @@ test("every message in a channel, yours or someone else's, has Ask an agent… i
     },
   } as unknown as MessageActions;
   const labels = (mine: boolean, acts: MessageActions) =>
-    menuFor(theirs, mine, acts, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
+    menuFor(theirs, mine, acts, () => undefined, { x: 0, y: 0 }, true).flatMap((e) => ("label" in e ? [e.label] : []));
   assert.ok(labels(false, a).includes("Ask an agent…"));
   assert.ok(labels(true, a).includes("Ask an agent…"));
-  const entry = menuFor(theirs, false, a, () => undefined).find((e) => "label" in e && e.label === "Ask an agent…") as {
+  const entry = menuFor(theirs, false, a, () => undefined, { x: 0, y: 0 }, true).find(
+    (e) => "label" in e && e.label === "Ask an agent…",
+  ) as {
     onSelect(): void;
   };
   entry.onSelect();
@@ -161,7 +163,7 @@ test("editing your message to add an @mention asks that agent once, as you, and 
         if (cap === "agents.list")
           return {
             agents: [
-              { agentId: "agt_docs", name: "Docs", ownerId: "usr_irfad", kind: "agent" },
+              { agentId: "agt_docs", name: "Docs", ownerId: "usr_imran", kind: "agent" },
               { agentId: "agt_intake", name: "Intake", ownerId: "usr_maya", kind: "agent" },
             ],
           };

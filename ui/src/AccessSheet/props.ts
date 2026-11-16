@@ -185,7 +185,7 @@ export interface ShareInput {
   idempotencyKey?: string;
 }
 
-/** Whether the people hear of it (a notification and an Inbox line: "Irfad shared Dex with you"), and an optional message to go with it. */
+/** Whether the people hear of it (a notification and an Inbox line: "Imran shared Dex with you"), and an optional message to go with it. */
 export interface ShareOpts {
   notify: boolean;
   message?: string;
@@ -295,7 +295,7 @@ export type AccessSheetProps = AddSheetProps | ShareSheetProps;
 export const frozenAddSheetProps = {
   mode: "add",
   density: "regular",
-  ownerName: "Irfad",
+  ownerName: "Imran",
   target: { kind: "chat", name: "Upload contract", filesFolder: "Portal uploads", recordsFolder: "Clients" },
   directory: {
     suggested: [{ id: "usr_sara", name: "Sara Malik", sub: "Space member", kind: "person" }],
@@ -320,7 +320,7 @@ export const frozenAddSheetProps = {
 export const frozenShareSheetProps = {
   mode: "share",
   density: "regular",
-  ownerName: "Irfad",
+  ownerName: "Imran",
   resourceType: "folder",
   resourceId: "fld_clients",
   itemType: "file",

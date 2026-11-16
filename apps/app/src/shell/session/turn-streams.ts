@@ -364,7 +364,8 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
                   ? s
                   : { ...s, steps: [...s.steps, { id, name, state: "live" as const, at: now() }] },
               );
-            else
+            else if (raw["launched"] !== true)
+              // a result that only says the work STARTED (a helper launched in the background) does not end the step: its own end comes later, from the crew read
               touchAct(turnId, (s) => ({
                 ...s,
                 steps: s.steps.map((x) =>

@@ -161,7 +161,7 @@ export function createSampleRunbook(
   const failing = new Map<string, string>();
   const clock = { now: SAMPLE_NOW, offsetMin: 0 };
   const jobs: Job[] = [];
-  let actor = "Irfad Imtiaz";
+  let actor = "Imran Ibarra";
   let seq = 0;
   let timer: ReturnType<typeof setInterval> | null = null;
 

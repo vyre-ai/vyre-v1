@@ -14,7 +14,7 @@ import type { SampleState } from "./sample.ts";
 
 const NOW = Date.UTC(2026, 10, 3, 5, 0);
 const NAMES: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_imran: "Imran Ibarra",
   agt_labdesk: "Lab Desk",
   agt_content: "Content",
   usr_aliza: "Aliza Khan",
@@ -48,7 +48,7 @@ async function page(
       goalId="gol_lab8"
       call={logged}
       changes={undefined}
-      me="usr_irfad"
+      me="usr_imran"
       nameOf={(id) => NAMES[id] ?? id}
       clock={() => ({ now: NOW, offsetMin: 300 })}
       conversationFor={() => ({}) as ConversationData}
@@ -162,7 +162,7 @@ test("a draft card starts the goal with one press, and a check-in card shows the
   };
   const root = await mount(
     createRoot as never,
-    <GoalCard block={block} call={call} changes={undefined} me="usr_irfad" />,
+    <GoalCard block={block} call={call} changes={undefined} me="usr_imran" />,
   );
   await flush();
   assert.match(textOf(root), /First plan.*Remind Lab 7/s);
@@ -197,7 +197,7 @@ test("the Activity pane names who did it as the reader sees it: a Space agent by
     createRoot as never,
     <Activity
       data={data}
-      me="usr_irfad"
+      me="usr_imran"
       nameOf={(id) => NAMES[id] ?? id}
       now={NOW}
       zones={{ space: "Asia/Karachi", viewer: "Asia/Karachi" }}
@@ -208,9 +208,9 @@ test("the Activity pane names who did it as the reader sees it: a Space agent by
   const text = textOf(find(root!, "goal-activity"));
   assert.match(text, /Lab Desk drafted this goal for you\./);
   assert.match(text, /Lab Desk/);
-  assert.doesNotMatch(text, /Irfad Imtiaz \(Agent\)|Made by|an agent|the owner|usr_|agt_|\{at:|\{who:/);
+  assert.doesNotMatch(text, /Imran Ibarra \(Agent\)|Made by|an agent|the owner|usr_|agt_|\{at:|\{who:/);
   assert.doesNotMatch(text, /your time/, "a list of times shows only the Space zone; yours is on hover");
-  assert.match(text, /started the goal\. Due \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2} [AP]M\./);
+  assert.match(text, /started the goal\..*Due \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2} [AP]M\./);
 });
 
 test("a draft card says what to do in plain words", async () => {
@@ -265,13 +265,13 @@ test("a draft can be edited where it stands: title, finish line, helpers and the
     plan.map((s) => s.key),
     ["reels"],
   );
-  await typeInto(find(p, "goal-step-new-field"), "Ask Andrey for a quote");
+  await typeInto(find(p, "goal-step-new-field"), "Ask Andrea for a quote");
   await press(find(p, "goal-step-new-add"));
   const added = calls.filter((c) => c.cap === "goals.update").at(-1)?.input["plan"] as Array<{
     title: string;
     why: string;
   }>;
-  assert.equal(added.at(-1)?.title, "Ask Andrey for a quote");
+  assert.equal(added.at(-1)?.title, "Ask Andrea for a quote");
   assert.equal(added.length, 3);
 });
 
@@ -374,7 +374,7 @@ test("the Activity tab reads earlier rows through goals.activity as it is scroll
     createRoot as never,
     <Activity
       data={data}
-      me="usr_irfad"
+      me="usr_imran"
       nameOf={(id) => id}
       now={NOW}
       zones={{ space: "Asia/Karachi", viewer: "Asia/Karachi" }}
@@ -387,7 +387,7 @@ test("the Activity tab reads earlier rows through goals.activity as it is scroll
   assert.match(textOf(list), /Reading number 100/);
   assert.doesNotMatch(textOf(list), /Reading number 1(?!\d)/, "the start of the story is not there yet");
   for (let i = 0; i < 5; i++) {
-    const more = find(root!, "row-goal-activity-earlier");
+    const more = find(root!, "goal-timeline-earlier");
     if (more) {
       await press(more);
       await flush();
@@ -401,7 +401,7 @@ test("the Activity tab reads earlier rows through goals.activity as it is scroll
   );
   assert.equal((textOf(find(root!, "goal-activity")).match(/Reading number/g) ?? []).length, 100, "every row once");
   // nothing earlier: the end is remembered, the row goes, and no further call is made
-  assert.equal(find(root!, "row-goal-activity-earlier"), null, "no more to show");
+  assert.equal(find(root!, "goal-timeline-earlier"), null, "no more to show");
   assert.equal(asked.length, 3, "two pages of rows, then one empty answer");
 });
 
@@ -435,7 +435,7 @@ test("the Activity tab keeps what it loaded when new rows arrive, fills in the r
     return (
       <Activity
         data={d as never}
-        me="usr_irfad"
+        me="usr_imran"
         nameOf={(id) => id}
         now={NOW}
         zones={{ space: "Asia/Karachi", viewer: "Asia/Karachi" }}
@@ -447,7 +447,7 @@ test("the Activity tab keeps what it loaded when new rows arrive, fills in the r
   const root = await mount(createRoot as never, <Wrapper />);
   await flush();
   for (let i = 0; i < 6; i++) {
-    const more = find(root!, "row-goal-activity-earlier");
+    const more = find(root!, "goal-timeline-earlier");
     if (more) {
       await press(more);
       await flush();
@@ -478,7 +478,7 @@ test("a goal the person cannot open says so in plain words and offers no Retry (
       goalId="gol_x"
       call={refuse}
       changes={undefined}
-      me="usr_irfad"
+      me="usr_imran"
       nameOf={(id) => id}
       clock={() => ({ now: NOW, offsetMin: 300 })}
       conversationFor={() => ({}) as ConversationData}

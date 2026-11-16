@@ -62,7 +62,7 @@ export default function Mount() {
           resourceId="fld_intake"
           itemName="Intake"
           target="folder"
-          ownerName="Irfad Imtiaz"
+          ownerName="Imran Ibarra"
           onClose={() => undefined}
           levels={["view", "edit", "manage"]}
           shares={SHARES}

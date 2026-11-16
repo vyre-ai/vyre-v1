@@ -146,16 +146,16 @@ const hrs = { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" };
 export const northwind: SampleSpace = {
   id: "northwind",
   name: "Northwind",
-  me: { id: "usr_irfad", name: "Irfad Imtiaz" },
+  me: { id: "usr_imran", name: "Imran Ibarra" },
   names: namesFor("northwind", { ch_sales: "#sales", usr_aliza: "Aliza Rizvi", agt_dex: "Dex", chn_ops: "#ops" }),
   values: {
     "appearance.skin": "system",
-    "profile.display_name": "Irfad Imtiaz",
-    "profile.handle": "irfad",
+    "profile.display_name": "Imran Ibarra",
+    "profile.handle": "imran",
     "profile.title": "Head of operations",
     "profile.timezone": "America/Los_Angeles",
     "profile.working_hours": hrs,
-    "profile.contact": { email: "irfad@northwind.example", phone: "+1 415 555 0132" },
+    "profile.contact": { email: "imran@northwind.example", phone: "+1 415 555 0132" },
   },
   spaces: [
     {
@@ -187,11 +187,11 @@ export const northwind: SampleSpace = {
     },
   ],
   other: {
-    name: "Irfad Imtiaz",
-    handle: "irfad",
+    name: "Imran Ibarra",
+    handle: "imran",
     timezone: "America/Los_Angeles",
     hours: hrs,
-    contact: { email: "irfad@harbor.example", phone: "+1 415 555 0132" },
+    contact: { email: "imran@harbor.example", phone: "+1 415 555 0132" },
   },
 };
 
@@ -232,7 +232,7 @@ export const harbor: SampleSpace = {
 
 /** What each Space asks of the sign-in (the prototype's Sign-in and devices). */
 export const securityOf = (_space: SampleSpace): NonNullable<SettingsData["security"]> => ({
-  account: { passwordChanged: "3 months ago", github: "irfad7" },
+  account: { passwordChanged: "3 months ago", github: "imran7" },
   spaces: {
     northwind: {
       totp: true,
@@ -269,7 +269,7 @@ const device = (
   o: { current?: boolean; location?: string } = {},
 ): Row => ({
   id,
-  person: "usr_irfad",
+  person: "usr_imran",
   name,
   class: cls,
   epoch: 1,
@@ -298,8 +298,8 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     ),
   );
   replica.put("devices", [
-    device("dev_mac", "Irfad's MacBook Pro", "desktop", 0, { current: true, location: "San Francisco" }),
-    device("dev_phone", "Irfad's iPhone", "phone", 3 * 60 * MIN, { location: "San Francisco" }),
+    device("dev_mac", "Imran's MacBook Pro", "desktop", 0, { current: true, location: "San Francisco" }),
+    device("dev_phone", "Imran's iPhone", "phone", 3 * 60 * MIN, { location: "San Francisco" }),
     device("dev_web", "Chrome on a library computer", "web", 6 * DAY, { location: "Oakland" }),
     device("dev_old", "Old Windows laptop", "desktop", 30 * DAY),
   ]);
@@ -314,28 +314,28 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
           {
             id: "mbx_1",
             kind: "personal",
-            address: "irfad@northwind.example",
+            address: "imran@northwind.example",
             title: "Work",
             provider: "google",
             privacy: "private",
             state: "syncing",
             lastSyncAt: SAMPLE_NOW - 2 * MIN,
-            ownerId: "usr_irfad",
+            ownerId: "usr_imran",
           },
           {
             id: "mbx_2",
             kind: "personal",
-            address: "irfad.imtiaz@outlook.example",
+            address: "imran.ibarra@outlook.example",
             title: "Outlook",
             provider: "microsoft",
             privacy: "people",
             state: "paused",
-            ownerId: "usr_irfad",
+            ownerId: "usr_imran",
           },
         ]
       : [],
   );
-  // Northwind has mail, a calendar and a number of Irfad's own (Inbox is on his rail); Harbor Studio has none, so its Email and calendar page is the connect tiles
+  // Northwind has mail, a calendar and a number of Imran's own (Inbox is on his rail); Harbor Studio has none, so its Email and calendar page is the connect tiles
   replica.put(
     "calendars",
     space.id === "northwind"
@@ -345,7 +345,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
             title: "Work",
             color: "#4f6bed",
             provider: "google",
-            ownerId: "usr_irfad",
+            ownerId: "usr_imran",
             personal: false,
             state: "syncing",
           },
@@ -363,7 +363,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
             displayName: "Main line",
             capabilities: ["voice", "sms"],
             assigneeKind: "person",
-            assigneeId: "usr_irfad",
+            assigneeId: "usr_imran",
             state: "active",
           },
           {
@@ -473,7 +473,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
         ? []
         : [
             {
-              ref: "#Irfad_Claude",
+              ref: "#Imran_Claude",
               title: "Claude Max, your sign-in",
               provider: "anthropic",
               kind: "subscription",
@@ -712,7 +712,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     "github.me.status",
     () =>
       (ghOn
-        ? { connected: true, login: "irfad7", source: "vyre", needsReconnect: space.id === "northwind" }
+        ? { connected: true, login: "imran7", source: "vyre", needsReconnect: space.id === "northwind" }
         : {
             connected: false,
             source: space.id === "harbor" ? "vyre" : "space",
@@ -723,9 +723,9 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     "github.me.reach",
     () =>
       ({
-        login: "irfad7",
+        login: "imran7",
         orgs: [
-          { login: "irfad7", install: "all", url: "https://github.com/settings/installations/1" },
+          { login: "imran7", install: "all", url: "https://github.com/settings/installations/1" },
           {
             login: "vyre-ai",
             install: "selected",
@@ -736,7 +736,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
         repos: [
           { repo: "vyre-ai/vyre-v1", installationId: 2 },
           { repo: "vyre-ai/site", installationId: 2 },
-          { repo: "irfad7/notes", installationId: 1 },
+          { repo: "imran7/notes", installationId: 1 },
         ],
       }) as CapMap["github.me.reach"]["out"],
   );
@@ -757,7 +757,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   const machine = {
     machineId: "srv_dev_mbp",
     kind: "computer",
-    name: "Irfad's MacBook Pro",
+    name: "Imran's MacBook Pro",
     mine: true,
     ownerId: space.me.id,
     online: true,

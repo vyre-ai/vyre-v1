@@ -38,7 +38,7 @@ function member(
       if (cap === "access.principals.list")
         return {
           principals: [
-            { id: "usr_owner", kind: "person", name: "Irfad Imtiaz", status: "active", roles: ["rol_owner"] },
+            { id: "usr_owner", kind: "person", name: "Imran Ibarra", status: "active", roles: ["rol_owner"] },
           ],
         };
       return call(cap, input);
@@ -100,7 +100,7 @@ test("AI providers in a browser with no Space key: who can add one, by name and 
     const text = textOf(root);
     assert.ok(
       text.includes("This Space has no AI key yet") &&
-        text.includes("Ask Irfad Imtiaz (owner) to add one in Console, or connect your own account."),
+        text.includes("Ask Imran Ibarra (owner) to add one in Console, or connect your own account."),
       text,
     );
   } finally {

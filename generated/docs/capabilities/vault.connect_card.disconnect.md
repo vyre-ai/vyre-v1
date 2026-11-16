@@ -17,7 +17,7 @@ Disconnect the service; the key stays in the Vault
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/vault/connect_card/disconnect |
-| MCP tool | vault_connect_card_disconnect (vault) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

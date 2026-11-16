@@ -62,6 +62,10 @@ export interface RequestRow {
   admin_asked_at?: number | null;
   connection_id?: string | null;
   tested?: string | null;
+  /** the keys this card saved: JSON list of {item, by, hosts} (migrations/0006_connect_stamp.sql) */
+  saved_json?: string | null;
+  /** the key this card saved in the try still open, before its connection exists; the only one that can be taken back */
+  try_item?: string | null;
 }
 
 type Code = Parameters<typeof fail>[0];

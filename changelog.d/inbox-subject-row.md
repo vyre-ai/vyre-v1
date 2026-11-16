@@ -1,0 +1,1 @@
+Inbox: the thread a reply goes into is the reply box's own Subject row, with Reply and Reply all at its end, in place of a bar above the box. When something fails in a conversation or in Needs matching, the note says what happened in plain words.

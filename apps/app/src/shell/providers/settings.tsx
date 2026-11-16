@@ -52,6 +52,7 @@ export function settingsData(
       );
     },
     ...(consoleAllowed ? { openConsole: () => rt.open({ screen: "console.overview" }) } : {}),
+    openPageTab: (page: string) => rt.open({ screen: "settings.page", args: { page } }),
     // Connect your company is its own Console page: the door is there only for a person who can open it (reach)
     ...(companyAllowed ? { openCompany: () => rt.open({ screen: "company.setup" }) } : {}),
     screens: rt.screens,

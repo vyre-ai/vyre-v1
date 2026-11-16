@@ -127,10 +127,10 @@ export async function launch(
     hello: () => ({
       version: "e2e",
       spaces: [
-        { id: "spc_mla", name: "My Legal Academy", webUrl: "https://mla.vyre.test" },
+        { id: "spc_northwind", name: "Northwind Academy", webUrl: "https://northwind.vyre.test" },
         { id: "spc_me", name: "Personal", webUrl: "https://me.vyre.test" },
       ],
-      active: "spc_mla",
+      active: "spc_northwind",
       locked: false,
     }),
     ...o.ops,

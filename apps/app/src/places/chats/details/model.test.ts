@@ -6,7 +6,7 @@ import { accountLine, cardLines, costLine, detailLines, modelTitle, usd } from "
 import type { DetailsContext, Line, ReplyDetails, ReplyTurn } from "./model.ts";
 
 const NAMES: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_imran: "Imran Ibarra",
   usr_omar: "Omar Reyes",
   agt_mira: "Mira",
   agt_sol: "Sol",
@@ -14,22 +14,22 @@ const NAMES: Record<string, string> = {
 const me = (id: string): DetailsContext => ({
   meId: id,
   nameOf: (x) => NAMES[x] ?? x,
-  accountName: (ref) => (ref === "#Irfad_Claude" ? "Irfad's Claude (Max)" : undefined),
+  accountName: (ref) => (ref === "#Imran_Claude" ? "Imran's Claude (Max)" : undefined),
 });
 
 const signin: ReplyTurn = {
   turnId: "trn_a1",
   traceId: "0123456789abcdef0123456789abcdef",
   agentId: "agt_mira",
-  asker: "usr_irfad",
+  asker: "usr_imran",
   model: "claude-opus-5-5",
   effort: "high",
   engine: "claude_code",
   provider: "anthropic",
   accountKind: "subscription",
-  accountRef: "#Irfad_Claude",
+  accountRef: "#Imran_Claude",
   state: "completed",
-  ranOn: [{ kind: "computer", name: "Irfad's MacBook" }],
+  ranOn: [{ kind: "computer", name: "Imran's MacBook" }],
   timing: { queuedAt: 999_600, startedAt: 1_000_000, firstTokenAt: 1_002_100, endedAt: 1_014_000 },
   tokens: { in: 169_330, out: 1904, cacheRead: 118_400, cacheWrite: 9650 },
   cost: { source: "subscription" },
@@ -40,7 +40,7 @@ const signin: ReplyTurn = {
   files: { read: ["upload-spec.md"], written: [] },
   skills: ["write-a-brief"],
   switches: [
-    { at: 1_000_500, why: "provider.overloaded", sameAccount: true, from: "#Irfad_Claude", to: "#Irfad_Claude" },
+    { at: 1_000_500, why: "provider.overloaded", sameAccount: true, from: "#Imran_Claude", to: "#Imran_Claude" },
   ],
   private: false,
   partial: false,
@@ -98,15 +98,15 @@ test("model names read as people say them", () => {
 });
 
 test("the hover card of a sign-in turn: model and effort, the account by name, where, included in the plan, tokens and time", () => {
-  const c = cardLines(details(signin), me("usr_irfad"));
+  const c = cardLines(details(signin), me("usr_imran"));
   assert.equal(c.head, "Mira");
   assert.equal(c.sub, "Claude Opus 5.5 · High effort");
   assert.deepEqual(
     c.lines.map((l) => (l.kind === "kv" ? [l.label, l.value] : null)),
     [
       ["Asked by", "You"],
-      ["Paid by", "Irfad's Claude (Max)"],
-      ["Ran on", "Irfad's MacBook"],
+      ["Paid by", "Imran's Claude (Max)"],
+      ["Ran on", "Imran's MacBook"],
       ["Cost", "Included in your Claude plan"],
       ["Tokens", "41k new in · 128k cached · 1.9k out"],
       ["Took", "14 s"],
@@ -115,7 +115,7 @@ test("the hover card of a sign-in turn: model and effort, the account by name, w
 });
 
 test("an API turn shows dollars from the record, its team key, and 'Not reported' for what the provider did not send", () => {
-  const ctx = me("usr_irfad");
+  const ctx = me("usr_imran");
   assert.equal(accountLine(api, ctx), "OpenCode Go · Team key");
   assert.equal(costLine(api, ctx), "$0.062");
   const lines = detailLines(details(api), ctx);
@@ -129,7 +129,7 @@ test("an API turn shows dollars from the record, its team key, and 'Not reported
 });
 
 test("a flat-plan account (OpenCode Go reports 0) says Flat plan, never $0.00", () => {
-  const ctx = me("usr_irfad");
+  const ctx = me("usr_imran");
   const flat = { ...api, cost: { source: "flat" as const } };
   assert.equal(costLine(flat, ctx), "Flat plan");
   const lines = detailLines(details(flat), ctx);
@@ -138,7 +138,7 @@ test("a flat-plan account (OpenCode Go reports 0) says Flat plan, never $0.00", 
 });
 
 test("the Details tab lists the ids, timing, tools with their durations and holds, what the agent knew, skills, files and retries", () => {
-  const lines = detailLines(details(signin), me("usr_irfad"));
+  const lines = detailLines(details(signin), me("usr_imran"));
   const labels = lines.filter((l) => l.kind === "label").map((l) => (l.kind === "label" ? l.text : ""));
   assert.deepEqual(labels, [
     "IDs",
@@ -190,14 +190,14 @@ test("another member sees whose account it was, not the account, the cost, the a
   delete (hidden as Partial<ReplyTurn>).cost;
   delete (hidden as Partial<ReplyTurn>).accountRef;
   const card = cardLines(details(hidden), omar);
-  assert.equal(kv(card.lines, "paid"), "On Irfad's account");
-  assert.equal(kv(card.lines, "asker"), "Irfad Imtiaz");
+  assert.equal(kv(card.lines, "paid"), "On Imran's account");
+  assert.equal(kv(card.lines, "asker"), "Imran Ibarra");
   assert.equal(
     card.lines.find((l) => l.key === "cost"),
     undefined,
   );
   const lines = detailLines(details(hidden), omar);
-  assert.ok(lines.some((l) => l.kind === "note" && l.text.startsWith("Only Irfad and the people who manage AI spend")));
+  assert.ok(lines.some((l) => l.kind === "note" && l.text.startsWith("Only Imran and the people who manage AI spend")));
   assert.ok(
     lines
       .filter((l) => l.key.startsWith("tool-"))
@@ -210,10 +210,10 @@ test("another member sees whose account it was, not the account, the cost, the a
 });
 
 test("a reply with no recorded turn says so and shows the steps it saved", () => {
-  const lines = detailLines(details(), me("usr_irfad"));
+  const lines = detailLines(details(), me("usr_imran"));
   assert.ok(lines.some((l) => l.kind === "note" && l.text.startsWith("Vyre did not keep the details of this reply")));
   assert.ok(lines.some((l) => l.kind === "item" && l.title === "Read" && l.right === "Done · 2 s"));
-  assert.equal(cardLines(details(), me("usr_irfad")).sub, "Not recorded for this reply");
+  assert.equal(cardLines(details(), me("usr_imran")).sub, "Not recorded for this reply");
 });
 
 test("the card counts new input and cached input apart, and the tab says what the model was shown in its last call", () => {
@@ -221,8 +221,8 @@ test("the card counts new input and cached input apart, and the tab says what th
     ...signin,
     tokens: { in: 1_000_000, out: 8_300, context: 61_000, cacheRead: 940_000, cacheWrite: 0 },
   };
-  assert.equal(kv(cardLines(details(t), me("usr_irfad")).lines, "tokens"), "60k new in · 940k cached · 8.3k out");
-  const lines = detailLines(details(t), me("usr_irfad"));
+  assert.equal(kv(cardLines(details(t), me("usr_imran")).lines, "tokens"), "60k new in · 940k cached · 8.3k out");
+  const lines = detailLines(details(t), me("usr_imran"));
   const row = (k: string) =>
     lines.find((l) => l.key === k && l.kind === "kv") as { label: string; value: string } | undefined;
   assert.deepEqual(
@@ -231,7 +231,7 @@ test("the card counts new input and cached input apart, and the tab says what th
   );
   // a provider that gave no split: the total as it is
   assert.equal(
-    kv(cardLines(details({ ...signin, tokens: { in: 41_280, out: 1904 } }), me("usr_irfad")).lines, "tokens"),
+    kv(cardLines(details({ ...signin, tokens: { in: 41_280, out: 1904 } }), me("usr_imran")).lines, "tokens"),
     "41k in · 1.9k out",
   );
 });
@@ -242,9 +242,9 @@ test("an estimated cost says so in the card and the tab", () => {
     accountKind: "api_key",
     cost: { source: "estimate", micros: 41_668, priceAsOf: "2026-10-06" },
   };
-  assert.equal(kv(cardLines(details(t), me("usr_irfad")).lines, "cost"), "About $0.042 (an estimate)");
+  assert.equal(kv(cardLines(details(t), me("usr_imran")).lines, "cost"), "About $0.042 (an estimate)");
   assert.ok(
-    detailLines(details(t), me("usr_irfad")).some((l) => l.kind === "note" && /so it is an estimate/.test(l.text)),
+    detailLines(details(t), me("usr_imran")).some((l) => l.kind === "note" && /so it is an estimate/.test(l.text)),
   );
 });
 
@@ -260,7 +260,7 @@ test("the lessons a reply used are a section of the Details: one line each, apar
       quotes: [],
     },
   };
-  const lines = detailLines(withLesson, me("usr_irfad"));
+  const lines = detailLines(withLesson, me("usr_imran"));
   const labels = lines.filter((l) => l.kind === "label").map((l) => (l.kind === "label" ? [l.text, l.right] : null));
   assert.ok(
     labels.some((l) => l?.[0] === "Lessons kept in mind" && String(l[1]) === "2"),
@@ -274,6 +274,6 @@ test("the lessons a reply used are a section of the Details: one line each, apar
   assert.equal(String(knew?.[1]), "1", "its count leaves the lessons out");
   // a reply that used no lesson has no such section
   assert.ok(
-    !detailLines(details(signin), me("usr_irfad")).some((l) => l.kind === "label" && l.text === "Lessons kept in mind"),
+    !detailLines(details(signin), me("usr_imran")).some((l) => l.kind === "label" && l.text === "Lessons kept in mind"),
   );
 });

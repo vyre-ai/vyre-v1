@@ -22,6 +22,17 @@ import type { BuiltinRow, ConnectorsCtx, ConnectionDb, ConnectorDef } from "./pr
 import type { SyncDeps, SyncEngine } from "./handlers/sync.ts";
 import { runCadence } from "./handlers/cadence.ts";
 
+const NO_PORT = "This server cannot check keys yet, so the request was not sent.";
+/** Does this request carry a credential: the connector's own auth header, or any header that is plainly one? */
+function carriesCredential(
+  def: { auth?: { type?: string; header?: string } } | undefined,
+  headers?: Record<string, string>,
+): boolean {
+  if (!headers) return false;
+  const own = (def?.auth?.header ?? "Authorization").toLowerCase();
+  return Object.keys(headers).some((h) => h.toLowerCase() === own || /authorization|api[-_]?key|token|secret/i.test(h));
+}
+
 export function loadBuiltins(path: URL = new URL("../../generated/registry.json", import.meta.url)): BuiltinRow[] {
   return (JSON.parse(readFileSync(path, "utf8")) as { connectors: BuiltinRow[] }).connectors;
 }
@@ -203,17 +214,21 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
       trace: ctx.trace,
       emit: (n, s, p, o) => ctx.emit(n, s, p, o),
       call: (c, i) => ctx.call(c, i),
-      // a live connector's requests go through the port (domains, and where each filled key may go); anything else may never carry a filled key, so a request after a fill is refused
-      http: (url, init) =>
-        port && definition && stored?.state === "live"
-          ? port.http(execution, definition.domains, url, init)
-          : usedVaultItems.size > 0
-            ? refuse(
-                cc,
-                "permission.no_grant",
-                "This connector is not live, so it cannot send a Vault key. Publish it first.",
-              )
-            : ctx.http(url, init),
+      // a live connector's requests go through the port (domains, and where each filled key may go). A request that carries a credential (a filled key, or a typed key in a header) never goes any other way:
+      // with no port the server cannot check keys, so it is refused in words, and a connector that is not live may not send a Vault key. A request with no credential keeps the host's own guarded fetch.
+      http: (url, init) => {
+        const carries = usedVaultItems.size > 0 || carriesCredential(definition, init?.headers);
+        if (!port) return carries ? refuse(cc, "permission.no_grant", NO_PORT) : ctx.http(url, init);
+        if (definition && stored?.state === "live")
+          return port.http({ ...execution, carriesCredential: carries }, definition.domains, url, init);
+        if (usedVaultItems.size > 0)
+          return refuse(
+            cc,
+            "permission.no_grant",
+            "This connector is not live, so it cannot send a Vault key. Publish it first.",
+          );
+        return carries ? refuse(cc, "permission.no_grant", NO_PORT) : ctx.http(url, init);
+      },
       ...(ctx.log ? { log: ctx.log } : {}),
       ...(ctx.schedule ? { schedule: (at, cap, input) => ctx.schedule!(at, cap, input) } : {}),
       ...((ctx.actingFor ?? ctx.principal?.id) ? { actor: ctx.actingFor ?? ctx.principal!.id } : {}),
@@ -348,6 +363,7 @@ const NAMES = [
   "connections.complete_auth",
   "connections.test",
   "connections.mark_working",
+  "connections.approve_hosts",
   "connections.delete",
   "sync_types.list",
   "sync_types.get",

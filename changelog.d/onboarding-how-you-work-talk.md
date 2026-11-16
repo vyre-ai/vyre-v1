@@ -1,0 +1,1 @@
+With an AI account connected, the How you work step is a talk with your Assistant: it asks what you do, which tools you use and how you like updates, one question at a time, saves each answer to your memory, and a "Vyre knows" list beside the chat shows every line, which you can change or remove in place.

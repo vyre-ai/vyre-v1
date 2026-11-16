@@ -38,20 +38,20 @@ async function world(o: { gateDown?: boolean } = {}) {
   const claim = await w.folder(r["projects"]!, "Rivera injury claim");
   const intake = await w.file(claim, "Rivera intake form.txt", INTAKE);
   const waiting = await w.file(claim, "Rivera retainer.txt", "Retainer with Elena Rivera.");
-  await w.call(w.irfad, "files.agent_access.set", { target: { type: "folder", id: claim }, value: "redact" });
+  await w.call(w.imran, "files.agent_access.set", { target: { type: "folder", id: claim }, value: "redact" });
   for (const s of SECRETS)
-    await w.call(w.irfad, "files.marks.add", {
+    await w.call(w.imran, "files.marks.add", {
       target: { type: "file", id: intake },
       kind: "redact",
       shape: "span",
       text: s,
     });
-  await w.call(w.irfad, "files.review", { fileId: intake });
+  await w.call(w.imran, "files.review", { fileId: intake });
 
   const s = new AccessSnapshot();
-  s.putPrincipal({ id: "usr_irfad", kind: "person", status: "active", name: "Irfad" });
-  s.putPrincipal({ id: "agt_intake", kind: "agent", status: "active", name: "Intake", owner: "usr_irfad" } as never);
-  s.putResource({ id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: "usr_irfad", holds: 0 });
+  s.putPrincipal({ id: "usr_imran", kind: "person", status: "active", name: "Imran" });
+  s.putPrincipal({ id: "agt_intake", kind: "agent", status: "active", name: "Intake", owner: "usr_imran" } as never);
+  s.putResource({ id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: "usr_imran", holds: 0 });
   const hostCtx = w.ctxFor({ kind: "service", id: "svc_host" });
   const asked: string[] = [];
   const gate = createAgentGate({
@@ -73,7 +73,7 @@ async function world(o: { gateDown?: boolean } = {}) {
     validateInput: () => [],
     authorize: () => ({ effect: "allow", reason: "ok", decisionId: "dec_1", steps: [], obligations: [] }) as never,
     handler: (name) => {
-      if (name === "files.read") return async (_ctx, input) => w.call(w.irfad, "files.read", input); // the module answers the original: the gate is all that stands between it and a model
+      if (name === "files.read") return async (_ctx, input) => w.call(w.imran, "files.read", input); // the module answers the original: the gate is all that stands between it and a model
       if (name === "previews.text")
         return async (ctx, input) => ({
           text: ((await ctx.call("files.read" as never, { ...(input as object), as: "text" })) as { text: string })
@@ -103,7 +103,7 @@ const noSecret = (r: unknown) => {
 
 test("a person on their own screen reads the original; nothing is asked of the gate", async () => {
   const x = await world();
-  const r = await x.read({ principal: { kind: "person", id: "usr_irfad" }, origin: "api" });
+  const r = await x.read({ principal: { kind: "person", id: "usr_imran" }, origin: "api" });
   assert.match(text(r), /512-44-8391/);
   assert.deepEqual(x.asked, []);
   x.w.done();
@@ -112,21 +112,21 @@ test("a person on their own screen reads the original; nothing is asked of the g
 test("each way an agent can be behind a read gets the redacted rendition", async () => {
   const x = await world();
   const ways: [string, Omit<CtxSeed, "space">][] = [
-    ["the agent itself", { principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_irfad", origin: "agent" }],
-    ["the engine reading context as the person", { principal: { kind: "person", id: "usr_irfad" }, origin: "engine" }],
+    ["the agent itself", { principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_imran", origin: "agent" }],
+    ["the engine reading context as the person", { principal: { kind: "person", id: "usr_imran" }, origin: "engine" }],
     [
       "a setup-grant call rerun as the person",
-      { principal: { kind: "person", id: "usr_irfad" }, origin: "api", forAgent: "agt_claude" },
+      { principal: { kind: "person", id: "usr_imran" }, origin: "api", forAgent: "agt_claude" },
     ],
-    ["the MCP door", { principal: { kind: "person", id: "usr_irfad" }, origin: "mcp" }],
+    ["the MCP door", { principal: { kind: "person", id: "usr_imran" }, origin: "mcp" }],
     ["an outside API actor", { principal: { kind: "actor", id: "act_robot" }, origin: "api" }],
     [
       "the agent's computer mirror",
-      { principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_irfad", origin: "computers" },
+      { principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_imran", origin: "computers" },
     ],
     [
       "the email helper",
-      { principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_irfad", origin: "email-ask" },
+      { principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_imran", origin: "email-ask" },
     ],
   ];
   for (const [what, seed] of ways) {
@@ -143,7 +143,7 @@ test("a nested read whose outer answer reaches the model is gated on the way out
   const r = await x.invoke(
     "previews.text",
     { fileId: x.intake },
-    { space: "spc_1", principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_irfad", origin: "agent" },
+    { space: "spc_1", principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_imran", origin: "agent" },
   );
   noSecret(r);
   x.w.done();
@@ -154,7 +154,7 @@ test("a file waiting for review is refused to an agent and a person is asked; a 
   await assert.rejects(
     () =>
       x.read(
-        { principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_irfad", thread: "thr_1", origin: "agent" },
+        { principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_imran", thread: "thr_1", origin: "agent" },
         x.waiting,
       ),
     (e: unknown) => {
@@ -172,7 +172,7 @@ test("a file waiting for review is refused to an agent and a person is asked; a 
       x.invoke(
         "files.copy",
         { fileId: x.intake, toFolderId: "fld_x" },
-        { space: "spc_1", principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_irfad", origin: "agent" },
+        { space: "spc_1", principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_imran", origin: "agent" },
       ),
     (e: unknown) => (e as { error?: { details?: { reason?: string } } }).error?.details?.reason === "redacted_file",
   );
@@ -182,7 +182,7 @@ test("a file waiting for review is refused to an agent and a person is asked; a 
 test("the gate fails closed: when it cannot answer, an agent gets nothing", async () => {
   const x = await world({ gateDown: true });
   await assert.rejects(
-    () => x.read({ principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_irfad", origin: "agent" }),
+    () => x.read({ principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_imran", origin: "agent" }),
     (e: unknown) => (e as { error?: { code?: string } }).error?.code === "internal.unavailable",
   );
   x.w.done();

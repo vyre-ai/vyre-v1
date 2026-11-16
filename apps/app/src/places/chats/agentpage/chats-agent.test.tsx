@@ -270,7 +270,7 @@ test("routine posts carry the label; only the routines you set are shown, and no
   const all = s.replica.rows("routines") as unknown as Routine[];
   assert.equal(all.length, 3);
   assert.equal(mineOnly(all, "usr_omar").length, 3);
-  assert.equal(mineOnly(all, "usr_irfad").length, 0);
+  assert.equal(mineOnly(all, "usr_imran").length, 0);
   const viewer = html(createSample("viewer"), "settings");
   assert.ok(!has(viewer, "Morning lead sweep") && !has(viewer, "routine-label-note") && !has(viewer, "Sent by Intake"));
   assert.ok(has(viewer, 'data-testid="routines-empty"') && has(viewer, "You have not set a routine for Intake."));

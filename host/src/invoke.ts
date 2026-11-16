@@ -283,6 +283,11 @@ export interface InvokeDeps {
    * decision finds it. Nothing to do for any other resource.
    */
   ensureResource?(resource: ResourceRef): Promise<void>;
+  /**
+   * Called before an agent's call is authorized: an agent born before its person's access was in the snapshot (a new Assistant is made the moment its person's account exists) is brought up to what its
+   * person may do now, so its very first call is judged on that and not on the birth (F76). Nothing to do for a person or for an agent that is already whole.
+   */
+  agentReady?(agentId: string): Promise<void>;
   /** vault name or handle to item id, for `resolve` bindings; `person`: whose items come first (their own, then the ones they may see), so a hidden item never shadows a visible one */
   resolveItem?(type: string, kind: "name" | "handle", value: string, person?: string): string | null;
   /** Is this Vault item hidden from this person (another person's Mine item, or one they may not use)? A name or handle that resolves to one reads as one that does not exist. */
@@ -888,6 +893,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           });
         throw e;
       }
+      if (seed.principal.kind === "agent" && deps.agentReady) await deps.agentReady(seed.principal.id);
       if (resource && deps.ensureResource) await deps.ensureResource(resource);
       approved =
         seed.approval !== undefined &&

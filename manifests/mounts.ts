@@ -57,7 +57,7 @@ const mountRow = t.obj({
   twoWayOffer: t.opt(t.bool()),
   /** a listing larger than one sync is still being read: how many items were seen so far */
   scanned: t.opt(t.int({ minimum: 0 })),
-  fromDevice: t.opt(t.str({ examples: ["Irfad's MacBook"] })),
+  fromDevice: t.opt(t.str({ examples: ["Imran's MacBook"] })),
   error: t.opt(t.str()),
   // items the last pass could not bring in (a name Files cannot hold, a refused file): the mount is not failing for them; the list says why for each
   skippedCount: t.opt(t.int({ minimum: 1 })),

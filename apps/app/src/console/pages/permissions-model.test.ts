@@ -51,7 +51,7 @@ const ex = (
   perms,
   effect,
   ...(until ? { until } : {}),
-  by: { id: "usr_o", name: "Irfad Imtiaz" },
+  by: { id: "usr_o", name: "Imran Ibarra" },
   at: Date.UTC(2026, 10, 3),
 });
 const NOW = Date.UTC(2026, 10, 3, 12);
@@ -78,12 +78,12 @@ test("who differs: a person's own exception beats a group's, Allow wins among pe
   const omar = person("omar", ["rol_member"], ["grp_delivery"]),
     lena = person("lena", ["rol_member"], ["grp_delivery"]),
     dana = person("dana", ["rol_member"]),
-    boss = person("irfad", ["rol_owner"], ["grp_delivery"]);
+    boss = person("imran", ["rol_owner"], ["grp_delivery"]);
   const list = [
     ex("x1", { kind: "group", id: "grp_delivery", name: "Delivery" }, ["automations.space"], "allow"),
     ex("x2", { kind: "person", id: "lena", name: "Lena" }, ["automations.space"], "deny"),
     ex("x3", { kind: "person", id: "dana", name: "Dana" }, ["automations.space"], "allow", NOW - 1000),
-    ex("x4", { kind: "person", id: "irfad", name: "Irfad" }, ["automations.space"], "deny"),
+    ex("x4", { kind: "person", id: "imran", name: "Imran" }, ["automations.space"], "deny"),
   ];
   const d = differ(member, "automations.space", [omar, lena, dana, boss], list, NOW);
   assert.deepEqual(
@@ -116,7 +116,7 @@ test("ends and words", () => {
       ...ex("x", { kind: "person", id: "a", name: "A" }, ["k"], "deny", Date.UTC(2026, 10, 10)),
       why: "First week",
     }),
-    /^Exception set by Irfad on 3 Nov, until 10 Nov · First week$/,
+    /^Exception set by Imran on 3 Nov, until 10 Nov · First week$/,
   );
   assert.ok(
     areasOf([
@@ -155,7 +155,7 @@ test("Own only: an area whose own part is allowed and Space part is not reads Ow
     perms: ["sites.deploy", "sites.promote"],
     own: ["sites.deploy"],
     effect: "own" as const,
-    by: { id: "o", name: "Irfad" },
+    by: { id: "o", name: "Imran" },
     at: 0,
   };
   assert.ok(allowsKey(own, "sites.deploy") && !allowsKey(own, "sites.promote"));
@@ -173,7 +173,7 @@ test("Ask an admin as an exception: the permission is not given, and the cell re
     subject: { kind: "person" as const, id: "omar", name: "Omar" },
     perms: ["records.create"],
     effect: "ask" as const,
-    by: { id: "o", name: "Irfad" },
+    by: { id: "o", name: "Imran" },
     at: 0,
   };
   assert.equal(allowsKey(ask, "records.create"), false);

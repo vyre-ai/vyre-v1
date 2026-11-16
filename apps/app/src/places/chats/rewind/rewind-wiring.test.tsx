@@ -44,13 +44,15 @@ const acts = {
   rewind: (id: string) => calls.push(`rewind:${id}`),
 } as unknown as MessageActions;
 const labels = (m: Message, mine: boolean, a = acts): string[] =>
-  menuFor(m, mine, a, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
+  menuFor(m, mine, a, () => undefined, { x: 0, y: 0 }, true).flatMap((e) => ("label" in e ? [e.label] : []));
 
 test("your own message has Rewind to here in its menu; someone else's and a chat that cannot go back have none", () => {
   assert.ok(labels(msg(), true).includes("Rewind to here"));
   assert.ok(!labels(msg({ author: { kind: "person", id: "usr_maya" } }), false).includes("Rewind to here"));
   assert.ok(!labels(msg(), true, { ...(acts as object), rewind: undefined } as never).includes("Rewind to here"));
-  const entry = menuFor(msg(), true, acts, () => undefined).find((e) => "label" in e && e.label === "Rewind to here");
+  const entry = menuFor(msg(), true, acts, () => undefined, { x: 0, y: 0 }, true).find(
+    (e) => "label" in e && e.label === "Rewind to here",
+  );
   (entry as { onSelect(): void }).onSelect();
   assert.deepEqual(calls, ["rewind:m1"]);
 });

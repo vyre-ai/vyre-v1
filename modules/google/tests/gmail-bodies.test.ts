@@ -54,7 +54,7 @@ test("a long body Gmail holds as an attachment part is fetched, so the whole mes
   const m = h.ingests[0]!;
   const text = String(m.text);
   assert.ok(text.length > 3000, `the body is whole: ${text.length} characters`);
-  assert.match(text, /^Hi Irfad,\n\nQuick one before Wednesday\./);
+  assert.match(text, /^Hi Imran,\n\nQuick one before Wednesday\./);
   assert.match(text, /we will call on day three\./);
   assert.match(text, /CONFIDENTIALITY NOTICE/);
   assert.equal(m.html, "<p>See the text part.</p>");
@@ -76,7 +76,7 @@ test("each part is read in its own charset: ISO-8859-1 text and windows-1252 HTM
   const m = h.ingests[0]!;
   assert.equal(
     m.text,
-    "Hola Irfad,\n\nGracias por la llamada. La reunión es el miércoles a las 11:00. El café está pagado.\n\nJosé\n",
+    "Hola Imran,\n\nGracias por la llamada. La reunión es el miércoles a las 11:00. El café está pagado.\n\nJosé\n",
   );
   assert.equal(m.html, "<p>Gracias por la llamada. La reunión es el miércoles – a las 11:00.</p>");
   assert.deepEqual(m.from, { address: "jose@ortega.example", name: "José Ortega" });

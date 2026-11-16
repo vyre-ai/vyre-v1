@@ -35,7 +35,7 @@ interface Ev {
 }
 type SendIn = Parameters<typeof send>[1];
 
-/** The name a person reads for whoever acted: the server's one resolver, so someone's private agent reads "Irfad Imtiaz (Agent)", never a raw id. */
+/** The name a person reads for whoever acted: the server's one resolver, so someone's private agent reads "Imran Ibarra (Agent)", never a raw id. */
 async function nameOf(ctx: NotifCtx, id: string | undefined): Promise<string> {
   if (!id || !ctx.call || id.startsWith("svc_")) return "Someone";
   const kind = id.startsWith("agt_")
@@ -485,7 +485,7 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
     };
   }
   if (e.name === "access.shared_with" && typeof p.to === "string") {
-    // "Irfad shared Dex with you", with the line the sharer wrote, in the Inbox
+    // "Imran shared Dex with you", with the line the sharer wrote, in the Inbox
     const r = p.resource as { type?: string; id?: string } | undefined;
     return {
       to: p.to,

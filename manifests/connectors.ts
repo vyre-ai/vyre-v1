@@ -682,6 +682,12 @@ export default defineManifest({
             }),
           ),
           near: t.opt(t.arr(t.str(), { description: "Names of the connectors that came closest, when none matched" })),
+          older: t.opt(
+            t.str({
+              description:
+                "The title of a built-in connector the card does not offer because its hosts cannot be made exact; it is connected the older way, from Connections",
+            }),
+          ),
         },
         errors: ["internal.not_implemented"],
       },
@@ -781,6 +787,25 @@ export default defineManifest({
         out: { state: t.enm("pending", "active", "failing", "needs_reconnect", "paused"), stamped: t.bool() },
         level: "view",
         errors: ["validation.not_found"],
+      },
+    ),
+    write(
+      "connections.approve_hosts",
+      "The person who owns a connection allows the hosts its connector now calls (it gained one since they approved): the key may then go there. A person's press on the connection; never an agent's",
+      {
+        in: {
+          connectionId: id.connection,
+          hosts: t.arr(t.str(), {
+            description:
+              "The addresses (with ports) the person was shown; refused when the connector's addresses are no longer exactly these",
+          }),
+        },
+        out: { hosts: t.arr(t.str()) },
+        on: ["connection", "/connectionId"],
+        level: "manage",
+        audit: "always",
+        agent: false,
+        errors: ["validation.not_found", "permission.no_grant", "validation.precondition_failed"],
       },
     ),
     write("connections.delete", "Remove a connection; synced types bound to it pause", {

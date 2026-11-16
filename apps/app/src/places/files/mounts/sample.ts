@@ -20,7 +20,7 @@ const GOOGLE: Node[] = [
   {
     ref: "gd:My Drive",
     name: "My Drive",
-    meta: "irfad@northwind.example",
+    meta: "imran@northwind.example",
     kids: [
       {
         ref: "gd:My Drive/Client intake",
@@ -42,7 +42,7 @@ const ONEDRIVE: Node[] = [
   {
     ref: "od:OneDrive",
     name: "OneDrive",
-    meta: "irfad@northwind.example",
+    meta: "imran@northwind.example",
     kids: [
       { ref: "od:OneDrive/Documents", name: "Documents", kids: dir("od:OneDrive/Documents", ["Drafts", "Signed"]) },
       { ref: "od:OneDrive/Desktop", name: "Desktop" },
@@ -70,7 +70,7 @@ export const REPOS: ReadonlyArray<readonly [string, string, string]> = [
   ["northwind/intake-api", "Private · Python", "Yesterday"],
   ["northwind/billing-scripts", "Private · Python", "Oct 12"],
   ["northwind/forms", "Private · TypeScript", "Oct 9"],
-  ["irfad7/dotfiles", "Public · Shell", "Oct 2"],
+  ["imran7/dotfiles", "Public · Shell", "Oct 2"],
 ];
 
 const TREES: Partial<Record<MountKind, Node[]>> = {
@@ -100,11 +100,11 @@ const PROVIDER: Record<MountKind, string> = {
 };
 
 export const northwindAccounts: Accounts = {
-  google_drive: { label: "irfad@northwind.example", connected: true, connectionId: "con_google" },
-  microsoft: { label: "irfad@northwind.example", connected: true, connectionId: "con_ms" },
-  dropbox: { label: "irfad@northwind.example", connected: true, connectionId: "con_dropbox" },
-  local: { label: "Irfad's MacBook", connected: true, deviceId: "dev_macbook" },
-  github: { label: "irfad7", connected: true, connectionId: "con_github" },
+  google_drive: { label: "imran@northwind.example", connected: true, connectionId: "con_google" },
+  microsoft: { label: "imran@northwind.example", connected: true, connectionId: "con_ms" },
+  dropbox: { label: "imran@northwind.example", connected: true, connectionId: "con_dropbox" },
+  local: { label: "Imran's MacBook", connected: true, deviceId: "dev_macbook" },
+  github: { label: "imran7", connected: true, connectionId: "con_github" },
 };
 
 export const northwindPeople: Person[] = [
@@ -141,7 +141,7 @@ const mountRow = (id: string, kind: MountKind, name: string, ref: string, o: Par
 export const northwindMounts: MountRow[] = [
   mountRow("mk", "google_drive", "Marketing", "gd:Marketing"),
   mountRow("ct", "sharepoint", "Contracts", "sp:Contracts"),
-  mountRow("ip", "local", "Irfad's Projects", "~/Projects", { fromDevice: "Irfad's MacBook" }),
+  mountRow("ip", "local", "Imran's Projects", "~/Projects", { fromDevice: "Imran's MacBook" }),
   mountRow("web", "github", "website", "vyre-ai/website"),
   mountRow("api", "github", "intake-api", "northwind/intake-api"),
 ];

@@ -4,7 +4,7 @@
 /** A Space id, which no person should ever read as a name. */
 export const SPACE_ID = /^spc_/i;
 
-/** The host a person typed or was sent to, without the scheme or port: mla.vyre.run. Empty when it is not an address. */
+/** The host a person typed or was sent to, without the scheme or port: northwind.vyre.run. Empty when it is not an address. */
 export function spaceHost(address: string | null | undefined): string {
   const a = (address ?? "").trim();
   if (a === "") return "";

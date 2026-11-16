@@ -1,4 +1,4 @@
-// The owner's flow from the live MLA Space (4 Nov 2026), on a booted daemon: an agent is asked to make a goal and add two named people. The goal is made, the people show as helpers and are
+// The owner's flow from the live Northwind Space (4 Nov 2026), on a booted daemon: an agent is asked to make a goal and add two named people. The goal is made, the people show as helpers and are
 // in the goal's chat (this used to fail: a goal chat is a private chat and "a private chat never gains people"), the plan attaches to the draft (this used to fail: a draft takes no new tasks),
 // and what the agent is told lists what really happened for each person, so its reply cannot say "added" for a person who was not.
 import { after, before, test } from "node:test";

@@ -147,7 +147,7 @@ test("type groups: Records first, other groups in order, Sites last; site tables
   assert.equal(compact(100014), "100k");
   assert.equal(compact(2_500_000), "2.5M");
   assert.deepEqual(
-    sortedViews(northwind.views, "usr_irfad").map((v) => v.title),
+    sortedViews(northwind.views, "usr_imran").map((v) => v.title),
     ["My clients", "Active clients"],
   );
 });
@@ -169,7 +169,7 @@ test("screen: the table draws a header, one row per record and the cached count 
   assert.ok(has(out, ">Lead<") && has(out, ">Active<"), "choice cells read their option's title");
   assert.ok(has(out, ">$1,000<") && has(out, "Oct 18, 2025"), "money and dates read plainly");
   assert.ok(
-    has(out, ">Irfad Imtiaz<") && has(out, 'data-testid="face-Irfad Imtiaz"'),
+    has(out, ">Imran Ibarra<") && has(out, 'data-testid="face-Imran Ibarra"'),
     "a person cell has a face and a name",
   );
   assert.ok(has(out, 'data-testid="records-count"') && has(out, "14 clients"));

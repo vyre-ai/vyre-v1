@@ -509,7 +509,7 @@ test("a tally can sum a money field, group people by name and dates by month in 
   assert.deepEqual(
     byLead.map((x) => [x.label, x.value]),
     [
-      ["Irfad Imtiaz", 2],
+      ["Imran Ibarra", 2],
       ["Lena Ortiz", 2],
       ["Maya Chen", 3],
       ["Omar Haddad", 3],

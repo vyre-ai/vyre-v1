@@ -399,3 +399,21 @@ test("a frame of gathered steps reads as the steps it carries, in order", () => 
     ],
   );
 });
+
+test("a call whose result only says the work was launched (a helper in the background) is not an ended step", () => {
+  const t = timers();
+  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear });
+  s.onFrame(f("trn_bg", { kind: "start" }));
+  s.onFrame(f("trn_bg", { kind: "step", phase: "call", id: "a1", name: "Agent" }));
+  s.onFrame(f("trn_bg", { kind: "step", phase: "result", id: "a1", name: "Agent", ok: true, launched: true }));
+  assert.deepEqual(
+    s
+      .activityOf(turnRowId("trn_bg"))
+      ?.get()
+      .steps.map((x) => [x.id, x.state, x.endedAt]),
+    [["a1", "live", undefined]],
+    "launched is not done",
+  );
+  s.onFrame(f("trn_bg", { kind: "step", phase: "result", id: "a1", name: "Agent", ok: true }));
+  assert.equal(s.activityOf(turnRowId("trn_bg"))?.get().steps[0]?.state, "done", "its own result ends it");
+});
