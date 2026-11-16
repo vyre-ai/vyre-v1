@@ -46,7 +46,6 @@ async function asDana(S) {
   return { ctx, page, errs };
 }
 
-
 // every Console page in the list: no id and no capability name on screen
 async function scanPages(S, pages) {
   const found = [];
