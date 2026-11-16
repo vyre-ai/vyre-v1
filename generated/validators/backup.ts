@@ -5,17 +5,17 @@ import type { Check } from './core.ts';
 
 function d_s_5a5759d472(v: unknown, p: string, e: string[]): void {
 {
-const x465 = v;
-const g465 = typeOf(x465);
-const b465: string[] = []; lf(x465, p, b465, L0); if (b465.length) e.push(...b465);
-if (g465 === "object") {
-if (g465 === 'object') { const o465 = x465 as Record<string, unknown>;
-if (!("kind" in o465)) e.push(p + "/kind" + ': required');
-if ("kind" in o465) lf(o465["kind"], p + "/kind", e, L237);
-if ("bucket" in o465) lf(o465["bucket"], p + "/bucket", e, L1);
-if ("region" in o465) lf(o465["region"], p + "/region", e, L1);
-if ("path" in o465) lf(o465["path"], p + "/path", e, L1);
-if ("vaultName" in o465) lf(o465["vaultName"], p + "/vaultName", e, L1);
+const x464 = v;
+const g464 = typeOf(x464);
+const b464: string[] = []; lf(x464, p, b464, L0); if (b464.length) e.push(...b464);
+if (g464 === "object") {
+if (g464 === 'object') { const o464 = x464 as Record<string, unknown>;
+if (!("kind" in o464)) e.push(p + "/kind" + ': required');
+if ("kind" in o464) lf(o464["kind"], p + "/kind", e, L237);
+if ("bucket" in o464) lf(o464["bucket"], p + "/bucket", e, L1);
+if ("region" in o464) lf(o464["region"], p + "/region", e, L1);
+if ("path" in o464) lf(o464["path"], p + "/path", e, L1);
+if ("vaultName" in o464) lf(o464["vaultName"], p + "/vaultName", e, L1);
 }
 }
 }

@@ -330,7 +330,7 @@ test("declining and cancelling through the public door", async () => {
     assert.equal(st.status, "declined");
     assert.equal(st.declinedReason, "The rent is wrong.");
     const again = await cap(d, "esign.send", { fileId: made.file.fileId, signers: [{ name: "Andrea Lindahl" }] });
-    await cap(d, "esign.cancel", { envelopeId: again.envelopeId });
+    await cap(d, "esign.cancel", { envelopeId: again.envelopeId, idempotencyKey: "cx92431" });
     assert.equal((await direct(d, "POST", `${again.links[0].path}view`, {})).status, 404);
   } finally {
     await d.stop();

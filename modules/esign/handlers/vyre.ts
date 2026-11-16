@@ -34,7 +34,7 @@ import type { HttpFn } from "./documenso.ts";
 import { setHostedAccess } from "./providers.ts";
 import { ensureSeal, fingerprintOf, isSpaceCert } from "./seal.ts";
 import { inspect, sealBytes } from "./pdfseal.ts";
-import { MAX_PAGES, PdfError, drawable, finalize, pngSize, prepare } from "./pdf.ts";
+import { MAX_PAGES, PdfError, embeds, drawable, finalize, pngSize, prepare } from "./pdf.ts";
 import type { Audit, Place, SignatureMark, Stamp } from "./pdf.ts";
 
 export const MAX_VYRE_BYTES = 20 * 1024 * 1024;
@@ -91,6 +91,16 @@ function newToken(): string {
   for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
+
+/** Text a signer typed, made safe to sit in a system-voiced line: one line, no markup or link characters, capped. */
+export const plain = (v: string, max = 200): string =>
+  v
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/[\[\]()<>`*_#|~\\{}]/g, "")
+    .replace(/https?:\/\//gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .slice(0, max);
 
 const bytesOf = (v: unknown): Uint8Array => (v instanceof Uint8Array ? v : new Uint8Array(0));
 const clip = (v: string | undefined, n: number): string | null => (v === undefined || v === "" ? null : v.slice(0, n));
@@ -451,7 +461,12 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
     "sig-sent",
   );
   ctx.emit("signature.sent", subject(envelopeId), { envelopeId, ...(recordId ? { recordId } : {}), provider: "vyre" });
-  return { envelopeId, links, emailed, ...(notice ? { notice } : {}) };
+  // an agent never holds a signer link (the link is the signature): it gets names and what was emailed; the person copies links from the screen
+  const shown =
+    ctx.principal.kind === "agent"
+      ? links.map(({ index, name, email }) => ({ index, name, ...(email ? { email } : {}) }))
+      : links;
+  return { envelopeId, links: shown, emailed, ...(notice ? { notice } : {}) };
 }
 
 /** Tells the sender, in Needs you, that their document is signed or sent back. Never fails the signature. */
@@ -538,7 +553,11 @@ export async function remind(ctx: Ctx, input: unknown): Promise<Row> {
     if (emailed) event(ctx, env.id, idx, "mailed");
     else notice = "The email could not be sent. Copy the link and send it yourself.";
   }
-  return { link, emailed, ...(notice ? { notice } : {}) };
+  const shown =
+    ctx.principal.kind === "agent"
+      ? { index: link.index, name: link.name, ...(link.email ? { email: link.email } : {}) }
+      : link;
+  return { link: shown, emailed, ...(notice ? { notice } : {}) };
 }
 
 // ---- envelope lookups, expiry, order ------------------------------------------------------------------------
@@ -645,22 +664,22 @@ export async function signerDoc(ctx: Ctx, input: unknown): Promise<{ base64: str
   return { base64: toBase64(bytesOf(doc.sent)) };
 }
 
-function decodePng(ctx: Ctx, raw: unknown): Uint8Array {
+async function decodePng(ctx: Ctx, raw: unknown): Promise<Uint8Array> {
   const b64 = typeof raw === "string" ? raw : "";
   if (b64.length === 0 || b64.length > 420 * 1024 || !/^[A-Za-z0-9+/=]+$/.test(b64))
     fail(ctx, "validation.bad_input", "Draw your signature again.", { field: "signature" });
   const png = fromBase64(b64);
-  if (!pngSize(png))
+  if (!pngSize(png) || !(await embeds(png)))
     fail(ctx, "validation.bad_input", "That drawing is not a picture this page can use. Draw it again.", {
       field: "signature",
     });
   return png;
 }
 
-function markOf(
+async function markOf(
   ctx: Ctx,
   raw: unknown,
-): { mark: SignatureMark; kind: string; text: string | null; png: Uint8Array | null } {
+): Promise<{ mark: SignatureMark; kind: string; text: string | null; png: Uint8Array | null }> {
   const s = (raw ?? {}) as Record<string, unknown>;
   if (s.kind === "typed") {
     const text = typeof s.text === "string" ? s.text.trim() : "";
@@ -668,7 +687,7 @@ function markOf(
       fail(ctx, "validation.bad_input", "Type your signature.", { field: "signature" });
     // the page may send the typed name already drawn in its own script face (png): that picture is stamped, validated like a drawing; without it the name is drawn in a standard font
     if (s.png !== undefined && s.png !== null) {
-      const png = decodePng(ctx, s.png);
+      const png = await decodePng(ctx, s.png);
       return { mark: { kind: "typed", text, png }, kind: "typed", text, png };
     }
     if (!drawable(text))
@@ -678,7 +697,7 @@ function markOf(
     return { mark: { kind: "typed", text }, kind: "typed", text, png: null };
   }
   if (s.kind === "drawn") {
-    const png = decodePng(ctx, s.png);
+    const png = await decodePng(ctx, s.png);
     return { mark: { kind: "drawn", png }, kind: "drawn", text: null, png };
   }
   return fail(ctx, "validation.bad_input", "Type or draw your signature.", { field: "signature" });
@@ -713,20 +732,17 @@ export async function signerAct(ctx: Ctx, input: unknown): Promise<{ result: Row
     );
     event(ctx, envId, idx, "declined", v, reason || undefined);
     const env = mustEnvelope(ctx, envId);
-    ctx.emit("signature.declined", subject(envId), {
-      envelopeId: envId,
-      signer: str(hit.signer.name),
-      ...(reason ? { reason } : {}),
-    });
+    // the reason is the signer's own words: the status read returns it, but it stays out of the event and sits in the thread only as labelled plain text
+    ctx.emit("signature.declined", subject(envId), { envelopeId: envId, signer: plain(str(hit.signer.name)) });
     await notifySender(ctx, envId, "task.returned", env.fileId, env.title, {
-      from: str(hit.signer.name),
-      note: reason || "declined",
+      from: plain(str(hit.signer.name)),
+      note: reason ? plain(reason, 120) : "declined",
     });
     await finishTask(ctx, env, "canceled", `${str(hit.signer.name)} declined to sign.`);
     await tellThread(
       ctx,
       env,
-      `${str(hit.signer.name)} declined to sign ${env.title}${reason ? `: ${reason}` : "."}`,
+      `${plain(str(hit.signer.name))} declined to sign ${plain(env.title)}.${reason ? ` Reason from the signer (unverified): ${plain(reason, 300)}` : ""}`,
       "sig-declined",
     );
     return { result: { state: "declined" } };
@@ -736,7 +752,7 @@ export async function signerAct(ctx: Ctx, input: unknown): Promise<{ result: Row
     fail(ctx, "validation.bad_input", "Tick the box to agree to sign electronically.", { field: "consent" });
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (name.length === 0 || name.length > 200) fail(ctx, "validation.bad_input", "Type your name.", { field: "name" });
-  const sig = markOf(ctx, body.signature);
+  const sig = await markOf(ctx, body.signature);
   // the one place a link is spent: a second request that raced this one finds no open signer and is refused like any used link
   const spent = ctx.db.run(
     "UPDATE esign_vsigner SET status = ?, signed_at = ?, signed_name = ?, sig_kind = ?, sig_text = ?, sig_png = ? WHERE envelope_id = ? AND idx = ? AND status IN (?, ?)",
@@ -755,7 +771,40 @@ export async function signerAct(ctx: Ctx, input: unknown): Promise<{ result: Row
   event(ctx, envId, idx, "signed", v);
   const left = many(ctx, "SELECT idx FROM esign_vsigner WHERE envelope_id = ? AND status != ?", envId, "signed");
   if (left.length > 0) return { result: { state: "signed", completed: false, copyAvailable: false } };
-  await complete(ctx, envId);
+  // the last signature is accepted: from here the envelope is finishing, so a cancel that arrives now finds it signed and loses cleanly
+  const was = str(hit.env.status);
+  ctx.db.run("UPDATE esign_envelope SET status = ?, updated_at = ? WHERE id = ?", "signed", ctx.now(), envId);
+  try {
+    await complete(ctx, envId);
+  } catch (e) {
+    // building the final file failed, for any reason: the signature is never lost. This signer's link is live again so they can press Finish once more, the envelope is open as it was, and the sender is told
+    ctx.log.warn("esign: the final file could not be made", { error: e instanceof Error ? e.message : String(e) });
+    ctx.db.run(
+      "UPDATE esign_vsigner SET status = ?, signed_at = NULL, signed_name = NULL, sig_kind = NULL, sig_text = NULL, sig_png = NULL WHERE envelope_id = ? AND idx = ?",
+      "viewed",
+      envId,
+      idx,
+    );
+    ctx.db.run(
+      "UPDATE esign_envelope SET status = ?, updated_at = ? WHERE id = ?",
+      was === "sent" ? "sent" : "viewed",
+      ctx.now(),
+      envId,
+    );
+    event(ctx, envId, idx, "failed", v, e instanceof Error ? e.message.slice(0, 200) : "error");
+    const env = mustEnvelope(ctx, envId);
+    await notifySender(ctx, envId, "task.returned", env.fileId, env.title, {
+      from: plain(str(hit.signer.name)),
+      note: "the signed file could not be made; they were asked to try again",
+    });
+    await tellThread(
+      ctx,
+      env,
+      `${plain(str(hit.signer.name))} signed ${plain(env.title)}, but the signed file could not be made just now. Their link works again.`,
+      "sig-failed",
+    );
+    return fail(ctx, "provider.unavailable", "Your signature could not be saved just now. Try again in a minute.");
+  }
   // the host saves the file as the sender so it is theirs (a file made by the public door would belong to nobody who can open it): it reads `finish`, takes it off, and calls esign.fetch_signed for that person
   const sender = str(one(ctx, "SELECT created_by FROM esign_envelope WHERE id = ?", envId)?.created_by);
   return {
@@ -766,7 +815,6 @@ export async function signerAct(ctx: Ctx, input: unknown): Promise<{ result: Row
 /** The last signature is in: stamp, append the audit page, keep the bytes, save the file beside the original, tell everyone. */
 async function complete(ctx: Ctx, envId: string): Promise<void> {
   const env = one(ctx, "SELECT * FROM esign_envelope WHERE id = ?", envId) as Row;
-  if (str(env.status) === "signed") return; // two last signatures at once: one file, one set of events
   const doc = one(ctx, "SELECT * FROM esign_doc WHERE envelope_id = ?", envId) as Row;
   const signers = many(ctx, "SELECT * FROM esign_vsigner WHERE envelope_id = ? ORDER BY idx", envId);
   const space = await spaceInfo(ctx);
@@ -954,7 +1002,7 @@ export async function fetchVyre(ctx: Ctx, envelopeId: string): Promise<{ fileId:
   await tellThread(
     ctx,
     env,
-    `${env.title} is signed by ${signers.map((s) => str(s.signed_name) || str(s.name)).join(", ")}. The signed PDF is saved beside the original.`,
+    `${env.title} is signed by ${signers.map((s) => plain(str(s.signed_name) || str(s.name))).join(", ")}. The signed PDF is saved beside the original.`,
     "sig-signed",
   );
   return { fileId: id };

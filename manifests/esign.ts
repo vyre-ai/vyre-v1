@@ -6,7 +6,7 @@ const envelopeId = t.id("env");
 const provider = t.enm("vyre", "documenso", "dropbox_sign", "docusign");
 const status = t.enm("sent", "viewed", "signed", "declined", "cancelled", "expired");
 const signer = t.obj({ name: t.str(), email: t.opt(t.str()), order: t.opt(t.int()) });
-const link = t.obj({ index: t.int(), name: t.str(), email: t.opt(t.str()), url: t.opt(t.str()), path: t.str() });
+const link = t.obj({ index: t.int(), name: t.str(), email: t.opt(t.str()), url: t.opt(t.str()), path: t.opt(t.str()) });
 const visitor = t.obj({ ip: t.opt(t.str()), ua: t.opt(t.str()) });
 
 export default defineManifest({
@@ -118,9 +118,11 @@ export default defineManifest({
       },
       tool: "files",
     }),
-    write("esign.cancel", "Cancel an envelope; every signer link stops", {
+    outward("esign.cancel", "Cancel an envelope; every signer link stops", {
       in: { envelopeId },
       out: { cancelled: t.bool() },
+      perm: "comms.shared_send",
+      gate: "signature_send",
       emits: ["signature.cancelled"],
       tool: "files",
       team: true,

@@ -21283,7 +21283,7 @@
       "cap": "esign.cancel",
       "deferred": false,
       "description": "Cancel an envelope; every signer link stops",
-      "effects": "write",
+      "effects": "outward",
       "inputSchema": {
         "properties": {
           "envelopeId": {
@@ -21292,10 +21292,18 @@
             ],
             "pattern": "^env_[a-z0-9]+$",
             "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
           }
         },
         "required": [
-          "envelopeId"
+          "envelopeId",
+          "idempotencyKey"
         ],
         "type": "object"
       },

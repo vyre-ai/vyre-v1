@@ -301,3 +301,50 @@ test("the page script puts what the server sends on the page as text, never as m
   assert.ok(!/localStorage|sessionStorage|document\.cookie|indexedDB/.test(js), "no storage and no cookie");
   assert.ok(!/https?:\/\//.test(js.replace(/\/\/ .*/g, "")), "no address outside the page");
 });
+
+test("a malformed escape in an address cannot crash anything: it is a plain 404 and the next request is served", async () => {
+  for (const p of ["assets/%E0%A4%A", "assets/%zz", "assets/%00", "assets/..%2f..%2fx", "nothing/%E0%A4%A"]) {
+    const r = await fetch(`${base}/p/sign/${GOOD}/${p}`);
+    assert.ok(r.status >= 400 && r.status < 500, `${p}: ${r.status}`);
+    await r.arrayBuffer();
+  }
+  assert.equal((await fetch(`${base}/p/sign/${GOOD}/`)).status, 200, "the server is still answering");
+});
+
+test("whatever a /p/* route throws is a plain 500 page and the daemon keeps answering", async () => {
+  const boom = http.createServer((req, res) => {
+    const r = createPublicPathRoute({
+      forms: () => null,
+      origin: () => null,
+      sign: () => ({
+        handle: () => {
+          throw new URIError("URI malformed");
+        },
+      }),
+    });
+    if (!r.handle(req, res)) res.end("outside");
+  });
+  await new Promise<void>((r) => boom.listen(0, "127.0.0.1", r));
+  try {
+    const b = `http://127.0.0.1:${(boom.address() as AddressInfo).port}`;
+    const bad = await fetch(`${b}/p/sign/${GOOD}/`);
+    assert.equal(bad.status, 500);
+    assert.doesNotMatch(await bad.text(), /URI|malformed|Error/);
+    assert.equal((await fetch(`${b}/p/sign/${GOOD}/`)).status, 500, "and again: nothing is left broken");
+  } finally {
+    boom.close();
+  }
+});
+
+test("a signer whose link the module accepted is not counted with the address's junk: guessers from the same address are shut out, the real signer is not", async () => {
+  script = () => ({ session: { state: "ready" } });
+  const ip = { "x-vyre-visitor": "198.51.100.200" };
+  assert.equal((await fetch(`${base}/p/sign/${GOOD}/view`, j({}, ip))).status, 200, "the real link is seen once");
+  script = (cap, input) =>
+    input.token === GOOD ? { session: { state: "ready" } } : Promise.reject(bad("auth.bad_credentials"));
+  for (let i = 0; i < 25; i++)
+    await fetch(`${base}/p/sign/${String.fromCharCode(97 + (i % 26)).repeat(42)}${i % 10}/view`, j({}, ip));
+  const guess = await fetch(`${base}/p/sign/${"q".repeat(43)}/view`, j({}, ip));
+  assert.equal(guess.status, 429, "the address is shut out for guessing");
+  assert.equal((await fetch(`${base}/p/sign/${GOOD}/view`, j({}, ip))).status, 200, "the known signer still gets in");
+});

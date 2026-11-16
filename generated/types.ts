@@ -15256,6 +15256,7 @@ export type EngineWarmOut = {
 };
 export type EsignCancelIn = {
   envelopeId: string;
+  idempotencyKey: string;
 };
 export type EsignCancelOut = {
   cancelled: boolean;
@@ -15324,7 +15325,7 @@ export type EsignRemindOut = {
     name: string;
     email?: string;
     url?: string;
-    path: string;
+    path?: string;
   };
   emailed: boolean;
   notice?: string;
@@ -15350,7 +15351,7 @@ export type EsignSendOut = {
       name: string;
       email?: string;
       url?: string;
-      path: string;
+      path?: string;
     }>;
   emailed?: Array<string>;
   notice?: string;

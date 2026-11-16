@@ -93,13 +93,13 @@ test("signature_send is held at the Gate: nothing reaches the provider until it 
   assert.equal(h.rows("esign_envelope").length, 1);
 });
 
-test("the manifest holds esign.send and esign.remind at signature_send, and the Gate is the only door: no other capability sends", () => {
+test("the manifest holds esign.send, esign.remind and esign.cancel at signature_send, and the Gate is the only door: no other capability sends", () => {
   const send = registry.capabilities.find((c) => c.name === "esign.send")!;
   assert.deepEqual(send.gate, { act: "signature_send" });
   const sends = registry.capabilities.filter((c) => c.name.startsWith("esign.") && c.effects === "outward");
   assert.deepEqual(
     sends.map((c) => c.name),
-    ["esign.remind", "esign.send"],
+    ["esign.cancel", "esign.remind", "esign.send"],
   );
   assert.deepEqual(registry.capabilities.find((c) => c.name === "esign.remind")!.gate, { act: "signature_send" });
 });
@@ -303,7 +303,7 @@ test("status and list: signers in order, newest envelope first, filtered by reco
 test("cancel: the provider is told, signers and the task end, saying it twice is fine, a signed envelope cannot be cancelled", async () => {
   const h = harness();
   const { envelopeId } = await send(h, {}, { ...dana, thread: "thr_1" });
-  assert.deepEqual(await h.call("esign.cancel", { envelopeId }), { cancelled: true });
+  assert.deepEqual(await h.call("esign.cancel", { envelopeId, idempotencyKey: "cx99512" }), { cancelled: true });
   assert.deepEqual(h.provider.cancelled, ["doc_1"]);
   assert.deepEqual(await h.call("esign.status", { envelopeId }), {
     status: "cancelled",
@@ -319,13 +319,16 @@ test("cancel: the provider is told, signers and the task end, saying it twice is
     "the write carries its own idempotency key",
   );
   assert.deepEqual(transition, { taskId: "tsk_sig1", to: "canceled", note: "The envelope was cancelled." });
-  await h.call("esign.cancel", { envelopeId });
+  await h.call("esign.cancel", { envelopeId, idempotencyKey: "cx99512" });
   assert.equal(h.provider.cancelled.length, 1, "no second call to the provider");
 
   const h2 = harness();
   const e2 = await send(h2);
   h2.provider.failCancel = "timeout";
-  await refused(h2.call("esign.cancel", { envelopeId: e2.envelopeId }), "provider.unavailable");
+  await refused(
+    h2.call("esign.cancel", { envelopeId: e2.envelopeId, idempotencyKey: "cx20652" }),
+    "provider.unavailable",
+  );
   assert.equal(
     (await h2.call("esign.status", { envelopeId: e2.envelopeId })).status,
     "sent",
@@ -334,7 +337,10 @@ test("cancel: the provider is told, signers and the task end, saying it twice is
   h2.provider.failCancel = null;
   h2.provider.allSigned();
   await h2.call("esign.fetch_signed", { envelopeId: e2.envelopeId });
-  await refused(h2.call("esign.cancel", { envelopeId: e2.envelopeId }), "validation.precondition_failed");
+  await refused(
+    h2.call("esign.cancel", { envelopeId: e2.envelopeId, idempotencyKey: "cx20652" }),
+    "validation.precondition_failed",
+  );
 });
 
 test("fetch_signed: refuses until everyone signed, then saves the signed PDF as a new version of the sent file", async () => {

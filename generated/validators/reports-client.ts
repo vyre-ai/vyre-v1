@@ -5,16 +5,16 @@ import type { Check } from './core.ts';
 
 function d_s_63dee7bf35(v: unknown, p: string, e: string[]): void {
 {
-const x507 = v;
-const g507 = typeOf(x507);
-const b507: string[] = []; lf(x507, p, b507, L0); if (b507.length) e.push(...b507);
-if (g507 === "object") {
-if (g507 === 'object') { const o507 = x507 as Record<string, unknown>;
-if (!("reportId" in o507)) e.push(p + "/reportId" + ': required');
-if (!("issueNumber" in o507)) e.push(p + "/issueNumber" + ': required');
-if ("reportId" in o507) lf(o507["reportId"], p + "/reportId", e, L258);
-if ("issueNumber" in o507) lf(o507["issueNumber"], p + "/issueNumber", e, L2);
-if ("fixedIn" in o507) lf(o507["fixedIn"], p + "/fixedIn", e, L1);
+const x506 = v;
+const g506 = typeOf(x506);
+const b506: string[] = []; lf(x506, p, b506, L0); if (b506.length) e.push(...b506);
+if (g506 === "object") {
+if (g506 === 'object') { const o506 = x506 as Record<string, unknown>;
+if (!("reportId" in o506)) e.push(p + "/reportId" + ': required');
+if (!("issueNumber" in o506)) e.push(p + "/issueNumber" + ': required');
+if ("reportId" in o506) lf(o506["reportId"], p + "/reportId", e, L258);
+if ("issueNumber" in o506) lf(o506["issueNumber"], p + "/issueNumber", e, L2);
+if ("fixedIn" in o506) lf(o506["fixedIn"], p + "/fixedIn", e, L1);
 }
 }
 }

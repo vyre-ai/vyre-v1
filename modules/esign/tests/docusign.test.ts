@@ -693,7 +693,7 @@ test("replay: an envelope voided at DocuSign cancels the envelope; events after 
 test("replay: a cancel from Vyre voids the envelope at DocuSign", async () => {
   const { server, h } = rig();
   const { envelopeId } = await sendIt(h);
-  assert.deepEqual(await h.call("esign.cancel", { envelopeId }), { cancelled: true });
+  assert.deepEqual(await h.call("esign.cancel", { envelopeId, idempotencyKey: "cxd1" }), { cancelled: true });
   assert.equal(server.envs.get("env-1")!.status, "voided");
   assert.equal((await h.call("esign.status", { envelopeId })).status, "cancelled");
 });

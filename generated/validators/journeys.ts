@@ -155,31 +155,31 @@ if ("makesProject" in o204) lf(o204["makesProject"], p + "/makesProject", e, L3)
 
 function d_s_344556bed4(v: unknown, p: string, e: string[]): void {
 {
-const x236 = v;
-const g236 = typeOf(x236);
-const b236: string[] = []; lf(x236, p, b236, L0); if (b236.length) e.push(...b236);
-if (g236 === "object") {
-if (g236 === 'object') { const o236 = x236 as Record<string, unknown>;
-if (!("id" in o236)) e.push(p + "/id" + ': required');
-if (!("name" in o236)) e.push(p + "/name" + ': required');
-if (!("subjectType" in o236)) e.push(p + "/subjectType" + ': required');
-if (!("recordType" in o236)) e.push(p + "/recordType" + ': required');
-if (!("version" in o236)) e.push(p + "/version" + ': required');
-if (!("stages" in o236)) e.push(p + "/stages" + ': required');
-if (!("inFlight" in o236)) e.push(p + "/inFlight" + ': required');
-if (!("createdAt" in o236)) e.push(p + "/createdAt" + ': required');
-if (!("updatedAt" in o236)) e.push(p + "/updatedAt" + ': required');
-if ("id" in o236) lf(o236["id"], p + "/id", e, L137);
-if ("name" in o236) lf(o236["name"], p + "/name", e, L1);
-if ("subjectType" in o236) lf(o236["subjectType"], p + "/subjectType", e, L32);
-if ("recordType" in o236) lf(o236["recordType"], p + "/recordType", e, L32);
-if ("version" in o236) lf(o236["version"], p + "/version", e, L12);
-if ("stages" in o236) d_s_a6c1ebd30d(o236["stages"], p + "/stages", e);
-if ("startRule" in o236) d_s_25d70fcceb(o236["startRule"], p + "/startRule", e);
-if ("startAutomationId" in o236) lf(o236["startAutomationId"], p + "/startAutomationId", e, L52);
-if ("inFlight" in o236) lf(o236["inFlight"], p + "/inFlight", e, L17);
-if ("createdAt" in o236) lf(o236["createdAt"], p + "/createdAt", e, L17);
-if ("updatedAt" in o236) lf(o236["updatedAt"], p + "/updatedAt", e, L17);
+const x235 = v;
+const g235 = typeOf(x235);
+const b235: string[] = []; lf(x235, p, b235, L0); if (b235.length) e.push(...b235);
+if (g235 === "object") {
+if (g235 === 'object') { const o235 = x235 as Record<string, unknown>;
+if (!("id" in o235)) e.push(p + "/id" + ': required');
+if (!("name" in o235)) e.push(p + "/name" + ': required');
+if (!("subjectType" in o235)) e.push(p + "/subjectType" + ': required');
+if (!("recordType" in o235)) e.push(p + "/recordType" + ': required');
+if (!("version" in o235)) e.push(p + "/version" + ': required');
+if (!("stages" in o235)) e.push(p + "/stages" + ': required');
+if (!("inFlight" in o235)) e.push(p + "/inFlight" + ': required');
+if (!("createdAt" in o235)) e.push(p + "/createdAt" + ': required');
+if (!("updatedAt" in o235)) e.push(p + "/updatedAt" + ': required');
+if ("id" in o235) lf(o235["id"], p + "/id", e, L137);
+if ("name" in o235) lf(o235["name"], p + "/name", e, L1);
+if ("subjectType" in o235) lf(o235["subjectType"], p + "/subjectType", e, L32);
+if ("recordType" in o235) lf(o235["recordType"], p + "/recordType", e, L32);
+if ("version" in o235) lf(o235["version"], p + "/version", e, L12);
+if ("stages" in o235) d_s_a6c1ebd30d(o235["stages"], p + "/stages", e);
+if ("startRule" in o235) d_s_25d70fcceb(o235["startRule"], p + "/startRule", e);
+if ("startAutomationId" in o235) lf(o235["startAutomationId"], p + "/startAutomationId", e, L52);
+if ("inFlight" in o235) lf(o235["inFlight"], p + "/inFlight", e, L17);
+if ("createdAt" in o235) lf(o235["createdAt"], p + "/createdAt", e, L17);
+if ("updatedAt" in o235) lf(o235["updatedAt"], p + "/updatedAt", e, L17);
 }
 }
 }
@@ -187,13 +187,13 @@ if ("updatedAt" in o236) lf(o236["updatedAt"], p + "/updatedAt", e, L17);
 
 function d_s_a6c1ebd30d(v: unknown, p: string, e: string[]): void {
 {
-const x850 = v;
-const g850 = typeOf(x850);
-const b850: string[] = []; lf(x850, p, b850, L4); if (b850.length) e.push(...b850);
-if (g850 === "array") {
-if (g850 === 'array') { const a850 = x850 as unknown[];
-for (let i850 = 0; i850 < a850.length; i850++) {
-d_s_2d1da53e35(a850[i850], p + '/' + i850, e);
+const x849 = v;
+const g849 = typeOf(x849);
+const b849: string[] = []; lf(x849, p, b849, L4); if (b849.length) e.push(...b849);
+if (g849 === "array") {
+if (g849 === 'array') { const a849 = x849 as unknown[];
+for (let i849 = 0; i849 < a849.length; i849++) {
+d_s_2d1da53e35(a849[i849], p + '/' + i849, e);
 }
 }
 }

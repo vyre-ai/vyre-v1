@@ -76,7 +76,7 @@ test("a Dropbox Sign key in the Vault makes it connected and a send reaches the 
   const row = h.rows("esign_envelope").find((r) => r.id === out.envelopeId)!;
   assert.deepEqual([row.provider, row.provider_ref], ["dropbox_sign", "sr_vault_1"]);
   assert.equal(out.links, undefined, "a hosted provider mails the signer itself");
-  await h.call("esign.cancel", { envelopeId: out.envelopeId }, dana);
+  await h.call("esign.cancel", { envelopeId: out.envelopeId, idempotencyKey: "cx3454" }, dana);
   assert.ok(seen.some((s) => s.url.endsWith("/signature_request/cancel/sr_vault_1")));
 
   vault.delete("#Dropbox_Sign.apiKey");
