@@ -20,6 +20,8 @@ export interface LiveOpts {
   deadMs?: number;
   window?: number;
   batch?: number;
+  evBytes?: number;
+  frameMax?: number;
 }
 
 /** Schema versions the replica may hold: every entity the server knows is at version 1 until a migration says otherwise. */
@@ -37,8 +39,10 @@ export function createSyncLiveHub(deps: PullDeps, o: LiveOpts): LiveHub {
     ...(o.deadMs !== undefined ? { deadMs: o.deadMs } : {}),
     ...(o.window !== undefined ? { window: o.window } : {}),
     ...(o.batch !== undefined ? { batch: o.batch } : {}),
+    ...(o.evBytes !== undefined ? { evBytes: o.evBytes } : {}),
+    ...(o.frameMax !== undefined ? { frameMax: o.frameMax } : {}),
     head: () => headSeq(deps.db),
-    pull: (who: LiveWho, req) => pullChanges(deps, who, req),
+    pull: (who: LiveWho, req, maxBytes) => pullChanges(deps, who, req, undefined, undefined, maxBytes),
     state: (who: LiveWho): ServerState => ({
       serverVersion: o.serverVersion ?? "1.0.0",
       epoch: deviceEpochOf(deps.db, who.person, who.device),

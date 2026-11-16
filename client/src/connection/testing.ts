@@ -22,6 +22,8 @@ export interface FakeServer {
   refuse(url: string, on?: boolean): void;
   /** Hold back hello_ok on this url until released (a slow endpoint). */
   slow(url: string, on?: boolean): void;
+  /** The head hello_ok reports (default 0). */
+  head: number;
   /** Answer hello with this mode. */
   mode: "live" | "update_required" | "resync" | "purge";
   /** Send a frame on every open socket. */
@@ -39,6 +41,7 @@ export function fakeServer(): FakeServer {
   const waiting: (() => void)[] = [];
   const s: FakeServer = {
     sockets: [],
+    head: 0,
     mode: "live",
     open: () => s.sockets.filter((x) => x.link.isOpen()).length,
     openAt: (url) => s.sockets.filter((x) => x.url === url && x.link.isOpen()).length,
@@ -81,7 +84,7 @@ export function fakeServer(): FakeServer {
                 epoch: 0,
                 serverHlc: "000000000001-0000-srv",
                 mode: s.mode,
-                head: 0,
+                head: s.head,
                 entityVersions: {},
               },
             });

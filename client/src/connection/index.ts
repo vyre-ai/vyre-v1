@@ -6,6 +6,8 @@ export type { DeviceClass, EventBatch, FieldVal, HelloInfo, HelloOk, Mode, WireC
 export {
   BACKOFF_BASE_MS,
   BACKOFF_CAP_MS,
+  FLAP_MS,
+  SETTLE_MS,
   HEARTBEAT_DEAD_MS,
   HEARTBEAT_MS,
   HELLO_TIMEOUT_MS,
