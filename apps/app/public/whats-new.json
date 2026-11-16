@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-rc.30",
+  "version": "1.0.0-rc.31",
   "lines": [
     "Every place has the same sidebar, with Hide and Expand, and a tab remembers where you were.",
     "Chat shows one working indicator and a shorter message menu, and tells you when someone is typing.",
