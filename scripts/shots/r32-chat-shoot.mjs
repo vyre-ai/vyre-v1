@@ -111,6 +111,21 @@ for (const skin of ["graphite", "paper"])
       .innerText()
       .catch(() => "");
     report.push(`${tag} step says: ${did}`);
+    // G55 the thread's decision; G4 Rewind in the head menu; G67 a failed row's menu has Dismiss
+    if (PARTS.includes("rows")) {
+      await go("/m/R32CHAT_01?part=decided");
+      await page.waitForSelector("[data-testid=thread-decided]", { timeout: 8000 }).catch(() => report.push(`${tag} no decided line`));
+      await shot("G55-thread-decided");
+      await go("/m/CHATFRAME_01");
+      await page.locator("[data-testid=more-button]").first().click({ timeout: 4000 }).catch(() => report.push(`${tag} no head menu`));
+      await shot("G4-head-menu-rewind");
+      await page.keyboard.press("Escape");
+      await go("/m/CARDS_01?part=err");
+      await page.waitForSelector("[data-testid=err-more]", { timeout: 8000 }).catch(() => report.push(`${tag} no error card`));
+      await page.getByTestId("err-more").click({ timeout: 3000 }).catch(() => undefined);
+      await shot("G67-error-row-menu");
+      await page.keyboard.press("Escape");
+    }
     // a teammate's plain question
     await go("/m/R32CHAT_01?part=ask");
     await page

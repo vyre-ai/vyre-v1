@@ -1349,6 +1349,7 @@ function ConversationView(): ReactElement {
         {
           plan: () => chooseChatMode(mode === "plan" ? "ask" : "plan"),
           fork: () => void runSlash("/fork", commandEnv()),
+          ...(goesBack ? { rewind: () => setRewindCard({ n: cardN.current++ }) } : {}),
           find: () => setFinding(true),
           ...(data.nav.openPaneTab ? { kept: () => data.nav.openPaneTab?.("kept") } : {}),
           exportMd: () => void runSlash("/export md", commandEnv()),

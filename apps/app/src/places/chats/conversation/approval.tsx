@@ -446,6 +446,7 @@ export function ApprovalCard({
         <Text style={st.quietText}>{`${agent} asks: ${task.title}`}</Text>
         {held.detail ? <Text style={st.quietDetail}>{held.detail}</Text> : null}
         <View style={st.quietRow}>
+          {/* ui-rows-lint: not a list (the two answer buttons) */}
           {(
             [
               ["yes", "Yes", "approve"],

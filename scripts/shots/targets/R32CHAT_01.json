@@ -2,5 +2,6 @@
   "targets": [
     { "id": "R32CHAT_01-ask", "route": "/m/R32CHAT_01?part=ask", "proto": "chat,{skin}", "waitFor": "[data-testid='approval-plain-tsk_1']", "note": "A teammate's plain yes or no question: a quiet line with Yes and No." },
     { "id": "R32CHAT_01-answered", "route": "/m/R32CHAT_01?part=answered", "proto": "chat,{skin}", "waitFor": "[data-testid='approval-done-tsk_1']", "note": "After it is answered: one line." }
+    ,{ "id": "R32CHAT_01-decided", "route": "/m/R32CHAT_01?part=decided", "proto": "chat,{skin}", "waitFor": "[data-testid='thread-decided']", "note": "A thread's parent message with the decision the thread reached." }
   ]
 }
