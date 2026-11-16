@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import type { ViewStyle } from "react-native";
+import type { ViewStyle, TextStyle } from "react-native";
 import { injectCss } from "../theme/css.ts";
 import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
@@ -582,7 +582,11 @@ function TabItem({
       {extraTab.lead !== undefined ? extraTab.lead : null}
       {tab.icon !== undefined && tab.icon.length > 0 ? <MenuIcon icon={tab.icon} color={ink} size={14} /> : null}
       {extraTab.iconOnly === true ? null : (
-        <Text numberOfLines={1} style={[styles.title, { color: ink }]}>
+        <Text
+          numberOfLines={1}
+          testID={`tab-title-${tab.key}`}
+          style={[styles.title, { color: ink }, showClose && !only ? TITLE_UNDER_CLOSE : null]}
+        >
           {tab.title}
         </Text>
       )}
@@ -621,6 +625,12 @@ const DROP = { boxShadow: "inset 2px 0 0 var(--accent)" } as unknown as ViewStyl
 const HIDDEN = { opacity: 0 };
 /* on the selected tab the Close sits on the tab's own fill, so the end of the name does not show through it */
 const CLOSE_ON = { backgroundColor: "var(--sel)" };
+/* While the Close is over the tab's right edge the end of the name fades out before it: the tab's fills are see-through, so the last letters showed through the
+   button and beside it ("figures.m x d"; lead, 16 Nov 2026). The name keeps its width, so the tab does not move. */
+const TITLE_UNDER_CLOSE = {
+  maskImage: "linear-gradient(to right, #000 calc(100% - 26px), transparent calc(100% - 14px))",
+  WebkitMaskImage: "linear-gradient(to right, #000 calc(100% - 26px), transparent calc(100% - 14px))",
+} as unknown as TextStyle;
 
 const styles = StyleSheet.create({
   strip: { height: TAB_STRIP_HEIGHT, flexDirection: "row", alignItems: "center", paddingTop: 6, paddingRight: 8 },
