@@ -215,6 +215,13 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
     } catch {
       /* a cursor from before groups: not catching up */
     }
+    // a failure shows until a later pass succeeds (a good pass clears the count and stamps the time)
+    const lastGood = has("cn_sync_guard")
+      ? tx.get<{ failures: number; last_at: number }>(
+          "SELECT failures, last_at FROM cn_sync_guard WHERE sync_type_id = ?",
+          b.sync_type_id,
+        )
+      : undefined;
     const slowRow = has("sy_slow")
       ? tx.get<{ resume_at: number }>("SELECT resume_at FROM sy_slow WHERE sync_type = ?", b.sync_type_id)
       : undefined;
@@ -270,7 +277,7 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
       conflicts: row.conflicts,
       schemaChanges: row.schemaChanges,
       failures: logs
-        .filter((l) => l.kind === "error")
+        .filter((l) => l.kind === "error" && (!lastGood || lastGood.failures > 0 || l.at > lastGood.last_at))
         .slice(0, 5)
         .map((l) => ({ at: l.at, summary: l.summary })),
       sentToday: outbox?.sent ?? 0,
