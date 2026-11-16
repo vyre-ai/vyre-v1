@@ -9,6 +9,7 @@
   "modules/computers/handlers/lifecycle.ts#provision": "the catch deletes the computer row it just inserted before it raises",
   "modules/connectors/handlers/connections.ts#connections.complete_auth": "single-use sign-in link: the oauth state row is deleted first, so an expired link stays burned",
   "modules/connectors/handlers/runtime.ts#executeAction": "the request log row (cn_log) is written for every call, refused ones included",
+  "modules/esign/handlers/vyre.ts#signerAct": "single-use claim of a signing link: the conditional UPDATE changes no row when it refuses, and a spent link stays spent",
   "modules/esign/handlers/documenso.ts#hook": "the dedupe row is removed by forget() before the refusal, so the provider retry is not dropped",
   "modules/google/handlers/workspace.ts#dwdSetup": "the config is saved unconfigured and a failed probe is recorded (lastProbeOk = 0) before it throws",
   "modules/identity/handlers/keys.ts#recoveryRestore": "failed-attempt counter: a recovery code is burned after too many wrong tries, and the failed sign-in event is written after the failure",
