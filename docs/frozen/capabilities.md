@@ -735,3 +735,11 @@ Signed: lead, 17 Nov 2026
 - Snapshots: docs/frozen/snapshots/esign.json.
 
 Signed: lead, 17 Nov 2026
+
+## 17 Nov 2026: a sync apply and a sync backfill may change a binding that exists (lead)
+
+- What changed in contracts: `sync_specs.apply` also declares the event `sync.type_updated`; `sync_specs.backfill` also declares `connection.created`, `sync.type_bound`, `sync.type_updated` and `schema.changed` (it runs the same apply). No input or output changed.
+- Why: a second apply that added a field or a link to a table already synced was refused by the invoker as internal.unexpected ("event not declared in emits"), on rc.26 and on the line. Test: `test/sync.reapply.live.test.ts`.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: lead, 17 Nov 2026

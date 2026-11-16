@@ -19,7 +19,7 @@ Apply a validated SyncSpec: a live connector (with its own tests), a connection 
 | HTTP | POST /v1/sync_specs/apply |
 | MCP tool | sync_specs_apply (records) |
 | CLI | vyre sync-spec apply |
-| Emits | connector.created, connector.published, connection.created, sync.type_bound, schema.changed |
+| Emits | connector.created, connector.published, connection.created, sync.type_bound, sync.type_updated, schema.changed |
 
 ## Input
 
