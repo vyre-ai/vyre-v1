@@ -401,7 +401,10 @@ function OutsideShell({
   );
 }
 
-/** What a page was opened with from another page (openPage(id, { invite: "1" })), as the string arguments a page reads from a link. */
-function stringState(state: Record<string, unknown>): Record<string, string> {
-  return Object.fromEntries(Object.entries(state).filter((e): e is [string, string] => typeof e[1] === "string"));
+/**
+ * What a page was opened with from another page (openPage("people", { invite: "1" })), as the string arguments a page reads from a link. Only the arguments a page takes this way
+ * are carried: a page's own state (the role that was open, a filter) must not outlive the link that names where the person is now, or a link to the list would open the last row.
+ */
+export function stringState(state: Record<string, unknown>): Record<string, string> {
+  return state["invite"] === "1" ? { invite: "1" } : {};
 }

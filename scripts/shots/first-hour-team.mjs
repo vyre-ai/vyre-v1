@@ -27,7 +27,7 @@ async function asDana(S) {
     token: d.token,
     personId: d.personId,
     username: "dana",
-    displayName: "Dana Whitfield",
+    displayName: "Imran Ibarra",
     def: { ...mine.def, role: "Member", console: false, terminal: false, invite: false },
   };
   await seed.evaluate((v) => localStorage.setItem("vyre.session.v1", v), JSON.stringify(raw));
@@ -46,7 +46,20 @@ async function asDana(S) {
   return { ctx, page, errs };
 }
 
-export const teamSteps = [
+
+// every Console page in the list: no id and no capability name on screen
+async function scanPages(S, pages) {
+  const found = [];
+  for (const pg of pages) {
+    await S.page.goto(`${S.web.origin}/console#screen=console.page&page=${pg.id}`, { waitUntil: "load" });
+    await S.page.waitForTimeout(900);
+    const t = await S.page.locator("body").innerText();
+    for (const x of [...rawIdsIn(t), ...(t.match(DOTTED) ?? [])]) found.push(`${pg.id}: ${x}`);
+  }
+  if (found.length) throw new Error(`ids or codes on screen: ${[...new Set(found)].slice(0, 12).join(" ; ")}`);
+}
+
+const baseSteps = [
   // UI: the claim screens.
   { id: "claim-and-sign-in", owner: "l-entry", critical: true, run: (S) => claim(S, "Olivia Owner", "olivia") },
 
@@ -73,9 +86,9 @@ export const teamSteps = [
         body: JSON.stringify({
           code,
           username: "dana",
-          displayName: "Dana Whitfield",
+          displayName: "Imran Ibarra",
           password: S.PW,
-          deviceName: "Dana's PC",
+          deviceName: "Imran's PC",
           deviceClass: "desktop",
           keys,
         }),
@@ -84,7 +97,7 @@ export const teamSteps = [
       S.state.dana = (await acc.json()).data;
       S.state.owner = (await S.api("spaces.get")).person ?? null;
       await S.page.goto(`${S.web.origin}/chat`, { waitUntil: "load" });
-      await S.page.getByText("Dana Whitfield", { exact: false }).first().waitFor({ timeout: 20000 });
+      await S.page.getByText("Imran Ibarra", { exact: false }).first().waitFor({ timeout: 20000 });
     },
   },
 
@@ -437,18 +450,27 @@ export const teamSteps = [
       await S.page.keyboard.press("Escape");
     },
   },
+  // The words scan is three steps, each short enough to stand alone as a walk file: the first half of the Console pages, the second half, and the agent's tabs.
   {
     id: "wf-words-scan",
     owner: "w-first",
+    run: (S) => scanPages(S, CONSOLE_PAGES.slice(0, Math.ceil(CONSOLE_PAGES.length / 2))),
+  },
+  {
+    id: "wf-words-scan-b",
+    owner: "w-first",
+    run: (S) => scanPages(S, CONSOLE_PAGES.slice(Math.ceil(CONSOLE_PAGES.length / 2))),
+  },
+  {
+    id: "wf-words-scan-agent",
+    owner: "w-first",
     run: async (S) => {
-      // every Console page and every agent tab: no id and no capability name on screen
-      const found = [];
-      for (const pg of CONSOLE_PAGES) {
-        await S.page.goto(`${S.web.origin}/console#screen=console.page&page=${pg.id}`, { waitUntil: "load" });
-        await S.page.waitForTimeout(900);
-        const t = await S.page.locator("body").innerText();
-        for (const x of [...rawIdsIn(t), ...(t.match(DOTTED) ?? [])]) found.push(`${pg.id}: ${x}`);
+      // every agent tab: no id and no capability name on screen. The step makes its own agent, so the walk file stands alone.
+      if (!S.state.wfAgent) {
+        const made = await S.api("agents.create", { name: "Courier", description: "Carries the mail", sharing: "me" });
+        S.state.wfAgent = made.agent?.agentId ?? made.agentId;
       }
+      const found = [];
       for (const tab of ["Overview", "Access", "Activity", "Configuration"]) {
         await S.page.goto(`${S.web.origin}/console#screen=console.page&page=agents&agentId=${S.state.wfAgent}`, {
           waitUntil: "load",
@@ -550,10 +572,66 @@ export const teamSteps = [
       await S.page.goto(`${S.web.origin}/chat#subject=thread:${threadId}`, { waitUntil: "load" });
       await S.page.getByText("Connect your AI to get replies", { exact: false }).first().waitFor({ timeout: 30000 });
       await S.page.screenshot({ path: path.join(S.out, "wf-11-connect-card-before.png") });
+      // the line "Sending your message again" shows for a moment and then the reply replaces it, so the walk waits for where it ends: the card gone and the reply there
+      S.vendor.script.push({ text: "Two goals moved this week and one agent joined." });
       await connectModel(S, true);
-      await S.page.getByText("Sending your message again", { exact: false }).first().waitFor({ timeout: 30000 });
-      await S.page.waitForTimeout(6000);
+      await S.page.getByText("one agent joined", { exact: false }).first().waitFor({ timeout: 30000 });
+      await S.page
+        .getByText("Connect your AI to get replies", { exact: false })
+        .first()
+        .waitFor({ state: "hidden", timeout: 10000 });
       await S.page.screenshot({ path: path.join(S.out, "wf-12-connect-card-after.png") });
+    },
+  },
+  {
+    id: "wf-pause-dialog",
+    owner: "w-first",
+    run: async (S) => {
+      const made = await S.api("agents.create", { name: "Pausable", description: "Pictured", sharing: "me" });
+      const agentId = made.agent?.agentId ?? made.agentId;
+      await S.page.goto(`${S.web.origin}/console#screen=console.page&page=agents&agentId=${agentId}`, {
+        waitUntil: "load",
+      });
+      await S.page.getByTestId("object-action-pause").waitFor({ timeout: 30000 });
+      await S.page.getByTestId("object-action-pause").click();
+      await S.page.getByTestId("agent-pause-reason").waitFor({ timeout: 15000 });
+      await S.page.waitForTimeout(800);
+      await S.page.screenshot({ path: path.join(S.out, "wf-15-pause-dialog.png") });
+      await S.page.keyboard.press("Escape");
+    },
+  },
+  {
+    id: "wf-computer-alert",
+    owner: "w-first",
+    run: async (S) => {
+      // the Space has no sick computer to show, so the one read that lists computer alerts answers two, and the real Console Home draws them
+      await S.page.route("**/v1/machines/alerts", (r) =>
+        r.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              alerts: [
+                {
+                  alertId: "disk_low:srv_box",
+                  machineId: "srv_box",
+                  kind: "disk_low",
+                  severity: "warn",
+                  next: "Free disk space.",
+                  title: "Berlin box has 8% disk left",
+                  detail: "12 GB of 160 GB free",
+                },
+              ],
+            },
+          }),
+        }),
+      );
+      await S.page.goto(`${S.web.origin}/console#screen=console.page&page=overview`, { waitUntil: "load" });
+      await S.page.reload({ waitUntil: "load" });
+      await S.page.getByTestId("quick-actions").waitFor({ timeout: 30000 });
+      await S.page.getByText("Berlin box has 8% disk left").first().waitFor({ timeout: 15000 });
+      await S.page.waitForTimeout(800);
+      await S.page.screenshot({ path: path.join(S.out, "wf-16-console-home-computer-alert.png") });
+      await S.page.unroute("**/v1/machines/alerts");
     },
   },
   {
@@ -651,3 +729,16 @@ export const teamSteps = [
     },
   },
 ];
+
+// FH_VIEW=light-phone: the Space is claimed at desktop width (the claim page and onboarding are not what a lane's pictures are of), then every wf step runs in a 390 wide window
+export const teamSteps = baseSteps.map((st) =>
+  process.env.FH_VIEW === "light-phone" && st.id.startsWith("wf-")
+    ? {
+        ...st,
+        run: async (S) => {
+          await S.page.setViewportSize({ width: 390, height: 844 });
+          await st.run(S);
+        },
+      }
+    : st,
+);

@@ -657,7 +657,7 @@ export interface EmailBuilderViewProps extends Omit<EmailBuilderProps, "onTestSe
   fromName?: string;
   /** Who a test send goes to. */
   testTo?: string;
-  /** Name of the record the merge fields are filled from ("Elena Rivera"). */
+  /** Name of the record the merge fields are filled from ("Imran Ibarra"). */
   previewAs?: string;
   /** People the preview can be filled for ("Preview as"). The chosen one's values fill the merge fields. */
   contacts?: readonly EmailContact[];

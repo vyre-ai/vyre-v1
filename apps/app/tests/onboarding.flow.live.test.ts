@@ -93,7 +93,7 @@ const whoami = async (call: CapCall): Promise<string> =>
 test("a Personal Space is claimed and gets its assistant; progress, AI, the memory interview", async () => {
   const d = await bootFreshSpace("personal");
   try {
-    const token = await claim(d, "dana", "Dana Reyes");
+    const token = await claim(d, "dana", "Imran Ibarra");
     await unlock(d, token);
     const call = caller(d, token);
     const me = await whoami(call);
@@ -146,11 +146,11 @@ test("a Team Space: the same AI account is copied only with a yes; a member join
   const team = await bootFreshSpace();
   try {
     // the founder: Personal first (an AI key in Mine), then the Team Space
-    const pTok = await claim(personal, "dana", "Dana Reyes");
+    const pTok = await claim(personal, "dana", "Imran Ibarra");
     await unlock(personal, pTok);
     const pCall = caller(personal, pTok);
     await saveApiKey(pCall, "anthropic", "sk-ant-live-test-0002", "live-p2-ai");
-    const tTok = await claim(team, "dana", "Dana Reyes");
+    const tTok = await claim(team, "dana", "Imran Ibarra");
     await unlock(team, tTok);
     const tCall = caller(team, tTok);
     const owner = await whoami(tCall);
@@ -196,7 +196,7 @@ test("a Team Space: the same AI account is copied only with a yes; a member join
     const joined = await post(team, "/v1/members/accept", {
       code,
       username: "omar",
-      displayName: "Omar Haddad",
+      displayName: "Andrea Lindahl",
       password: PASSWORD,
       deviceName: "Web browser",
       deviceClass: "web",

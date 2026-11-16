@@ -36,7 +36,7 @@ test("the tile shows name, kind, role, and the counts that drive the red dot", a
 
 test("a dot shows for the other Space that needs you, while you work in this one", async () => {
   const north = harness("spc_north", "Northwind", "team");
-  const harbor = harness("spc_harbor", "Harbor Studio", "team");
+  const harbor = harness("spc_harbor", "Northwind", "team");
   const personal = harness("spc_me", "Personal", "personal");
   // the client asks each Space server for its own tile; only Harbor has something waiting on Maya
   const tiles = await Promise.all([
