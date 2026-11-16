@@ -545,8 +545,10 @@ test("production Console Access: People directory, person object, groups, device
           await p.getByTestId("agent-configuration").waitFor();
         });
         await page.getByRole("tab", { name: /^Overview/ }).click();
-        await page.getByTestId("agent-pause-reason").fill("Cost review");
+        // the reason is asked for after Pause is pressed (a small dialog), not on the Overview before it (walker, 15 Nov): press Pause, write the reason, confirm
         await page.getByTestId("object-action-pause").click();
+        await page.getByTestId("agent-pause-reason").fill("Cost review");
+        await page.getByTestId("agent-pause-confirm").click();
         await page.getByText("Agent paused").first().waitFor();
         assert.equal((await read()).status, "paused");
         assert.equal((await read()).pausedReason, "Cost review");

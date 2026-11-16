@@ -657,7 +657,7 @@ export interface EmailBuilderViewProps extends Omit<EmailBuilderProps, "onTestSe
   fromName?: string;
   /** Who a test send goes to. */
   testTo?: string;
-  /** Name of the record the merge fields are filled from ("Elena Rivera"). */
+  /** Name of the record the merge fields are filled from ("Imran Ibarra"). */
   previewAs?: string;
   /** People the preview can be filled for ("Preview as"). The chosen one's values fill the merge fields. */
   contacts?: readonly EmailContact[];
@@ -994,8 +994,13 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
 
   const anchorMenu = (name: string, items: Parameters<typeof menu.show>[0]): void => {
     const r = refs.current[name];
+    // a menu is never drawn at the window's corner: with no way to measure the control it opens under the editor's first line
+    const box = (
+      r as { getBoundingClientRect?: () => { left: number; bottom: number } } | undefined
+    )?.getBoundingClientRect?.();
     if (r?.measureInWindow !== undefined) r.measureInWindow((x, y, _w, h) => menu.show(items, x, y + h + 4, "other"));
-    else menu.show(items, 0, 0, "other");
+    else if (box) menu.show(items, box.left, box.bottom + 4, "other");
+    else menu.show(items, 24, 96, "other");
   };
   const refOf =
     (name: string) =>

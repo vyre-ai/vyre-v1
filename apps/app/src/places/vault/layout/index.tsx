@@ -185,6 +185,11 @@ function Page({
   );
   // A link that asks for the sign-in (an agent with no AI account) opens the sheet even when the Vault is already showing.
   const routedAdd = route.surface === "layout" && route.addProvider === true;
+  // the tab's address carries the ask; once the sheet is done the address forgets it, so coming back to the Vault tab does not open a finished sheet again
+  const closeAddProvider = (): void => {
+    setAddingProvider(false);
+    if (routedAdd) onRouteClose();
+  };
   useEffect(() => {
     if (routedAdd) setAddingProvider(true);
   }, [routedAdd]);
@@ -930,8 +935,9 @@ function Page({
         <AddProvider
           {...(typeof addingProvider === "object" ? { initial: addingProvider } : {})}
           {...(spaceAi ? { initialScope: "shared" as const } : {})}
-          onClose={() => setAddingProvider(false)}
+          onClose={closeAddProvider}
           onAdded={(p) => {
+            closeAddProvider();
             setSelection({ kind: "providers" });
             setSelectedId(p.itemId);
             showNote(`Connected ${p.name}`);

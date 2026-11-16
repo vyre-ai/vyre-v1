@@ -113,20 +113,23 @@ export function dayWord(at: number, now: number, zone: string): string {
 export function zoneName(zone: string, at: number = Date.now()): string {
   // A zone's name changes only when its clock does (London is "British Time" in summer and "Greenwich Mean Time" in winter), so it is worked out once for each
   // offset the zone has: naming every zone in the world on each draw took a third of a second (the Settings tab, 16 Nov 2026).
-  let key = zone;
-  try {
-    key = `${zone}|${offsetMinAt(at, zone)}`;
-  } catch {
-    return zoneCity(zone);
+  // A caller with no zone at all (a date shown before the Space's zone is known) gets this computer's zone, as it always did: it is named as before, uncached.
+  let key: string | null = null;
+  if (typeof zone === "string" && zone !== "") {
+    try {
+      key = `${zone}|${offsetMinAt(at, zone)}`;
+    } catch {
+      key = null;
+    }
   }
-  const had = zoneNames.get(key);
+  const had = key === null ? undefined : zoneNames.get(key);
   if (had !== undefined) return had;
-  let out = zoneCity(zone);
+  let out: string | null = null;
   try {
-    let f = nameFormatters.get(zone);
+    let f = key === null ? undefined : nameFormatters.get(zone);
     if (!f) {
       f = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "long" });
-      nameFormatters.set(zone, f);
+      if (key !== null) nameFormatters.set(zone, f);
     }
     const long = f.formatToParts(new Date(at)).find((p) => p.type === "timeZoneName")?.value ?? "";
     const plain = long
@@ -137,7 +140,8 @@ export function zoneName(zone: string, at: number = Date.now()): string {
   } catch {
     /* an unknown zone */
   }
-  zoneNames.set(key, out);
+  if (out === null) out = zoneCity(zone);
+  if (key !== null) zoneNames.set(key, out);
   return out;
 }
 const nameFormatters = new Map<string, Intl.DateTimeFormat>();
@@ -145,6 +149,7 @@ const zoneNames = new Map<string, string>();
 
 /** "Los Angeles" from "America/Los_Angeles". */
 export function zoneCity(zone: string): string {
+  if (typeof zone !== "string") return "";
   const last = zone.split("/").pop() ?? zone;
   return last.replace(/_/g, " ");
 }
