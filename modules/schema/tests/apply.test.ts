@@ -674,6 +674,29 @@ test("views: personal until published, kind needs checked, only the owner change
   assert.ok(k.seen.some((e) => e.name === "view.deleted"));
 });
 
+test("views: a board may name the stages it draws, in order; a key that is not a stage is refused in plain words", async () => {
+  const k = kit("usr_dana");
+  await base(k);
+  const board = { type: "acme_person", kind: "board", title: "Won only" };
+  const saved = (await k.h["views.save"](k.ctx, { ...board, config: { group: "stage", stages: ["won", "new"] } })).view;
+  assert.deepEqual(saved.config, { group: "stage", stages: ["won", "new"] });
+  // absent and empty both keep today's behaviour
+  assert.ok(await k.h["views.save"](k.ctx, { ...board, config: { group: "stage" } }));
+  assert.ok(await k.h["views.save"](k.ctx, { ...board, config: { group: "stage", stages: [] } }));
+  await assert.rejects(
+    k.h["views.save"](k.ctx, { ...board, config: { group: "stage", stages: ["won", "approved"] } }),
+    (e: unknown) => (e as { code?: string; message?: string }).message === "approved is not a stage of Stage.",
+  );
+  await assert.rejects(
+    k.h["views.save"](k.ctx, { ...board, config: { group: "stage", stages: ["won", "won"] } }),
+    code("validation.bad_input"),
+  );
+  await assert.rejects(
+    k.h["views.save"](k.ctx, { ...board, config: { group: "stage", stages: "won" } }),
+    code("validation.bad_input"),
+  );
+});
+
 test("layout and gap rules are validated, and follow a renamed or dropped field", async () => {
   const k = kit();
   await base(k);

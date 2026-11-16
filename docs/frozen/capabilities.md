@@ -658,6 +658,14 @@ Signed: lead, 16 Nov 2026 04:45 PKT
 
 Signed: lead, 16 Nov 2026 (after the security review and its re-check)
 
+## 16 Nov 2026: a board can draw only chosen stages (lane r32-board), for the lead to sign
+
+- What changed in contracts, additive: the `board` view kind's config (`manifests/records.ts`, view kinds) gains an optional `stages`, a list of stage keys of the group field, drawn as the board's columns in that order. Absent or empty is today's behaviour (a column for every stage). `views.save` refuses a key that is not a stage of the group field ("<key> is not a stage of <field>."), a key listed twice and a `stages` that is not a list of keys. The key is `config.stages`, beside `config.group`; no new capability, no new event.
+- Not a contract change: a record whose stage is not among the chosen ones is not on that board (it is not lost: the table and any other board show it); a board with chosen stages has no column for records without a stage; the board's count line says how many records the chosen stages show of the view's records.
+- Snapshots: none changed (`node tools/gen/src/cli.ts --snapshots` wrote the same 88 files); `generated/registry.json` carries the new config.
+
+Signed: pending, for the lead
+
 ## 16 Nov 2026: a sync spec sets its calls a minute and how often an object is read; the Sync page says when the app asked to slow down (lane r32-syncrate), for the lead to sign
 
 - What changed in contracts, all additive and optional, so no spec that exists changes: `sync_specs.validate`, `preview`, `apply` and `get` take, in the spec, `plan.requestsPerMinute` (a number, 1 to 6000: the most calls a minute to the app for the whole connection, every object together; left out, Vyre keeps 5 a second with a burst of 10) and `objects[].list.checkEveryMinutes` (a whole number of minutes, 1 to 10080: how often an object the app cannot filter by changed-since is read whole; apply sets the first schedule from it; left out, 15 minutes active and 60 idle as before). `sync_types.status` answers an optional `slowedDown` `{ words, resumesAt }` while the app has asked Vyre to slow down.
