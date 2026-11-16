@@ -198,7 +198,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
   /** Pending until the thing that makes it usable has happened. */
   const initialState = (def: ConnectorDef, secrets: Record<string, string>): ConnectionState => {
     if (def.mode === "webhook_only") return "active";
-    if (def.mode === "api") return def.secrets.every((s) => secrets[s.name] !== undefined) ? "active" : "pending";
+    if (def.mode === "api")
+      return def.secrets.every((s) => s.legacy === true || secrets[s.name] !== undefined) ? "active" : "pending";
     return "pending";
   };
 
@@ -671,11 +672,13 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
           title: hit.title,
           scope: hit.scope,
           mode: hit.mode,
-          fields: hit.secrets.map((x) => ({
-            name: x.name,
-            label: x.label ?? labelOfSlot(x.name),
-            optional: /\boptional\b/i.test(x.description),
-          })),
+          fields: hit.secrets
+            .filter((x) => x.legacy !== true)
+            .map((x) => ({
+              name: x.name,
+              label: x.label ?? labelOfSlot(x.name),
+              optional: /\boptional\b/i.test(x.description),
+            })),
           ...(choiceOut ? { choice: choiceOut } : {}),
           ...(host ? { site: hit.keysPage ?? `https://${host.replace(/^api\./, "")}`, host } : {}),
           hosts: keyHosts(hit),

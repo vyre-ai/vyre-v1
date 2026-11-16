@@ -101,7 +101,9 @@ export interface ConnectorDef {
   version: string;
   auth: AuthDef;
   domains: string[];
-  secrets: { name: string; description: string; label?: string }[];
+  secrets: { name: string; description: string; label?: string; legacy?: boolean }[];
+  /** Set when a release ships this definition: a hash of the definition as shipped. A stored row whose own hash still matches was never changed by anyone, so a later release may replace it; a changed one is never touched. */
+  shipped?: string;
   actions: ActionDef[];
   /** The service's own page where its keys are found: a link for the person on the card, never a place a key is sent. */
   keysPage?: string;
@@ -332,7 +334,20 @@ export function fillString(s: string, scope: Scope3, encode = false): string {
     if (v === undefined || v === null) throw new Error(`${kind}.${path} has no value`);
     const text =
       typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v);
-    return encode && kind === "input" ? encodeURIComponent(text) : text;
+    if (encode && kind === "input") {
+      // a value that is a place in the path ("..", a slash, "?" or "#", raw or decoded) would climb or leave the path the connector wrote: refused before any request
+      let plain = text;
+      try {
+        plain = decodeURIComponent(text);
+      } catch {
+        /* not encoded */
+      }
+      for (const t of [text, plain])
+        if (t === "." || t === ".." || /[\\/?#]/.test(t))
+          throw new Error(`${path} cannot be "." or "..", or hold a slash, backslash, ? or #`);
+      return encodeURIComponent(text);
+    }
+    return text;
   });
 }
 
@@ -419,6 +434,22 @@ export function builtinDef(b: BuiltinRow): ConnectorDef {
   };
 }
 
+/** The hash a shipped definition carries (see ConnectorDef.shipped). */
+export const shippedHash = (def: ConnectorDef): string => {
+  // a plain 53-bit string hash (cyrb53): it only tells an unchanged row from a changed one, it protects nothing
+  const text = JSON.stringify({ ...def, shipped: undefined });
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
+};
+
 /** Built-in connectors from the registry go into cn_connectors once (a later change by a person is never overwritten). */
 const seeded = new WeakSet<object>();
 
@@ -488,11 +519,12 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
     const named = reg
       ? reg.actions.filter((n) => !own.actions.some((a) => a.name === n)).map((name) => ({ name }))
       : [];
-    const def: ConnectorDef = {
+    const body: ConnectorDef = {
       ...own,
       actions: [...own.actions, ...named],
       ...(reg?.sources?.length ? { sources: reg.sources.map((x) => x.key) } : {}),
     };
+    const def: ConnectorDef = { ...body, shipped: shippedHash(body) };
     const have = deps.tx.get<{ def: string; builtin: number }>(
       "SELECT def, builtin FROM cn_connectors WHERE key = ?",
       own.key,
@@ -501,14 +533,15 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
       insert(def);
       continue;
     }
-    // a built-in row the registry wrote and nobody has changed (every action still only a name) is brought up to the definition written here; a row with an address in it was changed and is never overwritten
+    // A row is replaced only when nobody changed it: it is exactly what the registry wrote (an earlier release), or it still carries the hash of the definition it was shipped with. A later fix to a shipped
+    // definition reaches those; a row a Space changed (its hash no longer matches) is never overwritten.
     const stored = JSON.parse(have.def) as ConnectorDef;
-    if (
-      reg &&
+    const { shipped: was, ...rest } = stored;
+    const pristine =
       have.builtin === 1 &&
-      !stored.actions.some((a) => a.url !== undefined) &&
-      stored.version !== own.version
-    ) {
+      ((was !== undefined && was === shippedHash(rest as ConnectorDef)) ||
+        (was === undefined && reg !== undefined && have.def === JSON.stringify(builtinDef(reg))));
+    if (pristine && was !== def.shipped) {
       deps.tx.run(
         "UPDATE cn_connectors SET title = ?, mode = ?, scope = ?, version = ?, def = ?, updated_at = ? WHERE key = ?",
         def.title,
@@ -602,3 +635,22 @@ export const probeOf = (def: ConnectorDef): string | undefined =>
       a.url !== undefined &&
       !/\{input[.}]/.test(JSON.stringify([a.url, a.query, a.headers, a.body])),
   )?.name;
+
+// ---- secrets in an answer ----
+
+/** A key whose name says it holds a secret (case and separators do not matter): its value never leaves an action's output. */
+const SECRET_KEY =
+  /(authtoken|accesstoken|refreshtoken|clientsecret|apikey|privatekey|signingkey|password|secret)$|^token$/;
+export const secretKeyName = (k: string): boolean => SECRET_KEY.test(k.toLowerCase().replace(/[^a-z0-9]/g, ""));
+/** The value with every value under a secret-named key (nested, in arrays) replaced by "***". */
+export function withoutSecretValues<T>(v: T): T {
+  if (Array.isArray(v)) return v.map((x) => withoutSecretValues(x)) as T;
+  if (v && typeof v === "object")
+    return Object.fromEntries(
+      Object.entries(v as Record<string, unknown>).map(([k, x]) => [
+        k,
+        secretKeyName(k) ? "***" : withoutSecretValues(x),
+      ]),
+    ) as T;
+  return v;
+}

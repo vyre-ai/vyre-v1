@@ -24,6 +24,7 @@ import {
   originKey,
   recordHosts,
   fillString,
+  withoutSecretValues,
   fillValue,
   clone,
   PAGE,
@@ -571,6 +572,8 @@ export async function executeAction(
   // the token a server-to-server service hands out is the runtime's own: run on its own (by an agent, a person's test or a check) the token call answers nothing of it
   if (def.auth.type === "client_credentials" && actionName === def.auth.tokenAction && o.tokenChain !== true)
     output = null;
+  // no action hands a secret back, whatever the app put in its answer (an auth token of another account, a client secret): values under secret-named keys are never part of an output. The runtime's own token call is the one exception.
+  if (o.tokenChain !== true) output = withoutSecretValues(output);
   output = scrub.value(output);
   logRow(res.status, null);
   return { output, dryRun: false, status: res.status, ms };

@@ -101,13 +101,6 @@ export const STRIPE = {
       output: "/data",
     },
     {
-      name: "list_payment_intents",
-      method: "GET" as const,
-      url: "https://api.stripe.com/v1/payment_intents",
-      query: { limit: "25" },
-      output: "/data",
-    },
-    {
       name: "list_products",
       method: "GET" as const,
       url: "https://api.stripe.com/v1/products",
@@ -282,6 +275,7 @@ export const ZOOM = {
     },
     { name: "Zoom_Client_Id", label: "Client ID", description: "The client ID of the same app" },
     { name: "Zoom_Client_Secret", label: "Client secret", description: "The client secret of the same app" },
+    { name: "Zoom_S2S", legacy: true, description: "Optional: older combined value (kept for earlier connections)" },
     {
       name: "Zoom_Webhook_Secret",
       label: "Webhook secret token",
@@ -332,6 +326,8 @@ export const TWILIO = {
   secrets: [
     { name: "Twilio_Account", label: "Account SID", description: "Your Twilio account SID (starts with AC)" },
     { name: "Twilio_Auth", label: "Auth token", description: "Your Twilio auth token" },
+    // a slot connections made before this release may hold: kept so they keep working; never asked for
+    { name: "Twilio_API_Key", legacy: true, description: "Optional: older API key SID (kept for earlier connections)" },
   ],
   health: "check_account",
   verdicts: { rejected: [{ status: 401 }], limited: [{ status: 403 }] },
@@ -342,7 +338,7 @@ export const TWILIO = {
       method: "GET" as const,
       url: "https://api.twilio.com/2010-04-01/Accounts.json",
       query: { PageSize: "1" },
-      output: "/accounts",
+      output: "/page_size",
     },
   ],
 };

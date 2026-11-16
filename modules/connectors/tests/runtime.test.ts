@@ -85,11 +85,14 @@ test("egress: https to a declared domain, nothing else", () => {
 
 test("templates, pointers and scrubbing", () => {
   const scope = {
-    input: { id: "a b/c", n: 3, deep: { x: true } },
+    input: { id: "a b", n: 3, deep: { x: true } },
     secret: { K: "kkkk-1234" },
     connection: { id: "con_1" },
   };
-  assert.equal(fillString("https://h/{input.id}/{connection.id}", scope, true), "https://h/a%20b%2Fc/con_1");
+  assert.equal(fillString("https://h/{input.id}/{connection.id}", scope, true), "https://h/a%20b/con_1");
+  // a value that is a place in the path (".." or a slash, backslash, ? or #, raw or encoded) is refused before any request (review of 9bdda3ef3, item 4)
+  for (const bad of ["..", ".", "a/b", "a\\b", "a?b", "a#b", "%2e%2e", "a%2Fb"])
+    assert.throws(() => fillString("https://h/{input.id}", { ...scope, input: { id: bad } }, true), /cannot be/, bad);
   assert.equal(fillString("Bearer {secret.K}", scope), "Bearer kkkk-1234");
   assert.throws(() => fillString("{input.missing}", scope), /input\.missing has no value/);
   assert.deepEqual(fillValue({ a: "{input.n}", b: "n={input.n}", c: ["{input.deep.x}"] }, scope), {
