@@ -214,6 +214,15 @@ export async function agentDeleteWalk(
         await page.waitForTimeout(500);
         await page.screenshot({ path: path.join(shots, `${mode}-${tag}-${n}.png`) });
       };
+      // One Tab at a keyboard's pace: the press, then two frames. A long list of rows (the agent's Settings) draws only the rows near the screen and mounts the next ones
+      // a frame after focus moves; a Tab pressed inside that frame finds no next row and wraps to the top of the page, which no real keyboard can do (key repeat is
+      // slower than a frame). Found 16 Nov 2026: one run in three never reached the last row.
+      const tab = async (): Promise<void> => {
+        await page.keyboard.press("Tab");
+        await page.evaluate(
+          () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
+        );
+      };
       // by pointer: click; by keyboard: Tab to the control (by test id) and press Enter
       const act = async (testid: string): Promise<void> => {
         await page.getByTestId(testid).first().waitFor({ timeout: 30_000 });
@@ -224,7 +233,7 @@ export async function agentDeleteWalk(
             testid,
           );
           if (on) return void (await page.keyboard.press("Enter"));
-          await page.keyboard.press("Tab");
+          await tab();
         }
         assert.fail(`the keyboard could not reach ${testid}`);
       };
@@ -238,7 +247,7 @@ export async function agentDeleteWalk(
             return t.startsWith(x) && t.length < 120;
           }, text);
           if (on) return void (await page.keyboard.press("Enter"));
-          await page.keyboard.press("Tab");
+          await tab();
         }
         assert.fail(`the keyboard could not reach ${text}`);
       };
