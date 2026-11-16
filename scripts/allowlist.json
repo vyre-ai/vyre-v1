@@ -75,6 +75,16 @@
       "dev": false
     },
     {
+      "name": "pkijs",
+      "reason": "built-in signing: builds and checks the CMS signature that seals a finished signed PDF (BSD-3-Clause; pvtsutils, pvutils, bytestreamjs are MIT or BSD-3-Clause)",
+      "dev": false
+    },
+    {
+      "name": "asn1js",
+      "reason": "built-in signing: ASN.1 for the seal certificate and signature (BSD-3-Clause)",
+      "dev": false
+    },
+    {
       "name": "docxtemplater",
       "reason": "document templates",
       "dev": false

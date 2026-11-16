@@ -18,4 +18,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "esign.signer_doc": async (ctx) => { throw new VyreErr(notImplemented("esign.signer_doc", ctx.trace)); },
   "esign.signer_view": async (ctx) => { throw new VyreErr(notImplemented("esign.signer_view", ctx.trace)); },
   "esign.status": async (ctx) => { throw new VyreErr(notImplemented("esign.status", ctx.trace)); },
+  "esign.verify": async (ctx) => { throw new VyreErr(notImplemented("esign.verify", ctx.trace)); },
 };

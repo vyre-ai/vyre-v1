@@ -25,6 +25,11 @@ export function setHostedAccess(a: HostedAccess | null): void {
 
 const last = new Map<ProviderKey, { fingerprint: string; provider: EsignProvider }>();
 
+/** One Vault field the host can read for this Space, or null. For the document seal. */
+export async function secretOf(handle: string): Promise<string | null> {
+  return access ? field(handle) : null;
+}
+
 async function field(handle: string): Promise<string | null> {
   try {
     const v = await (access as HostedAccess).secret(handle);

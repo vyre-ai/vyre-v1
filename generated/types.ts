@@ -15396,6 +15396,8 @@ export type EsignStatusOut = {
   declinedReason?: string;
   signedFileId?: string;
   finalSha256?: string;
+  sealed?: boolean;
+  sealFingerprint?: string;
   signers: Array<{
       name: string;
       email?: string;
@@ -15404,6 +15406,16 @@ export type EsignStatusOut = {
       openedAt?: number;
       signedAt?: number;
     }>;
+};
+export type EsignVerifyIn = {
+  fileId: string;
+};
+export type EsignVerifyOut = {
+  sealed: boolean;
+  intact: boolean;
+  signedAt?: number;
+  fingerprint?: string;
+  bySpace: boolean;
 };
 export type EventsGetIn = {
   eventId: string;
@@ -49024,6 +49036,7 @@ export interface CapMap {
   "esign.signer_doc": { in: EsignSignerDocIn; out: EsignSignerDocOut };
   "esign.signer_view": { in: EsignSignerViewIn; out: EsignSignerViewOut };
   "esign.status": { in: EsignStatusIn; out: EsignStatusOut };
+  "esign.verify": { in: EsignVerifyIn; out: EsignVerifyOut };
   "events.get": { in: EventsGetIn; out: EventsGetOut };
   "events.list": { in: EventsListIn; out: EventsListOut };
   "events.replay": { in: EventsReplayIn; out: EventsReplayOut };

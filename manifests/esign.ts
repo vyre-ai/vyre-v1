@@ -103,6 +103,8 @@ export default defineManifest({
         declinedReason: t.opt(t.str()),
         signedFileId: t.opt(id.file),
         finalSha256: t.opt(t.str()),
+        sealed: t.opt(t.bool()),
+        sealFingerprint: t.opt(t.str()),
         signers: t.arr(
           t.obj({
             name: t.str(),
@@ -135,6 +137,17 @@ export default defineManifest({
       perm: "comms.shared_send",
       gate: "signature_send",
       team: true,
+    }),
+    read("esign.verify", "Is this file sealed, unchanged since, and sealed by this Space", {
+      in: { fileId: id.file },
+      out: {
+        sealed: t.bool(),
+        intact: t.bool(),
+        signedAt: t.opt(t.ts()),
+        fingerprint: t.opt(t.str()),
+        bySpace: t.bool(),
+      },
+      on: ["file", "/fileId"],
     }),
     read("esign.list", "List envelopes", {
       in: { recordId: t.opt(id.record), fileId: t.opt(id.file), status: t.opt(t.str()) },

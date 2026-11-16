@@ -16,5 +16,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "esign.signer_act": async () => ({"result":{}} as unknown) as never,
   "esign.signer_doc": async () => ({"base64":"example"} as unknown) as never,
   "esign.signer_view": async () => ({"session":{}} as unknown) as never,
-  "esign.status": async () => ({"declinedReason":"example","expiresAt":1760000000000,"finalSha256":"example","signedFileId":"fil_a1b2c3","signers":[{"email":"example","name":"example","openedAt":1760000000000,"order":1,"signedAt":1760000000000,"status":"sent"}],"status":"sent"} as unknown) as never,
+  "esign.status": async () => ({"declinedReason":"example","expiresAt":1760000000000,"finalSha256":"example","sealFingerprint":"example","sealed":true,"signedFileId":"fil_a1b2c3","signers":[{"email":"example","name":"example","openedAt":1760000000000,"order":1,"signedAt":1760000000000,"status":"sent"}],"status":"sent"} as unknown) as never,
+  "esign.verify": async () => ({"bySpace":true,"fingerprint":"example","intact":true,"sealed":true,"signedAt":1760000000000} as unknown) as never,
 };

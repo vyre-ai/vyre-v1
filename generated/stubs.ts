@@ -1023,6 +1023,7 @@ export function stubs(ctx: CallCtx) {
       signer_doc: call("esign.signer_doc"),
       signer_view: call("esign.signer_view"),
       status: call("esign.status"),
+      verify: call("esign.verify"),
     },
     events: {
       get: call("events.get"),

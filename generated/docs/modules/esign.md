@@ -4,7 +4,7 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (13)
+## Capabilities (14)
 
 - [esign.cancel](../capabilities/esign.cancel.md): Cancel an envelope; every signer link stops
 - [esign.fetch_signed](../capabilities/esign.fetch_signed.md): Save the signed PDF to Files
@@ -19,6 +19,7 @@ Requires: nothing.
 - [esign.signer_doc](../capabilities/esign.signer_doc.md): Public: the PDF a signer signs, for a live link only
 - [esign.signer_view](../capabilities/esign.signer_view.md): Public: open a signing link. Records the open and returns what the signer sees
 - [esign.status](../capabilities/esign.status.md): Envelope status and signers
+- [esign.verify](../capabilities/esign.verify.md): Is this file sealed, unchanged since, and sealed by this Space
 
 ## Events (5)
 
