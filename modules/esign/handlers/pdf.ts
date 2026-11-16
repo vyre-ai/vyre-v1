@@ -250,6 +250,7 @@ async function fit(
     page.drawImage(img, { x: box.x + 4, y: box.y + (box.h - size.h * s) / 2, width: size.w * s, height: size.h * s });
     return;
   }
+  if (mark.kind === "drawn") throw new PdfError("That signature drawing is not a usable picture."); // a drawing always has its picture; this only tells the type so
   const italic = font;
   let sz = Math.min(30, box.h - 14);
   while (sz > 8 && italic.widthOfTextAtSize(mark.text, sz) > box.w - 8) sz -= 1;
