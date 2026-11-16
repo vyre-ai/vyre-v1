@@ -56,20 +56,33 @@ test("phone: the Console draws something at once, and Settings shows one back ba
       // 2. Settings: the page list, then a page: one back bar each time
       await page.goto(`${web.origin}/settings?skin=${skin}`, { waitUntil: "load" });
       await page.getByTestId("settings-place").waitFor({ timeout: 20_000 });
+      const backsNow = (): Promise<string[]> =>
+        page.evaluate(() =>
+          [...document.querySelectorAll("[data-testid='back'], [aria-label='Back'], [aria-label^='Back to']")]
+            .filter((e) => (e as HTMLElement).offsetParent !== null)
+            .map(
+              (e) =>
+                (e.getAttribute("data-testid") ?? "") +
+                "|" +
+                (e.getAttribute("aria-label") ?? "") +
+                "|" +
+                (e.textContent ?? "").trim().slice(0, 20),
+            ),
+        );
+      // a phone opens Settings on the list of pages (lane r32-nav): one Back, which leaves; a page then has one Back, which returns to the list
+      await page.getByTestId("settings-search").waitFor({ timeout: 20_000 });
+      await page.waitForTimeout(400);
+      const listBacks = await backsNow();
+      await guard.check(`settings list ${skin}`);
+      await page.screenshot({
+        path: path.join(shots, `2-settings-list-phone-${skin === "paper" ? "light" : "graphite"}.png`),
+        animations: "disabled",
+      });
+      assert.equal(listBacks.length, 1, `one back bar on the Settings list at 390 (${JSON.stringify(listBacks)})`);
+      await page.getByTestId("row-page-profile").click();
       await page.getByTestId("page-profile").waitFor({ timeout: 20_000 });
       await page.waitForTimeout(400);
-      const backs = await page.evaluate(() =>
-        [...document.querySelectorAll("[data-testid='back'], [aria-label='Back'], [aria-label^='Back to']")]
-          .filter((e) => (e as HTMLElement).offsetParent !== null)
-          .map(
-            (e) =>
-              (e.getAttribute("data-testid") ?? "") +
-              "|" +
-              (e.getAttribute("aria-label") ?? "") +
-              "|" +
-              (e.textContent ?? "").trim().slice(0, 20),
-          ),
-      );
+      const backs = await backsNow();
       await guard.check(`settings ${skin}`);
       await page.screenshot({
         path: path.join(shots, `2-settings-phone-${skin === "paper" ? "light" : "graphite"}.png`),
