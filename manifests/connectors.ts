@@ -199,6 +199,14 @@ const specObject = t.obj({
     cursor: t.opt(specCursor),
     updatedSince: t.opt(t.obj({ param: t.str(), format: t.opt(t.str()) })),
     filter: t.opt(t.obj({ param: t.str(), value: t.str() })),
+    checkEveryMinutes: t.opt(
+      t.int({
+        minimum: 1,
+        maximum: 10080,
+        description:
+          "Minutes between whole reads of this object when the app cannot answer changed-since. Set it long for a big object.",
+      }),
+    ),
   }),
   get: t.opt(t.obj({ path: t.str() })),
   create: t.opt(specWrite),
@@ -258,6 +266,14 @@ const syncSpec = t.obj({
     firstPull: t.obj({ words: t.str({ description: "Plain words: what the first pull brings in" }) }),
     backfill: t.enm("later", "now"),
     conflicts: t.lit("newest"),
+    requestsPerMinute: t.opt(
+      t.num({
+        minimum: 1,
+        maximum: 6000,
+        description:
+          "The most calls a minute to the app, for the whole connection. Take it from the app's documented limit and leave room for the firm's own tools. Default 300.",
+      }),
+    ),
     audience: t.opt(t.enm("space", "added", "me")),
   }),
 });
@@ -1294,6 +1310,12 @@ export default defineManifest({
           failures: t.arr(t.obj({ at: t.ts(), summary: t.str() })),
           sentToday: t.int({ minimum: 0 }),
           nextPollAt: t.opt(t.ts()),
+          slowedDown: t.opt(
+            t.obj({
+              words: t.str({ description: "Plain words: the app asked Vyre to slow down, and when the pull goes on" }),
+              resumesAt: t.ts(),
+            }),
+          ),
           spec: t.bool(),
         },
         on: ["record_type", "/type"],

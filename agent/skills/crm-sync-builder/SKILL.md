@@ -31,6 +31,9 @@ The person starts you with Sync to Records on a Vault item, Bring in from your C
 6. **Fill the spec.**
    - `auth.vaultHandle` the handle, `auth.style` bearer or header, `auth.header` and `auth.headers` as the docs say.
    - Per object: `list.path`, `itemsAt`, `id`, `updatedAt` (newest wins uses it), `fields` with a pointer path, label and type, `choices` from the metadata, `relationTo` for relations, `openUrl` when the app has a page per record (`{id}` is filled in), `count` from the total.
+   - Rate: find the app's documented limit (calls a minute; many apps also share it with the firm's own tools) and set `plan.requestsPerMinute` BELOW it, leaving room for the firm's other tools (for a limit of 50 a minute, set 30 to 35). It is one budget for the whole connection, every object together. Without it Vyre allows 300 a minute, which is wrong for most CRMs. When the app answers 429 Vyre waits what Retry-After says (or 30 seconds, doubling) and the Sync page says the app asked Vyre to slow down.
+   - Big object with no changed-since: set `list.checkEveryMinutes` on it (for a few hundred pages, 360 or more) so the first schedule is already right; do not leave it at the default.
+   - A custom field only some records fill is fine: describe it in `fields` with its type and map it. Validate warns that it is empty on the sampled records and it fills in where the app has a value. A path you did not describe in `fields` is still an error.
    - `list.filter` is the first-pull filter, with `plan.firstPull.words` saying it plainly. Full backfill is one step later.
    - Mapping: `recordType`, the fields and their `direction`, `match` on email or phone, `stagesFrom` the pipeline stage field. Pull only for ids, stamps and relations.
    - A write (`update`, `create`, `delete`) goes in only if the docs show it, with the page in `evidence`. Deletes stay off.
@@ -41,5 +44,5 @@ The person starts you with Sync to Records on a Vault item, Bring in from your C
 ## When it fails
 - The app refuses the key (401 or 403): say which Vault item and which scope the docs ask for; offer `vault_request`. Do not guess another key.
 - No API for it: say so. A CSV import into Records still works.
-- The app is down or rate limiting: say so; the sync waits and tries again on its own.
+- The app is down or rate limiting: say so; the sync waits and tries again on its own (what Retry-After says, else 30 seconds doubling), and `sync_types.status` carries `slowedDown` with the words and the time it goes on.
 - Two values disagree after it is live: the newest change wins and the other stays in the field's history. Nothing for you to do.

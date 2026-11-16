@@ -10,7 +10,7 @@ export interface Sent {
   headers: Record<string, string>;
   body?: string;
 }
-export type Reply = { status: number; body?: unknown } | Error;
+export type Reply = { status: number; body?: unknown; retryAfter?: string } | Error;
 
 export function kit(o: { builtins?: BuiltinRow[] } = {}) {
   resetRateLimits();
@@ -117,7 +117,7 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
       const r = state.reply(req);
       if (r instanceof Error) throw r;
       const text = typeof r.body === "string" ? r.body : JSON.stringify(r.body ?? null);
-      return { status: r.status, text: async () => text };
+      return { status: r.status, text: async () => text, ...(r.retryAfter ? { retryAfter: r.retryAfter } : {}) };
     },
     log: {
       info: (m, a) => logs.push(`${m} ${JSON.stringify(a ?? {})}`),

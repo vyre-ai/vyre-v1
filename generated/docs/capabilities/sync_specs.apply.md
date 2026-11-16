@@ -63,6 +63,7 @@ type In = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
         };
         get?: {
           path: string;
@@ -132,6 +133,7 @@ type In = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -249,6 +251,7 @@ type Out = {
           "itemsAt": "/id",
           "label": "example",
           "list": {
+            "checkEveryMinutes": 1,
             "cursor": {
               "kind": "none",
               "next": "/id",
@@ -295,7 +298,8 @@ type Out = {
         "conflicts": "newest",
         "firstPull": {
           "words": "example"
-        }
+        },
+        "requestsPerMinute": 1
       }
     }
   },

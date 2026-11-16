@@ -237,6 +237,10 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
 }
 
 const RATE_CODES = new Set(["rate_limit.exceeded", "provider.rate_limited"]);
+/** Waits in a row, with nothing answered between, before a pass gives up on an app that keeps saying slow down. */
+const SLOW_DOWNS = 8;
+const SLOW_DOWN_FIRST_MS = 30_000;
+const SLOW_DOWN_CAP_MS = 480_000;
 const pause = (ms: number): Promise<void> =>
   new Promise((ok) => {
     setTimeout(ok, ms);
@@ -249,6 +253,10 @@ export function remoteStore(
   opts: {
     sleep?: (ms: number) => Promise<void>;
     /** Tells one pass from the next: the same call in another pass is a new call, not a replay of the old answer. */ nonce?: string;
+    /** The app asked Vyre to slow down: the wait in milliseconds, before it starts. */
+    onSlow?: (waitMs: number) => void;
+    /** A call went through again after a wait. */
+    onResume?: () => void;
   } = {},
 ): Store & {
   updatedAtOf(id: string): number;
@@ -265,9 +273,18 @@ export function remoteStore(
     nameDelete = names.delete ?? `delete_${one}`;
   const stamps = new Map<string, number>();
   const sleep = opts.sleep ?? pause;
-  // A pass over thousands of records is many calls. An app (or the connection's own limit) that says slow down is waited for, not failed: the call is tried again after a short pause.
+  // A pass over thousands of records is many calls. An app (or the connection's own budget) that says slow down is waited for, not failed. The wait is what the app asked (Retry-After), or the connection's own
+  // refill time; with no Retry-After the connection backs off from 30 s, doubling. Only after SLOW_DOWNS waits in a row with nothing answered does the pass give up (and then it counts as a failed pass).
+  const waitOf = (e: unknown): { code?: string; ms?: number } => {
+    const err = isObj(e) && isObj(e["error"]) ? e["error"] : undefined;
+    const code = err && typeof err["code"] === "string" ? err["code"] : undefined;
+    const details = err && isObj(err["details"]) ? err["details"] : undefined;
+    const ms = details && typeof details["retryAfterMs"] === "number" ? details["retryAfterMs"] : undefined;
+    return { ...(code !== undefined ? { code } : {}), ...(ms !== undefined ? { ms } : {}) };
+  };
+  let slowedDowns = 0;
   const run = async (action: string, input: unknown): Promise<unknown> => {
-    for (let wait = 0; ; wait++) {
+    for (let own = 0; ; own++) {
       try {
         // a list is a read: it does not wait at the Gate when the pass runs as an agent or the host; a write goes through connectors.run
         const reading = action === nameList || action === nameAfter;
@@ -278,11 +295,26 @@ export function remoteStore(
           input,
           idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}|${opts.nonce ?? ""}`).slice(0, 32)}`,
         })) as { output?: unknown };
+        if (slowedDowns > 0) {
+          slowedDowns = 0;
+          opts.onResume?.();
+        }
         return out.output;
       } catch (e) {
-        const code = isObj(e) && isObj(e["error"]) ? e["error"]["code"] : undefined;
-        if (typeof code !== "string" || !RATE_CODES.has(code) || wait >= 40) throw e;
-        await sleep(Math.min(1500, 250 * (wait + 1)));
+        const { code, ms } = waitOf(e);
+        if (code === undefined || !RATE_CODES.has(code)) throw e;
+        if (code === "provider.rate_limited") {
+          // the app asked Vyre to slow down
+          if (slowedDowns >= SLOW_DOWNS) throw e;
+          slowedDowns++;
+          const wait = ms ?? Math.min(SLOW_DOWN_CAP_MS, SLOW_DOWN_FIRST_MS * 2 ** (slowedDowns - 1));
+          opts.onSlow?.(wait);
+          await sleep(wait);
+        } else {
+          // the connection's own budget is spent: wait until it has room again
+          if (own >= 400) throw e;
+          await sleep(Math.max(50, Math.min(ms ?? 250, 60_000)));
+        }
       }
     }
   };
@@ -463,9 +495,36 @@ export function createSyncEngine(o: {
     binding: SyncBindingLike;
   }> => {
     const { store, tx } = o.local.open();
+    // what the Sync page says while the app has asked Vyre to slow down: that it did, and when the pull goes on
+    const slow = {
+      onSlow: (waitMs: number): void => {
+        const at = (o.now ?? Date.now)();
+        try {
+          tx.exec(
+            "CREATE TABLE IF NOT EXISTS sy_slow (sync_type TEXT PRIMARY KEY, since INTEGER NOT NULL, resume_at INTEGER NOT NULL)",
+          );
+          tx.run(
+            "INSERT INTO sy_slow (sync_type, since, resume_at) VALUES (?, ?, ?) ON CONFLICT(sync_type) DO UPDATE SET resume_at = excluded.resume_at",
+            b.syncTypeId,
+            at,
+            at + waitMs,
+          );
+        } catch {
+          /* the note is for the Sync page only: the wait itself still happens */
+        }
+      },
+      onResume: (): void => {
+        try {
+          tx.run("DELETE FROM sy_slow WHERE sync_type = ?", b.syncTypeId);
+        } catch {
+          /* no note was made */
+        }
+      },
+    };
     const remote = remoteStore(ctx, b, await objectsOf(ctx, b.connector), {
       ...(o.sleep ? { sleep: o.sleep } : {}),
       nonce: ctx.trace.traceId,
+      ...slow,
     });
     // a relation names a record type; the engine needs the synced type that pulls it, to turn the app's id into a link
     const relations = new Map<string, string>();

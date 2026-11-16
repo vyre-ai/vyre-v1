@@ -356,8 +356,12 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         const vals = items.map((it) => pointerGet(it, mf.path));
         const present = vals.filter((v) => v !== undefined);
         if (items.length && present.length === 0) {
+          // the object's own field list declares this path with a type (a path it does not declare is refused above), so it is a real field that only some records fill, such as a custom field
           missing.push(mf.path);
-          err(fa, `${mf.path} is not in any of the ${items.length} sampled records. Fix the path or set it off.`);
+          warn(
+            fa,
+            `${mf.path} is empty on the ${items.length} records looked at; it will fill in where the app has a value.`,
+          );
           continue;
         }
         found++;
@@ -795,14 +799,20 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         account,
       );
       // an app with a "changed since" filter is cheap to check (a page), so a person's edit leaves within two minutes; one without is read whole at every check, so its checks are slower
-      const slow = spec.objects.find((o) => o.remote === t.remote)?.list.updatedSince === undefined;
+      const listed = spec.objects.find((o) => o.remote === t.remote)?.list;
+      const slow = listed?.updatedSince === undefined;
+      // the spec may say how often an object is read whole: the first schedule is then already right
+      const every = listed?.checkEveryMinutes !== undefined && slow ? listed.checkEveryMinutes * 60 : undefined;
       const rules = {
         createAtSource: t.createAtSource,
         deletes: t.deletes,
         conflict: "newest" as const,
-        polling: slow
-          ? { activeSec: 900, idleSec: 3600, dormantSec: 14_400 }
-          : { activeSec: 120, idleSec: 120, dormantSec: 900 },
+        polling:
+          every !== undefined
+            ? { activeSec: every, idleSec: every, dormantSec: Math.max(14_400, every) }
+            : slow
+              ? { activeSec: 900, idleSec: 3600, dormantSec: 14_400 }
+              : { activeSec: 120, idleSec: 120, dormantSec: 900 },
       };
       const row = bound
         ? (await sync["sync_types.update"](ctx, { type: t.recordType, account, fields, match: t.match, ...rules }))

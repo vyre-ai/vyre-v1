@@ -40077,6 +40077,7 @@ export type SyncSpecsApplyIn = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
         };
         get?: {
           path: string;
@@ -40146,6 +40147,7 @@ export type SyncSpecsApplyIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -40215,6 +40217,7 @@ export type SyncSpecsGetOut = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
         };
         get?: {
           path: string;
@@ -40284,6 +40287,7 @@ export type SyncSpecsGetOut = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -40334,6 +40338,7 @@ export type SyncSpecsPreviewIn = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
         };
         get?: {
           path: string;
@@ -40403,6 +40408,7 @@ export type SyncSpecsPreviewIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -40576,6 +40582,7 @@ export type SyncSpecsValidateIn = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
         };
         get?: {
           path: string;
@@ -40645,6 +40652,7 @@ export type SyncSpecsValidateIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -41039,6 +41047,10 @@ export type SyncTypesStatusOut = {
     }>;
   sentToday: number;
   nextPollAt?: number;
+  slowedDown?: {
+    words: string;
+    resumesAt: number;
+  };
   spec: boolean;
 };
 export type SyncTypesUndoPushIn = {

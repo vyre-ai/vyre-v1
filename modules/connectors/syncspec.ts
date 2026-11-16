@@ -45,6 +45,8 @@ export interface SpecList {
   cursor?: SpecCursor;
   updatedSince?: { param: string; format?: string };
   filter?: { param: string; value: string };
+  /** How often this object is read whole when the app cannot answer "changed since", in minutes. Without it a check is every 15 minutes (60 when idle). */
+  checkEveryMinutes?: number;
 }
 export interface SpecWrite {
   path: string;
@@ -112,6 +114,8 @@ export interface SyncSpec {
     firstPull: { words: string };
     backfill: "later" | "now";
     conflicts: "newest";
+    /** The most calls to the app in a minute, for the whole connection (every object together). Without it Vyre allows 300 a minute. Set it from the app's documented limit, and leave room for the firm's own tools. */
+    requestsPerMinute?: number;
     /** Who the new record types are open to: the whole Space (default), only people added, or only the person applying. */ audience?:
       | "space"
       | "added"
@@ -174,6 +178,16 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
   )
     bad("plan.audience", "plan.audience is space, added or me.");
   if (isObj(plan) && plan["conflicts"] !== "newest") bad("plan.conflicts", "plan.conflicts is newest.");
+  if (
+    isObj(plan) &&
+    plan["requestsPerMinute"] !== undefined &&
+    !(
+      typeof plan["requestsPerMinute"] === "number" &&
+      plan["requestsPerMinute"] >= 1 &&
+      plan["requestsPerMinute"] <= 6000
+    )
+  )
+    bad("plan.requestsPerMinute", "plan.requestsPerMinute is the most calls a minute, from 1 to 6000.");
   if (problems.length) return { problems };
 
   for (const [i, o] of (objects as unknown[]).entries()) {
@@ -190,6 +204,17 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
     const list = o["list"];
     if (!isObj(list) || !str(list["path"]) || !String(list["path"]).startsWith("/"))
       bad(`${at}.list.path`, "list.path is the address path, starting with /.");
+    if (
+      isObj(list) &&
+      list["checkEveryMinutes"] !== undefined &&
+      !(
+        typeof list["checkEveryMinutes"] === "number" &&
+        Number.isInteger(list["checkEveryMinutes"]) &&
+        list["checkEveryMinutes"] >= 1 &&
+        list["checkEveryMinutes"] <= 10_080
+      )
+    )
+      bad(`${at}.list.checkEveryMinutes`, "checkEveryMinutes is a whole number of minutes, from 1 to 10080.");
     if (isObj(list) && isObj(list["updatedSince"])) {
       const u = list["updatedSince"];
       if (!str(u["param"]))
@@ -683,11 +708,17 @@ export function compileSpec(spec: SyncSpec): Compiled {
     actions,
     objects,
     syncedTypes: spec.mapping.map((m) => m.remote),
-    rate: { rps: 5, burst: 10 },
+    rate: rateOf(spec),
     // a first page of the first list: what "test the connection" reads, so a replaced key brings a connection back
     ...(actions[0] ? { health: actions[0].name } : {}),
   };
   return { connector, types, secretSlot };
+}
+
+/** The connection's budget: what the spec says in calls a minute (one call at a time, spaced evenly, so no minute holds more than that), else the old default. */
+export function rateOf(spec: SyncSpec): { rps: number; burst: number } {
+  const rpm = spec.plan.requestsPerMinute;
+  return rpm === undefined ? { rps: 5, burst: 10 } : { rps: rpm / 60, burst: 1 };
 }
 
 /** The request a list action makes for a sampled page, as the validator and the compiled action build it. */

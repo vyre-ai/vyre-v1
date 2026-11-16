@@ -657,3 +657,11 @@ Signed: lead, 16 Nov 2026 04:45 PKT
 - Snapshots: docs/frozen/snapshots/connectors.json, vault-requests.json.
 
 Signed: lead, 16 Nov 2026 (after the security review and its re-check)
+
+## 16 Nov 2026: a sync spec sets its calls a minute and how often an object is read; the Sync page says when the app asked to slow down (lane r32-syncrate), for the lead to sign
+
+- What changed in contracts, all additive and optional, so no spec that exists changes: `sync_specs.validate`, `preview`, `apply` and `get` take, in the spec, `plan.requestsPerMinute` (a number, 1 to 6000: the most calls a minute to the app for the whole connection, every object together; left out, Vyre keeps 5 a second with a burst of 10) and `objects[].list.checkEveryMinutes` (a whole number of minutes, 1 to 10080: how often an object the app cannot filter by changed-since is read whole; apply sets the first schedule from it; left out, 15 minutes active and 60 idle as before). `sync_types.status` answers an optional `slowedDown` `{ words, resumesAt }` while the app has asked Vyre to slow down.
+- Not a contract change, the rule the tests pin: with a budget set the connection spends one call at a time, spaced evenly (no minute holds more than the number). A 429 holds the whole connection (every object) for what Retry-After says (seconds or an HTTP date), or 30 seconds doubling to 8 minutes when it says nothing; the pull waits and goes on, and gives up (a failed pass) only after 8 waits in a row with nothing answered. A field the object declares with a type that no sampled record fills is a warning in validate and apply, no longer an error; a mapped path the object does not declare is still an error.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: (for the lead to sign)

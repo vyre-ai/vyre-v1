@@ -61943,6 +61943,12 @@
                     },
                     "list": {
                       "properties": {
+                        "checkEveryMinutes": {
+                          "description": "Minutes between whole reads of this object when the app cannot answer changed-since. Set it long for a big object.",
+                          "maximum": 10080,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
                         "cursor": {
                           "properties": {
                             "kind": {
@@ -62154,6 +62160,12 @@
                       "words"
                     ],
                     "type": "object"
+                  },
+                  "requestsPerMinute": {
+                    "description": "The most calls a minute to the app, for the whole connection. Take it from the app's documented limit and leave room for the firm's own tools. Default 300.",
+                    "maximum": 6000,
+                    "minimum": 1,
+                    "type": "number"
                   }
                 },
                 "required": [
@@ -62614,6 +62626,12 @@
                     },
                     "list": {
                       "properties": {
+                        "checkEveryMinutes": {
+                          "description": "Minutes between whole reads of this object when the app cannot answer changed-since. Set it long for a big object.",
+                          "maximum": 10080,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
                         "cursor": {
                           "properties": {
                             "kind": {
@@ -62825,6 +62843,12 @@
                       "words"
                     ],
                     "type": "object"
+                  },
+                  "requestsPerMinute": {
+                    "description": "The most calls a minute to the app, for the whole connection. Take it from the app's documented limit and leave room for the firm's own tools. Default 300.",
+                    "maximum": 6000,
+                    "minimum": 1,
+                    "type": "number"
                   }
                 },
                 "required": [
@@ -63404,6 +63428,12 @@
                     },
                     "list": {
                       "properties": {
+                        "checkEveryMinutes": {
+                          "description": "Minutes between whole reads of this object when the app cannot answer changed-since. Set it long for a big object.",
+                          "maximum": 10080,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
                         "cursor": {
                           "properties": {
                             "kind": {
@@ -63615,6 +63645,12 @@
                       "words"
                     ],
                     "type": "object"
+                  },
+                  "requestsPerMinute": {
+                    "description": "The most calls a minute to the app, for the whole connection. Take it from the app's documented limit and leave room for the firm's own tools. Default 300.",
+                    "maximum": 6000,
+                    "minimum": 1,
+                    "type": "number"
                   }
                 },
                 "required": [

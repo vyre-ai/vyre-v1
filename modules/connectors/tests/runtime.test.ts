@@ -257,7 +257,16 @@ test("the answer maps to the catalogue: auth, rate limit, outage, refusal", asyn
   const { k, id } = await withAcme({ rate: undefined });
   const call = () => run(k, id, "ping");
   k.state.reply = () => ({ status: 429 });
-  await assert.rejects(call(), code("provider.rate_limited"));
+  await assert.rejects(call(), (e: unknown) => {
+    code("provider.rate_limited")(e);
+    assert.equal((e as { error: { details: { retryAfterMs: number } } }).error.details.retryAfterMs, 30_000);
+    return true;
+  });
+  // the connection is held for that long: a call inside it is not sent
+  const heldAt = k.sent.length;
+  await assert.rejects(call(), code("rate_limit.exceeded"));
+  assert.equal(k.sent.length, heldAt);
+  k.clock.t += 31_000;
   k.state.reply = () => ({ status: 503 });
   await assert.rejects(call(), code("provider.unavailable"));
   k.state.reply = () => ({ status: 404, body: { error: "no such thing" } });
