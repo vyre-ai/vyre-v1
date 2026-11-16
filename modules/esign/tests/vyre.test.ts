@@ -214,6 +214,12 @@ test("a typed signature completes the envelope: the final file lands beside the 
   assert.deepEqual((await finish(h, envelopeId)).fileId, "fil_cert1", "saying it twice is fine and saves one file");
   assert.equal(h.created.length, 1);
   assert.equal(h.callsTo("tasks.transition").at(-1)?.input.to, "done");
+  const told = h.callsTo("notifications.send");
+  assert.equal(told.length, 1);
+  assert.deepEqual(
+    [told[0]!.input.to, told[0]!.input.kind, told[0]!.input.title, told[0]!.input.data, told[0]!.input.subject],
+    ["usr_dana", "task.finished", "Retainer signed", { from: "Andrea" }, { type: "file", id: "fil_cert1" }],
+  );
 });
 
 test("a drawn signature is an image on the page; a picture that is not a PNG, a missing tick and a name the font cannot draw are refused before anything is signed", async () => {
@@ -339,6 +345,17 @@ test("declining ends the envelope, spends that link and stops every other link",
   );
   assert.equal(h.created.length, 0);
   assert.equal(h.callsTo("tasks.transition").at(-1)?.input.to, "canceled");
+  const told = h.callsTo("notifications.send").at(-1)!.input;
+  assert.deepEqual(
+    [told.to, told.kind, told.title, told.data, told.subject],
+    [
+      "usr_dana",
+      "task.returned",
+      "Retainer",
+      { from: "Andrea Lindahl", note: "The fee is wrong." },
+      { type: "file", id: FILE },
+    ],
+  );
 });
 
 test("cancelling stops every link at once, tells the task, and cannot be done after signing", async () => {

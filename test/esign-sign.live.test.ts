@@ -446,6 +446,11 @@ test("the finished file carries a real PDF digital signature: esign.verify says 
     );
     const copy = await relayed(d, "POST", `${link}copy`, {});
     assert.deepEqual(copy.body, file, "the signer's own copy is the same sealed file");
+    assert.match(
+      JSON.stringify(await cap(d, "notifications.list", {})),
+      /task\.finished/,
+      "the sender is told in Needs you",
+    );
 
     // our own check
     const v = await cap(d, "esign.verify", { fileId: st.signedFileId });
