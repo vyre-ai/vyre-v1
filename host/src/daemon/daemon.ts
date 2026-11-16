@@ -5102,9 +5102,23 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
         }),
         // built-in signing builds its signer links from the same address; with none it hands back the path to copy
-        setEsignHost: () => ({
+        setEsignHost: (d) => ({
           get publicBase() {
             return publicOrigin()?.origin;
+          },
+          // Dropbox Sign and DocuSign are built from the Space's Vault at each call, so a key added or removed takes effect at once
+          secret: (handle: string) => d.vault.secret(handle, spaceId),
+          http: async (
+            url: string,
+            init?: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array },
+          ) => {
+            const r = await d.fetch(url, init);
+            return {
+              status: r.status,
+              ok: r.status >= 200 && r.status < 300,
+              json: async () => JSON.parse(await r.text()) as unknown,
+              arrayBuffer: () => r.arrayBuffer(),
+            };
           },
         }),
         // the unsubscribe link in an Automations email is built from the same address; with none the email goes out without one

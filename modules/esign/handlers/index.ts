@@ -1,6 +1,7 @@
 // esign handlers: send and track envelopes. Built-in signing (provider vyre, vyre.ts) is the default and needs nothing connected; hosted providers (Dropbox Sign, DocuSign, the Documenso hook) go through send.ts.
 
 import { hookHandlers } from "./documenso.ts";
+import { prime } from "./providers.ts";
 import { defaultProvider, fail, one, providerOf, rec, reqStr, sendHandlers } from "./send.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import {
@@ -26,24 +27,40 @@ const builtInEnvelope = (ctx: Ctx, input: unknown): boolean =>
 export const handlers = {
   ...sendHandlers,
   ...hookHandlers,
-  "esign.send": (ctx: Ctx, input: unknown) =>
-    isBuiltIn(ctx, rec(ctx, input).provider) ? sendVyre(ctx, input) : sendHandlers["esign.send"](ctx, input),
+  "esign.send": async (ctx: Ctx, input: unknown) => {
+    if (isBuiltIn(ctx, rec(ctx, input).provider)) return sendVyre(ctx, input);
+    await prime();
+    return sendHandlers["esign.send"](ctx, input);
+  },
   "esign.status": (ctx: Ctx, input: unknown) =>
     builtInEnvelope(ctx, input)
       ? statusVyre(ctx, reqStr(ctx, rec(ctx, input), "envelopeId"))
       : sendHandlers["esign.status"](ctx, input),
-  "esign.cancel": (ctx: Ctx, input: unknown) =>
-    builtInEnvelope(ctx, input)
-      ? cancelVyre(ctx, reqStr(ctx, rec(ctx, input), "envelopeId"))
-      : sendHandlers["esign.cancel"](ctx, input),
-  "esign.fetch_signed": (ctx: Ctx, input: unknown) =>
-    builtInEnvelope(ctx, input)
-      ? fetchVyre(ctx, reqStr(ctx, rec(ctx, input), "envelopeId"))
-      : sendHandlers["esign.fetch_signed"](ctx, input),
+  "esign.cancel": async (ctx: Ctx, input: unknown) => {
+    if (builtInEnvelope(ctx, input)) return cancelVyre(ctx, reqStr(ctx, rec(ctx, input), "envelopeId"));
+    await prime();
+    return sendHandlers["esign.cancel"](ctx, input);
+  },
+  "esign.fetch_signed": async (ctx: Ctx, input: unknown) => {
+    if (builtInEnvelope(ctx, input)) return fetchVyre(ctx, reqStr(ctx, rec(ctx, input), "envelopeId"));
+    await prime();
+    return sendHandlers["esign.fetch_signed"](ctx, input);
+  },
+  "esign.hook": async (ctx: Ctx, input: unknown) => {
+    await prime();
+    return hookHandlers["esign.hook"](ctx, input);
+  },
   "esign.list": (ctx: Ctx, input: unknown) => listAll(ctx, input),
-  "esign.providers": (ctx: Ctx) => providersVyre(ctx),
-  "esign.provider_set": (ctx: Ctx, input: unknown) => sendHandlers["esign.provider_set"](ctx, input),
+  "esign.providers": async (ctx: Ctx) => {
+    await prime();
+    return providersVyre(ctx);
+  },
+  "esign.provider_set": async (ctx: Ctx, input: unknown) => {
+    await prime();
+    return sendHandlers["esign.provider_set"](ctx, input);
+  },
   "esign.health": async (ctx: Ctx) => {
+    await prime();
     const key = defaultProvider(ctx);
     if (key === "vyre") return { state: "healthy" as const, detail: "Built-in signing is ready." };
     if (!providerOf(key)) return { state: "down" as const, detail: `${titleOf(key)} is not connected.` };

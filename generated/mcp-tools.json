@@ -21282,7 +21282,7 @@
       "blocks": [],
       "cap": "esign.cancel",
       "deferred": false,
-      "description": "Cancel an envelope; every signer link stops working at once",
+      "description": "Cancel an envelope; every signer link stops",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -21308,7 +21308,7 @@
       "blocks": [],
       "cap": "esign.fetch_signed",
       "deferred": false,
-      "description": "Fetch the signed PDF and audit certificate into the record folder as a new version",
+      "description": "Save the signed PDF to Files",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -21334,7 +21334,7 @@
       "blocks": [],
       "cap": "esign.list",
       "deferred": false,
-      "description": "List envelopes, newest first",
+      "description": "List envelopes",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -21353,14 +21353,6 @@
             "type": "string"
           },
           "status": {
-            "enum": [
-              "sent",
-              "viewed",
-              "signed",
-              "declined",
-              "cancelled",
-              "expired"
-            ],
             "type": "string"
           }
         },
@@ -21403,7 +21395,7 @@
       "blocks": [],
       "cap": "esign.providers",
       "deferred": false,
-      "description": "Signing services and which is the default; built-in signing is always ready",
+      "description": "Signing services and the default",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -21416,47 +21408,9 @@
     },
     {
       "blocks": [],
-      "cap": "esign.remind",
-      "deferred": false,
-      "description": "Give a signer a new link (the old one stops working) and email it when the Space can",
-      "effects": "outward",
-      "inputSchema": {
-        "properties": {
-          "envelopeId": {
-            "examples": [
-              "env_a1b2c3"
-            ],
-            "pattern": "^env_[a-z0-9]+$",
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "signer": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "envelopeId",
-          "signer",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "esign_remind",
-      "planMode": "blocked",
-      "toolset": "files",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "esign.send",
       "deferred": false,
-      "description": "Send a PDF for signature. Built-in signing needs no account: it returns one link per signer to copy and emails them when the Space has a sending mailbox",
+      "description": "Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -21482,43 +21436,7 @@
           },
           "places": {
             "items": {
-              "properties": {
-                "h": {
-                  "type": "number"
-                },
-                "kind": {
-                  "enum": [
-                    "signature",
-                    "date"
-                  ],
-                  "type": "string"
-                },
-                "page": {
-                  "type": "integer"
-                },
-                "signer": {
-                  "type": "integer"
-                },
-                "w": {
-                  "type": "number"
-                },
-                "x": {
-                  "type": "number"
-                },
-                "y": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "signer",
-                "kind",
-                "page",
-                "x",
-                "y",
-                "w",
-                "h"
-              ],
-              "type": "object"
+              "description": "Any JSON value"
             },
             "type": "array"
           },
@@ -21575,7 +21493,7 @@
       "blocks": [],
       "cap": "esign.status",
       "deferred": false,
-      "description": "Envelope status: who has opened and signed",
+      "description": "Envelope status and signers",
       "effects": "read",
       "inputSchema": {
         "properties": {

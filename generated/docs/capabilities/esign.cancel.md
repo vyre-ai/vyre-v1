@@ -1,6 +1,6 @@
 # esign.cancel
 
-Cancel an envelope; every signer link stops working at once
+Cancel an envelope; every signer link stops
 
 | | |
 |---|---|

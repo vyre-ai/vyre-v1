@@ -1,6 +1,6 @@
 # esign.remind
 
-Give a signer a new link (the old one stops working) and email it when the Space can
+New link for a signer; the old one stops
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@ Give a signer a new link (the old one stops working) and email it when the Space
 | Audit | always |
 | Team Space only | yes |
 | HTTP | POST /v1/esign/remind |
-| MCP tool | esign_remind (files) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

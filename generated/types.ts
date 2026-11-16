@@ -15280,7 +15280,7 @@ export type EsignHookOut = {
 export type EsignListIn = {
   recordId?: string;
   fileId?: string;
-  status?: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+  status?: string;
 };
 export type EsignListOut = {
   envelopes: Array<{
@@ -15337,15 +15337,7 @@ export type EsignSendIn = {
     }>;
   provider?: "vyre" | "documenso" | "dropbox_sign" | "docusign";
   message?: string;
-  places?: Array<{
-      signer: number;
-      kind: "signature" | "date";
-      page: number;
-      x: number;
-      y: number;
-      w: number;
-      h: number;
-    }>;
+  places?: Array<unknown>;
   expiresInDays?: number;
   idempotencyKey: string;
 };

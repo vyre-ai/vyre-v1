@@ -1,6 +1,6 @@
 # esign.providers
 
-Signing services and which is the default; built-in signing is always ready
+Signing services and the default
 
 | | |
 |---|---|

@@ -1,6 +1,6 @@
 # esign.list
 
-List envelopes, newest first
+List envelopes
 
 | | |
 |---|---|
@@ -27,7 +27,7 @@ List envelopes, newest first
 type In = {
   recordId?: string;
   fileId?: string;
-  status?: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+  status?: string;
 };
 ```
 
@@ -64,7 +64,7 @@ type Out = {
   "input": {
     "fileId": "fil_a1b2c3",
     "recordId": "rec_a1b2c3",
-    "status": "sent"
+    "status": "example"
   },
   "output": {
     "envelopes": [

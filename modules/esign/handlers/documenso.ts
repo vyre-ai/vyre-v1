@@ -271,7 +271,7 @@ export function documenso(o: DocumensoOptions): EsignProvider {
 
 // ---- esign.hook ---------------------------------------------------------------------------------------------
 
-const ORDER: Record<EnvelopeStatus, number> = { sent: 0, viewed: 1, signed: 2, declined: 2, cancelled: 2 };
+const ORDER: Record<EnvelopeStatus, number> = { sent: 0, viewed: 1, signed: 2, declined: 2, cancelled: 2, expired: 2 };
 
 async function hook(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
   const o = isObj(input) ? input : {};

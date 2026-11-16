@@ -30,6 +30,8 @@ import {
   toBase64,
 } from "./send.ts";
 import type { EnvelopeRow, EnvelopeStatus, ProviderKey } from "./send.ts";
+import type { HttpFn } from "./documenso.ts";
+import { setHostedAccess } from "./providers.ts";
 import { MAX_PAGES, PdfError, drawable, finalize, pngSize, prepare } from "./pdf.ts";
 import type { Audit, Place, SignatureMark, Stamp } from "./pdf.ts";
 
@@ -61,9 +63,14 @@ export function configureSigning(c: SigningConfig | null): void {
 /** What the daemon hands this module at boot (through hostSeams): the address people outside reach the Space at, read each time it is needed. Null at shutdown. */
 export interface EsignHost {
   publicBase?: string | undefined;
+  /** One Vault field as text, for the hosted providers; rejects when it is not there. */
+  secret?: ((handle: string) => Promise<string>) | undefined;
+  /** The one way out to the network, for the hosted providers. */
+  http?: HttpFn | undefined;
 }
 export function setEsignHost(h: EsignHost | null): void {
   configured = h === null ? {} : { publicBase: () => h.publicBase ?? null };
+  setHostedAccess(h?.secret && h.http ? { secret: h.secret, http: h.http } : null);
 }
 
 type Row = Record<string, unknown>;
