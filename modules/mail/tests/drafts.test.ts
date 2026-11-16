@@ -511,7 +511,7 @@ test("two contacts who share a Cc: each contact's view shows only the drafts add
     contacts: {
       "josh@jcs.test": [{ recordId: "rec_josh1", score: 0.9 }],
       "osama@mail.test": [{ recordId: "rec_osama", score: 0.9 }],
-      "aliza@mla.test": [{ recordId: "rec_aliza", score: 0.9 }],
+      "aliza@northwind.test": [{ recordId: "rec_aliza", score: 0.9 }],
     },
   });
   const josh = await ingest(
@@ -529,14 +529,14 @@ test("two contacts who share a Cc: each contact's view shows only the drafts add
   const forJosh = await draft(h.ctx, {
     mailboxId: MBX,
     replyToMessageId: josh.messageId,
-    cc: [{ address: "aliza@mla.test", contactId: "rec_aliza" } as never],
+    cc: [{ address: "aliza@northwind.test", contactId: "rec_aliza" } as never],
     text: "Josh, the call is set.",
     idempotencyKey: key(),
   });
   const forOsama = await draft(h.ctx, {
     mailboxId: MBX,
     replyToMessageId: osama.messageId,
-    cc: [{ address: "aliza@mla.test", contactId: "rec_aliza" } as never],
+    cc: [{ address: "aliza@northwind.test", contactId: "rec_aliza" } as never],
     text: "Osama, the setup is ready.",
     contactId: "rec_josh1",
     idempotencyKey: key(),
@@ -559,5 +559,95 @@ test("two contacts who share a Cc: each contact's view shows only the drafts add
     (await draftsList(h.ctx, { contactId: "rec_aliza" })).drafts.map((d) => d.id),
     [],
     "Cc is not an address the draft is for",
+  );
+});
+
+// ---- the owner's Inbox, 16 Nov 2026: two cards to one person with one subject, and drafts for other people in a conversation
+
+test("the same agent writing the same new email twice (naming no message it answers) leaves ONE pending draft; another recipient, another agent and a person's own draft stay their own", async () => {
+  const h = setup({ principal: AGENT });
+  const first = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "josh@jcs.test" }],
+    subject: "Re: Claude in Chrome for Clio Grow",
+    text: "Confirmed for Wednesday 4 November, 2:00 PM PST.",
+    idempotencyKey: key(),
+  });
+  h.advance(60_000);
+  const second = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "Josh@JCS.test" }],
+    subject: "RE:  claude in chrome for Clio Grow",
+    text: "Confirmed for Wednesday, 4 November at 2:00 pm Pacific time.",
+    idempotencyKey: key(),
+  });
+  assert.equal(second.draftId, first.draftId, "the newer wording takes the place of the older");
+  const list = await draftsList(h.ctx, { address: "josh@jcs.test" });
+  assert.equal(list.drafts.length, 1);
+  assert.equal(
+    list.drafts[0]!.earlier?.text,
+    "Confirmed for Wednesday 4 November, 2:00 PM PST.",
+    "the earlier text is kept",
+  );
+  const elsewhere = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "osama@mail.test" }],
+    subject: "Re: Claude in Chrome for Clio Grow",
+    text: "For Osama.",
+    idempotencyKey: key(),
+  });
+  assert.notEqual(elsewhere.draftId, first.draftId, "other people in To: another email");
+  const other = await draft({ ...h.ctx, principal: { kind: "agent", id: "agt_other01" } } as never, {
+    mailboxId: MBX,
+    to: [{ address: "josh@jcs.test" }],
+    subject: "Re: Claude in Chrome for Clio Grow",
+    text: "A second opinion.",
+    idempotencyKey: key(),
+  });
+  assert.notEqual(other.draftId, first.draftId, "another agent's draft is its own");
+  h.ctx.principal = PERSON;
+  const mine = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "josh@jcs.test" }],
+    subject: "Re: Claude in Chrome for Clio Grow",
+    text: "My own words.",
+    idempotencyKey: key(),
+  });
+  assert.notEqual(mine.draftId, first.draftId, "a person's own draft is never merged into an agent's");
+});
+
+test("drafts by address: a conversation with someone who is not a contact yet gets only the drafts written to them (To or Cc), whatever the case, and nobody's address gets none", async () => {
+  const h = setup({ principal: AGENT });
+  const toUsman = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "usman@nowhere.test" }],
+    subject: "Your application",
+    text: "Thank you.",
+    idempotencyKey: key(),
+  });
+  const ccUsman = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "josh@jcs.test" }],
+    cc: [{ address: "Usman@Nowhere.test" }],
+    subject: "Intro",
+    text: "Meet Usman.",
+    idempotencyKey: key(),
+  });
+  await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "osama@mail.test" }],
+    subject: "Cold email setup",
+    text: "For Osama only.",
+    idempotencyKey: key(),
+  });
+  const mine = await draftsList(h.ctx, { address: "USMAN@nowhere.test" });
+  assert.deepEqual(contractErrors("mail.drafts.list", "in", { address: "usman@nowhere.test" }), []);
+  assert.deepEqual(mine.drafts.map((d) => d.id).sort(), [toUsman.draftId, ccUsman.draftId].sort());
+  assert.equal(mine.total, 2);
+  assert.equal((await draftsList(h.ctx, { address: "nobody@drafts.invalid" })).drafts.length, 0);
+  assert.equal(
+    (await draftsList(h.ctx, {})).drafts.length,
+    3,
+    "no filter still lists the mailbox's drafts for the Drafts view",
   );
 });

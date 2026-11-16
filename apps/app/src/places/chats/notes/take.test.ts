@@ -56,17 +56,17 @@ test("a pasted image becomes the note's picture, and a note with only a picture 
 });
 
 test("a pasted link reads, then becomes a card; a late answer for another link is dropped; the link is kept even before it is read", () => {
-  const reading = run([{ t: "reading", url: "https://skool.com/mla-ai-labs/lab-8" }]);
+  const reading = run([{ t: "reading", url: "https://skool.com/northwind-ai-labs/lab-8" }]);
   assert.equal(reading.open, true);
-  assert.equal(reading.reading, "https://skool.com/mla-ai-labs/lab-8");
+  assert.equal(reading.reading, "https://skool.com/northwind-ai-labs/lab-8");
   assert.deepEqual(
     createInput(reading, "k4"),
-    { idempotencyKey: "k4", link: "https://skool.com/mla-ai-labs/lab-8" },
+    { idempotencyKey: "k4", link: "https://skool.com/northwind-ai-labs/lab-8" },
     "closing before it is read keeps the link; the server reads it",
   );
   const card = takeStep(reading, {
     t: "read",
-    link: { url: "https://skool.com/mla-ai-labs/lab-8/", title: "Lab 8", siteName: "Skool" },
+    link: { url: "https://skool.com/northwind-ai-labs/lab-8/", title: "Lab 8", siteName: "Skool" },
   });
   assert.equal(card.reading, null);
   assert.equal(card.link?.title, "Lab 8", "a trailing slash is the same link");

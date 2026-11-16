@@ -511,9 +511,9 @@ export default defineManifest({
     }),
     write(
       "vault.item.discard_new",
-      "Take back a key you saved a moment ago that could not be connected: erased for good, from the Vault and from Trash. Only your own, only within two minutes, only while nothing has used it",
+      "Take back the key a connect card saved and could not connect: erased for good, from the Vault and from Trash. Only a person's own, only the one key that request saved, only while nothing has used it",
       {
-        in: { itemId: id.vaultItem },
+        in: { itemId: id.vaultItem, requestId: t.id("vrq") },
         out: ok,
         on: ["vault_item", "/itemId"],
         level: "manage",
@@ -904,6 +904,11 @@ export default defineManifest({
         offline: "online",
         errors: ["validation.duplicate", "provider.auth_failed", "provider.unavailable"],
       },
+    ),
+    read(
+      "providers.local_signins",
+      'Which Claude Code and Codex sign-ins are on the computer this Space runs on: yes or no for each, never a path or an account name. The AI card shows its "on this computer" rows only for a yes.',
+      { ...V, in: {}, out: { claudeCode: t.bool(), codex: t.bool() }, tool: "vault" },
     ),
     write(
       "providers.subscription_start",

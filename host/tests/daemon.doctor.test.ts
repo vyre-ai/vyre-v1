@@ -339,7 +339,7 @@ test("a Space with its own domain is checked for its Caddy route: missing is dow
       "CREATE TABLE network_config (id INTEGER PRIMARY KEY, address TEXT NOT NULL, mode TEXT NOT NULL, domain TEXT, relay_address TEXT, public_ingress INTEGER NOT NULL, ingress_detail TEXT, reported_at INTEGER NOT NULL)",
     );
     modules.run(
-      "INSERT INTO network_config (id, address, mode, domain, public_ingress, reported_at) VALUES (1, 'mla.example.com', 'own_domain', 'mla.example.com', 1, 1)",
+      "INSERT INTO network_config (id, address, mode, domain, public_ingress, reported_at) VALUES (1, 'northwind.example.com', 'own_domain', 'northwind.example.com', 1, 1)",
     );
     modules.close();
     const caddyWith =
@@ -361,7 +361,7 @@ test("a Space with its own domain is checked for its Caddy route: missing is dow
       "host.ingress",
     );
     assert.equal(missing.state, "down");
-    assert.match(missing.detail, /no route for mla\.example\.com/);
+    assert.match(missing.detail, /no route for northwind\.example\.com/);
     assert.match(missing.next, /vyre-server restart/);
     const routed = {
       apps: {
@@ -371,8 +371,8 @@ test("a Space with its own domain is checked for its Caddy route: missing is dow
               listen: [":443"],
               routes: [
                 {
-                  "@id": "vyre-route-mla.example.com",
-                  match: [{ host: ["mla.example.com"] }],
+                  "@id": "vyre-route-northwind.example.com",
+                  match: [{ host: ["northwind.example.com"] }],
                   handle: [],
                   terminal: true,
                 },
@@ -393,7 +393,7 @@ test("a Space with its own domain is checked for its Caddy route: missing is dow
     );
     assert.equal(snapshot(dir), before, "modules.db was only read");
     const relay = openDb(path.join(dir, "modules.db"));
-    relay.run("UPDATE network_config SET mode = 'relay', address = 'mla.vyre.run'");
+    relay.run("UPDATE network_config SET mode = 'relay', address = 'northwind.vyre.run'");
     relay.close();
     assert.equal(
       (await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyOk })).findings.some(
@@ -414,14 +414,14 @@ test("doctor asks the Space's artifact address for this Space's marker, and says
       "CREATE TABLE network_config (id INTEGER PRIMARY KEY, address TEXT NOT NULL, mode TEXT NOT NULL, domain TEXT, relay_address TEXT, public_ingress INTEGER NOT NULL, ingress_detail TEXT, reported_at INTEGER NOT NULL)",
     );
     modules.run(
-      "INSERT INTO network_config (id, address, mode, domain, public_ingress, reported_at) VALUES (1, 'mla.vyre.run', 'own_domain', 'mla.vyre.run', 1, 1)",
+      "INSERT INTO network_config (id, address, mode, domain, public_ingress, reported_at) VALUES (1, 'northwind.vyre.run', 'own_domain', 'northwind.vyre.run', 1, 1)",
     );
     modules.close();
     const asked: string[] = [];
     const answer =
       (art: () => Promise<{ ok: boolean; status: number; body: string }>): FetchFn =>
       async (url) => {
-        if (!url.startsWith("https://a.mla.vyre.run/"))
+        if (!url.startsWith("https://a.northwind.vyre.run/"))
           return {
             ok: true,
             status: 200,
@@ -439,11 +439,11 @@ test("doctor asks the Space's artifact address for this Space's marker, and says
       "host.artifact_host",
     );
     assert.equal(up.state, "healthy");
-    assert.deepEqual(asked, ["https://a.mla.vyre.run/.well-known/vyre-artifact-host"]);
+    assert.deepEqual(asked, ["https://a.northwind.vyre.run/.well-known/vyre-artifact-host"]);
     const silent = by(await run(answer(() => Promise.reject(new Error("ENOTFOUND")))), "host.artifact_host");
     assert.equal(silent.state, "degraded");
-    assert.match(silent.detail, /a\.mla\.vyre\.run does not answer/);
-    assert.match(silent.next, /Add the DNS record a\.mla\.vyre\.run/);
+    assert.match(silent.detail, /a\.northwind\.vyre\.run does not answer/);
+    assert.match(silent.next, /Add the DNS record a\.northwind\.vyre\.run/);
     const relay = by(await run(answer(async () => ({ ok: false, status: 404, body: "" }))), "host.artifact_host");
     assert.match(relay.detail, /answered 404, not this Space/);
     const other = by(

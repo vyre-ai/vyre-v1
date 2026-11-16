@@ -17,7 +17,9 @@ import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useResume } from "../../../onboarding/resume-context.ts";
 import { SetupRows, setupNote } from "../../../onboarding/SetupRows.tsx";
-import { useInboxSources } from "../../../shell/rail/inbox-sources.ts";
+import { openOnboarding } from "../../../onboarding/store.ts";
+import { readableName } from "../../../onboarding/flow.ts";
+import { useHasMailbox, useInboxSources } from "../../../shell/rail/inbox-sources.ts";
 import { needsLine, needsRow } from "./needs-row.ts";
 import { useAddSheet, runAfterStart } from "../addsheet/index.ts";
 import { prettyModel, useAccounts } from "../conversation/brain.tsx";
@@ -145,6 +147,8 @@ export function Landing(p: LandingProps): ReactElement {
   const working = workingChats(recent.status === "ready" ? recent.data : undefined);
   const firstDay = resume !== null && needs.status === "ready" && total === 0 && working.length === 0;
   const hasInbox = useInboxSources(rt.screens, rt.me.id);
+  // the member's "your mail, calendar, files are here" row says what is true: it shows only once a mailbox of theirs is connected (a built-in calendar is not their mail)
+  const hasMailbox = useHasMailbox(rt.screens);
   const mailRow =
     hasInbox === false ? (
       <SetupLine
@@ -317,6 +321,12 @@ export function Landing(p: LandingProps): ReactElement {
           <Text accessibilityRole="header" aria-level={1} testID="landing-title" style={st.title}>
             What are we working on?
           </Text>
+          {firstDay && accounts !== null && accounts.length > 0 ? (
+            // the Assistant's one opening line on a first day, once an AI can answer it (prototype scene personal-4-first-reply)
+            <Text testID="landing-opener" style={st.opener}>
+              {`Hi ${rt.me.name.split(/\s+/)[0] ?? ""}. Tell me what you do and how you like to work, and I will set things up for you.`}
+            </Text>
+          ) : null}
         </View>
         <View style={st.composer}>
           <Composer
@@ -347,6 +357,15 @@ export function Landing(p: LandingProps): ReactElement {
             onInterrupt={start}
           />
         </View>
+        {accounts !== null && accounts.length === 0 ? (
+          // said once, calmly, under the composer, with the way in (a person who chose Not now on the AI card)
+          <View testID="landing-no-ai" style={st.noAi}>
+            <Text style={st.noAiText}>No AI is connected yet.</Text>
+            <Pressable role="button" testID="landing-connect-ai" onPress={() => openOnboarding("ai")}>
+              <Text style={st.noAiLink}>Connect your AI</Text>
+            </Pressable>
+          </View>
+        ) : null}
         <View testID="landing-with" style={st.with}>
           <Text style={st.withWord}>With</Text>
           {each(picked, (w) => (
@@ -393,6 +412,8 @@ export function Landing(p: LandingProps): ReactElement {
           {firstDay ? (
             <SetupRows
               extra={mailRow}
+              company={hasMailbox === true}
+              unnamed={readableName(rt.space.name) === ""}
               render={(row, open) => (
                 <SetupLine
                   key={row.key}
@@ -584,6 +605,17 @@ const st = StyleSheet.create({
   column: { width: "100%", maxWidth: 620 },
   columnNarrow: { maxWidth: 560 },
   hero: { alignItems: "center", marginBottom: 34 },
+  noAi: { flexDirection: "row", gap: 6, justifyContent: "center", marginTop: 10 },
+  noAiText: { fontSize: 13, color: "var(--ink-3)" as string },
+  noAiLink: { fontSize: 13, fontWeight: "500", color: "var(--accent)" as string },
+  opener: {
+    marginTop: 10,
+    maxWidth: 420,
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 21,
+    color: "var(--ink-3)" as string,
+  },
   title: {
     marginTop: 18,
     fontSize: 25,

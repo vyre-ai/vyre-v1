@@ -156,6 +156,10 @@ const SCHEMA = [
   "0014_queue_stop_reason.sql",
   "0015_typed_message.sql",
   "0016_own_subagent.sql",
+  "0017_rewind.sql",
+  "0018_rewind_undo.sql",
+  "0019_rewind_state.sql",
+  "0020_own_background.sql",
 ]
   .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
   .join("\n")
@@ -187,6 +191,9 @@ export function ensure(db: Db): void {
     db.all("SELECT stop_reason FROM engine_thread_queue WHERE thread_id = ?", "probe");
     db.all("SELECT message_id FROM engine_typed_message WHERE thread_id = ?", "probe");
     db.all("SELECT call_id FROM engine_own_subagent WHERE thread_id = ?", "probe");
+    db.all("SELECT undo_sha FROM engine_rewind WHERE thread_id = ?", "probe");
+    db.all("SELECT state FROM engine_rewind WHERE thread_id = ?", "probe");
+    db.all("SELECT background FROM engine_own_subagent WHERE thread_id = ?", "probe");
   } catch {
     // a database that has most of the tables (an older build) runs the whole list again: an ALTER that was already applied says "duplicate column" and is not a failure
     for (const stmt of SCHEMA) {

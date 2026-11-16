@@ -7,7 +7,7 @@ INSERT INTO "access_roles" ("id","name","builtIn","clearance","assignableToAgent
 INSERT INTO "access_roles" ("id","name","builtIn","clearance","assignableToAgents","permissions","version") VALUES ('rol_guest', 'Guest', 1, 'public', 1, '[]', 1);
 
 -- people
-INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('usr_irfad', 'Irfad Imtiaz', 'person', NULL, 'active', '["rol_owner"]', '[]', 'irfad@northwind.example', 1760000000000, 1);
+INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('usr_imran', 'Imran Ibarra', 'person', NULL, 'active', '["rol_owner"]', '[]', 'imran@northwind.example', 1760000000000, 1);
 INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('usr_maya', 'Maya Chen', 'person', NULL, 'active', '["rol_admin"]', '[]', 'maya@northwind.example', 1760000000000, 1);
 INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('usr_omar', 'Omar Haddad', 'person', NULL, 'active', '["rol_member"]', '[]', 'omar@northwind.example', 1760000000000, 1);
 INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('usr_lena', 'Lena Ortiz', 'person', NULL, 'active', '["rol_member"]', '[]', 'lena@northwind.example', 1760000000000, 1);
@@ -15,18 +15,18 @@ INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","gr
 INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('usr_dana', 'Dana Whitfield', 'person', NULL, 'active', '["rol_member"]', '[]', 'dana@northwind.example', 1760000000000, 1);
 
 -- agents
-INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_assistant', 'Assistant', 'agent', 'usr_irfad', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
-INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_intake', 'Intake', 'agent', 'usr_irfad', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
-INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_billing', 'Billing', 'agent', 'usr_irfad', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
-INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_research', 'Research', 'agent', 'usr_irfad', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
-INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_docs', 'Docs', 'agent', 'usr_irfad', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
+INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_assistant', 'Assistant', 'agent', 'usr_imran', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
+INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_intake', 'Intake', 'agent', 'usr_imran', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
+INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_billing', 'Billing', 'agent', 'usr_imran', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
+INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_research', 'Research', 'agent', 'usr_imran', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
+INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_docs', 'Docs', 'agent', 'usr_imran', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
 
 -- companies and contacts
-INSERT INTO "rt_company" ("id","owner","label","version","created_at","updated_at","holds","name") VALUES ('rec_co1', 'usr_irfad', 1, 1, 1760000000000, 1760000000000, 0, 'Rivera Holdings');
-INSERT INTO "rt_contact" ("id","owner","label","version","created_at","updated_at","holds","name","email","phone","company") VALUES ('rec_elena', 'usr_irfad', 1, 1, 1760000000000, 1760000000000, 0, 'Elena Rivera', 'elena@riveraholdings.example', '+1 415 555 0161', '["rec_co1"]');
-INSERT INTO "rt_company" ("id","owner","label","version","created_at","updated_at","holds","name") VALUES ('rec_co2', 'usr_irfad', 1, 1, 1760000000000, 1760000000000, 0, 'Nair Studio');
-INSERT INTO "rt_contact" ("id","owner","label","version","created_at","updated_at","holds","name","email","phone","company") VALUES ('rec_priya', 'usr_irfad', 1, 1, 1760000000000, 1760000000000, 0, 'Priya Nair', 'priya@nairstudio.example', '+1 646 555 0119', '["rec_co2"]');
-INSERT INTO "rt_company" ("id","owner","label","version","created_at","updated_at","holds","name") VALUES ('rec_co3', 'usr_irfad', 1, 1, 1760000000000, 1760000000000, 0, 'Pruitt & Co.');
-INSERT INTO "rt_contact" ("id","owner","label","version","created_at","updated_at","holds","name","email","phone","company") VALUES ('rec_marcus', 'usr_irfad', 1, 1, 1760000000000, 1760000000000, 0, 'Marcus Pruitt', 'marcus@pruittco.example', '+1 212 555 0148', '["rec_co3"]');
-INSERT INTO "rt_company" ("id","owner","label","version","created_at","updated_at","holds","name") VALUES ('rec_co4', 'usr_irfad', 1, 1, 1760000000000, 1760000000000, 0, 'Webb Advisory');
-INSERT INTO "rt_contact" ("id","owner","label","version","created_at","updated_at","holds","name","email","phone","company") VALUES ('rec_webb', 'usr_irfad', 1, 1, 1760000000000, 1760000000000, 0, 'Marcus Webb', 'marcus@webbadvisory.example', '+1 312 555 0127', '["rec_co4"]');
+INSERT INTO "rt_company" ("id","owner","label","version","created_at","updated_at","holds","name") VALUES ('rec_co1', 'usr_imran', 1, 1, 1760000000000, 1760000000000, 0, 'Rivera Holdings');
+INSERT INTO "rt_contact" ("id","owner","label","version","created_at","updated_at","holds","name","email","phone","company") VALUES ('rec_elena', 'usr_imran', 1, 1, 1760000000000, 1760000000000, 0, 'Elena Rivera', 'elena@riveraholdings.example', '+1 415 555 0161', '["rec_co1"]');
+INSERT INTO "rt_company" ("id","owner","label","version","created_at","updated_at","holds","name") VALUES ('rec_co2', 'usr_imran', 1, 1, 1760000000000, 1760000000000, 0, 'Nair Studio');
+INSERT INTO "rt_contact" ("id","owner","label","version","created_at","updated_at","holds","name","email","phone","company") VALUES ('rec_priya', 'usr_imran', 1, 1, 1760000000000, 1760000000000, 0, 'Priya Nair', 'priya@nairstudio.example', '+1 646 555 0119', '["rec_co2"]');
+INSERT INTO "rt_company" ("id","owner","label","version","created_at","updated_at","holds","name") VALUES ('rec_co3', 'usr_imran', 1, 1, 1760000000000, 1760000000000, 0, 'Pruitt & Co.');
+INSERT INTO "rt_contact" ("id","owner","label","version","created_at","updated_at","holds","name","email","phone","company") VALUES ('rec_marcus', 'usr_imran', 1, 1, 1760000000000, 1760000000000, 0, 'Marcus Pruitt', 'marcus@pruittco.example', '+1 212 555 0148', '["rec_co3"]');
+INSERT INTO "rt_company" ("id","owner","label","version","created_at","updated_at","holds","name") VALUES ('rec_co4', 'usr_imran', 1, 1, 1760000000000, 1760000000000, 0, 'Webb Advisory');
+INSERT INTO "rt_contact" ("id","owner","label","version","created_at","updated_at","holds","name","email","phone","company") VALUES ('rec_webb', 'usr_imran', 1, 1, 1760000000000, 1760000000000, 0, 'Marcus Webb', 'marcus@webbadvisory.example', '+1 312 555 0127', '["rec_co4"]');

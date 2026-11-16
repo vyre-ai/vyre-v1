@@ -483,6 +483,8 @@ export interface RunLink {
   parentRun?: string;
   startedAt: number;
   scope?: RunScope;
+  /** A test of a draft ran this definition, not a saved version. */
+  draftDefinition?: Definition;
 }
 function scopeOf(v: unknown): RunScope | undefined {
   const s = json<RunScope | undefined>(v, undefined);
@@ -504,12 +506,13 @@ function rowToRunLink(r: Raw): RunLink {
     parentRun: str(r.parent_run),
     startedAt: num(r.started_at) ?? 0,
     scope: scopeOf(r.scope),
+    draftDefinition: json<Definition | undefined>(r.draft_definition, undefined),
   }) as RunLink;
 }
 export function saveRunLink(db: Db, l: RunLink): void {
   db.run(
-    `INSERT OR REPLACE INTO automations_runs (run_id, automation_id, version, trigger_key, test, payload, depth, origin, event_id, principal_kind, principal_id, parent_run, started_at, scope)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO automations_runs (run_id, automation_id, version, trigger_key, test, payload, depth, origin, event_id, principal_kind, principal_id, parent_run, started_at, scope, draft_definition)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     l.runId,
     l.automationId,
     l.version,
@@ -524,7 +527,54 @@ export function saveRunLink(db: Db, l: RunLink): void {
     nul(l.parentRun),
     l.startedAt,
     l.scope === undefined ? null : js(l.scope),
+    l.draftDefinition === undefined ? null : js(l.draftDefinition),
   );
+}
+
+export interface DraftRow {
+  definition: Definition;
+  baseVersion: number;
+  rev: number;
+  by: string;
+  at: number;
+}
+export function findDraft(db: Db, automationId: string): DraftRow | undefined {
+  const r = (db.all("SELECT * FROM automations_drafts WHERE automation_id = ?", automationId) as Raw[])[0];
+  if (!r) return undefined;
+  const definition = json<Definition | undefined>(r.definition, undefined);
+  if (!definition) return undefined;
+  return {
+    definition,
+    baseVersion: num(r.base_version) ?? 1,
+    rev: num(r.rev) ?? 1,
+    by: r.by_who as string,
+    at: num(r.at) ?? 0,
+  };
+}
+export function writeDraft(db: Db, automationId: string, d: DraftRow): void {
+  db.run(
+    "INSERT OR REPLACE INTO automations_drafts (automation_id, definition, base_version, rev, by_who, at) VALUES (?, ?, ?, ?, ?, ?)",
+    automationId,
+    js(d.definition),
+    d.baseVersion,
+    d.rev,
+    d.by,
+    d.at,
+  );
+}
+export function dropDraft(db: Db, automationId: string): void {
+  db.run("DELETE FROM automations_drafts WHERE automation_id = ?", automationId);
+}
+/** Real past starts of one trigger, newest first: what a test can be tried on. Tests and empty payloads are not events. */
+export function pastEvents(db: Db, trigger: string, limit: number, automationId?: string): RunLink[] {
+  return (
+    db.all(
+      `SELECT * FROM automations_runs WHERE trigger_key = ? AND test = 0 AND payload NOT IN ('null', '{}') ${
+        automationId ? "AND automation_id = ?" : ""
+      } ORDER BY started_at DESC, run_id DESC LIMIT ?`,
+      ...(automationId ? [trigger, automationId, limit] : [trigger, limit]),
+    ) as Raw[]
+  ).map(rowToRunLink);
 }
 export function findRunLink(db: Db, runId: string): RunLink | undefined {
   const r = (db.all("SELECT * FROM automations_runs WHERE run_id = ?", runId) as Raw[])[0];

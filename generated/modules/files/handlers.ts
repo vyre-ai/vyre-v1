@@ -33,6 +33,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "files.folder.delete": Handler<"files.folder.delete", X>;
   "files.folder.get": Handler<"files.folder.get", X>;
   "files.folder.move": Handler<"files.folder.move", X>;
+  "files.folder.purge": Handler<"files.folder.purge", X>;
   "files.folder.rename": Handler<"files.folder.rename", X>;
   "files.folder.restore": Handler<"files.folder.restore", X>;
   "files.folder.search": Handler<"files.folder.search", X>;

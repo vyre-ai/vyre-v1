@@ -1,0 +1,1 @@
+- A picture in a reply or a document that names another website is no longer fetched with your sign-in. The sign-in goes only to your own Space, pictures are given back to the browser when they leave the screen, and the next person to sign in on the same page never sees the last person's pictures.

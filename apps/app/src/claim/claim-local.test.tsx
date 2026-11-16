@@ -25,7 +25,7 @@ test("a local Personal Space setup hides the fingerprint; a server's claim link 
   );
   assert.match(
     remote,
-    /Server fingerprint 604c da66 edfb b3cf\. It matches the link your server printed\./,
+    /Check this code matches the one your server printed: 604c da66 edfb b3cf/,
     "the fingerprint says what it is and what to compare it with",
   );
 });

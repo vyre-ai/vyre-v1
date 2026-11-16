@@ -69,7 +69,7 @@ export interface RunsSpace {
 export const northwind: RunsSpace = {
   id: "northwind",
   name: "Northwind",
-  me: { id: "usr_irfad", name: "Irfad Imtiaz" },
+  me: { id: "usr_imran", name: "Imran Ibarra" },
   names: namesFor("northwind", {
     aut_lead: "New lead follow-up",
     aut_flag: "Flag invoices over $5k to me",
@@ -131,7 +131,7 @@ function northwindRows(): { runs: Row[]; steps: Row[]; messages: Row[]; undo: Ro
     runRow({
       id: "ri1",
       auto: "aut_invoice",
-      owner: "usr_irfad",
+      owner: "usr_imran",
       status: "waiting",
       waitReason: "approval",
       name: "On schedule, Fridays at 09:00",
@@ -142,7 +142,7 @@ function northwindRows(): { runs: Row[]; steps: Row[]; messages: Row[]; undo: Ro
     runRow({
       id: "rq1",
       auto: "aut_invoice",
-      owner: "usr_irfad",
+      owner: "usr_imran",
       status: "queued",
       name: "Invoice 1046, Okafor Family, $2,150",
       startedAt: ago(2),
@@ -153,7 +153,7 @@ function northwindRows(): { runs: Row[]; steps: Row[]; messages: Row[]; undo: Ro
       runRow({
         id: `ri_f${n}`,
         auto: "aut_invoice",
-        owner: "usr_irfad",
+        owner: "usr_imran",
         status: "succeeded",
         name: "On schedule, Fridays at 09:00",
         startedAt: dayAt(d, -14),
@@ -166,7 +166,7 @@ function northwindRows(): { runs: Row[]; steps: Row[]; messages: Row[]; undo: Ro
     runRow({
       id: "rbig0",
       auto: "aut_flag",
-      owner: "usr_irfad",
+      owner: "usr_imran",
       status: "failed",
       name: "Invoice 1044, Greene & Co, $7,900",
       startedAt: ago(47),

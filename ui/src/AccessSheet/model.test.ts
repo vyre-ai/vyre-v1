@@ -159,7 +159,7 @@ test("share lines group people by level, then guests, outside agents, the Space 
   const lines = shareLines({
     type: "file",
     name: "Q4 invoices",
-    ownerName: "Irfad",
+    ownerName: "Imran",
     picks: [
       sara("view"),
       sara("edit", "person", "Omar Reyes"),
@@ -176,7 +176,7 @@ test("share lines group people by level, then guests, outside agents, the Space 
   assert.ok(
     text.some((x) =>
       x.startsWith(
-        "Claude Code reaches it through MCP tools scoped to exactly this folder, never wider. It shows as Irfad (Agent), is audited, and removing it ends access at once.",
+        "Claude Code reaches it through MCP tools scoped to exactly this folder, never wider. It shows as Imran (Agent), is audited, and removing it ends access at once.",
       ),
     ),
   );
@@ -189,7 +189,7 @@ test("a Vault pick that can only use it says so, and the value stays out of chat
   const lines = shareLines({
     type: "vault",
     name: "GHL API key",
-    ownerName: "Irfad",
+    ownerName: "Imran",
     picks: [sara("use", "person", "Dana Fox")],
   }).map((l) => l.text);
   assert.equal(lines[0], "Dana Fox can use “GHL API key” in actions without seeing its value.");
@@ -200,14 +200,14 @@ test("a Vault item given to an agent says that everyone who can ask the agent ca
   const one = shareLines({
     type: "vault",
     name: "GHL API key",
-    ownerName: "Irfad",
+    ownerName: "Imran",
     picks: [sara("use", "agent", "Scout")],
   }).map((l) => l.text);
   assert.ok(one.includes("Everyone who can ask Scout can use it through Scout."), JSON.stringify(one));
   const two = shareLines({
     type: "vault",
     name: "GHL API key",
-    ownerName: "Irfad",
+    ownerName: "Imran",
     picks: [sara("use", "agent", "Scout"), sara("use", "agent", "Dex")],
   }).map((l) => l.text);
   assert.ok(two.includes("Everyone who can ask Scout and Dex can use it through them."), JSON.stringify(two));
@@ -215,14 +215,14 @@ test("a Vault item given to an agent says that everyone who can ask the agent ca
     shareLines({
       type: "vault",
       name: "GHL API key",
-      ownerName: "Irfad",
+      ownerName: "Imran",
       picks: [sara("use", "person", "Dana Fox")],
     }).some((l) => l.id === "vault-agents"),
     false,
     "no agent, no line",
   );
   assert.equal(
-    shareLines({ type: "file", name: "Q4", ownerName: "Irfad", picks: [sara("view", "agent", "Scout")] }).some(
+    shareLines({ type: "file", name: "Q4", ownerName: "Imran", picks: [sara("view", "agent", "Scout")] }).some(
       (l) => l.id === "vault-agents",
     ),
     false,
@@ -234,7 +234,7 @@ test("sharing an agent: the pays-with-their-own-account note, named and never gu
   const picked = shareLines({
     type: "agent",
     name: "Ember",
-    ownerName: "Irfad",
+    ownerName: "Imran",
     picks: [sara("use", "person", "Omar Reyes")],
   }).map((l) => l.text);
   assert.equal(picked[0], "Omar Reyes can use Ember in Omar Reyes's chats, tasks and automations.");
@@ -244,12 +244,12 @@ test("sharing an agent: the pays-with-their-own-account note, named and never gu
   const two = shareLines({
     type: "agent",
     name: "Ember",
-    ownerName: "Irfad",
+    ownerName: "Imran",
     picks: [sara("use", "person", "Omar"), sara("use", "person", "Sara")],
   }).map((l) => l.text);
   assert.equal(two[0], "Omar and Sara can use Ember in their chats, tasks and automations.");
   assert.ok(!two.join(" ").match(/\b(he|she|him|her|his)\b/i), "pronouns are never guessed");
-  const idle = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [] });
+  const idle = shareLines({ type: "agent", name: "Ember", ownerName: "Imran", picks: [] });
   assert.equal(idle.length, 0, "no legend: each level describes itself in its picker menu");
   assert.equal(shareLines({ type: "note", name: "x", ownerName: "I", picks: [] }).length, 0);
 });
@@ -258,7 +258,7 @@ test("a limited giver is told they can give only what they have", () => {
   const lines = shareLines({
     type: "note",
     name: "Plan",
-    ownerName: "Irfad",
+    ownerName: "Imran",
     picks: [sara("view")],
     limited: true,
   }).map((l) => l.text);
@@ -380,14 +380,14 @@ test("a phone is under 640 px", () => {
 test("add lines: messages from now on or the start, files folder, records", () => {
   const picks = [sara("member")];
   assert.equal(
-    addLines({ target, picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    addLines({ target, picks, earlier: false, ownerName: "Imran" })[0]?.text,
     "They'll see this chat's messages from now on, its files folder Portal uploads, and records in Clients.",
   );
   assert.equal(
-    addLines({ target, picks, earlier: true, ownerName: "Irfad" })[0]?.text,
+    addLines({ target, picks, earlier: true, ownerName: "Imran" })[0]?.text,
     "They'll see the whole chat, its files folder Portal uploads, and records in Clients.",
   );
-  assert.deepEqual(addLines({ target, picks: [], earlier: false, ownerName: "Irfad" }), []);
+  assert.deepEqual(addLines({ target, picks: [], earlier: false, ownerName: "Imran" }), []);
 });
 
 test("add lines: guests, outside agents and chat-owned agents", () => {
@@ -400,7 +400,7 @@ test("add lines: guests, outside agents and chat-owned agents", () => {
       pickFromNew(1, { name: "Checker", brief: "", model: "Sonnet 5.5" }),
     ],
     earlier: false,
-    ownerName: "Irfad",
+    ownerName: "Imran",
   }).map((l) => l.text);
   assert.ok(
     texts.includes(
@@ -409,7 +409,7 @@ test("add lines: guests, outside agents and chat-owned agents", () => {
   );
   assert.ok(
     texts.includes(
-      "Claude Code reads and posts in this chat and reads its folder and the records folder, through MCP tools scoped to exactly these, never wider. It shows as Irfad (Agent), is audited, and removing it ends access at once.",
+      "Claude Code reads and posts in this chat and reads its folder and the records folder, through MCP tools scoped to exactly these, never wider. It shows as Imran (Agent), is audited, and removing it ends access at once.",
     ),
   );
   assert.ok(texts.includes("Checker belongs to the chat and is removed with it."));
@@ -417,7 +417,7 @@ test("add lines: guests, outside agents and chat-owned agents", () => {
     target: { ...target, kind: "project", name: "Lab 8" },
     picks: [sara("", "outside", "Codex")],
     earlier: false,
-    ownerName: "Irfad",
+    ownerName: "Imran",
   }).map((l) => l.text);
   assert.ok(
     proj.some((x) =>
@@ -945,7 +945,7 @@ const r = (o: Partial<Row> & Pick<Row, "subjectKind" | "subjectId">): Row => ({
   fromFolderId: null,
   ...o,
 });
-const base = { itemType: "agent" as const, resourceId: "agt_dex", ownerId: "usr_me", ownerName: "Irfad" };
+const base = { itemType: "agent" as const, resourceId: "agt_dex", ownerId: "usr_me", ownerName: "Imran" };
 
 test("accessView: an item never lists itself", () => {
   const v = accessView({
@@ -1103,16 +1103,16 @@ test("the what-they-get line names a folder and records only when the target has
   const picks = [sara("member")];
   const bare = { kind: "chat" as const, name: "Upload contract" };
   assert.equal(
-    addLines({ target: bare, picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    addLines({ target: bare, picks, earlier: false, ownerName: "Imran" })[0]?.text,
     "They'll see this chat's messages from now on.",
   );
   assert.equal(
-    addLines({ target: { ...bare, filesFolder: "Portal uploads" }, picks, earlier: false, ownerName: "Irfad" })[0]
+    addLines({ target: { ...bare, filesFolder: "Portal uploads" }, picks, earlier: false, ownerName: "Imran" })[0]
       ?.text,
     "They'll see this chat's messages from now on, and its files folder Portal uploads.",
   );
   assert.equal(
-    addLines({ target: { ...bare, recordsFolder: "Clients" }, picks, earlier: true, ownerName: "Irfad" })[0]?.text,
+    addLines({ target: { ...bare, recordsFolder: "Clients" }, picks, earlier: true, ownerName: "Imran" })[0]?.text,
     "They'll see the whole chat, and records in Clients.",
   );
   assert.equal(
@@ -1120,7 +1120,7 @@ test("the what-they-get line names a folder and records only when the target has
       target: { ...bare, filesFolder: "Portal uploads", recordsFolder: "Clients" },
       picks,
       earlier: true,
-      ownerName: "Irfad",
+      ownerName: "Imran",
     })[0]?.text,
     "They'll see the whole chat, its files folder Portal uploads, and records in Clients.",
   );
@@ -1134,23 +1134,23 @@ test("a project chat reads: the project's files, and its N linked records, with 
     project: { name: "Busy project", hasFiles, linkedRecords },
   });
   assert.equal(
-    addLines({ target: t(3), picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    addLines({ target: t(3), picks, earlier: false, ownerName: "Imran" })[0]?.text,
     "They'll see this chat's messages from now on, Busy project's files, and its 3 linked records.",
   );
   assert.equal(
-    addLines({ target: t(1), picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    addLines({ target: t(1), picks, earlier: false, ownerName: "Imran" })[0]?.text,
     "They'll see this chat's messages from now on, Busy project's files, and its 1 linked record.",
   );
   assert.equal(
-    addLines({ target: t(0), picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    addLines({ target: t(0), picks, earlier: false, ownerName: "Imran" })[0]?.text,
     "They'll see this chat's messages from now on, and Busy project's files.",
   );
   assert.equal(
-    addLines({ target: t(2), picks, earlier: true, ownerName: "Irfad" })[0]?.text,
+    addLines({ target: t(2), picks, earlier: true, ownerName: "Imran" })[0]?.text,
     "They'll see the whole chat, Busy project's files, and its 2 linked records.",
   );
   assert.equal(
-    addLines({ target: t(0, false), picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    addLines({ target: t(0, false), picks, earlier: false, ownerName: "Imran" })[0]?.text,
     "They'll see this chat's messages from now on.",
   );
 });
@@ -1171,7 +1171,7 @@ test("accessView lists the agent that made this among the people with access, on
     itemType: "file",
     resourceId: "fil_1",
     ownerId: "usr_me",
-    ownerName: "Irfad",
+    ownerName: "Imran",
     shares: [made, other],
   });
   assert.deepEqual(

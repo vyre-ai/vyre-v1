@@ -221,9 +221,20 @@ export function liveFolder(ctx: VaultCtx, id: string): Row {
   return row;
 }
 
+/** Columns the module writes about its own use of an item. They are not a change to the item, so they never move the version or updatedAt a caller compares with expectedUpdatedAt (F67). */
+const BOOKKEEPING: ReadonlySet<string> = new Set(["lastUsedAt"]);
+
 export function patchMeta(ctx: VaultCtx, id: string, fields: Record<string, Val>): void {
   const row = first(ctx.db.all(`SELECT * FROM vault_meta WHERE id = ?`, id));
   const keys = Object.keys(fields);
+  if (keys.length > 0 && keys.every((k) => BOOKKEEPING.has(k))) {
+    ctx.db.run(
+      `UPDATE vault_meta SET ${keys.map((k) => `"${k}" = ?`).join(", ")} WHERE id = ?`,
+      ...keys.map((k) => fields[k] ?? null),
+      id,
+    );
+    return;
+  }
   ctx.db.run(
     `UPDATE vault_meta SET ${[...keys, "version", "updated_at", "updatedAt"].map((k) => `"${k}" = ?`).join(", ")} WHERE id = ?`,
     ...keys.map((k) => fields[k] ?? null),

@@ -135,14 +135,14 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
           />
         )}
         {jobs.length > 0 && !sel ? list : null}
-        {sel ? null : <SessionBlockMount call={data.call} threadId={data.threadId} />}
+        {sel ? null : <SessionBlockMount call={data.call} threadId={data.threadId} agentId={data.agent.agentId} />}
       </>
     );
   }
   return (
     <>
       {list}
-      <SessionBlockMount call={data.call} threadId={data.threadId} />
+      <SessionBlockMount call={data.call} threadId={data.threadId} agentId={data.agent.agentId} />
     </>
   );
 }

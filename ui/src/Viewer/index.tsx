@@ -6,6 +6,7 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { BlobImage } from "../BlobImage/index.tsx";
 import { AskButton } from "../AskButton/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MarkdownText } from "../stream/MarkdownText.tsx";
@@ -30,6 +31,7 @@ import {
   useLayerCss,
 } from "./layer.tsx";
 import type { LayerAct, Span, ViewerLayer, ViewerMark } from "./layer.tsx";
+import type { DecorRange, RichBody } from "./rich/types.ts";
 export { LAYER_CSS, layerRuns, layerSpans, previewRuns, REDACTED } from "./layer.tsx";
 export type { LayerAct, ViewerLayer, ViewerMark } from "./layer.tsx";
 import type { FileLinks } from "./links.ts";
@@ -344,6 +346,7 @@ const ICON = {
   down: `${SVG}<path d="M4 6l4 4 4-4"/></svg>`,
   info: `${SVG}<circle cx="8" cy="8" r="5.500"/><path d="M8 7.500V11M8 5.200v.1"/></svg>`,
   history: `${SVG}<path d="M2.500 8a5.500 5.500 0 105.500-5.500A5.500 5.500 0 004 4.500M2 2.500v2.500h2.500M8 5v3l2 1.200"/></svg>`,
+  pages: `${SVG}<rect x="2.500" y="2.500" width="4.500" height="11" rx="1"/><path d="M9.500 4h4M9.500 8h4M9.500 12h4"/></svg>`,
   more: `${SVG}<path d="M3.500 8h.1M8 8h.1M12.500 8h.1"/></svg>`,
 } as const;
 
@@ -398,7 +401,9 @@ export interface ViewerViewProps extends ViewerProps {
   /** The versions of the file; the point is where the button was pressed. Left out, the History button is not drawn. */
   onHistory?: (x: number, y: number) => void;
   /** The file's other actions (copy link, download); the point is where the button was pressed. Left out, the More button is not drawn. */
-  onMore?: (x: number, y: number) => void;
+  onMore?: (x: number, y: number, hidden?: { label: string; onSelect: () => void }[]) => void;
+  /** A narrow screen (a phone): the controls that do not fit go behind More, the way the app's other toolbars do. */
+  compact?: boolean;
   /** The line of the quiet "no preview" state, for a file whose app is known ("No preview of this file here. Open it in Word."); without it the line names Open in, or the file's own app. */
   noPreview?: string;
   /** A file that lives at a provider (Google Docs, Word, Excel, Dropbox): one press opens it in the provider's own editor. `label` reads "Open in Google Docs". */
@@ -429,6 +434,16 @@ export interface ViewerViewProps extends ViewerProps {
   side?: ReactNode;
   /** A quiet line under the header (Needs review, an agent waiting, Preview as agent). */
   banner?: ReactNode;
+  /**
+   * A file body the viewer draws for the file's own kind (PDF pages, a workbook, a Word page, a deck). The viewer keeps the toolbar and Find; `blocks` then holds the words Find reads (a page or a sheet
+   * per block) and `rich` draws the file and marks the matches. `paged` adds the page number, jump and thumbnails to the toolbar and Comment on an area and Redact an area to the mark bar.
+   */
+  rich?: RichBody;
+  paged?: boolean;
+  /** Where Find has no words to read (a scan): the viewer says so instead of "No matches". */
+  noText?: boolean;
+  /** What a drawn page or sheet reports about itself, for the toolbar: how many pages and which one is showing. */
+  onPages?: (count: number) => void;
 }
 
 /** Web-only attributes. react-native-web drops unknown props, so `data-x` becomes `dataSet.x` and `data-testid` becomes `testID`. */
@@ -488,7 +503,14 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const [zoom, setZoom] = useState(props.zoom ?? 1);
   const [boxes, setBoxes] = useState<readonly MarkupBox[]>(props.boxes ?? []);
   const [strokes, setStrokes] = useState<readonly Stroke[]>(props.strokes ?? []);
-  const [blocks, setBlocks] = useState<readonly DocBlock[]>(props.blocks ?? []);
+  const [blocksState, setBlocks] = useState<readonly DocBlock[]>(props.blocks ?? []);
+  // a rich body reads the words its own file gives, which arrive after the page opens (a PDF reads its pages in the background)
+  const blocks = props.rich !== undefined ? (props.blocks ?? blocksState) : blocksState;
+  const [pageNo, setPageNo] = useState(1);
+  const [pageCount, setPageCount] = useState(0);
+  const [thumbs, setThumbs] = useState(Platform.OS === "web" && !(props.compact === true));
+  const [jump, setJump] = useState<{ page: number; n: number } | null>(null);
+  const [pageDraft, setPageDraft] = useState("");
   const [drag, setDrag] = useState<{ a: readonly [number, number]; b: readonly [number, number] } | null>(null);
   const [line, setLine] = useState<readonly (readonly [number, number])[] | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -629,6 +651,26 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     props.onEdit?.(next);
   };
   const pick = (t: MarkupTool): void => setTool((x) => (x === t ? null : t));
+  // Esc leaves a markup tool (Draw, Pin) before it leaves anything else: it is taken here, in the capture phase, so a screen's own Esc (back to the list) sees it was used
+  useEffect(() => {
+    if (tool === null || Platform.OS !== "web") return undefined;
+    const doc = (
+      globalThis as {
+        document?: {
+          addEventListener(t: string, f: (e: KeyboardEvent) => void, capture?: boolean): void;
+          removeEventListener(t: string, f: (e: KeyboardEvent) => void, capture?: boolean): void;
+        };
+      }
+    ).document;
+    if (doc === undefined) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setTool(null);
+    };
+    doc.addEventListener("keydown", onKey, true);
+    return () => doc.removeEventListener("keydown", onKey, true);
+  }, [tool]);
 
   const iconBtn = (
     label: string,
@@ -696,7 +738,11 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           />
           {find !== "" ? (
             <Text style={s.count} testID="vw-count">
-              {hits.length === 0 ? "No matches" : `${at + 1} of ${hits.length}`}
+              {hits.length === 0
+                ? props.noText === true
+                  ? "No text to search here"
+                  : "No matches"
+                : `${at + 1} of ${hits.length}`}
             </Text>
           ) : null}
           {hits.length > 1 ? (
@@ -721,7 +767,37 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           ) : null}
         </View>
       ) : null}
-      {props.kind === "image" ? (
+      {props.paged === true && pageCount > 0 ? (
+        <View style={s.zoom} testID="vw-pages">
+          {props.compact === true ? null : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={thumbs ? "Hide pages" : "Show pages"}
+              aria-selected={thumbs}
+              testID="vw-thumbs"
+              onPress={() => setThumbs((t) => !t)}
+            >
+              <MenuIcon icon={ICON.pages} />
+            </Pressable>
+          )}
+          <TextInput
+            accessibilityLabel="Page number"
+            testID="vw-page-input"
+            value={pageDraft !== "" ? pageDraft : String(pageNo)}
+            style={s.pageInput}
+            onFocus={() => setPageDraft(String(pageNo))}
+            onChangeText={(t) => setPageDraft(t.replace(/\D/g, ""))}
+            onBlur={() => setPageDraft("")}
+            onSubmitEditing={() => {
+              const n = Math.max(1, Math.min(pageCount, Number(pageDraft) || pageNo));
+              setPageDraft("");
+              setJump((j) => ({ page: n, n: (j?.n ?? 0) + 1 }));
+            }}
+          />
+          <Text style={s.zoomText} testID="vw-page-count">{`/ ${pageCount}`}</Text>
+        </View>
+      ) : null}
+      {props.kind === "image" || (props.paged === true && props.compact !== true) ? (
         <View style={s.zoom} testID="vw-zoom">
           <Pressable
             accessibilityRole="button"
@@ -733,7 +809,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Reset zoom"
+            accessibilityLabel={props.paged === true ? "Fit width" : "Reset zoom"}
             testID="vw-zoom-reset"
             onPress={() => setZ(stepZoom(zoom, 0))}
           >
@@ -786,8 +862,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           </Text>
         </Pressable>
       ) : null}
-      {props.tools}
-      {iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
+      {props.compact === true ? null : props.tools}
+      {props.compact === true
+        ? null
+        : iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
       {iconBtn(
         "Details",
         ICON.info,
@@ -798,7 +876,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         },
         detailsOpen,
       )}
-      {props.onHistory
+      {props.onHistory && props.compact !== true
         ? iconBtn("History", ICON.history, "vw-history", (e) => {
             const q = pressPoint(e);
             props.onHistory?.(q.x, q.y);
@@ -808,16 +886,27 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {props.onMore
         ? iconBtn("More", ICON.more, "vw-more", (e) => {
             const q = pressPoint(e);
-            props.onMore?.(q.x, q.y);
+            props.onMore?.(
+              q.x,
+              q.y,
+              props.compact === true
+                ? [
+                    { label: "Find in file", onSelect: () => setFindOpen(true) },
+                    ...(props.onHistory ? [{ label: "History", onSelect: () => props.onHistory?.(q.x, q.y) }] : []),
+                  ]
+                : undefined,
+            );
           })
         : null}
     </View>
   );
 
   const markBar =
-    props.kind === "image" ? (
+    props.kind === "image" || props.paged === true ? (
       <View style={s.mark} testID="vw-markup" accessibilityRole="toolbar" accessibilityLabel="Mark up">
-        <Tool label="Draw" icon={ICON.draw} on={tool === "draw"} onPress={() => pick("draw")} testID="vw-tool-draw" />
+        {props.paged === true ? null : (
+          <Tool label="Draw" icon={ICON.draw} on={tool === "draw"} onPress={() => pick("draw")} testID="vw-tool-draw" />
+        )}
         <Tool
           label="Comment on an area"
           icon={ICON.area}
@@ -841,7 +930,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           />
         ) : null}
         <View style={s.grow} />
-        {boxes.length + strokes.length > 0 ? (
+        {props.paged !== true && boxes.length + strokes.length > 0 ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Clear markup"
@@ -855,7 +944,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
             <Text style={s.toolText}>Clear</Text>
           </Pressable>
         ) : null}
-        {boxes.length + strokes.length > 0 ? (
+        {props.paged !== true && boxes.length + strokes.length > 0 ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Ask ${props.agentName ?? "the agent"}`}
@@ -927,10 +1016,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         onResponderRelease={(e) => pointer("up", e)}
       >
         {props.src !== undefined ? (
-          <Image
+          <BlobImage
             accessibilityIgnoresInvertColors
             accessibilityLabel={props.title}
-            source={{ uri: props.src }}
+            uri={props.src}
             resizeMode="cover"
             style={s.pictureImg}
             testID="vw-picture"
@@ -1317,32 +1406,8 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     );
   };
 
-  const plainRead =
-    props.markdown !== undefined &&
-    !editing &&
-    find === "" &&
-    props.kind === "document" &&
-    (props.layer?.marks ?? []).length === 0 &&
-    props.layer?.preview !== true &&
-    (props.comments ?? []).length === 0 &&
-    quoted === null;
-  const docBody = plainRead ? (
-    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
-      <View style={s.doc} testID="vw-markdown">
-        <MarkdownText
-          text={props.markdown ?? ""}
-          {...(props.fileLinks
-            ? { renderText: (t: string) => withFileLinks(splitRefs(t), props.fileLinks as FileLinks) }
-            : {})}
-        />
-      </View>
-    </ScrollView>
-  ) : props.docEditor !== undefined && editing ? (
-    <View style={s.scroll} testID="vw-doc-editor">
-      {props.docEditor}
-    </View>
-  ) : (
-    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
+  const pickBar = (
+    <>
       {quoted !== null && (props.kind === "document" || props.kind === "plan") ? (
         <View style={s.pickBar} testID="vw-pick">
           <Text style={s.pickQuote} numberOfLines={1}>{`“${quoted.quote}”`}</Text>
@@ -1378,6 +1443,42 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           </Pressable>
         </View>
       ) : null}
+    </>
+  );
+  const plainRead =
+    props.markdown !== undefined &&
+    !editing &&
+    find === "" &&
+    props.kind === "document" &&
+    (props.layer?.marks ?? []).length === 0 &&
+    props.layer?.preview !== true &&
+    (props.comments ?? []).length === 0 &&
+    quoted === null;
+  const docBody = plainRead ? (
+    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
+      <View style={s.docWide} testID="vw-markdown">
+        <MarkdownText
+          readingWidth={720}
+          text={props.markdown ?? ""}
+          {...(props.fileLinks
+            ? { renderText: (t: string) => withFileLinks(splitRefs(t), props.fileLinks as FileLinks) }
+            : {})}
+        />
+      </View>
+    </ScrollView>
+  ) : props.docEditor !== undefined && editing ? (
+    // the editor draws its page at full height: this is the container that scrolls it (wheel, trackpad, keys, the scrollbar), on the web and on a phone
+    <ScrollView
+      style={s.scroll}
+      contentContainerStyle={s.editWrap}
+      keyboardShouldPersistTaps="handled"
+      testID="vw-doc-editor"
+    >
+      {props.docEditor}
+    </ScrollView>
+  ) : (
+    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
+      {pickBar}
       <View style={[s.doc, isCode && s.codeDoc]}>
         {isCode ? (
           <Text style={s.lineNums} selectable={false} testID="vw-lines">
@@ -1520,8 +1621,47 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       </View>
     );
 
+  const hit = hits[at];
+  const richBody =
+    props.rich !== undefined
+      ? props.rich({
+          find,
+          hit:
+            hit === undefined || find === ""
+              ? null
+              : { block: hit.block, occurrence: hits.slice(0, at).filter((h) => h.block === hit.block).length },
+          zoom,
+          decor: (bi: number) => {
+            const out: DecorRange[] = [];
+            const t = texts[bi] ?? "";
+            for (const h of hits)
+              if (h.block === bi) out.push({ s: h.at, e: h.at + h.len, kind: hits[at] === h ? "find-on" : "find" });
+            for (const sp of spansBy[bi] ?? [])
+              out.push({ s: sp.s, e: sp.e, kind: sp.mark.kind === "redact" ? "redact" : "highlight", id: sp.mark.id });
+            for (const c of shownComments)
+              for (const o of occurrences(t, c.quote))
+                out.push({ s: o, e: o + c.quote.length, kind: "comment", id: c.id });
+            return out;
+          },
+          tool: rtool ? "redact" : tool === "comment" ? "comment" : null,
+          thumbs: thumbs && props.compact !== true,
+          jump,
+          edit: editMode,
+          setZoom: setZ,
+          setPage: setPageNo,
+          setPages: (n) => {
+            setPageCount(n);
+            props.onPages?.(n);
+          },
+        })
+      : null;
   const body =
-    props.kind === "image" ? (
+    richBody !== null ? (
+      <View style={s.fill}>
+        {pickBar}
+        {richBody}
+      </View>
+    ) : props.kind === "image" ? (
       image
     ) : props.kind === "csv" ? (
       table
@@ -1820,6 +1960,14 @@ const s = StyleSheet.create({
   count: { color: "var(--ink-3)" as string, fontSize: 11.5 },
   zoom: { flexDirection: "row", alignItems: "center", gap: 10 },
   zoomText: { color: "var(--ink-3)" as string, fontSize: 13 },
+  pageInput: {
+    width: 34,
+    textAlign: "right",
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    padding: 0,
+    borderWidth: 0,
+  },
   mark: {
     height: 40,
     flexDirection: "row",
@@ -1889,6 +2037,7 @@ const s = StyleSheet.create({
   pinList: { width: "100%", maxWidth: 480, gap: 6 },
   pinRow: { color: "var(--ink-2)" as string, fontSize: 13 },
   docWrap: { padding: 24, alignItems: "center" },
+  editWrap: { flexGrow: 1 },
   main: { flex: 1, flexDirection: "row", minHeight: 0 },
   details: { width: 300, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
   detailsHead: {
@@ -2020,6 +2169,8 @@ const s = StyleSheet.create({
   codeCol: { flex: 1, minWidth: 0 },
   linked: { marginTop: 22, paddingTop: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   doc: { width: "100%", maxWidth: 720, gap: 10 },
+  // a rendered note: the page is the width of the pane (its text and its tables fit themselves inside it)
+  docWide: { width: "100%", gap: 10 },
   block: { color: "var(--ink)" as string, fontSize: 15, lineHeight: 23, padding: 0 },
   h1: { fontSize: 24, lineHeight: 30, fontWeight: "700" },
   h2: { fontSize: 18, lineHeight: 26, fontWeight: "600" },

@@ -32,8 +32,8 @@ import type { CalendarRow, InboxData, InboxState } from "../sidebar/index.ts";
 import { isHead, isItem, isSeparator } from "../../../../../../ui/src/Menu/props.ts";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/props.ts";
 
-const ME = "usr_irfad";
-const ACCOUNT = "irfad@harborstudio.example";
+const ME = "usr_imran";
+const ACCOUNT = "imran@harborstudio.example";
 const cal = (c: Partial<CalendarRow> & { id: string; title: string }): CalendarRow => ({
   color: "#4f6bed",
   provider: "google",

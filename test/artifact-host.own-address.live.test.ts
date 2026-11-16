@@ -1,4 +1,4 @@
-// A Space whose address is a vyre.run name that points straight at its own server (rc.26, 13 Nov 2026: the owner's Space, address mla.vyre.run, was handed the artifact host mla-a.vyre.run, a name only the relay's
+// A Space whose address is a vyre.run name that points straight at its own server (rc.26, 13 Nov 2026: the owner's Space, address northwind.vyre.run, was handed the artifact host northwind-a.vyre.run, a name only the relay's
 // wildcard answers, and the artifact tab was a blank white page). The Space is reached through the relay only when it holds a phone name at the relay; an address under any zone is an own address, and its artifact
 // host is a.<address>. The server also checks that its artifact host really reaches itself before it hands the address out, and says in Console, Health what to do until it does.
 import test from "node:test";
@@ -10,8 +10,8 @@ import type { FetchFn } from "../host/src/platform/probes.ts";
 import { boot, clock, hostLog, seededDir } from "./memory-live-kit.ts";
 import { api, ok, standIn } from "./member-key-kit.ts";
 
-const ADDRESS = "mla.vyre.run";
-const ART = "a.mla.vyre.run";
+const ADDRESS = "northwind.vyre.run";
+const ART = "a.northwind.vyre.run";
 
 /** One request to the daemon with the artifact host's name in Host, the way Caddy hands it over. */
 function ask(
@@ -140,7 +140,7 @@ test(
         "no content rule is loosened",
       );
       // the relay-form name is nothing of this Space's
-      assert.notEqual((await ask(d, `/${id}/`, { cookie }, "mla-a.vyre.run")).body, "<p>the page</p>");
+      assert.notEqual((await ask(d, `/${id}/`, { cookie }, "northwind-a.vyre.run")).body, "<p>the page</p>");
       // the server's own check reached it, and Console, Health has nothing to say
       assert.ok(net.asked.length >= 1, "the daemon asked its own artifact host");
       assert.equal((await finding(d))?.state, "healthy");

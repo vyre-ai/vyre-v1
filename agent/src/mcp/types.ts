@@ -44,6 +44,8 @@ export interface McpServerDeps {
   defaults: ReadonlySet<string>;
   /** The invoke pipeline. Authorization, the Gate and the audit all happen there. */
   invoke: Invoke;
+  /** A routine's agent met a refusal it can never fix: tell the person it works for, once (agent/src/tools/call.ts). */
+  needsYou?(n: { agentId: string; tool: string; asker: string; code: string }): void;
   /** Token to caller. Null when the token is unknown, expired, revoked, closed or for another address. An outside agent's token is read again on every request; a CLI engine's once while its session lives. */
   open(token: string, clientName?: string, origin?: string): Promise<McpCaller | null>;
   /** Is the caller still allowed in? Asked at most every `recheckMs`; a revoked token or a closed session ends here, before the next call. */

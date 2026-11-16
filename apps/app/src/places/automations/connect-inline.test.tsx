@@ -9,7 +9,7 @@ import { find, flush, installDom, mount, press, textOf } from "../../../../../ui
 import { ConnectInlineHost } from "../../shell/connect/ConnectInline.tsx";
 import type { Connected, ConnectNeed } from "../../shell/connect/model.ts";
 import { AutomationsDataProvider } from "./canvas/data.tsx";
-import { AutomationCanvas } from "./canvas/AutomationCanvas.tsx";
+import { BuilderPage } from "./screens/BuilderPage.tsx";
 import { Inspector } from "./canvas/Inspector.tsx";
 import type { Definition } from "./canvas/model.ts";
 import { createSampleAutomations, northwind } from "./sidebar/sample.ts";
@@ -190,7 +190,7 @@ test("the AI step's Runs on picker offers Add an AI account and takes the one th
   }
 });
 
-test("the banner's missing mailbox opens the same flow and puts the mailbox on the step", async () => {
+test("a step's missing mailbox is fixed on the step: its button opens the same flow and puts the mailbox on the step", async () => {
   try {
     const s = createSampleAutomations(northwind);
     const asked: ConnectNeed[] = [];
@@ -198,24 +198,21 @@ test("the banner's missing mailbox opens the same flow and puts the mailbox on t
       createRoot,
       <ConnectInlineHost rt={null} render={flowFor(mailbox, asked)}>
         <AutomationsDataProvider value={s.data}>
-          <AutomationCanvas automationId="aut_invoice" />
+          <BuilderPage automationId="aut_invoice" />
         </AutomationsDataProvider>
       </ConnectInlineHost>,
     );
     await flush();
-    const link = find(root, "problem-connect");
-    assert.ok(link, "the banner offers to connect");
+    const need = (): ReturnType<typeof find> => find(root, "sv-need-send");
+    const link = need();
+    assert.ok(link, "the step offers to connect");
     assert.ok(textOf(link).includes("Connect a mailbox"));
     await press(link);
     await flush();
     assert.deepEqual(asked, [{ kind: "mailbox" }]);
     await press(find(root, "flow-finish"));
     await flush();
-    assert.equal(
-      find(root, "problem-connect"),
-      null,
-      "the step has its mailbox, so the banner has nothing left to connect",
-    );
+    assert.equal(need(), null, "the step has its mailbox, so it has nothing left to connect");
   } finally {
     /* the DOM stays up until the file ends: mounted rows clean up their listeners later */
   }

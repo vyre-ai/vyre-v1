@@ -1,9 +1,16 @@
 // The Island above the composer (prototype p-crew): while helpers work, one small pill says so and wears their faces; it says "Needs you" in amber when one waits for a person. It reads the same crew status as the
 // strip, the header chip and the pane, and pressing it opens the pane. It is gone when nobody is working.
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
+import { useCalmWord } from "../conversation/ActivityLine.tsx";
+import { usesComputer } from "../conversation/activity.ts";
+import { Glyph } from "../conversation/parts.tsx";
 import { counts, faceSeed, islandText, nameOf } from "./model.ts";
+import type { ActivityStore } from "../../../shell/session/turn-streams.ts";
+import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import type { CrewStatusOut } from "./model.ts";
 
 export function CrewIsland({ status, onPress }: { status: CrewStatusOut; onPress: () => void }): ReactElement | null {
@@ -32,6 +39,91 @@ export function CrewIsland({ status, onPress }: { status: CrewStatusOut; onPress
             <Avatar key={m.id} name={nameOf(m)} seedId={faceSeed(m)} kind="agent" size={20} />
           ))}
         </View>
+      </Pressable>
+    </View>
+  );
+}
+
+let lastBlocks: { key: string; store: ActivityStore } | null = null;
+/**
+ * A reply whose work shows as live blocks (no activity stream reaches this screen) gives the island the same snapshot shape the reply line reads: one live step per live block. The snapshot is kept
+ * while its key stands, so a render never makes a new one.
+ */
+export function blocksActivity(key: string, live: number): ActivityStore | undefined {
+  if (live === 0) return undefined;
+  const k = `${key}:${live}`;
+  if (lastBlocks?.key === k) return lastBlocks.store;
+  const snap = {
+    startedAt: 0,
+    thinking: "",
+    version: 1,
+    steps: Array.from({ length: live }, (_, i) => ({ id: `b${i}`, name: "step", state: "live" as const })),
+  } as ReturnType<ActivityStore["get"]>;
+  lastBlocks = { key: k, store: { get: () => snap, subscribe: () => () => undefined } };
+  return lastBlocks.store;
+}
+
+/**
+ * The island of anyone working (prototype p-crew, scene "live"): one pill above the composer that says "Thinking" or "Writing" (the same one word the reply line shows: useCalmWord), wears the faces of everyone
+ * working, and opens the crew when pressed. For any working agent, the lead alone included. The screen hides it while a question is open and shows the amber helper pill when one waits for a person.
+ */
+export function WorkIsland({
+  store,
+  stream,
+  held = false,
+  faces,
+  onPress,
+}: {
+  /** The live reply of the lead, when there is one: its activity and its streamed words. */
+  store?: ActivityStore | undefined;
+  stream?: StreamStore | undefined;
+  held?: boolean;
+  faces: ReadonlyArray<{ id: string; name: string; seed: string }>;
+  onPress: () => void;
+}): ReactElement | null {
+  const { label, writing, snap } = useCalmWord(store, stream, held);
+  const computer = usesComputer(snap);
+  // how long it has been going, once a second: "Writing · 12s"; with two or more at work the island names them
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    (t as { unref?: () => void }).unref?.(); // a test's process is not held open by a clock
+    return () => clearInterval(t);
+  }, []);
+  if (faces.length === 0) return null;
+  const secs = snap.startedAt > 0 ? Math.max(0, Math.round((now - snap.startedAt) / 1000)) : 0;
+  const who =
+    faces.length > 1
+      ? faces
+          .slice(0, 3)
+          .map((f) => f.name.split(" ")[0])
+          .join(" and ")
+      : "";
+  const words = [label, who, secs > 0 ? `${secs}s` : ""].filter((x) => x !== "").join(" \u00b7 ");
+  return (
+    <View style={st.wrap}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label}. Open the crew`}
+        testID="work-island"
+        onPress={onPress}
+        style={st.pill}
+      >
+        <WorkingMark state={writing ? "writing" : "thinking"} step={label} size={18} />
+        <Text testID="work-island-text" numberOfLines={1} style={st.text}>
+          {words}
+        </Text>
+        {/* ui-rows-lint: not a list (the faces of everyone working, a decoration on one pill) */}
+        <View style={st.faces}>
+          {faces.slice(0, 5).map((f) => (
+            <Avatar key={f.id} name={f.name} seedId={f.seed} kind="agent" size={20} />
+          ))}
+        </View>
+        {computer ? (
+          <View testID="work-island-computer" accessibilityLabel="Using its computer">
+            <Glyph name="monitor" size={15} color="var(--ink-3)" />
+          </View>
+        ) : null}
       </Pressable>
     </View>
   );

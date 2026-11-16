@@ -9,7 +9,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { injectCss } from "../theme/css.ts";
 import { MenuIcon } from "../Menu/index.tsx";
 
-/** One mark of the layer as the viewer draws it. `by` and `when` are already words ("Irfad Imtiaz (Agent)", "9:41 today"). */
+/** One mark of the layer as the viewer draws it. `by` and `when` are already words ("Imran Ibarra (Agent)", "9:41 today"). */
 export interface ViewerMark {
   id: string;
   kind: "redact" | "highlight";
@@ -17,6 +17,8 @@ export interface ViewerMark {
   text?: string;
   occurrence?: number;
   box?: { x: number; y: number; w: number; h: number };
+  /** A box on a page of a paged file (a PDF): the page, 1-based. */
+  page?: number;
   label?: string;
   by: string;
   /** Who else highlighted the same words: one tint, a small stack of faces in the card. */
@@ -32,7 +34,7 @@ export interface ViewerLayer {
 }
 export type LayerAct =
   | { kind: "highlight" | "redact"; shape: "span"; text: string; occurrence: number }
-  | { kind: "redact"; shape: "box"; box: { x: number; y: number; w: number; h: number } };
+  | { kind: "redact"; shape: "box"; box: { x: number; y: number; w: number; h: number }; page?: number; text?: string };
 
 export const REDACTED = "[REDACTED]";
 const EYE =

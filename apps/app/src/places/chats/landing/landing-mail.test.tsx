@@ -15,12 +15,13 @@ import { publishProgress } from "../../../onboarding/store.ts";
 import type { ShellRuntime, ShellTarget } from "../../../shell/providers/runtime.tsx";
 import { Landing } from "./Landing.tsx";
 
-const ME: Principal = { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" };
+const ME: Principal = { id: "usr_imran", name: "Imran Ibarra", kind: "person" };
 const ready = (data: unknown): LiveQuery<unknown> => {
   const snap = { status: "ready" as const, data };
   return { subscribe: () => () => undefined, getSnapshot: () => snap };
 };
 
+// "Chrome extension" stands for the steps still shown: a browser that is not Chrome shows no Chrome row, and a computer with no address a phone can reach shows no phone row (nothing that cannot be done is offered)
 /** A first day (nothing waiting, nothing running) with the source reads answering as asked. */
 function runtime(mailboxes: unknown[]): { rt: ShellRuntime; opened: ShellTarget[] } {
   const side = createSampleSidebar();
@@ -94,12 +95,15 @@ const FIRST_DAY = {
 /** The checklist reads the published setup progress after mount, so the screen is mounted (not drawn to a string) with a first day published. */
 async function mounted<T>(mailboxes: unknown[], run: (root: Node, opened: ShellTarget[]) => Promise<T>): Promise<T> {
   const off = installDom();
+  // the desktop app, where every step has a row (a browser that cannot install the extension shows no Chrome row: nothing that cannot be done is offered)
+  (globalThis as { __TAURI__?: unknown }).__TAURI__ = {};
   publishProgress(FIRST_DAY);
   try {
     const { rt, opened } = runtime(mailboxes);
     return await run(await mount(createRoot, screen(rt)), opened);
   } finally {
     publishProgress(null);
+    delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
     off();
   }
 }

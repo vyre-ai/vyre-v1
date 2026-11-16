@@ -16,6 +16,7 @@ Area: files. Risk: medium. Applies to: file, folder.
 
 - files.delete
 - files.folder.delete
+- files.folder.purge
 - files.folder.restore
 - files.purge
 - files.restore

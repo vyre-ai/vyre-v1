@@ -45,10 +45,13 @@ export function SettingsTab({
   automation,
   openPromote = false,
   openShare = false,
+  readOnly = false,
 }: {
   automation: Automation;
   openPromote?: boolean;
   openShare?: boolean;
+  /** A person who may not change this Automation sees who has access, not the buttons that would change it. */
+  readOnly?: boolean;
 }): ReactElement {
   const data = useAutomationsData();
   const openConnect = useOpenConnect();
@@ -227,7 +230,13 @@ export function SettingsTab({
             />
           </Group>
 
-          <Lab right={<TextButton label="Add" icon="plus" testID="add-access" onPress={() => setShare(true)} />}>
+          <Lab
+            right={
+              readOnly ? undefined : (
+                <TextButton label="Add" icon="plus" testID="add-access" onPress={() => setShare(true)} />
+              )
+            }
+          >
             Access
           </Lab>
           <Group testID="access">
@@ -241,31 +250,35 @@ export function SettingsTab({
             View sees it, its runs and its history. Edit changes and pauses it. Manage also shares and deletes it.
             Access from a group can be raised here, never lowered.
           </Hint>
-          <View style={t.shareRow}>
-            <TextButton label="Share…" testID="share" onPress={() => setShare(true)} />
-          </View>
+          {readOnly ? null : (
+            <View style={t.shareRow}>
+              <TextButton label="Share…" testID="share" onPress={() => setShare(true)} />
+            </View>
+          )}
 
           <Lab
             right={
-              <PickButton
-                label="Add a follower"
-                value="Add"
-                testID="add-follower"
-                onPress={(x, y) =>
-                  show(
-                    roster.length
-                      ? each(
-                          roster.filter((r) => !a.followers.includes(r.id)),
-                          (r) => ({ label: r.name, onSelect: () => follow(r.name, r.id) }),
-                        )
-                      : [{ head: "Nobody to add" }],
-                    x,
-                    y,
-                    "other",
-                    { label: "Add a follower" },
-                  )
-                }
-              />
+              readOnly ? undefined : (
+                <PickButton
+                  label="Add a follower"
+                  value="Add"
+                  testID="add-follower"
+                  onPress={(x, y) =>
+                    show(
+                      roster.length
+                        ? each(
+                            roster.filter((r) => !a.followers.includes(r.id)),
+                            (r) => ({ label: r.name, onSelect: () => follow(r.name, r.id) }),
+                          )
+                        : [{ head: "Nobody to add" }],
+                      x,
+                      y,
+                      "other",
+                      { label: "Add a follower" },
+                    )
+                  }
+                />
+              )
             }
           >
             Followers

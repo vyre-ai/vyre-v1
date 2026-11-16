@@ -68,6 +68,12 @@ export type PublishTurn = (
   allow: (personId: string) => boolean | Promise<boolean>,
 ) => void;
 
+/** Where a typing frame goes: every live socket whose person `allow` says may read the chat. */
+export type PublishTyping = (
+  frame: { t: "typing"; threadId: string; person: string },
+  allow: (personId: string) => boolean | Promise<boolean>,
+) => void;
+
 export interface EngineHostSeam {
   /** May every one of these people do this on this resource, each on their own grants? The engine checks an answer against everyone in the chat with it (gap 6). */
   mayAll?(
@@ -77,6 +83,11 @@ export interface EngineHostSeam {
   ): boolean;
   /** Forget who was allowed to watch turns, so the next piece of text asks again (a member left, a grant was revoked). */
   forgetReaders?: () => void;
+  /**
+   * A person is typing in a chat: told to the other people who may read it (the same threads.get their own screen makes; a guest only where they are a member), never to an agent, nothing stored.
+   * At most one frame every 2 seconds for one person in one chat; a person who cannot read the chat tells nobody anything.
+   */
+  typing?: (person: string, threadId: string) => void;
   /** Live turn events, already filtered to who may read the thread. Absent: nothing streams and the reply lands whole, as before. */
   stream?: (e: EngineStreamEvent) => void;
   /** 'host:<space>' */
@@ -168,6 +179,8 @@ export interface EngineHostDeps {
   engineInstall?: boolean;
   /** The live socket's publisher; late-bound because the socket opens after the modules load. */
   publishTurn?: () => PublishTurn | null;
+  /** Where typing frames go (the live hub's publish). Absent: nobody is told. */
+  publishTyping?: () => PublishTyping | null;
   /** Bytes into a Files upload slot (files.upload_url's address), in process: a goal's files over the inline limit go up this way (modules/engine/goal-folder.ts). */
   putToSlot?: (url: string, bytes: Uint8Array) => Promise<void>;
   own?: (person: string) => boolean;
@@ -198,6 +211,8 @@ export interface EngineHostDeps {
 /** Events after which who may read a chat may have changed: the daemon makes the host forget who was watching. */
 export const READER_LOSS = /removed|revoked|disengaged|erased|closed|archived|left$/;
 export const READER_TTL_MS = 15_000;
+/** The least time between two typing frames of one person in one chat. */
+export const TYPING_EVERY_MS = 2_000;
 
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
 
@@ -254,6 +269,19 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     if (seen.size > 2000) for (const [key, v] of seen) if (t - v.at >= READER_TTL_MS) seen.delete(key);
     return ok;
   };
+  const typedAt = new Map<string, number>();
+  const typing: NonNullable<EngineHostSeam["typing"]> = (person, threadId) => {
+    const pub = d.publishTyping?.();
+    if (!pub || !person.startsWith("usr_") || !threadId.startsWith("thr_")) return;
+    const k = `${person}\u0000${threadId}`,
+      t = (d.now ?? Date.now)();
+    if (t - (typedAt.get(k) ?? 0) < TYPING_EVERY_MS) return;
+    typedAt.set(k, t);
+    if (typedAt.size > 2000) for (const [key, at] of typedAt) if (t - at >= TYPING_EVERY_MS) typedAt.delete(key);
+    void mayRead(threadId, person).then((yes) => {
+      if (yes) pub({ t: "typing", threadId, person }, (other) => other !== person && mayRead(threadId, other));
+    });
+  };
   const stream: EngineHostSeam["stream"] = (e) => {
     const pub = d.publishTurn?.();
     if (!pub) return;
@@ -292,6 +320,7 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     ...(d.closing ? { closing: d.closing } : {}),
     ...(d.turns ? { turns: d.turns } : {}),
     ...(d.mayAll ? { mayAll: d.mayAll } : {}),
+    typing,
     holder: `host:${d.space}`,
     call,
     postAs,

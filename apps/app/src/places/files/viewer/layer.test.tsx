@@ -12,7 +12,7 @@ const m = (id: string, kind: "redact" | "highlight", text: string, occurrence?: 
   shape: "span",
   text,
   ...(occurrence !== undefined ? { occurrence } : {}),
-  by: "Irfad Imtiaz",
+  by: "Imran Ibarra",
   when: "9:41 am today",
 });
 
@@ -55,7 +55,7 @@ test("Preview as agent: [REDACTED] chips and ==highlight== tints, nothing else",
 
 test("the Activity reads who did what, and an agent's work carries the (Agent) credit", () => {
   const name = (id: string): string =>
-    ({ usr_irfad: "Irfad Imtiaz", usr_maya: "Maya Chen", agt_intake: "Intake" })[id] ?? id;
+    ({ usr_imran: "Imran Ibarra", usr_maya: "Maya Chen", agt_intake: "Intake" })[id] ?? id;
   assert.equal(
     activityOf(
       {
@@ -86,13 +86,13 @@ test("the Activity reads who did what, and an agent's work carries the (Agent) c
     {
       id: "2",
       type: "file.redacted",
-      actor: "usr_irfad",
+      actor: "usr_imran",
       at: 1,
-      payload: { by: "usr_irfad", byAgent: "assistant", label: "Phone" },
+      payload: { by: "usr_imran", byAgent: "assistant", label: "Phone" },
     },
     name,
   )!;
-  assert.deepEqual([byAgent.who, byAgent.text], ["Irfad Imtiaz (Agent)", "redacted a phone"]);
+  assert.deepEqual([byAgent.who, byAgent.text], ["Imran Ibarra (Agent)", "redacted a phone"]);
   assert.equal(
     activityOf(
       { id: "3", type: "file.unredacted", actor: "usr_maya", at: 1, payload: { by: "usr_maya", label: "Date" } },
@@ -101,29 +101,29 @@ test("the Activity reads who did what, and an agent's work carries the (Agent) c
     "un-redacted a date",
   );
   assert.equal(
-    activityOf({ id: "4", type: "file.reviewed", actor: "usr_irfad", at: 1, payload: { by: "usr_irfad" } }, name)?.who,
-    "Irfad Imtiaz",
+    activityOf({ id: "4", type: "file.reviewed", actor: "usr_imran", at: 1, payload: { by: "usr_imran" } }, name)?.who,
+    "Imran Ibarra",
   );
   assert.equal(
-    activityOf({ id: "5", type: "file.moved", actor: "usr_irfad", at: 1, payload: {} }, name)?.text,
+    activityOf({ id: "5", type: "file.moved", actor: "usr_imran", at: 1, payload: {} }, name)?.text,
     "moved this file",
   );
-  assert.equal(activityOf({ id: "6", type: "file.starred", actor: "usr_irfad", at: 1, payload: {} }, name), null);
-  assert.equal(creditOf({ by: "usr_irfad", byAgent: "assistant" }, name), "Irfad Imtiaz (Agent)");
+  assert.equal(activityOf({ id: "6", type: "file.starred", actor: "usr_imran", at: 1, payload: {} }, name), null);
+  assert.equal(creditOf({ by: "usr_imran", byAgent: "assistant" }, name), "Imran Ibarra (Agent)");
   const vm = viewerMarks(
     {
       state: "reviewed",
       version: 1,
       access: { value: "redact", own: false, inherited: "redact" },
       marks: [
-        { markId: "m1", kind: "redact", shape: "name", text: "Rivera", by: "usr_irfad", at: 1, unplaced: false },
+        { markId: "m1", kind: "redact", shape: "name", text: "Rivera", by: "usr_imran", at: 1, unplaced: false },
         {
           markId: "m2",
           kind: "redact",
           shape: "span",
           text: "512-44-8391",
           label: "SSN",
-          by: "usr_irfad",
+          by: "usr_imran",
           at: 1,
           unplaced: false,
         },

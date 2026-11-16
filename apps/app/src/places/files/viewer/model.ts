@@ -54,7 +54,8 @@ export function viewerKindOf(d: {
   // a Word or PowerPoint file with no words read from it (password-protected, damaged, an old .doc with no converter) is the quiet "no preview" line with Open in Word, never a blank page
   if (isOffice(d.file.kind) && (d.text ?? "").trim() === "") return "other";
   // a PDF reads as its words (the text files.viewer_data extracts), so it can be selected, highlighted and redacted for AI like a document; with no words it is the quiet "no preview" line
-  if (d.file.kind === "pdf") return (d.text ?? "").trim() !== "" ? "document" : "other";
+  // a PDF is drawn as its pages (a scan too, which has no words); with neither the pages nor words it is the quiet "no preview" line
+  if (d.file.kind === "pdf") return (d.text ?? "").trim() !== "" || d.previewUrl !== undefined ? "document" : "other";
   if (d.file.kind !== "google_native") return viewerKind(d.file.kind);
   const app = googleAppOf(d.file);
   const words = (d.text ?? "").trim() !== "";
@@ -272,7 +273,45 @@ export function boxesOf(comments: readonly FileComment[]): MarkupBox[] {
   return out;
 }
 
-const when = (at: number, now: number): string => {
+/** A comment on a place of a page (a PDF): the pin the page draws, numbered in the order the comments were made. */
+export interface PagePin {
+  id: string;
+  n: number;
+  page: number;
+  box: { x: number; y: number; w: number; h: number };
+  text: string;
+}
+export function pagePins(comments: readonly FileComment[]): PagePin[] {
+  const out: PagePin[] = [];
+  for (const c of comments)
+    if (c.anchor.kind === "area" && c.anchor.box && typeof c.anchor.page === "number" && !c.resolved)
+      out.push({ id: c.commentId, n: out.length + 1, page: c.anchor.page, box: c.anchor.box, text: c.text });
+  return out;
+}
+
+/** The comments of a paged file as the viewer's comment cards: the quoted words when the comment was made on a selection, else the page it is on. */
+export function pageCommentsOf(
+  comments: readonly FileComment[],
+  name: (id: string) => string,
+  now: number,
+): DocComment[] {
+  const out: DocComment[] = [];
+  for (const c of comments) {
+    const page = typeof c.anchor.page === "number" ? c.anchor.page : undefined;
+    if (page === undefined && !c.anchor.quote) continue;
+    out.push({
+      id: c.commentId,
+      quote: c.anchor.quote ? c.anchor.quote : `Page ${page}`,
+      by: name(c.by),
+      at: when(c.at, now),
+      text: c.text,
+      resolved: c.resolved,
+    });
+  }
+  return out;
+}
+
+export const when = (at: number, now: number): string => {
   const min = Math.max(0, Math.floor((now - at) / 60_000));
   return min < 1
     ? "just now"
@@ -323,4 +362,57 @@ export function versionRows(
     versionId: i === 0 ? null : v.versionId,
     n: v.n,
   }));
+}
+
+/** A delimited file is read for the grid up to this many bytes; a longer one shows its first rows and says so. */
+export const GRID_PREVIEW_BYTES = 200_000;
+/** Over this a spreadsheet file is not previewed at all: the quiet "too large to preview" line with Open in, never a hang. Matches the server's GRID_MAX_BYTES. */
+export const GRID_MAX_BYTES = 10 * 1024 * 1024;
+
+/** What the viewer says when a live file's content could not be fetched, by the cause the server named, and whether Try again is the right action. */
+export function fetchFailureWords(code: string, provider: string): { words: string; retry: boolean } {
+  if (code === "validation.not_found") return { words: `This file was removed in ${provider}.`, retry: false };
+  if (/^(provider\.auth_failed|auth\.)/.test(code))
+    return {
+      words: `${provider} no longer accepts the sign-in. Reconnect it in Settings, under Connections.`,
+      retry: true,
+    };
+  if (/^(provider\.(rate_limited|overloaded)|rate_limit\.)/.test(code))
+    return { words: `${provider} asked Vyre to slow down. Try again in a minute.`, retry: true };
+  return { words: `Could not get this from ${provider} just now`, retry: true };
+}
+
+/** The causes the server names for a live file whose content is not here: each gets the failed state, not the "not available" screen. */
+export const FETCH_FAILURE_CODES =
+  /^(provider\.(unavailable|network|auth_failed|rate_limited|overloaded)|timeout\.|auth\.|rate_limit\.|validation\.not_found)/;
+
+/** What a file of a connected folder says about itself, as one quiet line (or the choice when it changed there too). */
+export type Connected = NonNullable<ViewerData["connected"]>;
+
+/** "Kim changed this at Google Drive too, 5 min ago. Your edit is kept here." */
+export function changedThereWords(c: Connected, now: number): string {
+  const who = c.changedThere?.by?.name ?? c.changedThere?.by?.email;
+  const at = c.changedThere?.at;
+  return `${who ?? "Someone"} changed this at ${c.provider} too${at !== undefined ? `, ${when(at, now)}` : ""}. Your edit is kept here.`;
+}
+
+/** The History menu's second group: what the provider keeps of the file, newest first, the current one marked. */
+export function providerRevisionRows(
+  revisions: readonly {
+    revisionId: string;
+    at?: number;
+    current: boolean;
+    by?: { name?: string; email?: string; actor?: string };
+  }[],
+  nameOf: (id: string) => string,
+  provider: string,
+): { label: string; revisionId: string | null }[] {
+  return revisions.map((r) => {
+    const who = r.by?.actor !== undefined ? nameOf(r.by.actor) : (r.by?.name ?? r.by?.email ?? provider);
+    const at = r.at !== undefined ? new Date(r.at).toISOString().slice(0, 16).replace("T", " ") : "";
+    return {
+      label: `${provider} · ${who}${at !== "" ? ` · ${at}` : ""}${r.current ? " (now)" : ""}`,
+      revisionId: r.current ? null : r.revisionId,
+    };
+  });
 }

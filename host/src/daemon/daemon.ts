@@ -231,7 +231,7 @@ import type { DocumentFetch } from "../seams/document-pin.ts";
 import { createConnectorsHost } from "../seams/connectors.ts";
 import { createProviderSignin } from "../seams/provider-signin.ts";
 import type { SigninProvider } from "../seams/provider-signin.ts";
-import { readLocalSignin } from "../seams/local-signin.ts";
+import { localSigninsPresent, readLocalSignin } from "../seams/local-signin.ts";
 import { createSigninRefresh } from "../seams/signin-refresh.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
@@ -277,6 +277,7 @@ import { WRAP_POLICY, createKeyWraps } from "../seams/key-wraps.ts";
 import { createCarryDoor } from "../routes/carry-door.ts";
 import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createGithubConnectRoute } from "../routes/github-connect.ts";
+import { ownOriginOf } from "../routes/own-origin.ts";
 import { createGithubTickets } from "../seams/github-tickets.ts";
 import { createSsoSignInRoute, createSsoTickets } from "../routes/sso-signin.ts";
 import {
@@ -847,7 +848,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const liveTickets = createLiveTickets({ now });
   let knownToken: (token: string) => boolean = () => false;
   const liveTicketRoute = createLiveTicketRoute({ tickets: liveTickets, known: (t) => knownToken(t), bearer });
-  let engineSeam: { forgetReaders?: () => void } | null = null;
+  let engineSeam: { forgetReaders?: () => void; typing?: (person: string, threadId: string) => void } | null = null;
   // sign-in files a CLI refreshed during a turn: the engine hands them here, the Vault module's host call takes them by ticket (seams/signin-refresh.ts); the engine's close at shutdown is waited for
   const signinRefresh = createSigninRefresh({
     call: (n, i) => (hooks ? hooks.call(n, i) : Promise.reject(new Error("The Space is not ready."))),
@@ -941,7 +942,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return /^(127\.0\.0\.1|localhost|\[::1\])$/.test(cfg.host) ? `a.localhost:${boundPort}` : null;
   };
   // The artifact host this server hands out is one it has found answering: a request to HOST_CHECK_PATH on that host must come back with this Space's own marker. A name that was never routed to this server
-  // (13 Nov 2026: mla-a.vyre.run fell to the relay's wildcard and answered 404) fails here, and no address is given out for it: an artifact says so plainly and Console, Health says what to add. A Space reached
+  // (13 Nov 2026: northwind-a.vyre.run fell to the relay's wildcard and answered 404) fails here, and no address is given out for it: an artifact says so plainly and Console, Health says what to add. A Space reached
   // through the relay is reached by its control link, which carries the artifact host's own paths only, so it is not asked over HTTP; its held phone name is the fact. A Space on this computer (a.localhost) needs no DNS.
   type ArtifactHostState = { host: string; ok: boolean; at: number; why: string };
   let artifactHostState: ArtifactHostState | null = null;
@@ -1511,8 +1512,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let reloadSpaceGithub: () => Promise<void> = async () => undefined;
   const githubNow = (): GithubOAuth | null =>
     (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) ?? spaceGithub;
-  const githubSignInRoute = createGithubSignInRoute({ oauth: githubNow });
-  const githubConnectRoute = createGithubConnectRoute();
+  const signInOrigin = (r: http.IncomingMessage): string | null => ownOriginOf(r, () => publicOrigin()?.origin ?? null);
+  const githubSignInRoute = createGithubSignInRoute({ oauth: githubNow, origin: signInOrigin });
+  const githubConnectRoute = createGithubConnectRoute({ origin: signInOrigin });
   const githubTickets = createGithubTickets(); // what connecting GitHub and signing in with GitHub hand each other
   // Sign in with the firm's own Google or Microsoft app: the providers come from the members policy, the client secret from the Vault (bound once the Vault exists), the tickets are shared with identity
   const ssoTickets = createSsoTickets();
@@ -1529,6 +1531,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     secret: (h) => ssoSecret(h),
     fetch: o.seams?.fetch ?? defaultFetch,
     tickets: ssoTickets,
+    origin: signInOrigin,
     bind: (key, who, person) => {
       const bound = db ? linkSso(db, key, who, person) : false;
       if (bound) matchProven(key, who, person);
@@ -1627,6 +1630,24 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   /** The last log seq the access module has been handed (in order) and folded; the next sync reads the log after it. Set after the boot read, which hands the log over up to it. */
   let accessFedTo = 0;
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
+  /** One access sync with nothing after it (the healing pass below uses it, so it never waits for itself). */
+  let syncPlain: (force?: boolean) => Promise<void> = async () => {};
+  /** Commits being written (to their sync and the passes after it). A call that meets a thing made by one of them waits for it here, so what a person can already read is never ahead of what access knows (F76). */
+  const commitsInFlight = new Set<Promise<unknown>>();
+  /** Agents found to be Guests after a heal, and when: for half a minute their calls skip the heal (a Guest by right would otherwise pay for it on every call). */
+  const guestByRight = new Map<string, number>();
+  const trackCommit =
+    <A extends unknown[], R>(commit: (...a: A) => Promise<R>) =>
+    (...a: A): Promise<R> => {
+      const run = commit(...a);
+      const mark: Promise<unknown> = run.then(
+        () => undefined,
+        () => undefined,
+      );
+      commitsInFlight.add(mark);
+      void mark.then(() => commitsInFlight.delete(mark));
+      return run;
+    };
   /** Is this the folder the server made for this artifact? (see adoptArtifactFolder) */
   const serverMadeFolder = (
     folderId: string,
@@ -1769,59 +1790,73 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     kicking = false,
     noAccessModule = false;
   /** Agents born Guest (their maker was not yet active in the snapshot) become Member agents once the maker may edit the Space (see lowAgentUpgradeEvents). Runs after each access sync and at boot. */
-  let healing = false;
+  let healRun: Promise<void> | null = null;
+  let healAgain = false;
   let healAgents: () => Promise<void> = async () => {};
   const startHealing = (
     appendResult: (e: Parameters<LogClient["appendResult"]>[0]) => ReturnType<LogClient["appendResult"]>,
     spaceId: string,
   ): void => {
-    healAgents = async () => {
-      if (healing) return;
-      healing = true;
-      try {
-        const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
-          const may = (level: "edit" | "view"): boolean =>
-            authorize(access.snap, {
-              principal: person,
-              action: { perm: null, level },
-              resource: { type: "space", id: scope },
-            }).effect === "allow";
-          return may("edit") ? "edit" : may("view") ? "view" : "none";
-        };
-        const agents = [...access.snap.allPrincipals()]
-          .filter((p) => p.kind === "agent" && p.owner)
-          .map((p) => ({ id: p.id, owner: p.owner as string, roleNames: access.snap.info(p.id)?.roleNames ?? "" }));
-        let changed = false;
-        for (const e of lowAgentUpgradeEvents({ space: spaceId, agents, levelOf })) {
-          const r = await appendResult({
-            id: `evt_agent_grown_${e.type.replace(".", "_")}_${e.id}`,
-            type: e.type,
-            sv: 1,
-            trace_id: "c0".repeat(16),
-            actor: "svc_host",
-            vis: "space",
-            entity: e.entity,
+    // F76: a request that arrives while a pass is running is not dropped (the running pass may have read the Space before the change that makes the agent upgradable): the pass runs again, and
+    // every caller waits for the whole run, so a call made after a sync returns already sees the agent healed.
+    const healOnce = async (): Promise<void> => {
+      const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
+        const may = (level: "edit" | "view"): boolean =>
+          authorize(access.snap, {
+            principal: person,
+            action: { perm: null, level },
+            resource: { type: "space", id: scope },
+          }).effect === "allow";
+        return may("edit") ? "edit" : may("view") ? "view" : "none";
+      };
+      const agents = [...access.snap.allPrincipals()]
+        .filter((p) => p.kind === "agent" && p.owner)
+        .map((p) => ({ id: p.id, owner: p.owner as string, roleNames: access.snap.info(p.id)?.roleNames ?? "" }));
+      let changed = false;
+      for (const e of lowAgentUpgradeEvents({ space: spaceId, agents, levelOf })) {
+        const r = await appendResult({
+          id: `evt_agent_grown_${e.type.replace(".", "_")}_${e.id}`,
+          type: e.type,
+          sv: 1,
+          trace_id: "c0".repeat(16),
+          actor: "svc_host",
+          vis: "space",
+          entity: e.entity,
+          entity_id: e.id,
+          payload: e.payload,
+        });
+        if (r.ok && !r.duplicate) {
+          access.fold(r.event);
+          accessPending.push(toAccessEvent(r.event));
+          changed = true;
+          sink.log({
+            space: spaceId,
+            level: 20,
+            msg: "access.agent_grown",
+            place: "boot",
+            entity: "agent",
             entity_id: e.id,
-            payload: e.payload,
           });
-          if (r.ok && !r.duplicate) {
-            access.fold(r.event);
-            accessPending.push(toAccessEvent(r.event));
-            changed = true;
-            sink.log({
-              space: spaceId,
-              level: 20,
-              msg: "access.agent_grown",
-              place: "boot",
-              entity: "agent",
-              entity_id: e.id,
-            });
-          }
         }
-        if (changed) await syncAccess(true);
-      } finally {
-        healing = false;
       }
+      if (changed) await syncPlain(true);
+    };
+    healAgents = () => {
+      if (healRun) {
+        healAgain = true;
+        return healRun;
+      }
+      healRun = (async () => {
+        try {
+          do {
+            healAgain = false;
+            await healOnce();
+          } while (healAgain);
+        } finally {
+          healRun = null;
+        }
+      })();
+      return healRun;
     };
   };
   /** While the snapshot is stale only the owner is answered, and each refused call tries the sync again, so the Space heals itself as soon as the module can take the events. */
@@ -3296,6 +3331,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return "other";
           }
         },
+        // F76: the first call of an Assistant born while its person was not yet in the snapshot meets the Space it is owed, never the birth (the pass also runs after every sync; this is the read path that makes it certain)
+        agentReady: async (id) => {
+          const known = access.snap.info(id);
+          if (known && known.roleNames !== "Guest") return;
+          // an agent that is still a Guest after the heal is most likely a Guest by right (its person is one): for half a minute its calls do not pay for the heal again
+          if (known && Date.now() - (guestByRight.get(id) ?? 0) < 30_000) return;
+          // not in the snapshot yet: the agent is in the middle of its birth (its row can be read the instant it is written, access learns of it a moment later) only when the agents module holds it
+          if (!known && (db?.all(`SELECT 1 FROM agents_agent WHERE "id" = ?`, id) ?? []).length === 0) return;
+          await Promise.all([...commitsInFlight]);
+          if (!access.snap.info(id)) await syncAccess();
+          if (access.snap.info(id)?.roleNames === "Guest") {
+            await healAgents();
+            if (access.snap.info(id)?.roleNames === "Guest") guestByRight.set(id, Date.now());
+            else guestByRight.delete(id);
+          }
+        },
         ensureResource: async (r) => {
           if (
             (r.type === "conversation" || r.type === "mail_message" || r.type === "calendar_event") &&
@@ -3580,40 +3631,42 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return may("edit") ? "edit" : may("view") ? "view" : "none";
           },
         }),
-        commit: withEventIds(async (b) => {
-          const trace = b.events[0]?.traceId ?? ZERO_TRACE;
-          if (chainBroken)
-            throw fail("internal.unavailable", trace, {
-              message:
-                "The event log failed verification, so this server is not accepting changes. Run vyre-server doctor.",
-            });
-          const stored = await Promise.all(b.events.map((e) => log!.append(toNew(e))));
-          const out = stored.map((s, i) => fromStored(s, b.events[i]!));
-          for (const s of stored) {
-            access.fold(s);
-            if (isAccessEvent(s.type)) accessPending.push(toAccessEvent(s));
-          }
-          headSeq = Math.max(headSeq, ...out.map((e) => e.seq));
-          if (stored.some((s) => touchesAccess(s.type))) await syncAccess(true);
-          // a new artifact's folder follows the artifact in the access tree, now that the artifact is a resource (see adoptArtifactFolder)
-          for (const e of b.events)
-            if (e.type === "site.created" || e.type === "site.published") {
-              const siteId = (e.payload as { siteId?: unknown }).siteId;
-              const row =
-                typeof siteId === "string"
-                  ? (db?.all(
-                      "SELECT owner, target_folder FROM sites_site WHERE id = ? AND kind = 'artifact'",
-                      siteId,
-                    )[0] as { owner?: string; target_folder?: string | null } | undefined)
-                  : undefined;
-              if (typeof siteId === "string" && row?.target_folder)
-                await adoptArtifactFolder(row.target_folder, siteId, row.owner ?? "");
+        commit: trackCommit(
+          withEventIds(async (b) => {
+            const trace = b.events[0]?.traceId ?? ZERO_TRACE;
+            if (chainBroken)
+              throw fail("internal.unavailable", trace, {
+                message:
+                  "The event log failed verification, so this server is not accepting changes. Run vyre-server doctor.",
+              });
+            const stored = await Promise.all(b.events.map((e) => log!.append(toNew(e))));
+            const out = stored.map((s, i) => fromStored(s, b.events[i]!));
+            for (const s of stored) {
+              access.fold(s);
+              if (isAccessEvent(s.type)) accessPending.push(toAccessEvent(s));
             }
-          for (const e of b.events)
-            if (e.type === "agent.created") await grantOwnPlaces?.((e.payload as { ownerId?: string }).ownerId ?? "");
-          if (b.audit) recordAudit(b.audit);
-          return out;
-        }),
+            headSeq = Math.max(headSeq, ...out.map((e) => e.seq));
+            if (stored.some((s) => touchesAccess(s.type))) await syncAccess(true);
+            // a new artifact's folder follows the artifact in the access tree, now that the artifact is a resource (see adoptArtifactFolder)
+            for (const e of b.events)
+              if (e.type === "site.created" || e.type === "site.published") {
+                const siteId = (e.payload as { siteId?: unknown }).siteId;
+                const row =
+                  typeof siteId === "string"
+                    ? (db?.all(
+                        "SELECT owner, target_folder FROM sites_site WHERE id = ? AND kind = 'artifact'",
+                        siteId,
+                      )[0] as { owner?: string; target_folder?: string | null } | undefined)
+                    : undefined;
+                if (typeof siteId === "string" && row?.target_folder)
+                  await adoptArtifactFolder(row.target_folder, siteId, row.owner ?? "");
+              }
+            for (const e of b.events)
+              if (e.type === "agent.created") await grantOwnPlaces?.((e.payload as { ownerId?: string }).ownerId ?? "");
+            if (b.audit) recordAudit(b.audit);
+            return out;
+          }),
+        ),
         audit: (r) => recordAudit(r),
         publish: (events) => {
           // the owner claimed the Space (their keys were stored): the link is spent, so the file that held it goes too
@@ -3859,9 +3912,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // after every sync an agent born while its person was not yet active in the snapshot is brought up to a Member agent (it heals itself and, on a changed Space, syncs once more)
       if (log) startHealing((event) => log!.appendResult(event), spaceId);
+      syncPlain = (force) => syncOnce(force);
+      // a sync returns only after the agents it made upgradable are upgraded (F76): a new Assistant born before its person's role was in the snapshot is a Guest until this pass, and the call that follows must not meet that
       syncAccess = async (force) => {
         await syncOnce(force);
-        void healAgents().catch(() => undefined);
+        await healAgents().catch(() => undefined);
       };
       await syncAccess();
       await healAgents();
@@ -5081,6 +5136,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               scrub({ seqs: out.erased });
               return out;
             },
+            forgetText: async (needles: readonly string[]) => {
+              const n = await spaceLog.forgetText(needles);
+              // the rows are deleted: the write-ahead log still holds their old pages until it is checkpointed away, so it is, here, and the modules database is told to overwrite what it frees from now on
+              try {
+                db?.exec("PRAGMA secure_delete = ON");
+                db?.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+              } catch {
+                /* a busy database is checkpointed by the next write */
+              }
+              return n;
+            },
           };
         },
         // identity opens a device session at sign-in: the token is minted here for that devices session, and ending a session stops it at the gateway (P-SEC_05)
@@ -5543,6 +5609,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                       agentId,
                     ) as Array<{ projectId?: string }>
                   ).map((r) => String(r.projectId)),
+                // what a person who uses the agent without owning it reaches of its project folders: the projects of the agent they are on, writing as Lead or Member
+                projectAccessOf: (agentId: string, person: string) => {
+                  try {
+                    const mine = db!.all(
+                      "SELECT projectId, role FROM projects_member WHERE principal = ? AND kind = 'person'",
+                      person,
+                    ) as Array<{ projectId?: string; role?: string }>;
+                    const agents = new Set(
+                      (
+                        db!.all(
+                          "SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'",
+                          agentId,
+                        ) as Array<{ projectId?: string }>
+                      ).map((r) => String(r.projectId)),
+                    );
+                    return mine
+                      .filter((r) => agents.has(String(r.projectId)))
+                      .map((r) => ({ id: String(r.projectId), write: r.role === "lead" || r.role === "member" }));
+                  } catch {
+                    return [];
+                  }
+                },
                 // the Space these workspaces are this daemon's for: another daemon on the same Docker (a device daemon beside a Personal Space one) never sleeps, removes or releases them, nor this one its
                 owner: spaceId,
                 ownsAgent: (agentId: string) => {
@@ -5816,6 +5904,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 }
               }),
             publishTurn: () => (hub?.publishTurn ? hub.publishTurn.bind(hub) : null),
+            publishTyping: () => (hub?.publishTurn ? hub.publishTurn.bind(hub) : null),
             log: (msg, attrs) =>
               sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }),
             ...(d.vault ? { vault: d.vault } : {}),
@@ -6092,7 +6181,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureVault: (d) => ({
           signin: createProviderSignin({
             fetch: d.fetch,
-            ...(cfg.spaceKind === "personal" ? { localSignin: (p: SigninProvider) => readLocalSignin(p) } : {}),
+            ...(cfg.spaceKind === "personal"
+              ? { localSignin: (p: SigninProvider) => readLocalSignin(p), localPresent: () => localSigninsPresent() }
+              : {}),
           }),
           refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) },
           sinks: {
@@ -6851,6 +6942,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               ? s.device === ADMIN_DEVICE
               : !endedSessions.has(s.sessionId) && access.snap.principal(s.principal.id)?.status === "active"),
           invoke,
+          typing: (person, threadId) => engineSeam?.typing?.(person, threadId),
           sink,
           eventsSince: (_s, cursor) =>
             recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : [],

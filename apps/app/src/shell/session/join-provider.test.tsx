@@ -72,9 +72,9 @@ test("the post-join page never labels an unverified provider connected or render
 
 test("the join AI screen says whether the Space AI key covers the person, and still offers their own account; with no key, who can add one", () => {
   const stored = {
-    baseUrl: "https://mla.vyre.run",
+    baseUrl: "https://northwind.vyre.run",
     token: "fixture-token",
-    def: { name: "My Legal Academy" },
+    def: { name: "Northwind Academy" },
   } as StoredSession;
   const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'");
   const covered = clean(
@@ -110,8 +110,8 @@ test("the join AI screen says whether the Space AI key covers the person, and st
         stored={stored}
         ai={{ choice: "sub" }}
         home="none"
-        invitedBy="Irfad Imtiaz"
-        spaceAi={{ key: { set: false }, admin: "Irfad Imtiaz (owner)" }}
+        invitedBy="Imran Ibarra"
+        spaceAi={{ key: { set: false }, admin: "Imran Ibarra (owner)" }}
         onOpen={() => undefined}
         onClearSecret={() => undefined}
       />,
@@ -119,7 +119,7 @@ test("the join AI screen says whether the Space AI key covers the person, and st
   );
   assert.ok(
     none.includes("This Space has no AI key yet") &&
-      none.includes("Ask Irfad Imtiaz (owner) to add one in Console, or connect your own account."),
+      none.includes("Ask Imran Ibarra (owner) to add one in Console, or connect your own account."),
     none,
   );
   assert.ok(none.includes("Connect later"));

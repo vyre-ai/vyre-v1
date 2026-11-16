@@ -121,8 +121,13 @@ export interface TurnRow {
   id: string;
   threadId: string;
   agentId: string;
-  /** Who pays: the starter, or the person whose steering message caused this turn. */
+  /**
+   * Who the turn runs for: the starter, or the person whose message caused it. The session opens for them: their work folder for the chat, their own user on a shared agent's computer, their
+   * sign-ins. It is not who pays (F75): the account that pays may be another person's or the Space's.
+   */
   asker: string;
+  /** Who pays, when an account was resolved and it names one (`ResolvedAccount.payer`); absent when none did. Spend is counted here. */
+  paidBy?: string;
   payerReason: AccountReason;
   model: string | null;
   state: TurnState;
@@ -326,6 +331,8 @@ export interface TurnInput {
   /** Listening agents, shown to the lead as context ("Docs is listening"). They run no inference. */
   listeners: readonly { id: string; role?: string }[];
   asker: string;
+  /** The turn is a wake (a held call answered, a background task finished), not a message: nothing a person wrote started it. */
+  wake?: boolean;
   /** Set on the wake that continues a turn parked on a held tool call: the answer to that call. */
   resumed?: ResumedCall;
   /** What memory recalled for the message that caused this turn (memory.pointer, as the asker). Absent when nothing matched or memory is not available. */
@@ -364,6 +371,8 @@ export interface EngineSession {
   cancel(): Promise<void>;
   close(): Promise<void>;
   readonly warm: boolean;
+  /** Background work of the engine that goes on after its last turn (helpers it started, shell jobs): the number still running. A session with any is not idle: the pool neither evicts nor closes it. */
+  readonly background?: number;
   /** The session yields every tool call of a step, then tool_wait, and takes each result by id in any order: the engine may run independent calls together. */
   readonly parallelTools?: boolean;
   /** Latency the provider itself injected before the first event (fake providers); real drivers omit it. */

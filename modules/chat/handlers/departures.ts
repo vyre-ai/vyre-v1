@@ -2,7 +2,8 @@
 // member list reads as a ghost. So: the person comes off every thread they were in, a thread they started that still has people gets a new owner, and each chat gets one line saying what happened. A deleted
 // agent comes off the chats it was in the same way, its past messages stay, and the line is what is left of it. A private chat with nobody else in it stays as it is (retention decides that). At least once:
 // a second delivery finds nothing to do.
-import { insertMessage, membersOf } from "../projections.ts";
+import { noteTrashed } from "./erase-agent.ts";
+import { addAgent, addMember, insertMessage, insertThread, membersOf } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { forgetMentions } from "./pace.ts";
 
@@ -113,5 +114,59 @@ export async function onAgentDeleted(
     ctx.emit("agent.disengaged", id, { threadId: id, agentId: agent, by: agent });
     touched.push(id);
   }
+  noteTrashed(ctx, agent, touched);
   return touched;
+}
+
+/** A name as it may stand inside a system line the agent reads: one line, no markup or quote marks, cut short, and quoted, so it can never read as an instruction. */
+export function quotedName(raw: string): string {
+  const clean = raw
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029"“”`<>\\[\]{}@#*_~|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 40)
+    .trim();
+  return `\u201c${clean === "" ? "Someone" : clean}\u201d`;
+}
+
+/**
+ * Someone other than an agent's owner (a manager) took the keyboard of that agent's terminal, or handed it back: the owner is told in their chat with that agent, in one quiet line, and it stays in that chat.
+ * Their chat, not a channel: only the people in it read it. When they have no chat with the agent yet one is made, the way chat.start makes it; a system line is not a turn, so the agent does not answer it.
+ * The terminal events carry the agent and its owner only when the one acting is not the owner.
+ */
+export async function onKeyboardTaken(
+  ctx: ChatCtx,
+  event: { name?: string; payload: { by?: string; agentId?: string; agentName?: string; agentOwner?: string } },
+): Promise<string[]> {
+  const { by, agentId, agentName, agentOwner } = event.payload;
+  if (!by || !agentId || !agentOwner || by === agentOwner || !by.startsWith("usr_")) return [];
+  let threadId = (
+    ctx.db.all(
+      `SELECT t."id" AS "id" FROM chat_thread t JOIN chat_thread_agent a ON a."thread" = t."id" AND a."agentId" = ? AND a."deleted_at" IS NULL
+     WHERE t."kind" = 'chat' AND t."starter" = ? AND t."deleted_at" IS NULL AND t."parentThreadId" IS NULL ORDER BY t."updated_at" DESC LIMIT 1`,
+      agentId,
+      agentOwner,
+    )[0] as Row | undefined
+  )?.["id"] as string | undefined;
+  const shownAgent = quotedName(agentName ?? "the agent");
+  if (threadId === undefined) {
+    const t = insertThread(ctx, {
+      kind: "chat",
+      title: agentName?.trim().slice(0, 80) || undefined,
+      starter: agentOwner,
+      listed: true,
+    });
+    addMember(ctx, t.id, agentOwner, "owner");
+    addAgent(ctx, t.id, { agentId, mode: "lead", addedBy: agentOwner });
+    ctx.emit("thread.started", t.id, { threadId: t.id, kind: t.kind, starter: agentOwner });
+    ctx.emit("agent.engaged", t.id, { threadId: t.id, agentId, mode: "lead", by: agentOwner });
+    threadId = t.id;
+  }
+  const who = quotedName(await nameOf(ctx, by));
+  const body =
+    event.name === "terminal.given_back"
+      ? `${who} gave back the keyboard of the terminal of ${shownAgent}.`
+      : `${who} took the keyboard of the terminal of ${shownAgent}.`;
+  insertMessage(ctx, threadId, { author: agentId, kind: "system", body });
+  return [threadId];
 }

@@ -314,7 +314,10 @@ export function workOf(m: Message): Work | null {
     ? `Working, ${count} so far`
     : secs > 0
       ? `Worked ${workTime(secs)} · ${count}`
-      : `Worked ${count}`;
+      : // the host measured the whole turn and it took under a second: say that, rather than nothing
+        steps.some((b) => typeof dataOf(b).turnSecs === "number")
+        ? `Worked under a second · ${count}`
+        : `Worked ${count}`;
   const current = [...lines].reverse().find((l) => l.state === "live");
   return { steps: lines, secs, live, summary, now: current ? current.title : "", short: !live && secs < 30 && n < 5 };
 }
@@ -464,7 +467,14 @@ export function bodyBlocks(messageId: string, body: string): readonly MdBlock[] 
 /* ---------- the timeline ---------- */
 
 /** `face`: the person whose face the row wears (an agent writing to a teammate for its person reads as "<Person> (Agent)"); `forPerson` is that person. */
-export type Who = { id: string; name: string; kind: "person" | "agent"; face?: string; forPerson?: string };
+export type Who = {
+  id: string;
+  name: string;
+  kind: "person" | "agent";
+  face?: string;
+  forPerson?: string;
+  gone?: boolean;
+};
 
 /** An agent's message to a teammate for its person (lane l-agentdm): who it speaks for and to whom. Null for any other message. Only the server writes the block. */
 export function onBehalfOf(
@@ -497,7 +507,10 @@ export function muteOfferFor(
 }
 
 /** The header of a row: its author, or for an agent writing for its person, that person marked as their agent and wearing their face. */
-export function whoOf(m: Pick<Message, "author" | "blocks">, ctx: Pick<TimelineCtx, "nameOf" | "kindOf">): Who {
+export function whoOf(
+  m: Pick<Message, "author" | "blocks">,
+  ctx: Pick<TimelineCtx, "nameOf" | "kindOf" | "goneOf">,
+): Who {
   const ob = onBehalfOf(m);
   // one name for an agent writing for its person (lead, 12 Nov): "Maya’s Assistant", or "Maya Lin (Agent)" for an outside agent; the directory names it
   if (ob)
@@ -508,13 +521,19 @@ export function whoOf(m: Pick<Message, "author" | "blocks">, ctx: Pick<TimelineC
       face: ob.person,
       forPerson: ob.person,
     };
-  return { id: m.author.id, name: ctx.nameOf(m.author.id), kind: ctx.kindOf(m.author.id) };
+  return {
+    id: m.author.id,
+    name: ctx.nameOf(m.author.id),
+    kind: ctx.kindOf(m.author.id),
+    ...(ctx.goneOf?.(m.author.id) ? { gone: true } : {}),
+  };
 }
 
 export interface TimelineCtx {
   meId: string;
   nameOf(id: string): string;
   kindOf(id: string): "person" | "agent";
+  goneOf?(id: string): boolean;
   clock: Clock;
   /** More than one person is here, so whose turn each reply ran on is worth saying (hole 7). */
   shared?: boolean;
@@ -1039,3 +1058,16 @@ export function faceDoor(helperThreadIds: readonly string[], id: string): "helpe
 /** The words for a send that did not go and a turn that stopped: one wording for the same act. */
 export const NOT_SENT = "Not sent";
 export const TRY_AGAIN = "Try again";
+
+/** The quiet line above the composer: "Mia is typing…" for people, "Helper is working…" for agents, both when both are true. Empty when nobody is. */
+export function presenceLine(typing: readonly string[], working: readonly string[]): string {
+  const list = (names: readonly string[]): string =>
+    names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const first = (n: string): string => n;
+  const parts: string[] = [];
+  const t = typing.map(first);
+  const w = working.map(first);
+  if (t.length > 0) parts.push(`${list(t)} ${t.length === 1 ? "is" : "are"} typing`);
+  if (w.length > 0) parts.push(`${list(w)} ${w.length === 1 ? "is" : "are"} working`);
+  return parts.length === 0 ? "" : `${parts.join(", ")}\u2026`;
+}

@@ -132,3 +132,33 @@ test("connector authorization is checked again after awaited DNS before credenti
   );
   assert.equal(sent, false);
 });
+
+test("a request that carries a credential never reaches a private or loopback address, not even for the Space's owner (own node); one with no credential may", async () => {
+  const sent: string[] = [];
+  let ip = "10.0.0.5";
+  const host = createConnectorsHost({
+    publicBase: () => "https://space.fixture.test",
+    own: () => true,
+    network: {
+      resolve: async () => [ip],
+      request: async (url) => {
+        sent.push(url.hostname);
+        return { status: 200, text: "{}" };
+      },
+    },
+  });
+  const plain = { ...identity, call: async () => ({}) };
+  const carrying = { ...plain, carriesCredential: true } as ConnectorCaller;
+  for (const addr of ["10.0.0.5", "127.0.0.1", "192.168.1.9"]) {
+    ip = addr;
+    await assert.rejects(
+      host.http(carrying, ["api.fixture.test"], "https://api.fixture.test/x", { headers: { "X-Api-Key": "k" } }),
+      /network address/,
+      addr,
+    );
+  }
+  assert.equal(sent.length, 0, "the key reached nobody");
+  ip = "10.0.0.5";
+  await host.http(plain, ["api.fixture.test"], "https://api.fixture.test/x");
+  assert.equal(sent.length, 1, "a request with no credential keeps the owner's own-node allowance");
+});

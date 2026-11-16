@@ -8,6 +8,7 @@ import { applyKnown } from "./boundaries.ts";
 import { scanText } from "./security/secret-scan.ts";
 import { failing as auditFailing, findings as auditFindings } from "./security/audit.ts";
 import { MAIN_FULL_SELECT_ARGS } from "./release/reuse.ts";
+import { WALK_JOBS } from "./release/shots-gate.ts";
 
 const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.github/workflows");
 type Job = { name: string; timeout: boolean; uses: boolean; needs: string[]; continueOnError: boolean; text: string };
@@ -541,6 +542,7 @@ test("release: the suite is the only gate that a finished main.yml run can stand
   for (const n of [
     "guard",
     "reuse",
+    "shots-gate",
     "package",
     "client",
     "kits",
@@ -554,10 +556,22 @@ test("release: the suite is the only gate that a finished main.yml run can stand
     assert.doesNotMatch(job(n).text, /^ {4}if:/m, `${n} is never skipped`);
   // live needs each gate to have succeeded here; select and suite may be skipped only with a reused run
   const live = job("live");
-  for (const g of ["guard", "reuse", "package", "select", "suite", "client", "kits", "images", "heavy", "security"])
+  for (const g of [
+    "guard",
+    "reuse",
+    "shots-gate",
+    "package",
+    "select",
+    "suite",
+    "client",
+    "kits",
+    "images",
+    "heavy",
+    "security",
+  ])
     assert.ok(live.needs.includes(g), `live needs ${g}`);
   const c = cond("live");
-  for (const g of ["guard", "reuse", "package", "client", "kits", "images", "heavy", "security"])
+  for (const g of ["guard", "reuse", "shots-gate", "package", "client", "kits", "images", "heavy", "security"])
     assert.match(c, new RegExp(`needs\\.${g}\\.result == 'success'`), `live requires ${g} to have succeeded`);
   assert.match(
     c,
@@ -583,9 +597,31 @@ test("release: the suite is the only gate that a finished main.yml run can stand
   assert.match(job("reuse").text, /cli\.ts reuse "\$\{\{ github\.sha \}\}"/);
   assert.match(
     job("publish").text,
-    /RELEASE_TESTS: \$\{\{ needs\.reuse\.outputs\.tests \}\}/,
-    "the release notes name where the tests ran",
+    /RELEASE_TESTS: \$\{\{ needs\.reuse\.outputs\.tests \}\} \$\{\{ needs\.shots-gate\.outputs\.tests \}\}/,
+    "the release notes name where the tests and the browser walks ran",
   );
+  assert.ok(job("publish").needs.includes("shots-gate"), "publish reads the shots-gate outputs");
+});
+
+// 15 Nov 2026: rc.27 and rc.28 were released with the `shots` workflow red on every push and nobody had read it. The check workflow does not run the browser walks, so the release itself must refuse a commit
+// that has no green shots run (scripts/release/shots-gate.ts). It is never skipped and cannot be made to pass by an `if`.
+test("release: a tag goes live only when the browser walks (shots.yml) ran green on its commit", () => {
+  const rel = wf("release");
+  const gate = rel.jobs.find((j) => j.name === "shots-gate")!;
+  assert.ok(gate, "a shots-gate job");
+  assert.deepEqual(gate.needs, ["guard"]);
+  assert.doesNotMatch(gate.text, /^ {4}if:/m, "the gate is never skipped");
+  assert.match(gate.text, /cli\.ts shots "\$\{\{ github\.sha \}\}"/, "it asks for exactly the commit that was tagged");
+  assert.match(gate.text, /actions: read/, "it may read the runs");
+  // the lookup demands each job that drives the real app in a browser, and shots.yml still has all of them under those names
+  const shots = wf("shots");
+  for (const n of WALK_JOBS) {
+    const base = n.replace(/ \(.*\)$/, "");
+    assert.ok(
+      shots.jobs.some((j) => j.name === base),
+      `shots.yml has the job ${base} that the release requires`,
+    );
+  }
 });
 
 test("release: what counts as a whole-suite run uses the same plan flags as main.yml's full run", () => {

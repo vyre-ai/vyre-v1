@@ -2764,7 +2764,7 @@
             "type": "string"
           },
           "notify": {
-            "description": "Tell the person: a notification and an Inbox line (\"Irfad shared Dex with you\"), with this optional message",
+            "description": "Tell the person: a notification and an Inbox line (\"Imran shared Dex with you\"), with this optional message",
             "properties": {
               "message": {
                 "type": "string"
@@ -3299,6 +3299,73 @@
       },
       "name": "agents_delete",
       "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.delete_for_good",
+      "deferred": false,
+      "description": "Delete an agent in Trash for good: its memory, its one-to-one chats, its computer, its folder, its access and what it ran are erased; what others built that names it asks them to choose another agent. Not an Assistant",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_delete_for_good",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.delete_preview",
+      "deferred": false,
+      "description": "What deleting this agent for good would remove, with real counts, and what made by others names it and needs someone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_delete_preview",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.erased",
+      "deferred": false,
+      "description": "The agents deleted for good, by the name they had, for the places that still show what they said (a chat or channel shows the name with a quiet deleted mark). Never a person's Assistant",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_erased",
+      "planMode": "allowed",
       "toolset": "agents",
       "v": 1
     },
@@ -4249,6 +4316,21 @@
     },
     {
       "blocks": [],
+      "cap": "agents.trash.list",
+      "deferred": false,
+      "description": "The agents in Trash, with which are being deleted for good",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_trash_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.update",
       "deferred": false,
       "description": "Change an agent: name, model, fallback, account, tools, vault key names, limits, memory capture, handoffs; a broken agent.toml keeps the last good version running",
@@ -4337,7 +4419,7 @@
       "blocks": [],
       "cap": "sites.artifact_publish",
       "deferred": false,
-      "description": "THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "description": "Needs a title and exactly one of html, fileId, folderId, path or port. THE way to show what you made: publishes it privately, the person gets a card to open. Example: artifact_publish {\"title\":\"Q3 plan\",\"html\":\"<h1>Q3</h1>\"}. Same title or artifactId updates the link. No title: its <title> is used",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -5149,6 +5231,21 @@
     },
     {
       "blocks": [],
+      "cap": "automations.connect_options",
+      "deferred": false,
+      "description": "What Connect an app lists for the person: the Vault items they may use whose app their Assistant can set up",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_connect_options",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.connector_card",
       "deferred": false,
       "description": "Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.",
@@ -5756,6 +5853,690 @@
     },
     {
       "blocks": [],
+      "cap": "automations.draft.discard",
+      "deferred": false,
+      "description": "Throw the draft away; the live version stays",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_draft_discard",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.draft.propose",
+      "deferred": false,
+      "description": "An Assistant puts steps on the page as a proposal for a person to accept: nothing is saved as the definition, made live or turned on. With no automationId an empty Automation that is off is made first",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "definition": {
+            "properties": {
+              "ai": {
+                "properties": {
+                  "backupKeyId": {
+                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "type": "string"
+                  },
+                  "keyId": {
+                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "allowSelfTrigger": {
+                "type": "boolean"
+              },
+              "nodes": {
+                "items": {
+                  "properties": {
+                    "ai": {
+                      "properties": {
+                        "agentId": {
+                          "examples": [
+                            "agt_a1b2c3"
+                          ],
+                          "pattern": "^agt_[a-z0-9]+$",
+                          "type": "string"
+                        },
+                        "approver": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "assigned": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "backupKeyId": {
+                          "type": "string"
+                        },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
+                        "escalateTo": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
+                          "type": "string"
+                        },
+                        "nudgeMinutes": {
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "reviewer": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "timeoutMinutes": {
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "askBeforeSending": {
+                      "type": "boolean"
+                    },
+                    "branches": {
+                      "items": {
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          },
+                          "when": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "to"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "id": {
+                      "examples": [
+                        "step_1"
+                      ],
+                      "type": "string"
+                    },
+                    "input": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "key": {
+                      "description": "A StepDef key",
+                      "examples": [
+                        "records.update"
+                      ],
+                      "type": "string"
+                    },
+                    "next": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "onError": {
+                      "properties": {
+                        "codes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "max": {
+                          "maximum": 10,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "mode": {
+                          "enum": [
+                            "fail",
+                            "continue",
+                            "retry",
+                            "route",
+                            "skip",
+                            "substitute"
+                          ],
+                          "type": "string"
+                        },
+                        "output": {
+                          "description": "Any JSON value"
+                        },
+                        "route": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "mode"
+                      ],
+                      "type": "object"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "key",
+                    "input"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "start": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "triggers": {
+                "items": {
+                  "properties": {
+                    "config": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "filter": {
+                      "description": "Any JSON value"
+                    },
+                    "key": {
+                      "examples": [
+                        "record_change"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "triggers",
+              "nodes"
+            ],
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "name": "automations_draft_propose",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.draft.save",
+      "deferred": false,
+      "description": "Save the edit as a draft as the person goes; an Off Automation saves at once, an On one keeps it apart until Make live",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "definition": {
+            "properties": {
+              "ai": {
+                "properties": {
+                  "backupKeyId": {
+                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "type": "string"
+                  },
+                  "keyId": {
+                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "allowSelfTrigger": {
+                "type": "boolean"
+              },
+              "nodes": {
+                "items": {
+                  "properties": {
+                    "ai": {
+                      "properties": {
+                        "agentId": {
+                          "examples": [
+                            "agt_a1b2c3"
+                          ],
+                          "pattern": "^agt_[a-z0-9]+$",
+                          "type": "string"
+                        },
+                        "approver": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "assigned": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "backupKeyId": {
+                          "type": "string"
+                        },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
+                        "escalateTo": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
+                          "type": "string"
+                        },
+                        "nudgeMinutes": {
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "reviewer": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "timeoutMinutes": {
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "askBeforeSending": {
+                      "type": "boolean"
+                    },
+                    "branches": {
+                      "items": {
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          },
+                          "when": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "to"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "id": {
+                      "examples": [
+                        "step_1"
+                      ],
+                      "type": "string"
+                    },
+                    "input": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "key": {
+                      "description": "A StepDef key",
+                      "examples": [
+                        "records.update"
+                      ],
+                      "type": "string"
+                    },
+                    "next": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "onError": {
+                      "properties": {
+                        "codes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "max": {
+                          "maximum": 10,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "mode": {
+                          "enum": [
+                            "fail",
+                            "continue",
+                            "retry",
+                            "route",
+                            "skip",
+                            "substitute"
+                          ],
+                          "type": "string"
+                        },
+                        "output": {
+                          "description": "Any JSON value"
+                        },
+                        "route": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "mode"
+                      ],
+                      "type": "object"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "key",
+                    "input"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "start": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "triggers": {
+                "items": {
+                  "properties": {
+                    "config": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "filter": {
+                      "description": "Any JSON value"
+                    },
+                    "key": {
+                      "examples": [
+                        "record_change"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "triggers",
+              "nodes"
+            ],
+            "type": "object"
+          },
+          "expectedRev": {
+            "type": "integer"
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId",
+          "definition"
+        ],
+        "type": "object"
+      },
+      "name": "automations_draft_save",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.followers.add",
       "deferred": false,
       "description": "Follow an Automation to get its updates",
@@ -5834,6 +6615,10 @@
             ],
             "pattern": "^aut_[a-z0-9]+$",
             "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
@@ -5951,6 +6736,21 @@
     },
     {
       "blocks": [],
+      "cap": "automations.home",
+      "deferred": false,
+      "description": "What the Automations first page shows: what needs the person, at most one suggestion the person's Assistant can finish with one approval, the Today line and the header counts",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_home",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.key_hosts.list",
       "deferred": false,
       "description": "The hosts a person approved for one Vault key: a key is sent only to these, or to the host of the item's own saved address. Names only, never a value.",
@@ -6027,6 +6827,35 @@
       },
       "name": "automations_list",
       "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.make_live",
+      "deferred": false,
+      "description": "Make the draft the next live version; runs already started finish as they were",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "expectedRev": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_make_live",
+      "planMode": "blocked",
       "toolset": "automations",
       "v": 1
     },
@@ -6387,6 +7216,58 @@
         "type": "object"
       },
       "name": "automations_promote",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.proposal.accept",
+      "deferred": false,
+      "description": "A person takes the Assistant's proposal: an off Automation saves it, an on one keeps it as their draft until Make live. An agent is refused",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_proposal_accept",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.proposal.discard",
+      "deferred": false,
+      "description": "Throw the Assistant's proposal away; an empty Automation that proposing made goes to Trash with it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_proposal_discard",
       "planMode": "blocked",
       "toolset": "automations",
       "v": 1
@@ -6921,6 +7802,16 @@
             "pattern": "^aut_[a-z0-9]+$",
             "type": "string"
           },
+          "draft": {
+            "type": "boolean"
+          },
+          "eventRunId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          },
           "sample": {
             "additionalProperties": true,
             "type": "object"
@@ -6939,6 +7830,35 @@
       },
       "name": "automations_test",
       "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.test_events",
+      "deferred": false,
+      "description": "Real past starts of an Automation's trigger that a test can be tried on",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_test_events",
+      "planMode": "allowed",
       "toolset": "automations",
       "v": 1
     },
@@ -11729,6 +12649,45 @@
       },
       "name": "chat_reply_details",
       "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.rewind",
+      "deferred": false,
+      "description": "Go back in a chat with an agent to a point: the agent's work folder is put back, the agents stop reading the messages after it, one line says so. Messages stay; anything sent stays sent. Your own message only; only the person",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "pointId": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "pointId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_rewind",
+      "planMode": "blocked",
       "toolset": "chats",
       "v": 1
     },
@@ -19501,6 +20460,63 @@
     },
     {
       "blocks": [],
+      "cap": "engine.rewind.points",
+      "deferred": false,
+      "description": "The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_rewind_points",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.rewind.to",
+      "deferred": false,
+      "description": "Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "pointId": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "pointId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_rewind_to",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.round.get",
       "deferred": false,
       "description": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
@@ -21095,7 +22111,7 @@
       "blocks": [],
       "cap": "files.create",
       "deferred": false,
-      "description": "Create a file in a folder from text, base64 or an uploaded blob",
+      "description": "Create a file from text (content.text), base64 or an uploaded blob, in a folder; with no folder it goes in the person's own files. A name already taken becomes \"name (2)\" for an agent. A direct write holds at most 256 KB: split larger content into several files",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -21414,6 +22430,32 @@
         "type": "object"
       },
       "name": "files_folder_move",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "files.folder.purge",
+      "deferred": false,
+      "description": "Delete a folder in Trash for good, with every file and folder in it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "folderId"
+        ],
+        "type": "object"
+      },
+      "name": "files_folder_purge",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
@@ -22639,7 +23681,7 @@
       "blocks": [],
       "cap": "files.write",
       "deferred": false,
-      "description": "Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
+      "description": "Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -23879,7 +24921,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -23973,7 +25016,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -24068,7 +25112,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -28990,6 +30035,63 @@
     },
     {
       "blocks": [],
+      "cap": "google.drive.update_file",
+      "deferred": true,
+      "description": "Rename a Drive file or folder, move it between folders, or take it back out of the Trash; the file keeps its id, its links and its sharing",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "addParentId": {
+            "type": "string"
+          },
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "removeParentId": {
+            "type": "string"
+          },
+          "trashed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "connectionId",
+          "fileId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_drive_update_file",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.drive.upload_file",
       "deferred": true,
       "description": "Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision",
@@ -32250,7 +33352,7 @@
       "blocks": [],
       "cap": "inbox.counts",
       "deferred": false,
-      "description": "Unread counts for the sidebar: per inbox, per number and the Needs a match total",
+      "description": "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -35780,6 +36882,13 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "address": {
+            "description": "Only drafts written to this address (To or Cc): a conversation with someone who is not a contact yet",
+            "examples": [
+              "maya@example.com"
+            ],
+            "type": "string"
+          },
           "contactId": {
             "examples": [
               "rec_a1b2c3"
@@ -41378,6 +42487,10 @@
           "name": {
             "type": "string"
           },
+          "readOnly": {
+            "description": "Never send changes to the provider; the default is two-way",
+            "type": "boolean"
+          },
           "reviewChanges": {
             "type": "boolean"
           },
@@ -41863,6 +42976,42 @@
     },
     {
       "blocks": [],
+      "cap": "mounts.resolve",
+      "deferred": false,
+      "description": "Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs; or one deleted there while an edit waited: keep it here (it goes back as a new file) or discard the edit",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "choice": {
+            "enum": [
+              "keep_both",
+              "use_theirs",
+              "keep_here",
+              "discard"
+            ],
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "choice"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_resolve",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.restore",
       "deferred": false,
       "description": "Put an earlier revision of a file back as the newest; it goes out like any edit",
@@ -42004,6 +43153,32 @@
     },
     {
       "blocks": [],
+      "cap": "mounts.sheet_tabs",
+      "deferred": true,
+      "description": "List the tabs of a mounted Google Sheet, with their names and sizes, so every tab can be read and edited",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_sheet_tabs",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.sheet_write",
       "deferred": true,
       "description": "Write cells of a mounted Google Sheet or Excel workbook in the provider file itself",
@@ -42065,6 +43240,9 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "auto": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -43443,6 +44621,54 @@
     },
     {
       "blocks": [],
+      "cap": "ms.drive.restore_item",
+      "deferred": true,
+      "description": "Bring an item back from the recycle bin (OneDrive personal only; others answer that it cannot be done here)",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_drive_restore_item",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.drive.share_item",
       "deferred": true,
       "description": "Create a sharing link or invite people; Microsoft emails them",
@@ -43503,6 +44729,63 @@
         "type": "object"
       },
       "name": "ms_drive_share_item",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.drive.update_item",
+      "deferred": true,
+      "description": "Rename an item or move it to another folder; the item keeps its id, links and sharing. With ifMatch only if the item still has that eTag",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "ifMatch": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_drive_update_item",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
@@ -49800,6 +51083,21 @@
         "type": "object"
       },
       "name": "providers_list",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "providers.local_signins",
+      "deferred": false,
+      "description": "Which Claude Code and Codex sign-ins are on the computer this Space runs on: yes or no for each, never a path or an account name. The AI card shows its \"on this computer\" rows only for a yes.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "providers_local_signins",
       "planMode": "allowed",
       "toolset": "vault",
       "v": 1
@@ -68953,209 +70251,6 @@
       },
       "name": "vault_connect",
       "planMode": "allowed",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.ask_admin",
-      "deferred": false,
-      "description": "Ask an admin to connect the service when this person may not",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "admin": {
-            "examples": [
-              "usr_a1b2c3"
-            ],
-            "pattern": "^usr_[a-z0-9]+$",
-            "type": "string"
-          },
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_ask_admin",
-      "planMode": "blocked",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.disconnect",
-      "deferred": false,
-      "description": "Disconnect the service; the key stays in the Vault",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_disconnect",
-      "planMode": "blocked",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.get",
-      "deferred": false,
-      "description": "The connect card of one request: its state, the fields, who can fill it, where the key is kept",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_get",
-      "planMode": "allowed",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.options",
-      "deferred": false,
-      "description": "Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_options",
-      "planMode": "allowed",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.reopen",
-      "deferred": false,
-      "description": "Open a card the person folded with Not now",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_reopen",
-      "planMode": "blocked",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.submit",
-      "deferred": false,
-      "description": "Try the key, connect the service and keep the key; nothing is kept unless the key works. The values are in this call only",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "audience": {
-            "enum": [
-              "asker",
-              "anyone"
-            ],
-            "type": "string"
-          },
-          "fields": {
-            "items": {
-              "properties": {
-                "key": {
-                  "examples": [
-                    "api_key"
-                  ],
-                  "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "key",
-                "value"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "folderId": {
-            "examples": [
-              "vfd_a1b2c3"
-            ],
-            "pattern": "^vfd_[a-z0-9]+$",
-            "type": "string"
-          },
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          },
-          "useSaved": {
-            "description": "Use the key the person already has instead of a typed one",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_submit",
-      "planMode": "blocked",
       "toolset": "vault",
       "v": 1
     },

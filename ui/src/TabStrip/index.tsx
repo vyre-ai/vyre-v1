@@ -140,10 +140,14 @@ function focusNode(node: unknown): void {
   if (typeof focusable.focus === "function") focusable.focus({ preventScroll: true });
 }
 
-/** How wide a tab that is not the open one may be. The open tab keeps its full title; the others give up room evenly, down to a width that still reads, and only then does the strip scroll. */
+/**
+ * How wide any tab may be, the open one too. Every tab gets the same share of the strip, never less than a width that shows a place's name whole, and past that the strip
+ * scrolls. One cap for all, so a tab is the same width selected or not: the open tab used to be let wider than the rest, and choosing a tab pushed its neighbours sideways
+ * (owner, 15 Nov 2026; team/v1/TABS-2026-11-15.md).
+ */
 export function tabCap(room: number, count: number, plain = TAB_MAX_WIDTH, least = TAB_MIN_WIDTH): number {
   if (count < 2 || room <= 0) return plain;
-  return Math.min(plain, Math.max(least, Math.floor((room - plain) / (count - 1)) - TAB_GAP));
+  return Math.min(plain, Math.max(least, Math.floor(room / count) - TAB_GAP));
 }
 
 /** A strip that overflows fades out at the edge with more behind it, so a cut tab reads as more to come. */
@@ -159,10 +163,13 @@ export const TAB_STRIP_HEIGHT = 38;
 export const TAB_HEIGHT = 30;
 const TAB_MAX_WIDTH = 200;
 const TITLE_MAX_WIDTH = 150;
-const TAB_MIN_WIDTH = 112;
+// wide enough for an icon and the longest place name ("Automations") with nothing cut
+const TAB_MIN_WIDTH = 124;
 const TAB_GAP = 2;
 /** The strip's padding and its two buttons, which stay beside the tabs. */
 const STRIP_CHROME = 8 + 8 + 30 + 30;
+/** The "tabs" button, when the strip has one. */
+const LIST_BUTTON = 30;
 
 export interface TabStripViewProps extends TabStripProps {
   /** Accessible name for the strip. */
@@ -177,6 +184,8 @@ export interface TabStripViewProps extends TabStripProps {
   hideLoneClose?: boolean;
   /** No options button at the end: the strip's menu is the right-click on a tab. */
   noOptions?: boolean;
+  /** A "tabs" button at the strip's end lists every open tab, the selected one ticked: with many tabs it is the way to any of them (the main strip). */
+  listAll?: boolean;
   /** A row of page sections, not documents: no tab has a close button, so none holds room for one. */
   noClose?: boolean;
   /** The whole menu of a tab, built by the host from its own state (Close, Pin, Reopen). It replaces the standard Close entries and `menu`'s extras. */
@@ -188,6 +197,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   const { element, show } = useMenu();
   const nodes = useRef<Record<string, unknown>>({});
   const moreNode = useRef<unknown>(null);
+  const listNode = useRef<unknown>(null);
   const scroller = useRef<{ scrollTo?: (options: { x: number; animated: boolean }) => void } | null>(null);
   const spans = useRef<Record<string, { x: number; w: number }>>({});
   const view = useRef<{ x: number; w: number }>({ x: 0, w: 0 });
@@ -253,6 +263,11 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   useEffect(() => {
     reveal();
   }, [reveal, tabs.length, room]);
+  // the fade follows the tabs: more of them behind either edge, and it shows there (a tab cut at the edge with no fade was the fault)
+  useEffect(() => {
+    const t = setTimeout(() => edges(), 60);
+    return () => clearTimeout(t);
+  }, [tabs.length, room, active]); // eslint-disable-line react-hooks/exhaustive-deps
   const edges = useCallback(() => {
     const { x, w } = view.current,
       more = content.current - (x + w);
@@ -302,7 +317,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
     setDrag(null);
   };
 
-  const cap = tabCap(room - STRIP_CHROME, tabs.length);
+  const cap = tabCap(room - STRIP_CHROME - (props.listAll === true ? LIST_BUTTON : 0), tabs.length);
   const tabNodes: ReactNode[] = [];
   for (const tab of tabs) {
     const on = tab.key === active;
@@ -313,7 +328,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         on={on}
         tight={props.tight === true}
         underline={props.underline === true}
-        widest={on ? TAB_MAX_WIDTH : cap}
+        widest={cap}
         dropTarget={drag !== null && drag.over === tab.key && drag.from !== tab.key}
         canClose={onClose !== undefined}
         only={(props.hideLoneClose === true && tabs.length === 1) || props.noClose === true}
@@ -381,6 +396,44 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         </View>
       </ScrollView>
       {onPlus === undefined ? null : <IconButton name="plus" label={plusTitle ?? "Open"} onPress={() => onPlus()} />}
+      {props.listAll === true ? (
+        <IconButton
+          name="tabs"
+          label="All tabs"
+          nodeRef={(node) => {
+            listNode.current = node;
+          }}
+          onPress={() => {
+            const rows: MenuEntry[] = tabs.map((t) => ({
+              label: t.title,
+              ...(t.icon !== undefined && t.icon.length > 0 ? { icon: t.icon } : {}),
+              ...(t.key === active ? { checked: true } : {}),
+              onSelect: () => select(t.key),
+            }));
+            const box = listNode.current as Focusable | null;
+            if (box !== null && typeof box.measureInWindow === "function")
+              box.measureInWindow((x, y, w, h) =>
+                show(
+                  rows,
+                  x + w - 240,
+                  y + h + 4,
+                  undefined,
+                  { label: "All tabs" },
+                  tabs.length > 12 ? { search: "Find a tab" } : undefined,
+                ),
+              );
+            else
+              show(
+                rows,
+                0,
+                TAB_STRIP_HEIGHT,
+                undefined,
+                { label: "All tabs" },
+                tabs.length > 12 ? { search: "Find a tab" } : undefined,
+              );
+          }}
+        />
+      ) : null}
       <View style={styles.spacer} />
       {props.noOptions === true ? null : (
         <IconButton
@@ -475,7 +528,9 @@ function TabItem({
   const ink = on ? "var(--ink)" : over ? "var(--ink-2)" : "var(--ink-3)";
   const extraTab = tab as TabSpec & { lead?: ReactNode; iconOnly?: boolean; label?: string };
   const name = extraTab.label ?? tab.title;
-  const showClose = !pinned && canClose && (over || on);
+  // A tab is as wide as its icon and its name, selected or not (owner, 15 Nov 2026: the highlight fits the name; a tab that grew when selected pushed every tab after it
+  // sideways on each switch). The Close sits over the tab's right edge while the pointer is on the tab, and takes no room.
+  const showClose = !pinned && canClose && over;
   return (
     <Pressable
       ref={nodeRef}
@@ -491,7 +546,7 @@ function TabItem({
       style={[
         styles.tab,
         { maxWidth: widest },
-        !on && !pinned ? styles.tabIdle : null,
+        !pinned ? styles.tabIdle : null,
         pinned ? styles.tabPinned : null,
         pinned && tight ? styles.tabTight : null,
         underline ? LINE_TAB : null,
@@ -541,7 +596,8 @@ function TabItem({
           // hidden, it takes no clicks: a press on the right edge of a short tab (Plan) selects the tab, it does not land on an invisible close
           style={[
             styles.close,
-            on ? null : styles.closeOver,
+            styles.closeOver,
+            on ? CLOSE_ON : null,
             showClose ? null : HIDDEN,
             showClose ? null : ({ pointerEvents: "none" } as object),
           ]}
@@ -563,16 +619,20 @@ const HOVER_LINE = { backgroundColor: "transparent" };
 const ACTIVE_LINE = { backgroundColor: "transparent", boxShadow: "inset 0 -2px 0 var(--ink)" };
 const DROP = { boxShadow: "inset 2px 0 0 var(--accent)" } as unknown as ViewStyle;
 const HIDDEN = { opacity: 0 };
+/* on the selected tab the Close sits on the tab's own fill, so the end of the name does not show through it */
+const CLOSE_ON = { backgroundColor: "var(--sel)" };
 
 const styles = StyleSheet.create({
   strip: { height: TAB_STRIP_HEIGHT, flexDirection: "row", alignItems: "center", paddingTop: 6, paddingRight: 8 },
   stripBare: { paddingTop: 0, height: 34 },
   scroll: { flexGrow: 0, flexShrink: 1, minWidth: 0 },
-  content: { alignItems: "center", paddingLeft: 8, paddingRight: 4 },
-  tabs: { flexDirection: "row", alignItems: "center", gap: 2 },
+  content: { alignItems: "center", paddingLeft: 8, paddingRight: 4, flexShrink: 0 },
+  tabs: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   spacer: { flexGrow: 1 },
   tab: {
     height: TAB_HEIGHT,
+    // a tab is never squeezed by its neighbours: it is as wide as its icon and name up to the one cap, and past that the strip scrolls (owner walk, 15 Nov: with eight tabs the last one shrank to an icon)
+    flexShrink: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
@@ -581,7 +641,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS,
   },
   tabPinned: { paddingRight: 10 },
-  // a tab that is not selected holds no room for its Close: the button sits over the right padding when the pointer is on the tab, so every tab is the same distance from the next
+  // no tab holds room for its Close: the button sits over the right edge when the pointer is on the tab, so a tab is the same width selected or not
   tabIdle: { paddingRight: 10 },
   tabTight: { paddingLeft: 7, paddingRight: 7 },
   // one longest title for every tab: longer names are cut with an ellipsis

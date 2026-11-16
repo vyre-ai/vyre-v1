@@ -577,6 +577,18 @@ export function refsIn(state: Pick<ComposerState, "text" | "refs">): ComposerRef
   return out;
 }
 
+/** A mention or a picked link brings its own space; a space typed after it is not a second one ("@Scout  and", "#Sam Sample  thanks"). Only the run after a token is touched, so spaces anywhere else stay as written. */
+export function oneSpaceAfterTokens(text: string, refs: readonly ComposerRef[] = []): string {
+  let out = text.replace(/(@[\p{L}\p{N}_.-]+) {2,}/gu, "$1 ");
+  for (const r of refs) {
+    if (r.token !== "#") continue;
+    const token = `#${r.title}`;
+    out = out.split(`${token}  `).join(`${token} `);
+    while (out.includes(`${token}  `)) out = out.split(`${token}  `).join(`${token} `);
+  }
+  return out;
+}
+
 /** The payload and the cleared state in one step: the field empties in the same call, before any server answer. */
 export function sendNow(
   state: ComposerState,
@@ -585,7 +597,7 @@ export function sendNow(
 ): { payload: ComposerSend; next: ComposerState } | null {
   if (!canSend(state)) return null;
   const payload: ComposerSend = {
-    text: state.text.trim(),
+    text: oneSpaceAfterTokens(state.text.trim(), state.refs),
     chips: state.chips.slice(),
     files: state.files.slice(),
     folder: state.folder,
@@ -619,7 +631,11 @@ export function applyPick(
   });
   if (trigger.ch === "@") {
     const insert = `@${item.kind === "Agent" ? item.label : firstWord(item.label)} `; // an agent's whole name; a person's first name, as people say it
-    return { next: place(before + insert + after, before.length + insert.length), effect: { kind: "none" } };
+    // the mention brings its own space: a space already after the cursor is not a second one ("@Scout  and")
+    return {
+      next: place(before + insert + after.replace(/^ /, ""), before.length + insert.length),
+      effect: { kind: "none" },
+    };
   }
   if (trigger.ch === ":") {
     const insert = `${item.body ?? item.label} `;
@@ -630,7 +646,7 @@ export function applyPick(
   }
   if (trigger.ch === "[[") {
     const insert = `[[${item.label}]] `;
-    const next = place(before + insert + after, before.length + insert.length);
+    const next = place(before + insert + after.replace(/^ /, ""), before.length + insert.length);
     return {
       next:
         item.ref === undefined
@@ -1641,7 +1657,7 @@ export function Composer(props: ComposerProps): ReactElement {
         setPlusOpen(false);
         typeSymbol("https://");
       });
-    const voice = talk.port?.on === true;
+    const voice = talk.port?.on === true && talk.port.ready !== false; // voice is offered only once it is set up (Settings or Console)
     const folder = props.onConnectFolder !== undefined;
     if (voice || folder) plusRows.push(<Sep key="s-more" />);
     if (voice)
@@ -1901,7 +1917,7 @@ export function Composer(props: ComposerProps): ReactElement {
         label={trigger?.ch === "@" ? "Mention" : trigger?.ch === ":" ? "Emoji" : "Commands"}
         style={[
           popLeft,
-          { width: trigger?.ch === "@" ? 300 : trigger?.ch === "/" ? 460 : 340, maxWidth: "100%" } as ViewStyle,
+          { width: trigger?.ch === "@" ? 300 : trigger?.ch === "/" ? 540 : 340, maxWidth: "100%" } as ViewStyle,
         ]}
       >
         <View style={styles.scr} accessibilityRole="menu" {...webProps({ role: "listbox" })}>
@@ -2070,7 +2086,9 @@ export function Composer(props: ComposerProps): ReactElement {
     </View>
   );
   // an app's own control beside the model strip (the memory lock) sits in the same 32 px box as the others, centred on the same line
-  const barExtraNode = props.barExtra ? <View style={styles.extraBox}>{props.barExtra}</View> : null;
+  // The place's own control beside the options button. It is put in the row as it is, with no box of the composer's around it: a control that draws nothing (the chat's
+  // memory switch while the chat remembers, which is nearly always) used to leave an empty 32 px box and a second gap between the options button and the mic (owner, 16 Nov 2026).
+  const barExtraNode = props.barExtra ?? null;
   const stripNode_ =
     settingsAgent !== undefined ? (
       <View ref={stripNode as never} style={styles.stripWrap}>
@@ -2320,7 +2338,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 8,
   },
-  extraBox: { minWidth: CTRL, height: CTRL, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   // the field never gives its room to the model chip: past this width the chip is the one that shortens
   fieldLine: { flex: 1, minWidth: FIELD_MIN_LINE },
   field: { width: "100%", color: "var(--ink)" as string, padding: 0, margin: 0, borderWidth: 0 },
@@ -2380,7 +2397,7 @@ const styles = StyleSheet.create({
   splitKbd: { fontSize: 11, color: "var(--accent-ink)" as string, opacity: 0.6 },
   lead: { marginRight: 10 },
   cmdLead: { width: 20, alignItems: "center", justifyContent: "center" },
-  cmdNote: { fontSize: 12.5, color: "var(--ink-3)" as string, maxWidth: 230, textAlign: "right" },
+  cmdNote: { fontSize: 12.5, color: "var(--ink-3)" as string, maxWidth: 320, textAlign: "right" },
   rowNote: { fontSize: 11.5, color: "var(--ink-4)" as string },
   scr: { padding: 6, maxHeight: 360, overflow: "scroll" } as object,
   plusPop: { width: 280, maxWidth: "100%" } as object,

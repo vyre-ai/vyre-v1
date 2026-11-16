@@ -46,6 +46,8 @@ export interface AgentPageData {
   /** The agent's workspace and its Space browser profile: the Computer tab's Terminal and Browser. The same sources the chat pane reads. */
   workspace?: ChatRightPaneData["workspace"];
   browser?: ChatRightPaneData["browser"];
+  /** The terminal's own data: a press on a terminal row opens it full screen over the page (the drawing's sheet), as it does beside a chat, and not as a tab of its own. */
+  terminal?: ChatRightPaneData["terminal"];
   nav: AgentPageNav;
   clock(): Clock;
 }
@@ -83,8 +85,12 @@ export function paneDataOf(d: AgentPageData): ChatRightPaneData {
     space: d.space,
     nav: d.nav,
     clock: d.clock,
+    // who is looking and how to name a person: the Computer tab calls your own terminals yours and another person's by their name (and says whose side of a shared agent's computer it shows)
+    me: { id: d.me.id },
+    nameOf: d.nameOf,
     ...(d.workspace ? { workspace: d.workspace } : {}),
     ...(d.browser ? { browser: d.browser } : {}),
+    ...(d.terminal ? { terminal: d.terminal } : {}),
   };
 }
 

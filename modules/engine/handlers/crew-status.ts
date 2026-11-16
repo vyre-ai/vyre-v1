@@ -179,6 +179,7 @@ export async function crewStatus(ctx: EngineCtx, input: { threadId: string }) {
       state:
         x.state === "working" ? "working" : x.state === "done" ? "done" : x.state === "failed" ? "failed" : "stopped",
       ...(mine && x.found ? { found: oneLine(x.found), answer: x.found } : {}),
+      ...(mine && x.step && x.state === "working" ? { step: x.step } : {}),
       startedAt: x.startedAt,
       ...(end !== undefined ? { endedAt: end } : {}),
       elapsedMs: Math.max(0, (end ?? now) - x.startedAt),

@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { retentionMs, TRASH_KEEP_MS } from "../modules/computers/sbrowser/forget.ts";
+import { TRASH_KEEP_MS as AGENTS_KEEP_MS } from "../modules/agents/handlers/erase.ts";
 import governance from "../manifests/governance.ts";
 
 test("every module's fallback for how long Trash keeps an agent's things is governance's default trash retention", () => {
@@ -12,4 +13,9 @@ test("every module's fallback for how long Trash keeps an agent's things is gove
   );
   assert.ok(trash, "governance has a trash retention");
   assert.equal(TRASH_KEEP_MS, retentionMs(trash.default), `the Space browser's fallback is ${trash.default}`);
+  assert.equal(
+    AGENTS_KEEP_MS,
+    retentionMs(trash.default),
+    `the agents module deleting an agent for good uses ${trash.default}`,
+  );
 });

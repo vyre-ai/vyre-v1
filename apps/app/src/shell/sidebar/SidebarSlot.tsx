@@ -4,7 +4,7 @@
 //   <SidebarContent title="Chats" searchPlaceholder="Search chats">{(query, slot) => <ChatsSidebarItems query={query} onOpen={slot.openBody} />}</SidebarContent>
 // Put it anywhere inside the place. The shell draws it in the slot (a portal, so the place's providers still reach it). `query` is the search field's text;
 // call `slot.openBody()` when an item is chosen so the phone leaves the list for the body. A place without <SidebarContent> has no sidebar and no slot.
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MenuIcon } from "../../../../../ui/src/Menu/index.tsx";
@@ -22,7 +22,15 @@ export interface SidebarEntry {
   title: string;
   searchPlaceholder: string;
   noSearch?: boolean;
+  /** The place that put this here has gone and the next one has not arrived yet: the column keeps its room, with nothing in it (see SIDEBAR_HOLD_MS). */
+  held?: true;
 }
+
+/**
+ * How long the column keeps its room after a place leaves. Two places that both have a list (a Chats tab, then a Console tab) must never show a frame without the column
+ * between them: the tab strip and the body would slide across and back (owner, 15 Nov 2026; measured in team/v1/TABS-2026-11-15.md). A place with no list lets it go after this.
+ */
+export const SIDEBAR_HOLD_MS = 260;
 
 export interface SidebarSlotApi {
   /** The search field's text. */
@@ -123,7 +131,32 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
     }),
     [query, collapsed, setCollapsed, hasSidebar, p.compact, bodyOpen, entry?.title, actionsOutlet],
   );
-  const reg = useMemo(() => ({ register: setEntry, outlet }), [outlet]);
+  const letGo = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const register = useCallback((e: SidebarEntry | null): void => {
+    if (letGo.current !== null) {
+      clearTimeout(letGo.current);
+      letGo.current = null;
+    }
+    if (e !== null) {
+      setEntry(e);
+      return;
+    }
+    // the place left: keep the column's room, empty, until the next place fills it or the hold runs out
+    setEntry((cur) =>
+      cur === null ? null : { title: "", searchPlaceholder: cur.searchPlaceholder, noSearch: true, held: true },
+    );
+    letGo.current = setTimeout(() => {
+      letGo.current = null;
+      setEntry((cur) => (cur !== null && cur.held === true ? null : cur));
+    }, SIDEBAR_HOLD_MS);
+  }, []);
+  useEffect(
+    () => () => {
+      if (letGo.current !== null) clearTimeout(letGo.current);
+    },
+    [],
+  );
+  const reg = useMemo(() => ({ register, outlet }), [register, outlet]);
   return (
     <Ctx.Provider value={api}>
       <Reg.Provider value={reg}>
@@ -143,6 +176,25 @@ const OutletContext = createContext<{
   setActionsOutlet(n: unknown): void;
 } | null>(null);
 
+/** True where a shell sidebar column exists to draw in (inside the app's shell). A place that can also stand alone draws its own list when this is false. */
+export function useInSidebarSlot(): boolean {
+  const reg = useContext(Reg);
+  const slot = useContext(Ctx);
+  return reg !== null && slot !== null;
+}
+
+const InColumn = createContext(false);
+
+/** True inside a place's content that the shell draws in its sidebar column: the column's head already carries the title, the buttons' spot and Hide. */
+export function useInSidebarColumn(): boolean {
+  return useContext(InColumn);
+}
+
+/** The slot's api where there is one (inside the shell), else null: a place that can also stand alone uses it to put its buttons in the slot's head. */
+export function useOptionalSidebarSlot(): SidebarSlotApi | null {
+  return useContext(Ctx);
+}
+
 export function useSidebarSlot(): SidebarSlotApi {
   const v = useContext(Ctx);
   if (v === null) throw new Error("useSidebarSlot needs a SidebarSlotProvider above it");
@@ -159,7 +211,8 @@ export function SidebarContent(props: {
   const reg = useContext(Reg);
   const slot = useContext(Ctx);
   const search = props.searchPlaceholder ?? "Search";
-  useEffect(() => {
+  // before paint, so a place that replaces another in the same commit fills the column in that commit: no frame shows it empty
+  useLayoutEffect(() => {
     reg?.register({
       title: props.title,
       searchPlaceholder: search,
@@ -168,7 +221,11 @@ export function SidebarContent(props: {
     return () => reg?.register(null);
   }, [reg?.register, props.title, search, props.noSearch]);
   if (reg === null || slot === null) return null;
-  return <>{portalInto(reg.outlet, props.children(slot.query, slot))}</>;
+  return (
+    <>
+      {portalInto(reg.outlet, <InColumn.Provider value={true}>{props.children(slot.query, slot)}</InColumn.Provider>)}
+    </>
+  );
 }
 
 /** What the shell draws beside the body: the chrome, then an empty outlet the place's content portals into. */
@@ -265,7 +322,7 @@ export function SidebarSlot(): ReactElement | null {
   );
 }
 
-/** The Hide button on a sheet that draws its own head (Inbox, Vault, Settings). */
+/** The Hide button on a column a place still draws for itself (a ResizableColumn standing in the shell's sidebar spot); the places that use the shell's own column have its head. */
 export function SidebarHide(): ReactElement | null {
   const slot = useSidebarSlot();
   const shell = useShellLayout();

@@ -1,12 +1,31 @@
+import { tryAll, tryRun } from "../../lib/erase-agent.ts";
+import { ensure as ensureTerminalTables, forgetAgentSecrets } from "./projections.ts";
+type Row = Record<string, unknown>;
 // terminal module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 // Also here: the tmux adapter every host shares. An agent computer, the Space server and a person's computer each run `tmux` their own way (agentd, a local process, the device daemon), so
 // `createTmuxHost` takes that as a port (`Exec`) and the module itself never spawns anything. Sessions are tmux sessions: no native pty dependency, they survive their tab, and the screen
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { forgetExpiredWorkspaces, onAgentGone, onAgentRestored, openTabForRun, stopRuns } from "./handlers/sessions.ts";
+import {
+  forgetExpiredWorkspaces,
+  onAgentGone,
+  onHolderGone,
+  onAgentRestored,
+  onPersonBack,
+  onPersonLeft,
+  reconcileAccess,
+  forgetExpiredPeople,
+  openTabForRun,
+  stopRuns,
+} from "./handlers/sessions.ts";
+import type { AccessDeps } from "./handlers/sessions.ts";
+import { chatFolderCommand, chatLinkCommand, grantCommand, removeCommand } from "./asker.ts";
 import {
   bindWorkspaceStatus,
+  bindChatFolder,
+  bindNotes,
+  bindPlaceGrant,
   bindHost,
   bindKit,
   bindMachineHost,
@@ -17,6 +36,7 @@ import {
   bindValues,
   bindWorkspaces,
   boundHost,
+  hideRunLine,
   redeemTicket,
   scopeOfId,
   scrubberFor,
@@ -47,6 +67,7 @@ export function filesChangeOf(p: Record<string, unknown>): { folderIds: string[]
 }
 
 import { STOPPED_LINE } from "./stop-line.ts";
+import { createRunLineFilter } from "./stream-log.ts";
 export { STOPPED_LINE };
 
 /** The reasons a turn's end record carries when work was stopped on purpose: these interrupt the turn's terminal command (closing, lease and anything else never do). */
@@ -78,6 +99,8 @@ export interface TmuxOptions {
   maxOutput?: number;
   /** Lines of scrollback read when looking for a command's end. Default 5000. */
   scrollback?: number;
+  /** The command a new session runs instead of the default shell (a workspace: a bash with a private umask). */
+  shell?: readonly string[];
   /** tmux session names are `<prefix><terminalId>`. Default "vyre-". */
   prefix?: string;
   /** How a tab's live read (read with `since`) runs tmux: an exec that neither wakes the machine nor counts as use (a workspace). Default `exec`. */
@@ -216,7 +239,13 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     );
   }
   /** A session's shell keeps no line that starts with a space in its history (agent commands are typed that way). A tmux older than 3.0 has no -e: the session opens without it. */
-  async function newSession(session: string, cols: number, rows: number, cwd: string | undefined): Promise<void> {
+  async function newSession(
+    session: string,
+    cols: number,
+    rows: number,
+    cwd: string | undefined,
+    env: Readonly<Record<string, string>> = {},
+  ): Promise<void> {
     const rest = [
       "-d",
       "-s",
@@ -227,7 +256,9 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       String(rows),
       ...(cwd === undefined ? [] : ["-c", cwd]),
     ];
-    const r = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...rest]);
+    // a person who uses a shared agent without owning it: their shell's home, history and config folders (asker.ts)
+    const own = Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]);
+    const r = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...own, ...rest, ...(o.shell ?? [])]);
     if (r.code === 0) return;
     if (/unknown option|invalid option|usage:/i.test(r.stderr)) {
       await tmux(["new-session", ...rest]);
@@ -464,7 +495,7 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     sweep: sweepBuffers,
     async open(a) {
       const session = nameOf(a.terminalId);
-      await newSession(session, a.cols, a.rows, a.cwd);
+      await newSession(session, a.cols, a.rows, a.cwd ?? a.place?.home, a.place?.env);
       await sweepBuffers();
       const cwd = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_current_path}"])) || a.cwd || "~";
       return { cwd };
@@ -512,6 +543,10 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     },
     async keys(terminalId, ks) {
       const session = nameOf(terminalId);
+      // a pane left in tmux's copy mode reads keys by tmux's own bindings (q, /, Enter...): leave it first, so what a person types reaches the shell
+      const mode = await o.exec(["tmux", "display-message", "-p", "-t", session, "#{pane_in_mode}"]).catch(() => null);
+      if (mode !== null && mode.code === 0 && mode.stdout.trim() === "1")
+        await tmux(["send-keys", "-t", session, "-X", "cancel"]).catch(() => undefined);
       for (const k of ks) {
         if ("text" in k) {
           for (let i = 0; i < k.text.length; i += 1000)
@@ -685,8 +720,12 @@ export async function openFrames(
   let closed = false;
   // the session's workspace: a value another tab of it filled is taken out too
   const scope = scopeOfId(db, who.terminalId);
-  const stop = host.stream(who.terminalId, (frame) => {
+  // the typed wrapper line of terminal.run is never shown (stream-log.ts), and a frame that holds the start of it waits for its end
+  const runLine = createRunLineFilter(hideRunLine);
+  const stop = host.stream(who.terminalId, (raw) => {
     if (closed) return;
+    const frame = runLine.push(raw);
+    if (frame === "") return;
     const sc = scrubberFor(scope);
     if (!sc) {
       send(carry + frame);
@@ -1002,6 +1041,7 @@ export interface WorkspaceConfig
     | "idleMs"
     | "home"
     | "projectsOf"
+    | "projectAccessOf"
     | "admit"
     | "capacity"
     | "log"
@@ -1220,7 +1260,10 @@ let inTrashCheck: ((agentId: string) => boolean | undefined) | null = null;
 /** The workspaces of this machine, for the host's Computer tab and tests: null when there are none. */
 export const boundWorkspaces = (): WorkspaceManager | null => workspaceManager;
 
+/** The daemon has told this module what runtime the Space has (a workspace manager, or none): until then an erase cannot know whether a container is to be removed. */
+let hostBound = false;
 export function setTerminalHost(seam: TerminalHostSeam | null): void {
+  hostBound = true;
   workspaceManager?.close();
   const fleet = seam?.workspaces ? buildWorkspaceFleet(seam.workspaces) : null;
   workspaceManager = fleet;
@@ -1231,6 +1274,29 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
   // agent commands go to a workspace when there is a machine for this agent's one right now; with none (no runtime, no server) they go where the turn runs, as before
   bindWorkspaces(fleet ? (agentId) => fleet.available(agentId) : false);
   bindWorkspaceStatus(fleet ? (agentId) => fleet.status(agentId) : null);
+  bindNotes(fleet ? (agentId) => fleet.takeNotes(agentId) : null);
+  bindPlaceGrant(
+    fleet
+      ? async (agentId, place) => {
+          const projects = await fleet.projectAccess(agentId, place.person);
+          const g = await fleet.exec(agentId, grantCommand(place, projects));
+          if (g.code !== 0)
+            throw new Error(`What this person may reach could not be set (${g.stderr.trim().slice(0, 160)}).`);
+        }
+      : null,
+  );
+  bindChatFolder(
+    fleet
+      ? async (agentId, thread, place) => {
+          const made = await fleet.exec(agentId, chatFolderCommand(thread, place?.uid));
+          if (made.code !== 0)
+            throw new Error(`the chat's folder could not be made (${made.stderr.trim().slice(0, 120)})`);
+          await fleet.exec(agentId, chatLinkCommand(thread, place?.home ?? "/home/agent"), {
+            ...(place === undefined ? {} : { user: place.uid }),
+          });
+        }
+      : null,
+  );
 }
 
 // Only the setter the daemon wires is a host seam.
@@ -1268,7 +1334,46 @@ export async function workspacesReady(): Promise<void> {
 }
 
 /** Jobs the host runs on a clock. */
+/** What the sweep asks of the host: the access answers (as the host, so any person can be asked about) and the commands in a workspace. */
+function accessDeps(ctx: TermCtx): AccessDeps {
+  const check = async (person: string, level: string, resource: { type: string; id: string }): Promise<boolean> => {
+    const r = (await ctx.call?.("access.check", {
+      principal: { kind: "person", id: person },
+      action: { level },
+      resource,
+    })) as { decision?: { effect?: string } } | undefined;
+    if (r?.decision?.effect === undefined) throw new Error("the access answer could not be read");
+    return r.decision.effect === "allow";
+  };
+  const wm = workspaceManager;
+  return {
+    mayUse: (person, agentId) => check(person, "use", { type: "agent", id: agentId }),
+    // who may read a chat is who is in it: its members (a person who left, or was never in it, has no entry on its folder)
+    mayView: async (person, thread) => {
+      const r = (await ctx.call?.("threads.get", { threadId: thread })) as
+        | { thread?: { members?: Array<{ kind?: string; id?: string }> } }
+        | undefined;
+      if (r?.thread?.members === undefined) throw new Error("the chat could not be read");
+      return r.thread.members.some((m) => m.kind === "person" && m.id === person);
+    },
+    stopFor: async (agentId, place) => {
+      await wm?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
+    },
+    run: wm
+      ? async (agentId, argv, user) => {
+          const r = await wm.exec(agentId, argv, { quiet: true, ...(user === undefined ? {} : { user }) });
+          return { code: r.code };
+        }
+      : null,
+  };
+}
+
 export const periodic = {
+  /** Every 15 seconds: whoever lost the use of an agent in any way (a group, a role, an expiry, a suspension) is out of its computer and their programs there end; chat folders follow chat membership. */
+  "terminal.use_sweep": {
+    everyMs: 15_000,
+    run: (ctx: TermCtx): Promise<string[]> => reconcileAccess(ctx, accessDeps(ctx)),
+  },
   /** Hourly: the home and Files volumes of an agent in Trash longer than the Space's Trash retention are removed (12 Nov, the Space browser's rule for its profiles). */
   "terminal.trash_volumes": {
     everyMs: 60 * 60_000,
@@ -1279,6 +1384,23 @@ export const periodic = {
         inTrashCheck,
       ),
   },
+  /** Hourly: the folders of people who left the Space more than the Trash time ago are removed from the workspaces that are awake. */
+  "terminal.leavers_folders": {
+    everyMs: 60 * 60_000,
+    run: (ctx: TermCtx): Promise<string[]> =>
+      forgetExpiredPeople(
+        ctx,
+        workspaceManager
+          ? async (agentId, place) => {
+              const r = await (workspaceManager as WorkspaceManager).exec(agentId, removeCommand(place), {
+                quiet: true,
+                user: place.uid,
+              });
+              return r.code === 0;
+            }
+          : null,
+      ),
+  },
 };
 
 /**
@@ -1286,6 +1408,56 @@ export const periodic = {
  * inside its per-project queue): the agent's workspace stops mounting and mirroring the project now; the consumer on project.member_removed is the backstop.
  */
 export const hostCalls = {
+  /**
+   * Delete for good (F77): the agent's terminals and their commands, tabs, keys and holds go; its workspace container and both volumes (its home, and its Files with every person's own place on it, with the
+   * terminals' tmux state, browser profile files and downloads that live there) are removed from every machine. A machine that does not answer fails the step, so the job tries again; none is skipped.
+   */
+  "terminal.erase_agent": async (
+    ctx: TermCtx,
+    i: { agentId: string; dry?: boolean },
+  ): Promise<{ bytes?: number; folderPeople?: string[] }> => {
+    ensureTerminalTables(ctx.db);
+    const ids = (
+      tryAll(ctx.db, "SELECT terminal_id FROM terminal_sessions WHERE agent_id = ?", i.agentId) as Row[]
+    ).map((r) => String(r["terminal_id"]));
+    if (i.dry === true)
+      // the people who have worked on this computer have their own place on it
+      return {
+        folderPeople: [
+          ...new Set([
+            // a person who has a folder on this computer (terminal_person_places), and, as a backstop, anyone who has had a terminal on it
+            ...tryAll(ctx.db, "SELECT person FROM terminal_person_places WHERE agent_id = ?", i.agentId).map((r) =>
+              String(r["person"]),
+            ),
+            ...tryAll(
+              ctx.db,
+              "SELECT DISTINCT owner FROM terminal_sessions WHERE agent_id = ? AND owner LIKE 'usr_%'",
+              i.agentId,
+            ).map((r) => String(r["owner"])),
+          ]),
+        ],
+      };
+    // the manager is not bound yet (the daemon is still starting): the container and its volumes are still to be removed, so this step fails and the job tries again, never skips
+    if (!workspaceManager && !hostBound)
+      throw new Error("The workspace manager is not ready yet, so the computer is kept for the next try.");
+    if (workspaceManager) await (workspaceManager as WorkspaceManager).remove(i.agentId);
+    forgetAgentSecrets(i.agentId);
+    for (const id of ids) {
+      for (const t of [
+        "terminal_commands",
+        "terminal_tabs",
+        "terminal_hold",
+        "terminal_lease",
+        "terminal_key_batch",
+        "terminal_tickets",
+      ])
+        tryRun(ctx.db, `DELETE FROM ${t} WHERE terminal_id = ?`, id);
+      tryRun(ctx.db, "DELETE FROM terminal_sessions WHERE terminal_id = ?", id);
+    }
+    tryRun(ctx.db, "DELETE FROM terminal_workspace_gone WHERE agent_id = ?", i.agentId);
+    tryRun(ctx.db, "DELETE FROM terminal_person_places WHERE agent_id = ?", i.agentId);
+    return {};
+  },
   /** terminal_run's new tab, opened and committed before its command runs (only terminal.run may call it: host/src/daemon/consumers.ts MODULE_PATH_CALL). */
   "terminal.open_tab": (ctx: TermCtx, input: unknown): Promise<{ terminalId: string }> =>
     openTabForRun(ctx, input as Parameters<typeof openTabForRun>[1]),
@@ -1302,6 +1474,27 @@ export const hostCalls = {
 
 /** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
 export const consumers = {
+  /** A person left the Space: unreachable at once, their processes stopped where they run; their folder is erased at once where it is (and by the hourly pass where the workspace could not be reached). */
+  "terminal.person_left": {
+    on: ["member.removed"],
+    run: (ctx: TermCtx, event: { payload: { personId?: unknown } }): Promise<string[]> =>
+      onPersonLeft(ctx, event, async (agentId, place) => {
+        // as them, and only where it runs: a sleeping workspace has nothing of theirs running and is not woken
+        await workspaceManager?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
+        // and what they made is erased at once (a person who leaves the Space takes nothing of theirs with the next person who gets their user)
+        await workspaceManager?.exec(agentId, removeCommand(place), { user: place.uid });
+      }),
+  },
+  /** What a person may reach on an agent's computer may have changed (a grant, a group, a role, an expiry, a suspension, a chat's members): it is brought back to what they may reach now at once (handlers/sessions.ts reconcileAccess). */
+  "terminal.use_gone": {
+    on: ["grant.revoked", "grant.updated", "access.changed", "principal.suspended", "channel.member_removed"],
+    run: (ctx: TermCtx): Promise<string[]> => reconcileAccess(ctx, accessDeps(ctx)),
+  },
+  /** Back inside the Trash time: their folder is theirs again. */
+  "terminal.person_back": {
+    on: ["member.joined"],
+    run: (ctx: TermCtx, event: { payload: { personId?: unknown } }): boolean => onPersonBack(ctx, event),
+  },
   /** An agent went to Trash (deleted, or the Assistant of a person removed from the Space): its sessions close and its workspace's container and room go; what it kept stays (handlers/sessions.ts onAgentGone). */
   "terminal.agent_gone": {
     on: ["agent.deleted"],
@@ -1361,6 +1554,19 @@ export const consumers = {
       });
       return n > 0 ? [String(n)] : [];
     },
+  },
+  /** A person who held a terminal's keyboard was suspended, removed from the Space or signed out: the keyboard goes back to the agent at once (the agent's next command runs). */
+  "terminal.holder_gone": {
+    on: ["principal.suspended", "member.removed", "session.revoked"],
+    run: (
+      ctx: TermCtx,
+      event: { name?: string; payload: { principalId?: unknown; personId?: unknown; person?: unknown } },
+    ): Promise<string[]> =>
+      onHolderGone(
+        ctx,
+        event.payload.principalId ?? event.payload.personId ?? event.payload.person,
+        event.name === "principal.suspended" || event.name === "member.removed",
+      ),
   },
   /** An agent came back from Trash: its workspace may be made again, over the volumes it kept. */
   "terminal.agent_restored": {

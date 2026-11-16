@@ -577,3 +577,31 @@ test("F52: an agent the kernel does not let the service see (a person's own, uns
   await indexApply(h.ctx, { entity: "agent", id: "agt_mine", op: "upsert", seq: 2 });
   assert.equal(h.rows("SELECT id FROM search_docs WHERE id = 'agt_mine'").length, 1, "shared, then read");
 });
+
+test("a text file that lives at its provider and cannot be fetched right now is marked failed and retried: provider down, then up, and its words become searchable without anyone touching the file", async () => {
+  let up = false;
+  const h = harness({
+    respond: {
+      "files.get": (i) => ({
+        file: { fileId: i["fileId"], name: "Plan.md", kind: "markdown", folderId: "fld_a", label: 1, updatedAt: 9 },
+      }),
+      "files.folder.get": () => ({ folder: { path: "My Drive" } }),
+      "files.read": () => {
+        if (!up) throw Object.assign(new Error("down"), { error: { code: "provider.unavailable" } });
+        return { text: "The retainer is due in March" };
+      },
+    },
+  });
+  // down: the pass throws (the event consumer's own retry takes it again) and the row is on the failed list
+  await assert.rejects(() => indexApply(h.ctx, { entity: "file", id: "fil_drive", op: "upsert", seq: 5 }));
+  assert.equal(h.rows("SELECT id FROM search_failed WHERE id = ?", "fil_drive").length, 1);
+  assert.equal(h.rows("SELECT id FROM search_docs WHERE id = ?", "fil_drive").length, 0);
+  // up: the retry indexes the body and clears the failed row
+  up = true;
+  await indexApply(h.ctx, { entity: "file", id: "fil_drive", op: "upsert", seq: 5 });
+  assert.equal(h.rows("SELECT id FROM search_failed WHERE id = ?", "fil_drive").length, 0);
+  assert.deepEqual(
+    (await query(h.ctx, { q: "retainer March", types: ["file"] })).hits.map((x) => x.id),
+    ["fil_drive"],
+  );
+});

@@ -74,7 +74,7 @@ test("sign-in, join and invite screens show the Space image the gate provides, e
     renderToStaticMarkup(
       <JoinFrame>
         <SpaceImageContext.Provider value={image}>
-          <Panel space="My Legal Academy">
+          <Panel space="Northwind Academy">
             <EntryTile name="unused" image={undefined} />
           </Panel>
         </SpaceImageContext.Provider>
@@ -86,6 +86,6 @@ test("sign-in, join and invite screens show the Space image the gate provides, e
     2,
     "the Panel's tile (and any tile inside) shows it",
   );
-  assert.ok(!/>M</.test(shown));
-  assert.match(panel(undefined), />M</, "no image: the letter");
+  assert.ok(!/>N</.test(shown));
+  assert.match(panel(undefined), />N</, "no image: the letter");
 });

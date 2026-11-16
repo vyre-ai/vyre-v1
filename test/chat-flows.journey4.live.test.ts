@@ -50,6 +50,7 @@ test("journey 4, Personal: an assistant's answer becomes a task for yourself and
       .waitFor({ timeout: 20_000 });
     await me.page.getByTestId(`msg-${reply}`).hover();
     await me.page.getByTestId(`act-more-${reply}`).click();
+    await me.page.getByTestId("menu-item-Memory").click();
     await me.page.getByTestId("menu-item-Remember This").click();
     await me.page
       .getByText(/Remembered/)

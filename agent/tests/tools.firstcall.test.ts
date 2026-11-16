@@ -134,3 +134,91 @@ test("a template is called a template, and a worked example is called one that w
     /The shape of a call \(replace each <\.\.\.>/,
   );
 });
+
+test("artifact_publish: html with no title takes the page's own title", async () => {
+  const { s, sent } = session();
+  const out = await s.call(c(), "artifact_publish", { html: PAGE });
+  assert.equal(out.kind, "result", JSON.stringify(out.kind === "error" ? out.result.content : ""));
+  assert.equal((sent[0]?.input as { title?: string }).title, "Q3 plan");
+});
+
+test("artifact_publish: html with no title and no title in the page is refused naming title, with a minimal call", async () => {
+  const { s } = session();
+  const out = await s.call(c(), "artifact_publish", { html: "<p>hi there</p>" });
+  assert.equal(out.kind, "error");
+  const words = JSON.stringify(out.kind === "error" ? out.result.content : "");
+  assert.match(words, /title/);
+  assert.match(words, /artifact_publish/);
+  assert.match(words, /html/);
+});
+
+test("no tool shows an example that the placeholder guard refuses: a model copies an example whole", () => {
+  const { loaded } = session();
+  const shown = loaded.catalog.all.filter((t) => /example\.(com|org|net)/i.test(JSON.stringify(t.inputSchema)));
+  assert.deepEqual(
+    shown.map((t) => t.name),
+    [],
+  );
+});
+
+function toolNeeding(name: string, only: string[]): string {
+  const { loaded } = session();
+  const t = loaded.catalog.all.find((x) => {
+    const r = ((x.inputSchema as { required?: string[] }).required ?? []).slice().sort();
+    return r.length === only.length && r.every((k, i) => k === only.slice().sort()[i]) && x.name.startsWith(name);
+  });
+  assert.ok(t, `a tool starting ${name} that needs only ${only.join(", ")}`);
+  return t.name;
+}
+
+test("natural second spellings of an input are read as the tool's own: file_id and id for fileId, chatId for threadId", async () => {
+  const { s, sent } = session();
+  const tool = toolNeeding("files_", ["fileId"]);
+  s.preload("thr_1", [tool]);
+  const a = await s.call(c(), tool, { file_id: "fil_a1b2c3" });
+  assert.equal(a.kind, "result", JSON.stringify(a.kind === "error" ? a.result.content : ""));
+  assert.equal((sent.at(-1)?.input as { fileId?: string }).fileId, "fil_a1b2c3");
+  const b = await s.call(c(), tool, { id: "fil_a1b2c3" });
+  assert.equal(b.kind, "result");
+  assert.equal((sent.at(-1)?.input as { fileId?: string }).fileId, "fil_a1b2c3");
+  s.preload("thr_1", ["chat_messages_list"]);
+  const d = await s.call(c(), "chat_messages_list", { chatId: "thr_other1" });
+  assert.equal(d.kind, "result", JSON.stringify(d.kind === "error" ? d.result.content : ""));
+  assert.equal((sent.at(-1)?.input as { threadId?: string }).threadId, "thr_other1");
+});
+
+test("a name the tool does not have, where an input is missing, is refused with the exact names the tool takes", async () => {
+  const { s } = session();
+  const tool = toolNeeding("files_", ["fileId"]);
+  s.preload("thr_1", [tool]);
+  const out = await s.call(c(), tool, { document: "fil_a1b2c3" });
+  assert.equal(out.kind, "error");
+  const words = JSON.stringify(out.kind === "error" ? out.result.content : "");
+  assert.match(words, /fileId is missing/);
+  assert.match(words, /no input named document/);
+  assert.match(words, /Its inputs are/);
+});
+
+test("a chat tool called with no chat is for this chat; a tool that ends a chat is not", async () => {
+  const { s, sent } = session();
+  s.preload("thr_1", ["chat_messages_list", "threads_archive"]);
+  await s.call(c(), "chat_messages_list", {});
+  assert.equal((sent.at(-1)?.input as { threadId?: string }).threadId, "thr_1");
+  const arch = await s.call(c(), "threads_archive", {});
+  assert.equal(arch.kind, "error", "the chat is not archived on a missing input");
+  assert.match(JSON.stringify(arch.kind === "error" ? arch.result.content : ""), /threadId is missing/);
+});
+
+test("a key the model supplies itself is kept even when the call has an id", async () => {
+  const { s, sent } = session();
+  await s.call(c({ callId: "toolu_9" }), "artifact_publish", { title: "A", html: PAGE, idempotencyKey: "mine-2" });
+  assert.equal((sent[0]?.input as { idempotencyKey?: string }).idempotencyKey, "mine-2");
+});
+
+test("a tool that takes a chat as a filter is never narrowed to this chat: only a chat the tool requires is filled", async () => {
+  const { s, sent } = session();
+  s.preload("thr_1", ["memory_quote"]);
+  const out = await s.call(c(), "memory_quote", { q: "what did I say about the retainer" });
+  assert.equal(out.kind, "result", JSON.stringify(out.kind === "error" ? out.result.content : ""));
+  assert.equal("threadId" in (sent.at(-1)?.input as object), false, "a search over every chat stays over every chat");
+});

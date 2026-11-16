@@ -121,6 +121,9 @@ export function createClient(transport: Transport) {
       },
       create: call("agents.create", 1),
       delete: call("agents.delete", 1),
+      delete_for_good: call("agents.delete_for_good", 1),
+      delete_preview: call("agents.delete_preview", 1),
+      erased: call("agents.erased", 1),
       get: call("agents.get", 1),
       guide: {
         get: call("agents.guide.get", 1),
@@ -181,6 +184,9 @@ export function createClient(transport: Transport) {
         get: call("agents.template.get", 1),
         preview: call("agents.template.preview", 1),
       },
+      trash: {
+        list: call("agents.trash.list", 1),
+      },
       update: call("agents.update", 1),
       versions: call("agents.versions", 1),
       visibility: {
@@ -211,6 +217,7 @@ export function createClient(transport: Transport) {
       },
       analytics: call("automations.analytics", 1),
       code_reach: call("automations.code_reach", 1),
+      connect_options: call("automations.connect_options", 1),
       connector_card: call("automations.connector_card", 1),
       connector_levels: call("automations.connector_levels", 1),
       connector_offer: {
@@ -223,6 +230,11 @@ export function createClient(transport: Transport) {
       create: call("automations.create", 1),
       delete: call("automations.delete", 1),
       dependencies: call("automations.dependencies", 1),
+      draft: {
+        discard: call("automations.draft.discard", 1),
+        propose: call("automations.draft.propose", 1),
+        save: call("automations.draft.save", 1),
+      },
       draft_connector: call("automations.draft_connector", 1),
       fire: call("automations.fire", 1),
       followers: {
@@ -236,6 +248,7 @@ export function createClient(transport: Transport) {
         list: call("automations.groups.list", 1),
         rename: call("automations.groups.rename", 1),
       },
+      home: call("automations.home", 1),
       http_read: call("automations.http_read", 1),
       http_send: call("automations.http_send", 1),
       key_hosts: {
@@ -246,6 +259,7 @@ export function createClient(transport: Transport) {
         remove: call("automations.key_hosts.remove", 1),
       },
       list: call("automations.list", 1),
+      make_live: call("automations.make_live", 1),
       make_personal_copy: call("automations.make_personal_copy", 1),
       migrate_runs: call("automations.migrate_runs", 1),
       migration_preview: call("automations.migration_preview", 1),
@@ -259,6 +273,10 @@ export function createClient(transport: Transport) {
       },
       preview_promote: call("automations.preview_promote", 1),
       promote: call("automations.promote", 1),
+      proposal: {
+        accept: call("automations.proposal.accept", 1),
+        discard: call("automations.proposal.discard", 1),
+      },
       read_docs: call("automations.read_docs", 1),
       read_link: call("automations.read_link", 1),
       replay: call("automations.replay", 1),
@@ -281,6 +299,7 @@ export function createClient(transport: Transport) {
         use: call("automations.templates.use", 1),
       },
       test: call("automations.test", 1),
+      test_events: call("automations.test_events", 1),
       triggers: {
         list: call("automations.triggers.list", 1),
       },
@@ -418,6 +437,7 @@ export function createClient(transport: Transport) {
       composer: {
         suggest: call("chat.composer.suggest", 1),
       },
+      connect_line: call("chat.connect_line", 1),
       crew_line: call("chat.crew_line", 1),
       delete_message: call("chat.delete_message", 1),
       edit: call("chat.edit", 1),
@@ -477,6 +497,7 @@ export function createClient(transport: Transport) {
       recent: call("chat.recent", 1),
       remember: call("chat.remember", 1),
       reply_details: call("chat.reply_details", 1),
+      rewind: call("chat.rewind", 1),
       round: {
         decide: call("chat.round.decide", 1),
         discuss: call("chat.round.discuss", 1),
@@ -546,6 +567,7 @@ export function createClient(transport: Transport) {
     computers: {
       browser: {
         give_back: call("computers.browser.give_back", 1),
+        my_sign_ins: call("computers.browser.my_sign_ins", 1),
         preview: call("computers.browser.preview", 1),
         profiles: call("computers.browser.profiles", 1),
         sessions: call("computers.browser.sessions", 1),
@@ -642,6 +664,7 @@ export function createClient(transport: Transport) {
       undo: call("conflicts.undo", 1),
     },
     connections: {
+      approve_hosts: call("connections.approve_hosts", 1),
       complete_auth: call("connections.complete_auth", 1),
       create: call("connections.create", 1),
       delete: call("connections.delete", 1),
@@ -925,6 +948,10 @@ export function createClient(transport: Transport) {
         get: call("engine.reviewer.get", 1),
         set: call("engine.reviewer.set", 1),
       },
+      rewind: {
+        points: call("engine.rewind.points", 1),
+        to: call("engine.rewind.to", 1),
+      },
       round: {
         get: call("engine.round.get", 1),
       },
@@ -1023,6 +1050,7 @@ export function createClient(transport: Transport) {
         delete: call("files.folder.delete", 1),
         get: call("files.folder.get", 1),
         move: call("files.folder.move", 1),
+        purge: call("files.folder.purge", 1),
         rename: call("files.folder.rename", 1),
         restore: call("files.folder.restore", 1),
         search: call("files.folder.search", 1),
@@ -1308,6 +1336,7 @@ export function createClient(transport: Transport) {
         share_file: call("google.drive.share_file", 1),
         stop_watch: call("google.drive.stop_watch", 1),
         trash_file: call("google.drive.trash_file", 1),
+        update_file: call("google.drive.update_file", 1),
         upload_file: call("google.drive.upload_file", 1),
         watch_changes: call("google.drive.watch_changes", 1),
       },
@@ -1927,10 +1956,12 @@ export function createClient(transport: Transport) {
       open: call("mounts.open", 1),
       pause: call("mounts.pause", 1),
       remove: call("mounts.remove", 1),
+      resolve: call("mounts.resolve", 1),
       restore: call("mounts.restore", 1),
       resume: call("mounts.resume", 1),
       sheet_append: call("mounts.sheet_append", 1),
       sheet_read: call("mounts.sheet_read", 1),
+      sheet_tabs: call("mounts.sheet_tabs", 1),
       sheet_write: call("mounts.sheet_write", 1),
       sync_now: call("mounts.sync_now", 1),
       update: call("mounts.update", 1),
@@ -1981,9 +2012,11 @@ export function createClient(transport: Transport) {
         get_item: call("ms.drive.get_item", 1),
         list_items: call("ms.drive.list_items", 1),
         list_versions: call("ms.drive.list_versions", 1),
+        restore_item: call("ms.drive.restore_item", 1),
         share_item: call("ms.drive.share_item", 1),
         subscribe: call("ms.drive.subscribe", 1),
         unsubscribe: call("ms.drive.unsubscribe", 1),
+        update_item: call("ms.drive.update_item", 1),
         upload_item: call("ms.drive.upload_item", 1),
       },
       health: call("ms.health", 1),
@@ -2277,6 +2310,7 @@ export function createClient(transport: Transport) {
       custom_list: call("providers.custom_list", 1),
       custom_remove: call("providers.custom_remove", 1),
       list: call("providers.list", 1),
+      local_signins: call("providers.local_signins", 1),
       mark_signin_needed: call("providers.mark_signin_needed", 1),
       own_people: call("providers.own_people", 1),
       remove: call("providers.remove", 1),
@@ -3020,6 +3054,8 @@ export function createClient(transport: Transport) {
         ask_admin: call("vault.connect_card.ask_admin", 1),
         disconnect: call("vault.connect_card.disconnect", 1),
         get: call("vault.connect_card.get", 1),
+        line: call("vault.connect_card.line", 1),
+        may_discard: call("vault.connect_card.may_discard", 1),
         options: call("vault.connect_card.options", 1),
         reopen: call("vault.connect_card.reopen", 1),
         submit: call("vault.connect_card.submit", 1),

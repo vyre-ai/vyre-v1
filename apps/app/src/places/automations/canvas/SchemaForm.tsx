@@ -12,7 +12,7 @@ import { controlText, writeControl } from "./form-model.ts";
 import type { Control } from "./form-model.ts";
 import { Glyph } from "./icons.tsx";
 import { pointer } from "./parts.tsx";
-import { useWhoPicks } from "./steps/useLists.ts";
+import { THINGS, useThingPicks, useWhoPicks } from "./steps/useLists.ts";
 import type { OpenMenu } from "./steps/StepForms.tsx";
 
 type Input = Record<string, unknown>;
@@ -68,6 +68,55 @@ function WhoField({
   );
 }
 
+import { ConditionField, EventField } from "./ConditionField.tsx";
+
+/** A field that holds the id of a thing: the person picks it by name from what they may use, and the name shows once chosen. The id is never shown. */
+function ThingField({
+  control,
+  value,
+  onValue,
+  openMenu,
+}: {
+  control: Control;
+  value: unknown;
+  onValue(next: unknown): void;
+  openMenu: OpenMenu;
+}): ReactElement {
+  const prefix = control.ref ?? "";
+  const picks = useThingPicks(prefix);
+  const word = THINGS[prefix]?.word ?? "one";
+  const held = typeof value === "string" ? value : "";
+  const hit = picks.state === "ready" ? picks.items.find((p) => p.value === held) : undefined;
+  const shown =
+    held === ""
+      ? ""
+      : hit
+        ? hit.label
+        : /\{\{/.test(held)
+          ? "From earlier data"
+          : picks.state === "ready"
+            ? "Not available to you"
+            : "";
+  return (
+    <Choice
+      label={control.label}
+      value={shown === "" ? `Choose a ${word}` : shown}
+      testID={`field-${control.name}`}
+      onOpen={(x, y) => {
+        const entries: MenuEntry[] = [];
+        if (picks.state === "ready")
+          for (const p of picks.items)
+            entries.push({ label: p.label, checked: held === p.value, onSelect: () => onValue(p.value) });
+        if (entries.length === 0)
+          entries.push({ label: picks.state === "loading" ? "Loading" : `No ${word} to choose`, disabled: true });
+        else if (!control.required && held !== "")
+          entries.push({ separator: true }, { label: "None", onSelect: () => onValue(undefined) });
+        openMenu(entries, x, y, "other");
+      }}
+    />
+  );
+}
+
 function One({
   control,
   input,
@@ -82,7 +131,7 @@ function One({
   const [problem, setProblem] = useState<string | null>(null);
   const has = Object.prototype.hasOwnProperty.call(input, control.name);
   const current = input[control.name];
-  const label = control.required ? `${control.label} (required)` : control.label;
+  const label = control.label;
   const write = (text: string): void => {
     const out = writeControl(input, control, text);
     if ("problem" in out) {
@@ -93,13 +142,51 @@ function One({
     onInput(out.input);
   };
   const id = `field-${control.name}`;
+  // a condition is rows, never a text box; what a Wait waits for is an event picked in words (AUTOMATIONS-BUILD-RC29 round five)
+  if (control.name === "condition" || (control.name === "when" && control.kind === "text"))
+    return (
+      <ConditionField
+        label={control.label}
+        value={controlText(control, current)}
+        openMenu={openMenu}
+        testID={id}
+        onCommit={(t) => onInput(basicFieldEdit(input, control.name, t))}
+      />
+    );
+  if (control.name === "event" && control.kind === "json")
+    return (
+      <EventField
+        value={current}
+        openMenu={openMenu}
+        testID={id}
+        onCommit={(next) => onInput({ ...input, event: next })}
+      />
+    );
   const note = problem ? (
     <Hint danger testID={`${id}-problem`}>
       {problem}
     </Hint>
-  ) : control.hint ? (
+  ) : control.hint && control.kind !== "text" && control.kind !== "multiline" ? (
     <Hint>{control.hint}</Hint>
   ) : null;
+  if (control.ref && THINGS[control.ref] && control.kind === "text") {
+    return (
+      <>
+        <ThingField
+          control={{ ...control, label }}
+          value={current}
+          openMenu={openMenu}
+          onValue={(next) => {
+            const copy = { ...input };
+            if (next === undefined) delete copy[control.name];
+            else copy[control.name] = next;
+            onInput(copy);
+          }}
+        />
+        {note}
+      </>
+    );
+  }
   if (control.kind === "who") {
     return (
       <>
@@ -163,10 +250,11 @@ function One({
     return (
       <>
         <TextBox
+          chips
           label={`${label}${presence === "null" || presence === "empty" ? ` (${presence})` : ""}`}
           value={controlText(control, current)}
           testID={id}
-          placeholder={control.placeholder || (control.required ? "Required" : "Optional")}
+          placeholder={control.placeholder}
           {...(control.kind === "multiline" ? { rows: 4 } : {})}
           onCommit={(t) => onInput(basicFieldEdit(input, control.name, t))}
         />
@@ -182,7 +270,7 @@ function One({
         testID={id}
         mono={control.kind === "json"}
         invalid={problem !== null}
-        placeholder={control.placeholder || (control.required ? "Required" : "Optional")}
+        placeholder={control.placeholder}
         {...(control.kind === "list" ? { rows: 3 } : control.kind === "json" ? { rows: 4 } : {})}
         onCommit={write}
       />
@@ -207,41 +295,18 @@ export function SchemaForm({
   skip?(c: Control): boolean;
   idPrefix?: string;
 }): ReactElement | null {
-  const [more, setMore] = useState(false);
   const shown = controls.filter((c) => !skip?.(c));
-  // a field that already holds a value stays in view, so nothing a person set is hidden behind the disclosure
-  const open = shown.filter((c) => c.required || Object.prototype.hasOwnProperty.call(input, c.name));
-  const rest = shown.filter((c) => !open.includes(c));
   if (shown.length === 0) return null;
   return (
     <View style={s.wrap} testID={`${idPrefix}-form`}>
       {/* ui-rows-lint: not a list (form fields, one control each) */}
-      {open.map((c) => (
+      {shown.map((c) => (
         <One key={c.name} control={c} input={input} onInput={onInput} openMenu={openMenu} />
       ))}
-      {rest.length > 0 ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: more }}
-          accessibilityLabel={more ? "Hide more options" : `More options, ${rest.length}`}
-          testID={`${idPrefix}-more`}
-          onPress={() => setMore(!more)}
-          style={[s.more, pointer]}
-        >
-          <Glyph name={more ? "chevD" : "chevR"} size={12} color="var(--ink-3)" />
-          <Text style={s.moreText}>{more ? "Fewer options" : `More options (${rest.length})`}</Text>
-        </Pressable>
-      ) : null}
-      {/* ui-rows-lint: not a list (form fields, one control each) */}
-      {more
-        ? rest.map((c) => <One key={c.name} control={c} input={input} onInput={onInput} openMenu={openMenu} />)
-        : null}
     </View>
   );
 }
 
 const s = StyleSheet.create({
   wrap: { gap: 12 },
-  more: { flexDirection: "row", alignItems: "center", gap: 6, height: 26 },
-  moreText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

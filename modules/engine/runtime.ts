@@ -1,6 +1,8 @@
 // The engine runtime on a booted daemon (P-L2_23): built the first time a handler or the periodic job runs with the module's database, bound so the control handlers reach it, and told
 // to recover the threads a dead host left mid-turn. Everything it needs from outside arrives through `EngineHostSeam` (host/src/seams/engine.ts): a way to call capabilities as a
 // person, and the opener of real sessions. The turn engine itself stays in agent/src/turn-engine and knows nothing about modules.
+import { checkpointTurn, pointWanted } from "./checkpoints.ts";
+import { turnMayStart } from "./rewind-gate.ts";
 import path from "node:path";
 import { wireHooks } from "./hooks-wire.ts";
 import { callHooksOf } from "./hooks-port.ts";
@@ -21,6 +23,8 @@ import { screenAnswer, settleAnswer } from "./answer-audience.ts";
 import { ANSWER_HELD } from "../../agent/src/turn-engine/engine.ts";
 import { clearReads } from "../../host/src/seams/answer-reads.ts";
 import { createCrewWatcher } from "./crew-watch.ts";
+import { createBackground } from "./background.ts";
+import { backgroundLine } from "./own-subagents.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
@@ -262,6 +266,12 @@ export function setEngineHost(h: EngineHostSeam | null): void {
     bindStepOpen(null);
     bindModelLister(null);
   }
+}
+
+let dropWarm: ((threadId: string) => Promise<number>) | null = null;
+/** End the warm engine sessions of a chat, so its next turn opens a new one (Rewind: the engine must not carry what was undone in its own memory). */
+export async function dropWarmSessions(threadId: string): Promise<number> {
+  return dropWarm ? dropWarm(threadId).catch(() => 0) : 0;
 }
 
 export function engineHost(): EngineHostSeam | null {
@@ -538,7 +548,8 @@ async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: Resolv
       model: turn.model ?? defaultModelLabel(account),
       ...(account?.itemId ? { itemId: account.itemId } : {}),
     },
-    turn.asker,
+    // the usage is the payer's (the account's owner, or whoever the Space's key is counted against), not the person the turn ran for (F75)
+    turn.paidBy ?? turn.asker,
   );
 }
 
@@ -808,9 +819,18 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   const access = (asker: string) => engineAccessFor(h.call, asker);
   // the Space's git address, answered inside the egress proxy of a walled engine (sandbox-default.ts)
   setGitLocal(h.gitProxy ? { host: GIT_LOCAL_HOST, handle: (req, res) => h.gitProxy!.serve(req, res) } : null);
+  // the agent woken when the last background helper of its chat has ended: the turn engine is built later, so the call goes through this
+  let wakeAgent: ((threadId: string, agentId: string, asker: string) => void) | null = null;
+  const background = createBackground({
+    db: ctx.db,
+    now: now0,
+    wake: (threadId, agentId, asker) => wakeAgent?.(threadId, agentId, asker),
+    ...(h.log ? { log: h.log } : {}),
+  });
   const opener = host.openSession
     ? null
     : buildOpener({
+        background,
         sessions,
         egress,
         access,
@@ -1081,10 +1101,15 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           );
         },
       },
-      waiting: (threadId, agentId) =>
-        (running?.waiting(threadId) ?? [])
+      waiting: (threadId, agentId) => [
+        ...(running?.waiting(threadId) ?? [])
           .filter((w) => w.agentId === agentId)
           .map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
+        ...((): string[] => {
+          const line = backgroundLine(ctx.db, threadId);
+          return line === null ? [] : [line];
+        })(),
+      ],
     });
     const limitSwitch = createLimitSwitch({
       call: h.call,
@@ -1126,6 +1151,48 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const engine = createTurnEngine({
       hooks: hooksPort,
       holder: h.holder,
+      // a checkpoint of the agent's work folder as each CLI turn starts, for Rewind (checkpoints.ts)
+      ...(h.dataDir
+        ? {
+            onTurnStart: async (i: {
+              threadId: string;
+              turnId: string;
+              agentId: string;
+              asker: string;
+              messageId: string | null;
+              threadKind: string;
+            }): Promise<void> => {
+              // while a rewind is putting this agent's folder back in this chat, its turn start waits here (rewind-gate.ts): the message stays where it is, one plain line says so, and the turn starts by itself when the
+              // rewind is over; a rewind that made no progress for minutes is given up on (listed interrupted, with Undo) and the turn starts
+              const gate = await turnMayStart(i.threadId, i.agentId, {
+                onWait: () =>
+                  noteLine(i.agentId, i.asker, i.threadId, {
+                    state: "going_back",
+                    text: "Going back is still running. Your message will start when it finishes.",
+                    threadId: i.threadId,
+                  }),
+              });
+              if (gate === "gave_up")
+                noteLine(i.agentId, i.asker, i.threadId, {
+                  state: "going_back",
+                  text: "Going back stopped responding. It is listed on the chat with Undo.",
+                  threadId: i.threadId,
+                });
+              // a point only where a rewind can be offered: a chat with an agent (not a crew, task, helper or one-shot thread), and a turn that runs on this server. A turn on the person's own computer takes none
+              // (the folder it works in is not here): the card says so.
+              if (!pointWanted(i.threadKind, await placementNow(i.threadId, i.agentId, i.asker))) return;
+              await checkpointTurn({
+                dataDir: h.dataDir!,
+                person: i.asker,
+                thread: i.threadId,
+                agent: i.agentId,
+                turnId: i.turnId,
+                ...(i.messageId ? { messageId: i.messageId } : {}),
+                now: Date.now(),
+              });
+            },
+          }
+        : {}),
       openSession: withHeldNotes(
         withChatSettings(
           withSpaceKeyTurns(
@@ -1271,6 +1338,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         : {}),
     });
     running = engine;
+    wakeAgent = (threadId, agentId, asker) => {
+      engine.wake(threadId, agentId, { from: asker });
+    };
     // A turn parked because the person's Vault is locked runs once when this host holds their key (the Unlock a person presses lands here): one look at the keys every few seconds, no turn is started to find out.
     if (h.keyOpen ?? h.keyHeld) {
       const held = (h.keyOpen ?? h.keyHeld)!;
@@ -1320,7 +1390,11 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
             }
           : {}),
         ...(ev.type === "turn.failed"
-          ? { code: ev.code, ...(ev.message ? { message: ev.message.slice(0, 500) } : {}) }
+          ? {
+              code: ev.code,
+              ...(ev.message ? { message: ev.message.slice(0, 500) } : {}),
+              ...(ev.resetsAt !== undefined ? { resetsAt: ev.resetsAt } : {}),
+            }
           : {}),
         // why a cancelled turn was stopped travels to the kernel event, so its readers can tell a person's Stop from a daemon stopping (reason closing): the terminal interrupts only the first
         ...(ev.type === "turn.cancelled" && typeof ev.reason === "string" ? { reason: ev.reason } : {}),
@@ -1557,6 +1631,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     bridge?.attach(engine);
     h.extend?.(engine);
     completer = (i) => oneShot(openSession, i, now);
+    dropWarm = opener ? (threadId: string) => opener.pool.drop(threadId) : null;
     compactor = createCompactor({
       db: ctx.db,
       call: h.call,

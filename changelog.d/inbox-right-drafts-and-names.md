@@ -1,0 +1,1 @@
+Inbox: a conversation shows only the drafts written to that person; an agent that drafts the same email again replaces its earlier draft instead of adding a second; and a conversation with someone who is not a contact yet is named after the person (the name their mail carries), not their address.

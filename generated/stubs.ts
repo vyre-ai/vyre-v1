@@ -121,6 +121,9 @@ export function stubs(ctx: CallCtx) {
       },
       create: call("agents.create"),
       delete: call("agents.delete"),
+      delete_for_good: call("agents.delete_for_good"),
+      delete_preview: call("agents.delete_preview"),
+      erased: call("agents.erased"),
       get: call("agents.get"),
       guide: {
         get: call("agents.guide.get"),
@@ -181,6 +184,9 @@ export function stubs(ctx: CallCtx) {
         get: call("agents.template.get"),
         preview: call("agents.template.preview"),
       },
+      trash: {
+        list: call("agents.trash.list"),
+      },
       update: call("agents.update"),
       versions: call("agents.versions"),
       visibility: {
@@ -211,6 +217,7 @@ export function stubs(ctx: CallCtx) {
       },
       analytics: call("automations.analytics"),
       code_reach: call("automations.code_reach"),
+      connect_options: call("automations.connect_options"),
       connector_card: call("automations.connector_card"),
       connector_levels: call("automations.connector_levels"),
       connector_offer: {
@@ -223,6 +230,11 @@ export function stubs(ctx: CallCtx) {
       create: call("automations.create"),
       delete: call("automations.delete"),
       dependencies: call("automations.dependencies"),
+      draft: {
+        discard: call("automations.draft.discard"),
+        propose: call("automations.draft.propose"),
+        save: call("automations.draft.save"),
+      },
       draft_connector: call("automations.draft_connector"),
       fire: call("automations.fire"),
       followers: {
@@ -236,6 +248,7 @@ export function stubs(ctx: CallCtx) {
         list: call("automations.groups.list"),
         rename: call("automations.groups.rename"),
       },
+      home: call("automations.home"),
       http_read: call("automations.http_read"),
       http_send: call("automations.http_send"),
       key_hosts: {
@@ -246,6 +259,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("automations.key_hosts.remove"),
       },
       list: call("automations.list"),
+      make_live: call("automations.make_live"),
       make_personal_copy: call("automations.make_personal_copy"),
       migrate_runs: call("automations.migrate_runs"),
       migration_preview: call("automations.migration_preview"),
@@ -259,6 +273,10 @@ export function stubs(ctx: CallCtx) {
       },
       preview_promote: call("automations.preview_promote"),
       promote: call("automations.promote"),
+      proposal: {
+        accept: call("automations.proposal.accept"),
+        discard: call("automations.proposal.discard"),
+      },
       read_docs: call("automations.read_docs"),
       read_link: call("automations.read_link"),
       replay: call("automations.replay"),
@@ -281,6 +299,7 @@ export function stubs(ctx: CallCtx) {
         use: call("automations.templates.use"),
       },
       test: call("automations.test"),
+      test_events: call("automations.test_events"),
       triggers: {
         list: call("automations.triggers.list"),
       },
@@ -418,6 +437,7 @@ export function stubs(ctx: CallCtx) {
       composer: {
         suggest: call("chat.composer.suggest"),
       },
+      connect_line: call("chat.connect_line"),
       crew_line: call("chat.crew_line"),
       delete_message: call("chat.delete_message"),
       edit: call("chat.edit"),
@@ -477,6 +497,7 @@ export function stubs(ctx: CallCtx) {
       recent: call("chat.recent"),
       remember: call("chat.remember"),
       reply_details: call("chat.reply_details"),
+      rewind: call("chat.rewind"),
       round: {
         decide: call("chat.round.decide"),
         discuss: call("chat.round.discuss"),
@@ -546,6 +567,7 @@ export function stubs(ctx: CallCtx) {
     computers: {
       browser: {
         give_back: call("computers.browser.give_back"),
+        my_sign_ins: call("computers.browser.my_sign_ins"),
         preview: call("computers.browser.preview"),
         profiles: call("computers.browser.profiles"),
         sessions: call("computers.browser.sessions"),
@@ -642,6 +664,7 @@ export function stubs(ctx: CallCtx) {
       undo: call("conflicts.undo"),
     },
     connections: {
+      approve_hosts: call("connections.approve_hosts"),
       complete_auth: call("connections.complete_auth"),
       create: call("connections.create"),
       delete: call("connections.delete"),
@@ -925,6 +948,10 @@ export function stubs(ctx: CallCtx) {
         get: call("engine.reviewer.get"),
         set: call("engine.reviewer.set"),
       },
+      rewind: {
+        points: call("engine.rewind.points"),
+        to: call("engine.rewind.to"),
+      },
       round: {
         get: call("engine.round.get"),
       },
@@ -1023,6 +1050,7 @@ export function stubs(ctx: CallCtx) {
         delete: call("files.folder.delete"),
         get: call("files.folder.get"),
         move: call("files.folder.move"),
+        purge: call("files.folder.purge"),
         rename: call("files.folder.rename"),
         restore: call("files.folder.restore"),
         search: call("files.folder.search"),
@@ -1308,6 +1336,7 @@ export function stubs(ctx: CallCtx) {
         share_file: call("google.drive.share_file"),
         stop_watch: call("google.drive.stop_watch"),
         trash_file: call("google.drive.trash_file"),
+        update_file: call("google.drive.update_file"),
         upload_file: call("google.drive.upload_file"),
         watch_changes: call("google.drive.watch_changes"),
       },
@@ -1927,10 +1956,12 @@ export function stubs(ctx: CallCtx) {
       open: call("mounts.open"),
       pause: call("mounts.pause"),
       remove: call("mounts.remove"),
+      resolve: call("mounts.resolve"),
       restore: call("mounts.restore"),
       resume: call("mounts.resume"),
       sheet_append: call("mounts.sheet_append"),
       sheet_read: call("mounts.sheet_read"),
+      sheet_tabs: call("mounts.sheet_tabs"),
       sheet_write: call("mounts.sheet_write"),
       sync_now: call("mounts.sync_now"),
       update: call("mounts.update"),
@@ -1981,9 +2012,11 @@ export function stubs(ctx: CallCtx) {
         get_item: call("ms.drive.get_item"),
         list_items: call("ms.drive.list_items"),
         list_versions: call("ms.drive.list_versions"),
+        restore_item: call("ms.drive.restore_item"),
         share_item: call("ms.drive.share_item"),
         subscribe: call("ms.drive.subscribe"),
         unsubscribe: call("ms.drive.unsubscribe"),
+        update_item: call("ms.drive.update_item"),
         upload_item: call("ms.drive.upload_item"),
       },
       health: call("ms.health"),
@@ -2277,6 +2310,7 @@ export function stubs(ctx: CallCtx) {
       custom_list: call("providers.custom_list"),
       custom_remove: call("providers.custom_remove"),
       list: call("providers.list"),
+      local_signins: call("providers.local_signins"),
       mark_signin_needed: call("providers.mark_signin_needed"),
       own_people: call("providers.own_people"),
       remove: call("providers.remove"),
@@ -3020,6 +3054,8 @@ export function stubs(ctx: CallCtx) {
         ask_admin: call("vault.connect_card.ask_admin"),
         disconnect: call("vault.connect_card.disconnect"),
         get: call("vault.connect_card.get"),
+        line: call("vault.connect_card.line"),
+        may_discard: call("vault.connect_card.may_discard"),
         options: call("vault.connect_card.options"),
         reopen: call("vault.connect_card.reopen"),
         submit: call("vault.connect_card.submit"),

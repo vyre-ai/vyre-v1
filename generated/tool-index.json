@@ -392,6 +392,24 @@
     },
     {
       "deferred": false,
+      "name": "agents_delete_for_good",
+      "summary": "Delete an agent in Trash for good: its memory, its one-to-one chats, its computer, its folder, its access and what it ran are erased; what others built that names it asks them to choose another agent. Not an Assistant",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "agents_delete_preview",
+      "summary": "What deleting this agent for good would remove, with real counts, and what made by others names it and needs someone",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "agents_erased",
+      "summary": "The agents deleted for good, by the name they had, for the places that still show what they said (a chat or channel shows the name with a quiet deleted mark). Never a person's Assistant",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_get",
       "summary": "Read one agent: record, status, limits and the effective configuration",
       "toolset": "agents"
@@ -560,6 +578,12 @@
     },
     {
       "deferred": false,
+      "name": "agents_trash_list",
+      "summary": "The agents in Trash, with which are being deleted for good",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_update",
       "summary": "Change an agent: name, model, fallback, account, tools, vault key names, limits, memory capture, handoffs; a broken agent.toml keeps the last good version running",
       "toolset": "agents"
@@ -579,7 +603,7 @@
     {
       "deferred": false,
       "name": "artifact_publish",
-      "summary": "THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "summary": "Needs a title and exactly one of html, fileId, folderId, path or port. THE way to show what you made: publishes it privately, the person gets a card to open. Example: artifact_publish {\"title\":\"Q3 plan\",\"html\":\"<h1>Q3</h1>\"}. Same title or artifactId updates the link. No title: its <title> is used",
       "toolset": "sites"
     },
     {
@@ -650,6 +674,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_connect_options",
+      "summary": "What Connect an app lists for the person: the Vault items they may use whose app their Assistant can set up",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_connector_card",
       "summary": "Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.",
       "toolset": "automations"
@@ -716,6 +746,24 @@
     },
     {
       "deferred": false,
+      "name": "automations_draft_discard",
+      "summary": "Throw the draft away; the live version stays",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_draft_propose",
+      "summary": "An Assistant puts steps on the page as a proposal for a person to accept: nothing is saved as the definition, made live or turned on. With no automationId an empty Automation that is off is made first",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_draft_save",
+      "summary": "Save the edit as a draft as the person goes; an Off Automation saves at once, an On one keeps it apart until Make live",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_followers_add",
       "summary": "Follow an Automation to get its updates",
       "toolset": "automations"
@@ -758,6 +806,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_home",
+      "summary": "What the Automations first page shows: what needs the person, at most one suggestion the person's Assistant can finish with one approval, the Today line and the header counts",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_key_hosts_list",
       "summary": "The hosts a person approved for one Vault key: a key is sent only to these, or to the host of the item's own saved address. Names only, never a value.",
       "toolset": "automations"
@@ -766,6 +820,12 @@
       "deferred": false,
       "name": "automations_list",
       "summary": "List Automations by section (Personal, Shared with me, Space), folder and Group",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_make_live",
+      "summary": "Make the draft the next live version; runs already started finish as they were",
       "toolset": "automations"
     },
     {
@@ -832,6 +892,18 @@
       "deferred": false,
       "name": "automations_promote",
       "summary": "Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_proposal_accept",
+      "summary": "A person takes the Assistant's proposal: an off Automation saves it, an on one keeps it as their draft until Make live. An agent is refused",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_proposal_discard",
+      "summary": "Throw the Assistant's proposal away; an empty Automation that proposing made goes to Trash with it",
       "toolset": "automations"
     },
     {
@@ -922,6 +994,12 @@
       "deferred": false,
       "name": "automations_test",
       "summary": "Test an Automation with sample data: reads run for real, writes and sends are stubbed (a Run)",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_test_events",
+      "summary": "Real past starts of an Automation's trigger that a test can be tried on",
       "toolset": "automations"
     },
     {
@@ -1552,6 +1630,12 @@
       "deferred": false,
       "name": "chat_reply_details",
       "summary": "How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_rewind",
+      "summary": "Go back in a chat with an agent to a point: the agent's work folder is put back, the agents stop reading the messages after it, one line says so. Messages stay; anything sent stays sent. Your own message only; only the person",
       "toolset": "chats"
     },
     {
@@ -2894,6 +2978,18 @@
     },
     {
       "deferred": false,
+      "name": "engine_rewind_points",
+      "summary": "The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_rewind_to",
+      "summary": "Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_round_get",
       "summary": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
       "toolset": "chats"
@@ -3147,7 +3243,7 @@
     {
       "deferred": false,
       "name": "files_create",
-      "summary": "Create a file in a folder from text, base64 or an uploaded blob",
+      "summary": "Create a file from text (content.text), base64 or an uploaded blob, in a folder; with no folder it goes in the person's own files. A name already taken becomes \"name (2)\" for an agent. A direct write holds at most 256 KB: split larger content into several files",
       "toolset": "files"
     },
     {
@@ -3190,6 +3286,12 @@
       "deferred": false,
       "name": "files_folder_move",
       "summary": "Move a folder under another folder, or to the top of its tree when no folder is given (its sharing follows the new parent)",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "files_folder_purge",
+      "summary": "Delete a folder in Trash for good, with every file and folder in it",
       "toolset": "files"
     },
     {
@@ -3387,7 +3489,7 @@
     {
       "deferred": false,
       "name": "files_write",
-      "summary": "Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
+      "summary": "Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
       "toolset": "files"
     },
     {
@@ -4124,6 +4226,12 @@
     },
     {
       "deferred": true,
+      "name": "google_drive_update_file",
+      "summary": "Rename a Drive file or folder, move it between folders, or take it back out of the Trash; the file keeps its id, its links and its sharing",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
       "name": "google_drive_upload_file",
       "summary": "Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision",
       "toolset": "files"
@@ -4683,7 +4791,7 @@
     {
       "deferred": false,
       "name": "inbox_counts",
-      "summary": "Unread counts for the sidebar: per inbox, per number and the Needs a match total",
+      "summary": "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
       "toolset": "inbox"
     },
     {
@@ -6086,6 +6194,12 @@
     },
     {
       "deferred": false,
+      "name": "mounts_resolve",
+      "summary": "Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs; or one deleted there while an edit waited: keep it here (it goes back as a new file) or discard the edit",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "mounts_restore",
       "summary": "Put an earlier revision of a file back as the newest; it goes out like any edit",
       "toolset": "files"
@@ -6106,6 +6220,12 @@
       "deferred": true,
       "name": "mounts_sheet_read",
       "summary": "Read cells of a mounted Google Sheet or Excel workbook from the provider, without downloading the file",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_sheet_tabs",
+      "summary": "List the tabs of a mounted Google Sheet, with their names and sizes, so every tab can be read and edited",
       "toolset": "files"
     },
     {
@@ -6326,8 +6446,20 @@
     },
     {
       "deferred": true,
+      "name": "ms_drive_restore_item",
+      "summary": "Bring an item back from the recycle bin (OneDrive personal only; others answer that it cannot be done here)",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
       "name": "ms_drive_share_item",
       "summary": "Create a sharing link or invite people; Microsoft emails them",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "ms_drive_update_item",
+      "summary": "Rename an item or move it to another folder; the item keeps its id, links and sharing. With ifMatch only if the item still has that eTag",
       "toolset": "files"
     },
     {
@@ -7312,6 +7444,12 @@
       "deferred": false,
       "name": "providers_list",
       "summary": "My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month's usage",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "providers_local_signins",
+      "summary": "Which Claude Code and Codex sign-ins are on the computer this Space runs on: yes or no for each, never a path or an account name. The AI card shows its \"on this computer\" rows only for a yes.",
       "toolset": "vault"
     },
     {
@@ -9886,42 +10024,6 @@
       "deferred": false,
       "name": "vault_connect",
       "summary": "Is X connected, connect X (Fathom, Slack), or before saying you cannot reach X. The person gets one card; you get connected, waiting or declined.",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_ask_admin",
-      "summary": "Ask an admin to connect the service when this person may not",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_disconnect",
-      "summary": "Disconnect the service; the key stays in the Vault",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_get",
-      "summary": "The connect card of one request: its state, the fields, who can fill it, where the key is kept",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_options",
-      "summary": "Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_reopen",
-      "summary": "Open a card the person folded with Not now",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
-      "name": "vault_connect_card_submit",
-      "summary": "Try the key, connect the service and keep the key; nothing is kept unless the key works. The values are in this call only",
       "toolset": "vault"
     },
     {

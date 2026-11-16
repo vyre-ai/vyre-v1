@@ -51,7 +51,7 @@ const card = (d: PaneDeps, h: Hook, ran = "Not run in this chat yet") => (
     threadId="thr_1"
     deps={d}
     selected={false}
-    nameOf={(id) => (id === "agt_intake" ? "Intake" : "Irfad Imtiaz")}
+    nameOf={(id) => (id === "agt_intake" ? "Intake" : "Imran Ibarra")}
     ran={ran}
   />
 );
@@ -166,14 +166,14 @@ test("a Space hook a person cannot change has no Edit or Remove, says so, and st
     const { d } = deps();
     const root = await mount(
       createRoot,
-      card(d, hook({ scope: "space", madeBy: "usr_irfad", madeByKind: "admin", canChange: false })),
+      card(d, hook({ scope: "space", madeBy: "usr_imran", madeByKind: "admin", canChange: false })),
     );
     assert.equal(find(root, "hook-edit-hok_1"), null);
     assert.equal(find(root, "hook-remove-hok_1"), null);
     assert.match(textOf(find(root, "hook-locked-hok_1")), /Only an admin can remove this/);
     assert.match(
       textOf(find(root, "hook-meta-hok_1")),
-      /Made by\s+Irfad Imtiaz \(admin\)/,
+      /Made by\s+Imran Ibarra \(admin\)/,
       "a real name, never A person",
     );
     assert.ok(find(root, "hook-pause-hok_1"));

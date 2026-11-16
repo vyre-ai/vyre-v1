@@ -2,8 +2,8 @@
 // else's keys are refused with one plain sentence; a hold nobody uses for 15 minutes ends by itself; only the owner of the terminal or an admin takes it from another person.
 import test from "node:test";
 
-// the hold and the keys are tested with take-over ON; it is OFF by default in the product (see the last tests of this file)
-process.env["VYRE_TERMINAL_TAKEOVER"] = "1";
+// take-over is ON by default (15 Nov, rc.29); VYRE_TERMINAL_TAKEOVER=0 turns it off (see the last tests of this file)
+delete process.env["VYRE_TERMINAL_TAKEOVER"];
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { bindHost, hideRunLine, rememberSecrets, scopeOfId } from "../projections.ts";
@@ -42,9 +42,16 @@ function setup(): { hn: Harness; id: string } {
   bindHost(fakeHost({}).host);
   return { hn, id: "" };
 }
+// the agent's own terminal (a person's own tab is theirs alone: see the last tests)
 const open = async (hn: Harness): Promise<string> =>
-  (await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: `k${++keys}` }))
-    .terminal.terminalId;
+  (
+    await call(
+      hn,
+      "terminal.open",
+      { host: "agent_computer", agentId: "agt_intake", idempotencyKey: `k${++keys}` },
+      hn.as(AGENT, "usr_dana"),
+    )
+  ).terminal.terminalId;
 
 test("take over: the row says who has the keyboard, and the take is announced", async () => {
   const { hn } = setup();
@@ -86,7 +93,10 @@ test("while a person holds it, the agent's commands and another person's keys ar
     }
     return "";
   })();
-  assert.match(said, /has the keyboard/);
+  assert.match(
+    said,
+    /A person is typing in this computer's terminal\. Your commands are refused until they hand it back/,
+  );
   assert.equal((await call(hn, "terminal.input", { terminalId: id, data: "pwd\r" })).ok, true, "the holder types");
 });
 
@@ -166,6 +176,8 @@ test("taking the keyboard from another person: the owner of the terminal or an a
     await rejects(() => h["terminal.take_over"]!(hn.as({ kind: "person", id: "usr_omar" }), { terminalId: id })),
     "permission.role_lacks_permission",
   );
+  // read as someone who may enter the computer: a person who may not is told nothing of its terminals (F30)
+  hn.allowOnly(() => true);
   assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_sara");
   // an admin (manage on the agent) takes it, and the other person is told
   hn.allowOnly(() => true);
@@ -181,6 +193,33 @@ test("an agent cannot take the keyboard", async () => {
 });
 
 // ---- the screen and the keys (lead ruling 14 Nov): tmux's own capture with colours, and raw keys for the person who holds the keyboard
+
+/** A person's seat at the keyboard: takes it over, then types batch after batch with the lease, the next number and a key of their own, as the app does. */
+interface Seat {
+  lease: string;
+  next: number;
+  ctx: Harness["ctx"];
+}
+async function sit(hn: Harness, id: string, ctx: Harness["ctx"] = hn.ctx): Promise<Seat> {
+  const r = await call(hn, "terminal.take_over", { terminalId: id }, ctx);
+  return { lease: r.lease, next: r.nextSeq, ctx };
+}
+async function press(
+  hn: Harness,
+  id: string,
+  seat: Seat,
+  ks: Array<Record<string, string>>,
+  extra: Record<string, unknown> = {},
+): Promise<any> {
+  const r = await call(
+    hn,
+    "terminal.keys",
+    { terminalId: id, lease: seat.lease, seq: seat.next, idempotencyKey: `b${++keys}`, keys: ks, ...extra },
+    seat.ctx,
+  );
+  seat.next += 1;
+  return r;
+}
 
 function keyed(): { hn: Harness; sent: unknown[] } {
   reset();
@@ -213,40 +252,50 @@ test("capture answers the screen with its colours, the cursor and whether a prom
   });
 });
 
-test("keys reach the terminal raw; while another person holds it they are refused, and the holder's go through", async () => {
+test("keys reach the terminal raw for the person who took it; while another person holds it, everyone else is refused, and the holder's go through", async () => {
   const { hn, sent } = keyed();
   const id = await open(hn);
-  await call(hn, "terminal.keys", {
-    terminalId: id,
-    keys: [{ text: "gh auth login" }, { key: "Enter" }, { paste: "4F2A-91CD" }],
-  });
+  const dana = await sit(hn, id);
+  await press(hn, id, dana, [{ text: "gh auth login" }, { key: "Enter" }, { paste: "4F2A-91CD" }]);
   assert.deepEqual(sent, [[{ text: "gh auth login" }, { key: "Enter" }, { paste: "4F2A-91CD" }]]);
-  await call(hn, "terminal.take_over", { terminalId: id }, hn.as(SARA));
-  assert.equal(
-    await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{ key: "Enter" }] })),
-    "validation.precondition_failed",
-  );
-  assert.equal(
-    await rejects(() => h["terminal.keys"]!(hn.as(AGENT), { terminalId: id, keys: [{ key: "Enter" }] })),
-    "validation.precondition_failed",
-  );
+  // Sara takes it from Dana: Dana owns the terminal, Sara may not take it from its owner, so she is refused; Dana hands it back and Sara takes it
+  await call(hn, "terminal.give_back", { terminalId: id });
+  const sara = await sit(hn, id, hn.as(SARA));
+  for (const who of [hn.ctx, hn.as(AGENT)])
+    assert.equal(
+      await rejects(() =>
+        h["terminal.keys"]!(who, {
+          terminalId: id,
+          lease: dana.lease,
+          seq: 3,
+          idempotencyKey: "x1",
+          keys: [{ key: "Enter" }],
+        }),
+      ),
+      "validation.precondition_failed",
+    );
   assert.equal(sent.length, 1, "nothing reached the terminal while Sara held it");
-  assert.equal((await call(hn, "terminal.keys", { terminalId: id, keys: [{ key: "Up" }] }, hn.as(SARA))).ok, true);
+  assert.equal((await press(hn, id, sara, [{ key: "Up" }])).ok, true);
   assert.equal(sent.length, 2);
 });
 
 test("a key entry is exactly one of text, key or paste; keys are never in the audit trail or the log", async () => {
   const { hn, sent } = keyed();
   const id = await open(hn);
+  const dana = await sit(hn, id);
+  const at = (ks: unknown[], n: number) => ({
+    terminalId: id,
+    lease: dana.lease,
+    seq: dana.next,
+    idempotencyKey: `bad${n}`,
+    keys: ks,
+  });
   assert.equal(
-    await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{ text: "a", key: "Enter" }] })),
+    await rejects(() => h["terminal.keys"]!(hn.ctx, at([{ text: "a", key: "Enter" }], 1))),
     "validation.bad_input",
   );
-  assert.equal(
-    await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{}] })),
-    "validation.bad_input",
-  );
-  await call(hn, "terminal.keys", { terminalId: id, keys: [{ text: "hunter2-correct-horse" }] });
+  assert.equal(await rejects(() => h["terminal.keys"]!(hn.ctx, at([{}], 2))), "validation.bad_input");
+  await press(hn, id, dana, [{ text: "hunter2-correct-horse" }]);
   assert.equal(sent.length, 1);
   const seen = JSON.stringify([hn.emitted, hn.logged]);
   assert.ok(!seen.includes("hunter2"), "what was typed is in no event and no log line");
@@ -261,8 +310,17 @@ test("a terminal whose host has no screen or keys says so in one sentence", asyn
     await rejects(() => h["terminal.capture"]!(hn.ctx, { terminalId: id })),
     "validation.precondition_failed",
   );
+  const dana = await sit(hn, id);
   assert.equal(
-    await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{ key: "Enter" }] })),
+    await rejects(() =>
+      h["terminal.keys"]!(hn.ctx, {
+        terminalId: id,
+        lease: dana.lease,
+        seq: dana.next,
+        idempotencyKey: "nk",
+        keys: [{ key: "Enter" }],
+      }),
+    ),
     "validation.precondition_failed",
   );
 });
@@ -293,6 +351,8 @@ test("give back: only the holder, the terminal's owner or an admin; someone else
     await rejects(() => h["terminal.give_back"]!(omarCtx(hn), { terminalId: id })),
     "permission.role_lacks_permission",
   );
+  // read as someone who may enter the computer: a person who may not is told nothing of its terminals (F30)
+  hn.allowOnly(() => true);
   assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_sara");
   // the owner of the terminal may
   hn.allowOnly(() => true);
@@ -309,6 +369,8 @@ test("taking from another person: someone who may enter the workspace but neithe
     await rejects(() => h["terminal.take_over"]!(omarCtx(hn), { terminalId: id })),
     "permission.role_lacks_permission",
   );
+  // read as someone who may enter the computer: a person who may not is told nothing of its terminals (F30)
+  hn.allowOnly(() => true);
   assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_sara");
 });
 
@@ -399,15 +461,12 @@ test("capture scrubs a Vault value filled into a command, as every other reading
 test("keys with capture answer with the screen a moment after, scrubbed, in the same call", async () => {
   const { hn, sent } = keyed();
   const id = await open(hn);
-  const r = await call(hn, "terminal.keys", {
-    terminalId: id,
-    keys: [{ text: "ls" }, { key: "Enter" }],
-    capture: true,
-  });
+  const dana = await sit(hn, id);
+  const r = await press(hn, id, dana, [{ text: "ls" }, { key: "Enter" }], { capture: true });
   assert.equal(r.ok, true);
   assert.equal(r.screen.hidden, true, "the screen of the stand-in host");
   assert.equal(sent.length, 1);
-  const plain = await call(hn, "terminal.keys", { terminalId: id, keys: [{ key: "Up" }] });
+  const plain = await press(hn, id, dana, [{ key: "Up" }]);
   assert.equal(plain.screen, undefined, "no screen unless asked");
 });
 
@@ -472,7 +531,7 @@ test("a member who may only View the workspace is refused terminal.keys, termina
   hn.allowOnly((a) => a.level === "view");
   const sara = hn.as(SARA);
   for (const [cap, input] of [
-    ["terminal.keys", { terminalId: id, keys: [{ text: "x" }] }],
+    ["terminal.keys", { terminalId: id, lease: "lse_x", seq: 1, idempotencyKey: "v1", keys: [{ text: "x" }] }],
     ["terminal.input", { terminalId: id, data: "x" }],
     ["terminal.interrupt", { terminalId: id }],
   ] as const) {
@@ -563,11 +622,11 @@ test("a person watching sees the command an agent ran, never the line that types
   assert.equal(hideRunLine(own), own);
 });
 
-test("take-over OFF (the product's default): EVERY kind of caller is refused terminal.take_over, terminal.keys and terminal.give_back with one plain sentence, and nothing happens: no host call, no hold row, no event", async () => {
+test("take-over OFF (VYRE_TERMINAL_TAKEOVER=0): EVERY kind of caller is refused terminal.take_over, terminal.keys and terminal.give_back with one plain sentence, and nothing happens: no host call, no hold row, no event", async () => {
   const { hn, sent } = keyed();
   const id = await open(hn);
   const was = process.env["VYRE_TERMINAL_TAKEOVER"];
-  delete process.env["VYRE_TERMINAL_TAKEOVER"];
+  process.env["VYRE_TERMINAL_TAKEOVER"] = "0";
   const rows = (): number => hn.rows("SELECT * FROM terminal_hold").length;
   const events = (): number => hn.named("terminal.taken").length + hn.named("terminal.given_back").length;
   const callers: Array<[string, Harness["ctx"]]> = [
@@ -600,8 +659,11 @@ test("take-over OFF (the product's default): EVERY kind of caller is refused ter
       }
     assert.deepEqual([sent.length, rows(), events()], before, "no host call, no hold row, no event");
     assert.equal((await call(hn, "terminal.workspace", { agentId: "agt_intake" })).takeOver, false, "the app is told");
+    process.env["VYRE_TERMINAL_TAKEOVER"] = "1";
+    assert.equal((await call(hn, "terminal.workspace", { agentId: "agt_intake" })).takeOver, true, "on with 1 too");
   } finally {
-    process.env["VYRE_TERMINAL_TAKEOVER"] = was ?? "1";
+    if (was === undefined) delete process.env["VYRE_TERMINAL_TAKEOVER"];
+    else process.env["VYRE_TERMINAL_TAKEOVER"] = was;
   }
 });
 
@@ -611,7 +673,7 @@ test("a hold stored before the switch went off blocks no one: nothing reads as h
   await call(hn, "terminal.take_over", { terminalId: id });
   assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_dana");
   const was = process.env["VYRE_TERMINAL_TAKEOVER"];
-  delete process.env["VYRE_TERMINAL_TAKEOVER"];
+  process.env["VYRE_TERMINAL_TAKEOVER"] = "0";
   try {
     assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, undefined, "not shown as held");
     const r = await h["terminal.run"]!(hn.as(AGENT, "usr_dana"), {
@@ -621,6 +683,7 @@ test("a hold stored before the switch went off blocks no one: nothing reads as h
     });
     assert.ok(r, "the agent's command is not refused");
   } finally {
-    process.env["VYRE_TERMINAL_TAKEOVER"] = was ?? "1";
+    if (was === undefined) delete process.env["VYRE_TERMINAL_TAKEOVER"];
+    else process.env["VYRE_TERMINAL_TAKEOVER"] = was;
   }
 });

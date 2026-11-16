@@ -413,8 +413,8 @@ test("live: the socket address swaps http for ws, drops the path and carries the
 });
 
 const WHOAMI = {
-  principal: { kind: "person", id: "usr_irfad" },
-  name: "Irfad Imtiaz",
+  principal: { kind: "person", id: "usr_imran" },
+  name: "Imran Ibarra",
   roles: ["owner"],
   groups: [],
   epoch: 1,
@@ -425,7 +425,7 @@ const SPACE = {
     id: "spc_nw",
     name: "Northwind",
     kind: "team",
-    owner: "usr_irfad",
+    owner: "usr_imran",
     fingerprint: "ab",
     address: { mode: "relay" },
     defaults: {},
@@ -456,8 +456,8 @@ test("session: opens the Space as the signed-in person and builds the card the s
     dial: fakeServer().dial,
     pollMs: 1_000_000,
   });
-  assert.equal(s.me.id, "usr_irfad");
-  assert.equal(s.runtime.me.name, "Irfad Imtiaz");
+  assert.equal(s.me.id, "usr_imran");
+  assert.equal(s.runtime.me.name, "Imran Ibarra");
   assert.equal(s.def.spaceId, "spc_nw");
   assert.equal(s.def.name, "Northwind");
   assert.equal(s.def.role, "Owner");
@@ -1985,5 +1985,40 @@ test("session: a live link that drops says reconnecting after 1.5 s, not before,
   srv.refuse(url, false);
   await elapse(sched, 60_000, 1_000);
   assert.equal(s.runtime.connection.get(), "online", "the line goes away by itself when the link is back");
+  s.close();
+});
+
+test("session: a picture is fetched with the person's token only from the Space's own address (a reply or a document can name any host)", async () => {
+  const gw = sessionGateway();
+  const pictures: { url: string; auth: string | undefined }[] = [];
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "vst_1",
+    fetch: ((url: string, init?: { headers?: Record<string, string> }) => {
+      if (/\/spaces\/[^/]+\/blobs\//.test(String(url))) {
+        pictures.push({ url: String(url), auth: init?.headers?.["authorization"] });
+        return Promise.resolve(new Response("png", { status: 200 }));
+      }
+      return gw.fetch(url as never, init as never);
+    }) as typeof fetch,
+    routes: async () => ROUTES,
+    screens: async () => SCREENS,
+    dial: fakeServer().dial,
+    pollMs: 1_000_000,
+  });
+  const get = s.runtime.fetchBlobUrl!;
+  await get("/spaces/spc_nw/blobs/blb_1");
+  await get("http://s.test/spaces/spc_nw/blobs/blb_2");
+  await assert.rejects(get("https://evil.example/spaces/a/blobs/b"));
+  await assert.rejects(get("//evil.example/spaces/a/blobs/b"));
+  assert.deepEqual(
+    pictures.map((p) => [p.url, p.auth]),
+    [
+      ["http://s.test/spaces/spc_nw/blobs/blb_1", "Bearer vst_1"],
+      ["http://s.test/spaces/spc_nw/blobs/blb_2", "Bearer vst_1"],
+    ],
+    "the same-origin ones carry the token; the other host was never contacted",
+  );
+  assert.equal(s.runtime.blobOrigin, "http://s.test");
   s.close();
 });

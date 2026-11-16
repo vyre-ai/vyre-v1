@@ -48,7 +48,6 @@ test("Console error note: a plain sentence, no code or trace in the text, Detail
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 }).catch(named("after sign-in"));

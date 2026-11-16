@@ -3,6 +3,7 @@
 //   node scripts/release/cli.ts bump <version> | --check
 //   node scripts/release/cli.ts lineage <sha> <tag>
 //   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts pubkey [outfile]    prints the public half (hex) and its key id; with outfile writes {"publicKey","keyId"} for compiling into the servers
+//   node scripts/release/cli.ts shots <sha>    a finished green shots.yml run (the browser walks) for <sha> or for a commit with the same files (scripts/release/shots-gate.ts): writes run= and tests= to GITHUB_OUTPUT; exits 1 when there is none (a practice run, DRYRUN=true, only says so)
 //   node scripts/release/cli.ts reuse <sha>    a finished main.yml run that ran the whole suite green on exactly <sha> (scripts/release/reuse.ts): writes run=, url= and tests= to GITHUB_OUTPUT, or run= empty; never fails for a missing run
 //   node scripts/release/cli.ts assets <dir>    writes <channel>.json, <channel>.json.sig (and <channel>-<kind>... for the others) from <dir>/feed.json: the files attached to the GitHub Release
 //   VYRE_SIGNING_KEY=<pkcs8 pem> node scripts/release/cli.ts sign <dir> <channel> <pinned-public-key-hex>
@@ -32,6 +33,7 @@ import { imageHasChrome, stageBridge, stageChrome } from "./computer.ts";
 import { GithubReleases, publishRelease, updateRolling } from "./publish.ts";
 import { smokeRelease } from "./smoke.ts";
 import { findReusable, wholeSuiteShards } from "./reuse.ts";
+import { findShotsRun } from "./shots-gate.ts";
 import { checkDesktopArtifacts, digestLine, feedNotes, signDesktop } from "./updater.ts";
 import { WHATS_NEW_FILE } from "../changelog/assemble.ts";
 import { lineage, newestStable } from "./lineage.ts";
@@ -283,7 +285,7 @@ export function main(argv: string[], repoRoot?: string): number {
       }
       default:
         console.error(
-          "usage: counter | bump | tag | lineage | pack | stage-chrome | stage-bridge | image-has-chrome | pubkey | sign | updater-digest | updater | updater-check | assets | feed-base | publish | rolling | unpublish | smoke | reuse",
+          "usage: counter | bump | tag | lineage | pack | stage-chrome | stage-bridge | image-has-chrome | pubkey | sign | updater-digest | updater | updater-check | assets | feed-base | publish | rolling | unpublish | smoke | reuse | shots",
         );
         return 2;
     }
@@ -383,6 +385,55 @@ export async function reuseMain(argv: string[]): Promise<number> {
   }
 }
 
+/** shots <sha>: the browser walks must have run green on this commit (or on a commit with the same files). Unlike `reuse` it fails the job when there is no such run: a release is not cut on red or unread walks. */
+export async function shotsMain(argv: string[]): Promise<number> {
+  const sha = argv[1] ?? "";
+  const repo = process.env["GITHUB_REPOSITORY"] ?? "",
+    token = process.env["GH_TOKEN"] ?? "";
+  if (!/^[0-9a-f]{40}$/.test(sha) || repo === "" || token === "") {
+    console.error("usage: shots <40-hex sha>   (env: GITHUB_REPOSITORY, GH_TOKEN, optional DRYRUN=true)");
+    return 2;
+  }
+  const out = (k: string, v: string) => {
+    const f = process.env["GITHUB_OUTPUT"];
+    if (f) fs.appendFileSync(f, `${k}=${v}\n`);
+  };
+  const summary = (t: string) => {
+    const f = process.env["GITHUB_STEP_SUMMARY"];
+    if (f) fs.appendFileSync(f, `${t}\n`);
+  };
+  const dry = process.env["DRYRUN"] === "true";
+  const stop = (why: string[]) => {
+    const line = `Browser walks: no green shots run for ${sha.slice(0, 10)} (${why.join(" | ")})`;
+    console.log(line);
+    summary(line);
+    out("run", "");
+    out("tests", line.replace(/\n/g, " "));
+    if (dry) {
+      console.log("practice run: continuing without the browser walks");
+      return 0;
+    }
+    console.error(
+      "release: the browser walks have not run green on this commit. Run them: gh workflow run shots.yml --repo " +
+        repo +
+        " --ref main (or push the commit's branch), read the run to the end, fix what is red, then tag again.",
+    );
+    return 1;
+  };
+  try {
+    const found = await findShotsRun({ repo, sha, token });
+    for (const r of found.refused) console.log(`shots: ${r}`);
+    if (!found.found) return stop(found.refused);
+    console.log(found.found.line);
+    summary(found.found.line);
+    out("run", String(found.found.run.id));
+    out("tests", found.found.line);
+    return 0;
+  } catch (e) {
+    return stop([e instanceof Error ? e.message : "lookup failed"]);
+  }
+}
+
 /** smoke <base> <stable|beta|nightly> <public-key-hex> <version>: asynchronous, so it is not a case of main(). */
 export async function smokeMain(argv: string[]): Promise<number> {
   const [, base, channel, key, version] = argv;
@@ -404,6 +455,7 @@ if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === path.res
   const args = process.argv.slice(2);
   if (args[0] === "smoke") void smokeMain(args).then((code) => process.exit(code));
   else if (args[0] === "reuse") void reuseMain(args).then((code) => process.exit(code));
+  else if (args[0] === "shots") void shotsMain(args).then((code) => process.exit(code));
   else if (args[0] === "publish" || args[0] === "rolling" || args[0] === "unpublish")
     void publishMain(args).then((code) => process.exit(code));
   else process.exit(main(args));

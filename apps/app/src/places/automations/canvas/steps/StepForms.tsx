@@ -111,8 +111,8 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
       <TextBox
         label="Address"
         value={show(input["url"])}
-        mono
         placeholder="https://api.example.com/v1/items"
+        chips
         testID="field-url"
         onCommit={(t) => write(withField(input, "url", t.trim() === "" ? undefined : t.trim()))}
       />
@@ -184,7 +184,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
                   {jsonProblem}
                 </Hint>
               ) : (
-                <Hint>Use {"{{ steps.name.out.field }}"} to put an earlier step's data in.</Hint>
+                <Hint>Bring an earlier step's data in with Insert data on the address or a value.</Hint>
               )}
             </>
           ) : null}
@@ -194,6 +194,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
               value={show(input["text"])}
               mono
               rows={5}
+              chips
               testID="field-text-body"
               onCommit={(t) => write(withField(input, "text", t))}
             />
@@ -678,6 +679,7 @@ export function AiForm({
           value={doneMeansText(ai)}
           rows={4}
           placeholder="One check per line"
+          chips
           testID="field-done-means"
           hint="The reviewer checks the work against these"
           onCommit={(t) => writeAi(setDoneMeans(ai, t))}
@@ -758,7 +760,8 @@ export function AiForm({
         label="Prompt"
         value={show(input["prompt"])}
         rows={6}
-        placeholder="What should the AI do? Use {{ steps.name.out.field }} to bring an earlier step's data in."
+        placeholder="What should the AI do? Bring an earlier step's data in with Insert data."
+        chips
         testID="field-prompt"
         onCommit={(t) => writeInput(withField(input, "prompt", t))}
       />
@@ -775,7 +778,8 @@ export function AiForm({
         label="Run as"
         value={
           ai.agentId
-            ? (agentList.find((a) => a.id === ai.agentId)?.name ?? ai.agentId)
+            ? (agentList.find((a) => a.id === ai.agentId)?.name ??
+              (agents.state === "ready" ? "An agent that is no longer here" : "Loading"))
             : (sentence(agents, "Your agents could not be loaded") ?? "No agent")
         }
         testID="choose-agent"

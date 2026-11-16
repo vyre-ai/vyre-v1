@@ -1,0 +1,104 @@
+# ms.drive.update_item
+
+Rename an item or move it to another folder; the item keeps its id, links and sharing. With ifMatch only if the item still has that eTag
+
+| | |
+|---|---|
+| Module | microsoft |
+| Version | 1 (since 1.0.0) |
+| Effects | outward |
+| Permission | grant only |
+| Grant level | use |
+| Risk | high |
+| Resource | connection (/connectionId) |
+| Gate | post |
+| Idempotency | key |
+| Offline | online |
+| Audit | always |
+| Team Space only | no |
+| HTTP | POST /v1/ms/drive/update_item |
+| MCP tool | ms_drive_update_item (files, deferred) |
+| CLI | none |
+| Emits | none |
+
+## Input
+
+```ts
+type In = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  name?: string;
+  parentId?: string;
+  ifMatch?: string;
+  idempotencyKey: string;
+};
+```
+
+## Output
+
+```ts
+type Out = {
+  item?: {
+    id: string;
+    name: string;
+    size?: number;
+    lastModifiedDateTime?: string;
+    folder?: boolean;
+    webUrl?: string;
+    parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
+  };
+  stale?: boolean;
+};
+```
+
+## Errors
+
+- internal.unexpected
+- permission.above_clearance
+- permission.no_grant
+- provider.network
+- provider.unavailable
+- validation.bad_input
+- validation.not_found
+
+## Example
+
+```json
+{
+  "name": "example",
+  "input": {
+    "as": "maya@example.com",
+    "connectionId": "con_a1b2c3",
+    "driveId": "example",
+    "idempotencyKey": "idem_1",
+    "ifMatch": "example",
+    "itemId": "example",
+    "name": "example",
+    "parentId": "example"
+  },
+  "output": {
+    "item": {
+      "eTag": "example",
+      "folder": true,
+      "id": "example",
+      "lastModifiedBy": {
+        "email": "example",
+        "name": "example"
+      },
+      "lastModifiedDateTime": "example",
+      "name": "example",
+      "parentId": "example",
+      "size": 1,
+      "webUrl": "example"
+    },
+    "stale": true
+  }
+}
+```

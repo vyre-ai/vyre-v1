@@ -38,7 +38,6 @@ test("Connectors and connections: real draft publication, version restore, Files
     await page.getByTestId("claim-password").fill("fixture integration password123");
     await page.getByTestId("claim-confirm").fill("fixture integration password123");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30000 });

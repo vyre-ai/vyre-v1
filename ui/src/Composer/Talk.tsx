@@ -14,6 +14,8 @@ import type { TalkDeps, TalkRun, TalkSession } from "./talk.ts";
 export interface TalkPort {
   /** False hides the mic: the person turned Talk off. */
   on: boolean;
+  /** False while no voice key covers this person (their own, or the Space's): the mic is not drawn until voice is set up in Settings or Console. /voice still works and says how to set it up. Left out: drawn (the port of a test, or a shell that does not know). */
+  ready?: boolean;
   session(): Promise<TalkSession>;
   /** The first-press sheet, or Settings' own key. True when a key is saved: from the composer, listening starts at once. */
   setup(only?: "mine" | "space"): Promise<boolean>;
@@ -271,7 +273,8 @@ const WEB_PRESS = { userSelect: "none", touchAction: "none" } as unknown as View
 
 /** The mic. One size in every state. */
 export function TalkButton({ talk }: { talk: TalkControl }): ReactElement | null {
-  if (!talk.port || !talk.port.on) return null;
+  // No mic until voice is set up (owner, 16 Nov 2026: "NO need for voice button there unless voice is configured from settings"). /voice still says how to set it up.
+  if (!talk.port || !talk.port.on || talk.port.ready === false) return null;
   const live = talk.phase !== "idle";
   return (
     <Pressable
@@ -315,7 +318,7 @@ export function TalkButton({ talk }: { talk: TalkControl }): ReactElement | null
   );
 }
 
-/** One plain line above the box. It floats, so the box does not move. */
+/** One plain line in the box, under the field. */
 export function TalkLine({ talk }: { talk: TalkControl }): ReactElement | null {
   if (talk.line === null) return null;
   return (
@@ -346,7 +349,8 @@ const s = StyleSheet.create({
     transitionDuration: "110ms",
     transitionTimingFunction: "linear",
   } as object,
-  line: { position: "absolute", left: 14, right: 14, bottom: "100%", marginBottom: 8, gap: 2 } as object,
+  // in the card, under the field, in the flow: it never draws over what sits above the box (the landing's heading, owner walk 15 Nov)
+  line: { paddingHorizontal: 14, paddingTop: 2, paddingBottom: 10, gap: 2 } as object,
   lineText: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
   lineLink: { fontSize: 12.5, lineHeight: 18, color: "var(--accent)" as string, textDecorationLine: "underline" },
   unset: { opacity: 0.55 },

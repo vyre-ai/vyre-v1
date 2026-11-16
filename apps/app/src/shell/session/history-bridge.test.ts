@@ -67,7 +67,7 @@ const boot = () => {
   const hub = createShellHub({
     spaces: SEED_DEFS,
     openId: SEED_DEFS[0]!.spaceId,
-    personId: "irfad",
+    personId: "imran",
     deviceId: "web",
     storage: null,
     skeletonMs: 0,
@@ -120,5 +120,24 @@ test("an address edited by hand is a link, and the guard does not read its own s
   win.history.go(-1);
   await win.settle();
   assert.equal(hub.state().hash, "", "Back went to the landing; the stale guard address did not bring the agent back");
+  stop();
+});
+
+test("once the address names another Space, the leaving Space's hub no longer writes it (a Space switch must not read the old Space's item into the new one)", async () => {
+  const hub = createShellHub({
+    spaces: SEED_DEFS,
+    openId: SEED_DEFS[0]!.spaceId,
+    personId: "imran",
+    deviceId: "web",
+    storage: null,
+    skeletonMs: 0,
+  });
+  const win = fakeWindow("/files?space=http%3A%2F%2Fa&skin=system#subject=file:fil_a");
+  const stop = startHistoryBridge(hub, win);
+  // the switch: SessionGate writes the new Space's address (its own place, no item) before the old hub is gone
+  win.history.replaceState(win.history.state, "", "/chat?space=http%3A%2F%2Fb&skin=graphite");
+  hub.go("files", "subject=file:fil_a_again"); // the old hub still emits once (a flash, a count, a tab title)
+  assert.equal(win.location.pathname, "/chat", "the new Space's address stands");
+  assert.equal(win.location.hash, "", "the old Space's item is not written under the new Space's address");
   stop();
 });

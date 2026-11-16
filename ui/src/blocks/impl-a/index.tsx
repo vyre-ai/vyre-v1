@@ -5,7 +5,7 @@
 // hover; colours are skin tokens, so a skin switch repaints with no re-render.
 
 import { isRawId } from "../../../../lib/id-shapes.ts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
@@ -32,14 +32,12 @@ import {
   lagLine,
   mountTitle,
   openTab,
-  planEdits,
-  planProgress,
-  planTitle,
+  planCount,
+  planDraft,
   planWaiting,
   runAction,
   safeUrl,
   starTerminal,
-  STEP_MARK,
   tailLines,
   terminalActions,
   terminalTitle,
@@ -114,11 +112,14 @@ function Btn({
   onPress,
   primary = false,
   quiet = false,
+  muted = false,
   danger = false,
   disabled = false,
   pressed,
 }: {
   id: string;
+  /** Plain grey words, no fill: a way out beside a primary button (Decline). */
+  muted?: boolean;
   label: string;
   onPress: () => void;
   primary?: boolean;
@@ -138,7 +139,7 @@ function Btn({
       style={({ hovered }: { hovered?: boolean }) => [
         styles.btn,
         primary && styles.btnPrimary,
-        quiet && styles.btnQuiet,
+        (quiet || muted) && styles.btnQuiet,
         hovered === true && !primary && HOVER,
         disabled && styles.disabled,
       ]}
@@ -148,6 +149,7 @@ function Btn({
           styles.btnText,
           primary && styles.btnTextPrimary,
           quiet && styles.btnTextQuiet,
+          muted && styles.btnTextMuted,
           danger && styles.btnTextDanger,
         ]}
       >
@@ -163,7 +165,10 @@ function Head({
   right,
   onPress,
   testID,
+  lead,
 }: {
+  /** A small mark before the title. */
+  lead?: ReactNode;
   title: string;
   tag?: string | undefined;
   right?: ReactNode;
@@ -172,6 +177,7 @@ function Head({
 }): ReactElement {
   const inner = (
     <>
+      {lead ?? null}
       <Text numberOfLines={1} style={styles.headTitle}>
         {title}
       </Text>
@@ -581,24 +587,50 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
 
 /* ---------- plan ---------- */
 
+/** The plan's small book mark beside "Plan" (the prototype's `book` glyph). Web only, like the app's other glyphs. */
+function PlanMark(): ReactElement | null {
+  if (Platform.OS !== "web") return null;
+  const d = ["M3.500 2.500h9v11h-9z", "M5.500 6h5M5.500 8.500h5M5.500 11h3"];
+  return createElement(
+    "svg",
+    {
+      viewBox: "0 0 16 16",
+      width: 15,
+      height: 15,
+      "aria-hidden": true,
+      "data-testid": "plan-mark",
+      style: {
+        display: "block",
+        flex: "none",
+        stroke: "var(--ink-3)",
+        strokeWidth: 1.4,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        fill: "none",
+      },
+    },
+    ...d.map((p) => createElement("path", { key: p, d: p })),
+  );
+}
+
 export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
   const d = planData(block.data);
   const [state, setState] = useState(d.state);
-  const [editing, setEditing] = useState(false);
-  const [texts, setTexts] = useState<Record<string, string>>({});
-  const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const waiting = planWaiting(state);
   const approve = useCallback(() => {
-    const edits = planEdits(d.steps, texts, removed);
     setState("approved");
-    setEditing(false);
-    void perform(host, "plan", "approve", block, edits.length > 0 ? { edits } : {});
-  }, [host, block, d.steps, texts, removed]);
+    void perform(host, "plan", "approve", block, {});
+  }, [host, block]);
   const reject = useCallback(() => {
     setState("rejected");
-    setEditing(false);
     void perform(host, "plan", "reject", block);
   }, [host, block]);
+  // "Change it": the plan goes into the composer to change, and the card says "Changing". Nothing is declined and nothing is sent to the agent: the plan is still the person's to decide until the changes go.
+  const [changing, setChanging] = useState(false);
+  const change = useCallback(() => {
+    setChanging(true);
+    host.draft?.(planDraft(d.steps));
+  }, [host, d.steps]);
   const run = useCallback((key: string) => (key === "approve" ? approve() : reject()), [approve, reject]);
   const menu = useCallback(
     () =>
@@ -616,84 +648,52 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
       ),
     [host, block, waiting, run],
   );
-  const toggleRemoved = (id: string): void =>
-    setRemoved((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   const steps: PlanStepData[] = d.steps;
-  const stepRows: ReactNode[] = [];
-  for (const [i, s] of steps.entries()) {
-    const gone = removed.has(s.stepId);
-    stepRows.push(
-      <View key={s.stepId} style={styles.step} testID={`blk-plan-${block.id}-step-${i}`}>
-        <Text style={styles.stepMark}>{waiting ? `${i + 1}.` : STEP_MARK[s.state]}</Text>
-        {editing && waiting ? (
-          <>
-            <TextInput
-              accessibilityLabel={`Step ${i + 1}`}
-              value={texts[s.stepId] ?? s.text}
-              onChangeText={(t) => setTexts((prev) => ({ ...prev, [s.stepId]: t }))}
-              testID={`blk-plan-${block.id}-edit-${i}`}
-              style={[styles.input, styles.grow, gone && styles.struck]}
-            />
-            <Btn
-              id={`blk-plan-${block.id}-remove-${i}`}
-              label={gone ? "Keep" : "Remove"}
-              quiet
-              onPress={() => toggleRemoved(s.stepId)}
-            />
-          </>
-        ) : (
-          <View style={styles.grow}>
-            <Text style={[styles.stepText, s.state === "skipped" && styles.struck]}>{s.text}</Text>
-            {s.detail ? <Text style={styles.sub}>{s.detail}</Text> : null}
-          </View>
-        )}
-      </View>,
-    );
-  }
+  const running = state !== "proposed" && state !== "rejected";
   return (
     <Card type="plan" block={block} testID={`blk-plan-${block.id}`} menu={menu}>
       <Head
         testID={`blk-plan-${block.id}`}
-        title={planTitle(d.title, steps.length)}
-        tag={waiting ? "Plan mode on" : undefined}
+        title="Plan"
+        lead={<PlanMark />}
+        tag={running ? planCount(steps) : undefined}
         onPress={d.hasDoc ? () => void openTab(host, "plan", block.data) : undefined}
       />
-      <View style={styles.steps}>{stepRows}</View>
-      {waiting ? (
+      {d.title !== "" && d.title !== "Plan" ? (
+        <Text testID={`blk-plan-${block.id}-title`} style={styles.planTitle}>
+          {d.title}
+        </Text>
+      ) : null}
+      <View style={styles.steps}>
+        {/* ui-rows-lint: not a list (a plan's steps are a checklist inside one card: a tick and its text, nothing to press, hover or select) */}
+        {steps.map((s, i) => (
+          <View key={s.stepId} style={styles.step} testID={`blk-plan-${block.id}-step-${i}`}>
+            <View
+              testID={`blk-plan-${block.id}-tick-${i}`}
+              accessibilityLabel={s.state === "done" ? "Done" : s.state === "doing" ? "In progress" : "Not yet"}
+              style={[styles.tick, s.state === "done" && styles.tickDone, s.state === "doing" && styles.tickDoing]}
+            >
+              {s.state === "done" ? <Text style={styles.tickMark}>{"\u2713"}</Text> : null}
+              {s.state === "skipped" ? <Text style={styles.stepMark}>{"\u2013"}</Text> : null}
+            </View>
+            <View style={styles.grow}>
+              <Text style={[styles.stepText, s.state === "skipped" && styles.struck]}>{s.text}</Text>
+              {s.detail ? <Text style={styles.sub}>{s.detail}</Text> : null}
+            </View>
+          </View>
+        ))}
+      </View>
+      {waiting && !changing ? (
         <View style={styles.acts}>
-          <Btn
-            id={`blk-plan-${block.id}-approve`}
-            label={editing ? "Allow with edits" : "Allow"}
-            primary
-            onPress={approve}
-          />
-          <Btn
-            id={`blk-plan-${block.id}-edit`}
-            label={editing ? "Cancel" : "Edit"}
-            onPress={() => {
-              setEditing((e) => !e);
-              setTexts({});
-              setRemoved(new Set());
-            }}
-          />
-          <Btn id={`blk-plan-${block.id}-reject`} label="Deny" quiet danger onPress={reject} />
+          <Btn id={`blk-plan-${block.id}-approve`} label="Allow" primary onPress={approve} />
+          <Btn id={`blk-plan-${block.id}-edit`} label="Change it" onPress={change} />
+          <Btn id={`blk-plan-${block.id}-reject`} label="Deny" muted onPress={reject} />
         </View>
-      ) : state === "approved" ? (
-        <StatusLine
-          tone="ok"
-          testID={`blk-plan-${block.id}-state`}
-          text={`Approved · plan mode is off · ${planProgress(steps)}`}
-        />
+      ) : waiting ? (
+        <StatusLine tone="plain" testID={`blk-plan-${block.id}-state`} text="Changing" />
       ) : state === "rejected" ? (
-        <StatusLine tone="bad" testID={`blk-plan-${block.id}-state`} text="Rejected · tell it what to change" />
-      ) : (
-        <StatusLine tone="ok" testID={`blk-plan-${block.id}-state`} text={`Done · ${planProgress(steps)}`} />
-      )}
+        <StatusLine tone="bad" testID={`blk-plan-${block.id}-state`} text="Declined" />
+      ) : null}
     </Card>
   );
 }
@@ -1098,6 +1098,7 @@ const styles = StyleSheet.create({
   btnText: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   btnTextPrimary: { color: "var(--accent-ink)" as string },
   btnTextQuiet: { color: "var(--accent)" as string },
+  btnTextMuted: { color: "var(--ink-3)" as string },
   btnTextDanger: { color: "var(--danger)" as string },
   disabled: { opacity: 0.45 },
   status: { marginTop: 6, fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
@@ -1136,9 +1137,23 @@ const styles = StyleSheet.create({
     color: "var(--ink)" as string,
     fontSize: 13,
   },
+  planTitle: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, marginBottom: 4 },
   steps: { gap: 3, marginBottom: 2 },
   step: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  stepMark: { width: 18, color: "var(--ink-3)" as string, fontSize: 13, lineHeight: 19, textAlign: "right" },
+  stepMark: { color: "var(--ink-3)" as string, fontSize: 11, lineHeight: 14, textAlign: "center" },
+  tick: {
+    width: 16,
+    height: 16,
+    marginTop: 2,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "var(--ink-4)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tickDone: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
+  tickDoing: { borderColor: "var(--accent)" as string },
+  tickMark: { color: "var(--accent-ink)" as string, fontSize: 10, lineHeight: 12, fontWeight: "700" },
   stepText: { ...textBase },
   struck: { textDecorationLine: "line-through", color: "var(--ink-3)" as string },
   dep: { flexDirection: "row", alignItems: "center", gap: 8 },

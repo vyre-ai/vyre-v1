@@ -217,7 +217,6 @@ export async function walk(
     await page.getByTestId("claim-password").fill("fixture password 123");
     await page.getByTestId("claim-confirm").fill("fixture password 123");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
@@ -812,7 +811,8 @@ export async function runPathProbe(
       field = page.getByTestId("cmdk-input");
     } else if (path === "sidebar") {
       await page.getByTestId("new-menu").click();
-      await page.getByText("New chat", { exact: true }).first().click();
+      // 298d17dd0 (rc.28): the tab strip's landing tab is also named "New chat" and sits under the menu's scrim, so the item is taken from the open menu
+      await page.getByTestId("overlay-root").getByText("New chat", { exact: true }).first().click();
       field = page.getByTestId("composer-field").first();
     } else field = page.getByTestId("composer-field").first();
     await field.waitFor({ timeout: 20_000 });

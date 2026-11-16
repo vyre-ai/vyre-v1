@@ -1,4 +1,4 @@
-// A message's menu (G14, prototype "ctxmenu"): eight short sentence-case rows, then Details; the rest (Copy link, Edit, Retry, Mark unread, Remember, Delete) is behind "More". Only your own message has Edit and Delete.
+// A message's menu (owner, 16 Nov): Copy, Reply in thread, Add reaction, Pin, Make a task, Share to, Fork from here, and for your own message Edit and Delete; Memory is one row that opens its three; Details, Ask an agent, Copy link, Retry, Mark unread and Report a problem are behind "More".
 import test from "node:test";
 import assert from "node:assert/strict";
 import { menuFor } from "./MessageView.tsx";
@@ -55,48 +55,51 @@ const behindMore = (m: Message, mine: boolean, a: MessageActions = acts): string
 const agentMsg = (): Message => msg({ author: { kind: "agent", id: "agt_mira" }, kind: "agent" });
 
 test("someone else's message: the short list in sentence case, and More only where there is something behind it; nothing in Title Case", () => {
-  assert.equal(shape(msg(), false), "Copy,Reply in thread,Make a task,Share to\u2026,Fork from here,Pin,Add reaction");
-  const withLink = { ...(acts as object), copyLink: () => undefined } as unknown as MessageActions;
   assert.equal(
-    shape(msg(), false, withLink),
-    "Copy,Reply in thread,Make a task,Share to\u2026,Fork from here,Pin,Add reaction,|,More",
+    shape(msg(), false),
+    "Copy,Reply in thread,Add reaction,Pin,Make a task,Share to\u2026,Fork from here,More",
   );
   for (const l of shape(msg(), false).split(",")) assert.ok(l === "|" || !/\b[A-Z][a-z]+ [A-Z][a-z]+/.test(l), l);
 });
 
-test("an agent's reply ends in Details, after the eight; nothing in the menu names Rewind (it is not built on this line)", () => {
-  assert.equal(
-    shape(agentMsg(), false, { ...(acts as object), details: { open: () => calls.push("details") } } as never),
-    "Copy,Reply in thread,Make a task,Share to\u2026,Fork from here,Pin,Add reaction,|,Details",
-  );
+test("an agent's reply has Details behind More, not in the short list; nothing in the menu names Rewind (it is not built on this line)", () => {
+  const withDetails = { ...(acts as object), details: { open: () => calls.push("details") } } as never;
+  assert.ok(!shape(agentMsg(), false, withDetails).includes("Details"));
+  assert.deepEqual(behindMore(agentMsg(), false, withDetails), ["Details"]);
   assert.ok(!shape(msg(), false).includes("Rewind"));
 });
 
-test("your own message: Edit and Delete are behind More, Delete last, alone, in the danger colour", () => {
+test("your own message: Edit and Delete are in the short list, Delete last before More, in the danger colour", () => {
   const m = msg({ author: { kind: "person", id: "me" } });
   assert.equal(
     shape(m, true),
-    "Copy,Reply in thread,Make a task,Share to\u2026,Fork from here,Pin,Add reaction,|,More",
+    "Copy,Reply in thread,Add reaction,Pin,Make a task,Share to\u2026,Fork from here,Edit,Delete,More",
   );
-  assert.deepEqual(behindMore(m, true), ["Edit", "|", "Delete"]);
-  assert.deepEqual([second.at(-1) && (second.at(-1) as { danger?: boolean }).danger], [true]);
-  assert.deepEqual(behindMore(msg(), false), [], "a person's message has nothing behind More here: no More at all");
+  const del = menuFor(m, true, acts, () => undefined).find((e) => "label" in e && e.label === "Delete") as {
+    danger?: boolean;
+  };
+  assert.equal(del.danger, true);
+  assert.deepEqual(
+    behindMore(m, true),
+    [],
+    "nothing else is behind More here but Report a problem, which the menu adds",
+  );
 });
 
 test("the words follow the state and every item calls what it says", () => {
   assert.ok(shape(msg({ pinned: true }), false).includes("Unpin"));
   calls.length = 0;
-  for (const e of menuFor(msg(), true, acts, () => calls.push("edit")))
+  for (const e of menuFor(msg(), false, acts, () => calls.push("edit")))
     if ("onSelect" in e && e.label !== "More") e.onSelect?.();
-  assert.deepEqual(calls, ["copy", "thread", "task", "share", "fork", "pin:true"]);
+  assert.deepEqual(calls, ["copy", "thread", "pin:true", "task", "share", "fork"]);
   calls.length = 0;
-  behindMore(msg({ author: { kind: "person", id: "me" } }), true);
-  for (const e of second) if ("onSelect" in e) e.onSelect?.();
+  for (const e of menuFor(msg({ author: { kind: "person", id: "me" } }), true, acts, () => calls.push("edit")))
+    if ("onSelect" in e && (e.label === "Edit" || e.label === "Delete")) e.onSelect?.();
   assert.deepEqual(calls, ["edit", "remove"]);
 });
 
 test("a system line has no Make a task, Share or Fork", () => {
-  assert.equal(shape(msg({ kind: "system" }), false), "Copy,Reply in thread,Pin,Add reaction");
+  assert.equal(shape(msg({ kind: "system" }), false), "Copy,Reply in thread,Add reaction,Pin,More");
 });
 
 test("an agent's reply has Retry (behind More) instead of Edit, and Retry runs its turn again", async () => {
@@ -227,7 +230,7 @@ test("the touch sheet lists what is behind More in the same sheet (a phone has n
     assert.ok(theirs.includes(l), l);
   const own = sheet(msg({ author: { kind: "person", id: "me" } }), true);
   for (const l of ["Copy", "Edit", "Delete", "Copy link"]) assert.ok(own.includes(l), l);
-  assert.equal(own.at(-1), "Delete", "Delete stays last");
+  assert.ok(own.indexOf("Delete") > own.indexOf("Edit"), "Delete follows Edit");
 });
 
 test("Delete asks once from the desktop menu (askRemove) and runs at once only from the phone sheet, which asks in its own list", () => {
@@ -245,13 +248,36 @@ test("Delete asks once from the desktop menu (askRemove) and runs at once only f
       showMenu: (items: readonly MenuEntry[]) => void (behind = [...items]),
     } as unknown as MessageActions;
     const entries = menuFor(mineMsg, true, withShow, () => undefined, { x: 0, y: 0 }, flat);
-    if (!flat) (entries.find((e) => "label" in e && e.label === "More") as { onSelect(): void }).onSelect();
-    const list = flat ? entries : behind;
-    (list.find((e) => "label" in e && e.label === "Delete") as { onSelect(): void }).onSelect();
+    void behind;
+    (entries.find((e) => "label" in e && e.label === "Delete") as { onSelect(): void }).onSelect();
   };
   pressDelete(false);
   assert.deepEqual(log, ["ask:m1"], "the menu asks; nothing is deleted yet");
   log.length = 0;
   pressDelete(true);
   assert.deepEqual(log, ["remove:m1"], "the sheet has asked already");
+});
+
+test("Memory is one row that opens Remember This, Add to a Page and Forget This; the first menu has no Report a problem, the More menu does", () => {
+  const shown: Array<{ items: string[]; source: string | undefined; label: string }> = [];
+  const withMemory = {
+    ...(acts as object),
+    memoryEntries: () => [
+      { separator: true },
+      { label: "Remember This" },
+      { label: "Add to a Page\u2026" },
+      { label: "Forget This" },
+    ],
+    showMenu: (items: readonly MenuEntry[], _x: number, _y: number, label: string, source?: string) =>
+      shown.push({ items: items.map(word), source, label }),
+  } as unknown as MessageActions;
+  const top = menuFor(msg(), false, withMemory, () => undefined);
+  assert.ok(top.map(word).includes("Memory") && !top.map(word).includes("Remember This"));
+  (top.find((e) => "label" in e && e.label === "Memory") as { onSelect(): void }).onSelect();
+  assert.deepEqual(shown[0], {
+    items: ["Remember This", "Add to a Page\u2026", "Forget This"],
+    source: "other",
+    label: "Memory",
+  });
+  assert.ok(!top.map(word).includes("Report a problem"));
 });

@@ -87,7 +87,7 @@ const msgs = (s: Sample): Message[] =>
       data: { messages: Message[] };
     }
   ).data.messages;
-const ctx = (s: Sample) => ({ meId: "usr_irfad", nameOf: s.data.nameOf, kindOf: s.data.kindOf, clock: s.data.clock() });
+const ctx = (s: Sample) => ({ meId: "usr_imran", nameOf: s.data.nameOf, kindOf: s.data.kindOf, clock: s.data.clock() });
 
 test("the page reads: header with title and faces, your bubbles, Intake's folded work, cards, the composer line", () => {
   const out = html(createSample("idle"));
@@ -129,9 +129,9 @@ test("who will reply comes from the engine's route(): the lead, a mention, a per
   const s = createSample("idle");
   const t = thread(s);
   assert.equal(whoLine(t, s.data.nameOf), "Intake will reply");
-  assert.deepEqual(respondersFor(t, [], "usr_irfad"), ["agt_intake"]);
-  assert.deepEqual(respondersFor(t, mentionsIn("@Docs check this", DIRECTORY), "usr_irfad"), ["agt_docs"]);
-  assert.deepEqual(respondersFor(t, mentionsIn("@Maya can you look", DIRECTORY), "usr_irfad"), []);
+  assert.deepEqual(respondersFor(t, [], "usr_imran"), ["agt_intake"]);
+  assert.deepEqual(respondersFor(t, mentionsIn("@Docs check this", DIRECTORY), "usr_imran"), ["agt_docs"]);
+  assert.deepEqual(respondersFor(t, mentionsIn("@Maya can you look", DIRECTORY), "usr_imran"), []);
   const none = createSample("nolead");
   assert.equal(whoLine(thread(none), none.data.nameOf), "No agent will reply. @mention one");
   assert.equal(leadOf(thread(none)), undefined);
@@ -188,7 +188,7 @@ test("while an agent works a plain send queues; Interrupt sends it now with the 
   );
   const sentId = msgs(s).find((m) => m.body === "Stop, use Thursday")!.messageId;
   assert.deepEqual(s.calls[2]!.input, { threadId: "c1", messageId: sentId });
-  assert.equal(queuedCount(msgs(s), "usr_irfad", true), 2);
+  assert.equal(queuedCount(msgs(s), "usr_imran", true), 2);
   assert.equal(queueNote(2, "Intake"), "2 messages queued for Intake's next step");
   assert.equal(queueNote(2, "Intake", true), "At the next step", "an engine that steers takes it at its next step");
   assert.equal(
@@ -375,8 +375,9 @@ test("message writes: edit, pin, react, thread and delete go through their capab
 
 test("states: offline, closed, empty frame before data, and no em dash", () => {
   assert.ok(
-    has(html(createSample("idle", { online: false })), 'data-testid="conversation-offline"') &&
+    !has(html(createSample("idle", { online: false })), 'data-testid="conversation-offline"') &&
       has(html(createSample("idle", { online: false })), "Tuesday has two openings"),
+    "offline is the shell's pill, said once: the chat header does not repeat it",
   );
   assert.ok(
     has(html(createSample("closed")), 'data-testid="conversation-closed"') &&
@@ -636,15 +637,17 @@ test("the hover bar draws Copy, Edit (yours only) and More while the row is hove
   assert.ok(
     has(mine, 'data-testid="act-copy-m3"') &&
       has(mine, 'data-testid="act-edit-m3"') &&
-      !has(mine, 'data-testid="act-reply-m3"') &&
+      has(mine, 'data-testid="act-reply-m3"') &&
       has(mine, 'data-testid="act-more-m3"'),
-    "copy, edit, more: reply in thread is in the menu",
+    "copy, edit, reply, more (React is there where reactions are offered)",
   );
   const theirs = bar(m4, false, true);
   assert.ok(
     has(theirs, 'data-testid="act-copy-m4"') &&
       !has(theirs, 'data-testid="act-edit-m4"') &&
+      has(theirs, 'data-testid="act-reply-m4"') &&
       has(theirs, 'data-testid="act-more-m4"'),
+    "an agent's message has Reply and More too",
   );
   const idle = bar(m3, true, false);
   assert.ok(has(idle, 'data-testid="hover-m3"') && !has(idle, "act-copy-m3") && !has(idle, "<svg"));
@@ -703,7 +706,7 @@ test("in a chat with more than one person each reply says whose account it ran o
   const reply = { ...msgs(s).find((m) => m.author.kind === "agent")!, kind: "agent" as const, body: "Done." };
   const line = (shared: boolean, paidBy = "usr_sara"): string | undefined => {
     const items = timeline([{ ...reply, paidBy }], {
-      meId: "usr_irfad",
+      meId: "usr_imran",
       nameOf: () => "Sara Khan",
       kindOf: () => "agent",
       clock: s.data.clock(),
@@ -713,7 +716,7 @@ test("in a chat with more than one person each reply says whose account it ran o
     return other?.kind === "other" ? other.paidLine : undefined;
   };
   assert.equal(line(true), "On Sara’s account");
-  assert.equal(line(true, "usr_irfad"), "On your account");
+  assert.equal(line(true, "usr_imran"), "On your account");
   assert.equal(line(false), undefined);
 });
 

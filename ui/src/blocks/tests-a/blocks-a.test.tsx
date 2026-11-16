@@ -20,6 +20,8 @@ import {
   lagLine,
   openTab,
   perform,
+  planCount,
+  planDraft,
   planEdits,
   readPointer,
   resolveInput,
@@ -288,24 +290,43 @@ test("question: free mode has a text box and no options; multi mode has an Answe
   assert.ok(multiMarkup.includes("blk-question-blk_q1-opt-60"));
 });
 
-test("plan: a proposed plan shows Plan mode on, numbered steps and Approve, Edit, Reject", () => {
+test("plan: a proposed plan is headed Plan, lists its steps with empty ticks, and offers Allow, Change it, Deny", () => {
   const markup = html(SAMPLE_PLAN);
-  assert.ok(markup.includes("Prepare the Rivera intake · 4 steps"));
-  assert.ok(markup.includes("Plan mode on"));
+  assert.ok(markup.includes(">Plan<"));
+  assert.ok(!markup.includes("Plan mode on"));
   assert.ok(markup.includes("Mount the Marketing folder from Google Drive for the welcome kit"));
-  for (const key of ["approve", "edit", "reject"]) assert.ok(markup.includes(`blk-plan-blk_plan1-${key}`), key);
+  for (const [key, word] of [
+    ["approve", "Allow"],
+    ["edit", "Change it"],
+    ["reject", "Deny"],
+  ] as const) {
+    assert.ok(markup.includes(`blk-plan-blk_plan1-${key}`), key);
+    assert.ok(markup.includes(word), word);
+  }
 });
 
-test("plan: an approved plan shows progress, a rejected one says so, neither has the buttons", () => {
+test("plan: a running plan shows how many ticks are filled and no buttons; a declined one says so", () => {
   const steps = [
     { stepId: "stp_a1", text: "One", state: "done" },
     { stepId: "stp_a2", text: "Two", state: "doing" },
   ];
   const approved = html({ ...SAMPLE_PLAN, data: { ...(SAMPLE_PLAN.data as object), state: "approved", steps } });
-  assert.ok(approved.includes("Approved · plan mode is off · 1 of 2 done"));
+  assert.ok(approved.includes("1 of 2"));
+  assert.ok(approved.includes("blk-plan-blk_plan1-tick-0") && approved.includes("Done"));
   assert.ok(!approved.includes("blk-plan-blk_plan1-approve"));
   const rejected = html({ ...SAMPLE_PLAN, data: { ...(SAMPLE_PLAN.data as object), state: "rejected" } });
-  assert.ok(rejected.includes("Rejected"));
+  assert.ok(rejected.includes("Declined"));
+});
+
+test("plan: Change it puts the plan in the composer as a draft, one numbered line per step", () => {
+  const steps = planData(SAMPLE_PLAN.data).steps;
+  const draft = planDraft(steps);
+  assert.ok(draft.startsWith("Change the plan:\n1. "));
+  assert.equal(draft.split("\n").length, steps.length + 1);
+  assert.equal(
+    planCount(steps.map((s, i) => ({ ...s, state: i === 0 ? "done" : "todo" }) as never)),
+    `1 of ${steps.length}`,
+  );
 });
 
 test("deploy: a ready preview shows its link, checks and Promote; production offers Roll back instead", () => {

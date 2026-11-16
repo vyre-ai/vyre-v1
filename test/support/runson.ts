@@ -122,7 +122,7 @@ export async function bootSpace(
     codeRoot: CODE_ROOT,
     platform: fakePlatform({
       os: "linux",
-      hostname: "mla-server",
+      hostname: "northwind-server",
       free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },

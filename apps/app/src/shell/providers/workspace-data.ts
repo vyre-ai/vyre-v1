@@ -13,6 +13,8 @@ export interface TerminalRowLike {
   cwd?: string | undefined;
   heldBy?: string | undefined;
   ownerId?: string | undefined;
+  /** a row that only says someone else's terminal is there: counted, never drawn */
+  elsewhere?: boolean | undefined;
   lastActiveAt?: number | undefined;
   by?: { kind: "agent" | "helper" | "person"; name?: string | undefined } | undefined;
 }
@@ -27,6 +29,8 @@ export interface WorkspaceRead {
   canAttach: boolean;
   cannotAttach?: string | undefined;
   takeOver?: boolean | undefined;
+  /** this person works in a place of their own on a shared agent's computer */
+  ownPlace?: boolean | undefined;
 }
 
 /**
@@ -40,7 +44,10 @@ export function workspaceView(
   projectNames: readonly string[] = [],
   lastCommands: ReadonlyMap<string, string> = new Map(),
 ): WorkspaceView {
-  const mine = rows.filter((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited");
+  const here = rows.filter((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited");
+  // what is someone else's is counted and never drawn: the tab shows a person their own side of the computer
+  const mine = here.filter((r) => r.elsewhere !== true);
+  const others = here.length - mine.length;
   const sessions: WorkspaceSession[] = mine.map((r) => ({
     name: r.name,
     terminalId: r.terminalId,
@@ -52,11 +59,16 @@ export function workspaceView(
     owner: r.by ?? { kind: "agent" },
     ...(r.lastActiveAt !== undefined ? { lastActiveAt: r.lastActiveAt } : {}),
   }));
-  const state = read.state === "none" ? "asleep" : read.state;
+  // One rule for every word (the head, each row, the terminal's bar, the agent page): a computer is never Asleep while one of its terminals is running a command or a person holds its keyboard. The server's
+  // read can lag a terminal that just opened (or answer from a host that keeps no container), the rows cannot: a running terminal is a running computer.
+  const busy = mine.some((r) => r.state === "running" || r.heldBy !== undefined);
+  const state = read.state === "none" ? "asleep" : read.state === "asleep" && busy ? "running" : read.state;
   return {
     state,
     sessions,
     canAttach: read.canAttach && read.state !== "unavailable",
+    ...(read.ownPlace === true ? { ownPlace: true } : {}),
+    ...(others > 0 ? { others } : {}),
     ...(read.takeOver === false ? { takeOver: false } : {}),
     // waiting and unavailable say why; running says what keeps it awake past its idle time ("running: tail -f app.log")
     ...(read.state === "waiting" || read.state === "unavailable" || read.state === "running"
@@ -92,6 +104,8 @@ export function workspaceData(d: {
       return () => clearInterval(t);
     });
   const names = new Map<string, string>();
+  // every open watch, by agent: a terminal that draws is the proof that the computer is awake, so the words are read again at once and never wait for the next poll
+  const refreshers = new Map<string, Set<() => void>>();
   const ensuring = new Map<string, Promise<string>>();
   const lastSeen = new Map<string, Map<string, string>>();
   // the state each terminal last said in terminal.status (the host's own word): the list is patched by events and an exit or a command's start is none, so a row shows the newer of the two
@@ -185,12 +199,19 @@ export function workspaceData(d: {
       };
       const off = q.subscribe(push);
       const stop = every(push, POLL_MS);
+      const mine = refreshers.get(agentId) ?? new Set<() => void>();
+      mine.add(push);
+      refreshers.set(agentId, mine);
       push();
       return () => {
         live = false;
         off();
         stop();
+        mine.delete(push);
       };
+    },
+    refresh(agentId) {
+      for (const f of refreshers.get(agentId) ?? []) f();
     },
     async wake(agentId) {
       await open(agentId);

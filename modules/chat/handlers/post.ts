@@ -307,6 +307,8 @@ export function deliver(
     poke?: { agentId: string; by: string; outside?: boolean };
     /** The line tells an agent what its person answered on a card of theirs: the person's own act, so it counts as typed (see answeredCard). */
     answered?: boolean;
+    /** A line the system leaves in a person's name (a connect card's answer): never the person's typed words, whatever the call's origin. */
+    quiet?: boolean;
   } = {},
 ): void {
   ctx.emit("message.received", thread.id, {
@@ -327,6 +329,7 @@ export function deliver(
     ...(author.kind === "person" &&
     (ctx.origin === "user" || ctx.origin === "sync") &&
     opts.poke === undefined &&
+    opts.quiet !== true &&
     (ctx.depth === 0 || opts.answered === true)
       ? { typed: true }
       : {}),

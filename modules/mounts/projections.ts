@@ -122,11 +122,22 @@ export function onVersionAdded(tx: ProjTx, e: ProjEvent): void {
   if (!row || row["native"] === 1) return;
   const synced = typeof row["synced_version"] === "number" ? row["synced_version"] : 0;
   if (n <= synced) return;
+  // the first edit of the batch: kept while the item stays dirty, so a long edit has an end (the quiet window is capped from it)
+  const since =
+    row["dirty"] === 1
+      ? typeof row["dirty_since"] === "number"
+        ? row["dirty_since"]
+        : typeof row["dirty_at"] === "number"
+          ? row["dirty_at"]
+          : e.at
+      : e.at;
   tx.run(
-    "UPDATE mounts_item SET local_version = ?, dirty = ?, dirty_by = ? WHERE mount_id = ? AND item_key = ?",
+    "UPDATE mounts_item SET local_version = ?, dirty = ?, dirty_by = ?, dirty_at = ?, dirty_since = ? WHERE mount_id = ? AND item_key = ?",
     n,
     1,
     e.actor,
+    e.at,
+    since,
     row["mount_id"],
     row["item_key"],
   );
@@ -141,9 +152,10 @@ function queueDelete(tx: ProjTx, row: Row, at: number): void {
     return;
   }
   tx.run(
-    "UPDATE mounts_item SET deleted = ?, dirty = ? WHERE mount_id = ? AND item_key = ?",
+    "UPDATE mounts_item SET deleted = ?, dirty = ?, op_seq = ? WHERE mount_id = ? AND item_key = ?",
     1,
     1,
+    (typeof row["op_seq"] === "number" ? row["op_seq"] : 0) + 1,
     mountId,
     row["item_key"],
   );

@@ -53,6 +53,8 @@ export class FakeFiles {
   readonly files = new Map<string, FakeFile>();
   readonly reads: { fileId: string; versionId?: string; offset: number; length: number }[] = [];
   readonly getCalls: string[] = [];
+  /** When set, files.read fails with it: a file that lives at its provider whose fetch fails (provider.unavailable). */
+  failRead: unknown = null;
   private seq = 0;
 
   add(name: string, mime: string, bytes: Uint8Array, fileId?: string): FakeFile {
@@ -94,6 +96,7 @@ export class FakeFiles {
       };
     }
     if (cap === "files.read") {
+      if (this.failRead !== null) throw this.failRead;
       const f = this.mustHave(String(i["fileId"]));
       const v =
         typeof i["versionId"] === "string"

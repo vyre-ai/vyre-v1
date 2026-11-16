@@ -16,6 +16,9 @@ import { NOT_FETCHED_REASON, createDockerApi, fetchableImage } from "../../sandb
 import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp, DockerResponse } from "../../sandbox/src/docker.ts";
 import { createTmuxHost, HISTORY_ENV } from "./impl.ts";
+import { START_SCRIPT, READ_SCRIPT, STOP_SCRIPT, SWEEP_SCRIPT, parseRead, streamFile } from "./stream-log.ts";
+import { ensureCommand, grantCommand, SQUATTED } from "./asker.ts";
+import type { AskerPlace } from "./asker.ts";
 import type { TmuxHost } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
 import type { AdoptArgs, TerminalHost } from "./projections.ts";
@@ -24,8 +27,32 @@ export const DEFAULT_WORKSPACE_IMAGE = "vyre/agent-workspace:1";
 export const WORKSPACE_PREFIX = "vyre-ws-";
 export const PROJECT_VOLUME_PREFIX = "vyre-wsproj-";
 export const WORKSPACE_HOME = "/home/agent";
-export const FILES_GUEST = "/home/agent/Vyre";
-export const PROJECTS_GUEST = "/home/agent/projects";
+/**
+ * The folders people other than the agent's owner may be let into live OUTSIDE the agent's home, under /shared (round three of the wall review: a guest has no search permission on /home/agent at all, so no
+ * file the agent writes there, with any umask, at any moment, can be reached by name). `~/projects` and `~/Vyre` in the agent's home, and in each person's own home, are links to them.
+ */
+export const SHARED_ROOT = "/shared";
+export const FILES_GUEST = `${SHARED_ROOT}/Vyre`;
+export const PROJECTS_GUEST = `${SHARED_ROOT}/projects`;
+/** Closes the home to everyone but the agent (a volume of an older release may have been made with other rights) and makes `~/Vyre` and `~/projects` of the agent's home links to the shared folders. A workspace of an older release has them as the folders the volumes were mounted on: empty ones are replaced; one with files in it is moved to `.old` (never lost), and its owner is told once (`takeNotes`). Prints `MOVED <name> <new name>` for each. */
+export const LINK_SCRIPT = [
+  'chmod 700 "$HOME" 2>/dev/null',
+  "for n in Vyre projects; do",
+  '  p="$HOME/$n"; [ -L "$p" ] && continue',
+  '  if [ -d "$p" ]; then',
+  '    if [ -z "$(find "$p" -mindepth 1 ! -type d 2>/dev/null | head -n 1)" ]; then',
+  '      find "$p" -depth -mindepth 1 -type d -empty -delete 2>/dev/null; rmdir "$p" 2>/dev/null',
+  "    else",
+  // a folder with files in it is never in the way and never lost: it is moved aside (name.old, name.old.2, ...), the owner's alone, and said once
+  '      old="$p.old"; i=2; while [ -e "$old" ]; do old="$p.old.$i"; i=$((i+1)); done',
+  '      mv "$p" "$old" && chmod 700 "$old" && echo "MOVED $n $(basename "$old")"',
+  "    fi",
+  "  fi",
+  '  [ -e "$p" ] || ln -s "/shared/$n" "$p"',
+  "done; true",
+].join("\n");
+/** The exec wrapper: every process Vyre starts in a workspace runs with umask 077, so nothing it makes outside a session shell is readable by anyone but the agent's own user. */
+export const UMASK_WRAP: readonly string[] = ["sh", "-c", 'umask 077; exec "$@"', "sh"];
 export const WORKSPACE_UID = 10001;
 export const DEFAULT_IDLE_MS = 10 * 60_000;
 /**
@@ -46,6 +73,9 @@ export const workspaceNetworkName = (agentId: string): string => `vyre-wsnet-${s
 export const WORKSPACE_HOSTNAME = "workspace";
 export const homeVolume = (agentId: string): string => `${workspaceName(agentId)}-home`;
 export const filesVolume = (agentId: string): string => `${workspaceName(agentId)}-files`;
+/** The homes of the people who use the agent without owning it, each a Unix user of their own (asker.ts): mounted at /people. */
+export const peopleVolume = (agentId: string): string => `${workspaceName(agentId)}-people`;
+export const PEOPLE_GUEST = "/people";
 export const projectVolume = (projectId: string): string => `${PROJECT_VOLUME_PREFIX}${projectId}`;
 
 /** What the disk side of the Files mirror is, as the computers module's HomeSync reads it (its HomeFs, written out: a module does not import another module). */
@@ -122,6 +152,11 @@ export interface WorkspaceOptions {
   home?: WorkspaceHome;
   /** The projects the agent is on, read when the workspace wakes: a change recreates the container (volumes stay), so the new project's folder is there. */
   projectsOf?: (agentId: string) => Promise<readonly string[]> | readonly string[];
+  /** The projects of this agent a person is on, and whether they may write there (their role): what a person who uses the agent without owning it may reach under ~/projects. */
+  projectAccessOf?: (
+    agentId: string,
+    person: string,
+  ) => Promise<ReadonlyArray<{ id: string; write: boolean }>> | ReadonlyArray<{ id: string; write: boolean }>;
   /** Behind the runner (a Team server) each workspace gets a network of its own, so one cannot reach another. */
   runner?: boolean;
   /**
@@ -176,6 +211,8 @@ export interface WorkspaceManager {
     o?: {
       env?: Readonly<Record<string, string>>;
       quiet?: boolean;
+      /** Run as this Unix user instead of the agent's own (10001): a person who uses the agent without owning it (asker.ts). */
+      user?: number;
       /** The env holds Vault values: refused where they would cross a link that is not private. */ values?: boolean;
     },
   ): Promise<ExecResult>;
@@ -233,6 +270,10 @@ export interface WorkspaceManager {
   filesChanged(change?: { folderIds?: readonly string[]; fileId?: string; by?: string }): void;
   /** A person's open tab read the workspace's screen: it counts as attached for a short while (making room passes it over). */
   viewed(agentId: string): void;
+  /** The projects of this agent a person is on and whether they may write there (the daemon's own tables): what they reach under ~/projects when they use the agent without owning it. */
+  projectAccess(agentId: string, person: string): Promise<ReadonlyArray<{ id: string; write: boolean }>>;
+  /** What the owner is to be told once about this computer (an old folder moved aside at an update); taking it empties it. */
+  takeNotes(agentId: string): string[];
   /** The line a workspace put to sleep at the 12-hour ceiling owes its next command, once (then null). */
   takeNote(agentId: string): string | null;
   /** The agent came back from Trash: its workspace may be made again (over the volumes it kept). */
@@ -248,15 +289,16 @@ export interface WorkspaceManager {
  * what it forks). So `bash build.sh`, `sh -c ...` and a job left in the background (`npm run dev &`) count, where a pane's foreground command alone reads as the shell. Plain sh and /proc, no ps.
  */
 export const BUSY_SCRIPT = [
-  "t=$(tmux display-message -p '#{pid}' 2>/dev/null)",
-  "panes=\" $(tmux list-panes -a -F '#{pane_pid}' 2>/dev/null | tr '\\n' ' ') \"",
+  // the tmux servers and pane shells of the people who use the agent without owning it run as their own Unix users and cannot be asked from here: the caller asked each of them and passes the pids
+  "t=\" $(tmux display-message -p '#{pid}' 2>/dev/null) ${VYRE_SKIP_T:-} \"",
+  "panes=\" $(tmux list-panes -a -F '#{pane_pid}' 2>/dev/null | tr '\\n' ' ') ${VYRE_SKIP_PANES:-} \"",
   "for d in /proc/[0-9]*; do",
   "  p=${d#/proc/}",
-  '  [ "$p" = "$$" ] && continue; [ "$p" = 1 ] && continue; [ "$p" = "$t" ] && continue',
+  '  [ "$p" = "$$" ] && continue; [ "$p" = 1 ] && continue; case "$t" in *" $p "*) continue;; esac',
   '  s=$(cat "$d/stat" 2>/dev/null) || continue',
   "  r=${s##*) }; set -- $r",
   '  [ "$1" = Z ] && continue',
-  '  [ "$2" = 0 ] || [ "$2" = "$$" ] || [ "$2" = "$t" ] && continue',
+  '  [ "$2" = 0 ] || [ "$2" = "$$" ] && continue; case "$t" in *" $2 "*) continue;; esac',
   '  case "$panes" in *" $p "*) continue;; esac',
   "  if [ \"$2\" = 1 ]; then c=$(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null); [ \"$c\" = 'sleep infinity ' ] && continue; fi",
   "  echo \"$p $(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null | cut -c1-80)\"",
@@ -272,10 +314,9 @@ export interface MountSpec {
 
 /** The label that says what a container was made with: its project folders, and the shared network when it is on it (a workspace made on the default bridge before 12 Nov is made again once, when quiet). */
 const stable = (m: MountSpec, net?: string): string =>
-  sha256Hex(JSON.stringify({ p: [...m.projects].sort(), h: 1, ...(net === SHARED_NETWORK ? { n: net } : {}) })).slice(
-    0,
-    16,
-  );
+  sha256Hex(
+    JSON.stringify({ p: [...m.projects].sort(), h: 1, u: 1, s: 1, ...(net === SHARED_NETWORK ? { n: net } : {}) }),
+  ).slice(0, 16);
 
 /**
  * Where workspaces live on an engine with no runner in front (a Personal Space with Docker Desktop, a Team server on the computers socket option): one network for all of them with traffic between
@@ -327,6 +368,7 @@ export function workspaceContainerConfig(
       Binds: [
         `${homeVolume(agentId)}:${WORKSPACE_HOME}:rw`,
         `${filesVolume(agentId)}:${FILES_GUEST}:rw`,
+        `${peopleVolume(agentId)}:${PEOPLE_GUEST}:rw`,
         ...[...m.projects].sort().map((p) => `${projectVolume(p)}:${PROJECTS_GUEST}/${p}:rw`),
       ],
       ReadonlyRootfs: false,
@@ -408,11 +450,18 @@ export function reviewWorkspaceConfig(c: ContainerConfig, agentId: string): stri
     if (SYSTEM.has(src.replace(/\/+$/, "") || "/")) bad.push("a system folder is bound");
     if (src.startsWith("/")) bad.push(`a host folder is bound at ${guest}`);
     else if (
-      ![homeVolume(agentId), filesVolume(agentId)].includes(src) &&
+      ![homeVolume(agentId), filesVolume(agentId), peopleVolume(agentId)].includes(src) &&
       !(src.startsWith(PROJECT_VOLUME_PREFIX) && PROJECT_ID.test(src.slice(PROJECT_VOLUME_PREFIX.length)))
     )
       bad.push(`volume ${src} is not this workspace's`);
-    if (!(guest === WORKSPACE_HOME || guest === FILES_GUEST || guest.startsWith(`${PROJECTS_GUEST}/`)))
+    if (
+      !(
+        guest === WORKSPACE_HOME ||
+        guest === FILES_GUEST ||
+        guest === PEOPLE_GUEST ||
+        guest.startsWith(`${PROJECTS_GUEST}/`)
+      )
+    )
       bad.push(`binds into ${guest}`);
   }
   if (Object.keys(h.Tmpfs).some((k) => k !== "/tmp")) bad.push("a tmpfs other than /tmp");
@@ -435,6 +484,8 @@ const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r
 /** A refusal written for a person: the first line is plain words, anything after it (Details: ...) is for Copy details. The terminal says the first line as the reason a session did not open. */
 export const NOT_PRIVATE =
   "This workspace is on a server whose link to the Space is not private (no TLS), so no Vault value is sent to it. Connect the server over https, or run the command without the value.";
+/** What a workspace session runs: a bash with a private umask (files the agent makes outside its own folder, in /tmp, are not readable by the other people of the computer). */
+export const SESSION_SHELL: readonly string[] = ["sh", "-c", "umask 007; exec bash"];
 // the message reaches a person (the chat, the Terminal tab): Docker names a container in its own errors, and that name carries the agent's id
 const wsError = (message: string, code = "unavailable"): Error =>
   Object.assign(new Error(message.replace(/vyre-(?:ws|wsproj|wsnet)-[A-Za-z0-9_-]+/g, "the workspace")), {
@@ -442,7 +493,8 @@ const wsError = (message: string, code = "unavailable"): Error =>
     workspace: true,
   });
 
-export const IMAGE_MISSING_LINE = "This server can't start agent workspaces yet.";
+export const IMAGE_MISSING_LINE =
+  "This server has no computer ready for agents. An admin of this Space can set one up in Console > Computers.";
 /** A command run before the workspace's copy of Files caught up (it took longer than a few seconds): its first line. */
 export const FILES_LATE_LINE =
   "Files changed in the last few seconds may not be in the workspace yet: copying them from Files is taking longer than usual.";
@@ -1366,8 +1418,40 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
               .map((l) => l.trim())
               .filter((c) => c !== "" && !SHELLS.has(c))
           : [];
+      // the panes of the people who use the agent without owning it are on tmux servers of their own Unix users: each is asked as that user, and its pids are told to the process scan
+      const skipT: string[] = [];
+      const skipPanes: string[] = [];
+      // the people who have programs running: each has a tmux server of their own (its socket is in their own folder, which only they can list)
+      const listed = await execIn(agentId, ["sh", "-c", "ps -eo uid= | sort -u; true"], undefined);
+      for (const m of listed.stdout.matchAll(/^\s*(\d+)\s*$/gm)) {
+        if (Number(m[1]) < 20000) continue;
+        const uid = Number(m[1]);
+        if (uid === WORKSPACE_UID) continue;
+        const theirs = await execIn(
+          agentId,
+          [
+            "sh",
+            "-c",
+            'echo "S $(tmux display-message -p "#{pid}" 2>/dev/null)"; tmux list-panes -a -F "P #{pane_pid} #{pane_current_command}" 2>/dev/null; true',
+          ],
+          undefined,
+          uid,
+        ).catch(() => null);
+        if (theirs === null) continue;
+        for (const l of theirs.stdout.split("\n")) {
+          const [kind, a1, a2] = l.trim().split(/\s+/);
+          if (kind === "S" && a1) skipT.push(a1);
+          else if (kind === "P" && a1) {
+            skipPanes.push(a1);
+            if (a2 && !SHELLS.has(a2)) fg.push(a2);
+          }
+        }
+      }
       if (fg.length > 0) return say([...new Set(fg)].join(", "));
-      const procs = await execIn(agentId, ["sh", "-c", BUSY_SCRIPT], undefined);
+      const procs = await execIn(agentId, ["sh", "-c", BUSY_SCRIPT], {
+        VYRE_SKIP_T: skipT.join(" "),
+        VYRE_SKIP_PANES: skipPanes.join(" "),
+      });
       if (procs.code !== 0) return say("something");
       const names = procs.stdout
         .split("\n")
@@ -1385,6 +1469,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     }
   }
 
+  const notes = new Map<string, string[]>();
   async function wake(agentId: string): Promise<"created" | "woke" | "running"> {
     const name = workspaceName(agentId);
     const want = await mounts(agentId);
@@ -1484,6 +1569,13 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       await o.capacity?.release(agentId).catch(() => undefined);
       throw e;
     }
+    // ~/Vyre and ~/projects are links to /shared (a failure here leaves the owner's old paths as they were)
+    const linked = await execIn(agentId, ["sh", "-c", LINK_SCRIPT], undefined).catch(() => null);
+    for (const m of (linked?.stdout ?? "").matchAll(/^MOVED (Vyre|projects) (\S+)$/gm))
+      notes.set(agentId, [
+        ...(notes.get(agentId) ?? []),
+        `Files that were in this computer's old ${m[1] === "Vyre" ? "Files" : "projects"} folder are now in ~/${m[2]}.`,
+      ]);
     if (o.capacity) claimed.add(agentId);
     gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
     lastUsed.set(agentId, now());
@@ -1510,10 +1602,18 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     agentId: string,
     argv: readonly string[],
     env: Readonly<Record<string, string>> | undefined,
+    user?: number,
   ): Promise<ExecResult> {
+    // an exec runs as the agent's own user (10001), or as the Unix user of a person who uses the agent without owning it (asker.ts)
+    // a person's tmux server keeps its socket in their own folder: no other person can make the folder in /tmp first and stop it from starting
+    const own =
+      user !== undefined && user >= 20000 && env?.["TMUX_TMPDIR"] === undefined
+        ? { TMUX_TMPDIR: `/people/u${user}/.tmux` }
+        : {};
     const r = await api.exec(workspaceName(agentId), {
-      cmd: argv,
-      env: Object.entries(env ?? {}).map(([k, v]) => `${k}=${v}`),
+      cmd: [...UMASK_WRAP, ...argv],
+      env: Object.entries({ ...(env ?? {}), ...own }).map(([k, v]) => `${k}=${v}`),
+      ...(user === undefined ? {} : { user: `${user}:${user}` }),
     });
     return { code: r.exitCode ?? 1, stdout: r.stdout, stderr: r.stderr };
   }
@@ -1521,13 +1621,13 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   async function exec(
     agentId: string,
     argv: readonly string[],
-    x?: { env?: Readonly<Record<string, string>>; quiet?: boolean; values?: boolean },
+    x?: { env?: Readonly<Record<string, string>>; quiet?: boolean; values?: boolean; user?: number },
   ): Promise<ExecResult> {
     if (x?.values === true && o.valuesAllowed && !o.valuesAllowed()) throw wsError(NOT_PRIVATE);
     // quiet: tidying up after a stream. It neither wakes a sleeping workspace nor counts as use.
     if (x?.quiet === true)
       return (await api.containerRunning(workspaceName(agentId)))
-        ? execIn(agentId, argv, x.env)
+        ? execIn(agentId, argv, x.env, x.user)
         : { code: 1, stdout: "", stderr: "the workspace is asleep" };
     await ensure(agentId);
     lastUsed.set(agentId, now());
@@ -1536,12 +1636,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     nudge(homes.get(agentId), mirrorBase());
     for (const pid of agentProjects.get(agentId) ?? []) nudge(projects.get(pid), mirrorBase());
     try {
-      return await execIn(agentId, argv, x?.env);
+      return await execIn(agentId, argv, x?.env, x?.user);
     } catch (e) {
       // the container stopped between the wake and the exec (a sweep, or someone stopped it): wake it once more
       if (await api.containerRunning(workspaceName(agentId)).catch(() => false)) throw e;
       await ensure(agentId);
-      return execIn(agentId, argv, x?.env);
+      return execIn(agentId, argv, x?.env, x?.user);
     }
   }
 
@@ -1819,6 +1919,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     },
     awake: (agentId) =>
       AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false),
+    takeNotes(agentId) {
+      const n = notes.get(agentId) ?? [];
+      notes.delete(agentId);
+      return n;
+    },
+    async projectAccess(agentId, person) {
+      return (await o.projectAccessOf?.(agentId, person)) ?? [];
+    },
     viewed(agentId) {
       viewedAt.set(agentId, now());
     },
@@ -1934,7 +2042,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         homes.delete(agentId);
         if (await inspect(workspaceName(agentId))) await removeContainer(workspaceName(agentId));
         if (x?.keepVolumes !== true) {
-          for (const v of [homeVolume(agentId), filesVolume(agentId)]) {
+          for (const v of [homeVolume(agentId), filesVolume(agentId), peopleVolume(agentId)]) {
             const r = await http({ method: "DELETE", path: `/volumes/${v}`, query: { force: "true" } });
             if (r.status !== 204 && r.status !== 404)
               throw wsError(`The workspace's volume was not removed (${r.status}).`);
@@ -2056,7 +2164,17 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
   /** `gen`: the container start the session was last made or seen in (-1: not yet looked at since a restart); `seen`: the start it was known in, to tell a session the person ended from one a restart lost. */
   const where = new Map<
     string,
-    { agentId: string; cols: number; rows: number; cwd?: string; gen: number; seen?: number; told?: number }
+    {
+      agentId: string;
+      cols: number;
+      rows: number;
+      cwd?: string;
+      gen: number;
+      seen?: number;
+      told?: number;
+      /** A person who uses this shared agent's workspace without owning it: their own home, history and tmux server (asker.ts). */
+      place?: AskerPlace;
+    }
   >();
   const tmuxHosts = new Map<string, TmuxHost>();
   /** The first sweep of each workspace's leftover values buffers in this process: awaited before any use. */
@@ -2064,7 +2182,11 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
 
   // ---- live frames: tmux pipe-pane into a file in /tmp, read back from an offset, one reader per session however many tabs watch ----
   const streams = new Map<string, { listeners: Set<(line: string) => void>; stop(): void }>();
-  function control(agentId: string): (session: string, onLine: (line: string) => void) => () => void {
+  function control(
+    agentId: string,
+    place?: AskerPlace,
+  ): (session: string, onLine: (line: string) => void) => () => void {
+    const user = place?.uid;
     return (session, onLine) => {
       const have = streams.get(session);
       if (have) {
@@ -2074,7 +2196,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
           if (have.listeners.size === 0) have.stop();
         };
       }
-      const file = `/tmp/.vyre-stream-${session}`;
+      const file = streamFile(session);
       const listeners = new Set<(line: string) => void>([onLine]);
       let stopped = false;
       const entry = {
@@ -2083,8 +2205,9 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
           stopped = true;
           streams.delete(session);
           void m
-            .exec(agentId, ["sh", "-c", 'tmux pipe-pane -t "$1" 2>/dev/null; rm -f "$2"', "sh", session, file], {
+            .exec(agentId, ["sh", "-c", STOP_SCRIPT, "sh", session, file], {
               quiet: true,
+              ...(user === undefined ? {} : { user }),
             })
             .catch(() => undefined);
         },
@@ -2094,20 +2217,23 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         let offset = 0;
         let carry: Uint8Array = new Uint8Array(0);
         try {
-          await m.exec(agentId, ["sh", "-c", ': > "$2"; tmux pipe-pane -t "$1" "cat >> $2"', "sh", session, file]);
+          const started = await m.exec(
+            agentId,
+            ["sh", "-c", START_SCRIPT, "sh", session, file],
+            user === undefined ? undefined : { user },
+          );
+          if (started.code !== 0) throw new Error("the live view could not be started");
           while (!stopped) {
-            const r = await m.exec(agentId, [
-              "sh",
-              "-c",
-              'tail -c +"$1" "$2" 2>/dev/null | head -c 49152 | base64 -w0',
-              "sh",
-              String(offset + 1),
-              file,
-            ]);
-            const b64 = r.stdout.trim();
-            if (b64 !== "") {
-              const got = Buffer.from(b64, "base64");
-              offset += got.length;
+            const r = await m.exec(
+              agentId,
+              ["sh", "-c", READ_SCRIPT, "sh", String(offset), file],
+              user === undefined ? undefined : { user },
+            );
+            const read = parseRead(r.stdout);
+            const got = read.bytes;
+            if (got.length > 0) {
+              // what was read is gone from the file: the next read starts at its beginning again
+              offset = read.emptied ? 0 : offset + got.length;
               const all = new Uint8Array(carry.length + got.length);
               all.set(carry);
               all.set(got, carry.length);
@@ -2132,29 +2258,52 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     };
   }
 
-  function tmuxFor(agentId: string): TmuxHost {
-    let h = tmuxHosts.get(agentId);
+  /** The folder of a person who uses the agent without owning it, made by their own Unix user. A folder someone else made first ends in `squatted`: the caller burns that uid. */
+  async function ensurePlace(agentId: string, place: AskerPlace): Promise<void> {
+    const r = await m.exec(agentId, ensureCommand(place), { user: place.uid });
+    if (r.code === SQUATTED) throw wsError("That folder was made by someone else.", "squatted");
+    // what of the agent's home reaches them: the projects they are on and, when Files shows it to them, the mirror (as the agent's own user: it owns those folders)
+    if (r.code !== 0)
+      throw wsError(`The folder of this person could not be made (${r.stderr.trim().slice(0, 120)}).`, "unavailable");
+    const projects = await m.projectAccess(agentId, place.person);
+    const g = await m.exec(agentId, grantCommand(place, projects));
+    if (g.code !== 0)
+      throw wsError(`What this person may reach could not be set (${g.stderr.trim().slice(0, 120)}).`, "unavailable");
+  }
+
+  /** The tmux host of a workspace, or of one person's tmux server in it (a person who uses the shared agent without owning it, asker.ts). */
+  function tmuxFor(agentId: string, place?: AskerPlace): TmuxHost {
+    const key = place === undefined ? agentId : `${agentId}\u0000${place.person}`;
+    let h = tmuxHosts.get(key);
+    const user = place?.uid;
     // what a program reads on its standard input (a command's values, for tmux load-buffer) goes in by the exec's environment and a pipe, never in its arguments
     const exec = (argv: readonly string[], x?: { stdin?: string }): Promise<ExecResult> =>
       x?.stdin === undefined
-        ? m.exec(agentId, argv)
+        ? m.exec(agentId, argv, user === undefined ? undefined : { user })
         : m.exec(agentId, ["sh", "-c", 'printf %s "$VYRE_STDIN" | (unset VYRE_STDIN; exec "$@")', "sh", ...argv], {
             env: { VYRE_STDIN: x.stdin },
             values: true,
+            ...(user === undefined ? {} : { user }),
           });
     if (!h) {
       // a tab's live read is quiet: it neither wakes the workspace nor counts as use, so a tab left open does not keep the workspace awake, and a person watching is not taken for the agent at work
       h = createTmuxHost({
         exec,
-        quietExec: (argv) => m.exec(agentId, argv, { quiet: true }),
-        control: control(agentId),
+        quietExec: (argv) => m.exec(agentId, argv, { quiet: true, ...(user === undefined ? {} : { user }) }),
+        // the shell of every session starts with a private umask: what a program writes outside its own folder (in /tmp) is not readable by the other people of the computer
+        shell: SESSION_SHELL,
+        control: control(agentId, place),
         prefix,
       });
-      tmuxHosts.set(agentId, h);
+      tmuxHosts.set(key, h);
       // the first use of this workspace in this process: what a run left before a restart is removed before anyone reads (review 12 Nov, 3b); every use waits for it (third look)
       firstSweep.set(
-        agentId,
-        h.sweep().catch(() => undefined),
+        key,
+        // and the live views' files a run left before a restart (stream-log.ts)
+        Promise.all([h.sweep(), m.exec(agentId, ["sh", "-c", SWEEP_SCRIPT], { quiet: true })]).then(
+          () => undefined,
+          () => undefined,
+        ),
       );
     }
     return h;
@@ -2172,30 +2321,40 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     }
     await m.ensure(w0.agentId);
     const gen = m.generation(w0.agentId);
+    const place = w0.place;
+    const asThem = (): { user: number } | undefined => (place === undefined ? undefined : { user: place.uid });
     if (remake || w0.gen !== gen) {
       // tmux died with the container (or this process never saw the session: a restart): the session is made again, empty, where it was; one that is still there is kept as it is
       const session = nameOf(terminalId);
-      if ((await m.exec(w0.agentId, ["tmux", "has-session", "-t", session])).code !== 0) {
-        await m.exec(w0.agentId, [
-          "tmux",
-          "new-session",
-          "-A",
-          ...HISTORY_ENV,
-          "-d",
-          "-s",
-          session,
-          "-x",
-          String(w0.cols),
-          "-y",
-          String(w0.rows),
-          ...(w0.cwd === undefined ? [] : ["-c", w0.cwd]),
-        ]);
-        await tmuxFor(w0.agentId).sweep();
+      if ((await m.exec(w0.agentId, ["tmux", "has-session", "-t", session], asThem())).code !== 0) {
+        // the person's own folder is made again first, as them (a container made again has the volume, and a folder that is there is kept)
+        if (place !== undefined) await ensurePlace(w0.agentId, place);
+        await m.exec(
+          w0.agentId,
+          [
+            "tmux",
+            "new-session",
+            "-A",
+            ...HISTORY_ENV,
+            ...(place === undefined ? [] : Object.entries(place.env).flatMap(([k, v]) => ["-e", `${k}=${v}`])),
+            "-d",
+            "-s",
+            session,
+            "-x",
+            String(w0.cols),
+            "-y",
+            String(w0.rows),
+            ...(w0.cwd === undefined ? [] : ["-c", w0.cwd]),
+            ...SESSION_SHELL,
+          ],
+          asThem(),
+        );
+        await tmuxFor(w0.agentId, place).sweep();
       }
       w0.gen = gen;
     }
-    const host = tmuxFor(w0.agentId);
-    await firstSweep.get(w0.agentId);
+    const host = tmuxFor(w0.agentId, place);
+    await firstSweep.get(place === undefined ? w0.agentId : `${w0.agentId}\u0000${place.person}`);
     return { agentId: w0.agentId, host };
   }
   /** Do `f` in the session's workspace; a session tmux lost under a running workspace (its server was killed from inside) is made again once and `f` tried again. */
@@ -2221,6 +2380,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         cols: a.cols,
         rows: a.rows,
         ...(a.cwd === undefined ? {} : { cwd: a.cwd }),
+        ...(a.place === undefined ? {} : { place: a.place }),
         gen: -1,
         seen: m.generation(a.target.agentId),
       });
@@ -2229,10 +2389,19 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       const agentId = a.target.agentId;
       if (agentId === undefined) throw wsError("Say which agent's workspace to open the terminal in.", "bad_input");
       await m.ensure(agentId);
-      const t = tmuxFor(agentId);
-      await firstSweep.get(agentId);
+      // a person who uses the shared agent without owning it: their folder exists, theirs and 0700, before their shell does
+      if (a.place !== undefined) await ensurePlace(agentId, a.place);
+      const t = tmuxFor(agentId, a.place);
+      await firstSweep.get(a.place === undefined ? agentId : `${agentId}\u0000${a.place.person}`);
       const r = await t.open(a);
-      where.set(a.terminalId, { agentId, cols: a.cols, rows: a.rows, cwd: r.cwd, gen: m.generation(agentId) });
+      where.set(a.terminalId, {
+        agentId,
+        cols: a.cols,
+        rows: a.rows,
+        cwd: r.cwd,
+        ...(a.place === undefined ? {} : { place: a.place }),
+        gen: m.generation(agentId),
+      });
       return { ...r, title: "Workspace" };
     },
     async input(id, data) {
@@ -2273,12 +2442,19 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       const up = await m.awake(x.agentId).catch(() => false);
       if (!up) return { text: "", next: r.since };
       if (x.gen !== m.generation(x.agentId)) {
-        if ((await m.exec(x.agentId, ["tmux", "has-session", "-t", nameOf(id)], { quiet: true })).code !== 0)
+        if (
+          (
+            await m.exec(x.agentId, ["tmux", "has-session", "-t", nameOf(id)], {
+              quiet: true,
+              ...(x.place === undefined ? {} : { user: x.place.uid }),
+            })
+          ).code !== 0
+        )
           return { text: "", next: r.since };
         x.gen = m.generation(x.agentId);
       }
       try {
-        return await tmuxFor(x.agentId).read(id, r);
+        return await tmuxFor(x.agentId, x.place).read(id, r);
       } catch {
         return { text: "", next: r.since };
       }
@@ -2289,7 +2465,17 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       const release = m.hold(t.agentId);
       try {
         // a session tmux lost is made again before the line is typed; never after, so a command is never typed twice
-        if ((await m.exec(t.agentId, ["tmux", "has-session", "-t", nameOf(id)])).code !== 0) t = await at(id, true);
+        const placeUser = where.get(id)?.place?.uid;
+        if (
+          (
+            await m.exec(
+              t.agentId,
+              ["tmux", "has-session", "-t", nameOf(id)],
+              placeUser === undefined ? undefined : { user: placeUser },
+            )
+          ).code !== 0
+        )
+          t = await at(id, true);
         const g0 = m.generation(t.agentId);
         // a file a person just dropped into Files is there before the command runs (fourth look U2); if the copy takes too long, the command runs anyway and says so
         const fresh = await m.freshen(t.agentId).catch(() => false);
@@ -2323,7 +2509,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         }
         // gone from the container it lived in: the person ended it (exit), so it reads as exited; gone because the container was started again since: idle, made again on its next use
         const sameStart = (x.gen !== -1 ? x.gen : x.seen) === m.generation(x.agentId);
-        const got = await tmuxFor(x.agentId).status([id]);
+        const got = await tmuxFor(x.agentId, x.place).status([id]);
         out.push(...got.map((g) => (g.state === "exited" && !sameStart ? { ...g, state: "idle" as const } : g)));
       }
       return out;
@@ -2331,19 +2517,20 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     stream(id, onFrame) {
       const x = where.get(id);
       if (!x) return () => undefined;
-      const h = tmuxFor(x.agentId);
+      const h = tmuxFor(x.agentId, x.place);
       return h.stream ? h.stream(id, onFrame) : () => undefined;
     },
     async close(id) {
       const x = where.get(id);
       if (x) {
         const live = await m.awake(x.agentId);
-        if (live) await tmuxFor(x.agentId).close(id);
+        if (live) await tmuxFor(x.agentId, x.place).close(id);
         where.delete(id);
         return;
       }
       const found = await m.find(nameOf(id));
       if (found !== null) await tmuxFor(found).close(id);
+      streams.get(nameOf(id))?.stop(); // the live view's file goes with the session
     },
     async health() {
       const h = await m.health();

@@ -1,8 +1,11 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // engine module entry (lane L2). The host loads the generated stubs while manifests/engine.ts says `status: 'stub'`; the last engine packet flips it to live
 // (host/modules.json, ruling 25) after the contract tests pass against these handlers. Capabilities not listed in `handlers` stay on their stubs until then.
 //
 // Also here: the runtime that wires the turn engine to this module's SQL (queue, lease, messages, parked tool calls), so a second host that takes a thread over
 // with recover() replays the same message bodies, and a tool call held at the Gate parks the turn on its task (turn.waiting) until resume().
+import { erase as erasePoints, sweep as sweepPoints } from "./checkpoints.ts";
 import { forgetPlacement } from "./placement-cache.ts";
 import { recallPick } from "./last-pick.ts";
 import { forgetProvider } from "./model-health.ts";
@@ -73,6 +76,16 @@ export const periodic = {
     run: async (ctx: EngineCtx): Promise<void> => {
       const engine = await ensureRuntime(ctx);
       if (engine) await recoverStale(ctx, engine);
+    },
+  },
+  /** The one sweep of Rewind's points (checkpoints.ts sweep): points older than 14 days go, in every chat, touched or not; stores over their cap are cut; the Space's total is held under its cap. A rewind a restart cut short stays listed with Undo. */
+  "engine.checkpoint_sweep": {
+    everyMs: 3_600_000,
+    run: async (ctx: EngineCtx): Promise<string[]> => {
+      const dataDir = engineHost()?.dataDir;
+      if (!dataDir) return [];
+      const r = await sweepPoints(dataDir, ctx.now());
+      return r.pointsDropped + r.storesDropped > 0 ? [`${r.pointsDropped} points, ${r.storesDropped} stores`] : [];
     },
   },
   /** A baton an agent stopped on goes to a person after nudgeMinutes (handlers/task-baton.ts). */
@@ -163,6 +176,28 @@ export const consumers = keptWhileStopping({
       });
     },
   },
+  /** A chat was erased for good: the engine's own copy of its words, its queue, waits and per-chat state go with it (F77: an erase left these behind). */
+  "engine.thread_erased": {
+    on: ["thread.erased"],
+    run: async (ctx: EngineCtx, event: { payload: { threadId?: string } }): Promise<string[]> => {
+      const id = event.payload.threadId;
+      if (typeof id !== "string") return [];
+      for (const t of [
+        "engine_messages",
+        "engine_turn_info",
+        "engine_thread_queue",
+        "engine_thread_lease",
+        "engine_waits",
+        "engine_agent_state",
+        "engine_unblock",
+        "engine_typed_message",
+        "engine_step_turns",
+        "engine_task_baton",
+      ])
+        tryRun(ctx.db, `DELETE FROM ${t} WHERE thread_id = ?`, id);
+      return [id];
+    },
+  },
   /** A routine's Run was stopped: the turn it woke stops too, durably (handlers/routine-run.ts onRoutineRunStopped). */
   "engine.run_stopped": {
     on: ["run.stopped"],
@@ -218,6 +253,23 @@ export const consumers = keptWhileStopping({
             )
             .catch(() => undefined);
       }
+    },
+  },
+  /** What a chat, an agent or a person owned goes, and so do the points of their work folders: a point is a copy of their files (checkpoints.ts erase). */
+  "engine.checkpoints_erased": {
+    // an agent moved to Trash (agent.deleted) keeps its points: it can come back. The product has no permanent delete for an agent (agents.delete is Trash only; no purge capability or expiry exists), so there is no event to erase on: a trashed agent cannot be told from a missing one by the agents module's reads, so nothing erases its points early: the hourly sweep drops every point after 14 days, which is when its Trash would have to have been emptied for the agent to matter.
+    on: ["thread.erased", "member.removed"],
+    run: async (
+      _ctx: EngineCtx,
+      event: { name: string; payload: { threadId?: string; agentId?: string; personId?: string } },
+    ): Promise<void> => {
+      const dataDir = engineHost()?.dataDir;
+      if (!dataDir) return;
+      const p = event.payload;
+      erasePoints(dataDir, {
+        ...(event.name === "thread.erased" && p.threadId ? { threadId: p.threadId } : {}),
+        ...(event.name === "member.removed" && p.personId ? { personId: p.personId } : {}),
+      });
     },
   },
   /** A person left: nothing goes on running on their word or their account. */
@@ -361,22 +413,25 @@ export const consumers = keptWhileStopping({
       // a connect card (b-connect) is answered in the person's own few words: no key, no handle, nothing to explain back
       const text = p.service
         ? event.name === "vault.request_fulfilled"
-          ? `${p.service} is connected. Carry on.`
-          : `Not now. Carry on without ${p.service}.`
+          ? `${p.service} is connected.`
+          : `Not connecting ${p.service} now. Carry on without it.`
         : event.name === "vault.request_fulfilled"
           ? `I added the ${key} key${p.handle ? ` as ${p.handle}` : ""}. Carry on.`
           : `I did not add the ${key} key${p.note ? `: ${p.note}` : "."}`;
       try {
-        await host.call(
-          "chat.post",
-          {
-            threadId: p.threadId,
-            body: text,
-            mentions: [{ kind: "agent", id: p.agentId }],
-            idempotencyKey: `${p.requestId}:carry`,
-          },
-          p.asker,
-        );
+        // a connect card is answered with a quiet line that is no message of the person (it starts the agent's turn all the same); a plain key request keeps its line as the person's own
+        if (p.service) await host.call("chat.connect_line", { requestId: p.requestId }, p.asker);
+        else
+          await host.call(
+            "chat.post",
+            {
+              threadId: p.threadId,
+              body: text,
+              mentions: [{ kind: "agent", id: p.agentId }],
+              idempotencyKey: `${p.requestId}:carry`,
+            },
+            p.asker,
+          );
       } catch (e) {
         host.log?.("the agent was not told its key was answered", {
           requestId: p.requestId,
@@ -687,3 +742,48 @@ export { bindEngine, sqlLeases, sqlMessages, sqlQueue, sqlWaits };
 export function resumeHeld(engine: TurnEngine, taskId: string, approved: boolean): number | null {
   return engine.resume(taskId, { approved });
 }
+
+/** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
+const ENGINE_BY_THREAD = [
+  "engine_messages",
+  "engine_turn_info",
+  "engine_thread_queue",
+  "engine_thread_lease",
+  "engine_waits",
+  "engine_agent_state",
+  "engine_unblock",
+  "engine_typed_message",
+  "engine_step_turns",
+  "engine_task_baton",
+] as const;
+export const hostCalls = {
+  "engine.erase_agent": eraseTables(
+    [
+      ["engine_thread_queue", "agent_id"],
+      ["engine_waits", "agent_id"],
+      ["engine_agent_state", "agent_id"],
+      ["engine_unblock", "agent_id"],
+      ["engine_crew_job", "agent_id"],
+      ["engine_crew_wait", "agent_id"],
+      ["engine_paid_ok", "agent_id"],
+      ["engine_tool_use", "agent_id"],
+      ["engine_own_subagent", "agent_id"],
+      ["engine_incidents", "agent_id"],
+    ],
+    (ctx, i) => {
+      // its words as the engine kept them for its turns (the visible messages stay in the chat; this is the engine's own copy)
+      if (i.dry === true) return {};
+      tryRun(ctx.db, `DELETE FROM engine_messages WHERE author_kind = 'agent' AND author_id = ?`, i.agentId);
+      // what each of its turns recorded: tools used, switches, context (the tool traces and run records behind its messages; the spend rows in engine_usage stay, they are the Space's totals)
+      tryRun(
+        ctx.db,
+        `DELETE FROM engine_turn_info WHERE turn_id IN (SELECT turn_id FROM engine_usage WHERE agent_id = ?)`,
+        i.agentId,
+      );
+      // the engine's own copy of its one-to-one chats, cleared here as well as by the thread.erased consumer, which can come after the log is cleared of that event
+      for (const th of (i as { ids?: string[] }).ids ?? [])
+        for (const t of ENGINE_BY_THREAD) tryRun(ctx.db, `DELETE FROM ${t} WHERE thread_id = ?`, th);
+      return {};
+    },
+  ),
+};

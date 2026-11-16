@@ -5,14 +5,35 @@
       "route": "/m/TASKS_01?view=list",
       "proto": "chat,{skin}",
       "waitFor": "[data-testid='tasks-page']",
-      "note": "Tasks, Mine: While you were away on top; Needs you holds a review handed to Irfad, work sent back by Omar's private agent (named Omar Reyes (Agent)), a team task with Take and a question; then Now, Next and Waiting on others, where a team task shows Taken by Sara Khan."
+      "note": "Tasks, Mine: While you were away on top; Needs you holds a review handed to Imran, work sent back by Omar's private agent (named Omar Reyes (Agent)), a team task with Take and a question; then Now, Next and Waiting on others, where a team task shows Taken by Sara Khan."
+    },
+    {
+      "id": "TASKS_01-paused-vault",
+      "route": "/m/TASKS_01?view=list&paused=vault",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='tasks-page']",
+      "note": "Needs you: the item a goal leaves when its check-in cannot run because the Vault is locked, with the one thing to do."
+    },
+    {
+      "id": "TASKS_01-paused-limit",
+      "route": "/m/TASKS_01?view=list&paused=limit",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='tasks-page']",
+      "note": "Needs you: the item when the AI plan is at its limit, with when it resets and the choice."
+    },
+    {
+      "id": "TASKS_01-paused-kept",
+      "route": "/m/TASKS_01?view=list&paused=kept",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='tasks-page']",
+      "note": "Needs you: the item when the server kept failing."
     },
     {
       "id": "TASKS_01-review",
       "route": "/m/TASKS_01?view=review",
       "proto": "chat,{skin}",
       "waitFor": "[data-testid='task-approve']",
-      "note": "The task page of the review handed to Irfad: the baton path by name, Approve and Send back, a way back to Tasks."
+      "note": "The task page of the review handed to Imran: the baton path by name, Approve and Send back, a way back to Tasks."
     },
     {
       "id": "TASKS_01-team",
@@ -26,7 +47,7 @@
       "route": "/m/TASKS_01?view=menu",
       "proto": "chat,{skin}",
       "waitFor": "[data-testid='task-head']",
-      "note": "The review's status menu: only the moves Irfad's seat allows, in their words."
+      "note": "The review's status menu: only the moves Imran's seat allows, in their words."
     },
     {
       "id": "TASKS_01-pane",

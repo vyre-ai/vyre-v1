@@ -116,6 +116,7 @@ export function ClaimRoute({
     username: string;
     password: string;
     recoveryCode: string;
+    spaceName?: string;
   }): Promise<void> => {
     const { makeBundle, wipe } = await loadCryptoKeys();
     const claimed = await claimOwner(
@@ -136,6 +137,12 @@ export function ClaimRoute({
       },
     );
     await finish(claimed, v.username);
+    // a Space name typed on the owner's card is saved with the claim (prototype scene team-1-account); a refusal does not undo the claim
+    if (v.spaceName)
+      await createCapCaller({ baseUrl, token: () => claimed.token })("spaces.update", {
+        name: v.spaceName,
+        logoFileId: null,
+      }).catch(() => undefined);
     rememberClaimed({ name: v.name, username: v.username, address: baseUrl });
     onDone();
   };

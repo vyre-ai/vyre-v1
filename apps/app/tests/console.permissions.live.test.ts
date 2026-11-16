@@ -36,12 +36,11 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
   fs.mkdirSync(shots, { recursive: true });
   try {
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
-    await page.getByTestId("claim-name").fill("Irfad Imtiaz");
-    await page.getByTestId("claim-username").fill("irfad");
+    await page.getByTestId("claim-name").fill("Imran Ibarra");
+    await page.getByTestId("claim-username").fill("imran");
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
@@ -248,7 +247,7 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
     // the checker answers in plain words, the Audit log has the rows
     const why = await api("access.exceptions.explain", { principal: dana, perm: "agents.create" });
     assert.equal(why.allowed, false);
-    assert.match(why.words, /^Exception set by Irfad on .*, overrides Member: Allowed\. Reason: First week/);
+    assert.match(why.words, /^Exception set by Imran on .*, overrides Member: Allowed\. Reason: First week/);
     const audit = (await api("audit.list", { limit: 50 })).rows as Array<{ action: string }>;
     assert.ok(
       audit.filter((r) => r.action === "access.exceptions.set").length >= 4,
@@ -281,9 +280,7 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
       await memberPage.getByTestId("password").fill(PASSWORD);
       await memberPage.getByTestId("confirm").fill(PASSWORD);
       await memberPage.getByTestId("next").click();
-      await memberPage.getByTestId("device").fill("Mia's browser");
-      await memberPage.getByTestId("next").click();
-      await memberPage.getByTestId("ai-none").click();
+      // prototype scenes member-1-join and member-4-ai: no device name and no AI question in the join; the optional recovery code step is passed with Continue
       await memberPage.getByTestId("next").click();
       await memberPage.getByTestId("shell").waitFor({ timeout: 30_000 });
       await dismissOnboarding(memberPage);

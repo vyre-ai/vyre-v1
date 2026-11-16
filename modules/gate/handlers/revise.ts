@@ -3,6 +3,7 @@
 // a message, an email, a text, a post. What is sent after Approve is the edited text, and the Gate's event says who edited it.
 import { outwardOf, withBody, withTitle } from "../../../lib/outward.ts";
 import { holdNamesOf } from "./hold.ts";
+import { linkedHold } from "./linked.ts";
 import { getHold, mayHandle, payloadHasher, previewBlocks, raise, reviseHoldInput, sha } from "../projections.ts";
 import { actOf } from "../projections.ts";
 import type { GateCtx } from "../projections.ts";
@@ -10,9 +11,7 @@ import type { GateCtx } from "../projections.ts";
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export async function holdsRevise(ctx: GateCtx, input: In): Promise<unknown> {
-  const h = getHold(ctx, input.holdId);
-  if (h.taskId !== input.taskId)
-    raise(ctx, "validation.precondition_failed", "That hold belongs to another task.", { reason: "task_mismatch" });
+  const h = await linkedHold(ctx, input.holdId, input.taskId);
   if (ctx.principal.kind !== "person")
     raise(ctx, "permission.no_grant", "Only a person edits what is about to be sent for them.");
   if (!mayHandle(ctx, h)) raise(ctx, "permission.no_grant", "That is not yours to edit.");

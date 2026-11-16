@@ -1,6 +1,6 @@
 # terminal.take_over
 
-Take the keyboard of a terminal: the agent's commands and everyone else's keys wait until you hand it back. Only the owner of the terminal or an admin can take it from another person
+Take the keyboard of a terminal: the agent's commands and everyone else's keys are refused until you hand it back. Only the owner of the terminal or an admin can take it from another person
 
 | | |
 |---|---|
@@ -14,7 +14,7 @@ Take the keyboard of a terminal: the agent's commands and everyone else's keys w
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |
-| Audit | none |
+| Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/terminal/take_over |
 | MCP tool | none |
@@ -56,8 +56,11 @@ type Out = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
+  lease?: string;
+  nextSeq?: number;
 };
 ```
 
@@ -79,6 +82,8 @@ type Out = {
     "terminalId": "trm_a1b2c3"
   },
   "output": {
+    "lease": "example",
+    "nextSeq": 1,
     "terminal": {
       "agentId": "agt_a1b2c3",
       "by": {
@@ -90,6 +95,7 @@ type Out = {
       "createdAt": 1760000000000,
       "cwd": "example",
       "deviceId": "dev_a1b2c3",
+      "elsewhere": true,
       "exitCode": 1,
       "heldBy": "usr_a1b2c3",
       "host": "agent_computer",

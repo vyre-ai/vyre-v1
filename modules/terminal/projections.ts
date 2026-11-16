@@ -1,6 +1,8 @@
 // @reads /modules/terminal/migrations/0001_init.sql
 // @reads /modules/terminal/migrations/0003_gone.sql
 // @reads /modules/terminal/migrations/0004_hold.sql
+// @reads /modules/terminal/migrations/0006_people.sql
+// @reads /modules/terminal/migrations/0007_use.sql
 // Durable rows of the terminal module (sessions, commands, rules, attach tickets), the port to the machine a session lives on, the rule matcher and the per-session secret scrubbers.
 // Every statement names a terminal_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -8,6 +10,7 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 import { createScrubber, MIN_SECRET_LENGTH, runWithVault, variantsOf } from "../../lib/vault-use/index.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
+import type { AskerPlace } from "./asker.ts";
 
 export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -25,7 +28,12 @@ export interface TermCtx {
   trace: { traceId: string };
   now(): number;
   db: Db;
-  emit(name: EventName, subject: string, payload: unknown): unknown;
+  emit(
+    name: EventName,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   /** Another module's capability, as the caller (the chat card of terminal.request). */
   call?(cap: string, input: unknown): Promise<unknown>;
   authorize(
@@ -76,6 +84,8 @@ export interface TerminalHost {
     cols: number;
     rows: number;
     folders: readonly string[];
+    /** The folder, shell environment and tmux server of a person who uses a shared agent's workspace without owning it (asker.ts); absent: the agent's home as it is. */
+    place?: AskerPlace;
   }): Promise<{ cwd: string; title?: string }>;
   input(terminalId: string, data: string): Promise<void>;
   interrupt(terminalId: string): Promise<void>;
@@ -130,6 +140,8 @@ export interface AdoptArgs {
   cols: number;
   rows: number;
   cwd?: string;
+  /** As in `open`: the session is made again in the same place after a sleep or a restart. */
+  place?: AskerPlace;
 }
 
 // Two ways a host gets here: the daemon hands over this machine's own (setTerminalHost in impl.ts), and a test binds a stand-in. A stand-in bound in the process wins, so a test that boots a daemon
@@ -214,6 +226,30 @@ export function bindWorkspaceStatus(f: WorkspaceStatusOf | null): void {
 }
 export const boundWorkspaceStatus = (): WorkspaceStatusOf | null => statusPort;
 
+/** Makes the shared folder of a chat on an agent's computer and opens it to the person whose turn it is (asker.ts chatFolderCommand); null where this host has no workspaces. */
+export type ChatFolderOf = (agentId: string, thread: string, place: AskerPlace | undefined) => Promise<void>;
+let chatPort: ChatFolderOf | null = null;
+export function bindChatFolder(f: ChatFolderOf | null): void {
+  chatPort = f;
+}
+export const boundChatFolder = (): ChatFolderOf | null => chatPort;
+
+/** What the owner of an agent is to be told once about its computer (an old folder moved aside at an update): taken, so it is said once. */
+export type NotesOf = (agentId: string) => string[];
+let notesPort: NotesOf | null = null;
+export function bindNotes(f: NotesOf | null): void {
+  notesPort = f;
+}
+export const boundNotes = (): NotesOf | null => notesPort;
+
+/** Opens to a person, again, what of the agent's home reaches them now (their projects at their role, the Files folder when Files shows it): asker.ts grantCommand. Throws a sentence when it could not. */
+export type PlaceGrantOf = (agentId: string, place: AskerPlace) => Promise<void>;
+let grantPort: PlaceGrantOf | null = null;
+export function bindPlaceGrant(f: PlaceGrantOf | null): void {
+  grantPort = f;
+}
+export const boundPlaceGrant = (): PlaceGrantOf | null => grantPort;
+
 /** Is this a Team Space? Agent computers need one (spec 2.7). The host binds the answer; unbound means team. */
 let teamSpace: (space: string) => boolean = () => true;
 export function bindTeam(f: ((space: string) => boolean) | null): void {
@@ -251,6 +287,27 @@ const HOLD_SCHEMA = readFileSync(new URL("./migrations/0004_hold.sql", import.me
   .split(";")
   .map((x) => x.trim())
   .filter((x) => x.length > 0);
+const LEASE_SCHEMA = readFileSync(new URL("./migrations/0005_keys.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
+const PEOPLE_SCHEMA = readFileSync(new URL("./migrations/0006_people.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
+const USE_SCHEMA = readFileSync(new URL("./migrations/0007_use.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -278,7 +335,53 @@ export function ensure(db: Db): void {
   } catch {
     for (const stmt of HOLD_SCHEMA) db.run(stmt);
   }
+  // and before a take-over was a numbered lease
+  try {
+    db.all("SELECT terminal_id FROM terminal_lease WHERE terminal_id = ?", "probe");
+  } catch {
+    for (const stmt of LEASE_SCHEMA) db.run(stmt);
+  }
+  // and before the Unix users of the people who use a shared agent
+  try {
+    db.all("SELECT person FROM terminal_people WHERE person = ?", "probe");
+  } catch {
+    for (const stmt of PEOPLE_SCHEMA) db.run(stmt);
+  }
+  // and before a person's loss of an agent was kept
+  try {
+    db.all("SELECT person FROM terminal_use_lost WHERE person = ?", "probe");
+  } catch {
+    for (const stmt of USE_SCHEMA) db.run(stmt);
+  }
   ready.add(db);
+}
+
+/** The first and last Unix user id given to a person (the workspace image has a user for each: images/agent-workspace/Dockerfile). */
+export const PEOPLE_UID_FIRST = 20000;
+export const PEOPLE_UID_LAST = 20999;
+
+/** The Unix user id of a person in this Space, made on first use and the same afterwards. Null when all are taken (the Space has more people on shared agents than the image has users). */
+export function uidOf(db: Db, person: string, now: number): number | null {
+  ensure(db);
+  const have = db.all("SELECT uid FROM terminal_people WHERE person = ?", person)[0] as { uid?: unknown } | undefined;
+  if (have && typeof have.uid === "number") return have.uid;
+  const used = new Set<number>([
+    ...(db.all("SELECT uid FROM terminal_people") as Array<{ uid: number }>).map((r) => r.uid),
+    ...(db.all("SELECT uid FROM terminal_uid_burned") as Array<{ uid: number }>).map((r) => r.uid),
+  ]);
+  for (let uid = PEOPLE_UID_FIRST; uid <= PEOPLE_UID_LAST; uid++) {
+    if (used.has(uid)) continue;
+    db.run("INSERT INTO terminal_people (person, uid, created_at) VALUES (?, ?, ?)", person, uid, now);
+    return uid;
+  }
+  return null;
+}
+
+/** A uid whose folder someone else made first: never used again; the person gets the next. */
+export function burnUid(db: Db, person: string, uid: number): void {
+  ensure(db);
+  db.run("DELETE FROM terminal_people WHERE person = ? AND uid = ?", person, uid);
+  db.run("INSERT INTO terminal_uid_burned (uid) VALUES (?) ON CONFLICT (uid) DO NOTHING", uid);
 }
 
 export const mintId = (prefix: string, now: number = Date.now()): string =>
@@ -752,10 +855,10 @@ export const HOLD_IDLE_MS = 15 * 60_000;
  * take and removed by the next give back).
  */
 /**
- * One switch for a person taking an agent's terminal keyboard (15 Nov, rc.28): OFF by default, ON with VYRE_TERMINAL_TAKEOVER=1 (the tests and walks of the hold and the keys). Off because a re-sent key batch
- * is not idempotent yet (terminal.keys has no idempotency key). Read at each call, so a test turns it on. With it off nothing reads as held: a hold stored before it went off blocks no one.
+ * One switch for a person taking an agent's terminal keyboard: ON by default (15 Nov, rc.29), OFF with VYRE_TERMINAL_TAKEOVER=0 on the Space server. It was off in rc.28 because a re-sent batch of keys ran twice; each batch
+ * now carries a lease, a number and the sender's key and is applied at most once and in order (terminal.keys). Read at each call. With it off nothing reads as held: a hold stored before it went off blocks no one.
  */
-export const takeOverOn = (): boolean => process.env["VYRE_TERMINAL_TAKEOVER"] === "1";
+export const takeOverOn = (): boolean => process.env["VYRE_TERMINAL_TAKEOVER"] !== "0";
 
 export function holderOf(db: Db, terminalId: string, now: number): string | null {
   if (!takeOverOn()) return null;
@@ -769,21 +872,33 @@ export function holderOf(db: Db, terminalId: string, now: number): string | null
   return r ? s(r["person_id"]) : null;
 }
 
-/** Does a person hold any terminal of this agent's workspace now? Who, or null. */
-export function workspaceHolder(db: Db, agentId: string, now: number): string | null {
+/**
+ * Does a person hold any terminal of this agent's workspace that the agent's work for `owner` waits on? Who, or null. A person who uses the agent without owning it works in a place of their own (a Unix
+ * user): a hold in their place stops the agent's work for them and for nobody else, and a hold in the agent's own home is not stopped by it either.
+ */
+export function workspaceHolder(db: Db, agentId: string, now: number, owner: string): string | null {
   if (!takeOverOn()) return null;
+  const inPlace =
+    db.all("SELECT 1 AS n FROM terminal_person_places WHERE agent_id = ? AND person = ?", agentId, owner).length > 0;
   const r = (
     db.all(
-      "SELECT h.person_id FROM terminal_hold h JOIN terminal_sessions t ON t.terminal_id = h.terminal_id WHERE t.agent_id = ? AND t.closed_at IS NULL AND h.seen >= ? LIMIT 1",
+      `SELECT h.person_id FROM terminal_hold h JOIN terminal_sessions t ON t.terminal_id = h.terminal_id WHERE t.agent_id = ? AND t.closed_at IS NULL AND h.seen >= ? AND ${
+        inPlace ? "t.owner = ?" : "t.owner NOT IN (SELECT person FROM terminal_person_places WHERE agent_id = ?)"
+      } LIMIT 1`,
       agentId,
       now - HOLD_IDLE_MS,
+      ...(inPlace ? [owner] : [agentId]),
     ) as Row[]
   )[0];
   return r ? s(r["person_id"]) : null;
 }
 
 export function setHold(db: Db, terminalId: string, personId: string, now: number): void {
+  typedHashes.delete(terminalId);
   db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
+  // a new take-over is a new lease: whatever the last holder had in flight is over, and nothing of it is kept
+  db.run("DELETE FROM terminal_lease WHERE terminal_id = ?", terminalId);
+  db.run("DELETE FROM terminal_key_batch WHERE terminal_id = ?", terminalId);
   db.run(
     "INSERT INTO terminal_hold (terminal_id, person_id, since, seen) VALUES (?, ?, ?, ?)",
     terminalId,
@@ -793,8 +908,30 @@ export function setHold(db: Db, terminalId: string, personId: string, now: numbe
   );
 }
 
+/** The keyed hashes of the batches of each live lease (handlers/sessions.ts, keys): memory only, gone when the lease ends. */
+export const typedHashes = new Map<string, Map<string, string>>();
+
 export function dropHold(db: Db, terminalId: string): void {
+  typedHashes.delete(terminalId);
   db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
+  db.run("DELETE FROM terminal_lease WHERE terminal_id = ?", terminalId);
+  // the lease is over: nothing of its batches is kept
+  db.run("DELETE FROM terminal_key_batch WHERE terminal_id = ?", terminalId);
+}
+
+/** The lease of the take-over in force, or null when it has none (a read: nothing is written). */
+export function peekLease(db: Db, terminalId: string): { lease: string; nextSeq: number } | null {
+  const r = (db.all("SELECT lease, next_seq FROM terminal_lease WHERE terminal_id = ?", terminalId) as Row[])[0];
+  return r ? { lease: s(r["lease"]), nextSeq: Number(r["next_seq"]) } : null;
+}
+
+/** The lease of the take-over in force: its id and the number the next batch of keys must carry. A take-over made before leases existed is given one when its holder next asks. */
+export function leaseOf(db: Db, terminalId: string, now: number): { lease: string; nextSeq: number } {
+  const r = (db.all("SELECT lease, next_seq FROM terminal_lease WHERE terminal_id = ?", terminalId) as Row[])[0];
+  if (r) return { lease: s(r["lease"]), nextSeq: Number(r["next_seq"]) };
+  const lease = mintId("lse", now);
+  db.run("INSERT OR REPLACE INTO terminal_lease (terminal_id, lease, next_seq) VALUES (?, ?, 1)", terminalId, lease);
+  return { lease, nextSeq: 1 };
 }
 
 /** The holder typed or looked: the hold is in use. */

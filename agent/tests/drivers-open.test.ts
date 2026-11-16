@@ -418,7 +418,16 @@ function toolRig(rules?: { deny?: string[] }) {
   const t = makeSession();
   const name = [...t.loaded.defaults].find((n) => {
     const d = t.loaded.catalog.byName(n);
-    return d !== undefined && d.effects === "read" && d.local === "none" && n !== "tool_search";
+    const props = (d?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {};
+    // the recorded model answer calls it with { type, limit }: a tool that has those inputs
+    return (
+      d !== undefined &&
+      d.effects === "read" &&
+      d.local === "none" &&
+      n !== "tool_search" &&
+      "type" in props &&
+      "limit" in props
+    );
   });
   assert.ok(name, "the default tool set has a plain read tool");
   const tools = createApiTools({

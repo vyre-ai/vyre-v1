@@ -56,7 +56,7 @@ test(
       // behind the runner the workspace has a network of its own: it goes too, or every run leaves one behind and Docker runs out of address pools (12 Nov: 29 left on the CI box)
       if (name !== "") {
         await docker(["rm", "-f", name]);
-        await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`]);
+        await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`, `${name}-people`]);
         const nets = (
           await docker(["network", "ls", "-q", "--filter", `label=vyre.workspace=${name.slice("vyre-ws-".length)}`])
         ).out
@@ -126,13 +126,15 @@ test(
     });
     const folderId = (await ok(d, "agents.get", { agentId: agent })).agent.folderId as string;
     let size = 0;
-    for (let i = 0; i < 40 && size === 0; i++) {
+    // the mirror may copy the file while the command is still writing it (a pass that lands mid-write shows the part written so far, and the next pass the whole):
+    // wait for the whole file, not for the first sight of it (F80: read at 4,694,016 of 6,000,000 bytes on a busy computer)
+    for (let i = 0; i < 40 && size !== 6_000_000; i++) {
       const l = (await ok(d, "files.list", { section: "space", folder: folderId })).files as Array<{
         name: string;
         size: number;
       }>;
       size = l.find((f) => f.name === "big.bin")?.size ?? 0;
-      if (size === 0) await new Promise((r) => setTimeout(r, 1000));
+      if (size !== 6_000_000) await new Promise((r) => setTimeout(r, 1000));
     }
     assert.equal(size, 6_000_000, "the 6 MB file is in Files");
     const att = await ok(d, "terminal.attach", { terminalId: run.terminalId });

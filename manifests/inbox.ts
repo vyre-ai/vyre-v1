@@ -267,7 +267,7 @@ const manifest = defineManifest({
                 subject: "Welcome to Scout, Josh",
                 role: "cc",
                 participants: [
-                  { address: "andrey@example.com", name: "Andrey Volkov" },
+                  { address: "andrea@example.com", name: "Andrea Volkov" },
                   { address: "josh@example.com", name: "Josh Cohen" },
                 ],
                 lastAt: 1792857600000,
@@ -283,13 +283,13 @@ const manifest = defineManifest({
                       mailboxId: "mbx_a1b2c3",
                       mailboxIds: ["mbx_a1b2c3"],
                       from: { address: "josh@example.com", name: "Josh Cohen" },
-                      to: [{ address: "andrey@example.com" }],
-                      cc: [{ address: "irfad@example.com" }],
+                      to: [{ address: "andrea@example.com" }],
+                      cc: [{ address: "imran@example.com" }],
                       subject: "RE: Welcome to Scout, Josh",
-                      body: "Thanks Andrey. I am in and the team is set up.",
-                      quoted: "From: Andrey Volkov <andrey@example.com>",
+                      body: "Thanks Andrea. I am in and the team is set up.",
+                      quoted: "From: Andrea Volkov <andrea@example.com>",
                       signature: "Josh Cohen",
-                      reactions: [{ emoji: "❤️", from: { address: "irfad@example.com" }, at: 1792857700000 }],
+                      reactions: [{ emoji: "❤️", from: { address: "imran@example.com" }, at: 1792857700000 }],
                       attachments: [],
                       isPrivate: false,
                     },
@@ -416,27 +416,31 @@ const manifest = defineManifest({
         label: "check",
       },
     ),
-    read("inbox.counts", "Unread counts for the sidebar: per inbox, per number and the Needs a match total", {
-      in: {},
-      out: {
-        byInbox: t.arr(
-          t.obj({
-            kind: t.enm("mailbox", "number"),
-            id: t.str(),
-            name: t.opt(
-              t.str({
-                description:
-                  "What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id",
-              }),
-            ),
-            unread: t.int(),
-          }),
-        ),
-        total: t.int(),
-        needsMatch: t.int(),
+    read(
+      "inbox.counts",
+      "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
+      {
+        in: {},
+        out: {
+          byInbox: t.arr(
+            t.obj({
+              kind: t.enm("mailbox", "number"),
+              id: t.str(),
+              name: t.opt(
+                t.str({
+                  description:
+                    "What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id",
+                }),
+              ),
+              unread: t.int(),
+            }),
+          ),
+          total: t.int(),
+          needsMatch: t.int(),
+        },
+        tool: "inbox",
       },
-      tool: "inbox",
-    }),
+    ),
     write("inbox.mark_read", "Mark a conversation read or unread", {
       in: { conversationId: cnvId, read: t.opt(t.bool()) },
       out: { conversation: conversationRow },
@@ -602,7 +606,7 @@ const manifest = defineManifest({
           { conversationId: "/state/conversationId", contactId: "/state/contactId" },
           true,
         ],
-        drafts: ["mail.drafts.list", { contactId: "/state/contactId" }, true],
+        drafts: ["mail.drafts.list", { contactId: "/state/contactId", address: "/state/address" }, true],
       },
       a: {
         email: [

@@ -1431,7 +1431,7 @@ export const asAgentOf = (personName: string, assistant = false): string =>
   agentOfName(personName, assistant ? "assistant" : "outside");
 
 /**
- * A principal as `viewer` sees it. Someone else's private agent (their assistant, an outside agent they connected) is named as its person, "Irfad Imtiaz (Agent)", wears its person's face (`owner`),
+ * A principal as `viewer` sees it. Someone else's private agent (their assistant, an outside agent they connected) is named as its person, "Imran Ibarra (Agent)", wears its person's face (`owner`),
  * and never carries its own name, except for an owner or admin (`agentName`, for the audit details line). Its person sees it as it is. No viewer (the server's own reads) sees it as it is.
  */
 export function principalView(

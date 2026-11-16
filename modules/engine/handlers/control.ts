@@ -4,6 +4,7 @@
 // The live engine is the TurnEngine bound at boot (projections.boundEngine). A thread that is not open on this host is opened from threads.get first,
 // with the mode, model and engine this module saved for its agents. Events are the manifest's, with the caller as `by`.
 import { recallPick, rememberPick } from "../last-pick.ts";
+import { stopBackground } from "../background.ts";
 import { probePick } from "./extra/models.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, StoppedBy, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
@@ -284,7 +285,9 @@ async function stopWith(
     ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, ...why });
   for (const c of r.released)
     ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by, ...why });
-  return { stopped: r.stopped.length + r.released.length + r.dropped.length + (r.starting ?? 0) }; // a turn marked while starting counts: it will not run
+  // helpers and jobs the engine left running in the background after its turn are stopped with the rest (a guest's Stop reaches only turns they asked for, never the chat's background work)
+  const background = reach.askedBy === undefined && o.reason === undefined ? await stopBackground(threadId) : 0;
+  return { stopped: r.stopped.length + r.released.length + r.dropped.length + (r.starting ?? 0) + background }; // a turn marked while starting counts: it will not run
 }
 
 /** Stop one agent working in a thread (its running turn, its queued turns and its parked turns). Without an agent, the turn that is running. */

@@ -56,8 +56,8 @@ function scripted(): { rt: ShellRuntime; calls: { cap: string; input: Record<str
   };
   const rt = {
     call,
-    me: { id: "usr_me", name: "Irfad" },
-    space: { id: "s", kind: "team", name: "MLA" },
+    me: { id: "usr_me", name: "Imran" },
+    space: { id: "s", kind: "team", name: "Northwind" },
     open: () => undefined,
     clock: () => ({ now: 1_762_000_000_000 }),
     principals: {

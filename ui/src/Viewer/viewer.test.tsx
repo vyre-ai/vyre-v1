@@ -492,3 +492,40 @@ test("a file that lives at a provider shows one Open in button in the header, wi
   const off = renderToStaticMarkup(<Viewer fileId="f_1" title="Plan" kind="document" blocks={BLOCKS} />);
   assert.ok(!off.includes("vw-open-in"));
 });
+
+test("the Esc source: a markup tool takes Esc in the capture phase and prevents the default, so a screen's own Esc (back to the list) sees it was used", async () => {
+  const src = (await import("node:fs")).readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  assert.match(src, /doc\.addEventListener\("keydown", onKey, true\)/);
+  assert.match(src, /if \(e\.key !== "Escape"\) return;\s+e\.preventDefault\(\);\s+setTool\(null\);/);
+});
+
+test("compact (a phone): Find, History and the caller's tools go behind More, so the toolbar fits; wide, they stay on the bar", () => {
+  const wide = renderToStaticMarkup(
+    <Viewer
+      fileId="f"
+      title="Offer.png"
+      kind="image"
+      zoom={1}
+      onMore={() => undefined}
+      onHistory={() => undefined}
+      tools={<span data-testid="vw-tools-probe" />}
+    />,
+  );
+  const narrow = renderToStaticMarkup(
+    <Viewer
+      fileId="f"
+      title="Offer.png"
+      kind="image"
+      zoom={1}
+      compact
+      onMore={() => undefined}
+      onHistory={() => undefined}
+      tools={<span data-testid="vw-tools-probe" />}
+    />,
+  );
+  for (const id of ["vw-find-btn", "vw-history", "vw-tools-probe", "vw-more"]) assert.match(wide, new RegExp(id), id);
+  for (const id of ["vw-find-btn", "vw-history", "vw-tools-probe"])
+    assert.doesNotMatch(narrow, new RegExp(id), `${id} is behind More`);
+  assert.match(narrow, /vw-more/);
+  assert.match(narrow, /vw-info/, "Details stays");
+});

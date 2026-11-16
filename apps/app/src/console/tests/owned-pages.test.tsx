@@ -32,7 +32,7 @@ test("Agents and actors pages expose their live registers and object actions", a
     name: "Intake",
     face: "I",
     status: "awake",
-    ownerId: "usr_irfad",
+    ownerId: "usr_imran",
     folderId: "fld_one",
     accountPolicy: "asker",
     toolsAllowed: [],
@@ -50,12 +50,12 @@ test("Agents and actors pages expose their live registers and object actions", a
     "access.principals.effective": { permissions: [], roles: [], grants: [] },
     "audit.list": { rows: [] },
   });
-  assert.match(agentObject, /object-header|Overview|Access|Activity|Edit agent|Delete agent|Irfad Imtiaz/);
-  assert.doesNotMatch(agentObject, /usr_irfad/);
+  assert.match(agentObject, /object-header|Overview|Access|Activity|Edit agent|Delete agent|Imran Ibarra/);
+  assert.doesNotMatch(agentObject, /usr_imran/);
   const actor = {
     id: "act_one",
     name: "Claude Code",
-    owner: "usr_irfad",
+    owner: "usr_imran",
     provider: "anthropic",
     roles: ["rol_delivery"],
     status: "active",
@@ -68,8 +68,8 @@ test("Agents and actors pages expose their live registers and object actions", a
     "audit.list": { rows: [] },
     "access.roles.list": { roles: [{ id: "rol_delivery", name: "Delivery role" }] },
   });
-  assert.match(actorObject, /object-header|Overview|Access|Activity|Edit actor|Revoke|Irfad Imtiaz/);
-  assert.doesNotMatch(actorObject, /usr_irfad|Role ids \(comma separated\)/);
+  assert.match(actorObject, /object-header|Overview|Access|Activity|Edit actor|Revoke|Imran Ibarra/);
+  assert.doesNotMatch(actorObject, /usr_imran|Role ids \(comma separated\)/);
   const computer = {
     computerId: "cmt_one",
     agentId: "agt_intake",

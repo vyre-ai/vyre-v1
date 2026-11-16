@@ -170,6 +170,8 @@ export function createPool(o: PoolOptions): EnginePool {
   }
 
   const lru = (a: Entry, b: Entry): number => a.lastUsed - b.lastUsed;
+  /** Idle for the pool's purposes: released, and not running background work of its own (helpers the engine started go on after its turn: closing the session would kill them). */
+  const free = (e: Entry): boolean => e.state === "idle" && (e.session.background ?? 0) === 0;
 
   /**
    * Room for one more session of this driver and person: close the least recently used idle ones until under the driver's cap (on the host, this person's) and the total.
@@ -184,14 +186,12 @@ export function createPool(o: PoolOptions): EnginePool {
       [...entries.values()].filter((e) => mine(e.parts.driver, e.person)).length +
       others().filter((x) => mine(x.driver, x.person)).length;
     while (driverCount() >= cap) {
-      const victim = [...entries.values()]
-        .filter((e) => e.state === "idle" && mine(e.parts.driver, e.person))
-        .sort(lru)[0];
+      const victim = [...entries.values()].filter((e) => free(e) && mine(e.parts.driver, e.person)).sort(lru)[0];
       if (!victim) return false;
       await drop(victim, "evict");
     }
     while (entries.size + others().length >= maxTotal) {
-      const victim = [...entries.values()].filter((e) => e.state === "idle").sort(lru)[0];
+      const victim = [...entries.values()].filter(free).sort(lru)[0];
       if (!victim) return false;
       await drop(victim, "evict");
     }
@@ -317,20 +317,17 @@ export function createPool(o: PoolOptions): EnginePool {
 
     async sweep() {
       const cutoff = now() - idleMs;
-      const stale = [...entries.values()].filter((e) => e.state === "idle" && e.lastUsed < cutoff);
+      const stale = [...entries.values()].filter((e) => free(e) && e.lastUsed < cutoff);
       for (const e of stale) await drop(e, "evict");
       return stale.length;
     },
 
     idleCount(person) {
-      return [...entries.values()].filter((e) => e.state === "idle" && (person === undefined || e.person === person))
-        .length;
+      return [...entries.values()].filter((e) => free(e) && (person === undefined || e.person === person)).length;
     },
 
     async closeIdle(person) {
-      const idle = [...entries.values()].filter(
-        (e) => e.state === "idle" && (person === undefined || e.person === person),
-      );
+      const idle = [...entries.values()].filter((e) => free(e) && (person === undefined || e.person === person));
       for (const e of idle) await drop(e, "close");
       return idle.length;
     },

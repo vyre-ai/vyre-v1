@@ -773,7 +773,6 @@ async function sessionFor(kind, web, space, browser, out) {
     await page.getByTestId("claim-password").fill("correct horse battery 9");
     await page.getByTestId("claim-confirm").fill("correct horse battery 9");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click({ timeout: 60000 });
     await page.getByTestId("claim-create").click();
     await page.getByTestId("shell").waitFor({ timeout: 120000 });
   } catch (e) {

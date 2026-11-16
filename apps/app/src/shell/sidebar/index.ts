@@ -11,6 +11,10 @@ export {
   showSidebar,
   toggleSidebar,
   useSidebarSlot,
+  useOptionalSidebarSlot,
+  useInSidebarColumn,
+  useInSidebarSlot,
+  SIDEBAR_HOLD_MS,
 } from "./SidebarSlot.tsx";
 export type { SidebarEntry, SidebarSlotApi, SidebarSlotProviderProps } from "./SidebarSlot.tsx";
 export { collapseKey, each, matchRows, phoneView, readCollapsed, writeCollapsed } from "./model.ts";

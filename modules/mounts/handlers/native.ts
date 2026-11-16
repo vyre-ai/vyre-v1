@@ -6,7 +6,7 @@
 // agent that must change one does it through the provider's own structured API (Docs batchUpdate, Sheets values, Graph workbook ranges): the change lands in the real file, shows in its version history
 // under the agent's name, and the snapshot follows on the next sync. These go through the provider capabilities as the asker, so the provider's own permissions decide what an agent may do; Vyre adds the
 // Files grant (Edit on the file for a write) and the Gate act of the underlying write.
-import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, VyreError } from "../../../packages/contracts/src/types.ts";
 import { googleAppOf } from "./providers.ts";
@@ -31,7 +31,7 @@ function refuse(ctx: Ctx, code: ErrorCode, message: string): never {
   throw new VyreErr(error);
 }
 
-const codeOf = (e: unknown): string => (e instanceof VyreErr ? e.error.code : "");
+const codeOf = (e: unknown): string => vyreErrorOf(e)?.code ?? "";
 
 export type LinkType =
   | "google_doc"
@@ -184,7 +184,7 @@ export async function fileLink(ctx: Ctx, input: unknown): Promise<Row> {
   try {
     d = await describe(ctx, located);
   } catch (e) {
-    if (e instanceof VyreErr && SOFT.has(codeOf(e))) return { reason: e.error.message };
+    if (SOFT.has(codeOf(e))) return { reason: vyreErrorOf(e)?.message ?? "" };
     throw e;
   }
   if (d.webUrl === undefined) return { reason: "The provider gave no address for this file." };
@@ -304,6 +304,27 @@ export async function sheetRead(ctx: Ctx, input: unknown): Promise<Row> {
   return { values: list(out["values"]) };
 }
 
+/** The tabs of a mounted Google Sheet. An Excel workbook has no tab list at the provider API Vyre calls, so it says so; the viewer reads a workbook's tabs from its own file. */
+export async function sheetTabs(ctx: Ctx, input: unknown): Promise<Row> {
+  const i = obj(input);
+  const d = await need(ctx, str(i["fileId"]), SHEETS, "Listing tabs", false);
+  if (d.type !== "google_sheet")
+    refuse(ctx, "validation.unsupported", "The tabs of an Excel workbook are read from the file itself.");
+  const out = obj(
+    await ctx.call("google.sheets.get_spreadsheet", { ...conn(d.located), spreadsheetId: d.located.remoteId }),
+  );
+  return {
+    tabs: list(out["sheets"]).map((s) => {
+      const o = obj(s);
+      return {
+        title: str(o["title"]),
+        ...(typeof o["rows"] === "number" ? { rows: o["rows"] } : {}),
+        ...(typeof o["columns"] === "number" ? { columns: o["columns"] } : {}),
+      };
+    }),
+  };
+}
+
 export async function sheetWrite(ctx: Ctx, input: unknown): Promise<Row> {
   const i = obj(input);
   const d = await need(ctx, str(i["fileId"]), SHEETS, "Writing cells", true);
@@ -375,6 +396,7 @@ export const nativeHandlers = {
   "mounts.doc_replace_text": (ctx: Ctx, input: unknown) => docReplaceText(ctx, input),
   "mounts.doc_insert_text": (ctx: Ctx, input: unknown) => docInsertText(ctx, input),
   "mounts.sheet_read": (ctx: Ctx, input: unknown) => sheetRead(ctx, input),
+  "mounts.sheet_tabs": (ctx: Ctx, input: unknown) => sheetTabs(ctx, input),
   "mounts.sheet_write": (ctx: Ctx, input: unknown) => sheetWrite(ctx, input),
   "mounts.sheet_append": (ctx: Ctx, input: unknown) => sheetAppend(ctx, input),
 };

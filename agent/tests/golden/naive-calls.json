@@ -267,6 +267,13 @@
   "agents_delete": {
     "agentId": "agt_a1b2c3"
   },
+  "agents_delete_for_good": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_delete_preview": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_erased": {},
   "agents_get": {
     "agentId": "agt_a1b2c3"
   },
@@ -350,6 +357,7 @@
   "agents_template_preview": {
     "scope": "all"
   },
+  "agents_trash_list": {},
   "agents_update": {
     "agentId": "agt_a1b2c3",
     "patch": {}
@@ -408,6 +416,7 @@
     }
   },
   "automations_analytics": {},
+  "automations_connect_options": {},
   "automations_connector_card": {
     "threadId": "thr_a1b2c3",
     "title": "Quarterly planning",
@@ -444,6 +453,43 @@
   },
   "automations_dependencies": {},
   "automations_draft_connector": {},
+  "automations_draft_discard": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_draft_propose": {
+    "definition": {
+      "triggers": [
+        {
+          "key": "Plan_Key"
+        }
+      ],
+      "nodes": [
+        {
+          "id": "Quarterly planning",
+          "key": "Plan_Key",
+          "input": {}
+        }
+      ]
+    },
+    "summary": "Quarterly planning"
+  },
+  "automations_draft_save": {
+    "automationId": "aut_a1b2c3",
+    "definition": {
+      "triggers": [
+        {
+          "key": "Plan_Key"
+        }
+      ],
+      "nodes": [
+        {
+          "id": "Quarterly planning",
+          "key": "Plan_Key",
+          "input": {}
+        }
+      ]
+    }
+  },
   "automations_followers_add": {
     "automationId": "aut_a1b2c3",
     "follower": "Quarterly planning"
@@ -466,10 +512,14 @@
     "groupId": "agr_a1b2c3",
     "name": "Quarterly planning"
   },
+  "automations_home": {},
   "automations_key_hosts_list": {
     "itemId": "Quarterly planning"
   },
   "automations_list": {},
+  "automations_make_live": {
+    "automationId": "aut_a1b2c3"
+  },
   "automations_make_personal_copy": {
     "automationId": "aut_a1b2c3"
   },
@@ -508,6 +558,12 @@
   "automations_promote": {
     "automationId": "aut_a1b2c3",
     "confirm": true
+  },
+  "automations_proposal_accept": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_proposal_discard": {
+    "automationId": "aut_a1b2c3"
   },
   "automations_read_docs": {
     "url": "https://acme.test/plan"
@@ -556,6 +612,9 @@
     "templateKey": "Quarterly planning"
   },
   "automations_test": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_test_events": {
     "automationId": "aut_a1b2c3"
   },
   "automations_triggers_list": {},
@@ -949,6 +1008,10 @@
   "chat_reply_details": {
     "threadId": "thr_a1b2c3",
     "messageId": "msg_a1b2c3"
+  },
+  "chat_rewind": {
+    "threadId": "thr_a1b2c3",
+    "pointId": "Quarterly planning"
   },
   "chat_screen_get": {
     "threadId": "thr_a1b2c3"
@@ -1429,8 +1492,7 @@
     "templateFileId": "fil_a1b2c3"
   },
   "documents_fill": {
-    "templateFileId": "fil_a1b2c3",
-    "intoFolderId": "fld_a1b2c3"
+    "templateFileId": "fil_a1b2c3"
   },
   "documents_mark_template": {
     "fileId": "fil_a1b2c3",
@@ -1625,6 +1687,12 @@
       "id": "Quarterly planning"
     }
   },
+  "engine_rewind_points": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_rewind_to": {
+    "pointId": "Quarterly planning"
+  },
   "engine_round_get": {
     "threadId": "thr_a1b2c3",
     "messageIds": [
@@ -1759,7 +1827,6 @@
     "toFolderId": "fld_a1b2c3"
   },
   "files_create": {
-    "folderId": "fld_a1b2c3",
     "name": "Quarterly planning"
   },
   "files_delete": {
@@ -1772,7 +1839,6 @@
     "fileId": "fil_a1b2c3"
   },
   "files_folder_create": {
-    "parentId": "fld_a1b2c3",
     "name": "Quarterly planning"
   },
   "files_folder_delete": {
@@ -1782,6 +1848,9 @@
     "folderId": "fld_a1b2c3"
   },
   "files_folder_move": {
+    "folderId": "fld_a1b2c3"
+  },
+  "files_folder_purge": {
     "folderId": "fld_a1b2c3"
   },
   "files_folder_rename": {
@@ -2395,6 +2464,10 @@
     "role": "reader"
   },
   "google_drive_trash_file": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "Quarterly planning"
+  },
+  "google_drive_update_file": {
     "connectionId": "con_a1b2c3",
     "fileId": "Quarterly planning"
   },
@@ -3393,6 +3466,10 @@
   "mounts_remove": {
     "mountId": "mnt_a1b2c3"
   },
+  "mounts_resolve": {
+    "fileId": "fil_a1b2c3",
+    "choice": "keep_both"
+  },
   "mounts_restore": {
     "fileId": "fil_a1b2c3",
     "revisionId": "Quarterly planning"
@@ -3409,6 +3486,9 @@
   "mounts_sheet_read": {
     "fileId": "fil_a1b2c3",
     "range": "Quarterly planning"
+  },
+  "mounts_sheet_tabs": {
+    "fileId": "fil_a1b2c3"
   },
   "mounts_sheet_write": {
     "fileId": "fil_a1b2c3",
@@ -3536,10 +3616,18 @@
     "connectionId": "con_a1b2c3",
     "itemId": "Quarterly planning"
   },
+  "ms_drive_restore_item": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning"
+  },
   "ms_drive_share_item": {
     "connectionId": "con_a1b2c3",
     "itemId": "Quarterly planning",
     "role": "read"
+  },
+  "ms_drive_update_item": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning"
   },
   "ms_drive_upload_item": {
     "connectionId": "con_a1b2c3",
@@ -4059,6 +4147,7 @@
     "key": "Plan_Key"
   },
   "providers_list": {},
+  "providers_local_signins": {},
   "providers_own_people": {},
   "providers_remove": {
     "providerId": "prv_a1b2c3"
@@ -4568,7 +4657,6 @@
     ]
   },
   "sheets_create": {
-    "folderId": "fld_a1b2c3",
     "name": "Quarterly planning",
     "format": "csv",
     "columns": [
@@ -5299,11 +5387,7 @@
   },
   "tasks_count_needs_you": {},
   "tasks_create": {
-    "title": "Quarterly planning",
-    "assigned": {
-      "kind": "person",
-      "id": "Quarterly planning"
-    }
+    "title": "Quarterly planning"
   },
   "tasks_delegate": {
     "taskId": "tsk_a1b2c3",
@@ -5700,24 +5784,6 @@
   "updates_status": {},
   "vault_connect": {
     "service": "Quarterly planning"
-  },
-  "vault_connect_card_ask_admin": {
-    "requestId": "vrq_a1b2c3"
-  },
-  "vault_connect_card_disconnect": {
-    "requestId": "vrq_a1b2c3"
-  },
-  "vault_connect_card_get": {
-    "requestId": "vrq_a1b2c3"
-  },
-  "vault_connect_card_options": {
-    "requestId": "vrq_a1b2c3"
-  },
-  "vault_connect_card_reopen": {
-    "requestId": "vrq_a1b2c3"
-  },
-  "vault_connect_card_submit": {
-    "requestId": "vrq_a1b2c3"
   },
   "vault_export_env": {
     "folderId": "vfd_a1b2c3",

@@ -321,7 +321,7 @@ test("Sent to lists the hosts approved for the key, and removing one asks the se
   const v = createSampleVault();
   const base = v.data.call.bind(v.data);
   const removed: unknown[] = [];
-  let hosts = [{ host: "api.gohighlevel.example", by: "usr_irfad", at: 1 }];
+  let hosts = [{ host: "api.gohighlevel.example", by: "usr_imran", at: 1 }];
   v.data = {
     ...v.data,
     call: async (cap, input) => {
@@ -352,7 +352,7 @@ test("removing a host an Automation uses warns first, naming it; a host can be a
   const base = v.data.call.bind(v.data);
   const calls: { cap: string; input: unknown }[] = [];
   let hosts: { host: string; by: string; at: number; usedBy: string[]; hidden?: number }[] = [
-    { host: "api.gohighlevel.example", by: "usr_irfad", at: 1, usedBy: ["New lead to GoHighLevel"], hidden: 1 },
+    { host: "api.gohighlevel.example", by: "usr_imran", at: 1, usedBy: ["New lead to GoHighLevel"], hidden: 1 },
   ];
   v.data = {
     ...v.data,

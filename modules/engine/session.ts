@@ -40,6 +40,7 @@ import { GUIDE_FILES, memoryGuide } from "../../lib/memory-guide.ts";
 import fs from "node:fs";
 import path from "node:path";
 import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
+import type { CliDriverDeps } from "../../agent/src/drivers/cli/driver.ts";
 
 /** What every engine process gets from the daemon's environment: the launcher's short list, with a PATH that finds the CLIs an app started from the Finder would not see. */
 function launcherEnv(): Record<string, string> {
@@ -82,6 +83,8 @@ export interface EngineSessionPorts {
 }
 
 export interface OpenerHost {
+  /** The host's side of the background work a CLI engine leaves running after its turn (modules/engine/background.ts). */
+  background?: NonNullable<CliDriverDeps["background"]>;
   session: EngineSessionPorts;
   /** Call a capability for a person; used for the agent's role. */
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
@@ -728,6 +731,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
       ? {
           cli: {
             workFolder: (spec: SessionSpec) => workFolder(dataDir, spec.asker, spec.threadId, spec.agent.id),
+            ...(h.background ? { background: h.background } : {}),
             ...(h.sessions
               ? {
                   resume: (spec: SessionSpec) => (spec.account ? sessions.resume(keyOf(spec)) : null),
@@ -741,8 +745,14 @@ export function buildOpener(h: OpenerHost): SessionOpener {
       : {}),
     ...(dataDir
       ? {
-          prepare: (spec: { agent: { id: string }; asker: string; threadId: string }) =>
-            prepareWorkFolder(h.call, dataDir, spec, h.sessions?.keep(spec.threadId) ?? ""),
+          prepare: async (spec: {
+            agent: { id: string };
+            asker: string;
+            threadId: string;
+            turnId?: string | undefined;
+          }) => {
+            await prepareWorkFolder(h.call, dataDir, spec, h.sessions?.keep(spec.threadId) ?? "");
+          },
         }
       : {}),
     // A session with tools "none" (an automation's AI step) gets no tools and no agent role: its prompt carries everything it needs.

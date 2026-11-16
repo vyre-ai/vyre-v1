@@ -337,10 +337,11 @@ export { hueOf, optionsOf };
 
 // ---------------------------------------------------------------- the right pane
 
-export type PaneKey = "everything" | "activity" | "comments" | "files" | "memory" | "history";
+export type PaneKey = "details" | "everything" | "activity" | "comments" | "files" | "memory" | "history";
 export const PANE_TABS: readonly { key: PaneKey; title: string }[] = [
-  { key: "everything", title: "Everything" },
+  { key: "details", title: "Details" },
   { key: "activity", title: "Activity" },
+  { key: "everything", title: "Everything" },
   { key: "comments", title: "Comments" },
   { key: "files", title: "Files" },
   { key: "memory", title: "Memory" },

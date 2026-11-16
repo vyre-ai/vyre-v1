@@ -14,7 +14,7 @@ export const title = "Share an agent (Dex)";
 
 // What rc.20 listed, top to bottom (the owner's screenshot)
 const ROWS: ShareRow[] = [
-  { subjectKind: "person", subjectId: "usr_irfad", name: "Irfad", level: "manage", via: "folder", fromFolderId: null },
+  { subjectKind: "person", subjectId: "usr_imran", name: "Imran", level: "manage", via: "folder", fromFolderId: null },
   {
     subjectKind: "agent",
     subjectId: "agt_aliza",
@@ -26,8 +26,8 @@ const ROWS: ShareRow[] = [
   },
   {
     subjectKind: "agent",
-    subjectId: "agt_andrey",
-    name: "Andrey Lyutykh (Agent)",
+    subjectId: "agt_andrea",
+    name: "Andrea Lindahl (Agent)",
     level: "edit",
     via: "folder",
     fromFolderId: null,
@@ -66,7 +66,7 @@ const ROWS: ShareRow[] = [
 const DIRECTORY = {
   people: [
     { id: "usr_aliza", name: "Aliza Rizvi", kind: "person" as const },
-    { id: "usr_andrey", name: "Andrey Lyutykh", kind: "person" as const },
+    { id: "usr_andrea", name: "Andrea Lindahl", kind: "person" as const },
   ],
   groups: [],
   agents: [{ id: "agt_scout", name: "Scout", kind: "agent" as const }],
@@ -87,11 +87,11 @@ const PEOPLE = [
 const BASE = {
   onCopyLink: () => undefined,
   notifyPeople: true,
-  meId: "usr_irfad",
+  meId: "usr_imran",
   mode: "share" as const,
   density: "regular" as const,
-  ownerName: "Irfad",
-  ownerId: "usr_irfad",
+  ownerName: "Imran",
+  ownerId: "usr_imran",
   spaceName: "Northwind",
   onClose: () => undefined,
   allowExternal: false,
@@ -120,7 +120,7 @@ const PARTS: Record<string, ShareSheetProps> = {
     onAgents: () => undefined,
     onCopyLink: () => undefined,
     notifyPeople: true,
-    meId: "usr_irfad",
+    meId: "usr_imran",
   },
   note: {
     ...BASE,
@@ -218,15 +218,15 @@ const g = (kind: string, id: string, level: string, resource = "agt_dex") => ({
   resource: { type: "agent", id: resource },
   level,
   conditions: {},
-  by: "usr_irfad",
+  by: "usr_imran",
   createdAt: 0,
 });
 const DEX_SHARES = {
   mine: "manage",
   agentsCanCall: true,
   shares: [
-    { grant: g("person", "usr_irfad", "manage"), through: "owner" },
-    { grant: g("person", "usr_irfad", "manage", "fld_agents"), through: "folder" },
+    { grant: g("person", "usr_imran", "manage"), through: "owner" },
+    { grant: g("person", "usr_imran", "manage", "fld_agents"), through: "folder" },
     { grant: g("agent", "agt_docs", "edit", "fld_agents"), through: "folder" },
     { grant: g("group", "grp_everyone", "use"), through: "group" },
   ],
@@ -272,10 +272,10 @@ function DexPath(): ReactNode {
         openVault={() => undefined}
         sharing={{
           directory: sample.extras.directory,
-          meName: "Irfad",
-          meId: "usr_irfad",
+          meName: "Imran",
+          meId: "usr_imran",
           spaceName: "Northwind",
-          nameOf: (id) => (id === "usr_irfad" ? "Irfad" : sample.data.name(id)),
+          nameOf: (id) => (id === "usr_imran" ? "Imran" : sample.data.name(id)),
         }}
       />
     </View>
@@ -298,8 +298,8 @@ export default function Mount(): ReactNode {
   if (part === "people-chat" || part === "people-project") {
     const rows = [
       {
-        id: "usr_irfad",
-        name: "Irfad Imtiaz",
+        id: "usr_imran",
+        name: "Imran Ibarra",
         kind: "person" as const,
         role: part === "people-chat" ? "Admin" : "Lead",
       },
@@ -318,7 +318,7 @@ export default function Mount(): ReactNode {
         <PeoplePopover
           where={part === "people-chat" ? "chat" : "project"}
           rows={rows}
-          meId="usr_irfad"
+          meId="usr_imran"
           perms={{ message: true, changeRole: true, remove: true }}
           anchor={{ x: 700, y: 70 }}
           onOpen={noopX}

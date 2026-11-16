@@ -154,7 +154,7 @@ await page.keyboard.press("Backspace");
 
 // a long draft with three mentions scrolls, and every chip is on its own word
 const long = [
-  "Kickoff notes for the Meier file.",
+  "Kickoff notes for the Moore file.",
   "@Aliza please confirm the engagement letter went out and the client was able to sign it.",
   "The retainer is paid.",
   "Two open questions remain about the trust schedule.",

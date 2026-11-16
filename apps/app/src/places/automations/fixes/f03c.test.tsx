@@ -15,7 +15,7 @@ import { createConfigSample, northwind } from "../config/sample.ts";
 import type { ConfigSample } from "../config/sample.ts";
 import { JourneyDesigner } from "../journeys/JourneyDesigner.tsx";
 import { TASK_STATES } from "../journeys/model.ts";
-import { AutomationsSidebar } from "../sidebar/AutomationsSidebar.tsx";
+import { AutomationsList } from "../sidebar/AutomationsList.tsx";
 
 const page = (s: ConfigSample, el: ReactNode, extras: ConfigExtras = s.extras): string =>
   renderToStaticMarkup(
@@ -113,34 +113,13 @@ test("On leaving: a person without the Design Journeys role reads it with None a
   assert.ok(has(out, ">On leaving<") && has(out, ">None<") && !has(out, 'data-testid="add-leave-intake"'));
 });
 
-test("the Journey types tree: a Journey types head with its count and a plus, each Journey as a tile, its name and its record count, and the Projects line under it", () => {
+// Changed for AUTOMATIONS-BUILD-RC29 (round two, item 5): the Journey types tree is gone; each Journey is a row of the one list with the quiet word Journey.
+test("the one list: each Journey is a row with its name and the quiet word Journey, beside the Automations", () => {
   const s = nw();
-  const out = page(
-    s,
-    <AutomationsSidebar
-      selectedJourneyId="jrn_onboard"
-      initialTab="journeys"
-      shared={s.shared}
-      reasons={s.space.reasons}
-    />,
-  );
-  assert.ok(
-    has(out, 'data-testid="section-types"') &&
-      has(out, "Journey types") &&
-      has(out, 'data-testid="head-types"') &&
-      has(out, 'data-testid="add-types"'),
-  );
-  assert.ok(has(out, ">CO<") && has(out, ">MI<"), "a tile with the initials of each Journey");
-  assert.ok(
-    has(out, 'data-testid="journey-count-jrn_onboard"') && has(out, "Client onboarding") && has(out, "Matter intake"),
-  );
-  assert.ok(has(out, 'data-testid="journeys-note"') && has(out, "cloned from the Projects template"));
-  assert.ok(!has(out, "New lead follow-up"), "the Automations are not on this tab");
-  assert.match(
-    tag(out, "row-journey-jrn_onboard"),
-    /background-color:var\(--sel\)/,
-    "the open Journey takes the quiet selected highlight",
-  );
+  const out = page(s, <AutomationsList selectedId="jrn_onboard" query="" onChoose={() => undefined} />);
+  assert.ok(has(out, "Client onboarding") && has(out, "Matter intake"));
+  assert.ok(has(out, "Journey"));
+  assert.ok(has(out, "New lead follow-up"), "the Automations are in the same list");
 });
 
 test("the Fields tab: the template's fields with their types, then the Journey's own", () => {

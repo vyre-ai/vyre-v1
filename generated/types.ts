@@ -1486,6 +1486,52 @@ export type AgentsDeleteIn = {
 export type AgentsDeleteOut = {
   deleted: boolean;
 };
+export type AgentsDeleteForGoodIn = {
+  agentId: string;
+};
+export type AgentsDeleteForGoodOut = {
+  erasing: boolean;
+};
+export type AgentsDeletePreviewIn = {
+  agentId: string;
+};
+export type AgentsDeletePreviewOut = {
+  agentId: string;
+  name: string;
+  kind: "assistant" | "teammate" | "agent";
+  inTrash: boolean;
+  chats: number;
+  sharedChats: number;
+  memory: number;
+  bytes: number;
+  routines: number;
+  named: Array<{
+      kind: "automation" | "task" | "goal" | "project";
+      id: string;
+      title: string;
+      link: string;
+    }>;
+  chatPeopleCount: number;
+  chatPeople: Array<{
+      id: string;
+      name: string;
+    }>;
+  folderPeople: Array<{
+      id: string;
+      name: string;
+    }>;
+  backups: string;
+  backupsKeptDays?: number;
+  refused?: string;
+};
+export type AgentsErasedIn = Record<string, unknown>;
+export type AgentsErasedOut = {
+  agents: Array<{
+      agentId: string;
+      name: string;
+      erasedAt: number;
+    }>;
+};
 export type AgentsGetIn = {
   agentId: string;
 };
@@ -2321,6 +2367,21 @@ export type AgentsTemplatePreviewOut = {
   suggestions: number;
   widening: number;
 };
+export type AgentsTrashListIn = Record<string, unknown>;
+export type AgentsTrashListOut = {
+  agents: Array<{
+      agentId: string;
+      name: string;
+      kind: "assistant" | "teammate" | "agent";
+      ownerId: string;
+      deletedAt: number;
+      deleting: boolean;
+      folderId?: string;
+      failed?: string;
+      erasesAt?: number;
+      canDelete: boolean;
+    }>;
+};
 export type AgentsUpdateIn = {
   agentId: string;
   patch: Record<string, unknown>;
@@ -2682,6 +2743,13 @@ export type AutomationsCodeReachIn = {
 export type AutomationsCodeReachOut = {
   ok: boolean;
 };
+export type AutomationsConnectOptionsIn = Record<string, unknown>;
+export type AutomationsConnectOptionsOut = {
+  vault: Array<{
+      itemId: string;
+      appName: string;
+    }>;
+};
 export type AutomationsConnectorCardIn = {
   threadId: string;
   title: string;
@@ -2929,6 +2997,686 @@ export type AutomationsDependenciesOut = {
         }>;
     }>;
 };
+export type AutomationsDraftDiscardIn = {
+  automationId: string;
+};
+export type AutomationsDraftDiscardOut = {
+  automation: {
+    id: string;
+    name: string;
+    description?: string;
+    kind: "personal" | "space";
+    groupId?: string;
+    ownerId: string;
+    status: "on" | "off" | "draft" | "paused";
+    pausedReason?: string;
+    version: number;
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    followers: Array<string>;
+    alerts: {
+      who: Array<{
+          kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+          id: string;
+        }>;
+      when: {
+        mode: "every" | "after_n";
+        n?: number;
+      };
+      where: {
+        needsYou: boolean;
+        dm: boolean;
+        channelId?: string;
+      };
+      escalation: Array<{
+          to: {
+            kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+            id: string;
+          };
+          afterHours: number;
+        }>;
+    };
+    createdAt: number;
+    updatedAt: number;
+    runsAs?: string;
+  };
+  draft?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    rev: number;
+    baseVersion: number;
+    by: string;
+    at: number;
+  };
+};
+export type AutomationsDraftProposeIn = {
+  automationId?: string;
+  name?: string;
+  definition: {
+    triggers: Array<{
+        key: string;
+        config?: Record<string, unknown>;
+        filter?: unknown;
+      }>;
+    nodes: Array<{
+        id: string;
+        key: string;
+        title?: string;
+        input: Record<string, unknown>;
+        next?: Array<string>;
+        branches?: Array<{
+            label: string;
+            to: string;
+            when?: string;
+          }>;
+        onError?: {
+          mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+          max?: number;
+          route?: string;
+          codes?: Array<string>;
+          output?: unknown;
+        };
+        ai?: {
+          agentId?: string;
+          keyId?: string;
+          backupKeyId?: string;
+          assigned?: {
+            kind: "person" | "agent" | "group" | "role" | "automation";
+            id: string;
+          };
+          reviewer?: {
+            kind: "person" | "agent" | "group" | "role" | "automation";
+            id: string;
+          };
+          approver?: {
+            kind: "person" | "agent" | "group" | "role" | "automation";
+            id: string;
+          };
+          timeoutMinutes?: number;
+          nudgeMinutes?: number;
+          escalateTo?: {
+            kind: "person" | "agent" | "group" | "role" | "automation";
+            id: string;
+          };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
+        };
+        askBeforeSending?: boolean;
+      }>;
+    start?: Array<string>;
+    allowSelfTrigger?: boolean;
+    ai?: {
+      keyId?: string;
+      backupKeyId?: string;
+    };
+  };
+  summary: string;
+};
+export type AutomationsDraftProposeOut = {
+  automation: {
+    id: string;
+    name: string;
+    description?: string;
+    kind: "personal" | "space";
+    groupId?: string;
+    ownerId: string;
+    status: "on" | "off" | "draft" | "paused";
+    pausedReason?: string;
+    version: number;
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    followers: Array<string>;
+    alerts: {
+      who: Array<{
+          kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+          id: string;
+        }>;
+      when: {
+        mode: "every" | "after_n";
+        n?: number;
+      };
+      where: {
+        needsYou: boolean;
+        dm: boolean;
+        channelId?: string;
+      };
+      escalation: Array<{
+          to: {
+            kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+            id: string;
+          };
+          afterHours: number;
+        }>;
+    };
+    createdAt: number;
+    updatedAt: number;
+    runsAs?: string;
+  };
+  draft?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    rev: number;
+    baseVersion: number;
+    by: string;
+    at: number;
+  };
+  proposal?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    summary: string;
+    by: string;
+    for: string;
+    baseVersion: number;
+    at: number;
+    steps: number;
+  };
+  ok: boolean;
+  issues: Array<unknown>;
+};
+export type AutomationsDraftSaveIn = {
+  automationId: string;
+  definition: {
+    triggers: Array<{
+        key: string;
+        config?: Record<string, unknown>;
+        filter?: unknown;
+      }>;
+    nodes: Array<{
+        id: string;
+        key: string;
+        title?: string;
+        input: Record<string, unknown>;
+        next?: Array<string>;
+        branches?: Array<{
+            label: string;
+            to: string;
+            when?: string;
+          }>;
+        onError?: {
+          mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+          max?: number;
+          route?: string;
+          codes?: Array<string>;
+          output?: unknown;
+        };
+        ai?: {
+          agentId?: string;
+          keyId?: string;
+          backupKeyId?: string;
+          assigned?: {
+            kind: "person" | "agent" | "group" | "role" | "automation";
+            id: string;
+          };
+          reviewer?: {
+            kind: "person" | "agent" | "group" | "role" | "automation";
+            id: string;
+          };
+          approver?: {
+            kind: "person" | "agent" | "group" | "role" | "automation";
+            id: string;
+          };
+          timeoutMinutes?: number;
+          nudgeMinutes?: number;
+          escalateTo?: {
+            kind: "person" | "agent" | "group" | "role" | "automation";
+            id: string;
+          };
+          mode?: "answer" | "task";
+          doneMeans?: Array<string>;
+        };
+        askBeforeSending?: boolean;
+      }>;
+    start?: Array<string>;
+    allowSelfTrigger?: boolean;
+    ai?: {
+      keyId?: string;
+      backupKeyId?: string;
+    };
+  };
+  expectedVersion?: number;
+  expectedRev?: number;
+};
+export type AutomationsDraftSaveOut = {
+  automation: {
+    id: string;
+    name: string;
+    description?: string;
+    kind: "personal" | "space";
+    groupId?: string;
+    ownerId: string;
+    status: "on" | "off" | "draft" | "paused";
+    pausedReason?: string;
+    version: number;
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    followers: Array<string>;
+    alerts: {
+      who: Array<{
+          kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+          id: string;
+        }>;
+      when: {
+        mode: "every" | "after_n";
+        n?: number;
+      };
+      where: {
+        needsYou: boolean;
+        dm: boolean;
+        channelId?: string;
+      };
+      escalation: Array<{
+          to: {
+            kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+            id: string;
+          };
+          afterHours: number;
+        }>;
+    };
+    createdAt: number;
+    updatedAt: number;
+    runsAs?: string;
+  };
+  draft?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    rev: number;
+    baseVersion: number;
+    by: string;
+    at: number;
+  };
+};
 export type AutomationsDraftConnectorIn = {
   document?: Record<string, unknown>;
   docsUrl?: string;
@@ -3053,6 +3801,7 @@ export type AutomationsFollowersRemoveOut = {
 };
 export type AutomationsGetIn = {
   automationId: string;
+  version?: number;
 };
 export type AutomationsGetOut = {
   automation: {
@@ -3151,6 +3900,136 @@ export type AutomationsGetOut = {
     runsAs?: string;
   };
   canEdit?: boolean;
+  draft?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    rev: number;
+    baseVersion: number;
+    by: string;
+    at: number;
+  };
+  proposal?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    summary: string;
+    by: string;
+    for: string;
+    baseVersion: number;
+    at: number;
+    steps: number;
+  };
 };
 export type AutomationsGroupsCreateIn = {
   name: string;
@@ -3189,6 +4068,32 @@ export type AutomationsGroupsRenameOut = {
     name: string;
     count: number;
     order: number;
+  };
+};
+export type AutomationsHomeIn = Record<string, unknown>;
+export type AutomationsHomeOut = {
+  needs: Array<{
+      id: string;
+      automation: string;
+      why: string;
+      at: number;
+      runId?: string;
+    }>;
+  suggestion?: {
+    itemId: string;
+    appName: string;
+    text: string;
+  };
+  today: {
+    ran: number;
+    failed: Array<{
+        runId: string;
+      }>;
+  };
+  counts: {
+    total: number;
+    on: number;
+    needYou: number;
   };
 };
 export type AutomationsHttpReadIn = {
@@ -3327,6 +4232,171 @@ export type AutomationsListOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type AutomationsMakeLiveIn = {
+  automationId: string;
+  expectedRev?: number;
+};
+export type AutomationsMakeLiveOut = {
+  automation: {
+    id: string;
+    name: string;
+    description?: string;
+    kind: "personal" | "space";
+    groupId?: string;
+    ownerId: string;
+    status: "on" | "off" | "draft" | "paused";
+    pausedReason?: string;
+    version: number;
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    followers: Array<string>;
+    alerts: {
+      who: Array<{
+          kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+          id: string;
+        }>;
+      when: {
+        mode: "every" | "after_n";
+        n?: number;
+      };
+      where: {
+        needsYou: boolean;
+        dm: boolean;
+        channelId?: string;
+      };
+      escalation: Array<{
+          to: {
+            kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+            id: string;
+          };
+          afterHours: number;
+        }>;
+    };
+    createdAt: number;
+    updatedAt: number;
+    runsAs?: string;
+  };
+  draft?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    rev: number;
+    baseVersion: number;
+    by: string;
+    at: number;
+  };
 };
 export type AutomationsMakePersonalCopyIn = {
   automationId: string;
@@ -3871,6 +4941,467 @@ export type AutomationsPromoteOut = {
         reason: string;
       }>;
   };
+};
+export type AutomationsProposalAcceptIn = {
+  automationId: string;
+};
+export type AutomationsProposalAcceptOut = {
+  automation: {
+    id: string;
+    name: string;
+    description?: string;
+    kind: "personal" | "space";
+    groupId?: string;
+    ownerId: string;
+    status: "on" | "off" | "draft" | "paused";
+    pausedReason?: string;
+    version: number;
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    followers: Array<string>;
+    alerts: {
+      who: Array<{
+          kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+          id: string;
+        }>;
+      when: {
+        mode: "every" | "after_n";
+        n?: number;
+      };
+      where: {
+        needsYou: boolean;
+        dm: boolean;
+        channelId?: string;
+      };
+      escalation: Array<{
+          to: {
+            kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+            id: string;
+          };
+          afterHours: number;
+        }>;
+    };
+    createdAt: number;
+    updatedAt: number;
+    runsAs?: string;
+  };
+  draft?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    rev: number;
+    baseVersion: number;
+    by: string;
+    at: number;
+  };
+  proposal?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    summary: string;
+    by: string;
+    for: string;
+    baseVersion: number;
+    at: number;
+    steps: number;
+  };
+};
+export type AutomationsProposalDiscardIn = {
+  automationId: string;
+};
+export type AutomationsProposalDiscardOut = {
+  automation: {
+    id: string;
+    name: string;
+    description?: string;
+    kind: "personal" | "space";
+    groupId?: string;
+    ownerId: string;
+    status: "on" | "off" | "draft" | "paused";
+    pausedReason?: string;
+    version: number;
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    followers: Array<string>;
+    alerts: {
+      who: Array<{
+          kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+          id: string;
+        }>;
+      when: {
+        mode: "every" | "after_n";
+        n?: number;
+      };
+      where: {
+        needsYou: boolean;
+        dm: boolean;
+        channelId?: string;
+      };
+      escalation: Array<{
+          to: {
+            kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+            id: string;
+          };
+          afterHours: number;
+        }>;
+    };
+    createdAt: number;
+    updatedAt: number;
+    runsAs?: string;
+  };
+  draft?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    rev: number;
+    baseVersion: number;
+    by: string;
+    at: number;
+  };
+  proposal?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    summary: string;
+    by: string;
+    for: string;
+    baseVersion: number;
+    at: number;
+    steps: number;
+  };
+  removed?: boolean;
 };
 export type AutomationsReadDocsIn = {
   url: string;
@@ -4442,9 +5973,23 @@ export type AutomationsTestIn = {
   trigger?: string;
   sample?: Record<string, unknown>;
   version?: number;
+  draft?: boolean;
+  eventRunId?: string;
 };
 export type AutomationsTestOut = {
   runId: string;
+};
+export type AutomationsTestEventsIn = {
+  automationId: string;
+  trigger?: string;
+};
+export type AutomationsTestEventsOut = {
+  events: Array<{
+      runId: string;
+      at: number;
+      payload: unknown;
+    }>;
+  sample: Record<string, unknown>;
 };
 export type AutomationsTriggersListIn = Record<string, unknown>;
 export type AutomationsTriggersListOut = {
@@ -5113,6 +6658,8 @@ export type BackupExportStatusOut = {
   name: string;
   sizeBytes: number;
   expiresAt: number;
+  leftOut?: number;
+  filesKept?: number;
 };
 export type BackupHealthIn = Record<string, unknown>;
 export type BackupHealthOut = {
@@ -6923,6 +8470,12 @@ export type ChatComposerSuggestOut = {
       detail?: string;
     }>;
 };
+export type ChatConnectLineIn = {
+  requestId: string;
+};
+export type ChatConnectLineOut = {
+  messageId: string;
+};
 export type ChatCrewLineIn = {
   threadId: string;
   jobId: string;
@@ -8048,6 +9601,20 @@ export type ChatReplyDetailsOut = {
       }>;
   };
 };
+export type ChatRewindIn = {
+  threadId: string;
+  pointId: string;
+  idempotencyKey: string;
+};
+export type ChatRewindOut = {
+  restored: number;
+  removed: number;
+  failed: number;
+  failedPaths: Array<string>;
+  during: boolean;
+  at: number;
+  undid: boolean;
+};
 export type ChatRoundDecideIn = {
   threadId: string;
   messageId: string;
@@ -8434,6 +10001,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8466,6 +10034,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8498,6 +10067,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8530,6 +10100,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8562,6 +10133,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8950,6 +10522,19 @@ export type ComputersBrowserGiveBackOut = {
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
+};
+export type ComputersBrowserMySignInsIn = {
+  agentId: string;
+};
+export type ComputersBrowserMySignInsOut = {
+  profile: "own" | "agent";
+  signIns: Array<{
+      kind: "browser";
+      site: string;
+      signedInAs?: string;
+      since: number;
+      lastSeen: number;
+    }>;
 };
 export type ComputersBrowserPreviewIn = {
   agentId: string;
@@ -10074,6 +11659,13 @@ export type ConflictsUndoIn = {
 export type ConflictsUndoOut = {
   state: "open" | "proposed" | "needs_you" | "resolved" | "undone";
 };
+export type ConnectionsApproveHostsIn = {
+  connectionId: string;
+  hosts: Array<string>;
+};
+export type ConnectionsApproveHostsOut = {
+  hosts: Array<string>;
+};
 export type ConnectionsCompleteAuthIn = {
   state: string;
   code?: string;
@@ -10334,6 +11926,7 @@ export type ConnectorsForServiceOut = {
     state: "pending" | "active" | "paused" | "needs_reconnect" | "failing";
   };
   near?: Array<string>;
+  older?: string;
 };
 export type ConnectorsGetIn = {
   key: string;
@@ -12825,6 +14418,49 @@ export type EngineReviewerSetOut = {
     id: string;
   }) | null;
 };
+export type EngineRewindPointsIn = {
+  threadId: string;
+};
+export type EngineRewindPointsOut = {
+  available: boolean;
+  why?: string;
+  ownComputer: boolean;
+  points: Array<{
+      pointId: string;
+      agentId: string;
+      at: number;
+      files: number;
+      after?: string;
+      messageId?: string;
+      undo?: boolean;
+      during?: boolean;
+    }>;
+  active: Array<{
+      afterSeq: number;
+      uptoSeq: number;
+      by: string;
+      at: number;
+      undoPointId?: string;
+      interrupted?: boolean;
+    }>;
+};
+export type EngineRewindToIn = {
+  threadId: string;
+  pointId: string;
+};
+export type EngineRewindToOut = {
+  agentId: string;
+  at: number;
+  restored: number;
+  removed: number;
+  failed: number;
+  failedPaths: Array<string>;
+  undoPointId: string;
+  undid: boolean;
+  during: boolean;
+  afterSeq: number;
+  uptoSeq: number;
+};
 export type EngineRoundGetIn = {
   threadId: string;
   messageIds: Array<string>;
@@ -13281,6 +14917,7 @@ export type EngineTurnRecordIn = {
     id: string;
     kind: "person" | "guest" | "agent" | "system";
   };
+  resetsAt?: number;
   info?: {
     effort?: string;
     account?: {
@@ -14176,6 +15813,7 @@ export type FilesFolderCreateOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
 };
 export type FilesFolderDeleteIn = {
@@ -14207,6 +15845,7 @@ export type FilesFolderGetOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
 };
 export type FilesFolderMoveIn = {
@@ -14233,7 +15872,14 @@ export type FilesFolderMoveOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
+};
+export type FilesFolderPurgeIn = {
+  folderId: string;
+};
+export type FilesFolderPurgeOut = {
+  purged: boolean;
 };
 export type FilesFolderRenameIn = {
   folderId: string;
@@ -14259,6 +15905,7 @@ export type FilesFolderRenameOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
 };
 export type FilesFolderRestoreIn = {
@@ -14284,6 +15931,7 @@ export type FilesFolderRestoreOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
 };
 export type FilesFolderSearchIn = {
@@ -14311,6 +15959,7 @@ export type FilesFolderSearchOut = {
         kind: "agent" | "project" | "space";
         id?: string;
       };
+      deletedAt?: number;
     }>;
 };
 export type FilesFolderSettingsIn = {
@@ -14342,6 +15991,7 @@ export type FilesFolderSettingsOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
 };
 export type FilesGetIn = {
@@ -14425,6 +16075,7 @@ export type FilesKnowledgeOut = {
         kind: "agent" | "project" | "space";
         id?: string;
       };
+      deletedAt?: number;
     }>;
   views: Array<{
       key: "memory" | "graph";
@@ -14512,6 +16163,7 @@ export type FilesListOut = {
         kind: "agent" | "project" | "space";
         id?: string;
       };
+      deletedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -15025,6 +16677,7 @@ export type FilesSharedWithMeOut = {
         kind: "agent" | "project" | "space";
         id?: string;
       };
+      deletedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -15111,6 +16764,7 @@ export type FilesTrashListOut = {
         kind: "agent" | "project" | "space";
         id?: string;
       };
+      deletedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -15202,6 +16856,25 @@ export type FilesViewerDataOut = {
   snapshot?: {
     exportedAt: number;
     editVia: "provider_api" | "open_in_provider";
+  };
+  connected?: {
+    provider: string;
+    viewOnly?: boolean;
+    notSent?: {
+      reason: string;
+      goneThere?: boolean;
+    };
+    writesAs?: {
+      by: string;
+      email?: string;
+    };
+    changedThere?: {
+      by?: {
+        name?: string;
+        email?: string;
+      };
+      at?: number;
+    };
   };
   canEdit: boolean;
   canMark: boolean;
@@ -15642,7 +17315,7 @@ export type FormsUpdateOut = {
 export type GateActsListIn = Record<string, unknown>;
 export type GateActsListOut = {
   acts: Array<{
-      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       title: string;
       risk: "low" | "medium" | "high";
       humanToo: boolean;
@@ -15654,7 +17327,7 @@ export type GateAllowListOut = {
   rules: Array<{
       id: string;
       kind: "standing" | "always" | "goal";
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
       agentId?: string;
       threadId?: string;
@@ -15671,7 +17344,7 @@ export type GateAllowRemoveOut = {
   ok: boolean;
 };
 export type GateAllowSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   target: string;
   agentId?: string;
   threadId?: string;
@@ -15682,7 +17355,7 @@ export type GateAllowSetOut = {
   rule: {
     id: string;
     kind: "standing" | "always" | "goal";
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
     target: string;
     agentId?: string;
     threadId?: string;
@@ -15706,7 +17379,7 @@ export type GateEffectiveRuleIn = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   adminOnly?: boolean;
 };
 export type GateEffectiveRuleOut = {
@@ -15734,7 +17407,7 @@ export type GateGrantsAskIn = {
   threadId: string;
   messageId: string;
   asked: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
     }>;
   links?: Array<string>;
@@ -15755,7 +17428,7 @@ export type GateGrantsGoalIn = {
   threads: Array<string>;
   until: number;
   set?: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
     }>;
 };
@@ -15769,7 +17442,7 @@ export type GateGrantsSetIn = {
   press: "save" | "on";
   steps: Array<{
       stepId: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       targets: Array<string>;
       computed: boolean;
       changed: boolean;
@@ -15778,13 +17451,13 @@ export type GateGrantsSetIn = {
 export type GateGrantsSetOut = {
   grants: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
       stepId?: string;
     }>;
 };
 export type GateGrantsTakeIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   targets: Array<string>;
   step?: {
     automationId: string;
@@ -15813,7 +17486,7 @@ export type GateHoldsGetIn = {
 export type GateHoldsGetOut = {
   hold: {
     id: string;
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
     capName: string;
     taskId: string;
     runId?: string;
@@ -15834,7 +17507,7 @@ export type GateHoldsGetOut = {
 };
 export type GateHoldsListIn = {
   states?: Array<"held" | "approved" | "denied" | "expired">;
-  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   runId?: string;
   cursor?: string;
   limit?: number;
@@ -15842,7 +17515,7 @@ export type GateHoldsListIn = {
 export type GateHoldsListOut = {
   holds: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       capName: string;
       taskId: string;
       runId?: string;
@@ -15885,7 +17558,7 @@ export type GateParkIn = {
   capVersion: number;
   input: unknown;
   payloadHash: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   principal: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -15935,7 +17608,7 @@ export type GateRulesListIn = {
 };
 export type GateRulesListOut = {
   rules: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       mode: "hold" | "allow";
       approvers: string;
       peopleOnly: boolean;
@@ -15949,7 +17622,7 @@ export type GateRulesListOut = {
     }>;
 };
 export type GateRulesSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   mode: "hold" | "allow";
@@ -15961,7 +17634,7 @@ export type GateRulesSetIn = {
 };
 export type GateRulesSetOut = {
   rule: {
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
     mode: "hold" | "allow";
     approvers: string;
     peopleOnly: boolean;
@@ -16837,6 +18510,16 @@ export type GoalsChecklistTickOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -16956,6 +18639,16 @@ export type GoalsConfirmOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -17150,6 +18843,16 @@ export type GoalsCreateOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -17269,6 +18972,16 @@ export type GoalsExtendOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -17373,6 +19086,16 @@ export type GoalsFinishOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -17484,6 +19207,16 @@ export type GoalsGetOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -17598,6 +19331,16 @@ export type GoalsListOut = {
         tasksDone: number;
         tasks: number;
       };
+      blocked?: {
+        cause: "person" | "limit" | "transient" | "other";
+        what: string;
+        fix: string;
+        short: string;
+        since: number;
+        until?: number;
+        missed: number;
+        code: string;
+      };
       projectId?: string;
       updatedAt: number;
     }>;
@@ -17689,6 +19432,16 @@ export type GoalsMarkStuckOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -17793,6 +19546,16 @@ export type GoalsNumberSetOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -17897,6 +19660,16 @@ export type GoalsPauseOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -18069,6 +19842,16 @@ export type GoalsResumeOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -18225,6 +20008,16 @@ export type GoalsStopOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -18412,6 +20205,16 @@ export type GoalsUpdateOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -18815,6 +20618,8 @@ export type GoogleDriveCopyFileOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
 };
 export type GoogleDriveCreateFolderIn = {
@@ -18839,6 +20644,8 @@ export type GoogleDriveCreateFolderOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
 };
 export type GoogleDriveDownloadFileIn = {
@@ -18892,6 +20699,8 @@ export type GoogleDriveGetFileOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
 };
 export type GoogleDriveGetPermissionsIn = {
@@ -18931,6 +20740,8 @@ export type GoogleDriveListChangesOut = {
           name?: string;
           email?: string;
         };
+        trashed?: boolean;
+        canEdit?: boolean;
       };
     }>;
   newStartPageToken?: string;
@@ -18960,6 +20771,8 @@ export type GoogleDriveListFilesOut = {
         name?: string;
         email?: string;
       };
+      trashed?: boolean;
+      canEdit?: boolean;
     }>;
   nextPageToken?: string;
 };
@@ -19010,6 +20823,35 @@ export type GoogleDriveTrashFileIn = {
 export type GoogleDriveTrashFileOut = {
   trashed: boolean;
 };
+export type GoogleDriveUpdateFileIn = {
+  connectionId: string;
+  as?: string;
+  fileId: string;
+  name?: string;
+  addParentId?: string;
+  removeParentId?: string;
+  trashed?: boolean;
+  idempotencyKey: string;
+};
+export type GoogleDriveUpdateFileOut = {
+  file: {
+    id: string;
+    name: string;
+    mimeType: string;
+    parents?: Array<string>;
+    modifiedTime?: string;
+    size?: number;
+    webViewLink?: string;
+    driveId?: string;
+    headRevisionId?: string;
+    lastModifyingUser?: {
+      name?: string;
+      email?: string;
+    };
+    trashed?: boolean;
+    canEdit?: boolean;
+  };
+};
 export type GoogleDriveUploadFileIn = {
   connectionId: string;
   as?: string;
@@ -19035,6 +20877,8 @@ export type GoogleDriveUploadFileOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
   stale?: boolean;
 };
@@ -23337,6 +25181,7 @@ export type MailDraftsDiscardOut = {
 export type MailDraftsListIn = {
   mailboxId?: string;
   contactId?: string;
+  address?: string;
   cursor?: string;
   limit?: number;
 };
@@ -27390,6 +29235,7 @@ export type MountsAddIn = {
   name?: string;
   mode?: "server_copy" | "live_only";
   reviewChanges?: boolean;
+  readOnly?: boolean;
   idempotencyKey: string;
 };
 export type MountsAddOut = {
@@ -27496,8 +29342,16 @@ export type MountsGetOut = {
     lastSyncAt?: number;
     pendingChanges: number;
     conflicts: number;
+    readOnly: boolean;
+    twoWayOffer?: boolean;
+    scanned?: number;
     fromDevice?: string;
     error?: string;
+    skippedCount?: number;
+    skipped?: Array<{
+        name: string;
+        reason: string;
+      }>;
     live?: boolean;
     liveVia?: "push" | "poll";
   };
@@ -27546,8 +29400,16 @@ export type MountsListOut = {
       lastSyncAt?: number;
       pendingChanges: number;
       conflicts: number;
+      readOnly: boolean;
+      twoWayOffer?: boolean;
+      scanned?: number;
       fromDevice?: string;
       error?: string;
+      skippedCount?: number;
+      skipped?: Array<{
+          name: string;
+          reason: string;
+        }>;
       live?: boolean;
       liveVia?: "push" | "poll";
     }>;
@@ -27601,6 +29463,22 @@ export type MountsOpenOut = {
       name?: string;
       email?: string;
     };
+    viewOnly?: boolean;
+    notSent?: {
+      reason: string;
+      goneThere?: boolean;
+    };
+    writesAs?: {
+      by: string;
+      email?: string;
+    };
+    changedThere?: {
+      by?: {
+        name?: string;
+        email?: string;
+      };
+      at?: number;
+    };
   };
 };
 export type MountsPauseIn = {
@@ -27615,6 +29493,14 @@ export type MountsRemoveIn = {
 };
 export type MountsRemoveOut = {
   removed: boolean;
+};
+export type MountsResolveIn = {
+  fileId: string;
+  choice: "keep_both" | "use_theirs" | "keep_here" | "discard";
+};
+export type MountsResolveOut = {
+  resolved: boolean;
+  copyName?: string;
 };
 export type MountsRestoreIn = {
   fileId: string;
@@ -27647,6 +29533,16 @@ export type MountsSheetReadIn = {
 export type MountsSheetReadOut = {
   values: Array<Array<unknown>>;
 };
+export type MountsSheetTabsIn = {
+  fileId: string;
+};
+export type MountsSheetTabsOut = {
+  tabs: Array<{
+      title: string;
+      rows?: number;
+      columns?: number;
+    }>;
+};
 export type MountsSheetWriteIn = {
   fileId: string;
   sheet?: string;
@@ -27659,6 +29555,7 @@ export type MountsSheetWriteOut = {
 };
 export type MountsSyncNowIn = {
   mountId: string;
+  auto?: boolean;
   idempotencyKey: string;
 };
 export type MountsSyncNowOut = {
@@ -27686,8 +29583,16 @@ export type MountsUpdateOut = {
     lastSyncAt?: number;
     pendingChanges: number;
     conflicts: number;
+    readOnly: boolean;
+    twoWayOffer?: boolean;
+    scanned?: number;
     fromDevice?: string;
     error?: string;
+    skippedCount?: number;
+    skipped?: Array<{
+        name: string;
+        reason: string;
+      }>;
     live?: boolean;
     liveVia?: "push" | "poll";
   };
@@ -28229,6 +30134,7 @@ export type MsDriveGetItemOut = {
       email?: string;
     };
   };
+  renamedTo?: string;
 };
 export type MsDriveListItemsIn = {
   connectionId: string;
@@ -28271,6 +30177,29 @@ export type MsDriveListVersionsOut = {
       };
     }>;
 };
+export type MsDriveRestoreItemIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  idempotencyKey: string;
+};
+export type MsDriveRestoreItemOut = {
+  item: {
+    id: string;
+    name: string;
+    size?: number;
+    lastModifiedDateTime?: string;
+    folder?: boolean;
+    webUrl?: string;
+    parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
+  };
+};
 export type MsDriveShareItemIn = {
   connectionId: string;
   as?: string;
@@ -28304,6 +30233,33 @@ export type MsDriveUnsubscribeIn = {
 export type MsDriveUnsubscribeOut = {
   removed: boolean;
 };
+export type MsDriveUpdateItemIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  name?: string;
+  parentId?: string;
+  ifMatch?: string;
+  idempotencyKey: string;
+};
+export type MsDriveUpdateItemOut = {
+  item?: {
+    id: string;
+    name: string;
+    size?: number;
+    lastModifiedDateTime?: string;
+    folder?: boolean;
+    webUrl?: string;
+    parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
+  };
+  stale?: boolean;
+};
 export type MsDriveUploadItemIn = {
   connectionId: string;
   as?: string;
@@ -28331,6 +30287,7 @@ export type MsDriveUploadItemOut = {
     };
   };
   stale?: boolean;
+  renamedTo?: string;
 };
 export type MsHealthIn = Record<string, unknown>;
 export type MsHealthOut = {
@@ -31926,6 +33883,11 @@ export type ProvidersListOut = {
       teamChatsForMe?: boolean;
       models?: Array<string>;
     }>;
+};
+export type ProvidersLocalSigninsIn = Record<string, unknown>;
+export type ProvidersLocalSigninsOut = {
+  claudeCode: boolean;
+  codex: boolean;
 };
 export type ProvidersMarkSigninNeededIn = {
   handle: string;
@@ -42651,6 +44613,7 @@ export type TerminalGetOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -42681,6 +44644,7 @@ export type TerminalGiveBackOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -42711,7 +44675,10 @@ export type TerminalKeysIn = {
       key?: string;
       paste?: string;
     }>;
+  lease: string;
+  seq: number;
   capture?: boolean;
+  idempotencyKey: string;
 };
 export type TerminalKeysOut = {
   ok: boolean;
@@ -42759,6 +44726,7 @@ export type TerminalListOut = {
       };
       heldBy?: string;
       ownerId?: string;
+      elsewhere?: boolean;
       threadId?: string;
     }>;
   next?: string;
@@ -42800,6 +44768,7 @@ export type TerminalOpenOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -42834,6 +44803,7 @@ export type TerminalOpenServerOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -42874,6 +44844,7 @@ export type TerminalRenameOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -42987,8 +44958,11 @@ export type TerminalTakeOverOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
+  lease?: string;
+  nextSeq?: number;
 };
 export type TerminalWorkspaceIn = {
   agentId: string;
@@ -43002,6 +44976,7 @@ export type TerminalWorkspaceOut = {
   canAttach: boolean;
   cannotAttach?: string;
   takeOver?: boolean;
+  ownPlace?: boolean;
 };
 export type ThreadsAddAgentIn = {
   threadId: string;
@@ -44805,6 +46780,25 @@ export type VaultConnectCardGetOut = {
       }>;
   };
 };
+export type VaultConnectCardLineIn = {
+  requestId: string;
+};
+export type VaultConnectCardLineOut = {
+  state: "asked" | "connected" | "declined";
+  service: string;
+  asker?: string;
+  connectedBy?: string;
+  threadId?: string;
+  agentId?: string;
+  answeredAt?: number;
+};
+export type VaultConnectCardMayDiscardIn = {
+  requestId: string;
+  itemId: string;
+};
+export type VaultConnectCardMayDiscardOut = {
+  ok: boolean;
+};
 export type VaultConnectCardOptionsIn = {
   requestId: string;
 };
@@ -44867,6 +46861,7 @@ export type VaultConnectCardSubmitIn = {
   useSaved?: boolean;
   folderId?: string;
   audience?: "asker" | "anyone";
+  hosts: Array<string>;
 };
 export type VaultConnectCardSubmitOut = {
   result: "connected" | "wrong" | "offline";
@@ -45084,6 +47079,7 @@ export type VaultItemDeleteOut = {
 };
 export type VaultItemDiscardNewIn = {
   itemId: string;
+  requestId: string;
 };
 export type VaultItemDiscardNewOut = {
   ok: boolean;
@@ -46187,6 +48183,9 @@ export interface CapMap {
   "agents.config.validate": { in: AgentsConfigValidateIn; out: AgentsConfigValidateOut };
   "agents.create": { in: AgentsCreateIn; out: AgentsCreateOut };
   "agents.delete": { in: AgentsDeleteIn; out: AgentsDeleteOut };
+  "agents.delete_for_good": { in: AgentsDeleteForGoodIn; out: AgentsDeleteForGoodOut };
+  "agents.delete_preview": { in: AgentsDeletePreviewIn; out: AgentsDeletePreviewOut };
+  "agents.erased": { in: AgentsErasedIn; out: AgentsErasedOut };
   "agents.get": { in: AgentsGetIn; out: AgentsGetOut };
   "agents.guide.get": { in: AgentsGuideGetIn; out: AgentsGuideGetOut };
   "agents.instruction.append": { in: AgentsInstructionAppendIn; out: AgentsInstructionAppendOut };
@@ -46223,6 +48222,7 @@ export interface CapMap {
   "agents.template.apply": { in: AgentsTemplateApplyIn; out: AgentsTemplateApplyOut };
   "agents.template.get": { in: AgentsTemplateGetIn; out: AgentsTemplateGetOut };
   "agents.template.preview": { in: AgentsTemplatePreviewIn; out: AgentsTemplatePreviewOut };
+  "agents.trash.list": { in: AgentsTrashListIn; out: AgentsTrashListOut };
   "agents.update": { in: AgentsUpdateIn; out: AgentsUpdateOut };
   "agents.versions": { in: AgentsVersionsIn; out: AgentsVersionsOut };
   "agents.visibility.set": { in: AgentsVisibilitySetIn; out: AgentsVisibilitySetOut };
@@ -46241,6 +48241,7 @@ export interface CapMap {
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
   "automations.code_reach": { in: AutomationsCodeReachIn; out: AutomationsCodeReachOut };
+  "automations.connect_options": { in: AutomationsConnectOptionsIn; out: AutomationsConnectOptionsOut };
   "automations.connector_card": { in: AutomationsConnectorCardIn; out: AutomationsConnectorCardOut };
   "automations.connector_levels": { in: AutomationsConnectorLevelsIn; out: AutomationsConnectorLevelsOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
@@ -46251,6 +48252,9 @@ export interface CapMap {
   "automations.create": { in: AutomationsCreateIn; out: AutomationsCreateOut };
   "automations.delete": { in: AutomationsDeleteIn; out: AutomationsDeleteOut };
   "automations.dependencies": { in: AutomationsDependenciesIn; out: AutomationsDependenciesOut };
+  "automations.draft.discard": { in: AutomationsDraftDiscardIn; out: AutomationsDraftDiscardOut };
+  "automations.draft.propose": { in: AutomationsDraftProposeIn; out: AutomationsDraftProposeOut };
+  "automations.draft.save": { in: AutomationsDraftSaveIn; out: AutomationsDraftSaveOut };
   "automations.draft_connector": { in: AutomationsDraftConnectorIn; out: AutomationsDraftConnectorOut };
   "automations.fire": { in: AutomationsFireIn; out: AutomationsFireOut };
   "automations.followers.add": { in: AutomationsFollowersAddIn; out: AutomationsFollowersAddOut };
@@ -46260,6 +48264,7 @@ export interface CapMap {
   "automations.groups.delete": { in: AutomationsGroupsDeleteIn; out: AutomationsGroupsDeleteOut };
   "automations.groups.list": { in: AutomationsGroupsListIn; out: AutomationsGroupsListOut };
   "automations.groups.rename": { in: AutomationsGroupsRenameIn; out: AutomationsGroupsRenameOut };
+  "automations.home": { in: AutomationsHomeIn; out: AutomationsHomeOut };
   "automations.http_read": { in: AutomationsHttpReadIn; out: AutomationsHttpReadOut };
   "automations.http_send": { in: AutomationsHttpSendIn; out: AutomationsHttpSendOut };
   "automations.key_hosts.allow": { in: AutomationsKeyHostsAllowIn; out: AutomationsKeyHostsAllowOut };
@@ -46268,6 +48273,7 @@ export interface CapMap {
   "automations.key_hosts.pending_bind": { in: AutomationsKeyHostsPendingBindIn; out: AutomationsKeyHostsPendingBindOut };
   "automations.key_hosts.remove": { in: AutomationsKeyHostsRemoveIn; out: AutomationsKeyHostsRemoveOut };
   "automations.list": { in: AutomationsListIn; out: AutomationsListOut };
+  "automations.make_live": { in: AutomationsMakeLiveIn; out: AutomationsMakeLiveOut };
   "automations.make_personal_copy": { in: AutomationsMakePersonalCopyIn; out: AutomationsMakePersonalCopyOut };
   "automations.migrate_runs": { in: AutomationsMigrateRunsIn; out: AutomationsMigrateRunsOut };
   "automations.migration_preview": { in: AutomationsMigrationPreviewIn; out: AutomationsMigrationPreviewOut };
@@ -46279,6 +48285,8 @@ export interface CapMap {
   "automations.packages.list": { in: AutomationsPackagesListIn; out: AutomationsPackagesListOut };
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
+  "automations.proposal.accept": { in: AutomationsProposalAcceptIn; out: AutomationsProposalAcceptOut };
+  "automations.proposal.discard": { in: AutomationsProposalDiscardIn; out: AutomationsProposalDiscardOut };
   "automations.read_docs": { in: AutomationsReadDocsIn; out: AutomationsReadDocsOut };
   "automations.read_link": { in: AutomationsReadLinkIn; out: AutomationsReadLinkOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
@@ -46295,6 +48303,7 @@ export interface CapMap {
   "automations.templates.list": { in: AutomationsTemplatesListIn; out: AutomationsTemplatesListOut };
   "automations.templates.use": { in: AutomationsTemplatesUseIn; out: AutomationsTemplatesUseOut };
   "automations.test": { in: AutomationsTestIn; out: AutomationsTestOut };
+  "automations.test_events": { in: AutomationsTestEventsIn; out: AutomationsTestEventsOut };
   "automations.triggers.list": { in: AutomationsTriggersListIn; out: AutomationsTriggersListOut };
   "automations.try_read": { in: AutomationsTryReadIn; out: AutomationsTryReadOut };
   "automations.undelete": { in: AutomationsUndeleteIn; out: AutomationsUndeleteOut };
@@ -46392,6 +48401,7 @@ export interface CapMap {
   "chat.chapters": { in: ChatChaptersIn; out: ChatChaptersOut };
   "chat.chapters_write": { in: ChatChaptersWriteIn; out: ChatChaptersWriteOut };
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
+  "chat.connect_line": { in: ChatConnectLineIn; out: ChatConnectLineOut };
   "chat.crew_line": { in: ChatCrewLineIn; out: ChatCrewLineOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
   "chat.edit": { in: ChatEditIn; out: ChatEditOut };
@@ -46433,6 +48443,7 @@ export interface CapMap {
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
   "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.reply_details": { in: ChatReplyDetailsIn; out: ChatReplyDetailsOut };
+  "chat.rewind": { in: ChatRewindIn; out: ChatRewindOut };
   "chat.round.decide": { in: ChatRoundDecideIn; out: ChatRoundDecideOut };
   "chat.round.discuss": { in: ChatRoundDiscussIn; out: ChatRoundDiscussOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
@@ -46473,6 +48484,7 @@ export interface CapMap {
   "company.status": { in: CompanyStatusIn; out: CompanyStatusOut };
   "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
   "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
+  "computers.browser.my_sign_ins": { in: ComputersBrowserMySignInsIn; out: ComputersBrowserMySignInsOut };
   "computers.browser.preview": { in: ComputersBrowserPreviewIn; out: ComputersBrowserPreviewOut };
   "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
   "computers.browser.sessions": { in: ComputersBrowserSessionsIn; out: ComputersBrowserSessionsOut };
@@ -46550,6 +48562,7 @@ export interface CapMap {
   "conflicts.redo": { in: ConflictsRedoIn; out: ConflictsRedoOut };
   "conflicts.resolve": { in: ConflictsResolveIn; out: ConflictsResolveOut };
   "conflicts.undo": { in: ConflictsUndoIn; out: ConflictsUndoOut };
+  "connections.approve_hosts": { in: ConnectionsApproveHostsIn; out: ConnectionsApproveHostsOut };
   "connections.complete_auth": { in: ConnectionsCompleteAuthIn; out: ConnectionsCompleteAuthOut };
   "connections.create": { in: ConnectionsCreateIn; out: ConnectionsCreateOut };
   "connections.delete": { in: ConnectionsDeleteIn; out: ConnectionsDeleteOut };
@@ -46747,6 +48760,8 @@ export interface CapMap {
   "engine.review.mark": { in: EngineReviewMarkIn; out: EngineReviewMarkOut };
   "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
   "engine.reviewer.set": { in: EngineReviewerSetIn; out: EngineReviewerSetOut };
+  "engine.rewind.points": { in: EngineRewindPointsIn; out: EngineRewindPointsOut };
+  "engine.rewind.to": { in: EngineRewindToIn; out: EngineRewindToOut };
   "engine.round.get": { in: EngineRoundGetIn; out: EngineRoundGetOut };
   "engine.route.preview": { in: EngineRoutePreviewIn; out: EngineRoutePreviewOut };
   "engine.running_here": { in: EngineRunningHereIn; out: EngineRunningHereOut };
@@ -46814,6 +48829,7 @@ export interface CapMap {
   "files.folder.delete": { in: FilesFolderDeleteIn; out: FilesFolderDeleteOut };
   "files.folder.get": { in: FilesFolderGetIn; out: FilesFolderGetOut };
   "files.folder.move": { in: FilesFolderMoveIn; out: FilesFolderMoveOut };
+  "files.folder.purge": { in: FilesFolderPurgeIn; out: FilesFolderPurgeOut };
   "files.folder.rename": { in: FilesFolderRenameIn; out: FilesFolderRenameOut };
   "files.folder.restore": { in: FilesFolderRestoreIn; out: FilesFolderRestoreOut };
   "files.folder.search": { in: FilesFolderSearchIn; out: FilesFolderSearchOut };
@@ -47025,6 +49041,7 @@ export interface CapMap {
   "google.drive.share_file": { in: GoogleDriveShareFileIn; out: GoogleDriveShareFileOut };
   "google.drive.stop_watch": { in: GoogleDriveStopWatchIn; out: GoogleDriveStopWatchOut };
   "google.drive.trash_file": { in: GoogleDriveTrashFileIn; out: GoogleDriveTrashFileOut };
+  "google.drive.update_file": { in: GoogleDriveUpdateFileIn; out: GoogleDriveUpdateFileOut };
   "google.drive.upload_file": { in: GoogleDriveUploadFileIn; out: GoogleDriveUploadFileOut };
   "google.drive.watch_changes": { in: GoogleDriveWatchChangesIn; out: GoogleDriveWatchChangesOut };
   "google.dwd.check_key": { in: GoogleDwdCheckKeyIn; out: GoogleDwdCheckKeyOut };
@@ -47469,10 +49486,12 @@ export interface CapMap {
   "mounts.open": { in: MountsOpenIn; out: MountsOpenOut };
   "mounts.pause": { in: MountsPauseIn; out: MountsPauseOut };
   "mounts.remove": { in: MountsRemoveIn; out: MountsRemoveOut };
+  "mounts.resolve": { in: MountsResolveIn; out: MountsResolveOut };
   "mounts.restore": { in: MountsRestoreIn; out: MountsRestoreOut };
   "mounts.resume": { in: MountsResumeIn; out: MountsResumeOut };
   "mounts.sheet_append": { in: MountsSheetAppendIn; out: MountsSheetAppendOut };
   "mounts.sheet_read": { in: MountsSheetReadIn; out: MountsSheetReadOut };
+  "mounts.sheet_tabs": { in: MountsSheetTabsIn; out: MountsSheetTabsOut };
   "mounts.sheet_write": { in: MountsSheetWriteIn; out: MountsSheetWriteOut };
   "mounts.sync_now": { in: MountsSyncNowIn; out: MountsSyncNowOut };
   "mounts.update": { in: MountsUpdateIn; out: MountsUpdateOut };
@@ -47514,9 +49533,11 @@ export interface CapMap {
   "ms.drive.get_item": { in: MsDriveGetItemIn; out: MsDriveGetItemOut };
   "ms.drive.list_items": { in: MsDriveListItemsIn; out: MsDriveListItemsOut };
   "ms.drive.list_versions": { in: MsDriveListVersionsIn; out: MsDriveListVersionsOut };
+  "ms.drive.restore_item": { in: MsDriveRestoreItemIn; out: MsDriveRestoreItemOut };
   "ms.drive.share_item": { in: MsDriveShareItemIn; out: MsDriveShareItemOut };
   "ms.drive.subscribe": { in: MsDriveSubscribeIn; out: MsDriveSubscribeOut };
   "ms.drive.unsubscribe": { in: MsDriveUnsubscribeIn; out: MsDriveUnsubscribeOut };
+  "ms.drive.update_item": { in: MsDriveUpdateItemIn; out: MsDriveUpdateItemOut };
   "ms.drive.upload_item": { in: MsDriveUploadItemIn; out: MsDriveUploadItemOut };
   "ms.health": { in: MsHealthIn; out: MsHealthOut };
   "ms.mail.create_draft": { in: MsMailCreateDraftIn; out: MsMailCreateDraftOut };
@@ -47719,6 +49740,7 @@ export interface CapMap {
   "providers.custom_list": { in: ProvidersCustomListIn; out: ProvidersCustomListOut };
   "providers.custom_remove": { in: ProvidersCustomRemoveIn; out: ProvidersCustomRemoveOut };
   "providers.list": { in: ProvidersListIn; out: ProvidersListOut };
+  "providers.local_signins": { in: ProvidersLocalSigninsIn; out: ProvidersLocalSigninsOut };
   "providers.mark_signin_needed": { in: ProvidersMarkSigninNeededIn; out: ProvidersMarkSigninNeededOut };
   "providers.own_people": { in: ProvidersOwnPeopleIn; out: ProvidersOwnPeopleOut };
   "providers.remove": { in: ProvidersRemoveIn; out: ProvidersRemoveOut };
@@ -48267,6 +50289,8 @@ export interface CapMap {
   "vault.connect_card.ask_admin": { in: VaultConnectCardAskAdminIn; out: VaultConnectCardAskAdminOut };
   "vault.connect_card.disconnect": { in: VaultConnectCardDisconnectIn; out: VaultConnectCardDisconnectOut };
   "vault.connect_card.get": { in: VaultConnectCardGetIn; out: VaultConnectCardGetOut };
+  "vault.connect_card.line": { in: VaultConnectCardLineIn; out: VaultConnectCardLineOut };
+  "vault.connect_card.may_discard": { in: VaultConnectCardMayDiscardIn; out: VaultConnectCardMayDiscardOut };
   "vault.connect_card.options": { in: VaultConnectCardOptionsIn; out: VaultConnectCardOptionsOut };
   "vault.connect_card.reopen": { in: VaultConnectCardReopenIn; out: VaultConnectCardReopenOut };
   "vault.connect_card.submit": { in: VaultConnectCardSubmitIn; out: VaultConnectCardSubmitOut };
@@ -48476,6 +50500,15 @@ export type AgentEngagedPayload = {
   threadId: string;
   agentId: string;
   mode: string;
+  by: string;
+};
+export type AgentErasedPayload = {
+  agentId: string;
+  name?: string;
+};
+export type AgentErasingPayload = {
+  agentId: string;
+  name?: string;
   by: string;
 };
 export type AgentHandoffPayload = {
@@ -49561,6 +51594,9 @@ export type FolderMovedPayload = {
   fromParentId?: string;
   toParentId: string;
 };
+export type FolderPurgedPayload = {
+  folderId: string;
+};
 export type FolderRenamedPayload = {
   folderId: string;
   from: string;
@@ -49624,7 +51660,7 @@ export type FormSubmittedPayload = {
 };
 export type GateApprovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   by: string;
   forPerson?: string;
@@ -49639,7 +51675,7 @@ export type GateApprovedPayload = {
 };
 export type GateApproverMovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   from?: {
     kind: string;
@@ -49654,7 +51690,7 @@ export type GateApproverMovedPayload = {
 };
 export type GateDeniedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   by: string;
   mode: "send_back" | "drop";
@@ -49670,7 +51706,7 @@ export type GateDeniedPayload = {
 };
 export type GateExpiredPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
@@ -49681,7 +51717,7 @@ export type GateExpiredPayload = {
 };
 export type GateRequestedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   capName: string;
   taskId: string;
   principal: {
@@ -49698,14 +51734,14 @@ export type GateRequestedPayload = {
 };
 export type GateRevisedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   by: string;
   was: string;
   now: string;
 };
 export type GateRuleChangedPayload = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   by: string;
@@ -50646,7 +52682,7 @@ export type MountConflictPayload = {
   folderId: string;
   fileId: string;
   name: string;
-  keptAs: string;
+  keptAs?: string;
 };
 export type MountFailedPayload = {
   mountId: string;
@@ -52248,6 +54284,9 @@ export type TerminalCommandFinishedPayload = {
 export type TerminalGivenBackPayload = {
   terminalId: string;
   by: string;
+  agentId?: string;
+  agentName?: string;
+  agentOwner?: string;
 };
 export type TerminalOpenedPayload = {
   terminalId: string;
@@ -52266,6 +54305,9 @@ export type TerminalTakenPayload = {
   terminalId: string;
   by: string;
   from?: string;
+  agentId?: string;
+  agentName?: string;
+  agentOwner?: string;
 };
 export type ThreadArchivedPayload = {
   person: string;
@@ -52388,6 +54430,7 @@ export type TurnFailedPayload = {
   agentId: string;
   code: string;
   message: string;
+  resetsAt?: number;
 };
 export type TurnFallbackUsedPayload = {
   turnId: string;
@@ -52693,6 +54736,8 @@ export interface EventMap {
   "agent.deleted": AgentDeletedPayload;
   "agent.disengaged": AgentDisengagedPayload;
   "agent.engaged": AgentEngagedPayload;
+  "agent.erased": AgentErasedPayload;
+  "agent.erasing": AgentErasingPayload;
   "agent.handoff": AgentHandoffPayload;
   "agent.job_queued": AgentJobQueuedPayload;
   "agent.job_taken": AgentJobTakenPayload;
@@ -52902,6 +54947,7 @@ export interface EventMap {
   "folder.deleted": FolderDeletedPayload;
   "folder.mounted": FolderMountedPayload;
   "folder.moved": FolderMovedPayload;
+  "folder.purged": FolderPurgedPayload;
   "folder.renamed": FolderRenamedPayload;
   "folder.restored": FolderRestoredPayload;
   "folder.settings_changed": FolderSettingsChangedPayload;

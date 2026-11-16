@@ -19,7 +19,7 @@ const VERBS: ReadonlyArray<readonly [RegExp, readonly string[], "named"?]> = [
     ),
     ["send"],
   ],
-  // a teammate reached in Vyre for the person (lane l-agentdm): "tell Andrey the deck is ready", "ask Rubab for the key", "let Sam know", "remind Lee", "ping Mia". These count only with a name:
+  // a teammate reached in Vyre for the person (lane l-agentdm): "tell Andrea the deck is ready", "ask Rubab for the key", "let Sam know", "remind Lee", "ping Mia". These count only with a name:
   // "tell me", "let me know" and "ask around" are not a request to send anything, and a request that names nobody would cover any target.
   [new RegExp(`${LEAD}(tell|ask|remind|ping|nudge|notify|let)\\b`, "i"), ["send"], "named"],
   // a calendar entry for the person ("put it on the calendar", "add an event", "book a meeting with Sam"): it invites people, so it is a send

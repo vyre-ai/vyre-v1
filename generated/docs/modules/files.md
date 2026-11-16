@@ -4,7 +4,7 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: mounts.
 
-## Capabilities (78)
+## Capabilities (79)
 
 - [changesets.approve](../capabilities/changesets.approve.md): Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push
 - [changesets.comments.add](../capabilities/changesets.comments.add.md): Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)
@@ -26,7 +26,7 @@ Requires: mounts.
 - [files.comments.list](../capabilities/files.comments.list.md): List comments and numbered pins on a file; agents read pins to see what a person marked
 - [files.comments.resolve](../capabilities/files.comments.resolve.md): Resolve or reopen a comment
 - [files.copy](../capabilities/files.copy.md): Copy a file into a folder
-- [files.create](../capabilities/files.create.md): Create a file in a folder from text, base64 or an uploaded blob
+- [files.create](../capabilities/files.create.md): Create a file from text (content.text), base64 or an uploaded blob, in a folder; with no folder it goes in the person's own files. A name already taken becomes "name (2)" for an agent. A direct write holds at most 256 KB: split larger content into several files
 - [files.delete](../capabilities/files.delete.md): Move a file to Trash
 - [files.diff](../capabilities/files.diff.md): Compare two versions of a file, or a version with the current one: unified or split hunks, word marks, paragraph diff for docx and md, image blobs for the slider
 - [files.external_links](../capabilities/files.external_links.md): List the outside links of a file
@@ -34,6 +34,7 @@ Requires: mounts.
 - [files.folder.delete](../capabilities/files.folder.delete.md): Move a folder and its files to Trash
 - [files.folder.get](../capabilities/files.folder.get.md): Read one folder with counts, source mark, git state and Review changes flag
 - [files.folder.move](../capabilities/files.folder.move.md): Move a folder under another folder, or to the top of its tree when no folder is given (its sharing follows the new parent)
+- [files.folder.purge](../capabilities/files.folder.purge.md): Delete a folder in Trash for good, with every file and folder in it
 - [files.folder.rename](../capabilities/files.folder.rename.md): Rename a folder
 - [files.folder.restore](../capabilities/files.folder.restore.md): Bring a folder back from Trash
 - [files.folder.search](../capabilities/files.folder.search.md): Find folders by name for the # picker and the Into picker
@@ -75,7 +76,7 @@ Requires: mounts.
 - [files.versions](../capabilities/files.versions.md): List versions of a file with who and why
 - [files.versions_purge](../capabilities/files.versions_purge.md): Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)
 - [files.viewer_data](../capabilities/files.viewer_data.md): Everything the one viewer needs for any file type: text projection, pages, preview address, sheet info, export snapshot for Google-native files, and what the caller may do
-- [files.write](../capabilities/files.write.md): Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve
+- [files.write](../capabilities/files.write.md): Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve
 - [sheets.add_sheet](../capabilities/sheets.add_sheet.md): Add a sheet (tab) to a workbook
 - [sheets.append_rows](../capabilities/sheets.append_rows.md): Append rows to a sheet; each write is a version labelled with the automation and run, so parallel runs never overwrite
 - [sheets.create](../capabilities/sheets.create.md): Create a CSV or XLSX table file with a header row
@@ -85,7 +86,7 @@ Requires: mounts.
 - [sheets.update_row](../capabilities/sheets.update_row.md): Update one row by row id or by a key column value
 - [sheets.upsert_row](../capabilities/sheets.upsert_row.md): Update the row that matches the given columns, or append a new one
 
-## Events (42)
+## Events (43)
 
 - [changeset.approved](../events/changeset.approved.md): A changeset was approved and committed
 - [changeset.changes_requested](../events/changeset.changes_requested.md): The reviewer asked the agent for changes
@@ -123,6 +124,7 @@ Requires: mounts.
 - [folder.created](../events/folder.created.md): A folder was created
 - [folder.deleted](../events/folder.deleted.md): A folder and its files moved to Trash
 - [folder.moved](../events/folder.moved.md): A folder moved
+- [folder.purged](../events/folder.purged.md): A folder in Trash was deleted for good, with every file in it
 - [folder.renamed](../events/folder.renamed.md): A folder was renamed
 - [folder.restored](../events/folder.restored.md): A folder came back from Trash
 - [folder.settings_changed](../events/folder.settings_changed.md): Review changes, label or branch protection of a folder changed

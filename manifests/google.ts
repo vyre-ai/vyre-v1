@@ -58,6 +58,8 @@ const driveFile = t.obj({
   driveId: t.opt(t.str()),
   headRevisionId: t.opt(t.str()),
   lastModifyingUser: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })),
+  trashed: t.opt(t.bool()),
+  canEdit: t.opt(t.bool({ description: "Whether the signed-in person may change this file at Drive" })),
 });
 const gcalEvent = t.obj({
   id: t.str(),
@@ -699,6 +701,19 @@ const capabilities = [
     "Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision",
     { name: t.str(), parentId: t.opt(t.str()), fileId: id.file, remoteId: t.opt(t.str()), ifRevision: t.opt(t.str()) },
     { file: driveFile, stale: t.opt(t.bool()) },
+    { gate: "post", tool: "files", deferred: true },
+  ),
+  gw(
+    "google.drive.update_file",
+    "Rename a Drive file or folder, move it between folders, or take it back out of the Trash; the file keeps its id, its links and its sharing",
+    {
+      fileId: t.str(),
+      name: t.opt(t.str()),
+      addParentId: t.opt(t.str()),
+      removeParentId: t.opt(t.str()),
+      trashed: t.opt(t.bool()),
+    },
+    { file: driveFile },
     { gate: "post", tool: "files", deferred: true },
   ),
   gr(

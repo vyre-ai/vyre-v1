@@ -115,9 +115,16 @@ export function titleFrom(rt: ShellRuntime, kind: string, id: string): string | 
 export function agentPageData(
   rt: ShellRuntime,
   go: Go,
-  o: { agent: PaneAgent; canEdit: boolean; nameOf: (id: string) => string; fill?: ComposerFill },
+  o: {
+    agent: PaneAgent;
+    canEdit: boolean;
+    nameOf: (id: string) => string;
+    fill?: ComposerFill;
+    terminal?: TerminalData;
+  },
 ): AgentPageData {
   return {
+    ...(o.terminal ? { terminal: o.terminal } : {}),
     screens: rt.screens,
     call: rt.call,
     connection: rt.connection,
@@ -157,6 +164,8 @@ export function agentPageData(
         : {}),
       // the agent page's Computer tab sends an owner to Console > Computers the way the chat pane does (owner walk, 12 Nov)
       openMachines: (nodeId?: string) => rt.open(machinesTarget(nodeId)),
+      // and to that agent's older desktop in Console, to remove it
+      openComputerInConsole: (computerId: string) => rt.open(computersTarget(computerId)),
       openAutomationRuns: (agentId) => rt.open({ screen: "runs.history", subject: { type: "agent", id: agentId } }),
       openTask: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),
       closePage: () => go.chat(""),
@@ -537,7 +546,10 @@ export function wireConversation(
       togglePane: () => go.togglePane(),
       openBeside: (kind: string, id: string) =>
         kind === "computer" ? go.computerOfAgent(id) : base.nav.openBeside(kind, id),
-      openConnectOutsideAgent: (channelId: string) => go.connect(channelId),
+      // the server asks for channels.agents to add an agent to a channel: a person without it is not given the door
+      ...(allows(rt, "channels.agents")
+        ? { openConnectOutsideAgent: (channelId: string) => go.connect(channelId) }
+        : {}),
     },
     toast: (text: string) => go.say(text),
     ...(o.focus ? { focus: o.focus } : {}),

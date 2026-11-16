@@ -33,7 +33,8 @@ test("opening a place that has a tab goes to it: the Chats rail while a chat tab
 });
 
 test("your profile (the avatar, Your Profile) opens in the Settings tab already open, never a second Settings tab", () => {
-  const s = state([tab("chats"), tab("settings", "page=ai", "Settings", 5)], "chats");
+  // the place's own tab (its key is the place) that has moved to a page of Settings
+  const s = state([tab("chats"), { ...tab("settings", undefined, "Settings", 5), hash: "page=ai" }], "chats");
   const next = openTab(s, placeTab("settings", PROFILE_HASH));
   assert.deepEqual(keys(next), ["chats", "settings"], "one Settings tab");
   assert.equal(next.active, "settings");
@@ -67,11 +68,11 @@ test("an item is one tab by what it shows: two chats are two tabs, the same chat
   assert.deepEqual(keys(s), ["chats:thr_1", "chats:thr_2"]);
   assert.equal(s.active, "chats:thr_1");
   const plus: TabEntry = { key: "new:1", title: "New tab", place: "chats", isNew: true };
-  assert.deepEqual(
-    keys(openTab(state([plus], "new:1"), placeTab("chats"))),
-    ["new:1", "chats"],
-    "a + tab is not a Chats tab",
-  );
+  // Changed 15 Nov 2026 (team/v1/TABS-2026-11-15.md, D5): a + tab is still never taken FOR the Chats tab (Chats gets its own real tab, key "chats"), and the untouched + tab
+  // the person opened it from no longer stays behind as an empty tab.
+  const opened = openTab(state([plus], "new:1"), placeTab("chats"));
+  assert.deepEqual(keys(opened), ["chats"], "Chats gets its own tab, and the empty + tab does not stay behind");
+  assert.equal(opened.tabs[0]!.isNew, undefined, "a + tab is not a Chats tab");
 });
 
 test("saved duplicates close on load, keeping the one used last; different chats never count as duplicates", () => {
@@ -175,7 +176,7 @@ test("the controller stamps the tab in use, saves it, and closes a saved duplica
       data.set(k, v);
     },
   };
-  const key = tabsStorageKey("mac", "irfad", "nw");
+  const key = tabsStorageKey("mac", "imran", "nw");
   data.set(
     key,
     writeTabs(
@@ -189,7 +190,7 @@ test("the controller stamps the tab in use, saves it, and closes a saved duplica
       ),
     ),
   );
-  const c = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "nw", storage, start: "chats" });
+  const c = createTabsController({ deviceId: "mac", personId: "imran", spaceId: "nw", storage, start: "chats" });
   assert.deepEqual(
     c
       .state()
@@ -215,7 +216,7 @@ test("New chat goes to the blank chat that is open: the tab count never goes up 
       data.set(k, v);
     },
   };
-  const c = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "nw", storage, start: "chats" });
+  const c = createTabsController({ deviceId: "mac", personId: "imran", spaceId: "nw", storage, start: "chats" });
   const counts: number[] = [];
   c.subscribe(() => counts.push(c.state().tabs.length));
   c.openPlace("chats", "subject=thread:thr_1", "New chat");
@@ -304,8 +305,8 @@ test("the landing asked for by address: the selected tab of the place becomes it
   const opened = landOn(state([files, thr], files.key), "chats");
   assert.deepEqual(
     [keys(opened), opened.active],
-    [["files", "chats:thr_1", "chats"], "chats"],
-    "the chat tab stays; the landing is its own tab",
+    [["files", "chats", "chats:thr_1"], "chats"],
+    "the chat tab stays; the landing is its own tab, opened beside the tab it was asked from",
   );
   const pinned = { ...task, pinned: true };
   assert.equal(landOn(state([pinned], pinned.key), "chats").tabs[0]?.pinned, true, "a pinned tab stays pinned");

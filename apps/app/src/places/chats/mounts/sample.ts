@@ -2,6 +2,7 @@
 // samples the parts were built against (sidebar, conversation, agent page, Needs you, computer popup, helper) and by one more fake replica for what this folder adds: terminals with
 // their output and stars, the terminal rules, the agent computers, a channel to connect an outside agent to, a stopped recording, and a wait that holds a thread. Every write changes
 // those rows, so each control in a mount really works; the real replica is SQLite behind the same surface. Nothing here is used by the app.
+import { forgetPanes } from "./pane-memory.ts";
 import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
@@ -28,7 +29,7 @@ export const RECORDING = "rec_1";
 export const HELPER = "h1";
 
 export const PEOPLE: Principal[] = [
-  { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+  { id: "usr_imran", name: "Imran Ibarra", kind: "person" },
   { id: "usr_omar", name: "Omar Haddad", kind: "person" },
   { id: "usr_maya", name: "Maya Chen", kind: "person" },
   { id: "agt_intake", name: "Intake", kind: "agent" },
@@ -95,6 +96,7 @@ export interface MountSample {
 export function createMountSample(
   o: { conversation?: ConversationVariant; who?: Who; online?: boolean; asleep?: boolean } = {},
 ): MountSample {
+  forgetPanes();
   const who = o.who ?? "member";
   const side = createSampleSidebar(undefined, o.online === undefined ? {} : { online: o.online });
   const conv = createConversation(o.conversation ?? "busy", o.online === undefined ? {} : { online: o.online });
@@ -129,7 +131,7 @@ export function createMountSample(
     },
     {
       id: "trm_old",
-      ...term("trm_old", "Invoice export", "device", "irfad-macbook", {
+      ...term("trm_old", "Invoice export", "device", "imran-macbook", {
         state: "exited",
         exitCode: 0,
         lastActiveAt: at(7, 45),
@@ -173,7 +175,7 @@ export function createMountSample(
       visibility: "invite",
       archived: false,
       members: [
-        { kind: "person", id: "usr_irfad" },
+        { kind: "person", id: "usr_imran" },
         { kind: "person", id: "usr_maya" },
       ],
       agents: [{ agentId: "agt_intake", mode: "lead" }],
@@ -252,7 +254,7 @@ export function createMountSample(
     title: threadId,
     listed: true,
     planMode: false,
-    members: [{ kind: "person", id: "usr_irfad" }],
+    members: [{ kind: "person", id: "usr_imran" }],
     agents: [{ agentId: "agt_intake", mode: "lead" }],
     createdAt: at(9, 0),
   });
@@ -267,7 +269,7 @@ export function createMountSample(
       input.name ??
         (host === "space_server" ? "Space server" : host === "device" ? "This computer" : "Intake's computer"),
       host,
-      host === "space_server" ? "Space server" : host === "device" ? "irfad-macbook" : "Intake's computer",
+      host === "space_server" ? "Space server" : host === "device" ? "imran-macbook" : "Intake's computer",
       {
         ...(host === "agent_computer"
           ? { agentId: input.agentId ?? "agt_intake", computerId: input.computerId ?? COMPUTER }

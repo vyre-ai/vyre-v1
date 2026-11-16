@@ -69,7 +69,7 @@ function ShellView({ skin, dot, children }: { skin: string; dot: boolean; childr
       },
     };
     const theme = createThemeController({
-      personId: "irfad",
+      personId: "imran",
       spaceId: "nw",
       spaceSkin: { nw: skin, hb: skin, me: skin },
       prefersDark: skin === "graphite",
@@ -104,7 +104,7 @@ function StoppedChat({ skin }: { skin: string }): ReactNode {
       },
     };
     createThemeController({
-      personId: "irfad",
+      personId: "imran",
       spaceId: "nw",
       spaceSkin: { nw: skin },
       prefersDark: skin === "graphite",

@@ -9,6 +9,7 @@
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
 import { retargetRead } from "../../../../host/src/seams/answer-reads.ts";
+import { HostError } from "../../../../host/src/routes/errors.ts";
 import { noteCallSecret } from "../../../../host/src/call-secrets.ts";
 import {
   actorOf,
@@ -37,7 +38,7 @@ import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from 
 import { awaken } from "../lifecycle.ts";
 import { askedThisTurn } from "./my-chrome-ask.ts";
 import { spaceBrowser } from "../../sbrowser/port.ts";
-import { profileIdOf } from "../../sbrowser/policy.ts";
+import { askerFolder, askerOfTurn, profileOfTurn } from "../../sbrowser/asker.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
 import {
   answerFrom,
@@ -300,10 +301,17 @@ function secretsOf(v: unknown): Secret[] {
   return out;
 }
 
-async function keepFrame(ctx: CompCtx, c: ComputerRow, frame: unknown, at: number): Promise<string | undefined> {
+async function keepFrame(
+  ctx: CompCtx,
+  c: ComputerRow,
+  frame: unknown,
+  at: number,
+  asker?: string,
+): Promise<string | undefined> {
   if (typeof frame !== "string" || frame === "") return undefined;
   try {
-    const folderId = await agentFolder(ctx, c.agentId);
+    // the pictures of a person's browsing of a shared agent go to that person's own Files, not the agent's folder everyone who uses the agent can open (owner, 13 Nov, P7 section 10 item 6)
+    const folderId = asker === undefined ? await agentFolder(ctx, c.agentId) : await askerFolder(ctx);
     if (!folderId) return undefined;
     // a heavy page's picture is over the size limit for a direct write to Files: it is kept scaled down, not lost
     const fit = await fitPngOffLoop(frame, { width: 0, height: 0 });
@@ -375,6 +383,7 @@ async function browserCard(
   caption: string,
   fileId: string | undefined,
   at: number,
+  person?: string,
 ): Promise<void> {
   if (!ctx.thread || ctx.principal.kind !== "agent" || !fileId) return;
   const key = `browser|${agentId}|${ctx.thread}`;
@@ -387,7 +396,13 @@ async function browserCard(
       body: "",
       mentions: [],
       idempotencyKey: `sbrlive:${agentId}:${ctx.thread}:${Math.floor(at / LIVE_GAP_MS)}`,
-      blocks: [{ type: "browser_screenshot", v: 1, data: { agentId, fileId, caption, at, live: true } }],
+      blocks: [
+        {
+          type: "browser_screenshot",
+          v: 1,
+          data: { agentId, fileId, caption, at, live: true, ...(person ? { person } : {}) },
+        },
+      ],
     });
   } catch {
     lastCard.delete(key);
@@ -402,6 +417,10 @@ export interface Resolved {
     profileId: string;
   };
 }
+
+/** What the first call in a person's own profile of a shared agent tells the agent, to say to the person: their sign-ins are theirs; the ones others made are not shared here. */
+export const OWN_PROFILE_LINE =
+  "This is your own browser profile on this agent: a site that someone else signed in to is not signed in here. If a site needs a sign-in, sign in with a login you may use, or ask the person for one.";
 
 /** Name this as `computerId` to work in the person's own Chrome. An agent with no computer of its own gets it without naming it, when the person has opened their Chrome to agents. */
 export const MY_CHROME = "my-chrome";
@@ -473,7 +492,7 @@ export async function prepare(
     (await browserUsable(spaceBrowser()!, ctx.now())) &&
     (await settleMove(ctx, ctx.principal.id, { start: !LOOKS.has(spec.name) }))
   ) {
-    const profileId = profileIdOf(ctx.principal.id);
+    const { profileId } = await profileOfTurn(ctx);
     if (!profileId)
       raise(ctx, "validation.bad_input", "This agent cannot have a browser profile: its id is not valid.");
     return {
@@ -818,7 +837,43 @@ export async function grantFor(
 }
 
 /** One tool in the agent's profile of the Space browser. What comes back is scrubbed of the Vault values filled for this profile; no desktop frame exists, so there is no timeline step (the live view shows the page). */
+/**
+ * A browser that is waking (its container and Chrome starting) can fail a first call from inside Vyre in a way no later call does. That is the layer's to wait out, not the model's to retry: a call that fails
+ * outside the browser's own answer (never a HostError, which has its words) is tried again after a short wait, up to `tries` times in all, so the model sees one answer. The bound is about 6 seconds of waiting;
+ * a failure that outlasts it is reported in plain words.
+ */
+export async function coldStartRetry<T>(f: () => Promise<T>, tries = 3, waitMs = 3_000): Promise<T> {
+  for (let n = 1; ; n++) {
+    try {
+      return await f();
+    } catch (e) {
+      if (e instanceof HostError || n >= tries) throw e;
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
+}
+
 async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
+  try {
+    return await coldStartRetry(() => browserCallIn(ctx, profileId, spec, args));
+  } catch (e) {
+    // an error the browser's own steps named (a refusal with its words) goes on as it is; anything else (a crash in the room, the hold or the agent's details on the very first call of a cold browser) was
+    // reported as internal.unexpected, "retryable", and the person's agent tried again (13 Nov, owner on rc.26). It is a plain "not available", with the step it was at, and the server's log keeps the cause.
+    if (e instanceof HostError) throw e;
+    ctx.log.warn("sbrowser: a browser tool failed outside the browser's own answer", {
+      tool: spec.name,
+      reason: e instanceof Error ? e.message.slice(0, 160) : "unknown",
+    });
+    raise(
+      ctx,
+      "provider.unavailable",
+      "The browser is not available right now, and nothing was changed. Wait a few seconds and call it once more.",
+      { reason: "browser_not_ready", tool: spec.name },
+    );
+  }
+}
+
+async function browserCallIn(ctx: CompCtx, profileId: string, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
   const sb = spaceBrowser();
   if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
   // a person at the controls: the agent's tools wait here, before the call reaches the browser service, however that service is reached and after it restarts (the hold is the module's own)
@@ -855,6 +910,9 @@ async function browserStep(
   // an agent's own call refreshes its turn's protection (sbrowser/room.ts)
   if (ctx.principal.kind === "agent") callStarted(profileId, ctx.space, ctx.now());
   else callStarted(profileId);
+  // the first call in a profile of the person's own (a shared agent they do not own): the agent says in one plain line that sites others signed in to are not signed in here
+  const asker = await askerOfTurn(ctx);
+  const firstOfTheirs = asker !== undefined && !(await sb.profileUsed(profileId).catch(() => true));
   let raw!: ToolAnswer;
   let list!: TabLister;
   let given!: ReturnType<typeof givenCount>;
@@ -956,7 +1014,13 @@ async function browserStep(
     given,
     args["tabId"] ?? (spec.name === "chrome_open" ? rest["tabId"] : undefined),
     secretsOf(used).map((x) => x.value),
-  );
+  ).catch((e: unknown) => {
+    // the page is already open: a failure to note which tab a value went into is the server's to log, never the agent's to retry
+    ctx.log.warn("sbrowser: could not note the tab after a call", {
+      tool: spec.name,
+      reason: e instanceof Error ? e.message.slice(0, 160) : "unknown",
+    });
+  });
   if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0)
     tabsOpen(
       profileId,
@@ -966,7 +1030,7 @@ async function browserStep(
   if (reopened) {
     out["reopened"] = true;
     out["note"] = REOPENED_LINE;
-  }
+  } else if (firstOfTheirs && out["note"] === undefined) out["note"] = OWN_PROFILE_LINE;
   // what the browser finished downloading goes into the agent's Files (Downloads) and the agent is told where; only the steps that say so carry it
   // a step with a caption is one line of the agent's browser timeline, with a picture of the page, and the chat shows the browser live once per burst of work
   if (spec.caption) {
@@ -986,7 +1050,8 @@ async function browserStep(
       }
     } else words = `${words} · ${cardDue(ctx, ctx.principal.id, at) ? NO_PICTURE_OR_CARD : NO_PICTURE}`;
     const c = { computerId: profileId, agentId: ctx.principal.id } as unknown as ComputerRow;
-    const frameFileId = await keepFrame(ctx, c, frame, at);
+    const askerNow = await askerOfTurn(ctx);
+    const frameFileId = await keepFrame(ctx, c, frame, at, askerNow);
     addStep(ctx.db, profileId, at, {
       by: "agent",
       caption: words,
@@ -995,10 +1060,10 @@ async function browserStep(
       ...(ctx.run ? { runId: ctx.run } : {}),
       ...(ctx.thread ? { threadId: ctx.thread } : {}),
     });
-    await browserCard(ctx, ctx.principal.id, words, frameFileId, at);
+    await browserCard(ctx, ctx.principal.id, words, frameFileId, at, askerNow);
   }
   if (REPORTS_DOWNLOADS.has(spec.name)) {
-    const saved = await takeDownloads(ctx, sb, profileId, ctx.principal.id);
+    const saved = await takeDownloads(ctx, sb, profileId, ctx.principal.id, await askerOfTurn(ctx));
     if (saved.length > 0) out["downloads"] = saved;
   }
   return out;
@@ -1182,10 +1247,9 @@ export function shape(ctx: CompCtx, tool: string, out: ToolAnswer, want: Shape):
     res[key] = v;
   }
   // the first answer after the browser was reopened says so, whatever the tool (browserStep)
-  if (out["reopened"] === true) {
-    res["reopened"] = true;
-    if (typeof out["note"] === "string") res["note"] = out["note"];
-  }
+  if (out["reopened"] === true) res["reopened"] = true;
+  // and a line the browser layer wants said (the first call in a person's own profile, OWN_PROFILE_LINE): every chrome capability's output has `note`
+  if (typeof out["note"] === "string") res["note"] = out["note"];
   return res;
 }
 

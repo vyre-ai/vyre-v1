@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access.
 
-## Capabilities (56)
+## Capabilities (57)
 
 - [providers.add](../capabilities/providers.add.md): Connect a provider with a pasted API key (stored once, used by handle) or a local model address
 - [providers.catalog](../capabilities/providers.catalog.md): The provider gallery from the definition files: name, logo, connection kinds, model list source, engine
@@ -12,6 +12,7 @@ Requires: access.
 - [providers.custom_list](../capabilities/providers.custom_list.md): The custom OpenAI-compatible endpoints this Space registered
 - [providers.custom_remove](../capabilities/providers.custom_remove.md): Remove a custom endpoint I registered, and my connections to it
 - [providers.list](../capabilities/providers.list.md): My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month's usage
+- [providers.local_signins](../capabilities/providers.local_signins.md): Which Claude Code and Codex sign-ins are on the computer this Space runs on: yes or no for each, never a path or an account name. The AI card shows its "on this computer" rows only for a yes.
 - [providers.mark_signin_needed](../capabilities/providers.mark_signin_needed.md): System: the engine found a sign-in missing or refused when a turn ran on this account; the account reads "Sign in again" in Settings until it is signed in (a person's own account only; an API key is never marked here)
 - [providers.own_people](../capabilities/providers.own_people.md): Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)
 - [providers.remove](../capabilities/providers.remove.md): Remove a provider and its key or sign-in
@@ -39,7 +40,7 @@ Requires: access.
 - [vault.import_parse](../capabilities/vault.import_parse.md): Preview an import file from 1Password, Bitwarden, LastPass or Chrome: names, kinds, field keys and duplicates (values are not echoed)
 - [vault.inject_env](../capabilities/vault.inject_env.md): Inject a folder into one child process environment (vyre run --env folder -- command); returns key names only
 - [vault.item.delete](../capabilities/vault.item.delete.md): Move an item to Trash
-- [vault.item.discard_new](../capabilities/vault.item.discard_new.md): Take back a key you saved a moment ago that could not be connected: erased for good, from the Vault and from Trash. Only your own, only within two minutes, only while nothing has used it
+- [vault.item.discard_new](../capabilities/vault.item.discard_new.md): Take back the key a connect card saved and could not connect: erased for good, from the Vault and from Trash. Only a person's own, only the one key that request saved, only while nothing has used it
 - [vault.item.get](../capabilities/vault.item.get.md): One item: metadata and field keys, never values
 - [vault.item.history](../capabilities/vault.item.history.md): Every use, reveal, edit and share of an item (never values)
 - [vault.item.mark_rotated](../capabilities/vault.item.mark_rotated.md): Record that the secret was rotated and restart its reminder

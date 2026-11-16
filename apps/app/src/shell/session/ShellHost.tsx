@@ -1,3 +1,5 @@
+import { NewTabSidebar } from "../tabs/NewTabSidebar.tsx";
+import { takeOpenHow } from "../tabs/open-how.ts";
 import { lookApplier, startupPlan } from "../providers/settings-look.ts";
 import { sessionTheme } from "./space-theme.ts";
 import { sessionCatalogue } from "./space-catalog.ts";
@@ -27,7 +29,7 @@ import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
 import { INBOX_TIP, followInboxSources, rememberInbox, seedInbox, takeInboxTip } from "../rail/inbox-sources.ts";
 import type { ShellHub } from "../spaces/hub.ts";
-import { watchPurge, webPurgeClient, wipeBrowserStorage } from "../spaces/purge.ts";
+import { removeSpaceFromBrowser, watchPurge, webPurgeClient } from "../spaces/purge.ts";
 import type { ShellPurge } from "../spaces/purge.ts";
 import { HubProvider, useHubState } from "../spaces/context.tsx";
 import { Shell } from "../spaces/Shell.tsx";
@@ -43,7 +45,7 @@ import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
 import { OnboardingHost } from "../../onboarding/OnboardingHost.tsx";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
-import { clearStored, readStored, verifyStoredSession, writeStored } from "./stored.ts";
+import { readStored, verifyStoredSession, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
 import { VaultUnlockHost } from "./VaultUnlockHost.tsx";
 import { teamActions } from "./team-actions.ts";
@@ -204,9 +206,12 @@ export function ShellHost({
         navRef.current?.flash(text);
       },
       navigate: (p, hash, background, into) => {
+        // how the person pressed (Cmd, the middle button, a menu's "Open in new tab") is read here once; no place reads the keyboard (tabs/open-how.ts, open-rule.ts)
+        const how = takeOpenHow();
+        const behind = background === true || how === "behind";
         if (into !== undefined) navRef.current?.fill(p, hash, undefined, into);
-        else navRef.current?.go(p, hash, background);
-        if (phoneGo.current && background !== true) phoneGo.current(p, hash);
+        else navRef.current?.go(p, hash, behind, false, how === "tab");
+        if (phoneGo.current && !behind) phoneGo.current(p, hash);
       },
       shell: (screen, args) => {
         const h = navRef.current;
@@ -590,16 +595,14 @@ export function ShellHost({
             client: webPurgeClient({
               deviceId: "web",
               call: session.call,
-              wipe: () => {
-                wipeBrowserStorage();
-                clearStored();
-              },
+              // this Space only: the other Spaces signed in on this browser stay signed in (spaces/purge.ts says what is kept on purpose)
+              wipe: () => removeSpaceFromBrowser(stored),
               done: () => onSignedOut(),
             }),
             subscribe: (l) => session.onPurge(l),
           }
         : undefined,
-    [session, onSignedOut],
+    [session, onSignedOut, stored.baseUrl, stored.def.spaceId, stored.personId],
   );
   useEffect(
     () =>
@@ -657,7 +660,13 @@ export function ShellHost({
     sessionTheme(target, false);
     onSwitchSpace(id);
   };
-  const renderNewTab = (): ReactElement =>
+  const renderNewTab = (): ReactElement => (
+    <>
+      <NewTabSidebar places={[...hub.rail().top, ...hub.rail().bottom]} onGo={(place) => navRef.current?.go(place)} />
+      {renderNewTabBody()}
+    </>
+  );
+  const renderNewTabBody = (): ReactElement =>
     search ? (
       <NewTabSearch
         data={search}

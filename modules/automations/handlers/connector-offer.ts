@@ -69,6 +69,12 @@ export async function connectorOffers(
       () => null,
     );
     if (st === null || st.reaches === false || (st.allowed !== true && st.canGrant !== true)) continue;
+    // the person must hold Use on the item: reading it is the Use-level read, so a view-only item is never offered (design 2.3, rule 1)
+    const usable = await call("vault.item.get", { itemId: o.itemId }).then(
+      () => true,
+      () => false,
+    );
+    if (!usable) continue;
     kept.push({ ...o, text: textOf(o, st.allowed !== true) });
   }
   return { offers: kept };

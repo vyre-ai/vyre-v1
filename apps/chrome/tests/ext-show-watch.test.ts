@@ -75,7 +75,7 @@ function fakeExt() {
     now: () => clock,
   };
 }
-const TAB = { id: 5, url: "https://lu.ma/event/guests", incognito: false, windowId: 1 };
+const TAB = { id: 5, url: "https://events.example/event/guests", incognito: false, windowId: 1 };
 
 async function recorder(o: { hosts?: string[]; bridge?: any } = {}) {
   const f = fakeExt();
@@ -107,7 +107,7 @@ async function recorder(o: { hosts?: string[]; bridge?: any } = {}) {
 test("a step in plain words: an input asked for each time is a name in braces, a fixed one is the value, a secret is always asked for", () => {
   const inputs = [
     { key: "contact_name", label: "Contact name", example: "Daniel Okafor", mode: "ask" as const },
-    { key: "tag", label: "Tag", example: "lab-8", mode: "fixed" as const },
+    { key: "tag", label: "Tag", example: "event-8", mode: "fixed" as const },
   ];
   const t = { role: "textbox", name: "Name" };
   assert.equal(
@@ -135,12 +135,12 @@ test("a step in plain words: an input asked for each time is a name in braces, a
         host: "a.test",
         target: { role: "textbox", name: "Tag" },
         key: "tag",
-        value: "lab-8",
+        value: "event-8",
         at: 0,
       },
       inputs,
     ),
-    'Type "lab-8" in "Tag"',
+    'Type "event-8" in "Tag"',
   );
   assert.equal(
     words(
@@ -157,15 +157,15 @@ test("a step in plain words: an input asked for each time is a name in braces, a
     'Click the button "Save"',
   );
   assert.equal(
-    words(
-      { id: "s4", kind: "signin", url: "https://app.gohighlevel.com/login", host: "app.gohighlevel.com", at: 0 },
-      inputs,
-    ),
-    "Sign in to app.gohighlevel.com with Vault",
+    words({ id: "s4", kind: "signin", url: "https://app.crm.example/login", host: "app.crm.example", at: 0 }, inputs),
+    "Sign in to app.crm.example with Vault",
   );
   assert.equal(
-    words({ id: "s5", kind: "open", url: "https://lu.ma/event/guests?x=1", host: "lu.ma", at: 0 }, inputs),
-    "Open lu.ma/event/guests",
+    words(
+      { id: "s5", kind: "open", url: "https://events.example/event/guests?x=1", host: "events.example", at: 0 },
+      inputs,
+    ),
+    "Open events.example/event/guests",
   );
   assert.equal(
     words(
@@ -184,7 +184,7 @@ test("a step in plain words: an input asked for each time is a name in braces, a
     'Type {card number} in "Card number"',
   );
   assert.equal(keyOf("Contact name!"), "contact_name");
-  assert.equal(skillName("Add a Lab registrant to GHL"), "add-a-lab-registrant-to-ghl");
+  assert.equal(skillName("Add a guest to the CRM"), "add-a-guest-to-the-crm");
 });
 
 test("an address is kept without its fragment, a login in it, or a query value that looks like a secret", () => {
@@ -198,34 +198,34 @@ test("an address is kept without its fragment, a login in it, or a query value t
 
 const REC = () => ({
   id: "rec_1",
-  name: "Add a Lab registrant to GHL",
+  name: "Add a guest to the CRM",
   startedAt: 1_000_000,
   endedAt: 1_100_000,
   steps: [
-    { id: "s1", kind: "open", url: "https://lu.ma/event/guests", host: "lu.ma", at: 1 },
+    { id: "s1", kind: "open", url: "https://events.example/event/guests", host: "events.example", at: 1 },
     {
       id: "s2",
       kind: "click",
-      url: "https://lu.ma/event/guests",
-      host: "lu.ma",
+      url: "https://events.example/event/guests",
+      host: "events.example",
       target: { role: "link", name: "Daniel Okafor" },
       at: 2,
     },
-    { id: "s3", kind: "signin", url: "https://app.gohighlevel.com/login", host: "app.gohighlevel.com", at: 3 },
+    { id: "s3", kind: "signin", url: "https://app.crm.example/login", host: "app.crm.example", at: 3 },
     {
       id: "s4",
       kind: "type",
-      url: "https://app.gohighlevel.com/new",
-      host: "app.gohighlevel.com",
+      url: "https://app.crm.example/new",
+      host: "app.crm.example",
       target: { role: "textbox", name: "Email" },
-      value: "dokafor@okaforinjury.com",
+      value: "dokafor@harbor.example",
       at: 4,
     },
     {
       id: "s5",
       kind: "click",
-      url: "https://app.gohighlevel.com/new",
-      host: "app.gohighlevel.com",
+      url: "https://app.crm.example/new",
+      host: "app.crm.example",
       target: { role: "button", name: "Save" },
       at: 5,
     },
@@ -236,22 +236,22 @@ const REC = () => ({
 test("a recording becomes a skill Vyre's own parser accepts: plain steps, replay.json with the browsing tools, no script file, and nothing asked for each time", () => {
   const rec = REC();
   rec.inputs = inputsOf(rec.steps);
-  assert.deepEqual(rec.inputs, [{ key: "email", label: "Email", example: "dokafor@okaforinjury.com", mode: "ask" }]);
+  assert.deepEqual(rec.inputs, [{ key: "email", label: "Email", example: "dokafor@harbor.example", mode: "ask" }]);
   rec.steps[4].ask = true;
   const sk = buildSkill(rec as any);
-  assert.equal(sk.name, "add-a-lab-registrant-to-ghl");
+  assert.equal(sk.name, "add-a-guest-to-the-crm");
   const parsed = parseSkill(sk.text);
   assert.ok(parsed.ok, JSON.stringify(parsed));
   if (parsed.ok)
     assert.deepEqual(
       [
         parsed.skill.name,
-        /lu\.ma, app\.gohighlevel\.com/.test(parsed.skill.description),
+        /events\.example, app\.crm\.example/.test(parsed.skill.description),
         /Ask for email/.test(parsed.skill.description),
       ],
-      ["add-a-lab-registrant-to-ghl", true, true],
+      ["add-a-guest-to-the-crm", true, true],
     );
-  assert.match(sk.text, /3\. Sign in to app\.gohighlevel\.com with Vault/);
+  assert.match(sk.text, /3\. Sign in to app\.crm\.example with Vault/);
   assert.match(sk.text, /4\. Type \{email\} in "Email"/);
   assert.match(sk.text, /5\. Click the button "Save" \(ask the person first and wait for yes\)/);
   assert.ok(
@@ -298,17 +298,17 @@ test("a fixed input is typed as written; a card number has no example and is alw
   const next = applyEdits(rec, { inputs: { email: { mode: "fixed" }, card_number: { mode: "fixed" } } });
   assert.equal(next.inputs.find((i: any) => i.key === "card_number")!.mode, "ask", "a secret cannot be made fixed");
   const replay = replayOf(next);
-  assert.deepEqual([replay.steps[3].text, replay.steps[3].input], ["dokafor@okaforinjury.com", undefined]);
+  assert.deepEqual([replay.steps[3].text, replay.steps[3].input], ["dokafor@harbor.example", undefined]);
   assert.deepEqual([replay.steps[5].input, replay.steps[5].text], ["card_number", undefined]);
 });
 
 test("the review's edits: rename, delete a step, mark one to ask first; inputs follow the steps that are left", () => {
   const rec = REC() as any;
   rec.inputs = inputsOf(rec.steps);
-  const a = applyEdits(rec, { name: "  Lab registrant  ", remove: ["s4"], ask: { s5: true } });
+  const a = applyEdits(rec, { name: "  Guest sign-up  ", remove: ["s4"], ask: { s5: true } });
   assert.deepEqual(
     [a.name, a.steps.map((s: any) => s.id), a.steps[3].ask, a.inputs],
-    ["Lab registrant", ["s1", "s2", "s3", "s5"], true, []],
+    ["Guest sign-up", ["s1", "s2", "s3", "s5"], true, []],
   );
   const b = applyEdits(rec, { inputs: { email: { label: "Work email", mode: "fixed", example: "a@b.co" } } });
   assert.deepEqual(b.inputs, [{ key: "email", label: "Work email", example: "a@b.co", mode: "fixed" }]);
@@ -319,18 +319,18 @@ test("the review's edits: rename, delete a step, mark one to ask first; inputs f
 
 test("a recording: an open step, clicks and typing in order with a masked picture each; Stop opens the review with the steps", async () => {
   const { r, f } = await recorder();
-  const { id } = await r.start(TAB, { name: "Add a Lab registrant" });
+  const { id } = await r.start(TAB, { name: "Add a guest" });
   assert.deepEqual(f.injected[0].files, ["src/content/record.js"]);
   await r.step(5, TAB, { kind: "click", url: TAB.url, target: { role: "link", name: "Daniel Okafor" } });
   await r.step(5, TAB, {
     kind: "type",
-    url: "https://app.gohighlevel.com/new",
+    url: "https://app.crm.example/new",
     target: { role: "textbox", name: "Email" },
     value: "d@o.com",
   });
   await r.step(5, TAB, {
     kind: "type",
-    url: "https://app.gohighlevel.com/new",
+    url: "https://app.crm.example/new",
     target: { role: "textbox", name: "Email" },
     value: "dokafor@o.com",
   });
@@ -345,19 +345,23 @@ test("a recording: an open step, clicks and typing in order with a masked pictur
   );
   assert.equal(got.rec.steps[2].value, "dokafor@o.com");
   assert.equal(got.rec.steps[1].shot, "data:image/jpeg;base64,QUJD");
-  assert.deepEqual(got.words, ["Open lu.ma/event/guests", 'Click the link "Daniel Okafor"', 'Type {email} in "Email"']);
+  assert.deepEqual(got.words, [
+    "Open events.example/event/guests",
+    'Click the link "Daniel Okafor"',
+    'Type {email} in "Email"',
+  ]);
   assert.equal(f.sent.at(-1).m.done, true, "the bar is told to go away");
 });
 
 test("a login is one step, 'Sign in with Vault': the username typed before it goes, the password is never kept, and the Sign in button is part of it", async () => {
   const { r } = await recorder();
-  const { id } = await r.start({ ...TAB, url: "https://app.gohighlevel.com/login" });
-  const L = "https://app.gohighlevel.com/login";
+  const { id } = await r.start({ ...TAB, url: "https://app.crm.example/login" });
+  const L = "https://app.crm.example/login";
   await r.step(5, TAB, {
     kind: "type",
     url: L,
     target: { role: "textbox", name: "Email", type: "email" },
-    value: "techmanager@mylegalacademy.com",
+    value: "sam@northwind.example",
   });
   await r.step(5, TAB, { kind: "secret", url: L, what: "password", target: { role: "textbox", name: "Password" } });
   await r.step(5, TAB, {
@@ -370,7 +374,7 @@ test("a login is one step, 'Sign in with Vault': the username typed before it go
   await r.step(5, TAB, { kind: "click", url: L, target: { role: "button", name: "Sign in" }, submit: true });
   await r.step(5, TAB, {
     kind: "click",
-    url: "https://app.gohighlevel.com/contacts",
+    url: "https://app.crm.example/contacts",
     target: { role: "button", name: "Add contact" },
   });
   await r.control("stop");
@@ -380,12 +384,12 @@ test("a login is one step, 'Sign in with Vault': the username typed before it go
     ["open", "signin", "click"],
   );
   assert.equal(
-    JSON.stringify(rec).includes("techmanager"),
+    JSON.stringify(rec).includes("sam"),
     false,
     "the username that belonged to the sign-in is not kept either",
   );
   assert.equal(JSON.stringify(rec).includes('password":'), false);
-  assert.deepEqual(((await r.get(id)) as any).words[1], "Sign in to app.gohighlevel.com with Vault");
+  assert.deepEqual(((await r.get(id)) as any).words[1], "Sign in to app.crm.example with Vault");
 });
 
 test("a card number is a step with no value that is asked for each time", async () => {
@@ -432,27 +436,31 @@ test("paused records nothing; incognito and a never-site cannot be recorded; a p
   await r.step(5, TAB, { kind: "click", url: TAB.url, target: { role: "button", name: "Yes" } });
   await r.step(77, TAB, { kind: "click", url: TAB.url, target: { role: "button", name: "Other tab" } });
   const id = ((await r.control("stop")) as any).id;
-  assert.deepEqual(((await r.get(id)) as any).words, ["Open lu.ma/event/guests", 'Click the button "Yes"']);
+  assert.deepEqual(((await r.get(id)) as any).words, ["Open events.example/event/guests", 'Click the button "Yes"']);
 });
 
 test("a change of address nobody caused is a step; one that follows a click is its result; a link opened in a new tab is recorded too", async () => {
   const { r, f } = await recorder();
   const { id } = await r.start(TAB);
   f.tick(5000);
-  await r.tabUpdated(5, { url: "https://lu.ma/dashboard" }, TAB);
-  await r.step(5, TAB, { kind: "click", url: "https://lu.ma/dashboard", target: { role: "link", name: "Guests" } });
+  await r.tabUpdated(5, { url: "https://events.example/dashboard" }, TAB);
+  await r.step(5, TAB, {
+    kind: "click",
+    url: "https://events.example/dashboard",
+    target: { role: "link", name: "Guests" },
+  });
   f.tick(300);
-  await r.tabUpdated(5, { url: "https://lu.ma/guests" }, TAB);
+  await r.tabUpdated(5, { url: "https://events.example/guests" }, TAB);
   await r.tabCreated({ id: 8, openerTabId: 5 });
   await r.step(
     8,
-    { ...TAB, id: 8, url: "https://app.gohighlevel.com/" },
-    { kind: "click", url: "https://app.gohighlevel.com/", target: { role: "button", name: "Add contact" } },
+    { ...TAB, id: 8, url: "https://app.crm.example/" },
+    { kind: "click", url: "https://app.crm.example/", target: { role: "button", name: "Add contact" } },
   );
   await r.control("stop");
   assert.deepEqual(((await r.get(id)) as any).words, [
-    "Open lu.ma/event/guests",
-    "Open lu.ma/dashboard",
+    "Open events.example/event/guests",
+    "Open events.example/dashboard",
     'Click the link "Guests"',
     'Click the button "Add contact"',
   ]);
@@ -477,14 +485,14 @@ test("a recording stops growing at the step limit, and survives the worker being
     running: true,
     paused: false,
     count: MAX_STEPS,
-    name: "Task on lu.ma",
+    name: "Task on events.example",
     secret: false,
   });
 });
 
 test("Save as skill adds it as the person's own skill through skills.mine.add; Add to my agents, Share and Try it use the skills sharing; a replaced save replaces", async () => {
   const { r, calls } = await recorder();
-  const { id } = await r.start(TAB, { name: "Add a Lab registrant" });
+  const { id } = await r.start(TAB, { name: "Add a guest" });
   await r.step(5, TAB, { kind: "type", url: TAB.url, target: { role: "textbox", name: "Email" }, value: "d@o.com" });
   await r.control("stop");
   await assert.rejects(r.addToAgents(id), /Save the skill first/);
@@ -495,7 +503,7 @@ test("Save as skill adds it as the person's own skill through skills.mine.add; A
     ["chrome:recording", ["agt_scout"], ["replay.json"]],
   );
   assert.ok(parseSkill(add.text).ok);
-  assert.deepEqual(saved.saved, { skillId: "sko_1", name: "add-a-lab-registrant", agents: ["agt_scout"] });
+  assert.deepEqual(saved.saved, { skillId: "sko_1", name: "add-a-guest", agents: ["agt_scout"] });
   await r.addToAgents(id);
   assert.deepEqual(calls.find((c) => c.c === "skills.mine.set")!.i, { skillId: "sko_1", enabled: true, agents: ["*"] });
   await r.share(id, { space: true });
@@ -504,7 +512,7 @@ test("Save as skill adds it as the person's own skill through skills.mine.add; A
   assert.deepEqual(calls.filter((c) => c.c === "skills.share")[1]!.i, { skillId: "sko_1", stop: true });
   const tried: any = await r.tryIt(id, "agt_scout");
   assert.equal(tried.threadId, "thr_9");
-  assert.match(calls.find((c) => c.op === "chat.ask")!.i.text, /Run the skill "add-a-lab-registrant"/);
+  assert.match(calls.find((c) => c.op === "chat.ask")!.i.text, /Run the skill "add-a-guest"/);
   await r.save(id, { agents: ["agt_scout"] });
   assert.equal(
     calls.filter((c) => c.c === "skills.mine.add")[1]!.i.replaces,
@@ -570,7 +578,7 @@ function watchWorld(o: { hosts?: string[]; read?: any; list?: any[] } = {}) {
         removed.push(id);
       },
       async get() {
-        return { status: "complete", url: "https://lu.ma/x" };
+        return { status: "complete", url: "https://events.example/x" };
       },
       onUpdated: { addListener: (f: any) => listeners.add(f), removeListener: (f: any) => listeners.delete(f) },
     },
@@ -603,7 +611,7 @@ const privacy = (h?: string[]) => never(h);
 const W = {
   watchId: "wch_1",
   title: "Lab 8",
-  url: "https://lu.ma/mla-ai-lab-8",
+  url: "https://events.example/northwind-ai-event-8",
   mode: "region",
   region: { label: "Guest count", selector: "#going" },
   state: "on",
@@ -644,7 +652,7 @@ test("a page that cannot be read is reported with the reason; a never-site is no
     watchId: "wch_1",
     error: "The part to watch is not on the page. It may have moved: pick it again.",
   });
-  const nv = await watchWorld({ hosts: ["lu.ma"], list: [{ ...W }] });
+  const nv = await watchWorld({ hosts: ["events.example"], list: [{ ...W }] });
   await nv.w.look();
   assert.equal(
     nv.calls.some((c) => c.c === "script"),
@@ -656,7 +664,7 @@ test("a page that cannot be read is reported with the reason; a never-site is no
 test("the Watch sheet saves with the part, the rhythm and where it runs, and a baseline read from the page the person is on; incognito and never-sites are refused", async () => {
   const { w, calls } = await watchWorld();
   const out: any = await w.save(
-    { id: 5, url: "https://lu.ma/mla-ai-lab-8", title: "AI Lab 8", incognito: false },
+    { id: 5, url: "https://events.example/northwind-ai-event-8", title: "AI Lab 8", incognito: false },
     {
       mode: "region",
       region: { label: "Guest count", selector: "#going" },
@@ -668,7 +676,7 @@ test("the Watch sheet saves with the part, the rhythm and where it runs, and a b
   const save = calls.find((c) => c.c === "automations.watches.save")!.i;
   assert.deepEqual(save, {
     title: "AI Lab 8",
-    url: "https://lu.ma/mla-ai-lab-8",
+    url: "https://events.example/northwind-ai-event-8",
     mode: "region",
     region: { label: "Guest count", selector: "#going" },
     everyMinutes: 30,
@@ -678,19 +686,22 @@ test("the Watch sheet saves with the part, the rhythm and where it runs, and a b
   });
   assert.equal(out.watch.watchId, "wch_1");
   await assert.rejects(
-    w.save({ id: 5, url: "https://lu.ma/x", incognito: true }, { mode: "page", everyMinutes: 60, runsOn: "chrome" }),
+    w.save(
+      { id: 5, url: "https://events.example/x", incognito: true },
+      { mode: "page", everyMinutes: 60, runsOn: "chrome" },
+    ),
     (e: any) => e.code === "incognito",
   );
-  const nv = await watchWorld({ hosts: ["lu.ma"] });
+  const nv = await watchWorld({ hosts: ["events.example"] });
   await assert.rejects(
     nv.w.save(
-      { id: 5, url: "https://lu.ma/x", incognito: false },
+      { id: 5, url: "https://events.example/x", incognito: false },
       { mode: "page", everyMinutes: 60, runsOn: "chrome" },
     ),
     (e: any) => e.code === "never_site",
   );
   await assert.rejects(
-    nv.w.pick({ id: 5, url: "https://lu.ma/x", incognito: false }),
+    nv.w.pick({ id: 5, url: "https://events.example/x", incognito: false }),
     (e: any) => e.code === "never_site",
   );
 });
@@ -710,7 +721,7 @@ test("Check now: here for a watch that runs here, else the app wakes the agent",
 test("picking a part: the answer from the page comes back once, trimmed", async () => {
   const f = fakeExt();
   const w = createWatches({ ext: f.ext, bridge: {} as any, privacy: await never() });
-  const p = w.pick({ id: 5, url: "https://lu.ma/x", incognito: false });
+  const p = w.pick({ id: 5, url: "https://events.example/x", incognito: false });
   await new Promise((r) => setImmediate(r));
   assert.deepEqual(f.injected[0].files, ["src/content/pick.js"]);
   assert.equal(w.picked(5, { region: { selector: "#going", label: "Guest count", text: "3,412 going" } }), true);

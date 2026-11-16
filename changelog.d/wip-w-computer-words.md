@@ -1,0 +1,1 @@
+An agent's computer never says Asleep while one of its terminals is running a command or you hold its keyboard, and the Terminals line is read again the moment a terminal draws, so it no longer says Asleep for a few seconds beside a terminal that is working. An asleep computer with nothing open says it wakes when needed.

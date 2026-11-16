@@ -14,7 +14,7 @@ Hand the keyboard of a terminal back to the agent
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |
-| Audit | none |
+| Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/terminal/give_back |
 | MCP tool | none |
@@ -56,6 +56,7 @@ type Out = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -90,6 +91,7 @@ type Out = {
       "createdAt": 1760000000000,
       "cwd": "example",
       "deviceId": "dev_a1b2c3",
+      "elsewhere": true,
       "exitCode": 1,
       "heldBy": "usr_a1b2c3",
       "host": "agent_computer",

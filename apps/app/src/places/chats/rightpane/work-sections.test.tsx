@@ -362,7 +362,7 @@ test("mounted: a person who may not enter sees one line and no list, and no site
   }
 });
 
-test("mounted: an agent that still has an older desktop gets one row that opens it; an agent without one gets none", async () => {
+test("mounted: an agent that still has an older desktop never gets a row that says Open (nobody is sent to the page they are on); only who may remove it is offered the Console", async () => {
   const off = installDom();
   try {
     const s = createSample();
@@ -378,10 +378,9 @@ test("mounted: an agent that still has an older desktop gets one row that opens 
     );
     const root = await mount(createRoot, withOld);
     const t = textOf(root);
-    assert.ok(t.includes("Older desktop") && t.includes("Open its desktop"));
-    assert.ok(!/sign-ins move|kept until you remove/.test(t), "one row, no paragraph");
-    await press(find(root, "row-older-desktop"));
-    assert.deepEqual(s.opened.slice(-1), ["computer:cmp_old"]);
+    // a pane with no one who may remove it (the sample has no admin) shows nothing to press, and never a door that opens the page it is on; the admin's row is the Remove entry below
+    assert.ok(!t.includes("Open its desktop") && !t.includes("Older desktop"), t);
+    assert.equal(find(root, "row-older-desktop"), null);
     const none = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser }, depsOf([])));
     assert.ok(!textOf(none).includes("Older desktop"));
   } finally {
@@ -659,4 +658,45 @@ test("mounted: a press that fails for another reason says why in one line, never
   } finally {
     off();
   }
+});
+
+test("whose side of the computer the Terminals section shows: a person's own space, and the terminals of others as a count", async () => {
+  const { whoseSide } = await import("./work-model.ts");
+  assert.equal(whoseSide("Nova", true, 0), "Your own space on Nova's computer.");
+  assert.equal(
+    whoseSide("Nova", true, 2),
+    "Your own space on Nova's computer. 2 terminals of other people are open here.",
+  );
+  assert.equal(whoseSide("Nova", false, 1), "1 terminal of another person is open here.");
+  assert.equal(whoseSide("Nova", false, 0), null, "the owner of an agent with nobody else on it reads nothing extra");
+});
+
+test("a person in their own place sees one group, Your terminals, and their folder as ~ (never /people/u<number>)", async () => {
+  const { groupSessions, folderWords } = await import("./work-model.ts");
+  const list = [
+    {
+      name: "main",
+      terminalId: "trm_1",
+      state: "idle" as const,
+      cwd: "/people/u20000",
+      owner: { kind: "agent" as const },
+    },
+    {
+      name: "notes",
+      terminalId: "trm_2",
+      state: "idle" as const,
+      cwd: "/people/u20000/work",
+      owner: { kind: "person" as const },
+      ownerId: "usr_bea",
+    },
+  ];
+  const g = groupSessions(list, "Nova", { me: "usr_bea", ownPlace: true });
+  assert.equal(g.length, 1);
+  assert.equal(g[0]!.name, "Your terminals");
+  assert.equal(g[0]!.rows.length, 2);
+  assert.equal(folderWords("/people/u20000", true), "~");
+  assert.equal(folderWords("/people/u20000/work", true), "~/work");
+  assert.equal(folderWords("/home/agent/x", true), "~/x");
+  assert.equal(folderWords("/home/agent/x", false), "/home/agent/x", "the owner's own folder is left as it is");
+  assert.deepEqual(groupSessions([], "Nova", { ownPlace: true }), []);
 });

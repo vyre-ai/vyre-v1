@@ -61,7 +61,7 @@ export interface Edge {
   close(): void;
 }
 
-/** The app's export on one origin, with the gateway (/v1, /sync, /healthz) and the live socket (/live) passed through to the daemon. */
+/** The app's export on one origin, with the gateway (/v1, /sync, /healthz, the Space's blobs) and the live socket (/live) passed through to the daemon. */
 export function edge(
   dist: string,
   daemonUrl: string | (() => string),
@@ -74,8 +74,11 @@ export function edge(
   const proxied = (p: string): boolean =>
     p.startsWith("/v1/") ||
     p.startsWith("/sync/") ||
+    /^\/spaces\/[^/]+\/blobs\//.test(p) ||
     p === "/healthz" ||
     p.startsWith("/live") ||
+    // the live view of an agent's browser: the daemon's own stream and socket, a ticket in the address (the app asks for them at the Space's address)
+    /^\/browsers\/[^/]+\/(stream|ws)$/.test(p) ||
     p.startsWith("/local/vault/key/") ||
     p === "/mcp" ||
     p.startsWith("/.well-known/oauth-") ||
@@ -102,6 +105,8 @@ export function edge(
         res.writeHead(502);
         res.end("daemon unreachable");
       });
+      // a viewer that goes away ends the request it made to the daemon, as a gateway does (a live view's stream would otherwise stay open and count as someone watching)
+      res.on("close", () => up.destroy());
       req.pipe(up);
       return;
     }

@@ -24,8 +24,10 @@ import {
   olderDesktopMenu,
   sessionTitle,
   sessionWords,
+  folderWords,
   sharedWait,
   terminalsHead,
+  whoseSide,
 } from "./work-model.ts";
 import type { BrowserData, BrowserView, WorkspaceData, WorkspaceView } from "./work-model.ts";
 
@@ -285,7 +287,19 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
         });
     } else {
       const asleep = v.state === "asleep";
-      const groups = groupSessions(v.sessions, name, { me: data.me?.id, nameOf: data.nameOf });
+      // whose side of the computer this is: a person who only uses the agent has a space of their own on it, and the terminals of others are a count, never a list
+      const whose = whoseSide(name, v.ownPlace === true, v.others ?? 0);
+      if (whose !== null)
+        entries.push({
+          key: "terminal-whose",
+          type: "block",
+          node: (
+            <Text testID="terminal-whose" style={[st.note, { paddingHorizontal: 24 }]}>
+              {whose}
+            </Text>
+          ),
+        });
+      const groups = groupSessions(v.sessions, name, { me: data.me?.id, nameOf: data.nameOf, ownPlace: v.ownPlace });
       for (const g of groups) {
         entries.push({
           key: `g-${g.key}`,
@@ -298,7 +312,9 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
             key: `session-${sx.terminalId ?? sx.name}`,
             type: "row",
             title: sessionTitle(sx),
-            ...(sx.cwd ? { suffix: sx.cwd } : {}),
+            ...(folderWords(sx.cwd, v.ownPlace === true)
+              ? { suffix: folderWords(sx.cwd, v.ownPlace === true) as string }
+              : {}),
             ...(sx.lastCommand ? { note: `$ ${sx.lastCommand}` } : {}),
             leading: (
               <View style={st.dotLead}>
@@ -333,6 +349,8 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
           key: "session-ready",
           type: "row",
           title: "main",
+          // an asleep computer says in a quiet line that nothing needs pressing: it wakes when its terminal is opened or the agent runs a command
+          ...(asleep ? { note: "Wakes when needed" } : {}),
           leading: (
             <View style={st.dotLead}>
               <Dot tone={asleep ? "zz" : "idle"} />
@@ -481,22 +499,23 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
       }
     }
   }
-  // An agent that still has an older desktop keeps a way to open it, one row, until Console removes it
+  // An agent that still has an older desktop: there is no desktop to open any more (one Computer tab, owner ruling 6 Nov 2026; the drawing of 13 Nov has none), so the row never says "Open". It is only
+  // the way to remove the old one, for the people who can, and it opens the Console at that computer. Nobody else is shown a row that could do nothing for them.
   const older = data.agent.computerId ?? "";
-  if (older !== "") {
+  const removeOlder = olderDesktopMenu({
+    canRemove: canManageComputers,
+    open: data.nav.openComputerInConsole ? () => data.nav.openComputerInConsole?.(older) : undefined,
+  });
+  if (older !== "" && removeOlder.length > 0) {
     entries.push({ key: "l-older", type: "block", node: <SectionHead text="Older desktop" /> });
-    const menu: MenuEntry[] = olderDesktopMenu({
-      canRemove: canManageComputers,
-      open: data.nav.openComputerInConsole ? () => data.nav.openComputerInConsole?.(older) : undefined,
-    });
     entries.push({
       key: "older-desktop",
       type: "row",
-      title: "Open its desktop",
-      leading: <LeadIcon name="watch" />,
+      title: "Remove its older desktop",
+      note: "In Console > Computers",
+      leading: <LeadIcon name="trash" />,
       testID: "older-desktop",
-      onPress: () => data.nav.openComputer(older),
-      ...(menu.length > 0 ? { menu } : {}),
+      onPress: removeOlder[0]!.onSelect,
     });
   }
   return (
@@ -522,6 +541,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
           start={termSheet}
           me={data.me?.id}
           nameOf={data.nameOf}
+          onDrawn={() => data.workspace?.refresh?.(agentId)}
           onClose={() => setTermSheet(null)}
         />
       ) : null}

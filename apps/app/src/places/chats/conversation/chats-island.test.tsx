@@ -170,14 +170,14 @@ test("a chat with a waiting question draws the island above its composer; one wi
   assert.doesNotMatch(idle, /question-island/);
 });
 
-test("a channel keeps a fixed row above the composer for who is typing; other chats have none", () => {
+test("every chat keeps a fixed row above the composer for who is typing or working", () => {
   const s = createSample("channel");
   const out = clean(renderToStaticMarkup(<Conversation data={{ ...s.data, typing: ["Omar"] }} />));
   assert.match(out, /data-testid="typing-row"[^>]*>.*Omar is typing/);
   const none = clean(renderToStaticMarkup(<Conversation data={s.data} />));
   assert.match(none, /data-testid="typing-row"/, "the row is there, empty");
   assert.doesNotMatch(none, /is typing/);
-  assert.doesNotMatch(clean(renderToStaticMarkup(<Conversation data={createSample("idle").data} />)), /typing-row/);
+  assert.match(clean(renderToStaticMarkup(<Conversation data={createSample("idle").data} />)), /typing-row/);
 });
 
 test("the island docks only the questions whose own card is off screen: one in view is left to its card, and it comes back when the card scrolls away", async () => {

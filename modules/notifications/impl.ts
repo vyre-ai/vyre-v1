@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // Notifications module (lane L6). The host loads these handlers once the host/modules.json row is live (ARCH 12.4, ruling 25).
 // setPushPort is the host's door for the APNs/FCM transport and the computer's idle time (call it at boot); the fanout consumer turns events that name a notification kind into rows.
 import { handlers } from "./handlers/index.ts";
@@ -33,7 +35,7 @@ interface Ev {
 }
 type SendIn = Parameters<typeof send>[1];
 
-/** The name a person reads for whoever acted: the server's one resolver, so someone's private agent reads "Irfad Imtiaz (Agent)", never a raw id. */
+/** The name a person reads for whoever acted: the server's one resolver, so someone's private agent reads "Imran Ibarra (Agent)", never a raw id. */
 async function nameOf(ctx: NotifCtx, id: string | undefined): Promise<string> {
   if (!id || !ctx.call || id.startsWith("svc_")) return "Someone";
   const kind = id.startsWith("agt_")
@@ -483,7 +485,7 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
     };
   }
   if (e.name === "access.shared_with" && typeof p.to === "string") {
-    // "Irfad shared Dex with you", with the line the sharer wrote, in the Inbox
+    // "Imran shared Dex with you", with the line the sharer wrote, in the Inbox
     const r = p.resource as { type?: string; id?: string } | undefined;
     return {
       to: p.to,
@@ -785,4 +787,16 @@ export const periodic = {
     everyMs: 10 * 60_000,
     run: (ctx: NotifCtx): Promise<{ sent: number; failed: number; gaveUp: number }> => retryPendingEmails(ctx),
   },
+};
+
+/** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
+export const hostCalls = {
+  "notifications.erase_agent": eraseTables([["notifications_agent_interrupts", "agent"]], (ctx, i) => {
+    if (i.dry !== true) {
+      tryRun(ctx.db, `DELETE FROM notifications_items WHERE subject_type = 'agent' AND subject_id = ?`, i.agentId);
+      // what was about a chat the erase removed can hold copies of the agent's messages
+      for (const th of i.ids ?? []) tryRun(ctx.db, `DELETE FROM notifications_items WHERE subject_id = ?`, th);
+    }
+    return {};
+  }),
 };

@@ -190,7 +190,7 @@ function Inner({ search }: { search: string }): ReactNode {
       },
     };
     const theme = createThemeController({
-      personId: "irfad",
+      personId: "imran",
       spaceId: "nw",
       spaceSkin: { nw: skin, hb: skin, me: skin },
       prefersDark: skin === "graphite",
@@ -212,7 +212,7 @@ function Inner({ search }: { search: string }): ReactNode {
       <Shell
         hub={made.hub}
         theme={made.theme}
-        me={{ id: "usr_irfad", name: "Irfad Imtiaz" }}
+        me={{ id: "usr_imran", name: "Imran Ibarra" }}
         renderPlace={(ctx) =>
           made.real && Real({ place: ctx.place, pane: made.pane }) !== null ? (
             <Real place={ctx.place} pane={made.pane} />

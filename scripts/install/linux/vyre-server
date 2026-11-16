@@ -695,9 +695,12 @@ sqlite_snapshot() { space_db snapshot "$1" "$2"; }
 # computer has no safe way to read the live databases (space_db), after saying so.
 stage_copy() {
   mkdir -p "$2"
+  # Rewind's points (the Space's checkpoints/ folder) are derived data, copies of work folders that are in the archive already: they would double it, so the Space's own copy leaves them out. After an update is rolled back from the archive the points are simply gone.
+  excl=""
+  [ "$1" != "${DATA_DIR:-/nonexistent}/space" ] || excl="--exclude=./checkpoints"
   # Files other than databases and their journals. tar exits 1 for a file that changed or vanished while it was read; the copy still holds the rest. Databases are left out here: a plain
   # copy of a live one is torn, and each is taken below as a snapshot (a file with a database's name that is not SQLite is copied there as it is).
-  tar -C "$1" -cf - --exclude='*.db' --exclude='*.sqlite' --exclude='*.sqlite3' --exclude='*.db-wal' --exclude='*.db-shm' --exclude='*.db-journal' --exclude='*.sqlite-wal' --exclude='*.sqlite-shm' --exclude='*.sqlite3-wal' --exclude='*.sqlite3-shm' . 2>/dev/null | tar -C "$2" -xf - 2>/dev/null || true
+  tar -C "$1" -cf - $excl --exclude='*.db' --exclude='*.sqlite' --exclude='*.sqlite3' --exclude='*.db-wal' --exclude='*.db-shm' --exclude='*.db-journal' --exclude='*.sqlite-wal' --exclude='*.sqlite-shm' --exclude='*.sqlite3-wal' --exclude='*.sqlite3-shm' . 2>/dev/null | tar -C "$2" -xf - 2>/dev/null || true
   list=$2.dblist
   find "$1" -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) >"$list" 2>/dev/null || true
   while IFS= read -r f; do
@@ -1181,7 +1184,7 @@ prune_releases() {
   done
 }
 
-# prune_images: after a healthy update, remove the server (vyred), agent computer, workspace and Space browser images that no kept release names, so each update does not leave the last one behind (MLA had 16.6 GB).
+# prune_images: after a healthy update, remove the server (vyred), agent computer, workspace and Space browser images that no kept release names, so each update does not leave the last one behind (Northwind had 16.6 GB).
 # An image goes only when all of these hold: it is one of ours (pulled by digest from a repository named agent-computer, workspace or space-browser; or carrying the label ai.vyre.image; or an
 # untagged image whose command is the agent computer's agentd), no kept release or compose.env names it, and no container, running or stopped, was made from it. A kept release is one prune_releases
 # left: the current one and the one a rollback goes to. Images built or tagged by hand (no digest) are never touched. Docker itself refuses to remove an image a container uses, a second guard.

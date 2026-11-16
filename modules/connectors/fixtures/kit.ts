@@ -53,6 +53,8 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
   const mk = (actor: string): ConnectorsCtx => ({
     trace: { traceId: "0123456789abcdef0123456789abcdef" },
     actor,
+    // a person's own call by default; a test that means another caller says so
+    callerKind: "person",
     emit: (name, subject, payload) => {
       events.push({ name, subject, payload });
     },
@@ -127,11 +129,12 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
   /** Put a definition in as a published connector, the way a publish leaves it. */
   const install = (def: ConnectorDef, state2: "live" | "draft" = "live"): void => {
     h.tx.run(
-      "INSERT OR REPLACE INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)",
+      "INSERT OR REPLACE INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       def.key,
       def.title,
       def.mode,
       def.scope,
+      def.builtin === true ? 1 : 0,
       def.version,
       state2,
       JSON.stringify(def),

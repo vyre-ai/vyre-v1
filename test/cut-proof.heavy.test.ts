@@ -58,7 +58,6 @@ test(
       await page.getByTestId("claim-password").fill("fixture password 123");
       await page.getByTestId("claim-confirm").fill("fixture password 123");
       await page.getByTestId("claim-next").click();
-      await page.getByTestId("claim-saved").click();
       await page.getByTestId("claim-create").click();
       await dismissOnboarding(page);
       await page.getByTestId("shell").waitFor({ timeout: 60_000 });
@@ -101,14 +100,16 @@ test(
       const first = made[0]!;
       await page.goto(`${web.origin}/chat#subject=thread:${first.thread}`, { waitUntil: "load" });
       await page.getByTestId("composer-field").first().waitFor({ timeout: 60_000 });
-      if ((await page.getByTestId("pane-agent").count()) === 0) await page.getByTestId("pane-button").click();
-      await page.getByTestId("pane-agent").waitFor({ timeout: 30_000 });
+      if ((await page.getByTestId("side-pane").count()) === 0) await page.getByTestId("pane-button").click();
+      await page.getByTestId("side-pane").waitFor({ timeout: 30_000 });
       const tabIds = async (pg: typeof page): Promise<string> =>
         (
           await pg.locator('[data-testid^="tab-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")))
         ).join(" ");
       await page
         .getByTestId("tab-computer")
+        .or(page.getByTestId("tab-computer-selected"))
+        .first()
         .click()
         .catch(async (e) => {
           await shot("1b-no-computer-tab");
@@ -243,9 +244,7 @@ test(
       await mp.getByTestId("password").fill("fixture member password123");
       await mp.getByTestId("confirm").fill("fixture member password123");
       await mp.getByTestId("next").click();
-      await mp.getByTestId("device").fill("Cut browser");
-      await mp.getByTestId("next").click();
-      await mp.getByTestId("ai-none").click();
+      // prototype scenes member-1-join and member-4-ai: no device name and no AI question in the join; the optional recovery code step is passed with Continue
       await mp.getByTestId("next").click();
       await mp.getByTestId("shell").waitFor({ timeout: 60_000 });
       await dismissOnboarding(mp);
@@ -280,11 +279,13 @@ test(
       ).thread.threadId as string;
       await mp.goto(`${web.origin}/chat#subject=thread:${mthread}`, { waitUntil: "load" });
       await mp.getByTestId("composer-field").first().waitFor({ timeout: 60_000 });
-      if ((await mp.getByTestId("pane-agent").count()) === 0) await mp.getByTestId("pane-button").click();
-      await mp.getByTestId("pane-agent").waitFor({ timeout: 30_000 });
+      if ((await mp.getByTestId("side-pane").count()) === 0) await mp.getByTestId("pane-button").click();
+      await mp.getByTestId("side-pane").waitFor({ timeout: 30_000 });
       // a member's own agent: the same Computer tab, a Terminal and a Browser, and no offer of a desktop
       await mp
         .getByTestId("tab-computer")
+        .or(mp.getByTestId("tab-computer-selected"))
+        .first()
         .click()
         .catch(async (e) => {
           await mshot("5a-member-no-computer-tab");

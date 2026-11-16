@@ -6,13 +6,25 @@ import { draftOf, scopeOf, setDraft } from "./drafts.ts";
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
-import { isLong, sessionItems } from "../session/model.ts";
+import { isLong, sessionItems, withFolded } from "../session/model.ts";
+import { Dialog } from "../../../../../../ui/src/Dialog/index.tsx";
+import { RewindCard, RewindWatch } from "../rewind/RewindCard.tsx";
+import type { ActiveRewind } from "../rewind/model.ts";
 import { SessionPublisher } from "../session/Publisher.tsx";
 import { useCrew } from "../crew/context.tsx";
 import { LiveSubagents } from "../crew/live.tsx";
-import { crewChipOf, liveSubagents, subagentIdsOf, totalsOf } from "../crew/model.ts";
+import {
+  counts as crewCounts,
+  crewChipOf,
+  faceSeed,
+  liveSubagents,
+  nameOf as crewNameOf,
+  subagentIdsOf,
+  totalsOf,
+} from "../crew/model.ts";
 import { CrewBlock } from "../session/CrewBlock.tsx";
-import { CrewIsland } from "../crew/island.tsx";
+import { CrewIsland, WorkIsland, blocksActivity } from "../crew/island.tsx";
+import { BackgroundLine } from "../crew/background-line.tsx";
 import { AlsoToChat } from "../crew/also.tsx";
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
@@ -28,6 +40,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import type { ReactElement } from "react";
+import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { COLUMN, RADIUS, gutterFits } from "../../../../../../ui/src/tokens/calm.ts";
 import { GutterContext } from "./gutter.ts";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
@@ -154,6 +167,7 @@ import {
   titleOf,
   whoLine,
   workingAgents,
+  presenceLine,
   withoutAnswered,
   faceDoor,
   peopleIn,
@@ -293,6 +307,25 @@ function useLiveTurns(data: ConversationData): readonly import("../../../shell/s
 }
 
 /** The lead of this chat runs outside Vyre and has gone quiet: said plainly above the composer, because a message here will wait. Only its owner can read it, and only its owner can ask it. */
+/** A menu opened low in the chat opens upward instead of over the composer: its top is pulled up so its bottom stays above the composer's top (the rows are about 28 px each). */
+function aboveComposer(y: number, rows: number): number {
+  const doc = (
+    globalThis as { document?: { querySelector(s: string): { getBoundingClientRect(): { top: number } } | null } }
+  ).document;
+  const top = doc?.querySelector('[data-testid="composer"]')?.getBoundingClientRect().top;
+  if (typeof top !== "number" || top <= 0) return y;
+  return y + rows * 28 + 16 > top - 8 ? Math.max(8, top - 8 - (rows * 28 + 16)) : y;
+}
+
+/** The people (ids) typing in this chat now, from the live link; empty where nothing is live. */
+function useTypingIds(data: ConversationData): readonly string[] {
+  const live = data.typingLive;
+  const [, tick] = useState(0);
+  useEffect(() => (live ? live.subscribe(() => tick((n) => n + 1)) : undefined), [live]);
+  return live ? live.who(data.threadId) : NONE_TYPING;
+}
+const NONE_TYPING: readonly string[] = [];
+
 export function useOutsideOffline(
   data: Pick<ConversationData, "call">,
   agentId: string | null,
@@ -480,6 +513,24 @@ function ConversationView(): ReactElement {
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
   const [sentOnPage, setSentOnPage] = useState(0);
+  const typingIds = useTypingIds(data);
+  // a row that arrives while the chat is open comes in with one quiet motion (the prototype's); rows already there when the chat opened, and every row under reduced motion, do not move
+  const readyAt = useRef(0);
+  const arrivedRows = useRef(new Map<string, boolean>());
+  if (readyAt.current === 0 && messagesQ.status === "ready") readyAt.current = Date.now();
+  const newRow = (key: string): boolean => {
+    const m = arrivedRows.current;
+    if (!m.has(key)) m.set(key, readyAt.current !== 0 && Date.now() - readyAt.current > 1500);
+    return m.get(key) === true;
+  };
+  useEffect(() => {
+    if (Platform.OS === "web")
+      injectCss(
+        (globalThis as { document?: Parameters<typeof injectCss>[0] }).document,
+        "vyre-chat-arrive",
+        '@keyframes vy-arrive{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}[data-arrive="1"]{animation:vy-arrive 220ms ease-out}@media (prefers-reduced-motion:reduce){[data-arrive="1"]{animation:none}}',
+      );
+  }, []);
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState("");
   const [matchAt, setMatchAt] = useState(0);
@@ -509,8 +560,9 @@ function ConversationView(): ReactElement {
   const width = useWindowDimensions().width;
   const [gutter, setGutter] = useState(() => gutterFits(width));
   const mobileBack = useMobileBack();
-  const narrow = width > 0 && width < 640;
 
+  /** What Cmd/Ctrl+. does: stop whoever is working here (set where the working list is known). */
+  const stopKey = useRef<() => void>(() => undefined);
   /* Cmd/Ctrl+F opens find in chat, as in the prototype; Escape closes it. */
   useEffect(() => {
     if (Platform.OS !== "web") return undefined;
@@ -525,21 +577,34 @@ function ConversationView(): ReactElement {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
         setFinding(true);
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "\\" && !(e as { shiftKey?: boolean }).shiftKey) {
+        // Cmd-\\ hides or shows the pane beside the chat (the design's key)
+        e.preventDefault();
+        data.nav.togglePane();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === ".") {
+        // Cmd-. stops what is working in this chat (the design's key)
+        e.preventDefault();
+        stopKey.current();
       }
     };
     g.addEventListener?.("keydown", onKey);
     return () => g.removeEventListener?.("keydown", onKey);
   }, []);
 
+  /** Words into the composer: after what is typed, or alone when nothing is (a plan's "Change it", a fill from outside). */
+  const fillComposer = (t: string): void => {
+    const value = typedRef.current.trim() === "" ? t : `${typedRef.current}\n${t}`;
+    typedRef.current = value;
+    setTyped(value);
+    setSeed((x) => ({ value, n: x.n + 1 }));
+  };
+  const fillRef = useRef(fillComposer);
+  fillRef.current = fillComposer;
   useEffect(
     () =>
       data.fill?.subscribe(() => {
         const t = data.fill?.take();
-        if (!t) return;
-        const value = typedRef.current.trim() === "" ? t : `${typedRef.current}\n${t}`;
-        typedRef.current = value;
-        setTyped(value);
-        setSeed((x) => ({ value, n: x.n + 1 }));
+        if (t) fillRef.current(t);
       }),
     [data.fill],
   );
@@ -547,6 +612,10 @@ function ConversationView(): ReactElement {
   /** One quiet line in the title bar's notice slot (it clears itself after 6 seconds), with one action where there is one (Undo, Retry). A new line replaces the last. Nothing stays above the composer. */
   /** The Command card (/usage, /permissions): one at a time, never stored, closed by Escape, its close control, a press outside or the next send. */
   const [card, setCard] = useState<{ n: number; spec: Exclude<CardSpec, { kind: "aside" }> } | null>(null);
+  // Rewind: the "Go back to" card (opened from the message bar, its menu or /rewind), and the rewinds in force, whose messages are folded away
+  const [rewindCard, setRewindCard] = useState<{ n: number; messageId?: string } | null>(null);
+  const [rewinds, setRewinds] = useState<ActiveRewind[]>([]);
+  const [rewindStamp, setRewindStamp] = useState(0);
   const cardN = useRef(1);
   /** Close the /btw card the way every command card closes: it leaves, and its side thread is cleaned up. */
   const closeAsides = useCallback(() => {
@@ -830,6 +899,8 @@ function ConversationView(): ReactElement {
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
   const all = mergePages(around ?? live, older);
+  const rewindLines = all.filter((m) => m.kind === "system" && /^(Went back|Came back)/.test(m.body)).length;
+  const goesBack = thread.kind === "chat" && thread.agents.length > 0;
   const openQs = openQuestions(all);
   emptyRef.current = all.length === 0;
   const liveView = around === null;
@@ -848,6 +919,10 @@ function ConversationView(): ReactElement {
   // a reply being written has no saved message yet: its row is the live turn (a ghost), and it counts as work from the moment the turn starts
   const working = workingAgents([...win.rows, ...ghosts], writing);
   const isWorking = working.length > 0;
+  stopKey.current = (): void => {
+    if (working.length === 0) return;
+    void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).catch(fail("Could not stop it."));
+  };
   const nameOf = data.nameOf;
   const lead = leadOf(thread);
   const hasEarlier = win.hiddenLocal > 0 || (olderMore ?? messagesQ.data.hasMore);
@@ -938,6 +1013,7 @@ function ConversationView(): ReactElement {
     openFind: () => setFinding(true),
     openSearch: (q) => data.nav.openSearch?.(q),
     openAdd: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
+    ...(goesBack ? { openRewind: () => setRewindCard({ n: cardN.current++ }) } : {}),
     ...(data.nav.openPaneTab ? { openPane: data.nav.openPaneTab } : {}),
     startTalk: () => setTalkAt((n) => n + 1),
     send: (text) =>
@@ -954,7 +1030,7 @@ function ConversationView(): ReactElement {
       void runSlash(payload.text, commandEnv());
       return;
     }
-    if (data.head) setSentOnPage((n) => n + 1);
+    setSentOnPage((n) => n + 1); // sending brings the person's own message (and the reply after it) into view, wherever the feed was scrolled
     const key = data.newKey();
     const mentions = mentionsIn(payload.text, data.directory);
     const refs = act.sendRefs(payload);
@@ -1005,9 +1081,17 @@ function ConversationView(): ReactElement {
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
   const coders = (crew?.status?.members ?? []).filter((x) => x.kind === "teammate");
   const coderThreads = new Set(coders.map((x) => x.id));
+  const inRewind = (m: Message): boolean =>
+    rewinds.some(
+      (r) =>
+        r.interrupted !== true &&
+        ((m.threadSeq > r.afterSeq && m.threadSeq <= r.uptoSeq) ||
+          // the line the server left ("Went back ...") is the folded row's own: one line while it is in force
+          (m.kind === "system" && m.threadSeq === r.uptoSeq + 1 && /^Went back/.test(m.body))),
+    );
   const folded = mergeCrewAnswer(
     hideCrewPosts(
-      stripFromCoders(groupHelperStrips(foldHelperRows(timelineMessages)), coderThreads),
+      stripFromCoders(groupHelperStrips(foldHelperRows(timelineMessages.filter((m) => !inRewind(m)))), coderThreads),
       coderThreads,
       new Set(coders.flatMap((x) => (x.jobId ? [x.jobId] : []))),
     ),
@@ -1021,10 +1105,11 @@ function ConversationView(): ReactElement {
     meId: data.me.id,
     nameOf,
     kindOf: data.kindOf,
+    ...(data.goneOf ? { goneOf: data.goneOf } : {}),
     clock: { ...data.clock(), ...(sharedChat ? { zones } : {}) },
     shared: sharedChat,
   }).filter((it) => !(thread.kind === "thread" && it.kind === "day")); // a thread has no day dividers: its root row and "N replies" lead
-  const rows = sessionItems(items, all, {
+  const rowsBase = sessionItems(items, all, {
     meId: data.me.id,
     clock: { ...data.clock(), ...(sharedChat ? { zones } : {}) },
     nameOf,
@@ -1032,6 +1117,37 @@ function ConversationView(): ReactElement {
     openedAt: openedAt.current,
     mentionsMe: (m) => mentionsIn(m.body, [{ kind: "person", id: data.me.id, name: data.me.name }]).length > 0,
   });
+  const rows = withFolded(
+    rowsBase,
+    rewinds.map((r) => ({
+      afterSeq: r.afterSeq,
+      uptoSeq: r.uptoSeq,
+      who: nameOf(r.by),
+      mine: r.by === data.me.id,
+      ...(r.interrupted ? { interrupted: true } : {}),
+      ...(r.undoPointId !== undefined
+        ? {
+            undo: () =>
+              void act
+                .rewindTo(data, r.undoPointId!)
+                .then(() => setRewinds((cur) => cur.filter((x) => x !== r)), fail("Could not undo that.")),
+          }
+        : {}),
+      lines: timelineMessages
+        .filter((m) => m.threadSeq > r.afterSeq && m.threadSeq <= r.uptoSeq && m.kind !== "system")
+        .map((m) => ({
+          id: m.messageId,
+          who: m.author.kind === "agent" || m.author.id !== data.me.id ? nameOf(m.author.id) : "You",
+          text:
+            m.body
+              .replace(/[*_`#>]+/g, "")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 240) || "Posted a card",
+          time: timeLabel(m.createdAt, data.clock()),
+        })),
+    })),
+  );
   // a message of the person's that an agent has answered since: the line that says what it taught is then gone (shown once)
   const answered = new Set<string>();
   let agentAfter = false;
@@ -1102,7 +1218,10 @@ function ConversationView(): ReactElement {
     );
   };
   const island = islandView(openQs, putAway, islandAt, longChat ? new Set<string>() : cardsInView);
-  const typingNames: readonly string[] = data.typing ?? [];
+  const typingNames: readonly string[] = [
+    ...(data.typing ?? []),
+    ...typingIds.map((id) => nameOf(id).split(" ")[0] ?? nameOf(id)),
+  ];
   // a face or a name opens by what it is: a helper (its thread) opens as the helper chat; a person or an agent goes to the host, which opens a profile or an agent page
   const allHelpers = helpersQ.status === "loading" ? [] : helpersQ.data.helpers;
   const openFace = (id: string): void => {
@@ -1208,44 +1327,62 @@ function ConversationView(): ReactElement {
             },
           ]
         : [];
-    return chatHeaderEntries(
-      {
-        withAgent: lead !== undefined,
-        withPeople: thread.kind === "chat" && thread.agents.length === 0,
-        planOn: mode === "plan",
-        muted: hdr.muted,
-        archived: hdr.archived,
-        working: isWorking,
-        archivable: thread.kind === "chat",
-      },
-      {
-        plan: () => chooseChatMode(mode === "plan" ? "ask" : "plan"),
-        fork: () => void runSlash("/fork", commandEnv()),
-        find: () => setFinding(true),
-        ...(data.nav.openPaneTab ? { kept: () => data.nav.openPaneTab?.("kept") } : {}),
-        exportMd: () => void runSlash("/export md", commandEnv()),
-        mute: (on) => {
-          setHdr((h) => ({ ...h, muted: on }));
-          void menuApi.setMute("thread", data.threadId, on).catch(() => {
-            setHdr((h) => ({ ...h, muted: !on }));
-            say("That did not go through.");
-          });
+    const zoneNote: MenuEntry[] = sharedChat
+      ? [
+          {
+            head: `Times here use ${zoneName(zones.space)}, the Space's time zone${zones.viewer !== zones.space && offsetMinAt(Date.now(), zones.viewer) !== offsetMinAt(Date.now(), zones.space) ? ". Hover a time to see yours" : ""}`,
+          } as MenuEntry,
+        ]
+      : [];
+    return [
+      ...zoneNote,
+      ...chatHeaderEntries(
+        {
+          withAgent: lead !== undefined,
+          withPeople: thread.kind === "chat" && thread.agents.length === 0,
+          planOn: mode === "plan",
+          muted: hdr.muted,
+          archived: hdr.archived,
+          working: isWorking,
+          archivable: thread.kind === "chat",
         },
-        archive: () =>
-          void Promise.resolve(data.call("threads.archive", { threadId: data.threadId })).then(() => {
-            setHdr((h) => ({ ...h, archived: true }));
-            say("Archived. It left your list; an @mention brings it back.");
-          }, fail("Could not archive.")),
-        unarchive: () =>
-          void Promise.resolve(data.call("threads.unarchive", { threadId: data.threadId })).then(() => {
-            setHdr((h) => ({ ...h, archived: false }));
-            say("Back in your list.");
-          }, fail("Could not unarchive.")),
-        stopAll: () => void act.stopAll(data).catch(fail("Could not stop.")),
-        more: () => menu.show(housekeeping(), moreAt.current.x, moreAt.current.y, "other", { label: "Chat" }),
-        extra: [...switchEntry, ...connectEntries(thread, data.nav)],
-      },
-    );
+        {
+          plan: () => chooseChatMode(mode === "plan" ? "ask" : "plan"),
+          fork: () => void runSlash("/fork", commandEnv()),
+          find: () => setFinding(true),
+          ...(data.nav.openPaneTab ? { kept: () => data.nav.openPaneTab?.("kept") } : {}),
+          exportMd: () => void runSlash("/export md", commandEnv()),
+          mute: (on) => {
+            setHdr((h) => ({ ...h, muted: on }));
+            void menuApi.setMute("thread", data.threadId, on).catch(() => {
+              setHdr((h) => ({ ...h, muted: !on }));
+              say("That did not go through.");
+            });
+          },
+          archive: () =>
+            void Promise.resolve(data.call("threads.archive", { threadId: data.threadId })).then(() => {
+              setHdr((h) => ({ ...h, archived: true }));
+              say("Archived. It left your list; an @mention brings it back.");
+            }, fail("Could not archive.")),
+          unarchive: () =>
+            void Promise.resolve(data.call("threads.unarchive", { threadId: data.threadId })).then(() => {
+              setHdr((h) => ({ ...h, archived: false }));
+              say("Back in your list.");
+            }, fail("Could not unarchive.")),
+          stopAll: () => void act.stopAll(data).catch(fail("Could not stop.")),
+          more: () => menu.show(housekeeping(), moreAt.current.x, moreAt.current.y, "other", { label: "Chat" }),
+          extra: [
+            ...switchEntry,
+            {
+              label: SWITCH_LABEL,
+              checked: !chatMemory(thread.threadId).remember,
+              onSelect: () => flipChatMemory(thread.threadId, data.call, say),
+            },
+            ...connectEntries(thread, data.nav),
+          ],
+        },
+      ),
+    ];
   };
   const moreMenu = (x: number, y: number): void => {
     moreAt.current = { x, y };
@@ -1279,6 +1416,7 @@ function ConversationView(): ReactElement {
   if (muteOffer) rememberMuteSeen(muteOffer);
   const host: BlockHost = {
     invoke: (cap, input) => data.call(cap, input),
+    draft: (text) => fillComposer(text),
     meId: data.me.id,
     nameOf,
     ...(data.nav.openUrl ? { openUrl: data.nav.openUrl } : {}),
@@ -1410,9 +1548,33 @@ function ConversationView(): ReactElement {
   // a live reply is held for the person when the newest agent message still carries a question or approval waiting for them
   const lastAgentMsg = [...all].reverse().find((x) => x.author.kind === "agent");
   const heldForYou = lastAgentMsg?.blocks.some((b) => b.state === "waiting") === true;
+  // "No agent will reply. @mention one": once, under your newest message that nobody will answer (not in the column, not under every message); it goes when an agent is mentioned or answers
+  const unansweredNow =
+    isClosed(thread) || isWorking
+      ? null
+      : unansweredOwn(thread, win.rows, data.me.id, data.directory, (id) => replies.has(id));
+  const noAgentUnder = (m: Message): ReactElement | null =>
+    unansweredNow && unansweredNow.messageId === m.messageId && !notHereFor(m) ? (
+      <View testID="no-agent-line" style={st.lineBox}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="No agent will reply. Ask an agent about your message"
+          accessibilityHint="Opens the list of this channel's agents"
+          testID="no-agent-ask"
+          onPress={(e) => {
+            const box = (
+              e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } } }
+            ).currentTarget?.getBoundingClientRect?.();
+            openAskPicker(m.messageId, box?.left ?? 16, box?.top ?? 0);
+          }}
+        >
+          <Text style={[st.lineText, st.quietLine]}>No agent will reply. @mention one</Text>
+        </Pressable>
+      </View>
+    ) : null;
   const actions: MessageActions = {
     heldForYou,
-    belowMine: (m) => notHereFor(m) ?? queueUnder(m),
+    belowMine: (m) => notHereFor(m) ?? queueUnder(m) ?? noAgentUnder(m),
     host,
     copy: (t) => {
       data.copy(t);
@@ -1497,7 +1659,8 @@ function ConversationView(): ReactElement {
       setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id));
       unsay();
     },
-    showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
+    showMenu: (entries, x, y, label, source) =>
+      menu.show(entries, x, aboveComposer(y, entries.length), source ?? "context", { label }),
     ...(lead
       ? {
           liveCard: {
@@ -1506,6 +1669,7 @@ function ConversationView(): ReactElement {
             ...(data.spaceUrl ? { spaceUrl: data.spaceUrl } : {}),
             openComputer: (agentId: string) => data.nav.openBeside("computer", agentId),
             agentId: lead.agentId,
+            viewer: data.me.id,
           },
         }
       : {}),
@@ -1538,6 +1702,7 @@ function ConversationView(): ReactElement {
     ...(details ? { details } : {}),
     pickReaction: (id, x, y) => setPicker({ id, x, y }),
     humanChat: thread.agents.length === 0,
+    ...(goesBack ? { rewind: (id: string) => setRewindCard({ n: cardN.current++, messageId: id }) } : {}),
     ...(thread.agents.length === 0 || thread.kind === "channel"
       ? {}
       : {
@@ -1726,10 +1891,6 @@ function ConversationView(): ReactElement {
       : undefined;
   const closed = isClosed(thread);
   const parked = !closed && parkedAtLimit(win.rows[win.rows.length - 1], hopLimit, isWorking);
-  const unansweredRaw =
-    closed || isWorking ? null : unansweredOwn(thread, win.rows, data.me.id, data.directory, (id) => replies.has(id));
-  // one line per message: when the message names someone who is not here, that line says it, and "No agent will reply" does not
-  const unanswered = unansweredRaw && !notHereLineOf(unansweredRaw) ? unansweredRaw : null;
   // an Ask drawn in its own pane is already titled Ask Vyre: the quiet "Ask pane" line is for an Ask opened in Chats
   const note = data.head || (compact && thread.kind === "ask") ? "" : threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf, data.me.id);
@@ -1814,34 +1975,20 @@ function ConversationView(): ReactElement {
                 {chapterNow}
               </Text>
             ) : null}
+            {/* a chat that is not being remembered says so here, beside its name, and a press remembers it again; while it remembers nothing is drawn. The composer holds
+                nothing about memory (owner, 16 Nov 2026: "it doesnt belong there in the composer"): the switch itself is in the chat's menu */}
+            <MemorySwitch threadId={thread.threadId} call={data.call} say={say} />
             <View style={{ flex: 1 }} />
-            {online ? null : (
-              <Text testID="conversation-offline" style={st.meta}>
-                Offline
-              </Text>
-            )}
+            {/* offline is said once, by the pill at the top of the window: the chat's own header says nothing, so the header never shifts */}
             {crewChip ? (
-              crewChip.text !== "" && !narrow ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={crewChip.label}
-                  testID="helpers-button"
-                  onPress={() => crew!.show(null)}
-                  style={st.crewChip}
-                >
-                  <Text testID="helpers-chip-text" style={st.crewChipText}>
-                    {crewChip.text}
-                  </Text>
-                </Pressable>
-              ) : (
-                <IconButton
-                  icon="helper"
-                  label={crewChip.label}
-                  badge={crewChip.active > 0 ? crewChip.active : crewChip.total}
-                  testID="helpers-button"
-                  onPress={() => crew!.show(null)}
-                />
-              )
+              // the head is quiet while agents work: one small mark with a count, never a text pill beside the title (the prototype's head has no marker)
+              <IconButton
+                icon="helper"
+                label={crewChip.label}
+                badge={crewChip.active > 0 ? crewChip.active : crewChip.total}
+                testID="helpers-button"
+                onPress={() => crew!.show(null)}
+              />
             ) : helpers.length > 0 ? (
               <IconButton
                 icon="helper"
@@ -1939,19 +2086,6 @@ function ConversationView(): ReactElement {
             {note}
           </Text>
         ) : null}
-        {sharedChat ? (
-          <Text
-            testID="zone-note"
-            accessibilityLabel={`Times in this chat use ${zoneName(zones.space)}`}
-            style={{
-              fontSize: 11.5,
-              color: "var(--ink-3)" as string,
-              textAlign: "center",
-              paddingTop: 6,
-              paddingHorizontal: 12,
-            }}
-          >{`Times here use ${zoneName(zones.space)}, the Space's time zone${zones.viewer !== zones.space && offsetMinAt(Date.now(), zones.viewer) !== offsetMinAt(Date.now(), zones.space) ? `. Hover a time to see yours.` : "."}`}</Text>
-        ) : null}
         {thread.kind === "thread" ? (
           <ThreadParent
             threadId={thread.parentThreadId}
@@ -2011,7 +2145,8 @@ function ConversationView(): ReactElement {
                   key={jump}
                   followKey={timelineMessages.length}
                   {...(lastStream ? { store: lastStream } : {})}
-                  {...(data.head ? { startAway: true, endKey: sentOnPage } : {})}
+                  {...(data.head ? { startAway: true } : {})}
+                  endKey={sentOnPage}
                   testID="conversation-feed"
                   contentStyle={st.feedContent}
                   onAtEndChange={setAtEnd}
@@ -2062,8 +2197,13 @@ function ConversationView(): ReactElement {
                         />
                       );
                       // always wrapped on the web, so a row that grows old keeps its state; only the style changes
+                      const arrives = Platform.OS === "web" && newRow(key);
                       return Platform.OS === "web" ? (
-                        <View key={key} style={at < laid.rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>
+                        <View
+                          key={key}
+                          style={at < laid.rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}
+                          {...(arrives ? ({ dataSet: { arrive: "1" } } as object) : {})}
+                        >
                           {row}
                         </View>
                       ) : (
@@ -2155,26 +2295,47 @@ function ConversationView(): ReactElement {
             }}
           />
         ) : null}
-        <QueueWatch ids={queuedIdsNow} call={data.call} threadId={thread.threadId} onChange={setStillQueued} />
-        <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
-        {unanswered ? (
-          <View testID="no-agent-line" style={st.lineBox}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="No agent will reply. Ask an agent about your message"
-              accessibilityHint="Opens the list of this channel's agents"
-              testID="no-agent-ask"
-              onPress={(e) => {
-                const box = (
-                  e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } } }
-                ).currentTarget?.getBoundingClientRect?.();
-                openAskPicker(unanswered.messageId, box?.left ?? 16, box?.top ?? 0);
-              }}
-            >
-              <Text style={[st.lineText, st.quietLine]}>No agent will reply. @mention one</Text>
-            </Pressable>
+        {rewindCard ? (
+          <View testID="rewind-anchor" style={st.rewindAnchor} pointerEvents="box-none">
+            <View style={st.rewindFloat} pointerEvents="box-none">
+              <View style={st.rewindCard}>
+                <Dialog
+                  title="Go back to"
+                  anchor="composer"
+                  testID="rewind-dialog"
+                  onClose={() => setRewindCard(null)}
+                  onPressOutside={(t) => {
+                    if (!insideComposer(t)) setRewindCard(null);
+                  }}
+                >
+                  <RewindCard
+                    key={rewindCard.n}
+                    bare
+                    threadId={thread.threadId}
+                    onClose={() => setRewindCard(null)}
+                    shared={peopleIn(thread) >= 2}
+                    onDone={() => {
+                      setRewindCard(null);
+                      setRewinds([]);
+                      setRewindStamp((n) => n + 1);
+                    }}
+                    {...(rewindCard.messageId !== undefined ? { messageId: rewindCard.messageId } : {})}
+                  />
+                </Dialog>
+              </View>
+            </View>
           </View>
         ) : null}
+        {goesBack ? (
+          <RewindWatch
+            call={data.call}
+            threadId={thread.threadId}
+            stamp={rewindLines + rewindStamp}
+            onRead={(next) => setRewinds((cur) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next))}
+          />
+        ) : null}
+        <QueueWatch ids={queuedIdsNow} call={data.call} threadId={thread.threadId} onChange={setStillQueued} />
+        <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
         {lead && !closed ? <NoAiLine data={data} threadId={thread.threadId} agentId={lead.agentId} /> : null}
         {parked ? (
           <View testID="hop-parked" accessibilityLiveRegion="polite" style={st.lineBox}>
@@ -2200,15 +2361,13 @@ function ConversationView(): ReactElement {
           </View>
         ) : (
           <View style={st.composerBox}>
-            {thread.kind === "channel" ? (
-              <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>
-                {typingNames.length > 0 ? (
-                  <Text
-                    style={st.typingText}
-                  >{`${typingNames.join(", ")} ${typingNames.length === 1 ? "is" : "are"} typing…`}</Text>
-                ) : null}
-              </View>
-            ) : null}
+            <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>
+              {presenceLine(typingNames, []) !== "" ? (
+                <Text testID="typing-line" style={st.typingText}>
+                  {presenceLine(typingNames, [])}
+                </Text>
+              ) : null}
+            </View>
             {island.list.length > 0 ? (
               <QuestionIsland
                 list={island.list}
@@ -2246,9 +2405,54 @@ function ConversationView(): ReactElement {
                 </View>
               );
             })()}
-            {!longChat && crew?.status && crew.status.members.length > 0 ? (
-              <CrewIsland status={crew.status} onPress={() => crew.show(null)} />
-            ) : null}
+            {(() => {
+              // the island: amber when a helper waits for a person; otherwise "Thinking" or "Writing" for ANY agent at work, lead or helper; never while a question is open (the question's own island is there)
+              if (longChat) return null;
+              const needs = crew?.status ? crewCounts(crew.status.totals).needsYou : 0;
+              if (crew?.status && needs > 0) return <CrewIsland status={crew.status} onPress={() => crew.show(null)} />;
+              if (openQs.length > 0) return null;
+              // helpers or jobs work on after the reply ended and nobody is writing: one live line says so, with Stop (never a bare "Thinking")
+              if (crew?.status && working.length === 0 && crew.status.totals.working > 0)
+                return (
+                  <BackgroundLine
+                    status={crew.status}
+                    onOpen={() => crew.show(null)}
+                    onStop={() => {
+                      void Promise.resolve(crew.call?.("engine.helpers.stop_all", { threadId: crew.threadId })).then(
+                        crew.refresh,
+                        fail("Could not stop them."),
+                      );
+                    }}
+                  />
+                );
+              const helpersAtWork = (crew?.status?.members ?? []).filter((m) => m.state === "working");
+              const faces = [
+                ...working.map((id) => ({ id, name: nameOf(id), seed: id })),
+                ...helpersAtWork
+                  .filter((m) => !working.includes(m.id))
+                  .map((m) => ({ id: m.id, name: crewNameOf(m), seed: faceSeed(m) })),
+              ];
+              if (faces.length === 0) return null;
+              return (
+                <WorkIsland
+                  store={
+                    (lastLive ? data.activityOf?.(lastLive.messageId) : undefined) ??
+                    (() => {
+                      const at = [...timelineMessages]
+                        .reverse()
+                        .find((m) => m.author.kind === "agent" && m.blocks.some((b) => b.state === "live"));
+                      return at
+                        ? blocksActivity(at.messageId, at.blocks.filter((b) => b.state === "live").length)
+                        : undefined;
+                    })()
+                  }
+                  stream={lastStream}
+                  held={heldForYou}
+                  faces={faces}
+                  onPress={() => (crew ? crew.show(null) : undefined)}
+                />
+              );
+            })()}
             {personMention
               ? (() => {
                   // one strip on top of the composer: who is not here, Add (they read from now on), and a caret for the other ways
@@ -2318,16 +2522,6 @@ function ConversationView(): ReactElement {
               agents={composerAgents}
               mode={mode}
               onMode={chooseChatMode}
-              barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
-              plusExtra={() => [
-                {
-                  id: "plus-memory",
-                  title: SWITCH_LABEL,
-                  icon: "lock",
-                  checked: !chatMemory(thread.threadId).remember,
-                  onPress: () => flipChatMemory(thread.threadId, data.call, say),
-                },
-              ]}
               suggest={composerSuggest(data)}
               preview={(item) => previewOf(data, item)}
               openPanelAt={panelAt}
@@ -2364,6 +2558,7 @@ function ConversationView(): ReactElement {
               onChange={(t) => {
                 typedRef.current = t;
                 setTyped(t);
+                if (t.trim() !== "") data.typingLive?.say(data.threadId); // tells the others who may read this chat, at most every 2 seconds
               }}
               onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
               onSubmit={(p) => submit(p, "queue")}
@@ -2540,6 +2735,10 @@ function OlderPage({ before, onPage }: { before: number; onPage: (page: Messages
 }
 
 const st = StyleSheet.create({
+  // the "Go back to" card is anchored like the Command card: no height in the layout, floating up over the foot of the chat, exactly the composer's width
+  rewindAnchor: { height: 0, position: "relative", zIndex: 31, overflow: "visible" },
+  rewindFloat: { position: "absolute", left: 0, right: 0, bottom: 6, alignItems: "center", paddingHorizontal: 24 },
+  rewindCard: { width: "100%", maxWidth: COLUMN },
   /** "Also post to the chat" sits above a thread's composer, as the prototype draws it, so the composer's own bar keeps its room in a narrow pane. */
   alsoRow: { marginLeft: -4, marginBottom: 8 },
   outsideOffline: {
@@ -2599,14 +2798,6 @@ const st = StyleSheet.create({
   } as object,
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
-  crewChip: {
-    height: 28,
-    paddingHorizontal: 10,
-    borderRadius: RADIUS,
-    justifyContent: "center",
-    backgroundColor: "var(--accent-wash)" as string,
-  },
-  crewChipText: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   earlierBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -2644,6 +2835,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 4,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,

@@ -25,7 +25,7 @@ export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const at = (m: number, d: number, h: number, min = 0): number => Date.UTC(2025, m - 1, d, h, min, 0);
 const DAY = 86_400_000;
 /** You, in every sample Space. */
-export const ME = "usr_irfad";
+export const ME = "usr_imran";
 
 export interface SampleThread {
   /** unread replies, from threads I follow, under this chat */ repliesUnread?: number;
@@ -40,6 +40,7 @@ export interface SampleThread {
   /** in my Archived section */ archived?: boolean;
   /** deleted, waiting for Undo */ deleted?: boolean;
   /** left */ left?: boolean;
+  /** an Ask pane: listed only under the Asks filter */ ask?: boolean;
 }
 export interface SampleSpace {
   id: "northwind" | "harbor" | "personal";
@@ -196,7 +197,7 @@ const agentRow = (a: SampleSpace["agents"][number], i: number): Row => ({
   face: a.name[0]!,
   role: "",
   status: a.working ? "working" : "awake",
-  ownerId: "usr_irfad",
+  ownerId: "usr_imran",
   folderId: `fld_${a.agentId}`,
   accountPolicy: "asker",
   toolsAllowed: [],
@@ -364,7 +365,7 @@ export function createSampleSidebar(
           state: "todo",
           blocked: n.kind === "unblock",
           blocks: [],
-          assigned: { kind: "person", id: "usr_irfad" },
+          assigned: { kind: "person", id: "usr_imran" },
           fileIds: [],
           dependsOn: [],
           followers: [],

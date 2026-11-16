@@ -3,7 +3,8 @@ import { onDiscussionMessage } from "./handlers/round.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { recentWithUnread } from "./handlers/g26.ts";
-import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
+import { onAgentDeleted, onKeyboardTaken, onPersonLeft } from "./handlers/departures.ts";
+import { eraseAgent, onAgentRestored } from "./handlers/erase-agent.ts";
 import { forgetMentions } from "./handlers/pace.ts";
 import { onCardAnswered, onDirectReply, sendDue } from "./handlers/agent-dm.ts";
 import { channelBy, ensure, threadBy } from "./projections.ts";
@@ -50,10 +51,19 @@ export const consumers = {
     on: ["member.removed"],
     run: (ctx: ChatCtx, event: Parameters<typeof onPersonLeft>[1]) => onPersonLeft(ctx, event),
   },
-  /** An agent was deleted: it comes off the chats it was in, and each gets one line. */
+  /** A manager took or gave back the keyboard of an agent's terminal: its owner reads one quiet line in their chat with it. */
+  "chat.keyboard_lines": {
+    on: ["terminal.taken", "terminal.given_back"],
+    run: (ctx: ChatCtx, event: Parameters<typeof onKeyboardTaken>[1]) => onKeyboardTaken(ctx, event),
+  },
+  /**
+   * An agent was deleted, or came back from Trash: it comes off the chats it was in (each gets one line), or goes back into them (the line is taken back). One consumer for both, so a delete and a restore
+   * that follow each other are applied in the order they happened, not in the order two consumers happen to run.
+   */
   "chat.agent_deleted": {
-    on: ["agent.deleted"],
-    run: (ctx: ChatCtx, event: Parameters<typeof onAgentDeleted>[1]) => onAgentDeleted(ctx, event),
+    on: ["agent.deleted", "agent.restored"],
+    run: (ctx: ChatCtx, event: { name?: string; payload: { agentId?: string; name?: string } }) =>
+      event.name === "agent.restored" ? onAgentRestored(ctx, event) : onAgentDeleted(ctx, event),
   },
   /** A teammate wrote in a direct chat an agent messaged them in: it goes back to the chat the person asked in (lane l-agentdm). */
   "chat.agent_dm_reply": {
@@ -100,6 +110,8 @@ const PRIVATE_CHATS = `FROM chat_thread t WHERE t."kind" IN ('chat', 'ask') AND 
   AND NOT EXISTS (SELECT 1 FROM chat_thread_member m WHERE m."thread" = t."id" AND m."principal" <> t."starter" AND m."principal" LIKE 'usr\\_%' ESCAPE '\\' AND m."deleted_at" IS NULL)`;
 
 export const hostCalls = {
+  /** Delete for good (F77): see handlers/erase-agent.ts. */
+  "chat.erase_agent": (ctx: ChatCtx, i: Parameters<typeof eraseAgent>[1]) => eraseAgent(ctx, i),
   "chat.owned_by": (ctx: ChatCtx, i: { person: string }) => ({
     channels: ownedKept(
       ownedRows(ctx, `SELECT "id", "name" FROM chat_channel WHERE "createdBy" = ? AND "archived" = 0`, i.person),

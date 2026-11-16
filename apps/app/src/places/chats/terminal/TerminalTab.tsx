@@ -35,7 +35,14 @@ type Attach =
 /** What ui/Terminal is given for one session: its name and host, whether it still runs, the scrollback attach returned and the live output after it. */
 export function sessionProps(
   row: TerminalRow,
-  o: { replay: string; source?: TerminalSource; starred: boolean; note?: string; readonly?: boolean },
+  o: {
+    replay: string;
+    source?: TerminalSource;
+    starred: boolean;
+    note?: string;
+    readonly?: boolean;
+    readonlyWhy?: string;
+  },
 ): TerminalViewProps {
   return {
     sessionId: row.terminalId,
@@ -48,6 +55,7 @@ export function sessionProps(
     ...(o.source ? { source: o.source } : {}),
     ...(o.note !== undefined ? { note: o.note } : {}),
     ...(o.readonly === true ? { readonly: true } : {}),
+    ...(o.readonlyWhy !== undefined ? { readonlyWhy: o.readonlyWhy } : {}),
   };
 }
 
@@ -297,7 +305,8 @@ export function TerminalTab({
           source: att.source,
           starred,
           ...(online ? (note !== undefined ? { note } : {}) : { note: "Offline" }),
-          ...(readonly ? { readonly: true } : {}),
+          // watching is not "no access": the screen only takes keys once the keyboard is taken
+          ...(readonly ? { readonly: true, readonlyWhy: "watching, press Take over to type" } : {}),
         })}
         onInput={(d) => {
           setTyped((l) => lineAfter(l, d));

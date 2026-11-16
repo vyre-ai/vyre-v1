@@ -15,7 +15,7 @@ import type { ShellRuntime } from "./runtime.tsx";
 /** The sample Inbox, with the three source reads answering as asked: empty, or still loading. */
 function runtime(sources: "none" | "loading" | "sample"): ShellRuntime {
   const s = createSampleInbox();
-  const me: Principal = { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" };
+  const me: Principal = { id: "usr_imran", name: "Imran Ibarra", kind: "person" };
   const key = (screen: string, name: string): string => `${screen}.${name}`;
   const empty: Record<string, unknown> = {
     [key(...INBOX_SOURCE_QUERIES[0])]: { mailboxes: [] },
@@ -48,6 +48,8 @@ function runtime(sources: "none" | "loading" | "sample"): ShellRuntime {
     deferredModules: new Set<string>(),
     isDeferred: () => false,
     calendarConnected: true,
+    // the sample person is an admin: they may buy or connect a number, so the Twilio tile is theirs
+    permissions: new Set(["comms.numbers"]),
     open: () => undefined,
     openUrl: () => undefined,
   };

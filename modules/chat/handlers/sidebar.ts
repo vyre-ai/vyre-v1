@@ -199,6 +199,7 @@ interface RowOut {
   archived?: boolean;
   private?: boolean;
   withPeople?: boolean;
+  ask?: boolean;
 }
 type Extra = Omit<
   RowOut,
@@ -318,8 +319,8 @@ export function chatList(ctx: ChatCtx, asker: string): ChatListRow[] {
 export function chatListFast(
   ctx: ChatCtx,
   asker: string,
-  o: { pinned: readonly string[]; muted: ReadonlySet<string>; want: number },
-): { rows: ChatListRow[]; total: number } {
+  o: { pinned: readonly string[]; muted: ReadonlySet<string>; want: number; after?: string },
+): { rows: ChatListRow[]; total: number; asks: ChatListRow[]; skipped?: number } {
   ensureReadTable(ctx);
   ensureLast(ctx.db);
   archivedIds(ctx, asker); // makes the archive tables
@@ -334,9 +335,6 @@ export function chatListFast(
       WHERE t.deleted_at IS NULL AND t.listed = 1 AND t.closedAt IS NULL AND t.kind = 'chat'
         AND NOT (t.scopeType = 'goal' AND t.scopeId IS NOT NULL)
         AND NOT EXISTS (SELECT 1 FROM chat_thread_archive ar WHERE ar.thread = t.id AND ar.principal = ${ask()})`;
-  const notDm = () => `AND NOT (NOT ${agentsHere} AND ${humans()} = 1)`;
-  const notEmpty = () => `AND NOT (t.title IS NULL AND l.at IS NULL AND ${agentsHere} AND ${humans()} < 1)`;
-  const list = (ids: readonly string[]): string => ids.map(() => "?").join(", ");
   const run = (build: () => string, ...tail: unknown[]): Record<string, unknown>[] => {
     a.length = 0;
     const sql = build();
@@ -344,38 +342,93 @@ export function chatListFast(
   };
   const excl = [...new Set([...o.pinned, ...o.muted])];
   const mutedHere = [...o.muted].filter((m) => !o.pinned.includes(m));
-  const notIn = excl.length > 0 ? `AND t.id NOT IN (${list(excl)})` : "";
-  const nonMuted = Number(
-    run(() => `SELECT COUNT(*) AS n ${base()} ${notDm()} ${notEmpty()} ${notIn}`, ...excl)[0]?.["n"] ?? 0,
-  );
-  const mutedTotal =
-    mutedHere.length === 0
-      ? 0
-      : Number(
-          run(
-            () => `SELECT COUNT(*) AS n ${base()} ${notDm()} ${notEmpty()} AND t.id IN (${list(mutedHere)})`,
-            ...mutedHere,
-          )[0]?.["n"] ?? 0,
-        );
+  const marks = (ids: readonly string[]): string => ids.map(() => "?").join(", ");
+  // ONE scan of the caller's chats, kept inside SQLite, gives every count and every id the page needs. There used to be three scans (the count, the newest page, the
+  // one-to-ones), each working out the same two facts for each of the person's chats; at 5,000 chats they were 31 of the first page's 36 ms and the page sat at its 100 ms
+  // budget on a busy computer (sidebar.read.perf.test.ts; V1-WHOLE row 16). The rules are unchanged: a one-to-one is a team row ('dm'); a chat nobody wrote in is not
+  // listed; pinned and muted chats are kept out of the newest page and the muted ones come at its end. Only the page's rows leave SQLite, so the cost of handing rows to
+  // the caller follows the page too.
   const ids = new Set<string>();
+  const mutedIds: string[] = [];
+  let nonMuted = 0;
+  let skipped: number | undefined;
   for (const r of run(
     () =>
-      `SELECT t.id AS id ${base()} ${notDm()} ${notEmpty()} ${notIn} ORDER BY COALESCE(l.at, t.createdAt) DESC, t.id LIMIT ?`,
+      `WITH c AS (
+         SELECT t.id AS id, COALESCE(l.at, t.createdAt) AS k, ${agentsHere} AS ag, ${humans()} AS hu,
+                (t.title IS NULL AND l.at IS NULL) AS blank ${base()}
+       ), v AS MATERIALIZED (
+         SELECT id, k,
+                CASE WHEN ag = 0 AND hu = 1 THEN 'dm'
+                     WHEN blank = 1 AND ag = 1 AND hu < 1 THEN 'no'
+                     WHEN id IN (${marks(mutedHere)}) THEN 'muted'
+                     WHEN id IN (${marks(excl)}) THEN 'no'
+                     ELSE 'row' END AS w
+           FROM c
+       )
+       ${
+         o.after === undefined
+           ? ""
+           : // a later page: the chat the last page ended on, if it is one of the listed rows (a pinned, muted or one-to-one chat is not a place in this order)
+             `, cur AS (SELECT k, id FROM v WHERE id = ? AND w = 'row')`
+       }
+       SELECT w, id, 0 AS n FROM v WHERE w IN ('dm', 'muted')
+       UNION ALL SELECT w, id, 0 AS n FROM (${
+         o.after === undefined
+           ? `SELECT w, id FROM v WHERE w = 'row' ORDER BY k DESC, id LIMIT ?`
+           : `SELECT v.w AS w, v.id AS id FROM v, cur WHERE v.w = 'row' AND (v.k < cur.k OR (v.k = cur.k AND v.id > cur.id)) ORDER BY v.k DESC, v.id LIMIT ?`
+       })
+       UNION ALL SELECT 'count' AS w, NULL AS id, COUNT(*) AS n FROM v WHERE w = 'row'
+       ${
+         o.after === undefined
+           ? ""
+           : `UNION ALL SELECT 'before' AS w, cur.id AS id, COUNT(*) AS n FROM v, cur WHERE v.w = 'row' AND (v.k > cur.k OR (v.k = cur.k AND v.id <= cur.id))`
+       }`,
+    ...mutedHere,
     ...excl,
+    ...(o.after === undefined ? [] : [o.after]),
     Math.max(1, o.want),
-  ))
-    ids.add(String(r["id"]));
-  if (o.want >= nonMuted && mutedHere.length > 0)
-    for (const r of run(
-      () => `SELECT t.id AS id ${base()} ${notDm()} ${notEmpty()} AND t.id IN (${list(mutedHere)})`,
-      ...mutedHere,
-    ))
-      ids.add(String(r["id"]));
-  // every one-to-one: the team's rows
-  for (const r of run(() => `SELECT t.id AS id ${base()} AND NOT ${agentsHere} AND ${humans()} = 1`))
-    ids.add(String(r["id"]));
+  )) {
+    const w = String(r["w"]);
+    if (w === "count") nonMuted = Number(r["n"] ?? 0);
+    else if (w === "muted") mutedIds.push(String(r["id"]));
+    // how many listed rows stand at or before the last page's end; no id means that chat is not a listed row and this was no later page
+    else if (w === "before") skipped = r["id"] === null || r["id"] === undefined ? undefined : Number(r["n"] ?? 0);
+    else ids.add(String(r["id"])); // a one-to-one (the team's rows) or one of the page's rows
+  }
+  // asked for a later page whose cursor is not a listed row: the caller reads it the long way
+  if (o.after !== undefined && skipped === undefined) return { rows: [], total: 0, asks: [] };
+  const mutedTotal = mutedIds.length;
+  if ((skipped ?? 0) + o.want >= nonMuted) for (const id of mutedIds) ids.add(id);
+  // The caller's Ask panes (askList's rows, newest first, at most 100), in one read with their agents: the Asks filter needs them and they are never in the chats list.
+  const asks: ChatListRow[] = [];
+  for (const r of run(
+    () =>
+      `SELECT t.id AS id, t.title AS title, COALESCE(l.at, t.createdAt) AS at,
+              (SELECT group_concat(x.agentId) FROM (SELECT g.agentId AS agentId FROM chat_thread_agent g WHERE g.thread = t.id AND g.deleted_at IS NULL ORDER BY g.rowid) x) AS agents
+         FROM chat_thread t LEFT JOIN chat_thread_last l ON l.thread = t.id
+        WHERE t.kind = 'ask' AND t.starter = ${ask()} AND t.deleted_at IS NULL AND t.closedAt IS NULL
+        ORDER BY at DESC, t.id LIMIT 100`,
+  )) {
+    const title = r["title"];
+    const agents = r["agents"];
+    asks.push({
+      threadId: String(r["id"]),
+      title: title === null || title === undefined || title === "" ? "Ask" : String(title),
+      agents: typeof agents === "string" && agents !== "" ? agents.split(",") : [],
+      people: [],
+      unread: 0,
+      lastAt: Number(r["at"] ?? 0),
+      archived: false,
+    });
+  }
   for (const id of o.pinned) ids.add(id);
-  return { rows: chatDetails(ctx, asker, [...ids]), total: nonMuted + mutedTotal };
+  return {
+    rows: chatDetails(ctx, asker, [...ids]),
+    total: nonMuted + mutedTotal,
+    asks,
+    ...(skipped !== undefined ? { skipped } : {}),
+  };
 }
 
 /** The rows of these chats (the caller's own: a chat they are not in gives nothing), with their agents, people and unread. */
@@ -431,6 +484,41 @@ function chatDetails(ctx: ChatCtx, asker: string, ids: readonly string[]): ChatL
       ...(t["scopeType"] === "goal" && t["scopeId"] ? { goalId: String(t["scopeId"]) } : {}),
     };
   });
+}
+
+/**
+ * The caller's Ask panes (a conversation opened beside a record, file or other thing, with an agent), newest first, for the sidebar's Asks filter. They are never in the chats list (`t.kind = 'chat'` there);
+ * each goes out with `ask: true`, so the shared rule (lib/sidebar.ts) shows it under the Asks filter and nowhere else. Without this read the filter was always empty (15 Nov 2026).
+ */
+export function askList(ctx: ChatCtx, asker: string, limit = 100): ChatListRow[] {
+  ensureLast(ctx.db);
+  const threads = ctx.db.all(
+    `SELECT t.id AS id, t.title AS title, t.createdAt AS createdAt, l.at AS lastAt
+       FROM chat_thread t LEFT JOIN chat_thread_last l ON l.thread = t.id
+      WHERE t.kind = 'ask' AND t.starter = ? AND t.deleted_at IS NULL AND t.closedAt IS NULL
+      ORDER BY COALESCE(l.at, t.createdAt) DESC, t.id LIMIT ?`,
+    asker,
+    limit,
+  ) as Record<string, unknown>[];
+  if (threads.length === 0) return [];
+  const IN = threads.map(() => "?").join(", ");
+  const agents = new Map<string, string[]>();
+  for (const r of ctx.db.all(
+    `SELECT thread, agentId FROM chat_thread_agent WHERE deleted_at IS NULL AND thread IN (${IN}) ORDER BY rowid`,
+    ...threads.map((t) => String(t["id"])),
+  ) as Record<string, unknown>[]) {
+    const k = String(r["thread"]);
+    (agents.get(k) ?? agents.set(k, []).get(k)!).push(String(r["agentId"]));
+  }
+  return threads.map((t) => ({
+    threadId: String(t["id"]),
+    title: t["title"] === null || t["title"] === undefined || t["title"] === "" ? "Ask" : String(t["title"]),
+    agents: agents.get(String(t["id"])) ?? [],
+    people: [],
+    unread: 0,
+    lastAt: t["lastAt"] === null || t["lastAt"] === undefined ? Number(t["createdAt"] ?? 0) : Number(t["lastAt"]),
+    archived: false,
+  }));
 }
 
 /**
@@ -583,15 +671,34 @@ export async function chatsSidebar(
   let chatsTotal: number | undefined;
   const workingThreads = new Set((workingOut?.working ?? []).flatMap((w) => (w.threadId ? [w.threadId] : [])));
   const dmOf = new Map<string, Record<string, any>>(); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const wantChats = await wantedChats(ctx, me, input.more, pins);
-  const fastList =
-    filter === "all"
+  // A later page of chats is read from where the last one ended, inside the same one scan: only that page's rows get their details. It used to read every row
+  // up to the page's end (a count scan, the scan, then details for the thousands of rows before the cursor), which put a later page at its 100 ms budget on a busy
+  // computer (sidebar.read.perf.test.ts; V1-WHOLE row 16). A cursor that is not a listed row (a muted chat in the tail, a key the caller does not hold) is read the long way.
+  const pinnedChats = [...pins.keys()].filter((k) => k.startsWith("c:")).map((k) => k.slice(2));
+  const afterChat =
+    filter === "all" && input.more?.section === "chats" && input.more.after?.startsWith("c:") === true
+      ? input.more.after.slice(2)
+      : undefined;
+  const pageList =
+    afterChat !== undefined
       ? chatListFast(ctx, me, {
-          pinned: [...pins.keys()].filter((k) => k.startsWith("c:")).map((k) => k.slice(2)),
+          pinned: pinnedChats,
           muted,
-          want: wantChats,
+          want: Math.min(input.more?.limit ?? SIDEBAR_PAGE, SIDEBAR_PAGE_MAX) + 1,
+          after: afterChat,
         })
       : null;
+  const chatsSkipped = pageList?.skipped;
+  const fastList =
+    chatsSkipped !== undefined
+      ? pageList
+      : filter === "all"
+        ? chatListFast(ctx, me, {
+            pinned: pinnedChats,
+            muted,
+            want: await wantedChats(ctx, me, input.more, pins),
+          })
+        : null;
   chatsTotal = fastList?.total;
   for (const r of fastList?.rows ?? chatList(ctx, me)) {
     if (r.goalId) continue;
@@ -619,6 +726,24 @@ export async function chatsSidebar(
         ...common,
       },
       { kind: "chat", threadId, withPeople: people.length > 0, ...(r.archived ? { archived: true } : {}) },
+    );
+  }
+  for (const r of fastList?.asks ?? askList(ctx, me)) {
+    add(
+      {
+        key: `c:${r.threadId}`,
+        kind: "chat",
+        shape: "agent",
+        title: r.title,
+        faces: r.agents.map((id) => ({ id, name: "" })),
+        unread: 0,
+        mentions: 0,
+        muted: false,
+        working: false,
+        lastAt: r.lastAt,
+        ask: true,
+      },
+      { kind: "chat", threadId: r.threadId, withPeople: false, ask: true },
     );
   }
   // channels (a project's own channel is the project's row)
@@ -814,15 +939,17 @@ export async function chatsSidebar(
   const section = (id: Exclude<SectionId, "needs">) => {
     const list = sec[id];
     const m = input.more?.section === id ? input.more : undefined;
-    const from = m?.after !== undefined ? Math.max(0, list.findIndex((x) => x.key === m.after) + 1) : 0;
+    // a later page of chats read from its cursor: the list holds only the rows after it, and `chatsSkipped` rows stand before them
+    const cut = id === "chats" && m !== undefined && chatsSkipped !== undefined;
+    const from = cut ? 0 : m?.after !== undefined ? Math.max(0, list.findIndex((x) => x.key === m.after) + 1) : 0;
     const limit = Math.min(m?.limit ?? SIDEBAR_PAGE, SIDEBAR_PAGE_MAX);
     const page = list.slice(from, from + limit);
-    const end = from + page.length;
+    const end = (cut ? (chatsSkipped ?? 0) : from) + page.length;
     const total = id === "chats" && chatsTotal !== undefined ? chatsTotal : list.length;
     return {
       total,
       rows: page.map((x) => outOf(byKey.get(x.key)!)),
-      ...(end < total ? { next: page[page.length - 1]!.key } : {}),
+      ...(end < total && page.length > 0 ? { next: page[page.length - 1]!.key } : {}),
     };
   };
   // mentions in chats this page does not carry still count in the rail (the fast listing reads only a page of chats)

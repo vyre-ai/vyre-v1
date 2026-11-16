@@ -41,7 +41,6 @@ test("f-kinds-a pictures", async (t) => {
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
@@ -87,6 +86,22 @@ test("f-kinds-a pictures", async (t) => {
       },
     }).catch((e: Error) => fs.writeFileSync(path.join(out, "automation-definition-refused.txt"), e.message));
     // steps with no card of their own: their inputs hold ids (a file, a folder, a record), which a card must name in words, never print
+    // the Space now refuses an automation whose steps name a file or folder the person cannot use (rc.28, private things stay private): the fixture names a real file and a real folder it owns
+    const rootFolder = JSON.stringify(await call("files.tree", {})).match(/"(fld_[a-z0-9]+)"/)![1]!;
+    const toFolder = (
+      await call("files.folder.create", { parentId: rootFolder, name: "Filed", idempotencyKey: "ka-filed" })
+    ).folder.folderId as string;
+    const tidyFile = (
+      await call("files.create", {
+        folderId: rootFolder,
+        name: "Tidy me.md",
+        content: { text: "x" },
+        idempotencyKey: "ka-tidy-file",
+      })
+    ).file.fileId as string;
+    const tidyRecord = (
+      await call("records.create", { type: "company", fields: { name: "Tidy Co" }, idempotencyKey: "ka-tidy-rec" })
+    ).record as { recordId?: string; id?: string };
     const tidy = await call("automations.create", { name: "Tidy files" });
     await call("automations.update", {
       automationId: (tidy.automation?.id ?? tidy.automation?.automationId) as string,
@@ -98,15 +113,19 @@ test("f-kinds-a pictures", async (t) => {
             id: "t1",
             key: "files.move",
             input: {
-              fileId: "fil_01a1d27b165742ddb20032cbd182aaf9",
-              toFolderId: "fld_01a1d27b165742ddb20032cbd182aaf9",
+              fileId: tidyFile,
+              toFolderId: toFolder,
             },
             next: ["t2"],
           },
           {
             id: "t2",
             key: "records.update",
-            input: { recordId: "rec_01a1d27b165742ddb20032cbd182aaf9", type: "lead", url: "https://x.example" },
+            input: {
+              recordId: (tidyRecord.recordId ?? tidyRecord.id) as string,
+              type: "company",
+              url: "https://x.example",
+            },
             next: [],
           },
         ],
@@ -181,7 +200,10 @@ test("f-kinds-a pictures", async (t) => {
       // 0. Project Overview, People and agents
       await page.goto("about:blank");
       await page.goto(`${web.origin}/chat?skin=${skin}`, { waitUntil: "load" });
-      await page.getByTestId("head-projects").waitFor({ timeout: 30_000 });
+      await page.getByTestId("head-channels").waitFor({ timeout: 30_000 }); // the project row sits among the Channels (c5da6ccd8: no Projects head)
+      // the Channels list shows five rows and "N more": the project row may sit behind it, so a person presses "more" first
+      if ((await page.getByTestId(`row-pj:${project.projectId as string}`).count()) === 0)
+        await page.getByTestId("more-channels").click();
       await page.getByTestId(`row-pj:${project.projectId as string}`).click();
       await page.getByTestId("project-page").waitFor({ timeout: 25_000 });
       await page.getByTestId("tab-overview").click({ force: true, timeout: 10_000 });
@@ -195,6 +217,9 @@ test("f-kinds-a pictures", async (t) => {
       await page.goto("about:blank");
       await page.goto(`${web.origin}/chat?skin=${skin}`, { waitUntil: "load" });
       await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+      // the Channels list shows five rows and "N more"; a person presses "more" to reach the sixth
+      if ((await page.getByText("launch-questions", { exact: true }).count()) === 0)
+        await page.getByTestId("more-channels").click();
       await page.getByText("launch-questions", { exact: true }).first().click({ timeout: 30_000 });
       await page
         .getByText("Maya Lin answered", { exact: false })
@@ -208,19 +233,23 @@ test("f-kinds-a pictures", async (t) => {
       // 1. the step card
       await page.goto(`${web.origin}/automations?skin=${skin}`, { waitUntil: "load" });
       await page.getByText("Weekly digest", { exact: true }).first().click({ timeout: 30_000 });
-      await page.getByTestId("canvas-frame").first().waitFor({ timeout: 30_000 });
+      await page.getByTestId("story").first().waitFor({ timeout: 30_000 });
+      // rc.29: a step is a sentence row in the builder (sv-step-<id>), not a card on a canvas (AUTOMATIONS-2026-11-13.md, the story of steps)
       await page
-        .getByTestId("card-n1")
+        .getByTestId("sv-step-n1")
         .waitFor({ timeout: 20_000 })
         .catch(() => undefined);
       await shot("1-step-cards", skin);
       await page.getByText("Tidy files", { exact: true }).first().click({ timeout: 30_000 });
-      await page.getByTestId("card-t1").waitFor({ timeout: 20_000 });
-      const sub = await page.getByTestId("card-sub-t1").innerText();
+      await page.getByTestId("sv-step-t1").waitFor({ timeout: 20_000 });
+      await page.waitForTimeout(1500);
+      const sub = await page.getByTestId("sv-step-t1").innerText();
       assert.ok(
-        /File|folder/i.test(sub) && !/fil_|fld_|\bid\b/i.test(sub),
-        `the step card names its inputs in words: ${sub}`,
+        /Tidy me\.md/.test(sub) && /Filed/.test(sub) && !/fil_|fld_|\bid\b/i.test(sub),
+        `the step row says the file and the folder by name: ${sub}`,
       );
+      const second = await page.getByTestId("sv-step-t2").innerText();
+      assert.ok(/Tidy Co/.test(second) && !/rec_/.test(second), `the record step names the record: ${second}`);
       await shot("1b-step-cards-generic", skin);
 
       // 2. Console Home: the collapsed run, then the same row opened

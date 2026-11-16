@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0-rc.28",
+  "version": "1.0.0-rc.30",
   "lines": [
-    "Back and Forward work in every tab: the arrows, the keys, the mouse buttons and a swipe all take the same step.",
-    "A message's menu is shorter, deleting a message asks first, and a long press on a phone opens a sheet made for touch.",
-    "Tag several agents in one message and they all start at once. Go with the answer you like, or ask them to discuss.",
-    "Long chats have chapters, and the Chats sidebar is new, with a plus on each section to start something.",
-    "An agent's Computer tab lists its terminals and shows a live picture of its browser. You can watch a terminal.",
-    "Other people's private things no longer show in the activity log, in search or in an agent's step details."
+    "Every place has the same sidebar, with Hide and Expand, and a tab remembers where you were.",
+    "Chat shows one working indicator and a shorter message menu, and tells you when someone is typing.",
+    "Connect a service from one card in the chat: paste the key, and Vyre says where it is sent and keeps it in your Vault.",
+    "Getting started's How you work is a talk with the Assistant, and what it learns is a list you can edit.",
+    "Drive and OneDrive files open in Vyre's own viewers, and your edits go back to where the file lives.",
+    "Delete an agent for good. A goal says why a check-in could not run. The Inbox keeps each conversation's own drafts."
   ]
 }

@@ -5,6 +5,7 @@ import type { PlaceId } from "../rail/kits.ts";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
 import { applySkinToWindow } from "../providers/settings-skin.ts";
 import { listable } from "../reach/reach.ts";
+import { GATE, allows } from "../session/gates.ts";
 import type { Viewer } from "../reach/reach.ts";
 import { livePlace } from "../rail/kits.ts";
 import type { CmdKData } from "./controller.ts";
@@ -165,6 +166,15 @@ const MAIL_HIT = "shell:mail";
 /** Settings, its pages and the Console, found by their names (owner walk, 12 Nov: typing "settings" said No results). The words under each are the page's own line. */
 const SETTINGS_PAGE = "shell:settings:";
 const CONSOLE_HIT = "shell:console";
+/** The places a person can go to by name: "Vault", "Files". Each opens that place (owner walk, 15 Nov: typing "Vault" found rows about Vault but not the Vault). */
+const PLACE_HIT = "shell:place:";
+const PLACE_HITS: readonly { place: PlaceId; title: string; snippet: string }[] = [
+  { place: "vault", title: "Vault", snippet: "Sign-ins and keys" },
+  { place: "files", title: "Files", snippet: "Folders and documents" },
+  { place: "records", title: "Records", snippet: "Projects, people and anything you track" },
+  { place: "automations", title: "Automations", snippet: "Things that run on their own" },
+  { place: "apps", title: "Apps", snippet: "Apps your agents and team use" },
+];
 /** Settings and its pages from the Settings model's own list (one list, so the two never drift apart; review O6): the "you" pages a person has, each with its own line. */
 const SETTINGS_HITS: readonly { page: string; title: string; snippet: string }[] = [
   { page: "", title: "Settings", snippet: "Your profile, AI, notifications and look" },
@@ -222,6 +232,16 @@ export function shellHits(state: { inbox?: boolean }): readonly Hit[] {
         score: 0.8,
       }),
     ),
+    ...PLACE_HITS.map(
+      (x): Hit => ({
+        kind: "setting",
+        id: `${PLACE_HIT}${x.place}`,
+        title: x.title,
+        snippet: x.snippet,
+        link: `vyre://${x.place}`,
+        score: 0.8,
+      }),
+    ),
     {
       kind: "setting",
       id: CONSOLE_HIT,
@@ -247,6 +267,8 @@ export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: P
     return { place: "settings", hash: page ? `page=${page}` : "" };
   }
   if (hit.id === CONSOLE_HIT) return { place: "console", hash: "" };
+  // a place found by its name opens that place (its result is listed under Settings, so the kind alone would say Settings)
+  if (hit.id.startsWith(PLACE_HIT)) return { place: hit.id.slice(PLACE_HIT.length) as PlaceId, hash: "" };
   return null;
 }
 
@@ -434,9 +456,10 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     },
     recent: () => mine(d.recent()),
     actions: (text) =>
-      [...askActions(currentScreen()), ...gateActions(state, rt.space.kind === "team", d.signOut !== undefined)].filter(
-        (a) => !text || a.title.toLowerCase().includes(text.toLowerCase()),
-      ),
+      [
+        ...askActions(currentScreen()),
+        ...gateActions(state, rt.space.kind === "team" && allows(rt, GATE.newChannel), d.signOut !== undefined),
+      ].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
     skins: () => [
       { id: system.id, name: system.name },
       ...skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent })),

@@ -2,6 +2,7 @@
 // Launcher port is implemented over the person's container. The environment is built here from a short allow-list plus what the driver asks for; the host's own environment never goes through.
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
+import { treeKiller } from "./process-tree.ts";
 import type { CliExit, CliProcess, LaunchSpec, Launcher } from "./types.ts";
 
 export class LaunchError extends Error {
@@ -54,6 +55,7 @@ export function createLocalLauncher(o: LocalLauncherOptions = {}): Launcher {
           reject(new LaunchError("engine.cli_missing", e instanceof Error ? e.message : "could not start"));
           return;
         }
+        const tree = treeKiller(child.pid, { exited: () => child.exitCode !== null || child.signalCode !== null });
         let tail = "";
         child.stderr?.setEncoding("utf8");
         child.stderr?.on("data", (d: string) => {
@@ -100,7 +102,13 @@ export function createLocalLauncher(o: LocalLauncherOptions = {}): Launcher {
             },
             exited,
             stderrTail: () => tail,
+            // the wrapper AND everything under it: signalling the wrapper alone can leave the engine running (process-tree.ts)
             kill: (signal = "SIGTERM") => {
+              try {
+                tree.kill(signal);
+              } catch {
+                /* the table could not be read: the wrapper is still told below */
+              }
               try {
                 child.kill(signal);
               } catch {

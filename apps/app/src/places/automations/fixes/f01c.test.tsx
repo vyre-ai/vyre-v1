@@ -11,7 +11,7 @@ import { createConfigSample, northwind } from "../config/sample.ts";
 import type { ConfigSample } from "../config/sample.ts";
 import { FieldsTab } from "../journeys/FieldsTab.tsx";
 import { JourneyDesigner } from "../journeys/JourneyDesigner.tsx";
-import { AutomationsSidebar } from "../sidebar/AutomationsSidebar.tsx";
+import { AutomationsList } from "../sidebar/AutomationsList.tsx";
 
 const page = (s: ConfigSample, el: ReactNode, extras: ConfigExtras = s.extras): string =>
   renderToStaticMarkup(
@@ -126,18 +126,12 @@ test("a person without the Design Journeys role still reads the Fields tab; the 
   assert.ok(!has(out, 'data-testid="subtab-settings"'));
 });
 
-test("sidebar: on the Journeys tab the open Journey is the selected row and the other is not", () => {
+// Changed for AUTOMATIONS-BUILD-RC29 (round two, item 5): a Journey is a row in the one list, and the open one is the selected row.
+test("list: a Journey is a row in the one list; the open Journey is the selected row and the other is not", () => {
   const s = nw();
-  const out = page(
-    s,
-    <AutomationsSidebar
-      selectedJourneyId="jrn_onboard"
-      initialTab="journeys"
-      shared={s.shared}
-      reasons={s.space.reasons}
-    />,
-  );
-  const row = (id: string): string => out.match(new RegExp(`<[^>]*data-testid="row-journey-${id}"[^>]*>`))?.[0] ?? "";
+  const out = page(s, <AutomationsList selectedId="jrn_onboard" query="" onChoose={() => undefined} />);
+  const row = (id: string): string => out.match(new RegExp(`<[^>]*data-testid="row-auto-${id}"[^>]*>`))?.[0] ?? "";
+  assert.ok(row("jrn_onboard") !== "", "the Journey is a row");
   assert.match(
     row("jrn_onboard"),
     /background-color:var\(--sel\)/,

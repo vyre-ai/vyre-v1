@@ -114,6 +114,8 @@ port.on("message", (m: { req: number; op: string; args?: any }) => {
         });
       case "idem_forget_field":
         return port.postMessage({ req: m.req, ok: true, value: forgetField(store.db, m.args.type, m.args.field) });
+      case "idem_forget_text":
+        return port.postMessage({ req: m.req, ok: true, value: idem.forgetText(m.args.needles as string[]) });
       case "idem_purge":
         return port.postMessage({ req: m.req, ok: true, value: idem.purge(Date.now()) });
       case "close":

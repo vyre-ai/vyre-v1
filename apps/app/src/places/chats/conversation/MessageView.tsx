@@ -5,7 +5,7 @@ import { helperRowOf, HelperRow } from "./helper-row.tsx";
 import { CrewBlock } from "../session/CrewBlock.tsx";
 import { QuestionCard } from "./question-card.tsx";
 import { StatusCard, isStatusCard } from "./status-cards.tsx";
-import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
+import { AwayRow, FoldedRow, HourMark, JumpRow } from "../session/rows.tsx";
 import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
 import { spaceKeyWay } from "./status.ts";
@@ -23,7 +23,7 @@ import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import { tidy } from "../../../../../../ui/src/Menu/entries.ts";
-import { ActivityLine, LiveBody } from "./ActivityLine.tsx";
+import { LiveBody } from "./ActivityLine.tsx";
 import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { KeptAside } from "./KeptAside.tsx";
@@ -182,13 +182,15 @@ export interface MessageActions {
   accountReady?(): Promise<boolean>;
   retrySend(messageId: string): void;
   discardSend(messageId: string): void;
-  showMenu(items: readonly MenuEntry[], x: number, y: number, label: string): void;
+  showMenu(items: readonly MenuEntry[], x: number, y: number, label: string, source?: "context" | "other"): void;
   /** A reply's hover card on its agent's face and name, and Details in its menu (the right pane's Details tab). Absent where the shell has no right pane. */
   details?: ReplyDetailsActions;
   /** The memory items of the message menu (Remember This, Add to a Page, Forget This); absent where the chat has no memory. */
   memoryEntries?: (m: MenuMessage, x: number, y: number, show: ShowMenu) => MenuEntry[];
   /** Branch the chat into a new one at this message. */
   fork?(messageId: string): void;
+  /** Rewind to here (your own message in a chat with an agent): opens the "Go back to" card with this message's point chosen. Left out where the chat has no agent or the reader may not go back. */
+  rewind?(messageId: string): void;
   /** Make a task from this message, linked back to it. */
   makeTask?(messageId: string): void;
   /** Ask an agent to answer this message, as if it had been named (owner ruling, 3 Nov 2026): opens the channel's agent picker where you pressed. Left out where no agent can be asked. */
@@ -333,6 +335,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
   if (item.kind === "hour") return <HourMark id={item.key} label={item.label} />;
   if (item.kind === "jump") return <JumpRow row={item} />;
   if (item.kind === "away") return <AwayRow row={item} />;
+  if (item.kind === "folded") return <FoldedRow row={item} />;
   if (item.kind === "day")
     return (
       <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>
@@ -457,36 +460,50 @@ export function menuFor(
   flat = false,
 ): MenuEntry[] {
   const talk = m.kind !== "system" && m.kind !== "quiet";
+  const own = mine && m.kind === "text";
+  const del: MenuEntry = {
+    label: "Delete",
+    danger: true,
+    onSelect: () => (flat || !a.askRemove ? a.remove(m.messageId) : a.askRemove(m.messageId)),
+  };
+  // the short list (owner, 16 Nov): what a message is most often asked to do; the rest of it is behind Memory and More
   const first: MenuEntry[] = [
     { label: "Copy", onSelect: () => a.copy(m.body) },
     { label: "Reply in thread", onSelect: () => a.openThread(m.messageId) },
-  ];
-  if (a.askAgent && talk)
-    first.push({ label: "Ask an agent\u2026", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
-  if (a.makeTask && talk) first.push({ label: "Make a task", onSelect: () => a.makeTask!(m.messageId) });
-  if (a.share && talk) first.push({ label: "Share to\u2026", onSelect: () => a.share!(m.messageId, at.x, at.y) });
-  if (a.fork && talk) first.push({ label: "Fork from here", onSelect: () => a.fork!(m.messageId) });
-  first.push(
-    { label: m.pinned ? "Unpin" : "Pin", onSelect: () => a.setPinned(m.messageId, !m.pinned) },
     {
       label: "Add reaction",
       onSelect: () =>
         a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "\u{1F44D}", false),
     },
-  );
-  // how an agent's reply was made: the right pane's Details tab (what the agent knew is a section of it)
-  const how: MenuEntry[] = [];
-  if (!mine && a.details && m.author.kind === "agent")
-    how.push({ label: "Details", onSelect: () => a.details!.open(m.messageId) });
+    { label: m.pinned ? "Unpin" : "Pin", onSelect: () => a.setPinned(m.messageId, !m.pinned) },
+  ];
+  if (a.makeTask && talk) first.push({ label: "Make a task", onSelect: () => a.makeTask!(m.messageId) });
+  if (a.share && talk) first.push({ label: "Share to\u2026", onSelect: () => a.share!(m.messageId, at.x, at.y) });
+  if (a.fork && talk) first.push({ label: "Fork from here", onSelect: () => a.fork!(m.messageId) });
+  if (own) first.push({ label: "Edit", onSelect: onEdit });
+  if (mine) first.push(del);
 
-  // behind "More": the rest of what a message can do, in the order it always had
+  // Memory is one row that opens its three (Remember This, Add to a Page, Forget This)
+  const memoryItems: MenuEntry[] =
+    m.kind !== "quiet" && a.memoryEntries
+      ? a
+          .memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu)
+          .filter((e) => !("separator" in e))
+      : [];
+  if (memoryItems.length > 0)
+    first.push({ label: "Memory", onSelect: () => a.showMenu(memoryItems, at.x, at.y, "Memory", "other") });
+
+  // behind More: the rest, in the order it always had, then Details; the menu adds Report a problem under it
   const rest: MenuEntry[] = [];
-  const own: MenuEntry[] = [];
-  if (a.copyLink) own.push({ label: "Copy link", onSelect: () => a.copyLink!(m.messageId) });
-  if (mine && m.kind === "text") own.push({ label: "Edit", onSelect: onEdit });
+  const extra: MenuEntry[] = [];
+  if (a.askAgent && talk)
+    extra.push({ label: "Ask an agent\u2026", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
+  if (mine && a.rewind && m.kind === "text" && !m.messageId.startsWith("pending:"))
+    extra.push({ label: "Rewind to here", onSelect: () => a.rewind!(m.messageId) });
+  if (a.copyLink) extra.push({ label: "Copy link", onSelect: () => a.copyLink!(m.messageId) });
   // an agent's reply cannot be edited by you; it can be asked again
   if (!mine && m.author.kind === "agent" && talk && a.regenerate)
-    own.push({ label: "Retry", onSelect: () => a.regenerate!(m.messageId) });
+    extra.push({ label: "Retry", onSelect: () => a.regenerate!(m.messageId) });
   const keep: MenuEntry[] = [];
   if (a.markUnreadFrom && !m.messageId.startsWith("pending:"))
     keep.push({ label: "Mark unread from here", onSelect: () => a.markUnreadFrom!(m.threadSeq) });
@@ -496,33 +513,19 @@ export function menuFor(
       label: `Mute agent messages from ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for today`,
       onSelect: () => a.agentMute!.mute(ob.person),
     });
-  const last: MenuEntry[] = mine
-    ? [
-        {
-          label: "Delete",
-          danger: true,
-          onSelect: () => (flat || !a.askRemove ? a.remove(m.messageId) : a.askRemove(m.messageId)),
-        },
-      ]
-    : [];
-  for (const group of [own, keep, last]) {
+  const how: MenuEntry[] = [];
+  if (!mine && a.details && m.author.kind === "agent")
+    how.push({ label: "Details", onSelect: () => a.details!.open(m.messageId) });
+  for (const group of [extra, keep, how]) {
     if (group.length === 0) continue;
     if (rest.length > 0) rest.push({ separator: true });
     rest.push(...group);
   }
   const behind = tidy(rest);
-  // what an agent should remember from this message is part of the owner's memory journey: Remember This, Add to a Page and Forget This sit at the first level (two presses from the bar), not behind More
-  const memory: MenuEntry[] =
-    m.kind !== "quiet" && a.memoryEntries
-      ? a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu)
-      : [];
   const out: MenuEntry[] = [...first];
-  // the memory group brings its own leading hairline
-  if (memory.length > 0) out.push(...("separator" in memory[0]! ? [] : [{ separator: true } as MenuEntry]), ...memory);
-  if (how.length > 0) out.push({ separator: true }, ...how);
-  if (behind.length > 0 && flat) out.push({ separator: true }, ...behind);
-  else if (behind.length > 0)
-    out.push({ separator: true }, { label: "More", onSelect: () => a.showMenu(behind, at.x, at.y, "Message") });
+  if (flat) {
+    if (behind.length > 0) out.push({ separator: true }, ...behind);
+  } else out.push({ label: "More", onSelect: () => a.showMenu(behind, at.x, at.y, "Message") });
   return out;
 }
 
@@ -545,6 +548,9 @@ export function HoverBar({
 }): ReactElement {
   const bar: { icon: GlyphName; label: string; run: (x: number, y: number) => void }[] = [];
   const talk = m.kind !== "system" && m.kind !== "quiet";
+  // React, Reply and More are on every message, an agent's and your own too (owner's walk, 15 Nov); the rest of what a message can do is behind More
+  if (a.pickReaction && talk && (byAgent || (mine && a.humanChat !== true)))
+    bar.push({ icon: "smile", label: "Add reaction", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
   if (byAgent) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
@@ -552,8 +558,11 @@ export function HoverBar({
     if (talk)
       bar.push({ icon: "pin", label: m.pinned ? "Unpin" : "Pin", run: () => a.setPinned(m.messageId, !m.pinned) });
   } else if (mine && a.humanChat !== true) {
+    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
+    if (a.rewind && m.kind === "text" && !m.messageId.startsWith("pending:"))
+      bar.push({ icon: "reply", label: "Rewind to here", run: () => a.rewind!(m.messageId) });
   } else {
     if (a.pickReaction && talk)
       bar.push({ icon: "smile", label: "Add reaction", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
@@ -592,7 +601,7 @@ export function HoverBar({
           label="More"
           size={24}
           testID={`act-more-${m.messageId}`}
-          onPress={(x, y) => a.showMenu(menuFor(m, mine, a, onEdit, { x, y }), x, y, "Message")}
+          onPress={(x, y) => a.showMenu(menuFor(m, mine, a, onEdit, { x, y }), x, y, "Message", "other")}
         />
       ) : null}
     </View>
@@ -719,6 +728,7 @@ const SHEET_ICON: Readonly<Record<string, GlyphName>> = {
   "Make a task": "task",
   "Share to\u2026": "up",
   "Fork from here": "fork",
+  "Rewind to here": "reply",
   Pin: "pin",
   Unpin: "pin",
   "Mark unread from here": "flag",
@@ -734,7 +744,16 @@ const SHEET_ICON: Readonly<Record<string, GlyphName>> = {
 /** The sheet's groups, top to bottom, split by a hairline; an entry that is in none (a memory entry, Details, a mute) joins the middle one. */
 const SHEET_GROUPS: readonly (readonly string[])[] = [
   ["Reply in thread", "Copy", "Copy link"],
-  ["Ask an agent\u2026", "Make a task", "Share to\u2026", "Fork from here", "Pin", "Unpin", "Mark unread from here"],
+  [
+    "Ask an agent\u2026",
+    "Make a task",
+    "Share to\u2026",
+    "Fork from here",
+    "Rewind to here",
+    "Pin",
+    "Unpin",
+    "Mark unread from here",
+  ],
   ["Edit", "Retry"],
 ];
 /** The groups kept below the scrolling list, always in view. */
@@ -926,7 +945,9 @@ function Mine({
       {...h.props}
       {...(h.coarse
         ? {}
-        : menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message")))}
+        : menuTrigger((x, y) =>
+            actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message", "other"),
+          ))}
       style={[
         h.coarse ? st.noSelect : null,
         st.me,
@@ -1194,7 +1215,7 @@ function Theirs({
     person || stream || m.body === "" ? null : <ReplyLessonsMark messageId={m.messageId} threadId={m.threadId} />;
   // an agent's reply: hovering its face or name shows how it was made (model, account, asker, where, cost, tokens, time)
   const withCard = (kids: ReactElement): ReactElement =>
-    !person && actions.details && !stream && !h.phone && !isSystemLine(m) ? (
+    !person && !item.who.gone && actions.details && !stream && !h.phone && !isSystemLine(m) ? (
       <ReplyHover messageId={m.messageId} details={actions.details}>
         {kids}
       </ReplyHover>
@@ -1214,6 +1235,7 @@ function Theirs({
               x,
               y,
               "Message",
+              "other",
             ),
           ))}
       style={[
@@ -1268,30 +1290,29 @@ function Theirs({
                   size={FACE}
                 />
               )}
-              <Pressable
-                accessibilityRole="link"
-                accessibilityLabel={`Open ${item.who.name}`}
-                testID={`who-${m.messageId}`}
-                onPress={() => actions.openAgent(item.who.id)}
-              >
-                <Text style={st.who}>{item.who.name}</Text>
-              </Pressable>
+              {item.who.gone ? (
+                // an agent deleted for good: its name as it was, and a quiet word; nothing to press, no profile, no card
+                <Text style={st.who} testID={`who-${m.messageId}`}>
+                  {item.who.name}
+                  <Text style={st.time} testID={`deleted-${m.messageId}`}>
+                    {"  deleted"}
+                  </Text>
+                </Text>
+              ) : (
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open ${item.who.name}`}
+                  testID={`who-${m.messageId}`}
+                  onPress={() => actions.openAgent(item.who.id)}
+                >
+                  <Text style={st.who}>{item.who.name}</Text>
+                </Pressable>
+              )}
             </>,
           )}
           <TimeTip item={item}>
             <Text style={st.time}>{item.time}</Text>
           </TimeTip>
-          {work?.short ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={work.summary}
-              testID={`work-short-${m.messageId}`}
-              onPress={() => setWorkOpen((o) => !o)}
-              style={{ opacity: h.over || workOpen ? 1 : 0 }}
-            >
-              <Text style={st.time}>{work.summary}</Text>
-            </Pressable>
-          ) : null}
           {lessonMark}
         </View>
       ) : (
@@ -1318,9 +1339,7 @@ function Theirs({
           style={st.via}
         >{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text>
       ) : null}
-      {work &&
-      (!work.live || !(stream && actions.activityOf?.(m.messageId))) &&
-      (!work.short || !item.newgroup || workOpen) ? (
+      {work && (!work.live || !stream) ? (
         <Fold
           testID={`work-${m.messageId}`}
           label={work.live ? "Working" : work.summary}
@@ -1345,12 +1364,7 @@ function Theirs({
         </Fold>
       ) : null}
       {stream ? (
-        <LiveBody
-          store={stream}
-          hideEmpty={actions.activityOf?.(m.messageId) !== undefined}
-          testID={`body-${m.messageId}`}
-          style={st.body}
-        />
+        <LiveBody store={stream} hideEmpty={false} testID={`body-${m.messageId}`} style={st.body} />
       ) : m.body && !crewCard ? (
         <View testID={`body-${m.messageId}`} style={st.body}>
           <MarkdownBlocks
@@ -1370,16 +1384,7 @@ function Theirs({
           />
         </View>
       ) : null}
-      {stream && actions.activityOf?.(m.messageId) ? (
-        <ActivityLine
-          store={actions.activityOf(m.messageId)!}
-          stream={stream}
-          heldForYou={actions.heldForYou === true}
-          {...(actions.faceInThread
-            ? { face: <Face name={item.who.name} seedId={item.who.id} kind="agent" size={20} /> }
-            : {})}
-        />
-      ) : null}
+      {/* what it is doing now is the island above the composer, said once; under the reply there is only the streaming words and their own cursor */}
       {item.hookSteps && actions.files ? (
         <HookSteps
           id={m.messageId}
@@ -1998,6 +2003,7 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
       <LiveCard
         id={line.id}
         agentId={line.data.agentId}
+        person={typeof line.data.person === "string" ? line.data.person : undefined}
         fileId={line.data.fileId}
         caption={typeof line.data.caption === "string" && line.data.caption !== "" ? line.data.caption : line.title}
         cfg={actions.liveCard}
@@ -2371,7 +2377,8 @@ export const st = StyleSheet.create({
   stepSub: { flexShrink: 1, fontSize: 12, color: "var(--ink-4)" as string },
   hover: {
     position: "absolute",
-    top: -10,
+    // above the message's top-right corner: the bar's own height (28) sits over the gap between messages, never over the words
+    top: -26,
     flexDirection: "row",
     alignItems: "center",
     gap: 0,

@@ -59,6 +59,7 @@ type Out = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
 };
 ```
@@ -89,6 +90,7 @@ type Out = {
   },
   "output": {
     "folder": {
+      "deletedAt": 1760000000000,
       "fileCount": 1,
       "folderCount": 1,
       "folderId": "fld_a1b2c3",

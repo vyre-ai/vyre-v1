@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { LiveFolders } from "./LiveFolders.tsx";
-import { liveRow, needsReconnect, orderRows, summaryLine, whoWords } from "./model.ts";
+import { liveRow, needsReconnect, orderRows, skippedWords, summaryLine, whoWords } from "./model.ts";
 import type { MountRow, Share } from "./model.ts";
 
 installDom();
@@ -132,4 +132,69 @@ test("the view: each row has its button, the first action runs, empty and error 
   await press(find(err, "live-retry"));
   await flush();
   assert.deepEqual(done.slice(2), ["c2", "retry"]);
+});
+
+test("items a pass could not bring in are a quiet line, never a failing mount; the line opens the list with a reason for each", async () => {
+  const skipped = [
+    { name: "Q3/Q4 plan.pdf", reason: "Files would not accept this item." },
+    { name: "Old scan.tif", reason: "It is too large to bring in." },
+  ];
+  const row = liveRow(m({ skippedCount: 2, skipped }), null, NOW);
+  assert.equal(row.tone, "ok", "not red");
+  assert.equal(row.state, "Live");
+  assert.equal(row.skipped.length, 2);
+  assert.equal(skippedWords(1), "1 item could not be shown");
+  assert.equal(liveRow(m({}), null, NOW).skipped.length, 0);
+  const root = await mount(
+    createRoot,
+    <LiveFolders
+      rows={[row]}
+      busy={new Set()}
+      said={null}
+      onAction={() => undefined}
+      onConnect={() => undefined}
+      onRetry={() => undefined}
+    />,
+  );
+  assert.match(textOf(find(root, "live-skipped-mnt_1")), /2 items could not be shown/);
+  assert.equal(find(root, "live-skipped-item-mnt_1-0"), null, "closed at first");
+  await press(find(root, "live-skipped-mnt_1"));
+  assert.match(textOf(find(root, "live-skipped-item-mnt_1-0")), /Q3\/Q4 plan\.pdf: Files would not accept this item\./);
+  assert.match(textOf(find(root, "live-skipped-item-mnt_1-1")), /too large/);
+});
+
+test("a failing mount's sentence names who can fix it: the admin-only Google messages are not shown to a member as instructions", () => {
+  const admin = liveRow(
+    m({
+      state: "failing",
+      error:
+        "Google has not allowed this client yet. Check you pasted the numeric client ID, not an email address, and the scopes. It can take up to 24 hours, usually minutes.",
+    }),
+    null,
+    NOW,
+  );
+  assert.match(admin.detail, /An admin finishes this under Connections in Settings/);
+  assert.doesNotMatch(admin.detail, /numeric client ID/);
+  assert.match(
+    liveRow(
+      m({ state: "failing", error: "Google has no Workspace user a@b.test. Type the address of a real user." }),
+      null,
+      NOW,
+    ).detail,
+    /An admin sets the address/,
+  );
+  assert.equal(liveRow(m({ state: "failing", error: "Drive is down." }), null, NOW).detail, "Drive is down.");
+});
+
+test("a cloud folder says whether it is two-way or read only, offers the other, and a folder made before write-back says it stays read only until two-way is turned on", () => {
+  const two = liveRow(m({ readOnly: false }), null, NOW);
+  assert.deepEqual(two.actions.slice(-1), ["read_only"]);
+  assert.doesNotMatch(two.detail, /Read only/);
+  const old = liveRow(m({ readOnly: true, twoWayOffer: true }), null, NOW);
+  assert.match(old.detail, /Read only\. Turn on two-way to send your changes to Google Drive/);
+  assert.deepEqual(old.actions.slice(-1), ["two_way"]);
+  const chosen = liveRow(m({ readOnly: true }), null, NOW);
+  assert.match(chosen.detail, /^Read only$/);
+  assert.deepEqual(liveRow(m({ kind: "local", readOnly: false }), null, NOW).actions.includes("read_only"), false);
+  assert.match(liveRow(m({ scanned: 12_400 }), null, NOW).detail, /Reading it: 12,400 items so far/);
 });

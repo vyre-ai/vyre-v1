@@ -4,8 +4,9 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: records, schema.
 
-## Capabilities (64)
+## Capabilities (65)
 
+- [connections.approve_hosts](../capabilities/connections.approve_hosts.md): The person who owns a connection allows the hosts its connector now calls (it gained one since they approved): the key may then go there. A person's press on the connection; never an agent's
 - [connections.complete_auth](../capabilities/connections.complete_auth.md): Finish an OAuth sign-in from the callback: the state and the code, or the error the app sent back when the person declined. Only the person who started the sign-in can finish it
 - [connections.create](../capabilities/connections.create.md): Plug an account into a connector; secrets are named Vault items, never values. Your own (person) needs no permission; a Space one needs connectors.manage
 - [connections.delete](../capabilities/connections.delete.md): Remove a connection; synced types bound to it pause

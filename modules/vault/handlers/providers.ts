@@ -152,7 +152,7 @@ function rowOut(
   const c = entry(ctx, str(p, "providerKey"));
   const item = itemOf(ctx, str(p, "itemId"));
   const address = first(ctx.db.all(`SELECT "address" FROM vault_provider_extra WHERE "providerId" = ?`, str(p, "id")));
-  // a sign-in reads by its account ("Claude Code, irfad@...") or the name the person gave it, never by a counter; an older sign-in of the same provider names the row it shows under
+  // a sign-in reads by its account ("Claude Code, imran@...") or the name the person gave it, never by a counter; an older sign-in of the same provider names the row it shows under
   const sub = str(p, "connection") === "subscription";
   const who = sub ? identityOf(ctx, str(p, "id")) : undefined;
   const aliases = sub ? aliasesOf(ctx, str(p, "id")) : [];
@@ -542,6 +542,12 @@ export async function setSpaceUse(ctx: VaultCtx, input: { providerId: string; al
 }
 
 // ---- subscription sign-in
+
+/** Which sign-ins are on the computer this Space runs on: yes or no for Claude Code and for Codex. Any signed-in person of the Space may ask; an agent may not. Both no in a Space that is not a Personal Space on its own computer. */
+export async function localSignins(ctx: VaultCtx, _input: Record<string, never>) {
+  if (ctx.principal.kind === "agent") return bad(ctx, "Signing in is something a person does.");
+  return hostOf()?.signin?.localPresent?.() ?? { claudeCode: false, codex: false };
+}
 
 export async function subscriptionStart(
   ctx: VaultCtx,

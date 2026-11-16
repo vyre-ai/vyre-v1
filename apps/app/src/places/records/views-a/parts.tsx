@@ -1,4 +1,5 @@
 // The small pieces a card and a list row are made of: a tag for a choice, a face and a first name for a person, a plain value for the rest. Colours are skin tokens, so a skin switch repaints.
+import { BlobImg } from "../../../../../../ui/src/BlobImage/index.tsx";
 import { createElement } from "react";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
@@ -87,7 +88,7 @@ export function LazyImage({
   height: number;
 }): ReactElement | null {
   if (Platform.OS !== "web") return null;
-  return createElement("img", {
+  return createElement(BlobImg, {
     src: url,
     alt: name,
     loading: "lazy",

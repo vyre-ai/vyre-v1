@@ -75,7 +75,6 @@ test("saved-code recovery: same keys, private Vault data kept, old password and 
       await page.getByTestId("claim-code").waitFor();
       code = (await page.getByTestId("claim-code").innerText()).trim();
       assert.ok(code.length >= 8, "the claim page shows a recovery code");
-      await page.getByTestId("claim-saved").click();
       await page.getByTestId("claim-create").click();
       await dismissOnboarding(page);
       await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30000 });

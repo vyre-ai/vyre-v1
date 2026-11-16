@@ -32,7 +32,7 @@ export default function Mount(): ReactNode {
   const sample = useMemo(() => {
     const s = createSample("idle");
     const a = { kind: "agent" as const, id: "agt_intake" };
-    const p = { kind: "person" as const, id: "usr_irfad" };
+    const p = { kind: "person" as const, id: "usr_imran" };
     const starts = [DAY, DAY + 4 * 3_600_000 + 4 * 60_000, DAY + 7 * 3_600_000 + 30 * 60_000];
     const rows = Array.from({ length: 90 }, (_, i) => {
       const chapter = Math.floor(i / 30);

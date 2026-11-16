@@ -4,8 +4,9 @@
 import { createElement, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import type { ActivityStore } from "../../../shell/session/turn-streams.ts";
+import type { ActivitySnapshot, ActivityStore } from "../../../shell/session/turn-streams.ts";
 import { calmWord, stepLabel, thinkingExcerpt } from "./activity.ts";
+import type { CalmWord } from "./activity.ts";
 import { waitFor } from "./dwell.ts";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
@@ -32,6 +33,9 @@ function ensureCss(): void {
 }
 
 const NO_STREAM = createStreamStore();
+const EMPTY_SNAP: ActivitySnapshot = { startedAt: 0, thinking: "", steps: [], version: 0 };
+/** No live reply yet to read: the word is the one for an empty turn, "Thinking". */
+const EMPTY_ACTIVITY: ActivityStore = { get: () => EMPTY_SNAP, subscribe: () => () => undefined };
 
 const web = (cls: string, children: string): ReactElement | string =>
   Platform.OS === "web" ? createElement("span", { className: cls }, children) : children;
@@ -84,6 +88,23 @@ function useDwelled(target: { label: string; detail: string }, done: boolean): {
   return shown;
 }
 
+/** The one calm word of a working agent, held still for a moment between changes: the reply's line and the island above the composer read it here, so the two never say different things. */
+export function useCalmWord(
+  store: ActivityStore | undefined,
+  stream: StreamStore | undefined,
+  heldForYou: boolean,
+): { word: CalmWord; label: string; snap: ActivitySnapshot; writing: boolean } {
+  const snap = useSyncExternalStore(
+    (store ?? EMPTY_ACTIVITY).subscribe,
+    (store ?? EMPTY_ACTIVITY).get,
+    (store ?? EMPTY_ACTIVITY).get,
+  );
+  const writing = useStream(stream ?? NO_STREAM).blocks.length > 0;
+  const word = calmWord(snap, writing, heldForYou && !snap.done);
+  const line = useDwelled({ label: word, detail: "" }, snap.done);
+  return { word, label: line.label, snap, writing };
+}
+
 export function ActivityLine({
   store,
   stream,
@@ -97,10 +118,9 @@ export function ActivityLine({
   /** Draws in place of the product mark (a thread shows the agent's own face). */ face?: ReactElement | undefined;
 }): ReactElement {
   ensureCss();
-  const snap = useSyncExternalStore(store.subscribe, store.get, store.get);
+  const { snap, writing: words, label } = useCalmWord(store, stream, heldForYou);
+  const line = { label };
   const [open, setOpen] = useState(false);
-  const words = useStream(stream ?? NO_STREAM).blocks.length > 0;
-  const line = useDwelled({ label: calmWord(snap, words, heldForYou && !snap.done), detail: "" }, snap.done);
   const state = snap.done ? "done" : words ? "writing" : "thinking";
   // the mark nods when the line's words change, not on every raw step: at most once per dwell
   const rows: ReactElement[] = [];
@@ -110,7 +130,7 @@ export function ActivityLine({
         key={s.id}
         testID={`activity-step-${s.id}`}
         style={st.step}
-      >{`${s.state === "live" ? "•" : s.state === "failed" ? "×" : "✓"}  ${s.name !== "" ? stepLabel(s.name, s.detail) : "A step"}`}</Text>,
+      >{`${s.state === "live" ? "•" : s.state === "failed" ? "×" : "✓"}  ${s.name !== "" ? stepLabel(s.name, s.detail) : "A step"}${s.state === "failed" ? ", did not work" : ""}`}</Text>,
     );
   const thought = thinkingExcerpt(snap.thinking, 420);
   const inner = (

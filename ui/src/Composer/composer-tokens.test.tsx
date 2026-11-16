@@ -1,4 +1,4 @@
-// The @mention wash behind the composer field (owner report, rc.16 on MLA: the @Assistant box sat right of and below its word). The wash is a copy of the field's text drawn behind it, so it
+// The @mention wash behind the composer field (owner report, rc.16 on Northwind: the @Assistant box sat right of and below its word). The wash is a copy of the field's text drawn behind it, so it
 // must lay out exactly as the field does: the same box (padding) in every layout, the same font size and line height, and the same wrapping.
 import test from "node:test";
 import assert from "node:assert/strict";

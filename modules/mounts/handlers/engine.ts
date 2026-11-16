@@ -20,12 +20,12 @@
 
 import { mintUuid } from "../../../lib/ids.ts";
 import { isHostService } from "../../../lib/trust.ts";
-import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { displayName, freeNames } from "./names.ts";
+import { displayName, freeNames, nameSeries } from "./names.ts";
 export { displayName, freeNames };
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
-import { pushMoves } from "./outbound-moves.ts";
+import { contentWaits, opKey, pushMoves } from "./outbound-moves.ts";
 import { DRIVE_ROOT_ALIAS, PROVIDER_LABEL, fetchable, isCloud, providerOf } from "./providers.ts";
 import type {
   IfMatch,
@@ -84,9 +84,91 @@ function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<stri
   throw new VyreErr(error);
 }
 
-const codeOf = (e: unknown): string | undefined => (e instanceof VyreErr ? e.error.code : undefined);
-const messageOf = (e: unknown): string =>
-  e instanceof VyreErr ? e.error.message : e instanceof Error ? e.message : "The sync failed.";
+const codeOf = (e: unknown): string | undefined => vyreErrorOf(e)?.code;
+// an error that is not a shaped one (a bug, a socket, a parser) never puts its own text in a row, a mount or the page: one fixed sentence, and the detail goes to the log
+const messageOf = (e: unknown): string => vyreErrorOf(e)?.message ?? "The sync failed.";
+
+/** Codes that mean the provider itself cannot be reached or does not allow Vyre in: these stop a pass and make the mount failing. Anything else is about one item. */
+const MOUNT_LEVEL =
+  /^(provider\.(network|unavailable|auth_failed|rate_limited|overloaded)|timeout\.|auth\.|rate_limit\.|internal\.)/;
+const isMountLevel = (e: unknown): boolean => {
+  const code = codeOf(e);
+  return code === undefined || MOUNT_LEVEL.test(code);
+};
+
+/** The sentence a failing mount shows: the provider cannot be reached, or does not allow Vyre in, and what to do about it. Other messages are the provider's own and are kept. */
+function failureSentence(e: unknown, label: string): string {
+  switch (codeOf(e)) {
+    case "provider.network":
+    case "provider.unavailable":
+    case "timeout.provider":
+    case "timeout.deadline":
+      return `${label} could not be reached. Vyre tries again by itself.`;
+    case "provider.rate_limited":
+    case "provider.overloaded":
+    case "rate_limit.exceeded":
+      return `${label} asked Vyre to slow down. Vyre tries again by itself.`;
+    case "provider.auth_failed":
+    case "auth.expired":
+      return /\S/.test(messageOf(e)) && !/^The provider rejected/i.test(messageOf(e))
+        ? messageOf(e)
+        : `${label} no longer accepts the sign-in. Reconnect it.`;
+    default:
+      return messageOf(e);
+  }
+}
+
+/** Why one item could not be shown, in words a person can read. */
+function skipReason(e: unknown): string {
+  switch (codeOf(e)) {
+    case "validation.duplicate":
+      return "Every name Vyre could give it is already taken in its folder.";
+    case "validation.bad_input":
+      return "Files would not accept this item.";
+    case "validation.too_large":
+      return "It is too large to bring in.";
+    case "validation.not_found":
+      return "It was moved or deleted while Vyre was reading the folder. Vyre asks about it again on each sync.";
+    case "permission.needs_approval":
+      return "Adding it to this folder needs someone's approval.";
+    default:
+      return codeOf(e)?.startsWith("permission.")
+        ? "Vyre may not add things to this folder."
+        : "Vyre could not bring it in.";
+  }
+}
+
+const MAX_SKIPPED = 200;
+/** Skipped items asked about again in each pass. */
+const RETRY_PER_PASS = 25;
+
+interface Skipped {
+  remoteId: string;
+  /** where it sat, so asking about it again can place it */
+  parentId?: string;
+  name: string;
+  reason: string;
+}
+
+/** The column patch for the list of skipped items: nothing when this pass did not learn it, null when it is now empty. */
+function skippedPatch(known: boolean, list_: readonly Skipped[]): Row {
+  if (!known) return {};
+  return { skipped: list_.length > 0 ? JSON.stringify(list_) : null };
+}
+
+function skippedOf(row: Row): Skipped[] {
+  if (isNull(row["skipped"])) return [];
+  try {
+    const v: unknown = JSON.parse(str(row["skipped"]));
+    return Array.isArray(v)
+      ? v.filter(
+          (x): x is Skipped => typeof x === "object" && x !== null && typeof (x as Skipped).remoteId === "string",
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 function record(ctx: Ctx, input: unknown): Row {
   if (input === null || typeof input !== "object" || Array.isArray(input))
@@ -211,6 +293,7 @@ interface RemoteMeta {
   editor_name: string | null;
   editor_email: string | null;
   modified_at: number | null;
+  can_edit: number | null;
 }
 
 const metaOf = (item: RemoteItem): RemoteMeta => ({
@@ -218,6 +301,7 @@ const metaOf = (item: RemoteItem): RemoteMeta => ({
   editor_name: item.editor?.name ?? null,
   editor_email: item.editor?.email ?? null,
   modified_at: item.modifiedAt ?? null,
+  can_edit: item.canEdit === undefined ? null : item.canEdit ? 1 : 0,
 });
 
 function insertItem(ctx: Ctx, mountId: string, n: NewItem): Row {
@@ -234,13 +318,16 @@ function insertItem(ctx: Ctx, mountId: string, n: NewItem): Row {
     native: n.native ? 1 : 0,
     remote_version: n.remoteVersion ?? null,
     cached_version: n.cachedVersion ?? null,
-    ...(n.meta ?? { remote_rev: null, editor_name: null, editor_email: null, modified_at: null }),
+    ...(n.meta ?? { remote_rev: null, editor_name: null, editor_email: null, modified_at: null, can_edit: null }),
     dirty_by: null,
     synced_version: n.version ?? null,
     local_version: n.version ?? null,
     dirty: n.dirty ? 1 : 0,
     deleted: 0,
     conflict: 0,
+    op_seq: 0,
+    trashed_at: null,
+    wait_reason: null,
   };
   // the host may have seen the file or folder appear before this row was written and queued it as a new local item: this row replaces that echo
   if (n.fileId)
@@ -345,10 +432,10 @@ async function withFreeName<T>(
   taken: Set<string>,
   make: (n: string) => Promise<T>,
 ): Promise<{ value: T; renamed: boolean; name: string }> {
-  const names = freeNames(name, label);
-  const first = names.findIndex((n) => !taken.has(n));
-  for (let i = Math.max(0, first); i < names.length; i++) {
-    const n = names[i] as string;
+  let i = -1;
+  for (const n of nameSeries(displayName(name), label)) {
+    i += 1;
+    if (taken.has(n)) continue;
     try {
       const value = await make(n);
       taken.add(n);
@@ -358,7 +445,7 @@ async function withFreeName<T>(
       taken.add(n);
     }
   }
-  return fail(ctx, "validation.duplicate", `Every name for ${name} is taken in its folder.`);
+  return fail(ctx, "validation.duplicate", "Every name Vyre could give it is taken in its folder.");
 }
 
 /** A delete of something that is already gone is not an error. */
@@ -437,6 +524,9 @@ async function backfillShown(ctx: Ctx, rows: Row[]): Promise<void> {
 interface Applied {
   pulled: number;
   conflicts: number;
+  /** Items this pass could not bring in, and the ones it did, so the mount's list of skipped items can be brought up to date. */
+  skipped: Skipped[];
+  touched: Set<string>;
 }
 
 async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: PullBatch, rows: Row[]): Promise<Applied> {
@@ -464,15 +554,20 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     return set;
   };
 
+  const skipped: Skipped[] = [];
+  const skippedIds = new Set<string>();
+  const touched = new Set<string>([...batch.items.map((i) => i.id), ...batch.removed]);
   const gone = new Set(batch.removed);
   if (batch.full) {
-    const seen = new Set(batch.items.map((i) => i.id));
+    const seen = new Set([...batch.items.map((i) => i.id), ...(batch.seenBefore ?? [])]);
     for (const r of rows)
       if (r !== root && !isNull(r["remote_id"]) && !seen.has(str(r["remote_id"]))) gone.add(str(r["remote_id"]));
   }
 
   const applyItem = async (item: RemoteItem, parent: Row): Promise<void> => {
     const row = index.get(item.id);
+    // an item Vyre put in the provider's Trash and keeps a tombstone for: nothing about it is pulled while it sits in Vyre's Trash
+    if (row && flag(row["deleted"]) && !isNull(row["trashed_at"])) return;
     const parentFolder = str(parent["folder_id"]);
     if (item.isFolder) {
       if (!row) {
@@ -494,14 +589,17 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
         return;
       }
       if (row["name"] !== item.name) {
-        const shown = displayName(item.name);
-        await ctx.call("files.folder.rename", { folderId: str(row["folder_id"]), name: shown });
-        patchItem(ctx, row, { name: item.name, shown_name: shown });
+        // the name the pass gives is recorded before Files is asked, so the event it raises finds the row agreeing and queues nothing to send back
+        const renamed = await withFreeName(ctx, item.name, label, namesIn(parent), (n) => {
+          patchItem(ctx, row, { shown_name: n });
+          return ctx.call("files.folder.rename", { folderId: str(row["folder_id"]), name: n });
+        });
+        patchItem(ctx, row, { name: item.name, shown_name: renamed.name });
         pulled += 1;
       }
       if (row["parent_key"] !== parent["item_key"]) {
-        await ctx.call("files.folder.move", { folderId: str(row["folder_id"]), toParentId: parentFolder });
         patchItem(ctx, row, { parent_key: parent["item_key"] });
+        await ctx.call("files.folder.move", { folderId: str(row["folder_id"]), toParentId: parentFolder });
         pulled += 1;
       }
       return;
@@ -543,14 +641,16 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
       return;
     }
     if (row["name"] !== item.name) {
-      const shown = displayName(item.name);
-      await ctx.call("files.rename", { fileId: str(row["file_id"]), name: shown });
-      patchItem(ctx, row, { name: item.name, shown_name: shown });
+      const renamed = await withFreeName(ctx, item.name, label, namesIn(parent), (n) => {
+        patchItem(ctx, row, { shown_name: n });
+        return ctx.call("files.rename", { fileId: str(row["file_id"]), name: n });
+      });
+      patchItem(ctx, row, { name: item.name, shown_name: renamed.name });
       pulled += 1;
     }
     if (row["parent_key"] !== parent["item_key"]) {
-      await ctx.call("files.move", { fileId: str(row["file_id"]), toFolderId: parentFolder });
       patchItem(ctx, row, { parent_key: parent["item_key"] });
+      await ctx.call("files.move", { fileId: str(row["file_id"]), toFolderId: parentFolder });
       pulled += 1;
     }
     if (item.version !== undefined && item.version !== row["remote_version"]) {
@@ -585,8 +685,13 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
         conflict: 0,
       });
       pulled += 1;
-    } else if (isNull(row["remote_rev"]) && item.revision !== undefined) {
-      patchItem(ctx, row, metaOf(item));
+    } else if (
+      (isNull(row["remote_rev"]) && item.revision !== undefined) ||
+      (item.canEdit !== undefined && (item.canEdit ? 1 : 0) !== row["can_edit"])
+    ) {
+      // the provider says more about the file than the row holds (its revision, or whether the person may still change it there)
+      if (!flag(row["conflict"])) patchItem(ctx, row, metaOf(item));
+      else patchItem(ctx, row, { can_edit: metaOf(item).can_edit });
     }
   };
 
@@ -601,20 +706,62 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
         later.push(item);
         continue;
       }
-      await applyItem(item, parent);
+      try {
+        await applyItem(item, parent);
+      } catch (e) {
+        // one item Vyre cannot bring in is counted and skipped, never the end of the listing; only a provider that cannot be reached or does not allow Vyre stops the pass
+        if (isMountLevel(e)) throw e;
+        // never the item's name: the kind of item, the refusing rule's code and the module's own message say which rule fired
+        ctx.log.warn("mounts: an item was skipped", {
+          mountId: m.id,
+          itemKind: item.isFolder ? "folder" : "file",
+          code: codeOf(e) ?? "",
+          rule: messageOf(e),
+        });
+        skipped.push({
+          remoteId: item.id,
+          ...(item.parentId !== undefined ? { parentId: item.parentId } : {}),
+          name: item.name,
+          reason: skipReason(e),
+        });
+        skippedIds.add(item.id);
+      }
       progress = true;
     }
     queue = later;
   }
-  // what is left sits outside the mounted folder; if it was mapped, it moved out
+  // what sits inside a folder that was skipped is skipped with it; what else is left sits outside the mounted folder, and if it was mapped, it moved out
+  for (let more = true; more; ) {
+    more = false;
+    for (const item of queue) {
+      if (item.parentId === undefined || !skippedIds.has(item.parentId) || skippedIds.has(item.id)) continue;
+      skipped.push({
+        remoteId: item.id,
+        ...(item.parentId !== undefined ? { parentId: item.parentId } : {}),
+        name: item.name,
+        reason: "Its folder could not be shown.",
+      });
+      skippedIds.add(item.id);
+      more = true;
+    }
+  }
+  queue = queue.filter((i) => !skippedIds.has(i.id));
   for (const item of queue) if (index.has(item.id)) gone.add(item.id);
 
   for (const remoteId of gone) {
     const row = index.get(remoteId);
     if (!row || row === root) continue;
+    // a tombstone (what Vyre put in the provider's Trash) is how a restore from Vyre's Trash finds the item again: it stays, and so does one brought back from Vyre's Trash that waits to be taken out
+    // of the provider's Trash (it is not listed there yet, and it is not a new item)
+    if (!isNull(row["trashed_at"])) continue;
     if (flag(row["dirty"]) && !flag(row["deleted"]) && !flag(row["is_folder"])) {
-      // edited in Vyre and not sent yet: keep the file and send it again as a new item
-      patchItem(ctx, row, { remote_id: null, remote_version: null, conflict: 0 });
+      // edited in Vyre and not sent yet, and the file is gone at the provider: the edit goes nowhere by itself. The file stays in Vyre with its edit, the row says so, and the person picks Keep it
+      // here (it goes back to the provider as a new file) or Discard.
+      patchItem(ctx, row, {
+        gone_there: 1,
+        conflict: 0,
+        wait_reason: `This file was deleted at ${provider.label} while you had changes here. Keep it here and it goes back as a new file, or discard your changes.`,
+      });
       continue;
     }
     if (flag(row["deleted"])) {
@@ -624,7 +771,7 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     await trashLocal(ctx, rows, row);
     pulled += 1;
   }
-  return { pulled, conflicts };
+  return { pulled, conflicts, skipped, touched };
 }
 
 // ---- pushing what changed in Vyre ---------------------------------------------------------------------------
@@ -634,10 +781,18 @@ interface Pushed {
   held: number;
   errors: string[];
   kept: number;
+  /** an edit waits for its quiet time before it goes out: when the earliest of them is due */
+  quietUntil?: number;
 }
 
+/** An edit made in Vyre goes to the provider after this long without another one (a pass the scheduler starts), so a long edit is one revision there. */
+export const PUSH_QUIET_MS = 30_000;
+/** ...and never for longer than this from the first edit of the batch. */
+export const PUSH_QUIET_CAP_MS = 5 * 60_000;
+
 /** The name a Vyre edit is kept under when the file moved on at the provider: "Report (Noah's edit).docx". */
-function copyName(name: string, who: string): string {
+function copyName(name: string, whoRaw: string): string {
+  const who = whoRaw.replace(/[\\/:*?"<>|\u0000-\u001f\u007f-\u009f]/g, "").slice(0, 40) || "Vyre";
   const dot = name.lastIndexOf(".");
   const tag = ` (${who}'s edit)`;
   return dot > 0 ? `${name.slice(0, dot)}${tag}${name.slice(dot)}` : `${name}${tag}`;
@@ -657,17 +812,67 @@ const depthOf = (rows: readonly Row[], row: Row): number => {
   return d;
 };
 
-async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): Promise<Pushed> {
+async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[], quiet = false): Promise<Pushed> {
   const res: Pushed = { pushed: 0, held: 0, errors: [], kept: 0 };
   if (!provider.pushes || m.pullOnly) return res;
-  const settle = (e: unknown): void => {
-    if (codeOf(e) === "permission.needs_approval") res.held += 1;
-    else res.errors.push(messageOf(e));
-  };
+  const label = provider.label;
   const parentRemote = (row: Row): string | undefined => {
     const parent = rows.find((r) => r["item_key"] === row["parent_key"]);
     return parent && !isNull(parent["remote_id"]) ? str(parent["remote_id"]) : undefined;
   };
+  /** A change that cannot go out waits on its item with the reason; only the provider being out of reach (or refusing Vyre altogether) fails the mount. */
+  const settle = async (e: unknown, row: Row): Promise<void> => {
+    if (codeOf(e) === "permission.needs_approval") {
+      res.held += 1;
+      return;
+    }
+    // the file is gone at the provider (deleted there since the last pass) and an edit waits: it is not sent anywhere and not lost; the row says so and the person picks Keep it here or Discard
+    if (
+      /not_found/.test(codeOf(e) ?? "") &&
+      !isNull(row["remote_id"]) &&
+      !flag(row["is_folder"]) &&
+      !flag(row["deleted"])
+    ) {
+      patchItem(ctx, row, {
+        gone_there: 1,
+        conflict: 0,
+        wait_reason: `This file was deleted at ${label} while you had changes here. Keep it here and it goes back as a new file, or discard your changes.`,
+      });
+      return;
+    }
+    // a refusal on one file (the person may not edit it there) is not the provider refusing Vyre: tell the two apart by whether the item can still be read
+    if (codeOf(e) === "provider.auth_failed" && !isNull(row["remote_id"]) && provider.stat) {
+      try {
+        const there = await provider.stat(ctx, m, str(row["remote_id"]));
+        if (there) {
+          patchItem(ctx, row, {
+            can_edit: 0,
+            wait_reason: `You can no longer change this at ${label}. Your change stays in Vyre. Ask the owner for edit access there, or save it as a copy.`,
+          });
+          return;
+        }
+      } catch {
+        /* unreachable too: the mount-level sentence below */
+      }
+    }
+    const words = failureSentence(e, label);
+    ctx.log.warn("mounts: a change could not be sent", { mountId: m.id, code: codeOf(e) ?? "", rule: messageOf(e) });
+    patchItem(ctx, row, { wait_reason: words });
+    if (isMountLevel(e)) res.errors.push(words);
+  };
+
+  // restores: an item the provider put in its own Trash, brought back from Vyre's Trash
+  for (const r of rows.filter((x) => !flag(x["deleted"]) && !isNull(x["trashed_at"]) && flag(x["dirty"]))) {
+    if (!provider.restore) continue;
+    try {
+      await provider.restore(ctx, m, str(r["remote_id"]), opKey(m, r, "un"));
+      // whatever else waited on the item (a rename, a move made while it was in the Trash, a new edit) is looked at next, by the moves below
+      patchItem(ctx, r, { trashed_at: null, dirty: 1, wait_reason: null });
+      res.pushed += 1;
+    } catch (e) {
+      await settle(e, r);
+    }
+  }
 
   // renames and moves made in Vyre go out first, so a folder is where it should be before anything new is sent into it
   const mv = await pushMoves(ctx, m, provider, rows, (row, fields) => patchItem(ctx, row, fields));
@@ -683,26 +888,58 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
     const parent = parentRemote(f);
     if (parent === undefined || !provider.createFolder) continue;
     try {
-      const made = await provider.createFolder(ctx, m, { name: str(f["name"]), parentRemote: parent });
-      patchItem(ctx, f, { remote_id: made.remoteId, dirty: 0 });
+      const made = await provider.createFolder(ctx, m, {
+        name: str(f["name"]),
+        parentRemote: parent,
+        key: `mnt:fld:${m.id}:${str(f["item_key"])}`,
+      });
+      patchItem(ctx, f, {
+        remote_id: made.remoteId,
+        dirty: 0,
+        wait_reason:
+          made.renamedTo !== undefined
+            ? `A folder named "${str(f["name"])}" was already at ${label}, so this one is saved there as "${made.renamedTo}".`
+            : null,
+      });
       res.pushed += 1;
     } catch (e) {
-      settle(e);
+      await settle(e, f);
     }
   }
-  // files: new and changed
+  // files: new and changed. A rename alone never makes a new revision: only content that went past the version last synced is sent.
   const files = rows.filter(
     (r) =>
       flag(r["dirty"]) &&
       !flag(r["is_folder"]) &&
       !flag(r["deleted"]) &&
       !flag(r["conflict"]) &&
+      !flag(r["gone_there"]) &&
       !flag(r["native"]) &&
+      isNull(r["trashed_at"]) &&
       !isNull(r["file_id"]),
   );
   for (const f of files) {
+    if (!contentWaits(f)) {
+      patchItem(ctx, f, { dirty: 0, wait_reason: null });
+      continue;
+    }
     const parent = parentRemote(f);
     if (parent === undefined || !provider.upload) continue;
+    // a scheduled pass leaves an edit to a file already at the provider until it has been quiet for a while; the person's Sync now, and leaving the file, send it at once
+    if (
+      quiet &&
+      !isNull(f["remote_id"]) &&
+      !isNull(f["dirty_at"]) &&
+      ctx.now() - num(f["dirty_at"]) < PUSH_QUIET_MS &&
+      ctx.now() - num(isNull(f["dirty_since"]) ? f["dirty_at"] : f["dirty_since"]) < PUSH_QUIET_CAP_MS
+    ) {
+      const due = Math.min(
+        num(f["dirty_at"]) + PUSH_QUIET_MS,
+        num(isNull(f["dirty_since"]) ? f["dirty_at"] : f["dirty_since"]) + PUSH_QUIET_CAP_MS,
+      );
+      res.quietUntil = res.quietUntil === undefined ? due : Math.min(res.quietUntil, due);
+      continue;
+    }
     try {
       const remoteId = isNull(f["remote_id"]) ? undefined : str(f["remote_id"]);
       // a change to a file that already exists there is sent with the version it was based on
@@ -710,24 +947,39 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
         ...(isNull(f["remote_version"]) ? {} : { version: str(f["remote_version"]) }),
         ...(isNull(f["remote_rev"]) ? {} : { revision: str(f["remote_rev"]) }),
       };
+      const version = num(f["local_version"]);
       const up = await provider.upload(ctx, m, {
         fileId: str(f["file_id"]),
         name: str(f["name"]),
         parentRemote: parent,
+        key:
+          remoteId === undefined
+            ? `mnt:new:${m.id}:${str(f["item_key"])}`
+            : `mnt:up:${m.id}:${str(f["item_key"])}:v${version}`,
         ...(remoteId !== undefined ? { remoteId } : {}),
         ...(remoteId !== undefined && based.revision !== undefined ? { ifMatch: based } : {}),
       });
       if (up.stale) {
-        // the file changed there since the last pull: keep both, never overwrite
-        const kept = copyName(str(f["name"]), whoLabel(m));
-        await provider.upload(ctx, m, { fileId: str(f["file_id"]), name: kept, parentRemote: parent });
-        patchItem(ctx, f, { dirty: 0, conflict: 1, synced_version: f["local_version"] ?? null, dirty_by: null });
+        // the file changed there since the last pull: nothing was written there. The person's edit stays in Vyre, the item waits for their choice (keep both, or use theirs),
+        // and the row says who changed it there and when
+        patchItem(ctx, f, {
+          conflict: 1,
+          wait_reason: null,
+          ...(up.editor !== undefined
+            ? { editor_name: up.editor.name ?? null, editor_email: up.editor.email ?? null }
+            : {}),
+        });
+        try {
+          const there = provider.stat ? await provider.stat(ctx, m, str(remoteId)) : undefined;
+          if (there) patchItem(ctx, f, { ...metaOf(there) });
+        } catch {
+          /* the choice is still offered; the line just names no one */
+        }
         ctx.emit("mount.conflict", `folder/${m.folderId}`, {
           mountId: m.id,
           folderId: m.folderId,
           fileId: str(f["file_id"]),
           name: str(f["name"]),
-          keptAs: kept,
         });
         res.kept += 1;
         continue;
@@ -744,6 +996,11 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
         synced_version: f["local_version"] ?? null,
         dirty: 0,
         dirty_by: null,
+        dirty_since: null,
+        wait_reason:
+          up.renamedTo !== undefined
+            ? `A file named "${str(f["name"])}" was already at ${label}, so this one is saved there as "${up.renamedTo}".`
+            : null,
       });
       if (up.revision !== undefined) {
         ctx.db.run(
@@ -761,6 +1018,7 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
           ctx.now(),
         );
       }
+      if (up.between !== undefined) await keepTheirsBeside(ctx, m, provider, f, up.between, label);
       ctx.emit("mount.file_sent", `folder/${m.folderId}`, {
         mountId: m.id,
         folderId: m.folderId,
@@ -771,22 +1029,78 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
       });
       res.pushed += 1;
     } catch (e) {
-      settle(e);
+      await settle(e, f);
     }
   }
-  // deletes
-  const deletes = rows.filter((r) => flag(r["deleted"]) && !isNull(r["remote_id"]));
+  // deletes: the provider puts the item in its own Trash (recoverable there). The row stays as a tombstone, so a restore from Vyre's Trash can take the same item back out.
+  const deletes = rows.filter((r) => flag(r["deleted"]) && !isNull(r["remote_id"]) && isNull(r["trashed_at"]));
   for (const d of deletes) {
     if (!provider.remove) continue;
     try {
-      await provider.remove(ctx, m, str(d["remote_id"]), flag(d["is_folder"]));
-      dropItems(ctx, rows, subtreeOf(rows, d));
+      await provider.remove(ctx, m, str(d["remote_id"]), flag(d["is_folder"]), opKey(m, d, "rm"));
+      patchItem(ctx, d, { trashed_at: ctx.now(), dirty: 0, wait_reason: null });
       res.pushed += 1;
     } catch (e) {
-      settle(e);
+      await settle(e, d);
     }
   }
   return res;
+}
+
+/**
+ * The upload went out, but someone saved another revision at the provider after the one the edit was based on and before the upload landed (the check and the upload are two calls). That revision was
+ * written over, so it is kept: its content comes back as a new file beside this one ("Report (Kim's version).docx"), and the row says who changed it and when. Nothing is lost and nobody is left unaware.
+ */
+async function keepTheirsBeside(
+  ctx: Ctx,
+  m: MountRec,
+  provider: Provider,
+  row: Row,
+  between: { revisionId: string; by?: { name?: string; email?: string }; at?: number },
+  label: string,
+): Promise<void> {
+  const who = between.by?.name ?? between.by?.email ?? "Someone";
+  const at =
+    between.at !== undefined ? ` at ${new Date(between.at).toISOString().slice(0, 16).replace("T", " ")} UTC` : "";
+  let beside = "";
+  try {
+    if (provider.revisionBlob !== undefined) {
+      const blob = await provider.revisionBlob(ctx, m, {
+        remoteId: str(row["remote_id"]),
+        revisionId: between.revisionId,
+      });
+      const name = str(row["name"]);
+      const dot = name.lastIndexOf(".");
+      // a provider's display name is somebody else's text: no path characters, no control characters, and not long
+      const first =
+        (who.split(/[\s@]/)[0] ?? who).replace(/[\\/:*?"<>|\u0000-\u001f\u007f-\u009f]/g, "").slice(0, 40) || "Their";
+      beside =
+        dot > 0 ? `${name.slice(0, dot)} (${first}'s version)${name.slice(dot)}` : `${name} (${first}'s version)`;
+      const folder = ((await ctx.call("files.get", { fileId: str(row["file_id"]) })) as { file: { folderId: string } })
+        .file.folderId;
+      await ctx.call("files.create", {
+        folderId: folder,
+        name: beside,
+        content: { blobId: blob.blobId },
+        ...(blob.mime !== undefined ? { mime: blob.mime } : {}),
+        idempotencyKey: `mnt:between:${m.id}:${str(row["item_key"])}:${between.revisionId}`,
+      });
+    }
+  } catch (e) {
+    ctx.log.warn("mounts: their revision could not be kept beside the file", { mountId: m.id, rule: messageOf(e) });
+    beside = "";
+  }
+  patchItem(ctx, row, {
+    wait_reason: `${who} changed this at ${label}${at} while your edit was being sent. ${beside !== "" ? `Their version is saved beside it as "${beside}".` : `Their version is in the revision list at ${label}.`}`,
+    editor_name: between.by?.name ?? null,
+    editor_email: between.by?.email ?? null,
+  });
+  ctx.emit("mount.conflict", `folder/${m.folderId}`, {
+    mountId: m.id,
+    folderId: m.folderId,
+    fileId: str(row["file_id"]),
+    name: str(row["name"]),
+  });
 }
 
 /** Items waiting to go out (conflicted ones wait for a person, not for the next pass; a Google-native document only waits to be deleted, it is never uploaded). */
@@ -808,6 +1122,20 @@ function recOf(row: Row): MountRec {
   const localPath = opt("local_path");
   const cursor = opt("cursor");
   const account = opt("account");
+  let scan: MountRec["scan"];
+  if (!isNull(row["scan_queue"])) {
+    try {
+      const q: unknown = JSON.parse(str(row["scan_queue"]));
+      if (Array.isArray(q) && q.length > 0)
+        scan = {
+          queue: q as { folder: string; token?: string }[],
+          count: num(row["scan_count"]),
+          ...(opt("scan_cursor") !== undefined ? { startToken: opt("scan_cursor") as string } : {}),
+        };
+    } catch {
+      /* an unreadable position: the listing starts again */
+    }
+  }
   return {
     id: str(row["id"]),
     folderId: str(row["folder_id"]),
@@ -824,6 +1152,7 @@ function recOf(row: Row): MountRec {
     reviewChanges: flag(row["review_changes"]),
     pullOnly: flag(row["pull_only"]),
     ...(cursor !== undefined ? { cursor } : {}),
+    ...(scan !== undefined ? { scan } : {}),
   };
 }
 
@@ -852,7 +1181,11 @@ async function scheduleNext(ctx: Ctx, row: Row): Promise<void> {
   // a pass already queued sooner than that stays; one queued later (the app just arrived) is overtaken
   if (!isNull(row["next_sync_at"]) && num(row["next_sync_at"]) > now && num(row["next_sync_at"]) <= at) return;
   try {
-    await ctx.schedule(at, "mounts.sync_now", { mountId: str(row["id"]) });
+    await ctx.schedule(at, "mounts.sync_now", {
+      mountId: str(row["id"]),
+      auto: true,
+      idempotencyKey: `pass:${str(row["id"])}:${at}`,
+    });
     patchMount(ctx, row, { next_sync_at: at });
   } catch {
     // no scheduler: the next sync is a person's Sync now
@@ -899,7 +1232,7 @@ async function ensureWatch(ctx: Ctx, row: Row, m: MountRec, provider: Provider):
 /** Mounts with a pass already waiting behind the running one: a burst of push notices needs one more pass, not one each. */
 const queued = new Set<string>();
 
-async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
+async function runPass(ctx: Ctx, mountId: string, quiet = false): Promise<PassResult> {
   return exclusive(`mount:${mountId}`, async () => {
     queued.delete(mountId);
     const row = mountRow(ctx, mountId);
@@ -921,7 +1254,11 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     let pushed = 0;
     let held = 0;
     let kept = 0;
+    let quietUntil: number | undefined;
     const errors: string[] = [];
+    let skippedNow: Skipped[] = [];
+    let skippedKnown = false;
+    let partialWords: string | null = null;
     try {
       if (m.kind === "github") {
         const res = obj(
@@ -936,18 +1273,95 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
         patchMount(ctx, row, { conflicts });
       } else if (provider.pull) {
         const batch = await provider.pull(ctx, m);
+        partialWords = batch.partial ?? null;
+        // the last pass of a listing that took several: what the earlier ones saw counts as seen, so only what no pass saw is treated as gone
+        if (batch.scanDone === true && m.scan !== undefined)
+          batch.seenBefore = new Set(
+            (ctx.db.all("SELECT * FROM mounts_scan_seen WHERE mount_id = ?", m.id) as Row[]).map((r) =>
+              str(r["remote_id"]),
+            ),
+          );
         const applied = await applyBatch(ctx, m, provider, batch, rows);
+        // the position of a listing larger than one pass is kept after its page was applied, so a pass that fails resumes from the same page
+        if (batch.scan !== undefined) {
+          const known = new Set(
+            (ctx.db.all("SELECT * FROM mounts_scan_seen WHERE mount_id = ?", m.id) as Row[]).map((r) =>
+              str(r["remote_id"]),
+            ),
+          );
+          for (const it of batch.items)
+            if (!known.has(it.id)) {
+              known.add(it.id);
+              ctx.db.run("INSERT INTO mounts_scan_seen (mount_id, remote_id) VALUES (?, ?)", m.id, it.id);
+            }
+          if (batch.scan.queue.length > 0)
+            patchMount(ctx, row, {
+              scan_queue: JSON.stringify(batch.scan.queue),
+              scan_count: batch.scan.count,
+              scan_cursor: batch.scan.startToken ?? null,
+            });
+          else {
+            ctx.db.run("DELETE FROM mounts_scan_seen WHERE mount_id = ?", m.id);
+            patchMount(ctx, row, { scan_queue: null, scan_count: 0, scan_cursor: null });
+          }
+        } else if (batch.scanDone === true) {
+          ctx.db.run("DELETE FROM mounts_scan_seen WHERE mount_id = ?", m.id);
+          patchMount(ctx, row, { scan_queue: null, scan_count: 0, scan_cursor: null });
+        }
         pulled = applied.pulled;
         conflicts = applied.conflicts;
+        // the list of skipped items: a full listing starts it again; a feed of changes only names what changed, so the items skipped before are asked about again here (a few each pass): a name
+        // that was fixed or a permission that came back brings the item in by itself, and one that is gone leaves the list
+        let again: Applied | undefined;
+        const handled = new Set<string>();
+        if (!batch.full && provider.stat) {
+          const old = skippedOf(row)
+            .filter((x) => !applied.touched.has(x.remoteId))
+            .slice(0, RETRY_PER_PASS);
+          const items: RemoteItem[] = [];
+          for (const x of old) {
+            try {
+              const it = await provider.stat(ctx, m, x.remoteId);
+              if (it)
+                items.push(
+                  it.parentId === undefined && x.parentId !== undefined ? { ...it, parentId: x.parentId } : it,
+                );
+              else handled.add(x.remoteId);
+            } catch (err) {
+              if (codeOf(err) === "validation.not_found") handled.add(x.remoteId);
+              else if (isMountLevel(err)) throw err;
+            }
+          }
+          if (items.length > 0) {
+            again = await applyBatch(ctx, m, provider, { items, removed: [], full: false }, rows);
+            pulled += again.pulled;
+            conflicts += again.conflicts;
+            for (const it of items) if (rows.some((r) => r["remote_id"] === it.id)) handled.add(it.id);
+          }
+        }
+        const before = batch.full
+          ? []
+          : skippedOf(row).filter((x) => !applied.touched.has(x.remoteId) && !handled.has(x.remoteId));
+        const fresh = [...applied.skipped, ...(again?.skipped ?? [])];
+        skippedNow = [...before.filter((x) => !fresh.some((y) => y.remoteId === x.remoteId)), ...fresh].slice(
+          0,
+          MAX_SKIPPED,
+        );
+        skippedKnown = true;
         if (batch.cursor !== undefined) patchMount(ctx, row, { cursor: batch.cursor });
-        const sent = await pushAll(ctx, m, provider, rows);
+        const sent = await pushAll(ctx, m, provider, rows, quiet);
+        if (sent.quietUntil !== undefined) quietUntil = sent.quietUntil;
         pushed = sent.pushed;
         held = sent.held;
         kept = sent.kept;
         errors.push(...sent.errors);
       }
     } catch (e) {
-      errors.push(messageOf(e));
+      ctx.log.warn("mounts: a pass failed", { mountId: m.id, code: codeOf(e) ?? "", rule: messageOf(e) });
+      errors.push(failureSentence(e, provider.label));
+      // every change that waits says why it has not gone out
+      for (const r of rows)
+        if (flag(r["dirty"]) && !flag(r["conflict"])) patchItem(ctx, r, { wait_reason: errors[0] ?? null });
     }
     const now = ctx.now();
     if (errors.length > 0) {
@@ -968,8 +1382,9 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     const leftover = provider.pushes && !m.pullOnly && (held > 0 || waiting(itemsOf(ctx, m.id)) > 0);
     patchMount(ctx, row, {
       state: "idle",
-      error: null,
+      error: partialWords,
       last_sync_at: now,
+      ...skippedPatch(skippedKnown, skippedNow),
       stale_since: leftover ? (isNull(row["stale_since"]) ? now : row["stale_since"]) : null,
       updated_at: now,
     });
@@ -982,10 +1397,25 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
       ms: Math.max(0, now - started),
     });
     await ensureWatch(ctx, row, recOf(row), provider);
+    if (quietUntil !== undefined) {
+      // an edit is waiting for its quiet time: the pass after it sends it
+      try {
+        await ctx.schedule(quietUntil + 500, "mounts.sync_now", {
+          mountId: m.id,
+          auto: true,
+          idempotencyKey: `pass:${m.id}:${quietUntil + 500}`,
+        });
+      } catch {
+        /* the next scheduled pass does it */
+      }
+    }
     if (kept > 0) {
       // a Vyre edit was kept as a copy: one more pass brings in the provider's version and the copy
       try {
-        await ctx.schedule(now + 1000, "mounts.sync_now", { mountId: m.id });
+        await ctx.schedule(now + 1000, "mounts.sync_now", {
+          mountId: m.id,
+          idempotencyKey: `pass:${m.id}:${now + 1000}`,
+        });
       } catch {
         /* the next scheduled pass does it */
       }
@@ -1029,7 +1459,10 @@ function viewOf(ctx: Ctx, row: Row): Row {
     lagSeconds: lagSeconds(ctx, row),
     pendingChanges: waiting(itemsOf(ctx, str(row["id"]))),
     conflicts: conflictCount(ctx, row),
+    readOnly: flag(row["pull_only"]) && isCloud(kind),
   };
+  if (flag(row["two_way_offer"]) && flag(row["pull_only"])) out["twoWayOffer"] = true;
+  if (!isNull(row["scan_queue"]) || num(row["scan_count"]) > 0) out["scanned"] = num(row["scan_count"]);
   if (isCloud(kind)) {
     // the Files strip says "Live" while changes arrive on their own, else "Synced <lastSyncAt>"
     const push = hasPush(ctx, row);
@@ -1046,6 +1479,11 @@ function viewOf(ctx: Ctx, row: Row): Row {
   if (!isNull(row["last_sync_at"])) out["lastSyncAt"] = num(row["last_sync_at"]);
   if (!isNull(row["device_id"])) out["fromDevice"] = str(row["device_id"]);
   if (!isNull(row["error"])) out["error"] = str(row["error"]);
+  const skipped = skippedOf(row);
+  if (skipped.length > 0) {
+    out["skippedCount"] = skipped.length;
+    out["skipped"] = skipped.map((x) => ({ name: x.name, reason: x.reason }));
+  }
   return out;
 }
 
@@ -1217,7 +1655,8 @@ async function mountsAdd(ctx: Ctx, input: unknown): Promise<{ mountId: string; f
     name,
     mode,
     review_changes: review ? 1 : 0,
-    pull_only: 0,
+    pull_only: o["readOnly"] === true ? 1 : 0,
+    two_way_offer: 0,
     state: "idle",
     cursor: null,
     owner: ctx.principal.id,
@@ -1341,7 +1780,12 @@ async function mountsSyncNow(ctx: Ctx, input: unknown): Promise<{ runId: string 
       "validation.precondition_failed",
       "A folder on your computer syncs when that computer reports. Turn the computer on and open Vyre there.",
     );
-  await runPass(ctx, mountId);
+  if (!maySee(ctx, row)) fail(ctx, "permission.no_grant", "You cannot see that mount.");
+  // a pass that sends an edit at once is for someone who may edit the folder; anyone else starts the scheduled kind, which waits for the quiet time
+  const mayEdit =
+    ctx.authorize({ perm: "files.write", level: "edit" }, { type: "folder", id: str(row["folder_id"]) }).effect ===
+    "allow";
+  await runPass(ctx, mountId, o["auto"] === true || !mayEdit);
   return { runId: ctx.run ?? nid(ctx, "run") };
 }
 
@@ -1436,7 +1880,11 @@ async function mountsBrowse(ctx: Ctx, input: unknown): Promise<Row> {
 async function mountsUpdate(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
   const o = record(ctx, input);
   const row = mountRow(ctx, reqStr(ctx, o, "mountId"));
-  mayManage(ctx, row);
+  if (!maySee(ctx, row)) fail(ctx, "permission.no_grant", "You cannot see that mount.");
+  // the person who connected the folder may turn two-way OFF for their own mount (Read only), and nothing else: never back on over a manager's choice, never another option
+  const onlyReadOnly =
+    Object.keys(o).every((k) => k === "mountId" || o[k] === undefined || k === "pullOnly") && o["pullOnly"] === true;
+  if (!(onlyReadOnly && !isNull(row["owner"]) && str(row["owner"]) === ctx.principal.id)) mayManage(ctx, row);
   const fields: string[] = [];
   const patch: Row = {};
   const mode = optStr(o, "mode");
@@ -1466,6 +1914,8 @@ async function mountsUpdate(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
     patch["pull_only"] = o["pullOnly"] ? 1 : 0;
     fields.push("pullOnly");
     if (o["pullOnly"]) patch["stale_since"] = null;
+    // two-way was chosen (or read only again): the offer made to a mount from before write-back is answered
+    patch["two_way_offer"] = 0;
   }
   const name = optStr(o, "name");
   if (name !== undefined && name !== row["name"]) {
@@ -1482,7 +1932,10 @@ async function mountsUpdate(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
     });
     if (patch["cursor"] === null) {
       try {
-        await ctx.schedule(ctx.now(), "mounts.sync_now", { mountId: str(row["id"]) });
+        await ctx.schedule(ctx.now(), "mounts.sync_now", {
+          mountId: str(row["id"]),
+          idempotencyKey: `pass:${str(row["id"])}:${ctx.now()}`,
+        });
       } catch {
         /* the next pass brings the content in */
       }
@@ -1533,7 +1986,10 @@ async function mountsResume(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> 
   });
   if (str(row["kind"]) !== "local") {
     try {
-      await ctx.schedule(ctx.now(), "mounts.sync_now", { mountId: str(row["id"]) });
+      await ctx.schedule(ctx.now(), "mounts.sync_now", {
+        mountId: str(row["id"]),
+        idempotencyKey: `pass:${str(row["id"])}:${ctx.now()}`,
+      });
     } catch {
       // the next Sync now picks it up
     }
@@ -1618,7 +2074,10 @@ async function applyLocal(
       const idKey = folder ? "folderId" : "fileId";
       const id = str(row[folder ? "folder_id" : "file_id"]);
       if (leafOf(path) !== row["name"])
-        await ctx.call(folder ? "files.folder.rename" : "files.rename", { [idKey]: id, name: leafOf(path) });
+        await ctx.call(folder ? "files.folder.rename" : "files.rename", {
+          [idKey]: id,
+          name: displayName(leafOf(path)),
+        });
       if (row["parent_key"] !== parent["item_key"])
         await ctx.call(
           folder ? "files.folder.move" : "files.move",
@@ -1701,16 +2160,29 @@ async function localReport(ctx: Ctx, input: unknown): Promise<{ applied: number;
     const rows = itemsOf(ctx, m.id);
     let applied = 0;
     let conflicts = 0;
+    const touchedPaths = new Set<string>();
+    const skippedHere: Skipped[] = [];
+    let skippedKnown = false;
     if (m.mode === "live_only") {
       // no server copy: the index stays on the device and a change is acknowledged, not stored
       applied = changes.length;
     } else {
       try {
         for (const ch of changes) {
-          const r = await applyLocal(ctx, m, rows, ch, deviceId);
-          applied += r.applied;
-          conflicts += r.conflicts;
+          // one change Vyre cannot take in is counted and listed; the rest of the report still goes in
+          try {
+            const r = await applyLocal(ctx, m, rows, ch, deviceId);
+            applied += r.applied;
+            conflicts += r.conflicts;
+            touchedPaths.add(cleanPath(ctx, ch["path"]));
+          } catch (e) {
+            if (isMountLevel(e)) throw e;
+            ctx.log.warn("mounts: a device change could not be taken in", { mountId: m.id, code: codeOf(e) ?? "" });
+            const at = cleanPath(ctx, ch["path"]);
+            skippedHere.push({ remoteId: at, name: leafOf(at), reason: skipReason(e) });
+          }
         }
+        skippedKnown = true;
       } catch (e) {
         patchMount(ctx, row, {
           state: "failing",
@@ -1723,12 +2195,16 @@ async function localReport(ctx: Ctx, input: unknown): Promise<{ applied: number;
       }
     }
     const now = ctx.now();
+    const skippedNow = skippedKnown
+      ? [...skippedOf(row).filter((x) => !touchedPaths.has(x.remoteId)), ...skippedHere].slice(0, MAX_SKIPPED)
+      : undefined;
     patchMount(ctx, row, {
       state: row["state"] === "paused" ? "paused" : "idle",
       error: null,
       last_sync_at: now,
       stale_since: null,
       updated_at: now,
+      ...skippedPatch(skippedNow !== undefined, skippedNow ?? []),
     });
     ctx.emit("mount.synced", `folder/${m.folderId}`, {
       mountId: m.id,
@@ -1773,6 +2249,29 @@ function sourceView(ctx: Ctx, item: Row, row: Row): Row {
       flag(item["is_folder"]) || (!isNull(item["cached_version"]) && item["cached_version"] === item["remote_version"]),
     conflict: flag(item["conflict"]),
   };
+  if (item["can_edit"] === 0 || (flag(row["pull_only"]) && isCloud(kind))) out["viewOnly"] = true;
+  if (flag(item["conflict"])) {
+    const by = personOut(item["editor_name"], item["editor_email"]);
+    out["changedThere"] = {
+      ...(Object.keys(by).length > 0 ? { by } : {}),
+      ...(isNull(item["modified_at"]) ? {} : { at: num(item["modified_at"]) }),
+    };
+  } else if (flag(item["dirty"]) || !isNull(item["wait_reason"]))
+    out["notSent"] = {
+      reason: isNull(item["wait_reason"]) ? "Waiting to be sent." : str(item["wait_reason"]),
+      ...(flag(item["gone_there"]) ? { goneThere: true } : {}),
+    };
+  // a save by someone who did not connect the folder goes out under the connection of the one who did: the page says whose
+  if (isCloud(kind) && !isNull(row["owner"]) && str(row["owner"]) !== ctx.principal.id) {
+    // the connector's name (the page resolves it from `by`) goes to every reader; their address only to someone who manages the folder
+    const manager =
+      ctx.authorize({ perm: "files.write", level: "manage" }, { type: "folder", id: str(row["folder_id"]) }).effect ===
+      "allow";
+    out["writesAs"] = {
+      by: str(row["owner"]),
+      ...(manager && !isNull(row["account"]) ? { email: str(row["account"]) } : {}),
+    };
+  }
   if (!isNull(item["remote_rev"])) out["revisionId"] = str(item["remote_rev"]);
   if (!isNull(item["modified_at"])) out["modifiedAt"] = num(item["modified_at"]);
   const editor = personOut(item["editor_name"], item["editor_email"]);
@@ -1925,6 +2424,163 @@ async function mountsRestore(ctx: Ctx, input: unknown): Promise<Row> {
   return { restored: !pass.failed };
 }
 
+/**
+ * A file edited in Vyre changed at the provider too (the write was refused as stale; nothing was overwritten there). Keep both: the person's version goes up beside it as a copy and the provider's version
+ * becomes the file's current content in Vyre (the person's version stays in Vyre's History). Use theirs: the provider's version becomes the content and the person's stays in History only.
+ */
+async function mountsResolve(ctx: Ctx, input: unknown): Promise<Row> {
+  const o = record(ctx, input);
+  const fileId = reqStr(ctx, o, "fileId");
+  const choice = reqStr(ctx, o, "choice");
+  if (choice !== "keep_both" && choice !== "use_theirs" && choice !== "keep_here" && choice !== "discard")
+    fail(ctx, "validation.bad_input", "The choice is keep_both, use_theirs, keep_here or discard.");
+  const first = itemOfFile(ctx, fileId);
+  const owner = first ? mountOfItem(ctx, first) : undefined;
+  if (!first || !owner) return fail(ctx, "validation.precondition_failed", "This file is not in a connected folder.");
+  const d = ctx.authorize({ perm: "files.write", level: "edit" }, { type: "file", id: fileId });
+  if (d.effect === "deny") fail(ctx, "permission.no_grant", d.reason);
+  if (d.effect === "hold") fail(ctx, "permission.needs_approval", d.reason);
+  const { row, m, provider } = owner;
+  if (choice === "keep_here" || choice === "discard") {
+    if (!flag(first["gone_there"]))
+      return fail(ctx, "validation.precondition_failed", "This file has nothing to settle.");
+    await exclusive(`mount:${m.id}`, async () => {
+      const rows = itemsOf(ctx, m.id);
+      const item = rows.find((r) => r["item_key"] === first["item_key"]) ?? first;
+      if (choice === "keep_here")
+        patchItem(ctx, item, {
+          gone_there: 0,
+          remote_id: null,
+          remote_version: null,
+          remote_rev: null,
+          dirty: 1,
+          wait_reason: null,
+        });
+      else {
+        // only the person who made the unsent edit, or a manager of the folder, may drop it
+        const manager =
+          ctx.authorize({ perm: "files.write", level: "manage" }, { type: "folder", id: m.folderId }).effect ===
+          "allow";
+        if (!manager && !(!isNull(item["dirty_by"]) && str(item["dirty_by"]) === ctx.principal.id))
+          return fail(
+            ctx,
+            "permission.no_grant",
+            "Only the person who made these changes, or a manager of the folder, can discard them.",
+          );
+        // the unsent edit goes, the file stays: Vyre's file goes back to the last content that was at the provider
+        const synced = num(item["synced_version"]);
+        let restored = false;
+        try {
+          const vs = (obj(await ctx.call("files.versions", { fileId })) as { versions?: Row[] }).versions ?? [];
+          const back = vs.find((v) => num(v["n"]) === synced);
+          const newest = vs.reduce((a, v) => Math.max(a, num(v["n"])), 0);
+          if (back && synced < newest) {
+            const r = obj(
+              await ctx.call("files.restore_version", {
+                fileId,
+                versionId: str(back["versionId"]),
+                idempotencyKey: `mnt:discard:${m.id}:${str(item["item_key"])}:${newest}`,
+              }),
+            );
+            void r;
+            restored = true;
+          }
+        } catch {
+          /* the file keeps its content when an earlier one cannot be put back */
+        }
+        const file = obj(obj(await ctx.call("files.get", { fileId }))["file"]);
+        patchItem(ctx, item, {
+          gone_there: 0,
+          dirty: 0,
+          dirty_since: null,
+          remote_id: null,
+          remote_version: null,
+          remote_rev: null,
+          synced_version: restored || synced === 0 ? num(file["version"]) : synced,
+          local_version: restored || synced === 0 ? num(file["version"]) : synced,
+          wait_reason: `This file is no longer at ${provider.label}. It is kept here as it was there, without your changes.`,
+        });
+      }
+    });
+    if (choice === "keep_here") {
+      try {
+        await ctx.schedule(ctx.now() + 500, "mounts.sync_now", {
+          mountId: m.id,
+          idempotencyKey: `pass:${m.id}:${ctx.now() + 500}`,
+        });
+      } catch {
+        /* the next scheduled pass sends it */
+      }
+    }
+    return { resolved: true };
+  }
+  if (!provider.download || !provider.upload)
+    return fail(ctx, "validation.precondition_failed", "This folder cannot send changes.");
+  let copy: string | undefined;
+  await exclusive(`mount:${m.id}`, async () => {
+    const item =
+      (
+        ctx.db.all("SELECT * FROM mounts_item WHERE mount_id = ? AND item_key = ?", m.id, first["item_key"]) as Row[]
+      )[0] ?? first;
+    if (!flag(item["conflict"])) return fail(ctx, "validation.precondition_failed", "This file has nothing to settle.");
+    const rows = itemsOf(ctx, m.id);
+    const parent = rows.find((r) => r["item_key"] === item["parent_key"]);
+    if (choice === "keep_both") {
+      // keep_both writes a copy at the provider: never on a Read only mount or a file the person may not edit there
+      if (m.pullOnly || item["can_edit"] === 0)
+        return fail(
+          ctx,
+          "validation.precondition_failed",
+          `This folder is read only, so a copy cannot be saved at ${provider.label}. Use theirs, or ask the owner for edit access.`,
+        );
+      if (!parent || isNull(parent["remote_id"]))
+        return fail(ctx, "validation.precondition_failed", "The folder is not at the provider yet.");
+      copy = copyName(str(item["name"]), whoLabel(m));
+      await provider.upload!(ctx, m, {
+        fileId,
+        name: copy,
+        parentRemote: str(parent["remote_id"]),
+        key: `mnt:copy:${m.id}:${str(item["item_key"])}:v${num(item["local_version"])}`,
+      });
+    }
+    const there = provider.stat ? await provider.stat(ctx, m, str(item["remote_id"])) : undefined;
+    const dl = await provider.download!(ctx, m, {
+      remoteId: str(item["remote_id"]),
+      name: str(item["name"]),
+      ...(there?.mime !== undefined ? { mime: there.mime } : {}),
+    });
+    const version = await filesWrite(
+      ctx,
+      fileId,
+      dl.blobId,
+      choice === "keep_both" ? `Their version, kept beside your edit` : `Used the version at ${provider.label}`,
+    );
+    patchItem(ctx, item, {
+      ...(there
+        ? { remote_version: there.version ?? null, cached_version: there.version ?? null, ...metaOf(there) }
+        : {}),
+      synced_version: version,
+      local_version: version,
+      dirty: 0,
+      conflict: 0,
+      wait_reason: null,
+    });
+  });
+  // the copy comes into the folder as a new file on the next pass
+  if (copy !== undefined) {
+    try {
+      await ctx.schedule(ctx.now() + 500, "mounts.sync_now", {
+        mountId: m.id,
+        idempotencyKey: `pass:${m.id}:${ctx.now() + 500}`,
+      });
+    } catch {
+      /* the next scheduled pass brings it in */
+    }
+  }
+  void row;
+  return { resolved: true, ...(copy !== undefined ? { copyName: copy } : {}) };
+}
+
 /** Last edited by, for the rows of a file list. */
 async function mountsEditors(ctx: Ctx, input: unknown): Promise<Row> {
   const ids = list(record(ctx, input)["fileIds"])
@@ -2043,6 +2699,7 @@ export const engineHandlers = {
   "mounts.open": (ctx: Ctx, input: unknown) => mountsOpen(ctx, input),
   "mounts.history": (ctx: Ctx, input: unknown) => mountsHistory(ctx, input),
   "mounts.restore": (ctx: Ctx, input: unknown) => mountsRestore(ctx, input),
+  "mounts.resolve": (ctx: Ctx, input: unknown) => mountsResolve(ctx, input),
   "mounts.editors": (ctx: Ctx, input: unknown) => mountsEditors(ctx, input),
   "mounts.nudge": (ctx: Ctx, input: unknown) => mountsNudge(ctx, input),
 };

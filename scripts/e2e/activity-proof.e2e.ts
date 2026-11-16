@@ -18,7 +18,7 @@ if (!TOKEN || !DIST || !CHROME)
   throw new Error("VYRE_TEST_CLAUDE_SETUP_TOKEN, VYRE_APP_DIST and CHROME_BIN are required");
 const OUT =
   process.env["E2E_OUT"] ??
-  "/private/tmp/claude-501/-Users-irfad-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/activity-proof";
+  "/private/tmp/claude-501/-Users-imran-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/activity-proof";
 fs.mkdirSync(OUT, { recursive: true });
 const scrub = (s: string): string =>
   s
@@ -87,7 +87,6 @@ async function main(): Promise<void> {
     await page.getByTestId("claim-password").fill("fixture stream password123");
     await page.getByTestId("claim-confirm").fill("fixture stream password123");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page).catch(async (e: Error) => {
       const ids = await page.evaluate(() =>

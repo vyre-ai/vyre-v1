@@ -63,7 +63,7 @@ test("pressing a tab goes to its first screen with a fresh history", () => {
 });
 
 test("no Automations, Journeys or Console on the phone (owner ruling, 3 Nov)", () => {
-  assert.deepEqual([...NOT_ON_PHONE].sort(), ["automation", "automations", "console", "journey", "journeys"]);
+  assert.deepEqual([...NOT_ON_PHONE].sort(), ["console", "journey", "journeys"]);
   for (const k of NOT_ON_PHONE) assert.equal(isAllowed(`${k}:anything`), false, k);
   assert.ok(
     isAllowed("desktop:automations:") && isAllowed("desktop:console:"),
@@ -97,12 +97,13 @@ test("You has My work, Starred and Settings", () => {
         selectTab: () => undefined,
         origin: undefined,
       }}
-      data={{ name: "Irfad Imtiaz", space: "Northwind", workOpen: 4, starred: 3 }}
+      data={{ name: "Imran Ibarra", space: "Northwind", workOpen: 4, starred: 3 }}
     />,
   ).replaceAll("<!-- -->", "");
-  for (const t of ["Irfad Imtiaz", "Northwind", "My work", "4 open", "Starred", "3 starred", "Settings"])
+  for (const t of ["Imran Ibarra", "Northwind", "My work", "4 open", "Starred", "3 starred", "Automations", "Settings"])
     assert.ok(has(out, t), t);
-  assert.ok(!has(out, "Automations") && !has(out, "Console"));
+  // round four: Automations are under You on the phone; the Console is not
+  assert.ok(!has(out, "Console"));
 });
 
 test("swipe: a row follows the finger up to the actions' width and settles open past half", () => {

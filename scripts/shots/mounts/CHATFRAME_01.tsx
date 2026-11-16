@@ -44,7 +44,7 @@ export default function Mount(): ReactNode {
     return {
       sidebar: createSampleSidebar(northwind).data,
       conversation: conv.data,
-      pane: { ...pane, me: { id: "usr_irfad" }, nameOf: (id: string) => NAMES[id] ?? id },
+      pane: { ...pane, me: { id: "usr_imran" }, nameOf: (id: string) => NAMES[id] ?? id },
     };
   }, []);
   return (

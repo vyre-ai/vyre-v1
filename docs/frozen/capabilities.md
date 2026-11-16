@@ -179,17 +179,17 @@ No capability contract, version, field or error changed, and no snapshot moved. 
 
 Every difference is listed with its justification in `lib/clock-golden-kit.test.ts`; `lib/clock.golden.test.ts` and `test/clock.golden.wrappers.test.ts` fail if any other recorded answer moves.
 
-Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 13 Nov 2026; shipped in rc.28, main 2576811cc)
 
 Added the same day (lead's ruling, 13 Nov 2026): a time zone given as a fixed offset ("+05:00", "-03:30") may already be stored on a live Space, so it keeps its meaning everywhere: `zones.ts` and the clock both read it as a fixed clock with no daylight saving (the clock used to read it as UTC), and `validZone` keeps accepting it; pickers still offer named zones only. And `instantOf` (a deadline typed into a goal, the zone-change example) now settles a time in a gap hour on the instant the gap ends in every zone; it kept the minutes and moved forward an hour west of Greenwich (3:30 AM for 2:30 AM in New York) and landed an hour before the gap east of it. `lib/zones.test.ts` ("a wall clock reading becomes an instant") changed to that rule; nothing else in it changed.
 
-Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 13 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 13 Nov 2026: new read `scheduler.can_hold@1` (lane b-clock, P1 step 3)
 
 `scheduler.can_hold@1` `{ person, agentId, channelId? }` -> `{ ok, reasons: not_in_space | cannot_use_agent | cannot_read_channel | agent_missing }`, level member, no agent tool (system use, as `agents.outside.usable`). It judges the person by their own grants (`ctx.mayAll`), never the caller's: an outside agent takes work from its owner only, a person's Assistant is its person's alone, any other agent needs Can use, and the channel needs view. `agents.routine.delegate@1` calls it before it hands a routine to a person and refuses with `validation.not_found` (not in the Space) or `validation.precondition_failed` with `details.reasons`; both errors were already declared, so that capability's contract is unchanged. Behaviour change: a routine used to go to anyone, `usr_zed` included; `modules/agents/tests/routines.test.ts` ("delegate hands a routine ...") changed to expect the refusal. The count test in `modules/scheduler-api/tests/live.test.ts` moved from 18 to 19 capabilities. Snapshot: docs/frozen/snapshots/scheduler-api.json.
 
-Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 13 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 13 Nov 2026: the Wake table, first half: scheduler.claim, scheduler.report and the wake columns (lane b-clock, P1 step 3a)
 
@@ -199,7 +199,7 @@ Additive; nothing calls it yet. Migration `modules/scheduler-api/migrations/0003
 - A periodic job `scheduler.wakes` (the host runs it where the scheduled-work lease is held) makes the due fire of every wake that is not a plain `call` (INSERT OR IGNORE on the key, so two ticks and two computers make one) and runs one bounded retention pass: a `call` or `baton` wake keeps its last 20 finished fires and any that failed in the last 7 days; routine, watch and goal fires are kept 400 days; a due, claimed, running or waiting fire is never deleted; one pass deletes at most 500 rows. `tick` still fires plain `call` schedules as before.
 The count test in `modules/scheduler-api/tests/live.test.ts` moved from 19 to 21 capabilities. Snapshot: docs/frozen/snapshots/scheduler-api.json.
 
-Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 13 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 14 Nov 2026: scheduler.report carries the attempt; a missed stretch is one fire; a stuck fire is swept (lane b-clock, P1 step 3a, after the review)
 
@@ -207,19 +207,19 @@ Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
 
 What a person notices after the update, in plain words (all decided by the lead, 13 Nov 2026): a repeating task held by someone in a time zone with daylight saving now keeps its wall-clock time across a clock change (it used to drift by an hour); a deadline typed in an hour that does not exist lands when the gap ends; a fixed offset such as "+05:00" is read as a time zone again.
 
-Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 14 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 14 Nov 2026: who makes a wake of another kind, a first time for the backfill, and the tick path (lane b-clock, P1 step 4, scheduler side)
 
 Additive; nothing calls it yet. `scheduler.schedule@1` gains the optional input `nextAt` (a first time carried over exactly from a routine that already had one; refused with `permission.no_grant` for anyone but the host). A schedule whose `kind` is not `call` may name only the capability its kind has in a fixed table in code (`routine` is `agents.routine.fire`, any other is `validation.bad_input`), and only the host or a nested call from `agents.routine.save`, `agents.routine.delete` or `agents.routine.delegate` may make or change one (`reschedule`, `pause`, `resume`, `cancel`); a person, an agent, a tenant service and an outside agent calling `scheduler.*` directly get `permission.no_grant`. `scheduler.report@1`'s `state` gains `skipped` (a fire the target did not start). The periodic pass `scheduler.wakes` now also claims each due fire (and a claim whose lease ran out), calls the wake's capability as module code with the Run key `<kind>:<owner id>:<due ms>`, and reports it running with its Run, or skipped. Snapshot: docs/frozen/snapshots/scheduler-api.json.
 
-Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 14 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 14 Nov 2026: runs.states, and who may touch a wake of another kind (lane b-clock, P1 step 4, after the fourth review)
 
 New read `runs.states@1` `{ runIds }` (at most 200, `maxItems`) -> `{ states: [{ runId, status }] }`: EVERY id asked gets an answer, its status or `gone` for a Run that is not there. The server's alone (`permission.no_grant` for anyone else), no agent tool. It lets the sweep of open fires ask a slice of Runs in one call, and the sweep closes a fire only on an explicit status: an answer of the wrong shape, or one that leaves an id out, closes nothing. Behaviour changes, all on wakes of another kind (none exist on any Space yet): a wake is seen and changed only by the host or by a nested call from the agents module's `agents.routine.save`, `.delete` or `.delegate` (never by the stored principal), so a routine handed to someone else is the new owner's through the door at once; a routine has at most ONE wake (a second is refused with `validation.precondition_failed`, reason `wake_exists`); `scheduler.run_now`, `scheduler.fire` and `scheduler.catch_up` do not act on such a wake; `scheduler.list` shows them only to the host and the doors; `max_attempts` is honoured (a fire that fails past it ends failed with its last reason); a caller who may not make a wake is refused before the idempotency lookup; the sweep closes a fire only if it is still as it read it. Snapshots: docs/frozen/snapshots/runs.json (and scheduler-api.json unchanged by this).
 
-Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 14 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 13 Nov 2026: computers.chrome.screenshot answers pageWidth, pageHeight and scale (lane f-computer)
 
@@ -227,32 +227,32 @@ Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
 
 Signed: the lead, 13 Nov 2026
 
-## 13 Nov 2026: notifications.unseen_by_thread is added (lane b-side), for the lead to sign
+## 13 Nov 2026: notifications.unseen_by_thread is added (lane b-side)
 
 - What changed: one new read, `notifications.unseen_by_thread@1` (module notifications, level member, tool meta). Input `{ threadIds?: thread[] (at most 200) }`; output `{ counts: [{ threadId, mentions >= 1 }], capped: bool }`. Additive: no existing capability, event or kind changed. Snapshot: `docs/frozen/snapshots/notifications.json`, regenerated with `node tools/gen/src/cli.ts --snapshots`.
 - Why: the Chats sidebar shows a mention count on a row, and no read carried it (a mention reached only the rail). The read answers the caller's OWN unseen mention notifications (kinds mention and mention.thread) grouped by thread, newest first, at most 500 threads (`capped` true when there were more; the oldest are left out); it never answers for another person, and it names only threads a notification was filed for the caller about. The sidebar's read joins it onto the chats it already lists, so a thread the caller cannot open is never shown.
-- Signed: ______ (lead)
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 
-## 13 Nov 2026: chats.presence is added (lane b-side), for the lead to sign
+## 13 Nov 2026: chats.presence is added (lane b-side)
 
 - What changed: one new read, `chats.presence@1` (module chat, tool chats, `team: true` like `devices.presence`). Input `{}`; output `{ people: [{ personId, state: online | away }], working: [{ agentId, threadId?, since }] }`. Additive: no existing capability, event or kind changed. Snapshot: `docs/frozen/snapshots/chat.json`, regenerated with `node tools/gen/src/cli.ts --snapshots`.
 - Why: the Chats sidebar draws a presence dot on people and a moving ring on agents that work. Presence changes often, so it is a separate small read and stays out of the sidebar's own answer, which then stays quiet. It composes `devices.presence` and `engine.now`, which already answer as the caller: offline people are left out, a chat is named only when the asker may read it, no title leaves it, and a guest (no team) gets nobody.
-- Signed: ______ (lead)
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 
-## 14 Nov 2026: chats.sidebar is added (lane b-side), for the lead to sign
+## 14 Nov 2026: chats.sidebar is added (lane b-side)
 
 - What changed: one new read, `chats.sidebar@1` (module chat, level member, tool chats), also a live query (`side`) of the `chats.sidebar` screen. Input `{ filter?: str (everything, or unread, mentions, working, needs, failed, muted, goals, asks, archived, imported; anything else is refused in plain words; `imported` is drawn by the device from `sessions.list` and answers no rows here), more?: { section, after?, limit? (at most 100) } }`; output `{ needs: { total, items }, goals | pinned | chats | channels | team: { total, rows (a page of 50, at most 100), next? }, rail, nextUnread? }`; a goal row also carries `line` (the words under a goal that is not moving) and `nextCheckinAt`, except a goal that waits on the person: its Unblock task is in `needs` (a needs item whose source is that goal, matched by the goal's id; a task made before this version, which names no goal, is matched by its title "Stuck: <goal title>"; both over the first 50 needs items the read carries), so its row carries neither and says nothing a second time. Every section pages by `more` (`after` is a row key: the chats section accepts only the key of one of the caller's own chats, any other key gives the first page), so no section stops at its first 50 rows; the app asks for the next page when the person asks for more. People and agents are ids and names only: the server never sends a title for them beyond the person's or agent's own name. People beyond the first 500 principals are read page by page. Additive: no existing capability, event or kind changed. Snapshot: `docs/frozen/snapshots/chat.json`.
 - Why: the sidebar made 11 reads on open and drew marks no read carried. This is the one watched answer: per row unread, mentions, working, muted, the caller's pin order, and `failed` plus `failedLine` in words (a code or trace id never). It answers as the caller: pinned and muted are the caller's own; a caller who may not start chats (a guest) gets only the chats and channels they are in, no goals, team or agents. Presence is only in `chats.presence`; a draft is the device's own and never in it.
 - The SOURCE of pins and mutes is an internal detail: today the caller's stars (newest first is the order) and the chat module's own mutes behind one port; the per-person state module replaces it with no change of shape. `failed` and `failedLine` are filled from `engine.thread_states` (one bulk read of the latest turn of the rows the answer carries, never one per row). If whoami cannot be read the caller is treated as a guest (the read fails closed).
 - Proof: modules/chat/tests/sidebar.read.test.ts pages 5,000 chats by cursor (one read per page; each read asks every neighbour the same number of times; the chat module reads only the page it carries). Speed: modules/chat/tests/sidebar.read.perf.test.ts holds the first page and a later page of a person with 5,000 chats and 200 channels under the `navigate` budget (p95 100 ms) over 50 runs: one read per page, each asking every neighbour the same number of times, none per row.
-- Signed: ______ (lead)
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 
-## 14 Nov 2026: engine.thread_states is added (lane b-side), for the lead to sign
+## 14 Nov 2026: engine.thread_states is added (lane b-side)
 
 - What changed: one new read, `engine.thread_states@1` (module engine, tool chats). Input `{ threadIds: thread[] (at most 200) }`; output `{ states: [{ threadId, state: running | waiting | failed | done, failedLine? }] }`. Additive: no existing capability, event or kind changed, and nothing about how turns run. Snapshot: `docs/frozen/snapshots/engine.json`.
 - Why: the Chats sidebar marks a chat whose last run stopped. No read gave the latest turn of many chats at once, and one call per row would break the sidebar's "nothing per row" rule. This reads the engine's own table with one grouped query (the turn with the highest queue number per chat). queued counts as running, completed and cancelled as done. `failedLine` is the plain message the turn failed with (or "Something went wrong."), never a code, a trace id or a next-step list.
 - Asker rule: a chat has a state only when its latest turn was asked by the caller and the caller may view it; any other chat is absent, the same answer as a chat with no turn, so the read never says a chat exists. (The kernel's view of a chat is wider than who may open it: a private chat's membership is the chat module's own rule, found on a real daemon where a member was told the state of the owner's private chat before this was narrowed.) Tested with two askers and on a booted daemon.
-- Signed: ______ (lead)
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 ## 13 Nov 2026: the state module, per-person state on a thing (lane b-state, contract P2 step 0)
 
 - What changed: a new manifest `manifests/state.ts` and snapshot `docs/frozen/snapshots/state.json`. Thirteen capabilities, all new at `@1`: six public (`state.get`, `state.list`, `state.counts`, `state.read`, `state.read_scope`, `state.set`) and seven the host makes itself (`state.arrive`, `state.retract`, `state.merge`, `state.gain`, `state.lose`, `state.forget`, `state.verify`; the handler refuses everyone but `svc_host`). One event, `state.changed` (`vis: owner`; payload person, thing, changed, now and `by`, so an agent's change names the agent). One person setting, `state.agents_may_triage`, default off. The six public capabilities have agent tools `state_get`, `state_list`, `state_counts`, `state_read`, `state_read_scope`, `state_set` in the `meta` toolset, all `deferred` so the default listed toolset stays at 65.
@@ -262,7 +262,7 @@ Signed: the lead, 13 Nov 2026
 
 - Amended 13 Nov 2026 after the review (lead's ruling 13 Nov 2026; contract P2 section 9), still before signing: the three events are `vis: private` (the Space owner does not read them, and a mute that ended reaches the person it belongs to through a host-only `EmitOpts.onBehalf`); `state.changed` carries the new `state` and `count`; new event `state.scope_read` (one event for a whole badge) and `state.layout_changed`; two new deferred tools `state.layout.get` and `state.layout.set`; `state.set` gains `pin`; `state.list` gains the flags `pinned` and `any` and its rows carry the whole `state`; the stored value gains `pin`. The seven host calls declare `permission.no_grant`. Writes need the person's own press, or their switch `state.agents_may_triage`, on every other door (MCP, engine, service, actor, agent).
 
-Signed: (awaiting the lead)
+Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 
 ## 13 Nov 2026: access.connector_builder.status can be asked about one Vault item (lane f-auto2)
 
@@ -280,7 +280,7 @@ Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff
 
 Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.
 
-## 14 Nov 2026: `sites.update` emits the new event `site.access_changed`, and who may change a site's access (lane f-auto-ids, findings F56, F62 and F64), for the lead to sign
+## 14 Nov 2026: `sites.update` emits the new event `site.access_changed`, and who may change a site's access (lane f-auto-ids, findings F56, F62 and F64)
 
 - What changed: `sites.update` changed who may reach a site (public, password, the Space, private) and said so nowhere the kernel could see, so a site set private stayed open to every member (F56). It now emits `site.access_changed` ({ siteId, access }) when the access changes, and the site's registration follows it. No version moved: a new event and an event a write may now also emit. Snapshot `sites.json` carries the new hash for `sites.update@1` and the new event.
 - The access rule (F64): a site moves out of the Space only when its access is private; any other access (public, password, space) puts it under the Space. Who may set it: only a person who owns the site or holds Manage on it, for every value. A member who may only edit the site (every member holds Edit on a Space site) is refused, and so is an agent, the agent that made the site included: its Edit lets it work on the site and rename it, never decide who may reach it. A refusal answers `permission.no_grant` in plain words ("Only the owner of this site, or someone who manages it, can change who may reach it."), changes nothing and emits nothing. A rename by a member with Edit stays allowed; a member with only View is refused as before. A start-up pass closes only sites whose own row says private.
@@ -288,7 +288,7 @@ Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff
 - The four access answers that tell a screen who may share, request, export or send to a provider (`access.provider_check`, the connector builder status, `access.request`, `access.share`) use the decision snapshot, like `access.check` and `access.reach`. They differ from the store's own snapshot only in a Space whose built-in roles lack the seeded Space grant (the case F49 fixed for check and reach), where they now match what the server enforces; `modules/access/tests/decision-snapshot.test.ts` holds each one.
 - What an agent holds on a site it made for a person is one shared rule, `madeForGrant` (`host/src/invoke.ts`): Edit on that one site, written at its birth, listed in the site's sharing list and removable by the person.
 
-Signed: ______ (lead)
+Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 
 ## 14 Nov 2026: a person can take the keyboard of a terminal (lane b-pc)
 
@@ -303,23 +303,23 @@ Signed: ______ (lead)
 - `terminal.keys` (write, level use): keys as a person at a keyboard presses them, text, a named key or a paste, raw through tmux send-keys; for the person who holds the keyboard (refused to anyone else while a hold stands). Never stored, audited or logged by Vyre; what is typed at a hidden prompt is not printed by the program, so no screen, scrollback, log pipe or read has it (tested on a real tmux, modules/terminal/tests/keys.heavy.test.ts). Not an agent tool.
 - Both terminal capabilities need a host with tmux; another host answers `validation.precondition_failed` and the app falls back to the line terminal.
 
-Signed: pending the lead (lane b-pc did not sign it).
+Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 
-## 14 Nov 2026: three new reads are open to every member, a guest included (lane b-side), for the lead to sign
+## 14 Nov 2026: three new reads are open to every member, a guest included (lane b-side)
 
 - What changed: `chats.presence`, `notifications.unseen_by_thread` and `engine.thread_states` were first added at level `view` (the Space's View grant) and are now level `member`, like `chat.recent`, `chats.sidebar` and `channels.list`. They were never released at `view`: no caller outside this branch could have used the old level. Nothing else about the three changed.
 - Who gains: a guest, who holds no View on the Space, is no longer refused (before: 403 permission.no_grant, which the sidebar would have shown as a failed section). Who loses: nobody; a principal that held `view` is a member.
 - What a guest gets from each, proved with a real guest on a booted daemon (test/chats.sidebar.asker.live.test.ts): `chats.presence` answers no people and no agents at work (it composes `devices.presence` and `engine.now`, which refuse a guest, so each half is empty); `notifications.unseen_by_thread` answers only the guest's own unseen mentions, none when they have none, and never a thread they cannot open (the query is scoped to the asker and names only threads a notification was filed for them about); `engine.thread_states` answers only chats whose latest turn the guest asked and may view, and nothing for the owner's private chat.
 - Why refusing was wrong: the sidebar is the first thing a guest sees, and it reads these three on every open; a refusal drew a failed section for the one person who has the fewest things to show.
-- Signed: ______ (lead)
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 
-## 14 Nov 2026: a note counts its saves, and notes.update can refuse a stale one (lane f-writes, finding F50), for the lead to sign
+## 14 Nov 2026: a note counts its saves, and notes.update can refuse a stale one (lane f-writes, finding F50)
 
 - What changed: the note row (the output of `notes.create`, `notes.get`, `notes.list`, `notes.update`, `notes.pin`, `notes.label`, `notes.share`, `notes.set_owner`, `notes.restore`, `notes.clip`, `notes.to_task`, `notes.to_record`) gains a required `version` (a whole number from 1, counting the saves of the note, as a task's does). `notes.update` takes an optional `expectedVersion` and lists `validation.version_conflict` among its errors. Snapshot: docs/frozen/snapshots/notes.json. Migration: modules/notes/migrations/0004_note_version.sql adds the column with default 1, so every existing note starts at 1.
 - Behaviour: with `expectedVersion` on an older number the update is refused (`validation.version_conflict`, "This note changed after it was read, so this change was not saved. Read the note again and redo the change.") and nothing is written. Without it the update saves, as before, and counts a version. Every save of a note is written only if the note is still on the version it was read at, so a save that waited (for a picture or a link) can no longer write its old copy over a save that landed meanwhile; pin and label, which say what they want and not what the note was, are made again on the newer note instead of being refused.
 - Who gains: a caller that sends the version it read is never silently overwritten. Who loses: nobody; no input was removed or made required, and a person's own edit in the app sends no version, so it saves as it did.
 - Not changed: agents have no tool that writes a note (`notes_create`, `notes_get` and `notes_search` only), so no agent can lose a note's text this way today; the version is ready for the day one does.
-- Signed: ______ (lead)
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 
 ## 14 Nov 2026: a routine's clock is a wake: agents.routine.fire (lane b-clock, P1 step 4, agents side)
 
@@ -327,7 +327,7 @@ New write `agents.routine.fire@1` `{ routineId, dueKey }` -> `{ started, runId?,
 
 Proved on three data folders made by the rc.26 build (Space zones UTC, Karachi, New York; six routines, a watcher, a self-paused routine): after the first start every enabled cron routine has one UTC wake whose first time equals its stored `nextRunAt`; each time that comes, with the old tick and the new tick both running in the same minute, exactly one Run starts (11 fires, 11 Run keys, the same set, no key twice, most attempts on any fire: 1); the next time after each is the one recorded with the old build; a restart changes nothing.
 
-Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 14 Nov 2026; shipped in rc.28, main 2576811cc)
 
 
 ## 14 Nov 2026: engine.round.get added (lane chat-agents)
@@ -345,13 +345,32 @@ Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
 - What changed: one new write, `chat.round.discuss@1` (input: threadId, messageId, idempotencyKey; output: the thread). After a message asked several agents and at least two answered, the person who asked lets them talk it over: the inline thread under the message gets one message from the person with the answers and a request for one short turn each, ending on a "Decided:" line; the first agent is tagged and tags the next, so the engine's hand-off limits cap it at four turns. It emits `agent.engaged` for agents it brings into the thread. Snapshot: docs/frozen/snapshots/chat.json.
 - Why: the round table's "Let them discuss" (G57). It adds no new engine rule: the talk is ordinary turns on the asker's account, bounded by the hand-off limits of 4 Nov.
 
-## 15 Nov 2026: the events feed reads what a person may view (finding F61, lane f-events-reach), for the lead to sign
+## 15 Nov 2026: Rewind, review fixes (lane b-chat2)
+
+- `engine.rewind.to` no longer takes `afterSeq` and `uptoSeq`: the engine works the range out itself (from the point's own message, which must be the caller's, to the newest message), so a person with Use on a shared chat cannot choose what to fold. It is refused while a turn of that agent is running in the chat ("Stop <name> first, then go back."). Its answer gains `failedPaths`, `during`, `afterSeq`, `uptoSeq`.
+- `engine.rewind.points` gains `ownComputer` (an agent of the chat works on the person's own computer, which takes no point), `during` on a point (finished after the agent began) and `interrupted` on an `active` entry (a rewind cut short, listed with Undo). `chat.rewind` answers `failedPaths` and `during`.
+- New migration `0019_rewind_state.sql` (`engine_rewind.kind`, `.state`): a rewind is written as "going back" before the files move; an Undo is its own row.
+- New periodic `engine.checkpoint_sweep` (hourly). `engine.checkpoints_erased` no longer fires on `agent.deleted` (Trash keeps an agent's points; the sweep removes them after 14 days).
+- A point is only taken for a chat with an agent that runs on this server (an unknown placement takes none); secrets are kept out BEFORE the add (`lib/secret-files.ts`, browser stores included), so no object of the store holds one; the store is mode 700. A restore leaves alone any path that holds a secret now and names it. Turn starts of an agent wait while a rewind of that agent is going back.
+- The server's pre-update archive (`vyre-pre-<version>-<time>.tar.gz`, `stage_copy` in `scripts/install/linux/vyre-server`) leaves the Space's `checkpoints/` out (the work folders stay in, as on rc.28). After an update is rolled back from that archive, the points are simply gone.
+- The product has no permanent delete for an agent (`agents.delete` is Trash only), so nothing erases an agent's points when it is deleted: they expire after 14 days (hourly sweep).
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
+
+## 15 Nov 2026: Rewind in a chat with other people, and the folded range in the read (lane b-chat2)
+
+- `chat.rewind` is no longer refused in a chat with other people (a chat with an agent that is not a channel). A person goes back only to their own message: the point must be one of theirs (the points and the agent's work folder are per person) and the message that began it must be theirs, else `validation.precondition_failed` ("You can only go back to your own message."). The line it leaves now carries who did it (`by`). A guest is only ever in a channel, which never goes back. The agents of that chat stop reading everyone's messages after the point, which the card says.
+- `engine.rewind.points` also returns `active`: the rewinds in force in the chat (the range of messages folded away, who went back, and `undoPointId` only for the person who went back). Nothing is written by the read. A chat with other people now answers `available: true` (it answered `why: "group"` before).
+- Why: the owner asked for the prototype's chat in the product ("I need the prototype's chat experience in the actual app"); the prototype folds the later part away with an Undo line.
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
+
+## 15 Nov 2026: the events feed reads what a person may view (finding F61, lane f-events-reach)
 
 - What changed: no capability or event is added or changed. `events.since`, `events.list` and `events.get` (the read port in `host/src/seams/events-ports.ts`, `scan()` and `get()`) now drop an event unless the reader may VIEW the thing it is about: the kernel's authorize first, then, for a chat, an agent and a channel (an invite-only channel, and the channel a private project is created with), the owning module's own read as that person through the `moduleView` hook wired in `host/src/daemon/daemon.ts` (`threads.get`, `agents.get`, `channels.get` plus a read of the channel's main thread when the channel is invite-only: the Console's governance view of a channel never counts). An event about no resource keeps the visibility it was written with. The rule runs at read time, so stored history is covered.
 - Who keeps what: the PERSON who made an event, or the person it was made on behalf of, keeps it. An agent acting for Mia never keeps what the same agent made for Olivia: the keep is keyed on the person the reader is or acts for, never on the agent principal alone (`madeBy`). The host itself (svc_host, marked `system`) is not filtered; a guest is refused as before.
 - The 10 second cache: a module's verdict is kept per reader and per thing for 10 seconds (and per call for the kernel's). A person just removed from a chat or channel keeps reading its events for up to 10 seconds; a person just added reads them after up to 10 seconds.
 - What it does not hide: ids with no name (the record, folder and channel ids of a private project in `project.created` and `grant.created`; who was added to a private chat in `channel.member_added`).
 - Why: before this every member of a Space could read private things (a private chat's ids and timing, a private channel's name, what an agent made for someone else) through the feed.
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 
 ## 14 Nov 2026: what the keyboard hold and the browser picture changed in existing capabilities (lane b-pc, after review r-agentpc)
 
@@ -362,11 +381,17 @@ Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
 - Snapshots: docs/frozen/snapshots/terminal.json and computers.json.
 
 
+## 14 Nov 2026: Rewind added, engine.rewind.points, engine.rewind.to and chat.rewind (lane chat-agents)
+
+- What changed: three new capabilities. `engine.rewind.points@1` (read; the points a person can go back to in a private chat with an agent), `engine.rewind.to@1` (write, risk high, audit always; puts the agent's work folder back and hides messages afterSeq..uptoSeq from the agents) and `chat.rewind@1` (write, risk high, audit always; the person's call: it uses the two above and leaves one "Went back" line). New table `engine_rewind` (migration 0017). The turn engine gains `hide(threadId, afterSeq, uptoSeq)`. Snapshots: docs/frozen/snapshots/engine.json and chat.json.
+- What it undoes: the files in the agent's work folder (from a checkpoint taken as each turn starts, in a store outside the folder), and what the agents read as history. What it never touches: the chat's messages, anything already sent (email, messages, posts), records and tasks, other computers and servers, files outside the work folder. Off in a chat with other people; only the person, never an agent. A rewind first takes a checkpoint of the present, so it can itself be undone.
+- Why: the owner's prototype shows Rewind in the chat menu, on a message and as /rewind (G36, G37).
+
 ## 14 Nov 2026: round writes are a person's press only, engine.round.get drops `on` and hides private Assistants (lane chat-agents, review of 1fb7e786a)
 
 - What changed: `chat.round.decide` and `chat.round.discuss` are no longer agent tools (no `tool`), and their handlers refuse any caller that is not a person (`permission.role_lacks_permission`). `engine.round.get` loses the output field `on` (never set since one turn per agent) and leaves out a person's private Assistant, an outside agent they connected, and any agent that cannot be read, for every reader but its owner. Behaviour without a contract change: one Decided line per round (the same choice again is the same line, the other agent replaces it, a round the asker has since written past is refused); one discussion per message (a second press opens the thread and starts no turns). Snapshots: docs/frozen/snapshots/chat.json and engine.json.
 
-## 14 Nov 2026: seven more capabilities take an optional version, so a second write cannot silently replace the first (lane f-writes, finding F50), for the lead to sign
+## 14 Nov 2026: seven more capabilities take an optional version, so a second write cannot silently replace the first (lane f-writes, finding F50)
 
 All additive: every new input is optional, no input, output or error was removed or made required, and a caller that sends nothing behaves exactly as before. Each new input says what the caller read; a write made when the thing has changed since is refused with `validation.version_conflict` (added to the capability's errors) and nothing is written. The agent tool layer sends the value for an agent (agent/src/tools/versions.ts), so a model never has to. Snapshots regenerated: docs/frozen/snapshots/{sites,goals,calendar,vault,files}.json.
 
@@ -381,7 +406,7 @@ All additive: every new input is optional, no input, output or error was removed
 - A turn placed on a device is guarded by reasoning from the code only (the engine that notes the turn start and the tool layer share the Space's process; only the engine process runs on the computer) and has no run behind it yet.
 - A page republish that never settles holds that page's claim until the process ends (it is not bounded by a timeout), and an unversioned republish racing a versioned one is not protected, as before.
 - Tokens: none. These seven version inputs are hidden from the model's tool schema (the tool layer fills them; a value a model sends for one is dropped); they stay in the capability contract for people's clients.
-- Signed: ______ (lead)
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 
 ## 14 Nov 2026: the outcome line says whose words it is (lane chat-agents, review)
 
@@ -391,15 +416,31 @@ All additive: every new input is optional, no input, output or error was removed
 
 - What changed: the contract of `chat.round.discuss@1` now lists `emits: agent.engaged, message.received, message.direct, message.mentioned, thread.replied, thread.unarchived, thread.updated` (it was `agent.engaged`). No input, output, level or error changed. Why: the discussion's seed is now a quiet line written as the person in the thread under their message, delivered the way `threads.poke` delivers its line (the same seven events), so the first agent is woken by its mention and the chat's notices and counts follow. The seed is `kind quiet` with a `discussion_seed` block (drawn as "Dex and Nova are talking it over", never as the person's words), it runs on the asker's own account and asks for nothing outward (it is not typed). Snapshot: docs/frozen/snapshots/chat.json.
 
-## 15 Nov 2026: the connect capabilities are off by default in rc.28 (lane connect-off, review r-keyreach-9-b-connect), for the lead to sign
+## 15 Nov 2026: the connect capabilities are off by default in rc.28 (lane connect-off, review r-keyreach-9-b-connect)
 
 - What changed: ten capabilities the connect work added (`vault.connect`, `vault.connect_card.get`, `.options`, `.submit`, `.ask_admin`, `.reopen`, `.disconnect`, `connectors.for_service`, `connectors.check_key`, `vault.item.discard_new`) each declare one more error, `internal.not_implemented`. While the switch `VYRE_CONNECT_CARD` is not `1` (the default) every one of them refuses for every caller, a person, an agent, a guest or an agent acting for a person, with the one plain message "Connecting a service this way is not available yet.", before anything is read, written or emitted. The switch is one function, `connectCardOn` in `lib/connect-switch.ts`; the code is not removed. With it off, `vault_connect` and the connect card's other tools are not listed and not found with `tool_search`, `vault_request` stays in the frozen default list (65 tools, as on rc.27), no skill names `vault_connect`, and a request for a key draws the plain key request card.
 - `vault.item.discard_new` also drops `tool: "vault"` and sets `agent: false`, switch on or off: it is no longer an MCP tool in any agent's list (the reviewer's item C2). Its input and output did not change.
 - `vault.request` has its rc.27 description back (it no longer says "use vault_connect").
 - Why it is off: the reviewer found three open items. A: `savedKey` in `modules/vault-requests/handlers/connect.ts` offers a person's saved Mine item to a connector by name alone, so an agent-published connector titled like a saved key gets that key offered, and a stamp on the item (connector and hosts, set by the card's own save) is needed. B: what a person approves is the connector's declared domains, not the hosts its actions call, so a connector can declare an extra domain and have a key sent there. C: `vault.item.discard_new` is a general erase of anything the person made in two minutes and was an MCP tool in every agent's list; it must be bound to the card's own request. None is fixed here; turning the switch on needs all three fixed and reviewed again.
 - Snapshots: docs/frozen/snapshots/vault-requests.json, connectors.json, vault.json.
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
 
-## 15 Nov 2026: terminal rows carry threadId, terminal.open takes own, terminal.status gives lastCommand (lane b-pc), for the lead to sign
+## 15 Nov 2026 (rc.29): typing into an agent's terminal is on, and each batch of keys is applied at most once and in order (lane b-pc2)
+
+- What changed: `terminal.keys` takes three required fields, `lease` (the take-over's lease), `seq` (the batch's number in that take-over, from 1) and the sender's `idempotencyKey` (its idempotency is now `key`, was `none`). `terminal.take_over` answers two optional fields, `lease` and `nextSeq`. `terminal.take_over`, `terminal.keys` and `terminal.give_back` are audited always, as the person who did them (never as the agent). `terminal.workspace` `takeOver` now answers true unless the Space server runs with VYRE_TERMINAL_TAKEOVER=0 (the switch is on by default; the env var stays as the way to turn it off; with it off the rc.28 refusals and "nothing reads as held" apply unchanged).
+- Why: in rc.28 a batch of keys that was re-sent (the app retries a call whose answer was lost; a reconnect replays) ran twice in the agent's terminal, and a late re-send could land after the keyboard was handed back. Nobody could use the keys because of it, so no client of the rc.28 shape exists (take-over was off for every caller).
+- The rule: a batch is applied at most once. The server writes the batch down (lease, number, key, person) and spends its number BEFORE tmux is touched; a repeat of the same key answers the first answer (the screen included, or the same refusal) and types nothing, also after the keyboard was handed back and also when the first try failed half way. A number that skips ahead, a number already used with another key, a lease of an older take-over, and a call from anyone who does not hold the keyboard (another person, the agent, an agent acting for the holder, nobody holding) are refused with `validation.precondition_failed` (details.reason: seq_gap, seq_used, lease_old, not_holder, keyboard_held) and type nothing. A repeat that arrives while the first is still being sent is refused with reason in_flight and the sender asks again. Batches reach tmux in number order, one at a time per terminal. A record lasts ten minutes. A new take-over (a different holder, or after a give back) has a new lease and starts again at 1; a holder who takes again keeps the lease and the place.
+- Who may take it: whoever may enter the agent's computer (its owner, the Space's managers; a guest never, a person with only Use on the agent only after the per-person wall lands, and then only their own terminals).
+- The agent's refusal sentence now says what is true: while a person types in a computer's terminal the agent's commands are refused (not queued) until the keyboard is handed back or 15 quiet minutes pass.
+- Added the same day (review of the first push): a repeat's answer, the batch record and the host's idempotency copy of `terminal.keys` hold `{ok}` only, never the screen, and the stored input leaves the typed text out (no hash of it either); a batch's records are deleted when its lease ends (give back, a new take, close). A batch of more than 100,000 characters is refused (`validation.bad_input`) before its number is spent. A pane left in tmux's copy mode is taken out of it before keys are sent.
+- A person's own terminal (one on the Space's server or a device, or their own tab in an agent's computer) is theirs alone: `take_over`, `keys`, `give_back`, `capture`, `read`, `attach`, `input`, `interrupt`, `resize`, `rename` and `close` by anyone else, a manager and the agent included, answer `permission.role_lacks_permission` (details.reason terminal_not_yours). They still appear in `terminal.list` with who types. An agent's own terminals are entered by whoever may enter its computer, as before.
+- A holder who is suspended, removed from the Space or signed out (`principal.suspended`, `member.removed`, `session.revoked`) gives the keyboard back at once (consumer `terminal.holder_gone`). `terminal.taken` and `terminal.given_back` carry optional `agentId`, `agentName` and `agentOwner` when someone other than the agent's owner acts; the chat module (consumer `chat.keyboard_lines`) writes one system line in the owner's chat with that agent ("Wes took the keyboard of Desk's terminal."), which only the people in that chat read. The line carries the message's own time.
+- Second review, same day: `terminal.run` with a `terminalId`, `terminal.rename` and `terminal.status` follow the same rule (`run` and `rename` refuse as the other doors do, and `rename` now needs entry to the agent's computer; `status` of someone else's own terminal answers its state and exit code only, no last line or last command). A terminal with no recorded opener is refused to every person; an old row owned by an agent id is the agent's. A manager may close (never read or type into) a terminal whose opener is no longer an active member, and a suspended or removed person's own terminals are closed with them. A repeat of a batch number with other keys is refused (`keys_differ`, a keyed hash kept in memory per live lease, never written). When the owner has no chat with the agent, the keyboard line makes one; names in the line are quoted, cut to 40 characters and stripped of line breaks and markup.
+- Two limits, stated plainly: keys typed while the person's screen is behind may land in a different prompt than the one they saw (the screen is a short poll of the terminal); and the agent can read its own terminal's screen, so it sees what a person types at a normal prompt (only a hidden prompt is kept from it).
+- Declared errors: no new codes. Snapshot: docs/frozen/snapshots/terminal.json.
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
+
+## 15 Nov 2026: terminal rows carry threadId, terminal.open takes own, terminal.status gives lastCommand (lane b-pc)
 
 - What changed: the terminal row (returned by `terminal.list`, `terminal.get`, `terminal.open` and the other calls that return a terminal) gains optional `threadId`: the chat the terminal was opened from, left out when it was opened from none. It is read from the tab record (`terminal_tabs.thread_id`); rows are shown only to who could see them before. `terminal.open` gains optional `own` (a person's call only; an agent gets `permission.no_grant`): it opens the agent's own terminal, named `agent`, the one the agent's commands land in, or returns the one already there, so nobody presses Attach. `terminal.status` rows gain optional `lastCommand` (the last command run in the terminal, scrubbed of Vault values, at most 200 characters).
 - Why: a "working in the background" line in a chat needs to know which chat a terminal belongs to; the Computer tab shows each terminal's last command instead of its last printed line (a prompt is not a command).
@@ -414,4 +455,190 @@ All additive: every new input is optional, no input, output or error was removed
 - `modules/computers/tests/lifecycle.contract.test.ts` pins that the computers handler table equals every computers capability. `computers.browser.preview` (a read, permission `computers.watch`, that never wakes the browser) is the eighth capability of the Space browser, so that test's description now lists eight (list, live view, a still picture, take over, give back, timeline, sites, sign out), its count is 67, and it asserts the preview is a read at `computers.watch`. The line's own count of 66 predates the preview.
 - The fail-closed preview: when the hold look-up fails, `computers.browser.preview` answers `state: held` with no `by` and no picture (the same state as when another person holds the browser, but it does not say who).
 - Snapshots: docs/frozen/snapshots/terminal.json and computers.json.
-- Signed: ______ (lead)
+- Signed: lead, 15 Nov 2026 23:37 PKT, after reading this note against the manifests and snapshots on the rc.29 line.
+
+## 14 Nov 2026: Rewind, review answers (lane chat-agents)
+
+- Contract changes since the first Rewind note, all inside capabilities not yet released: `engine.rewind.points` points gain `messageId` (the message that started that turn) and `undo` (the point a rewind took just before it; going back to it undoes the rewind); `engine.rewind.to` and `chat.rewind` answer `undid`. Migration `0018_rewind_undo` (a column on `engine_rewind`). The turn engine gains `onTurnStart` (the host takes a point as each CLI turn starts, never stopping the turn) and `unhide`. New consumer `engine.checkpoints_erased` on `thread.erased`, `agent.deleted` and `member.removed`: a point is a copy of a person's files, so it goes with the chat, the agent (when it moves to Trash) or the person.
+- Cost: a point is taken as a CLI turn starts and waits at most 100 ms; a slower one finishes in the background. Measured on box D (modules/engine/tests/checkpoints.measure.ts): 100 small files 50 ms per point; 20,000 files and 2 GB 260 to 470 ms per point after the first, and 9 to 88 s for the first. Disk: one compressed copy of the folder, then only what changed per point (200 turns of a small folder: 0.6 MB).
+- Retention: the last 30 points per folder, 14 days; a store over 3 GB loses its older half; the Space's checkpoints over 10 GB lose the longest-untouched store; nothing is taken when less than 1 GB of disk is free; every failure is swallowed so a turn and the daemon never stop.
+- What a point holds: every file of the work folder except what the folder's own .gitignore lists, node_modules, logs, secret files (.env, .env.*, *.pem, *.key, *.p12, *.pfx, id_rsa*, id_ed25519*, .npmrc, .netrc) and a git repository nested in the folder. So secrets are never copied, and what is not copied is not put back (the card says so). The store lives in `<data>/checkpoints/<person>/<thread>/<agent>.git`, outside every work folder (the sandbox binds only the work folder), readable by the server's own user only. It is not part of the Space's backup or export (they read the Space's database and blob store, not the data folder's work and checkpoints).
+- Whose files: a person's points come only from their own folder (`work/<person>/<thread>/<agent>`), derived from who is calling; another person's point id is not found. Off in a chat with other people.
+- Symlinks (review of d3e48dcf4, r-agents): going back no longer uses `git checkout` and a text check of paths. It reads the difference between the folder now and the point from git, and for every path walks the real work folder one component at a time with lstat: a component that is a link is never entered, a link or file where a folder is needed is replaced by a real folder (the link itself removed), and a link met while removing a folder is removed, not followed. Tests: the reviewer's setup (a symlink at the point, a real folder later), a link swapped in after the point, and a link inside a removed folder.
+- Off the turn's path: a point waits at most 100 ms; counting the folder (150,000 files or 8 GB, cut short after 3 s, asynchronous) and the snapshot run in the background, one at a time per folder. A folder over the caps is skipped with a reason and never delays or fails a turn.
+
+## 13 Nov 2026: mounts.get, mounts.list and mounts.update gain two optional output fields (lane f-drive)
+
+The mount row these three capabilities return gains `skippedCount` (an integer, at least 1) and `skipped` (a list of up to 200 `{ name, reason }`), present only when the last pass could not bring some items in (a name Files cannot hold is now shown under a safe name; an item that still cannot be brought in is skipped, counted and listed with its reason, and the mount stays healthy). Optional output fields only: no input, version or existing field changed. The migration `modules/mounts/migrations/0004_mounts_skipped.sql` is a new additive column. The hashes of the three capabilities in `docs/frozen/snapshots/mounts.json` were written again with `node tools/gen/src/cli.ts --snapshots`.
+
+Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)
+
+## 15 Nov 2026: backup.export_status gains two optional output fields (lane f-drive-land)
+
+`backup.export_status` answers, besides the archive's file, `leftOut` (an integer: how many files the archive could not hold and names on its `NOT-EXPORTED.txt` page) and `filesKept` (how many files it holds), both present only when at least one file was left out. They are read from the archive itself. The export screen uses them to say in one line how many files were left out and that the list is in the zip.
+
+Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)
+
+## 15 Nov 2026: agents.delete_for_good, agents.delete_preview, agents.trash.list and files.folder.purge are new; folderRow gains an optional deletedAt (lane f-agentdel)
+
+`agents.delete_for_good` (write, level member; the handler lets only the agent's owner or an admin through and answers anyone else not found; gated for an agent caller with Gate act delete; refuses an agent on itself, a person's Assistant, and an agent not in Trash) records one durable job and answers `{ erasing }`; pressing again answers the same calm way from the tombstone. `agents.delete_preview` (read, level manage on the agent) answers real counts (one-to-one chats, shared chats, memory items, routines, bytes), the things made by others that name the agent and need someone (each with a `link`), and the backups line. `agents.trash.list` (read, member) lists the agents in Trash and which are being deleted. `files.folder.purge` (write, perm files.delete, gated for an agent caller) deletes a folder in Trash for good with everything under it; an agent's folder takes the agent with it. `folderRow` gains optional `deletedAt`. New events `agent.erasing`, `agent.erased` and `folder.purged`. New host calls (not capabilities) `<module>.erase_agent` in nineteen modules, callable only by the agents erase job and the preview (host/src/daemon/consumers.ts guardCall).
+- Why: F77, the owner's rule that erase means erased. Delete still moves an agent to Trash and restore brings it whole; delete for good clears every store that holds something of it, leaves the audit log, a tombstone (id never reused) and backups.
+- Compatibility: no existing capability changed; `files.trash.empty` and the Trash keep time now also reach agents through `folder.purged`.
+
+Signed: lead, 16 Nov 2026 02:40 PKT, after two data-safety reviews (team/v1/reviews/r-agentdel-2026-11-16.md: six blocking items, then two, all closed by the lane with tests). Left open and known: the phone shows no "in Trash" line on an agent's page; delete, restore and delete within milliseconds can leave a channel without its "was deleted" line.
+
+## 13 Nov 2026: computers.browser.my_sign_ins added (lane f-agentpc)
+
+`computers.browser.my_sign_ins@1` is a new read (additive; no existing capability changes). In: `agentId`. Out: `profile` (`own` or `agent`) and `signIns`, one `{kind: "browser", site, signedInAs?, since, lastSeen}` per site the browser profile this person's turns of the agent use is signed in to: a person who does not own a shared agent has a profile of their own on it, the agent's owner has the agent's own. Never a value, never another person's. Read as the person asking.
+
+Signed: pending, the lead
+
+## 15 Nov 2026: the wall of a shared agent's computer, and what it does not close (lane f-wall, findings F30 and F75)
+
+- What changed: `terminal.workspace` answers an optional `ownPlace` (true when the caller works in a place of their own on a shared agent's computer), and a terminal row an optional `elsewhere` (true on a row that only says a terminal of someone else's is there; it carries no folder, chat, name, owner or holder). `terminal.list` and `terminal.get` answer such a row for a terminal that is in another person's place, and for the agent's own terminals to a person who only uses the agent. A person shared with an agent at Use may now enter its computer (terminal.workspace, terminal.open, run, input, read, attach, keys, capture, take_over and give_back) in a place of their own; every door refuses a terminal that is not theirs with one plain sentence (`reason: others_place` or `terminal_not_yours`). Additive: no capability, event or error was removed or renamed. A new consumer ends a person's programs and closes their terminals on an agent's computer when a grant that gave them Use of the agent is revoked. New table: `terminal_people`, `terminal_uid_burned`, `terminal_person_places`, `terminal_person_gone` (migration 0006, made on first use).
+- The wall: each person who does not own an agent works there as a Unix user of their own (uid 20000 to 20999, home `/people/u<uid>`, mode 0700, made by that user), and every command and tmux call of theirs runs as that user; the agent's home is 0700 and owned by the agent's own user. The kernel refuses another person that home, its shell history, its tmux socket, the environment and working folder of its processes, signals to them, and every project and the Files folder they were not opened to. Opened by name, by file-system access lists: the projects a person is on directly (read and write for Lead and Member, read for Reviewer) and the Files folder when Files lets that person view the agent's folder, and a chat's own folder (`~/chat`) for the people who work in that chat. The setting is applied again at a person's next command when it is older than five seconds, fails the command when it cannot be set, and a person's share taken away ends their programs at once.
+- Who pays is not whose folder (F75): the turn engine keeps `asker` (the person the turn runs for, whose folder and Unix user it works in) apart from `paidBy` (the account's payer, whose spend is counted). Before, a turn's asker was the account's payer.
+- What stays shared, measured by `KNOWN LIMITS` in test/terminal.asker.heavy.test.ts, in plain words: one computer is one container. A person sees the command lines of other people's programs (`ps`, /proc/*/cmdline), so a secret passed as an argument is readable by them. A person reaches a server another person started on 127.0.0.1 (no network space can be made without a right a workspace is never given). One processor, memory and process budget is shared, so one person can slow the others. A person with write on a project can put a script or a git hook in it that the agent runs: it runs as the agent's own user and reads the agent's home; write on a project is trust in the agent's user. Project access follows direct project membership only (a person on a project through a group or as an admin gets no folder in the terminal), and the Files folder is whole or none. A file made before a person joined a project stays unreadable to them. The owner's sessions now start with umask 007 (was 022).
+- Proof: test/shared-agent.wall.heavy.test.ts (the walk: Ada and Bea, a project, a chat of both), test/terminal.wall.heavy.test.ts (twelve ways at the owner's side, refused by the kernel), test/terminal.asker.heavy.test.ts (the grants, revocation at the next command, the known limits), modules/terminal/tests/asker.test.ts, agent/tests/turn-engine.whose-folder.test.ts.
+
+Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11-15.md) and the lane's fourth round; the limits that remain are the ones written above.
+
+## 15 Nov 2026 (rc.29): Automations: drafts saved as you go, Make live, a test of the draft, and an Assistant's proposal a person accepts (lanes b-auto2 and the lead)
+
+New capabilities, all on the `automations` tool:
+- `automations.draft.save`, `automations.draft.discard`, `automations.make_live`: an edit to an Automation that is on is kept as a draft with a `rev`; a write carries the rev or version it read and is refused in one sentence when someone else wrote first; Make live makes the draft the next version. An off Automation saves at once.
+- `automations.test_events`: real past starts of a trigger, for a test. `automations.test` gains optional `draft` and `eventRunId`.
+- `automations.draft.propose`: an Assistant puts steps on the page as a proposal with a one-line summary. Nothing proposed is saved as the definition, made live or turned on. With no `automationId` an empty Automation that is off is made first. The answer carries `ok` and `issues` (what is still missing).
+- `automations.proposal.accept`: a person takes the proposal (an off Automation saves it; an on one keeps it as their draft until Make live). An agent is refused. A proposal made before the Automation or its draft changed is refused in one sentence and kept.
+- `automations.proposal.discard`: a person who may change the Automation, or the Assistant that proposed it; an empty Automation that proposing made goes to Trash with it.
+- `automations.get` answers two optional fields: `draft` and `proposal`, and takes an optional `version` (an integer): the definition of that version, so a run's page shows what the run RAN.
+- `automations.home`: what the Automations first page shows in one read (what needs the person, at most one suggestion, the Today line, the counts). A new read; nothing an older client sends changes meaning.
+- `automations.connect_options`: what Connect an app lists for the person (the Vault items they may use whose app their Assistant can set up). A new read.
+
+All additions; nothing an older client sends changes meaning.
+
+Signed: lead, 15 Nov 2026
+
+## 15 Nov 2026: chats.sidebar rows gain one optional output field (lane f-shots)
+
+A row of `chats.sidebar` gains `ask` (a boolean), present and true only on a pane that is an ask waiting for a person. The sidebar's Asks filter reads it; before, the server never sent ask panes and the filter was always empty. Optional output only: an older client ignores it.
+
+Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-shots-rc29 747c7008f)
+
+## 15 Nov 2026: the wall of a shared agent's computer, second round after the review, and every limit that remains (lane f-wall)
+
+- What changed since the note above: the agent's home is not walkable by a guest (each grant strips group and other access from the top-level entries of the home, except `projects`, `chats` and `Vyre`, so files an older workspace or a process outside the session shell wrote with a loose umask are refused; a workspace without a `projects` folder gets one at the first grant). The image makes every `/people/u<uid>` folder for its own uid (0700) and `/people` is 0711, so nobody lists it or makes another person's folder first; a uid is never given to another person (the squat repair that remapped a uid is gone); a person's tmux server keeps its socket in their own folder (`$HOME/.tmux`). A person who loses the use of an agent in any way (a grant taken away, a group, a role, an expiry, a suspension) has their terminals closed and their programs stopped on its computer: by the events and by a sweep every 15 seconds. A person who leaves a chat loses their entries on its shared folder. A person with no access to the agent is told nothing of its terminals: `terminal.list` leaves them out, `terminal.get` answers not found, `terminal.status` answers nothing for a terminal outside their own place, and a person the agent cannot be read for is told in one plain sentence that the computer is not theirs (not a fault to try again). The events `terminal.opened`, `terminal.renamed`, `terminal.command_finished`, `terminal.taken`, `terminal.given_back` and `terminal.closed` of a terminal on an agent's computer are delivered to the person they are for only (`vis private`); the row of `elsewhere` carries only the terminal's id, its host and the agent, and no time, size, state or name. The Computer tab of a person in their own place is one group, Your terminals, with their folder as `~`.
+- What a person's home on a computer they lost the use of becomes: it is kept for 30 days and is theirs again if they are shared with the agent before; after 30 days it is erased. A person who leaves the Space has their home erased at once, and a deleted agent's volumes go when it is deleted for good (the hourly pass).
+- Limits that remain, in plain words: (1) one computer is one container: a person sees the command lines of other people's programs (`ps`), so a secret passed as an argument is readable; a person reaches a server another person started on 127.0.0.1; one processor, memory and process budget is shared, so one person can slow the others. (2) `/tmp` is one shared 512 MB memory disk: one person can fill it for the others (their own programs use their own `TMPDIR`, in their home). (3) `/people` has no disk quota: one person can fill the volume. (4) A person with write on a project can put a script or a git hook in it that the agent, which runs as the agent's owner, may run: write on a project is trust in the agent's user. (5) A person's user id is Space-wide and never freed; the computer has 1000 of them, so at most 1000 people can use shared agents, and the thousand-and-first is told in one sentence that there is no room. (6) Project access follows the people who are on a project directly (a person on it through a group or as an admin gets no folder in the terminal), and the Files folder is whole or none; a file made before a person joined a project, or a chat folder, stays unreadable to them; a chat's folder is for the people in the chat, a public channel's readers who are not members get none. (7) A change in who is on a project reaches a person at their next command, within five seconds. (8) The engine sandboxes (Claude Code, Codex) are per person and per chat on the Space's server and have no shared `~/chat`: they lack the folder, they do not leak. (9) The browser half was proved by `modules/computers/tests/sbrowser.asker.heavy.test.ts` on its own; the walk does not sign in to a site in the same run.
+- Proof: test/terminal.wall2.heavy.test.ts (items 1 to 6 of the review on a real container), the upgrade test of test/terminal.asker.heavy.test.ts (the rc.28 workspace image is built from its git tag in the job: a home written with umask 022 is refused to a non-owner after the update; nothing may skip), test/terminal.wall.heavy.test.ts, test/shared-agent.wall.heavy.test.ts, and the unit mutant tests in modules/terminal/tests/asker.test.ts and risk.test.ts.
+
+Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11-15.md) and the lane's fourth round; the limits that remain are the ones written above.
+
+## 15 Nov 2026: the wall of a shared agent's computer, round three (lane f-wall)
+
+- What changed: a guest has no search permission on the agent's home at all. The folders a person may be let into live outside it: `/shared/projects/<project>`, `/shared/chats/<chat>` and `/shared/Vyre` (the Files mirror), mounted there by the workspace (the workspace's mounts moved from `/home/agent/projects/<project>` and `/home/agent/Vyre`; the runner accepts both for the archive calls, and a workspace made before is made again once, when quiet). `/shared`, `/shared/projects` and `/shared/chats` can be passed through by anyone and listed by no one; each folder below them opens by name to the people allowed. `~/projects` and `~/Vyre` are links to them in the agent's home (a workspace of an older release has them as the empty folders the volumes were mounted on: they are replaced by the links at its first start, and left alone if they hold anything) and in each person's own home; the owner's paths keep working. The home is made 0700 at each start, whatever rights an old volume had. Every process Vyre starts in a workspace runs under umask 077 (one wrapper, `UMASK_WRAP`, in the one function that makes a Docker exec; a test fails when another way to start a process appears). Nothing the agent writes in its home, with any umask, by any process, is reachable by a guest, at any moment: there is no window left. A file the Files mirror writes lands in `/shared/Vyre`, which only people Files lets view the agent's folder can enter.
+- An admin with Manage on the agent and no share of it is told what anyone without a share is told of its owner's terminals: `terminal.get` and `terminal.list` answer a row that says a terminal is there, and nothing of what it holds; managing an agent is not reading its owner's terminals. (Closing an orphan's terminal stays with managers.) `passwd` reads as red by its path too (`/usr/bin/passwd`, `/bin/passwd`).
+- The entries of a person who lost the use of an agent stay on the folders until the next pass changes them; they are inert without a process of theirs, and their programs are ended.
+- Proof: test/terminal.wall2.heavy.test.ts test 7 (the review's probe: written as the agent after the grant with umask 022, read as Bea at once, 6 s later and within 5 s of her last command; an exec of Vyre's at mode 600; the owner reads her own), the rc.28 upgrade test of test/terminal.asker.heavy.test.ts (the owner's `~/projects` and `~/Vyre` still work after the update, skipped 0), modules/terminal/tests/exec-umask.test.ts.
+
+Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11-15.md) and the lane's fourth round; the limits that remain are the ones written above.
+
+## 15 Nov 2026: the wall of a shared agent's computer, round four (lane f-wall)
+
+- An old workspace whose `~/projects` or `~/Vyre` has files in it keeps nothing in the way and loses nothing: at its first start after the update the folder is moved to `~/projects.old` or `~/Vyre.old` (`.old.2` and so on if the name exists), 0700 and the owner's alone, and the links to `/shared` are made, so the owner's `~/Vyre` shows her Files and `~/projects/<id>` is there for a new project. The owner is told once, through the agent: the first command the agent runs for its owner after the update ends with one line to say in plain words that the files are now in `~/projects.old` (or `~/Vyre.old`); a second start moves nothing and says nothing. (The line is kept in memory until the owner's first command: a restart of the server before that command loses the line, not the files.)
+- `terminal.workspace` answers an admin who manages the agent and is not its owner what `terminal.get` answers them: nothing of the computer, no place of their own, unless the agent is shared with them (the whole Space, or by name).
+- The programs of a person whose share expired end within the 15 second sweep (a reviewer measured 18.6 s from a program started after the expiry); a person who may no longer use the agent is refused at their next command at once.
+
+Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11-15.md) and the lane's fourth round; the limits that remain are the ones written above.
+
+
+## 13 Nov 2026: sites.artifact_publish summary reworded to say what is required (lane f-firstcall)
+
+The summary of `sites.artifact_publish@1`, the words a model reads, now begins with what the call needs ("Needs a title and exactly one of html, fileId, folderId, path or port"), gives one example call, and says that a title left out is taken from the page's own `<title>`. No input, output or error changes. The handler's refusal for two sources at once now names the two given, in the same code (`validation.bad_input`, field `html`). The tool layer (agent/src/tools) no longer shows a model the `idempotencyKey` of a `create` capability or the `threadId` of a chat tool as required; the contract is unchanged and the server still validates the full input, so an outside caller sends the key as before.
+
+Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff: summaries only, no input, output or error change.
+
+## 13 Nov 2026: files.create and files.write summaries give the direct-write limit (lane f-firstcall)
+
+The summaries of `files.create@1` and `files.write@1`, the words a model reads, now say a direct write holds at most 256 KB (the limit the handlers already enforce, `MAX_INLINE`). The refusal for a larger one (`validation.too_large`, as before) now says the limit and to split the content into smaller files. No input, output or error code changes.
+
+Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff: summaries only, no input, output or error change.
+
+## 16 Nov 2026: files.create summary says a folder is optional for an agent, and an agent's duplicate name becomes "name (2)" (lane f-firstcall2)
+
+The summary of `files.create@1`, the words a model reads, now says the content goes in `content.text`, that with no folder the file goes in the person's own files, and that a name already taken becomes "name (2)" for an agent. The contract is unchanged: `folderId` stays required on the server, an outside caller still sends it, and `validation.duplicate` is still answered to a person. What changes is behaviour for an agent principal only: the agent tool layer (agent/src/tools/place.ts) fills `folderId` with the person's own Personal root (found with `files.resolve`) when a model names none, reads a folder name or a path as the folder it means, and a `files.create` by an agent whose name is taken makes `name (2)` (`name (3)`, and so on) instead of failing; it never replaces a file. In a Review changes folder the duplicate is still refused (`validation.duplicate`), now with the words "Use another name, or replace that file with files_write.". No input, output or error code changes.
+
+Signed: lead, 16 Nov 2026 02:49 PKT, after reading the note: the contract is unchanged; a file with no folder goes to the person's own files and a taken name becomes "name (2)" for an agent only; the tool-token baseline 575,250 is accepted (the stated limits add 275 characters). the lead, 16 Nov 2026
+## 16 Nov 2026: a goal says what holds its check-ins back, and a failed turn says when a usage limit lifts (finding F26, lane f-goalwake, brought onto the line by the lead)
+
+- What changed, all additive: the goal row (every `goals.*` answer that carries a goal) gains an optional `blocked` (`cause`: person, limit, transient or other; `what`, `fix` and `short` in words; `since`; `until` when it goes on by itself; `missed`; `code`), present only while something holds the check-ins back. `engine.turn.record` and the event `turn.failed` gain an optional `resetsAt` (when the provider said a usage limit lifts). No input, output or error was removed or made required.
+- Why: on a live Space a goal's daily check-ins failed six days in a row and nobody was told; the goal ended "missed". A check-in that cannot run now tells the owner once in words, waits for the cause to clear, and counts only the check-ins that ran. A chat turn and a goal's check-in say the same sentence for the same cause (`lib/words/failure.ts`).
+- Proof: test/goals.wake-fail.live.test.ts, modules/goals/tests, lib/words/failure.test.ts, apps/app/src/places/chats/conversation/status.test.ts. Snapshots: docs/frozen/snapshots/goals.json and engine.json.
+
+Signed: lead, 16 Nov 2026 00:42 PKT, after reading the manifest diff: optional, additive fields only.
+
+## 15 Nov 2026: the connect card is on by default; the three open review items are closed (lane b-connect2, review r-keyreach-9-b-connect), for the lead to sign
+
+- What changed: the switch `VYRE_CONNECT_CARD` is now on unless it is `0`, `off` or `false` (`connectCardOn` in `lib/connect-switch.ts`); the ten capabilities of the 15 Nov note above answer as designed, the built-in Fathom connector is seeded, and `vault_connect` is listed from the first turn (the default listed set is the frozen 65 plus that one tool: 66 with the card on, 65 with the switch at 0).
+- `vault.item.discard_new` takes one more input, `requestId` (the connect request that saved the key). It refuses unless the connect request module answers, through the new capability `vault.connect_card.may_discard`, that this item is the one key that person's own card saved in its open try. It erases nothing else; the two-minute window is gone because the binding is stronger. Still `agent: false`, no tool (item C).
+- New capability `vault.connect_card.may_discard@1` (in `requestId`, `itemId`; out `ok`; `agent: false`, no tool): asked only by the Vault, answers only a person about their own request.
+- `vault.connect_card.get`, `.options`, `.submit`, `.ask_admin`, `.reopen` and `.disconnect` drop `tool: "vault"` and set `agent: false`: they are a person's press on their own card and are no agent tools (item A). Inputs and outputs did not change. The agent's one connect tool is `vault_connect`, whose answer never says what a person has saved.
+- Not a contract change but a rule the tests pin: a saved key is offered back only from the card's own stamp (same service, same person, same hosts); a connection's key is sent only to the hosts its own record lists (a new table `cn_connection_hosts` in the connectors module, written when the connection is made); `connectors.for_service` finds a connector only when its declared domains are exactly the hosts its actions call (item B).
+- Snapshots: docs/frozen/snapshots/vault-requests.json, vault.json.
+
+## 15 Nov 2026: more on the connect card (lane b-connect2, second review), for the lead to sign
+
+- New capabilities, none an agent tool: `chat.connect_line` (the engine writes one quiet line after a connect card is answered; it is written as the agent that asked, not as the person, so it is no message of theirs in messages, search or export, and it mentions the asking agent so that its turn starts); `vault.connect_card.line` (what anyone in the chat may read of a card: the service, whether it was asked, connected or declined, and who; nothing of keys or choices); `connections.approve_hosts` (the owner of a connection allows the hosts its connector now calls; a person only).
+- A connection's host record now holds each host with its port (the default port when none is given), so the same host on another port gets no key. A connector that gains a host since the person approved does not send the key there; the refusal reads "<Service> now also sends to <host>. Allow it from the connection to send the key there." and `connections.approve_hosts` adds it. A connector that loses a host just stops calling it. A built-in connector wins over an agent-published one of the same name; two of equal standing answer "none", and the agent is told that more than one has the name.
+- In plain words, no code change: an agent that used the key may say its handle in a reply (a handle is a name, not the key). A connection whose action takes its host from the caller's input has no host record and is not checked; no shipped connector is like that (the built-ins from the registry have no action addresses of their own and Fathom's host is fixed).
+- Snapshots: docs/frozen/snapshots/chat.json, vault-requests.json, connectors.json, vault.json.
+
+## 16 Nov 2026: the connect card is on by default, one added optional output, and the rule for where a key may go (lane b-connect3, for the lead to sign; reviewer to read)
+
+- What changed: `VYRE_CONNECT_CARD` is now on unless it is `0`, `off` or `false` (`lib/connect-switch.ts`; the old reading of rc.28, exactly `1`, is gone). The ten capabilities keep `internal.not_implemented` in their `errors` because the switch can still be set to `0` on a server and then they answer it; the error is not removed from their contracts.
+- `connectors.for_service` answers an optional `older` (the title of a built-in connector the card does not offer because its hosts cannot be made exact; it keeps its own place under Connections). Additive; an older client ignores it. Snapshot: docs/frozen/snapshots/connectors.json.
+- Not a contract change, a rule the tests pin (modules/connectors/destination.ts, `destinationProblem`): a connector is offered by the card, and a typed key is tried at it, only when its declared domains are exactly the hosts its actions call, no domain is a wildcard, every action is https, no host is an address, `localhost`, a single label or a private suffix (`.internal`, `.local`, `.lan` and the like), and, for a connector that is not built in, no host sits on, under or over a built-in connector's domain. Whether a connector is built in is read from the stored row, never from what its definition says of itself. `connectors.check_key` refuses a connector the card would not offer.
+- The agent's catalog adds a sentence to `vault_request` while the card is on ("A service the person names (Fathom, Slack): use vault_connect instead"). The frozen description is the rc.27 one and is not changed.
+- Proof: modules/connectors/tests/connect-card.test.ts (the D, E and F tests), modules/connectors/tests/connect-registry.test.ts (every built-in service stated: hosts, key, check), modules/connectors/tests/connect-send.test.ts (the sends of the module), modules/vault-requests/tests/connect.test.ts, agent/tests/connect-tool.test.ts, modules/mcp/tests/server.parity.test.ts.
+
+Signed: lead, 16 Nov 2026 04:00 PKT
+
+## 16 Nov 2026: delete for good, round five (lane f-agentdel, after the data-safety review)
+
+`agents.delete_for_good` now refuses every caller that is not a person, before anything else, in one sentence ("Only a person can delete an agent for good."): an agent (acting for a person too), a service, an Automation step and an outside tool. Its Gate act is a new one, `agent_erase`, that always stops (no Space rule, no Always allow lifts it, only a person decides). It is not an Automation step. `agents.trash.list` rows gain optional `failed` (what a job that keeps failing could not finish, in words). `agents.delete_preview` answers `chatPeople` and `folderPeople` (the other people who have a chat with the agent or their own folder on its computer, with their names). `agents.erased` is new (the name an erased agent had, for the "deleted" mark). `files.folder.purge` refuses an agent's folder ("An agent is deleted from its own page in Trash."), `files.trash.empty` skips it, and `folder.purged` carries only the folder id; only `agents.delete_for_good` and the Trash clock erase an agent. A job that fails backs off (3 s, 30 s, 5 min); pressing Delete for good again is Try again.
+- Why: the reviewer's six blocking items (any member could erase another's agent through Files, the gate could be lifted, the clock guessed on a failed read, the browser profile was left behind, other people lost data unannounced, a person's memory was lost).
+- Compatibility: additive outputs; `files.folder.purge` and `files.trash.empty` refuse or skip agent folders.
+
+Signed: lead, 16 Nov 2026 02:40 PKT, after two data-safety reviews (team/v1/reviews/r-agentdel-2026-11-16.md: six blocking items, then two, all closed by the lane with tests). Left open and known: the phone shows no "in Trash" line on an agent's page; delete, restore and delete within milliseconds can leave a channel without its "was deleted" line.
+
+## 16 Nov 2026: mail.drafts.list can be asked for one address, and an agent's repeated draft replaces its earlier one (the lead, the owner's Inbox report)
+
+- What changed: `mail.drafts.list@1` takes one more optional input, `address`: only drafts written to that address (To or Cc, any case). Nothing was removed or made required; a caller that sends nothing gets what it got. The Inbox conversation screen now always sends the conversation's contact or its address, never an empty filter.
+- Behaviour, no contract change: `mail.draft` by an agent that names no message it answers now replaces that agent's own pending draft in the same mailbox when the subject (Re: and Fwd: aside) and the people in To are the same; the earlier text is kept as before. A person's draft, another agent's draft and a named draft are never replaced.
+- Why: the owner's Inbox showed drafts written to other people inside one person's conversation (the screen asked for every draft), and two pending drafts of one email.
+- Proof: modules/mail/tests/drafts.test.ts (two new cases), modules/inbox/tests/match.test.ts. Snapshot: docs/frozen/snapshots/mail.json.
+
+Signed: lead, 16 Nov 2026 03:01 PKT (written and read by the lead: one optional, additive input).
+
+## 16 Nov 2026: inbox.counts counts conversations, not messages (the lead's Inbox work)
+
+`inbox.counts@1` keeps its shape. Its numbers change meaning: `total` and each `byInbox[].unread` are now the number of conversations that hold unread messages for the caller (not marked done), not the number of unread messages. Reason: the owner's Inbox read "551" beside By contact and beside the mailbox and the number told him nothing; a badge beside a list of conversations counts conversations. A conversation's own `unreadCount` still counts messages. Only the description text of the capability changed in the manifest.
+
+Signed: lead, 16 Nov 2026 03:36 PKT (written and read by the lead: no shape change, a change of meaning in two numbers).
+
+## 16 Nov 2026: chat.connect_line takes only the answered request's id (lane b-connect3, review of 77603b1d6, blocker 1)
+
+- What changed: `chat.connect_line` took a free-form `threadId`, `agentId`, `asker` and `body` from its caller, so any member could leave a line from an agent in another person's name. Its input is now `{ requestId }` alone. The chat, the agent, the asker and the words are read from the answered request through `vault.connect_card.line`; only the person the card was asked for may call it (`permission.no_grant` otherwise), the agent must be one of the chat's, a request still waiting is refused, the line is never the person's typed words, the line's message id is made from the request's id so a replay posts and wakes nothing, and the service's title is cut to one line of at most 60 characters. Its level is `member` (there is no thread in the input to authorize against; the handler checks the chat).
+- `vault.connect_card.line` answers two more optional fields, `threadId` and `agentId`, and now answers only the request's asker, a person who can read the chat the card is in, or a service; anyone else gets `validation.not_found`. It declares `permission.no_grant`.
+- The engine's carry-on after a connect card passes `{ requestId }`. Snapshots: docs/frozen/snapshots/chat.json, vault-requests.json.
+
+Signed: lead, 16 Nov 2026 04:20 PKT
+
+## 16 Nov 2026: connections.approve_hosts takes the addresses the person was shown; vault.connect_card.submit and vault.connect_card.submit requires them (lane b-connect3, review of 77603b1d6, item 5)
+
+- `connections.approve_hosts` gains a required input `hosts` (the addresses with ports the person was shown). It records the connector's current addresses only when they are exactly those, else `validation.precondition_failed` ("changed since you looked"). Nothing in the app called it; the connect card does not use it.
+- `vault.connect_card.submit` gains a REQUIRED input `hosts` (what the card said the key goes to). When missing, or when the service's addresses are no longer exactly those, it refuses with `validation.precondition_failed` before anything is sent or kept. The app's card always sends it.
+- Not a contract change: a built-in key that a person-made connector already holds is taken over at seed (the person-made one moves to `<key>-yours` with its connections); a request that carries a credential is refused when the server has no connector port; a request that carries a credential never reaches a private or loopback address, even for the Space owner.
+- Snapshots: docs/frozen/snapshots/connectors.json, vault-requests.json.
+
+Signed: lead, 16 Nov 2026 04:45 PKT

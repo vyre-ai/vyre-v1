@@ -27,6 +27,7 @@ const DOES: Record<Rule["act"], string> = {
   signin_change: "change the sign-in of",
   approve: "approve",
   github_approval: "use GitHub for",
+  agent_erase: "delete for good",
 };
 
 /** "Dex can message Aliza Rizvi without asking". */

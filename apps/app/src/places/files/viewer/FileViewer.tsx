@@ -4,20 +4,35 @@
 // The file to open comes from the tab hash (`subject=file:<id>`); this screen never reads the hash itself.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Viewer } from "../../../../../../ui/src/Viewer/index.tsx";
+import type { RichCtx } from "../../../../../../ui/src/Viewer/rich/types.ts";
 import type { DocBlock, MarkupBox, Stroke } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { fileLink, noPreviewWords, openInWords } from "../open-in.ts";
 import type { FileLink } from "../open-in.ts";
-import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
+import { commentOnPage, commentOnQuote, contentFor, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
+import { GridView } from "../../../../../../ui/src/Viewer/rich/GridView.tsx";
+import { isXlsx, useWorkbook } from "./workbook.ts";
+import { isMacroFile, officeKindOf, useOffice } from "./office.ts";
+import { tooLargeWords } from "../../../../../../ui/src/Viewer/rich/limits.ts";
+import { DocPage } from "../../../../../../ui/src/Viewer/rich/DocPage.tsx";
+import { SlideView } from "../../../../../../ui/src/Viewer/rich/SlideView.tsx";
+import { PdfPages } from "../../../../../../ui/src/Viewer/rich/PdfPages.tsx";
+import { redactedCopy } from "../../../../../../ui/src/Viewer/rich/pdf-copy.ts";
+import { noTextLayer } from "../../../../../../ui/src/Viewer/rich/pdf-model.ts";
 import { useFilesViewerData } from "./data.tsx";
 import { useFileLinks } from "../links.ts";
+import { ConnectedBar } from "./ConnectedBar.tsx";
 import { FileMarkdownEditor } from "./FileMarkdownEditor.tsx";
 import {
   versionRows,
+  providerRevisionRows,
   boxesOf,
+  pageCommentsOf,
+  pagePins,
   nodeFor,
   docCommentsOf,
   docsMarkdown,
@@ -30,6 +45,10 @@ import {
   subtitleOf,
   textToBlocks,
   viewerKindOf,
+  GRID_MAX_BYTES,
+  FETCH_FAILURE_CODES,
+  fetchFailureWords,
+  GRID_PREVIEW_BYTES,
 } from "./model.ts";
 import { TypeTile } from "../FileList.tsx";
 import { tileLabel } from "../tree/model.ts";
@@ -52,8 +71,13 @@ export interface FileViewerProps {
 
 type Graph = CapMap["memory.graph"]["out"];
 type Load =
-  | { status: "loading" }
+  | { status: "loading"; /** the provider, when the file is a live placeholder being fetched from it */ from?: string }
   | { status: "gone" }
+  | {
+      status: "failed";
+      /** the provider the content could not be got from, and the cause the server named */ from: string;
+      code: string;
+    }
   | { status: "ready"; data: ViewerData; comments: readonly FileComment[]; markup: Markup; graph: Graph | null };
 
 export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactElement {
@@ -70,6 +94,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const layer = useLayer(d, fileId, load.status === "ready" ? load.data.file.name : undefined);
   const [panel, setPanel] = useState<"redact" | "activity" | null>(null);
   const accessMenu = useMenu();
+  const width = useWindowDimensions().width;
   useEffect(() => {
     if (layer.said) {
       setNote(layer.said);
@@ -77,10 +102,24 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     }
   }, [layer]);
 
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
     setLoad({ status: "loading" });
     void (async () => {
+      // a live file whose content is not here yet is fetched from its provider while this waits: say so, and say what failed if it does
+      let from = "";
+      try {
+        const head = (await d.call("files.get", { fileId })) as {
+          file: { size: number; source?: { provider: string } };
+        };
+        if (head.file.source && head.file.size === 0) {
+          from = head.file.source.provider;
+          if (live) setLoad({ status: "loading", from });
+        }
+      } catch {
+        /* the real read below says what is wrong */
+      }
       try {
         const data = (await d.call("files.viewer_data", { fileId })) as ViewerData;
         const comments = ((await d.call("files.comments.list", { fileId })) as { comments: FileComment[] }).comments;
@@ -93,17 +132,35 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
             : null;
         version.current = data.file.version;
         if (live) setLoad({ status: "ready", data, comments, markup, graph });
-      } catch {
-        if (live) setLoad({ status: "gone" });
+      } catch (e) {
+        const code =
+          (e as { code?: string; error?: { code?: string } } | null)?.code ??
+          (e as { error?: { code?: string } } | null)?.error?.code;
+        if (live)
+          setLoad(
+            from !== "" && FETCH_FAILURE_CODES.test(code ?? "")
+              ? { status: "failed", from, code: code ?? "" }
+              : { status: "gone" },
+          );
       }
     })();
     return () => {
       live = false;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [d, fileId]);
+  }, [d, fileId, attempt]);
 
-  const mounted = load.status === "ready" && load.data.file.source !== undefined;
+  const mounted = (load.status === "ready" && load.data.file.source !== undefined) || load.status === "failed";
+  // leaving a file of a connected folder sends what waits to the provider at once (the scheduled passes leave a fresh edit for its quiet time, so a long edit is one revision there)
+  const mountId = load.status === "ready" ? load.data.file.source?.mountId : undefined;
+  useEffect(() => {
+    if (mountId === undefined) return undefined;
+    return () => {
+      void d
+        .call("mounts.sync_now", { mountId, idempotencyKey: `leave-${fileId}-${Date.now()}` })
+        .catch(() => undefined);
+    };
+  }, [d, fileId, mountId]);
   useEffect(() => {
     setLink(null);
     if (!mounted || !d.openUrl) return undefined;
@@ -132,7 +189,57 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   }, [d, fileId, say]);
 
   const ready = load.status === "ready" ? load : null;
-  const kind = ready ? viewerKindOf(ready.data) : "other";
+  // a PDF is drawn as its pages by pdf.js from the file's own bytes: its address, the words of each page (for Find) and the pages' count
+  // the pages, grids and slides are drawn by the web page (canvas and the DOM); anywhere else the file keeps its words
+  const web = typeof document !== "undefined" && typeof ResizeObserver === "function";
+  const isPdf = web && ready?.data.file.kind === "pdf";
+  const pdfBig = isPdf && ready ? tooLargeWords("pdf", ready.data.file.size) : null;
+  const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
+  const [pdfTexts, setPdfTexts] = useState<readonly string[]>([]);
+  const [pdfDone, setPdfDone] = useState(false);
+  // the file's bytes could not be read (a refused read, a cached file with no bytes here): the PDF is then shown as the text the server read out of it, with its
+  // marks, never as "This file is empty"
+  const [pdfGone, setPdfGone] = useState(false);
+  useEffect(() => {
+    setPdfData(null);
+    setPdfTexts([]);
+    setPdfDone(false);
+    setPdfGone(false);
+    // a PDF over the size the viewer reads is refused before it is fetched
+    if (!isPdf || pdfBig !== null) return undefined;
+    let live = true;
+    void d.call("files.read", { fileId, as: "base64" }).then(
+      (r) => {
+        const b = (r as { base64?: string } | null | undefined)?.base64;
+        if (!live) return;
+        if (typeof b === "string" && b !== "") setPdfData(Uint8Array.from(atob(b), (ch) => ch.charCodeAt(0)));
+        else setPdfGone(true);
+      },
+      () => {
+        if (live) setPdfGone(true);
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [d, fileId, isPdf, rev, pdfBig]);
+  // an .xlsx opens as a real grid: every sheet, formats, formulas, and typing that is saved back as a new version
+  const isBook =
+    web &&
+    ready !== null &&
+    ready.data.file.kind === "spreadsheet" &&
+    isXlsx(ready.data.file.name, ready.data.file.mime);
+  // a Word file or a deck opens as its own pages or slides, and is typed into where the file allows
+  const okind = web && ready !== null && isOffice(ready.data.file.kind) ? officeKindOf(ready.data.file.name) : null;
+  const off = useOffice(d, fileId, okind, version, say, attempt, ready?.data.file.size ?? 0);
+  const offReady = off.state.status === "ready" ? off.state : null;
+  const kind = offReady
+    ? "document"
+    : ready
+      ? isPdf && pdfData === null && !pdfGone
+        ? "other"
+        : viewerKindOf(isPdf && pdfData !== null ? { ...ready.data, previewUrl: "pdf" } : ready.data)
+      : "other";
   // a Google Doc is kept as Markdown: it is read as a note is, without Drive's escapes
   const app = ready ? googleAppOf(ready.data.file) : null;
   // the text the file holds after the saves of the Markdown editor, so the page reads what was just written once Edit is left
@@ -142,6 +249,42 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   }, [fileId]);
   const rawText = liveText ?? ready?.data.text ?? "";
   const text = app === "gdocs" ? docsMarkdown(rawText) : rawText;
+  // a Google Sheet is the same grid over its export's first tab, and a cell typed there is written at Google by the Sheets path that exists (mounts.sheet_write), never by saving the export over it
+  const isGSheet = web && app === "gsheets" && rawText.trim() !== "";
+  const providerEdit =
+    ready !== null && ready.data.snapshot?.editVia === "provider_api" && ready.data.connected?.viewOnly !== true;
+  // a CSV or TSV opens in the same grid and is written back as a new version; a file read only in part (a large one) is never written, since its rest would be lost
+  const isCsv =
+    web &&
+    ready !== null &&
+    ready.data.file.kind === "spreadsheet" &&
+    !isBook &&
+    /\.csv$/i.test(ready.data.file.name) &&
+    rawText.trim() !== "";
+  const csvWhole = ready !== null && ready.data.file.size <= GRID_PREVIEW_BYTES;
+  const wbk = useWorkbook(
+    d,
+    fileId,
+    isBook || isGSheet || isCsv,
+    version,
+    say,
+    attempt,
+    isGSheet ? { text: rawText, write: providerEdit } : isCsv ? { text: rawText, write: csvWhole, csv: true } : null,
+    { name: ready?.data.file.name ?? "", size: ready?.data.file.size ?? 0 },
+  );
+  // a file turned away before it was read or unpacked says why, once
+  const refusal =
+    pdfBig ??
+    (off.state.status === "failed" ? off.state.words : wbk.state.status === "failed" ? wbk.state.words : null);
+  useEffect(() => {
+    if (refusal !== null) setNote(refusal);
+  }, [refusal]);
+  const gDocEdit = app === "gdocs" && providerEdit;
+  // a Google Doc's lines as they were when it opened, so an edited line is found at Google by its old words (mounts.doc_replace_text) and changed in the Doc itself
+  const gdocText = useRef(new Map<string, string>());
+  useEffect(() => {
+    if (app === "gdocs") gdocText.current = new Map(textToBlocks(text, "markdown").map((b) => [b.id, b.text]));
+  }, [app, text]);
   const fileLinks = useFileLinks(
     d,
     ready && app === null ? { folderId: ready.data.file.folderId } : null,
@@ -151,24 +294,80 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const office = ready !== null && isOffice(ready.data.file.kind);
   const blocks = useMemo(
     () =>
-      ready && kind === "document"
-        ? office
-          ? officeBlocks(text)
-          : textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind)
-        : [],
-    [ready, kind, text, app, office],
+      offReady
+        ? offReady.kind === "docx"
+          ? offReady.doc.paras.map((q) => ({ id: q.id, tag: "p" as const, text: q.text }))
+          : offReady.deck.slides.map((sl) => ({ id: `sl${sl.n}`, tag: "p" as const, text: sl.texts }))
+        : wbk.state.status === "ready"
+          ? wbk.texts.map((t, i) => ({ id: `sh${i + 1}`, tag: "p" as const, text: t }))
+          : isPdf && pdfData !== null && kind === "document"
+            ? pdfTexts.map((t, i) => ({ id: `pg${i + 1}`, tag: "p" as const, text: t }))
+            : ready && kind === "document"
+              ? office
+                ? officeBlocks(text)
+                : textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind)
+              : [],
+    [ready, kind, text, app, office, isPdf, pdfData, pdfTexts, wbk.state.status, wbk.texts, offReady, off.rev],
   );
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
   const strokes = useMemo(() => (ready ? strokesOf(ready.markup.strokes) : []), [ready]);
+  // the Redact for AI boxes on pages of a PDF
+  const pdfMarks = useMemo(
+    () =>
+      (layer.list?.marks ?? []).flatMap((m) =>
+        m.kind === "redact" && m.shape === "box" && m.box !== undefined && m.page !== undefined
+          ? [{ id: m.markId, page: m.page, box: m.box }]
+          : [],
+      ),
+    [layer.list],
+  );
 
   if (load.status === "loading")
     return (
-      <View testID="file-viewer-loading" style={s.frame} accessibilityLabel="Loading the file">
+      <View
+        testID="file-viewer-loading"
+        style={s.frame}
+        accessibilityLabel={load.from ? `Getting this from ${load.from}` : "Loading the file"}
+      >
         <View style={s.skHead} />
         <View style={s.skBody} />
+        {load.from ? (
+          <Text style={s.getting} accessibilityLiveRegion="polite" testID="file-viewer-getting">
+            {`Getting this from ${load.from}`}
+          </Text>
+        ) : null}
       </View>
     );
+  if (load.status === "failed") {
+    const fw = fetchFailureWords(load.code, load.from);
+    return (
+      <View
+        testID="file-viewer-failed"
+        style={[s.frame, s.failedFrame]}
+        accessibilityLabel={`Could not get this from ${load.from}`}
+      >
+        <View style={s.failedBox}>
+          <States
+            kind="empty"
+            title={fw.words}
+            icon="offline"
+            {...(fw.retry ? { action: { label: "Try again", onPress: () => setAttempt((n) => n + 1) } } : {})}
+          />
+        </View>
+        {link && d.openUrl ? (
+          <Pressable
+            accessibilityRole="link"
+            testID="file-viewer-failed-open"
+            onPress={() => d.openUrl?.(link.webUrl)}
+            style={s.failedOpen}
+          >
+            <Text style={s.failedOpenText}>{openInWords(link.openIn)}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
   if (load.status === "gone" || !ready)
     return (
       <View
@@ -182,6 +381,25 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
 
   const file = ready.data.file;
   const now = d.clock().now;
+  // a spreadsheet too big to draw: say so and point at where the whole file opens (a 50 MB CSV is not sent to the page)
+  if (file.kind === "spreadsheet" && file.size > GRID_MAX_BYTES && (ready.data.text ?? "") === "")
+    return (
+      <View testID="file-viewer-toolarge" style={[s.frame, s.failedFrame]} accessibilityLabel="Too large to preview">
+        <View style={s.failedBox}>
+          <States kind="empty" title="Too large to preview here" icon="doc" />
+        </View>
+        {link && d.openUrl ? (
+          <Pressable
+            accessibilityRole="link"
+            testID="file-viewer-toolarge-open"
+            onPress={() => d.openUrl?.(link.webUrl)}
+            style={s.failedOpen}
+          >
+            <Text style={s.failedOpenText}>{openInWords(link.openIn)}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
   const addBox = (next: readonly MarkupBox[]): void => {
     const known = new Set(boxes.map((b) => b.id));
     const fresh = next.find((b) => !known.has(b.id));
@@ -194,6 +412,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const saveStrokes = (next: readonly Stroke[]): void => {
     void saveMarkup(d, fileId, next).catch(say);
   };
+  const sheetCount = Array.isArray(ready.data.sheets) ? ready.data.sheets.length : 0;
+  const firstOfMany = file.kind === "spreadsheet" && sheetCount > 1 && wbk.state.status !== "ready";
+  const cutShort = file.kind === "spreadsheet" && file.size > GRID_PREVIEW_BYTES && file.size <= GRID_MAX_BYTES;
   const edit = (next: readonly DocBlock[]): void => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -205,6 +426,35 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     }, SAVE_DELAY_MS);
   };
 
+  // a Google Doc line edited in the viewer is replaced in the Doc itself: found by its old words and swapped for the new ones, which shows in the Doc's own history
+  const editGDoc = (next: readonly DocBlock[]): void => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      void (async () => {
+        for (const b of next) {
+          const old = gdocText.current.get(b.id);
+          if (old === undefined || old === b.text || old.trim() === "") continue;
+          if (/[*_`[\]]/.test(old) || /[*_`[\]]/.test(b.text)) {
+            setNote("This line has formatting that cannot be changed from here. Open it in Google Docs.");
+            continue;
+          }
+          try {
+            await d.call("mounts.doc_replace_text", {
+              fileId,
+              find: old,
+              replace: b.text,
+              matchCase: true,
+              idempotencyKey: `gdoc-${fileId}-${b.id}-${Date.now()}`,
+            });
+            gdocText.current.set(b.id, b.text);
+            setNote("Changed in Google Docs.");
+          } catch (e) {
+            say(e);
+          }
+        }
+      })();
+    }, SAVE_DELAY_MS);
+  };
   // a Markdown file is edited in the one Markdown editor, which saves it as new versions by itself
   const mdEditor = file.kind === "markdown" && app === null && !office && isEditable(ready.data);
   const node = ready.graph ? nodeFor(ready.graph, file.name) : null;
@@ -241,15 +491,46 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   };
   // History: the versions of the file, each one restorable (files.versions, files.restore_version); More: the file's link and name
   const openHistory = (x: number, y: number): void => {
-    void d.call("files.versions", { fileId }).then((out) => {
+    const provider = load.status === "ready" ? load.data.connected?.provider : undefined;
+    void Promise.all([
+      d.call("files.versions", { fileId }),
+      // the provider's own revisions of a file of a connected folder, listed with Vyre's versions; a provider that cannot be asked just leaves its group out
+      provider !== undefined
+        ? d.call("mounts.history", { fileId }).catch(() => ({ revisions: [] }))
+        : Promise.resolve({ revisions: [] }),
+    ]).then(([out, theirs]) => {
       const rows = versionRows(
         (out as { versions: { versionId: string; n: number; by: string; at: number; reason?: string }[] }).versions,
         d.name,
       );
+      const there = providerRevisionRows(
+        (theirs as { revisions: Parameters<typeof providerRevisionRows>[0] }).revisions,
+        d.name,
+        provider ?? "",
+      );
       accessMenu.show(
-        rows.length === 0
+        rows.length === 0 && there.length === 0
           ? [{ head: "No earlier versions yet." }]
           : [
+              ...(there.length > 0
+                ? [
+                    { head: `Kept at ${provider}. Pick one to put it back.` },
+                    ...there.map(
+                      (r): MenuEntry => ({
+                        label: r.label,
+                        ...(r.revisionId === null
+                          ? {}
+                          : {
+                              onSelect: () =>
+                                void d.call("mounts.restore", { fileId, revisionId: r.revisionId }).then(() => {
+                                  setNote("Put back. It goes out like any edit.");
+                                  setRev((x) => x + 1);
+                                }, say),
+                            }),
+                      }),
+                    ),
+                  ]
+                : []),
               { head: "Versions. Pick one to restore it." },
               ...rows.map(
                 (r): MenuEntry => ({
@@ -283,10 +564,40 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
       () => setNote("Could not copy here."),
     );
   };
-  const openMore = (x: number, y: number): void => {
+  // a copy of the PDF with the marked areas painted out of its pictures: a new file beside it, the original untouched
+  const makeCopy = async (): Promise<void> => {
+    if (pdfData === null) return;
+    setNote("Making the redacted copy");
+    try {
+      const bytes = await redactedCopy(pdfData, pdfMarks);
+      const base = file.name.replace(/\.pdf$/i, "");
+      await d.call("files.create", {
+        folderId: file.folderId,
+        name: `${base} (redacted).pdf`,
+        kind: "pdf",
+        mime: "application/pdf",
+        content: await contentFor(d, bytes, "application/pdf"),
+        idempotencyKey: `redcopy-${fileId}-${pdfMarks.map((m) => m.id).join("")}`,
+      });
+      setNote(`Saved ${base} (redacted).pdf beside the original.`);
+    } catch (e) {
+      say(e);
+    }
+  };
+  const openMore = (x: number, y: number, hidden: { label: string; onSelect: () => void }[] = []): void => {
     const name = load.status === "ready" ? load.data.file.name : "";
     accessMenu.show(
       [
+        ...hidden,
+        ...(hidden.length > 0
+          ? [
+              { label: "Redact for AI", onSelect: () => toggle("redact") },
+              { label: "Activity", onSelect: () => toggle("activity") },
+            ]
+          : []),
+        ...(isPdf && pdfData !== null && pdfMarks.length > 0
+          ? [{ label: "Save a redacted copy", onSelect: () => void makeCopy() }]
+          : []),
         ...(d.share ? [{ label: "Share…", onSelect: () => d.share?.(fileId, name) }] : []),
         {
           label: "Copy Link",
@@ -350,8 +661,30 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const path = d.pathOf?.(file.folderId);
   return (
     <View testID="file-viewer" accessibilityLabel={`Viewer, ${file.name}`} style={s.frame}>
+      {ready.data.connected ? (
+        <ConnectedBar
+          connected={ready.data.connected}
+          now={now}
+          nameOf={d.name}
+          onChoose={(choice) =>
+            void d.call("mounts.resolve", { fileId, choice }).then(() => {
+              setNote(
+                choice === "keep_both"
+                  ? "Both are kept. Your version is saved beside theirs."
+                  : choice === "keep_here"
+                    ? "Kept here. It goes back as a new file."
+                    : choice === "discard"
+                      ? "Your changes are discarded."
+                      : "Theirs is the file now.",
+              );
+              setRev((x) => x + 1);
+            }, say)
+          }
+        />
+      ) : null}
       <Viewer
-        key={`${fileId}:${layer.preview && layer.view?.text ? "agent" : "people"}`}
+        // the viewer keeps the blocks it was first given (it edits them in place), so a PDF that falls back to its words is drawn afresh
+        key={`${fileId}:${layer.preview && layer.view?.text ? "agent" : "people"}${isPdf && pdfGone ? ":words" : ""}`}
         fileId={fileId}
         title={file.name}
         kind={kind}
@@ -359,7 +692,14 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         kindLabel={kindLabel(file.name)}
         subtitle={subtitleOf(ready.data, now, path)}
         {...(mark !== undefined ? { kindMark: mark } : {})}
-        {...(app !== null || office || file.kind === "pdf" ? { readOnly: true } : {})}
+        {...((app !== null && !(wbk.state.status === "ready" && providerEdit) && !gDocEdit) ||
+        (office && (offReady === null || !ready.data.canEdit || isMacroFile(file.name))) ||
+        file.kind === "pdf" ||
+        ready.data.connected?.viewOnly === true ||
+        (isBook && wbk.state.status === "ready" && (!ready.data.canEdit || wbk.lock !== undefined)) ||
+        (isCsv && wbk.state.status === "ready" && (!ready.data.canEdit || !csvWhole))
+          ? { readOnly: true }
+          : {})}
         {...(office
           ? { noPreview: noPreviewWords(file.name) ?? "No preview of this file here. Open it in its own app." }
           : {})}
@@ -369,7 +709,148 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         blocks={shownBlocks}
         {...(fileLinks ? { fileLinks } : {})}
         {...(sheet ? { sheet } : {})}
-        comments={layer.preview ? [] : docCommentsOf(ready.comments, d.name, now)}
+        comments={
+          layer.preview
+            ? []
+            : isPdf || offReady?.kind === "pptx"
+              ? pageCommentsOf(ready.comments, d.name, now)
+              : docCommentsOf(ready.comments, d.name, now)
+        }
+        {...(wbk.state.status === "ready"
+          ? {
+              ...(wbk.saved !== undefined ? { saved: wbk.saved } : {}),
+              rich: (c: RichCtx): ReactElement => {
+                const grid = (wbk.state as { grid: import("../../../../../../ui/src/Viewer/rich/grid-model.ts").Grid })
+                  .grid;
+                const m = wbk.matchCells(c.find);
+                const cur =
+                  c.hit === null ? undefined : m.list.filter((x) => x.sheet === c.hit!.block)[c.hit.occurrence];
+                return (
+                  <GridView
+                    grid={grid}
+                    rev={wbk.rev}
+                    sheet={wbk.sheet}
+                    onSheet={wbk.setSheet}
+                    edit={c.edit}
+                    {...(isCsv ? { header: true } : {})}
+                    {...((
+                      isGSheet
+                        ? !providerEdit
+                        : isCsv
+                          ? !ready.data.canEdit || !csvWhole
+                          : !ready.data.canEdit || wbk.lock !== undefined
+                    )
+                      ? {
+                          why: ready.data.connected?.viewOnly
+                            ? `View only in ${ready.data.connected.provider}.`
+                            : wbk.lock !== undefined && ready.data.canEdit && isBook
+                              ? wbk.lock
+                              : isCsv && ready.data.canEdit && !csvWhole
+                                ? "A large file is shown in part. Open it in its own app to change it."
+                                : "You can read this file but not change it.",
+                        }
+                      : {})}
+                    {...(isGSheet
+                      ? {
+                          noStructure:
+                            "Google Sheets takes cell values here. Open it in Google Sheets to add or remove rows and columns.",
+                        }
+                      : {})}
+                    find={c.find}
+                    current={cur ?? null}
+                    matches={m.all[wbk.sheet] ?? new Set<string>()}
+                    onChange={wbk.changed}
+                  />
+                );
+              },
+            }
+          : {})}
+        {...(offReady
+          ? {
+              ...(off.saved !== undefined ? { saved: off.saved } : {}),
+              ...(offReady.kind === "pptx" ? { paged: true } : {}),
+              rich: (c: RichCtx): ReactElement => {
+                const why = isMacroFile(file.name)
+                  ? "A macro-enabled file is shown here and never changed. Open it in its own app to change it."
+                  : !ready.data.canEdit
+                    ? ready.data.connected?.viewOnly
+                      ? `View only in ${ready.data.connected.provider}.`
+                      : "You can read this file but not change it."
+                    : undefined;
+                if (offReady.kind === "docx") {
+                  const cur = c.hit?.block ?? null;
+                  return (
+                    <DocPage
+                      model={offReady.doc}
+                      rev={off.redrawRev}
+                      zoom={c.zoom}
+                      edit={c.edit}
+                      {...(why !== undefined ? { why } : {})}
+                      imageUrl={off.imageUrl}
+                      decor={c.decor}
+                      currentBlock={cur}
+                      onChange={off.changed}
+                      onRedraw={off.redraw}
+                    />
+                  );
+                }
+                return (
+                  <SlideHost
+                    ctx={c}
+                    model={offReady.deck}
+                    rev={off.redrawRev}
+                    {...(why !== undefined ? { why } : {})}
+                    imageUrl={off.imageUrl}
+                    pins={pagePins(ready.comments)}
+                    marks={pdfMarks}
+                    onChange={off.changed}
+                    onArea={(a) => {
+                      if (a.tool === "redact") layer.mark({ kind: "redact", shape: "box", box: a.box, page: a.page });
+                      else void commentOnPage(d, fileId, { page: a.page, box: a.box }, a.text).then(reload).catch(say);
+                    }}
+                  />
+                );
+              },
+            }
+          : {})}
+        {...(isPdf && pdfData !== null
+          ? {
+              paged: true,
+              noText: noTextLayer(pdfTexts, pdfDone),
+              rich: (c: RichCtx): ReactElement => (
+                <PdfPages
+                  data={pdfData}
+                  zoom={c.zoom}
+                  find={c.find}
+                  current={c.hit === null ? null : { page: c.hit.block + 1, occurrence: c.hit.occurrence }}
+                  tool={c.tool}
+                  pins={pagePins(ready.comments)}
+                  marks={pdfMarks}
+                  thumbs={c.thumbs}
+                  jump={c.jump}
+                  onPages={(i) => c.setPages(i.count)}
+                  onPage={c.setPage}
+                  onText={(t, done) => {
+                    setPdfTexts(t);
+                    setPdfDone(done);
+                  }}
+                  onZoom={c.setZoom}
+                  onArea={(a) => {
+                    if (a.tool === "redact") layer.mark({ kind: "redact", shape: "box", box: a.box, page: a.page });
+                    else
+                      void commentOnPage(
+                        d,
+                        fileId,
+                        { page: a.page, box: a.box, ...(a.quote ? { quote: a.quote } : {}) },
+                        a.text,
+                      )
+                        .then(reload)
+                        .catch(say);
+                  }}
+                />
+              ),
+            }
+          : {})}
         ask={{
           place: "files",
           context: { kind: "file", id: fileId, title: file.name, access: ready.data.canEdit ? "edit" : "view" },
@@ -385,6 +866,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         agentName={d.agentFor?.(fileId) ?? d.agents.find((a) => a.assistant)?.name ?? "the agent"}
         {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})}
         {...(isEditable(ready.data) && !mdEditor ? { onEdit: edit } : {})}
+        {...(gDocEdit ? { onEdit: editGDoc } : {})}
         {...(file.kind === "markdown" && app === null && !office && !(layer.preview && layer.view?.text)
           ? { markdown: rawText }
           : {})}
@@ -411,6 +893,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         onMarkActivity={() => setPanel("activity")}
         onHistory={openHistory}
         onMore={openMore}
+        compact={isPhoneWidth(width)}
         tools={<LayerTools open={panel} onToggle={toggle} />}
         banner={
           <LayerBanner
@@ -443,12 +926,72 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         }
       />
       {accessMenu.element}
+      {firstOfMany && !note ? (
+        <Text style={[s.note, s.noteHigh]} testID="file-viewer-sheets">
+          {`Showing the first of ${sheetCount} sheets. ${link ? openInWords(link.openIn) : "Open it in its own app"} for the rest.`}
+        </Text>
+      ) : null}
+
+      {cutShort && !note ? (
+        <Text style={s.note} testID="file-viewer-cutshort">
+          Showing the first rows of a large file.
+        </Text>
+      ) : null}
       {note ? (
         <Text style={s.note} accessibilityLiveRegion="polite" testID="file-viewer-note">
           {note}
         </Text>
       ) : null}
     </View>
+  );
+}
+
+/** The deck's body: the slide on show follows the viewer's page control, and reports how many slides there are. */
+function SlideHost(p: {
+  ctx: RichCtx;
+  model: import("../../../../../../ui/src/Viewer/rich/pptx.ts").PptxModel;
+  rev: number;
+  why?: string;
+  imageUrl: (path: string) => string | undefined;
+  pins: readonly import("../../../../../../ui/src/Viewer/rich/PdfPages.tsx").PdfPin[];
+  marks: readonly import("../../../../../../ui/src/Viewer/rich/PdfPages.tsx").PdfMark[];
+  onChange: () => void;
+  onArea: (a: {
+    tool: "comment" | "redact";
+    page: number;
+    box: { x: number; y: number; w: number; h: number };
+    text: string;
+  }) => void;
+}): ReactElement {
+  const [slide, setSlide] = useState(1);
+  const { setPages, setPage } = p.ctx;
+  useEffect(() => setPages(p.model.slides.length), [p.model.slides.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setPage(slide), [slide]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (p.ctx.jump !== null) setSlide(p.ctx.jump.page);
+  }, [p.ctx.jump?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Find on another slide brings that slide up
+  useEffect(() => {
+    if (p.ctx.hit !== null) setSlide(p.ctx.hit.block + 1);
+  }, [p.ctx.hit?.block, p.ctx.hit?.occurrence, p.ctx.find]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <SlideView
+      model={p.model}
+      rev={p.rev}
+      slide={slide}
+      onSlide={setSlide}
+      zoom={Math.min(p.ctx.zoom, 1.4)}
+      edit={p.ctx.edit}
+      {...(p.why !== undefined ? { why: p.why } : {})}
+      thumbs={p.ctx.thumbs}
+      imageUrl={p.imageUrl}
+      decor={p.ctx.decor}
+      tool={p.ctx.tool}
+      pins={p.pins}
+      marks={p.marks}
+      onChange={p.onChange}
+      onArea={p.onArea}
+    />
   );
 }
 
@@ -466,6 +1009,20 @@ const s = StyleSheet.create({
   },
   tileText: { color: "var(--ink-3)" as string, fontSize: 8.5, fontWeight: "700" },
   typeTile: { marginRight: -10 },
+  getting: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: "42%" as unknown as number,
+    textAlign: "center",
+    fontSize: 13,
+    color: "var(--ink-3)" as string,
+  },
+  failedFrame: { alignItems: "center", justifyContent: "center" },
+  failedBox: { height: 190, width: "100%" },
+  failedOpen: { alignSelf: "center", paddingHorizontal: 12, paddingVertical: 8, marginTop: -6 },
+  failedOpenText: { fontSize: 13, color: "var(--accent)" as string, fontWeight: "600" },
+  noteHigh: { bottom: 48 },
   note: {
     position: "absolute",
     left: 16,

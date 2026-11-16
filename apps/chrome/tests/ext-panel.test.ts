@@ -33,14 +33,14 @@ function memoryArea() {
 
 test("per-site privacy: attach by default, a parent domain covers its subdomains, an exact host wins, never reads nothing", async () => {
   const list = [
-    { host: "gohighlevel.com", mode: "ask" as const, records: true },
-    { host: "app.gohighlevel.com", mode: "never" as const, records: false },
+    { host: "crm.example", mode: "ask" as const, records: true },
+    { host: "app.crm.example", mode: "never" as const, records: false },
   ];
   assert.deepEqual(privacyFor("example.com", list), { host: null, ...DEFAULT });
-  assert.equal(privacyFor("x.gohighlevel.com", list).mode, "ask");
-  assert.equal(privacyFor("app.gohighlevel.com", list).mode, "never");
-  assert.equal(privacyFor("evilgohighlevel.com", list).mode, "attach", "a look-alike host is not under the rule");
-  const never = allowed({ url: "https://app.gohighlevel.com/v2/contacts", incognito: false }, list);
+  assert.equal(privacyFor("x.crm.example", list).mode, "ask");
+  assert.equal(privacyFor("app.crm.example", list).mode, "never");
+  assert.equal(privacyFor("evilcrm.example", list).mode, "attach", "a look-alike host is not under the rule");
+  const never = allowed({ url: "https://app.crm.example/v2/contacts", incognito: false }, list);
   assert.equal(never.read, false);
   assert.equal(never.records, false);
   assert.equal(never.why, "never");
@@ -88,9 +88,9 @@ test("masked boxes are scaled from CSS pixels to the image the browser returned,
 // ---------- what a message carries
 
 const ctx = {
-  url: "https://app.gohighlevel.com/c/1",
-  title: "Marisol Vega",
-  page: { text: "Marisol Vega marisol@vegalaw.com" },
+  url: "https://app.crm.example/c/1",
+  title: "Maya Chen",
+  page: { text: "Maya Chen maya@northwind.example" },
   shot: { dataUrl: "data:image/jpeg;base64,AAAA" },
 };
 test("a message carries the page, its screenshot and the selection only as far as the chips say, and nothing on a site that is never sent", () => {
@@ -116,8 +116,8 @@ function fakePanelWorld(o: { incognito?: boolean; url?: string; privacy?: any[] 
     id: 7,
     windowId: 3,
     active: true,
-    url: o.url ?? "https://app.gohighlevel.com/c/1",
-    title: "Marisol Vega · Contacts",
+    url: o.url ?? "https://app.crm.example/c/1",
+    title: "Maya Chen · Contacts",
     incognito: Boolean(o.incognito),
   };
   const area = memoryArea();
@@ -130,8 +130,8 @@ function fakePanelWorld(o: { incognito?: boolean; url?: string; privacy?: any[] 
       ops.push({ op, input });
       if (op === "hello")
         return {
-          spaces: [{ id: "spc_mla", name: "My Legal Academy", webUrl: "https://mla.vyre.test" }],
-          active: "spc_mla",
+          spaces: [{ id: "spc_northwind", name: "Northwind Academy", webUrl: "https://northwind.vyre.test" }],
+          active: "spc_northwind",
           locked: false,
         };
       if (op === "agents.list")
@@ -145,12 +145,10 @@ function fakePanelWorld(o: { incognito?: boolean; url?: string; privacy?: any[] 
       if (op === "chat.ask") return { threadId: "thr_1", turnId: "msg_1" };
       if (op === "records.match")
         return {
-          records: [
-            { id: "rec_1", name: "Marisol Vega", kind: "Contact", why: "by email address", chats: [], goals: [] },
-          ],
+          records: [{ id: "rec_1", name: "Maya Chen", kind: "Contact", why: "by email address", chats: [], goals: [] }],
         };
       if (op === "chat.search")
-        return { threads: [{ threadId: "thr_9", title: "Follow up", host: "app.gohighlevel.com" }] };
+        return { threads: [{ threadId: "thr_9", title: "Follow up", host: "app.crm.example" }] };
       throw Object.assign(new Error("no"), { code: "not_available" });
     },
     async invoke(cap: string, input: any = {}) {
@@ -196,10 +194,10 @@ function fakePanelWorld(o: { incognito?: boolean; url?: string; privacy?: any[] 
     async read(tabId: number) {
       reads.push(tabId);
       return {
-        title: "Marisol Vega · Contacts",
-        text: "Marisol marisol@vegalaw.com",
+        title: "Maya Chen · Contacts",
+        text: "Maya maya@northwind.example",
         selection: "",
-        emails: ["marisol@vegalaw.com"],
+        emails: ["maya@northwind.example"],
         phones: [],
       };
     },
@@ -209,9 +207,9 @@ function fakePanelWorld(o: { incognito?: boolean; url?: string; privacy?: any[] 
         tabId: t.id,
         url: t.url,
         title: t.title,
-        host: "app.gohighlevel.com",
+        host: "app.crm.example",
         privacy: may,
-        page: may.read ? { text: "Marisol", selection: "" } : null,
+        page: may.read ? { text: "Maya", selection: "" } : null,
         shot: may.read && opt.shot !== false ? { dataUrl: "data:image/jpeg;base64,QUJD" } : null,
       };
     },
@@ -233,9 +231,9 @@ test("panel.state: the Space, agents and the page, with Vyre off in incognito", 
   const w = fakePanelWorld();
   const st = (await w.panel.handle({ type: "panel.state", windowId: 3 })).data;
   assert.equal(st.off, null);
-  assert.equal(st.active, "spc_mla");
+  assert.equal(st.active, "spc_northwind");
   assert.equal(st.agents.length, 2);
-  assert.equal(st.page.host, "app.gohighlevel.com");
+  assert.equal(st.page.host, "app.crm.example");
   assert.equal(st.page.privacy.read, true);
   const inc = fakePanelWorld({ incognito: true });
   assert.deepEqual((await inc.panel.handle({ type: "panel.state", windowId: 3 })).data, { off: "incognito" });
@@ -296,8 +294,8 @@ test("on a site that is never sent the panel sends only the words, looks up no r
 test("records.match gets the address and the contact details on the page; the model list is the live one", async () => {
   const w = fakePanelWorld();
   const rec = (await w.panel.handle({ type: "panel.records", windowId: 3 })).data;
-  assert.equal(rec.records[0].name, "Marisol Vega");
-  assert.deepEqual(w.ops.find((o) => o.op === "records.match")!.input.emails, ["marisol@vegalaw.com"]);
+  assert.equal(rec.records[0].name, "Maya Chen");
+  assert.deepEqual(w.ops.find((o) => o.op === "records.match")!.input.emails, ["maya@northwind.example"]);
   const m = (await w.panel.handle({ type: "panel.models", windowId: 3, threadId: "thr_1" })).data;
   assert.equal(w.invokes[0]!.cap, "engine.models.list");
   assert.deepEqual(w.invokes[0]!.input, { threadId: "thr_1" });
@@ -323,10 +321,10 @@ test("reply deltas and the Selected chip reach the panel's port; picks are kept 
   });
   assert.equal(await w.panel.selected(w.tab, "  We doubled consults  "), true);
   assert.deepEqual(w.told.at(-1), { type: "selection", tabId: 7, text: "We doubled consults" });
-  await w.store.set({ activeSpace: "spc_mla" });
+  await w.store.set({ activeSpace: "spc_northwind" });
   await w.panel.handle({ type: "panel.pick", agent: "agt_scout", model: "anthropic/claude-opus-5-5" });
   assert.deepEqual((await w.panel.handle({ type: "panel.state", windowId: 3 })).data.pick, {
-    space: "spc_mla",
+    space: "spc_northwind",
     agent: "agt_scout",
     model: "anthropic/claude-opus-5-5",
   });
@@ -458,9 +456,9 @@ test("chips: the page chip starts off on an ask-me site, the Selected chip is se
 
 test("streamed replies grow one message per turn; search puts this page's chats first; models are grouped live; two suggestions only", () => {
   let conv = applyDelta([], { turnId: "t1", text: "Mar", done: false, error: null }, "Assistant", 1);
-  conv = applyDelta(conv, { turnId: "t1", text: "Marisol booked", done: true, error: null }, "Assistant", 2);
+  conv = applyDelta(conv, { turnId: "t1", text: "Maya booked", done: true, error: null }, "Assistant", 2);
   assert.equal(conv.length, 1);
-  assert.equal(conv[0]!.text, "Marisol booked");
+  assert.equal(conv[0]!.text, "Maya booked");
   assert.equal(conv[0]!.streaming, false);
   const gr = groupThreads(
     [
@@ -482,7 +480,7 @@ test("streamed replies grow one message per turn; search puts this page's chats 
   assert.equal(modelLabel(models, ""), "Opus 5.5");
   assert.equal(modelLabel(models, "openai/g"), "GPT");
   assert.equal(
-    suggestions({ host: "app.gohighlevel.com", title: "x", record: { name: "Marisol Vega", kind: "Contact" } }).length,
+    suggestions({ host: "app.crm.example", title: "x", record: { name: "Maya Chen", kind: "Contact" } }).length,
     2,
   );
   assert.deepEqual(suggestions({ host: "", title: "", record: null }), []);
@@ -526,7 +524,7 @@ function fakeApp(o: { signedIn?: boolean } = {}) {
     o.signedIn === false
       ? []
       : [
-          { id: "spc_mla", name: "My Legal Academy", address: "https://mla.test", token: "vst_mine" },
+          { id: "spc_northwind", name: "Northwind Academy", address: "https://northwind.test", token: "vst_mine" },
           { id: "spc_me", name: "Personal", address: "http://127.0.0.1:4100", token: "vst_me" },
         ];
   const app = createChromeApp({
@@ -544,7 +542,7 @@ function fakeApp(o: { signedIn?: boolean } = {}) {
           ],
         };
       if (cap === "search.query")
-        return { hits: [{ kind: "record", id: "rec_1", title: "Marisol Vega", recordType: "Contact" }] };
+        return { hits: [{ kind: "record", id: "rec_1", title: "Maya Chen", recordType: "Contact" }] };
       if (cap === "search.related") return { hits: [{ kind: "chat", id: "thr_7", title: "Follow up after Lab 7" }] };
       if (cap === "notes.clip") return { note: { noteId: "not_1" } };
       if (cap === "access.principals.list")
@@ -576,7 +574,7 @@ function fakeApp(o: { signedIn?: boolean } = {}) {
           throw Object.assign(new Error("That is not shared with you."), { code: "permission.no_grant" });
         return input.artifactId === "sit_local"
           ? { path: "/x/aaaa", url: "http://a.localhost:4100/x/aaaa", expiresAt: 5 }
-          : { path: "/x/code1", url: "https://mla-a.vyre.run/x/code1", expiresAt: 60_000 };
+          : { path: "/x/code1", url: "https://northwind-a.vyre.run/x/code1", expiresAt: 60_000 };
       }
       if (cap === "identity.whoami")
         return {
@@ -615,12 +613,12 @@ test("chat.ask starts the chat with the agent and model, posts the page and sele
     model: "anthropic/claude-opus-5-5",
     text: "What should I say?",
     page: {
-      url: "https://app.gohighlevel.com/c/1",
-      title: "Marisol",
+      url: "https://app.crm.example/c/1",
+      title: "Maya",
       text: "page",
       shot: "data:image/jpeg;base64,QUJD",
     },
-    selection: { text: "after 5 PM", url: "https://app.gohighlevel.com/c/1" },
+    selection: { text: "after 5 PM", url: "https://app.crm.example/c/1" },
   });
   assert.deepEqual(r, { threadId: "thr_1", turnId: "msg_9" });
   const start = f.calls.find((c) => c.cap === "chat.start")!.input;
@@ -631,13 +629,13 @@ test("chat.ask starts the chat with the agent and model, posts the page and sele
     ["web_page", "quote"],
   );
   assert.equal(post.blocks[0].data.shot, "data:image/jpeg;base64,QUJD");
-  f.reply([{ author: { kind: "agent", id: "agt_a" }, kind: "agent", body: "Marisol booked" }]);
+  f.reply([{ author: { kind: "agent", id: "agt_a" }, kind: "agent", body: "Maya booked" }]);
   await f.run();
   assert.deepEqual(f.pushed.at(-1), {
     type: "chat.delta",
     threadId: "thr_1",
     turnId: "msg_9",
-    text: "Marisol booked",
+    text: "Maya booked",
     done: false,
   });
   for (let i = 0; i < 4; i++) await f.run();
@@ -655,7 +653,7 @@ test("every call runs with the picked Space's own session; with nobody signed in
   assert.deepEqual(hello, {
     version: "1",
     spaces: [
-      { id: "spc_mla", name: "My Legal Academy", webUrl: "https://mla.test" },
+      { id: "spc_northwind", name: "Northwind Academy", webUrl: "https://northwind.test" },
       { id: "spc_me", name: "Personal", webUrl: "http://127.0.0.1:4100" },
     ],
     active: "spc_me",
@@ -663,7 +661,7 @@ test("every call runs with the picked Space's own session; with nobody signed in
     signedIn: true,
   });
   assert.equal(((await f.app.op("whoami", {})) as any).person, "usr_me", "the newest sign-in until one is picked");
-  await f.app.op("space.select", { id: "spc_mla" });
+  await f.app.op("space.select", { id: "spc_northwind" });
   assert.equal(((await f.app.op("whoami", {})) as any).person, "usr_noah");
   await f.app.invoke("notes.clip", { url: "https://a.test" });
   assert.equal(f.calls.at(-1)!.as, "vst_mine", "the clip goes with the picked Space's session");
@@ -695,10 +693,10 @@ test("agents, record matches and app.open", async () => {
   const f = fakeApp();
   const ag: any = await f.app.op("agents.list", {});
   assert.equal(ag.suggested.id, "agt_a");
-  const rec: any = await f.app.op("records.match", { emails: ["marisol@vegalaw.com"], phones: [] });
+  const rec: any = await f.app.op("records.match", { emails: ["maya@northwind.example"], phones: [] });
   assert.deepEqual(rec.records[0], {
     id: "rec_1",
-    name: "Marisol Vega",
+    name: "Maya Chen",
     kind: "Contact",
     why: "by email address",
     chats: [{ threadId: "thr_7", title: "Follow up after Lab 7", at: null, agentName: "" }],
@@ -764,7 +762,7 @@ test("the gateway call: the capability's route, the person's bearer session, a k
 
 test("the pickers: people and channels, and the person's goals with a number, are read with the picked Space's own session and nothing else", async () => {
   const f = fakeApp();
-  await f.app.op("space.select", { id: "spc_mla" });
+  await f.app.op("space.select", { id: "spc_northwind" });
   const pick: any = await f.app.op("people.list", {});
   assert.deepEqual(pick.people, [
     { id: "usr_noah", name: "Noah" },
@@ -809,8 +807,8 @@ import { artifactLink, createArtifacts } from "../src/worker/artifacts.js";
 
 test("artifact.open mints the single-use address as the person who is signed in to that Space, and gives back only the address", async () => {
   const f = fakeApp();
-  const r = (await f.app.op("artifact.open", { url: "https://mla.test/a/sit_abc123" })) as any;
-  assert.deepEqual(r, { url: "https://mla-a.vyre.run/x/code1", expiresAt: 60_000 });
+  const r = (await f.app.op("artifact.open", { url: "https://northwind.test/a/sit_abc123" })) as any;
+  assert.deepEqual(r, { url: "https://northwind-a.vyre.run/x/code1", expiresAt: 60_000 });
   const call = f.calls.find((c) => c.cap === "sites.artifact_open")!;
   assert.deepEqual(
     [call.input, call.as],
@@ -819,7 +817,7 @@ test("artifact.open mints the single-use address as the person who is signed in 
   );
   assert.equal(
     ((await f.app.op("artifact.open", { artifactId: "sit_x1" })) as any).url,
-    "https://mla-a.vyre.run/x/code1",
+    "https://northwind-a.vyre.run/x/code1",
     "or by id, in the active Space",
   );
   const local = (await f.app.op("artifact.open", { artifactId: "sit_local" })) as any;
@@ -829,7 +827,7 @@ test("artifact.open mints the single-use address as the person who is signed in 
 test("artifact.open is refused when signed out, for a Space this person is not signed in to, for a link that is not an artifact, and for one that is not shared with them", async () => {
   const out = fakeApp({ signedIn: false });
   await assert.rejects(
-    out.app.op("artifact.open", { url: "https://mla.test/a/sit_abc123" }),
+    out.app.op("artifact.open", { url: "https://northwind.test/a/sit_abc123" }),
     (e: any) => e.code === "signed_out",
   );
   const f = fakeApp();
@@ -838,7 +836,7 @@ test("artifact.open is refused when signed out, for a Space this person is not s
     (e: any) => e.code === "not_this_space",
   );
   await assert.rejects(
-    f.app.op("artifact.open", { url: "https://mla.test/files/sit_abc123" }),
+    f.app.op("artifact.open", { url: "https://northwind.test/files/sit_abc123" }),
     (e: any) => e.code === "validation.bad_input",
   );
   await assert.rejects(
@@ -850,7 +848,7 @@ test("artifact.open is refused when signed out, for a Space this person is not s
     (e: any) => e.code === "validation.bad_input",
   );
   await assert.rejects(
-    f.app.op("artifact.open", { url: "https://mla.test/a/sit_private" }),
+    f.app.op("artifact.open", { url: "https://northwind.test/a/sit_private" }),
     (e: any) => e.code === "permission.no_grant",
     "the Space's own refusal reaches the caller",
   );
@@ -862,12 +860,12 @@ test("artifact.open is refused when signed out, for a Space this person is not s
 });
 
 test("the worker takes over only a real artifact link, opens what the Space gave in a tab, and lets anything else load as it was going to", async () => {
-  assert.deepEqual(artifactLink("https://mla.test/a/sit_abc123"), { host: "mla.test", id: "sit_abc123" });
+  assert.deepEqual(artifactLink("https://northwind.test/a/sit_abc123"), { host: "northwind.test", id: "sit_abc123" });
   for (const no of [
-    "https://mla.test/a/other",
-    "https://mla.test/a/sit_abc/x",
-    "ftp://mla.test/a/sit_abc",
-    "http://mla.test/a/sit_abc",
+    "https://northwind.test/a/other",
+    "https://northwind.test/a/sit_abc/x",
+    "ftp://northwind.test/a/sit_abc",
+    "http://northwind.test/a/sit_abc",
     "",
     null,
   ])
@@ -887,20 +885,26 @@ test("the worker takes over only a real artifact link, opens what the Space gave
       op: async (op: string, i: any) => {
         ops.push([op, i]);
         if (fail) throw fail;
-        return { url: "https://mla-a.vyre.run/x/code1" };
+        return { url: "https://northwind-a.vyre.run/x/code1" };
       },
     },
     store: createStore(memoryArea()) as any,
   });
-  assert.deepEqual(await a.open({ href: "https://mla.test/a/sit_abc123" }), { handled: true });
+  assert.deepEqual(await a.open({ href: "https://northwind.test/a/sit_abc123" }), { handled: true });
   assert.deepEqual(
     [tabs, ops],
-    [[{ url: "https://mla-a.vyre.run/x/code1" }], [["artifact.open", { url: "https://mla.test/a/sit_abc123" }]]],
+    [
+      [{ url: "https://northwind-a.vyre.run/x/code1" }],
+      [["artifact.open", { url: "https://northwind.test/a/sit_abc123" }]],
+    ],
   );
   assert.deepEqual(await a.open({ id: "sit_abc123" }), { handled: true });
-  assert.deepEqual(await a.open({ href: "https://mla.test/pricing" }), { handled: false, why: "not_artifact" });
+  assert.deepEqual(await a.open({ href: "https://northwind.test/pricing" }), { handled: false, why: "not_artifact" });
   fail = Object.assign(new Error("x"), { code: "signed_out" });
-  assert.deepEqual(await a.open({ href: "https://mla.test/a/sit_abc123" }), { handled: false, why: "signed_out" });
+  assert.deepEqual(await a.open({ href: "https://northwind.test/a/sit_abc123" }), {
+    handled: false,
+    why: "signed_out",
+  });
   assert.equal(tabs.length, 2, "a refusal opens nothing");
   fail = null;
   const bad = createArtifacts({

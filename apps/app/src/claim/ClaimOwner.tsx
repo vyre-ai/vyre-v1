@@ -7,7 +7,6 @@ import { View } from "react-native";
 import {
   Bar,
   Button,
-  CheckBox,
   CodeShown,
   ErrorLine,
   Field,
@@ -45,7 +44,13 @@ export interface ClaimOwnerProps {
   /** A fresh recovery code (16 characters in four groups). */
   newCode(): string;
   /** Makes the key bundle, claims the Space and signs in. Rejects with a ClaimError. Resolves when Home may open. */
-  onClaim(input: { name: string; username: string; password: string; recoveryCode: string }): Promise<void>;
+  onClaim(input: {
+    name: string;
+    username: string;
+    password: string;
+    recoveryCode: string;
+    spaceName?: string;
+  }): Promise<void>;
   /** Where the screen opens: the details, or the recovery code (screenshots and tests). */
   stage?: "details" | "recovery";
   /** The link is already known to be spent or expired (the preflight said so). */
@@ -78,6 +83,8 @@ export interface ClaimOwnerProps {
 
 type Stage = "known" | "details" | "recovery" | "run" | "dead";
 interface State extends Details {
+  /** the Space's name, typed on this card when the server's link carried none (prototype scene team-1-account); saved with the claim */
+  spaceName: string;
   stage: Stage;
   code: string;
   saved: boolean;
@@ -96,6 +103,7 @@ const first = (code: string, dead: ClaimFailure | null, known: boolean): State =
   username: "",
   password: "",
   confirm: "",
+  spaceName: "",
   stage: dead ? "dead" : known ? "known" : "details",
   code,
   saved: false,
@@ -150,11 +158,13 @@ function DetailsStep({
   s,
   space,
   fingerprint,
+  askSpaceName,
   dispatch,
   next,
 }: {
   s: State;
   space: string | null;
+  askSpaceName: boolean;
   fingerprint?: string | null;
   dispatch: (a: Action) => void;
   next: () => void;
@@ -164,11 +174,26 @@ function DetailsStep({
   const userBad = !!s.username && !usernameOk(s.username);
   const passShort = !!s.password && s.password.length < PASSWORD_MIN;
   const mism = !!s.confirm && s.confirm !== s.password;
-  const line = userBad ? LINES.username : passShort ? LINES.password : mism ? LINES.mismatch : s.error;
+  // One plain line under the field it belongs to (prototype scene personal-1-account); a refusal from the server comes last
   return (
     <Step id="claim-details" dir={s.dir}>
-      <Title title={space ? `Set up ${space}` : "Create your account"} sub={NEW_ACCOUNT} />
+      <Title
+        title={space ? `Set up ${space}` : askSpaceName ? "Create your Space" : "Create your account"}
+        sub={NEW_ACCOUNT}
+      />
       <Group>
+        {askSpaceName ? (
+          <Field
+            testID="claim-space-name"
+            label="Space name"
+            value={s.spaceName}
+            onChange={(v) => set({ spaceName: v })}
+            placeholder="Name your Space"
+            onSubmit={next}
+            autoFocus
+            valid={!!s.spaceName.trim()}
+          />
+        ) : null}
         <Field
           testID="claim-name"
           label="Name"
@@ -177,7 +202,7 @@ function DetailsStep({
           placeholder="Your name"
           onSubmit={next}
           autoComplete="name"
-          autoFocus
+          autoFocus={!askSpaceName}
           valid={!!s.name.trim()}
         />
         <Field
@@ -191,6 +216,11 @@ function DetailsStep({
           valid={usernameOk(s.username)}
           error={userBad}
         />
+        {userBad ? (
+          <ErrorLine collapse testID="claim-username-error">
+            {LINES.username}
+          </ErrorLine>
+        ) : null}
         <Field
           testID="claim-password"
           label="Password"
@@ -204,6 +234,11 @@ function DetailsStep({
           error={passShort}
         />
         <Meter level={meter(strength(s.password))} />
+        {passShort ? (
+          <ErrorLine collapse testID="claim-password-error">
+            {LINES.password}
+          </ErrorLine>
+        ) : null}
         <Field
           testID="claim-confirm"
           label="Confirm"
@@ -216,13 +251,18 @@ function DetailsStep({
           valid={!!s.confirm && !mism}
           error={mism}
         />
+        {mism ? (
+          <ErrorLine collapse testID="claim-mismatch">
+            {LINES.mismatch}
+          </ErrorLine>
+        ) : null}
       </Group>
-      <ErrorLine testID={userBad ? "claim-username-error" : mism ? "claim-mismatch" : "claim-error"}>{line}</ErrorLine>
+      {s.error ? <ErrorLine testID="claim-error">{s.error}</ErrorLine> : null}
       {fingerprint ? (
         <Foot
           testID="claim-fingerprint"
           top={4}
-        >{`Server fingerprint ${fingerprint}. It matches the link your server printed.`}</Foot>
+        >{`Check this code matches the one your server printed: ${fingerprint}`}</Foot>
       ) : null}
     </Step>
   );
@@ -236,7 +276,7 @@ function RecoveryStep({
 }: { s: State; dispatch: (a: Action) => void } & Pick<ClaimOwnerProps, "onCopyCode" | "onSaveCode">): ReactElement {
   return (
     <Step id="claim-recovery" dir={s.dir}>
-      <Title title="Your recovery code" sub={RECOVERY_WHAT} />
+      <Title title="Save your recovery code" sub={RECOVERY_WHAT} />
       <CodeShown code={s.code} testID="claim-code" />
       <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
         <View style={{ flex: 1 }}>
@@ -246,12 +286,6 @@ function RecoveryStep({
           <Button quiet testID="claim-save" label="Save" onPress={() => onSaveCode?.(s.code)} />
         </View>
       </View>
-      <CheckBox
-        testID="claim-saved"
-        checked={s.saved}
-        label="I saved it"
-        onChange={(v) => dispatch({ t: "saved", on: v })}
-      />
     </Step>
   );
 }
@@ -279,7 +313,13 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
     setBusy(true);
     dispatch({ t: "to", stage: "run", dir: 1 });
     try {
-      await props.onClaim({ name: s.name, username: s.username, password: s.password, recoveryCode: s.code });
+      await props.onClaim({
+        name: s.name,
+        username: s.username,
+        password: s.password,
+        recoveryCode: s.code,
+        ...(s.spaceName.trim() ? { spaceName: s.spaceName.trim() } : {}),
+      });
     } catch (e) {
       const failure = (e as { failure?: ClaimFailure }).failure ?? "other";
       const said = (e as Error).message;
@@ -384,7 +424,8 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
       onPress={() => dispatch({ t: "to", stage: "recovery", dir: 1 })}
     />
   ) : (
-    <Button testID="claim-create" label="Create my Space" disabled={!s.saved || busy} onPress={() => void submit()} />
+    // the code was shown on this card, so one press says it was kept: no checkbox and no disabled button (prototype scene personal-2-recovery)
+    <Button testID="claim-create" label="I saved it, continue" disabled={busy} onPress={() => void submit()} />
   );
   // Back from the details goes to "Continue as" when the person chose a different account there.
   const backFromDetails = known ? () => dispatch({ t: "to", stage: "known", dir: -1 }) : props.onBack;
@@ -426,6 +467,7 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
           <DetailsStep
             s={s}
             space={props.space}
+            askSpaceName={props.space === null && !!props.onClaim && props.stage !== "recovery"}
             fingerprint={props.fingerprint ?? null}
             dispatch={dispatch}
             next={() => {

@@ -56,6 +56,7 @@ export const ID_PREFIXES: readonly string[] = [
   "jrn",
   "kit",
   "lnk",
+  "lse",
   "mbx",
   "mca",
   "mci",

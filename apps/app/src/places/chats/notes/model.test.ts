@@ -93,8 +93,8 @@ const ids = (ns: readonly Note[]): string[] => ns.map((n) => n.noteId);
 const who: Who = {
   meId: "usr_me",
   nameOf: (id) =>
-    (({ usr_me: "Irfad Imtiaz", usr_aliza: "Aliza", usr_andrey: "Andrey" }) as Record<string, string>)[id] ?? id,
-  spaceName: "My Legal Academy",
+    (({ usr_me: "Imran Ibarra", usr_aliza: "Aliza", usr_andrea: "Andrea" }) as Record<string, string>)[id] ?? id,
+  spaceName: "Northwind Academy",
 };
 
 test("pinned notes sit above the rest, each group in the order it came", () => {
@@ -149,7 +149,7 @@ test("the filter button says Labels, the one row, or the first and how many more
 test("who sees a note, in words, and what agents may read", () => {
   assert.deepEqual(shareWords(NOTES[1]!, who), { icon: "lock", short: "", long: "Private" });
   assert.deepEqual(shareWords(NOTES[0]!, who), { icon: "people", short: "Aliza", long: "Shared with Aliza" });
-  assert.equal(shareWords(NOTES[6]!, who).long, "Shared with My Legal Academy");
+  assert.equal(shareWords(NOTES[6]!, who).long, "Shared with Northwind Academy");
   assert.equal(shareWords(NOTES[4]!, who).long, "Shared with you by Aliza · you can edit");
   assert.match(agentWords(NOTES[1]!, who), /^Private\. Only you see it\./);
   assert.match(agentWords(NOTES[0]!, who), /Agents in channels cannot\.$/);

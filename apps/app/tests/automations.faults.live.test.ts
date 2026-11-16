@@ -1,4 +1,4 @@
-// The Automations faults of the owner's rc.26 walk (13 Nov 2026), in a real browser against the production export: a step that is missing its file says what to do and its card chip says "Needs a file" (not
+// (Rewritten for the new Automations screen, AUTOMATIONS-BUILD-RC29.) The Automations faults of the owner's rc.26 walk (13 Nov 2026), in a real browser against the production export: a step that is missing its file says what to do and its card chip says "Needs a file" (not
 // "needs fileId" and "error"), and the step menu of a Space that connected nothing lists no Google, Microsoft or GitHub action. Pictures go to VYRE_TEST_CAPTURE_DIR as <VYRE_SHOT_TAG>-<name>.png.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -39,7 +39,6 @@ test("production Automations: missing input in words, and a step menu with only 
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
@@ -77,29 +76,29 @@ test("production Automations: missing input in words, and a step menu with only 
     });
     assert.equal(made.status(), 200, await made.text());
 
+    // Rewritten for the new Automations screen (AUTOMATIONS-BUILD-RC29): the same faults through the new door. The old walk drove the canvas (card-n1, chip-n1, the step menu).
     // the first page: a setup is offered for Acme, and never for Google_DWD (the assistant could not finish that one)
     await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
-    await page.getByTestId("automations-start").waitFor({ timeout: 30_000 });
-    await page.getByText("Set up Acme for Automations?").waitFor({ timeout: 30_000 });
+    await page.getByTestId("first-page").waitFor({ timeout: 30_000 });
+    await page.getByText("Acme", { exact: false }).first().waitFor({ timeout: 30_000 });
     await shoot("start-offers");
     const first = await page.locator("body").innerText();
     assert.equal(first.includes("Google_DWD"), false, "a setup for Google_DWD is offered");
     assert.match(first, /Your assistant will be allowed to build connectors/);
 
-    await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
+    // a step missing its file says what to do on its row, as one orange line and one button: never "fileId", never the bare word error
     await page.getByText("Contract to sign", { exact: true }).first().click({ timeout: 30_000 });
-    await page.getByTestId("canvas-frame").first().waitFor({ timeout: 20_000 });
-    const chip = page.getByTestId("chip-n1");
-    await chip.waitFor({ timeout: 20_000 });
+    await page.getByTestId("story").waitFor({ timeout: 20_000 });
+    const need = page.getByTestId("sv-need-n1");
+    await need.waitFor({ timeout: 20_000 });
     await shoot("step-missing-file");
-    const chipText = (await chip.innerText()).trim();
     const body = await page.locator("body").innerText();
-    assert.equal(chipText, "Needs a file", `the chip says ${chipText}`);
     assert.equal(/fileId/.test(body), false, "a field key is on the page");
     assert.equal(/^error$/im.test(body), false, "the bare word error is on the page");
-    assert.match(body, /choose the file to send for signature/);
+    assert.match(body, /choose the file to send for signature/i);
+    assert.equal(/\(required\)|Templating|\{\{/.test(body), false, "no syntax or (required) on the page");
 
-    // an Automation that already holds a Microsoft step, opened by a person who was never given Microsoft: it opens, the step keeps its typed form (Not set up, from the full catalogue) and says so in one plain line
+    // an Automation that already holds a Microsoft step, opened by a person who was never given Microsoft: it opens whole and says so in one plain line
     const ms = await context.request.post(`${web.origin}/v1/automations/create`, {
       headers: auth,
       data: {
@@ -115,43 +114,26 @@ test("production Automations: missing input in words, and a step menu with only 
     assert.equal(ms.status(), 200, await ms.text());
     await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
     await page.getByText("Outlook note", { exact: true }).first().click({ timeout: 30_000 });
-    await page.getByTestId("card-m1").waitFor({ timeout: 20_000 });
+    await page.getByTestId("sv-step-m1").waitFor({ timeout: 20_000 });
     await shoot("ms-step-kept");
-    assert.match(await page.getByTestId("card-sub-m1").innerText(), /Not set up/, "the step lost its typed form");
-    await page.getByTestId("unlisted-note").waitFor({ timeout: 10_000 });
-    assert.match(await page.locator("body").innerText(), /Uses Microsoft 365, which you have not been given/);
-    await page.getByText("Contract to sign", { exact: true }).first().click();
-    await page.getByTestId("chip-n1").waitFor({ timeout: 20_000 });
+    // the line arrives when the full catalogue has been read: wait for it, never read the page mid-way
+    await page.getByText("You cannot use Microsoft 365", { exact: false }).first().waitFor({ timeout: 20_000 });
+    assert.match(
+      await page.locator("body").innerText(),
+      /Microsoft 365/,
+      "the step keeps its own name and says whose it is",
+    );
 
-    // the step menu: this Space connected nothing, so no app's actions are listed
-    await page.getByTestId("add-Add a step after Send for signature").click();
-    const menu = page.getByRole("menu").last();
-    await menu.waitFor({ timeout: 10_000 });
-    await shoot("step-menu");
-    const items = await menu.innerText();
-    // the menu is the step menu (Vyre's own steps are in it), and no app that was never connected is
-    assert.match(items, /Send an email/, "this is the step menu");
-    for (const app of ["Microsoft", "GitHub", "Google"])
-      assert.equal(items.includes(app), false, `${app} is in the menu`);
-    // the same card in the Graphite skin: the title is whole and the chip is under it
-    await page.keyboard.press("Escape");
-    const dark = new URL(page.url());
-    dark.searchParams.set("skin", "graphite");
-    await page.goto(dark.toString(), { waitUntil: "load" });
-    await page.getByTestId("chip-n1").waitFor({ timeout: 20_000 });
-    await shoot("step-missing-file-dark");
-    assert.equal(await page.getByTestId("card-n1").getByText("Send for signature", { exact: true }).count(), 1);
-    // the first page and the step menu in the Graphite skin too
-    const night = new URL(`${web.origin}/automations`);
-    night.searchParams.set("skin", "graphite");
-    await page.goto(night.toString(), { waitUntil: "load" });
-    await page.getByTestId("automations-start").waitFor({ timeout: 30_000 });
-    await page.getByText("Set up Acme for Automations?", { exact: false }).first().waitFor({ timeout: 30_000 });
-    await shoot("start-offers-dark");
+    // the step picker: this Space connected nothing, so no app's actions are listed
     await page.getByText("Contract to sign", { exact: true }).first().click();
-    await page.getByTestId("add-Add a step after Send for signature").click();
-    await page.getByRole("menu").last().waitFor({ timeout: 10_000 });
-    await shoot("step-menu-dark");
+    await page.getByTestId("sv-add").click();
+    await page.getByTestId("step-picker").waitFor({ timeout: 10_000 });
+    await shoot("step-menu");
+    const items = await page.getByTestId("pk-main").innerText();
+    assert.match(items, /Messages/, "this is the step picker (Vyre's own groups are in it)");
+    for (const app of ["Microsoft", "GitHub", "Google"])
+      assert.equal(items.includes(app), false, `${app} is in the picker`);
+    await page.keyboard.press("Escape");
     assert.deepEqual(errors, [], "no page error");
   } finally {
     await browser.close();

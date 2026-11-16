@@ -23,7 +23,11 @@ test("claim screen: a link already used shows one plain line and no form", () =>
 
 test("claim screen: with no Space name the title is about the person, never a host or an address", () => {
   const out = renderToStaticMarkup(<ClaimOwner {...base} space={null} />);
-  assert.ok(out.includes("Create your account"));
+  assert.ok(
+    out.includes("Create your Space"),
+    "with no name the card also asks for the Space's name (prototype scene team-1-account)",
+  );
+  assert.ok(out.includes("claim-space-name"));
   assert.ok(!/127\.0\.0\.1|localhost/.test(out));
 });
 

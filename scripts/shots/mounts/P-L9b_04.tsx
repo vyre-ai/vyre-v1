@@ -30,6 +30,7 @@ const VARIANTS: readonly Variant[] = [
   "long",
   "nolead",
   "closed",
+  "channel",
   "vaultkey",
   "lastpick",
   "cmd",

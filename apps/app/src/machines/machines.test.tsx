@@ -12,7 +12,7 @@ const html = (el: Parameters<typeof renderToStaticMarkup>[0]): string =>
   renderToStaticMarkup(el).replaceAll("<!-- -->", "");
 const noop = (): void => undefined;
 const NOW = 1_760_000_000_000;
-const who = (id: string): string => ({ usr_maya: "Maya Chen", usr_me: "Irfad Imtiaz" })[id] ?? id;
+const who = (id: string): string => ({ usr_maya: "Maya Chen", usr_me: "Imran Ibarra" })[id] ?? id;
 
 const row = (o: Partial<MachineRow> & { serverId: string; name: string }): MachineRow =>
   ({
@@ -55,7 +55,7 @@ const berlin = row({
 });
 const mine = row({
   serverId: "srv_dev_mbp",
-  name: "Irfad's MacBook Pro",
+  name: "Imran's MacBook Pro",
   kind: "linked",
   mine: true,
   owner: "usr_me",
@@ -139,7 +139,7 @@ test("the list: a strip, the alerts with Open, one row per machine and what an a
   assert.ok(out.includes("Seen 2 h ago") && out.includes("No data"), "an offline machine says when it was seen");
   assert.ok(out.includes('data-testid="machines-add"') && out.includes("Add a server"));
   assert.ok(
-    out.includes("Your desktop: Irfad&#x27;s MacBook Pro") &&
+    out.includes("Your desktop: Imran&#x27;s MacBook Pro") &&
       out.includes("Skipped. It is busy: it has all the work it can take"),
     "the order: the busy desktop is skipped",
   );
@@ -333,7 +333,7 @@ test("the placement order lists the person's computers, their servers, then the 
     berlin,
     space,
     mine,
-    { ...mine, serverId: "srv_dev_mini", name: "Irfad's Mac mini" } as MachineRow,
+    { ...mine, serverId: "srv_dev_mini", name: "Imran's Mac mini" } as MachineRow,
     maya,
   ]);
   assert.deepEqual(

@@ -1,0 +1,2 @@
+- The key card an agent shows now reads like the design: the key's name with "Sol is waiting", a field that says "Paste it, it stays in your Vault", Save, and after it "Key saved in your Vault".
+- A message an agent holds for you reads "Allow", "Edit" and "Deny", the same words as every other approval.

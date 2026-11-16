@@ -10,6 +10,7 @@ import { controlsFor, requiredOf, resolveSchema, TRIGGER_SPECS } from "./form-mo
 import { check } from "./model.ts";
 import type { DefNode, DefTrigger, Definition } from "./model.ts";
 import { createSampleAutomations, northwind } from "../sidebar/sample.ts";
+import { rawIdsIn } from "../../../../../../lib/id-shapes.ts";
 
 interface RegStep {
   key: string;
@@ -72,9 +73,10 @@ const OWNED: Record<string, Record<string, string[]>> = {
   http_request: { method: ["field-method"], url: ["field-url"] },
   code: { source: ["field-source"] },
   ai: { prompt: ["field-prompt"] },
-  send_email: { to: ["composer-to"], subject: ["em-subject"], body: ["em-plain"] },
-  send_sms: { to: ["composer-to"], body: ["richeditor-host"] },
-  paths: { paths: ["field-path-0"] },
+  // round three: an email and a text are the one step form (To, Subject, Message as chip fields), so their fields are field-<name> like every other step's
+  // round five: a condition is rows (a field button, an operator button, a value), never a text box
+  paths: { paths: ["field-path-0-field-0"] },
+  if: { condition: ["field-condition-field-0"] },
   parallel: { branches: ["field-lane-0"] },
 };
 const ACCOUNT_FIELDS = new Set(["connectionId", "mailboxId", "numberId", "connector"]);
@@ -118,11 +120,13 @@ test("every step in the catalog has an editable control for each required field"
     const def: Definition = { triggers: [{ key: "manual" }], nodes: [node] };
     const out = page(def, node, schema);
     const have = ids(out);
-    assert.ok(have.has("field-title"), `${step.key} has its Name field`);
+    // round three: the step's own name sits under Details with the rest of what a person rarely changes
+    assert.ok(have.has("step-details"), `${step.key} has its Details`);
     for (const name of requiredOf(schema)) {
       checked += 1;
       const candidates = OWNED[step.key]?.[name] ?? [`field-${name}`];
-      if (ACCOUNT_FIELDS.has(name)) candidates.push("choose-account");
+      // round four: when no account exists the needs bar's one button is the control (the empty Account menu is not drawn beside it)
+      if (ACCOUNT_FIELDS.has(name)) candidates.push("choose-account", "step-needs-button");
       const hit = candidates.find((id) => control(out, id));
       if (!hit) without.push(`${step.key}.${name}`);
     }
@@ -220,4 +224,27 @@ test("the screenshot: three triggers in one block each open their own form, a sc
   assert.ok(ids(out).has("schedule-time") && ids(out).has("schedule-zone"), "a time and a time zone");
   assert.ok(out.includes("This is trigger 3 of 3"), "the line that was all there was is still there, below the form");
   assert.ok(out.includes("Next 3 runs"), "and the next runs");
+});
+
+// round five (the walker's channel field showed chn_a1b2c3): no step's form shows an id, as a hint, a placeholder or a value
+test("no step's form shows an id shape: a field that holds a thing's id is a picker, and an example id is never a hint", () => {
+  const shown: string[] = [];
+  for (const step of registry.steps) {
+    const node = blank(step.key);
+    const def: Definition = { triggers: [{ key: "manual" }], nodes: [node] };
+    const out = page(def, node, schemaOf(step));
+    const text =
+      out.replace(/<[^>]*>/g, " ") + " " + [...out.matchAll(/placeholder="([^"]*)"/g)].map((m) => m[1]).join(" ");
+    for (const id of rawIdsIn(text)) shown.push(`${step.key}: ${id}`);
+  }
+  assert.deepEqual(shown, []);
+});
+
+test("the Channel field of Post a chat message is a picker by name", () => {
+  const step = registry.steps.find((x) => x.key === "post_message")!;
+  const node = blank("post_message");
+  const out = page({ triggers: [{ key: "manual" }], nodes: [node] }, node, schemaOf(step));
+  assert.ok(ids(out).has("field-channelId"));
+  assert.ok(!control(out, "field-channelId") || !/placeholder="chn_/.test(out));
+  assert.match(out, /Choose a channel/);
 });

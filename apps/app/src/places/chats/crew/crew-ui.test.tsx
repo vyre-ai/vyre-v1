@@ -6,6 +6,7 @@ import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import { CrewStrip } from "./strip.tsx";
 import { CrewOverview, CrewPeek } from "./pane.tsx";
+import { BackgroundLine } from "./background-line.tsx";
 import { groupHelperStrips } from "../conversation/helper-rows.ts";
 import { memberFromBlock } from "./status.ts";
 import { internalNames } from "../../../../../../lib/plain-words.ts";
@@ -80,7 +81,7 @@ test("the strip: one row per helper with its line and clock, a title that counts
       onRetry={(m) => calls.push(`retry:${m.id}`)}
     />,
   );
-  assert.equal(textOf(find(root, "crew-strip-title")), "3 helpers · 1 needs you · 0:12");
+  assert.equal(textOf(find(root, "crew-strip-title")), "3 helpers · 1 needs you · 1 of 3 done · 0:12");
   assert.match(textOf(find(root, "crew-chip-thr_a-line")), /Needs your OK to read Vendor calls/);
   assert.match(textOf(find(root, "crew-chip-thr_b-line")), /Reading the price table/);
   assert.match(textOf(find(root, "crew-chip-thr_b-role")), /Harbor quote/);
@@ -1133,4 +1134,83 @@ test("while a citation card is open the message's hover toolbar is not drawn; cl
   assert.equal(barShows(true, true), false, "a card is open: the bar steps aside");
   assert.equal(barShows(false, false), false, "not hovered: no bar");
   assert.equal(barShows(true, false), true, "the card closed: the bar is back");
+});
+
+test("the overview of one working helper draws no Side by side, and every word is true for a helper that works (its step, a clock, Stop all)", async () => {
+  const one = [
+    M({
+      kind: "subagent",
+      id: "sub_a",
+      title: "Batch 1",
+      state: "working",
+      step: "Reading the second profile",
+      elapsedMs: 41_000,
+    }),
+  ];
+  const root = await mount(
+    createRoot,
+    <CrewOverview
+      status={status(one, T({ members: 1, working: 1, done: 0, needsYou: 0, elapsedMs: 41_000 }))}
+      call={async () => ({})}
+      threadId="thr_0"
+      onPeek={() => undefined}
+      onRefresh={() => undefined}
+    />,
+  );
+  assert.equal(find(root, "crew-tl-sub_a-bar"), null, "one bar is not a comparison");
+  assert.doesNotMatch(textOf(root), /Side by side/);
+  assert.match(textOf(find(root, "crew-chip-sub_a")), /Reading the second profile/);
+  assert.ok(find(root, "crew-stop-all"), "a helper in the background can be stopped");
+  const two = [
+    M({ kind: "subagent", id: "sub_a", title: "Batch 1", state: "working", elapsedMs: 41_000 }),
+    M({
+      kind: "subagent",
+      id: "sub_b",
+      title: "Batch 2",
+      state: "done",
+      elapsedMs: 22_000,
+      endedAt: 23_000,
+      found: "x",
+    }),
+  ];
+  const root2 = await mount(
+    createRoot,
+    <CrewOverview
+      status={status(two, T({ members: 2, working: 1, done: 1, needsYou: 0, elapsedMs: 41_000 }))}
+      call={async () => ({})}
+      threadId="thr_0"
+      onPeek={() => undefined}
+      onRefresh={() => undefined}
+    />,
+  );
+  assert.match(textOf(root2), /Side by side/);
+  assert.ok(find(root2, "crew-tl-sub_a-bar"));
+});
+
+test("the line above the composer: how many work and how many are done, Stop ends them, pressing the words opens the Crew, and it is gone when the last one ends", async () => {
+  const stopped: number[] = [];
+  const opened: number[] = [];
+  const members = [
+    M({ kind: "subagent", id: "sub_a", state: "working", startedAt: Date.now() - 120_000, elapsedMs: 120_000 }),
+    M({ kind: "subagent", id: "sub_b", state: "working", startedAt: Date.now() - 120_000, elapsedMs: 120_000 }),
+    M({ kind: "subagent", id: "sub_c", state: "done", elapsedMs: 20_000, endedAt: 1 }),
+  ];
+  const st = status(members, T({ members: 3, working: 2, done: 1, needsYou: 0, elapsedMs: 120_000 }));
+  const root = await mount(
+    createRoot,
+    <BackgroundLine status={st} onOpen={() => opened.push(1)} onStop={() => stopped.push(1)} />,
+  );
+  assert.match(textOf(find(root, "background-text")), /^2 helpers working, 1 of 3 done, 2 min/);
+  await press(find(root, "background-open"));
+  await press(find(root, "background-stop"));
+  assert.deepEqual([opened.length, stopped.length], [1, 1]);
+  const none = await mount(
+    createRoot,
+    <BackgroundLine
+      status={status([M({ state: "done" })], T({ members: 1, working: 0, done: 1, needsYou: 0 }))}
+      onOpen={() => undefined}
+      onStop={() => undefined}
+    />,
+  );
+  assert.equal(find(none, "background-line"), null, "gone when the last one ends");
 });

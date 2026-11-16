@@ -25,10 +25,10 @@ import { createSampleSettings } from "../../../apps/app/src/places/settings/samp
 export const title = "Ask Vyre in a pane beside the thing";
 
 const NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
-const ME = { kind: "person" as const, id: "usr_irfad" };
+const ME = { kind: "person" as const, id: "usr_imran" };
 const AI = { kind: "agent" as const, id: "agt_assistant" };
 const PEOPLE = [
-  { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+  { id: "usr_imran", name: "Imran Ibarra", kind: "person" },
   { id: "agt_assistant", name: "Assistant", kind: "agent" },
   { id: "agt_billing", name: "Billing", kind: "agent" },
   { id: "usr_maya", name: "Maya Chen", kind: "person" },
@@ -96,7 +96,7 @@ function askRuntime(part: Part): ShellRuntime {
       title: `Ask about ${part.ask.thing?.title ?? ""}`,
       listed: false,
       members: [
-        { kind: "person", id: "usr_irfad" },
+        { kind: "person", id: "usr_imran" },
         { kind: "agent", id: "agt_assistant" },
       ],
       agents: [{ agentId: "agt_assistant", mode: "lead", model: "sonnet" }],
@@ -129,7 +129,7 @@ function askRuntime(part: Part): ShellRuntime {
       if (cap === "agents.list")
         return {
           agents: [
-            { agentId: "agt_assistant", name: "Assistant", kind: "assistant", ownerId: "usr_irfad" },
+            { agentId: "agt_assistant", name: "Assistant", kind: "assistant", ownerId: "usr_imran" },
             { agentId: "agt_billing", name: "Billing", kind: "agent" },
           ],
         };
@@ -138,7 +138,7 @@ function askRuntime(part: Part): ShellRuntime {
     connection: { get: () => "online", subscribe: () => () => undefined },
     principals: { subscribe: () => () => undefined, getSnapshot: () => everyone },
     recordTitle: () => undefined,
-    me: { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+    me: { id: "usr_imran", name: "Imran Ibarra", kind: "person" },
     clock: () => ({ now: NOW, offsetMin: 0 }),
     space: { id: "northwind", kind: "team", name: "Northwind" },
     assistant: { id: "agt_assistant", name: "Assistant" },

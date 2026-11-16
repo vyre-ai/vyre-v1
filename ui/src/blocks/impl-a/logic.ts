@@ -18,6 +18,8 @@ export interface BlockHost {
   meId?: string;
   /** A person's name for an id. */
   nameOf?: (id: string) => string;
+  /** Puts words into the composer as an editable draft (a plan's "Change it"). Left out where the chat has no composer: the plan is then only declined. */
+  draft?: (text: string) => void;
 }
 
 export interface BlockActionSpec {
@@ -321,6 +323,16 @@ export function planEdits(
 export function planProgress(steps: readonly PlanStepData[]): string {
   const done = steps.filter((s) => s.state === "done").length;
   return `${done} of ${steps.length} done`;
+}
+
+/** "2 of 4": the ticks that are filled, in the card's header once the plan runs. */
+export function planCount(steps: readonly PlanStepData[]): string {
+  return `${steps.filter((s) => s.state === "done").length} of ${steps.length}`;
+}
+
+/** The plan as a draft to change: one numbered line per step. */
+export function planDraft(steps: readonly PlanStepData[]): string {
+  return ["Change the plan:", ...steps.map((s, i) => `${i + 1}. ${s.text}`)].join("\n");
 }
 
 export function planTitle(title: string, steps: number): string {

@@ -1,6 +1,6 @@
 # mount.conflict
 
-A file changed at the provider while an edit in Vyre waited to go out; the edit was kept beside it as a copy
+A file changed at the provider while an edit in Vyre waited to go out; nothing was overwritten, and the edit waits in Vyre for the person to keep both or use theirs
 
 | | |
 |---|---|
@@ -22,6 +22,6 @@ type Payload = {
   folderId: string;
   fileId: string;
   name: string;
-  keptAs: string;
+  keptAs?: string;
 };
 ```

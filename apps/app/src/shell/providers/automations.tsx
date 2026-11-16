@@ -1,4 +1,5 @@
 // The Automations place: the shell sidebar slot holds the list, and the body holds the open Automation or an operational view.
+import { openIn, takeOpenHow } from "../tabs/open-how.ts";
 import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useConnectVersion } from "../connect/context.ts";
@@ -18,7 +19,8 @@ import { AutomationsDataProvider } from "../../places/automations/canvas/data.ts
 import type { AutomationsData, KeysStatus } from "../../places/automations/canvas/data.tsx";
 import type { KeyChoice } from "../../places/automations/canvas/model.ts";
 import { TextButton } from "../../places/automations/canvas/parts.tsx";
-import { AutomationCanvas } from "../../places/automations/canvas/AutomationCanvas.tsx";
+import { BuilderPage } from "../../places/automations/screens/BuilderPage.tsx";
+import { FirstPage } from "../../places/automations/screens/FirstPage.tsx";
 import { accountsFromVault, picksByApp } from "../../places/automations/connect/accounts.ts";
 import type { AccountOption } from "../../places/automations/connect/accounts.ts";
 import { connectionRoute } from "../../places/automations/connect/route.ts";
@@ -34,20 +36,11 @@ import {
   runsData,
   useDirectory,
 } from "./automations-parts.tsx";
-import {
-  AllRuns,
-  Dependencies,
-  LiveEvents,
-  NeedsYou,
-  Packages,
-  SpaceAnalytics,
-  TemplateGallery,
-  Watching,
-} from "../../places/automations/operations/StudioViews.tsx";
-import { AutomationsStart } from "../../places/automations/start/AutomationsStart.tsx";
+import { TemplateGallery, Watching } from "../../places/automations/operations/StudioViews.tsx";
 import { openAskPane } from "../ask/pane.ts";
-import { AutomationsSidebarSlot, StudioNav } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
-import { AutomationsSidebar } from "../../places/automations/sidebar/AutomationsSidebar.tsx";
+import { AutomationsSidebarSlot } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
+import { RunsList } from "../../places/automations/screens/RunsList.tsx";
+import { AutomationsList } from "../../places/automations/sidebar/AutomationsList.tsx";
 import type { StudioView } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { keysFromAccounts } from "../../places/automations/values/typed.ts";
 import { nameOf } from "./misc-common.ts";
@@ -162,7 +155,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     ])
       .then(([connectionsOut, mailOut, picksOut]) => {
         if (!live) return;
-        const nextAccounts = accountsFromVault(connectionsOut, mailOut);
+        const nextAccounts = accountsFromVault(connectionsOut, mailOut, rt.me.id);
         const nextPicks = picksByApp(picksOut);
         if (!nextAccounts || !nextPicks) {
           setAccounts([]);
@@ -191,7 +184,19 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       automationsData(
         rt,
         {
+          leave: () => {
+            setOpenId(null);
+            setLeft(hashed);
+            setStep(null);
+            setSideRun(null);
+          },
           openAutomation: (id) => {
+            // Cmd-press, the middle button or "Open in New Tab": the Automation opens as a tab beside this one (tabs/open-rule.ts)
+            const how = takeOpenHow();
+            if (how !== "here") {
+              openIn(how, () => rt.open({ subject: { type: "automation", id } }));
+              return;
+            }
             setView("automations");
             setStep(null);
             setOpenId(id);
@@ -356,11 +361,11 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     ) : (
       <View style={s.withSide}>
         <View style={s.main}>
-          <AutomationCanvas
+          <BuilderPage
             key={`${openId}:${step ?? ""}`}
             automationId={openId}
-            tabBodies={{ runs: <AutomationRuns automationId={openId} selectedRunId={sideRun} /> }}
-            {...(step ? { initialSelected: step, initialPanel: true } : {})}
+            runsBody={<AutomationRuns automationId={openId} selectedRunId={sideRun} />}
+            {...(step ? { initialSelected: step } : {})}
           />
         </View>
         {sideRun ? (
@@ -389,18 +394,8 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       <JourneyView journeyId={overlay.id} />
     ) : overlay?.kind === "journeyNew" ? (
       <JourneyNewView onClose={() => setOverlay((o) => (o?.kind === "journeyNew" ? null : o))} />
-    ) : view === "needs" ? (
-      <NeedsYou />
     ) : view === "runs" ? (
-      <AllRuns />
-    ) : view === "events" ? (
-      <LiveEvents />
-    ) : view === "analytics" ? (
-      <SpaceAnalytics />
-    ) : view === "dependencies" ? (
-      <Dependencies />
-    ) : view === "packages" ? (
-      <Packages />
+      <RunsList />
     ) : view === "watching" ? (
       <Watching />
     ) : view === "templates" ? (
@@ -412,8 +407,9 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     ) : phone ? (
       <PhoneList view={view} onView={setView} />
     ) : (
-      <AutomationsStart
-        onTemplates={() => setView("templates")}
+      <FirstPage
+        onExamples={() => setView("templates")}
+        onAllRuns={() => setView("runs")}
         onAsk={() => openAskPane({ thing: null, hint: ASK_HINT, context: ASK_AUTOMATIONS }, "automations")}
       />
     );
@@ -422,7 +418,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       <RunsDataProvider value={runs}>
         <ConfigExtrasProvider value={extras}>
           <View style={s.page} testID="automations-place">
-            {phone ? null : <AutomationsSidebarSlot selectedId={openId} view={view} onView={setView} onHome={goHome} />}
+            {phone ? null : <AutomationsSidebarSlot selectedId={openId} onView={setView} onHome={goHome} />}
             <View style={s.main}>
               {phone && view !== "automations" && !openId ? (
                 <Pressable
@@ -462,8 +458,7 @@ function PhoneList({ view, onView }: { view: StudioView; onView(next: StudioView
         style={s.phoneSearch}
         testID="automations-phone-search"
       />
-      <AutomationsSidebar hosted query={q} selectedId={null} onChoose={() => onView("automations")} />
-      <StudioNav view={view} onView={onView} />
+      <AutomationsList query={q} selectedId={null} onChoose={() => onView("automations")} />
     </View>
   );
 }

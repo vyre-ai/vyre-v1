@@ -79,6 +79,12 @@ export interface Connection {
 export interface ConversationData {
   /** Names of the people typing in this chat now, when the place knows (presence); the row above the composer says so. */
   typing?: readonly string[];
+  /** The live version: who is typing in chats now (ids), and this person's own typing told to the server (at most every 2 seconds). Absent where nothing is live. */
+  typingLive?: {
+    who(threadId: string): readonly string[];
+    say(threadId: string): void;
+    subscribe(listener: () => void): () => void;
+  };
   screens: ScreenHooks;
   call(cap: string, input: unknown): Promise<unknown>;
   /** The live stream's tick: a card reads its object again on it. Left out where nothing streams. */
@@ -100,6 +106,8 @@ export interface ConversationData {
   };
   nameOf(id: string): string;
   kindOf(id: string): "person" | "agent";
+  /** An agent deleted for good: its old messages show its name with a quiet "deleted", and the name is not pressable. */
+  goneOf?(id: string): boolean;
   /** The viewer holds the permission to start chats (chats.private). Without it the people and agents of this chat are named, not opened, and nobody is added from that list. Absent: yes. */
   mayChat?: boolean;
   nav: ConversationNav;

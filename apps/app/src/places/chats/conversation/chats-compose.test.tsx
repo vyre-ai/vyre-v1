@@ -92,6 +92,7 @@ function rig(answers: Record<string, (input: any) => unknown> = {}, extra: Parti
     openSearch: (q) => void flags.search.push(q),
     send: (t) => void flags.sent.push(t),
     openPane: (tab) => void opened.push(`pane:${tab}`),
+    openRewind: () => void opened.push("rewind"),
     startTalk: () => undefined,
   };
   return {
@@ -217,7 +218,7 @@ test("/export reads every page, names files and people by their names, and hands
   assert.match(r.saved[0]!.name, /\.md$/);
   assert.equal(r.saved[0]!.mime, "text/markdown;charset=utf-8");
   assert.match(r.saved[0]!.content, /^# /);
-  assert.ok(!/usr_irfad|agt_intake/.test(r.saved[0]!.content), "no ids where a name belongs");
+  assert.ok(!/usr_imran|agt_intake/.test(r.saved[0]!.content), "no ids where a name belongs");
   await runSlash("/export json", r.env);
   assert.match(r.saved[1]!.name, /\.json$/);
   const json = JSON.parse(r.saved[1]!.content);
@@ -1278,6 +1279,9 @@ test("each of the commands ends in the kind the table says (a hint or an error i
     skills: "/skills",
     hooks: "/hooks",
     init: "/init",
+    rewind: "/rewind",
+    jobs: "/jobs",
+    diff: "/diff",
   };
 
   for (const c of CHAT_COMMANDS) {
@@ -1476,9 +1480,60 @@ test("/voice starts the mic; /agents, /memory, /skills and /hooks are not offere
   assert.match(r.said.at(-1) ?? "", /is for a chat with an agent/);
 });
 
-test("every command in the list has a handler and nothing is listed that does not run: no /rewind, no /jobs, /bg, /loop, /resume, /diff, /mcp, /plugins (they come with the lanes that build them)", () => {
+test("every command in the list has a handler and nothing is listed that does not run: no /bg, /loop, /resume, /mcp, /plugins (they come with the lanes that build them)", () => {
   const ids = CHAT_COMMANDS.map((c) => c.id);
-  for (const gone of ["rewind", "jobs", "bg", "loop", "resume", "diff", "mcp", "plugins"])
-    assert.ok(!ids.includes(gone), gone);
+  for (const gone of ["bg", "loop", "resume", "mcp", "plugins"]) assert.ok(!ids.includes(gone), gone);
   assert.deepEqual(unclassified(), [], "every listed command has a kind, and the sweep above runs each");
+});
+
+test("/jobs says what this chat's agents have running in the background, the way the chat's job lines read it, and nothing when nothing runs", async () => {
+  const r = rig();
+  const agent = r.env.thread.agents[0]!.agentId;
+  const now = r.data.clock().now;
+  const feed = (terminals: unknown[]) =>
+    ({
+      ...r.env,
+      data: {
+        ...r.env.data,
+        screens: {
+          query: () => ({
+            subscribe: () => () => undefined,
+            getSnapshot: () => ({ status: "ready", data: { terminals } }),
+          }),
+        },
+      },
+    }) as never;
+  const one = {
+    terminalId: "t1",
+    name: "unit-tests",
+    agentId: agent,
+    threadId: r.env.thread.threadId,
+    state: "running",
+    exitCode: null,
+    createdAt: now - 120_000,
+    lastActiveAt: now,
+  };
+  await runSlash("/jobs", feed([one, { ...one, terminalId: "t2", name: "other chat", threadId: "thr_other" }]));
+  assert.match(r.said.at(-1) ?? "", /^1 job running in the background: Unit tests \(2 min\)$/);
+  await runSlash("/jobs", feed([]));
+  assert.equal(r.said.at(-1), "Nothing is running in the background");
+});
+
+test("/diff opens the diff beside the chat for the newest changeset an agent left; with none it says so", async () => {
+  const r = rig();
+  const opened: Array<[string, string]> = [];
+  const nav = { ...r.env.data.nav, openBeside: (k: string, id: string) => void opened.push([k, id]) };
+  const msg = (id: string, blocks: unknown[]) => ({ messageId: id, threadId: "t", blocks }) as never;
+  const withRows = (rows: unknown[]) => ({ ...r.env, data: { ...r.env.data, nav }, rows }) as never;
+  await runSlash("/diff", withRows([msg("m1", [])]));
+  assert.equal(r.said.at(-1), "No changes to look at yet");
+  await runSlash(
+    "/diff",
+    withRows([
+      msg("m1", [{ type: "changeset", data: { changesetId: "chg_old" } }]),
+      msg("m2", [{ type: "changeset", data: { changesetId: "chg_new" } }]),
+      msg("m3", []),
+    ]),
+  );
+  assert.deepEqual(opened, [["diff", "chg_new"]]);
 });

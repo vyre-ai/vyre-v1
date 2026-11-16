@@ -10,6 +10,7 @@ import { aside, asideKeep } from "./aside.ts";
 import { share } from "./share.ts";
 import { makeTask } from "./make-task.ts";
 import { decideRound, discussRound } from "./round.ts";
+import { chatRewind } from "./rewind.ts";
 import { flowCard } from "./flow-card.ts";
 import { remember } from "./remember.ts";
 import { noted } from "./noted.ts";
@@ -20,6 +21,7 @@ import { g24cHandlers } from "./g24c.ts";
 import { g24dHandlers } from "./g24d.ts";
 import { noteOfferHandlers } from "./note-offer.ts";
 import { crewLineHandlers, hookLineHandlers } from "./hook-line.ts";
+import { connectLine } from "./connect-line.ts";
 import { titleMake } from "./title.ts";
 import { g26Handlers } from "./g26.ts";
 import { sidebarHandlers } from "./sidebar.ts";
@@ -47,6 +49,7 @@ export const handlers = {
   "chat.post": guardPrivate(post),
   "chat.start": start,
   "chat.make_task": makeTask,
+  "chat.rewind": chatRewind,
   "chat.round.decide": decideRound,
   "chat.round.discuss": discussRound,
   "chat.reply_details": replyDetails,
@@ -87,6 +90,7 @@ export const handlers = {
   "chat.title_make": titleMake,
   ...noteOfferHandlers,
   ...hookLineHandlers,
+  "chat.connect_line": connectLine,
   ...crewLineHandlers,
   // P-L2_26 replaces the group entries that had reported limits
   ...g26Handlers,

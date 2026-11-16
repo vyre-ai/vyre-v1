@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { openDb } from "../src/daemon/sqlite.ts";
 import { createBlobStore } from "../src/ctx/blobs.ts";
-import { createOwnerArchives } from "../src/daemon/owner-archives.ts";
+import { createOwnerArchives, leftOutOf } from "../src/daemon/owner-archives.ts";
 test("full archives are separate, typed, current-owner-only, bounded and expire with cached pointers", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "owner-archive-")),
     db = openDb(path.join(dir, "test.db"));
@@ -207,4 +207,44 @@ test("archive verification and registration failures remove encrypted bytes and 
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }
+});
+
+// a stored zip of local entries, as the backup module writes it (the reader only needs the local headers)
+function storedZip(entries: [string, string][]): Uint8Array {
+  const out: number[] = [];
+  const u16 = (v: number): number[] => [v & 0xff, (v >>> 8) & 0xff];
+  const u32 = (v: number): number[] => [v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff];
+  for (const [name, text] of entries) {
+    const n = new TextEncoder().encode(name),
+      b = new TextEncoder().encode(text);
+    out.push(
+      ...u32(0x04034b50),
+      ...u16(20),
+      ...u16(0x0800),
+      ...u16(0),
+      ...u16(0),
+      ...u16(0),
+      ...u32(0),
+      ...u32(b.length),
+      ...u32(b.length),
+      ...u16(n.length),
+      ...u16(0),
+      ...n,
+      ...b,
+    );
+  }
+  return Uint8Array.from(out);
+}
+
+test("the archive's own page tells the export screen how many files were left out and how many it holds", () => {
+  const z = storedZip([
+    ["README.txt", "x"],
+    ["files/fil_a/versions/ver_1.bin", "abc"],
+    [
+      "NOT-EXPORTED.txt",
+      "2 files are not in this export. Each lives elsewhere.\n\nA.pdf: Google Drive could not be reached\nB.pdf: it was removed in Google Drive\n",
+    ],
+  ]);
+  assert.deepEqual(leftOutOf(z), { leftOut: 2, filesKept: 1 });
+  assert.deepEqual(leftOutOf(storedZip([["README.txt", "x"]])), {});
 });

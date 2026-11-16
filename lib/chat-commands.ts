@@ -33,6 +33,7 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
     argRequired: true,
   },
   { id: "stop", group: "While it works", detail: "Stop what the agent is doing" },
+  { id: "jobs", group: "While it works", detail: "What is running in the background" },
   { id: "find", group: "While it works", detail: "Find words in this chat" },
   // Bring in help
   {
@@ -64,6 +65,8 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "context", group: "This session", detail: "How full the context is, and compact it" },
   { id: "compact", group: "This session", detail: "Free up context, keeping what you name", arg: "what to keep" },
   { id: "fork", group: "This session", detail: "Branch this chat into a new one" },
+  { id: "rewind", group: "This session", detail: "Go back to an earlier point in this chat" },
+  { id: "diff", group: "This session", detail: "Open what the agent last changed" },
   { id: "export", group: "This session", detail: "Save this chat as Markdown or JSON", arg: "md or json" },
   { id: "search", group: "This session", detail: "Search every chat you can read", arg: "words" },
   // Keep it
@@ -121,6 +124,9 @@ export type ChatCommandId =
   | "context"
   | "compact"
   | "fork"
+  | "rewind"
+  | "jobs"
+  | "diff"
   | "export"
   | "search"
   | "task"

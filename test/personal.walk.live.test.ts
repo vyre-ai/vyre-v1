@@ -157,7 +157,6 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await page.getByTestId("claim-password").fill(PASSWORD);
       await page.getByTestId("claim-confirm").fill(PASSWORD);
       await page.getByTestId("claim-next").click();
-      await page.getByTestId("claim-saved").click();
       await page.getByTestId("claim-create").click();
       await dismissOnboarding(page);
       await page.getByTestId("shell").waitFor({ timeout: 30_000 });
@@ -380,8 +379,7 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       const adding = page.getByTestId("records-adding-input");
       await adding.fill("Walk Contact");
       await adding.press("Enter");
-      // the new record opens in its own tab, with its history beside it
-      await page.getByText("Olivia created it").first().waitFor({ timeout: 15_000 });
+      // the new record opens in its own tab; its pane opens on Details, and the history is the Activity tab beside it
       await page
         .getByRole("tab", { name: "Activity", exact: true })
         .or(page.getByRole("button", { name: "Activity", exact: true }))
@@ -419,8 +417,17 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
 
     await step("Automations: create one from a template", async () => {
       await go("automations", "automations-place");
-      await page.getByText("Weekly digest", { exact: false }).first().click({ timeout: 15_000 });
-      await page.getByTestId("builder-body").or(page.getByTestId("canvas-frame")).first().waitFor({ timeout: 20_000 });
+      // rc.29: templates are not a place any more, they are a way to start (AUTOMATIONS-2026-11-13.md 2.3: the first page offers New automation and Start from an example)
+      await page.getByTestId("fp-examples").click({ timeout: 15_000 });
+      await page.getByTestId("use-weekly_digest").click({ timeout: 15_000 });
+      await page.getByTestId("builder-body").or(page.getByTestId("story")).first().waitFor({ timeout: 20_000 });
+      // the list at the left takes the new Automation at once and no longer says there are none
+      await page
+        .locator("[data-testid^='row-auto-']")
+        .filter({ hasText: "Weekly digest" })
+        .first()
+        .waitFor({ timeout: 15_000 });
+      assert.equal(await page.getByText("No automations yet.").count(), 0, "the empty line is gone");
     });
 
     await step("Settings: change the theme", async () => {

@@ -1,4 +1,5 @@
 // The generated catalog, tool_search and the shape of a tool call (ARCH 6.7). The tool count follows generated/mcp-tools.json.
+import { connectCardOn } from "../../lib/connect-switch.ts";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -7,19 +8,19 @@ import { buildCatalog, createToolSession } from "../src/tools/index.ts";
 import type { McpToolRow, RegistryCapRow } from "../src/tools/index.ts";
 import { ctx, loadGenerated, makeSession, thread } from "../src/tools/harness.ts";
 
-test("catalog: every generated tool joins its capability; the frozen default list is 65 real tools", () => {
+test("catalog: every generated tool joins its capability; the frozen default list is 65 real tools, 66 with the connect card on (its one tool, vault_connect)", () => {
   const { catalog, defaults, caps } = loadGenerated();
   // Every generated tool joins the catalog, so the count follows the generated file instead of a literal that each contract change breaks.
   const generated = JSON.parse(readFileSync(new URL("../../generated/mcp-tools.json", import.meta.url), "utf8")) as {
     tools: unknown[];
   };
   assert.equal(catalog.all.length, generated.tools.length);
-  assert.equal(defaults.size, 65);
+  assert.equal(defaults.size, 65 + (connectCardOn() ? 1 : 0));
   for (const n of defaults) assert.ok(catalog.byName(n), `default tool ${n} exists`);
   for (const t of catalog.all) assert.ok(caps.has(t.cap), t.name);
   const stricter = catalog.all.filter((t) => t.effects === "outward").length;
   // 77 until rc.8 added twelve gated outward tools: Dropbox files (create_folder, delete, restore, upload), Google Docs insert/replace text, mounts doc/sheet edits and Excel workbook writes.
-  assert.equal(stricter, 90); // campaigns_launch left with Campaigns; mcp_call (a connection's tool called from a CLI engine, l-skills1) is gated outward; google_gmail_delete_draft (l-chrome2a) is too
+  assert.equal(stricter, 93); // the Drive write-back branch (f-drive2) added three gated outward tools: google.drive.update_file, ms.drive.update_item, ms.drive.restore_item; before that, campaigns_launch left with Campaigns; mcp_call (a connection's tool called from a CLI engine, l-skills1) is gated outward; google_gmail_delete_draft (l-chrome2a) is too
 });
 
 test("catalog: a tool whose capability is missing, or a duplicate name, is a build error not a quiet gap", () => {
@@ -48,7 +49,9 @@ test("the default listed set loads every turn (about 60); the rest are found wit
   const set = session.toolsFor(ctx());
   assert.equal(
     set.listed.length,
-    65 - loaded.catalog.all.filter((t) => loaded.defaults.has(t.name) && t.toolset === "engineer").length,
+    65 +
+      (connectCardOn() ? 1 : 0) -
+      loaded.catalog.all.filter((t) => loaded.defaults.has(t.name) && t.toolset === "engineer").length,
   );
   assert.ok(set.searchable.length > 500);
   const notDefault = loaded.catalog.all.find(
@@ -140,6 +143,7 @@ test("the seed names the agent as principal, the asker as who it acts for, and c
     run: "run_9",
     thread: "T1",
     origin: "agent",
+    callMeta: { tool: "records_get", first: true },
     provider: "anthropic",
     approval: undefined,
   });
@@ -351,7 +355,7 @@ test("what a model reads from a failed tool says approval, never Gate or hold", 
   const out = await session.call(ctx(), "mail_send", {
     to: ["maya@northwind.com"],
     subject: "Retainer",
-    body: "Dear Maya, the retainer is attached.",
+    html: "Dear Maya, the retainer is attached.",
   });
   assert.equal(out.kind, "error");
   if (out.kind !== "error") return;

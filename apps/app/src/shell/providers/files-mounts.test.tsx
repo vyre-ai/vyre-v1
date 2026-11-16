@@ -85,10 +85,10 @@ test("accounts: Google and Microsoft come from the Space's active connections, D
     if (cap === "github.installations.list") return { installations: [{ id: 1, account: "acme" }] };
     throw new Error(cap);
   };
-  const a = await loadAccounts(call, { id: "dev_1", name: "Irfad's MacBook" });
+  const a = await loadAccounts(call, { id: "dev_1", name: "Imran's MacBook" });
   assert.deepEqual(a.google_drive, { label: "firm@example.com", connected: true, connectionId: "con_g" });
   assert.equal(a.microsoft.connected, false, "a connection that needs reconnecting is not connected");
-  assert.deepEqual(a.local, { label: "Irfad's MacBook", connected: true, deviceId: "dev_1" });
+  assert.deepEqual(a.local, { label: "Imran's MacBook", connected: true, deviceId: "dev_1" });
   assert.deepEqual(a.github, { label: "acme", connected: true });
   assert.deepEqual(
     a.dropbox,
@@ -144,13 +144,13 @@ test("a mounted folder's status line: source, state, last sync, what waits", () 
       kind: "local",
       provider: "Local folder",
       ref: undefined,
-      fromDevice: "Irfad's MacBook",
+      fromDevice: "Imran's MacBook",
       state: "device_offline",
       lastSyncAt: undefined,
     }),
     NOW,
   );
-  assert.equal(local.source, "Folder on Irfad's MacBook");
+  assert.equal(local.source, "Folder on Imran's MacBook");
   assert.equal(local.canSync, false, "a computer's folder syncs when the computer reports");
   assert.match(local.detail, /syncs when it is on\. Not synced yet/);
   assert.equal(
@@ -182,4 +182,12 @@ test("the status line draws its source, its words and its buttons: Pause or Resu
     /data-testid="mount-sync"/,
     "no Sync now for a computer's folder",
   );
+});
+
+test("a file opened from Files opens as the file's subject, so its tab is named for the file (not 'Files')", () => {
+  const opened: unknown[] = [];
+  const rt = sampleRuntime({ screens: createSampleFiles().data.screens, call: async () => ({}) });
+  rt.open = (t) => void opened.push(t);
+  filesData(rt).nav.openFile("fil_1");
+  assert.deepEqual(opened, [{ subject: { type: "file", id: "fil_1" } }]);
 });

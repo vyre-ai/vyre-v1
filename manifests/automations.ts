@@ -177,6 +177,24 @@ const accessDiff = t.obj({
   keysToReplace: t.arr(t.obj({ stepId: t.str(), keyId: t.str(), reason: t.str() })),
 });
 const target = { automationId: id.automation };
+const draftRow = t.obj({
+  definition,
+  rev: t.int(),
+  baseVersion: t.int(),
+  by: t.str(),
+  at: t.int(),
+});
+const proposalRow = t.obj({
+  definition,
+  summary: t.str(),
+  by: t.str(),
+  for: t.str(),
+  baseVersion: t.int(),
+  at: t.int(),
+  steps: t.int(),
+});
+const withDraft = { automation: row, draft: t.opt(draftRow) };
+const withProposal = { automation: row, draft: t.opt(draftRow), proposal: t.opt(proposalRow) };
 const jsonSchema = t.rec();
 const httpMethod = t.enm("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE");
 const connectorLevel = t.enm("draft");
@@ -456,6 +474,33 @@ export default defineManifest({
       label: "filter",
       cli: "vyre automations list",
     }),
+    read(
+      "automations.home",
+      "What the Automations first page shows: what needs the person, at most one suggestion the person's Assistant can finish with one approval, the Today line and the header counts",
+      {
+        in: {},
+        out: {
+          needs: t.arr(
+            t.obj({ id: id.automation, automation: t.str(), why: t.str(), at: t.ts(), runId: t.opt(id.run) }),
+          ),
+          suggestion: t.opt(t.obj({ itemId: t.str(), appName: t.str(), text: t.str() })),
+          today: t.obj({ ran: t.int(), failed: t.arr(t.obj({ runId: id.run })) }),
+          counts: t.obj({ total: t.int(), on: t.int(), needYou: t.int() }),
+        },
+        tool: "automations",
+        label: "check",
+      },
+    ),
+    read(
+      "automations.connect_options",
+      "What Connect an app lists for the person: the Vault items they may use whose app their Assistant can set up",
+      {
+        in: {},
+        out: { vault: t.arr(t.obj({ itemId: t.str(), appName: t.str() })) },
+        tool: "automations",
+        label: "check",
+      },
+    ),
     read("automations.packages.list", "List portable Automation packages this person has exported", {
       in: {},
       out: { packages: t.arr(packageRow) },
@@ -592,8 +637,8 @@ export default defineManifest({
       "automations.get",
       "Read an Automation with its definition, alerts and followers, and whether the caller may change it (a Space one: owners, admins and people given Edit on it)",
       {
-        in: target,
-        out: { automation: row, canEdit: t.opt(t.bool()) },
+        in: { ...target, version: t.opt(t.int({ minimum: 1 })) },
+        out: { automation: row, canEdit: t.opt(t.bool()), draft: t.opt(draftRow), proposal: t.opt(proposalRow) },
         on: ["automation", "/automationId"],
         tool: "automations",
         label: "check",
@@ -651,6 +696,82 @@ export default defineManifest({
       emits: ["automation.updated", "automation.runs_as_changed"],
       tool: "automations",
       errors: ["validation.version_conflict", "validation.bad_input"],
+    }),
+    write(
+      "automations.draft.save",
+      "Save the edit as a draft as the person goes; an Off Automation saves at once, an On one keeps it apart until Make live",
+      {
+        in: { ...target, definition, expectedVersion: t.opt(t.int()), expectedRev: t.opt(t.int()) },
+        out: withDraft,
+        on: ["automation", "/automationId"],
+        emits: ["automation.updated", "automation.runs_as_changed"],
+        tool: "automations",
+        errors: ["validation.version_conflict", "validation.precondition_failed", "validation.bad_input"],
+      },
+    ),
+    write("automations.draft.discard", "Throw the draft away; the live version stays", {
+      in: target,
+      out: withDraft,
+      on: ["automation", "/automationId"],
+      emits: ["automation.updated"],
+      tool: "automations",
+    }),
+    write("automations.make_live", "Make the draft the next live version; runs already started finish as they were", {
+      in: { ...target, expectedRev: t.opt(t.int()) },
+      out: withDraft,
+      on: ["automation", "/automationId"],
+      emits: ["automation.updated", "automation.runs_as_changed"],
+      tool: "automations",
+      errors: ["validation.version_conflict", "validation.precondition_failed"],
+    }),
+    write(
+      "automations.draft.propose",
+      "An Assistant puts steps on the page as a proposal for a person to accept: nothing is saved as the definition, made live or turned on. With no automationId an empty Automation that is off is made first",
+      {
+        in: {
+          automationId: t.opt(id.automation),
+          name: t.opt(t.str()),
+          definition,
+          summary: t.str(),
+        },
+        out: { ...withProposal, ok: t.bool(), issues: t.arr(t.any()) },
+        perm: "automations.personal",
+        emits: ["automation.created", "automation.updated"],
+        tool: "automations",
+        errors: ["validation.bad_input", "validation.precondition_failed"],
+      },
+    ),
+    write(
+      "automations.proposal.accept",
+      "A person takes the Assistant's proposal: an off Automation saves it, an on one keeps it as their draft until Make live. An agent is refused",
+      {
+        in: target,
+        out: withProposal,
+        on: ["automation", "/automationId"],
+        emits: ["automation.updated", "automation.runs_as_changed"],
+        tool: "automations",
+        errors: ["validation.version_conflict", "validation.precondition_failed", "validation.bad_input"],
+      },
+    ),
+    write(
+      "automations.proposal.discard",
+      "Throw the Assistant's proposal away; an empty Automation that proposing made goes to Trash with it",
+      {
+        in: target,
+        out: { automation: row, draft: t.opt(draftRow), proposal: t.opt(proposalRow), removed: t.opt(t.bool()) },
+        on: ["automation", "/automationId"],
+        emits: ["automation.updated", "automation.deleted"],
+        tool: "automations",
+      },
+    ),
+    read("automations.test_events", "Real past starts of an Automation's trigger that a test can be tried on", {
+      in: { ...target, trigger: t.opt(t.str()) },
+      out: {
+        events: t.arr(t.obj({ runId: id.run, at: t.int(), payload: t.any() })),
+        sample: t.rec(),
+      },
+      on: ["automation", "/automationId"],
+      tool: "automations",
     }),
     write(
       "automations.migrate_runs",
@@ -864,7 +985,14 @@ export default defineManifest({
       "automations.test",
       "Test an Automation with sample data: reads run for real, writes and sends are stubbed (a Run)",
       {
-        in: { ...target, trigger: t.opt(t.str()), sample: t.opt(t.rec()), version: t.opt(t.int()) },
+        in: {
+          ...target,
+          trigger: t.opt(t.str()),
+          sample: t.opt(t.rec()),
+          version: t.opt(t.int()),
+          draft: t.opt(t.bool()),
+          eventRunId: t.opt(id.run),
+        },
         out: runStarted,
         on: ["automation", "/automationId"],
         level: "use",
@@ -1687,6 +1815,12 @@ export default defineManifest({
     ),
   ],
   screens: [
+    // Automation usage (it was the Automations place's Analytics): outcomes across every Automation, in the Console for a person who may read the audit log
+    screen("automations.usage", "console", "ui:AutomationUsage", {
+      needs: ["audit.read"],
+      q: { analytics: ["automations.analytics", {}, true] },
+      empty: "No completed runs yet",
+    }),
     screen("automations.sidebar", "automations", "ui:AutomationsSidebar", {
       slot: "sidebar",
       q: {

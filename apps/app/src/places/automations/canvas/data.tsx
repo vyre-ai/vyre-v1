@@ -12,6 +12,8 @@ export type KeysStatus = "loading" | "ready" | "empty" | "unavailable";
 
 export interface AutomationsNav {
   openAutomation(id: string): void;
+  /** Leave the open Automation for the first page (it is gone: a discarded idea that left nothing behind). */
+  leave?(): void;
   openJourney(id: string): void;
   /** Opens the New Journey type sheet. Without it the plus on the Journey types header is not drawn. */
   newJourney?(): void;

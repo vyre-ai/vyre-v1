@@ -8,7 +8,7 @@ export interface Principal {
   kind: Kind;
   /** The sign-in name this person chose, when this device knows it (it is never read from the Space). */ username?: string;
   /** An agent's person. */ owner?: string;
-  /** Someone else's agent this person may not open or @mention (their assistant, an outside agent they connected): named as its person, "Irfad Imtiaz (Agent)", never offered. */ private?: boolean;
+  /** Someone else's agent this person may not open or @mention (their assistant, an outside agent they connected): named as its person, "Imran Ibarra (Agent)", never offered. */ private?: boolean;
   /** A private agent's own name, for owners and admins only (Console audit details). */ agentName?: string;
   /** Someone else's private agent that is their Assistant: named "Maya’s Assistant" (lib/words/agent-name). */ assistant?: boolean;
   /** A person who is not active (invited, suspended, removed): named, never offered. */ inactive?: boolean;
@@ -28,6 +28,8 @@ export interface RuntimeBase {
   connection: Connection;
   /** Everyone the face menu and the names read from: people, agents, groups, roles. */
   principals: LiveQuery<Principal[]>;
+  /** Agents deleted for good, by the name they had: what a chat shows under a message they wrote (a quiet "deleted"). Never in a picker or a mention list. */
+  erased?(id: string): string | undefined;
   /** Record titles for the chip on a task, by record id. */
   recordTitle(recordId: string): string | undefined;
   me: Principal;

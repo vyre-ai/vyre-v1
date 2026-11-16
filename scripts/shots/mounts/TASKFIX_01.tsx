@@ -16,10 +16,10 @@ import { TaskDetail } from "../../../apps/app/src/places/chats/tasks/TaskDetail.
 export const title = "Held send approval states and the sidebar's first row";
 
 const NOW = Date.UTC(2026, 10, 6, 10, 0, 0);
-const ME = "usr_irfad";
+const ME = "usr_imran";
 type Row = Record<string, unknown>;
 const PEOPLE = [
-  { id: ME, name: "Irfad Imtiaz", kind: "person" },
+  { id: ME, name: "Imran Ibarra", kind: "person" },
   { id: "agt_scout", name: "Scout", kind: "agent" },
 ];
 const BLOCK = {
@@ -94,7 +94,7 @@ function runtime(t: Row): unknown {
       return {};
     },
     principals: live(PEOPLE),
-    me: { id: ME, name: "Irfad Imtiaz" },
+    me: { id: ME, name: "Imran Ibarra" },
     assistant: { id: "agt_assistant", name: "Assistant" },
     clock: () => ({ now: NOW, offsetMin: 300 }),
     recordTitle: () => undefined,
@@ -132,7 +132,7 @@ function Held({ part, skin }: { part: string; skin: string }): ReactNode {
       },
     };
     return createThemeController({
-      personId: "irfad",
+      personId: "imran",
       spaceId: "nw",
       spaceSkin: { nw: skin },
       prefersDark: skin === "graphite",

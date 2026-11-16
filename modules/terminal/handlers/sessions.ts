@@ -4,7 +4,21 @@
 //   run                                                            the terminal_run tool: one command, run in a session, output scrubbed of every Vault value filled into it
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
+import { randomHex } from "../../../kernel/src/log/hash.ts";
+import { hmac } from "../../../kernel/src/seal/wire.ts";
 import { STOPPED_LINE } from "../stop-line.ts";
+import { hasOwnPlace } from "../../../lib/asker-place.ts";
+import {
+  askerPlace,
+  chatRevokeCommand,
+  inOtherFolder,
+  namesMirror,
+  otherFolders,
+  ownersHomeRefs,
+  projectsNamed,
+  removeCommand,
+} from "../asker.ts";
+import type { AskerPlace } from "../asker.ts";
 import {
   MAX_RULES,
   MAX_RULE_CHARS,
@@ -34,16 +48,23 @@ import {
   touch,
   workspacesFor,
   boundWorkspaceStatus,
+  boundChatFolder,
+  boundNotes,
+  boundPlaceGrant,
   SESSION_SELECT,
   insertTab,
   scopeOf,
   dropHold,
+  leaseOf,
+  typedHashes,
+  peekLease,
   takeOverOn,
   holderOf,
   setHold,
   workspaceHolder,
   HOLD_IDLE_MS,
   touchHold,
+  uidOf,
 } from "../projections.ts";
 import { classify, QuotedHereDoc, referHandles, UnsurePlace } from "../fill.ts";
 import type { HandleRef } from "../fill.ts";
@@ -51,6 +72,7 @@ import { HANDLE, SEALED } from "../../../lib/vault-use/index.ts";
 import { judged, isDangerous } from "../risk.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import { NO_PLACE } from "../fleet.ts";
+import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
 import type {
   HostKind,
   KeyPress,
@@ -109,6 +131,14 @@ export function terminalRow(x: SessionRow) {
   };
 }
 
+/**
+ * What an event about a terminal on an agent's computer says (who opened it, its name, the exit code and time of a command, who holds the keyboard) is said to the person it is for, never to everyone who may view the
+ * agent: the people who use a shared agent each work in a place of their own (F30).
+ */
+function emitOpts(ctx: TermCtx, terminalId: string): { vis: "private" } | undefined {
+  return sessionBy(ctx.db, terminalId)?.host === "agent_computer" ? { vis: "private" } : undefined;
+}
+
 /** A session that is still there. A closed one is gone for every action but `get`. */
 function live(ctx: TermCtx, id: string): SessionRow {
   const x = sessionBy(ctx.db, id);
@@ -133,6 +163,7 @@ interface AgentFacts {
   kind?: string;
   runtime?: string;
   name?: string;
+  folderId?: string;
 }
 
 // ---- the workspace a call works in, and who it is there ----------------------------------------------------------------------------------------------------
@@ -189,7 +220,7 @@ async function tabFor(ctx: TermCtx, scope: WorkScope | undefined): Promise<TabBy
 }
 
 /**
- * Whose workspace this is to enter (owner, 6 Nov): an agent in its own; a person in their own Assistant's (or any agent of theirs); owners and admins (the ones who hold Manage) in a team agent's;
+ * Whose workspace this is to enter (owner, 6 Nov): an agent in its own; a person in their own Assistant's (or any agent of theirs); owners and admins (the ones who hold Manage) in a team agent's; a person who may only use a team agent, in a place of their own that nobody else enters;
  * nobody else, and never in another person's Assistant or outside agent, whatever their role, since that is private to its person.
  */
 export async function mayEnterWorkspace(ctx: TermCtx, agentId: string): Promise<boolean> {
@@ -214,13 +245,94 @@ const lookup = (
         failed:
           (e as { error?: { code?: unknown } } | null)?.error?.code === "validation.not_found"
             ? ("not_found" as const)
-            : ("error" as const),
+            : String((e as { error?: { code?: unknown } } | null)?.error?.code ?? "").startsWith("permission.")
+              ? ("not_found" as const) // an agent a person may not read is one they may not enter: no access, not a fault to try again
+              : ("error" as const),
       };
     }
   })();
   facts?.set(agentId, p);
   return p;
 };
+
+/**
+ * The place a person has in a shared agent's workspace (owner, 13 Nov, P7 section 10 item 6: a turn sees only the asker's work folder plus the agent's own home): a folder, a shell environment and a tmux
+ * server of their own, for a person who uses the agent without owning it. None for the agent's owner (the agent's home is theirs, as it was before), for a person's own Assistant or an outside agent (private
+ * to one person already), and for a turn acting for nobody (the agent itself). `person` is who the session is for: the person an agent acts for, or the person typing.
+ */
+export async function askerPlaceFor(
+  ctx: TermCtx,
+  agentId: string,
+  person: string,
+  facts?: Facts,
+): Promise<AskerPlace | undefined> {
+  if (ctx.call === undefined || !person.startsWith("usr_")) return undefined;
+  const got = await lookup(ctx, agentId, facts);
+  // FAIL CLOSED: who the asker is, and whether they own the agent, must be known. A failure to read the agent opens nothing, never the owner's home (and is never remembered as an answer)
+  if (got.failed !== undefined)
+    raise(ctx, "provider.unavailable", "Could not open the computer. Try again.", { reason: "agent_unreadable" });
+  if (!hasOwnPlace(got.agent, agentId, person)) return undefined;
+  // a person who left the Space: their folder is unreachable at once, and removed when the Trash time is over (onPersonGone)
+  if (ctx.db.all("SELECT person FROM terminal_person_gone WHERE person = ?", person).length > 0)
+    raise(ctx, "permission.role_lacks_permission", "This person is no longer in the Space.", { reason: "person_gone" });
+  const uid = uidOf(ctx.db, person, ctx.now());
+  if (uid === null)
+    raise(ctx, "provider.unavailable", "This computer has no room for more people. Ask an admin.", {
+      reason: "no_uid",
+    });
+  // may they read what Files shows them of the agent's folder (the mirror): Files' own view rule, as them
+  const folder = got.agent?.folderId;
+  const files =
+    folder !== undefined &&
+    ctx.authorize({ perm: null, level: "view" }, { type: "folder", id: folder }).effect === "allow";
+  return askerPlace(person, uid, files);
+}
+
+/**
+ * What the tool layer refuses in a turn that has a place of its own: a working directory or a command that names another person's folder, or the folder of a project the person is not on. A shell can
+ * still build a path the text does not show (`cd ..; cat`): that is the user id, which one container cannot split (see the report).
+ */
+async function keepOut(
+  ctx: TermCtx,
+  place: AskerPlace,
+  agentId: string,
+  texts: ReadonlyArray<string | undefined>,
+): Promise<void> {
+  for (const text of texts) {
+    if (text === undefined || text === "") continue;
+    // the agent's own home (its owner's sign-ins, history, keys): a person's own folder is their home, so nothing of the agent's is theirs to name
+    if (ownersHomeRefs(text).length > 0)
+      raise(ctx, "permission.role_lacks_permission", "That is the agent's own home. Work in your own folder.", {
+        reason: "owners_home",
+      });
+    // the mirror of the agent's Files folder: only for a person who may view that folder in Files
+    if (namesMirror(text)) {
+      const folder = (await lookup(ctx, agentId)).agent?.folderId;
+      if (
+        folder === undefined ||
+        ctx.authorize({ perm: null, level: "view" }, { type: "folder", id: folder }).effect !== "allow"
+      )
+        raise(ctx, "permission.role_lacks_permission", "That folder in Files is not one you may open.", {
+          reason: "files_folder",
+        });
+    }
+    if (otherFolders(text, place.uid).length > 0 || inOtherFolder(text, place.uid))
+      raise(ctx, "permission.role_lacks_permission", "That is another person's folder. Work in your own.", {
+        reason: "other_persons_folder",
+      });
+    for (const project of projectsNamed(text))
+      if (ctx.authorize({ perm: null, level: "view" }, { type: "project", id: project }).effect !== "allow")
+        raise(
+          ctx,
+          "permission.role_lacks_permission",
+          "You are not on that project, so its folder is not yours to use.",
+          {
+            reason: "project_folder",
+            projectId: project,
+          },
+        );
+  }
+}
 
 /** May the caller enter this agent's workspace: yes, no, or unknown (agents.get failed for another reason than not found: try again, never a refusal that is not true). */
 async function entry(ctx: TermCtx, agentId: string, facts?: Facts): Promise<"yes" | "no" | "unknown"> {
@@ -237,9 +349,14 @@ async function entry(ctx: TermCtx, agentId: string, facts?: Facts): Promise<"yes
   const agent = got.agent;
   if (agent?.ownerId === me) return "yes";
   if (agent !== undefined && (agent.kind === "assistant" || agent.runtime === "outside")) return "no";
-  return ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: agentId }).effect === "allow"
-    ? "yes"
-    : "no";
+  if (ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: agentId }).effect === "allow") return "yes";
+  // a person who may use the agent and does not own it works on its computer in a place of their own (their own Unix user): the computer is theirs to enter, and nothing in it but what is theirs
+  if (
+    hasOwnPlace(agent, agentId, me) &&
+    ctx.authorize({ perm: null, level: "use" }, { type: "agent", id: agentId }).effect === "allow"
+  )
+    return "yes";
+  return "no";
 }
 
 async function needWorkspace(ctx: TermCtx, agentId: string, facts?: Facts): Promise<void> {
@@ -252,12 +369,9 @@ async function needWorkspace(ctx: TermCtx, agentId: string, facts?: Facts): Prom
       { reason: "agent_unreadable" },
     );
   if (e === "no")
-    raise(
-      ctx,
-      "permission.role_lacks_permission",
-      "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's.",
-      { reason: "workspace_private" },
-    );
+    raise(ctx, "permission.role_lacks_permission", "You do not have access to this agent's computer.", {
+      reason: "workspace_private",
+    });
 }
 
 /** A session in a workspace is entered only by who may enter that workspace. */
@@ -301,15 +415,30 @@ const unexpected = (ctx: TermCtx, what: string, e: unknown): never => {
 /** The machine's host for a session Vyre knows, told where the session lives first: after a restart, a sleep or a lost tmux the host finds it again and remakes it on use. */
 async function hostFor(ctx: TermCtx, x: SessionRow): Promise<TerminalHost> {
   const h = hostOf(ctx);
-  await adoptOn(h, x).catch((e: unknown) => {
+  // who the session is for is decided here and never swallowed: a session of a person is never remade in the agent's own home because the answer failed
+  const place =
+    x.host === "agent_computer" && x.agentId !== undefined ? await askerPlaceFor(ctx, x.agentId, x.owner) : undefined;
+  await adoptOn(ctx, h, x, undefined, place).catch((e: unknown) => {
     ctx.log.warn("terminal: could not find the session again", {
       reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
     });
   });
   return h;
 }
-const adoptOn = async (h: TerminalHost, x: SessionRow): Promise<void> => {
+const adoptOn = async (
+  ctx: TermCtx,
+  h: TerminalHost,
+  x: SessionRow,
+  facts?: Facts,
+  known?: AskerPlace,
+): Promise<void> => {
   if (!h.adopt) return;
+  // a session of a person who uses the shared agent without owning it is made again in their own folder, as their own Unix user
+  const place =
+    known ??
+    (x.host === "agent_computer" && x.agentId !== undefined
+      ? await askerPlaceFor(ctx, x.agentId, x.owner, facts)
+      : undefined);
   const target: Target = {
     host: x.host,
     ...(x.host === "agent_computer" && x.agentId !== undefined ? { agentId: x.agentId } : {}),
@@ -322,6 +451,7 @@ const adoptOn = async (h: TerminalHost, x: SessionRow): Promise<void> => {
     cols: x.cols,
     rows: x.rows,
     ...(x.cwd === "" ? {} : { cwd: x.cwd }),
+    ...(place === undefined ? {} : { place }),
   });
 };
 
@@ -436,20 +566,39 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
     ...(a.computerId === undefined ? {} : { computerId: a.computerId }),
     ...(a.deviceId === undefined ? {} : { deviceId: a.deviceId }),
   };
-  let started: { cwd: string; title?: string };
-  try {
-    started = await hostOf(ctx).open({
-      terminalId,
-      target,
-      name,
-      ...(a.cwd === undefined ? {} : { cwd: a.cwd }),
-      cols,
-      rows,
-      folders: rulesOf(ctx.db, owner).folders,
-    });
-  } catch (e) {
-    return mapHostError(e);
+  // a person who uses a shared agent without owning it works in a folder of their own (asker.ts)
+  let place =
+    a.host === "agent_computer" && a.agentId !== undefined ? await askerPlaceFor(ctx, a.agentId, owner) : undefined;
+  if (place !== undefined) await keepOut(ctx, place, a.agentId as string, [a.cwd]);
+  let started: { cwd: string; title?: string } | undefined;
+  for (let tries = 0; started === undefined; tries++) {
+    try {
+      started = await hostOf(ctx).open({
+        terminalId,
+        target,
+        name,
+        ...(a.cwd === undefined ? {} : { cwd: a.cwd }),
+        cols,
+        rows,
+        folders: rulesOf(ctx.db, owner).folders,
+        ...(place === undefined ? {} : { place }),
+      });
+    } catch (e) {
+      // a folder of this uid that is someone else's is a fault, never a reason to give the person another uid: a person keeps one uid in the whole Space, and their files on other agents stay theirs
+      if ((e as { code?: unknown } | null)?.code === "squatted")
+        raise(ctx, "provider.unavailable", "Your space on this computer could not be opened. Ask an admin.", {
+          reason: "place_unavailable",
+        });
+      return mapHostError(e);
+    }
   }
+  // where this person's folder was made, so a leaver's cleanup touches only those workspaces
+  if (place !== undefined && a.agentId !== undefined)
+    ctx.db.run(
+      "INSERT INTO terminal_person_places (agent_id, person) VALUES (?, ?) ON CONFLICT (agent_id, person) DO NOTHING",
+      a.agentId,
+      place.person,
+    );
   const row: SessionRow = {
     terminalId,
     name,
@@ -472,12 +621,17 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
   };
   insertSession(ctx.db, row);
   if (a.by !== undefined) insertTab(ctx.db, terminalId, a.by, ctx.principal.id, ctx.thread);
-  ctx.emit("terminal.opened", terminalId, {
+  ctx.emit(
+    "terminal.opened",
     terminalId,
-    host: a.host,
-    ...(a.agentId === undefined ? {} : { agentId: a.agentId }),
-    by: owner,
-  });
+    {
+      terminalId,
+      host: a.host,
+      ...(a.agentId === undefined ? {} : { agentId: a.agentId }),
+      by: owner,
+    },
+    emitOpts(ctx, terminalId),
+  );
   return row;
 }
 
@@ -580,7 +734,52 @@ export async function openServer(ctx: TermCtx, input: { name?: string; cwd?: str
 
 // ---- reading ------------------------------------------------------------------------------------------------------------------------------------------------
 
-export function list(
+/**
+ * A terminal of someone else's place on an agent's computer, or the agent's own one to a person who only uses it, is shown to the caller as a row that says it is there and nothing of what it holds: no
+ * folder, no chat, no name, no one at the keyboard (F30). The person it belongs to, and whoever manages the agent for the agent's own terminals, see the whole row.
+ */
+async function foreign(ctx: TermCtx, x: SessionRow, facts: Facts): Promise<boolean> {
+  if (x.host !== "agent_computer" || x.agentId === undefined || isTrustedService(ctx.principal)) return false;
+  const me = actorOf(ctx);
+  if (x.owner === me) return false;
+  // fails closed: a caller who may not enter this agent's computer, or whom that cannot be told for, is shown nothing of it
+  if ((await entry(ctx, x.agentId, facts)) !== "yes") return true;
+  const got = ctx.call === undefined ? {} : await lookup(ctx, x.agentId, facts);
+  if (got.failed !== undefined) return true;
+  if (hasOwnPlace(got.agent, x.agentId, x.owner)) return true; // someone's own place
+  if (!hasOwnPlace(got.agent, x.agentId, me)) return false; // the agent's owner: as before
+  // the caller works in a place of their own: the agent's own terminals and its owner's are not theirs to look into, whoever they are and whatever they manage (managing an agent is not reading its
+  // owner's terminals); an agent working for them is held to the same
+  return true;
+}
+
+/** May the caller be told even that this terminal exists: not on an agent's computer they may not enter. */
+async function mayKnow(ctx: TermCtx, x: SessionRow, facts: Facts): Promise<boolean> {
+  if (x.host !== "agent_computer" || x.agentId === undefined || isTrustedService(ctx.principal)) return true;
+  return (await entry(ctx, x.agentId, facts)) === "yes";
+}
+
+/** What a terminal row says about a terminal that is not the caller's to see into. */
+export function terminalHint(x: SessionRow) {
+  return {
+    terminalId: x.terminalId,
+    name: "Someone else's terminal",
+    host: x.host,
+    hostTitle: TITLE[x.host],
+    ...(x.agentId === undefined ? {} : { agentId: x.agentId }),
+    cwd: "",
+    state: "idle" as const,
+    exitCode: null,
+    named: false,
+    cols: 0,
+    rows: 0,
+    createdAt: 0,
+    lastActiveAt: 0,
+    elsewhere: true,
+  };
+}
+
+export async function list(
   ctx: TermCtx,
   input: {
     section?: "personal" | "shared" | "space";
@@ -620,14 +819,24 @@ export function list(
   const offset = input.cursor !== undefined && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0;
   const page = mine.slice(offset, offset + limit);
   const next = offset + page.length < mine.length ? String(offset + page.length) : undefined;
-  return { terminals: page.map(terminalRow), ...(next === undefined ? {} : { next }), total: mine.length };
+  const facts: Facts = new Map();
+  const rows = [];
+  for (const x of page) {
+    if (!(await mayKnow(ctx, x, facts))) continue; // a person with no access to the agent is told nothing of its terminals
+    rows.push((await foreign(ctx, x, facts)) ? terminalHint(x) : terminalRow(x));
+  }
+  return { terminals: rows, ...(next === undefined ? {} : { next }), total: mine.length - (page.length - rows.length) };
 }
 
-export function get(ctx: TermCtx, input: { terminalId: string }) {
+export async function get(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   const x = sessionBy(ctx.db, input.terminalId);
   if (!x) raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
-  return { terminal: terminalRow(fresh(ctx, x)) };
+  const f = fresh(ctx, x);
+  const facts: Facts = new Map();
+  if (!(await mayKnow(ctx, f, facts)))
+    raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
+  return { terminal: (await foreign(ctx, f, facts)) ? terminalHint(f) : terminalRow(f) };
 }
 
 export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
@@ -640,13 +849,15 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
   const kept: SessionRow[] = [];
   for (const x of rows0) {
     const may = await mayRead(ctx, x, facts);
-    if (may === "yes") known.push(x);
-    else if (may === "unknown") kept.push(x);
+    // a terminal on an agent's computer outside the caller's own place gives nothing at all; elsewhere someone else's own terminal shows that it is there and its state, never its last line or last command
+    if (x.host === "agent_computer" && may === "yes" && (!ownerOk(ctx, x) || (await foreign(ctx, x, facts)))) continue;
+    if (may === "yes" && ownerOk(ctx, x)) known.push(x);
+    else if (may === "yes" || may === "unknown") kept.push(x);
   }
   const host = boundHost();
   let seen = new Map<string, { state: TermState; lastLine?: string; exitCode: number | null }>();
   if (host && known.length > 0) {
-    for (const x of known) if (x.closedAt === undefined) await adoptOn(host, x).catch(() => undefined);
+    for (const x of known) if (x.closedAt === undefined) await adoptOn(ctx, host, x, facts).catch(() => undefined);
     try {
       seen = new Map(
         (await host.status(known.filter((x) => x.closedAt === undefined).map((x) => x.terminalId))).map((r) => [
@@ -700,6 +911,8 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
 export async function read(ctx: TermCtx, input: { terminalId: string; lines?: number; since?: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   try {
     const r = await (
       await hostFor(ctx, x)
@@ -716,6 +929,8 @@ export async function read(ctx: TermCtx, input: { terminalId: string; lines?: nu
 export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   let replay: string;
   try {
     replay = clean(scopeOf(x), (await (await hostFor(ctx, x)).read(input.terminalId, { lines: REPLAY_LINES })).text);
@@ -738,9 +953,158 @@ export async function attach(ctx: TermCtx, input: { terminalId: string }) {
 
 // ---- the keyboard ---------------------------------------------------------------------------------------------------------------------------------------
 
+/**
+ * A person's own terminal is theirs alone: one on the Space's server or a device, or their own tab in an agent's computer. Nobody else types into it, takes its keyboard, reads its screen or closes it, a manager
+ * and the agent included (they still see that it is there and who is typing, in the list). A terminal of the agent's own (opened by the agent) is entered by whoever may enter the agent's computer, as before.
+ */
+/** A terminal the agent itself works in: opened by the agent or a helper, the agent's named session, or an old row (before tab records) owned by an agent id. */
+const isAgentsOwn = (x: SessionRow): boolean =>
+  x.by?.kind === "agent" || x.by?.kind === "helper" || x.name === AGENT_SESSION || x.owner.startsWith("agt_");
+
+/** Is this terminal one the caller may use as its own (or an agent's own that the workspace rules decide)? A terminal with no recorded opener is nobody's: refused to every person. */
+function ownerOk(ctx: TermCtx, x: SessionRow): boolean {
+  // an agent's own terminal: opened by the agent, a helper, the agent's named session, or (an old row, before tab records) owned by an agent id. A person enters it as its owner or as one who manages the
+  // agent; a person who only uses the agent has a place of their own and no more (an agent working for them is held to that by needOwnPlace)
+  if (x.host === "agent_computer" && isAgentsOwn(x)) {
+    if (ctx.principal.kind !== "person" || x.owner === actorOf(ctx) || x.agentId === undefined) return true;
+    return ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect === "allow";
+  }
+  if (isTrustedService(ctx.principal)) return true;
+  return x.owner !== "" && x.owner === actorOf(ctx);
+}
+function needOwnTerminal(ctx: TermCtx, x: SessionRow): void {
+  if (ownerOk(ctx, x)) return;
+  raise(
+    ctx,
+    "permission.role_lacks_permission",
+    "That terminal is someone else's. Only the person who opened it can use it.",
+    {
+      reason: "terminal_not_yours",
+    },
+  );
+}
+
+/**
+ * A terminal in a person's own place on a shared agent's computer (their own Unix user) takes keys, commands, reads and the keyboard from that person alone, or from an agent acting for them, whoever else
+ * may watch it or manage the agent: what is typed there runs as them and reads what is theirs, and a terminal opened by an agent's turn for them is still theirs. A hold on the keyboard never widens
+ * this (F30, lead 14 Nov: an agent acts for the asker of the call and holds nothing of anyone else's). Fails closed: if who owns the agent cannot be read, nothing is done.
+ */
+export const OTHERS_PLACE = "That terminal is in someone else's own space on this computer. Only they can use it.";
+async function needOwnPlace(ctx: TermCtx, x: SessionRow): Promise<void> {
+  if (x.host !== "agent_computer" || x.agentId === undefined) return;
+  const me = actorOf(ctx);
+  const refuse = (): never =>
+    raise(ctx, "permission.role_lacks_permission", OTHERS_PLACE, { reason: "others_place", terminalId: x.terminalId });
+  const place = await askerPlaceFor(ctx, x.agentId, x.owner);
+  if (place !== undefined) {
+    if (me !== x.owner) refuse();
+    return;
+  }
+  // a terminal in no one's place is in the agent's own home: its owner and those who manage the agent enter it (an agent's turn for them too). A person who may only use the agent, or an agent acting for
+  // one, has a place of their own and no more.
+  if (x.owner === me) return;
+  const mine = await askerPlaceFor(ctx, x.agentId, me);
+  if (mine === undefined) return;
+  if (
+    ctx.principal.kind === "agent" ||
+    ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow"
+  )
+    refuse();
+}
+
+/**
+ * The shared folder of this chat on the agent's computer, opened to the person whose turn it is and linked as `~/chat` in their place. Made once a minute per person and chat, and never makes a command
+ * fail: a convenience, not a wall (what a person may reach is the file system's ACLs).
+ */
+const regranted = new Map<string, number>();
+/** How long what reaches a person is trusted before a command sets it again. */
+export const REGRANT_MS = 5000;
+async function regrant(ctx: TermCtx, agentId: string, place: AskerPlace): Promise<void> {
+  const set = boundPlaceGrant();
+  if (set === null) return;
+  const key = `${agentId}\u0000${place.person}`;
+  const at = ctx.now();
+  if ((regranted.get(key) ?? 0) > at - REGRANT_MS) return;
+  try {
+    await set(agentId, place);
+    regranted.set(key, at);
+  } catch (e) {
+    regranted.delete(key);
+    raise(
+      ctx,
+      "provider.unavailable",
+      e instanceof Error && e.message.startsWith("What this person")
+        ? e.message
+        : "What you may reach on this computer could not be set just now. Try again.",
+      { reason: "grant_failed" },
+    );
+  }
+}
+const chatMade = new Map<string, number>();
+const chatRoots = new Map<string, string>();
+/** The chat a turn's thread belongs to: a reply thread in a channel, and a helper's thread, climb to the chat they hang from, so everyone who works in that chat shares one folder. */
+async function chatRoot(ctx: TermCtx, thread: string): Promise<string> {
+  const known = chatRoots.get(thread);
+  if (known !== undefined) return known;
+  let at = thread;
+  type Th = { kind?: string; parentThreadId?: string };
+  for (let i = 0; i < MAX_HOPS && ctx.call !== undefined; i++) {
+    let t: Th | undefined;
+    try {
+      t = ((await ctx.call("threads.get", { threadId: at })) as { thread?: Th } | undefined)?.thread;
+    } catch {
+      break;
+    }
+    if (t === undefined || (t.kind !== "thread" && t.kind !== "helper") || t.parentThreadId === undefined) break;
+    at = t.parentThreadId;
+  }
+  chatRoots.set(thread, at);
+  return at;
+}
+async function ensureChatFolder(ctx: TermCtx, agentId: string, person: string, turnThread: string): Promise<void> {
+  const make = boundChatFolder();
+  if (make === null) return;
+  const thread = await chatRoot(ctx, turnThread);
+  const key = `${agentId}\u0000${person}\u0000${thread}`;
+  const at = ctx.now();
+  if ((chatMade.get(key) ?? 0) > at - 60_000) return;
+  try {
+    await make(agentId, thread, await askerPlaceFor(ctx, agentId, person));
+    chatMade.set(key, at);
+    ctx.db.run(
+      "INSERT INTO terminal_chat_folders (agent_id, thread) VALUES (?, ?) ON CONFLICT (agent_id, thread) DO NOTHING",
+      agentId,
+      thread,
+    );
+  } catch (e) {
+    ctx.log.warn("terminal: the chat's shared folder could not be made", {
+      reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+    });
+  }
+}
+
+/** The variables a person's place sets or that point the shell, tmux, ssh or git at another place (also the ones a shell reads before a command: BASH_ENV, PROMPT_COMMAND and the like). */
+const PLACE_ENV =
+  /^(HOME|HISTFILE|HISTSIZE|XDG_.*|TMPDIR|TMUX.*|GIT_SSH.*|GIT_CONFIG.*|SSH_.*|GNUPGHOME|PATH|LD_.*|SHELL|USER|LOGNAME|BASH_ENV|ENV|PROMPT_COMMAND|BASH_FUNC_.*|IFS|CDPATH)$/;
+
+/** Is this a terminal in an agent's computer that a manager of the agent may close because the person who opened it is no longer an active member of the Space? */
+async function orphanClosable(ctx: TermCtx, x: SessionRow): Promise<boolean> {
+  if (x.host !== "agent_computer" || x.agentId === undefined || x.owner === "" || ctx.call === undefined) return false;
+  if (ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow") return false;
+  try {
+    const got = (await ctx.call("access.principals.get", { principal: { kind: "person", id: x.owner } })) as {
+      principal?: { status?: string };
+    } | null;
+    const status = got?.principal?.status;
+    return typeof status === "string" && status !== "active";
+  } catch {
+    return false;
+  }
+}
+
 /** What the agent, or anyone else who is not the holder, is told while a person has the keyboard. */
 export const KEYBOARD_HELD =
-  "A person has the keyboard on this terminal. Commands wait until they hand it back; if nobody uses it for 15 minutes it comes back to you by itself.";
+  "A person is typing in this computer's terminal. Your commands are refused until they hand it back; try again in a minute. If nobody types for 15 minutes it comes back to you by itself.";
 
 /** Is the caller the person at this terminal's keyboard? An agent never is, even one acting for the holder. */
 function isHolder(ctx: TermCtx, terminalId: string): boolean {
@@ -763,7 +1127,11 @@ function needKeyboard(ctx: TermCtx, x: SessionRow): void {
     }
     raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
   }
-  if (ctx.principal.kind === "agent" && x.agentId !== undefined && workspaceHolder(ctx.db, x.agentId, now) !== null)
+  if (
+    ctx.principal.kind === "agent" &&
+    x.agentId !== undefined &&
+    workspaceHolder(ctx.db, x.agentId, now, x.owner) !== null
+  )
     raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
 }
 
@@ -784,12 +1152,27 @@ function needTakeOver(ctx: TermCtx): void {
   if (!takeOverOn()) raise(ctx, "permission.no_grant", TAKE_OVER_OFF, { reason: "take_over_off" });
 }
 
+/** When someone other than the agent's owner takes or hands back the keyboard of an agent's terminal, the event names the agent and its owner, so the owner is told in their chat. */
+async function ownerNote(
+  ctx: TermCtx,
+  x: SessionRow,
+  me: string,
+): Promise<{ agentId?: string; agentName?: string; agentOwner?: string }> {
+  if (x.agentId === undefined || ctx.call === undefined) return {};
+  const got = await lookup(ctx, x.agentId);
+  const owner = got.agent?.ownerId;
+  if (owner === undefined || owner === me) return {};
+  return { agentId: x.agentId, agentName: got.agent?.name ?? "the agent", agentOwner: owner };
+}
+
 export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   needTakeOver(ctx);
   if (ctx.principal.kind === "agent")
     raise(ctx, "permission.no_grant", "An agent types in its own terminal; taking the keyboard is for people.");
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   const me = actorOf(ctx);
   const h = holderOf(ctx.db, x.terminalId, ctx.now());
   if (h !== null && h !== me && !mayTakeFromOther(ctx, x))
@@ -803,15 +1186,29 @@ export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
     );
   if (h !== me) {
     setHold(ctx.db, x.terminalId, me, ctx.now());
-    ctx.emit("terminal.taken", x.terminalId, { terminalId: x.terminalId, by: me, ...(h === null ? {} : { from: h }) });
+    ctx.emit(
+      "terminal.taken",
+      x.terminalId,
+      {
+        terminalId: x.terminalId,
+        by: me,
+        ...(h === null ? {} : { from: h }),
+        ...(await ownerNote(ctx, x, me)),
+      },
+      emitOpts(ctx, x.terminalId),
+    );
   } else touchHold(ctx.db, x.terminalId, me, ctx.now());
-  return { terminal: terminalRow({ ...x, heldBy: me }) };
+  // the take-over's lease and the number of the next batch of keys: a screen that reloads while it holds the keyboard asks again and carries on from here
+  const { lease, nextSeq } = leaseOf(ctx.db, x.terminalId, ctx.now());
+  return { terminal: terminalRow({ ...x, heldBy: me }), lease, nextSeq };
 }
 
 export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   needTakeOver(ctx);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   const h = holderOf(ctx.db, x.terminalId, ctx.now());
   if (h === null) return { terminal: terminalRow(x) };
   const me = ctx.principal.kind === "agent" ? undefined : actorOf(ctx);
@@ -825,7 +1222,16 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
       },
     );
   dropHold(ctx.db, x.terminalId);
-  ctx.emit("terminal.given_back", x.terminalId, { terminalId: x.terminalId, by: me ?? "agent" });
+  ctx.emit(
+    "terminal.given_back",
+    x.terminalId,
+    {
+      terminalId: x.terminalId,
+      by: me ?? "agent",
+      ...(me === undefined ? {} : await ownerNote(ctx, x, me)),
+    },
+    emitOpts(ctx, x.terminalId),
+  );
   const { heldBy: _gone, ...rest } = x;
   void _gone;
   return { terminal: terminalRow(rest) };
@@ -833,15 +1239,17 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
 
 // ---- acting in a session ------------------------------------------------------------------------------------------------------------------------------
 
-export function rename(ctx: TermCtx, input: { terminalId: string; name: string }) {
+export async function rename(ctx: TermCtx, input: { terminalId: string; name: string }) {
   ensure(ctx.db);
-  const x = live(ctx, input.terminalId);
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   needKeyboard(ctx, x);
   const name = input.name.trim();
   if (name === "" || name.length > 80)
     raise(ctx, "validation.bad_input", "Give the session a name of up to 80 characters.");
   ctx.db.run("UPDATE terminal_sessions SET name = ?, named = 1 WHERE terminal_id = ?", name, x.terminalId);
-  ctx.emit("terminal.renamed", x.terminalId, { terminalId: x.terminalId, name });
+  ctx.emit("terminal.renamed", x.terminalId, { terminalId: x.terminalId, name }, emitOpts(ctx, x.terminalId));
   return { terminal: terminalRow({ ...x, name, named: true }) };
 }
 
@@ -851,12 +1259,14 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
   if (!x) raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
   if (x.closedAt !== undefined) return { closed: true };
   await needAccess(ctx, x);
+  // a manager may CLOSE (never read or type into) a terminal whose opener is no longer an active member: a way to clean up
+  if (!ownerOk(ctx, x) && !(await orphanClosable(ctx, x))) needOwnTerminal(ctx, x);
   needKeyboard(ctx, fresh(ctx, x));
   // The tmux session is killed when the machine can be reached; if it cannot, the row is still closed so the person is not stuck with a session they cannot see.
   const host = boundHost();
   if (host) {
     try {
-      await adoptOn(host, x);
+      await adoptOn(ctx, host, x);
       await host.close(x.terminalId);
     } catch (e) {
       ctx.log.warn("terminal: could not kill the session", {
@@ -871,18 +1281,31 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
     x.terminalId,
   );
   forgetSecrets(scopeOf(x));
-  ctx.emit("terminal.closed", x.terminalId, { terminalId: x.terminalId, by: actorOf(ctx) });
+  ctx.emit(
+    "terminal.closed",
+    x.terminalId,
+    { terminalId: x.terminalId, by: actorOf(ctx) },
+    emitOpts(ctx, x.terminalId),
+  );
   return { closed: true };
 }
 
 export async function input(ctx: TermCtx, a: { terminalId: string; data: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   if (a.data === "") raise(ctx, "validation.bad_input", "There is nothing to send.");
   needKeyboard(ctx, x);
+  // an agent's keystrokes get the same friendly words as its commands (a person typing in their own tab is free); the wall is the Unix user of the session, not these words
+  if (ctx.principal.kind === "agent" && x.host === "agent_computer" && x.agentId !== undefined) {
+    const place = await askerPlaceFor(ctx, x.agentId, actorOf(ctx));
+    if (place !== undefined) await keepOut(ctx, place, x.agentId, [a.data]);
+  }
   try {
     await (await hostFor(ctx, x)).input(a.terminalId, a.data);
   } catch (e) {
+    if (e && typeof e === "object" && "error" in e) throw e; // already a shaped error (the computer could not be opened: try again)
     return unexpected(ctx, "take that input", e);
   }
   touch(ctx.db, a.terminalId, ctx.now());
@@ -905,6 +1328,8 @@ function screenOf<T extends { text: string; cursor: { x: number; y: number } | n
 export async function capture(ctx: TermCtx, input: { terminalId: string; lines?: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   const host = await hostFor(ctx, x);
   if (!host.capture)
     raise(ctx, "validation.precondition_failed", "This terminal draws lines, not a screen.", { reason: "no_screen" });
@@ -917,18 +1342,112 @@ export async function capture(ctx: TermCtx, input: { terminalId: string; lines?:
   }
 }
 
+/** The most characters one batch of keys holds. */
+const MAX_KEYS_CHARS = 100_000;
 /**
- * Keys as a person presses them (text, a named key, a paste), raw through the terminal's own keyboard, for whoever holds the keyboard. What is typed here is never stored, audited or logged by Vyre: a program that
- * reads a hidden prompt does not print it, so no screen, scrollback or viewer has it either (design section 11, point 6).
+ * A keyed hash (HMAC, a secret made when the process starts and never written anywhere) of each batch's text, per live lease, in memory only: a repeat of a batch number with other keys is refused in plain words
+ * instead of being answered as if it were the first. Nothing of it reaches a file; after a restart a lease is new anyway.
+ */
+const TYPED_SECRET = randomHex(32);
+const typedHash = (keys: unknown): string => hmac(TYPED_SECRET, JSON.stringify(keys));
+const BATCH_KEEP_MS = 10 * 60_000;
+/** A batch that has been "being sent" this long was lost with the process that was sending it: it is answered as not known to have arrived, and never sent again. */
+const SENDING_STALE_MS = 15_000;
+/** One chain per terminal: batches reach tmux in the order their numbers say, even when two arrive together. */
+const sendOrder = new Map<string, Promise<void>>();
+
+interface Stored {
+  ok: boolean;
+  code?: string;
+  message?: string;
+  screen?: unknown;
+}
+function refuse(ctx: TermCtx, message: string, reason: string, terminalId: string): never {
+  return raise(ctx, "validation.precondition_failed", message, { reason, terminalId });
+}
+const raiseStored = (ctx: TermCtx, st: Stored): never =>
+  raise(ctx, (st.code ?? "internal.unexpected") as ErrorCode, st.message ?? "The terminal could not take those keys.");
+
+/**
+ * Keys as a person presses them (text, a named key, a paste), raw through the terminal's own keyboard, for the person who holds it. Each batch carries the take-over's `lease`, its number `seq` in that take-over and
+ * the sender's `idempotencyKey`, and is applied AT MOST ONCE and IN ORDER: a repeat of a batch (the app retries a call whose answer was lost; a reconnect replays) gets the first answer back and types nothing; a batch
+ * that skips a number, or belongs to a take-over that is over, is refused in plain words and types nothing. Only the holder types: nobody else, and nobody once the keyboard is handed back. The number is spent
+ * before tmux is touched, so a batch that failed half way is never sent again by Vyre. What is typed is never stored or logged by Vyre (a program may be asking for a password); the call itself is audited as the
+ * person's.
  */
 export async function keys(
   ctx: TermCtx,
-  input: { terminalId: string; capture?: boolean; keys: Array<{ text?: string; key?: string; paste?: string }> },
+  input: {
+    terminalId: string;
+    lease: string;
+    seq: number;
+    idempotencyKey?: string;
+    capture?: boolean;
+    keys: Array<{ text?: string; key?: string; paste?: string }>;
+  },
 ) {
   ensure(ctx.db);
   needTakeOver(ctx);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
+  // from here to the written-down batch nothing is awaited: two calls of the same batch cannot both pass
+  const now = ctx.now();
+  const me = actorOf(ctx);
+  const tid = x.terminalId;
+  // an agent never types, not even for the person who holds the keyboard, and not to read a repeat's answer
+  if (ctx.principal.kind === "agent")
+    refuse(ctx, "You do not have the keyboard here. Take it over to type.", "not_holder", tid);
+  // 1 a repeat of a batch this person already sent in this take-over: the first answer, nothing typed
+  const key = input.idempotencyKey ?? `seq:${input.seq}`;
+  const seen = (
+    ctx.db.all(
+      "SELECT seq, person_id, state, answer, at FROM terminal_key_batch WHERE terminal_id = ? AND lease = ? AND batch_key = ?",
+      tid,
+      input.lease,
+      key,
+    ) as Array<Record<string, unknown>>
+  )[0];
+  if (seen !== undefined) {
+    if (String(seen["person_id"]) !== me || Number(seen["seq"]) !== input.seq)
+      refuse(ctx, "Those keys do not belong to this take-over.", "batch_not_yours", tid);
+    const first = typedHashes.get(tid)?.get(`${input.lease}:${input.seq}`);
+    if (first !== undefined && first !== typedHash(input.keys))
+      refuse(ctx, "That batch number was already used for other keys. Nothing new was typed.", "keys_differ", tid);
+    if (seen["state"] === "sending") {
+      if (now - Number(seen["at"]) < SENDING_STALE_MS)
+        refuse(ctx, "Those keys are still being sent.", "in_flight", tid);
+      const lost: Stored = { ok: false, code: "internal.unexpected", message: "Those keys may not have arrived." };
+      ctx.db.run(
+        "UPDATE terminal_key_batch SET state = 'failed', answer = ? WHERE terminal_id = ? AND lease = ? AND seq = ?",
+        JSON.stringify(lost),
+        tid,
+        input.lease,
+        input.seq,
+      );
+      return raiseStored(ctx, lost);
+    }
+    const st = JSON.parse(String(seen["answer"])) as Stored;
+    if (!st.ok) return raiseStored(ctx, st);
+    return { ok: true };
+  }
+  // 2 only the holder of the take-over in force types; someone else holding it refuses with who, nobody holding says so
   needKeyboard(ctx, x);
+  if (holderOf(ctx.db, tid, now) !== me)
+    refuse(ctx, "You do not have the keyboard here. Take it over to type.", "not_holder", tid);
+  // a take-over made before leases existed has none: its holder takes it again (a read here, so a refused call writes nothing)
+  const cur = peekLease(ctx.db, tid);
+  if (cur === null || input.lease !== cur.lease)
+    refuse(ctx, "Your take-over of this terminal is over. Take the keyboard again to type.", "lease_old", tid);
+  if (input.seq < cur.nextSeq) refuse(ctx, "Those keys were already sent.", "seq_used", tid);
+  if (input.seq > cur.nextSeq)
+    refuse(ctx, "Some keys before these did not arrive. Take the keyboard again to type.", "seq_gap", tid);
+  // 3 the keys themselves; a batch that is too big is refused in plain words before its number is spent
+  const size = input.keys.reduce((n, k) => n + (k.text ?? k.paste ?? k.key ?? "").length, 0);
+  if (size > MAX_KEYS_CHARS)
+    raise(ctx, "validation.bad_input", "That is too much to type at once. Paste a smaller piece.", {
+      reason: "keys_too_big",
+    });
   const list: KeyPress[] = [];
   for (const k of input.keys) {
     const set = [k.text, k.key, k.paste].filter((v) => v !== undefined).length;
@@ -937,31 +1456,96 @@ export async function keys(
       k.text !== undefined ? { text: k.text } : k.key !== undefined ? { key: k.key } : { paste: k.paste as string },
     );
   }
-  const host = await hostFor(ctx, x);
-  if (!host.keys)
-    raise(ctx, "validation.precondition_failed", "This terminal takes lines, not keys.", { reason: "no_keys" });
+  // 4 the number is spent and the batch written down BEFORE tmux is touched: from here a repeat can only be answered, never sent again
+  ctx.db.run("DELETE FROM terminal_key_batch WHERE at < ?", now - BATCH_KEEP_MS);
+  ctx.db.run(
+    "INSERT INTO terminal_key_batch (terminal_id, lease, seq, batch_key, person_id, state, answer, at) VALUES (?, ?, ?, ?, ?, 'sending', NULL, ?)",
+    tid,
+    input.lease,
+    input.seq,
+    key,
+    me,
+    now,
+  );
+  ctx.db.run("UPDATE terminal_lease SET next_seq = ? WHERE terminal_id = ?", input.seq + 1, tid);
+  const mineHashes = typedHashes.get(tid) ?? new Map<string, string>();
+  mineHashes.set(`${input.lease}:${input.seq}`, typedHash(input.keys));
+  typedHashes.set(tid, mineHashes);
+  const settle = (st: Stored): void => {
+    ctx.db.run(
+      "UPDATE terminal_key_batch SET state = ?, answer = ? WHERE terminal_id = ? AND lease = ? AND seq = ?",
+      st.ok ? "done" : "failed",
+      JSON.stringify(st),
+      tid,
+      input.lease,
+      input.seq,
+    );
+  };
+  let host: TerminalHost;
   try {
-    await host.keys(input.terminalId, list);
+    host = await hostFor(ctx, x);
   } catch (e) {
-    if ((e as { code?: unknown } | null)?.code === "bad_input")
-      raise(ctx, "validation.bad_input", "That key is not one a terminal takes.");
-    return unexpected(ctx, "take those keys", e);
+    settle({ ok: false, code: "internal.unexpected", message: "The terminal could not take those keys." });
+    throw e;
   }
-  touch(ctx.db, input.terminalId, ctx.now());
-  if (input.capture !== true || !host.capture) return { ok: true };
-  // the screen a moment after the keys landed, in the same answer: a key shows in one round trip (tmux has drawn it in a few milliseconds)
-  await new Promise<void>((r) => setTimeout(r, SETTLE_MS));
+  if (!host.keys) {
+    const st: Stored = {
+      ok: false,
+      code: "validation.precondition_failed",
+      message: "This terminal takes lines, not keys.",
+    };
+    settle(st);
+    return raiseStored(ctx, st);
+  }
+  const before = sendOrder.get(tid) ?? Promise.resolve();
+  let release: () => void = () => undefined;
+  const mine = new Promise<void>((r) => (release = r));
+  const chain = before.then(() => mine);
+  sendOrder.set(tid, chain);
+  await before;
   try {
-    const r = await host.capture(input.terminalId, { lines: 2000 });
-    return { ok: true, screen: screenOf(r, clean(scopeOf(x), r.text)) };
-  } catch {
-    return { ok: true };
+    try {
+      await host.keys(tid, list);
+    } catch (e) {
+      const bad = (e as { code?: unknown } | null)?.code === "bad_input";
+      const st: Stored = bad
+        ? { ok: false, code: "validation.bad_input", message: "That key is not one a terminal takes." }
+        : { ok: false, code: "internal.unexpected", message: "The terminal could not take those keys." };
+      settle(st);
+      if (!bad)
+        ctx.log.warn("terminal: take those keys failed", {
+          reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+        });
+      return raiseStored(ctx, st);
+    }
+    touch(ctx.db, tid, ctx.now());
+    touchHold(ctx.db, tid, me, ctx.now());
+    if (input.capture !== true || !host.capture) {
+      settle({ ok: true });
+      return { ok: true };
+    }
+    // the screen a moment after the keys landed, in the same answer: a key shows in one round trip (tmux has drawn it in a few milliseconds)
+    await new Promise<void>((r) => setTimeout(r, SETTLE_MS));
+    try {
+      const r = await host.capture(tid, { lines: 2000 });
+      // the record of the batch never holds the screen (a pasted token, `cat .env`): a repeat answers ok and the app reads the screen again
+      settle({ ok: true });
+      return { ok: true, screen: screenOf(r, clean(scopeOf(x), r.text)) };
+    } catch {
+      settle({ ok: true });
+      return { ok: true };
+    }
+  } finally {
+    release();
+    if (sendOrder.get(tid) === chain) sendOrder.delete(tid);
   }
 }
 
 export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   needKeyboard(ctx, x);
   try {
     await (await hostFor(ctx, x)).interrupt(a.terminalId);
@@ -975,6 +1559,8 @@ export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
 export async function resize(ctx: TermCtx, a: { terminalId: string; cols: number; rows: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   needKeyboard(ctx, x);
   try {
     await (await hostFor(ctx, x)).resize(a.terminalId, a.cols, a.rows);
@@ -1079,7 +1665,7 @@ async function targetForRun(
 
 // What is true for each kind of Space (12 Nov, the browser's voice, lane f-desktop): a Personal Space runs on the person's own computer; a Team Space on its server, which is not the computer the person is on.
 export const NO_WORKSPACE_PERSONAL =
-  "Your Assistant runs commands on this computer for now. A workspace of its own needs Docker on this computer, or a server with Docker added in Console > Computers.";
+  "Your Assistant runs commands on this computer for now. For a computer of its own, install Docker here or add a server in Console > Computers.";
 /** What opening an agent's terminal says when no computer can run it now (lane f-wire's review, 12 Nov): the agent's name when the caller may see it, else "this agent". */
 export function noComputerLine(name?: string): string {
   const whose = (name !== undefined && name.trim() !== "" ? name.trim() : "this agent") + "'s";
@@ -1091,7 +1677,7 @@ export function noComputerLine(name?: string): string {
 }
 export const NO_WORKSPACE_NOW_PERSONAL = noComputerLine();
 export const NO_WORKSPACE_TEAM =
-  "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers.";
+  "No computer is set up for agents yet. An admin of this Space can add one in Console > Computers.";
 
 /**
  * An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet; where it is; the projects it has folders for; whether this person may attach, and why not
@@ -1103,9 +1689,20 @@ export async function workspace(ctx: TermCtx, input: { agentId: string }) {
 
 async function workspaceRead(ctx: TermCtx, input: { agentId: string }) {
   ensure(ctx.db);
-  const may = await mayEnterWorkspace(ctx, input.agentId);
-  const cannot =
-    "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's.";
+  let may = await mayEnterWorkspace(ctx, input.agentId);
+  // an admin who manages the agent and is not its owner is shown the computer only if the agent is shared with them (the whole Space, or by name): managing an agent is not reading its owner's terminals, and
+  // this answers what terminal.get answers for them
+  if (may && ctx.principal.kind === "person" && ctx.call !== undefined) {
+    const me = actorOf(ctx);
+    const got = await lookup(ctx, input.agentId);
+    if (hasOwnPlace(got.agent, input.agentId, me)) {
+      const cls = (await ctx.call("agents.share_class", { agentId: input.agentId }).catch(() => undefined)) as
+        | { class?: string; people?: string[] }
+        | undefined;
+      may = cls !== undefined && (cls.class === "space" || (cls.people ?? []).includes(me));
+    }
+  }
+  const cannot = "You do not have access to this agent's computer.";
   if (!may) return { state: "none" as const, canAttach: false, cannotAttach: cannot };
   const probe = boundWorkspaceStatus();
   const available = probe !== null && (await workspacesFor(input.agentId));
@@ -1125,7 +1722,12 @@ async function workspaceRead(ctx: TermCtx, input: { agentId: string }) {
       line: isTeam(ctx.space) ? NO_WORKSPACE_TEAM : NO_WORKSPACE_PERSONAL,
       cannotAttach: "There is no workspace to attach to.",
     };
-  return { ...st, canAttach: st.state === "running" || st.state === "asleep" || st.state === "none" };
+  const own = (await askerPlaceFor(ctx, input.agentId, actorOf(ctx)).catch(() => undefined)) !== undefined;
+  return {
+    ...st,
+    canAttach: st.state === "running" || st.state === "asleep" || st.state === "none",
+    ...(own ? { ownPlace: true } : {}),
+  };
 }
 
 /** The session an agent's commands go to when it names none: one per agent, person, host and computer, kept so "Open terminal" shows the same screen. */
@@ -1139,7 +1741,10 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
     ) {
       raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: a.terminalId });
     }
-    return needAccess(ctx, x);
+    const entered = await needAccess(ctx, x);
+    needOwnTerminal(ctx, entered);
+    await needOwnPlace(ctx, entered);
+    return entered;
   }
   const owner = actorOf(ctx);
   let agentId = a.agentId ?? (ctx.principal.kind === "agent" ? ctx.principal.id : undefined);
@@ -1180,7 +1785,11 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
   const hit = found[0];
   if (hit) return needAccess(ctx, sessionOf(hit));
   // while a person holds any terminal of this workspace, the agent opens no new tab to get around the hold
-  if (ctx.principal.kind === "agent" && agentId !== undefined && workspaceHolder(ctx.db, agentId, ctx.now()) !== null)
+  if (
+    ctx.principal.kind === "agent" &&
+    agentId !== undefined &&
+    workspaceHolder(ctx.db, agentId, ctx.now(), owner) !== null
+  )
     raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held" });
   const spec: OpenInput = {
     host,
@@ -1235,7 +1844,21 @@ export async function run(ctx: TermCtx, a: RunInput) {
 
   const s = await sessionForRun(ctx, a);
   needKeyboard(ctx, s);
+  // a person who uses a shared agent without owning it: the command and its folder may not name another person's folder (asker.ts)
+  if (s.host === "agent_computer" && s.agentId !== undefined) {
+    const place = await askerPlaceFor(ctx, s.agentId, owner);
+    if (place !== undefined) await keepOut(ctx, place, s.agentId, [a.cwd, command]);
+  }
   const host = await hostFor(ctx, s);
+  // what reaches a person who works in their own place is set again when it is older than a few seconds, at every command, so a project they were taken off, or put on, is applied at their next command and
+  // not at their next session (review of f-agentpc, 14 Nov, item 2). When it cannot be set the command does not run: a person is never left with more than they should have by a failure.
+  if (s.host === "agent_computer" && s.agentId !== undefined) {
+    const place = await askerPlaceFor(ctx, s.agentId, owner);
+    if (place !== undefined) await regrant(ctx, s.agentId, place);
+  }
+  // the chat's shared folder (~/chat) is there for everyone who works in this chat, in their own place or the agent's home
+  if (s.host === "agent_computer" && s.agentId !== undefined && ctx.thread !== undefined)
+    await ensureChatFolder(ctx, s.agentId, owner, ctx.thread);
   const timeoutMs = (a.timeoutSec ?? DEFAULT_TIMEOUT_SEC) * 1000;
 
   const scope = scopeOf(s);
@@ -1268,6 +1891,15 @@ export async function run(ctx: TermCtx, a: RunInput) {
   // A handle in the command line never becomes its value in the line (W6): the line names a variable, quoted for where it stands, and the value goes in that variable's environment for this one
   // command. A handle the Vault does not know is left as the text it is (a hashtag, an issue number).
   const env: Record<string, string> = { ...(a.env ?? {}) };
+  // a turn in a person's own place may not set what makes the shell look elsewhere (its home, history, settings, tmux, ssh agent, git settings): the wall is the Unix user, this is the plain word in front of it
+  if (s.host === "agent_computer" && s.agentId !== undefined && Object.keys(env).length > 0) {
+    const mine = await askerPlaceFor(ctx, s.agentId, owner);
+    const bad = Object.keys(env).find((k) => PLACE_ENV.test(k));
+    if (mine !== undefined && bad !== undefined)
+      raise(ctx, "validation.bad_input", `${bad} is set for you already; it cannot be changed.`, {
+        reason: "place_env",
+      });
+  }
   const refs: HandleRef[] = [];
   let line = command;
   if (base) {
@@ -1450,13 +2082,18 @@ export async function run(ctx: TermCtx, a: RunInput) {
       ctx.now(),
       s.terminalId,
     );
-    ctx.emit("terminal.command_finished", s.terminalId, {
-      terminalId: s.terminalId,
-      exitCode,
-      durationMs,
-      by: owner,
-      ...(ctx.run === undefined ? {} : { runId: ctx.run }),
-    });
+    ctx.emit(
+      "terminal.command_finished",
+      s.terminalId,
+      {
+        terminalId: s.terminalId,
+        exitCode,
+        durationMs,
+        by: owner,
+        ...(ctx.run === undefined ? {} : { runId: ctx.run }),
+      },
+      emitOpts(ctx, s.terminalId),
+    );
   };
 
   if (!out.ok) {
@@ -1482,7 +2119,17 @@ export async function run(ctx: TermCtx, a: RunInput) {
   }
   finish(r.exitCode, r.durationMs);
   // what this call filled is already out; what other commands of the workspace filled (another person's, through the same agent) is taken out too
-  const output = clean(scope, typeof out.output === "string" ? out.output : "");
+  let output = clean(scope, typeof out.output === "string" ? out.output : "");
+  // the owner (and the agent) is told once, in the agent's own words to its owner, what an update did to the computer (an old folder moved aside)
+  if (
+    s.host === "agent_computer" &&
+    s.agentId !== undefined &&
+    (await askerPlaceFor(ctx, s.agentId, owner)) === undefined
+  ) {
+    const notes = boundNotes()?.(s.agentId) ?? [];
+    if (notes.length > 0)
+      output = `${output}${output === "" || output.endsWith("\n") ? "" : "\n"}[Tell the person, once, in one plain line: ${notes.join(" ")}]`;
+  }
   return { terminalId: s.terminalId, exitCode: r.exitCode, output, truncated: r.truncated, durationMs: r.durationMs };
 }
 
@@ -1647,6 +2294,194 @@ export async function isDangerCall(_ctx: unknown, input: unknown): Promise<boole
 /** Is this agent in Trash now (agents_agent.deletedAt, bound by the daemon)? undefined when it cannot be told. */
 export type InTrash = (agentId: string) => boolean | undefined;
 
+/**
+ * A person was removed from the Space or left it (member.removed). Their data waits for the Space's Trash time like every other thing a person leaves (lead, 14 Nov): at once they are unreachable (no call
+ * opens a session or a folder for them: askerPlaceFor), their terminals close and what they have running is stopped where it runs; their folder is removed when the Trash time is over (forgetExpiredPeople),
+ * and not at all if they are back first (onPersonBack). Nothing is woken for this.
+ */
+export async function onPersonLeft(
+  ctx: TermCtx,
+  event: { payload: { personId?: unknown } },
+  stopFor: (agentId: string, place: AskerPlace) => Promise<void>,
+): Promise<string[]> {
+  ensure(ctx.db);
+  const person = event.payload.personId;
+  if (typeof person !== "string" || !person.startsWith("usr_")) return [];
+  ctx.db.run(
+    "INSERT INTO terminal_person_gone (person, gone_at) VALUES (?, ?) ON CONFLICT (person) DO NOTHING",
+    person,
+    ctx.now(),
+  );
+  const open = (
+    ctx.db.all("SELECT terminal_id FROM terminal_sessions WHERE owner = ? AND closed_at IS NULL", person) as Row[]
+  ).map((r) => String(r["terminal_id"]));
+  const at = ctx.now();
+  for (const id of open) {
+    ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
+    ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" }, emitOpts(ctx, id));
+  }
+  const uid = uidOf(ctx.db, person, ctx.now());
+  const stopped: string[] = [];
+  if (uid !== null) {
+    for (const r of ctx.db.all("SELECT agent_id FROM terminal_person_places WHERE person = ?", person) as Row[]) {
+      const agentId = String(r["agent_id"]);
+      try {
+        await stopFor(agentId, askerPlace(person, uid));
+        stopped.push(agentId);
+      } catch {
+        /* asleep or gone: nothing of theirs is running */
+      }
+    }
+  }
+  return stopped;
+}
+
+/** How long a person's home on an agent's computer is kept after they lost the use of the agent (30 days), then erased; it is theirs again if they are shared with the agent before. */
+export const USE_LOST_KEEP_MS = 30 * 24 * 60 * 60_000;
+
+export interface AccessDeps {
+  /** May this person use this agent now (access.check as the host)? Throws when it cannot be told: nothing is cut on a guess. */
+  mayUse(person: string, agentId: string): Promise<boolean>;
+  /** May this person read this chat now? */
+  mayView(person: string, thread: string): Promise<boolean>;
+  /** Stop everything of this person's that runs on the agent's computer. */
+  stopFor(agentId: string, place: AskerPlace): Promise<void>;
+  /** Run a command in the agent's computer (as the agent's own user, or as a person's user); null where this host has no workspaces. */
+  run: ((agentId: string, argv: readonly string[], user?: number) => Promise<{ code: number }>) | null;
+}
+
+/**
+ * Brings what the people who work on agents' computers may reach back to what they may reach now, for every person who has a place on any agent (run by a sweep and by the events that can change it: a grant, a
+ * group, a role, an expiry, a suspension, a chat's members). A person who may no longer use an agent has their terminals closed and their programs stopped there, and loses every chat folder of it; their home is kept
+ * for 30 days and erased after (it is theirs again if they are shared with the agent first). A person who may use it keeps the chat folders of the chats they may read and loses the others.
+ */
+export async function reconcileAccess(ctx: TermCtx, d: AccessDeps): Promise<string[]> {
+  ensure(ctx.db);
+  const out: string[] = [];
+  const places = ctx.db.all("SELECT agent_id, person FROM terminal_person_places") as Row[];
+  for (const r of places) {
+    const agentId = String(r["agent_id"]);
+    const person = String(r["person"]);
+    let may: boolean;
+    try {
+      may = await d.mayUse(person, agentId);
+    } catch {
+      continue; // not told: nothing is cut on a guess
+    }
+    const at = ctx.now();
+    const uid = uidOf(ctx.db, person, at);
+    const chats = (ctx.db.all("SELECT thread FROM terminal_chat_folders WHERE agent_id = ?", agentId) as Row[]).map(
+      (c) => String(c["thread"]),
+    );
+    if (may) {
+      ctx.db.run("DELETE FROM terminal_use_lost WHERE agent_id = ? AND person = ?", agentId, person);
+      if (uid !== null && d.run)
+        for (const thread of chats) {
+          let view = false;
+          try {
+            view = await d.mayView(person, thread);
+          } catch {
+            continue;
+          }
+          if (!view) await d.run(agentId, chatRevokeCommand(thread, uid)).catch(() => undefined);
+        }
+      continue;
+    }
+    const first =
+      ctx.db.run(
+        "INSERT INTO terminal_use_lost (agent_id, person, lost_at) VALUES (?, ?, ?) ON CONFLICT (agent_id, person) DO NOTHING",
+        agentId,
+        person,
+        at,
+      ).changes > 0;
+    const open = ctx.db.all(
+      "SELECT terminal_id FROM terminal_sessions WHERE owner = ? AND agent_id = ? AND closed_at IS NULL",
+      person,
+      agentId,
+    ) as Row[];
+    for (const t of open) {
+      const id = String(t["terminal_id"]);
+      ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
+      dropHold(ctx.db, id);
+      ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" }, emitOpts(ctx, id));
+    }
+    if (uid !== null) {
+      // every sweep ends what a person without use has running (a program started in the seconds before), not only the first
+      try {
+        await d.stopFor(agentId, askerPlace(person, uid));
+      } catch {
+        /* asleep or gone: nothing of theirs is running */
+      }
+      if (d.run)
+        for (const thread of chats) await d.run(agentId, chatRevokeCommand(thread, uid)).catch(() => undefined);
+    }
+    if (first || open.length > 0) out.push(person);
+    // kept for 30 days, then erased
+    const lostAt = Number(
+      (
+        ctx.db.all("SELECT lost_at FROM terminal_use_lost WHERE agent_id = ? AND person = ?", agentId, person)[0] as
+          | Row
+          | undefined
+      )?.["lost_at"] ?? at,
+    );
+    if (uid !== null && d.run && at - lostAt >= USE_LOST_KEEP_MS) {
+      const gone = await d.run(agentId, removeCommand(askerPlace(person, uid)), uid).catch(() => ({ code: 1 }));
+      if (gone.code === 0) {
+        ctx.db.run("DELETE FROM terminal_person_places WHERE agent_id = ? AND person = ?", agentId, person);
+        ctx.db.run("DELETE FROM terminal_use_lost WHERE agent_id = ? AND person = ?", agentId, person);
+      }
+    }
+  }
+  return out;
+}
+
+/** member.joined with an id that left a moment ago: they are back inside the Trash time, so their folder is theirs again, intact. */
+export function onPersonBack(ctx: TermCtx, event: { payload: { personId?: unknown } }): boolean {
+  ensure(ctx.db);
+  const person = event.payload.personId;
+  if (typeof person !== "string") return false;
+  return ctx.db.run("DELETE FROM terminal_person_gone WHERE person = ?", person).changes > 0;
+}
+
+/**
+ * The periodic pass: a leaver's folder is removed from each workspace where it was made, once the Space's Trash time is over. A workspace that is asleep is not woken for it: it is tried again at the next pass
+ * (the folder goes when the workspace is next awake). `removeFrom` answers true when the folder is gone from that workspace.
+ */
+export async function forgetExpiredPeople(
+  ctx: TermCtx,
+  removeFrom: ((agentId: string, place: AskerPlace) => Promise<boolean>) | null,
+): Promise<string[]> {
+  ensure(ctx.db);
+  if (!removeFrom || (ctx.db.all("SELECT 1 FROM terminal_person_gone LIMIT 1") as Row[]).length === 0) return [];
+  const keep = await trashKeepMs(ctx);
+  if (keep === null) return [];
+  const due = (ctx.db.all("SELECT person FROM terminal_person_gone WHERE gone_at <= ?", ctx.now() - keep) as Row[]).map(
+    (r) => String(r["person"]),
+  );
+  const done: string[] = [];
+  for (const person of due) {
+    const uid = uidOf(ctx.db, person, ctx.now());
+    if (uid === null) continue;
+    let left = 0;
+    for (const r of ctx.db.all("SELECT agent_id FROM terminal_person_places WHERE person = ?", person) as Row[]) {
+      const agentId = String(r["agent_id"]);
+      let ok = false;
+      try {
+        ok = await removeFrom(agentId, askerPlace(person, uid));
+      } catch {
+        ok = false;
+      }
+      if (ok) ctx.db.run("DELETE FROM terminal_person_places WHERE agent_id = ? AND person = ?", agentId, person);
+      else left++;
+    }
+    if (left === 0) {
+      ctx.db.run("DELETE FROM terminal_person_gone WHERE person = ?", person);
+      done.push(person);
+    }
+  }
+  return done;
+}
+
 export async function onAgentGone(
   ctx: TermCtx,
   event: { payload: { agentId?: unknown } },
@@ -1668,7 +2503,7 @@ export async function onAgentGone(
   for (const id of open) {
     ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
     forgetSecrets(scopeOf({ terminalId: id, host: "agent_computer", agentId }));
-    ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" });
+    ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" }, emitOpts(ctx, id));
   }
   // what its workspace remembered of Vault values goes from memory with it (review S2)
   forgetAgentSecrets(agentId);
@@ -1788,3 +2623,41 @@ export async function forgetExpiredWorkspaces(
 }
 
 export { commandsOf, judge, rulesOf };
+
+/**
+ * A person lost their place: every keyboard they held goes back to the agent at once, and nothing of their batches is kept. When they were suspended or removed (not merely signed out of one device) the terminals
+ * they opened for themselves are closed too, so nothing of theirs stays open that nobody may use.
+ */
+export async function onHolderGone(ctx: TermCtx, personId: unknown, closeTheirs = false): Promise<string[]> {
+  if (typeof personId !== "string" || personId === "") return [];
+  ensure(ctx.db);
+  const held = (ctx.db.all("SELECT terminal_id FROM terminal_hold WHERE person_id = ?", personId) as Row[]).map((r) =>
+    String(r["terminal_id"]),
+  );
+  for (const id of held) dropHold(ctx.db, id);
+  if (!closeTheirs) return held;
+  const mine = (ctx.db.all(`${SESSION_SELECT} WHERE s.owner = ? AND s.closed_at IS NULL`, personId) as Row[])
+    .map((r) => sessionOf(r))
+    .filter((x) => !(x.host === "agent_computer" && isAgentsOwn(x)));
+  const host = boundHost();
+  for (const x of mine) {
+    if (host) {
+      try {
+        await adoptOn(ctx, host, x);
+        await host.close(x.terminalId);
+      } catch {
+        /* the row is closed all the same */
+      }
+    }
+    dropHold(ctx.db, x.terminalId);
+    ctx.db.run(
+      "UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?",
+      ctx.now(),
+      x.terminalId,
+    );
+    forgetSecrets(scopeOf(x));
+    ctx.emit("terminal.closed", x.terminalId, { terminalId: x.terminalId, by: personId }, emitOpts(ctx, x.terminalId));
+    held.push(x.terminalId);
+  }
+  return held;
+}

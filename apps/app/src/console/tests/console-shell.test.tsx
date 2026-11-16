@@ -42,7 +42,7 @@ test("the top bar: Space mark and name, Console, health dot, Search, Assistant, 
   assert.ok(has(out, 'aria-label="Server degraded"'), "the sample server has two things wrong");
   assert.ok(has(html(createSampleConsole({ busy: false })), 'aria-label="Server healthy"'));
   assert.ok(has(out, "⌘K") && has(out, "⌘J"), "Cmd-K and Cmd-J are shown on the buttons");
-  assert.ok(has(out, 'aria-label="Irfad Imtiaz, Owner"'));
+  assert.ok(has(out, 'aria-label="Imran Ibarra, Owner"'));
   assert.ok(!has(out, 'data-testid="console-assistant"'), "the Assistant pane starts closed");
   assert.ok(has(html(createSampleConsole(), { assistantOpen: true }), 'data-testid="console-assistant"'));
 });

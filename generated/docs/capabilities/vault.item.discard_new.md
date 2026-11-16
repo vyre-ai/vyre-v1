@@ -1,6 +1,6 @@
 # vault.item.discard_new
 
-Take back a key you saved a moment ago that could not be connected: erased for good, from the Vault and from Trash. Only your own, only within two minutes, only while nothing has used it
+Take back the key a connect card saved and could not connect: erased for good, from the Vault and from Trash. Only a person's own, only the one key that request saved, only while nothing has used it
 
 | | |
 |---|---|
@@ -26,6 +26,7 @@ Take back a key you saved a moment ago that could not be connected: erased for g
 ```ts
 type In = {
   itemId: string;
+  requestId: string;
 };
 ```
 
@@ -52,7 +53,8 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "itemId": "vit_a1b2c3"
+    "itemId": "vit_a1b2c3",
+    "requestId": "vrq_a1b2c3"
   },
   "output": {
     "ok": true

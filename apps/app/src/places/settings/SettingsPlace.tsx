@@ -1,6 +1,9 @@
 // The Settings place: You, and under the Space's own name what applies to everyone here, with one search (Cmd-F) over all of it. Changes save as they are made. The Console's pages open
 // inside a Space page, with a way back. On a phone the page list and a page are two screens with a back arrow.
+import { openIn, takeOpenHow } from "../../shell/tabs/open-how.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
+import { SidebarContent, useInSidebarSlot, useOptionalSidebarSlot } from "../../shell/sidebar/index.ts";
+import { portalInto } from "../../shell/sidebar/portal.ts";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { subscribeUpdates, updateState, updateWaiting } from "../../startup/update/store.ts";
 import type { ReactElement } from "react";
@@ -64,6 +67,7 @@ function SettingsBody({
   const data = useSettingsData();
   const measured = useWindowDimensions().width;
   const phone = belowPhone(given ?? measured);
+  const inSlot = useInSidebarSlot();
   const [page, setPageRaw] = useState<PageKey>(homeOf(initialPage));
   const setPage = (k: PageKey): void => setPageRaw(homeOf(k));
   const [view, setView] = useState<"nav" | "page">(initialView);
@@ -118,6 +122,13 @@ function SettingsBody({
   }, [found, page]);
 
   const open = (key: PageKey, row: string | null = null): void => {
+    // Cmd-press or the middle button on a page of the list: that page opens as a tab beside this one (tabs/open-rule.ts)
+    const how = takeOpenHow();
+    if (how !== "here" && data.openPageTab && row === null) {
+      const tab = data.openPageTab;
+      openIn(how, () => tab(key));
+      return;
+    }
     setPage(key);
     setFound(row);
     setView("page");
@@ -255,16 +266,24 @@ function SettingsBody({
     </View>
   );
 
+  const slotApi = useOptionalSidebarSlot();
+  const inColumn = inSlot && !phone;
+  const otherNeeds = data.spaces.some((sp) => !sp.current && sp.needsYou > 0);
   const nav = (
     <View style={[n.nav, phone && { width: "100%" as unknown as number }]} testID="settings-nav">
-      <View style={n.top}>
-        <Text numberOfLines={1} accessibilityRole="header" style={n.space}>
-          Settings
-        </Text>
-        {data.spaces.some((sp) => !sp.current && sp.needsYou > 0) ? (
-          <View style={n.dot} accessibilityLabel="Another Space needs you" />
-        ) : null}
-      </View>
+      {inColumn ? (
+        // the column's own head carries the title; this dot goes in its buttons' spot
+        otherNeeds ? (
+          portalInto(slotApi?.actionsOutlet, <View style={n.dot} accessibilityLabel="Another Space needs you" />)
+        ) : null
+      ) : (
+        <View style={n.top}>
+          <Text numberOfLines={1} accessibilityRole="header" style={n.space}>
+            Settings
+          </Text>
+          {otherNeeds ? <View style={n.dot} accessibilityLabel="Another Space needs you" /> : null}
+        </View>
+      )}
       <View style={n.searchWrap}>
         <View style={n.search}>
           <Glyph name="search" size={14} color="var(--ink-3)" />
@@ -434,18 +453,29 @@ function SettingsBody({
           )
         ) : (
           <>
-            <ResizableColumn
-              paneKey="place-sidebar"
-              defaultWidth={244}
-              grow="right"
-              min={200}
-              maxFraction={0.5}
-              maxWidth={380}
-              style={n.navCol as never}
-              testID="settings-nav-col"
-            >
-              {nav}
-            </ResizableColumn>
+            {inSlot ? (
+              // inside the app the list is drawn in the shell's one sidebar column: the same place and width as every other place's list (team/v1/TABS-2026-11-15.md)
+              <SidebarContent title="Settings" noSearch>
+                {() => (
+                  <View style={n.navSlot} testID="settings-nav-col">
+                    {nav}
+                  </View>
+                )}
+              </SidebarContent>
+            ) : (
+              <ResizableColumn
+                paneKey="place-sidebar"
+                defaultWidth={244}
+                grow="right"
+                min={200}
+                maxFraction={0.5}
+                maxWidth={380}
+                style={n.navCol as never}
+                testID="settings-nav-col"
+              >
+                {nav}
+              </ResizableColumn>
+            )}
             {main}
           </>
         )}
@@ -458,6 +488,7 @@ const n = StyleSheet.create({
   frame: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string },
   nav: { flex: 1, minHeight: 0, backgroundColor: "var(--side)" as string },
   navCol: { minHeight: 0 },
+  navSlot: { flex: 1, minHeight: 0 },
   top: { height: 52, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16 },
   space: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--accent)" as string },

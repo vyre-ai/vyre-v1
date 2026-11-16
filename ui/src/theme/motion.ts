@@ -1,4 +1,5 @@
-// One motion set for the whole app (owner, 2 Nov 2026: calm, stable, nothing blinks). Hover 120 ms, fades 160 ms, panels 220 ms, one ease, no bounce. A tab or place change is one 140 ms crossfade. No looping
+// One motion set for the whole app (owner, 2 Nov 2026: calm, stable, nothing blinks). Hover 120 ms, fades 160 ms, panels 220 ms, one ease, no bounce. A tab or place change holds the old view until the new
+// one is drawn, then cuts to it in one frame (15 Nov 2026: the 140 ms crossfade showed both views at once). No looping
 // animation except real live work, and prefers-reduced-motion turns all of it off. The rules go in through the sheet (injectCss) so the packaged app's style nonce does not drop them.
 import { injectCss } from "./css.ts";
 
@@ -88,10 +89,12 @@ export function holdView(el: unknown, host: unknown): Swap | null {
   };
   return {
     drop,
+    // The copy leaves in one frame, not in a fade. A fade draws the old view and the new one on top of each other for its whole length, and when the two are laid out
+    // differently (a place with another sidebar, another tab selected) the person sees both at once: two tab strips, two bodies (owner, 15 Nov 2026: "like blinking when you
+    // switch the tabs"; measured in team/v1/TABS-2026-11-15.md). The new view is already drawn under the copy, so letting go at once is a clean cut between two finished views.
     fade: () => {
       if (gone) return;
-      copy.style.opacity = "0";
-      setTimeout(drop, MOTION.swap + 40);
+      drop();
     },
   };
 }

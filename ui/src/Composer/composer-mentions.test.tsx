@@ -1,4 +1,4 @@
-// The @mention wash on a long draft (owner report, rc.20 on MLA: boxes sat on "able to" and "t on CX" instead of @Aliza and @Rubab, and slid as lines were added). Two causes had to go: the wash never followed
+// The @mention wash on a long draft (owner report, rc.20 on Northwind: boxes sat on "able to" and "t on CX" instead of @Aliza and @Rubab, and slid as lines were added). Two causes had to go: the wash never followed
 // the field's scroll (React Native Web's onScroll carries no contentOffset), and nothing proved the wash and the field hold the same text, so a box lands on the word it names.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -21,7 +21,7 @@ const NAMES = ["Aliza Cohen", "Rubab Khan", "Sol"];
 
 /** Ten lines, three mentions, each line long enough to wrap in a narrow field. */
 const LINES = [
-  "Kickoff notes for the Meier file, written the morning after the call so nothing is lost.",
+  "Kickoff notes for the Moore file, written the morning after the call so nothing is lost.",
   "@Aliza please confirm that the engagement letter went out and that the client was able to sign it on the first try.",
   "The retainer is paid, the intake form is complete, and the conflict check came back clean.",
   "Two open questions remain about the trust schedule and who holds the originals.",
@@ -116,4 +116,27 @@ test("after the field scrolls, the wash scrolls with it", async () => {
   } finally {
     restore();
   }
+});
+
+test('picking a mention before a space leaves one space, not two (owner\'s walk, 15 Nov: "@Scout  and @Helper")', async () => {
+  const { applyPick } = await import("./index.tsx");
+  const state = { text: "@Sc and hello", cursor: 3, active: -1, dismissedAt: -1 } as never;
+  const { next } = applyPick(
+    state,
+    { ch: "@", start: 0, end: 3, query: "Sc" } as never,
+    { kind: "Agent", label: "Scout" } as never,
+  );
+  assert.equal((next as { text: string }).text, "@Scout and hello");
+});
+
+test("a space typed after a mention or a picked link does not leave two on send", async () => {
+  const { oneSpaceAfterTokens } = await import("./index.tsx");
+  assert.equal(oneSpaceAfterTokens("@Scout  and @Helper  give me a look"), "@Scout and @Helper give me a look");
+  assert.equal(
+    oneSpaceAfterTokens("See #Sam Sample  thanks", [
+      { kind: "Record", id: "rec_1", title: "Sam Sample", token: "#" } as never,
+    ]),
+    "See #Sam Sample thanks",
+  );
+  assert.equal(oneSpaceAfterTokens("keep    these   spaces"), "keep    these   spaces");
 });

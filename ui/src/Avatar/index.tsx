@@ -3,6 +3,7 @@
 // Automations and groups get a line glyph on the neutral tile. Radius is 30% for everything but people, who are round (as the prototype's tile.a and tile.p).
 // Web draws inline svg; native has no svg here, so it shows the letters on the face's tint until a native icon set lands.
 
+import { useBlobSrc } from "../BlobImage/index.tsx";
 import { createElement, memo, useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, StyleSheet, Text, View } from "react-native";
@@ -305,6 +306,8 @@ export const Avatar = memo(function Avatar({
     () => lookOf(seedId),
   );
   const expression = expressionOf(state ?? (doing === "" ? undefined : doing));
+  // a photo that is a Space blob address is fetched with the person's sign-in (BlobImage's one way); any other address is used as it is
+  const photoSrc = useBlobSrc(photo);
   const pictureId = spec?.fam === "file" ? spec.id : "";
   const picture = useSyncExternalStore(
     subscribeFaceImages,
@@ -365,10 +368,10 @@ export const Avatar = memo(function Avatar({
   let face: ReactElement;
   let clip = true;
 
-  if (kind === "person" && photo) {
+  if (kind === "person" && photoSrc) {
     face = web ? (
       createElement("img", {
-        src: photo,
+        src: photoSrc,
         alt: "",
         width: size,
         height: size,
@@ -376,7 +379,7 @@ export const Avatar = memo(function Avatar({
         style: { display: "block", objectFit: "cover", width: size, height: size },
       })
     ) : (
-      <Image accessibilityIgnoresInvertColors source={{ uri: photo }} style={{ width: size, height: size }} />
+      <Image accessibilityIgnoresInvertColors source={{ uri: photoSrc }} style={{ width: size, height: size }} />
     );
   } else if (spec !== null && spec.fam === "file") {
     face =

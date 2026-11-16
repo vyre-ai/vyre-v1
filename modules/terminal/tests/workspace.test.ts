@@ -1,6 +1,7 @@
 // The agent workspace (6 Nov): made on first use without a grant, kept within its container profile, mounted with the agent's folders and its projects' shared ones, asleep after idle minutes and awake
 // again on the next command, and the terminal in it: an agent's commands and a person's attached tab are the same tmux sessions. The Docker engine is a stand-in (fixtures/fake-docker.ts) behind the
 // real DockerApi; tmux in a container is the stand-in tmux, lost when the container stops.
+import { READ_SCRIPT, START_SCRIPT, STOP_SCRIPT } from "../stream-log.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
@@ -76,8 +77,9 @@ test("the container profile: non-root, no capability, no new privileges, no Dock
   assert.ok(good.HostConfig.SecurityOpt.includes("no-new-privileges:true"));
   assert.deepEqual(good.HostConfig.Binds, [
     `${NAME}-home:/home/agent:rw`,
-    `${NAME}-files:/home/agent/Vyre:rw`,
-    "vyre-wsproj-prj_a:/home/agent/projects/prj_a:rw",
+    `${NAME}-files:/shared/Vyre:rw`,
+    `${NAME}-people:/people:rw`,
+    "vyre-wsproj-prj_a:/shared/projects/prj_a:rw",
   ]);
   assert.equal(good.HostConfig.Memory, 1024 * 1024 * 1024);
   assert.equal(good.HostConfig.NanoCpus, 1e9);
@@ -95,25 +97,25 @@ test("the container profile: non-root, no capability, no new privileges, no Dock
   );
   assert.match(
     wrong((c) => {
-      c.HostConfig.Binds.push("/etc:/home/agent/projects/etc:rw");
+      c.HostConfig.Binds.push("/etc:/shared/projects/etc:rw");
     }),
     /system folder|host folder is bound/,
   );
   assert.match(
     wrong((c) => {
-      c.HostConfig.Binds.push("/srv/other:/home/agent/projects/x:rw");
+      c.HostConfig.Binds.push("/srv/other:/shared/projects/x:rw");
     }),
     /host folder is bound/,
   );
   assert.match(
     wrong((c) => {
-      c.HostConfig.Binds.push("/srv/files/agt_dex:/home/agent/Vyre:rw");
+      c.HostConfig.Binds.push("/srv/files/agt_dex:/shared/Vyre:rw");
     }),
     /host folder is bound/,
   );
   assert.match(
     wrong((c) => {
-      c.HostConfig.Binds.push("someone-elses-home:/home/agent/projects/y:rw");
+      c.HostConfig.Binds.push("someone-elses-home:/shared/projects/y:rw");
     }),
     /is not this workspace's/,
   );
@@ -358,9 +360,7 @@ test("a project the agent is on gets one shared volume, made once and handed to 
   assert.deepEqual(helper!.detail, projectInitBody("prj_site", "vyre/agent-workspace:1"));
   assert.equal(PROJECT_INIT_SCRIPT, "chown 10001:10001 /vol");
   assert.equal(r.dk.boxes.has("vyre-wsinit-prj_site"), false, "the helper is removed");
-  assert.ok(
-    r.dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_site:/home/agent/projects/prj_site:rw"),
-  );
+  assert.ok(r.dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_site:/shared/projects/prj_site:rw"));
 
   await r.mgr.ensure(AGENT);
   assert.equal(r.dk.ops("create").filter((x) => x.name === NAME).length, 1, "nothing changed: nothing made again");
@@ -375,9 +375,7 @@ test("a project the agent is on gets one shared volume, made once and handed to 
     ["vyre-wsproj-prj_site", "vyre-wsproj-prj_book"],
     "the first project's volume was not made again",
   );
-  assert.ok(
-    r.dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_book:/home/agent/projects/prj_book:rw"),
-  );
+  assert.ok(r.dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_book:/shared/projects/prj_book:rw"));
   assert.ok(r.mgr.generation(AGENT) > g);
 
   // two agents on the same project mount the same volume
@@ -392,7 +390,7 @@ test("a project the agent is on gets one shared volume, made once and handed to 
   assert.ok(
     r.dk
       .box(workspaceName(other))
-      .config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_site:/home/agent/projects/prj_site:rw"),
+      .config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_site:/shared/projects/prj_site:rw"),
   );
   assert.equal(r.dk.ops("volume").filter((x) => x.name === "vyre-wsproj-prj_site").length, 1, "shared, not copied");
 });
@@ -460,7 +458,7 @@ test("a session whose tmux died with the sleep is made again, empty, where it wa
     name: "agent",
     cols: 90,
     rows: 25,
-    cwd: "/home/agent/projects/p",
+    cwd: "/shared/projects/p",
     folders: [],
   });
   await h.run("trm_1", { command: "echo hi", env: {}, timeoutMs: 5000 });
@@ -483,7 +481,7 @@ test("a session whose tmux died with the sleep is made again, empty, where it wa
   assert.ok(r.dk.box(NAME).tmux.sessions.has("vyre-trm_1"), "the session is there again");
   assert.deepEqual(
     again!.slice(again!.indexOf("-x")),
-    ["-x", "90", "-y", "25", "-c", "/home/agent/projects/p"],
+    ["-x", "90", "-y", "25", "-c", "/shared/projects/p", "sh", "-c", "umask 007; exec bash"],
     "at the size and folder it had",
   );
 });
@@ -515,16 +513,20 @@ test("live frames: tmux pipe-pane into a file, read back from an offset, handed 
     docker: {
       onExec: (_box, argv) => {
         const script = argv[2] ?? "";
-        if (argv[0] === "sh" && script.includes("pipe-pane") && script.includes("cat >> $2")) {
+        if (argv[0] === "sh" && script === START_SCRIPT) {
           file = Buffer.alloc(0);
           chunks.push("pipe on");
           return { code: 0, stdout: "", stderr: "" };
         }
-        if (argv[0] === "sh" && script.startsWith("tail -c +")) {
-          const from = Number(argv[4]) - 1;
-          return { code: 0, stdout: file.subarray(from, from + 49152).toString("base64"), stderr: "" };
+        if (argv[0] === "sh" && script === READ_SCRIPT) {
+          const from = Number(argv[4]);
+          const got = file.subarray(from, from + 49152);
+          // the real script empties the file once the reader has caught up (stream-log.ts)
+          const emptied = got.length > 0 && from + got.length === file.length;
+          if (emptied) file = Buffer.alloc(0);
+          return { code: 0, stdout: `${got.toString("base64")}\n${emptied ? "T" : "K"}\n`, stderr: "" };
         }
-        if (argv[0] === "sh" && script.includes("rm -f")) {
+        if (argv[0] === "sh" && script === STOP_SCRIPT) {
           chunks.push("pipe off");
           return { code: 0, stdout: "", stderr: "" };
         }
@@ -572,19 +574,10 @@ test("createTmuxHost is what runs in the container: the same command lines as on
   await r.mgr.ensure(AGENT);
   const host = createTmuxHost({ exec: (argv) => r.mgr.exec(AGENT, argv) });
   await host.open({ terminalId: "trm_9", target: target(), name: "x", cols: 100, rows: 30, folders: [] });
-  assert.deepEqual(r.dk.box(NAME).tmux.calls[0], [
-    "tmux",
-    "new-session",
-    "-e",
-    "HISTCONTROL=ignorespace",
-    "-d",
-    "-s",
-    "vyre-trm_9",
-    "-x",
-    "100",
-    "-y",
-    "30",
-  ]);
+  assert.deepEqual(
+    r.dk.box(NAME).tmux.calls.find((c) => c[0] === "tmux"),
+    ["tmux", "new-session", "-e", "HISTCONTROL=ignorespace", "-d", "-s", "vyre-trm_9", "-x", "100", "-y", "30"],
+  );
 });
 
 // ---- the Files folder ------------------------------------------------------------------------------------------------------------------------------------
@@ -677,13 +670,13 @@ test("the disk side of the mirror is the container's own view: the archive of ~/
   await rg.mgr.ensure(AGENT);
   const snap = await fh.seen.fs!.snapshot();
   assert.deepEqual([...snap.files.keys()], ["notes.md"]);
-  assert.deepEqual(rg.dk.ops("archive_get").at(-1)!.detail, { path: "/home/agent/Vyre/.", bytes: 0 });
+  assert.deepEqual(rg.dk.ops("archive_get").at(-1)!.detail, { path: "/shared/Vyre/.", bytes: 0 });
   await fh.seen.fs!.put([
     { rel: "AGENT.md", bytes: new TextEncoder().encode("role"), readOnly: true },
     { rel: "work/a.txt", bytes: new TextEncoder().encode("a"), readOnly: false },
   ]);
   const put = rg.dk.ops("archive_put").at(-1)!.detail as { path: string; bytes: number };
-  assert.equal(put.path, "/home/agent/Vyre");
+  assert.equal(put.path, "/shared/Vyre");
   assert.ok(put.bytes > 512 * 2, "a tar of both files");
   await fh.seen.fs!.put([]);
   assert.equal(rg.dk.ops("archive_put").length, 1, "nothing to write, nothing sent");
@@ -693,13 +686,7 @@ test("the disk side of the mirror is the container's own view: the archive of ~/
     .map((x) => x.detail as string[])
     .find((c) => c[0] === "sh" && c[2]?.includes("rm -f --"));
   assert.ok(rm, "an exec removed them");
-  assert.deepEqual(rm!.slice(3), [
-    "sh",
-    "/home/agent/Vyre/old.txt",
-    "/home/agent/Vyre/work/b.txt",
-    "::",
-    "/home/agent/Vyre/gone",
-  ]);
+  assert.deepEqual(rm!.slice(3), ["sh", "/shared/Vyre/old.txt", "/shared/Vyre/work/b.txt", "::", "/shared/Vyre/gone"]);
   await fh.seen.fs!.remove([], []);
   rg.mgr.close();
 });
@@ -781,7 +768,7 @@ test("a full host queues the workspace with the plain line: nothing is made or s
 test("a workspace that fails to start gives its room back", async () => {
   const room = fakeRoom();
   const r = rigWith({ capacity: room.capacity }, { image: false });
-  await assert.rejects(() => r.mgr.ensure(AGENT), /can't start agent workspaces/);
+  await assert.rejects(() => r.mgr.ensure(AGENT), /no computer ready for agents/);
   assert.deepEqual(room.log, [`claim ${AGENT}`, `release ${AGENT}`]);
 });
 
@@ -962,15 +949,15 @@ test("the disk side of a project mirror is the archive of the project's folder t
   await r.mgr.ensure(AGENT);
   const disk = ph.disks.get(`prj_site|${AGENT}`)!;
   assert.deepEqual([...(await disk.snapshot()).files.keys()], ["plan.md"]);
-  assert.deepEqual(r.dk.ops("archive_get").at(-1)!.detail, { path: "/home/agent/projects/prj_site/.", bytes: 0 });
+  assert.deepEqual(r.dk.ops("archive_get").at(-1)!.detail, { path: "/shared/projects/prj_site/.", bytes: 0 });
   await disk.put([{ rel: "notes/a.md", bytes: new TextEncoder().encode("a"), readOnly: false }]);
-  assert.equal((r.dk.ops("archive_put").at(-1)!.detail as { path: string }).path, "/home/agent/projects/prj_site");
+  assert.equal((r.dk.ops("archive_put").at(-1)!.detail as { path: string }).path, "/shared/projects/prj_site");
   await disk.remove(["old.md"], ["gone"]);
   const rm = r.dk
     .ops("exec")
     .map((x) => x.detail as string[])
-    .find((c) => c[0] === "sh" && c[2]?.includes("rm -f --") && c.includes("/home/agent/projects/prj_site/old.md"));
-  assert.deepEqual(rm!.slice(4), ["/home/agent/projects/prj_site/old.md", "::", "/home/agent/projects/prj_site/gone"]);
+    .find((c) => c[0] === "sh" && c[2]?.includes("rm -f --") && c.includes("/shared/projects/prj_site/old.md"));
+  assert.deepEqual(rm!.slice(4), ["/shared/projects/prj_site/old.md", "::", "/shared/projects/prj_site/gone"]);
   r.mgr.close();
 });
 
@@ -1029,7 +1016,7 @@ test("F33: the host name a person reads in the shell prompt is a word, never the
   assert.deepEqual(reviewWorkspaceConfig({ ...good, Hostname: NAME }, AGENT), ["is not this agent's workspace"]);
   // the label an unchanged workspace carries (made before the host name was part of it) differs from the new one, so such a workspace is made again once, when quiet
   const old = sha256Hex(JSON.stringify({ p: [], n: SHARED_NETWORK })).slice(0, 16);
-  const now = sha256Hex(JSON.stringify({ p: [], h: 1, n: SHARED_NETWORK })).slice(0, 16);
+  const now = sha256Hex(JSON.stringify({ p: [], h: 1, u: 1, s: 1, n: SHARED_NETWORK })).slice(0, 16);
   assert.equal(good.Labels["vyre.mounts"], now);
   assert.notEqual(good.Labels["vyre.mounts"], old);
 });

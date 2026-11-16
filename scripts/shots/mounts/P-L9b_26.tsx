@@ -11,6 +11,7 @@ import type { PlaceContext } from "../../../apps/app/src/shell/spaces/Shell.tsx"
 import { createSampleShell, samplePlace } from "../../../apps/app/src/shell/spaces/sample.tsx";
 import { ChatsMounted } from "../../../apps/app/src/places/chats/mounts/ChatsMounted.tsx";
 import { createMountSample } from "../../../apps/app/src/places/chats/mounts/sample.ts";
+import { SIDE_SCREEN, SIDE_QUERY } from "../../../apps/app/src/places/chats/sidebar/SideChats.tsx";
 import { START, step } from "../../../apps/app/src/places/chats/mounts/route.ts";
 import type { Shown } from "../../../apps/app/src/places/chats/mounts/route.ts";
 
@@ -39,7 +40,7 @@ function Inner({ search }: { search: string }): ReactNode {
       },
     };
     const theme = createThemeController({
-      personId: "irfad",
+      personId: "imran",
       spaceId: "nw",
       spaceSkin: { nw: skin, hb: skin, me: skin },
       prefersDark: skin === "graphite",
@@ -49,16 +50,21 @@ function Inner({ search }: { search: string }): ReactNode {
     const hub = createSampleShell({ openId: "nw", theme });
     hub.go("chats");
     const sample = createMountSample();
-    // ?fail=agents: the agents read is refused (a failed read keeps no answer and says why), so the Agents section shows its error and the rest of the sidebar draws.
+    // ?fail=agents: the sidebar's one read (chats.sidebar) is refused (a failed read keeps no answer and says why), so the sidebar shows its one compact load-failed row with Retry. Since the 13 Nov
+    // sidebar (c5da6ccd8) there is no per-section read to fail: the Agents head is gone (agents are in Team) and every section comes from that one read.
     if (query.get("fail") === "agents") {
       const failed = {
         status: "loading" as const,
-        error: { message: "agents.list refused its input", code: "validation.bad_input", traceId: "0f3c9a51d2e84b17" },
+        error: {
+          message: "The Space did not answer in time",
+          code: "validation.bad_input",
+          traceId: "0f3c9a51d2e84b17",
+        },
       };
       const base = sample.rt.screens;
       const screens = Object.assign(Object.create(base) as typeof base, {
         query: (id: string, name: string, state?: Record<string, unknown>) =>
-          id === "chats.all-agents" && name === "agents"
+          id === SIDE_SCREEN && name === SIDE_QUERY
             ? { subscribe: () => () => undefined, getSnapshot: () => failed }
             : base.query(id, name, state),
       });

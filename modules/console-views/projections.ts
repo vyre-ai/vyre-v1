@@ -545,7 +545,15 @@ export const NAV: readonly NavGroup[] = [
       { key: "console.speed", title: "Speed", perm: C },
     ],
   },
-  { key: "audit", title: "Audit log", pages: [{ key: "audit.log", title: "Audit log", perm: "audit.read" }] },
+  {
+    key: "audit",
+    title: "Audit log",
+    pages: [
+      { key: "audit.log", title: "Audit log", perm: "audit.read" },
+      { key: "events.log", title: "Event log", perm: "audit.read" },
+      { key: "automations.usage", title: "Automation usage", perm: "audit.read" },
+    ],
+  },
   { key: "space", title: "Space", pages: [{ key: "spaces.console", title: "Space settings", perm: "policy.manage" }] },
 ];
 

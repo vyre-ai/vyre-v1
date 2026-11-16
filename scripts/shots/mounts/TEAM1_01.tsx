@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
+import { AwayLine } from "../../../apps/app/src/places/chats/tasks/AwayLine.tsx";
 import { ChatsSidebar } from "../../../apps/app/src/places/chats/sidebar/ChatsSidebar.tsx";
 import { createSampleSidebar, northwind, SAMPLE_NOW } from "../../../apps/app/src/places/chats/sidebar/sample.ts";
 import { ConsoleDataProvider } from "../../../apps/app/src/console/shell/data.tsx";
@@ -24,7 +25,7 @@ const MIN = 60_000,
   HOUR = 60 * MIN;
 const DIGEST = {
   id: "dgs_1",
-  person: "usr_irfad",
+  person: "usr_imran",
   periodStart: SAMPLE_NOW - 14 * HOUR,
   periodEnd: SAMPLE_NOW,
   builtBy: "vyre",
@@ -52,7 +53,7 @@ const DIGEST = {
 };
 const PRESENCE = {
   people: [
-    { personId: "usr_irfad", state: "online", lastSeenAt: SAMPLE_NOW },
+    { personId: "usr_imran", state: "online", lastSeenAt: SAMPLE_NOW },
     { personId: "usr_priya", state: "online", lastSeenAt: SAMPLE_NOW - 2 * MIN },
     { personId: "usr_omar", state: "away", lastSeenAt: SAMPLE_NOW - 40 * MIN, awayUntil: SAMPLE_NOW + 9 * HOUR },
     { personId: "usr_maya", state: "offline", lastSeenAt: SAMPLE_NOW - 3 * HOUR },
@@ -89,7 +90,7 @@ function chats(away: boolean): ReturnType<typeof createSampleSidebar>["data"] {
 }
 
 const NAMES: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_imran: "Imran Ibarra",
   usr_priya: "Priya Raman",
   usr_omar: "Omar Haddad",
   usr_maya: "Maya Chen",
@@ -102,9 +103,9 @@ const ROWS: Record<string, unknown> = {
   "access.principals.list": {
     principals: [
       {
-        id: "usr_irfad",
+        id: "usr_imran",
         kind: "person",
-        name: "Irfad Imtiaz",
+        name: "Imran Ibarra",
         status: "active",
         roles: ["rol_owner"],
         groups: ["grp_everyone"],
@@ -224,7 +225,7 @@ const ROWS: Record<string, unknown> = {
         kind: "agent",
         face: "intake",
         status: "awake",
-        ownerId: "usr_irfad",
+        ownerId: "usr_imran",
         folderId: "fld_a1",
         accountPolicy: "asker",
         accountFallback: [],
@@ -235,7 +236,7 @@ const ROWS: Record<string, unknown> = {
         kind: "agent",
         face: "docs",
         status: "awake",
-        ownerId: "usr_irfad",
+        ownerId: "usr_imran",
         folderId: "fld_a2",
         accountPolicy: "asker",
         accountFallback: [],
@@ -260,7 +261,7 @@ const ROWS: Record<string, unknown> = {
         name: "Team webhook",
         kind: "api_key",
         folderId: "vfd_team",
-        owner: "usr_irfad",
+        owner: "usr_imran",
         scope: "shared",
         fieldKeys: ["key"],
         handle: "#Team_webhook",
@@ -274,7 +275,7 @@ const ROWS: Record<string, unknown> = {
         name: "Stripe",
         kind: "api_key",
         folderId: "vfd_team",
-        owner: "usr_irfad",
+        owner: "usr_imran",
         scope: "shared",
         fieldKeys: ["key"],
         handle: "#Stripe",
@@ -398,7 +399,14 @@ export default function Mount(): ReactNode {
         <View style={{ width: 272, flexShrink: 0 }}>
           <ChatsSidebar data={part === "chats" ? away : quiet} window={{ start: 0, end: 500 }} />
         </View>
-        <View style={{ flex: 1 }} />
+        {/* While you were away is the top of the Tasks page now (AwayLine, tasks/TasksPage.tsx), not a sidebar row (the 13 Nov sidebar, c5da6ccd8) */}
+        <View style={{ flex: 1, padding: 16, maxWidth: 560 }}>
+          <AwayLine
+            call={(part === "chats" ? away : quiet).call}
+            assistant={{ id: "agt_assistant", name: "Assistant" }}
+            openTask={() => undefined}
+          />
+        </View>
       </View>
     );
   }

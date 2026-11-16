@@ -945,6 +945,8 @@ export default defineManifest({
           // a cancelled turn: why the engine stopped it (stop, interrupt, limit, left, moved; closing when a daemon stops or updates; lease when its host was lost)
           reason: t.opt(t.str()),
           stoppedBy: t.opt(stoppedBy),
+          // a failed turn that hit a usage limit: when the account is usable again (epoch ms), when the provider said
+          resetsAt: t.opt(t.ts()),
           info: t.opt(turnInfoIn),
         },
         out: { turn: turnRow },
@@ -1849,7 +1851,7 @@ export default defineManifest({
             t.obj({
               ref: accountRef,
               provider: t.str(),
-              label: t.str({ examples: ["OpenAI · irfad@mylegalacademy.com"] }),
+              label: t.str({ examples: ["OpenAI · imran@northwind.example"] }),
               mine: t.bool(),
               shared: t.bool(),
               spaceKey: t.bool(),
@@ -1970,6 +1972,79 @@ export default defineManifest({
         on: ["thread", "/threadId"],
         tool: "chats",
         label: "check",
+      },
+    ),
+    read(
+      "engine.rewind.points",
+      "The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
+      {
+        in: { ...threadT },
+        out: {
+          available: t.bool(),
+          why: t.opt(t.str()),
+          /** An agent of this chat has turns on the person's own computer: they take no point here. */
+          ownComputer: t.bool(),
+          points: t.arr(
+            t.obj({
+              pointId: t.str({ maxLength: 120 }),
+              agentId: id.agent,
+              at: t.ts(),
+              files: t.int({ minimum: 0 }),
+              after: t.opt(t.str()),
+              messageId: t.opt(id.message),
+              undo: t.opt(t.bool()),
+              during: t.opt(t.bool()),
+            }),
+          ),
+          active: t.arr(
+            t.obj({
+              afterSeq: t.int({ minimum: 0 }),
+              uptoSeq: t.int({ minimum: 0 }),
+              by: t.str({ maxLength: 120 }),
+              at: t.ts(),
+              undoPointId: t.opt(t.str({ maxLength: 120 })),
+              interrupted: t.opt(t.bool()),
+            }),
+          ),
+        },
+        on: ["thread", "/threadId"],
+        tool: "chats",
+        label: "check",
+      },
+    ),
+    write(
+      "engine.rewind.to",
+      "Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line",
+      {
+        in: {
+          ...threadT,
+          pointId: t.str({ maxLength: 120 }),
+        },
+        out: {
+          agentId: id.agent,
+          at: t.ts(),
+          restored: t.int({ minimum: 0 }),
+          removed: t.int({ minimum: 0 }),
+          failed: t.int({ minimum: 0 }),
+          failedPaths: t.arr(t.str({ maxLength: 300 })),
+          undoPointId: t.str({ maxLength: 120 }),
+          undid: t.bool(),
+          during: t.bool(),
+          afterSeq: t.int({ minimum: 0 }),
+          uptoSeq: t.int({ minimum: 0 }),
+        },
+        on: ["thread", "/threadId"],
+        level: "use",
+        risk: "high",
+        audit: "always",
+        tool: "chats",
+        agent: { planMode: "blocked" },
+        errors: [
+          "validation.bad_input",
+          "validation.not_found",
+          "validation.precondition_failed",
+          "permission.role_lacks_permission",
+        ],
       },
     ),
     write(
@@ -2145,7 +2220,15 @@ export default defineManifest({
       trigger: { title: "An agent turn finishes", fields: ["/agentId"] },
     }),
     ev("turn.failed", "A turn failed; the thread accepts the next message as a fresh turn", {
-      p: { turnId: id.turn, threadId: id.thread, agentId: id.agent, code: t.str(), message: t.str() },
+      p: {
+        turnId: id.turn,
+        threadId: id.thread,
+        agentId: id.agent,
+        code: t.str(),
+        message: t.str(),
+        // a usage limit that said when the account is usable again (epoch ms)
+        resetsAt: t.opt(t.ts()),
+      },
       subject: ["thread", "/threadId"],
       vis: "participants",
     }),

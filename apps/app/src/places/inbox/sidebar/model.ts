@@ -231,6 +231,11 @@ export function scopeTitle(scope: Scope, mailboxes: readonly Mailbox[]): string 
   }
 }
 
+/** What the header names: what the sidebar has selected. All mail grouped by person is "By contact" and grouped by thread is "All inboxes", as the two rows say; any other scope is its own name. */
+export function headTitle(scope: Scope, view: View, mailboxes: readonly Mailbox[]): string {
+  return scope.kind === "all" && view !== "thread" ? "By contact" : scopeTitle(scope, mailboxes);
+}
+
 /** The names the "Showing" line lists: each narrowing filter, in the order the filter menu shows them. */
 export function showingNames(s: InboxState, mailboxes: readonly Mailbox[]): string[] {
   const names: string[] = [];

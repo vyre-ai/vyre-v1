@@ -8,7 +8,7 @@ const hubOf = () =>
   createShellHub({
     spaces: SEED_DEFS,
     openId: SEED_DEFS[0]!.spaceId,
-    personId: "irfad",
+    personId: "imran",
     deviceId: "web",
     storage: { getItem: () => null, setItem: () => undefined },
     skeletonMs: 0,

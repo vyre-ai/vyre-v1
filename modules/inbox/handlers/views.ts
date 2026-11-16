@@ -524,10 +524,15 @@ export async function counts(ctx: InboxCtx): Promise<{
     // the caller's own badge: what they have not read, in what they have not marked done
     const mine = states.get(str(row, "id"));
     if (!mine || mine.done !== null || mine.unread === 0) continue;
-    total += mine.unread;
+    // the badges count conversations waiting on the person, not messages: a row that says "By contact 3" means three people to answer
+    // (owner's Inbox, 16 Nov 2026: a freshly connected mailbox read "551" beside both rows and meant nothing)
+    total += 1;
+    const through = new Set<string>();
     for (const item of itemsOf(ctx, row, `direction = ? AND arrival > ?`, "in", mine.readUpto)) {
-      bump("mailbox", strOrNull(item, "mailboxId"));
-      bump("number", strOrNull(item, "numberId"));
+      const mailboxId = strOrNull(item, "mailboxId");
+      const numberId = strOrNull(item, "numberId");
+      if (mailboxId && !through.has(`m:${mailboxId}`)) (through.add(`m:${mailboxId}`), bump("mailbox", mailboxId));
+      if (numberId && !through.has(`n:${numberId}`)) (through.add(`n:${numberId}`), bump("number", numberId));
     }
   }
   return {

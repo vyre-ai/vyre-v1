@@ -167,7 +167,10 @@ export const SECTIONS: readonly SectionDef[] = [
     tabs: [
       { label: "Sign-in", views: [v("policies", "Sign-in rules"), v("sessions", "Sessions and devices")] },
       { label: "Access reviews", views: [v("reviews", "Access reviews")], extras: { reviews: ["def-access"] } },
-      { label: "Audit log", views: [v("audit", "Audit log")] },
+      {
+        label: "Audit log",
+        views: [v("audit", "Audit log"), v("eventlog", "Event log"), v("autousage", "Automation usage")],
+      },
     ],
   },
   {

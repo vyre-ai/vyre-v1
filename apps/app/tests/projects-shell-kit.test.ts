@@ -69,7 +69,6 @@ export async function projectsShellWalk(
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     const token = await page.evaluate(
@@ -120,9 +119,7 @@ export async function projectsShellWalk(
       await jp.getByTestId("password").fill(PASSWORD);
       await jp.getByTestId("confirm").fill(PASSWORD);
       await jp.getByTestId("next").click();
-      await jp.getByTestId("device").fill("Maya's browser");
-      await jp.getByTestId("next").click();
-      await jp.getByTestId("ai-none").click();
+      // prototype scenes member-1-join and member-4-ai: no device name and no AI question in the join; the optional recovery code step is passed with Continue
       await jp.getByTestId("next").click();
       await dismissOnboarding(jp);
       const mayaId = await jp.evaluate(
@@ -171,9 +168,10 @@ export async function projectsShellWalk(
         await both(p, `projects-0-plain-chat-${who}-${size}`);
         await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
       }
-      // the group in the sidebar, after Goals, and a row
+      // the project is a row among the Channels with a project tile (c5da6ccd8: Projects merged into Channels; there is no Projects head), and a row
       if (size === "wide") {
-        await p.getByTestId("head-projects").waitFor({ timeout: 20_000 });
+        await p.getByTestId("head-channels").waitFor({ timeout: 20_000 });
+        await p.getByTestId(`row-pj:${pid}`).waitFor({ timeout: 20_000 });
         await ok("the sidebar");
         await both(p, `projects-1-sidebar-${who}-${size}`);
         await p.getByTestId(`row-pj:${pid}`).click();

@@ -26,6 +26,8 @@ import type { PaneProps, PaneTab, SidePaneProps } from "./props.ts";
 
 export type { PaneProps, PaneTab, PaneToggle, SidePaneProps } from "./props.ts";
 export { PANE_HEADER_ORDER, SIDE_PANE_MAX, SIDE_PANE_MIN, paneToggleLabel } from "./props.ts";
+export { FIRST_TAB, forgetTabs, keepTab, keptTab, openingTab } from "./tab.ts";
+export { usePaneTab } from "./usePaneTab.ts";
 export { SheetHostProvider, useSheetHost, useSquircle, sq } from "./host.tsx";
 
 /* ---------- width memory ---------- */
@@ -144,6 +146,8 @@ export interface PaneViewProps extends PaneProps {
   plusTitle?: string;
   /** Tighter padding on pinned tabs, for a narrow pane that must fit four of them. */
   tight?: boolean;
+  /** Buttons at the right end of the header, after the tabs: what the pane's thing can do as a whole ("Open as a tab", Back). */
+  actions?: ReactNode;
 }
 
 export interface SidePaneViewProps extends SidePaneProps, Omit<PaneViewProps, keyof PaneProps> {
@@ -230,6 +234,12 @@ function PaneHeader(props: PaneViewProps & { innerToggleHidden: boolean }): Reac
       );
     }
   }
+  if (props.actions !== undefined && props.actions !== null)
+    parts.push(
+      <View key="actions" style={styles.actionsCell} testID="pane-actions">
+        {props.actions}
+      </View>,
+    );
   return (
     <View
       style={styles.header}
@@ -345,6 +355,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tabsSlot: { flex: 1, minWidth: 0 },
+  actionsCell: {
+    height: PANE_HEADER_HEIGHT,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingRight: 8,
+    paddingTop: 6,
+  },
   titleBox: { height: PANE_HEADER_HEIGHT, justifyContent: "center", paddingHorizontal: 8 },
   title: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   pane: {

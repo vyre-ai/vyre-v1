@@ -1,14 +1,14 @@
 # Vyre v1 Release Candidate Contract
 
 **Date:** 27 October 2026  
-**Owner:** Irfad Imtiaz  
+**Owner:** Imran Ibarra  
 **Release lead:** Simba  
 **Baseline:** `main` at `2fc1392e`  
-**Visual authority:** `/Users/irfad/Downloads/Vyre-v1-prototype.html`, SHA-256 `27e7e776127127d341273e6dc3bf6b624610938fd24cd58b42be350610626f72`
+**Visual authority:** `/Users/imran/Downloads/Vyre-v1-prototype.html`, SHA-256 `27e7e776127127d341273e6dc3bf6b624610938fd24cd58b42be350610626f72`
 
 ## Outcome
 
-Ship a signed Vyre v1 release candidate that Irfad can install and use as his primary build. It must feel like one finished product, not a collection of completed tickets. Every in-scope screen must match the prototype's hierarchy, density, states, and visual direction while using real product data and behavior.
+Ship a signed Vyre v1 release candidate that Imran can install and use as his primary build. It must feel like one finished product, not a collection of completed tickets. Every in-scope screen must match the prototype's hierarchy, density, states, and visual direction while using real product data and behavior.
 
 The release candidate targets:
 
@@ -92,7 +92,7 @@ The build is an RC only when all of these are true:
 7. Security checks pass with no committed credentials, privilege regression, or release-blocking finding.
 8. The visual audit finds no release-blocking divergence from the prototype.
 9. Release notes, version metadata, rollback instructions, and the runbook match the artifact.
-10. GitHub produces the signed artifact from the protected release environment. Simba may approve that environment on Irfad's behalf for this release.
+10. GitHub produces the signed artifact from the protected release environment. Simba may approve that environment on Imran's behalf for this release.
 
 Warnings may remain only when they have a named owner, documented impact, and no effect on data integrity, security, installation, or the fifteen golden flows.
 
@@ -124,7 +124,7 @@ These are execution targets, not permission to cut scope. A newly discovered dat
 
 ## Owner input
 
-No further product decision is required to begin. Irfad's only optional input before the RC is a short use pass on the integrated build. Simba owns GitHub release-environment approval, integration decisions within this contract, and the final evidence package.
+No further product decision is required to begin. Imran's only optional input before the RC is a short use pass on the integrated build. Simba owns GitHub release-environment approval, integration decisions within this contract, and the final evidence package.
 
 ## Evidence package
 

@@ -74,7 +74,6 @@ test("Desktop Personal creation keeps the app origin and claims a real Personal 
     await page.getByTestId("claim-password").fill("fixture personal password123");
     await page.getByTestId("claim-confirm").fill("fixture personal password123");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30000 });

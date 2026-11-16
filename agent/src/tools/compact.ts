@@ -1,4 +1,4 @@
-// What an agent reads back from the calendar and mail tools (Andrey's rc.20 report: "what is on my calendar this week and what needs a reply" took minutes and hundreds of thousands of tokens,
+// What an agent reads back from the calendar and mail tools (Andrea's rc.20 report: "what is on my calendar this week and what needs a reply" took minutes and hundreds of thousands of tokens,
 // because a list tool returned every raw description, HTML body, quoted history and attendee blob). The people's own views (the app) call the capabilities directly and are unchanged; this is only
 // the shape the model gets, as `{ data, meta }`:
 //   - a list is compact rows (events: title, start, end, who, location, link; mail: subject, from, date, a one-line snippet and needs-reply), never raw bodies, HTML, quoted text or blobs;

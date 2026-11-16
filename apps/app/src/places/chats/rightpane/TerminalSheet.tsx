@@ -12,8 +12,9 @@ import type { TerminalData } from "../terminal/data.ts";
 import { useOnline } from "../mounts/live.ts";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { TmuxScreen } from "./TmuxScreen.tsx";
+import type { Seat } from "./TmuxScreen.tsx";
 import { Icon, TextButton } from "./parts.tsx";
-import { Dot, GroupHead } from "./WorkParts.tsx";
+import { Dot, GroupHead, SheetScrim, sheetFrame } from "./WorkParts.tsx";
 import { groupSessions, sessionTitle, sessionWords, terminalBar } from "./work-model.ts";
 import type { WorkspaceSession } from "./work-model.ts";
 
@@ -29,6 +30,7 @@ export function TerminalSheet({
   me,
   nameOf,
   onClose,
+  onDrawn,
 }: {
   data: TerminalData;
   agentName: string;
@@ -39,9 +41,14 @@ export function TerminalSheet({
   me?: string | undefined;
   nameOf?: ((id: string) => string) | undefined;
   onClose(): void;
+  /** The screen drew (the computer is awake): the pane reads the computer's words again now. */
+  onDrawn?(): void;
 }): ReactElement {
   const win = useWindowDimensions();
   const [sel, setSel] = useState(start);
+  const selRef = useRef(sel);
+  selRef.current = sel;
+  const seats = useRef<Record<string, { lease: string; next: number } | undefined>>({});
   const narrow = belowPhone(win.width);
   const current0 = sessions.find((s) => s.terminalId === sel);
   // taking the keyboard: you hold it as soon as the server's answer comes, not at the next refresh of the list; keys pressed in between are kept, in order (the ref is set the instant Take over is pressed)
@@ -80,6 +87,11 @@ export function TerminalSheet({
   // the first drawing of the screen ends a start; a connection that is down says Reconnecting and the lines stay
   const [ready, setReady] = useState(false);
   const openedAt = useRef(Date.now());
+  const drawnRef = useRef(onDrawn);
+  drawnRef.current = onDrawn;
+  useEffect(() => {
+    if (ready) drawnRef.current?.();
+  }, [ready]);
   const online = useOnline(data.connection);
   const [, tick] = useState(0);
   useEffect(() => {
@@ -92,6 +104,7 @@ export function TerminalSheet({
   const mineRef = useRef(false);
   mineRef.current = mine;
   const close = (): void => {
+    if (sel) seats.current[sel] = undefined;
     if (mineRef.current && sel) void data.call("terminal.give_back", { terminalId: sel }).catch(() => undefined);
     onClose();
   };
@@ -112,6 +125,32 @@ export function TerminalSheet({
     focus();
     return () => clearInterval(t);
   }, [mine, sel]);
+  // the lease of the take-over and the number of the next batch of keys, per terminal: set by the take_over answer, advanced as batches are answered, asked again when the count is unknown
+  const seat = useMemo(
+    (): Seat => ({
+      async get() {
+        const id = selRef.current;
+        const have = seats.current[id];
+        if (have) return { lease: have.lease, seq: have.next };
+        // holding it (the list says so) with no count here, or the count was lost: taking again is the holder's own renewal and answers the lease and the number
+        const r = (await data.call("terminal.take_over", { terminalId: id })) as { lease?: string; nextSeq?: number };
+        if (r.lease === undefined || r.nextSeq === undefined) return null;
+        seats.current[id] = { lease: r.lease, next: r.nextSeq };
+        return { lease: r.lease, seq: r.nextSeq };
+      },
+      advance(seq) {
+        const id = selRef.current;
+        const have = seats.current[id];
+        if (have && have.next === seq) have.next = seq + 1;
+      },
+      reset() {
+        seats.current[selRef.current] = undefined;
+      },
+    }),
+    // data.call is stable for the life of the sheet; the selected terminal is read through the ref
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
   const take = (): void => {
     if (takingRef.current) return;
     takingRef.current = true;
@@ -119,7 +158,10 @@ export function TerminalSheet({
     setAsking(false);
     void data
       .call("terminal.take_over", { terminalId: sel })
-      .then(() => {
+      .then((r) => {
+        const got = r as { lease?: string; nextSeq?: number } | undefined;
+        seats.current[sel] =
+          got?.lease !== undefined && got.nextSeq !== undefined ? { lease: got.lease, next: got.nextSeq } : undefined;
         setGave(null);
         setTook(sel);
       })
@@ -148,6 +190,7 @@ export function TerminalSheet({
       .finally(() => setBusy(false));
   };
   const give = (): void => {
+    seats.current[sel] = undefined;
     setBusy(true);
     setTook(null);
     setGave(sel);
@@ -240,7 +283,14 @@ export function TerminalSheet({
   });
   return (
     <Overlay>
-      <View testID="terminal-popup" role="dialog" aria-modal accessibilityLabel={owner} style={st.veil}>
+      <SheetScrim windowWidth={win.width} />
+      <View
+        testID="terminal-popup"
+        role="dialog"
+        aria-modal
+        accessibilityLabel={owner}
+        style={[st.veil, sheetFrame(win.width) as never]}
+      >
         <View style={[st.head, narrow && st.headNarrow]}>
           <Icon name="terminal" size={16} color="var(--ink-2)" />
           <Text style={st.title} numberOfLines={1}>
@@ -343,11 +393,18 @@ export function TerminalSheet({
                 terminalId={sel}
                 keys={mine && !ended}
                 taking={takingRef}
+                seat={seat}
+                newKey={data.newKey}
+                onSaid={setSaid}
                 onHidden={(h) => {
                   setHiddenPrompt(h);
                   setReady(true);
                 }}
-                onUnsupported={() => setLines((m) => ({ ...m, [sel]: true }))}
+                onUnsupported={() => {
+                  // the line terminal draws what the host has at once: the start is over, whatever the workspace read still says
+                  setReady(true);
+                  setLines((m) => ({ ...m, [sel]: true }));
+                }}
               />
             )}
           </View>

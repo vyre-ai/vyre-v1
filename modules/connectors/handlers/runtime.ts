@@ -21,6 +21,8 @@ import {
   seedBuiltins,
   takeToken,
   checkEgress,
+  originKey,
+  recordHosts,
   fillString,
   fillValue,
   clone,
@@ -365,6 +367,25 @@ export async function executeAction(
         action: actionName,
       });
     url = (egress as { ok: true; url: URL }).url;
+    // a connection's key goes only to the hosts its own record lists (written when it was made), checked here before anything is filled or sent
+    if (conn) {
+      const rec = deps.tx.get<{ hosts: string }>(
+        "SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?",
+        conn.connection_id,
+      );
+      if (rec && !(JSON.parse(rec.hosts) as string[]).includes(originKey(url))) {
+        // a connector that gained a host since the person approved: the key does not go there on its own, and the person is told how to allow it
+        const gained = recordHosts(def).includes(originKey(url));
+        refuse(
+          ctx,
+          "permission.no_grant",
+          gained
+            ? `${def.title} now also sends to ${url.hostname}. Allow it from the connection to send the key there.`
+            : "This connection may not send its key to that address.",
+          { connector: def.key, action: actionName },
+        );
+      }
+    }
     headers = {};
     if (def.auth.type === "api_key" && def.auth.secret)
       headers[def.auth.header ?? "Authorization"] = `${def.auth.prefix ?? ""}${values[def.auth.secret]}`;

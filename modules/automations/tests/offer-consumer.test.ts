@@ -75,6 +75,7 @@ test("the offers list leaves out an AI account's key and an item that is gone or
         };
       if (cap === "agents.assistant_of") return { agentId: "agt_assist" };
       if (cap === "access.connector_builder.status") return { allowed: true, canGrant: true, reaches: true };
+      if (cap === "vault.item.get") return { item: { id: "vit_acme" } };
       throw new Error(`unexpected ${cap}`);
     },
   };
@@ -87,6 +88,7 @@ test("the offers list leaves out an AI account's key and an item that is gone or
     "access.connector_builder.status",
     "agents.assistant_of",
     "providers.list",
+    "vault.item.get",
     "vault.items.list",
   ]);
 });
@@ -109,6 +111,8 @@ test("a company key is never offered: the assistant is not allowed to use it, so
 interface Setup {
   assistant?: string | null;
   status: Record<string, { allowed: boolean; canGrant: boolean; reaches?: boolean } | "throw">;
+  /** Items the person can only view: the Use-level read is refused */
+  viewOnly?: string[];
 }
 async function shown(setup: Setup, items: Record<string, string>): Promise<{ itemId: string; text: string }[]> {
   const h = harness();
@@ -121,6 +125,10 @@ async function shown(setup: Setup, items: Record<string, string>): Promise<{ ite
       if (cap === "providers.list") return { providers: [] };
       if (cap === "vault.items.list")
         return { items: Object.entries(items).map(([id, name]) => ({ id, handle: `#${name.replace(/\W+/g, "_")}` })) };
+      if (cap === "vault.item.get") {
+        if (setup.viewOnly?.includes(String(input["itemId"]))) throw new Error("permission.above_clearance");
+        return { item: { id: input["itemId"] } };
+      }
       if (cap === "agents.assistant_of")
         return setup.assistant === null ? {} : { agentId: setup.assistant ?? "agt_assist" };
       if (cap === "access.connector_builder.status") {
@@ -162,4 +170,15 @@ test("no assistant found, or a check that fails, shows nothing: an offer that ca
     [],
   );
   assert.deepEqual(await shown({ status: { "*": "throw" } }, { vit_a: "Acme" }), []);
+});
+
+test("an item the person can only view is never offered, even when an Assistant could finish it (design 2.3, rule 1)", async () => {
+  const out = await shown(
+    { status: { "*": { allowed: true, canGrant: true, reaches: true } }, viewOnly: ["vit_view"] },
+    { vit_view: "Acme", vit_use: "Borealis" },
+  );
+  assert.deepEqual(
+    out.map((o) => o.itemId),
+    ["vit_use"],
+  );
 });

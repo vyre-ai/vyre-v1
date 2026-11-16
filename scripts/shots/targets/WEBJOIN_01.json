@@ -5,6 +5,6 @@
     { "id": "WEBJOIN_01-vault-browser", "route": "/m/WEBJOIN_01?part=vault-browser", "proto": "vault,{skin}", "waitFor": "[data-testid='vault-connect-here']", "note": "Vault > AI providers for a browser member: the Space key line with its models, then Connect Claude, ChatGPT, Grok and an API key; never Your vault is empty." },
     { "id": "WEBJOIN_01-vault-desktop", "route": "/m/WEBJOIN_01?part=vault-desktop", "proto": "vault,{skin}", "waitFor": "[data-testid='vault-connect-here']", "note": "The same section in the desktop app with no Space key: who can add one, and Connect Claude, ChatGPT and Grok right there." },
     { "id": "WEBJOIN_01-vault-keys", "route": "/m/WEBJOIN_01?part=vault-keys", "proto": "vault,{skin}", "waitFor": "[data-testid='vault-empty']", "note": "An empty Vault's Keys section says No keys yet (each section switches; it used to say Your vault is empty everywhere)." },
-    { "id": "WEBJOIN_01-signin-name", "route": "/m/WEBJOIN_01?part=signin-name", "proto": "home,{skin}", "waitFor": "[data-testid='step-sign-in']", "note": "Sign-in to a Space whose server answers its id as the name: the address (mla.vyre.run), never spc_." }
+    { "id": "WEBJOIN_01-signin-name", "route": "/m/WEBJOIN_01?part=signin-name", "proto": "home,{skin}", "waitFor": "[data-testid='step-sign-in']", "note": "Sign-in to a Space whose server answers its id as the name: the address (northwind.vyre.run), never spc_." }
   ]
 }

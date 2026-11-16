@@ -1,3 +1,5 @@
+import { tryAll, tryRun } from "../../lib/erase-agent.ts";
+import { profileIdOf } from "./sbrowser/policy.ts";
 // computers module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25). The handler table holds the
 // lifecycle, recording, screenshot, live view and timeline capabilities (P-L2_16); the 35 Chrome, Screen and Files tools are in handlers/tools (P-L2_16b) and run through the `tool` action below.
 //
@@ -35,7 +37,7 @@ import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
 import { markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
-import { browserOfDeleted, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
+import { browserOfDeleted, browserOfLeaver, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
 import {
   nodeHomeCheck,
   nodeJobs,
@@ -1053,6 +1055,12 @@ export const consumers = {
       turnEnded(ctx.space, typeof a === "string" ? a : "", t);
     },
   },
+  /** A person left the Space: their own browser profiles on shared agents go after Trash time, like their Assistant's (sbrowser/forget.ts). */
+  "computers.browser_leaver": {
+    on: ["member.removed"],
+    run: async (ctx: CompCtx, event: { payload: { personId?: unknown } }): Promise<string[]> =>
+      browserOfLeaver(ctx, event.payload.personId),
+  },
   "computers.browser_forget": {
     on: ["agent.deleted", "agent.restored"],
     run: async (ctx: CompCtx, event: { name: string; payload: { agentId?: unknown } }): Promise<boolean> =>
@@ -1087,6 +1095,48 @@ export const periodic = {
 
 /** What the host asks of this module on behalf of a computer that joined (host/src/routes/compute.ts): never a capability, never reachable from a session. */
 export const hostCalls = {
+  /**
+   * Delete for good (F77): the agent's computer rows, its screen steps and recordings, its sign-in notes, its jobs on enrolled computers, and its Space browser profile (cookies, saved sign-ins, downloads),
+   * removed from the browser host. A browser host that does not answer fails the step, so the job tries again.
+   */
+  "computers.erase_agent": async (ctx: CompCtx, i: { agentId: string; dry?: boolean }): Promise<{ bytes?: number }> => {
+    const cids = tryAll(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", i.agentId).map((r) =>
+      String(r["computer_id"]),
+    );
+    if (i.dry === true)
+      return {
+        bytes: tryAll(ctx.db, "SELECT disk_bytes FROM computers_computers WHERE agent_id = ?", i.agentId).reduce(
+          (n, r) => n + Number(r["disk_bytes"] ?? 0),
+          0,
+        ),
+      };
+    const profile = profileIdOf(i.agentId);
+    const sb = spaceBrowser();
+    if (profile && sb) {
+      // the profile (cookies, saved sign-ins, downloads) is really removed or this step fails and the job tries again: a browser host that is bound and not available is not "nothing to remove"
+      if (!(await sb.available().catch(() => false)))
+        throw new Error("The browser host is not available yet, so the profile is kept for the next try.");
+      await sb.stop(profile).catch(() => undefined);
+      await sb.forget(profile);
+    }
+    for (const c of cids)
+      for (const t of [
+        "computers_timeline",
+        "computers_recordings",
+        "computers_tickets",
+        "computers_sessions",
+        "computers_job",
+        "computers_migration",
+      ])
+        tryRun(ctx.db, `DELETE FROM ${t} WHERE computer_id = ?`, c);
+    tryRun(ctx.db, "DELETE FROM computers_job WHERE agent_id = ?", i.agentId);
+    tryRun(ctx.db, "DELETE FROM computers_recordings WHERE agent_id = ?", i.agentId);
+    tryRun(ctx.db, "DELETE FROM computers_migration WHERE agent_id = ?", i.agentId);
+    tryRun(ctx.db, "DELETE FROM computers_computers WHERE agent_id = ?", i.agentId);
+    for (const t of ["computers_browser_gone", "computers_browser_hold"])
+      tryRun(ctx.db, `DELETE FROM ${t} WHERE profile_id = ?`, profile ?? i.agentId);
+    return {};
+  },
   "computers.browser_stream_open": browserStreamOpen,
   "computers.browser_stream_input": browserStreamInput,
   "computers.workspace_claim": workspaceClaim,

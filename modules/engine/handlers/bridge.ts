@@ -38,6 +38,9 @@ import type {
 } from "../../../agent/src/turn-engine/types.ts";
 import type { RouteMention } from "../../../lib/route.ts";
 
+/** Tools whose card is posted while the turn runs: the words before the call are posted first, so the card follows the words that lead up to it. */
+const CARD_TOOLS: ReadonlySet<string> = new Set(["plan_propose", "ask_question"]);
+
 /** Messages the bridge posts on its own (blocks only) carry this id prefix, so a consumer sees them as ours without a lookup. */
 /** A failure that setup on the server causes and a retry cannot cure: the sandbox cannot make a namespace (bwrap, no user namespaces), or the engine image is not on the server. */
 export function serverCause(message: string): "sandbox" | "image" | undefined {
@@ -86,7 +89,7 @@ export type PostAs = (agentId: string, post: AgentPost) => Promise<unknown>;
 export type CallAs = (cap: string, input: unknown, personId: string) => Promise<unknown>;
 
 /**
- * "Tell Andrey the deck is ready": a name the person typed is also the teammate it names (lane l-agentdm). For each send to a bare name, every active person in the Space whose first name, last name or full
+ * "Tell Andrea the deck is ready": a name the person typed is also the teammate it names (lane l-agentdm). For each send to a bare name, every active person in the Space whose first name, last name or full
  * name is that name gets a row of their own (their id), so the Gate lets an agent's message_person to them through this turn. Read as the person who typed it; a name that matches nobody adds nothing.
  */
 export async function withTeammates(
@@ -160,6 +163,8 @@ export type StreamEvent =
       parent?: string;
       /** What a subagent returned, on the result of the call that started it. Never sent to a screen's live line (live-coalesce.ts drops it); the crew row keeps it. */
       result?: string;
+      /** The result only says the work STARTED (a helper or shell job in the background): it is not finished, and the crew row stays working until its own end. */
+      launched?: boolean;
     }
   /** Steps gathered to about one frame a second for the screens (live-coalesce.ts): what the fan-out sends instead of each `step`. */
   | {
@@ -258,6 +263,7 @@ interface Segment {
   /** the call it is inside now, in plain words once asked */ step?: { id: string; name: string; detail?: string };
   calls?: Map<string, { name: string; at: number }>;
   /** its live text goes to the asker only */ private?: boolean;
+  /** words already posted on their own before a card, so the reply the engine stores does not say them twice */ posted?: string;
 }
 interface Ready {
   blocks: PostBlock[];
@@ -265,6 +271,7 @@ interface Ready {
   mentions: number;
   routineOwner: string | null;
   turnId: string;
+  posted?: string;
 }
 
 const SHELL_STEP = /^(?:bash|shell|terminal_run|exec|run_command|command_execution|command)$/i;
@@ -740,12 +747,16 @@ export function createBridge(o: BridgeOptions): Bridge {
         // only a turn's own reply is posted from here; an agent message that chat already holds (a crew card, a brief, a tool's post) is not a reply to send again
         if (!r) return;
         ready.delete(`${e.threadId}:${e.authorId}`);
+        // words already posted before a card are not said again
+        const said = r.posted ?? "";
+        const body =
+          said !== "" && msg.body.startsWith(said) ? msg.body.slice(said.length).replace(/^\s+/, "") : msg.body;
         enqueuePost(
           e.threadId,
           e.authorId,
           {
             threadId: e.threadId,
-            body: msg.body,
+            body,
             blocks: r?.blocks ?? [],
             mentions: [
               ...msg.mentions,
@@ -767,11 +778,22 @@ export function createBridge(o: BridgeOptions): Bridge {
 
   function wrap(s: EngineSession): EngineSession {
     // the API model's calls of this session that are running, so their end is said when the engine hands the result back
-    const calls = new Map<string, { threadId: string; turnId: string; agentId: string; name: string }>();
+    const calls = new Map<string, { threadId: string; turnId: string; agentId: string; name: string; at: number }>();
     const sendToolResult = (id: string, result: { ok: boolean; content: unknown }): unknown => {
       const c = calls.get(id);
       if (c) {
         calls.delete(id);
+        // the saved reply keeps the step, so "Worked 3s · 1 step" shows under it as under a CLI model's reply: the name and how long, never what the call touched
+        live.get(c.turnId)?.blocks.push({
+          type: "tool_result",
+          v: 1,
+          data: {
+            id,
+            name: c.name,
+            ok: result.ok,
+            secs: Math.max(0, Math.round(((o.now ?? Date.now)() - c.at) / 1000)),
+          },
+        });
         emit({
           kind: "step",
           threadId: c.threadId,
@@ -874,7 +896,35 @@ export function createBridge(o: BridgeOptions): Bridge {
             if (ev.id !== "") {
               seg.calls?.set(ev.id, { name, at: (o.now ?? Date.now)() });
               seg.step = { id: ev.id, name };
-              calls.set(ev.id, { threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, name });
+              calls.set(ev.id, {
+                threadId: input.threadId,
+                turnId: input.turnId,
+                agentId: input.agent.id,
+                name,
+                at: (o.now ?? Date.now)(),
+              });
+              seg.blocks.push({ type: "tool_call", v: 1, data: { id: ev.id, name } });
+              // a card the tool is about to post (a plan, a question) comes after the words that lead up to it: the words so far go out as their own message first, before the tool runs
+              if (CARD_TOOLS.has(name) && seg.text.trim() !== "") {
+                const askerNow = askerFor(input.threadId, input.turnId);
+                try {
+                  await o.postAs(input.agent.id, {
+                    threadId: input.threadId,
+                    body: seg.text,
+                    blocks: [],
+                    mentions: [],
+                    clientId: brgId(),
+                    ...(askerNow ? { actingFor: askerNow } : {}),
+                  });
+                  seg.posted = (seg.posted ?? "") + seg.text;
+                  seg.text = "";
+                } catch (e) {
+                  warn("the words before a card were not posted first", {
+                    threadId: input.threadId,
+                    error: e instanceof Error ? e.message : String(e),
+                  });
+                }
+              }
               emit({
                 kind: "step",
                 threadId: input.threadId,
@@ -989,7 +1039,13 @@ export function createBridge(o: BridgeOptions): Bridge {
                 id,
                 ...(call?.name ? { name: call.name } : {}),
                 ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}),
-                ...(said !== "" ? { detail: said } : {}),
+                ...((p as { launched?: unknown }).launched === true ? { launched: true } : {}),
+                ...((p as { launched?: unknown }).launched === true &&
+                typeof (p as { title?: unknown }).title === "string"
+                  ? { detail: (p as { title: string }).title }
+                  : said !== ""
+                    ? { detail: said }
+                    : {}),
                 // what a subagent returned is for its crew row; the reply keeps only that it ran
                 ...(call && /^(Agent|Task)$/.test(call.name) && typeof (p as { result?: unknown }).result === "string"
                   ? { result: (p as { result: string }).result }
@@ -997,6 +1053,10 @@ export function createBridge(o: BridgeOptions): Bridge {
               });
               if (typeof (p as { result?: unknown }).result === "string") {
                 const { result: _gone, ...rest } = data as Record<string, unknown>;
+                data = rest;
+              }
+              if (typeof (p as { title?: unknown }).title === "string") {
+                const { title: _t, ...rest } = data as Record<string, unknown>;
                 data = rest;
               }
               if (typeof (p as { detail?: unknown }).detail === "string") {
@@ -1168,6 +1228,16 @@ export function createBridge(o: BridgeOptions): Bridge {
     }
     try {
       engine.openThread(built);
+      // Rewind: what a person went back over stays hidden from the agents after a restart
+      for (const r of ctx.db.all(
+        "SELECT after_seq, upto_seq FROM engine_rewind WHERE thread_id = ? ORDER BY at",
+        threadId,
+      ) as Row[])
+        engine.hide(
+          threadId,
+          Number((r as Record<string, unknown>)["after_seq"]),
+          Number((r as Record<string, unknown>)["upto_seq"]),
+        );
     } catch (e) {
       if (!(e instanceof RangeError) || !/already open/.test(e.message)) throw e;
     }

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { View } from "react-native";
 import Vault from "../../../apps/app/src/places/vault/layout/index.tsx";
 import { createSampleVault } from "../../../apps/app/src/places/vault/layout/sample.ts";
-import { AutomationsSidebar } from "../../../apps/app/src/places/automations/sidebar/AutomationsSidebar.tsx";
+import { AutomationsList } from "../../../apps/app/src/places/automations/sidebar/AutomationsList.tsx";
 import { AutomationsDataProvider } from "../../../apps/app/src/places/automations/canvas/data.tsx";
 import {
   createSampleAutomations,
@@ -177,7 +177,9 @@ export default function Mount(): ReactNode {
     return (
       <Frame width={320}>
         <AutomationsDataProvider value={autos.data}>
-          <AutomationsSidebar shared={autos.shared} reasons={autos.space.reasons} />
+          <View style={{ width: 272, backgroundColor: "var(--side)" as string }} testID="automations-sidebar">
+            <AutomationsList selectedId={null} query="" onChoose={() => undefined} />
+          </View>
         </AutomationsDataProvider>
       </Frame>
     );
@@ -188,9 +190,9 @@ export default function Mount(): ReactNode {
           goalId="gol_lab8"
           call={goalCall}
           changes={undefined}
-          me="usr_irfad"
+          me="usr_imran"
           nameOf={(id) =>
-            (({ usr_irfad: "Irfad Imtiaz", agt_labdesk: "Lab Desk" }) as Record<string, string>)[id] ?? id
+            (({ usr_imran: "Imran Ibarra", agt_labdesk: "Lab Desk" }) as Record<string, string>)[id] ?? id
           }
           clock={() => ({ now: NOW, offsetMin: 300 })}
           conversationFor={() => ({}) as ConversationData}

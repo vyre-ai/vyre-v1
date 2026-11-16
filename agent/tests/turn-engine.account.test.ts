@@ -24,7 +24,7 @@ const say = [
   { type: "done" as const },
 ];
 
-test("the resolved account goes into the session spec, its payer is the asker, and onTurnEnd gets the turn with that account", async () => {
+test("the resolved account goes into the session spec, its payer pays (paidBy) while the turn stays the writer's, and onTurnEnd gets the turn with that account", async () => {
   const p = scriptedProvider({ script: () => say });
   const asked: unknown[] = [];
   const ended: Array<{ id: string; asker: string; tokens: number; ref: string | null }> = [];
@@ -48,8 +48,9 @@ test("the resolved account goes into the session spec, its payer is the asker, a
     "asked once, for the person who wrote",
   );
   const turn = engine.turns("T")[0]!;
-  assert.equal(turn.asker, "sam", "the account's payer pays");
-  assert.deepEqual(ended, [{ id: turn.id, asker: "sam", tokens: 14, ref: "#Dana_Anthropic" }]);
+  assert.equal(turn.paidBy, "sam", "the account's payer pays");
+  assert.equal(turn.asker, "dana", "and the turn runs for the person who wrote (F75: who pays is not whose folder)");
+  assert.deepEqual(ended, [{ id: turn.id, asker: "dana", tokens: 14, ref: "#Dana_Anthropic" }]);
   assert.equal(p.specs[0]?.account?.ref, "#Dana_Anthropic");
 });
 

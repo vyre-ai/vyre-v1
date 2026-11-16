@@ -38,7 +38,8 @@ test("journey 1, Team: Catch me up on open, Make a task from a message, Remember
     // Make a task: a person's message has no Make task on its bar (that is for an agent's answer); hover it, open More, press Make a Task; a card says where it went
     await me.page.getByTestId(`msg-${ask}`).hover();
     await me.page.getByTestId(`act-more-${ask}`).click();
-    await me.page.getByText("Make a Task", { exact: true }).click();
+    // 298d17dd0 (rc.28): the message menu is sentence case, so the entry reads "Make a task"
+    await me.page.getByText("Make a task", { exact: true }).click();
     await me.page
       .getByText(/Task created/)
       .first()
@@ -60,6 +61,7 @@ test("journey 1, Team: Catch me up on open, Make a task from a message, Remember
     // Remember This: the message menu keeps it, and the card says so
     await me.page.getByTestId(`msg-${decision}`).hover();
     await me.page.getByTestId(`act-more-${decision}`).click();
+    await me.page.getByTestId("menu-item-Memory").click();
     await me.page.getByText("Remember This").click();
     await me.page
       .getByText(/Remembered/)

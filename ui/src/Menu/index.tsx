@@ -182,6 +182,7 @@ const ICON_PATHS: Readonly<Record<string, string>> = {
   terminal: '<rect x="2" y="3" width="12" height="10" rx="1.800"/><path d="M5 6.500l2 1.500-2 1.500M8.500 10H11"/>',
   eye: '<path d="M1.500 8S4 3.500 8 3.500 14.500 8 14.500 8 12 12.500 8 12.500 1.500 8 1.500 8z"/><circle cx="8" cy="8" r="2"/>',
   search: '<circle cx="7" cy="7" r="4"/><path d="M10 10l3.5 3.5"/>',
+  tabs: '<path d="M4 6.500l4 4 4-4"/>',
   more: '<circle cx="3.5" cy="8" r=".9" fill="currentColor"/><circle cx="8" cy="8" r=".9" fill="currentColor"/><circle cx="12.5" cy="8" r=".9" fill="currentColor"/>',
 };
 

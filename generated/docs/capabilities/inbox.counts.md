@@ -1,6 +1,6 @@
 # inbox.counts
 
-Unread counts for the sidebar: per inbox, per number and the Needs a match total
+Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match
 
 | | |
 |---|---|

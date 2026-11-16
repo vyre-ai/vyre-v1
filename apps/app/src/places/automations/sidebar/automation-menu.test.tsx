@@ -1,9 +1,9 @@
-// The automation row's right-click menu in the sidebar (lane l-chrome2a): the menu of kinds-b.ts for the row's state and the person's rights, each item one capability call with the row's own id, Move to Trash last and asked first.
+// The automation row's right-click menu in the one list (lane l-chrome2a; put back on the new list in AUTOMATIONS-BUILD-RC29 round five): the menu of kinds-b.ts for the row's state and the person's rights, each item one capability call with the row's own id, Move to Trash last and asked first.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press } from "../../../../../../ui/src/testing/dom.ts";
-import { AutomationsSidebar } from "./AutomationsSidebar.tsx";
+import { AutomationsList } from "./AutomationsList.tsx";
 import { AutomationsDataProvider } from "../canvas/data.tsx";
 import { createSampleAutomations, northwind } from "./sample.ts";
 import { fireUp } from "../../chats/sidebar/chats-open.support.tsx";
@@ -40,13 +40,13 @@ test("an automation row: Run Now, Turn Off or On by state, Test, Runs, a Persona
   const root = await mount(
     createRoot,
     <AutomationsDataProvider value={s.data}>
-      <AutomationsSidebar shared={s.shared} reasons={s.space.reasons} />
+      <AutomationsList selectedId={null} query="" onChoose={() => undefined} />
     </AutomationsDataProvider>,
   );
   await flush();
   const row = rowIdOf(root as never);
   assert.ok(row, "a row is drawn");
-  const id = row.slice(row.lastIndexOf(":") + 1);
+  const id = row.slice("row-auto-".length);
   await rightClick(root as never, row);
   const labels = ids(root as never);
   assert.equal(labels[0], "Open");

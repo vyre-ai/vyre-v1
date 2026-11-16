@@ -4,6 +4,7 @@ import { MAKES_A_THREAD, noteMade, threadOfStart } from "./just-made.ts";
 import type { Judge } from "../reach/target.ts";
 import { adminPages } from "../providers/settings-admin.ts";
 import { createLinkPolicy } from "../reach/policy.ts";
+import { watchWorking } from "../tabs/working.ts";
 import { isAssistantRow } from "../../../../../lib/agent-kind.ts";
 import { createRecordsPreview } from "../../../../../client/src/gateway/records-preview.ts";
 // A signed-in Space, open (ARCH 7.0): who you are, the Space's name and kind, the capability caller on its gateway, the screen hooks every place reads, the live link that keeps them fresh, and the
@@ -37,6 +38,7 @@ import { createLiveLink } from "./live.ts";
 import { realScheduler } from "../../../../../client/src/connection/scheduler.ts";
 
 import { createTurnStreams } from "./turn-streams.ts";
+import { createTyping } from "./typing.ts";
 import { readStoredSessions } from "./stored.ts";
 import type { LiveLink, LiveStatus } from "./live.ts";
 import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/registry-hash.ts";
@@ -353,7 +355,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
 
   const once: CapCall = async (cap, input, opts) => {
     const r = await reach(cap, input, opts);
-    if (!reads?.has(cap)) refresh();
+    // an Automation made, copied or promoted is in the list at once (not after the quiet 120 ms): a person's own action is read at once
+    if (!reads?.has(cap))
+      /^automations\.(create|templates\.use|promote|make_personal_copy)$/.test(cap) ? reread(true) : refresh();
     return r;
   };
   // where the Space runs (ai-signin/own-ai.ts), for the words of a refusal
@@ -388,6 +392,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   let lostTimer: (() => void) | null = null;
   const clock = o.scheduler ?? realScheduler;
   const turns = createTurnStreams();
+  let sendFrame: (f: unknown) => boolean = () => false;
+  const typing = createTyping({ send: (f) => sendFrame(f), me: () => who.principal.id });
   const link: LiveLink = createLiveLink({
     baseUrl: o.baseUrl,
     token: () => token,
@@ -417,12 +423,14 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       tell();
     },
     onTurn: (f) => turns.onFrame(f),
+    onTyping: (f) => typing.onFrame(f),
     onPurge: (epoch) => {
       for (const l of [...purgeListeners]) l(epoch);
     },
     ...(o.dial ? { dial: o.dial } : {}),
     ...(o.scheduler ? { scheduler: o.scheduler } : {}),
   });
+  sendFrame = (f) => link.send(f);
   link.start();
   // a Space server that lost the key under an open link (a restart the link did not notice) gets it back from this app within one beat
   const stopKeyWatch = watchKey(o.baseUrl, () => token);
@@ -495,13 +503,16 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const principalsList = hooks.capQuery<Out<"access.principals.list">>("access.principals.list", {});
   const groupsList = hooks.capQuery<Out<"access.groups.list">>("access.groups.list", {});
   const agentsList = hooks.capQuery<Out<"agents.list">>("agents.list", {});
+  const erasedList = hooks.capQuery<Out<"agents.erased">>("agents.erased", {});
   // Keep the shell's own lists warm for the life of the session.
-  const keep = [connections, principalsList, groupsList, agentsList].map((q) => q.subscribe(() => undefined));
+  const keep = [connections, principalsList, groupsList, agentsList, erasedList].map((q) =>
+    q.subscribe(() => undefined),
+  );
 
-  const principals = derived<Principal[]>([principalsList, groupsList, agentsList], ([p, g, ag]) => {
+  const principals = derived<Principal[]>([principalsList, groupsList, agentsList, erasedList], ([p, g, ag]) => {
     const own = assistant();
     const list = new Map<string, Principal>([[me.id, me]]);
-    // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Irfad Imtiaz (Agent)") and never offered
+    // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Imran Ibarra (Agent)") and never offered
     const usable =
       ag?.status === "ready" ? new Set((ag.data as Out<"agents.list">).agents.map((a) => a.agentId)) : null;
     // what was picked on an agent's page shows on every face of that agent, in every place (not only Chats)
@@ -561,7 +572,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       ? (screens.get(t.screen)?.place ?? railPlace(t.screen.split(".")[0] ?? "") ?? "")
       : t.subject
         ? (placeForSubject(t.subject.type) ?? "")
-        : "";
+        : (t.place ?? "");
     if (where === "shell") {
       if (t.screen) o.shell?.(t.screen, t.args ?? {});
       return;
@@ -640,6 +651,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     screens: hooks,
     changes: { subscribe: (l) => hooks.onInvalidate(l) },
     turns,
+    typing,
     call: (cap, input) => call(cap, input),
     callIn: async (spaceId, cap, input) => {
       // another Space this device is signed in to: its own address and its own token, never this Space's
@@ -659,13 +671,30 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
         throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
       const send = o.fetch ?? (globalThis as { fetch?: typeof fetch }).fetch;
       if (!send) throw new Error("This device cannot upload");
-      const r = await send(new URL(path, o.baseUrl).toString(), {
+      const to = new URL(path, o.baseUrl);
+      if (to.origin !== new URL(o.baseUrl).origin) throw new Error("The upload did not go through");
+      const r = await send(to.toString(), {
         method: "PUT",
         headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" },
         body: bytes as unknown as BodyInit,
       });
       if (!r.ok)
         throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
+    },
+    blobOrigin: new URL(o.baseUrl).origin,
+    fetchBlobUrl: async (path) => {
+      if (token === null)
+        throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
+      const send = o.fetch ?? (globalThis as { fetch?: typeof fetch }).fetch;
+      if (!send) throw new Error("This device cannot load a picture");
+      // the token goes only to this Space: an address on another host (a reply or a document can name any) is never fetched with it
+      const at = new URL(path, o.baseUrl);
+      if (at.origin !== new URL(o.baseUrl).origin) throw new Error("The picture did not load");
+      const r = await send(at.toString(), { headers: { authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error("The picture did not load");
+      const url = (globalThis as { URL?: { createObjectURL?(b: Blob): string } }).URL;
+      if (!url?.createObjectURL) throw new Error("This device cannot show a picture");
+      return url.createObjectURL(await r.blob());
     },
     ...(aiHome === "here" || door ? { unlockVault } : {}),
     aiHome,
@@ -684,6 +713,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       },
     },
     principals,
+    erased: (id) => {
+      const e = erasedList.getSnapshot();
+      return e.status === "ready"
+        ? (e.data as Out<"agents.erased">).agents.find((a) => a.agentId === id)?.name
+        : undefined;
+    },
     recordTitle: () => undefined,
     me,
     clock: () => ({ now: (o.now ?? Date.now)(), offsetMin: -new Date().getTimezoneOffset() }),
@@ -711,6 +746,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     },
   };
 
+  // the chats whose agents (or helpers left running in the background) work now: the tab strip marks their tabs
+  const stopWorking = watchWorking({
+    call: (cap, input) => call(cap, input),
+    onInvalidate: (l) => hooks.onInvalidate(l),
+  });
+
   return {
     def,
     baseUrl: o.baseUrl,
@@ -731,6 +772,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       if (closed) return;
       closed = true;
       stopPerms();
+      stopWorking();
       if (permsTimer !== null) clearTimeout(permsTimer);
       detachSpeed();
       stopKeyWatch();
@@ -746,6 +788,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       lostTimer = null;
       link.stop();
       turns.dispose();
+      typing.dispose();
       for (const off of keep) off();
       hooks.close();
       listeners.clear();

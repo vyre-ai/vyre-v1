@@ -1,0 +1,2 @@
+- Automations: test runs stay out of the success rate and the Today line (they show in a run's Runs list as Test, with their true state); the empty line sits under the list's own heading; a step row says what was chosen by name (a file moved to a folder) and never repeats the kind's name; each trigger wears its own icon; the row menu lists the Groups; the HTTP and AI forms no longer show template syntax.
+- Automations: an Automation made from a template, New automation, Promote or a Personal copy is in the list at once; an update step names its record and what it sets.

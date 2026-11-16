@@ -1086,6 +1086,29 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "automations.usage",
+    "module": "automations",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:AutomationUsage",
+    "caller": "principal",
+    "queries": {
+      "analytics": {
+        "cap": "automations.analytics",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {},
+    "needs": [
+      "audit.read"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "calendar.event-card",
     "module": "calendar",
     "place": "inbox",
@@ -3972,6 +3995,29 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "events.log",
+    "module": "events",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:EventLog",
+    "caller": "principal",
+    "queries": {
+      "events": {
+        "cap": "events.list",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {},
+    "needs": [
+      "audit.read"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "events.webhooks",
     "module": "events",
     "place": "console",
@@ -5646,7 +5692,8 @@ export const screens: ScreenIndexEntry[] = [
       "drafts": {
         "cap": "mail.drafts.list",
         "input": {
-          "contactId": "/state/contactId"
+          "contactId": "/state/contactId",
+          "address": "/state/address"
         },
         "live": true
       }

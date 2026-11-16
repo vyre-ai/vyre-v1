@@ -61,6 +61,8 @@ export interface Mail {
   threadId: string;
   subject: string;
   from: string;
+  /** the name in the From line ("Usman Khan"), when the mail carries one */
+  fromName?: string;
   to: string[];
   cc?: string[];
   attachments?: { attachmentId: string; name: string; mime: string; size: number; fileId?: string }[];
@@ -290,7 +292,7 @@ export function harness(opts: HarnessOptions = {}) {
               id: m.id,
               threadId: m.threadId,
               subject: m.subject,
-              from: { address: m.from },
+              from: { address: m.from, ...(m.fromName ? { name: m.fromName } : {}) },
               to: m.to.map((address) => ({ address })),
               cc: (m.cc ?? []).map((address) => ({ address })),
             },
@@ -317,7 +319,7 @@ export function harness(opts: HarnessOptions = {}) {
               direction: "in",
               mailboxId: m.mailboxId ?? "mbx_work",
               mailboxIds: [m.mailboxId ?? "mbx_work"],
-              from: { address: m.from },
+              from: { address: m.from, ...(m.fromName ? { name: m.fromName } : {}) },
               to: m.to.map((address) => ({ address })),
               cc: (m.cc ?? []).map((address) => ({ address })),
               subject: m.subject,

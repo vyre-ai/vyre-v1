@@ -160,14 +160,14 @@ test("a tab that is not an artifact is left alone", async () => {
 });
 
 test("a Space whose address is under vyre.run but reached directly (its own DNS and certificate) has its artifact tab recognised at a.<address>, and the relay-form name for a relay Space", () => {
-  const spaces = ["https://mla.vyre.run"];
+  const spaces = ["https://northwind.vyre.run"];
   assert.equal(
-    artifactOfTab("https://a.mla.vyre.run/sit_abc123/", spaces),
+    artifactOfTab("https://a.northwind.vyre.run/sit_abc123/", spaces),
     "sit_abc123",
     "a.<address> of a direct Space",
   );
   assert.equal(
-    artifactOfTab("https://mla-a.vyre.run/sit_abc123/", spaces),
+    artifactOfTab("https://northwind-a.vyre.run/sit_abc123/", spaces),
     "sit_abc123",
     "<name>-a.vyre.run of a relay Space",
   );

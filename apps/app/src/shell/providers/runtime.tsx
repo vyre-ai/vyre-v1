@@ -1,3 +1,4 @@
+import { BlobUrlProvider } from "../../../../../ui/src/BlobImage/index.tsx";
 import type { AiHome } from "../../ai-signin/own-ai.ts";
 import type { SpaceDef } from "../spaces/model.ts";
 import type { RecordsPreviewTicket, RecordsPreviewReader } from "../../../../../client/src/gateway/records-preview.ts";
@@ -10,12 +11,15 @@ import type { RuntimeBase } from "../session/runtime-data.ts";
 import { setAssistantId } from "../../../../../ui/src/Avatar/assistant.ts";
 import type { LinkPolicy } from "../../../../../ui/src/reach/index.tsx";
 import type { TurnStreams } from "../session/turn-streams.ts";
+import type { Typing } from "../session/typing.ts";
 
 /** Where a click goes. The shell resolves a screen id (generated/screens.ts) or a subject to a place and a tab. */
 export interface ShellTarget {
   screen?: string;
   subject?: { type: string; id: string };
   args?: Record<string, unknown>;
+  /** The place, for an address that names neither a screen nor a subject (a Records type: `{ place: "records", args: { type } }`). */
+  place?: string;
   /** A move inside the place and item already open (a tab of the page the person is on, a view, a filter): it was reached through the door once, so it is not asked again. */
   local?: boolean;
   /** Open it in a tab behind the one the person is in (Cmd-click, middle click). */
@@ -59,6 +63,8 @@ export interface ShellRuntime extends RuntimeBase {
   openUrl(url: string): void;
   /** Agent replies as they are written, from the live socket. Absent where there is no live link (tests, a replica-only shell). */
   turns?: TurnStreams;
+  /** Who is typing in which chat, from the live socket, and what this person's own typing tells it. Absent where there is no live link. */
+  typing?: Typing;
   /** Slash commands that plugins add to chat (name, one line, what to run). Absent until a plugin offers any. */
   pluginCommands?(): readonly {
     name: string;
@@ -71,6 +77,10 @@ export interface ShellRuntime extends RuntimeBase {
   callIn?(spaceId: string, cap: string, input: unknown): Promise<unknown>;
   /** Put bytes at a one-time upload address from files.upload_url, signed in as the person. */
   putBlob?(path: string, bytes: Uint8Array): Promise<void>;
+  /** Fetch a blob the Space serves (a preview, a picture) with the person's own token and hand back an address the page can draw: an image element sends no token, so the bare address answers 401. */
+  fetchBlobUrl?(path: string): Promise<string>;
+  /** The Space's own origin: a picture is fetched with the person's token only from here. */
+  blobOrigin?: string;
   /** Open the person's own Mine vault key on this computer with their password, in place (no sign-out). Absent where there is no live Space. Rejects with a sentence the page can show. */
   unlockVault?(password: string): Promise<void>;
   /** A Space server's wrap of the person's key for provider sign-ins (owner ruling 3 Nov): what it keeps, and Forget on this server. Null state where there is no such server. */
@@ -91,7 +101,13 @@ export { allows, GATE } from "../session/gates.ts";
 export function ShellRuntimeProvider({ value, children }: { value: ShellRuntime; children: ReactNode }): ReactElement {
   // The assistant wears the Vyre mark in every face below; say which agent it is before they draw.
   setAssistantId(value.assistant.id, value.assistant.name);
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      <BlobUrlProvider fetcher={value.fetchBlobUrl} origin={value.blobOrigin}>
+        {children}
+      </BlobUrlProvider>
+    </Ctx.Provider>
+  );
 }
 
 /** The runtime of the open Space, or null before the shell has opened the replica (a place then draws its loading frame). */

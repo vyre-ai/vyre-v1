@@ -169,6 +169,7 @@ const sidebarRow = t.obj({
   archived: t.opt(t.bool()),
   private: t.opt(t.bool()),
   withPeople: t.opt(t.bool()),
+  ask: t.opt(t.bool()),
 });
 const sidebarSection = t.obj({
   total: t.int({ minimum: 0 }),
@@ -1186,6 +1187,31 @@ export default defineManifest({
       },
     ),
     write(
+      "chat.rewind",
+      "Go back in a chat with an agent to a point: the agent's work folder is put back, the agents stop reading the messages after it, one line says so. Messages stay; anything sent stays sent. Your own message only; only the person",
+      {
+        in: { ...threadT, pointId: t.str({ maxLength: 120 }) },
+        out: {
+          restored: t.int({ minimum: 0 }),
+          removed: t.int({ minimum: 0 }),
+          failed: t.int({ minimum: 0 }),
+          failedPaths: t.arr(t.str({ maxLength: 300 })),
+          during: t.bool(),
+          at: t.ts(),
+          undid: t.bool(),
+        },
+        on: ["thread", "/threadId"],
+        level: "use",
+        idem: "key",
+        tool: "chats",
+        offline: "online",
+        risk: "high",
+        audit: "always",
+        agent: { planMode: "blocked" },
+        errors: ["validation.bad_input", "validation.not_found", "validation.precondition_failed"],
+      },
+    ),
+    write(
       "chat.share",
       "Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to",
       {
@@ -1683,6 +1709,26 @@ export default defineManifest({
         on: ["thread", "/threadId"],
         level: "use",
         errors: ["validation.bad_input", "validation.not_found"],
+      },
+    ),
+    write(
+      "chat.connect_line",
+      "The engine only: after a connect card is answered, leave one quiet line (not a message of the person) in the chat that wakes the agent that asked. It takes the answered request's id and reads the chat, the agent, the asker and the words from that request; only the request's own asker may call it",
+      {
+        in: { requestId: t.id("vrq") },
+        out: { messageId: id.message },
+        level: "member",
+        agent: false,
+        idem: "none",
+        emits: [
+          "message.received",
+          "message.direct",
+          "message.mentioned",
+          "thread.replied",
+          "thread.unarchived",
+          "thread.updated",
+        ],
+        errors: ["validation.bad_input", "validation.not_found", "permission.no_grant"],
       },
     ),
     write(

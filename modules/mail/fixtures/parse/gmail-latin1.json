@@ -6,7 +6,7 @@
   "UNREAD"
  ],
  "internalDate": "1792857600000",
- "snippet": "Hola Irfad, Gracias por la llamada.",
+ "snippet": "Hola Imran, Gracias por la llamada.",
  "payload": {
   "mimeType": "multipart/alternative",
   "headers": [
@@ -16,7 +16,7 @@
    },
    {
     "name": "To",
-    "value": "irfad@northwind.example"
+    "value": "imran@northwind.example"
    },
    {
     "name": "Subject",
@@ -42,7 +42,7 @@
     ],
     "body": {
      "size": 104,
-     "data": "SG9sYSBJcmZhZCwKCkdyYWNpYXMgcG9yIGxhIGxsYW1hZGEuIExhIHJldW5p824gZXMgZWwgbWnpcmNvbGVzIGEgbGFzIDExOjAwLiBFbCBjYWbpIGVzdOEgcGFnYWRvLgoKSm9z6Qo"
+     "data": "SG9sYSBJbXJhbiwKCkdyYWNpYXMgcG9yIGxhIGxsYW1hZGEuIExhIHJldW5p824gZXMgZWwgbWnpcmNvbGVzIGEgbGFzIDExOjAwLiBFbCBjYWbpIGVzdOEgcGFnYWRvLgoKSm9z6Qo"
     }
    },
    {

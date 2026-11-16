@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, hooks, mcp, members.
 
-## Capabilities (122)
+## Capabilities (124)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -37,6 +37,7 @@ Requires: engine, hooks, mcp, members.
 - [chat.chapters](../capabilities/chat.chapters.md): The chapters of a long chat: where each starts (a Fresh context line, a gap of 3 hours, or 80 messages), its title and one line of what it settled. Empty for a chat of 40 messages or fewer. Worked out from the messages on every read
 - [chat.chapters_write](../capabilities/chat.chapters_write.md): Head closed chapters of a long chat, each at most once ever: a cheap model on the asker's own api_key account (never a subscription, never someone else's), only for a chapter the asker opened, at most about 750 tokens in and 40 out. Anything else keeps the plain words. Never holds a post
 - [chat.composer.suggest](../capabilities/chat.composer.suggest.md): Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates
+- [chat.connect_line](../capabilities/chat.connect_line.md): The engine only: after a connect card is answered, leave one quiet line (not a message of the person) in the chat that wakes the agent that asked. It takes the answered request's id and reads the chat, the agent, the asker and the words from that request; only the request's own asker may call it
 - [chat.crew_line](../capabilities/chat.crew_line.md): The crew only: after Merge lands a teammate's branch, leave one quiet line in the chat. The text is built from the merge record ("Merged crew/ember-1 into main · +2 -0"); no words are passed in, only the job, and only the person who merged it can ask. It wakes no agent
 - [chat.delete_message](../capabilities/chat.delete_message.md): Delete a message you wrote (kept in the audit trail)
 - [chat.edit](../capabilities/chat.edit.md): Edit the text of a message you wrote
@@ -78,6 +79,7 @@ Requires: engine, hooks, mcp, members.
 - [chat.recent](../capabilities/chat.recent.md): Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)
 - [chat.remember](../capabilities/chat.remember.md): Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule
 - [chat.reply_details](../capabilities/chat.reply_details.md): How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only
+- [chat.rewind](../capabilities/chat.rewind.md): Go back in a chat with an agent to a point: the agent's work folder is put back, the agents stop reading the messages after it, one line says so. Messages stay; anything sent stays sent. Your own message only; only the person
 - [chat.round.decide](../capabilities/chat.round.decide.md): Go with one agent's answer after a message asked several: one quiet line, "Decided: going with Nova's answer", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it
 - [chat.round.discuss](../capabilities/chat.round.discuss.md): Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts "Decided:". The engine's hand-off limits cap it at four turns. Only the person who asked
 - [chat.screen.get](../capabilities/chat.screen.get.md): The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows

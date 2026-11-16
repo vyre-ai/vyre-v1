@@ -38,7 +38,6 @@ import { HooksTab } from "./HooksTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN, PANE_SCREEN } from "./ThreadsTab.tsx";
 import { CrewTab } from "./CrewTab.tsx";
 import { KeptTab } from "../conversation/chapters/KeptTab.tsx";
-import { SessionBlockMount } from "../conversation/chapters/SessionBlock.tsx";
 import { useCrew } from "../crew/context.tsx";
 import { useSession } from "../session/context.tsx";
 import { SessionOverview } from "../session/Overview.tsx";
@@ -398,12 +397,8 @@ function PaneView({
         ) : null}
         {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
         {tab === "hooks" ? <HooksTab deps={deps} selected={hookSel ?? null} {...(window ? { window } : {})} /> : null}
-        {tab === "crew" ? (
-          <>
-            <CrewTab deps={deps} {...(window ? { window } : {})} />
-            {mine ? <SessionBlockMount call={data.call} threadId={data.threadId} agentId={data.agent.agentId} /> : null}
-          </>
-        ) : null}
+        {/* the Crew tab draws the Session block itself, once */}
+        {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}
         {tab === "files" ? (
           <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} />
         ) : null}

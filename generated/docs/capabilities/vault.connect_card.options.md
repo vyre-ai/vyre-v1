@@ -17,7 +17,7 @@ Where the key can be kept: Mine, the shared folders an agent can use, and those 
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/vault/connect_card/options |
-| MCP tool | vault_connect_card_options (vault) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

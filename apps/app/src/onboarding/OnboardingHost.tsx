@@ -7,12 +7,15 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
 import { SpaceAiStatus } from "../ai-signin/SpaceAiStatus.tsx";
 import { ResumeChip, ResumeContext, resumeInfo, startedSetup } from "./ResumeChip.tsx";
-import { detectDevice } from "./device.ts";
+import { detectDevice, rowFacts } from "./device.ts";
+import { useHasMailbox } from "../shell/rail/inbox-sources.ts";
 import { FirstWinCard } from "./FirstWinCard.tsx";
 import { ChromeCard } from "./ChromeCard.tsx";
 import { SessionsCard } from "./SessionsCard.tsx";
 import { FoldersCard, shellInvoke } from "./FoldersCard.tsx";
 import { InterviewCard } from "./InterviewCard.tsx";
+import { InterviewKnows, useKnown } from "./InterviewKnows.tsx";
+import { interviewAsk, interviewDone } from "./interview.ts";
 import { takeTeamNext } from "./doors.ts";
 import { TeamBridgeCard } from "./TeamBridgeCard.tsx";
 import { OPEN_TARGETS, OpenCard } from "./OpenCard.tsx";
@@ -23,10 +26,11 @@ import { AssistantThread } from "./AssistantThread.tsx";
 import { PreviewPane } from "./PreviewPane.tsx";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
 import { DirectoryCard, InvitesCard, SSO_SETUP_HASH, SignInDomainCard, WorkspaceCard } from "./SuiteCards.tsx";
-import { readableName, shouldAutoOpen } from "./flow.ts";
+import { readableName, shouldAutoOpen, stepsOf } from "./flow.ts";
 import { scriptFor } from "./script.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
+import { FirstEntry } from "./FirstEntry.tsx";
 import type { CardContext } from "./OnboardingScreen.tsx";
 import { desktopSessionImporter } from "../../../../client/src/session-import/desktop.ts";
 import {
@@ -81,12 +85,15 @@ export function OnboardingHost({
   personName = null,
 }: OnboardingHostProps): ReactElement {
   const home = runtime?.aiHome ?? "here";
+  const hasMailbox = useHasMailbox(runtime?.screens ?? null);
   const [flow, setFlow] = useState<FlowKind | null>(null);
   const [progress, setProgress] = useState<Progress>({});
   // the flows this person put away with Hide: their own state on the Space, read with the flow below, so it holds on every device
   const [hiddenFlows, setHiddenFlows] = useState<Readonly<Record<string, true>>>({});
   const [shown, setShown] = useState(false);
   const [step, setStep] = useState<string | null>(null);
+  // the screen that opens by itself is the one-card Connect your AI (prototype scenes personal-3-ai, team-3-ai, member-4-ai); the six-step screen opens only when a person asks (a row, the Setup guide)
+  const [first, setFirst] = useState(false);
   const [aiProvider, setAiProvider] = useState<string | null>(null);
   const [hasAi, setHasAi] = useState(false);
   // the Space's name as the owner types it on Your organisation, so the preview follows each key; never a raw id
@@ -131,6 +138,7 @@ export function OnboardingHost({
         }
         if (shouldAutoOpen(f, state.progress, before)) {
           await markSeen(call, f).catch(() => undefined);
+          setFirst(true);
           setShown(true);
         }
       } catch {
@@ -145,6 +153,7 @@ export function OnboardingHost({
   useEffect(
     () =>
       registerOnboardingOpener((s) => {
+        setFirst(false);
         setStep(s ?? null);
         setShown(true);
       }),
@@ -164,6 +173,25 @@ export function OnboardingHost({
     },
     [call, flow],
   );
+
+  // With an AI account the How you work step is a talk: the Assistant asks, saves each answer to the person's memory, and "Vyre knows" lists what it holds. The step is done when all three exist.
+  const talk = hasAi && runtime !== null && person !== null;
+  // "Fill it in myself": the three questions as the form, when the Assistant cannot answer
+  const [byHand, setByHand] = useState(false);
+  const { saved: known, refresh: refreshKnown } = useKnown(call ?? null, shown && flow !== null && talk);
+  const knownDone = interviewDone(known);
+  const interviewLine = useMemo(() => interviewAsk(known), [known]);
+  useEffect(() => {
+    if (
+      shown &&
+      talk &&
+      knownDone &&
+      flow !== null &&
+      stepsOf(flow).some((x) => x.key === "interview") &&
+      progress["interview"] !== "done"
+    )
+      onStep("interview", "done");
+  }, [shown, talk, knownDone, flow, progress, onStep]);
 
   const renderCard = useMemo(
     () =>
@@ -321,6 +349,16 @@ export function OnboardingHost({
               gate={ctx.gate}
             />
           );
+        if (card === "interview" && call && talk && !byHand)
+          return (
+            <InterviewKnows
+              call={call}
+              saved={known}
+              refresh={refreshKnown}
+              gate={ctx.gate}
+              onByHand={() => setByHand(true)}
+            />
+          );
         if (card === "interview" && call)
           return <InterviewCard call={call} onSaved={() => ctx.done()} gate={ctx.gate} />;
         return (
@@ -334,6 +372,10 @@ export function OnboardingHost({
       cards,
       aiProvider,
       hasAi,
+      talk,
+      byHand,
+      known,
+      refreshKnown,
       progress,
       onAddSpace,
       mac,
@@ -350,8 +392,13 @@ export function OnboardingHost({
     ],
   );
 
-  const info = !shown && flow ? resumeInfo(flow, progress, detectDevice()) : null;
   const device = detectDevice();
+  // the count is the rows the person sees: the same facts the Chats checklist draws from (device.ts)
+  const facts = useMemo(
+    () => rowFacts(progress, device, { company: hasMailbox === true, unnamed: readableName(space.name) === "" }),
+    [progress, device, hasMailbox, space.name],
+  );
+  const info = !shown && flow ? resumeInfo(flow, progress, device, facts) : null;
   const resume = useMemo(
     () =>
       info && flow
@@ -364,11 +411,12 @@ export function OnboardingHost({
             },
             // the entry itself, for the title bar to draw: it is never a floating pill over the rail or the page
             pill:
-              startedSetup(flow, progress, device) && hiddenFlows[flow] !== true ? (
+              startedSetup(flow, progress, device, facts) && hiddenFlows[flow] !== true ? (
                 <ResumeChip
                   flow={flow}
                   progress={progress}
                   device={device}
+                  facts={facts}
                   hidden={hiddenFlows[flow] === true}
                   onHide={() => {
                     const next = { ...hiddenFlows, [flow]: true as const };
@@ -383,14 +431,47 @@ export function OnboardingHost({
               ) : null,
           }
         : null,
-    [info?.done, info?.total, info?.step, flow, progress, device, hiddenFlows, call],
+    [info?.done, info?.total, info?.step, flow, progress, device, facts, hiddenFlows, call],
   );
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was
   return (
     <>
       <ResumeContext.Provider value={resume}>{children}</ResumeContext.Provider>
-      {shown && flow ? (
+      {shown && flow && first && call ? (
+        <View style={s.fill}>
+          <FirstEntry
+            title={flow === "team" && shownName ? `AI for ${shownName}` : "Connect your AI"}
+            sub={
+              flow === "team" ? "Your own account, or a key for everyone." : "Your own account. It stays in your Vault."
+            }
+            onNotNow={() => {
+              setShown(false);
+              setFirst(false);
+              void markSeen(call, flow).catch(() => undefined);
+            }}
+          >
+            <View style={s.aiCol}>
+              {space.kind === "team" ? <SpaceAiStatus call={call} {...(person ? { me: person } : {})} /> : null}
+              <ConnectAiCard
+                home={home}
+                call={call}
+                local={space.kind === "personal"}
+                connected={aiProvider !== null || progress["ai"] === "done"}
+                onConnected={(id) => {
+                  setAiProvider(id);
+                  setHasAi(true);
+                  onStep("ai", "done");
+                  setShown(false);
+                  setFirst(false);
+                }}
+                onDisconnected={() => undefined}
+              />
+            </View>
+          </FirstEntry>
+        </View>
+      ) : null}
+      {shown && flow && !first ? (
         <View style={s.fill}>
           <OnboardingScreen
             flow={flow}
@@ -404,16 +485,17 @@ export function OnboardingHost({
             live={hasAi && runtime !== null && person !== null}
             {...(hasAi && runtime && person
               ? {
-                  renderLive: (st, ask) => (
-                    <AssistantThread
-                      rt={runtime}
-                      person={person}
-                      flow={flow}
-                      step={st.key}
-                      progress={progress}
-                      ask={ask}
-                    />
-                  ),
+                  renderLive: (st, ask) =>
+                    st.card === "interview" && byHand ? null : (
+                      <AssistantThread
+                        rt={runtime}
+                        person={person}
+                        flow={flow}
+                        step={st.key}
+                        progress={progress}
+                        ask={st.card === "interview" ? interviewLine : ask}
+                      />
+                    ),
                 }
               : {})}
             onOpenStep={setStep}
@@ -434,7 +516,7 @@ export function OnboardingHost({
             }}
             renderCard={renderCard}
             renderPreview={(card) =>
-              scriptFor(card, flow).preview === "" ? null : (
+              scriptFor(card, flow).preview === "" || (card === "interview" && talk && !byHand) ? null : (
                 <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />
               )
             }
