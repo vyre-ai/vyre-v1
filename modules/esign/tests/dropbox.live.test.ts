@@ -143,11 +143,20 @@ test("esign live: a booted daemon lists both providers as connected, only a memb
 
     const listed = await post(d, OWNER, "esign.providers", {});
     assert.equal(listed.status, 200, JSON.stringify(listed.body));
-    assert.deepEqual(listed.body.data.providers, [
-      { key: "documenso", default: true, connected: false },
-      { key: "dropbox_sign", default: false, connected: true },
-      { key: "docusign", default: false, connected: true },
-    ]);
+    // built-in signing is always ready and is the default of a Space that chose nothing; the two hosted services are connected here
+    assert.deepEqual(
+      listed.body.data.providers.map((p: { key: string; default: boolean; connected: boolean }) => [
+        p.key,
+        p.default,
+        p.connected,
+      ]),
+      [
+        ["vyre", true, true],
+        ["documenso", false, false],
+        ["dropbox_sign", false, true],
+        ["docusign", false, true],
+      ],
+    );
 
     const refused = await post(d, MEMBER, "esign.provider_set", { provider: "dropbox_sign" });
     assert.equal(refused.status, 403, JSON.stringify(refused.body));
@@ -155,7 +164,7 @@ test("esign live: a booted daemon lists both providers as connected, only a memb
     assert.equal(
       (await post(d, OWNER, "esign.providers", {})).body.data.providers.find((p: { default: boolean }) => p.default)
         .key,
-      "documenso",
+      "vyre",
       "the refused call changed nothing",
     );
 
@@ -168,6 +177,8 @@ test("esign live: a booted daemon lists both providers as connected, only a memb
     );
     const notConnected = await post(d, OWNER, "esign.provider_set", { provider: "documenso" });
     assert.notEqual(notConnected.status, 200, "a provider that is not connected cannot become the default");
+    const back = await post(d, OWNER, "esign.provider_set", { provider: "vyre" });
+    assert.equal(back.status, 200, "built-in signing can always be chosen again");
   } finally {
     await d.stop();
     configureEsign(null);
