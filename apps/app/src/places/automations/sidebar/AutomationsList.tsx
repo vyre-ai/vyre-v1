@@ -6,6 +6,7 @@ import { Text } from "react-native";
 import { automationMenu } from "../../chats/menus/kinds-b.ts";
 import { copyToClipboard, createMenuApiB, vyreLink } from "../../chats/menus/actions-b.ts";
 import { tidy } from "../../../../../../ui/src/Menu/entries.ts";
+import { TextAsk } from "../../chats/menus/TextAsk.tsx";
 import { SIDEBAR, useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
 import type { ListRowIn } from "../list/model.ts";
 import { ListView } from "../screens/ListView.tsx";
@@ -31,8 +32,10 @@ export function AutomationsList({
   const data = useAutomationsData();
   const { element, show } = useMenu();
   const [note, setNote] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const api = useMemo(() => createMenuApiB(data), [data]);
   const fail = (e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work.");
+  const once = (run: () => Promise<void>): void => void run().catch(fail);
   const list = useScreenQuery<{ automations: readonly AutoRow[] }>(SIDEBAR, "automations", {});
   // a Journey is a row in the same list (design 2.2), opened in its own record-by-stage view
   const journeys = useScreenQuery<{ journeys: readonly JourneyRow[] }>(SIDEBAR, "journeys", {});
@@ -46,7 +49,6 @@ export function AutomationsList({
       : [];
   // the row's own menu, as the old list had it (chats/menus/kinds-b.ts): a Space Automation is changed only by those who may, and a member's menu is the shorter one
   const rowMenu = (id: string, x: number, y: number): void => {
-    const once = (run: () => Promise<void>): void => void run().catch(fail);
     const jr = journeys.status === "ready" ? journeys.data.journeys.find((j) => j.id === id) : undefined;
     if (jr) {
       show(
@@ -109,6 +111,8 @@ export function AutomationsList({
             data.nav.openAutomation(a.id);
             onChoose();
           },
+          rename: () => setRenaming({ id: a.id, name: a.name }),
+          duplicate: () => once(() => api.automationDuplicate(a.id)),
           run: () => once(() => api.automationRun(a.id)),
           setEnabled: (on) => once(() => api.automationSetEnabled(a.id, on)),
           test: () => once(() => api.automationTest(a.id)),
@@ -151,6 +155,20 @@ export function AutomationsList({
         }}
       />
       {element}
+      {renaming ? (
+        <TextAsk
+          title="Rename this Automation"
+          label="Name"
+          action="Rename"
+          initial={renaming.name}
+          onDone={(name) => {
+            const id = renaming.id;
+            setRenaming(null);
+            once(() => api.automationRename(id, name));
+          }}
+          onClose={() => setRenaming(null)}
+        />
+      ) : null}
     </>
   );
 }

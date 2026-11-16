@@ -169,7 +169,8 @@ test("chat walker findings: send follows, the Worked line, the plan card in orde
     await card.waitFor({ timeout: 40_000 });
     assert.match(await card.innerText(), /Tidy the quarterly notes/);
     const order = (await page.evaluate(
-      `(() => { const t = document.body.innerText; return [t.indexOf("Here is how I would do it."), t.indexOf("Tidy the quarterly notes")]; })()`,
+      // read in the conversation, not the whole page: the sidebar's Needs you row carries the plan's title too, above everything (CI, 16 Nov 2026: 492,44)
+      `(() => { const t = (document.querySelector('[data-testid="conversation-feed"]') || document.body).innerText; return [t.indexOf("Here is how I would do it."), t.indexOf("Tidy the quarterly notes")]; })()`,
     )) as number[];
     assert.ok(order[0]! >= 0 && order[0]! < order[1]!, `the words come before the card: ${order.join(",")}`);
     await page.locator('[data-testid$="-edit"]').first().click();

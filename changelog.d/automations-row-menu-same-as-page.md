@@ -1,0 +1,1 @@
+Right-click on an Automation in the list, and the keyboard's menu key, open the page's menu: Open, Rename, Duplicate, Turn on or off and Move to Trash. The page's own menu has Rename, Duplicate and Turn on or off too.

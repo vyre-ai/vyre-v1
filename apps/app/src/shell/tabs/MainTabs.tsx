@@ -1,6 +1,6 @@
 // The main-view tab strip (spec 3.0): ui/TabStrip bound to one Space's tab controller. Click selects, the x or middle-click closes, drag or Alt-Arrow reorders,
 // the "+" (or Cmd-T) opens a new tab with one search. The tab menu gets "Open in Place" for an item tab; ui/Menu appends Report a problem.
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { View } from "react-native";
 import { WorkingMark } from "../../../../../ui/src/WorkingMark/index.tsx";
 import { subscribeWorking, threadOfTab, workingThreads } from "./working.ts";
@@ -48,13 +48,23 @@ export interface MainTabsProps {
   controller: TabsController;
   /** The selected tab changed place or item: the shell shows it. */
   onNavigate?: (tab: TabEntry) => void;
+  /**
+   * A tab was pressed and the shell selects and shows it itself (hub.showTab). The strip marks the pressed tab at once, in its own small draw, and the shell is free to
+   * make the place a frame later (it paints the tab's last view first). Without it the strip selects the tab and tells onNavigate, as before.
+   */
+  onShow?: (tab: TabEntry) => void;
   /** The "+" and Cmd-T. The shell opens the new tab; this only tells it. */
   onNewTab?: () => void;
   onGoToPlace?: (place: PlaceId) => void;
 }
 
-export function MainTabs({ controller, onNavigate, onNewTab, onGoToPlace }: MainTabsProps): ReactElement {
+export function MainTabs({ controller, onNavigate, onShow, onNewTab, onGoToPlace }: MainTabsProps): ReactElement {
   const state = useTabs(controller);
+  // the tab pressed a moment ago, until the tabs themselves say which one is selected (any change of theirs ends it)
+  const [pressed, setPressed] = useState<string | null>(null);
+  useEffect(() => {
+    setPressed(null);
+  }, [state]);
   const working = useSyncExternalStore(subscribeWorking, workingThreads, workingThreads);
   const find = (key: string): TabEntry | undefined => state.tabs.find((t) => t.key === key);
   const goActive = (): void => {
@@ -116,10 +126,15 @@ export function MainTabs({ controller, onNavigate, onNewTab, onGoToPlace }: Main
       noOptions
       listAll
       tabs={tabSpecs(state.tabs, working)}
-      active={state.active}
+      active={pressed !== null && find(pressed) !== undefined ? pressed : state.active}
       onSelect={(key) => {
-        controller.select(key);
         const tab = find(key);
+        if (tab !== undefined && onShow !== undefined) {
+          if (key !== state.active) setPressed(key);
+          onShow(tab);
+          return;
+        }
+        controller.select(key);
         if (tab !== undefined && onNavigate !== undefined) onNavigate(tab);
       }}
       onClose={closeKey}

@@ -127,7 +127,11 @@ export interface ShellHub {
   fill(place: PlaceId, hash: string, title?: string, from?: string): void;
   /** The view is about to change: whoever draws the frame keeps a still copy until the next one is ready. */
   hold(): void;
-  setHolder(fn: (() => void) | null): void;
+  /**
+   * `to` names the tab being shown, when the change is a switch to a tab: the frame can then show that tab's own last view at once. When it does, it answers true and
+   * runs `then` itself once that view has been painted: the change of place waits one frame, so the press is answered before the place is made again.
+   */
+  setHolder(fn: ((to?: string, then?: () => void) => boolean | void) | null): void;
   /** Name a tab for the item it holds (its title arrives after the tab opens). */
   retitle(key: string, title: string, empty?: boolean): void;
   /** The count on a place of the open Space, from what it counts live (the rail reads it, and only redraws when it changes). */
@@ -231,7 +235,9 @@ export function createShellHub(options: HubOptions): ShellHub {
   let refusals = 0;
   const probeLog: SwitchProbe[] = [];
   const listeners = new Set<() => void>();
-  let holder: (() => void) | null = null;
+  let holder: ((to?: string, then?: () => void) => boolean | void) | null = null;
+  /** counts presses on a tab (showTab): a press that waited a frame gives way to any press after it */
+  let shows = 0;
   const waiters: (() => void)[] = [];
   const subs = new Map<string, Map<string, readonly string[]>>();
   let snap: HubState;
@@ -490,7 +496,22 @@ export function createShellHub(options: HubOptions): ShellHub {
     },
     showTab(tab) {
       const s = open();
-      holder?.();
+      const mine = ++shows;
+      const was = { active: s.tabs.state().active, place: s.place, hash: s.hash };
+      // Run a frame later when the frame is showing the tab's own last view: by then the person may have gone on (another tab, another place, another Space) or the
+      // tab may be closed, and then this press is no longer what they asked for. What is shown is what the tab holds at that moment.
+      const later = (): void => {
+        if (open() !== s || mine !== shows) return;
+        const now = s.tabs.state();
+        const t = now.tabs.find((x) => x.key === tab.key);
+        if (t === undefined || now.active !== was.active || s.place !== was.place || s.hash !== was.hash) return;
+        s.tabs.select(t.key);
+        s.place = t.place;
+        s.hash = t.hash ?? "";
+        emit();
+      };
+      if (holder?.(tab.key, later) === true) return;
+      s.tabs.select(tab.key);
       s.place = tab.place;
       s.hash = tab.hash ?? "";
       emit();

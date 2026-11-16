@@ -1,0 +1,1 @@
+The AI, web request and code steps say what comes back to later steps, a code step's input that holds earlier data shows as a chip, the code step has its own glyph, and the rows of a Wait, code step and web request read as sentences.
