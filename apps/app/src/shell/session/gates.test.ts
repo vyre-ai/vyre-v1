@@ -17,7 +17,8 @@ const EXPECTED: Record<Role, Gate[]> = {
   owner: ALL,
   admin: ALL,
   developer: ["spaceAutomations", "newChat", "newChannel", "newAgent", "sharedVault", "takeOver"],
-  member: ["newChat", "newChannel", "newAgent", "sharedVault"],
+  // a member may send from a shared mailbox by default (comms.shared_send), and sending a file for signature is that same right
+  member: ["newChat", "newChannel", "newAgent", "sharedVault", "sendSignature"],
   guest: [],
 };
 
