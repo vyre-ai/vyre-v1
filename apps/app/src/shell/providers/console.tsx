@@ -101,7 +101,13 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "support") return <Support />;
   if (id === "backups") return <Backups />;
   if (id === "sessions") return <Devices />;
-  if (id === "people") return <People {...(args.personId ? { initialPersonId: args.personId } : {})} />;
+  if (id === "people")
+    return (
+      <People
+        {...(args.personId ? { initialPersonId: args.personId } : {})}
+        {...(args["invite"] === "1" ? { openInvite: true } : {})}
+      />
+    );
   if (id === "policies") return <Policies {...(args.policyId ? { initialId: args.policyId } : {})} />;
   if (id === "reviews") return <Reviews {...(args.reviewId ? { initialId: args.reviewId } : {})} />;
   if (id === "permissions") return <Permissions />;
@@ -343,7 +349,9 @@ export default function ConsolePlace(): ReactElement {
           setSkin(id);
         }}
         assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />}
-        renderPage={(id, state) => spaceDefaults(rt, id, state["extra"] === true) ?? consolePageFor(id, pageArgs)}
+        renderPage={(id, state) =>
+          spaceDefaults(rt, id, state["extra"] === true) ?? consolePageFor(id, { ...pageArgs, ...stringState(state) })
+        }
       />
     </ConsoleDataProvider>
   );
@@ -391,4 +399,12 @@ function OutsideShell({
       ) : null}
     </View>
   );
+}
+
+/**
+ * What a page was opened with from another page (openPage("people", { invite: "1" })), as the string arguments a page reads from a link. Only the arguments a page takes this way
+ * are carried: a page's own state (the role that was open, a filter) must not outlive the link that names where the person is now, or a link to the list would open the last row.
+ */
+export function stringState(state: Record<string, unknown>): Record<string, string> {
+  return state["invite"] === "1" ? { invite: "1" } : {};
 }

@@ -130,6 +130,7 @@ import type { AgentMeta } from "./askagent.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
 import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
+import { useFollow } from "./use-follow.ts";
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq, usedTerminal } from "./chapters/index.ts";
@@ -368,7 +369,7 @@ function NoAiLine({
   threadId,
   agentId,
 }: {
-  data: Pick<ConversationData, "call" | "nav">;
+  data: Pick<ConversationData, "call" | "nav" | "changes">;
   threadId: string;
   agentId: string;
 }): ReactElement | null {
@@ -383,6 +384,15 @@ function NoAiLine({
       live = false;
     };
   }, [data.call, threadId, agentId]);
+  // an account added somewhere else (the Vault, a sign-in on the card) takes this line away without a reload: the Space's own change stream asks again, and it stops asking once there is one
+  useFollow(
+    data.changes,
+    () =>
+      aiReady(data.call, threadId, agentId).then((r) => {
+        setAi(r);
+      }),
+    !ai.ready,
+  );
   if (ai.ready) return null;
   const connect = (): void => {
     if (openConnect) void openConnect({ kind: "ai" });
@@ -1647,6 +1657,9 @@ function ConversationView(): ReactElement {
         )
         .catch(fail("Could not do that.")),
     canSetSpaceKey: spaceKeyAdmin,
+    ...(data.changes ? { changes: data.changes } : {}),
+    // a Personal Space has no Space key and no admin to ask: nothing about one is said there
+    ...(data.nav.openSpaceAiKey ? {} : { noSpaceKey: true }),
     retrySend: (id) => {
       const p = pending.find((x) => `pending:${x.key}` === id);
       if (p) {

@@ -88,6 +88,8 @@ export function OnboardingHost({
   const hasMailbox = useHasMailbox(runtime?.screens ?? null);
   const [flow, setFlow] = useState<FlowKind | null>(null);
   const [progress, setProgress] = useState<Progress>({});
+  // Getting Started is for a new account: an existing person on an existing Space never sees its chip appear after an update
+  const [fresh, setFresh] = useState(false);
   // the flows this person put away with Hide: their own state on the Space, read with the flow below, so it holds on every device
   const [hiddenFlows, setHiddenFlows] = useState<Readonly<Record<string, true>>>({});
   const [shown, setShown] = useState(false);
@@ -125,6 +127,7 @@ export function OnboardingHost({
         setHiddenFlows(hid);
         setFlow(f);
         setProgress(state.progress);
+        setFresh(state.fresh);
         publishProgress({ flow: f, progress: state.progress });
         const before = state.seen ? true : await usedChecklistBefore(call).catch(() => false);
         if (off) return;
@@ -394,11 +397,21 @@ export function OnboardingHost({
 
   const device = detectDevice();
   // the count is the rows the person sees: the same facts the Chats checklist draws from (device.ts)
-  const facts = useMemo(
-    () => rowFacts(progress, device, { company: hasMailbox === true, unnamed: readableName(space.name) === "" }),
-    [progress, device, hasMailbox, space.name],
+  // what is plainly done counts as done: an AI account, a mailbox, a named Space, whether or not the checklist ever saw it happen
+  const counted = useMemo<Progress>(
+    () => ({
+      ...(hasAi ? { ai: "done" as const } : {}),
+      ...(hasMailbox === true ? { mine: "done" as const } : {}),
+      ...(readableName(space.name) !== "" ? { org: "done" as const } : {}),
+      ...progress,
+    }),
+    [progress, hasAi, hasMailbox, space.name],
   );
-  const info = !shown && flow ? resumeInfo(flow, progress, device, facts) : null;
+  const facts = useMemo(
+    () => rowFacts(counted, device, { company: hasMailbox === true, unnamed: readableName(space.name) === "" }),
+    [counted, device, hasMailbox, space.name],
+  );
+  const info = !shown && flow && fresh ? resumeInfo(flow, counted, device, facts) : null;
   const resume = useMemo(
     () =>
       info && flow
@@ -411,10 +424,10 @@ export function OnboardingHost({
             },
             // the entry itself, for the title bar to draw: it is never a floating pill over the rail or the page
             pill:
-              startedSetup(flow, progress, device, facts) && hiddenFlows[flow] !== true ? (
+              startedSetup(flow, counted, device, facts) && hiddenFlows[flow] !== true ? (
                 <ResumeChip
                   flow={flow}
-                  progress={progress}
+                  progress={counted}
                   device={device}
                   facts={facts}
                   hidden={hiddenFlows[flow] === true}
@@ -431,7 +444,7 @@ export function OnboardingHost({
               ) : null,
           }
         : null,
-    [info?.done, info?.total, info?.step, flow, progress, device, facts, hiddenFlows, call],
+    [info?.done, info?.total, info?.step, flow, counted, device, facts, hiddenFlows, call],
   );
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was

@@ -132,7 +132,13 @@ export function normalizeAddress(raw: string): string | null {
 }
 
 /** The Space-use switch, in words that are true for this account. A personal sign-in runs the owner's own goals and Automations when it is on; it never pays for another person's chat. */
-export function spaceUseWords(p: Pick<Provider, "connection">): { title: string; note: string } {
+export function spaceUseWords(p: Pick<Provider, "connection">, personal = false): { title: string; note: string } {
+  // a Personal Space has no Space to share with: the same switch lets this person's own goals and Automations run on the account
+  if (personal)
+    return {
+      title: "Your goals and Automations can use this",
+      note: "They run on it when they have no account of their own.",
+    };
   return p.connection === "subscription"
     ? {
         title: "The Space can use this sign-in",

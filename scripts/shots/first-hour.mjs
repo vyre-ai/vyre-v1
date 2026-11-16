@@ -50,9 +50,10 @@ async function walk(kind, steps, provision = null) {
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
   const context = await browser.newContext({
+    // FH_VIEW=dark-desktop or light-phone takes the pictures of a lane in the two views the owner looks at; the walks use the default
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,
-    colorScheme: "light",
+    colorScheme: process.env.FH_VIEW === "dark-desktop" ? "dark" : "light",
     reducedMotion: "reduce",
   });
   if (given?.session)

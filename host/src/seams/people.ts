@@ -337,6 +337,17 @@ export function createPeopleExtras(
     roleName(personId: string) {
       return d.access().info(personId)?.roleNames.split(", ")[0] ?? "member";
     },
+    /** When this person's account here began: their first sign-in. Null when the Space has no record of one. */
+    createdAt(personId: string): number | null {
+      try {
+        const row = d.db.all("SELECT MIN(created_at) AS t FROM identity_sessions WHERE person_id = ?", personId)[0] as
+          | { t: number | null }
+          | undefined;
+        return typeof row?.t === "number" ? row.t : null;
+      } catch {
+        return null;
+      }
+    },
   };
   // the removal wizard: each owning module answers for its own kinds through its host calls (<module>.owned_by, <module>.reassign_owned), run as the admin doing the removal; a module that is not live has
   // no host call and owns nothing here. HOOK for a module that joins (files, channels, private chats, memory): export `hostCalls` with "<module>.owned_by" answering { <kind>: { count, sample, ids } } and
