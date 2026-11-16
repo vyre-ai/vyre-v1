@@ -24,10 +24,10 @@ HTTP 502. Retryable: yes.
 - email_builder.send_test
 - engine.mcp.call
 - engine.probe_account
+- esign.remind
 - esign.send
 - files.share_external
 - git.push
 - git.sync
 - github.issue.close
 - github.issue.comment
-- github.issue.create

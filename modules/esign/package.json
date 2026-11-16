@@ -1,0 +1,10 @@
+{
+  "name": "@vyre/module-esign",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "E-signature module. @cantoo/pdf-lib (MIT) stamps signatures and appends the audit page for built-in signing.",
+  "dependencies": {
+    "@cantoo/pdf-lib": "2.11.1"
+  }
+}

@@ -25,7 +25,7 @@ Choose the default provider; Automations do not change
 
 ```ts
 type In = {
-  provider: "documenso" | "dropbox_sign" | "docusign";
+  provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
 };
 ```
 
@@ -51,7 +51,7 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "provider": "documenso"
+    "provider": "vyre"
   },
   "output": {
     "ok": true

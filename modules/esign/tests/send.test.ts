@@ -16,6 +16,7 @@ import {
   FILE,
   FOLDER,
   FakeProvider,
+  NOW,
   PDF,
   RECORD,
   SIGNED_PDF,
@@ -92,14 +93,15 @@ test("signature_send is held at the Gate: nothing reaches the provider until it 
   assert.equal(h.rows("esign_envelope").length, 1);
 });
 
-test("the manifest holds esign.send at signature_send, and the Gate is the only door: no other capability sends", () => {
+test("the manifest holds esign.send and esign.remind at signature_send, and the Gate is the only door: no other capability sends", () => {
   const send = registry.capabilities.find((c) => c.name === "esign.send")!;
   assert.deepEqual(send.gate, { act: "signature_send" });
   const sends = registry.capabilities.filter((c) => c.name.startsWith("esign.") && c.effects === "outward");
   assert.deepEqual(
     sends.map((c) => c.name),
-    ["esign.send"],
+    ["esign.remind", "esign.send"],
   );
+  assert.deepEqual(registry.capabilities.find((c) => c.name === "esign.remind")!.gate, { act: "signature_send" });
 });
 
 test("send: the PDF goes to the provider with normalised signers, an envelope and signer rows are kept, a Signature task opens, the event names the provider", async () => {
@@ -282,7 +284,17 @@ test("status and list: signers in order, newest envelope first, filtered by reco
     [b.envelopeId, a.envelopeId],
   );
   assert.deepEqual(await h.call("esign.list", { recordId: RECORD }), {
-    envelopes: [{ envelopeId: a.envelopeId, title: "Retainer", status: "sent" }],
+    envelopes: [
+      {
+        envelopeId: a.envelopeId,
+        title: "Retainer",
+        status: "sent",
+        provider: "documenso",
+        recordId: RECORD,
+        fileId: FILE,
+        createdAt: NOW,
+      },
+    ],
   });
   assert.deepEqual(await h.call("esign.list", { recordId: "rec_nobody" }), { envelopes: [] });
   await refused(h.call("esign.status", { envelopeId: "env_gone" }), "validation.not_found");
@@ -387,13 +399,21 @@ test("fetch_signed: a provider that keeps the certificate apart gets it saved be
   await refused(empty.call("esign.fetch_signed", { envelopeId: e.envelopeId }), "provider.bad_response");
 });
 
-test("providers: all three are listed, Documenso is the default, only a connected one can become the default", async () => {
+test("providers: every service is listed, a Space that chose Documenso has it as the default, only a connected one can become the default", async () => {
   const h = harness();
-  assert.deepEqual((await h.call("esign.providers", {})).providers, [
-    { key: "documenso", default: true, connected: true },
-    { key: "dropbox_sign", default: false, connected: false },
-    { key: "docusign", default: false, connected: false },
-  ]);
+  assert.deepEqual(
+    (await h.call("esign.providers", {})).providers.map((p: { key: string; default: boolean; connected: boolean }) => [
+      p.key,
+      p.default,
+      p.connected,
+    ]),
+    [
+      ["vyre", false, true],
+      ["documenso", true, true],
+      ["dropbox_sign", false, false],
+      ["docusign", false, false],
+    ],
+  );
   await refused(h.call("esign.provider_set", { provider: "docusign" }), "validation.precondition_failed");
   const both = harness({ providers: { documenso: new FakeProvider(), docusign: new FakeProvider() } });
   await both.call("esign.provider_set", { provider: "docusign" });
@@ -423,8 +443,8 @@ test("health: healthy, down when the provider says so, throws or is not connecte
   h.provider.healthy = new Error("ECONNREFUSED");
   assert.deepEqual(await h.call("esign.health", {}), { state: "down", detail: "ECONNREFUSED" });
   assert.deepEqual(await harness({ providers: null }).call("esign.health", {}), {
-    state: "healthy",
-    detail: "documenso is not connected yet.",
+    state: "down",
+    detail: "Documenso is not connected.",
   });
   const slow = harness();
   slow.provider.healthy = { ok: true };

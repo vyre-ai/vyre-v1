@@ -12,6 +12,10 @@ export const handlers: Handlers<HandlerCtx> = {
   "esign.list": async (ctx) => { throw new VyreErr(notImplemented("esign.list", ctx.trace)); },
   "esign.provider_set": async (ctx) => { throw new VyreErr(notImplemented("esign.provider_set", ctx.trace)); },
   "esign.providers": async (ctx) => { throw new VyreErr(notImplemented("esign.providers", ctx.trace)); },
+  "esign.remind": async (ctx) => { throw new VyreErr(notImplemented("esign.remind", ctx.trace)); },
   "esign.send": async (ctx) => { throw new VyreErr(notImplemented("esign.send", ctx.trace)); },
+  "esign.signer_act": async (ctx) => { throw new VyreErr(notImplemented("esign.signer_act", ctx.trace)); },
+  "esign.signer_doc": async (ctx) => { throw new VyreErr(notImplemented("esign.signer_doc", ctx.trace)); },
+  "esign.signer_view": async (ctx) => { throw new VyreErr(notImplemented("esign.signer_view", ctx.trace)); },
   "esign.status": async (ctx) => { throw new VyreErr(notImplemented("esign.status", ctx.trace)); },
 };

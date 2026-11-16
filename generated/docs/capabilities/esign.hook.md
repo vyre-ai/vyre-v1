@@ -25,7 +25,7 @@ Inbound provider webhook: sent, viewed, signed, declined
 
 ```ts
 type In = {
-  provider: "documenso" | "dropbox_sign" | "docusign";
+  provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
   payload: unknown;
 };
 ```
@@ -53,7 +53,7 @@ type Out = {
   "name": "example",
   "input": {
     "payload": {},
-    "provider": "documenso"
+    "provider": "vyre"
   },
   "output": {
     "ok": true

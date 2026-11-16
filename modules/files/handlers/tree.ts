@@ -23,8 +23,10 @@ export const TOO_LARGE_WORDS = `This file is over the ${MAX_INLINE / 1024} KB li
 /** The most a direct write may carry. The document fill is a server-side maker of whole files (a template with a letterhead picture is over the direct-write limit), so the call it makes
  * (the pipeline names the calling capability in ctx.callerCap; a caller cannot set it) is held to the upload limit, the same one files.upload_url holds. */
 export function inlineLimit(ctx: Pick<Ctx, "callerCap">): number {
-  return ctx.callerCap === "documents.fill" ? MAX_UPLOAD : MAX_INLINE;
+  return ctx.callerCap !== undefined && SERVER_MAKERS.has(ctx.callerCap) ? MAX_UPLOAD : MAX_INLINE;
 }
+/** The capabilities that make whole files on the server: a document fill, and the signed PDF of an envelope (the sent document plus stamps and an audit page is rarely under 256 KB). */
+const SERVER_MAKERS = new Set(["documents.fill", "esign.signer_act", "esign.fetch_signed", "esign.hook", "esign.refresh"]);
 const UPLOAD_MS = 15 * 60 * 1000;
 const PAGE_DEFAULT = 100;
 /** A deep list reads at most this many files, newest first, before access and paging. */

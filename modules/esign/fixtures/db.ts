@@ -20,10 +20,13 @@ import type {
   WebhookEvent,
 } from "../handlers/send.ts";
 import { handlers } from "../impl.ts";
+import { configureSigning } from "../handlers/vyre.ts";
 
 // Boundary B2 keeps the node:sqlite import out of modules; a test still needs a real SQL engine behind the host's table guard.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
-const migration = readFileSync(new URL("../migrations/0001_esign.sql", import.meta.url), "utf8");
+const migrations = ["0001_esign.sql", "0002_esign_vyre.sql"].map((f) =>
+  readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"),
+);
 
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
@@ -123,12 +126,17 @@ export class FakeProvider implements EsignProvider {
 
 export interface HarnessOptions {
   now?: number;
+  /** Built-in signing (the Space default) with a real PDF behind the file; without it the Space defaults to the fake Documenso the older tests use. */
+  builtIn?: { pdf: Uint8Array; fileName?: string } | undefined;
+  /** The Space's public address; null for none. */
+  base?: string | null;
   providers?: Partial<Record<ProviderKey, EsignProvider>> | null;
 }
 
 export function harness(o: HarnessOptions = {}) {
   const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(migration);
+  for (const m of migrations) sqlite.exec(m);
+  if (!o.builtIn) sqlite.exec("INSERT INTO esign_setting (name, value) VALUES ('default_provider', 'documenso')");
   const norm = (a: unknown): unknown => (a === undefined ? null : a);
   const raw = {
     all: (sql: string, ...args: unknown[]): unknown[] => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
@@ -138,6 +146,7 @@ export function harness(o: HarnessOptions = {}) {
   };
   const provider = new FakeProvider();
   configureEsign(o.providers === null ? null : { providers: o.providers ?? { documenso: provider } });
+  configureSigning({ publicBase: () => (o.base === undefined ? "https://northwind.example" : o.base) });
   let clock = o.now ?? NOW;
   let events: Ev[] = [];
   const calls: CallLog[] = [];
@@ -208,23 +217,27 @@ export function harness(o: HarnessOptions = {}) {
   }
 
   // the neighbours, with the answers the real modules give
+  const sourcePdf = o.builtIn?.pdf ?? PDF;
   callees["files.get"] = (i: { fileId: string }) => ({
     file: {
       fileId: i.fileId,
       folderId: FOLDER,
-      name: "Retainer.pdf",
+      name: o.builtIn?.fileName ?? "Retainer.pdf",
       kind: "pdf",
       mime: "application/pdf",
-      size: PDF.length,
+      size: sourcePdf.length,
       version: 1,
     },
   });
+  callees["spaces.get"] = () => ({ space: { name: "Northwind", timezone: "Asia/Karachi" } });
+  callees["access.principals.get"] = () => ({ principal: { name: "Imran Ibarra" } });
+  callees["comms.senders.list"] = () => ({ senders: [] });
   callees["projects.files_folder"] = () => ({ folderId: "fld_record_files" });
   callees["files.move"] = (i: { fileId: string }) => ({ file: { fileId: i.fileId } });
   callees["files.read"] = () => ({
-    base64: toBase64(PDF),
+    base64: toBase64(sourcePdf),
     mime: "application/pdf",
-    size: PDF.length,
+    size: sourcePdf.length,
     version: 1,
     truncated: false,
   });

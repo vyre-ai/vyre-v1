@@ -3,9 +3,20 @@ import { defineManifest, ev, health, outward, read, rtype, field, t, write } fro
 import { id } from "./_common.ts";
 
 const envelopeId = t.id("env");
-const provider = t.enm("documenso", "dropbox_sign", "docusign");
-const status = t.enm("sent", "viewed", "signed", "declined", "cancelled");
-const signer = t.obj({ name: t.str(), email: t.str(), order: t.opt(t.int()) });
+const provider = t.enm("vyre", "documenso", "dropbox_sign", "docusign");
+const status = t.enm("sent", "viewed", "signed", "declined", "cancelled", "expired");
+const signer = t.obj({ name: t.str(), email: t.opt(t.str()), order: t.opt(t.int()) });
+const place = t.obj({
+  signer: t.int(),
+  kind: t.enm("signature", "date"),
+  page: t.int(),
+  x: t.num(),
+  y: t.num(),
+  w: t.num(),
+  h: t.num(),
+});
+const link = t.obj({ index: t.int(), name: t.str(), email: t.opt(t.str()), url: t.opt(t.str()), path: t.str() });
+const visitor = t.obj({ ip: t.opt(t.str()), ua: t.opt(t.str()) });
 
 export default defineManifest({
   id: "esign",
@@ -26,6 +37,10 @@ export default defineManifest({
       p: { envelopeId, fileId: id.file },
       subject: ["entity", "/envelopeId"],
       trigger: { title: "A document is signed" },
+    }),
+    ev("signature.cancelled", "The sender cancelled an envelope; every link stopped working", {
+      p: { envelopeId },
+      subject: ["entity", "/envelopeId"],
     }),
     ev("signature.declined", "A signer declined", {
       p: { envelopeId, signer: t.str(), reason: t.opt(t.str()) },
@@ -48,6 +63,8 @@ export default defineManifest({
               { key: "viewed", title: "Viewed" },
               { key: "signed", title: "Signed" },
               { key: "declined", title: "Declined" },
+              { key: "cancelled", title: "Cancelled" },
+              { key: "expired", title: "Expired" },
             ],
           },
         }),
@@ -59,9 +76,22 @@ export default defineManifest({
     ),
   ],
   capabilities: [
-    outward("esign.send", "Send a file from the record folder for signature, signer fields mapped from the record", {
-      in: { fileId: id.file, recordId: t.opt(id.record), signers: t.arr(signer), provider: t.opt(provider) },
-      out: { envelopeId },
+    outward("esign.send", "Send a PDF for signature. Built-in signing needs no account: it returns one link per signer to copy and emails them when the Space has a sending mailbox", {
+      in: {
+        fileId: id.file,
+        recordId: t.opt(id.record),
+        signers: t.arr(signer),
+        provider: t.opt(provider),
+        message: t.opt(t.str()),
+        places: t.opt(t.arr(place)),
+        expiresInDays: t.opt(t.int()),
+      },
+      out: {
+        envelopeId,
+        links: t.opt(t.arr(link)),
+        emailed: t.opt(t.arr(t.str())),
+        notice: t.opt(t.str()),
+      },
       on: ["file", "/fileId"],
       perm: "comms.shared_send",
       gate: "signature_send",
@@ -70,14 +100,31 @@ export default defineManifest({
       team: true,
       run: { kind: "signature", stoppable: true },
     }),
-    read("esign.status", "Envelope status", {
+    read("esign.status", "Envelope status: who has opened and signed", {
       in: { envelopeId },
-      out: { status, signers: t.arr(t.obj({ name: t.str(), status })) },
+      out: {
+        status,
+        expiresAt: t.opt(t.ts()),
+        declinedReason: t.opt(t.str()),
+        signedFileId: t.opt(id.file),
+        finalSha256: t.opt(t.str()),
+        signers: t.arr(
+          t.obj({
+            name: t.str(),
+            email: t.opt(t.str()),
+            status,
+            order: t.opt(t.int()),
+            openedAt: t.opt(t.ts()),
+            signedAt: t.opt(t.ts()),
+          }),
+        ),
+      },
       tool: "files",
     }),
-    write("esign.cancel", "Cancel an envelope", {
+    write("esign.cancel", "Cancel an envelope; every signer link stops working at once", {
       in: { envelopeId },
       out: { cancelled: t.bool() },
+      emits: ["signature.cancelled"],
       tool: "files",
       team: true,
     }),
@@ -87,13 +134,39 @@ export default defineManifest({
       emits: ["signature.signed"],
       tool: "files",
     }),
-    read("esign.list", "List envelopes", {
-      in: { recordId: t.opt(id.record) },
-      out: { envelopes: t.arr(t.obj({ envelopeId, title: t.str(), status })) },
+    outward("esign.remind", "Give a signer a new link (the old one stops working) and email it when the Space can", {
+      in: { envelopeId, signer: t.int() },
+      out: { link: t.opt(link), emailed: t.bool(), notice: t.opt(t.str()) },
+      perm: "comms.shared_send",
+      gate: "signature_send",
+      tool: "files",
+      team: true,
+    }),
+    read("esign.list", "List envelopes, newest first", {
+      in: { recordId: t.opt(id.record), fileId: t.opt(id.file), status: t.opt(status) },
+      out: {
+        envelopes: t.arr(
+          t.obj({
+            envelopeId,
+            title: t.str(),
+            status,
+            provider,
+            recordId: t.opt(id.record),
+            fileId: id.file,
+            signedFileId: t.opt(id.file),
+            createdAt: t.ts(),
+            expiresAt: t.opt(t.ts()),
+          }),
+        ),
+      },
       tool: "files",
     }),
-    read("esign.providers", "Providers and which is the default (Documenso, unmodified container)", {
-      out: { providers: t.arr(t.obj({ key: provider, default: t.bool(), connected: t.bool() })) },
+    read("esign.providers", "Signing services and which is the default; built-in signing is always ready", {
+      out: {
+        providers: t.arr(
+          t.obj({ key: provider, title: t.str(), default: t.bool(), connected: t.bool(), why: t.opt(t.str()) }),
+        ),
+      },
       tool: "files",
     }),
     write("esign.provider_set", "Choose the default provider; Automations do not change", {
@@ -110,16 +183,37 @@ export default defineManifest({
       http: { method: "POST", path: "/hooks/esign" },
       team: true,
     }),
-    read("esign.health", "Probe: the provider answers (Documenso container health)", {
+    read("esign.health", "Probe: the default signing service is ready (built-in signing always is)", {
       out: { state: t.enm("healthy", "degraded", "down"), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) },
+    }),
+    // The three public calls behind /p/sign/<token>/. The token is the credential; the host runs them as itself, like forms.submit. No tool: an agent never signs for a person.
+    write("esign.signer_view", "Public: open a signing link. Records the open and returns what the signer sees", {
+      in: { token: t.str(), visitor },
+      out: { session: t.json() },
+      emits: ["signature.viewed"],
+      team: true,
+      errors: ["auth.bad_credentials"],
+    }),
+    read("esign.signer_doc", "Public: the PDF a signer signs, for a live link only", {
+      in: { token: t.str(), visitor },
+      out: { base64: t.str() },
+      team: true,
+      errors: ["auth.bad_credentials"],
+    }),
+    write("esign.signer_act", "Public: sign, decline or take a copy, by a signing link", {
+      in: { token: t.str(), visitor, op: t.enm("sign", "decline", "copy"), body: t.opt(t.json()) },
+      out: { result: t.json() },
+      emits: ["signature.signed", "signature.declined"],
+      team: true,
+      errors: ["auth.bad_credentials", "validation.bad_input"],
     }),
   ],
   health: [
     health(
       "esign.documenso",
-      "Documenso reachable",
+      "Signing ready",
       "esign.health",
-      "Restart the Documenso container in Console, Infrastructure, Services.",
+      "Connect the default signing service again in Settings, Connections, or choose built-in signing.",
       { pauses: ["automations"] },
     ),
   ],
