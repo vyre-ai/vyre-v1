@@ -1,0 +1,1 @@
+A change that made several record types at once (bringing in a CRM does) left every type but the first that nobody could open, not even the owner, and the sync then stopped with "Something went wrong". Each type a change makes is now announced, so each can be opened and shared.
