@@ -1,7 +1,7 @@
 {
   "version": "1.0.0-rc.35",
   "lines": [
-    "A server holding tens of thousands of records starts in seconds, and Files answers at once even while a sync is writing.",
+    "A server holding tens of thousands of records starts in seconds instead of minutes, and the Console's health page answers at once.",
     "Reading a long list while a sync writes no longer fails with Access changed; the page waits a moment for the new records.",
     "The Console's health page and a new chat no longer show buttons that do nothing.",
     "A Space with tens of thousands of records opens at once, and search, records, Files and chat answer in milliseconds.",
