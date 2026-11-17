@@ -26,6 +26,8 @@ export interface PullDeps {
   keep(person: string, entity: string, id: string): boolean;
   /** Append one event to the log (the sync.changes projection folds it in the same transaction). Without it a pull cannot ask for a rescan when access changed. */
   append?(ev: NewEvent): { seq: number };
+  /** The same for many events at once, a commit per group of them rather than per event (a rescan of a big Space asks for every row). Used when present. */
+  appendMany?(evs: readonly NewEvent[]): void;
 }
 
 interface ChangeRec {
@@ -219,8 +221,16 @@ function rescanChanged(
     );
   };
   const asked = new Map<string, number>();
+  let queued: NewEvent[] = [];
+  const flush = (): void => {
+    if (!queued.length) return;
+    const batch = queued;
+    queued = [];
+    if (d.appendMany) d.appendMany(batch);
+    else for (const ev of batch) d.append!(ev);
+  };
   const ask = (entity: string, id: string): void => {
-    d.append!({
+    queued.push({
       type: "sync.row_rescan",
       sv: 1,
       trace_id: trace,
@@ -229,6 +239,7 @@ function rescanChanged(
       payload: { entity, id },
     });
     asked.set(entity, (asked.get(entity) ?? 0) + 1);
+    if (queued.length >= 5000) flush();
   };
   // `eff` is what the device is taken to hold at this cursor (a mark newer than the cursor is not acknowledged yet)
   const held = db.all<RowRec>(
@@ -249,6 +260,7 @@ function rescanChanged(
   );
   for (const row of held) if (!sees(row)) ask(row.entity, row.id);
   for (const row of missing) if (sees(row)) ask(row.entity, row.id);
+  flush();
   // the caller announces the range change (sync.scope_changed, on the request's own trace, private): ids and counts only
   for (const [entity, rows] of [...asked].sort(([x], [y]) => (x < y ? -1 : 1))) onScope?.(entity, rows);
   db.run(
@@ -265,6 +277,8 @@ export function pullChanges(
   req: PullReq,
   trace = "0".repeat(32),
   onScope?: (entity: string, rows: number) => void,
+  /** Stop once the changes taken weigh this many bytes of JSON (the one that crosses it is kept, so a single big change still goes through). The live hub sets it so a frame fits the relay. */
+  maxBytes?: number,
 ): PullRes {
   const db = d.db;
   const epoch = deviceEpochOf(db, who.person, who.device);
@@ -330,7 +344,12 @@ export function pullChanges(
   const whole = new Map<string, Change>();
   let used = 0,
     last = cursor,
-    stopped = false;
+    stopped = false,
+    weight = 0;
+  const heavy = (e: Emission): void => {
+    if (maxBytes !== undefined) weight += JSON.stringify(e.kind === "change" ? e.change : e.hide).length;
+  };
+  let weighed = 0;
   db.exec("BEGIN IMMEDIATE");
   try {
     for (const c of scan) {
@@ -390,7 +409,8 @@ export function pullChanges(
           }
         }
       }
-      if (used >= limit) {
+      if (maxBytes !== undefined) for (; weighed < out.length; weighed++) heavy(out[weighed]!);
+      if (used >= limit || (maxBytes !== undefined && weight >= maxBytes)) {
         stopped = true;
         break;
       }

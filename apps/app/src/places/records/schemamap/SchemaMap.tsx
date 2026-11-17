@@ -104,6 +104,7 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
   const canvas = useRef<unknown>(null);
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const live = useRef({ view: null as Viewport | null, dim });
+  const [real, setReal] = useState<Record<string, number>>({});
 
   // rows of every card, then the layout, then each card's rectangle
   const rowsOf = new Map<string, FieldRow[]>();
@@ -112,11 +113,16 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
   for (const n of nodes) heights.set(n.type, cardHeight((rowsOf.get(n.type) as FieldRow[]).length, false));
   // a card that is opened to all its fields is taller: the cards under it move down (each stays in its column), so it never lies over the next card's own
   // buttons (the click checker found a card's "records" button under an opened card, 17 Nov 2026)
+  // The estimate can come out short (a row that wraps, an inverse "Linked from" row), so the height the card really has once drawn (onLayout) wins when it is larger: the layout is made from what is on the screen.
   const drawn = new Map<string, number>();
-  for (const n of nodes) drawn.set(n.type, cardHeight((rowsOf.get(n.type) as FieldRow[]).length, exp[n.type] === true));
+  for (const n of nodes)
+    drawn.set(
+      n.type,
+      Math.max(cardHeight((rowsOf.get(n.type) as FieldRow[]).length, exp[n.type] === true), real[n.type] ?? 0),
+    );
   let nodeKey = `#${edges.length}`;
   for (const n of nodes)
-    nodeKey += `|${n.type}:${(rowsOf.get(n.type) as FieldRow[]).length}${exp[n.type] === true ? "+" : ""}`;
+    nodeKey += `|${n.type}:${(rowsOf.get(n.type) as FieldRow[]).length}${exp[n.type] === true ? "+" : ""}:${drawn.get(n.type)}`;
   const pos = useMemo(() => layout(nodes, edges, heights, drawn), [nodeKey]);
   const rects = new Map<string, Rect>();
   for (const n of nodes) {
@@ -125,7 +131,7 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
       x: p[0],
       y: p[1],
       w: CARD_W,
-      h: cardHeight((rowsOf.get(n.type) as FieldRow[]).length, exp[n.type] === true),
+      h: drawn.get(n.type) as number,
     });
   }
   const rectList: Rect[] = [...rects.values()];
@@ -279,6 +285,7 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
         onPress={() => select(n.type)}
         onToggle={() => setExp((m) => ({ ...m, [n.type]: !m[n.type] }))}
         onMenu={(x, y) => cardMenu(n.type, x, y)}
+        onHeight={(h) => setReal((m) => (Math.abs((m[n.type] ?? 0) - h) < 0.5 ? m : { ...m, [n.type]: h }))}
       />,
     );
   }
@@ -420,6 +427,8 @@ interface CardProps {
   onPress(): void;
   onToggle(): void;
   onMenu(x: number, y: number): void;
+  /** The height the card really has once drawn. */
+  onHeight(h: number): void;
 }
 
 function Card({
@@ -435,6 +444,7 @@ function Card({
   onPress,
   onToggle,
   onMenu,
+  onHeight,
 }: CardProps): ReactElement {
   const shown = shownCount(rows.length, expanded);
   const fieldViews: ReactElement[] = [];
@@ -466,6 +476,7 @@ function Card({
       aria-selected={selected}
       accessibilityLabel={`${node.title}, ${node.rowCount} ${node.rowCount === 1 ? "record" : "records"}`}
       onPress={onPress}
+      onLayout={(e) => onHeight(e.nativeEvent.layout.height)}
       onHoverIn={() => onHover(true)}
       onHoverOut={() => onHover(false)}
       testID={`schema-card-${node.type}`}

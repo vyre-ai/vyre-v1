@@ -13,6 +13,8 @@ export interface JobSpec {
   run(): Promise<void> | void;
   /** a run still going after this long is reported as timed out (it keeps running; the next run is skipped until it ends). Default 60 s. */
   timeoutMs?: number;
+  /** a run that has not settled after this long is ended as failed ("did not finish"), so the job can start again; its late result is dropped. Default 10 min. */
+  abandonAfterMs?: number;
 }
 
 export interface JobStatus {
@@ -49,6 +51,8 @@ interface Job {
   /** the error of the failure streak this job is in, null while it succeeds */
   failing: string | null;
 }
+
+const ABANDON_AFTER_MS = 600_000;
 
 /** The first moment after `after` that is `hour:minute` (local time, or UTC). */
 export function nextDaily(after: number, hour: number, minute: number, utc = false): number {
@@ -171,8 +175,20 @@ export class Scheduler {
         this.log?.warn("scheduler.job_slow", { job: j.spec.name, timeoutMs });
       }, timeoutMs);
       watchdog.unref();
+      let abandon: ReturnType<typeof setTimeout> | undefined;
+      const limit = j.spec.abandonAfterMs ?? ABANDON_AFTER_MS;
+      const ended = new Promise<never>((_, no) => {
+        abandon = setTimeout(() => {
+          this.log?.warn("scheduler.job_abandoned", { job: j.spec.name, abandonAfterMs: limit });
+          no(new Error(`It did not finish within ${limit} ms and was ended.`));
+        }, limit);
+        abandon.unref();
+      });
+      ended.catch(() => undefined);
       try {
-        await j.spec.run();
+        const run = Promise.resolve(j.spec.run());
+        run.catch(() => undefined); // a failure that arrives after the job was ended is not an unhandled rejection
+        await Promise.race([run, ended]);
         j.lastError = timedOut ? `ran longer than ${timeoutMs} ms` : null;
         this.report(j, t0, true);
       } catch (e) {
@@ -181,6 +197,7 @@ export class Scheduler {
         this.report(j, t0, false);
       } finally {
         clearTimeout(watchdog);
+        clearTimeout(abandon);
         j.running = false;
       }
     })();

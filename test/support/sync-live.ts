@@ -15,7 +15,19 @@ export const APP_KEY = "crm-live-key-0001"; // secret-scan: fake
 export const DOMAIN = "api.crmapp.example";
 
 /** The app: people carry the secret in the firm's four places; notes point at three kinds of record by one id pointer, and the three kinds share one number range. */
-export function app(seen: { keys: string[]; urls: string[] }) {
+export interface AppOptions {
+  /** This many more people, after the two, with no secret (a pull of thousands). */
+  bulk?: number;
+  /** The Nth list request for people fails once: with a 500, or by dropping the connection. */
+  failOnce?: { at: number; mode: "500" | "drop" };
+  /** `times` requests for this path, after the first `skip` ones, never get an answer (the field fault of 17 Nov: a call that hangs and never fails). */
+  hang?: { path: string; times: number; skip?: number };
+}
+export function app(seen: { keys: string[]; urls: string[] }, opts: AppOptions = {}) {
+  let peopleRequests = 0;
+  let failed = false;
+  let hung = 0;
+  let hangSeen = 0;
   const people = [
     { id: 1, name: "Imran Ibarra", ssn: DASHED },
     { id: 2, name: "Andrea Lindahl", ssn: "" },
@@ -37,7 +49,13 @@ export function app(seen: { keys: string[]; urls: string[] }) {
       ],
     },
   }));
-  const named = (kind: string) => [1, 2].map((id) => ({ id, name: `${kind} ${id}` }));
+  for (let i = 0; i < (opts.bulk ?? 0); i++)
+    people.push({
+      id: 1000 + i,
+      attributes: { name: `Bulk ${i}`, social_security: "", custom_field_values: {}, custom_fields: [] },
+    } as never);
+  const named = (kind: string) =>
+    [1, 2].map((id) => ({ id, name: `${kind} ${id}`, extra: `extra ${kind} ${id}`, contact_id: id }));
   const notes = [
     { id: 1, text: "note a", kind: "prospect", target_id: 1 },
     { id: 2, text: "note b", kind: "contact", target_id: 1 },
@@ -59,8 +77,23 @@ export function app(seen: { keys: string[]; urls: string[] }) {
       seen.keys.push(key);
       seen.urls.push(url.pathname + url.search);
       if (key !== APP_KEY) return { status: 401, text: "{}" };
+      if (opts.hang && url.pathname === opts.hang.path) {
+        hangSeen++;
+        if (hangSeen > (opts.hang.skip ?? 0) && hung < opts.hang.times) {
+          hung++;
+          return new Promise<never>(() => undefined);
+        }
+      }
       const rows = lists[url.pathname];
       if (!rows) return { status: 404, text: "{}" };
+      if (url.pathname === "/api/people" && opts.failOnce) {
+        peopleRequests++;
+        if (peopleRequests === opts.failOnce.at && !failed) {
+          failed = true;
+          if (opts.failOnce.mode === "drop") throw new Error("ECONNRESET: the app dropped the connection");
+          return { status: 500, text: "{}" };
+        }
+      }
       const page = Number(url.searchParams.get("page") ?? "1");
       const per = Number(url.searchParams.get("per_page") ?? "10");
       return { status: 200, text: JSON.stringify({ data: rows.slice((page - 1) * per, page * per) }) };
@@ -69,12 +102,14 @@ export function app(seen: { keys: string[]; urls: string[] }) {
 }
 
 /** `only: "people"` is the spec of the sealed walks: one object, so the first pull is one scheduled run, not five (a loaded runner took over 90 s for five). */
-export const spec = (only?: "people") => {
+export const spec = (only?: "people", pageSize = 10) => {
   const all = full();
   if (only !== "people") return all;
   return {
     ...all,
-    objects: all.objects.filter((o) => o.remote === "people"),
+    objects: all.objects
+      .filter((o) => o.remote === "people")
+      .map((o) => ({ ...o, list: { ...o.list, cursor: { ...o.list.cursor, size: pageSize } } })),
     mapping: all.mapping.filter((m) => m.remote === "people"),
   };
 };
@@ -195,7 +230,7 @@ export function dumpDb(file: string): string {
   }
 }
 
-export async function world(unlock: boolean) {
+export async function world(unlock: boolean, appOptions: AppOptions = {}, daemonOptions: Record<string, unknown> = {}) {
   const seen = { keys: [] as string[], urls: [] as string[] };
   const dir = seededDir();
   const printed: string[] = [];
@@ -208,7 +243,11 @@ export async function world(unlock: boolean) {
     }) as typeof process.stdout.write;
   process.stdout.write = spy(wasOut);
   process.stderr.write = spy(wasErr);
-  const d = await boot(dir, (async function* () {})() as never, { vault: undefined, connectorNetwork: app(seen) });
+  const d = await boot(dir, (async function* () {})() as never, {
+    vault: undefined,
+    connectorNetwork: app(seen, appOptions),
+    ...daemonOptions,
+  });
   if (unlock) {
     const r = await fetch(`${d.url}/local/vault/key/unlock`, {
       method: "POST",

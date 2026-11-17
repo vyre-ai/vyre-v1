@@ -95,6 +95,7 @@ export function openSync(o: SyncOpts): SyncHandle {
     phoneCeiling: () => LABEL_RANKS[o.phoneCeiling?.() ?? "confidential"],
     keep: o.keep ?? (() => false),
     append: (ev) => host.append(ev),
+    appendMany: (evs) => host.appendMany(evs),
   };
   return {
     host,

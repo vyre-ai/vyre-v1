@@ -199,3 +199,95 @@ test("start and stop drive the ticks on a timer", async () => {
 });
 
 // P-H_01 final run: each named test shows its own ok line in the run on the last commit.
+
+// The field fault (rc.26, 17 Nov): one job whose promise never settled held the tick for ever; every later tick joined it, so 28 due jobs sat queued with the server idle.
+function stuckRig(o: { deadlineMs: number; maxTries?: number }) {
+  const db: RawDb = openRecordStore({ path: ":memory:", space: "sp_sched" }).host.tx;
+  const clock = { t: T0 };
+  const ran: string[] = [];
+  const errors: { final: boolean; message: string }[] = [];
+  const q = new ScheduleQueue({
+    db,
+    now: () => clock.t,
+    deadlineMs: o.deadlineMs,
+    maxTries: o.maxTries ?? 5,
+    backoffMs: () => 1000,
+    run: async (c) => {
+      ran.push(`${c.cap}#${c.tries}`);
+      if (c.cap === "sync.hangs") await new Promise<void>(() => undefined);
+    },
+    onError: (_c, e, final) => {
+      errors.push({ final, message: e instanceof Error ? e.message : String(e) });
+      if (errors.length === 1 && o.maxTries === undefined) throw new Error("the error hook itself broke");
+    },
+  });
+  return { db, clock, ran, errors, q };
+}
+const within = <T>(p: Promise<T>, ms: number, what: string): Promise<T> =>
+  Promise.race([
+    p,
+    new Promise<T>((_, no) => {
+      const t = setTimeout(() => no(new Error(`${what} did not settle in ${ms} ms`)), ms);
+      t.unref();
+    }),
+  ]);
+
+test("a job that never settles is ended at its deadline, with a reason, and the jobs behind it still run", async () => {
+  const r = stuckRig({ deadlineMs: 40 });
+  const add = r.q.forCtx(seed);
+  await add(T0, "sync.hangs", { runId: "run_1" });
+  await add(T0 + 1, "sync.fine", { runId: "run_2" });
+  r.clock.t = T0 + 10;
+  assert.equal(await within(r.q.tick(), 2000, "the tick"), 2);
+  assert.deepEqual(r.ran, ["sync.hangs#0", "sync.fine#0"]);
+  assert.match(r.errors[0]!.message, /did not finish within/);
+  assert.deepEqual(r.q.counts(), { pending: 1, dead: 0 }, "the hung job is waiting for its retry, the other is done");
+  // a later tick starts by itself and the hung job is tried again
+  r.clock.t += 1000;
+  assert.equal(await within(r.q.tick(), 2000, "the next tick"), 1);
+  assert.deepEqual(r.ran.at(-1), "sync.hangs#1");
+});
+
+test("a job that hangs on every try is parked as dead with the reason, not held for ever", async () => {
+  const r = stuckRig({ deadlineMs: 20, maxTries: 2 });
+  await r.q.forCtx(seed)(T0, "sync.hangs", { runId: "run_1" });
+  await within(r.q.tick(), 2000, "first tick");
+  r.clock.t += 1000;
+  await within(r.q.tick(), 2000, "second tick");
+  assert.deepEqual(
+    r.errors.map((e) => e.final),
+    [false, true],
+  );
+  assert.deepEqual(r.q.counts(), { pending: 0, dead: 1 });
+});
+
+test("an error hook that throws does not strand the rest of the batch", async () => {
+  const r = stuckRig({ deadlineMs: 20 });
+  const add = r.q.forCtx(seed);
+  await add(T0, "sync.hangs", {});
+  await add(T0 + 1, "sync.fine", {});
+  r.clock.t = T0 + 10;
+  assert.equal(await within(r.q.tick(), 2000, "the tick"), 2);
+  assert.equal(r.ran.includes("sync.fine#0"), true);
+});
+
+test("waiting() names each due job that has not started and why", async () => {
+  const r = rig({ failFor: 1 });
+  const add = r.q.forCtx(seed);
+  await add(T0, "mail.sync", {});
+  await add(T0 + 60_000, "mail.later", {});
+  r.clock.t = T0 + 1;
+  await r.q.tick(); // fails once: waits for its backoff
+  r.clock.t = T0 + 600;
+  const w = r.q.waiting();
+  assert.equal(w.length, 1, "a job that has not failed and is not due yet is not waiting");
+  assert.equal(w[0]!.cap, "mail.sync");
+  assert.equal(w[0]!.why, "retrying");
+  assert.equal(w[0]!.error, "boom");
+  r.clock.t = T0 + 60_000 + 1000;
+  const x = r.q.waiting().map((j) => [j.cap, j.why]);
+  assert.deepEqual(x, [
+    ["mail.sync", "due"],
+    ["mail.later", "due"],
+  ]);
+});

@@ -130,6 +130,15 @@ test("a failing app is asked less and less often, up to once an hour, and a succ
       "SELECT next_at FROM cn_sync_guard WHERE sync_type_id = (SELECT sync_type_id FROM cn_synced_types WHERE type = 'person')",
     )!.next_at;
     gaps.push((next - w.k.clock.t) / MIN);
+    // the failed pass leaves its own next poll at the same time (a first pull is not left for the driver to find); the driver is tested alone here, so that chain is dropped
+    assert.equal(
+      w.k.tx.get<{ at: number }>(
+        "SELECT at FROM cn_sync_poll WHERE sync_type_id = (SELECT sync_type_id FROM cn_synced_types WHERE type = 'person')",
+      )?.at,
+      next,
+      "a failed pass schedules its retry",
+    );
+    dropChains(w);
     // one minute before it may try again nothing starts; at the time it does
     w.k.clock.t = next - MIN;
     assert.deepEqual(await w.tick(), [], "waiting out the backoff");

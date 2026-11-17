@@ -1,0 +1,1 @@
+A sync that waits on an app that never answers no longer stops the queue behind it: the stuck pass is ended after a few minutes with the reason, the other syncs start by themselves, and the server health names any scheduled job that is late and why.

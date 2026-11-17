@@ -332,7 +332,7 @@ const MAX_STREAMS = 64;
 const MAX_BODY = 32 * 1024 * 1024;
 const MAX_WS_MESSAGE = 1 << 20;
 
-interface Stream {
+export interface Stream {
   id: number;
   head: Record<string, unknown>;
   body: Uint8Array[];
@@ -345,7 +345,7 @@ interface Stream {
   ws?: WebSocket;
 }
 
-class Channel {
+export class Channel {
   private txq: Promise<void> = Promise.resolve();
   private rxq: Promise<void> = Promise.resolve();
   readonly streams = new Map<number, Stream>();
@@ -785,7 +785,8 @@ const refuseInvite = (s: Stream, ch: Channel): void => {
   ch.end(s);
 };
 
-function serveStream(s: Stream, ch: Channel, localPort: number, scope: InviteScope | null = null): void {
+/** Exported for the test that drives it with a stand-in channel. */
+export function serveStream(s: Stream, ch: Channel, localPort: number, scope: InviteScope | null = null): void {
   const path0 =
     typeof s.head["ws"] === "string" ? s.head["ws"] : typeof s.head["path"] === "string" ? s.head["path"] : "";
   if (!path0.startsWith("/") || path0.startsWith("//") || path0.length > 4096) {
@@ -822,7 +823,15 @@ function serveStream(s: Stream, ch: Channel, localPort: number, scope: InviteSco
           ? concat(new Uint8Array([1]), utf8(e.data))
           : concat(new Uint8Array([2]), new Uint8Array(e.data as ArrayBuffer));
       if (m.length + 5 + TAGLEN > 1 << 20) {
-        ws.close(1009, "too big");
+        // 1009 is a code only a server may send: Node's WebSocket refuses it from a client with a throw, which escaped this handler and ended the
+        // whole daemon (17 Nov 2026, a firm's server restarted on every reconnect of a browser on its vyre.run address). 4009 is ours to use.
+        try {
+          ws.close(4009, "too big");
+        } catch {
+          /* closed already */
+        }
+        // the stream is reset, not ended: an end looks like the server's own clean close and the device would reconnect from the same cursor to the same message for ever
+        if (ch.streams.has(s.id)) ch.reset(s, "too big");
         return;
       }
       ch.frame(FRAME.data, s.id, m);
@@ -840,7 +849,13 @@ function serveStream(s: Stream, ch: Channel, localPort: number, scope: InviteSco
       if (c.length < 1 || c.length > MAX_WS_MESSAGE || ws.readyState !== 1) return;
       ws.send(c[0] === 1 ? fromUtf8(c.subarray(1)) : c.subarray(1));
     };
-    s.onEnd = () => ws.close(1000);
+    s.onEnd = () => {
+      try {
+        ws.close(1000);
+      } catch {
+        /* closed */
+      }
+    };
     s.onReset = () => {
       try {
         ws.close();

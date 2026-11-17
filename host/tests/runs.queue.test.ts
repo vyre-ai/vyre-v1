@@ -93,3 +93,33 @@ test("a step denied because its person was removed or suspended fails the Run wi
     );
   }
 });
+
+// A drive that never answers, or throws before it returns a promise, used to keep its slot for ever (the field fault of 17 Nov: nothing started, the server idle).
+test("a drive that never answers is ended with a reason and frees its slot; one that throws at once frees it too", async () => {
+  const started: string[] = [];
+  const stopped: { runId: string; reason: string }[] = [];
+  const logs: string[] = [];
+  const call = (name: string, input: unknown): Promise<unknown> => {
+    if (name === "runs.stop") {
+      stopped.push(input as { runId: string; reason: string });
+      return Promise.resolve({});
+    }
+    const id = (input as { runId: string }).runId;
+    started.push(id);
+    if (id === "run_hang") return new Promise(() => undefined);
+    if (id === "run_throw") throw new Error("not even a promise");
+    return Promise.resolve("ok");
+  };
+  const host = createRunsHost({ call, max: 1, deadlineMs: 30, log: (m) => logs.push(m) });
+  host.enqueue("run_throw");
+  host.enqueue("run_hang");
+  host.enqueue("run_after");
+  const until = async (ok: () => boolean): Promise<void> => {
+    for (let i = 0; i < 200 && !ok(); i++) await new Promise((r) => setTimeout(r, 10));
+  };
+  await until(() => started.includes("run_after"));
+  assert.deepEqual(started, ["run_throw", "run_hang", "run_after"], "every Run behind the stuck one was driven");
+  assert.equal(stopped[0]?.runId, "run_hang");
+  assert.match(stopped[0]?.reason ?? "", /did not finish/);
+  assert.ok(logs.includes("runs.drive_stuck"));
+});

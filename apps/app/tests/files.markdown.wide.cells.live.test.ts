@@ -98,6 +98,72 @@ test("in Edit a table is a table of cells: Tab goes across, Enter goes down, the
   }
 });
 
+// Found 16 Nov 2026 (two CI runs): a Tab that reaches the page before the browser has told the editor where the click landed went nowhere. A slow computer delivers the key
+// in the same turn as the click, so this walk presses the key in the very turn the cursor moves into the cell: Tab, Enter and Shift-Tab must still act on that cell.
+test("in Edit a key pressed the instant a cell is clicked still acts on that cell", async (t) => {
+  const s = await session(t, { width: 1600, height: 900 });
+  if (!s) return;
+  const { page } = s;
+  try {
+    const f = await s.make("applicants.md", Buffer.from(MD), "text/markdown");
+    await page.goto(`${s.web.origin}/files#subject=file:${f.file.fileId}`, { waitUntil: "load" });
+    await page.getByText("A short paragraph above the table.").waitFor({ timeout: 30_000 });
+    await page.getByTestId("vw-mode-edit").click();
+    await page.getByTestId("md-table").waitFor({ timeout: 20_000 });
+    const keyInSameTurn = async (row: number, col: number, key: string, shift = false) =>
+      page.evaluate(
+        ({ row, col, key, shift }) => {
+          const td = document.querySelector(
+            `[data-testid="md-table"] tbody tr:nth-child(${row}) td:nth-child(${col})`,
+          ) as HTMLElement;
+          const ed = td.closest(".ProseMirror") as HTMLElement;
+          ed.focus();
+          const range = document.createRange();
+          range.selectNodeContents(td.querySelector("p") ?? td);
+          range.collapse(true);
+          const sel = getSelection()!;
+          sel.removeAllRanges();
+          sel.addRange(range);
+          // no wait: the editor has not been told about this selection yet
+          ed.dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key,
+              code: key,
+              keyCode: key === "Tab" ? 9 : 13,
+              shiftKey: shift,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+        },
+        { row, col, key, shift },
+      );
+    const at = async () => {
+      await page.evaluate(
+        () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
+      );
+      return page.evaluate(() => {
+        const n = getSelection()?.anchorNode as Node | null;
+        const td = (n && (n.nodeType === 1 ? (n as Element) : n.parentElement))?.closest(
+          "td,th",
+        ) as HTMLTableCellElement | null;
+        return td ? [(td.parentElement as HTMLTableRowElement).rowIndex, td.cellIndex] : null;
+      });
+    };
+    await keyInSameTurn(3, 2, "Tab");
+    const tabbed = await at();
+    await keyInSameTurn(5, 4, "Enter");
+    const entered = await at();
+    await keyInSameTurn(7, 6, "Tab", true);
+    const back = await at();
+    assert.deepEqual(tabbed, [2, 2], "Tab in the same turn as the click goes across");
+    assert.deepEqual(entered, [5, 3], "Enter in the same turn as the click goes down");
+    assert.deepEqual(back, [6, 4], "Shift-Tab in the same turn as the click goes back");
+  } finally {
+    await s.close();
+  }
+});
+
 test("in View a wide table that scrolls sideways keeps its first column in view, and its header row stays while it scrolls down", async (t) => {
   const s = await session(t, { width: 900, height: 700 });
   if (!s) return;

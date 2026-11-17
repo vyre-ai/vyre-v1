@@ -1,6 +1,6 @@
 // schema read side (spec 2.9): describe, types.list/get, map, field_types, view_kinds, changes.list, trash.list, views.list/get, layout.get, gap_rules.list, sensitivity.scan.
 // Every answer comes from sc_types (definitions) and the registry (field types, view kinds), never from a copy kept in the handler.
-import { allDefs, ensureTables, nowOf, refuse, rowCount, seedManifestTypes } from "../projections.ts";
+import { allDefs, ensureTables, nowOf, oneDef, refuse, rowCount, seedManifestTypes } from "../projections.ts";
 import type { FieldDefT, Label, SchemaCtx, SchemaDeps, TypeDefT } from "../projections.ts";
 
 export interface TypeDetail extends Omit<TypeDefT, "scope"> {
@@ -274,7 +274,10 @@ export function createDescribeHandlers(deps: SchemaDeps): DescribeHandlers {
     },
 
     "schema.types.get": async (ctx, input) => {
-      const d = need(ctx, await ready(), input.type);
+      await (deps.started ?? seedManifestTypes(deps));
+      const found = await oneDef(deps, input.type);
+      if (!found) refuse(ctx, "validation.not_found", `There is no record type ${input.type}.`);
+      const d = found!;
       mustSee(ctx, d.key);
       return { type: shown(ctx, d) };
     },

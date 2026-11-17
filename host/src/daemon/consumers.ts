@@ -220,7 +220,7 @@ export function toHookEvent(e: StoredEvent): HookEvent {
 }
 
 export interface LogReader {
-  read(q: { after?: number; limit?: number }): Promise<StoredEvent[]>;
+  read(q: { after?: number; limit?: number; types?: readonly string[] }): Promise<StoredEvent[]>;
   currentHead(): Promise<{ seq: number }>;
 }
 export interface HookRunnerDeps {
@@ -453,8 +453,14 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     if (at === undefined) return; // start() has not run for it yet
     let since = performance.now();
     for (;;) {
-      const page = await d.log.read({ after: at, limit: PAGE });
-      if (!page.length) return;
+      // the log is asked only for the events this consumer handles, so a consumer of a rare event does not read every event of the Space (a hundred consumers each reading a backlog of 70,000 was most of the
+      // server's CPU after a sync); once it has read to the end, it is at the head that was there when it asked
+      const head = (await d.log.currentHead()).seq;
+      const page = await d.log.read({ after: at, limit: PAGE, types: c.on });
+      if (!page.length) {
+        if (head > at) readPast(c.name, head);
+        return;
+      }
       for (const e of page) {
         if (closing) {
           setCursor(c.name, at);
@@ -477,7 +483,10 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
         } else at = e.seq;
       }
       readPast(c.name, at);
-      if (page.length < PAGE) return;
+      if (page.length < PAGE) {
+        if (head > at) readPast(c.name, head);
+        return;
+      }
       await yieldLoop();
     }
   }

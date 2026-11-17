@@ -174,12 +174,36 @@ export async function caddy(fetchFn: FetchFn, adminUrl: string, now: () => numbe
 // ---- scheduler, events, index, clock
 
 export const SCHEDULER_STALE_MS = 60_000;
-export function schedulerTick(lastTickAt: number | null, now: number): ProbeResult {
+/** A scheduled job that has waited or run this long without ending is late: the probe says which one and why. */
+export const SCHEDULE_LATE_MS = 300_000;
+export interface LateJob {
+  cap: string;
+  why: "running" | "retrying" | "due";
+  since: number;
+  error?: string | null;
+}
+export function schedulerTick(lastTickAt: number | null, now: number, jobs: readonly LateJob[] = []): ProbeResult {
   if (lastTickAt === null) return result("down", "The scheduler has not ticked yet.");
   const age = now - lastTickAt;
-  return age <= SCHEDULER_STALE_MS
-    ? result("healthy", `Ticked ${Math.round(age / 1000)} s ago.`, { values: { ageMs: age } })
-    : result("down", `The scheduler has not ticked for ${Math.round(age / 1000)} s.`, { values: { ageMs: age } });
+  if (age > SCHEDULER_STALE_MS)
+    return result("down", `The scheduler has not ticked for ${Math.round(age / 1000)} s.`, { values: { ageMs: age } });
+  const late = jobs.filter((j) => now - j.since > SCHEDULE_LATE_MS).sort((a, b) => a.since - b.since);
+  if (late.length > 0) {
+    const first = late[0]!;
+    const mins = Math.round((now - first.since) / 60_000);
+    const reason =
+      first.why === "running"
+        ? "it is still running"
+        : first.why === "retrying"
+          ? `it failed${first.error ? ` (${first.error})` : ""} and waits to try again`
+          : "it has not started";
+    return result(
+      "degraded",
+      `${late.length} scheduled job${late.length === 1 ? " is" : "s are"} late. The oldest, ${first.cap}, has waited ${mins} min: ${reason}.`,
+      { values: { ageMs: age, late: late.length } },
+    );
+  }
+  return result("healthy", `Ticked ${Math.round(age / 1000)} s ago.`, { values: { ageMs: age } });
 }
 
 export interface EventsCheck {

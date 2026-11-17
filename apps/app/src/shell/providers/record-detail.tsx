@@ -80,14 +80,21 @@ export function RecordDetail({
         };
         return { type: out.project.type, recordId: out.project.recordId, projectId: recordId };
       }
+      type Projects = { projects: Array<{ projectId: string; recordId: string }>; next?: string };
+      // a link that names its type asks "is it a project?" (the first page of that type's projects) while the record itself is read: two round trips side by side, not one after the other
+      let ahead: Promise<Projects | undefined> | undefined = hint
+        ? Promise.resolve(rt.call("projects.list", { type: hint })).then(
+            (out) => out as Projects,
+            () => undefined,
+          )
+        : undefined;
       const type = await resolveRecordType(rt.call, recordId, hint);
       {
         let cursor: string | undefined;
         do {
-          const out = (await rt.call("projects.list", { type, ...(cursor ? { cursor } : {}) })) as {
-            projects: Array<{ projectId: string; recordId: string }>;
-            next?: string;
-          };
+          const early = type === hint && cursor === undefined ? await ahead : undefined;
+          ahead = undefined;
+          const out = early ?? ((await rt.call("projects.list", { type, ...(cursor ? { cursor } : {}) })) as Projects);
           const project = out.projects.find((p) => p.recordId === recordId);
           if (project) return { type, recordId, projectId: project.projectId };
           cursor = out.next;
