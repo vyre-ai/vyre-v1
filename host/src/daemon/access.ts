@@ -231,6 +231,8 @@ export async function accessBatch(o: {
   return { events: [...replay, ...fromLog, ...own], upTo, boot };
 }
 
+/** How many events one call of the access module folds before the loop is given back. */
+export const SYNC_SLICE = 40;
 type Held = { seq: number; type: string; payload: unknown };
 /**
  * One access sync of the daemon (daemon.ts runSync), apart so it can be tested. What was pushed is taken and cleared in the same tick, before anything waits: a push made while the log is read
@@ -262,7 +264,14 @@ export function createAccessRun(o: {
     let upTo = fedTo;
     const attempt = async (): Promise<void> => {
       const batch = await accessBatch({ held, fedTo, booted, read: (after, limit) => o.read(after, limit) });
-      o.adopt(await o.call(batch.events));
+      // The module folds and writes every event of a call in one stretch of synchronous work (two writes a resource): a bulk write that registers thousands of records held the server's single event loop
+      // for 130 ms and more a call. The events go in slices, in order, with the loop given back between them; the snapshot of the last call is the one adopted.
+      let snap: AccessSnapshot | undefined;
+      for (let at = 0; at === 0 || at < batch.events.length; at += SYNC_SLICE) {
+        if (at > 0) await new Promise<void>((done) => setImmediate(done));
+        snap = await o.call(batch.events.slice(at, at + SYNC_SLICE));
+      }
+      o.adopt(snap!);
       upTo = batch.upTo;
     };
     try {

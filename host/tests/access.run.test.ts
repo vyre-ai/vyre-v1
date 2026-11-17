@@ -3,7 +3,7 @@
 //   B  a log read that fails is a sync failure: tried once more, logged, the snapshot marked stale, a retry armed, and after adoption the caller does not get an error
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createAccessRun } from "../src/daemon/access.ts";
+import { createAccessRun, SYNC_SLICE } from "../src/daemon/access.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 
 type Ev = { seq: number; type: string; payload: unknown };
@@ -141,4 +141,35 @@ test("B: before the module's snapshot was adopted, a failing read still fails th
   });
   await assert.rejects(run(true), /no log/);
   assert.equal(st.adopted, false);
+});
+
+test("the module folds the events in slices, in order, with the loop given back between them, and the last snapshot is adopted", async () => {
+  const many = Array.from({ length: SYNC_SLICE * 2 + 7 }, (_, i) => ({
+    seq: i + 1,
+    type: "resource.created",
+    payload: enc({ id: `rec_${i}`, type: "record" }),
+  }));
+  const { st, run } = rig({ read: async (after) => many.filter((e) => e.seq > after) });
+  let ticks = 0;
+  let going = true;
+  const spin = (): void => {
+    ticks++;
+    if (going) setImmediate(spin);
+  };
+  setImmediate(spin);
+  await run(true);
+  going = false;
+  assert.deepEqual(
+    st.calls.map((c) => c.length),
+    [SYNC_SLICE, SYNC_SLICE, 7],
+    "no call carries more than a slice",
+  );
+  assert.deepEqual(
+    st.calls.flat().map((e) => e.seq),
+    many.map((e) => e.seq),
+    "every event, once, in order",
+  );
+  assert.ok(ticks >= 2, `the loop ran other work between the slices (${ticks})`);
+  assert.equal(st.adopted, true);
+  assert.equal(st.fedTo, many.length);
 });

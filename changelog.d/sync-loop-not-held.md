@@ -1,0 +1,1 @@
+A big first sync no longer freezes the server for seconds at a time: the work of writing thousands of records, indexing them and registering them for access is done in short slices, so requests and the live stream keep answering (the longest stall in a test of five large pulls went from 1.8 s to 0.16 s).

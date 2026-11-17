@@ -6,6 +6,7 @@
 // Pushes go through an outbox with an idempotency key, retries (3 passes, then sync.push_failed) and the replaced remote value, so a push can be undone.
 // First sync matches an unlinked remote record to a local one by the match rule; a missing remote record is marked "removed at source", and a pass that would mark more than
 // 10 percent or 50 records pauses and waits for confirmDeletes. Local writes go to the RecordStore directly and are announced with quiet: true unless runAutomations is set.
+import { turns } from "../../../lib/yield-loop.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { formatHlc } from "../../../lib/hlc.ts";
@@ -396,7 +397,9 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     }
   }
   const taken = new Set<string>();
+  const turn = turns();
   for (const remote of remoteMap.values()) {
+    await turn();
     if (byRemote.has(remote.id)) continue;
     const theirs = mappedTheirs(remote);
     const key =
@@ -442,6 +445,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   const conflictRows: { localId: string; field: string; ours: unknown; theirs: unknown; base: unknown }[] = [];
   const losses: { localId: string; field: string; value: unknown; actor: string }[] = [];
   for (const { link, local, remote, unchanged } of pairs) {
+    await turn();
     const pullPatch: Record<string, unknown> = {};
     const pushPatch: Record<string, unknown> = {};
     const pushFields: string[] = [];
@@ -573,6 +577,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     log(d, b.syncTypeId, "error", `skipped ${what}: ${msgOf(e)}`, runId, o.traceId);
   };
   for (const c of creates) {
+    await turn();
     try {
       const id = mintRecordId(now(d));
       const rec = await d.local.create(b.type, id, c.data);
@@ -584,6 +589,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     }
   }
   for (const a of localActions) {
+    await turn();
     try {
       if (Object.keys(a.patch).length) {
         const rec = await d.local.update(b.type, a.localId, a.patch, a.version);
