@@ -377,10 +377,28 @@ export function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: 
   return snap;
 }
 
-/** The snapshot the host decides with, for the handlers that tell a screen what the server would do (access.check, access.reach). */
+let decisionView: ((store: AccessStore) => AccessSnapshot | null) | null = null;
+/** consumers.ts hands over the snapshot the host decides with that it keeps beside the kept store (role grants on it, current with it). */
+export function setDecisionView(f: (store: AccessStore) => AccessSnapshot | null): void {
+  decisionView = f;
+}
+const DECISIONS = new WeakMap<AccessStore, { epoch: number; snap: AccessSnapshot }>();
+
+/**
+ * The snapshot the host decides with, for the handlers that tell a screen what the server would do (access.check, access.reach). It is never the store's own snapshot with the role grants put on
+ * it: the store's snapshot answers as a handler's own store always did (no role grants), and one check or reach that added them to it changed what every later read of that snapshot said (who may
+ * see a share list, which rows my_access holds), for as long as the snapshot lived. The kept store's decision snapshot is the one access.sync keeps current beside it; any other store gets one built apart.
+ */
 export function decisionSnapshot(store: AccessStore): AccessSnapshot {
   const space = [...store.resources.values()].find((r) => r.type === "space");
-  return space ? asKeptWriter(() => withRoleGrants(store.snapshot(), store, space.id)) : store.snapshot();
+  if (!space) return store.snapshot();
+  const kept = decisionView?.(store);
+  if (kept) return kept;
+  const had = DECISIONS.get(store);
+  if (had && had.epoch === store.epoch) return had.snap;
+  const snap = withRoleGrants(store.buildSnapshot(), store, space.id);
+  DECISIONS.set(store, { epoch: store.epoch, snap });
+  return snap;
 }
 
 export class AccessStore {

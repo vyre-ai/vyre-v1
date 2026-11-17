@@ -1,0 +1,1 @@
+- Who may see the list of who a thing is shared with no longer depends on whether the Console happened to ask the access checker a moment earlier: the checker works on a snapshot of its own.

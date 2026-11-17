@@ -141,7 +141,7 @@ const callAs = async (raw: HostDb, who: string, cap: string, input: unknown): Pr
   }
 };
 
-// what this change touched: the lists that keep what they build (access.lists, folders.list) and the reads that now come from the kept view (policies, actors, exceptions, defaults)
+// what this change touched, and who may see who a thing is shared with: the lists that keep what they build (access.lists, folders.list) and the reads that now come from the kept view (policies, actors, exceptions, defaults)
 async function everything(raw: HostDb, objects: { type: string; id: string }[]): Promise<string[]> {
   const out: unknown[] = [];
   for (const who of ["usr_owner", "usr_mia", "usr_noor"]) {
@@ -156,11 +156,15 @@ async function everything(raw: HostDb, objects: { type: string; id: string }[]):
     ])
       out.push(await callAs(raw, who, cap, {}));
   }
-  for (const o of objects) out.push(await callAs(raw, "usr_owner", "access.grants.list", { resource: o }));
+  for (const o of objects) {
+    out.push(await callAs(raw, "usr_owner", "access.grants.list", { resource: o }));
+    for (const who of ["usr_owner", "usr_mia", "usr_noor"])
+      out.push(await callAs(raw, who, "access.shares_of", { resource: o }));
+  }
   return out.map((o) => JSON.stringify(o));
 }
 
-/** Calls that look at the kept store the way the Console does between changes, and are not compared: the checker and the share list, which put the host's role grants on the snapshot they use. */
+/** Calls that look at the kept store the way the Console does between changes, and are not compared: they must change nothing the compared answers say (the checker used to put the host's role grants on the snapshot every later read used). */
 async function lookAround(raw: HostDb, objects: { type: string; id: string }[]): Promise<void> {
   for (const o of objects.slice(0, 6)) {
     await callAs(raw, "usr_owner", "access.shares_of", { resource: o });
