@@ -270,6 +270,37 @@ const pause = (ms: number): Promise<void> =>
     setTimeout(ok, ms);
   });
 
+/** How long the connector's object names are kept before they are read again (a connector applied again is picked up within this time). */
+const OBJECTS_KEPT_MS = 60_000;
+
+/**
+ * The connector's own names for its objects, read once a minute per connector (a connector row without them keeps the convention). An answer that failed is never kept: a read that failed once used to
+ * leave the default names for as long as the server ran, and a connector applied again was never read again.
+ */
+export function objectNamesOf(
+  now: () => number,
+): (ctx: Pick<EngineCtx, "call">, connector: string) => Promise<unknown> {
+  const maps = new Map<string, { at: number; p: Promise<unknown> }>();
+  return (ctx, connector) => {
+    const at = now();
+    const kept = maps.get(connector);
+    if (kept && at - kept.at < OBJECTS_KEPT_MS) return kept.p;
+    const p = ctx.call("connectors.get", { key: connector }).then(
+      (r) => {
+        if (isObj(r) && isObj(r["connector"])) return r["connector"]["objects"];
+        maps.delete(connector);
+        return undefined;
+      },
+      () => {
+        maps.delete(connector);
+        return undefined;
+      },
+    );
+    maps.set(connector, { at, p });
+    return p;
+  };
+}
+
 export function remoteStore(
   ctx: Pick<EngineCtx, "call">,
   b: Pick<BindingRow, "connector" | "connectionId" | "remote">,
@@ -724,19 +755,7 @@ export function createSyncEngine(o: {
   // Sealed values the Vault could not take yet, held in this process's memory only (never stored) and tried again at the next group or pass; a restart loses them, and the count left in sy_sealed_wait makes the next pass read the app again.
   const waiting = new Map<string, Map<string, Record<string, unknown>>>();
   const WAITING_MAX = 50_000;
-  // the connector's own names for its objects, read once per connector (a connector row without them keeps the convention)
-  const maps = new Map<string, Promise<unknown>>();
-  const objectsOf = (ctx: EngineCtx, connector: string): Promise<unknown> => {
-    let p = maps.get(connector);
-    if (!p) {
-      p = ctx.call("connectors.get", { key: connector }).then(
-        (r) => (isObj(r) && isObj(r["connector"]) ? r["connector"]["objects"] : undefined),
-        () => undefined,
-      );
-      maps.set(connector, p);
-    }
-    return p;
-  };
+  const objectsOf = objectNamesOf(() => (o.now ?? Date.now)());
   const depsOf = async (
     ctx: EngineCtx,
     b: BindingRow,

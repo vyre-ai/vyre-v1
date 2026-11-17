@@ -90,6 +90,8 @@ const STEPS = new Map(
 
 /** How many Runs one server drives at once; the rest wait their turn. */
 export const MAX_DRIVES = 8;
+/** A drive that has not settled after this long is ended (its Run stopped with the reason) and its slot is freed: a call that never answers never holds a slot. */
+export const DRIVE_DEADLINE_MS = 600_000;
 const DENIED = new Set(["not_a_member", "suspended", "revoked"]);
 const TERMINAL = new Set(["succeeded", "failed", "stopped"]);
 
@@ -278,9 +280,29 @@ function childSlice(by: Map<string, GNode>, scope: Scope): GNode[] {
 export function createRunsHost(d: {
   call: HostCall;
   max?: number;
+  /** See DRIVE_DEADLINE_MS. */
+  deadlineMs?: number;
   log?: (msg: string, attrs: Record<string, unknown>) => void;
 }) {
   const max = d.max ?? MAX_DRIVES;
+  const deadlineMs = d.deadlineMs ?? DRIVE_DEADLINE_MS;
+  const STUCK = Symbol("stuck");
+  /** The drive of one Run as a promise that always settles: a call that throws at once, or never answers, is a failure here and not a leaked slot. */
+  const drive = (id: string): Promise<unknown> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<typeof STUCK>((resolve) => {
+      timer = setTimeout(() => resolve(STUCK), deadlineMs);
+      timer.unref?.();
+    });
+    let call: Promise<unknown>;
+    try {
+      call = Promise.resolve(d.call("runs.drive_run", { runId: id }));
+    } catch (e) {
+      call = Promise.reject(e);
+    }
+    call.catch(() => undefined);
+    return Promise.race([call, late]).finally(() => clearTimeout(timer));
+  };
   const waiting: string[] = [];
   const known = new Set<string>(); // queued or being driven
   const again = new Set<string>(); // asked for again while being driven: driven once more when this one ends
@@ -308,10 +330,15 @@ export function createRunsHost(d: {
     while (active < max && waiting.length > 0) {
       const id = waiting.shift()!;
       active += 1;
-      const p: Promise<void> = d
-        .call("runs.drive_run", { runId: id })
+      const p: Promise<void> = drive(id)
         .then(
-          (result) => due(result),
+          (result) => {
+            if (result !== STUCK) return due(result);
+            const reason = `It did not finish within ${Math.max(1, Math.round(deadlineMs / 60_000))} min and was ended.`;
+            d.log?.("runs.drive_stuck", { runId: id, deadlineMs });
+            void stopRun(id, reason);
+            return undefined;
+          },
           (e: unknown) => {
             d.log?.("runs.drive_failed", {
               runId: id,

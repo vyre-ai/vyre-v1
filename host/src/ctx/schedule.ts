@@ -39,6 +39,8 @@ export interface ScheduleOptions {
   backoffMs?: (tries: number) => number;
   /** A claim older than this is taken again. Default 2 min. */
   leaseMs?: number;
+  /** A job that has not settled after this long is ended as failed (with the reason), so one stuck call never holds the queue. Default 5 min. */
+  deadlineMs?: number;
   /** Jobs run per tick, oldest due first. Default 50. */
   batch?: number;
   onError?: (call: ScheduledCall, error: unknown, final: boolean) => void;
@@ -61,6 +63,20 @@ export function parseWhen(at: number | string, now: number, traceId: string = NO
   if (rel) return now + Math.round(Number(rel[1]) * UNIT[rel[2]!.toLowerCase()]!);
   const t = /^\d{4}-\d{2}-\d{2}/.test(at) ? Date.parse(at) : Number.NaN;
   return Number.isFinite(t) ? t : bad("not a time");
+}
+
+const DEFAULT_DEADLINE_MS = 300_000;
+
+/** A job that waits, and why: `running` (claimed, not yet settled), `retrying` (failed, waiting for its backoff) or `due` (its time has come and it has not started: behind another job). */
+export interface WaitingJob {
+  id: string;
+  cap: string;
+  runAt: number;
+  tries: number;
+  why: "running" | "retrying" | "due";
+  /** when it began to wait or run: the claim time of a job that runs, else the time it was due */
+  since: number;
+  error: string | null;
 }
 
 const defaultBackoff = (tries: number): number => Math.min(600_000, 5_000 * 2 ** Math.max(0, tries - 1));
@@ -156,6 +172,38 @@ export class ScheduleQueue {
     };
   }
 
+  /** The jobs that wait or run now, oldest first, each with why (the status a person or the health check reads). A job set for later that never failed is not waiting. */
+  waiting(): WaitingJob[] {
+    const now = this.now();
+    const rows = this.db.all(
+      "SELECT id, cap, run_at, tries, state, claimed_at, last_error FROM host_schedule WHERE state IN ('pending', 'running') ORDER BY run_at, id",
+    ) as {
+      id: string;
+      cap: string;
+      run_at: number;
+      tries: number;
+      state: string;
+      claimed_at: number | null;
+      last_error: string | null;
+    }[];
+    const out: WaitingJob[] = [];
+    for (const r of rows) {
+      const why: WaitingJob["why"] | null =
+        r.state === "running" ? "running" : r.run_at <= now ? "due" : r.tries > 0 ? "retrying" : null;
+      if (why)
+        out.push({
+          id: r.id,
+          cap: r.cap,
+          runAt: r.run_at,
+          tries: r.tries,
+          why,
+          since: r.state === "running" ? (r.claimed_at ?? r.run_at) : r.run_at,
+          error: r.last_error,
+        });
+    }
+    return out;
+  }
+
   /** Run everything due now. Returns how many jobs ran (success or failure). A tick that is still going is joined, not doubled. */
   tick(): Promise<number> {
     if (!this.ticking)
@@ -218,7 +266,7 @@ export class ScheduleQueue {
         tries: r.tries,
       };
       try {
-        await this.o.run(call);
+        await this.within(this.o.run(call));
         this.db.run("DELETE FROM host_schedule WHERE id = ?", r.id);
       } catch (e) {
         const tries = r.tries + 1;
@@ -239,9 +287,35 @@ export class ScheduleQueue {
             this.now() + (this.o.backoffMs ?? defaultBackoff)(tries),
             r.id,
           );
-        this.o.onError?.(call, e, final);
+        try {
+          this.o.onError?.(call, e, final);
+        } catch {
+          /* a hook that throws must not strand the jobs behind this one */
+        }
       }
     }
     return ran;
+  }
+
+  /** A call that has not settled by the deadline is a failure; its late result, if it ever comes, is dropped. A slot is never held by a promise that does not settle. */
+  private within(p: Promise<void>): Promise<void> {
+    const ms = this.o.deadlineMs ?? DEFAULT_DEADLINE_MS;
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const span = ms >= 60_000 ? `${Math.round(ms / 60_000)} min` : `${Math.max(1, Math.round(ms / 1000))} s`;
+        reject(new Error(`It did not finish within ${span} and was ended.`));
+      }, ms);
+      timer.unref();
+      p.then(
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        (e: unknown) => {
+          clearTimeout(timer);
+          reject(e);
+        },
+      );
+    });
   }
 }

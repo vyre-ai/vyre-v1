@@ -110,3 +110,21 @@ test("a dry run reports and plans no poll", async () => {
   assert.equal(w.scheduled.filter((s) => s.cap === "connectors.sync_poll").length, 0);
   assert.equal(w.scheduled.length, now + 1, "only the pass itself was scheduled");
 });
+
+test("a pass that cannot use the type's connection says why in plain words, not a bare 'no such connection'", async () => {
+  const gone = await setup();
+  gone.k.tx.run("DELETE FROM cn_connections");
+  const a = await gone.k.hs["connectors.sync_run"](gone.ctx, { runId: "run_2" });
+  assert.equal(a.ok, false);
+  assert.match(a.summary, /connection for person was deleted: bind it to another connection first/);
+  assert.deepEqual(gone.passes, [], "the engine was not asked");
+  const log = (await gone.k.hs["sync_types.log"](gone.ctx, { type: "person" })).entries;
+  assert.match(log[0]!.summary, /was deleted/);
+
+  const foreign = await setup();
+  foreign.k.tx.run("UPDATE cn_connections SET owner_kind = 'person', owner_id = 'usr_someone_else'");
+  const b = await foreign.k.hs["connectors.sync_run"](foreign.ctx, { runId: "run_2" });
+  assert.equal(b.ok, false);
+  assert.match(b.summary, /belongs to someone else, so this pass could not use it/);
+  assert.deepEqual(foreign.passes, []);
+});

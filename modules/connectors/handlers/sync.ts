@@ -1139,6 +1139,15 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
         if (!r) continue;
         markRunning(tx, r.connection_id, nowOf(deps));
         try {
+          // a pass says plainly why it cannot start: the connection was deleted, is paused, or belongs to someone else (the app's own "no such connection" says none of this)
+          const have = connRow(r.connection_id);
+          usable(ctx, have, r.type);
+          if (have && !visible(ctx, have))
+            refuse(
+              ctx,
+              "validation.precondition_failed",
+              `The connection for ${r.type} belongs to someone else, so this pass could not use it.`,
+            );
           const out = await engine.run(ctx, rowOf(r), {
             mode: req.mode,
             runAutomations: req.runAutomations,
