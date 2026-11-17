@@ -125,6 +125,46 @@ test("the With row opens the sheet; picks become chips and nothing is called for
   }
 });
 
+test("the Assistant alone in a new chat is a name, not a button that does nothing; with a second pick it can be removed", async () => {
+  const off = installDom();
+  publishProgress(FIRST_DAY);
+  try {
+    const { rt } = runtime([]);
+    const conv = createSample("idle");
+    const root = await mount(
+      createRoot,
+      <ResumeContext.Provider value={{ done: 3, total: 8, open: noop, pill: null }}>
+        <Landing
+          rt={rt}
+          nameOf={conv.data.nameOf}
+          kindOf={() => "agent"}
+          openChat={noop}
+          openTasks={noop}
+          openNeed={noop}
+          openProfile={noop}
+          fill={noop}
+          newKey={() => "k"}
+          say={noop}
+        />
+      </ResumeContext.Provider>,
+    );
+    const lone = find(root, "with-agt_assistant");
+    assert.ok(lone, "the Assistant is shown");
+    assert.equal(typeof lone.props.onClick, "undefined", "nothing to press: removing it would change nothing");
+    await press(find(root, "with-add"));
+    await press(find(root, "as-row-person:usr_maya"));
+    await press(find(root, "as-add"));
+    await flush();
+    assert.equal(typeof find(root, "with-agt_assistant")?.props.onClick, "function", "with someone else it can go");
+    await press(find(root, "with-agt_assistant"));
+    await flush();
+    assert.equal(find(root, "with-agt_assistant")?.props.onClick, undefined, "the Assistant is back, as the one name");
+  } finally {
+    publishProgress(null);
+    off();
+  }
+});
+
 test("what chat.start cannot take is applied to the new chat: an outside agent, a guest, a second person", async () => {
   const s = createSample("idle");
   const deps = { call: s.data.call, me: s.data.me, nameOf: s.data.nameOf, newKey: s.data.newKey, toast: s.data.toast };

@@ -29,14 +29,18 @@ export function NeedsHere({ page }: { page: string }): ReactElement | null {
   const data = useConsoleData();
   const q = useScreenQuery<Out>("console.overview", "overview", {});
   if (page === "overview" || page === "machines" || q.status !== "ready") return null;
-  const here = itemsHere(q.data.attention, page);
-  if (here.length === 0) return null;
+  const items = itemsHere(q.data.attention, page);
+  if (items.length === 0) return null;
   const now = data.clock().now;
   return (
-    <Section title="Needs you" count={here.length}>
+    <Section title="Needs you" count={items.length}>
       <Group testID="needs-here">
-        {here.map((a, i) => {
-          const note = hereNote(a, now);
+        {items.map((a, i) => {
+          // an alert whose fix is on the page a person is already on has nowhere to go: its advice is said as plain text, never a button that opens this page again
+          const target = ATTENTION_PAGE[a.kind];
+          const onThisPage = resolve(target) === resolve(page);
+          const base = hereNote(a, now);
+          const note = onThisPage ? [base, a.next].filter(Boolean).join(". ") || null : base;
           return (
             <Row
               key={`${a.kind}-${a.ref ?? i}`}
@@ -48,14 +52,14 @@ export function NeedsHere({ page }: { page: string }): ReactElement | null {
                   <Glyph name="warn" size={16} color="var(--warn)" />
                 </Lead>
               }
-              trailing={
-                <LinkButton
-                  label={a.next}
-                  onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}
-                  testID={`needs-go-${i}`}
-                />
-              }
-              onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}
+              {...(onThisPage
+                ? {}
+                : {
+                    trailing: (
+                      <LinkButton label={a.next} onPress={() => data.nav.openPage(target)} testID={`needs-go-${i}`} />
+                    ),
+                    onPress: () => data.nav.openPage(target),
+                  })}
             />
           );
         })}

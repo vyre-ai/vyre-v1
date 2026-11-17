@@ -1,0 +1,1 @@
+On the Console page a health check says what to do as plain text when the fix is that same page, instead of a button that did nothing; and the Assistant alone in a new chat is a name, not a Remove button that did nothing.

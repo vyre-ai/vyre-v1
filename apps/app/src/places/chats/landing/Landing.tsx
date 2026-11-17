@@ -368,21 +368,36 @@ export function Landing(p: LandingProps): ReactElement {
         ) : null}
         <View testID="landing-with" style={st.with}>
           <Text style={st.withWord}>With</Text>
-          {each(picked, (w) => (
-            <Pressable
-              key={w.id}
-              role="button"
-              aria-label={`Remove ${w.name}`}
-              testID={`with-${w.id}`}
-              onPress={() => setPicked((cur) => (cur.length === 1 ? [you] : cur.filter((c) => c.id !== w.id)))}
-              style={st.chip}
-            >
-              <Avatar {...avatarOf({ id: w.id, name: w.name, kind: w.kind })} size={18} />
-              <Text numberOfLines={1} style={st.chipText}>
-                {w.kind === "person" ? w.name.split(/\s+/)[0] : w.name}
-              </Text>
-            </Pressable>
-          ))}
+          {each(picked, (w) => {
+            const body = (
+              <>
+                <Avatar {...avatarOf({ id: w.id, name: w.name, kind: w.kind })} size={18} />
+                <Text numberOfLines={1} style={st.chipText}>
+                  {w.kind === "person" ? w.name.split(/\s+/)[0] : w.name}
+                </Text>
+              </>
+            );
+            // the one who is there when nobody else is picked (the Assistant, in a new chat) stays: it is a name, not a button
+            if (picked.length === 1 && w.id === you.id) {
+              return (
+                <View key={w.id} testID={`with-${w.id}`} style={st.chip}>
+                  {body}
+                </View>
+              );
+            }
+            return (
+              <Pressable
+                key={w.id}
+                role="button"
+                aria-label={`Remove ${w.name}`}
+                testID={`with-${w.id}`}
+                onPress={() => setPicked((cur) => (cur.length === 1 ? [you] : cur.filter((c) => c.id !== w.id)))}
+                style={st.chip}
+              >
+                {body}
+              </Pressable>
+            );
+          })}
           {each(extras, (h) => (
             <Pressable
               key={h.key}
