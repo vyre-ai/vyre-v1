@@ -1,0 +1,1 @@
+- The Space switcher walk no longer fails when the page closes before a refused response's body is read; the log line is dropped instead.
