@@ -75,6 +75,8 @@ export interface ReadQuery {
   before?: number;
   /** exact type or `noun.*` */
   type?: string;
+  /** any of these exact types (a consumer reads only the events it handles) */
+  types?: readonly string[];
   entity?: string;
   entity_id?: string;
   run_id?: string;

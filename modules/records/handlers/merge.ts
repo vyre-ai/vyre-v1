@@ -23,7 +23,7 @@ import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { FieldDef, Filter, Store, StoredRecord, TypeDef } from "../../../kernel/src/store/types.ts";
 import { RecordsError, fail, mapError, toRow } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
-import { MAX_LIMIT, ensureMatchIndex, findRows } from "./query.ts";
+import { MAX_LIMIT, ensureMatchIndex, findRows, warmSearch } from "./query.ts";
 import type { ViewSpec } from "./query.ts";
 
 export const UNDO_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -674,6 +674,7 @@ async function upsert(
     skip?: boolean;
   }
   const plans = new Map<string, Plan>();
+  warmSearch(tx, input.type);
   if (!createOnly) ensureMatchIndex(tx, input.type, input.match);
   for (let i = 0; i < input.rows.length; i++) {
     const row = input.rows[i];

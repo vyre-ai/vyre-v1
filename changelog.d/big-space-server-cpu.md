@@ -1,0 +1,1 @@
+A server holding tens of thousands of records stays quick: the first search of a type no longer builds its index while a person waits, a record type is read on its own instead of every type being read for each change, and each background consumer reads only the events it handles, so the server settles after a sync in seconds instead of minutes.

@@ -242,6 +242,11 @@ export class LogStore {
         args.push(q.type);
       }
     }
+    if (q.types) {
+      if (q.types.length === 0) return [];
+      where.push(`type IN (${q.types.map(() => "?").join(", ")})`);
+      args.push(...q.types);
+    }
     for (const k of ["entity", "entity_id", "run_id", "trace_id"] as const)
       if (q[k] !== undefined) {
         where.push(`${k} = ?`);

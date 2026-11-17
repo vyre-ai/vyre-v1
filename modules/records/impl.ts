@@ -15,7 +15,14 @@ import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 import { perSpaceStore } from "../../host/src/daemon/store.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
-import { createQueryHandlers, createRecordsHandlers, mapError, RecordsError, toRow } from "./handlers/index.ts";
+import {
+  createQueryHandlers,
+  createRecordsHandlers,
+  mapError,
+  RecordsError,
+  toRow,
+  warmSearch,
+} from "./handlers/index.ts";
 import type { QueryHandlers, RecordRow, WriteCtx, WriteHandlers } from "./handlers/index.ts";
 import { fieldMetaTable, historyText, recordsFieldMeta } from "./projections.ts";
 import { createHistoryHandlers } from "./handlers/history.ts";
@@ -600,6 +607,26 @@ export const handlers: LiveRecordsHandlers = withReversals(
   ) as unknown as LiveRecordsHandlers,
   REVERSALS,
 );
+
+/**
+ * At boot and every ten minutes: every type has its full text index, so the first search of a type that was filled before the index existed does not build it while a person waits.
+ * A type with no index and many rows is built here, one type at a time, between other work.
+ */
+export const periodic = {
+  "records.search_warm": {
+    everyMs: 10 * 60_000,
+    immediate: true,
+    async run(ctx: unknown): Promise<number> {
+      const h = live(ctx as { db?: unknown });
+      let n = 0;
+      for (const def of await h.store.types()) {
+        warmSearch(h.host.tx, def.name);
+        n++;
+      }
+      return n;
+    },
+  },
+};
 
 /** The site tables (P-L3_ST): the sites module announces a table, this module makes the record type. The host runs it once per event after commit (ruling 32). */
 export const consumers = {
