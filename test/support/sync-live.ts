@@ -18,6 +18,8 @@ export const DOMAIN = "api.crmapp.example";
 export interface AppOptions {
   /** This many more people, after the two, with no secret (a pull of thousands). */
   bulk?: number;
+  /** This many rows in each of matters, contacts and companies (default 2). */
+  big?: number;
   /** The Nth list request for people fails once: with a 500, or by dropping the connection. */
   failOnce?: { at: number; mode: "500" | "drop" };
   /** `times` requests for this path, after the first `skip` ones, never get an answer (the field fault of 17 Nov: a call that hangs and never fails). */
@@ -55,7 +57,12 @@ export function app(seen: { keys: string[]; urls: string[] }, opts: AppOptions =
       attributes: { name: `Bulk ${i}`, social_security: "", custom_field_values: {}, custom_fields: [] },
     } as never);
   const named = (kind: string) =>
-    [1, 2].map((id) => ({ id, name: `${kind} ${id}`, extra: `extra ${kind} ${id}`, contact_id: id }));
+    Array.from({ length: opts.big ?? 2 }, (_, i) => i + 1).map((id) => ({
+      id,
+      name: `${kind} ${id}`,
+      extra: `extra ${kind} ${id}`,
+      contact_id: id,
+    }));
   const notes = [
     { id: 1, text: "note a", kind: "prospect", target_id: 1 },
     { id: 2, text: "note b", kind: "contact", target_id: 1 },

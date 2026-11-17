@@ -1,0 +1,1 @@
+A first pull of many records no longer ends with "There is no such connection" when the connection is there: the pass waits a moment and asks again, and says plainly if the connection is someone else's or could not be used just then.
