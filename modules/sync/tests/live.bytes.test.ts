@@ -141,16 +141,18 @@ test("a web page skips the history it never keeps, and gets every later change w
   const d = device(rig, "web");
   await settle();
   await d.ack();
-  assert.equal(d.evs().length, 0, "nothing of the 1.2 MB history is sent on opening");
+  assert.equal(d.evs().length, 1, "one empty frame on opening, at the head, so the page's cursor is current");
+  assert.equal(d.evs()[0]!.items.length, 0, "and nothing of the 1.2 MB history");
+  assert.ok(d.evs()[0]!.seq >= 40);
   rig.row("later");
   rig.hub.commit();
   await settle();
-  assert.equal(d.evs().length, 1, "one frame for the change after");
+  assert.equal(d.evs().length, 2, "one frame for the change after");
   assert.deepEqual(
-    d.evs()[0]!.items.map((c) => c.id),
+    d.evs()[1]!.items.map((c) => c.id),
     ["later"],
     "and it carries the row, so the open screen shows it live",
   );
-  assert.ok(d.evs()[0]!.seq > 40);
+  assert.ok(d.evs()[1]!.seq > d.evs()[0]!.seq);
   rig.hub.close();
 });

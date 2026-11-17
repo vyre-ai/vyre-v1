@@ -95,6 +95,8 @@ export function createLiveHub(d: LiveDeps): LiveHub {
     let hinted = false;
     // a web page keeps no copy of rows: it starts at the head (see hello) and is sent only what changes after
     let tick = who.deviceClass === "web";
+    // the newest seq this device was sent in an ev frame: a web page re-reads on each one, so it must hear of every change, even one with no row it can see
+    let told = 0;
     // the stream waits here for a change with a field heavier than any frame, until the device has pulled it
     let blockedAt = 0;
     let lastRx = d.clock.now();
@@ -191,6 +193,7 @@ export function createLiveHub(d: LiveDeps): LiveHub {
       for (const f of frames) {
         send({ t: "ev", seq: f.seq, items: f.items, ...(f.hide ? { hide: f.hide } : {}) });
         inflight.push(f.seq);
+        told = Math.max(told, f.seq);
       }
       return stuck;
     }
@@ -232,6 +235,17 @@ export function createLiveHub(d: LiveDeps): LiveHub {
         hinted = true;
         send({ t: "pull_hint", seq: d.head() });
       }
+      // a web page re-reads what is on screen on every ev: a change that carried no row it can see (an agent paused, an access grant) still moves
+      // the Space, so it is told with an empty frame at the head (17 Nov 2026: without it the Console never showed "Agent paused")
+      if (tick && !stalled) {
+        const head = d.head();
+        if (head > told && inflight.length < window) {
+          send({ t: "ev", seq: head, items: [] });
+          inflight.push(head);
+          told = head;
+          sent = Math.max(sent, head);
+        }
+      }
     }
 
     function hello(h: Hello): void {
@@ -256,6 +270,13 @@ export function createLiveHub(d: LiveDeps): LiveHub {
       // on a big Space; the first fix sent it no rows at all, which stopped records from appearing live on the open screen.)
       sent = tick ? Math.max(h.cursor, d.head()) : h.cursor;
       acked = tick ? sent : h.cursor;
+      told = sent;
+      // ...and is told where the head is at once, so its own cursor is current: a page left at its old cursor while the heartbeat names a later
+      // head believes it is behind for ever and stays "Reconnecting" (17 Nov 2026, caught by the click checker and the Console walks)
+      if (tick && sent > h.cursor) {
+        send({ t: "ev", seq: sent, items: [] });
+        inflight.push(sent);
+      }
       inflight = [];
       hinted = false;
       blockedAt = 0;
