@@ -412,12 +412,44 @@ export async function runChecks(ctx: HealthCtx, defs: readonly HealthDef[], only
   const rows: CheckRow[] = [];
   const transitions: Transition[] = [];
   const now = ctx.now();
-  for (const def of orderDefs(defs)) {
-    if (only !== undefined && def.key !== only) continue;
+  // Checks that wait on nothing still waiting are asked together (each one is a probe of its own: a process, a file, a socket), so the doctor takes the slowest of a layer, not the sum of all of them.
+  // A check is asked only after every check it depends on has its answer, and the answers are written in the same order as before.
+  const ordered = orderDefs(defs).filter((d) => only === undefined || d.key === only);
+  const layerOf = new Map<string, number>();
+  for (const d of ordered)
+    layerOf.set(d.key, Math.max(-1, ...(d.dependsOn ?? []).map((k) => layerOf.get(k) ?? -1)) + 1);
+  const asked = new Map<string, Promise<Outcome>>();
+  const ask = (def: HealthDef): Promise<Outcome> => {
+    let p = asked.get(def.key);
+    if (!p) {
+      p = evaluate(ctx, def);
+      asked.set(def.key, p);
+    }
+    return p;
+  };
+  const results = new Map<string, Outcome>();
+  const layers = [...new Set(layerOf.values())].sort((a, b) => a - b);
+  const state = new Map<string, State>();
+  for (const l of layers) {
+    const here = ordered.filter((d) => layerOf.get(d.key) === l);
+    const live = here.filter(
+      (def) => !(def.dependsOn ?? []).some((k) => (state.get(k) ?? known.get(k)?.state) === "down"),
+    );
+    await Promise.all(
+      live.map(async (def) => {
+        results.set(def.key, await ask(def));
+      }),
+    );
+    for (const def of here) {
+      const r = results.get(def.key);
+      if (r) state.set(def.key, r.state);
+    }
+  }
+  for (const def of ordered) {
     const blocked = (def.dependsOn ?? []).map((k) => ({ k, s: known.get(k) })).find((d) => d.s?.state === "down");
     const out: Outcome = blocked
       ? { state: "down", detail: `Waiting on ${blocked.s?.title ?? blocked.k}.` }
-      : await evaluate(ctx, def);
+      : (results.get(def.key) ?? (await ask(def)));
     const prev = known.get(def.key);
     const since = prev && prev.state === out.state ? prev.since : now;
     ctx.db.run(

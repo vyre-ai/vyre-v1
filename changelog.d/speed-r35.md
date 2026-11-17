@@ -1,0 +1,1 @@
+- A server of a firm-size Space (140,000 records) starts in about 9 seconds instead of 140, answering while it indexes in the background; the doctor in Console runs its checks together and answers in about 0.3 s.

@@ -1,0 +1,1 @@
+Scrolling, exporting or reading a long list of records no longer fails with "Access changed while reading" while a sync or an import is adding records; the read waits for new records to settle, leaves out only records that are gone or no longer yours, and a page is never answered with rows silently missing.

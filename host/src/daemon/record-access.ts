@@ -8,7 +8,9 @@ import type { Filter, Sort } from "../../../kernel/src/store/types.ts";
 
 type ReadSeed = CtxSeed & { readCap?: string; readInput?: unknown; labels?: Readonly<Record<string, number>> };
 const READS = new Set(["records.get", "records.query", "records.search", "records.history", "records.activity"]);
-const RETRY_MS = [0, 40, 120];
+// How long a read waits, at most, for the access snapshot to learn of records it has just read (a record shows in the store a moment before its access entry is folded, and a busy Space folds slowly). The
+// waits add up to about 3 s and cost nothing when the snapshot already knows every row.
+const SETTLE_MS: readonly number[] = [0, 40, 120, 250, 500, 1000, 1000];
 const object = (value: unknown): Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 export function createRecordAccess(ports: {
@@ -17,6 +19,8 @@ export function createRecordAccess(ports: {
   now(): number;
   fresh(): boolean;
   refresh?(): Promise<void>;
+  /** The waits between folds (ms) when a read finds rows the snapshot does not know yet; tests shorten them. */
+  settleMs?: readonly number[];
   warn?(info: {
     cap: string;
     type: string;
@@ -157,6 +161,28 @@ export function createRecordAccess(ports: {
     };
     visit(value);
     return output;
+  }
+  /**
+   * True when the snapshot is current and knows every one of these records. When it does not, fold what is pending and look again, waiting a little longer each time, up to the bound
+   * (a record is in the store a moment before its access entry is folded, and a Space under a bulk write folds slowly). A record that is still unknown after the bound is not shown.
+   */
+  async function settle(ids: readonly string[]): Promise<boolean> {
+    const lacking = () => !ports.fresh() || ids.some((id) => !ports.snapshot().resource(id));
+    if (!lacking()) return true;
+    if (!ports.refresh) return false;
+    const waits = ports.settleMs ?? SETTLE_MS;
+    for (const wait of waits) {
+      await ports.refresh();
+      if (!lacking()) return true;
+      await new Promise((done) => setTimeout(done, wait));
+    }
+    await ports.refresh();
+    return !lacking();
+  }
+  function stale(trace: string) {
+    return fail("internal.unavailable", trace, {
+      message: "Access is being refreshed. Try again in a moment.",
+    });
   }
   function decision(seed: ReadSeed, row: StoredRecord) {
     const snapshot = ports.snapshot();
@@ -313,6 +339,7 @@ export function createRecordAccess(ports: {
           : [];
       const rows: StoredRecord[] = [];
       let scanned = 0;
+      let gaveUp = false;
       do {
         const before = cursor;
         const page = await ports.store().query(type, {
@@ -324,6 +351,9 @@ export function createRecordAccess(ports: {
         const row = page.rows[0];
         cursor = page.next_cursor;
         scanned++;
+        // a row the snapshot does not know yet is waited for once, not skipped: a skipped row would be missing from every later page. After one wait that found nothing, the rest of this read does not wait again.
+        if (row && !gaveUp && !(await settle([row.id]))) gaveUp = ports.fresh();
+        if (row && !ports.fresh()) throw stale(trace);
         if (row && decision(seed, row)) {
           const visible = fields(seed, row, row.data, trace);
           const sortable = touched.every(
@@ -528,17 +558,15 @@ export function createRecordAccess(ports: {
             }
             return [{ ...original, fields: visible }];
           });
-        // A row the read returned may belong to a record this Space wrote a moment ago (a run, a hook) whose access entry is not in the snapshot yet: the record row can be visible a little before its
-        // access event is logged and folded. Fold what is pending, wait a short, bounded moment and read again (reading the stored rows afresh) before calling it a change of access. A real change, such as
-        // a grant taken away or a record removed, stays refused after the last read.
+        // A row the read returned may belong to a record this Space wrote a moment ago (a run, a hook, a sync) whose access entry is not in the snapshot yet: the record is visible a little before its access
+        // event is folded. Wait for the fold, a bounded while (settle), reading the stored rows afresh each time, before judging the page. After that, a row that is not shown is one that is no longer there or
+        // one this person may no longer see: it is left out and the rest of the page is answered (the page is never refused for it, and nothing is shown that the snapshot does not allow).
         let rows = read();
-        for (
-          let attempt = 0;
-          attempt < RETRY_MS.length && rows.length !== originals.length && ports.refresh;
-          attempt++
-        ) {
-          await ports.refresh();
-          await new Promise((done) => setTimeout(done, RETRY_MS[attempt]));
+        if (rows.length !== originals.length) {
+          const known = originals.flatMap((row, index) =>
+            stored[index] && typeof row["id"] === "string" ? [row["id"]] : [],
+          );
+          await settle(known);
           const again = await Promise.all(
             originals.map((row) =>
               typeof row["id"] === "string" ? ports.store().get(type, row["id"]) : Promise.resolve(null),
@@ -549,6 +577,8 @@ export function createRecordAccess(ports: {
           });
           rows = read();
         }
+        // a snapshot that could not be brought up to date cannot say what is visible: refuse the read (it can be asked again) instead of answering a page with rows missing
+        if (rows.length !== originals.length && !ports.fresh()) throw stale(trace);
         if (rows.length !== originals.length && ports.warn) {
           const kept = new Set(rows.map((row) => String(object(row)["id"])));
           ports.warn({
@@ -567,10 +597,6 @@ export function createRecordAccess(ports: {
           if (!rows[0]) throw fail("permission.no_grant", trace);
           return { ...result, record: rows[0] };
         }
-        if (rows.length !== originals.length)
-          throw fail("validation.precondition_failed", trace, {
-            message: "Access changed while reading. Refresh the list.",
-          });
         const { total: _total, ...rest } = result;
         return { ...rest, rows };
       };

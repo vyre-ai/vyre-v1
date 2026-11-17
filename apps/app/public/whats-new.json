@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0-rc.34",
+  "version": "1.0.0-rc.35",
   "lines": [
+    "A server holding tens of thousands of records starts in seconds instead of minutes, and the Console's health page answers at once.",
+    "Reading a long list while a sync writes no longer fails with Access changed; the page waits a moment for the new records.",
+    "The Console's health page and a new chat no longer show buttons that do nothing.",
     "A Space with tens of thousands of records opens at once, and search, records, Files and chat answer in milliseconds.",
-    "A Space reached at its vyre.run address stays connected whatever it holds, and a lost connection comes back calmly.",
     "Send a PDF for signature with no outside service. The signer needs no account, and the signed copy is sealed.",
-    "Sync an outside app into Records: tables linked both ways, sealed fields for numbers like an SSN, and syncs that recover.",
-    "Switching to a tab you have been on shows it at once, and every place has the same sidebar with Hide and Expand.",
-    "Automations: Allow or Deny what waits for you, wait for an event, pick files and records by name, and a menu on every row."
+    "Sync an outside app into Records: tables linked both ways, sealed fields for numbers like an SSN, and syncs that recover."
   ]
 }

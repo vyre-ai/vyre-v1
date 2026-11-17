@@ -176,15 +176,50 @@ export function filterOf(v: TableViewState, titleField: string): unknown {
   return all.length === 0 ? undefined : all.length === 1 ? all[0] : { and: all };
 }
 
+/**
+ * The fields of the rows a table needs for the columns it draws. A type of a hundred fields sent every one of them with each 200 rows (630 KB, parsed in one task); the table draws about eight
+ * columns. Asked for: the title, the columns in the window widened to blocks of eight with a block each side (a small horizontal scroll asks nothing new), what a formula reads, what a lookup
+ * goes through, and what the view sorts, groups, colours and filters by, and the people fields the Filter menu lists.
+ */
+export function fieldsFor(
+  def: TypeDef,
+  cols: readonly Column[],
+  win: { from: number; to: number },
+  v: TableViewState,
+): string[] {
+  const BLOCK = 8;
+  const lo = Math.max(0, Math.floor(win.from / BLOCK) * BLOCK - BLOCK),
+    hi = Math.min(cols.length, Math.ceil(win.to / BLOCK) * BLOCK + BLOCK);
+  const keys = new Set<string>([def.titleField]);
+  const known = new Set(def.fields.map((f) => f.key));
+  const add = (k: unknown): void => {
+    if (typeof k === "string" && known.has(k)) keys.add(k);
+  };
+  for (const c of cols.slice(lo, hi)) {
+    add(c.field.key);
+    const o = (c.field as { options?: { expr?: unknown; via?: unknown } }).options;
+    if (typeof o?.expr === "string") for (const id of o.expr.match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? []) add(id);
+    add(o?.via);
+  }
+  for (const s of v.sort) add(s.field);
+  add(v.group);
+  add(v.colour);
+  for (const c of v.clauses) add(c.field);
+  for (const f of def.fields) if (f.type === "person") add(f.key);
+  return [...keys].sort();
+}
+
 export function querySpec(
   type: string,
   v: TableViewState,
   titleField: string,
   offset: number,
+  fields?: readonly string[],
 ): CapMap["records.query"]["in"] {
   const filter = filterOf(v, titleField);
   return {
     type,
+    ...(fields ? { fields: [...fields] } : {}),
     ...(filter === undefined ? {} : { filter }),
     ...(v.sort.length ? { sort: v.sort.map((s) => ({ ...s })) } : {}),
     ...(v.group ? { group: v.group } : {}),
