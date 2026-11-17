@@ -12,7 +12,6 @@ import { bootFreshSpace, claimOnEdge, dismissOnboarding, edge } from "../apps/ap
 
 const FULL = process.env["VYRE_PERF_FULL"] === "1";
 const BUDGET = { usableMs: 2000, tableMs: 800, recordMs: 300, searchMs: 300, reportMs: 5000, longTaskMs: 50 } as const;
-const med = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
 
 test("a big Space: first usable, the table, a record, search and Report a problem inside their budgets", async (t) => {
   const env = await browserOrSkip();
@@ -114,7 +113,7 @@ test("a big Space: first usable, the table, a record, search and Report a proble
       `the sidebar counts every matter: ${count}`,
     );
 
-    // 3. a scroll down the table: no long task. Three passes, judged by the median of each pass's longest task, as the record is judged by the median of three opens: one pass that a busy computer starved is not the table
+    // 3. a scroll down the table: no long task on any pass
     const scroller = page.getByTestId("records-scroll");
     const longest: number[] = [];
     for (let pass = 0; pass < 3; pass++) {
@@ -128,12 +127,11 @@ test("a big Space: first usable, the table, a record, search and Report a proble
       longest.push(Math.max(0, ...tasks));
       await scroller.evaluate((e) => ((e as HTMLElement).scrollTop = 0));
     }
-    seen["scrollLongestMs"] = med(longest);
     seen["scrollPasses"] = longest.join(",");
-    assert.equal(
-      med(longest),
-      0,
-      `scrolling the table ran a long task in most passes: ${longest.join(", ")} ms (a long task is over ${BUDGET.longTaskMs} ms)`,
+    assert.deepEqual(
+      longest,
+      [0, 0, 0],
+      `a scroll pass ran a long task (over ${BUDGET.longTaskMs} ms): ${longest.join(", ")} ms`,
     );
 
     // 4. one record: from the press on its open button to the record's page
@@ -187,7 +185,7 @@ test("a big Space: first usable, the table, a record, search and Report a proble
       await page.goto(web.origin + "/records", { waitUntil: "commit" });
       await page.getByTestId("row-nav:type:matter").click();
     }
-    seen["recordMs"] = med(opens);
+    seen["recordMs"] = Math.max(...opens);
     assert.ok(
       Number(seen["recordMs"]) <= BUDGET.recordMs,
       `opening a record ${opens.join(", ")} ms over ${BUDGET.recordMs}`,
