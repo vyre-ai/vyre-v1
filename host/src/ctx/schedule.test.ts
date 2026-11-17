@@ -291,3 +291,30 @@ test("waiting() names each due job that has not started and why", async () => {
     ["mail.later", "due"],
   ]);
 });
+
+test("ctx.schedule `as`: only the server's own jobs may schedule as a person, that person must be allowed to run it, and the job then runs as them", async () => {
+  const db: RawDb = openRecordStore({ path: ":memory:", space: "sp_sched_as" }).host.tx;
+  const ran: ScheduledCall[] = [];
+  const q = new ScheduleQueue({
+    db,
+    now: () => T0,
+    run: async (c) => {
+      ran.push(c);
+    },
+    mayRunAs: (p) => (p === "usr_gone" ? "Syncing is paused: Gone set this up and can no longer run it." : null),
+  });
+  const server: ScheduleSeed = { space: "spc_1", principal: { kind: "service", id: "svc_host" } };
+  await q.forCtx(server)(T0, "connectors.sync_now", { a: 1 }, { as: "usr_dana" });
+  await assert.rejects(q.forCtx(server)(T0, "connectors.sync_now", {}, { as: "usr_gone" }), (e) =>
+    (e as HostError).error.message.startsWith("Syncing is paused: Gone"),
+  );
+  await assert.rejects(
+    q.forCtx(server)(T0, "connectors.sync_now", {}, { as: "svc_host" }),
+    bad("validation.bad_input"),
+  );
+  await assert.rejects(q.forCtx(seed)(T0, "connectors.sync_now", {}, { as: "usr_boss" }), bad("permission.no_grant"));
+  await q.tick();
+  assert.equal(ran.length, 1);
+  assert.deepEqual(ran[0]!.principal, { kind: "person", id: "usr_dana" });
+  assert.equal(ran[0]!.actingFor, undefined);
+});

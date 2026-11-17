@@ -84,6 +84,8 @@ export interface CadenceDeps {
   tx: Tx;
   now: () => number;
   call: (cap: string, input: unknown) => Promise<unknown>;
+  /** The server's own way to run a capability later as a person (ctx.schedule with `as`). Absent in tests, where the pass is asked for through `call`. */
+  schedule?: (at: number | string, cap: string, input: unknown, opts?: { as?: string }) => Promise<string>;
 }
 export interface Due {
   syncTypeId: string;
@@ -154,18 +156,44 @@ export function dueSyncs(d: Pick<CadenceDeps, "tx" | "now">): Due[] {
 }
 
 /** Starts one pass for each due type. A refusal for one type counts as a failure for it (so it backs off) and does not stop the others. */
+/** The person a synced type's passes run for: who applied the spec of its connector, else who made the type. Never the server itself. */
+export function runsFor(tx: Tx, syncTypeId: string): string | undefined {
+  const row = tx.get<{ by: string | null; made: string | null }>(
+    `SELECT (SELECT s.applied_by FROM cn_sync_specs s WHERE s.connector = t.connector) AS by, t.created_by AS made FROM cn_synced_types t WHERE t.sync_type_id = ?`,
+    syncTypeId,
+  );
+  return [row?.by, row?.made].find((x): x is string => typeof x === "string" && /^usr_[a-z0-9]+$/.test(x));
+}
+
+/** Starts one pass for each due type. A refusal for one type counts as a failure for it (so it backs off) and does not stop the others. */
 export async function runCadence(
   d: CadenceDeps,
   log?: { warn?(msg: string, attrs?: Record<string, unknown>): void },
 ): Promise<Due[]> {
   const started: Due[] = [];
   for (const due of dueSyncs(d)) {
+    const input = {
+      syncTypeId: due.syncTypeId,
+      mode: "incremental",
+      idempotencyKey: `cadence:${due.syncTypeId}:${due.slot}`,
+    };
     try {
-      await d.call("connectors.sync_now", {
-        syncTypeId: due.syncTypeId,
-        mode: "incremental",
-        idempotencyKey: `cadence:${due.syncTypeId}:${due.slot}`,
-      });
+      if (d.schedule) {
+        // the pass runs as the person who set the sync up, as every pass of the type does; the server never runs it as itself
+        const person = runsFor(d.tx, due.syncTypeId);
+        if (person === undefined)
+          throw plain("Syncing is paused: nobody who can run it set this up. An admin can take it over.");
+        markRunning(d.tx, due.connectionId, d.now());
+        try {
+          await d.schedule(d.now(), "connectors.sync_now", input, { as: person });
+        } catch (e) {
+          // the server says in plain words why that person cannot run it (who set it up, and that an admin can take it over)
+          const message = (e as { error?: { message?: string } })?.error?.message;
+          throw plain(
+            message ?? "Syncing is paused: the person who set this up can no longer run it. An admin can take it over.",
+          );
+        }
+      } else await d.call("connectors.sync_now", input);
       started.push(due);
     } catch (e) {
       clearRunning(d.tx, due.connectionId);
@@ -180,11 +208,19 @@ export async function runCadence(
         false,
         d.now(),
       );
-      log?.warn?.("connectors: a scheduled sync could not start", {
-        type: due.type,
-        error: e instanceof Error ? e.message : String((e as { error?: { message?: string } })?.error?.message ?? e),
-      });
+      const said =
+        e instanceof Error ? e.message : String((e as { error?: { message?: string } })?.error?.message ?? e);
+      if (hasTable(d.tx, "sy_log"))
+        d.tx.run(
+          "INSERT INTO sy_log (sync_type, at, kind, summary, run_id, trace_id) VALUES (?, ?, 'error', ?, NULL, NULL)",
+          due.syncTypeId,
+          d.now(),
+          said.slice(0, 300),
+        );
+      log?.warn?.("connectors: a scheduled sync could not start", { type: due.type, error: said });
     }
   }
   return started;
 }
+
+const plain = (message: string): Error => new Error(message);

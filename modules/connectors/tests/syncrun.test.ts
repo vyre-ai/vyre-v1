@@ -14,15 +14,20 @@ async function setup() {
   const w = world();
   w.k.tx.exec(SOURCES_SQL);
   const passes: { type: string; mode: string }[] = [];
-  const state: { fail?: string; summary: string } = { summary: "Will create 4 records here." };
+  const state: { fail?: string; noConn?: number; summary: string } = { summary: "Will create 4 records here." };
   const engine = {
     run: async (_c, b, o): Promise<RunReport> => {
       passes.push({ type: b.type, mode: o.mode });
+      if (state.noConn) {
+        state.noConn--;
+        throw { error: { code: "validation.not_found", message: "There is no such connection." } };
+      }
       if (state.fail) throw { error: { code: "provider.unavailable", message: state.fail } };
       return { summary: state.summary, pulled: 4, pushed: 0, skipped: 0, conflicts: 0, dryRun: o.mode === "dry_run" };
     },
   } as unknown as SyncEngine;
   w.k.deps.engine = engine;
+  w.k.deps.missingWaitsMs = [0, 0, 0];
   const scheduled: { at: number | string; cap: string; input: any }[] = [];
   const ctx: ConnectorsCtx = {
     ...w.ctx,
@@ -127,4 +132,35 @@ test("a pass that cannot use the type's connection says why in plain words, not 
   assert.equal(b.ok, false);
   assert.match(b.summary, /belongs to someone else, so this pass could not use it/);
   assert.deepEqual(foreign.passes, []);
+});
+
+test("a pass told 'no such connection' for a connection that exists waits and asks again; it never ends as a missing connection", async () => {
+  const brief = await setup();
+  brief.state.noConn = 2;
+  const ok = await brief.k.hs["connectors.sync_run"](brief.ctx, { runId: "run_2" });
+  assert.equal(ok.ok, true, "the refusal was for a moment; the third ask went through");
+  assert.equal(brief.passes.length, 3);
+  const stuck = await setup();
+  stuck.state.noConn = 99;
+  const run = await stuck.k.hs["connectors.sync_run"](stuck.ctx, { runId: "run_2" });
+  assert.equal(run.ok, false);
+  assert.match(run.summary, /connection for person is there, but this pass could not use it just now/);
+  assert.doesNotMatch(run.summary, /no such connection/i);
+  assert.equal(stuck.passes.length, 4, "the first ask and three more");
+  const poll = await stuck.k.hs["connectors.sync_poll"](stuck.ctx, { type: "person" });
+  assert.equal(poll.ran, false);
+  const log = (await stuck.k.hs["sync_types.log"](stuck.ctx, { type: "person" })).entries;
+  assert.doesNotMatch(log[0]!.summary, /no such connection/i);
+});
+
+test("a pass for a person's connection that someone else runs says the connection belongs to someone else", async () => {
+  const w = await setup();
+  w.state.noConn = 99;
+  w.k.tx.run("UPDATE cn_connections SET owner_kind = 'person', owner_id = 'usr_other'");
+  const other = { ...w.ctx, actor: "usr_me" } as ConnectorsCtx;
+  const poll = await w.k.hs["connectors.sync_poll"](other, { type: "person" });
+  assert.equal(poll.ran, false);
+  const log = (await w.k.hs["sync_types.log"]({ ...w.ctx, actor: "usr_other" } as ConnectorsCtx, { type: "person" }))
+    .entries;
+  assert.match(log[0]!.summary, /belongs to someone else/);
 });
