@@ -36,7 +36,7 @@
   {"file": "host/tests/daemon.boot.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the full daemon on the seeded Space three times; 14-22 s on loaded runners"},
   {"file": "host/tests/live.l6.test.ts", "capSec": 120, "owner": "L6", "reason": "boots the daemon with every L6 module live; about 15 s"},
   {"file": "host/tests/webhooks.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon and a local webhook receiver with retries"},
-  {"file": "test/bigspace.perf.test.ts", "capSec": 600, "owner": "r34-bigspace", "reason": "a firm-size Space through the relay with its speed budgets (live, consumer catch-up, table, record, search, post); a speed number counts only on the v1-perf runners (ruling 46)", "perf": true},
+  {"file": "test/bigspace.perf.test.ts", "capSec": 120, "owner": "r34-bigspace", "reason": "a firm-size Space through the relay with its speed budgets (live, consumer catch-up, table, record, search, post); a speed number counts only on the v1-perf runners (ruling 46)", "perf": true},
   {"file": "modules/records/tests/write.perf.test.ts", "capSec": 120, "owner": "L3", "reason": "p95 write budget; measured in the slow shard, away from parallel fast files", "perf": true},
   {"file": "host/tests/store.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon twice on the seeded Space to prove the data modules keep records across a restart"},
   {"file": "host/tests/syncengine.live.test.ts", "capSec": 120, "owner": "L7b", "reason": "boots the daemon on the seeded Space and runs the sync engine against a fake connector"},
