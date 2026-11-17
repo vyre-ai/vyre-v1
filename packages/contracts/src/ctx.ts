@@ -131,7 +131,11 @@ export interface Ctx {
     init?: { method?: string; headers?: Record<string, string>; body?: string },
   ) => Promise<{ status: number; text(): Promise<string> }>;
   log: Logger;
-  schedule(at: number | string, cap: CapName, input: unknown): Promise<string>;
+  /**
+   * Run a capability later as the principal that asks. `as` (a person's id) is for the server's own jobs only: the job then runs as that person, whose right to act is checked when it is
+   * scheduled and again when it runs; any other caller, and a person who is not active or may not manage connectors, is refused.
+   */
+  schedule(at: number | string, cap: CapName, input: unknown, opts?: { as?: string }): Promise<string>;
   seal: { seal(v: Uint8Array, scope: string): Sealed; unseal(s: Sealed): Uint8Array };
   /** Present on a booted daemon; a hand-built test ctx may omit it. */
   blobs?: Blobs;

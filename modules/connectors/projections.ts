@@ -225,7 +225,7 @@ export interface ConnectorsCtx {
     /** The Retry-After response header, when the app sent one (seconds or an HTTP date). */ retryAfter?: string;
   }>;
   /** Run a capability later as the person who asked (ctx.schedule). Absent in tests, where a pass is run by calling the capability. */
-  schedule?(at: number | string, cap: string, input: unknown): Promise<string>;
+  schedule?(at: number | string, cap: string, input: unknown, opts?: { as?: string }): Promise<string>;
   log?: {
     info(msg: string, attrs?: Record<string, unknown>): void;
     warn(msg: string, attrs?: Record<string, unknown>): void;

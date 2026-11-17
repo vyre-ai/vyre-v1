@@ -73,7 +73,7 @@ type HostCtx = Omit<ConnectorsCtx, "actor"> & {
   ): { effect: string };
   rememberVaultItem?(id: string): void;
   assertAuthorized?(): void;
-  schedule?(at: number | string, cap: string, input: unknown): Promise<string>;
+  schedule?(at: number | string, cap: string, input: unknown, opts?: { as?: string }): Promise<string>;
   space: string;
   principal: { kind: string; id: string };
   actingFor?: string;
@@ -230,7 +230,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
         return carries ? refuse(cc, "permission.no_grant", NO_PORT) : ctx.http(url, init);
       },
       ...(ctx.log ? { log: ctx.log } : {}),
-      ...(ctx.schedule ? { schedule: (at, cap, input) => ctx.schedule!(at, cap, input) } : {}),
+      ...(ctx.schedule ? { schedule: (at, cap, input, opts) => ctx.schedule!(at, cap, input, opts) } : {}),
       ...((ctx.actingFor ?? ctx.principal?.id) ? { actor: ctx.actingFor ?? ctx.principal!.id } : {}),
       callerKind: ctx.principal?.kind,
       trusted: isTrustedService(ctx.principal),
@@ -454,10 +454,15 @@ export { dueSyncs, runCadence } from "./handlers/cadence.ts";
 export const periodic = {
   "connectors.cadence": {
     everyMs: 30_000,
-    run: async (ctx: Pick<HostCtx, "call" | "log"> & { db?: unknown }): Promise<void> => {
+    run: async (ctx: Pick<HostCtx, "call" | "log" | "schedule"> & { db?: unknown }): Promise<void> => {
       const h = live(ctx);
       await runCadence(
-        { tx: h.tx, now: h.deps.now ?? Date.now, call: (cap, input) => ctx.call(cap, input) },
+        {
+          tx: h.tx,
+          now: h.deps.now ?? Date.now,
+          call: (cap, input) => ctx.call(cap, input),
+          ...(ctx.schedule ? { schedule: (at, cap, input, opts) => ctx.schedule!(at, cap, input, opts) } : {}),
+        },
         { warn: (msg, attrs) => ctx.log?.warn(msg, attrs) },
       );
     },

@@ -641,19 +641,3 @@ test("mark_working: a member who may not manage the Space cannot call a failing 
   const job = { ...k.mk("svc_host"), trusted: true, canManageSpace: () => false };
   assert.equal((await k.hs["connections.mark_working"](job, { connectionId: made.connectionId })).state, "active");
 });
-
-test("a Space connection is read by the server's own jobs even when the access snapshot does not let them view the Space; a member who cannot view the Space still does not see it", async () => {
-  const k = kit();
-  k.install(ACME);
-  const made = (await create(k, { secrets: { Acme_Key: "#AcmeKey" } })).connection;
-  const blind = { ...k.mk("usr_member"), canViewSpace: () => false };
-  await assert.rejects(
-    k.hs["connections.get"](blind, { connectionId: made.connectionId }),
-    code("validation.not_found"),
-  );
-  const job = { ...k.mk("svc_host"), trusted: true, canViewSpace: () => false };
-  assert.equal(
-    (await k.hs["connections.get"](job, { connectionId: made.connectionId })).connection.connectionId,
-    made.connectionId,
-  );
-});

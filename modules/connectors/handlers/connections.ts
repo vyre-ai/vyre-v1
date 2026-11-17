@@ -172,8 +172,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
   });
   /** A person sees their own connections and the Space's (a guest, who does not see the Space, only their own); nobody sees another person's. */
   const visible = (ctx: ConnectorsCtx, r: ConnectionDb): boolean =>
-    // the server's own jobs (a scheduled pass, the cadence) run for the Space itself: a Space connection is theirs to use whatever the access snapshot says at that instant (17 Nov 2026: passes run as svc_host answered "no such connection")
-    (r.owner_kind === "space" && (ctx.trusted === true || (ctx.canViewSpace?.() ?? true))) ||
+    (r.owner_kind === "space" && (ctx.canViewSpace?.() ?? true)) ||
     (r.owner_kind === "person" && r.owner_id === actorOf(ctx));
   const need = (ctx: ConnectorsCtx, id: string): ConnectionDb => {
     ready();

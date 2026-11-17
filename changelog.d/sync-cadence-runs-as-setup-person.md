@@ -1,0 +1,1 @@
+A sync that the server restarts by itself now runs as the person who set it up, as every other pass does, instead of being refused; if that person can no longer run it, the type says so in plain words and stops retrying every half minute.

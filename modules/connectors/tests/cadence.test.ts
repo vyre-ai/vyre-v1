@@ -206,3 +206,89 @@ test("nothing starts for a paused type or a paused, pending or broken connection
   assert.deepEqual(await w.tick(), [], "connection gone");
   assert.equal(w.asked.length, 0);
 });
+
+test("a pass the cadence starts is scheduled to run as the person who set the sync up, never as the server", async () => {
+  const w = await setup();
+  w.k.tx.run("UPDATE cn_sync_specs SET applied_by = 'usr_dana'");
+  dropChains(w);
+  w.k.clock.t = NOW + 20 * MIN;
+  const jobs: { cap: string; input: any; as: string | undefined }[] = [];
+  const started = await runCadence({
+    tx: w.k.tx,
+    now: () => w.k.clock.t,
+    call: async () => {
+      throw new Error("the server ran the pass as itself");
+    },
+    schedule: async (_at, cap, input, opts) => {
+      jobs.push({ cap, input, as: opts?.as });
+      return "sch_1";
+    },
+  });
+  assert.equal(started.length, 1);
+  assert.deepEqual(
+    jobs.map((j) => [j.cap, j.as]),
+    [["connectors.sync_now", "usr_dana"]],
+  );
+  assert.equal(jobs[0]!.input.syncTypeId, started[0]!.syncTypeId);
+});
+
+test("when the person who set the sync up can no longer run it, the type says so in plain words once and stops being tried every tick", async () => {
+  const w = await setup();
+  w.k.tx.run("UPDATE cn_sync_specs SET applied_by = 'usr_dana'");
+  dropChains(w);
+  w.k.clock.t = NOW + 20 * MIN;
+  const tried: string[] = [];
+  const deps = {
+    tx: w.k.tx,
+    now: () => w.k.clock.t,
+    call: async () => undefined,
+    schedule: async (_at: number | string, _cap: string, input: unknown) => {
+      tried.push((input as { syncTypeId: string }).syncTypeId);
+      throw {
+        error: { message: "Syncing is paused: Dana set this up and can no longer run it. An admin can take it over." },
+      };
+    },
+  };
+  assert.deepEqual(await runCadence(deps), []);
+  assert.equal(tried.length, 1);
+  const said = w.k.tx.all<{ summary: string }>("SELECT summary FROM sy_log WHERE kind = 'error'");
+  assert.match(
+    said[0]!.summary,
+    /^Syncing is paused: Dana set this up and can no longer run it\. An admin can take it over\./,
+  );
+  assert.equal(w.k.tx.all("SELECT * FROM cn_sync_running").length, 0, "nothing is left marked as running");
+  for (let i = 0; i < 5; i++) {
+    w.k.clock.t += 30_000;
+    await runCadence(deps);
+  }
+  assert.equal(
+    tried.length,
+    new Set(tried).size,
+    "each type backs off like any failing type: not asked again every 30 seconds",
+  );
+});
+
+test("a type nobody can be named for (the spec was applied by the server itself) is not run as the server", async () => {
+  const w = await setup();
+  w.k.tx.run("UPDATE cn_sync_specs SET applied_by = 'svc_host'");
+  w.k.tx.run("UPDATE cn_synced_types SET created_by = NULL");
+  dropChains(w);
+  w.k.clock.t = NOW + 20 * MIN;
+  let scheduled = 0;
+  await runCadence({
+    tx: w.k.tx,
+    now: () => w.k.clock.t,
+    call: async () => {
+      throw new Error("ran as the server");
+    },
+    schedule: async () => {
+      scheduled++;
+      return "x";
+    },
+  });
+  assert.equal(scheduled, 0);
+  assert.match(
+    w.k.tx.all<{ summary: string }>("SELECT summary FROM sy_log WHERE kind = 'error'")[0]!.summary,
+    /^Syncing is paused/,
+  );
+});
