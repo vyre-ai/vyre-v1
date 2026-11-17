@@ -9,5 +9,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps  # this job boots the server, so it needs the workspace packages of this commit, not whatever an earlier job left on the runner
       - name: images stage
         run: echo "images stage placeholder, server image build lands with the server lane"
