@@ -33,7 +33,7 @@ test("a consumer of a rare event is handed only the log's events of that type, d
           name: "m.rare",
           module: "m",
           on: ["rare.happened"],
-          run: (_c: unknown, e: { payload: { n: number } }) => void got.push(e.payload.n),
+          run: (_c: unknown, e: { payload: Record<string, unknown> }) => void got.push(Number(e.payload["n"])),
         },
       ],
     },
