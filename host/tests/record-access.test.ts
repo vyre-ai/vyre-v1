@@ -178,8 +178,7 @@ test("a query that filters, sorts or groups by a field no row has set is allowed
     );
   }
 });
-test("a read that returns a record the snapshot has not folded yet folds what is pending and reads again, a few times at most; a record that never becomes known is refused as a change of access", async () => {
-  const f = fixture();
+const grant = (f: ReturnType<typeof fixture>) =>
   f.snapshot.putGrant({
     id: "grant",
     subject_kind: "actor",
@@ -188,6 +187,10 @@ test("a read that returns a record the snapshot has not folded yet folds what is
     resource_id: "type",
     level: "view",
   });
+const page = (...ids: string[]) => ({ rows: ids.map((id) => ({ id, fields: { name: id } })) });
+test("a read that returns a record the snapshot has not folded yet folds what is pending and waits for it, however slow the fold is", async () => {
+  const f = fixture();
+  grant(f);
   f.store.get = (async (_type: string, id: string) => ({ ...f.row, id, data: { name: id } })) as never;
   let refreshes = 0;
   const guard = createRecordAccess({
@@ -195,51 +198,114 @@ test("a read that returns a record the snapshot has not folded yet folds what is
     snapshot: () => f.snapshot,
     now: () => 1,
     fresh: () => true,
+    settleMs: [0, 0, 0, 0, 0, 0, 0],
     refresh: async () => {
       refreshes++;
-      if (refreshes === 2)
+      if (refreshes === 6)
         f.snapshot.putResource({ id: "late", type: "record", parent_id: "type", label: 0, owner_id: null, holds: 0 });
     },
   });
-  const input = { type: "type" };
-  const output = {
-    rows: [
-      { id: "row", fields: { name: "row" } },
-      { id: "late", fields: { name: "late" } },
-    ],
-  };
-  const finish = await guard.project("records.query", input, f.seed, output, "trace");
+  const finish = await guard.project("records.query", { type: "type" }, f.seed, page("row", "late"), "trace");
   assert.deepEqual(
     ((await finish()) as { rows: { id: string }[] }).rows.map((row) => row.id),
     ["row", "late"],
   );
-  assert.equal(refreshes, 2, "the first fold was too early, the second one found the entry");
-  refreshes = 0;
-  const stuck = createRecordAccess({
+  assert.equal(refreshes, 6, "it kept folding until the entry was there, then stopped");
+});
+test("a row that never becomes known, one that was removed and one this person may no longer see are left out of the page; the page is still answered and shows nothing it should not", async () => {
+  const f = fixture();
+  grant(f);
+  f.snapshot.putResource({ id: "denied", type: "record", parent_id: "other", label: 0, owner_id: null, holds: 0 });
+  f.store.get = (async (_type: string, id: string) =>
+    id === "gone" ? null : { ...f.row, id, data: { name: id } }) as never;
+  let refreshes = 0;
+  const warned: { allowed: number; returned: number; missing: string[] }[] = [];
+  const guard = createRecordAccess({
     store: () => f.store,
     snapshot: () => f.snapshot,
     now: () => 1,
     fresh: () => true,
+    settleMs: [0, 0],
     refresh: async () => {
       refreshes++;
     },
+    warn: (info) => warned.push(info),
   });
-  const again = await stuck.project(
+  const finish = await guard.project(
     "records.query",
-    input,
+    { type: "type" },
     f.seed,
-    {
-      rows: [
-        { id: "row", fields: { name: "row" } },
-        { id: "never", fields: { name: "never" } },
-      ],
-    },
+    { ...page("row", "never", "gone", "denied", "row"), next: "n" },
     "trace",
   );
-  await assert.rejects(
-    Promise.resolve().then(again),
-    (error) =>
-      (error as { error?: { message?: string } }).error?.message === "Access changed while reading. Refresh the list.",
+  const out = (await finish()) as { rows: { id: string }[]; next?: string };
+  assert.deepEqual(
+    out.rows.map((row) => row.id),
+    ["row", "row"],
   );
-  assert.equal(refreshes, 3, "it tried three times, then refused");
+  assert.equal(out.next, "n", "the cursor goes on");
+  assert.deepEqual([...(warned[0]?.missing ?? [])].sort(), ["denied", "gone", "never"]);
+  assert.ok(refreshes > 0 && refreshes <= 3, "it waited a bounded number of folds");
+});
+test("a snapshot that cannot be brought up to date refuses the read so it can be asked again, never a page with rows missing", async () => {
+  const f = fixture();
+  grant(f);
+  let stale = true;
+  const guard = createRecordAccess({
+    store: () => f.store,
+    snapshot: () => f.snapshot,
+    now: () => 1,
+    fresh: () => !stale,
+    settleMs: [0, 0],
+    refresh: async () => {},
+  });
+  const finish = await guard.project("records.query", { type: "type" }, f.seed, page("row"), "trace");
+  await assert.rejects(
+    Promise.resolve().then(finish),
+    (error) => (error as { error?: { code?: string } }).error?.code === "internal.unavailable",
+  );
+  stale = false;
+  assert.equal(((await finish()) as { rows: unknown[] }).rows.length, 1, "asked again once the snapshot is current");
+});
+test("a restricted reader's page waits for a record the snapshot has not folded yet instead of skipping it", async () => {
+  const f = fixture();
+  const ids = ["row", "late", "tail"];
+  f.store.query = (async (_type: string, q: { page?: { cursor?: string } }) => {
+    const at = q.page?.cursor ? Number(q.page.cursor) : 0;
+    const id = ids[at]!;
+    return {
+      rows: [{ ...f.row, id, data: { name: id, secret: "s" } }],
+      ...(at + 1 < ids.length ? { next_cursor: String(at + 1) } : {}),
+    };
+  }) as never;
+  f.store.describe = (async () => ({ name: "type", fields: [{ name: "name", kind: "text" }] })) as never;
+  let refreshes = 0;
+  const guard = createRecordAccess({
+    store: () => f.store,
+    snapshot: () => f.snapshot,
+    now: () => 1,
+    fresh: () => true,
+    settleMs: [0, 0, 0],
+    refresh: async () => {
+      refreshes++;
+      for (const id of ["late", "tail"])
+        f.snapshot.putResource({ id, type: "record", parent_id: "type", label: 0, owner_id: null, holds: 0 });
+    },
+  });
+  const req = {
+    principal: "reader",
+    action: { perm: null, level: "view" as const },
+    resource: { type: "record_type", id: "type" },
+    now: 1,
+  };
+  const read = async (): Promise<string[]> => {
+    const part = await guard.collection("records.query", { type: "type", limit: 10 }, f.seed, req, "trace");
+    assert.ok(part, "the scoped path answers");
+    return ((await part.finish()) as { rows: { id: string; fields: Record<string, unknown> }[] }).rows.map((row) => {
+      assert.equal(row.fields["secret"], undefined, "a hidden field never shows");
+      return row.id;
+    });
+  };
+  assert.deepEqual(await read(), ["row", "late", "tail"], "no existing record was skipped");
+  assert.equal(refreshes, 1, "one fold found them");
 });
