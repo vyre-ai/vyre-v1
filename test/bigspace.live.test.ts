@@ -52,6 +52,8 @@ async function openLive(ch: Any, token: string, deviceClass: "web" | "desktop", 
     if (f.t === "hello_ok") {
       seen.head = f.ok.head;
       seen.liveAt = Date.now() - t0;
+      // a web page skips the history it never keeps: it is up to date the moment the hub says hello, and only later changes reach it
+      if (deviceClass === "web" && f.ok.mode === "live") seen.doneAt = seen.liveAt || 1;
     }
     if (f.t === "ev") {
       seen.applied = Math.max(seen.applied, f.seq);

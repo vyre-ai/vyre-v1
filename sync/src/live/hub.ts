@@ -93,7 +93,7 @@ export function createLiveHub(d: LiveDeps): LiveHub {
       epoch = 0;
     let inflight: number[] = [];
     let hinted = false;
-    // a web page keeps no copy of rows (its live link only re-reads what is on screen), so it is told the Space moved and sent no rows
+    // a web page keeps no copy of rows: it starts at the head (see hello) and is sent only what changes after
     let tick = who.deviceClass === "web";
     // the stream waits here for a change with a field heavier than any frame, until the device has pulled it
     let blockedAt = 0;
@@ -197,15 +197,6 @@ export function createLiveHub(d: LiveDeps): LiveHub {
 
     function flush(): void {
       if (closed || mode !== "live") return;
-      if (tick) {
-        const head = d.head();
-        if (head > sent && inflight.length < window) {
-          send({ t: "ev", seq: head, items: [] });
-          inflight.push(head);
-          sent = head;
-        }
-        return;
-      }
       if (blockedAt > 0) {
         if (acked < blockedAt) return;
         sent = Math.max(sent, acked);
@@ -260,8 +251,11 @@ export function createLiveHub(d: LiveDeps): LiveHub {
         (x) => x.who.person === who.person && x.who.device === who.device && x.mode() === "live",
       );
       for (const old of same.slice(0, Math.max(0, same.length - MAX_PER_DEVICE))) old.close("replaced");
-      sent = tick ? Math.min(h.cursor, d.head()) : h.cursor;
-      acked = h.cursor;
+      // A web page keeps no copy of rows (it re-reads what is on screen), so its history is skipped: it starts at the head and from there gets
+      // every new change with its rows, packed by weight like any device. (Before 17 Nov 2026 it got the whole change feed from cursor 0, tens of MB
+      // on a big Space; the first fix sent it no rows at all, which stopped records from appearing live on the open screen.)
+      sent = tick ? Math.max(h.cursor, d.head()) : h.cursor;
+      acked = tick ? sent : h.cursor;
       inflight = [];
       hinted = false;
       blockedAt = 0;

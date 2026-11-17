@@ -135,19 +135,22 @@ test("a single field heavier than any frame is not sent: the device is hinted to
   rig.hub.close();
 });
 
-test("a web page is told the Space moved and is sent no rows", async () => {
+test("a web page skips the history it never keeps, and gets every later change with its row", async () => {
   const rig = liveRig();
   for (let i = 0; i < 40; i++) rig.row(`w${i}`, { name: "x".repeat(30_000) });
   const d = device(rig, "web");
   await settle();
   await d.ack();
-  assert.equal(d.evs().length, 1, "one tick on opening, so the page reads again");
-  assert.equal(d.evs()[0]!.items.length, 0);
-  assert.ok(d.evs()[0]!.seq >= 40);
+  assert.equal(d.evs().length, 0, "nothing of the 1.2 MB history is sent on opening");
   rig.row("later");
   rig.hub.commit();
   await settle();
-  assert.equal(d.evs().length, 2, "and one for each change after");
-  assert.ok(Math.max(...d.sizes) < 2000);
+  assert.equal(d.evs().length, 1, "one frame for the change after");
+  assert.deepEqual(
+    d.evs()[0]!.items.map((c) => c.id),
+    ["later"],
+    "and it carries the row, so the open screen shows it live",
+  );
+  assert.ok(d.evs()[0]!.seq > 40);
   rig.hub.close();
 });
