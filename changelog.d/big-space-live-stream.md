@@ -1,0 +1,1 @@
+A Space with many large records opens quickly and stays up: the live stream sends changes in frames sized by bytes, a web page is told only that something changed, a message too big for the relay ends the stream with a clear reason, and a connection that keeps dying at once now waits longer between tries and is shown as reconnecting.

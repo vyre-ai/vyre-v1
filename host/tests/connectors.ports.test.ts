@@ -162,3 +162,27 @@ test("a request that carries a credential never reaches a private or loopback ad
   await host.http(plain, ["api.fixture.test"], "https://api.fixture.test/x");
   assert.equal(sent.length, 1, "a request with no credential keeps the owner's own-node allowance");
 });
+
+test("an address lookup or a request that never answers fails as a network failure at its deadline instead of holding the call for ever", async () => {
+  const caller = { ...identity, call: async () => ({}) };
+  const hungRequest = createConnectorsHost({
+    publicBase: () => "https://space.fixture.test",
+    own: () => false,
+    deadlineMs: 30,
+    network: { resolve: async () => ["203.0.113.8"], request: () => new Promise(() => undefined) },
+  });
+  await assert.rejects(
+    hungRequest.http(caller, ["api.fixture.test"], "https://api.fixture.test/x"),
+    /The connector request failed/,
+  );
+  const hungLookup = createConnectorsHost({
+    publicBase: () => "https://space.fixture.test",
+    own: () => false,
+    deadlineMs: 30,
+    network: { resolve: () => new Promise(() => undefined), request: async () => ({ status: 200, text: "{}" }) },
+  });
+  await assert.rejects(
+    hungLookup.http(caller, ["api.fixture.test"], "https://api.fixture.test/x"),
+    /could not be resolved/,
+  );
+});

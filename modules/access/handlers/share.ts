@@ -6,6 +6,9 @@
 // Project roles reuse the 0.6 idea in kernel/gateway/project-members.js@dbd2dfb: a team role is a grant tagged with source 'project:<id>' and
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
+import { rawDbOf } from "../../../host/src/ctx/db.ts";
+import { stampOf } from "../consumers.ts";
+import { isReader } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -118,9 +121,30 @@ function tryAll(db: Db, sql: string): Record<string, unknown>[] {
   }
 }
 
+/**
+ * The share state a reader built, kept between calls. ctx.db is a new handle on every call, so SHARES never hits across calls and every call that read my_access rebuilt all of it
+ * (45,000 resources: 0.7 to 6 s a call, on the one thread everything shares). A reader keeps what it built, keyed on the daemon database itself (host/src/ctx/db.ts rawDbOf) and the
+ * access tables' write counter (migrations/0006_local_stamp.sql): any write to an access row by anyone moves the counter, and then the next call reads the tables and rebuilds as before.
+ * Only a reader (a call that never changes the store) reuses or publishes one, and any writer drops it, so an unwritten change of a handler never reaches another call.
+ */
+const KEPT = new WeakMap<object, { stamp: number; ss: ShareStore }>();
+export const shareKept = { hits: 0, built: 0 };
+
 export function shareOf(ctx: AccessCtx): ShareStore {
   const hit = SHARES.get(ctx.db);
   if (hit) return hit;
+  const raw = rawDbOf(ctx.db);
+  if (raw) {
+    if (isReader(ctx)) {
+      const kept = KEPT.get(raw);
+      const stamp = stampOf(ctx.db);
+      if (kept && stamp !== null && kept.stamp === stamp) {
+        shareKept.hits++;
+        SHARES.set(ctx.db, kept.ss);
+        return kept.ss;
+      }
+    } else KEPT.delete(raw);
+  }
   storeOf(ctx);
   const ss = new ShareStore();
   for (const f of tryAll(ctx.db, "SELECT * FROM access_folders")) {
@@ -490,7 +514,12 @@ function isFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): boolean {
 }
 
 function ensureFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
-  if (!isFresh(ctx, store, ss)) rebuild(ctx, store, ss, "all");
+  if (isFresh(ctx, store, ss)) return;
+  rebuild(ctx, store, ss, "all");
+  shareKept.built++;
+  const raw = rawDbOf(ctx.db);
+  const stamp = stampOf(ctx.db);
+  if (raw && stamp !== null && isReader(ctx) && ss.fresh === store.epoch) KEPT.set(raw, { stamp, ss });
 }
 
 /** After a change: persist, then refresh my_access for the affected subtree (or everything when the cache was already stale). */

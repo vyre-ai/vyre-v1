@@ -70,14 +70,19 @@ import { exceptionsExplain, exceptionsLapse, exceptionsList, exceptionsRemove, e
 import { requestCreate, requestsApprove, requestsDecline, requestsList } from "./request.ts";
 import { reviewsClose, reviewsDecide, reviewsGet, reviewsList, reviewsStart } from "./review.ts";
 import { readOnly } from "../projections.ts";
+import type { AccessCtx } from "../projections.ts";
 
 // readOnly: capabilities that only read the access store, asked per message, per turn or per item in a list. They read the kept view of access.sync (projections.ts) instead of every
-// access table; the view refuses any change, so one of these that ever tried to write would fail loudly (tests/read-view.test.ts runs each one on it). access.lists and folders.list are
-// not here: they rebuild and write the my_access cache.
+// access table; the view refuses any change, so one of these that ever tried to write would fail loudly (tests/read-view.test.ts runs each one on it). access.lists and folders.list keep what they build between calls (handlers/share.ts KEPT) and are
+// read here too: they write only the my_access cache, never the store.
+
+/** readOnly for a share handler, whose context type adds the host calls it makes (never a write to the store). */
+const readShare = <I, R>(h: (ctx: never, input: I) => Promise<R>) =>
+  readOnly(h as unknown as (ctx: AccessCtx, input: I) => Promise<R>);
 
 export const handlers = {
   "access.actors.create": actorsCreate,
-  "access.actors.list": actorsList,
+  "access.actors.list": readOnly(actorsList),
   "access.actors.redeem": actorsRedeem,
   "access.actors.revoke": actorsRevoke,
   "access.actors.set_engineer_mcp": actorsEngineer,
@@ -89,9 +94,9 @@ export const handlers = {
   "access.grants.update": grantsUpdate,
   "access.groups.add_member": groupsAddMember,
   "access.groups.create": groupsCreate,
-  "access.groups.defaults_get": defaultsGet,
+  "access.groups.defaults_get": readOnly(defaultsGet),
   "access.groups.defaults_set": defaultsSet,
-  "access.exceptions.list": exceptionsList,
+  "access.exceptions.list": readOnly(exceptionsList),
   "access.exceptions.set": exceptionsSet,
   "access.exceptions.remove": exceptionsRemove,
   "access.exceptions.lapse": exceptionsLapse,
@@ -103,8 +108,8 @@ export const handlers = {
   "access.groups.update": groupsUpdate,
   "access.labels.list": labelsList,
   "access.labels.set": labelsSet,
-  "access.lists": lists,
-  "access.policies.list": policiesList,
+  "access.lists": readShare(lists),
+  "access.policies.list": readOnly(policiesList),
   "access.policies.reset": policiesReset,
   "access.policies.set": policiesSet,
   "access.principals.effective": readOnly(principalsEffective),
@@ -147,7 +152,7 @@ export const handlers = {
   "access.view_as": viewAs,
   "folders.create": foldersCreate,
   "folders.delete": foldersDelete,
-  "folders.list": foldersList,
+  "folders.list": readShare(foldersList),
   "folders.move": foldersMove,
   "folders.place": foldersPlace,
   "folders.rename": foldersRename,

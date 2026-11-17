@@ -639,6 +639,8 @@ export interface DaemonOptions {
   liveSync?: { hub: SyncHubPort; onHub?(hub: LiveHub): void };
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  /** A scheduled job that has not settled after this long is ended as failed and retried (ctx/schedule.ts). Default 5 min; a test shortens it. */
+  scheduleDeadlineMs?: number;
   /** intervals in ms; tests shorten them */
   intervals?: {
     machines?: number;
@@ -2836,6 +2838,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const scheduleQueue = new ScheduleQueue({
         db,
         now,
+        ...(o.scheduleDeadlineMs !== undefined ? { deadlineMs: o.scheduleDeadlineMs } : {}),
         run: (c) => runScheduled(c),
         onError: (c, e, final) => {
           sinkLog.warn("schedule.failed", {
@@ -7061,7 +7064,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       o.probes?.diskEncrypted ? o.probes.diskEncrypted() : probes.diskEncrypted(platform, paths.root, cfg.diskChoice),
     events_db: events,
     index_db: () => probes.indexLag(o.probes?.indexLag ? o.probes.indexLag() : null),
-    scheduler: () => probes.schedulerTick(scheduler.lastTickAt, now()),
+    scheduler: () =>
+      probes.schedulerTick(
+        scheduler.lastTickAt,
+        now(),
+        (() => {
+          try {
+            return queue?.waiting() ?? [];
+          } catch {
+            return []; // the queue's table is not readable (shutting down): the tick alone is judged
+          }
+        })(),
+      ),
     docker: async () => unusedRuntime(await probes.docker(platform)),
     caddy: async () =>
       unusedRuntime(

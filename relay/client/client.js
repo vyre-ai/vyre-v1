@@ -920,7 +920,8 @@ export class RelaySocket {
       this.onmessage?.({ data: c[0] === 1 ? fromUtf8(m) : Uint8Array.prototype.slice.call(m).buffer });
     };
     s.onend = () => this.finish(1000, "");
-    s.onreset = (r) => this.finish(1006, r);
+    // the box reset the stream because one message was over the relay's limit: that is close code 1009, which a page can tell from a lost link
+    s.onreset = (r) => this.finish(r === "too big" ? 1009 : 1006, r);
   }
   /** One message, one frame: a WebSocket message is never split. @param {string|Uint8Array|ArrayBuffer} data */
   send(data) {

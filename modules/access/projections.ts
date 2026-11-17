@@ -1109,6 +1109,8 @@ export function dropStore(db: Db): void {
 // `snapshot()` refuses every mutator. The sync replaces records rather than changing them (consumers.ts applyEvent), so a reader holding one never sees it change under it.
 
 const READERS = new WeakSet<object>();
+/** True for a call of a capability wrapped in readOnly: it never changes the access store. */
+export const isReader = (ctx: object): boolean => READERS.has(ctx);
 let readView: ((ctx: AccessCtx) => AccessStore | null) | null = null;
 /** consumers.ts hands over how to find the kept view of a ctx's database. */
 export function setReadView(f: (ctx: AccessCtx) => AccessStore | null): void {

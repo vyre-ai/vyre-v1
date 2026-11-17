@@ -154,26 +154,48 @@ const sensitivityRank = (value: unknown): number =>
  * label and the typed one, so the overlay can raise a ceiling and never lower one. Which labels travel to a laptop is decided by DEVICE_CEILING (Restricted never, whatever the person's clearance).
  */
 export function classifiedCatalog(base: Catalog, types: () => readonly TypeDef[]): Catalog {
-  const current = (): Map<string, TypeDef> => new Map(types().map((def) => [def.name, def]));
+  // `types()` is read on every row a pull looks at (a Space with thousands of rows asked for it, and parsed every type's JSON, once per row). A source that hands back the very same list while the schema is unchanged
+  // (the typed store's snapshot) is read once per change: the map, each type's labels and the stamp are kept until the list is a different one.
+  let seen: readonly TypeDef[] | undefined;
+  let byName = new Map<string, TypeDef>();
+  let labelled = new Map<string, ServerEntity>();
+  let stamp: string | undefined;
+  const current = (): Map<string, TypeDef> => {
+    const list = types();
+    if (list !== seen) {
+      seen = list;
+      byName = new Map(list.map((def) => [def.name, def]));
+      labelled = new Map();
+      stamp = undefined;
+    }
+    return byName;
+  };
   return {
     ...base,
     get(key) {
-      const original = base.get(key);
       const def = current().get(key);
-      if (!def) return original;
+      if (!def) return base.get(key);
+      const kept = labelled.get(key);
+      if (kept) return kept;
+      const original = base.get(key);
       const fieldLabels: Record<string, number> = { ...original.fieldLabels };
       for (const field of def.fields) {
         if (field["sensitivity"] === undefined) continue;
         fieldLabels[field.name] = Math.max(fieldLabels[field.name] ?? 0, sensitivityRank(field["sensitivity"]));
       }
-      return { ...original, fieldLabels };
+      const made = { ...original, fieldLabels };
+      labelled.set(key, made);
+      return made;
     },
     classified: () => [...current().keys()],
-    classificationStamp: () =>
-      JSON.stringify(
-        [...current().values()]
+    classificationStamp: () => {
+      const defs = current();
+      stamp ??= JSON.stringify(
+        [...defs.values()]
           .map((def) => [def.name, def.fields.map((field) => [field.name, field["sensitivity"] ?? null])])
           .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
-      ),
+      );
+      return stamp;
+    },
   };
 }

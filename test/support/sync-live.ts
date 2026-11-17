@@ -20,10 +20,14 @@ export interface AppOptions {
   bulk?: number;
   /** The Nth list request for people fails once: with a 500, or by dropping the connection. */
   failOnce?: { at: number; mode: "500" | "drop" };
+  /** `times` requests for this path, after the first `skip` ones, never get an answer (the field fault of 17 Nov: a call that hangs and never fails). */
+  hang?: { path: string; times: number; skip?: number };
 }
 export function app(seen: { keys: string[]; urls: string[] }, opts: AppOptions = {}) {
   let peopleRequests = 0;
   let failed = false;
+  let hung = 0;
+  let hangSeen = 0;
   const people = [
     { id: 1, name: "Imran Ibarra", ssn: DASHED },
     { id: 2, name: "Andrea Lindahl", ssn: "" },
@@ -73,6 +77,13 @@ export function app(seen: { keys: string[]; urls: string[] }, opts: AppOptions =
       seen.keys.push(key);
       seen.urls.push(url.pathname + url.search);
       if (key !== APP_KEY) return { status: 401, text: "{}" };
+      if (opts.hang && url.pathname === opts.hang.path) {
+        hangSeen++;
+        if (hangSeen > (opts.hang.skip ?? 0) && hung < opts.hang.times) {
+          hung++;
+          return new Promise<never>(() => undefined);
+        }
+      }
       const rows = lists[url.pathname];
       if (!rows) return { status: 404, text: "{}" };
       if (url.pathname === "/api/people" && opts.failOnce) {
@@ -219,7 +230,7 @@ export function dumpDb(file: string): string {
   }
 }
 
-export async function world(unlock: boolean, appOptions: AppOptions = {}) {
+export async function world(unlock: boolean, appOptions: AppOptions = {}, daemonOptions: Record<string, unknown> = {}) {
   const seen = { keys: [] as string[], urls: [] as string[] };
   const dir = seededDir();
   const printed: string[] = [];
@@ -235,6 +246,7 @@ export async function world(unlock: boolean, appOptions: AppOptions = {}) {
   const d = await boot(dir, (async function* () {})() as never, {
     vault: undefined,
     connectorNetwork: app(seen, appOptions),
+    ...daemonOptions,
   });
   if (unlock) {
     const r = await fetch(`${d.url}/local/vault/key/unlock`, {

@@ -1,0 +1,1 @@
+- Files, Shared with me and every list that reads what a person may open no longer rebuild every object's access on each call: they keep it until an access row changes, so on a Space of 9,400 matters and 70,000 records the Files tree answers in 15 ms instead of 1.3 s, and saving a file takes 10 ms instead of 270 ms. A grant or a revoke is seen by the very next call.

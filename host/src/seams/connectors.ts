@@ -107,12 +107,31 @@ export type KeyHostCheck = (
   caller: ConnectorCaller,
   domains: readonly string[],
 ) => Promise<string | null>;
+const REQUEST_DEADLINE_MS = 120_000;
 export function createConnectorsHost(o: {
   publicBase(): string;
   own(caller: ConnectorCaller): boolean;
   network?: ConnectorNetwork;
   keyHost?: KeyHostCheck;
+  /** An address lookup or a request that has not answered by then fails as a network failure, so a call that never answers cannot hold a pass (or an apply) for ever. Default 2 min. */
+  deadlineMs?: number;
 }) {
+  const deadlineMs = o.deadlineMs ?? REQUEST_DEADLINE_MS;
+  const within = <T>(p: Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("no answer")), deadlineMs);
+      timer.unref?.();
+      p.then(
+        (v) => {
+          clearTimeout(timer);
+          resolve(v);
+        },
+        (e: unknown) => {
+          clearTimeout(timer);
+          reject(e);
+        },
+      );
+    });
   const pending = new Map<
     string,
     { caller: ConnectorCaller; binding: SecretBinding; used: boolean; value?: string; itemId?: string }
@@ -233,10 +252,14 @@ export function createConnectorsHost(o: {
           });
         let ips: string[];
         try {
-          ips = await (
-            o.network?.resolve ??
-            (async (host: string) => (await dns.lookup(host, { all: true })).map((row) => row.address))
-          )(url.hostname);
+          ips = await within(
+            Promise.resolve(
+              (
+                o.network?.resolve ??
+                (async (host: string) => (await dns.lookup(host, { all: true })).map((row) => row.address))
+              )(url.hostname),
+            ),
+          );
         } catch {
           throw fail("provider.network", caller.trace.traceId, {
             message: "The connector address could not be resolved.",
@@ -265,12 +288,16 @@ export function createConnectorsHost(o: {
         }
         let result;
         try {
-          result = await (o.network?.request ?? request)(url, {
-            ips,
-            method,
-            headers,
-            ...(body !== undefined ? { body } : {}),
-          });
+          result = await within(
+            Promise.resolve(
+              (o.network?.request ?? request)(url, {
+                ips,
+                method,
+                headers,
+                ...(body !== undefined ? { body } : {}),
+              }),
+            ),
+          );
         } catch {
           throw fail("provider.network", caller.trace.traceId, { message: "The connector request failed." });
         }

@@ -433,7 +433,7 @@ export function mustBeTriggered(sql: string): void {
 }
 
 /** The tables' write counter, or null where migration 0006 has not run (no counter: nothing is kept). */
-function stampOf(db: Db): number | null {
+export function stampOf(db: Db): number | null {
   try {
     const n = (db.all(`SELECT "n" FROM access_local_stamp WHERE "id" = 1`)[0] as { n?: unknown } | undefined)?.n;
     return typeof n === "number" || typeof n === "bigint" ? Number(n) : null;
