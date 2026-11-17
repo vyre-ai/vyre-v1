@@ -578,7 +578,7 @@ export interface DaemonOptions {
   gitEnv?: Record<string, string>;
   /** The address an agent computer reaches this daemon at (its container is not on localhost). Default http://host.docker.internal:<port>. */
   computersBaseUrl?: string;
-  /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 3 s. */
+  /** How often an agent computer mirrors its home with Files while it runs (tests set it long and trigger passes by waking and sleeping). Default 1 s. */
   computersHomeIntervalMs?: number;
   /** How long an agent workspace is idle before it sleeps, in ms (default 10 minutes); tests shorten it. */
   workspaceIdleMs?: number;
@@ -642,6 +642,8 @@ export interface DaemonOptions {
   /** A scheduled job that has not settled after this long is ended as failed and retried (ctx/schedule.ts). Default 5 min; a test shortens it. */
   scheduleDeadlineMs?: number;
   /** intervals in ms; tests shorten them */
+  /** How long the start waits for the consumers to catch up with the log before it reports itself started (the pass goes on in the background). Default 1 s. */
+  startCatchUpMs?: number;
   intervals?: {
     machines?: number;
     machineProbe?: number;
@@ -724,6 +726,26 @@ const bearer = (h: string | undefined): string | null => {
 
 const loopback = (address: string | undefined): boolean =>
   address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+
+/** The events the start folds into the access snapshot, reads for agents' access and scans for owned resources. The rest of a long log (every record's created and updated) is not read at all: it is most of the log. */
+const bootFoldTypes: readonly string[] = [
+  "role.defined",
+  "principal.created",
+  "principal.role_set",
+  "principal.suspended",
+  "principal.reactivated",
+  "member.removed",
+  "group.member_added",
+  "resource.created",
+  "grant.created",
+  "grant.revoked",
+  "space.created",
+  "space.ownership_transferred",
+  "mailbox.privacy_changed",
+  ...(registry as unknown as { events: Array<{ name: string }> }).events
+    .map((e) => e.name)
+    .filter((n) => n.startsWith("agent.")),
+];
 
 export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const cfg = o.config;
@@ -1955,9 +1977,31 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (!space) throw new Error("this data directory has no Space yet: pass --space <id> to create one");
       log = await LogClient.open({ path: paths.events, space });
       closers.push(() => log?.close());
-      const first = await log.verify();
-      if (first.ok) verified = { seq: first.seq, hash: first.head };
-      else chainBroken = true;
+      // The chain is checked from the point the last start left (host_chain_checkpoint) to the head: the start waits for the tail only, not for every event of a Space with a long history. A tail that does
+      // not verify is checked again from the start, and the whole chain is checked again in the background after every start (the commit gate closes if it fails), so nothing is skipped for good.
+      db.run(
+        `CREATE TABLE IF NOT EXISTS host_chain_checkpoint ("id" INTEGER PRIMARY KEY CHECK ("id" = 1), "seq" INTEGER NOT NULL, "hash" TEXT NOT NULL)`,
+      );
+      const point = db.all(`SELECT "seq", "hash" FROM host_chain_checkpoint WHERE "id" = 1`)[0] as
+        | { seq: number; hash: string }
+        | undefined;
+      let first = point && point.seq > 0 ? await log.verify({ from: point.seq, prev: point.hash }) : await log.verify();
+      if (!first.ok && point) first = await log.verify();
+      if (first.ok) {
+        verified = { seq: first.seq, hash: first.head };
+        db.run(
+          `INSERT INTO host_chain_checkpoint ("id", "seq", "hash") VALUES (1, ?, ?) ON CONFLICT("id") DO UPDATE SET "seq" = excluded."seq", "hash" = excluded."hash"`,
+          first.seq,
+          first.head,
+        );
+      } else chainBroken = true;
+      if (first.ok && point && point.seq > 0)
+        void log
+          .verify()
+          .then((all) => {
+            if (!all.ok) chainBroken = true;
+          })
+          .catch(() => undefined);
       sink.log({
         space,
         level: first.ok ? 20 : 40,
@@ -1969,7 +2013,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const agentAccessEvents: { type: string; payload: unknown }[] = [];
       const ownedScan: { seq: number; id: string; type: string; actor: string; payload: unknown }[] = [];
       for (let after = 0; ; ) {
-        const page = await log.read({ after, limit: 5000 });
+        const page = await log.read({ after, limit: 5000, types: bootFoldTypes });
         for (const e of page) {
           if (
             e.type === "resource.created" ||
@@ -1993,6 +2037,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (page.length < 5000) break;
         after = page[page.length - 1]!.seq;
       }
+      // only the events the fold reads came back, so the last one is not the head: everything after it was looked at and is not access (the next sync starts from the head, not from the last access event)
+      if (first.ok && first.seq > accessFedTo) accessFedTo = first.seq;
       // registrations in the Space owner's name from before the mark: marked at every start (only the mark: an existing resource keeps everything else)
       // a Vault folder is the Space's only when its row names no owner (one a person made, the Space owner included, stays theirs)
       const marks = hostOwnedMarks(ownedScan, space)
@@ -7435,18 +7481,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         await sitesTick();
       },
     });
+    const catchUpBound = (): Promise<void> =>
+      new Promise<void>((resolve) => setTimeout(resolve, o.startCatchUpMs ?? 1_000).unref());
     scheduler.add({
       name: "projections.pump",
       schedule: { everyMs: o.intervals?.hooks ?? 5000 },
       run: async () => {
-        await projections?.pump();
+        await Promise.race([projections?.pump(), catchUpBound()]); // a long backlog goes on in the background (one pass at a time): the scheduler's first pass, which the start waits for, does not wait for all of it
       },
     });
     scheduler.add({
       name: "hooks.pump",
       schedule: { everyMs: o.intervals?.hooks ?? 5000 },
       run: async () => {
-        await hooks?.pump();
+        await Promise.race([hooks?.pump(), catchUpBound()]);
       },
     }); // the backstop for a consumer that failed, and for events committed by another process
     // A Personal Space on several computers runs its scheduled work on one of them at a time (host/src/peers/runner.ts); the jobs that look after this computer's own state run on each.
@@ -7678,9 +7726,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     void checkArtifactHost(true).catch(() => undefined);
     // The boot checks (the scheduler's first pass) have committed events, and the consumers that react to them run after the commit. Finish that chain before the daemon reports itself started,
     // so nothing writes in the first moments after /healthz answers: a caller that reads the head at once sees the head it will keep.
+    // A Space with a long backlog (an import just ended, or the server was stopped mid-way: 140,000 records to index took 140 s) must not hold the start for all of it. The wait is bounded; the
+    // pass goes on in the background (each pump is one pass at a time, and the scheduler's own pumps join it), and every consumer keeps its cursor, so a stop in the middle resumes where it was.
     if (hasSpace) {
-      await hooks?.pump();
-      await projections?.pump();
+      const caught = Promise.all([hooks?.pump(), projections?.pump()]).then(() => true);
+      await Promise.race([
+        caught,
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), o.startCatchUpMs ?? 1_000).unref()),
+      ]);
+      void caught.catch(() => undefined);
     }
     // A relay is configured (--relay or VYRE_RELAY_URL): keep one outbound connection to it so a phone or another computer reaches this Space without a public address. The relay row in
     // network_endpoint follows the link, so network.endpoints lists it after the direct ones and reads it down when the link drops (P-L7b_16).
