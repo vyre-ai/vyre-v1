@@ -348,6 +348,9 @@ const BUILT_IN_LEVEL: Readonly<Record<string, "manage" | "edit">> = {
  * (Manage when it is an elevated role or holds access.manage). A role with no permissions confers nothing.
  */
 const ROLE_GRANTED = new WeakSet<AccessSnapshot>();
+/** True when role grants were put on this snapshot (decisionSnapshot): it then answers as the host decides, not as a handler's own store did. */
+export const hasRoleGrants = (snap: AccessSnapshot): boolean => ROLE_GRANTED.has(snap);
+
 export function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string): AccessSnapshot {
   if (ROLE_GRANTED.has(snap)) return snap;
   ROLE_GRANTED.add(snap);
@@ -482,6 +485,11 @@ export class AccessStore {
     this.snap = snap;
     this.snapEpoch = this.epoch;
     return snap;
+  }
+
+  /** A snapshot of this store as it is, built apart and not kept: nothing a reader did to the kept one (the role grants `decisionSnapshot` puts on it) is in it. */
+  buildSnapshot(): AccessSnapshot {
+    return this.build();
   }
 
   private build(): AccessSnapshot {
