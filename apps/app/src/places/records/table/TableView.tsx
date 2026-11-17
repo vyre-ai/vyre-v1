@@ -55,6 +55,7 @@ import {
   optionsOf,
   queryOffset,
   querySpec,
+  fieldsFor,
   rowWindow,
   scrollBlockTop,
   setSort,
@@ -286,10 +287,17 @@ const bgOf = (p: { selected: boolean; hot: boolean; tint: string | null }): stri
 
 /**
  * A new query window hands back new row objects (a clone each time), so a plain memo re-rendered every drawn row, 13 cells each, whenever the window moved by a hundred rows: that was the
- * long frames of the 100,000-row scroll. A row is the same row when it has the same id, version and update time.
+ * long frames of the 100,000-row scroll. A row is the same row when it has the same id, version, update time and number of fields.
  */
 const sameRow = (a: RecordRow | null, b: RecordRow | null): boolean =>
-  a === b || (a !== null && b !== null && a.id === b.id && a.version === b.version && a.updatedAt === b.updatedAt);
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    a.id === b.id &&
+    a.version === b.version &&
+    a.updatedAt === b.updatedAt &&
+    // the same record asked for again with more of its fields (a column scrolled into view) is not the row already drawn
+    Object.keys(a.fields).length === Object.keys(b.fields).length);
 function samePiece<T extends PieceProps>(a: T, b: T): boolean {
   if (!sameRow(a.row, b.row)) return false;
   const ka = Object.keys(a) as (keyof T)[];
@@ -388,6 +396,8 @@ const GHOST = { height: 9, width: "55%", borderRadius: 5, backgroundColor: "var(
  * The scrolling rows are styled by classes from one stylesheet, set once: an inline style of ten properties on each of the 500 elements a fling mounts was a good part of the scroll cost. Only
  * what changes per element (position, width, background) stays inline. Rows are only drawn after the page is live, so the static export needs none of it.
  */
+/** Places in the ring of scrolling rows: more than any window the table draws (about 33). */
+const ROW_RING = 64;
 const CSS_ID = "vyre-records-rows";
 let cssDone = false;
 function ensureRowCss(): void {
@@ -700,6 +710,11 @@ function Body(p: BodyProps): ReactElement {
     };
   }, [register]);
   const win = flingWindow(pos.top, p.viewH, total, pos.dir);
+  // The scrolling rows are plain elements that keep no state of their own, so a row that leaves one end of the window is the one that arrives at the other: its element is given the new row's text
+  // (key = the place in a ring of ROW_RING, not the record) instead of being removed and a new one built. A jump of a whole window then changes text in place; building 33 rows of cells under a
+  // busy computer ran past 50 ms in one task (first scroll of a 9,400-row table).
+  const ring = win.last - win.first <= ROW_RING;
+  const slot = (i: number, id: string): string => (ring ? `s${i % ROW_RING}` : id);
   const rowAt = (i: number): RecordRow | null => (loaded ? (loaded.rows[i - loaded.offset] ?? null) : null);
   const rows: ReactElement[] = [];
   const frozen: ReactElement[] = [];
@@ -749,10 +764,10 @@ function Body(p: BodyProps): ReactElement {
           onHot,
           onMenu,
         };
-        frozen.push(<RowFrozen key={it.row.id} {...piece} primary={primary} />);
+        frozen.push(<RowFrozen key={slot(i, it.row.id)} {...piece} primary={primary} />);
         rows.push(
           <RowBody
-            key={it.row.id}
+            key={slot(i, it.row.id)}
             {...piece}
             left={fw}
             width={width - fw}
@@ -801,10 +816,10 @@ function Body(p: BodyProps): ReactElement {
         onHot,
         onMenu,
       };
-      frozen.push(<RowFrozen key={r ? r.id : `p${i}`} {...piece} primary={primary} />);
+      frozen.push(<RowFrozen key={slot(i, r ? r.id : `p${i}`)} {...piece} primary={primary} />);
       rows.push(
         <RowBody
-          key={r ? r.id : `p${i}`}
+          key={slot(i, r ? r.id : `p${i}`)}
           {...piece}
           left={fw}
           width={width - fw}
@@ -944,7 +959,8 @@ function Grid({
   // the window the query is asked for follows the scroll a beat behind: the fetch and its 200-row copy run in a low-priority render, not in the frame that mounts the rows
   const wanted = useDeferredValue(queryOffset(first, total0));
   const offset = v.group ? 0 : wanted;
-  const q = useLive("records.query", querySpec(type, vq, def.titleField, offset));
+  const colWin = columnWindow(cols, left, box.w);
+  const q = useLive("records.query", querySpec(type, vq, def.titleField, offset, fieldsFor(def, cols, colWin, vq)));
   const kept = useRef<{ offset: number; rows: RecordRow[] } | null>(null);
   if (q.status === "ready" && (kept.current?.rows !== q.data.rows || kept.current.offset !== (v.group ? 0 : offset)))
     kept.current = { offset: v.group ? 0 : offset, rows: q.data.rows };
@@ -977,7 +993,6 @@ function Grid({
     [groupField, loaded, folded, data],
   );
   const total = items ? items.length : (count ?? loaded?.rows.length ?? 0);
-  const colWin = columnWindow(cols, left, box.w);
 
   const edited = isEdited(v, base);
   const set = (next: TableViewState): void => {
