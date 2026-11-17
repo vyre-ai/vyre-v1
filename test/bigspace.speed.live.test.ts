@@ -114,27 +114,23 @@ test("a big Space: first usable, the table, a record, search and Report a proble
       `the sidebar counts every matter: ${count}`,
     );
 
-    // 3. a scroll down the table: no long task. Three passes, judged by the median of each pass's longest task, as the record is judged by the median of three opens: one pass that a busy computer starved is not the table
+    // 3. a scroll down the table: no long task
+    await page.evaluate(() => ((window as unknown as { __lt: number[] }).__lt = []));
     const scroller = page.getByTestId("records-scroll");
-    const longest: number[] = [];
-    for (let pass = 0; pass < 3; pass++) {
-      await page.evaluate(() => ((window as unknown as { __lt: number[] }).__lt = []));
-      for (let i = 1; i <= 14; i++) {
-        await scroller.evaluate((e, k) => ((e as HTMLElement).scrollTop = k * 700), i);
-        await page.waitForTimeout(50);
-      }
-      await page.waitForTimeout(400);
-      const tasks = await page.evaluate(() => (window as unknown as { __lt: number[] }).__lt);
-      longest.push(Math.max(0, ...tasks));
-      await scroller.evaluate((e) => ((e as HTMLElement).scrollTop = 0));
+    for (let i = 1; i <= 14; i++) {
+      await scroller.evaluate((e, k) => ((e as HTMLElement).scrollTop = k * 700), i);
+      await page.waitForTimeout(50);
     }
-    seen["scrollLongestMs"] = med(longest);
-    seen["scrollPasses"] = longest.join(",");
-    assert.equal(
-      med(longest),
-      0,
-      `scrolling the table ran a long task in most passes: ${longest.join(", ")} ms (a long task is over ${BUDGET.longTaskMs} ms)`,
+    await page.waitForTimeout(400);
+    const tasks = await page.evaluate(() => (window as unknown as { __lt: number[] }).__lt);
+    seen["scrollLongTasks"] = tasks.length;
+    seen["scrollLongestMs"] = Math.max(0, ...tasks);
+    assert.deepEqual(
+      tasks,
+      [],
+      `scrolling the table ran long tasks: ${tasks.join(", ")} ms (over ${BUDGET.longTaskMs} ms)`,
     );
+    await scroller.evaluate((e) => ((e as HTMLElement).scrollTop = 0));
 
     // 4. one record: from the press on its open button to the record's page
     const opens: number[] = [];
@@ -156,31 +152,10 @@ test("a big Space: first usable, the table, a record, search and Report a proble
       }
       if (process.env["VYRE_TEST_CAPTURE_DIR"] && i === 0)
         await page.screenshot({ path: path.join(process.env["VYRE_TEST_CAPTURE_DIR"], "bigspace-before-open.png") });
-      // timed inside the page, from the press to the record's page being in the document: the browser driver's own click checks are not the app's time
-      await page.evaluate(() => {
-        const w = window as unknown as { __press?: number; __shown?: number };
-        w.__press = w.__shown = undefined;
-        addEventListener("pointerdown", () => (w.__press = performance.now()), { capture: true, once: true });
-        const seenIt = (): boolean =>
-          !!document.querySelector('[data-testid="record-page"], [data-testid="pane-details"]');
-        const watch = new MutationObserver(() => {
-          if (w.__press !== undefined && seenIt()) {
-            w.__shown = performance.now();
-            watch.disconnect();
-          }
-        });
-        watch.observe(document.body, { childList: true, subtree: true });
-      });
+      const t3 = Date.now();
       await openBtn.click({ force: true });
-      await page.waitForFunction(() => (window as unknown as { __shown?: number }).__shown !== undefined, null, {
-        timeout: 30_000,
-      });
-      opens.push(
-        await page.evaluate(() => {
-          const w = window as unknown as { __press: number; __shown: number };
-          return Math.round(w.__shown - w.__press);
-        }),
-      );
+      await page.getByTestId("record-page").or(page.getByTestId("pane-details")).first().waitFor({ timeout: 30_000 });
+      opens.push(Date.now() - t3);
       await page.getByTestId("record-page").or(page.getByTestId("pane-details")).first().waitFor();
       if (process.env["VYRE_TEST_CAPTURE_DIR"] && i === 0)
         await page.screenshot({ path: path.join(process.env["VYRE_TEST_CAPTURE_DIR"], "bigspace-record.png") });
@@ -224,12 +199,6 @@ test("a big Space: first usable, the table, a record, search and Report a proble
       fs.mkdirSync(out, { recursive: true });
       await page.screenshot({ path: path.join(out, "bigspace-report-sent.png") });
       fs.writeFileSync(path.join(out, "bigspace-speed.json"), JSON.stringify({ sizes, ...seen }, null, 1));
-      // the same big table on a phone, light
-      await page.emulateMedia({ colorScheme: "light" });
-      await page.setViewportSize({ width: 390, height: 844 });
-      await page.goto(web.origin + "/records", { waitUntil: "commit" });
-      await page.getByText("Matters").first().waitFor({ timeout: 30_000 });
-      await page.screenshot({ path: path.join(out, "bigspace-table-phone-light.png") });
     }
     await ctx.close();
   } finally {

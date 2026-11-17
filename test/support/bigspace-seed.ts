@@ -1,5 +1,5 @@
 // A Space the size of a real firm's synced import, for the speed walks (r34-appspeed): ~9,400 matters of ~100 fields each, 27,900 contacts, 1,100 organizations, 13,000 link rows between matters and contacts,
-// ~7,000 further records, 2,000 files and 300 chats. Built through the capability API (records.bulk_upsert and friends) on a booted daemon, as an import writes them. Not a test file.
+// ~7,000 further records. Files and chats are not seeded (files.create costs ~270 ms a call on this size, so 2,000 files would be nine minutes). Built through the capability API (records.bulk_upsert and friends) on a booted daemon, as an import writes them. Not a test file.
 // `scale` shrinks every count for a unit test of the builder itself.
 import { createCapCaller } from "../../client/src/gateway/index.ts";
 import { routes } from "../../generated/routes.ts";
@@ -10,8 +10,6 @@ export interface BigSizes {
   organizations: number;
   links: number;
   notes: number;
-  files: number;
-  chats: number;
 }
 export const BIG: Readonly<BigSizes> = Object.freeze({
   matters: 9_400,
@@ -19,8 +17,6 @@ export const BIG: Readonly<BigSizes> = Object.freeze({
   organizations: 1_100,
   links: 13_000,
   notes: 7_000,
-  files: 2_000,
-  chats: 300,
 });
 export const bigSizes = (scale: number): BigSizes =>
   Object.fromEntries(

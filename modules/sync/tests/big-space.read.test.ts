@@ -25,13 +25,13 @@ test("a catalog over a types source that answers the same list keeps each type's
   const first = cat.get("matter");
   assert.equal(first.fieldLabels["tax"], LABEL_RANKS.restricted);
   for (let i = 0; i < 1_000; i++) assert.equal(cat.get("matter"), first, "one entry, not one per row");
-  assert.equal(cat.classificationStamp!(), cat.classificationStamp!());
+  assert.equal(cat.classificationStamp(), cat.classificationStamp());
   assert.ok(reads >= 1_000, "the source is still asked each time (it is a cheap list read)");
   list = [def("matter", "confidential")];
   const next = cat.get("matter");
   assert.notEqual(next, first);
   assert.equal(next.fieldLabels["tax"], LABEL_RANKS.confidential, "a changed schema shows at once");
-  assert.deepEqual(cat.classified!(), ["matter"]);
+  assert.deepEqual(cat.classified(), ["matter"]);
 });
 
 test("the record store hands back one parsed list of types until the schema changes", async () => {
