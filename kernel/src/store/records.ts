@@ -78,6 +78,9 @@ function note(
   );
 }
 
+/** Moves whenever any `rs_types` table changes (schema.applied, a rebuild's reset), so `typesSnapshot` can keep its parsed list until then. Process-wide, which only ever makes a cache read again, never serve a stale list. */
+let typesEpoch = 0;
+
 /** `records.rows`: schema.applied, record.created, record.updated, record.removed, record.restored. Bump `version` to rebuild every rt_ table from the log on the next open. */
 export const recordsRows: InlineProjection = {
   name: "records.rows",
@@ -96,12 +99,14 @@ export const recordsRows: InlineProjection = {
     ))
       tx.exec(`DROP TABLE IF EXISTS "${t.name}"`);
     tx.exec("DELETE FROM rs_types");
+    typesEpoch++;
     tx.exec("DELETE FROM rs_changes");
     tx.exec("DELETE FROM sqlite_sequence WHERE name = 'rs_changes'");
   },
   on: {
     "schema.applied"(tx, e: StoredEvent) {
       const p = payloadOf<{ set?: TypeDef[]; removed?: string[] }>(e);
+      typesEpoch++;
       for (const d of p.set ?? []) {
         tx.exec(rowTable(d.name));
         tx.run(
@@ -114,6 +119,7 @@ export const recordsRows: InlineProjection = {
         tx.exec(`DROP TABLE IF EXISTS ${table(n)}`);
         tx.run("DELETE FROM rs_types WHERE name = ?", n);
       }
+      typesEpoch++;
     },
     "record.created"(tx, e) {
       const p = payloadOf<{ type: string; id: string; data: object; at: number }>(e);
@@ -256,6 +262,7 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
     }
   };
 
+  let snapshot: { epoch: number; defs: readonly TypeDef[] } | null = null;
   const defOf = (type: string): TypeDef | undefined => {
     const r = tx.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", type);
     return r ? (JSON.parse(r.def) as TypeDef) : undefined;
@@ -380,9 +387,14 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         .map((r) => JSON.parse(r.def) as TypeDef);
     },
     typesSnapshot() {
-      return tx
+      // sync reads this once per row it scans: parse the types again only after a schema change
+      if (snapshot && snapshot.epoch === typesEpoch) return snapshot.defs;
+      const epoch = typesEpoch;
+      const defs = tx
         .all<{ def: string }>("SELECT def FROM rs_types ORDER BY rowid")
         .map((r) => JSON.parse(r.def) as TypeDef);
+      snapshot = { epoch, defs };
+      return defs;
     },
     async describe(type) {
       const t = defOf(type);

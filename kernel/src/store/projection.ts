@@ -272,6 +272,14 @@ export class ProjectionHost {
     return r.event;
   }
 
+  /** Append many events, projections included, as groups of one transaction each (one commit per group, not per event). Throws LogError at the first event the log or a reducer refuses. */
+  appendMany(evs: readonly NewEvent[], group = 1000): void {
+    for (let from = 0; from < evs.length; from += group) {
+      for (const r of this.store.appendBatch(evs.slice(from, from + group)))
+        if (!r.ok) throw new LogError(r.code as never, r.message);
+    }
+  }
+
   projectionVersion(name: string): { version: number; applied: number } | undefined {
     return this.tx.get("SELECT version, applied FROM projection_meta WHERE name = ?", name);
   }
