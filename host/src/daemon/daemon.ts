@@ -2884,6 +2884,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const scheduleQueue = new ScheduleQueue({
         db,
         now,
+        // a sync pass the server starts runs as the person who set the sync up, and only while that person is active and may manage connectors (ctx.schedule `as`)
+        mayRunAs: (person) => {
+          const p = access.snap.principal(person);
+          const sorry = `Syncing is paused: ${p?.name ?? "the person"} set this up and can no longer run it. An admin can take it over.`;
+          if (accessStale) return "Access is being re-checked on this server. Try again in a moment.";
+          if (!p || p.status !== "active") return sorry;
+          return authorize(access.snap, {
+            principal: person,
+            action: { perm: "connectors.manage", level: "view" },
+            resource: { type: "space", id: spaceId },
+            now: now(),
+          }).effect === "allow"
+            ? null
+            : sorry;
+        },
         ...(o.scheduleDeadlineMs !== undefined ? { deadlineMs: o.scheduleDeadlineMs } : {}),
         run: (c) => runScheduled(c),
         onError: (c, e, final) => {

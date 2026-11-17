@@ -12,6 +12,7 @@
 // the same rows changes nothing. Rows are validated and planned before the first write; a store refusal on row N leaves rows before N applied (a rerun finishes the job).
 //
 // Export: CSV (RFC 4180, UTF-8 BOM, formula-safe) or XLSX (inline strings, stored zip). Sealed values are masked. The bytes go to the files module through deps.putFile.
+import { turns } from "../../../lib/yield-loop.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { formatHlc } from "../../../lib/hlc.ts";
 import { mintUuid } from "../../../lib/ids.ts";
@@ -676,7 +677,9 @@ async function upsert(
   const plans = new Map<string, Plan>();
   warmSearch(tx, input.type);
   if (!createOnly) ensureMatchIndex(tx, input.type, input.match);
+  const turn = turns();
   for (let i = 0; i < input.rows.length; i++) {
+    await turn();
     const row = input.rows[i];
     if (!isObj(row)) bad(ctx, `row ${i} is not an object`);
     for (const k of Object.keys(row!))
@@ -751,6 +754,7 @@ async function upsert(
   const all = [...plans.values()];
   let stopped: UpsertStopped | undefined;
   for (let at = 0; at < all.length && !stopped; at++) {
+    await turn();
     const plan = all[at]!;
     const stop = (reason: UpsertStopped["reason"], message: string): void => {
       stopped = {

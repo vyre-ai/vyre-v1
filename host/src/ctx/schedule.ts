@@ -6,6 +6,7 @@ import { mintUuid } from "../../../lib/ids.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CapName } from "../../../packages/contracts/src/types.ts";
 import { fail } from "../routes/errors.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import type { RawDb } from "./db.ts";
 
 export interface ScheduledCall {
@@ -33,6 +34,8 @@ export interface ScheduleOptions {
   /** Runs one due call through the invoke pipeline. A throw counts as a failure. */
   run(call: ScheduledCall): Promise<void>;
   now?: () => number;
+  /** May this person be the principal of a job the server schedules for them (ctx.schedule `as`)? Answers null for yes, or the plain sentence that says why not. */
+  mayRunAs?(person: string): string | null;
   /** Failures before a job is parked as dead. Default 5. */
   maxTries?: number;
   /** Wait after the nth failure. Default 5 s doubling to 10 min. */
@@ -115,11 +118,30 @@ export class ScheduleQueue {
 
   /** The ctx.schedule of one call. */
   forCtx(seed: ScheduleSeed): Ctx["schedule"] {
-    return (at, cap, input) => this.add(seed, at, cap, input);
+    return (at, cap, input, opts) => this.add(seed, at, cap, input, opts);
   }
 
-  async add(seed: ScheduleSeed, at: number | string, cap: CapName | string, input: unknown): Promise<string> {
+  async add(
+    seed: ScheduleSeed,
+    at: number | string,
+    cap: CapName | string,
+    input: unknown,
+    opts?: { as?: string },
+  ): Promise<string> {
     const traceId = seed.trace?.traceId ?? NO_TRACE;
+    let principal = seed.principal;
+    let actingFor = seed.actingFor;
+    if (opts?.as !== undefined) {
+      // only the server's own jobs may schedule work as a person (a sync pass runs as the person who set the sync up); that person must be able to run it now
+      if (!isTrustedService(seed.principal))
+        throw fail("permission.no_grant", traceId, { message: "Only the server schedules work as a person." });
+      if (!/^usr_[a-z0-9]+$/.test(opts.as))
+        throw fail("validation.bad_input", traceId, { message: "as: not a person" });
+      const why = this.o.mayRunAs?.(opts.as) ?? (this.o.mayRunAs ? null : "Nobody may run this for that person here.");
+      if (why !== null) throw fail("permission.no_grant", traceId, { message: why });
+      principal = { kind: "person", id: opts.as };
+      actingFor = undefined;
+    }
     const now = this.now();
     const runAt = parseWhen(at, now, traceId);
     if (typeof cap !== "string" || !CAP.test(cap))
@@ -145,9 +167,9 @@ export class ScheduleQueue {
       seed.space,
       cap,
       json,
-      seed.principal.kind,
-      seed.principal.id,
-      seed.actingFor ?? null,
+      principal.kind,
+      principal.id,
+      actingFor ?? null,
       seed.trace?.traceId ?? "",
       runAt,
       now,

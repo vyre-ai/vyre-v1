@@ -267,10 +267,13 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
     geometry.push(edgeGeometry(e, a, b, at, shownCount(rows.length, exp[e.from] === true)));
   }
 
-  const cards: ReactElement[] = [];
-  for (const n of nodes) {
+  // Each column is an ordinary flow column: the browser stacks its cards by the heights they really have, so no card can lie over the next whatever it holds or whenever it is measured.
+  // The layout still gives each column's place and the order of its cards; the rectangles above only feed the connectors.
+  const columns = new Map<number, { top: number; items: ReactElement[] }>();
+  for (const n of [...nodes].sort((a, b) => (rects.get(a.type) as Rect).y - (rects.get(b.type) as Rect).y)) {
     const r = rects.get(n.type) as Rect;
-    cards.push(
+    const col = columns.get(r.x) ?? columns.set(r.x, { top: r.y, items: [] }).get(r.x)!;
+    col.items.push(
       <Card
         key={n.type}
         node={n}
@@ -289,6 +292,16 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
       />,
     );
   }
+  // ui-rows-lint: not a list (the columns of cards on the canvas, each a stack of cards)
+  const cards: ReactElement[] = [...columns.entries()].map(([x, c]) => (
+    <View
+      key={x}
+      testID={`schema-column-${x}`}
+      style={{ position: "absolute", left: x, top: c.top, width: CARD_W, gap: 36 }}
+    >
+      {c.items}
+    </View>
+  ));
 
   const fieldTotal =
     nodes.length && keys.every((k) => details.has(k))
@@ -480,12 +493,7 @@ function Card({
       onHoverIn={() => onHover(true)}
       onHoverOut={() => onHover(false)}
       testID={`schema-card-${node.type}`}
-      style={[
-        st.card,
-        { left: rect.x, top: rect.y, width: rect.w },
-        selected ? st.cardSel : lit ? st.cardLit : null,
-        dim && st.cardDim,
-      ]}
+      style={[st.card, { width: rect.w }, selected ? st.cardSel : lit ? st.cardLit : null, dim && st.cardDim]}
       {...webProps({ dataSet: { card: node.type } })}
       {...menuTrigger(onMenu)}
     >
@@ -630,7 +638,7 @@ const st = StyleSheet.create({
   }),
   world: { position: "absolute", left: 0, top: 0, width: 1, height: 1 },
   card: sx({
-    position: "absolute",
+    position: "relative",
     borderRadius: 12,
     backgroundColor: "var(--raised)",
     boxShadow: "var(--sh-2)",

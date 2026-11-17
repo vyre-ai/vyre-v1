@@ -1,0 +1,1 @@
+The helper-rows walk no longer fails on a slow computer when the first helper finishes before the second one starts: the lead answers once when both results are in the chat, instead of after counting two wakes.

@@ -136,7 +136,11 @@ export interface SyncEngine {
   undoPush(ctx: ConnectorsCtx, b: SyncBindingRow, outboxId: string): Promise<{ undone: boolean; reason?: string }>;
   push(ctx: ConnectorsCtx, b: SyncBindingRow, outboxId: string): Promise<{ state: "sent" | "failed"; error?: string }>;
 }
-export type SyncDeps = ConnectorsDeps & { engine?: SyncEngine };
+export type SyncDeps = ConnectorsDeps & {
+  engine?: SyncEngine;
+  /** The waits (ms) before a pass that was told "no such connection" for a connection that exists is tried again; tests shorten them. */
+  missingWaitsMs?: readonly number[];
+};
 
 export interface BindingIn {
   type: string;
@@ -252,6 +256,7 @@ CREATE TABLE IF NOT EXISTS cn_sync_poll (sync_type_id TEXT PRIMARY KEY, at INTEG
 -- What a sync_now asked for, found by the Run executor through the run id.
 CREATE TABLE IF NOT EXISTS cn_sync_requests (run_id TEXT PRIMARY KEY, sync_types TEXT NOT NULL, mode TEXT NOT NULL, run_automations INTEGER NOT NULL DEFAULT 0, requested_by TEXT, at INTEGER NOT NULL);
 `;
+const NO_SUCH_CONNECTION = "There is no such connection.";
 const ready = new WeakSet<object>();
 export function ensureSyncTables(tx: Tx): void {
   if (ready.has(tx)) return;
@@ -461,6 +466,41 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
   };
   const engineOf = (ctx: ConnectorsCtx): SyncEngine =>
     deps.engine ?? refuse(ctx, "internal.unavailable", "The sync engine is not available.");
+
+  /**
+   * One pass of the engine. A pass that is told "There is no such connection." for a connection that is in the table was refused for a moment by an access check inside the call (the Space's
+   * access was being re-checked while it was busy), not by a missing connection: the pass waits a little and asks again, and if it is still refused it says so in plain words and that it will try
+   * again. A connection that belongs to someone else says that. Only a connection that is gone says "no such connection".
+   */
+  const runPass = async (
+    ctx: ConnectorsCtx,
+    r: SyncDb,
+    options: Parameters<SyncEngine["run"]>[2],
+  ): Promise<RunReport> => {
+    const waits = deps.missingWaitsMs ?? [200, 600, 1500];
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await engineOf(ctx).run(ctx, rowOf(r), options);
+      } catch (e) {
+        const message = (e as { error?: { message?: string } })?.error?.message;
+        const have = connRow(r.connection_id);
+        if (message !== NO_SUCH_CONNECTION || !have) throw e;
+        if (!visible(ctx, have))
+          return refuse(
+            ctx,
+            "validation.precondition_failed",
+            `The connection for ${r.type} belongs to someone else, so this pass could not use it.`,
+          );
+        if (attempt >= waits.length)
+          return refuse(
+            ctx,
+            "provider.unavailable",
+            `The connection for ${r.type} is there, but this pass could not use it just now while access was being re-checked. It will try again.`,
+          );
+        await new Promise((done) => setTimeout(done, waits[attempt]));
+      }
+    }
+  };
 
   // ---- validation of a mapping ----
   const checkFields = (ctx: ConnectorsCtx, fields: FieldMapRow[], match: string[]): void => {
@@ -1129,7 +1169,6 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       await retrySubscriptions(deps, ctx);
       const req = syncRequest(deps, input.runId);
       if (!req) return refuse(ctx, "validation.not_found", "There is no sync request for that run.");
-      const engine = engineOf(ctx);
       const parts: string[] = [];
       let failed: { code: string; message: string } | undefined;
       let more = false;
@@ -1148,7 +1187,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
               "validation.precondition_failed",
               `The connection for ${r.type} belongs to someone else, so this pass could not use it.`,
             );
-          const out = await engine.run(ctx, rowOf(r), {
+          const out = await runPass(ctx, r, {
             mode: req.mode,
             runAutomations: req.runAutomations,
             ...(req.by ? { by: req.by } : {}),
@@ -1210,7 +1249,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       if (conn && conn.state === "active") {
         markRunning(tx, r.connection_id, nowOf(deps));
         try {
-          const out = await engineOf(ctx).run(ctx, rowOf(r), { mode: "incremental" });
+          const out = await runPass(ctx, r, { mode: "incremental" });
           summary = out.summary;
           noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), true, nowOf(deps));
           retryAt = owedAt(r);

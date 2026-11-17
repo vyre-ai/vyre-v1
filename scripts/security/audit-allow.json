@@ -1,4 +1,100 @@
 {
   "_comment": "Advisories (a package name or an advisory url) that may stay high or critical, each with a reason and an until date (YYYY-MM-DD). An expired entry fails the audit.",
-  "allow": []
+  "allow": [
+    {
+      "advisory": "https://github.com/advisories/GHSA-fc5q-39xc-vjpf",
+      "reason": "picomatch <= 4.0.7 ReDoS through repeated extglobs (published 19 Oct, flagged 17 Nov 2026); no patched version exists. It is reached only through the app's build tools (react-native > metro > jest-util / micromatch, and tinyglobby > fdir), which match the repository's own file patterns at build time; no server or app code passes outside input to it. Review when picomatch ships a fix.",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "picomatch",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "micromatch",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "fdir",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "tinyglobby",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "jest-util",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "react-native",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "@react-native/codegen",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "@react-native/babel-plugin-codegen",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "@react-native/babel-preset",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "@react-native/community-cli-plugin",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "@react-native/metro-babel-transformer",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "@react-native/metro-config",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "@react-native/virtualized-lists",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "metro",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "metro-config",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "metro-transform-worker",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "metro-file-map",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    },
+    {
+      "advisory": "jest-worker",
+      "reason": "flagged only through picomatch (GHSA-fc5q-39xc-vjpf, no fixed version yet), reached by the app's build tools on the repository's own file patterns; see the advisory entry above",
+      "until": "2026-12-01"
+    }
+  ]
 }
