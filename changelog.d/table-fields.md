@@ -1,0 +1,1 @@
+- A big table asks the server only for the columns it shows (about ten times less data for 100 fields), and keeps its scrolling rows in place instead of building them again, so scrolling a 9,400-row table does less work per move.

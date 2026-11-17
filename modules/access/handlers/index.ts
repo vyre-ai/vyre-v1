@@ -115,7 +115,7 @@ export const handlers = {
   "access.principals.effective": readOnly(principalsEffective),
   "access.principals.get": readOnly(principalsGet),
   "access.principals.list": readOnly(principalsList),
-  "access.projection_health": projectionHealth,
+  "access.projection_health": readOnly(projectionHealth),
   "access.propose_change": proposeChange,
   "access.reach": readOnly(reachBatch),
   "access.request": requestCreate,

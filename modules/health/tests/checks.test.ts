@@ -559,3 +559,29 @@ test("health.machine answers the numbers the host reported for CPU, memory and d
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+test("checks that wait on nothing are asked together: the doctor takes the slowest, not the sum, and the rows keep their order", async () => {
+  const defs = ["a.one", "b.two", "c.three", "d.four", "e.five", "f.six"].map((k) => def(k, { timeoutMs: 2000 }));
+  use(defs);
+  const h = harness();
+  let live = 0,
+    most = 0;
+  const ctx = {
+    ...h.ctx,
+    call: async () => {
+      most = Math.max(most, ++live);
+      await new Promise((r) => setTimeout(r, 120));
+      live--;
+      return healthy;
+    },
+  } as typeof h.ctx;
+  const t0 = Date.now();
+  const rows = (await run(ctx, {})).checks;
+  const took = Date.now() - t0;
+  assert.deepEqual(
+    rows.map((r) => r.key),
+    defs.map((d) => d.key),
+  );
+  assert.ok(most >= 5, `asked together (${most} at once)`);
+  assert.ok(took < 400, `six checks of 120 ms took ${took} ms, not 720`);
+});

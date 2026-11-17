@@ -7,7 +7,6 @@
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { stampOf } from "../consumers.ts";
 import { isReader } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
@@ -27,6 +26,7 @@ import type {
 } from "../projections.ts";
 import {
   agentLevel,
+  CURSOR_KEY,
   changed,
   clearMadeBy,
   EVERYONE,
@@ -123,12 +123,62 @@ function tryAll(db: Db, sql: string): Record<string, unknown>[] {
 
 /**
  * The share state a reader built, kept between calls. ctx.db is a new handle on every call, so SHARES never hits across calls and every call that read my_access rebuilt all of it
- * (45,000 resources: 0.7 to 6 s a call, on the one thread everything shares). A reader keeps what it built, keyed on the daemon database itself (host/src/ctx/db.ts rawDbOf) and the
- * access tables' write counter (migrations/0006_local_stamp.sql): any write to an access row by anyone moves the counter, and then the next call reads the tables and rebuilds as before.
- * Only a reader (a call that never changes the store) reuses or publishes one, and any writer drops it, so an unwritten change of a handler never reaches another call.
+ * (45,000 resources: 0.7 to 6 s a call, on the one thread everything shares). A reader keeps what it built, keyed on the daemon database itself (host/src/ctx/db.ts rawDbOf) and on the
+ * kept store of access.sync that it read (consumers.ts readViewOf): the same store object means no access row was written by anyone but the sync since, because a write by anything else makes
+ * readViewOf read the tables again into a new store. The sync only replaces records and moves the store's epoch.
+ * When the epoch moved, only what changed is worked out again: the kept copy of the store's maps is compared with the store (a record is replaced, never changed), and the objects named by a
+ * changed grant or resource, with everything under them, are evaluated again (`rebuild` with roots). A change it cannot scope (a role, a group, a person, a policy, a grant on nothing it knows)
+ * is a full rebuild, as before. Only a reader (a call that never changes the store) reuses or publishes one, and any writer drops it.
  */
-const KEPT = new WeakMap<object, { stamp: number; ss: ShareStore }>();
-export const shareKept = { hits: 0, built: 0 };
+interface Base {
+  resources: Map<string, ResourceRec>;
+  grants: Map<string, GrantRec>;
+  /** everything else the store holds, as text: small, and compared whole */
+  rest: string;
+}
+const KEPT = new WeakMap<object, { store: AccessStore; ss: ShareStore; base: Base }>();
+export const shareKept = { hits: 0, built: 0, incremental: 0 };
+
+function restOf(store: AccessStore): string {
+  return JSON.stringify([
+    [...store.catalogue].sort(),
+    [...store.roles],
+    [...store.roleChanges],
+    [...store.groups],
+    [...store.principals],
+    [...store.policies],
+    [...store.actors],
+    [...store.assignments],
+    [...store.fieldLabels].filter(([k]) => k !== CURSOR_KEY),
+  ]);
+}
+const baseOf = (store: AccessStore): Base => ({
+  resources: new Map(store.resources),
+  grants: new Map(store.grants),
+  rest: restOf(store),
+});
+
+/** The objects whose rows must be worked out again since `base`, or null when the change is not one it can scope (then everything is). */
+export function changedRoots(base: Base, store: AccessStore): string[] | null {
+  if (restOf(store) !== base.rest) return null;
+  const roots = new Set<string>();
+  for (const [id, r] of store.resources) if (base.resources.get(id) !== r) roots.add(id);
+  for (const id of base.resources.keys()) if (!store.resources.has(id)) roots.add(id);
+  const grantAt = (g: GrantRec): boolean => {
+    const where = g.resource?.id;
+    if (typeof where !== "string" || where === "" || where === "*") return false; // a grant on a whole type
+    if (!store.resources.has(where) && !base.resources.has(where)) return false; // on nothing it knows
+    roots.add(where);
+    return true;
+  };
+  for (const [id, g] of store.grants) {
+    const was = base.grants.get(id);
+    if (was === g) continue;
+    if (!grantAt(g) || (was && !grantAt(was))) return null;
+  }
+  for (const [id, g] of base.grants) if (!store.grants.has(id) && !grantAt(g)) return null;
+  return [...roots];
+}
 
 export function shareOf(ctx: AccessCtx): ShareStore {
   const hit = SHARES.get(ctx.db);
@@ -137,8 +187,7 @@ export function shareOf(ctx: AccessCtx): ShareStore {
   if (raw) {
     if (isReader(ctx)) {
       const kept = KEPT.get(raw);
-      const stamp = stampOf(ctx.db);
-      if (kept && stamp !== null && kept.stamp === stamp) {
+      if (kept && kept.store === storeOf(ctx)) {
         shareKept.hits++;
         SHARES.set(ctx.db, kept.ss);
         return kept.ss;
@@ -515,11 +564,22 @@ function isFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): boolean {
 
 function ensureFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
   if (isFresh(ctx, store, ss)) return;
-  rebuild(ctx, store, ss, "all");
-  shareKept.built++;
   const raw = rawDbOf(ctx.db);
-  const stamp = stampOf(ctx.db);
-  if (raw && stamp !== null && isReader(ctx) && ss.fresh === store.epoch) KEPT.set(raw, { stamp, ss });
+  const reader = !!raw && isReader(ctx);
+  const kept = reader ? KEPT.get(raw!) : undefined;
+  // a kept state that is still this store's, moved on by the sync since: work out only what changed
+  const roots =
+    kept && kept.ss === ss && kept.store === store && ss.fresh >= 0 && ss.fresh !== store.epoch
+      ? changedRoots(kept.base, store)
+      : null;
+  if (roots) {
+    rebuild(ctx, store, ss, roots);
+    shareKept.incremental++;
+  } else {
+    rebuild(ctx, store, ss, "all");
+    shareKept.built++;
+  }
+  if (reader && ss.fresh === store.epoch) KEPT.set(raw!, { store, ss, base: baseOf(store) });
 }
 
 /** After a change: persist, then refresh my_access for the affected subtree (or everything when the cache was already stale). */
@@ -2118,4 +2178,27 @@ export function myAccess(ctx: AccessCtx, person: string): AccessRow[] {
   const ss = shareOf(ctx);
   ensureFresh(ctx, store, ss);
   return [...ss.access.values()].filter((r) => r.person === person);
+}
+
+/** For the tests: the rows my_access holds now for everyone, worked out by the path a reader takes (kept, incremental when it can be), sorted. */
+export function accessRowsNow(ctx: AccessCtx): AccessRow[] {
+  const store = storeOf(ctx);
+  const ss = shareOf(ctx);
+  ensureFresh(ctx, store, ss);
+  return [...ss.access.values()].sort((a, b) => (ak(a.person, a.type, a.id) < ak(b.person, b.type, b.id) ? -1 : 1));
+}
+/** For the tests: the same rows worked out from nothing, by a full rebuild into a share store of its own. */
+export function accessRowsFull(ctx: AccessCtx): AccessRow[] {
+  const store = storeOf(ctx);
+  const ss = new ShareStore();
+  for (const a of tryAll(ctx.db, "SELECT * FROM access_my_access"))
+    ss.access.set(ak(String(a.person), String(a.resourceType), String(a.resourceId)), {
+      person: String(a.person),
+      type: String(a.resourceType),
+      id: String(a.resourceId),
+      level: a.level as Level,
+      via: a.via as Via,
+    });
+  rebuild(ctx, store, ss, "all");
+  return [...ss.access.values()].sort((a, b) => (ak(a.person, a.type, a.id) < ak(b.person, b.type, b.id) ? -1 : 1));
 }
