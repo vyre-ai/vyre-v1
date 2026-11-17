@@ -1008,3 +1008,23 @@ test("merge undo (909 review): links that moved back to the merged record are an
   assert.equal(back.length, 1);
   assert.deepEqual(back[0]!.payload.fields, { owner: link(b) });
 });
+
+test("bulk_upsert: a batch of many rows gives the event loop back between rows, so a person's request is not held for the whole batch", async () => {
+  const k = await kit();
+  const rows = Array.from({ length: 400 }, (_, i) => ({
+    email: `u${i}@x.com`,
+    name: `User ${i}`,
+    city: "Oslo ".repeat(40),
+  }));
+  let ticks = 0;
+  const timer = setInterval(() => ticks++, 0);
+  const started = performance.now();
+  const out = await k.h["records.bulk_upsert"](k.ctx, { type: "party", rows, match: ["email"], createOnly: true });
+  clearInterval(timer);
+  assert.equal(out.created, 400);
+  // 400 rows take well over one 15 ms share of work, so the loop was given back at least once
+  assert.ok(
+    performance.now() - started < 15 || ticks >= 1,
+    `the loop ran other work during the batch (${ticks} ticks)`,
+  );
+});

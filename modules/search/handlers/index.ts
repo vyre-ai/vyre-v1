@@ -1,6 +1,7 @@
 // The index side of the search module (spec b11; ARCH 4.3 consumers search.fts and search.vectors): the sources that turn an entity row into a document, search.index.apply, the embeddings
 // consumer, the rebuild, the stats and the health probe, and the two small writes Recent needs. The handler table at the bottom holds all ten capabilities of manifests/search.ts.
 // Private content never reaches the index: a source answers `e2e` (the name of the row's encryption label, not a claim about the chat) for a private chat, a Restricted row or a sealed message, and apply then removes whatever was there.
+import { turns } from "../../../lib/yield-loop.ts";
 import { isRawId } from "../../../lib/id-shapes.ts";
 import {
   askerOf,
@@ -421,6 +422,7 @@ export async function indexApply(
 // ---- search.embed.run
 
 const EMBED_CHARS = 2_000;
+const EMBED_SLICE = 5;
 
 export async function embedRun(
   ctx: SearchCtx,
@@ -434,11 +436,17 @@ export async function embedRun(
     limit,
   );
   if (batch.length > 0) {
-    const vecs = await embed(batch.map((r) => `${str(r["title"])}\n${str(r["body"]).slice(0, EMBED_CHARS)}`));
-    for (let i = 0; i < batch.length; i++) {
-      const n = num(batch[i]!["n"]);
-      writeVector(ctx.db, ctx.space, n, vecs[i]!);
-      ctx.db.run("UPDATE search_docs SET embedded = 1 WHERE n = ?", n);
+    // a slice at a time: computing the vectors of a whole batch of documents is one stretch of synchronous work, so the loop is given back between slices
+    const turn = turns(5);
+    for (let from = 0; from < batch.length; from += EMBED_SLICE) {
+      const part = batch.slice(from, from + EMBED_SLICE);
+      const vecs = await embed(part.map((r) => `${str(r["title"])}\n${str(r["body"]).slice(0, EMBED_CHARS)}`));
+      for (let i = 0; i < part.length; i++) {
+        const n = num(part[i]!["n"]);
+        writeVector(ctx.db, ctx.space, n, vecs[i]!);
+        ctx.db.run("UPDATE search_docs SET embedded = 1 WHERE n = ?", n);
+      }
+      await turn();
     }
   }
   return {
