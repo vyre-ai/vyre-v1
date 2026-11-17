@@ -48,7 +48,9 @@ test("helpers are one row each, updated in place, the lead answers once, and a h
 
   let lead = "";
   let chat = "";
-  let wakes = 0;
+  let answered = false;
+  // how many helpers' results are in the lead's chat; set once the chat is open
+  let resultsInChat: () => Promise<number> = async () => 0;
   const model = scriptedModel(async function* (input, run) {
     if (input.agent.id !== lead) return;
     if (input.threadId !== chat) {
@@ -73,12 +75,15 @@ test("helpers are one row each, updated in place, the lead answers once, and a h
         });
       yield { type: "text", text: "I started two helpers." };
     } else if (input.trigger?.author.kind === "agent") {
-      wakes += 1;
-      if (wakes >= 2)
+      // The lead is woken once, by the last result, with the earlier ones already in the chat; a result that lands while it is still starting the other helper reaches it in that turn, so it is no wake of its own.
+      // It answers when both results are in the chat, once, and never by counting its wakes (on a slow runner the first helper ends before the second one starts, and there is one wake).
+      if (!answered && (await resultsInChat()) >= 2) {
+        answered = true;
         yield {
           type: "text",
           text: "Both helpers are back: three plans on the pricing page and two flat fees on the schedule.",
         };
+      }
     }
   });
   const fresh = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-helper-rows-")));
@@ -154,6 +159,13 @@ test("helpers are one row each, updated in place, the lead answers once, and a h
     chat = (
       await api("chat.start", { kind: "chat", agentIds: [lead], title: "Pricing research", idempotencyKey: "j-chat" })
     ).thread.threadId as string;
+    resultsInChat = async () =>
+      (
+        (await api("chat.messages.list", { threadId: chat })).messages as Array<{
+          author: { kind: string };
+          body: string;
+        }>
+      ).filter((m) => m.author.kind === "agent" && /^Helper "Crew test: subagent \d" found/.test(m.body)).length;
     for (const flow of ["team", "personal", "member"])
       await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
     const me = (await api("identity.whoami", {})).principal.id as string;
