@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { createSampleConsole } from "../shell/sample.ts";
+import { NeedsHere } from "../shell/NeedsHere.tsx";
 import { Server, Diagnostics, Support, Storage } from "../pages/Infrastructure.tsx";
 import { pendingAction, logFilter, safeDownload } from "../pages/infra-model.ts";
 const draw = (element: React.ReactElement, rows: Record<string, unknown>): string => {
@@ -152,4 +153,31 @@ test("Look up an error takes the id from an error message and reads logs.trace; 
   } finally {
     p.restore();
   }
+});
+
+test("Needs you on Diagnostics says a failing check's advice as text; a button that opens this same page again is never drawn (r34, 17 Nov)", () => {
+  const attention = [
+    { kind: "failing_check", title: "Disk encryption", since: 1, next: "Enable FileVault or LUKS", ref: "disk" },
+    { kind: "expiring_certificate", title: "Certificate", since: 1, next: "Renew it", ref: "cert" },
+  ];
+  const base = createSampleConsole().data;
+  const data = {
+    ...base,
+    screens: {
+      ...base.screens,
+      query: () => {
+        const value = { status: "ready", data: { attention } };
+        return { subscribe: () => () => undefined, getSnapshot: () => value };
+      },
+    } as never,
+  };
+  const draw2 = (page: string): string =>
+    renderToStaticMarkup(
+      <ConsoleDataProvider value={data}>
+        <NeedsHere page={page} />
+      </ConsoleDataProvider>,
+    );
+  const onDiagnostics = draw2("diagnostics");
+  assert.match(onDiagnostics, /Enable FileVault or LUKS/, "the advice is said");
+  assert.doesNotMatch(onDiagnostics, /needs-go-/, "with no button that goes nowhere");
 });
