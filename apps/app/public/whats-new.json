@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0-rc.36",
+  "version": "1.0.0-rc.37",
   "lines": [
+    "Syncs with an outside app run on their own schedule, as the person who set them up, and pause in plain words if that person no longer can.",
+    "A big sync no longer makes the app pause: the server gives way every few milliseconds, so pages and the live view stay quick.",
     "A server holding tens of thousands of records starts in seconds instead of minutes, and the Console's health page answers at once.",
     "Reading a long list while a sync writes no longer fails with Access changed; the page waits a moment for the new records.",
-    "The Console's health page and a new chat no longer show buttons that do nothing.",
     "In the schema map, every card stays clear of the others, opened or not, so each button can be pressed.",
-    "A Space with tens of thousands of records opens at once, and search, records, Files and chat answer in milliseconds.",
     "Send a PDF for signature with no outside service. The signer needs no account, and the signed copy is sealed."
   ]
 }
