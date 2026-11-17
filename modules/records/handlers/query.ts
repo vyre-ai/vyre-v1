@@ -488,6 +488,19 @@ function ensureSearch(tx: Tx, type: string): boolean {
   return true;
 }
 
+const warmed = new WeakMap<object, Set<string>>();
+/**
+ * Make the full text index of a type exist before anyone searches it. The index used to be built by the first search, which on a type of 9,400 rows of 100 fields held the whole server for about four
+ * seconds before it answered; a type that has it is kept current by its triggers, so a write that comes first pays for its own row and a search never pays for the rest. Cheap when it exists
+ * (remembered per store handle).
+ */
+export function warmSearch(tx: Tx, type: string): void {
+  let done = warmed.get(tx);
+  if (!done) warmed.set(tx, (done = new Set()));
+  if (done.has(type)) return;
+  if (ensureSearch(tx, type)) done.add(type);
+}
+
 const WORD = /[\p{L}\p{N}_]+/gu;
 const likeEscape = (s: string): string => s.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
 

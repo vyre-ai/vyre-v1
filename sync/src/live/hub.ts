@@ -94,7 +94,7 @@ export function createLiveHub(d: LiveDeps): LiveHub {
     let inflight: number[] = [];
     let hinted = false;
     // a web page keeps no copy of rows (its live link only re-reads what is on screen), so it is told the Space moved and sent no rows
-    const tick = who.deviceClass === "web";
+    let tick = who.deviceClass === "web";
     // the stream waits here for a change with a field heavier than any frame, until the device has pulled it
     let blockedAt = 0;
     let lastRx = d.clock.now();
@@ -246,6 +246,7 @@ export function createLiveHub(d: LiveDeps): LiveHub {
     function hello(h: Hello): void {
       const ok = decideMode(h, d.state(who));
       epoch = h.epoch;
+      tick = tick || h.deviceClass === "web";
       send({ t: "hello_ok", ok });
       mode = ok.mode;
       if (ok.mode === "purge") {
