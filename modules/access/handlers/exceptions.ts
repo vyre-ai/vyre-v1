@@ -297,14 +297,19 @@ export async function exceptionsExplain(ctx: AccessCtx, input: { principal: stri
   return { allowed: holds, source, words, ...(exception ? { exception } : {}) };
 }
 
-/** The periodic job: every exception whose end has come lapses through access.exceptions.lapse, one audited row each. */
+/**
+ * The periodic job: every exception whose end has come lapses through access.exceptions.lapse, one audited row each. It asks the tables for the exceptions that are due, by the indexed end time, and
+ * reads nothing else: it used to load the whole access store (every resource, grant and person) on each run, 0.8 s of one stretch of work every minute on a firm's Space, to find that nothing was due.
+ */
 export async function lapseDue(
   ctx: AccessCtx & { call?(cap: string, input: unknown): Promise<unknown> },
 ): Promise<string[]> {
-  const store = storeOf(ctx);
-  const due = [...store.grants.values()]
-    .filter((g) => isException(g) && g.conditions.expiresAt !== undefined && g.conditions.expiresAt <= ctx.now())
-    .map((g) => g.id);
+  const due = (
+    ctx.db.all(
+      `SELECT "id" FROM access_grants WHERE "expiresAt" IS NOT NULL AND "expiresAt" <= ? AND json_extract("conditions", '$.exception') IS NOT NULL ORDER BY "id"`,
+      ctx.now(),
+    ) as { id: string }[]
+  ).map((r) => r.id);
   const done: string[] = [];
   for (const id of due) {
     if (!ctx.call) break;
