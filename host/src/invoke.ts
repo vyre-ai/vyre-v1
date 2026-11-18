@@ -1543,7 +1543,14 @@ export function createInvoke(deps: InvokeDeps): Invoke {
             decisionId: d.decisionId,
           };
         }
-        return { effect: d.effect, reason: d.reason, decisionId: d.decisionId };
+        // the id is minted when someone reads it (the kernel's Decision mints on first read): most checks only want the effect
+        return {
+          effect: d.effect,
+          reason: d.reason,
+          get decisionId(): string {
+            return d.decisionId;
+          },
+        };
       },
       // each person on their own grants, as no one's agent: what a chat's audience may open (lib/audience.ts). A check that cannot run says no.
       mayAll(people, action, resource): boolean {

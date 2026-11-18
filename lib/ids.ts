@@ -5,8 +5,26 @@
 // key order. The version nibble is 4, NOT 7, on purpose: Twenty (the objects layer behind records) validates ids as UUID versions 1 to 5 and rejects the v7 marker (spike, 3 Oct 2026), and a record id has to be
 // accepted by it unchanged. Nothing reads the marker as a version: if a store ever takes 7 the nibble can change here and nowhere else. Ruling (team-lead, 6 Oct 2026): one minting file, v7 layout with the version-4 marker.
 // Portable without dependencies: Web Crypto's getRandomValues exists on Node 24, browsers and Hermes (via polyfill); hex is written out.
-const randomBytes = (n: number): Uint8Array => globalThis.crypto.getRandomValues(new Uint8Array(n));
-const bytesToHex = (b: Uint8Array): string => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+// One call to the system's random source per 4 KiB, not per id (r38: 2,950 ms of a 90 s profile on the firm's server went to a getRandomValues call for each id). An id takes a slice of the pool; a byte is handed out once.
+const POOL = 4096;
+const pool = new Uint8Array(POOL);
+let used = POOL;
+const randomBytes = (n: number): Uint8Array => {
+  if (n > POOL) return globalThis.crypto.getRandomValues(new Uint8Array(n));
+  if (used + n > POOL) {
+    globalThis.crypto.getRandomValues(pool);
+    used = 0;
+  }
+  const out = pool.slice(used, used + n); // a copy: the pool is never handed out twice
+  used += n;
+  return out;
+};
+const HEX_BYTE: string[] = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
+const bytesToHex = (b: Uint8Array): string => {
+  let h = "";
+  for (let i = 0; i < b.length; i++) h += HEX_BYTE[b[i]!];
+  return h;
+};
 
 const HEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
