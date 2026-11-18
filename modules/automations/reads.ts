@@ -15,6 +15,7 @@ export interface ReadIssue {
 const TRIGGERS = new Map(registry.triggers.map((t) => [t.key, t] as const));
 const STEPS = new Map(registry.steps.map((s) => [s.key, s] as const));
 const EVENTS = new Map(registry.events.map((e) => [e.name, e] as const));
+const DEFS = ((registry as unknown as { $defs?: Record<string, unknown> }).$defs ?? {}) as Record<string, unknown>;
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const propsOf = (schema: unknown): string[] => {
   const p = (schema as { properties?: unknown } | null)?.properties;
@@ -74,7 +75,7 @@ export function triggerShape(def: Definition): Shape | undefined {
     const d = TRIGGERS.get(t.key);
     if (!d) continue;
     any = true;
-    for (const [k, v] of Object.entries(shapeOf(d.payload).props ?? {})) props[k] = props[k] ?? v;
+    for (const [k, v] of Object.entries(shapeOf(d.payload, DEFS).props ?? {})) props[k] = props[k] ?? v;
   }
   return any ? { props } : undefined;
 }
@@ -102,7 +103,7 @@ function checkRead(r: Read, def: Definition, ids: Set<string>): string | undefin
       return `{{${r.text}}} is not a variable. What a step returns is under steps.${id}.out, so use steps.${id}.out.${r.segs[1]}.`;
     if (r.segs.length > 2) {
       const key = byId(def, id)?.key;
-      return checkAgainst(r, shapeOf(key ? STEPS.get(key)?.output : undefined), 2);
+      return checkAgainst(r, shapeOf(key ? STEPS.get(key)?.output : undefined, DEFS), 2);
     }
   }
   return undefined;

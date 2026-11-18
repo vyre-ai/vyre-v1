@@ -117,6 +117,7 @@ export interface StepEnv {
 }
 
 const STEPS = new Map(registry.steps.map((s) => [s.key, s] as const));
+const DEFS = ((registry as unknown as { $defs?: Record<string, unknown> }).$defs ?? {}) as Record<string, unknown>;
 const TRIGGER_PAYLOADS = new Map(registry.triggers.map((t) => [t.key, t.payload] as const));
 const CAPS = new Map(registry.capabilities.map((c) => [c.name, c] as const));
 const DAY30 = "30d";
@@ -783,6 +784,26 @@ const ADAPTERS: Record<string, Adapter> = {
     },
     output: (o) => ({ messageId: o?.message?.id ?? o?.messageId }),
   },
+  // a link is one-use unless the step says otherwise: the link in a later email step is for one person
+  "forms.link_create": {
+    cap: "forms.link_create",
+    input: (i, _env, call) => ({
+      formId: i.formId,
+      recordId: i.recordId,
+      singleUse: i.singleUse !== false,
+      ...(typeof i.expiresInHours === "number" ? { expiresInHours: i.expiresInHours } : {}),
+      idempotencyKey: call.key,
+    }),
+  },
+  "journeys.move_stage": {
+    cap: "journeys.move_stage",
+    input: (i) => ({
+      journeyId: i.journeyId,
+      recordId: i.recordId,
+      toStage: i.toStage,
+      reason: typeof i.reason === "string" && i.reason.trim() !== "" ? i.reason : "Moved by an automation",
+    }),
+  },
   start_journey: { cap: "journeys.start", output: (o, i) => ({ recordId: o?.recordId ?? i.subjectRecordId }) },
   sign: {
     cap: "esign.send",
@@ -906,7 +927,7 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
   const unresolved = unresolvedLine(textsIn(node.input), {
     trigger: call.trigger,
     steps: scope.steps,
-    declared: shapeOf(TRIGGER_PAYLOADS.get(env.run.trigger ?? "")),
+    declared: shapeOf(TRIGGER_PAYLOADS.get(env.run.trigger ?? ""), DEFS),
     checkSteps: !(call.sandbox && Object.keys(call.outputs).length === 0),
   });
   if (unresolved) throw stepError("validation.bad_input", `${def.title}: ${unresolved}`, false);

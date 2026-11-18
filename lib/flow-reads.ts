@@ -161,12 +161,14 @@ export function checkAgainst(read: Read, from: Shape, at = 0): string | undefine
   return undefined;
 }
 
-/** A JSON-schema object as a Shape: named parts where the schema names them, free anywhere else. */
-export function shapeOf(schema: unknown, depth = 0): Shape {
-  const s = schema as { properties?: Record<string, unknown>; required?: unknown } | null;
+/** A JSON-schema object as a Shape: named parts where the schema names them, free anywhere else. `defs` is the catalogue's `$defs` table, for the `$ref`s the generator folds shared shapes into. */
+export function shapeOf(schema: unknown, defs: Record<string, unknown> = {}, depth = 0): Shape {
+  let s = schema as { $ref?: unknown; properties?: Record<string, unknown>; required?: unknown } | null;
+  for (let i = 0; i < 4 && s && typeof s === "object" && typeof s.$ref === "string"; i++)
+    s = defs[s.$ref.replace("#/$defs/", "")] as typeof s;
   if (depth > 5 || !s || typeof s !== "object" || !s.properties || typeof s.properties !== "object") return {};
   const props: Record<string, Shape> = {};
-  for (const [k, v] of Object.entries(s.properties)) props[k] = shapeOf(v, depth + 1);
+  for (const [k, v] of Object.entries(s.properties)) props[k] = shapeOf(v, defs, depth + 1);
   const required = Array.isArray(s.required) ? s.required.filter((x): x is string => typeof x === "string") : [];
   return { props, ...(required.length ? { required } : {}) };
 }

@@ -119,3 +119,14 @@ test("the save refuses a Flow with a variable or filter that cannot work, and va
   assert.match(lines, /Use "fields"/);
   assert.match(lines, /\{\{trigger\.id\}\} is not a variable\. Did you mean trigger\.recordId\?/);
 });
+
+test("a form link made in one step is usable in the email after it, and a mistyped output is caught", () => {
+  const flow = (url: string) =>
+    def(
+      [{ key: "form_submit" }],
+      node("link", "forms.link_create", { formId: "frm_a1b2c3", recordId: "{{trigger.recordId}}" }),
+      node("mail", "send_email", { to: "{{trigger.record.email}}", subject: "s", body: url }),
+    );
+  assert.deepEqual(say(flow("Finish here: {{steps.link.out.url}}")), []);
+  assert.match(say(flow("{{steps.link.out.link}}"))[0]!, /After steps\.link\.out you can use expiresAt, url/);
+});

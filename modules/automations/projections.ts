@@ -17,6 +17,8 @@ export interface Subject {
   id: string;
 }
 export interface AiBlock {
+  /** answer: one reply, no tools (the default); task: an agent turn with its tools and skills */
+  mode?: "answer" | "task";
   agentId?: string;
   keyId?: string;
   backupKeyId?: string;

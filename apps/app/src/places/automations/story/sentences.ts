@@ -39,6 +39,8 @@ const STEPS: Readonly<Record<string, string>> = {
   "calendar.create_event": "Schedule {title}( at {startsAt})",
   "calendar.list_events": "List events( from {from})",
   start_journey: "Start {journeyId} for {subjectRecordId}",
+  "journeys.move_stage": "Move {recordId} to {toStage}",
+  "forms.link_create": "Make a link to {formId} for {recordId}",
   "sheet.add_rows": "Add rows to {fileId}",
   "sheet.create": "Create the spreadsheet {name}",
   "sheet.delete_rows": "Delete a row from {fileId}",

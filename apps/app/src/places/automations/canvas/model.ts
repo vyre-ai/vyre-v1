@@ -67,6 +67,7 @@ export const STEP_PALETTE: readonly { key: string; title: string; group: string;
   { key: "records.create", title: "Create a record", group: "Data", icon: "plus" },
   { key: "records.update", title: "Update a record", group: "Data", icon: "edit" },
   { key: "create_task", title: "Create a task", group: "Data", icon: "task" },
+  { key: "forms.link_create", title: "Make a form link", group: "Data", icon: "edit" },
   { key: "send_email", title: "Send an email", group: "Send", icon: "send" },
   { key: "send_sms", title: "Send a text message", group: "Send", icon: "phone" },
   { key: "post_message", title: "Post a chat message", group: "Send", icon: "chat" },
@@ -82,6 +83,7 @@ export const STEP_PALETTE: readonly { key: string; title: string; group: string;
   { key: "group_by", title: "Group by", group: "Flow", icon: "branch" },
   { key: "call_automation", title: "Run another automation", group: "Flow", icon: "journey" },
   { key: "start_journey", title: "Start a Journey", group: "Journeys", icon: "journey" },
+  { key: "journeys.move_stage", title: "Move to a stage", group: "Journeys", icon: "journey" },
   { key: "wait_stage", title: "Wait for a Journey stage", group: "Journeys", icon: "hourglass" },
   { key: "sheet.add_rows", title: "Add rows", group: "Spreadsheets", icon: "sheet" },
   { key: "sheet.find_rows", title: "Find rows", group: "Spreadsheets", icon: "search" },
@@ -166,6 +168,7 @@ const PRODUCT_TITLES: Readonly<Record<string, string>> = {
   "forms.list": "Forms · List forms",
   "forms.create": "Forms · Create a form",
   "forms.publish": "Forms · Publish a form",
+  "forms.link_create": "Forms · Make a form link",
   "records.relate": "Link records",
 };
 
@@ -820,6 +823,15 @@ const REQUIRED: Readonly<Record<string, readonly { field: string; label: string 
     { field: "recordType", label: "a record type" },
   ],
   "forms.publish": [{ field: "formId", label: "a form" }],
+  "forms.link_create": [
+    { field: "formId", label: "a form" },
+    { field: "recordId", label: "a record" },
+  ],
+  "journeys.move_stage": [
+    { field: "journeyId", label: "a Journey" },
+    { field: "recordId", label: "a record" },
+    { field: "toStage", label: "a stage" },
+  ],
   loop: [{ field: "items", label: "the list to go through" }],
   http_request: [{ field: "url", label: "the address" }],
   code: [{ field: "source", label: "the code" }],
