@@ -266,16 +266,26 @@ function itemBy(ctx: VaultCtx, ref: string, forTurn = false): Row {
   const asker = ctx.actingFor ?? ctx.principal.id;
   const rank = (r: Row): number =>
     str(r, "scope") === "mine" && str(r, "owner") === asker ? 0 : str(r, "scope") === "shared" ? 1 : 2;
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`))
-    .filter((r) => visible(ctx, r) || (forTurn && str(r, "scope") === "mine" && live(r) && turnFor(ctx, r)))
-    .sort((a, b) => rank(a) - rank(b));
-  const byHandle = (w: string): Row | undefined =>
-    rows.find((r) => str(r, "handle").replace(/^#/, "").toLowerCase() === w);
+  // every item is ranked, but visibility (an access check or four) is asked only of the items whose handle or name matches, in the order the lookup tries them: the answer is the first visible match, as when every item was checked first
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).sort((a, b) => rank(a) - rank(b));
+  const seen = new Map<string, boolean>();
+  const mayReach = (r: Row): boolean => {
+    const id = str(r, "id");
+    let v = seen.get(id);
+    if (v === undefined) {
+      v = visible(ctx, r) || (forTurn && str(r, "scope") === "mine" && live(r) && turnFor(ctx, r));
+      seen.set(id, v);
+    }
+    return v;
+  };
+  const handleKey = (r: Row): string => str(r, "handle").replace(/^#/, "").toLowerCase();
+  const byHandle = (w: string): Row | undefined => rows.find((r) => handleKey(r) === w && mayReach(r));
   const folded = (): Row | undefined => {
     const to = aliasTarget(ctx.db, want);
     return to ? byHandle(to.replace(/^#/, "").toLowerCase()) : undefined;
   };
-  const hit = byHandle(want) ?? rows.find((r) => str(r, "name").toLowerCase() === ref.trim().toLowerCase()) ?? folded();
+  const named = ref.trim().toLowerCase();
+  const hit = byHandle(want) ?? rows.find((r) => str(r, "name").toLowerCase() === named && mayReach(r)) ?? folded();
   if (!hit)
     throw fail("validation.not_found", ctx.trace.traceId, {
       message: "That item is not in this Vault, or you cannot use it. Ask its owner to share it with you.",

@@ -1,0 +1,1 @@
+The server uses far less processor time on a big Space: ids are minted from a pooled random buffer, a connector's key is found without checking access on every item of the Vault, and the hook runner stores its positions once a second in one commit instead of after every pass.
