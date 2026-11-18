@@ -1,0 +1,1 @@
+- Files and every list that reads what a person may open keep what they build between calls again, and give the same answer as a Space built in one go whatever the Console looked at in between.
