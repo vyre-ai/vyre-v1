@@ -14,6 +14,7 @@ import { collectItems, groupItems, transformValue } from "./data-steps.ts";
 import { nextOpen } from "./hours.ts";
 import type { OpenHours } from "./hours.ts";
 import { SHEET_STEPS } from "./sheets.ts";
+import { shapeOf, textsIn, unresolvedLine } from "../../../lib/flow-reads.ts";
 import { clean, durationMs, evalExpr, momentMs, raise, render, stepError, truthy } from "../projections.ts";
 import type { Scope, StepsCtx } from "../projections.ts";
 
@@ -116,6 +117,7 @@ export interface StepEnv {
 }
 
 const STEPS = new Map(registry.steps.map((s) => [s.key, s] as const));
+const TRIGGER_PAYLOADS = new Map(registry.triggers.map((t) => [t.key, t.payload] as const));
 const CAPS = new Map(registry.capabilities.map((c) => [c.name, c] as const));
 const DAY30 = "30d";
 
@@ -900,6 +902,14 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
   const def = STEPS.get(node.key);
   if (!def) throw stepError("validation.bad_input", `There is no step called ${node.key}.`, false);
   const scope = scopeOf(env, call);
+  // a name the Run cannot have fails the step in words, instead of the step sending an empty value (r40 audit, gap 4)
+  const unresolved = unresolvedLine(textsIn(node.input), {
+    trigger: call.trigger,
+    steps: scope.steps,
+    declared: shapeOf(TRIGGER_PAYLOADS.get(env.run.trigger ?? "")),
+    checkSteps: !(call.sandbox && Object.keys(call.outputs).length === 0),
+  });
+  if (unresolved) throw stepError("validation.bad_input", `${def.title}: ${unresolved}`, false);
   const input = render(node.input, scope) as In;
   if (call.sandbox && sandboxStubs(def, input)) {
     // a test or replay answers with the sample, but a step whose required input is empty would have been refused for real: it stops here the same way (a stopped test is not a success)

@@ -40,6 +40,7 @@ import {
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { shapeIssues } from "../shape.ts";
+import { readIssues } from "../reads.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
 import { accountUseIssues } from "../account-use.ts";
 import { guardKeySteps, recordStepHosts, usableKeyIds } from "../key-steps.ts";
@@ -235,6 +236,7 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (d && !d.personalOk && policy.personalSpace) out.push(issue("error", `${d.title} needs a Team Space.`));
   }
   if (def.nodes.length === 0) out.push(issue("warning", "This Automation has no steps yet."));
+  for (const r of readIssues(def)) out.push(issue("error", r.message, r.nodeId));
   for (const n of def.nodes) {
     const s = STEPS.get(n.key);
     if (!s) continue;
@@ -953,7 +955,11 @@ export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
 const EMPTY: Definition = { triggers: [{ key: "manual" }], nodes: [] };
 
 export function checkStructure(ctx: AutoCtx, def: Definition): void {
-  const bad = [...structuralIssues(def), ...shapeIssues(def).map((x) => issue("error", x.message, x.nodeId))];
+  const bad = [
+    ...structuralIssues(def),
+    ...shapeIssues(def).map((x) => issue("error", x.message, x.nodeId)),
+    ...readIssues(def).map((x) => issue("error", x.message, x.nodeId)),
+  ];
   if (bad.length) raise(ctx, "validation.bad_input", bad[0]!.message, { issues: bad });
 }
 
