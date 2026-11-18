@@ -3,6 +3,7 @@
 // GET changes nothing. Mail security scanners fetch every link in an email, so a GET that unsubscribed would remove people who never clicked. The page sends itself once a browser opens it, so a person still
 // has one click to make; a reader with no scripts gets the button. POST does the work, and also serves a mail client's own one-click unsubscribe. A link used twice answers the same way.
 import type http from "node:http";
+import { safeUrl } from "../safe-url.ts";
 
 const PATH = /^\/u\/([A-Za-z0-9_-]{16,200})\/?$/;
 
@@ -36,7 +37,7 @@ export function createUnsubscribeRoute(deps: UnsubscribeDeps): {
 } {
   return {
     handle(req, res) {
-      const m = PATH.exec(new URL(req.url ?? "/", "http://vyred").pathname);
+      const m = PATH.exec(safeUrl(req.url, "http://vyred").pathname);
       if (!m) return false;
       const method = (req.method ?? "GET").toUpperCase();
       if (method === "GET" || method === "HEAD") {

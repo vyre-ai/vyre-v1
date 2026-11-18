@@ -7,6 +7,7 @@
 // is asking on a Space or private site. On a server Caddy asks /__vyre/auth (forward auth) and proxies to the site's container itself, WebSockets included; this route answers 2xx with
 // x-vyre-user to let the visitor in, or the sign-in redirect, password form or refusal Caddy sends back. Where no Caddy is in front, this route proxies the request itself (no WebSockets).
 import http from "node:http";
+import { safeUrl } from "../safe-url.ts";
 
 export interface HostSite {
   siteId: string;
@@ -265,10 +266,10 @@ export function createSiteHostRoute(d: SiteHostDeps) {
       if (!site) return false;
       void (async () => {
         // forward auth from Caddy: the visitor's own method and address come in headers, and the answer is a yes or the page to send back
-        const asked = new URL(req.url ?? "/", `https://${hostName}`);
+        const asked = safeUrl(req.url, `https://${hostName}`);
         const authOnly = asked.pathname === "/__vyre/auth";
         const fwdUri = String(req.headers["x-forwarded-uri"] ?? "/");
-        const url = authOnly ? new URL(fwdUri.startsWith("/") ? fwdUri : "/", `https://${hostName}`) : asked;
+        const url = authOnly ? safeUrl(fwdUri.startsWith("/") ? fwdUri : "/", `https://${hostName}`) : asked;
         const method = authOnly
           ? String(req.headers["x-forwarded-method"] ?? "GET").toUpperCase()
           : (req.method ?? "GET").toUpperCase();
@@ -411,7 +412,7 @@ if(!s){say("Sign in to Vyre first, then open the site again.");document.getEleme
 fetch("/v1/sites/signin_link",{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+s.token},body:JSON.stringify({siteId:site,next:next})}).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});}).then(function(x){var d=x.j&&x.j.data;if(x.ok&&d&&d.url){location.replace(d.url);}else{say((x.j&&x.j.error&&x.j.error.message)||"You cannot open this site.");document.getElementById("a").hidden=false;}}).catch(function(){say("Vyre did not answer. Try again.");});})();`;
   return {
     handle(req: http.IncomingMessage, res: http.ServerResponse): boolean {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       if (url.pathname !== "/sites/signin" || (req.method ?? "GET").toUpperCase() !== "GET") return false;
       const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Opening the site</title><style>html{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 -apple-system,system-ui,sans-serif}main{width:min(22rem,90vw);text-align:center}a{color:#2f6feb}</style><body><main><p id="m">Opening the site</p><p id="a" hidden><a href="/">Open Vyre</a></p></main><script>${script}</script></body></html>`;
       res.writeHead(200, {

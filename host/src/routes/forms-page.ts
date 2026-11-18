@@ -17,6 +17,7 @@ import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
 import { checkFormHtml, checkFormJs } from "../../../lib/form-source.ts";
 import { sourceOf } from "../daemon/preauth.ts";
 import { httpOf, isKnownCode, makeError } from "./errors.ts";
+import { safeUrl } from "../safe-url.ts";
 
 /** What the forms module's publicFormView answers (modules/forms/handlers/submit.ts); the host takes it as data, so the two sides meet only in this shape. */
 export interface PublicFormView {
@@ -880,7 +881,7 @@ export function createFormsPageRoute(deps: FormsPageDeps): {
 
   return {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       const method = (req.method ?? "GET").toUpperCase();
       const cap = CAPS[url.pathname];
       if (cap && deps.call && cors(req, res, cap.method)) return true;

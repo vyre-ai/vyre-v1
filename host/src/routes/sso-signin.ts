@@ -16,6 +16,7 @@ import {
 import { pinIssuer, tenantOf } from "../../../lib/oidc-issuer.ts";
 import type { Discovery, SsoProvider } from "../seams/oidc.ts";
 import type { SeamFetch } from "../seams/ports.ts";
+import { safeUrl } from "../safe-url.ts";
 
 const COOKIE = "vyre_sso_state";
 const STATE_MS = 10 * 60_000;
@@ -263,7 +264,7 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): {
 
   return {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       const m = /^\/auth\/sso\/([a-z]+)\/(start|callback)$/.exec(url.pathname);
       if (!m) return false;
       if (req.method !== "GET") {

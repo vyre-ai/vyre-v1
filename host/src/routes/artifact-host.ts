@@ -10,6 +10,7 @@ import type http from "node:http";
 import { cookieOf } from "./site-host.ts";
 import { guard, serve } from "./public-path.ts";
 import type { PublicPathDeps, ServedSite } from "./public-path.ts";
+import { safeUrl } from "../safe-url.ts";
 
 export const ARTIFACT_COOKIE = "__vyre_a";
 const ID = /^\/(sit_[a-z0-9]{1,64})(\/.*)?$/;
@@ -45,7 +46,7 @@ export function createArtifactHostRoute(d: ArtifactHostDeps): {
   };
   const framed = (req: http.IncomingMessage): boolean =>
     req.headers["sec-fetch-dest"] === "iframe" ||
-    ["embed", "app"].some((k) => new URL(req.url ?? "/", "http://x").searchParams.get(k) === "1");
+    ["embed", "app"].some((k) => safeUrl(req.url, "http://x").searchParams.get(k) === "1");
   const sayPage = (
     res: http.ServerResponse,
     status: number,
@@ -85,7 +86,7 @@ export function createArtifactHostRoute(d: ArtifactHostDeps): {
       // a.localhost:<port> (a Space on this computer) is matched with its port; every other host is matched by name, as Caddy and the relay hand it over
       const local = ah !== null && /^a\.localhost(:\d+)?$/.test(ah);
       if (!ah || (local ? asked !== ah.toLowerCase() : hostName !== ah.toLowerCase())) return false;
-      const url = new URL(req.url ?? "/", `https://${hostName}`);
+      const url = safeUrl(req.url, `https://${hostName}`);
       const method = (req.method ?? "GET").toUpperCase();
       if (url.pathname === HOST_CHECK_PATH) {
         const body = `vyre-artifact-host ${d.marker()}`;

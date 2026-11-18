@@ -7,6 +7,7 @@
 // (host/src/daemon/desktop-cors.ts stays the rule for the desktop app), so a foreign page can call nothing else in a browser.
 import type http from "node:http";
 import { packagedOrigin } from "../daemon/desktop-cors.ts";
+import { safeUrl } from "../safe-url.ts";
 
 export interface CarryDoorDeps {
   /** this Space's own public origin, when it has one */
@@ -162,7 +163,7 @@ export function createCarryDoor(deps: CarryDoorDeps): {
   }
   return {
     handle(req, res) {
-      const path = new URL(req.url ?? "/", "http://vyred").pathname;
+      const path = safeUrl(req.url, "http://vyred").pathname;
       const token = bearerOf(req.headers.authorization);
       const origin = foreignOrigin(req, deps.ownOrigin());
       if (token?.startsWith(CARRY)) {

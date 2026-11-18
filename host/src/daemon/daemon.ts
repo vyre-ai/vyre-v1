@@ -373,6 +373,7 @@ import { openDb, readLogMeta } from "./sqlite.ts";
 import { openInviteHashes } from "./invite-hashes.ts";
 import { bindSpacePorts, unbindSpacePorts } from "./module-ports.ts";
 import type { HostDb } from "./sqlite.ts";
+import { requestTargetOk } from "../safe-url.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The repo (or install) root that holds generated/, modules/ and host/modules.json. */
@@ -7561,6 +7562,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     );
   };
 
+  const httpLog = sink.logger({ space: space ?? "-", place: "http" });
   const gatewayUnit = async (): Promise<RunningUnit> => {
     const h = hubFactory ? hubFactory() : createLiveHub({ session: () => null });
     hub = h;
@@ -7569,8 +7571,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const server = h.server;
     if (hubFactory)
       server.on("upgrade", (req, socket, head) => {
-        if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
-        else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
+        // r40: nothing a client sends may end this process; a bad address or a route that throws closes that one socket
+        socket.on("error", () => socket.destroy());
+        try {
+          if (!requestTargetOk(req.url)) {
+            socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
+            return;
+          }
+          if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
+          else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
+        } catch (e) {
+          httpLog.error("http.upgrade_failed", { error: e instanceof Error ? e.message : String(e) });
+          socket.destroy();
+        }
       });
     server.removeAllListeners("request");
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
@@ -7612,7 +7625,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     });
     // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
     const appFiles = createAppFilesRoute({ dir: () => (o.appDir !== undefined ? o.appDir : defaultAppDir()) });
-    server.on("request", (req, res) => {
+    const onRequest = (req: http.IncomingMessage, res: http.ServerResponse): void => {
       // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
       // decided by where the request comes from (review 12 Nov): a page in an agent's browser may call any address of this host, so the address it arrived on proves nothing
       const onComputerNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
@@ -7683,6 +7696,27 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       )
         return;
       listener(req, res);
+    };
+    // r40 (a scanner's `//` ended a client's daemon): a request address that is not an origin-form path is answered 400 before any route reads it, and a route that throws is answered 500 and logged once; nothing a client sends reaches the process
+    server.on("request", (req, res) => {
+      const fail = (status: number, code: string, message: string): void => {
+        if (res.headersSent || res.writableEnded) {
+          res.destroy();
+          return;
+        }
+        res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", connection: "close" });
+        res.end(JSON.stringify({ error: { code, message } }));
+      };
+      try {
+        if (!requestTargetOk(req.url)) {
+          fail(400, "validation.bad_input", "That request address is not valid.");
+          return;
+        }
+        onRequest(req, res);
+      } catch (e) {
+        httpLog.error("http.request_failed", { error: e instanceof Error ? e.message : String(e) });
+        fail(500, "internal.unexpected", "Something went wrong on our side.");
+      }
     });
     // the agent workspaces' subnets are read before the first call, so the guard refuses one left running by the process before this one at once (third look T5); a Docker that does not answer
     // within 5 s does not hold the start, and they are read again at the first sweep
