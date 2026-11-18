@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { exportEnv } from "./lib/registry-hash.mjs";
+import { precompress } from "./lib/precompress.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const run = (cmd, args, cwd, env) => {
@@ -17,4 +18,9 @@ run(
   [path.join(repo, "scripts/shots/registry-hash-in-bundle.mjs"), path.join(repo, "apps/app/dist")],
   repo,
   process.env,
+);
+// the text files of the export, compressed once here (brotli and gzip beside each file): the server hands those bytes to a browser that accepts them
+const packed = precompress(path.join(repo, "apps/app/dist"));
+console.log(
+  `precompressed ${packed.files} files: ${(packed.raw / 1048576).toFixed(1)} MB raw, ${(packed.br / 1048576).toFixed(1)} MB brotli, ${(packed.gz / 1048576).toFixed(1)} MB gzip`,
 );
