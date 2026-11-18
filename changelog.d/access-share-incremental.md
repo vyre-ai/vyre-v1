@@ -1,0 +1,1 @@
+Sharing or unsharing a file or folder on a very large Space no longer makes the next list wait seconds: the record of who may see what is updated for what changed, and the old answer is never shown after a share is removed.
