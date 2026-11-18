@@ -1,0 +1,1 @@
+Pressing Share or Unshare on a very large Space now answers at once: on a Space of 140,000 records it took 3.2 seconds before and takes about a quarter of a second now, and the first list after it is as fast as any other.

@@ -1,4 +1,4 @@
-// Switches on diagrams (Mermaid) in chat replies. Not imported by anything yet: `mermaid` is not in the lock (its dependencies elkjs and khroma fail the license check). When it is, one line turns diagrams on for the app:
+// Switches on diagrams (Mermaid) in chat replies; the app imports it at its start (apps/app/index.web.tsx):
 //   import "../../ui/src/stream/enable-diagrams.ts";   (in the shell's startup, next to the other one-time setup)
 // Both libraries are loaded by a dynamic import the first time a reply holds a diagram or a formula, so a chat without either never downloads them. Mermaid runs with securityLevel "strict" and its SVG is shown inside a
 // sandboxed frame (Blocks.tsx); KaTeX writes MathML, which needs no stylesheet or fonts and takes the page's own text colour, so paper and graphite both read.

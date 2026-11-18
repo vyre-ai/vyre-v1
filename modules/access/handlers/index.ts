@@ -69,7 +69,7 @@ import { reachBatch } from "./reach.ts";
 import { exceptionsExplain, exceptionsLapse, exceptionsList, exceptionsRemove, exceptionsSet } from "./exceptions.ts";
 import { requestCreate, requestsApprove, requestsDecline, requestsList } from "./request.ts";
 import { reviewsClose, reviewsDecide, reviewsGet, reviewsList, reviewsStart } from "./review.ts";
-import { readOnly } from "../projections.ts";
+import { grantWriter, readOnly } from "../projections.ts";
 import type { AccessCtx } from "../projections.ts";
 
 // readOnly: capabilities that only read the access store, asked per message, per turn or per item in a list. They read the kept view of access.sync (projections.ts) instead of every
@@ -139,7 +139,7 @@ export const handlers = {
   "access.roles.unassign": rolesUnassign,
   "access.roles.update": rolesUpdate,
   "access.automation_senders": automationSenders,
-  "access.share": share,
+  "access.share": grantWriter(share),
   "access.join_share": joinShare,
   "access.shares_of": readOnly(sharesOf),
   "access.audience_set": audienceSet,
@@ -148,7 +148,7 @@ export const handlers = {
   "access.agents_can_call.get": readOnly(agentsCanCallGet),
   "access.record_marks": readOnly(recordMarks),
   "access.deciders": readOnly(deciders),
-  "access.unshare": unshare,
+  "access.unshare": grantWriter(unshare),
   "access.view_as": viewAs,
   "folders.create": foldersCreate,
   "folders.delete": foldersDelete,

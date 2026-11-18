@@ -1,7 +1,7 @@
 // A chat tied to a record or a project opens as a workspace (CHAT-DESIGN ruling 1): the work in the main pane and the conversation beside it. DMs and channels stay conversation-first.
 import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { RecordDetail } from "../../../shell/providers/record-detail.tsx";
+import { RecordDetail } from "../../../shell/providers/detail-lazy.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import type { Work } from "./route.ts";
