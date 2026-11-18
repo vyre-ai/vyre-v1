@@ -7704,7 +7704,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           res.destroy();
           return;
         }
-        res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", connection: "close" });
+        res.writeHead(status, {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-store",
+          connection: "close",
+        });
         res.end(JSON.stringify({ error: { code, message } }));
       };
       try {

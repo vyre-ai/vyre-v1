@@ -1002,7 +1002,27 @@ $NODE_PORTS
     depends_on:
       vyred:
         condition: service_started
-    command: ["caddy", "run", "--resume", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    # r40: when vyred restarts, the namespace Caddy joined is dead (its network card is gone) and nothing answers until Caddy starts again; this exits so Docker starts it on the new one (compute role: vyred listens on nothing, so the card is what is watched)
+    command:
+      - sh
+      - -c
+      - |
+        caddy run --resume --config /etc/caddy/Caddyfile --adapter caddyfile &
+        pid=\$\$!
+        trap 'kill \$\$pid 2>/dev/null; wait \$\$pid; exit 143' TERM INT
+        miss=0
+        while kill -0 \$\$pid 2>/dev/null; do
+          sleep 3 &
+          wait \$\$!
+          if [ -e /sys/class/net/eth0 ]; then miss=0; else miss=\$\$((miss + 1)); fi
+          if [ \$\$miss -ge 5 ]; then
+            echo "vyred's network is gone from this namespace; leaving so Docker starts Caddy on the one vyred has now" >&2
+            kill \$\$pid 2>/dev/null
+            wait \$\$pid
+            exit 1
+          fi
+        done
+        wait \$\$pid
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy/data:/data

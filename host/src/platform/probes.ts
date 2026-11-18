@@ -167,7 +167,11 @@ export async function caddy(fetchFn: FetchFn, adminUrl: string, now: () => numbe
       ? result("degraded", "Caddy runs but has no routes loaded.", { latencyMs })
       : result("healthy", "Caddy answers and routes are loaded.", { latencyMs });
   } catch {
-    return result("down", "Caddy admin API does not answer. Caddy restarts by itself within a minute of vyred restarting; if it stays down, run vyre-server restart on the server.", { latencyMs: now() - t0 });
+    return result(
+      "down",
+      "Caddy admin API does not answer. Caddy restarts by itself within a minute of vyred restarting; if it stays down, run vyre-server restart on the server.",
+      { latencyMs: now() - t0 },
+    );
   }
 }
 

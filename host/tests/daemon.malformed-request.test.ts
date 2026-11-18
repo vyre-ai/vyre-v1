@@ -33,11 +33,25 @@ const line = (method: string, target: string, extra = ""): Buffer =>
   Buffer.from(`${method} ${target} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n${extra}\r\n`, "latin1");
 
 test("safeUrl never throws and requestTargetOk accepts only origin-form paths", () => {
-  for (const bad of ["//", "//[", "http://[::1", "%zz", "*", "", "\\\\x", "/\u0000", "/a b", "http://evil.test/x", "//evil.test/x"])
+  for (const bad of [
+    "//",
+    "//[",
+    "http://[::1",
+    "%zz",
+    "*",
+    "",
+    "\\\\x",
+    "/\u0000",
+    "/a b",
+    "http://evil.test/x",
+    "//evil.test/x",
+  ])
     assert.equal(requestTargetOk(bad), false, JSON.stringify(bad));
-  for (const good of ["/", "/healthz", "/v1/x?a=1&b=%20", "/a%zz/b", "/?q=//"]) assert.equal(requestTargetOk(good), true, good);
+  for (const good of ["/", "/healthz", "/v1/x?a=1&b=%20", "/a%zz/b", "/?q=//"])
+    assert.equal(requestTargetOk(good), true, good);
   assert.equal(requestTargetOk("/" + "a".repeat(20_000)), false);
-  for (const raw of ["//", "//[", "%zz", undefined, "http://[::1"]) assert.equal(typeof safeUrl(raw, "http://vyred").pathname, "string");
+  for (const raw of ["//", "//[", "%zz", undefined, "http://[::1"])
+    assert.equal(typeof safeUrl(raw, "http://vyred").pathname, "string");
   assert.equal(typeof safeUrl("//", "http://[bad").pathname, "string");
 });
 
@@ -69,7 +83,10 @@ test("a booted daemon answers or closes every malformed request and stays up", a
     for (const method of ["GET", "POST", "OPTIONS", "HEAD", "PUT", "FOO"]) {
       for (const t of targets) {
         const r = await rawSend(d.port, line(method, t));
-        assert.ok(r === "closed" || /^HTTP\/1\.1 [1-5]\d\d/.test(r), `${method} ${JSON.stringify(t.slice(0, 40))} -> ${r}`);
+        assert.ok(
+          r === "closed" || /^HTTP\/1\.1 [1-5]\d\d/.test(r),
+          `${method} ${JSON.stringify(t.slice(0, 40))} -> ${r}`,
+        );
         const hz = await fetch(`${d.url}/healthz`);
         assert.equal(hz.status, 200, `daemon down after ${method} ${JSON.stringify(t.slice(0, 40))}`);
       }
@@ -78,14 +95,22 @@ test("a booted daemon answers or closes every malformed request and stays up", a
     assert.match(await rawSend(d.port, line("GET", "//")), /^HTTP\/1\.1 400/);
     assert.match(await rawSend(d.port, line("GET", "http://[::1")), /^HTTP\/1\.1 400/);
     // garbage that is not HTTP at all, and the websocket upgrade with a bad address
-    for (const junk of [Buffer.from("\u0000\u0001\u0002\r\n\r\n", "latin1"), Buffer.from("GET\r\n\r\n"), Buffer.alloc(70_000, 0x41)]) {
+    for (const junk of [
+      Buffer.from("\u0000\u0001\u0002\r\n\r\n", "latin1"),
+      Buffer.from("GET\r\n\r\n"),
+      Buffer.alloc(70_000, 0x41),
+    ]) {
       const r = await rawSend(d.port, junk);
       assert.ok(r === "closed" || /^HTTP\/1\.1 [1-5]\d\d/.test(r), r);
     }
     for (const t of ["//", "//[", "%zz", "/live?deviceClass=%zz", "/%zz"]) {
       const r = await rawSend(
         d.port,
-        line("GET", t, "Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"),
+        line(
+          "GET",
+          t,
+          "Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n",
+        ),
       );
       assert.ok(r === "closed" || /^HTTP\/1\.1 [1-5]\d\d/.test(r), `upgrade ${t} -> ${r}`);
     }
