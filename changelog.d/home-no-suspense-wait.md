@@ -1,0 +1,1 @@
+The first screen opens sooner on a fast link and on a second visit: the page starts loading the shell and the place it will open as soon as it knows the device is signed in, and draws them directly once loaded instead of waiting out React's 300 ms hold on a Suspense fallback (home on a second visit 486 ms to 375 ms).

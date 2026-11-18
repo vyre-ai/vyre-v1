@@ -6,7 +6,8 @@
 //   second visit   the same browser opens the address again: the entry is in the cache
 //   signed-in home a fresh browser with a session opens the Chats place: its frame is usable; and again on a second visit
 // Measured on box D, 5-run medians: r37 (everything in one 8.7 MB entry, sent as it was) cold 3,402 ms and 8.96 MB, home 4,070 ms; r38 (compressed, one shared chunk) cold 709 ms and 1.36 MB, home 1,013 ms;
-// r39 (granular chunks, lazy pages, hints) cold about 255 ms and 0.22 MB, home about 860 ms; second visit about 100 ms.
+// r39 (granular chunks, lazy pages, hints) cold about 255 ms and 0.22 MB, home about 860 ms; second visit about 100 ms (home on a second visit 486 ms).
+// r40 (the shell and the first place drawn without a Suspense fallback: React held the reveal 300 ms after the fallback) home on a second visit 375 ms; with unlimited bandwidth home 539 to 495 ms and its second visit 422 to 257 ms.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -22,7 +23,7 @@ export const FIRST_LOAD_BUDGET_MS = {
   signInCold: 400,
   secondVisit: 400,
   homeCold: 1000,
-  homeSecondVisit: 650,
+  homeSecondVisit: 500,
 } as const;
 const LINK = { latency: 20, downloadThroughput: (24 * 1_000_000) / 8, uploadThroughput: 625_000 };
 const median = (a: number[]): number => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)]!;

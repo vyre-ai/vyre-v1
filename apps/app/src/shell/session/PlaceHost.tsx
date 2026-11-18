@@ -5,7 +5,7 @@ import { ConnectInlineHost } from "../connect/ConnectInline.tsx";
 import { TalkHost } from "../talk/TalkHost.tsx";
 import { ZonesHost } from "../zones/ZonesHost.tsx";
 import { Component, Suspense, lazy, useCallback, useEffect, useRef } from "react";
-import type { ComponentType, ErrorInfo, LazyExoticComponent, ReactElement, ReactNode } from "react";
+import type { ComponentType, ErrorInfo, ReactElement, ReactNode } from "react";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { Quiet } from "../../../../../ui/src/States/Quiet.tsx";
 import { screenFromHash, screenOfAsk, setScreenContext } from "../ask/screen.ts";
@@ -15,23 +15,31 @@ import type { PlaceHash } from "../hash/context.tsx";
 import { mark, takeStartupMs } from "../../startup/marks.ts";
 import { speed } from "../../speed/recorder.ts";
 import { webUiStateStore } from "../../startup/persisted.ts";
-import { loaderFor } from "../../startup/places.ts";
+import { loadPlace, loadedPlace } from "../../startup/places.ts";
+import { AfterLoad } from "../../startup/after-load.tsx";
 import { SHELL_PLACES, registerShellPlaces } from "../places.ts";
 import { ShellRuntimeProvider } from "../providers/runtime.tsx";
 import type { ShellRuntime } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 
-type PlaceComponent = LazyExoticComponent<ComponentType<{ place: string }>>;
+type PlaceComponent = ComponentType<{ place: string }>;
 const lazies = new Map<string, PlaceComponent>();
 
 function lazyFor(routeId: string): PlaceComponent {
   let c = lazies.get(routeId);
   if (!c) {
     registerShellPlaces();
-    c = lazy(loaderFor(routeId));
+    c = lazy(() => loadPlace(routeId));
     lazies.set(routeId, c);
   }
   return c;
+}
+
+/** The place's component: drawn directly when its module is loaded (the page's warm-up did it while the shell was drawn), else the lazy one, which loads it. */
+function placeFor(routeId: string): PlaceComponent {
+  registerShellPlaces();
+  const loaded = loadedPlace(routeId);
+  return loaded ? loaded.default : lazyFor(routeId);
 }
 
 /** The route id (src/startup/places.ts) of a rail place, or null for a place the shell has no screen for (console, join). */
@@ -111,17 +119,23 @@ export function PlaceHost({
   const stable = useCallback<PlaceHash["opened"]>((t) => latest.current?.(t), []);
   const routeId = routeIdOf(place);
   if (!routeId) return null;
-  const Place = lazyFor(routeId);
+  const Place = placeFor(routeId);
   const body = (
     <PlaceHashProvider hash={hash} opened={stable}>
       <PlaceBoundary key={routeId} place={routeId}>
         <Suspense fallback={<Quiet />}>
-          <ScreenSignal place={place} hash={hash} />
-          {/* Ask Vyre opens beside the place, in it (shell/ask/pane.ts): never a trip to Chats */}
-          <AskPaneHost place={place} rt={runtime}>
-            <Place place={routeId} />
-          </AskPaneHost>
-          <Usable place={routeId} spaceId={runtime?.space.id ?? null} />
+          <AfterLoad
+            load={() => loadPlace(routeId)}
+            ready={() => loadedPlace(routeId) !== undefined}
+            fallback={<Quiet />}
+          >
+            <ScreenSignal place={place} hash={hash} />
+            {/* Ask Vyre opens beside the place, in it (shell/ask/pane.ts): never a trip to Chats */}
+            <AskPaneHost place={place} rt={runtime}>
+              <Place place={routeId} />
+            </AskPaneHost>
+            <Usable place={routeId} spaceId={runtime?.space.id ?? null} />
+          </AfterLoad>
         </Suspense>
       </PlaceBoundary>
     </PlaceHashProvider>
