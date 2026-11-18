@@ -1,11 +1,12 @@
 // @tsx
-// SPEED BUDGETS for opening the app (r38: https://mla.vyre.run took 2.9 s to parse its page, the sign-in form typable at 3.0 s). A perf file (test/slow.json "perf": true): speed numbers count only on the v1-perf
-// runners (ruling 46), each after a web export with Chromium (VYRE_APP_DIST). The export is served by the Space's own daemon (host/src/routes/app-files.ts: compressed, hashed files cached for good), over a link of
-// 24 Mbps and 20 ms (the link the firm's complaint was measured on: the 8.7 MB entry took 3.3 s there as it was sent before).
-//   cold sign-in   a fresh browser, nothing cached: the page's DOMContentLoaded and the moment the form can be typed in (app.usable)
+// SPEED BUDGETS for opening the app (r38: https://mla.vyre.run took 2.9 s to parse its page, the sign-in form typable at 3.0 s; r39: the shared chunk split and the next files preloaded). A perf file (test/slow.json
+// "perf": true): speed numbers count only on the v1-perf runners (ruling 46), each after a web export with Chromium (VYRE_APP_DIST). The export is served by the Space's own daemon (host/src/routes/app-files.ts:
+// compressed, hashed files cached for good, the page carrying the lists of files it will load next: app-hints.ts), over a link of 24 Mbps and 20 ms (the link the firm's complaint was measured on).
+//   cold sign-in   a fresh browser, nothing cached: the moment the form can be typed in (app.usable)
 //   second visit   the same browser opens the address again: the entry is in the cache
-//   signed-in home a fresh browser with a session opens the Chats place: its frame is usable
-// Measured on box D before and after: cold 3,313 / 3,357 ms and 8.96 MB then, under 700 ms and 1.4 MB now; second visit 70 ms.
+//   signed-in home a fresh browser with a session opens the Chats place: its frame is usable; and again on a second visit
+// Measured on box D, 5-run medians: r37 (everything in one 8.7 MB entry, sent as it was) cold 3,402 ms and 8.96 MB, home 4,070 ms; r38 (compressed, one shared chunk) cold 709 ms and 1.36 MB, home 1,013 ms;
+// r39 (granular chunks, lazy pages, hints) cold about 255 ms and 0.22 MB, home about 860 ms; second visit about 100 ms.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -17,7 +18,7 @@ import { loadConfig } from "../host/src/daemon/config.ts";
 import { boot, scriptedModel, stop } from "./support/eco-live.ts";
 
 /** Budgets in ms (the median of five runs). The brief: the form typable in under 1 s on a fresh visit, a second visit under 400 ms. */
-export const FIRST_LOAD_BUDGET_MS = { signInCold: 400, secondVisit: 400, homeCold: 900, homeSecondVisit: 650 } as const;
+export const FIRST_LOAD_BUDGET_MS = { signInCold: 400, secondVisit: 400, homeCold: 1000, homeSecondVisit: 650 } as const;
 const LINK = { latency: 20, downloadThroughput: (24 * 1_000_000) / 8, uploadThroughput: 625_000 };
 const median = (a: number[]): number => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)]!;
 

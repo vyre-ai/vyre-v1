@@ -24,6 +24,8 @@ function exportDir(withLists = true): string {
   fs.writeFileSync(path.join(web, `index-${H}.js`), entry);
   // the shell's own code asks for the route table and the screens
   fs.writeFileSync(path.join(web, `ShellHost-${H}.js`), `r=[${list(u("routes"), sh(5))}];s=[${list(u("screens"))}]`);
+  // the Chats place's own file names a page it opens on request
+  fs.writeFileSync(path.join(web, `chats-${H}.js`), `p=[${list(u("TaskDetail"), sh(3), sh(6))}]`);
   fs.writeFileSync(
     path.join(dir, "index.html"),
     `<!DOCTYPE html><html><head><meta charSet="utf-8"/><script defer="" src="/_expo/static/js/web/__expo-metro-runtime-${H}.js"></script><script defer="" src="/_expo/static/js/web/index-${H}.js"></script></head><body></body></html>`,
@@ -45,6 +47,7 @@ test("the shell, the route table and each place's files are found, following the
   assert.deepEqual(h.places["chat"], [u("chats"), sh(2), sh(3)]);
   assert.deepEqual(h.places["records"], [u("records"), sh(4)]);
   assert.equal(h.places["vault"], undefined, "a place with no list gets none");
+  assert.deepEqual(h.idle, [u("TaskDetail"), sh(6)], "the pages a place opens later, less what is already in the lists");
   assert.ok(Object.values(PLACE_CHUNKS).includes("chats"));
 });
 
@@ -61,6 +64,7 @@ test("a page gets its hints and the script that uses them; a page whose scripts 
     places: Record<string, string[]>;
   };
   assert.equal(json.shell.length, 6);
+  assert.match(out, /prefetch/);
   assert.equal(injectHints(html, exportDir(false)), html, "no lists, no change");
   assert.equal(
     injectHints("<html><head></head></html>", dir),

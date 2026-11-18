@@ -1,7 +1,7 @@
 // What a visit will load next, told to the browser in the page itself (r39). The export splits the app into an entry and some hundred small chunks that a place pulls in when it opens (Expo's granular chunking:
 // the entry holds the list of files each async import needs). Left alone, the browser finds out one wave at a time: the entry runs, asks for the shell and its shared chunks, runs those, asks for the place and
 // its chunks, then for the route table. This reads those lists from the files themselves and puts them in the page: a visit that already has a session preloads the shell, the place it will open (the address,
-// else the last one) and the route table at once; a visitor with no session gets them prefetched after the page is up, so the first screen after signing in finds them in the cache.
+// else the last one) and the route table at once, then prefetches the pages that place opens on request; a visitor with no session gets them prefetched after the page is up, so the first screen after signing in finds them in the cache.
 // Nothing here is needed to run: a page whose entry has no such lists is sent as it is.
 import fs from "node:fs";
 import path from "node:path";
@@ -19,6 +19,8 @@ export const PLACE_CHUNKS: Readonly<Record<string, string>> = {
   console: "console",
 };
 const SHELL_CHUNKS = ["ShellHost", "routes", "screens"];
+/** The pages of Chats that load when they are opened (apps/app/src/shell/providers/detail-lazy.tsx, places/chats/mounts/lazy-pages.tsx): fetched quietly once the first screen is up. */
+const IDLE_CHUNKS = ["file-detail", "record-detail", "GoalPage", "NotesPage", "ProjectScreen", "TaskDetail", "TasksPage", "AgentForm"];
 const URL_LIST = /"(\/_expo\/static\/js\/web\/[^"]+\.js)"(?:,"\/_expo\/static\/js\/web\/[^"]+\.js")*/g;
 const URL_IN = /"(\/_expo\/static\/js\/web\/[^"]+\.js)"/g;
 const nameOf = (url: string): string => (/\/([^/]+?)-[0-9a-f]{16,}\.js$/.exec(url) ?? [])[1] ?? "";
@@ -37,6 +39,8 @@ export function listsIn(js: string): Map<string, string[]> {
 export interface Hints {
   shell: string[];
   places: Record<string, string[]>;
+  /** Files of the pages a place opens on request, not already in the lists above. */
+  idle: string[];
 }
 
 const read = (dir: string, url: string): string => {
@@ -66,7 +70,11 @@ export function hintsFor(dir: string, scripts: string[]): Hints | null {
     const l = found.get(chunk);
     if (l) places[id] = l;
   }
-  return { shell, places };
+  // the pages a place opens later are named in the place's own files: read those too
+  for (const l of Object.values(places)) for (const f of l) take(read(dir, f));
+  const have = new Set([...shell, ...Object.values(places).flat()]);
+  const idle = [...new Set(IDLE_CHUNKS.flatMap((n) => found.get(n) ?? []))].filter((f) => !have.has(f));
+  return { shell, places, idle };
 }
 
 const SCRIPT = `(function(){try{var H=JSON.parse(document.getElementById("vyre-hints").textContent),d=document,seen={},P=H.places;
@@ -75,7 +83,7 @@ var seg=location.pathname.split("/")[1]||"",ui=null,S=null;
 try{ui=JSON.parse(localStorage.getItem("vyre.ui.v1")||"null")}catch(e){}
 try{S=JSON.parse(localStorage.getItem("vyre.session.v1")||"null")}catch(e){}
 var pl=P[seg]?seg:(ui&&P[ui.lastPlace]?ui.lastPlace:"chat");
-if(S&&S.sessions&&S.sessions[location.origin]){put("preload",H.shell,1);put("preload",P[pl]||[])}
+if(S&&S.sessions&&S.sessions[location.origin]){put("preload",H.shell,1);put("preload",P[pl]||[]);addEventListener("load",function(){(window.requestIdleCallback||setTimeout)(function(){put("prefetch",H.idle||[])})})}
 else addEventListener("load",function(){(window.requestIdleCallback||setTimeout)(function(){put("prefetch",H.shell);put("prefetch",P[pl]||[])})});
 }catch(e){}})();`;
 
