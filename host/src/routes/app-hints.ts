@@ -20,7 +20,7 @@ export const PLACE_CHUNKS: Readonly<Record<string, string>> = {
 };
 const SHELL_CHUNKS = ["ShellHost", "routes", "screens"];
 /** The pages of Chats that load when they are opened (apps/app/src/shell/providers/detail-lazy.tsx, places/chats/mounts/lazy-pages.tsx): fetched quietly once the first screen is up. */
-const IDLE_CHUNKS = ["file-detail", "record-detail", "GoalPage", "NotesPage", "ProjectScreen", "TaskDetail", "TasksPage", "AgentForm"];
+const IDLE_CHUNKS = ["file-detail", "record-detail", "GoalPage", "ProjectScreen", "TaskDetail", "TasksPage", "AgentForm"];
 const URL_LIST = /"(\/_expo\/static\/js\/web\/[^"]+\.js)"(?:,"\/_expo\/static\/js\/web\/[^"]+\.js")*/g;
 const URL_IN = /"(\/_expo\/static\/js\/web\/[^"]+\.js)"/g;
 const nameOf = (url: string): string => (/\/([^/]+?)-[0-9a-f]{16,}\.js$/.exec(url) ?? [])[1] ?? "";

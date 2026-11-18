@@ -1,5 +1,5 @@
-// The pages of the Chats place that a visit opens only on request: the agent form, a task and the task list, a goal, a project. Notes stays in the place's own file: a new note opened from Files hands its intent to the page as it mounts (w-first walk part c). Each is loaded the first time it is drawn (r39: statically imported they were about
-// 570 KB of source in front of the first signed-in screen, whichever chat was opening). The wrappers keep the page's own props.
+// The pages of the Chats place that a visit opens only on request: the agent form, a task and the task list, a goal, a project. Each is loaded the first time it is drawn (r39: statically imported they were about
+// 570 KB of source in front of the first signed-in screen, whichever chat was opening). Notes stays in the place's own file: a note started from Files hands its intent to the page as it mounts (w-first walk part c). The wrappers keep each page's props.
 import { Suspense, lazy } from "react";
 import type { ComponentProps, ReactElement } from "react";
 import type { AgentForm as AgentFormView } from "../agentform/AgentForm.tsx";
