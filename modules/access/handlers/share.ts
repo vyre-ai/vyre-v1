@@ -7,7 +7,7 @@
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { isReader } from "../projections.ts";
+import { NeedFullStore, changedGrants, isReader } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -107,6 +107,8 @@ export class ShareStore {
   idem = new Map<string, unknown>();
   /** The objects whose rows must be worked out again before this cache is current (what the access tables did since it was built): taken from the kept copy by `shareOf`, worked off by `ensureFresh` or `commit`. */
   pending: string[] = [];
+  /** `access` by resource: which cached rows each resource has, built when first needed and kept in step by `setRow` and `dropRow`. */
+  byRes: Map<string, Set<string>> | null = null;
 }
 
 const SHARES = new WeakMap<Db, ShareStore>();
@@ -546,14 +548,51 @@ function rowFor(
   return { person, type: res.type, id: res.id, level, via: classify(ss, snap, store, s, res, now) };
 }
 
-function descendants(store: AccessStore, roots: readonly string[]): Set<string> {
+function rowsByResource(ss: ShareStore): Map<string, Set<string>> {
+  if (!ss.byRes) {
+    ss.byRes = new Map();
+    for (const [key, row] of ss.access) {
+      const keys = ss.byRes.get(row.id) ?? new Set<string>();
+      keys.add(key);
+      ss.byRes.set(row.id, keys);
+    }
+  }
+  return ss.byRes;
+}
+function setRow(ss: ShareStore, key: string, row: AccessRow): void {
+  const old = ss.access.get(key);
+  ss.access.set(key, row);
+  if (!ss.byRes) return;
+  if (old && old.id !== row.id) ss.byRes.get(old.id)?.delete(key);
+  const keys = ss.byRes.get(row.id) ?? new Set<string>();
+  keys.add(key);
+  ss.byRes.set(row.id, keys);
+}
+function dropRow(ss: ShareStore, key: string): void {
+  const old = ss.access.get(key);
+  ss.access.delete(key);
+  if (old) ss.byRes?.get(old.id)?.delete(key);
+}
+
+const KIDS = new WeakMap<object, { version: number; size: number; kids: Map<string, string[]> }>();
+/** The children of each resource, kept for as long as the resources map stands (a sealed map says when it changed). */
+function kidsOf(resources: Map<string, ResourceRec>): Map<string, string[]> {
+  const version = (resources as { version?: number }).version;
+  const had = version === undefined ? undefined : KIDS.get(resources);
+  if (had && had.version === version && had.size === resources.size) return had.kids;
   const kids = new Map<string, string[]>();
-  for (const r of store.resources.values()) {
+  for (const r of resources.values()) {
     if (r.parentId === null) continue;
     const l = kids.get(r.parentId) ?? [];
     l.push(r.id);
     kids.set(r.parentId, l);
   }
+  if (version !== undefined) KIDS.set(resources, { version, size: resources.size, kids });
+  return kids;
+}
+
+function descendants(store: AccessStore, roots: readonly string[]): Set<string> {
+  const kids = kidsOf(store.resources);
   const out = new Set<string>();
   const queue = [...roots];
   while (queue.length) {
@@ -598,21 +637,32 @@ function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: read
   const next = computeRows(ss, store, snap, people, scope, now);
   const same = (a: AccessRow, b: AccessRow): boolean => a.level === b.level && a.via === b.via;
   const gone: AccessRow[] = [];
-  for (const [key, old] of ss.access) {
-    const inScope = scope === null || scope.has(old.id) || !store.resources.has(old.id);
-    if (!inScope) continue;
-    const now2 = next.get(key);
-    if (!now2) {
-      ss.access.delete(key);
+  const dropIfGone = (key: string): void => {
+    const old = ss.access.get(key);
+    if (old && !next.get(key)) {
+      dropRow(ss, key);
       gone.push(old);
     }
+  };
+  if (scope === null || (roots !== "all" && roots.some((id) => !store.resources.has(id)))) {
+    // everything, or a thing that is no longer there is among the roots: every cached row is looked at
+    for (const [key, old] of [...ss.access]) {
+      const inScope = scope === null || scope.has(old.id) || !store.resources.has(old.id);
+      if (inScope) dropIfGone(key);
+    }
+  } else {
+    // the rows of what is in scope, and those of a resource that is no longer there (a lookup per resource, not per row)
+    const index = rowsByResource(ss);
+    const ids = new Set(scope);
+    for (const id of index.keys()) if (!store.resources.has(id)) ids.add(id);
+    for (const id of ids) for (const key of [...(index.get(id) ?? [])]) dropIfGone(key);
   }
   const touched: AccessRow[] = [];
   for (const [key, row] of next) {
     const old = ss.access.get(key);
     if (old && same(old, row)) continue;
     if (old) gone.push(old);
-    ss.access.set(key, row);
+    setRow(ss, key, row);
     touched.push(row);
   }
   ss.fresh = store.epoch;
@@ -917,7 +967,7 @@ export async function updateGrant(ctx: ShareCtx, input: { grantId: string; level
     res.id,
     ...(grant.resource.type === "record" ? followRecordShare(ctx, store, grant.resource.id, grant.subject) : []),
   ];
-  changed(ctx, store, "assignment");
+  changedGrants(ctx, store);
   commit(ctx, store, ss, wasFresh, roots, false);
   return { grant: grantView(grant) };
 }
@@ -1157,7 +1207,7 @@ export async function share(
     if (grant.source) p.source = grant.source;
     ctx.emit("grant.created", grant.id, p);
   }
-  changed(ctx, store, "assignment");
+  changedGrants(ctx, store);
   if (res.type === "folder")
     ctx.emit("folder.shared", res.id, { folderId: res.id, subject: grant.subject, level: grant.level, removed: false });
   // the sharer asked to tell the person: one notification and Inbox line, never for oneself
@@ -1357,6 +1407,8 @@ export async function unshare(
   for (const g of [...doomed, ...made])
     if (!mayRemove(ctx, store, g)) raise(trace, "permission.no_grant", "removing this access needs Manage on it");
   if (doomed.length === 0 && made.length === 0) return { revoked: 0 };
+  // taking a maker's reach away changes a resource too, which the kept store's view does not allow: run again on a store of its own
+  if (made.length && store.isGrantView) throw new NeedFullStore();
   const wasFresh = isFresh(ctx, store, ss);
   const roots = new Set<string>();
   for (const m of made) {
@@ -1373,7 +1425,8 @@ export async function unshare(
   for (const g of doomed)
     if (g.resource.type === "record")
       for (const f of followRecordShare(ctx, store, g.resource.id, g.subject)) roots.add(f);
-  changed(ctx, store, "assignment");
+  if (made.length) changed(ctx, store, "assignment");
+  else changedGrants(ctx, store);
   for (const g of doomed) {
     if (g.resource.type === "folder")
       ctx.emit("folder.shared", g.resource.id, { folderId: g.resource.id, subject: g.subject, removed: true });
