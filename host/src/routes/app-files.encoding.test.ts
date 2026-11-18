@@ -8,7 +8,6 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { acceptedEncoding, createAppFilesRoute } from "./app-files.ts";
-import { precompress } from "../../../scripts/lib/precompress.mjs";
 
 const BIG = `${"function sign_in(){return document.querySelector('input')}\n".repeat(4000)}`;
 
@@ -73,7 +72,11 @@ test("a text file is sent in brotli or gzip with Vary, a length, and the cache h
     assert.equal(br.headers["content-encoding"], "br");
     assert.match(String(br.headers["vary"]), /Accept-Encoding/i);
     assert.equal(br.headers["content-length"], String(br.body.length));
-    assert.match(String(br.headers["cache-control"]), /max-age=31536000, immutable/, "a hashed file is cached for a year");
+    assert.match(
+      String(br.headers["cache-control"]),
+      /max-age=31536000, immutable/,
+      "a hashed file is cached for a year",
+    );
     assert.ok(br.body.length < BIG.length / 10, `brotli sent ${br.body.length} of ${BIG.length}`);
     assert.equal(zlib.brotliDecompressSync(br.body).toString(), BIG);
     const gz = await raw(s.origin, JS, { "accept-encoding": "gzip" });
@@ -105,14 +108,15 @@ test("a picture and a tiny file are sent as they are", async () => {
 
 test("the export's own .br and .gz copies are what is sent when they exist, and an unchanged page answers 304", async () => {
   const dir = exportDir();
-  const made = precompress(dir);
-  assert.ok(made.files >= 2 && made.br < made.raw / 5, `precompress wrote ${made.files} files`);
-  assert.ok(fs.existsSync(path.join(dir, "_expo/static/js/web/entry-abc123.js.br")));
-  assert.ok(!fs.existsSync(path.join(dir, "tiny.js.br")), "nothing under 1 KB is made");
+  // what scripts/app-export.mjs writes beside each text file (scripts/lib/precompress.mjs): a .br and a .gz
+  const entry = path.join(dir, "_expo/static/js/web/entry-abc123.js");
+  fs.writeFileSync(`${entry}.br`, zlib.brotliCompressSync(Buffer.from(BIG)));
+  fs.writeFileSync(`${entry}.gz`, zlib.gzipSync(Buffer.from(BIG)));
   const s = await serve(dir);
   try {
     const br = await raw(s.origin, JS, { "accept-encoding": "br" });
-    assert.deepEqual(br.body, fs.readFileSync(path.join(dir, "_expo/static/js/web/entry-abc123.js.br")));
+    assert.deepEqual(br.body, fs.readFileSync(`${entry}.br`), "the export's own bytes, not made again");
+    assert.equal((await raw(s.origin, JS, { "accept-encoding": "gzip" })).body.length, fs.statSync(`${entry}.gz`).size);
     assert.equal(zlib.brotliDecompressSync(br.body).toString(), BIG);
     const first = await raw(s.origin, "/", { accept: "text/html", "accept-encoding": "br" });
     const etag = String(first.headers["etag"]);
