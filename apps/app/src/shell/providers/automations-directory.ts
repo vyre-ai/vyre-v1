@@ -95,4 +95,3 @@ export function useDirectory(rt: ShellRuntime): ConfigDirectory {
     [list, loaded, loading],
   );
 }
-

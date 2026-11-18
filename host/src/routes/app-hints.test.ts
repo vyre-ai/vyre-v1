@@ -62,7 +62,11 @@ test("a page gets its hints and the script that uses them; a page whose scripts 
   };
   assert.equal(json.shell.length, 6);
   assert.equal(injectHints(html, exportDir(false)), html, "no lists, no change");
-  assert.equal(injectHints("<html><head></head></html>", dir), "<html><head></head></html>", "a page with no scripts is left alone");
+  assert.equal(
+    injectHints("<html><head></head></html>", dir),
+    "<html><head></head></html>",
+    "a page with no scripts is left alone",
+  );
 });
 
 test("the server sends the page with its hints, compressed and with an ETag that changes with them, and answers 304", async () => {
