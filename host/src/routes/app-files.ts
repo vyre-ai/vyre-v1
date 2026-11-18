@@ -33,7 +33,9 @@ const MIN_COMPRESS = 1024;
 /** The best encoding the browser accepts of the two this route makes: brotli, then gzip, or null. */
 export function acceptedEncoding(header: unknown): "br" | "gzip" | null {
   const q = new Map<string, number>();
-  for (const part of String(header ?? "").toLowerCase().split(",")) {
+  for (const part of String(header ?? "")
+    .toLowerCase()
+    .split(",")) {
     const [name, ...params] = part.trim().split(";");
     if (!name) continue;
     const given = params.map((x) => /^\s*q\s*=\s*([0-9.]+)\s*$/.exec(x)).find((m) => m !== null && m !== undefined);
@@ -59,7 +61,9 @@ function compressed(file: string, enc: "br" | "gzip", st: fs.Stats): Promise<Buf
         if (enc === "br")
           zlib.brotliCompress(
             raw,
-            { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } },
+            {
+              params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length },
+            },
             done,
           );
         else zlib.gzip(raw, { level: 6 }, done);
@@ -156,7 +160,8 @@ export function createAppFilesRoute(o: { dir: () => string | null }): {
         res.end();
         return true;
       }
-      const enc = COMPRESSIBLE.has(ext) && st.size >= MIN_COMPRESS ? acceptedEncoding(req.headers["accept-encoding"]) : null;
+      const enc =
+        COMPRESSIBLE.has(ext) && st.size >= MIN_COMPRESS ? acceptedEncoding(req.headers["accept-encoding"]) : null;
       if (enc) {
         // the export's own copy when it has one and it is not older than the file (give or take a minute); otherwise made once and kept
         const sibling = `${file}.${enc === "br" ? "br" : "gz"}`;

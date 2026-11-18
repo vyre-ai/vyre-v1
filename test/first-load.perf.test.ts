@@ -45,7 +45,11 @@ test("first load: the sign-in form is typable within 1 s cold and 400 ms on a se
     }),
     {
       appDir: path.resolve(dist),
-      config: loadConfig(["--data-dir", fresh, "--port", "0", "--space", "spc_fresh", "--space-name", "Load Co"], {}, "1.2.3"),
+      config: loadConfig(
+        ["--data-dir", fresh, "--port", "0", "--space", "spc_fresh", "--space-name", "Load Co"],
+        {},
+        "1.2.3",
+      ),
     },
   );
   const browser = await pw.chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
@@ -87,7 +91,8 @@ test("first load: the sign-in form is typable within 1 s cold and 400 ms on a se
       });
       return ((await r.json()) as { data?: unknown }).data;
     };
-    for (const flow of ["team", "personal", "member"]) await call("spaces.onboarding.seen", { flow }).catch(() => undefined);
+    for (const flow of ["team", "personal", "member"])
+      await call("spaces.onboarding.seen", { flow }).catch(() => undefined);
     const me = (await call("identity.whoami", {})).principal.id as string;
     const marker = (await call("spaces.get", {})).space.fingerprint as string;
     const session = {
@@ -113,12 +118,19 @@ test("first load: the sign-in form is typable within 1 s cold and 400 ms on a se
       },
     };
 
-    const open = async (url: string, withSession: boolean, visits: number): Promise<{ dcl: number; usable: number; bytes: number }[]> => {
+    const open = async (
+      url: string,
+      withSession: boolean,
+      visits: number,
+    ): Promise<{ dcl: number; usable: number; bytes: number }[]> => {
       const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
       if (withSession)
         await ctx.addInitScript((s: unknown) => {
           try {
-            localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [(s as { baseUrl: string }).baseUrl]: s } }));
+            localStorage.setItem(
+              "vyre.session.v1",
+              JSON.stringify({ sessions: { [(s as { baseUrl: string }).baseUrl]: s } }),
+            );
           } catch {
             /* blocked */
           }
@@ -135,7 +147,9 @@ test("first load: the sign-in form is typable within 1 s cold and 400 ms on a se
       for (let v = 0; v < visits; v++) {
         bytes = 0;
         await page.goto(url, { waitUntil: "commit" });
-        await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 60_000 });
+        await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, {
+          timeout: 60_000,
+        });
         const m = await page.evaluate(() => ({
           dcl: (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming).domContentLoadedEventEnd,
           usable: performance.getEntriesByName("app.usable")[0]!.startTime,
@@ -160,8 +174,14 @@ test("first load: the sign-in form is typable within 1 s cold and 400 ms on a se
     }
     const line = `first-load cold ${median(cold)} ms (${(median(bytesCold) / 1e6).toFixed(2)} MB sent), second visit ${median(second)} ms, signed-in home ${median(home)} ms`;
     console.log(line);
-    assert.ok(median(cold) <= FIRST_LOAD_BUDGET_MS.signInCold, `${line}: cold over ${FIRST_LOAD_BUDGET_MS.signInCold} ms`);
-    assert.ok(median(second) <= FIRST_LOAD_BUDGET_MS.secondVisit, `${line}: second visit over ${FIRST_LOAD_BUDGET_MS.secondVisit} ms`);
+    assert.ok(
+      median(cold) <= FIRST_LOAD_BUDGET_MS.signInCold,
+      `${line}: cold over ${FIRST_LOAD_BUDGET_MS.signInCold} ms`,
+    );
+    assert.ok(
+      median(second) <= FIRST_LOAD_BUDGET_MS.secondVisit,
+      `${line}: second visit over ${FIRST_LOAD_BUDGET_MS.secondVisit} ms`,
+    );
     assert.ok(median(home) <= FIRST_LOAD_BUDGET_MS.homeCold, `${line}: home over ${FIRST_LOAD_BUDGET_MS.homeCold} ms`);
   } finally {
     await browser.close();

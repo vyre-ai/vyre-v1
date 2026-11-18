@@ -37,5 +37,7 @@ export function precompress(dir) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const r = precompress(path.resolve(process.argv[2] ?? "apps/app/dist"));
-  console.log(`precompress: ${r.files} files, ${(r.raw / 1048576).toFixed(1)} MB raw, ${(r.br / 1048576).toFixed(1)} MB brotli, ${(r.gz / 1048576).toFixed(1)} MB gzip`);
+  console.log(
+    `precompress: ${r.files} files, ${(r.raw / 1048576).toFixed(1)} MB raw, ${(r.br / 1048576).toFixed(1)} MB brotli, ${(r.gz / 1048576).toFixed(1)} MB gzip`,
+  );
 }
