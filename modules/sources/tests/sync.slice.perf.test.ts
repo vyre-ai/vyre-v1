@@ -64,11 +64,14 @@ test("a pass over 3 changed rows of a type of 50,000 linked records takes under 
     const r = await remote.store.create("app_matter", mintRecordId(), { title: `Renamed ${i}` });
     slice.push({ ...r, id: `app_${i}` });
   }
+  // a fourth row the app has not brought before: the pass asks whether any record here is unlinked (every one of the 50,000 is linked, so the whole index is probed)
+  slice.push({ ...(await remote.store.create("app_matter", mintRecordId(), { title: "Brand new" })), id: "app_new" });
   const deps: SyncDeps = { local: local.store, remote: remote.store, tx: src.tx, now: () => clock.t, emit: () => {} };
   const started = performance.now();
   const out = await runSync(deps, binding, { mode: "both", partial: slice, pushLocalSince: 1 });
   const tookMs = Math.round(performance.now() - started);
-  process.stderr.write(`[slice-perf] a pass over 3 rows of ${TOTAL} took ${tookMs} ms\n`);
+  process.stderr.write(`[slice-perf] a pass over 4 rows (one new) of ${TOTAL} took ${tookMs} ms\n`);
   assert.equal(out.local.updated, 3);
+  assert.equal(out.local.created, 1);
   assert.ok(tookMs <= BUDGET_MS, `the pass took ${tookMs} ms (budget ${BUDGET_MS} ms)`);
 });

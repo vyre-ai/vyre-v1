@@ -324,6 +324,23 @@ interface RemoteAction {
   fields: string[];
 }
 
+/**
+ * Is there any live record of the type here that this binding has no link for? An exact question, answered by the index of the links (the first unlinked record ends it): a new row from the app is matched
+ * against records made here only when there is one, and a stale link to a record that was deleted changes nothing. Where the type's table is not in the database of the links (a store of another
+ * kind), the answer is yes and the whole type is read.
+ */
+function anyUnlinkedHere(d: SyncDeps, b: SyncBinding): boolean {
+  if (!/^[a-z][a-z0-9_]{0,62}$/.test(b.type)) return true;
+  const table = `rt_${b.type}`;
+  if (d.tx.get("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = ?", table) === undefined) return true;
+  return (
+    d.tx.get(
+      `SELECT 1 AS x FROM ${table} r WHERE r.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM sy_links l WHERE l.sync_type = ? AND l.local_id = r.id) LIMIT 1`,
+      b.syncTypeId,
+    ) !== undefined
+  );
+}
+
 export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}): Promise<SyncReport> {
   ensureTables(d.tx);
   const mode = o.mode ?? "both";
@@ -352,12 +369,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     const known = new Set(linked.map((l) => l.remoteId));
     const fresh = [...remoteMap.keys()].some((id) => !known.has(id));
     let mayMatch = false;
-    if (fresh && b.match.length) {
-      const held = (await d.local.aggregate(b.type, { measures: [{ fn: "count" }] }))[0]?.values["count"] ?? 0;
-      const linkRows =
-        d.tx.get<{ n: number }>("SELECT count(*) AS n FROM sy_links WHERE sync_type = ?", b.syncTypeId)?.n ?? 0;
-      mayMatch = held > linkRows; // every record here is linked: there is nothing to match a new row with
-    }
+    if (fresh && b.match.length) mayMatch = anyUnlinkedHere(d, b);
     if (!mayMatch && !(b.createAtSource && pushOn)) {
       lazy = true;
       const changed =

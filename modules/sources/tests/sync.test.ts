@@ -669,3 +669,25 @@ test("a slice of the app's records reads and decodes only the local records it n
   assert.equal(out.remote.updated, 1, "the record changed here was pushed");
   assert.ok(decoded <= 20, `the pass decoded ${decoded} local records (the type holds 600)`);
 });
+
+test("a new row from the app is matched with a record made here even when stale links to deleted records outnumber the records: no duplicate is made", async () => {
+  const k = await kit({ deletes: false });
+  const ids: string[] = [];
+  for (let i = 0; i < 40; i++) ids.push(await k.addRemote({ full_name: `P${i}`, email_address: `p${i}@x.com` }));
+  await k.run(); // 40 records here, every one linked
+  // ten are deleted here: their links stay (deletes are off), so there are more links than records
+  for (const r of (await k.locals()).slice(0, 10)) {
+    const cur = (await k.local.get("contact", r.id))!;
+    await k.local.remove("contact", r.id, cur.version);
+  }
+  // a person made one record here that nothing links; the app now brings the same person as a new row
+  const mine = await k.addLocal({ name: "Made here", email: "same@x.com" });
+  const incoming = await k.addRemote({ full_name: "Same person", email_address: "same@x.com" });
+  const row = (await k.remoteStore.get("hs_contact", incoming))!;
+  const before = (await k.local.aggregate("contact", { measures: [{ fn: "count" }] }))[0]!.values["count"];
+  const out = await runSync(k.deps(), k.binding, { mode: "both", partial: [row] });
+  assert.equal(out.matched, 1, "the new row was matched with the record made here");
+  assert.equal(out.local.created, 0, "no second record was made");
+  assert.equal((await k.local.aggregate("contact", { measures: [{ fn: "count" }] }))[0]!.values["count"], before);
+  assert.ok((await k.local.get("contact", mine)) !== null);
+});
