@@ -1,0 +1,1 @@
+- A Chats page loaded on first draw shows at once after its code has arrived, with no blank frame; preloadChatsPages() fetches them all.
