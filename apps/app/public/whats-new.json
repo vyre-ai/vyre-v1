@@ -1,11 +1,10 @@
 {
-  "version": "1.0.0-rc.38",
+  "version": "1.0.0-rc.39",
   "lines": [
-    "Vyre opens about five times faster: the sign-in page is ready in under a second, and your home appears about a second after.",
-    "A big Space stays quick while it syncs: a sync pass reads only the records it touches, not every record of the type.",
-    "Long lists page through tens of thousands of records in a fraction of a second instead of tens of seconds.",
-    "Using a saved key, making new records and keeping the live view current all cost far less work on a busy server.",
-    "A record made in Vyre is matched, never duplicated, when the same person later arrives from a synced app.",
-    "Syncs with an outside app run on their own schedule, as the person who set them up."
+    "Vyre opens faster still: the sign-in page loads only what it needs and is ready in about a quarter of a second.",
+    "Sharing is instant on a big Space: Share and Unshare answer in about a quarter of a second, and the change shows at once.",
+    "After a sync, Files and lists stay quick: access updates only what the sync changed.",
+    "Temporary access ends on time without slowing the server, however many records the Space holds.",
+    "A busy server keeps its logs without pausing: log lines are saved in small batches."
   ]
 }

@@ -25,6 +25,11 @@ import {
   sealSnapshot,
   sealStore,
   setPrivate,
+  setDecisionView,
+  setGrantAdopter,
+  setWriterView,
+  setLoadStamp,
+  kernelGrant,
   setReadView,
   storeOf,
   withRoleGrants,
@@ -405,6 +410,8 @@ interface Synced {
   plain: AccessSnapshot | null;
 }
 const SYNCED = new WeakMap<object, Synced>();
+/** The snapshot the host decides with that goes with each kept store (it is changed in place beside the store). */
+const KEPT_BY_STORE = new WeakMap<AccessStore, AccessSnapshot>();
 /** How access.sync answered (tests read it): from the tables, by building the snapshot again from a kept store, or by changing the kept snapshot in place. */
 export const syncCounts = { hydrated: 0, rebuilt: 0, inPlace: 0 };
 
@@ -506,6 +513,7 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
     // a seed whose write failed holds what the tables do not (review finding 3): answered once, never kept
     if (complete && before !== null && after !== null && after === before + writes)
       SYNCED.set(key, { store, snap: out.snap, rows: out.rows, stamp: after, plain });
+    KEPT_BY_STORE.set(store, out.snap);
     return out.snap;
   });
 }
@@ -533,7 +541,63 @@ export function readViewOf(ctx: AccessCtx): AccessStore | null {
 }
 /** How often a read was answered from the read view (tests read it). */
 export const readCounts = { views: 0 };
+
+/**
+ * A grant handler (share, unshare, change a share) changed grant rows and the write counter moved by exactly what it wrote since its own store was read: the kept store of this sync still holds what
+ * the tables held then, so it takes the same change in place (store, host snapshot, reader snapshot) and moves its counter to where the handler left it. Any other write in between (the counter
+ * differs) and the sync reads the tables again on its next run, as it always did. Nothing here runs unless the handler's change is already written.
+ */
+setGrantAdopter((ctx, change) => {
+  const key = rawDbOf(ctx.db);
+  const kept = key ? SYNCED.get(key) : undefined;
+  if (!kept || kept.stamp !== change.loaded) return;
+  asKeptWriter(() => {
+    for (const id of change.del) {
+      kept.store.grants.delete(id);
+      kept.snap.revokeGrant(id);
+      kept.plain?.revokeGrant(id);
+    }
+    for (const g of change.put) {
+      kept.store.grants.set(g.id, structuredClone(g));
+      kept.snap.putGrant(kernelGrant(g));
+      kept.plain?.putGrant(kernelGrant(g));
+    }
+    kept.store.epoch = Math.max(kept.store.epoch, change.epoch);
+    kept.store.invalidate();
+    if (kept.plain) {
+      kept.store.adoptSnapshot(kept.plain);
+      if (change.store.isGrantView) change.store.adoptSnapshot(kept.plain);
+    }
+  });
+  kept.stamp = change.after;
+});
+
+/**
+ * The store a grant handler works on: a view of the kept store (see AccessStore.grantView), brought up to the tables first when anything else wrote since, with the reader snapshot of the kept store as
+ * its snapshot. Null where there is no kept store (a test's own db, or a writer that wrote while this one ran): the handler then reads the tables, as before.
+ */
+function writerViewOf(ctx: AccessCtx): AccessStore | null {
+  const key = rawDbOf(ctx.db);
+  if (!key) return null;
+  let kept = SYNCED.get(key);
+  if (!kept || stampOf(ctx.db) !== kept.stamp) {
+    syncKept(ctx, key, []);
+    kept = SYNCED.get(key);
+    if (!kept) return null;
+  }
+  const k = kept;
+  if (!k.plain)
+    asKeptWriter(() => {
+      k.plain = sealSnapshot(k.store.snapshot());
+    });
+  const v = AccessStore.grantView(k.store, k.plain!);
+  setLoadStamp(v, k.stamp);
+  return v;
+}
+setWriterView(writerViewOf);
+
 setReadView(readViewOf);
+setDecisionView((store) => KEPT_BY_STORE.get(store) ?? null);
 
 /** The kept store of access.sync, while the tables still hold exactly what it holds; null otherwise. Only for reads that change nothing. */
 function keptStore(ctx: AccessCtx): AccessStore | null {

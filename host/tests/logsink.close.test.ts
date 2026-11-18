@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LogSink } from "../src/logsink/index.ts";
+import { FLUSH_BATCH, LogSink } from "../src/logsink/index.ts";
 
 test("close flushes accepted rows and spans once, and rejects late appends without a timer", async () => {
   const dir = mkdtempSync(join(tmpdir(), "vyre-logs-close-"));
@@ -57,9 +57,9 @@ test("observer batches are bounded and a failed committed batch retries without 
   });
   for (let index = 0; index < 2005; index++) sink.log({ space: "spc_test", level: 20, msg: `fixture_${index}` });
   assert.throws(() => sink.flush(), /fixture observer failure/);
-  assert.equal(sink.db.prepare("SELECT COUNT(*) AS n FROM logs").get()?.n, 1000);
+  assert.equal(sink.db.prepare("SELECT COUNT(*) AS n FROM logs").get()?.n, FLUSH_BATCH);
   sink.drain();
-  assert.equal(largest, 1000);
+  assert.equal(largest, FLUSH_BATCH);
   assert.equal(seen.length, 2005);
   assert.equal(new Set(seen).size, 2005);
   assert.equal(sink.db.prepare("SELECT COUNT(*) AS n FROM logs").get()?.n, 2005);

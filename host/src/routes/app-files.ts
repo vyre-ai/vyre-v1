@@ -6,6 +6,7 @@ import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
+import { injectHints } from "./app-hints.ts";
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -50,30 +51,59 @@ export function acceptedEncoding(header: unknown): "br" | "gzip" | null {
 /** On-the-fly answers kept in memory (the export carries .br and .gz beside every text file, written by scripts/app-export.mjs; this covers an export that was not). */
 const made = new Map<string, Promise<Buffer>>();
 const MADE_LIMIT = 64;
-function compressed(file: string, enc: "br" | "gzip", st: fs.Stats): Promise<Buffer> {
-  const key = `${enc}:${file}:${st.size}:${st.mtimeMs}`;
+function compressed(key0: string, raw: () => Promise<Buffer>, enc: "br" | "gzip"): Promise<Buffer> {
+  const key = `${enc}:${key0}`;
   let p = made.get(key);
   if (!p) {
-    p = new Promise<Buffer>((resolve, reject) => {
-      fs.readFile(file, (err, raw) => {
-        if (err) return reject(err);
-        const done = (e: Error | null, out: Buffer): void => (e ? reject(e) : resolve(out));
-        if (enc === "br")
-          zlib.brotliCompress(
-            raw,
-            {
-              params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length },
-            },
-            done,
-          );
-        else zlib.gzip(raw, { level: 6 }, done);
-      });
-    });
+    p = raw().then(
+      (buf) =>
+        new Promise<Buffer>((resolve, reject) => {
+          const done = (e: Error | null, out: Buffer): void => (e ? reject(e) : resolve(out));
+          if (enc === "br")
+            zlib.brotliCompress(
+              buf,
+              {
+                params: {
+                  [zlib.constants.BROTLI_PARAM_QUALITY]: 5,
+                  [zlib.constants.BROTLI_PARAM_SIZE_HINT]: buf.length,
+                },
+              },
+              done,
+            );
+          else zlib.gzip(buf, { level: 6 }, done);
+        }),
+    );
     p.catch(() => made.delete(key));
     if (made.size >= MADE_LIMIT) made.delete(made.keys().next().value as string);
     made.set(key, p);
   }
   return p;
+}
+const readFile = (file: string): Promise<Buffer> =>
+  new Promise((resolve, reject) => fs.readFile(file, (e, b) => (e ? reject(e) : resolve(b))));
+
+/** A page with its hints, kept until the page or the scripts it names change. */
+const pages = new Map<string, { sig: string; body: Buffer }>();
+function pageBody(dir: string, file: string, st: fs.Stats): Buffer {
+  const html = fs.readFileSync(file, "utf8");
+  // the scripts the page names decide its hints: their sizes and times are in the key
+  const sig = [...html.matchAll(/src="(\/_expo\/static\/js\/web\/[^"]+\.js)"/g)]
+    .map((m) => {
+      try {
+        const x = fs.statSync(path.join(dir, m[1]!));
+        return `${m[1]}:${x.size}:${x.mtimeMs}`;
+      } catch {
+        return m[1]!;
+      }
+    })
+    .join("|");
+  const key = `${file}:${st.size}:${st.mtimeMs}`;
+  const hit = pages.get(key);
+  if (hit && hit.sig === sig) return hit.body;
+  const body = Buffer.from(injectHints(html, dir));
+  if (pages.size > 200) pages.clear();
+  pages.set(key, { sig, body });
+  return body;
 }
 
 /** Paths that belong to the gateway and the routes before it: never answered with a page, whatever the browser accepts. */
@@ -141,7 +171,20 @@ export function createAppFilesRoute(o: { dir: () => string | null }): {
       } catch {
         return false;
       }
-      const etag = `W/"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`;
+      // a page says what it will load next (app-hints.ts): the body is the page with that, kept in memory
+      let virtual: Buffer | null = null;
+      if (ext === ".html") {
+        try {
+          const b = pageBody(dir, file, st);
+          if (b.length !== st.size) virtual = b;
+        } catch {
+          virtual = null;
+        }
+      }
+      const size = virtual ? virtual.length : st.size;
+      const etag = virtual
+        ? `W/"${virtual.length.toString(16)}-${zlib.crc32(virtual).toString(16)}"`
+        : `W/"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`;
       const head: Record<string, string> = {
         "content-type": TYPES[ext] ?? "application/octet-stream",
         // a file under /_expo/static carries its content hash in its name: a second visit asks for nothing. The page and the files that keep their names are asked about each time (a 304 when unchanged).
@@ -161,7 +204,20 @@ export function createAppFilesRoute(o: { dir: () => string | null }): {
         return true;
       }
       const enc =
-        COMPRESSIBLE.has(ext) && st.size >= MIN_COMPRESS ? acceptedEncoding(req.headers["accept-encoding"]) : null;
+        COMPRESSIBLE.has(ext) && size >= MIN_COMPRESS ? acceptedEncoding(req.headers["accept-encoding"]) : null;
+      if (enc && virtual) {
+        head["content-encoding"] = enc;
+        const body = virtual;
+        void compressed(etag, () => Promise.resolve(body), enc).then(
+          (buf) => {
+            head["content-length"] = String(buf.length);
+            res.writeHead(200, head);
+            res.end(method === "HEAD" ? undefined : buf);
+          },
+          () => res.destroy(),
+        );
+        return true;
+      }
       if (enc) {
         // the export's own copy when it has one and it is not older than the file (give or take a minute); otherwise made once and kept
         const sibling = `${file}.${enc === "br" ? "br" : "gz"}`;
@@ -185,7 +241,7 @@ export function createAppFilesRoute(o: { dir: () => string | null }): {
             .pipe(res);
           return true;
         }
-        void compressed(file, enc, st).then(
+        void compressed(`${file}:${st.size}:${st.mtimeMs}`, () => readFile(file), enc).then(
           (buf) => {
             head["content-length"] = String(buf.length);
             res.writeHead(200, head);
@@ -195,10 +251,14 @@ export function createAppFilesRoute(o: { dir: () => string | null }): {
         );
         return true;
       }
-      head["content-length"] = String(st.size);
+      head["content-length"] = String(size);
       res.writeHead(200, head);
       if (method === "HEAD") {
         res.end();
+        return true;
+      }
+      if (virtual) {
+        res.end(virtual);
         return true;
       }
       fs.createReadStream(file)

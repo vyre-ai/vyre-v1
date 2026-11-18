@@ -348,6 +348,9 @@ const BUILT_IN_LEVEL: Readonly<Record<string, "manage" | "edit">> = {
  * (Manage when it is an elevated role or holds access.manage). A role with no permissions confers nothing.
  */
 const ROLE_GRANTED = new WeakSet<AccessSnapshot>();
+/** True when role grants were put on this snapshot (decisionSnapshot): it then answers as the host decides, not as a handler's own store did. */
+export const hasRoleGrants = (snap: AccessSnapshot): boolean => ROLE_GRANTED.has(snap);
+
 export function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string): AccessSnapshot {
   if (ROLE_GRANTED.has(snap)) return snap;
   ROLE_GRANTED.add(snap);
@@ -374,11 +377,57 @@ export function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: 
   return snap;
 }
 
-/** The snapshot the host decides with, for the handlers that tell a screen what the server would do (access.check, access.reach). */
+let decisionView: ((store: AccessStore) => AccessSnapshot | null) | null = null;
+/** consumers.ts hands over the snapshot the host decides with that it keeps beside the kept store (role grants on it, current with it). */
+export function setDecisionView(f: (store: AccessStore) => AccessSnapshot | null): void {
+  decisionView = f;
+}
+const DECISIONS = new WeakMap<AccessStore, { epoch: number; snap: AccessSnapshot }>();
+
+/**
+ * The snapshot the host decides with, for the handlers that tell a screen what the server would do (access.check, access.reach). It is never the store's own snapshot with the role grants put on
+ * it: the store's snapshot answers as a handler's own store always did (no role grants), and one check or reach that added them to it changed what every later read of that snapshot said (who may
+ * see a share list, which rows my_access holds), for as long as the snapshot lived. The kept store's decision snapshot is the one access.sync keeps current beside it; any other store gets one built apart.
+ */
 export function decisionSnapshot(store: AccessStore): AccessSnapshot {
   const space = [...store.resources.values()].find((r) => r.type === "space");
-  return space ? asKeptWriter(() => withRoleGrants(store.snapshot(), store, space.id)) : store.snapshot();
+  if (!space) return store.snapshot();
+  const kept = decisionView?.(store);
+  if (kept) return kept;
+  const had = DECISIONS.get(store);
+  if (had && had.epoch === store.epoch) return had.snap;
+  const snap = withRoleGrants(store.buildSnapshot(), store, space.id);
+  DECISIONS.set(store, { epoch: store.epoch, snap });
+  return snap;
 }
+
+const GRANT_COLS = [
+  "id",
+  "subjectKind",
+  "subjectId",
+  "resourceType",
+  "resourceId",
+  "level",
+  "conditions",
+  "expiresAt",
+  "by",
+  "source",
+  "version",
+];
+/** The columns of a grant's row, in GRANT_COLS order. */
+const grantVals = (g: GrantRec): unknown[] => [
+  g.id,
+  g.subject.kind,
+  g.subject.id,
+  g.resource.type,
+  g.resource.id,
+  g.level,
+  JSON.stringify(g.conditions),
+  g.conditions.expiresAt ?? null,
+  g.by,
+  g.source ?? null,
+  1,
+];
 
 export class AccessStore {
   epoch = 0;
@@ -398,6 +447,35 @@ export class AccessStore {
   idem = new Map<string, unknown>();
   private snap: AccessSnapshot | null = null;
   private snapEpoch = -1;
+  /** True for a grant writer's view of the kept store (`grantView`): the maps but the grants are the kept store's own and may not be written. */
+  isGrantView = false;
+  /** The grant rows as the tables held them when a grant view was made, to find what the handler changed without reading anything. */
+  private grantsWas: Map<string, unknown[]> | null = null;
+
+  /**
+   * A grant handler's store without reading the tables: the kept store's maps shared (they are sealed: a write to one is refused), the grants copied (the handler changes those), the kept reader
+   * snapshot as the snapshot. Share, unshare and change a share used to read every row of every table into a store of their own and build a snapshot from it, 0.2 s on 20,000 records, seconds on a firm's.
+   */
+  static grantView(src: AccessStore, plain: AccessSnapshot): AccessStore {
+    const v = new AccessStore();
+    v.epoch = src.epoch;
+    v.catalogue = src.catalogue;
+    v.roles = src.roles;
+    v.roleChanges = src.roleChanges;
+    v.groups = src.groups;
+    v.principals = src.principals;
+    v.resources = src.resources;
+    v.policies = src.policies;
+    v.actors = src.actors;
+    v.assignments = src.assignments;
+    v.fieldLabels = src.fieldLabels;
+    v.localCursor = src.localCursor;
+    v.grants = new Map([...src.grants].map(([k, g]) => [k, structuredClone(g)]));
+    v.grantsWas = new Map([...src.grants.values()].map((g) => [JSON.stringify([g.id]), grantVals(g)]));
+    v.isGrantView = true;
+    v.adoptSnapshot(plain);
+    return v;
+  }
 
   bump(): void {
     this.epoch++;
@@ -482,6 +560,11 @@ export class AccessStore {
     this.snap = snap;
     this.snapEpoch = this.epoch;
     return snap;
+  }
+
+  /** A snapshot of this store as it is, built apart and not kept: nothing a reader did to the kept one (the role grants `decisionSnapshot` puts on it) is in it. */
+  buildSnapshot(): AccessSnapshot {
+    return this.build();
   }
 
   private build(): AccessSnapshot {
@@ -654,37 +737,7 @@ export class AccessStore {
     for (const [holder, roles] of this.assignments)
       for (const roleId of roles)
         add("access_assignments", ["holder", "role_id"], ["holder", "role_id"], [holder, roleId]);
-    for (const g of this.grants.values())
-      add(
-        "access_grants",
-        ["id"],
-        [
-          "id",
-          "subjectKind",
-          "subjectId",
-          "resourceType",
-          "resourceId",
-          "level",
-          "conditions",
-          "expiresAt",
-          "by",
-          "source",
-          "version",
-        ],
-        [
-          g.id,
-          g.subject.kind,
-          g.subject.id,
-          g.resource.type,
-          g.resource.id,
-          g.level,
-          JSON.stringify(g.conditions),
-          g.conditions.expiresAt ?? null,
-          g.by,
-          g.source ?? null,
-          1,
-        ],
-      );
+    for (const g of this.grants.values()) add("access_grants", ["id"], GRANT_COLS, grantVals(g));
     for (const r of this.resources.values())
       add(
         "access_resources",
@@ -798,6 +851,67 @@ export class AccessStore {
     }
     this.base = now;
     this.raw = null;
+  }
+
+  /**
+   * Write what a grant handler (share, unshare, change a share) changed: the grant rows that differ from the rows this store read, and the epoch. Nothing else is written or compared, so the cost is
+   * the number of grants, not the number of rows of the Space (`persist` writes out every row of every table to find what changed: 0.1 s on 20,000 records, seconds on a firm's). Answers how many
+   * rows were written (what the tables' write counter moves by), or null when the store holds no copy of the grant rows to compare with (the caller then uses `persist`).
+   */
+  persistGrants(db: Db): { writes: number; put: GrantRec[]; del: string[] } | null {
+    let was: Map<string, unknown[]> | undefined;
+    if (this.raw) {
+      const shape = SHAPES["access_grants"]!;
+      was = new Map();
+      for (const row of this.raw.get("access_grants") ?? [])
+        was.set(
+          JSON.stringify(shape.pk.map((c) => row[c] ?? null)),
+          shape.cols.map((c) => row[c] ?? null),
+        );
+    } else was = this.grantsWas ?? this.base?.get("access_grants")?.vals;
+    if (!was) return null;
+    let writes = 0;
+    const put: GrantRec[] = [];
+    const del: string[] = [];
+    const now = new Map<string, unknown[]>();
+    for (const g of this.grants.values()) {
+      const vals = grantVals(g);
+      now.set(JSON.stringify([g.id]), vals);
+    }
+    for (const [key, vals] of now) {
+      if (was.has(key) && JSON.stringify(was.get(key)) === JSON.stringify(vals)) continue;
+      put.push(this.grants.get(JSON.parse(key)[0] as string)!);
+      const cols = GRANT_COLS.map((c) => `"${c}"`).join(",");
+      writes += db.run(
+        `INSERT OR REPLACE INTO access_grants (${cols}) VALUES (${GRANT_COLS.map(() => "?").join(",")})`,
+        ...vals,
+      ).changes;
+    }
+    for (const key of was.keys())
+      if (!now.has(key)) {
+        del.push(JSON.parse(key)[0] as string);
+        writes += db.run(`DELETE FROM access_grants WHERE "id" = ?`, ...(JSON.parse(key) as unknown[])).changes;
+      }
+    writes += db.run(
+      `INSERT INTO access_meta (id,epoch) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET epoch = max(epoch, excluded.epoch)`,
+      "space",
+      this.epoch,
+    ).changes;
+    // what was written is what this store now holds, for any later write of its own
+    if (this.grantsWas) this.grantsWas = new Map(now);
+    else if (this.raw)
+      this.raw.set(
+        "access_grants",
+        [...now.values()].map((vals) => Object.fromEntries(GRANT_COLS.map((c, i) => [c, vals[i]]))),
+      );
+    else {
+      const b = this.base?.get("access_grants");
+      if (b) {
+        b.vals.clear();
+        for (const [key, vals] of now) b.vals.set(key, vals);
+      }
+    }
+    return { writes, put, del };
   }
 
   /**
@@ -1018,7 +1132,7 @@ export function rowOfResource(r: ResourceRec | undefined): Record<string, unknow
   return { ...(r.row ?? {}), id: r.id, owner_id: r.ownerId, label: labelRank(r.label), holds: r.holds };
 }
 
-function kernelGrant(g: GrantRec): GrantRow {
+export function kernelGrant(g: GrantRec): GrantRow {
   const c = g.conditions;
   const conditions: NonNullable<GrantRow["conditions"]> = {};
   // copies, not the store's own objects: the snapshot must not change if a store record ever did (review finding 4)
@@ -1058,6 +1172,71 @@ export function pkey(key: string, scope: string): string {
 
 const STORES = new WeakMap<Db, AccessStore>();
 
+/** The tables' write counter (migrations/0006_local_stamp.sql), or null where there is none. */
+function stampNow(db: Db): number | null {
+  try {
+    const n = (db.all(`SELECT "n" FROM access_local_stamp WHERE "id" = 1`)[0] as { n?: unknown } | undefined)?.n;
+    return typeof n === "number" || typeof n === "bigint" ? Number(n) : null;
+  } catch {
+    return null;
+  }
+}
+/** The write counter as it stood when a call's own store was read from the tables. */
+const LOAD_STAMP = new WeakMap<AccessStore, number | null>();
+export function setLoadStamp(store: AccessStore, stamp: number | null): void {
+  LOAD_STAMP.set(store, stamp);
+}
+/** What a grant handler changed, handed to the kept store of access.sync so it can take the change in place instead of reading every table again (consumers.ts). */
+export interface GrantChange {
+  loaded: number;
+  after: number;
+  epoch: number;
+  put: GrantRec[];
+  del: string[];
+  /** the store the handler worked on: when the kept snapshot takes the change, it is that store's snapshot too */
+  store: AccessStore;
+}
+type GrantCtx = Pick<AccessCtx, "db" | "emit" | "principal">;
+/** For the tests: false makes grant handlers read and write the whole store, as every handler did, to compare the tables the two ways leave. */
+export const persistMode = { targeted: true };
+let grantAdopter: ((ctx: GrantCtx, change: GrantChange) => void) | null = null;
+export function setGrantAdopter(f: (ctx: GrantCtx, change: GrantChange) => void): void {
+  grantAdopter = f;
+}
+
+/** What a grant handler asks for when the kept store cannot serve it (it changes more than grants): it is run again on a store of its own. Nothing was written or emitted before it is thrown. */
+export class NeedFullStore extends Error {
+  constructor() {
+    super("this change needs a store of its own");
+  }
+}
+let writerView: ((ctx: AccessCtx) => AccessStore | null) | null = null;
+export function setWriterView(f: (ctx: AccessCtx) => AccessStore | null): void {
+  writerView = f;
+}
+/**
+ * Runs a grant handler (share, unshare, change a share) on a view of the kept store of access.sync instead of a store read from the tables. Where there is no kept store, or the handler finds it
+ * has to change more than grants (NeedFullStore), it runs as it always did.
+ */
+export function grantWriter<C extends object, A extends unknown[], R>(
+  f: (ctx: C, ...a: A) => Promise<R>,
+): (ctx: C, ...a: A) => Promise<R> {
+  return async (ctx, ...a) => {
+    const c = ctx as unknown as AccessCtx;
+    if (persistMode.targeted && !STORES.has(c.db) && !READERS.has(c)) {
+      const v = writerView?.(c);
+      if (v) STORES.set(c.db, v);
+    }
+    try {
+      return await f(ctx, ...a);
+    } catch (e) {
+      if (!(e instanceof NeedFullStore)) throw e;
+      STORES.delete(c.db);
+      return f(ctx, ...a);
+    }
+  };
+}
+
 export function storeOf(ctx: AccessCtx): AccessStore {
   // a read-only capability (handlers/index.ts readOnly) reads the kept view of access.sync: no read of the tables, and no way to change it
   if (READERS.has(ctx) && readView) {
@@ -1067,6 +1246,7 @@ export function storeOf(ctx: AccessCtx): AccessStore {
   let s = STORES.get(ctx.db);
   if (s) return s;
   s = loadStore(ctx.db);
+  LOAD_STAMP.set(s, stampNow(ctx.db));
   STORES.set(ctx.db, s);
   return s;
 }
@@ -1149,19 +1329,24 @@ function deepFreeze<T>(v: T): T {
 }
 class SealedMap<K, V> extends Map<K, V> {
   sealed = false;
+  /** Moves on every change, so what is derived from the map (an index of the children of each resource) can be kept while it stands. */
+  version = 0;
   override set(k: K, v: V): this {
     if (this.sealed) {
       mustWrite();
       deepFreeze(v);
     }
+    this.version++;
     return super.set(k, v);
   }
   override delete(k: K): boolean {
     if (this.sealed) mustWrite();
+    this.version++;
     return super.delete(k);
   }
   override clear(): void {
     if (this.sealed) mustWrite();
+    this.version++;
     super.clear();
   }
 }
@@ -1235,6 +1420,7 @@ export function sealStore(store: AccessStore): AccessStore {
     "hydrate",
     "persist",
     "persistResources",
+    "persistGrants",
     "setRoles",
     "adoptSnapshot",
   ]);
@@ -1300,6 +1486,30 @@ export function changed(
     store.bump();
     throw e;
   }
+}
+
+/**
+ * `changed` for a handler that only adds, changes or removes grants (share, unshare, change a share): it writes the grant rows that differ and the epoch, not every row of every table, and when the
+ * tables' write counter shows nothing else wrote since the store was read, it hands the change to the kept store of access.sync so the next sync takes it in place (no second read of the tables).
+ */
+export function changedGrants(ctx: GrantCtx, store: AccessStore): void {
+  store.bump();
+  ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "assignment", by: ctx.principal.id });
+  let out: { writes: number; put: GrantRec[]; del: string[] } | null;
+  try {
+    out = persistMode.targeted ? store.persistGrants(ctx.db) : null;
+    if (out === null) {
+      store.persist(ctx.db);
+      return;
+    }
+  } catch (e) {
+    store.bump();
+    throw e;
+  }
+  const loaded = LOAD_STAMP.get(store);
+  const after = stampNow(ctx.db);
+  if (grantAdopter && loaded != null && after !== null && after === loaded + out.writes)
+    grantAdopter(ctx, { loaded, after, epoch: store.epoch, put: out.put, del: out.del, store });
 }
 
 /** Inline reducers drop the snapshot. Row changes live in the tables the handler writes in the same turn. */
