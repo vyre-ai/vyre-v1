@@ -93,3 +93,41 @@ test("state survives a reopen, and a version bump rebuilds the rt_ tables from t
   bumped.host.close();
   assert.equal(recordsRows.version, 1);
 });
+
+test("a query with no sort pages the type in order of id in SQL: the same pages, the same cursors and the same end as the general path, and each page reads only its own rows", async () => {
+  const { host, store } = openRecordStore({ path: ":memory:", space: "sp_keyset" });
+  await store.define({ add_types: [CONTACT] });
+  const made: string[] = [];
+  for (let i = 0; i < 23; i++) {
+    const id = mintRecordId();
+    await store.create("contact", id, { name: `P${i}`, age: i });
+    made.push(id);
+  }
+  await store.remove("contact", made[3]!, 1);
+  const walk = async (spec: Record<string, unknown>): Promise<string[][]> => {
+    const pages: string[][] = [];
+    let cursor: string | undefined;
+    do {
+      const p = await store.query("contact", { ...spec, page: { limit: 5, ...(cursor ? { cursor } : {}) } } as never);
+      pages.push(p.rows.map((r) => r.id));
+      cursor = p.next_cursor;
+    } while (cursor);
+    return pages;
+  };
+  // the sort by id is the general path (it reads and orders every row); the two must agree page by page
+  assert.deepEqual(await walk({}), await walk({ sort: [{ field: "id", dir: "asc" }] }));
+  assert.deepEqual(
+    await walk({ include_deleted: true }),
+    await walk({ include_deleted: true, sort: [{ field: "id", dir: "asc" }] }),
+  );
+  assert.equal((await walk({})).flat().length, 22, "the removed record is not listed");
+  // changed since a time (the sync's push of local edits)
+  const since = (await store.get("contact", made[10]!))!.updated_at;
+  assert.deepEqual(
+    await walk({ filter: { field: "updated_at", op: "gte", value: since } }),
+    await walk({ filter: { field: "updated_at", op: "gte", value: since }, sort: [{ field: "id", dir: "asc" }] }),
+  );
+  // a cursor that is not ours is still refused
+  await assert.rejects(store.query("contact", { page: { limit: 5, cursor: "nope" } }), /invalid cursor/);
+  assert.ok(host.store.verify().ok);
+});
