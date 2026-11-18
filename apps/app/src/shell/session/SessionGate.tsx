@@ -3,11 +3,14 @@ import { activationUrl, isPackagedOrigin, storedPlace } from "./space-catalog.ts
 // the authenticated application shell is loaded only after a stored or verified session exists.
 import { holdOpen } from "../reach/open-link.ts";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactElement, ReactNode } from "react";
+import type { ComponentProps, ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { loadCryptoKeys, loadRecoveryCrypto } from "../../../../../client/src/crypto/load.ts";
 import { forgetKey, keepKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { KeyGate } from "./KeyGate.tsx";
+import { AfterLoad } from "../../startup/after-load.tsx";
+import { loadShellHost, loadedShellHost } from "../../startup/shell-load.ts";
+import type { ShellHost as ShellHostView } from "./ShellHost.tsx";
 import { holdKeyOnOwnNode, isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
@@ -95,7 +98,13 @@ const RecoveryAccount = lazy(() =>
 const ResetAccount = lazy(() => import("../../join/ResetAccount.tsx").then((m) => ({ default: m.ResetAccount })));
 const LocalClaim = lazy(() => import("../../claim/ClaimRoute.tsx").then((m) => ({ default: m.ClaimRoute })));
 const JoinProviderSetup = lazy(() => import("./JoinProviderSetup.tsx").then((m) => ({ default: m.JoinProviderSetup })));
-const SignedInShell = lazy(() => import("./ShellHost.tsx").then((m) => ({ default: m.ShellHost })));
+const shellReady = (): boolean => loadedShellHost() !== null;
+const LazyShell = lazy(() => loadShellHost().then((m) => ({ default: m.ShellHost })));
+/** The shell, drawn directly once its module is loaded (startup/shell-load.ts); until then the lazy one, which loads it. */
+function SignedInShell(props: ComponentProps<typeof ShellHostView>): ReactElement {
+  const loaded = loadedShellHost();
+  return loaded ? <loaded.ShellHost {...props} /> : <LazyShell {...props} />;
+}
 const AllowScreen = lazy(() => import("../../oauth/AllowScreen.tsx").then((m) => ({ default: m.AllowScreen })));
 
 export interface SessionGateProps {
@@ -1572,20 +1581,22 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         onForgot={() => setForgot(true)}
       >
         <Suspense fallback={<View style={styles.fill} />}>
-          <SignedInShell
-            key={phase.stored.baseUrl + phase.stored.personId}
-            stored={phase.stored}
-            open={open}
-            onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)}
-            onHub={onHub}
-            voice={props.voice}
-            onSwitchSpace={(id) => void switchSpace(id)}
-            onAddSpace={() => {
-              setReturnSession(phase.stored);
-              setEntryStart("choice");
-              setEntry(true);
-            }}
-          />
+          <AfterLoad load={loadShellHost} ready={shellReady} fallback={<View style={styles.fill} />}>
+            <SignedInShell
+              key={phase.stored.baseUrl + phase.stored.personId}
+              stored={phase.stored}
+              open={open}
+              onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)}
+              onHub={onHub}
+              voice={props.voice}
+              onSwitchSpace={(id) => void switchSpace(id)}
+              onAddSpace={() => {
+                setReturnSession(phase.stored);
+                setEntryStart("choice");
+                setEntry(true);
+              }}
+            />
+          </AfterLoad>
         </Suspense>
       </KeyGate>
     );
