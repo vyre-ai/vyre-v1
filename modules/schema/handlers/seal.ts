@@ -89,24 +89,46 @@ export async function putInVault(deps: SchemaDeps, ctx: SchemaCtx, type: string,
   return moves;
 }
 
-/** Step two, once the field is sealed in the store: each row keeps the reference in place of its value. A row that was already moved by an earlier try is not in `moves`. */
+/**
+ * Step two, once the fields are sealed in the store: each row keeps the references in place of its values. A row that was already moved by an earlier try is not in `moves`.
+ * Several fields of one type seal in one call: a row with two of them takes both references in ONE update, because the store checks the whole row on every write and a row holding a plain text in
+ * the other sealed field would be refused (found sealing dob and ssn together, 18 Nov 2026).
+ */
+export async function writeRefsMany(
+  deps: SchemaDeps,
+  type: string,
+  byField: ReadonlyMap<string, readonly Move[]>,
+): Promise<Map<string, number>> {
+  const rows = new Map<string, { row: StoredRecord; patch: Record<string, unknown> }>();
+  const counts = new Map<string, number>();
+  for (const [field, moves] of byField) {
+    counts.set(field, moves.length);
+    for (const { row, ref } of moves) {
+      const at = rows.get(row.id) ?? { row, patch: {} };
+      at.patch[field] = { sealed: field, ref, present: true, set_at: Date.now() };
+      rows.set(row.id, at);
+    }
+  }
+  for (const { row: r, patch } of rows.values()) {
+    if (r.deleted_at === null || r.deleted_at === undefined) await deps.store.update(type, r.id, patch, r.version);
+    else {
+      // a record in Trash comes out, takes the references and goes back, so its values are not left behind
+      const back = await deps.store.restore(type, r.id);
+      const next = await deps.store.update(type, r.id, patch, back.version);
+      await deps.store.remove(type, r.id, next.version);
+    }
+  }
+  return counts;
+}
+
+/** Step two for one field: each row keeps the reference in place of its value. */
 export async function writeRefs(
   deps: SchemaDeps,
   type: string,
   field: string,
   moves: readonly Move[],
 ): Promise<number> {
-  for (const { row: r, ref } of moves) {
-    const patch = { [field]: { sealed: field, ref, present: true, set_at: Date.now() } };
-    if (r.deleted_at === null || r.deleted_at === undefined) await deps.store.update(type, r.id, patch, r.version);
-    else {
-      // a record in Trash comes out, takes the reference and goes back, so its value is not left behind
-      const back = await deps.store.restore(type, r.id);
-      const next = await deps.store.update(type, r.id, patch, back.version);
-      await deps.store.remove(type, r.id, next.version);
-    }
-  }
-  return moves.length;
+  return (await writeRefsMany(deps, type, new Map([[field, moves]]))).get(field) ?? 0;
 }
 
 export function openJob(

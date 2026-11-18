@@ -124,6 +124,10 @@ export function paging(
 
 const ready = new WeakSet<object>();
 const migrationSql = readFileSync(fileURLToPath(new URL("./migrations/0001_vault.sql", import.meta.url)), "utf8");
+const backingSql = readFileSync(
+  fileURLToPath(new URL("./migrations/0009_backing_folders.sql", import.meta.url)),
+  "utf8",
+);
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -152,7 +156,33 @@ export function ensure(ctx: Pick<VaultCtx, "db">): void {
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }
+  // folders the server keeps for stored sealed record values: the table is made once, and that one time the Sealed fields folder a Space already has is marked (a later folder of that name is a person's)
+  try {
+    ctx.db.all(`SELECT "folderId" FROM vault_backing_folder WHERE "folderId" = ?`, "probe");
+  } catch {
+    for (const statement of statements(backingSql)) ctx.db.run(statement);
+    markBackingFolders(ctx);
+  }
   ready.add(ctx.db);
+}
+
+/** The Sealed fields folder a Space already has (shared, top level) is marked as one the server keeps. Run once, when the marker table is made. */
+export function markBackingFolders(ctx: Pick<VaultCtx, "db">): void {
+  for (const f of ctx.db.all(
+    `SELECT * FROM vault_folder WHERE "name" = ? AND "scope" = ?`,
+    "Sealed fields",
+    "shared",
+  )) {
+    const row = f as Record<string, unknown>;
+    if (typeof row["id"] === "string" && (row["parentId"] === null || row["parentId"] === undefined))
+      ctx.db.run(`INSERT OR IGNORE INTO vault_backing_folder ("folderId") VALUES (?)`, row["id"]);
+  }
+}
+
+/** Is this folder one the server keeps for the values of sealed record fields? Its items are not people's items: no list, search, match or health check shows them. */
+export function isBackingFolder(ctx: Pick<VaultCtx, "db">, folderId: unknown): boolean {
+  if (typeof folderId !== "string" || folderId === "") return false;
+  return ctx.db.all(`SELECT "folderId" FROM vault_backing_folder WHERE "folderId" = ?`, folderId).length > 0;
 }
 
 // ---- levels

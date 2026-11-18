@@ -275,11 +275,15 @@ test("seal this field live: a crash halfway leaves the plaintext as it was, pres
 
     // 1. the Vault stops answering after 20 values: the apply fails and nothing changed
     let puts = 0;
+    // the Vault items the values went into: their list is not a person's to see (the items are the Space's plumbing), so they are counted as the seam makes them
+    const refs = new Set<string>();
     setSchemaVault({
       ...real,
       put: async (o) => {
         if (++puts > 20) throw new Error("the Vault went away");
-        return real.put(o);
+        const ref = await real.put(o);
+        refs.add(ref);
+        return ref;
       },
     });
     const failed = await seal();
@@ -295,6 +299,11 @@ test("seal this field live: a crash halfway leaves the plaintext as it was, pres
     let scrubs = 0;
     setSchemaVault({
       ...real,
+      put: async (o) => {
+        const ref = await real.put(o);
+        refs.add(ref);
+        return ref;
+      },
       scrubField: async (t, f) => {
         if (++scrubs === 1) throw new Error("killed before the host copies were cleaned");
         return real.scrubField!(t, f);
@@ -308,8 +317,12 @@ test("seal this field live: a crash halfway leaves the plaintext as it was, pres
       left.every((r) => r.fields["taxid"].sealed === "taxid"),
       "every row holds a reference",
     );
-    const items = (await ok(d, "vault.items.list", { q: "client.taxid" })).items as unknown[];
-    assert.equal(items.length, 50, "one Vault item per value: the 20 from the first try were reused");
+    assert.equal(refs.size, 50, "one Vault item per value: the 20 from the first try were reused");
+    assert.equal(
+      ((await ok(d, "vault.items.list", { q: "client.taxid" })).items as unknown[]).length,
+      0,
+      "and none of them is in the Vault list a person sees",
+    );
   } finally {
     await d.stop();
   }

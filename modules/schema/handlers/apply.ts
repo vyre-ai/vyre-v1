@@ -28,7 +28,7 @@ import {
 } from "../projections.ts";
 import type { FieldDefT, Label, SchemaCtx, SchemaDeps, TypeDefT } from "../projections.ts";
 import { viewRowOf } from "./describe.ts";
-import { SEALABLE_FROM, openJob, putInVault, writeRefs } from "./seal.ts";
+import { SEALABLE_FROM, openJob, putInVault, writeRefsMany } from "./seal.ts";
 import type { Move } from "./seal.ts";
 import type { GapRule, LayoutSection, ViewRow } from "./describe.ts";
 
@@ -536,6 +536,57 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
       ? no("name the field")
       : (t.fields.find((f) => f.key === key) ?? no(`${t.key} has no field ${key}`));
 
+  /**
+   * The other end of a relation field a type was made with. relation.add makes both ends; a relation field inside type.create used to make one (an agent building a firm's types through the API
+   * got matter.client with no client.matters, 18 Nov 2026), so it makes the other end now, named by options.inverse when the field says one and otherwise by the type's own name.
+   */
+  const addFarEnd = (t: TypeDefT, f: FieldDefT): void => {
+    const target = f.options?.["target"];
+    const to = typeof target === "string" ? st.get(target) : undefined;
+    if (!to) return; // checkField already refused a target that is not a record type
+    const named = typeof f.options?.["inverse"] === "string" ? (f.options["inverse"] as string) : undefined;
+    if (named !== undefined) {
+      const have = to.fields.find((x) => x.key === named);
+      if (have) {
+        // the far end is already there when it points back at this field (a type made earlier in the same call); anything else is a clash
+        const o = have.options ?? {};
+        if (
+          have.type === "relation" &&
+          o["target"] === t.key &&
+          (o["inverse"] === f.key || o["inverse"] === undefined) &&
+          !(to === t && named === f.key)
+        ) {
+          have.options = { ...o, inverse: f.key };
+          return;
+        }
+        throw new Problem(`${to.key} already has a field ${named}`, true);
+      }
+      if (to === t && named === f.key) throw new Problem(`${to.key} already has a field ${named}`, true);
+    }
+    const free = (k: string): boolean => !to.fields.some((x) => x.key === k) && !(to === t && k === f.key);
+    const plural = `${t.key}s`;
+    const candidates = to === t ? [`${f.key}_of`, `${f.key}_back`] : [plural, `${t.key}_${f.key}`];
+    const pick = (): string => {
+      const first = candidates.find(free);
+      if (first !== undefined) return first;
+      const base = candidates[candidates.length - 1]!;
+      let n = 2;
+      while (!free(`${base}_${n}`)) n++;
+      return `${base}_${n}`;
+    };
+    const key = named ?? pick();
+    f.options = { ...(f.options ?? {}), target: to.key, inverse: key };
+    const far: FieldDefT = {
+      key,
+      type: "relation",
+      title: named === undefined && key === plural ? t.plural : titleCase(key),
+      options: { target: t.key, inverse: f.key },
+    };
+    to.fields.push(far);
+    checkField(deps, st, to, far);
+    plan.touched.add(to.key);
+  };
+
   for (const op of ops) {
     try {
       switch (op.op) {
@@ -572,6 +623,7 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           st.set(t.key, t);
           for (const f of t.fields) checkField(deps, st, t, f);
           checkType(st, t);
+          for (const f of [...t.fields]) if (f.type === "relation") addFarEnd(t, f);
           plan.created.add(t.key);
           plan.touched.add(t.key);
           add(op, `Create record type ${t.title} with ${t.fields.length} field${t.fields.length === 1 ? "" : "s"}`);
@@ -682,9 +734,13 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           )
             to.options = clone(from.options ?? {});
           if (typeof op.def?.["title"] === "string") to.title = op.def["title"];
+          // the field keeps its label through a retype; a label named in the retype's def replaces it (an agent sealing a field says "restricted" in the same call)
+          if (typeof op.def?.["label"] === "string") to.label = op.def["label"] as Label;
           delete to.default;
           Object.assign(f, to);
           checkField(deps, st, t, f);
+          if (f.label !== from.label)
+            plan.labelChanges.push({ type: t.key, field: f.key, from: from.label ?? t.label, to: f.label ?? t.label });
           if (f.unique && hasDuplicates(deps, t.key, f.key)) no(`${f.key} has duplicate values`);
           const rows = countValues(deps, t.key, f.key);
           if (sealing) {
@@ -974,6 +1030,8 @@ interface ApplyOpts {
   previewToken?: string;
   skipConfirm?: boolean;
   extraEvents?: boolean;
+  /** schema.label_changed is declared by schema.set_label and not by schema.apply: a call that does not declare it cannot emit it (the host refuses an undeclared event, so a label changed through schema.apply failed whole). */
+  labelEvents?: boolean;
 }
 
 async function execute(
@@ -1029,8 +1087,12 @@ async function execute(
   if (moved.length) await store.define({ change_types: moved.map((k) => bridgeOf(deps, plan, k, prior)) });
   const trash: { type: string; field: string | null; rows: number; payload: unknown }[] = [];
   // sealing: the values go into the Vault now (the field is already sealed in the bridge type), and the job that cleans the old copies is owed once this commits
-  for (const [e, moves] of sealMoves) {
-    if (e.k === "seal") openJob(deps, e.type, e.field, await writeRefs(deps, e.type, e.field, moves), changeId, now);
+  const sealedBy = new Map<string, Map<string, Move[]>>();
+  for (const [e, moves] of sealMoves)
+    if (e.k === "seal") (sealedBy.get(e.type) ?? sealedBy.set(e.type, new Map()).get(e.type)!).set(e.field, moves);
+  for (const [type, byField] of sealedBy) {
+    const counts = await writeRefsMany(deps, type, byField);
+    for (const [field, n] of counts) openJob(deps, type, field, n, changeId, now);
   }
   for (const k of moved) {
     const effs = plan.effects.filter((e) => e.type === k);
@@ -1137,13 +1199,14 @@ async function execute(
       destructive: destructive.length > 0,
     });
   for (const k of plan.dropped) ctx.emit("schema.type_dropped", `record_type/${k}`, { type: k, changeId });
-  for (const l of plan.labelChanges)
-    ctx.emit("schema.label_changed", `record_type/${l.type}`, {
-      type: l.type,
-      ...(l.field !== undefined ? { field: l.field } : {}),
-      from: l.from,
-      to: l.to,
-    });
+  if (o.labelEvents === true)
+    for (const l of plan.labelChanges)
+      ctx.emit("schema.label_changed", `record_type/${l.type}`, {
+        type: l.type,
+        ...(l.field !== undefined ? { field: l.field } : {}),
+        from: l.from,
+        to: l.to,
+      });
   return { changeId, applied: plan.items.length, items: plan.items };
 }
 
@@ -1324,7 +1387,7 @@ export function createApplyHandlers(deps: SchemaDeps): ApplyHandlers {
         input.field === undefined
           ? { op: "type.update", type: t.key, def: { label: input.label } }
           : { op: "field.update", type: t.key, field: input.field, def: { label: input.label } };
-      await execute(deps, ctx, [op], { skipConfirm: true });
+      await execute(deps, ctx, [op], { skipConfirm: true, labelEvents: true });
       return { ok: true };
     },
 
