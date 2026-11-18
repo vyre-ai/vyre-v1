@@ -6,8 +6,34 @@ import { setDiagramLoader } from "./loaders.ts";
 
 let n = 0;
 
+// Mermaid is a static file of the app (apps/app/public/vendor/mermaid, the package's own mermaid.min.js, version 11.17.2) put in the page the first time a reply holds a diagram. Imported into the bundle it pulled
+// three megabytes of its own code and shared libraries into the first download of every visit (r38: the sign-in page waited for them); as a file it costs a chat without a diagram nothing.
+interface MermaidApi {
+  initialize(o: Record<string, unknown>): void;
+  render(id: string, source: string): Promise<{ svg: string }>;
+}
+let loading: Promise<MermaidApi> | null = null;
+function loadMermaid(): Promise<MermaidApi> {
+  const g = globalThis as unknown as { mermaid?: MermaidApi; document?: Document; location?: { origin?: string } };
+  if (g.mermaid !== undefined) return Promise.resolve(g.mermaid);
+  loading ??= new Promise<MermaidApi>((ok, no) => {
+    const el = g.document?.createElement("script");
+    if (!el || !g.document) return no(new Error("no page"));
+    const origin = g.location?.origin;
+    el.src = `${origin !== undefined && origin !== "null" ? origin : ""}/vendor/mermaid/mermaid.min.js`;
+    el.async = true;
+    el.onload = () => (g.mermaid ? ok(g.mermaid) : no(new Error("Mermaid did not start")));
+    el.onerror = () => no(new Error("could not load Mermaid"));
+    g.document.head.appendChild(el);
+  });
+  void loading.catch(() => {
+    loading = null;
+  });
+  return loading;
+}
+
 setDiagramLoader(async () => {
-  const mermaid = (await import("mermaid")).default;
+  const mermaid = await loadMermaid();
   return async (source, theme) => {
     mermaid.initialize({
       startOnLoad: false,

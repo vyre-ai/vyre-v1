@@ -5,6 +5,7 @@ import fs from "node:fs";
 import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import zlib from "node:zlib";
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -24,6 +25,53 @@ const TYPES: Record<string, string> = {
   ".txt": "text/plain; charset=utf-8",
   ".map": "application/json",
 };
+/** Files worth compressing (text); images and fonts already are. */
+const COMPRESSIBLE = new Set([".html", ".js", ".css", ".json", ".webmanifest", ".svg", ".txt", ".map"]);
+/** Below this a file costs more in headers than it saves. */
+const MIN_COMPRESS = 1024;
+
+/** The best encoding the browser accepts of the two this route makes: brotli, then gzip, or null. */
+export function acceptedEncoding(header: unknown): "br" | "gzip" | null {
+  const q = new Map<string, number>();
+  for (const part of String(header ?? "").toLowerCase().split(",")) {
+    const [name, ...params] = part.trim().split(";");
+    if (!name) continue;
+    const given = params.map((x) => /^\s*q\s*=\s*([0-9.]+)\s*$/.exec(x)).find((m) => m !== null && m !== undefined);
+    q.set(name.trim(), given ? Number(given[1]) : 1);
+  }
+  const ok = (name: string): boolean => (q.get(name) ?? q.get("*") ?? 0) > 0;
+  if (ok("br")) return "br";
+  if (ok("gzip")) return "gzip";
+  return null;
+}
+
+/** On-the-fly answers kept in memory (the export carries .br and .gz beside every text file, written by scripts/app-export.mjs; this covers an export that was not). */
+const made = new Map<string, Promise<Buffer>>();
+const MADE_LIMIT = 64;
+function compressed(file: string, enc: "br" | "gzip", st: fs.Stats): Promise<Buffer> {
+  const key = `${enc}:${file}:${st.size}:${st.mtimeMs}`;
+  let p = made.get(key);
+  if (!p) {
+    p = new Promise<Buffer>((resolve, reject) => {
+      fs.readFile(file, (err, raw) => {
+        if (err) return reject(err);
+        const done = (e: Error | null, out: Buffer): void => (e ? reject(e) : resolve(out));
+        if (enc === "br")
+          zlib.brotliCompress(
+            raw,
+            { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } },
+            done,
+          );
+        else zlib.gzip(raw, { level: 6 }, done);
+      });
+    });
+    p.catch(() => made.delete(key));
+    if (made.size >= MADE_LIMIT) made.delete(made.keys().next().value as string);
+    made.set(key, p);
+  }
+  return p;
+}
+
 /** Paths that belong to the gateway and the routes before it: never answered with a page, whatever the browser accepts. */
 const NOT_PAGES =
   /^\/(v1|sync|live|local|compute|auth|oauth|mcp|p|a|u|f|book|share|portal|hooks|spaces|webhooks?|blobs?|export|fill|healthz)(\/|$)|^\/\.well-known\//;
@@ -83,15 +131,67 @@ export function createAppFilesRoute(o: { dir: () => string | null }): {
       if (!file) return false;
       const ext = path.extname(file).toLowerCase();
       const hashed = url.pathname.startsWith("/_expo/static/");
-      res.writeHead(200, {
+      let st: fs.Stats;
+      try {
+        st = fs.statSync(file);
+      } catch {
+        return false;
+      }
+      const etag = `W/"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`;
+      const head: Record<string, string> = {
         "content-type": TYPES[ext] ?? "application/octet-stream",
+        // a file under /_expo/static carries its content hash in its name: a second visit asks for nothing. The page and the files that keep their names are asked about each time (a 304 when unchanged).
         "cache-control": hashed ? "public, max-age=31536000, immutable" : "no-cache",
+        etag,
+        "last-modified": st.mtime.toUTCString(),
         "x-content-type-options": "nosniff",
         "referrer-policy": "no-referrer",
         ...(ext === ".html"
           ? { "content-security-policy": "frame-ancestors 'none'; base-uri 'self'; object-src 'none'" }
           : {}),
-      });
+      };
+      if (COMPRESSIBLE.has(ext)) head["vary"] = "Accept-Encoding";
+      if (req.headers["if-none-match"] === etag) {
+        res.writeHead(304, head);
+        res.end();
+        return true;
+      }
+      const enc = COMPRESSIBLE.has(ext) && st.size >= MIN_COMPRESS ? acceptedEncoding(req.headers["accept-encoding"]) : null;
+      if (enc) {
+        // the export's own copy when it has one and it is not older than the file (give or take a minute); otherwise made once and kept
+        const sibling = `${file}.${enc === "br" ? "br" : "gz"}`;
+        let pre: fs.Stats | null = null;
+        try {
+          const ss = fs.statSync(sibling);
+          if (ss.isFile() && ss.mtimeMs + 60_000 >= st.mtimeMs) pre = ss; // written by the same export (a minute's slack for a copy that did not keep times)
+        } catch {
+          /* none */
+        }
+        head["content-encoding"] = enc;
+        if (pre) {
+          head["content-length"] = String(pre.size);
+          res.writeHead(200, head);
+          if (method === "HEAD") {
+            res.end();
+            return true;
+          }
+          fs.createReadStream(sibling)
+            .on("error", () => res.destroy())
+            .pipe(res);
+          return true;
+        }
+        void compressed(file, enc, st).then(
+          (buf) => {
+            head["content-length"] = String(buf.length);
+            res.writeHead(200, head);
+            res.end(method === "HEAD" ? undefined : buf);
+          },
+          () => res.destroy(),
+        );
+        return true;
+      }
+      head["content-length"] = String(st.size);
+      res.writeHead(200, head);
       if (method === "HEAD") {
         res.end();
         return true;
