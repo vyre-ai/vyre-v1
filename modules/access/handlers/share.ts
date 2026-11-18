@@ -141,6 +141,9 @@ interface Base {
   rest: string;
 }
 interface Kept {
+  /** the store the copy was built from and its epoch: the same store at the same epoch has changed nothing, so nothing is compared */
+  store: AccessStore;
+  epoch: number;
   ss: ShareStore;
   base: Base;
   /** the counters of access_local_my_state when this copy was published: a row of my_access or of the folder tables written by anyone since makes it untrustworthy */
@@ -184,7 +187,15 @@ function sameResource(a: ResourceRec, b: ResourceRec): boolean {
     return false;
   if (a.row === b.row) return true;
   if (!a.row || !b.row) return false;
-  return canonical(a.row) === canonical(b.row);
+  const ka = Object.keys(a.row);
+  if (ka.length !== Object.keys(b.row).length) return false;
+  // one value at a time, by identity first: a row of plain values is compared without writing it out as text
+  for (const k of ka) {
+    const x = a.row[k],
+      y = b.row[k];
+    if (x !== y && (typeof x !== "object" || typeof y !== "object" || canonical(x) !== canonical(y))) return false;
+  }
+  return true;
 }
 const sameGrant = (a: GrantRec, b: GrantRec): boolean => a === b || canonical(a) === canonical(b);
 const baseOf = (store: AccessStore): Base => ({
@@ -259,7 +270,12 @@ export function shareOf(ctx: AccessCtx): ShareStore {
     const st = kept ? stateOf(ctx.db) : null;
     if (kept && st && st.rows === kept.rows && st.folders === kept.folders && kept.ss.fresh >= 0) {
       const store = storeOf(ctx);
-      const roots = ctx.now() < kept.ss.until ? changedRoots(kept.base, store) : null;
+      const roots =
+        ctx.now() >= kept.ss.until
+          ? null
+          : kept.store === store && kept.epoch === store.epoch
+            ? []
+            : changedRoots(kept.base, store);
       if (roots) {
         if (!reader) KEPT.delete(raw);
         const ss = kept.ss;
@@ -639,7 +655,7 @@ function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
   const raw = rawDbOf(ctx.db);
   const st = raw ? stateOf(ctx.db) : null;
   if (!raw || !st || ss.fresh !== store.epoch || ss.pending.length) return;
-  KEPT.set(raw, { ss, base: baseOf(store), rows: st.rows, folders: st.folders });
+  KEPT.set(raw, { store, epoch: store.epoch, ss, base: baseOf(store), rows: st.rows, folders: st.folders });
 }
 
 function ensureFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
