@@ -1,0 +1,1 @@
+The server answers while it writes its own logs: the log sink writes small batches and gives the loop back between them, its statements are made once, and the logs mirror no longer reads each statement's text again on every write.
