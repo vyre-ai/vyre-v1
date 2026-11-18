@@ -624,3 +624,48 @@ test("the log records each pass under its run id", async () => {
   assert.ok(rows.every((x) => x.run_id === r.runId && x.trace_id === "0123456789abcdef0123456789abcdef"));
   assert.match(rows[0]!.summary, /1 created, 0 updated here/);
 });
+
+test("a slice of the app's records reads and decodes only the local records it needs, not every record of the type", async () => {
+  const k = await kit({ deletes: false });
+  const ids: string[] = [];
+  for (let i = 0; i < 600; i++) ids.push(await k.addRemote({ full_name: `P${i}`, email_address: `p${i}@x.com` }));
+  await k.run(); // the first full pass: 600 records here, every one linked
+  assert.equal((await k.local.aggregate("contact", { measures: [{ fn: "count" }] }))[0]!.values["count"], 600);
+  let decoded = 0;
+  const counting = (): SyncDeps => {
+    const d = k.deps();
+    return {
+      ...d,
+      local: {
+        ...d.local,
+        query: async (t: string, s: Parameters<Store["query"]>[1]) => {
+          const p = await d.local.query(t, s);
+          decoded += p.rows.length;
+          return p;
+        },
+        get: async (t: string, id: string, o?: { include_deleted?: boolean }) => {
+          const r = await d.local.get(t, id, o);
+          if (r) decoded++;
+          return r;
+        },
+      } as Store,
+    };
+  };
+  const since = k.clock.t;
+  k.clock.t += 1000;
+  // three records changed in the app, one record changed here
+  const slice: StoredRecord[] = [];
+  for (const id of ids.slice(0, 3)) {
+    await k.editRemote(id, { full_name: `Renamed ${id.slice(-4)}` });
+    slice.push((await k.remoteStore.get("hs_contact", id))!);
+  }
+  const mine = (
+    await k.local.query("contact", { filter: { field: "email", op: "eq", value: "p10@x.com" }, page: { limit: 2 } })
+  ).rows[0]!;
+  await k.editLocal(mine.id, { city: "Oslo" });
+  decoded = 0;
+  const out = await runSync(counting(), k.binding, { mode: "both", partial: slice, pushLocalSince: since });
+  assert.equal(out.local.updated, 3, "the three changed records were pulled");
+  assert.equal(out.remote.updated, 1, "the record changed here was pushed");
+  assert.ok(decoded <= 20, `the pass decoded ${decoded} local records (the type holds 600)`);
+});

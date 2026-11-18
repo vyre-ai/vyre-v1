@@ -9,7 +9,7 @@ import { canonical } from "../../../lib/canonical.ts";
 import { isRecordId } from "../../../lib/ids.ts";
 import { sha256Hex } from "../log/hash.ts";
 import type { StoredEvent } from "../log/types.ts";
-import { aggregate as agg, fieldOf, page } from "./query.ts";
+import { aggregate as agg, encodeCursor, fieldOf, page } from "./query.ts";
 import { ProjectionHost, payloadOf } from "./projection.ts";
 import type { InlineProjection, Tx } from "./projection.ts";
 import { StoreError } from "./types.ts";
@@ -288,6 +288,43 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       yield record(type, r);
   }
 
+  const SINCE_OPS: Record<string, string> = { gt: ">", gte: ">=", lt: "<", lte: "<=" };
+  /** Pages in SQL when the query has no sort and no filter beyond one comparison of created_at or updated_at with a number; null when the general path must answer. */
+  function keyset(type: string, spec: QuerySpec): Page<StoredRecord> | null {
+    if (spec.sort?.length) return null;
+    const f = spec.filter as { field?: string; op?: string; value?: unknown } | undefined;
+    let where = spec.include_deleted ? "1 = 1" : "deleted_at IS NULL";
+    const args: unknown[] = [];
+    if (f) {
+      if (
+        (f.field !== "updated_at" && f.field !== "created_at") ||
+        SINCE_OPS[f.op ?? ""] === undefined ||
+        typeof f.value !== "number"
+      )
+        return null;
+      where += ` AND ${f.field} ${SINCE_OPS[f.op!]} ?`;
+      args.push(f.value);
+    }
+    if (spec.page.cursor) {
+      let key: unknown;
+      try {
+        key = JSON.parse(Buffer.from(spec.page.cursor, "base64url").toString("utf8"));
+      } catch {
+        return null;
+      }
+      if (!Array.isArray(key) || key.length !== 1 || typeof key[0] !== "string") return null;
+      where += " AND id > ?";
+      args.push(key[0]);
+    }
+    const limit = Math.max(1, Math.min(spec.page.limit, 500));
+    const got = tx.all<Row>(`SELECT * FROM ${table(type)} WHERE ${where} ORDER BY id LIMIT ?`, ...args, limit + 1);
+    const out = got.slice(0, limit).map((r) => record(type, r));
+    return {
+      rows: out,
+      ...(got.length > limit && out.length ? { next_cursor: encodeCursor(out[out.length - 1], undefined) } : {}),
+    };
+  }
+
   function validate(def: TypeDef, data: Record<string, unknown>): void {
     const known = new Set(def.fields.map((f) => f.name));
     for (const k of Object.keys(data)) if (!known.has(k)) throw fail("unknown_field", `${def.name} has no field ${k}`);
@@ -407,6 +444,10 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
     },
     async query(type, spec: QuerySpec): Promise<Page<StoredRecord>> {
       needType(type);
+      // The common read, the whole type in order of id (no sort), or the records changed since a time, is a keyset read in SQL: one page of rows is read and decoded, not the whole type for every page
+      // (a pass over a 100,000-record type decoded every record once per page of 500, about 200 times over, and held the server for seconds).
+      const fast = keyset(type, spec);
+      if (fast) return fast;
       const p = page(rows(type, !spec.include_deleted), spec);
       if ("error" in p) throw fail("invalid", p.error);
       return p;
@@ -419,6 +460,17 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         if (sealed(g)) throw fail("invalid", `${g} is sealed: it cannot be grouped by`);
       for (const m of spec.measures ?? [])
         if (m && sealed(m.field)) throw fail("invalid", `${m.field} is sealed: it cannot be measured`);
+      // how many records the type holds: a count in SQL, not every record decoded (a sync pass asks before it decides whether to read the type)
+      const only = spec.measures.length === 1 ? spec.measures[0]! : null;
+      if (!spec.filter && !(spec.group_by ?? []).length && only?.fn === "count" && !only.field)
+        return [
+          {
+            group: {},
+            values: {
+              count: tx.get<{ n: number }>(`SELECT count(*) AS n FROM ${table(type)} WHERE deleted_at IS NULL`)?.n ?? 0,
+            },
+          },
+        ];
       return agg(rows(type, true), spec);
     },
     async create(type, id, data) {

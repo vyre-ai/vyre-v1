@@ -138,11 +138,30 @@ const msgOf = (e: unknown): string => (e instanceof Error ? e.message : String(e
 
 async function listAll(store: Store, type: string): Promise<Map<string, StoredRecord>> {
   const out = new Map<string, StoredRecord>();
+  const turn = turns();
   let cursor: string | undefined;
   do {
     const p = await store.query(type, { page: { limit: 500, ...(cursor ? { cursor } : {}) } });
     for (const r of p.rows) out.set(r.id, r);
     cursor = p.next_cursor;
+    await turn();
+  } while (cursor);
+  return out;
+}
+
+/** The records of a type changed after a time, a page at a time (the sync's push of what people edited here). */
+async function listSince(store: Store, type: string, since: number): Promise<Map<string, StoredRecord>> {
+  const out = new Map<string, StoredRecord>();
+  const turn = turns();
+  let cursor: string | undefined;
+  do {
+    const p = await store.query(type, {
+      filter: { field: "updated_at", op: "gt", value: since },
+      page: { limit: 500, ...(cursor ? { cursor } : {}) },
+    });
+    for (const r of p.rows) out.set(r.id, r);
+    cursor = p.next_cursor;
+    await turn();
   } while (cursor);
   return out;
 }
@@ -246,13 +265,28 @@ function keepLoser(
   );
 }
 
+const toLink = (r: LinkDb): Link => ({
+  localId: r.local_id,
+  remoteId: r.remote_id,
+  base: JSON.parse(r.base) as Record<string, unknown>,
+  removedAt: r.removed_at,
+});
 const loadLinks = (tx: Tx, syncTypeId: string): Link[] =>
-  tx.all<LinkDb>("SELECT * FROM sy_links WHERE sync_type = ? ORDER BY rowid", syncTypeId).map((r) => ({
-    localId: r.local_id,
-    remoteId: r.remote_id,
-    base: JSON.parse(r.base) as Record<string, unknown>,
-    removedAt: r.removed_at,
-  }));
+  tx.all<LinkDb>("SELECT * FROM sy_links WHERE sync_type = ? ORDER BY rowid", syncTypeId).map(toLink);
+/** The links of the records named, by the app's id or by the local id: only those rows are read and decoded, never the whole table of links. */
+const loadLinksFor = (tx: Tx, syncTypeId: string, column: "remote_id" | "local_id", ids: readonly string[]): Link[] => {
+  const out: Link[] = [];
+  for (let at = 0; at < ids.length; at += 400) {
+    const part = ids.slice(at, at + 400);
+    for (const r of tx.all<LinkDb>(
+      `SELECT * FROM sy_links WHERE sync_type = ? AND ${column} IN (${part.map(() => "?").join(",")})`,
+      syncTypeId,
+      ...part,
+    ))
+      out.push(toLink(r));
+  }
+  return out;
+};
 
 const saveLink = (tx: Tx, syncTypeId: string, l: Link): void => {
   tx.run(
@@ -305,11 +339,53 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     if (!dry) d.emit?.(name, subject, payload);
   };
 
-  const [localMap, remoteMap] = await Promise.all([
-    listAll(d.local, b.type),
-    o.partial ? Promise.resolve(new Map(o.partial.map((r) => [r.id, r] as const))) : listAll(d.remote, b.remote),
-  ]);
-  const links = loadLinks(d.tx, b.syncTypeId);
+  // What a pass reads of this side. A slice of the app's records (a group of a first pull, a changed-since pull) needs only the local records those rows are linked to, the ones changed here since the
+  // last pass, and, to match a new row with a record made here, the unlinked ones: reading and decoding every record of a 100,000-record type for each slice held the server for seconds a pass. A full
+  // pass, a sweep, a pass that also carries deletes, one that creates records in the app, and a slice that brings rows to match against records made here read the whole type as before.
+  let lazy = false;
+  let localMap = new Map<string, StoredRecord>();
+  let remoteMap = new Map<string, StoredRecord>();
+  let links: Link[] = [];
+  if (o.partial && o.sweepSeen === undefined && !(b.deletes && pushOn)) {
+    remoteMap = new Map(o.partial.map((r) => [r.id, r] as const));
+    const linked = loadLinksFor(d.tx, b.syncTypeId, "remote_id", [...remoteMap.keys()]);
+    const known = new Set(linked.map((l) => l.remoteId));
+    const fresh = [...remoteMap.keys()].some((id) => !known.has(id));
+    let mayMatch = false;
+    if (fresh && b.match.length) {
+      const held = (await d.local.aggregate(b.type, { measures: [{ fn: "count" }] }))[0]?.values["count"] ?? 0;
+      const linkRows =
+        d.tx.get<{ n: number }>("SELECT count(*) AS n FROM sy_links WHERE sync_type = ?", b.syncTypeId)?.n ?? 0;
+      mayMatch = held > linkRows; // every record here is linked: there is nothing to match a new row with
+    }
+    if (!mayMatch && !(b.createAtSource && pushOn)) {
+      lazy = true;
+      const changed =
+        o.pushLocalSince !== undefined && pushOn ? await listSince(d.local, b.type, o.pushLocalSince) : new Map();
+      const byChange = loadLinksFor(d.tx, b.syncTypeId, "local_id", [...changed.keys()]);
+      const seen = new Set<string>();
+      for (const l of [...linked, ...byChange])
+        if (!seen.has(l.localId)) {
+          seen.add(l.localId);
+          links.push(l);
+        }
+      localMap = new Map(changed);
+      const turn = turns();
+      for (const l of links) {
+        await turn();
+        if (localMap.has(l.localId)) continue;
+        const rec = await d.local.get(b.type, l.localId);
+        if (rec) localMap.set(l.localId, rec);
+      }
+    }
+  }
+  if (!lazy) {
+    [localMap, remoteMap] = await Promise.all([
+      listAll(d.local, b.type),
+      o.partial ? Promise.resolve(new Map(o.partial.map((r) => [r.id, r] as const))) : listAll(d.remote, b.remote),
+    ]);
+    links = loadLinks(d.tx, b.syncTypeId);
+  }
   const byLocal = new Map(links.map((l) => [l.localId, l]));
   const byRemote = new Map(links.map((l) => [l.remoteId, l]));
 
@@ -387,7 +463,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   const constants = fields.filter((f) => f.constant !== undefined);
   const mine = (r: StoredRecord): boolean =>
     constants.every((c) => !present(r.data[c.local]) || r.data[c.local] === c.constant);
-  const unlinkedLocal = [...localMap.values()].filter((r) => !byLocal.has(r.id) && mine(r));
+  const unlinkedLocal = lazy ? [] : [...localMap.values()].filter((r) => !byLocal.has(r.id) && mine(r));
   const index = new Map<string, StoredRecord[]>();
   if (b.match.length) {
     for (const r of unlinkedLocal) {
@@ -519,7 +595,14 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   rep.remote.removed = removals.length;
 
   // ---- deletes at the source ----
-  const live = links.filter((l) => l.removedAt === null).length;
+  const live = lazy
+    ? vanished.length
+      ? (d.tx.get<{ n: number }>(
+          "SELECT count(*) AS n FROM sy_links WHERE sync_type = ? AND removed_at IS NULL",
+          b.syncTypeId,
+        )?.n ?? 0)
+      : 0
+    : links.filter((l) => l.removedAt === null).length;
   const percent = live ? (vanished.length / live) * 100 : 0;
   if (vanished.length && (vanished.length > guard.count || percent > guard.percent)) {
     rep.pausedDeletes = true;
