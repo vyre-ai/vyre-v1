@@ -1,19 +1,19 @@
 // The log sink writes in small batches and gives the event loop back between them (r39: its flush and the mirror's write held the loop 643 ms and 365 ms in a minute on the firm's server). No line is lost or
 // reordered: fifty thousand lines written while other work competes for the loop are all read back, in the order they were written, in logs.db and counted by the mirror.
-// @reads ../../modules/logs/migrations/0001_init.sql
+// @reads ../migrations/0001_init.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { FLUSH_BATCH, LogSink } from "../src/logsink/index.ts";
-import { openDb } from "../src/daemon/sqlite.ts";
-import { createTelemetryRecorder } from "../src/seams/telemetry.ts";
-import * as logsModule from "../../modules/logs/telemetry.ts";
+import { FLUSH_BATCH, LogSink } from "../../../host/src/logsink/index.ts";
+import { openDb } from "../../../host/src/daemon/sqlite.ts";
+import { createTelemetryRecorder } from "../../../host/src/seams/telemetry.ts";
+import * as logsModule from "../telemetry.ts";
 
 const SPACE = "spc_batches";
-const MIGRATIONS = path.join(path.dirname(new URL(import.meta.url).pathname), "../../modules/logs/migrations");
+const MIGRATIONS = path.join(path.dirname(new URL(import.meta.url).pathname), "../migrations");
 
 test("one flush writes one small batch in one transaction, and the rest waits for the next turn of the loop", async () => {
   const sink = new LogSink({ batchMs: 60_000 });

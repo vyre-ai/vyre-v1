@@ -5,15 +5,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { LogSink } from "../src/logsink/index.ts";
-import { openDb } from "../src/daemon/sqlite.ts";
-import { createTelemetryRecorder } from "../src/seams/telemetry.ts";
-import * as logsModule from "../../modules/logs/telemetry.ts";
+import { LogSink } from "../../../host/src/logsink/index.ts";
+import { openDb } from "../../../host/src/daemon/sqlite.ts";
+import { createTelemetryRecorder } from "../../../host/src/seams/telemetry.ts";
+import * as logsModule from "../telemetry.ts";
 
 /** The longest the loop may be held while fifty thousand lines are written, in ms (the best of three runs), and the time the whole write may take. */
 export const LOOP_HELD_BUDGET_MS = 60;
 export const WRITE_BUDGET_MS = 20_000;
-const MIGRATIONS = path.join(path.dirname(new URL(import.meta.url).pathname), "../../modules/logs/migrations");
+const MIGRATIONS = path.join(path.dirname(new URL(import.meta.url).pathname), "../migrations");
 
 test("logsink50k: fifty thousand lines through the sink and the mirror hold the loop for no more than the budget", async () => {
   const held: number[] = [];
