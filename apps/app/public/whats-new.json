@@ -4,6 +4,7 @@
     "Vyre opens faster still: the sign-in page loads only what it needs and is ready in about a quarter of a second.",
     "Sharing is instant on a big Space: Share and Unshare answer in about a quarter of a second, and the change shows at once.",
     "After a sync, Files and lists stay quick: access updates only what the sync changed.",
-    "Temporary access ends on time without slowing the server, however many records the Space holds."
+    "Temporary access ends on time without slowing the server, however many records the Space holds.",
+    "A busy server keeps its logs without pausing: log lines are saved in small batches."
   ]
 }
