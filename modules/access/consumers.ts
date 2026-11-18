@@ -25,6 +25,7 @@ import {
   sealSnapshot,
   sealStore,
   setPrivate,
+  setDecisionView,
   setReadView,
   storeOf,
   withRoleGrants,
@@ -405,6 +406,8 @@ interface Synced {
   plain: AccessSnapshot | null;
 }
 const SYNCED = new WeakMap<object, Synced>();
+/** The snapshot the host decides with that goes with each kept store (it is changed in place beside the store). */
+const KEPT_BY_STORE = new WeakMap<AccessStore, AccessSnapshot>();
 /** How access.sync answered (tests read it): from the tables, by building the snapshot again from a kept store, or by changing the kept snapshot in place. */
 export const syncCounts = { hydrated: 0, rebuilt: 0, inPlace: 0 };
 
@@ -506,6 +509,7 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
     // a seed whose write failed holds what the tables do not (review finding 3): answered once, never kept
     if (complete && before !== null && after !== null && after === before + writes)
       SYNCED.set(key, { store, snap: out.snap, rows: out.rows, stamp: after, plain });
+    KEPT_BY_STORE.set(store, out.snap);
     return out.snap;
   });
 }
@@ -534,6 +538,7 @@ export function readViewOf(ctx: AccessCtx): AccessStore | null {
 /** How often a read was answered from the read view (tests read it). */
 export const readCounts = { views: 0 };
 setReadView(readViewOf);
+setDecisionView((store) => KEPT_BY_STORE.get(store) ?? null);
 
 /** The kept store of access.sync, while the tables still hold exactly what it holds; null otherwise. Only for reads that change nothing. */
 function keptStore(ctx: AccessCtx): AccessStore | null {
