@@ -35,11 +35,28 @@ function lazyFor(routeId: string): PlaceComponent {
   return c;
 }
 
-/** The place's component: drawn directly when its module is loaded (the page's warm-up did it while the shell was drawn), else the lazy one, which loads it. */
+const placeComponents = new Map<string, PlaceComponent>();
+
+/**
+ * One component per place for the life of the page, so the place is never remounted when its module finishes loading (a remount threw away what a person had just pressed). It draws the loaded module directly,
+ * with no Suspense frame, and the lazy one until then.
+ */
 function placeFor(routeId: string): PlaceComponent {
   registerShellPlaces();
-  const loaded = loadedPlace(routeId);
-  return loaded ? loaded.default : lazyFor(routeId);
+  let c = placeComponents.get(routeId);
+  if (!c) {
+    const Lazy = lazyFor(routeId);
+    c = function Place(props: { place: string }): ReactElement {
+      const loaded = loadedPlace(routeId);
+      if (loaded) {
+        const Loaded = loaded.default;
+        return <Loaded {...props} />;
+      }
+      return <Lazy {...props} />;
+    };
+    placeComponents.set(routeId, c);
+  }
+  return c;
 }
 
 /** The route id (src/startup/places.ts) of a rail place, or null for a place the shell has no screen for (console, join). */
