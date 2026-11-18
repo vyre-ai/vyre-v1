@@ -1,0 +1,1 @@
+- The second half of the browser walks runs as two jobs that each run their walks one at a time, so a walk never shares a two-core runner with another (rc.39: a different walk timed out on each attempt).
