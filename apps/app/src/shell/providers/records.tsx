@@ -36,7 +36,7 @@ import { useAssistantBuilds } from "./builds.ts";
 import { SyncPage, editMappingOpening } from "../../places/records/sync/index.ts";
 import { RecordShareSheet } from "../../places/records/sharing/index.ts";
 import type { RecordsShare, ShareTarget } from "../../places/records/sidebar/index.ts";
-import { useDirectory } from "./automations-parts.tsx";
+import { useDirectory } from "./automations-directory.ts";
 
 const SIDEBAR_W = 240;
 

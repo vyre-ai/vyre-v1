@@ -1,0 +1,1 @@
+The app opens faster again: the sign-in page now loads about 0.2 MB instead of 1.4 MB (the form is typable in about 0.25 s on a 24 Mbps link), a signed-in visit preloads the shell and the place it opens at once, and the file, record, project, task, notes, goal and agent pages of Chats load when they are opened. The unused Mermaid package is gone from the lock.
