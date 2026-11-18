@@ -110,3 +110,68 @@ test("a pass the cadence starts for a type whose chain went quiet runs as the pe
     await w.close();
   }
 });
+
+test("a poll job queued as the server before the update is handed to the person who set the sync up when it runs, and the server never reads as itself", async () => {
+  const w = await world(
+    true,
+    { bulk: 20 },
+    { session: () => ({ space: CORE_SPACE, principal: { kind: "person", id: "usr_olivia" }, device: "fixture" }) },
+  );
+  try {
+    assert.equal(w.item.status, 200, JSON.stringify(w.item.data));
+    const applied = await call(w.d, "sync_specs.apply", {
+      spec: spec("people", 50),
+      idempotencyKey: "apply-stale-job",
+    });
+    assert.equal(applied.status, 200, JSON.stringify(applied.data));
+    await waitFor(
+      async () => {
+        await pump(w.d);
+        return (await rowsOf(w.d, "person")).length >= 22 ? true : null;
+      },
+      90_000,
+      () => hostLog(w.d),
+    );
+    quiet(w.dir);
+    // the job an earlier version left in the queue: a poll, scheduled as the server
+    for (const f of fs.readdirSync(w.dir).filter((n) => n.endsWith(".db"))) {
+      const db = new DatabaseSync(path.join(w.dir, f));
+      try {
+        db.exec("PRAGMA busy_timeout = 5000");
+        db.prepare(
+          "INSERT INTO host_schedule (id, space, cap, input, principal_kind, principal_id, acting_for, trace_id, run_at, created_at) VALUES (?, ?, 'connectors.sync_poll', ?, 'service', 'svc_host', NULL, '', ?, ?)",
+        ).run(
+          "sch_stale_server_poll",
+          CORE_SPACE,
+          JSON.stringify({ type: "person" }),
+          Date.now() - 1000,
+          Date.now() - 2000,
+        );
+      } catch {
+        /* the queue is in another file */
+      } finally {
+        db.close();
+      }
+    }
+    w.d.sink.flush();
+    const lastId = new DatabaseSync(w.d.paths.logs, { readOnly: true });
+    const before = (lastId.prepare("SELECT coalesce(max(id), 0) AS n FROM logs").get() as { n: number }).n;
+    lastId.close();
+    const reads = await waitFor(
+      async () => {
+        await pump(w.d);
+        const r = readsBy(w.d, before);
+        return r.length > 0 ? r : null;
+      },
+      60_000,
+      () => `no connectors.read ran for the queued poll: ${JSON.stringify(callsSince(w.d, before))}`,
+    );
+    assert.deepEqual(
+      [...new Set(reads.map((r) => `${r.actor} ${r.result}`))],
+      ["usr_olivia allow"],
+      "the poll ran as the person who set the sync up",
+    );
+  } finally {
+    await w.close();
+  }
+});

@@ -164,3 +164,71 @@ test("a pass for a person's connection that someone else runs says the connectio
     .entries;
   assert.match(log[0]!.summary, /belongs to someone else/);
 });
+
+const asServer = (
+  w: Awaited<ReturnType<typeof setup>>,
+  jobs: { cap: string; input: unknown; as: string | undefined }[],
+  refuse?: string,
+) =>
+  ({
+    ...w.ctx,
+    actor: "svc_host",
+    trusted: true,
+    schedule: async (_at: number | string, cap: string, input: unknown, opts?: { as?: string }) => {
+      if (refuse) throw { error: { message: refuse } };
+      jobs.push({ cap, input, as: opts?.as });
+      return "sch_x";
+    },
+  }) as unknown as ConnectorsCtx;
+
+test("a poll queued as the server before the update is handed to the person who set the sync up, and the server never runs the pass", async () => {
+  const w = await setup();
+  w.k.tx.run("UPDATE cn_sync_specs SET applied_by = 'usr_dana'");
+  const jobs: { cap: string; input: unknown; as: string | undefined }[] = [];
+  const before = w.passes.length;
+  const out = await w.k.hs["connectors.sync_poll"](asServer(w, jobs), { type: "person" });
+  assert.equal(out.ran, false);
+  assert.deepEqual(jobs, [{ cap: "connectors.sync_poll", input: { type: "person" }, as: "usr_dana" }]);
+  assert.equal(w.passes.length, before, "the engine was not asked");
+});
+
+test("a run queued as the server is handed over the same way; one nobody can run ends failed in plain words", async () => {
+  const w = await setup();
+  w.k.tx.run("UPDATE cn_sync_specs SET applied_by = 'usr_dana'");
+  const jobs: { cap: string; input: unknown; as: string | undefined }[] = [];
+  const before = w.passes.length;
+  const ok = await w.k.hs["connectors.sync_run"](asServer(w, jobs), { runId: "run_2" });
+  assert.equal(ok.ok, true);
+  assert.deepEqual(jobs, [{ cap: "connectors.sync_run", input: { runId: "run_2" }, as: "usr_dana" }]);
+  assert.equal(w.passes.length, before);
+  const sorry = "Syncing is paused: Dana set this up and can no longer run it. An admin can take it over.";
+  const none: { cap: string; input: unknown; as: string | undefined }[] = [];
+  const stopped = await w.k.hs["connectors.sync_run"](asServer(w, none, sorry), { runId: "run_2" });
+  assert.equal(stopped.ok, false);
+  assert.equal(stopped.summary, sorry);
+  assert.deepEqual(finishes(w.calls).at(-1), {
+    runId: "run_2",
+    status: "failed",
+    error: { code: "provider.unavailable", message: sorry },
+  });
+  assert.equal(w.passes.length, before);
+});
+
+test("a poll the server cannot hand to anyone ends its chain and says why, instead of failing every few minutes", async () => {
+  const w = await setup();
+  w.k.tx.run("UPDATE cn_sync_specs SET applied_by = 'svc_host'");
+  w.k.tx.run("UPDATE cn_synced_types SET created_by = NULL");
+  const jobs: { cap: string; input: unknown; as: string | undefined }[] = [];
+  const out = await w.k.hs["connectors.sync_poll"](asServer(w, jobs), { type: "person" });
+  assert.equal(out.ran, false);
+  assert.deepEqual(jobs, []);
+  assert.equal(
+    w.k.tx.all(
+      "SELECT * FROM cn_sync_poll WHERE sync_type_id = (SELECT sync_type_id FROM cn_synced_types WHERE type = 'person')",
+    ).length,
+    0,
+    "no poll is left waiting: the cadence plans the type again when someone can run it",
+  );
+  const log = (await w.k.hs["sync_types.log"](w.ctx, { type: "person" })).entries;
+  assert.match(log[0]!.summary, /^Syncing is paused/);
+});

@@ -192,7 +192,9 @@ test("Production Space switcher uses two real saved sessions with isolated runti
               response.status(),
               JSON.stringify(value),
             ),
-          );
+          )
+          // The page can close before a refused body is read; the log line is lost, not the walk.
+          .catch(() => {});
     });
     page.on("console", (message) => {
       if (message.text().includes("vyre session closed:")) closed.push(message.text());

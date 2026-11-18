@@ -1,0 +1,1 @@
+The app opens much faster: the Space sends its pages and scripts compressed (brotli or gzip), the sign-in form is typable in about 0.7 s instead of 3.4 s on the same link, a second visit asks for almost nothing, and diagrams no longer add three megabytes to every first visit.

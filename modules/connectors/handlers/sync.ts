@@ -8,7 +8,7 @@
 // @reads /modules/connectors/migrations/0001_connectors.sql
 // @reads /modules/sources/migrations/0001_sources.sql
 import type { Tx } from "../../../kernel/src/store/projection.ts";
-import { clearRunning, markRunning, noteResult } from "./cadence.ts";
+import { clearRunning, markRunning, noteResult, runsFor } from "./cadence.ts";
 import { ensureTables, mintShort, nowOf, PAGE, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 import { executeAction } from "./runtime.ts";
@@ -674,6 +674,37 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
     }
   };
 
+  /**
+   * A job queued while the server ran passes as itself (rc.34 and before; its poll chains outlive the update) is not run as the server: the server is no member of the Space's access list, so such a
+   * pass was refused as "There is no such connection" every few minutes. The job is handed to the person who set the sync up, as every pass of the type now is. Answers true when the job was handed
+   * over (the caller does nothing more). When it cannot be, it answers the plain sentence that was logged, the type says why in plain words, the chain ends here, and the cadence plans the type again when someone can run it.
+   */
+  const handedOver = async (
+    ctx: ConnectorsCtx,
+    cap: "connectors.sync_poll" | "connectors.sync_run",
+    input: { type: string } | { runId: string },
+    r: SyncDb,
+    person: string | undefined,
+  ): Promise<boolean | string> => {
+    if (ctx.trusted !== true || /^usr_[a-z0-9]+$/.test(actorOf(ctx))) return false;
+    const who = person ?? runsFor(tx, r.sync_type_id);
+    let said = "Syncing is paused: nobody who can run it set this up. An admin can take it over.";
+    if (who !== undefined && ctx.schedule) {
+      try {
+        await ctx.schedule(nowOf(deps), cap, input, { as: who });
+        return true;
+      } catch (e) {
+        said =
+          (e as { error?: { message?: string } })?.error?.message ??
+          "Syncing is paused: the person who set this up can no longer run it. An admin can take it over.";
+      }
+    }
+    tx.run("DELETE FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id);
+    clearRunning(tx, r.connection_id);
+    logError(r.sync_type_id, said);
+    return said;
+  };
+
   const usable = (ctx: ConnectorsCtx, c: ConnectionDb | undefined, what: string): void => {
     if (!c)
       refuse(
@@ -1169,6 +1200,21 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       await retrySubscriptions(deps, ctx);
       const req = syncRequest(deps, input.runId);
       if (!req) return refuse(ctx, "validation.not_found", "There is no sync request for that run.");
+      {
+        const first = tx.get<SyncDb>("SELECT * FROM cn_synced_types WHERE sync_type_id = ?", req.syncTypeIds[0] ?? "");
+        const gave = first
+          ? await handedOver(ctx, "connectors.sync_run", { runId: input.runId }, first, req.by)
+          : false;
+        if (gave === true) return { ok: true, summary: "Handed to the person who set the sync up." };
+        if (typeof gave === "string") {
+          await ctx.call("runs.finish", {
+            runId: input.runId,
+            status: "failed",
+            error: { code: "provider.unavailable", message: gave },
+          });
+          return { ok: false, summary: gave };
+        }
+      }
       const parts: string[] = [];
       let failed: { code: string; message: string } | undefined;
       let more = false;
@@ -1235,6 +1281,8 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       prep();
       const r = tx.get<SyncDb>("SELECT * FROM cn_synced_types WHERE type = ?", input.type);
       if (!r) return { ran: false };
+      if ((await handedOver(ctx, "connectors.sync_poll", { type: input.type }, r, undefined)) !== false)
+        return { ran: false };
       const due = tx.get<{ at: number }>("SELECT at FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id)?.at;
       tx.run("DELETE FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id);
       if (r.paused) return { ran: false };

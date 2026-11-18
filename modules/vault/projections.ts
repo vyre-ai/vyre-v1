@@ -159,9 +159,12 @@ export function ensure(ctx: Pick<VaultCtx, "db">): void {
 
 /** The highest level the caller holds on a resource, or null. The vault ladder is use < view < edit < manage. */
 export function levelOn(ctx: VaultCtx, type: "vault_item" | "vault_folder", id: string): Level | null {
-  let best: Level | null = null;
-  for (const level of LADDER) if (ctx.authorize({ perm: null, level }, { type, id }).effect === "allow") best = level;
-  return best;
+  // from the top: the first level that is allowed is the highest one, the same answer as asking all four, in one call for a manager and four only for someone who holds nothing (r38: this ran for every item on every fill)
+  for (let i = LADDER.length - 1; i >= 0; i--) {
+    const level = LADDER[i]!;
+    if (ctx.authorize({ perm: null, level }, { type, id }).effect === "allow") return level;
+  }
+  return null;
 }
 export const atLeast = (have: Level | null, need: Level): boolean =>
   have !== null && LADDER.indexOf(have) >= LADDER.indexOf(need);

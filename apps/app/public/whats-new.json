@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0-rc.37",
+  "version": "1.0.0-rc.38",
   "lines": [
-    "Syncs with an outside app run on their own schedule, as the person who set them up, and pause in plain words if that person no longer can.",
-    "A big sync no longer makes the app pause: the server gives way every few milliseconds, so pages and the live view stay quick.",
-    "A server holding tens of thousands of records starts in seconds instead of minutes, and the Console's health page answers at once.",
-    "Reading a long list while a sync writes no longer fails with Access changed; the page waits a moment for the new records.",
-    "In the schema map, every card stays clear of the others, opened or not, so each button can be pressed.",
-    "Send a PDF for signature with no outside service. The signer needs no account, and the signed copy is sealed."
+    "Vyre opens about five times faster: the sign-in page is ready in under a second, and your home appears about a second after.",
+    "A big Space stays quick while it syncs: a sync pass reads only the records it touches, not every record of the type.",
+    "Long lists page through tens of thousands of records in a fraction of a second instead of tens of seconds.",
+    "Using a saved key, making new records and keeping the live view current all cost far less work on a busy server.",
+    "A record made in Vyre is matched, never duplicated, when the same person later arrives from a synced app.",
+    "Syncs with an outside app run on their own schedule, as the person who set them up."
   ]
 }

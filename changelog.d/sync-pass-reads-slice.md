@@ -1,0 +1,1 @@
+A big sync no longer reads every record of a table for each batch it brings in: listing a 50,000-record table in pages went from 54 s to 0.6 s, a sync pass over a few changed rows from 47 s to 40 ms, and sync jobs a server left queued before the update now run as the person who set the sync up.

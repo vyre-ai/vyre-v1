@@ -392,9 +392,31 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   const readPast = (name: string, seq: number): void => {
     read.set(name, seq);
   };
+  // Past-event cursors are stored at most this often while the server runs, and always when it stops: with a hundred consumers and a sync moving the head every few milliseconds, a write for each of them after
+  // every pass took 2.5 s of a 90 s profile on the firm's server (r38). A later write only moves the cursor further, so a crash before it re-reads events the consumer does not take, never skips one;
+  // a delivered event is still stored at once (setCursor).
+  const FLUSH_EVERY_MS = 1000;
+  let lastFlush = Number.NEGATIVE_INFINITY;
   const flush = (): void => {
     if (abandoned) return;
-    for (const [name, seq] of read) if (saved.get(name) !== seq) setCursor(name, seq);
+    const dirty = [...read].filter(([name, seq]) => saved.get(name) !== seq);
+    if (dirty.length === 0) return;
+    const t = performance.now();
+    if (!closing && t - lastFlush < FLUSH_EVERY_MS) return; // coalesced: the next pass or the stop stores the latest
+    lastFlush = t;
+    if (dirty.length === 1) return setCursor(dirty[0]![0], dirty[0]![1]);
+    // one commit for all of them, not one per consumer
+    const before = new Map(dirty.map(([name]) => [name, saved.get(name)] as const));
+    d.db.run("SAVEPOINT hook_cursors");
+    try {
+      for (const [name, seq] of dirty) setCursor(name, seq);
+      d.db.run("RELEASE hook_cursors");
+    } catch (err) {
+      d.db.run("ROLLBACK TO hook_cursors");
+      d.db.run("RELEASE hook_cursors");
+      for (const [name, was] of before) was === undefined ? saved.delete(name) : saved.set(name, was); // not stored after all
+      throw err;
+    }
   };
   const tries = new Map<string, number>();
   const kept = new Set<string>();
