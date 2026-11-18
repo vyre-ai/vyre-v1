@@ -15,7 +15,7 @@ import { copyItemLink, shareRows, sheetDirectory, withNotify } from "../../share
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { RECORD_LEVELS, sheetModel } from "../../places/records/sharing/model.ts";
 import type { SharesOut } from "../../places/records/sharing/model.ts";
-import { useDirectory } from "./automations-parts.tsx";
+import { useDirectory } from "./automations-directory.ts";
 import { capLive, nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 

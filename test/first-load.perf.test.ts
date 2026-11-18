@@ -17,7 +17,7 @@ import { loadConfig } from "../host/src/daemon/config.ts";
 import { boot, scriptedModel, stop } from "./support/eco-live.ts";
 
 /** Budgets in ms (the median of five runs). The brief: the form typable in under 1 s on a fresh visit, a second visit under 400 ms. */
-export const FIRST_LOAD_BUDGET_MS = { signInCold: 1000, secondVisit: 400, homeCold: 1500 } as const;
+export const FIRST_LOAD_BUDGET_MS = { signInCold: 400, secondVisit: 400, homeCold: 900, homeSecondVisit: 650 } as const;
 const LINK = { latency: 20, downloadThroughput: (24 * 1_000_000) / 8, uploadThroughput: 625_000 };
 const median = (a: number[]): number => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)]!;
 
@@ -163,16 +163,18 @@ test("first load: the sign-in form is typable within 1 s cold and 400 ms on a se
     const cold: number[] = [];
     const second: number[] = [];
     const home: number[] = [];
+    const homeAgain: number[] = [];
     const bytesCold: number[] = [];
     for (let i = 0; i < 5; i++) {
       const [a, b] = await open(`${d.url}/`, false, 2);
       cold.push(a!.usable);
       bytesCold.push(a!.bytes);
       second.push(b!.usable);
-      const [h] = await open(`${d.url}/chats`, true, 1);
+      const [h, h2] = await open(`${d.url}/chats`, true, 2);
       home.push(h!.usable);
+      homeAgain.push(h2!.usable);
     }
-    const line = `first-load cold ${median(cold)} ms (${(median(bytesCold) / 1e6).toFixed(2)} MB sent), second visit ${median(second)} ms, signed-in home ${median(home)} ms`;
+    const line = `first-load cold ${median(cold)} ms (${(median(bytesCold) / 1e6).toFixed(2)} MB sent), second visit ${median(second)} ms, signed-in home ${median(home)} ms (second visit ${median(homeAgain)} ms)`;
     console.log(line);
     assert.ok(
       median(cold) <= FIRST_LOAD_BUDGET_MS.signInCold,
@@ -183,6 +185,10 @@ test("first load: the sign-in form is typable within 1 s cold and 400 ms on a se
       `${line}: second visit over ${FIRST_LOAD_BUDGET_MS.secondVisit} ms`,
     );
     assert.ok(median(home) <= FIRST_LOAD_BUDGET_MS.homeCold, `${line}: home over ${FIRST_LOAD_BUDGET_MS.homeCold} ms`);
+    assert.ok(
+      median(homeAgain) <= FIRST_LOAD_BUDGET_MS.homeSecondVisit,
+      `${line}: home on a second visit over ${FIRST_LOAD_BUDGET_MS.homeSecondVisit} ms`,
+    );
   } finally {
     await browser.close();
     await stop(d);

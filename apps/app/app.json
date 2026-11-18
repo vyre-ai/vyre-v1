@@ -6,7 +6,7 @@
     "version": "0.0.0",
     "jsEngine": "hermes",
     "web": { "bundler": "metro", "output": "static" },
-    "experiments": { "typedRoutes": false },
+    "experiments": { "typedRoutes": false, "chunking": { "mode": "granular" } },
     "plugins": ["expo-router"]
   }
 }
