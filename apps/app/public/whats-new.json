@@ -1,6 +1,7 @@
 {
   "version": "1.0.0-rc.38",
   "lines": [
+    "Vyre opens about five times faster: the sign-in page is ready in under a second, and your home appears about a second after.",
     "A big Space stays quick while it syncs: a sync pass reads only the records it touches, not every record of the type.",
     "Long lists page through tens of thousands of records in a fraction of a second instead of tens of seconds.",
     "Using a saved key, making new records and keeping the live view current all cost far less work on a busy server.",
