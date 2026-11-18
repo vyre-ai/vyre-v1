@@ -6,7 +6,6 @@ import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
-import { createHash } from "node:crypto";
 import { injectHints } from "./app-hints.ts";
 
 const TYPES: Record<string, string> = {
@@ -184,7 +183,7 @@ export function createAppFilesRoute(o: { dir: () => string | null }): {
       }
       const size = virtual ? virtual.length : st.size;
       const etag = virtual
-        ? `W/"${createHash("sha1").update(virtual).digest("hex").slice(0, 16)}"`
+        ? `W/"${virtual.length.toString(16)}-${zlib.crc32(virtual).toString(16)}"`
         : `W/"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`;
       const head: Record<string, string> = {
         "content-type": TYPES[ext] ?? "application/octet-stream",
