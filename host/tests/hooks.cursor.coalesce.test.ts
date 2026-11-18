@@ -83,7 +83,10 @@ test("a hundred consumers moving past a busy head are stored once, in one commit
   const inserts = sqls.filter((s) => s === "INSERT").length;
   assert.ok(inserts <= 100, `forty passes wrote ${inserts} cursors (one commit of a hundred, not forty of them)`);
   assert.ok(sqls.filter((s) => s === "SAVEPOINT").length <= 1, "one commit for the first store");
-  assert.ok([...db.values()].every((v) => v >= 2), "the first pass stored every consumer's position");
+  assert.ok(
+    [...db.values()].every((v) => v >= 2),
+    "the first pass stored every consumer's position",
+  );
 });
 
 test("a delivered event is stored at once, and a crash with a stale past-event cursor re-reads and skips nothing", async () => {
