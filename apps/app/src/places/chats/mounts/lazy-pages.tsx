@@ -13,7 +13,7 @@ import type { TasksPage as TasksPageView } from "../tasks/TasksPage.tsx";
 function lazyPage<P extends object>(
   load: () => Promise<ComponentType<P>>,
 ): {
-  Page: (props: P) => ReactElement;
+  Draw: (props: P) => ReactElement;
   preload: () => Promise<void>;
 } {
   let loaded: ComponentType<P> | null = null;
@@ -24,7 +24,7 @@ function lazyPage<P extends object>(
       return c;
     }));
   const Lazy = lazy(() => get().then((c) => ({ default: c })));
-  function Page(props: P): ReactElement {
+  function Draw(props: P): ReactElement {
     const Loaded = loaded;
     if (Loaded) return <Loaded {...props} />;
     return (
@@ -33,7 +33,7 @@ function lazyPage<P extends object>(
       </Suspense>
     );
   }
-  return { Page, preload: () => get().then(() => undefined) };
+  return { Draw, preload: () => get().then(() => undefined) };
 }
 
 const form = lazyPage<ComponentProps<typeof AgentFormView>>(() =>
@@ -52,11 +52,11 @@ const tasks = lazyPage<ComponentProps<typeof TasksPageView>>(() =>
   import("../tasks/TasksPage.tsx").then((m) => m.TasksPage),
 );
 
-export const AgentForm = form.Page;
-export const GoalPage = goal.Page;
-export const ProjectScreen = project.Page;
-export const TaskDetail = task.Page;
-export const TasksPage = tasks.Page;
+export const AgentForm = form.Draw;
+export const GoalPage = goal.Draw;
+export const ProjectScreen = project.Draw;
+export const TaskDetail = task.Draw;
+export const TasksPage = tasks.Draw;
 
 /** Fetch every page of this file; after it resolves each draws at once. */
 export function preloadChatsPages(): Promise<void> {
