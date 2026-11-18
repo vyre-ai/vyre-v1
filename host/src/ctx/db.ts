@@ -190,13 +190,19 @@ export function rawDbOf(db: unknown): RawDb | null {
 
 /** A db handle limited to one module's tables. */
 export function scopedDb(moduleId: string, raw: RawDb, traceId: string): RawDb {
+  // A statement that passed is not read again: a module writes the same few statements thousands of times (a sync batch, the logs mirror), and reading the text token by token each time was 365 ms of a 60 s
+  // profile on the firm's server (r39). Only statements that passed are kept, so a refusal is always judged afresh; the set is bounded for statements built with values in their text.
+  const passed = new Set<string>();
   const guard = (sql: string): void => {
+    if (passed.has(sql)) return;
     const r = checkSql(moduleId, sql);
     if (!r.ok)
       throw fail("permission.no_grant", traceId, {
         message: "A module may only use its own tables.",
         details: { module: moduleId, why: r.why },
       });
+    if (passed.size >= 512) passed.clear();
+    passed.add(sql);
   };
   const scoped: RawDb = {
     all(sql, ...args) {

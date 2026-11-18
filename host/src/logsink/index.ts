@@ -15,6 +15,11 @@ export const ROLLUP_MS = 3_600_000;
 export const SLOW_MS = 1_000;
 /** How often a flush looks at the caps, how many rows one prune transaction removes, and how many of those one look may run. */
 const PRUNE_EVERY_MS = 60_000;
+/**
+ * One flush writes at most this many rows and spans in one short transaction, and one look for the mirror reads at most this many of each: the event loop is held for a batch, not for a thousand rows
+ * (r39: the flush and the mirror's write held it 643 ms and 365 ms in a minute on the firm's server). What is left goes on at the next turn of the loop, in order.
+ */
+export const FLUSH_BATCH = 200;
 const PRUNE_BATCH = 2_000;
 const PRUNE_ROUNDS = 20;
 /** Keys that carry content. A lint forbids them in attrs; the sink drops them as a second line. */
@@ -134,6 +139,19 @@ export class LogSink implements SpanSink {
   private rows: { at: number; row: LogRow }[] = [];
   private spans: SpanRow[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** The next turn of the loop, when a flush left rows behind. */
+  private soon: ReturnType<typeof setImmediate> | null = null;
+  /** Statements made once: a flush used to compile its inserts every time. */
+  private stmts:
+    | {
+        insLog: ReturnType<DatabaseSync["prepare"]>;
+        insSpan: ReturnType<DatabaseSync["prepare"]>;
+        seq: ReturnType<DatabaseSync["prepare"]>;
+        setSeq: ReturnType<DatabaseSync["prepare"]>;
+        watchRows: ReturnType<DatabaseSync["prepare"]>;
+        watchSpans: ReturnType<DatabaseSync["prepare"]>;
+      }
+    | undefined;
   private closed = false;
   private observer: ((batch: TelemetryBatch) => void) | undefined;
   private observed: TelemetryPosition = { rowId: 0, spanId: 0 };
@@ -325,18 +343,31 @@ export class LogSink implements SpanSink {
     if (observer) this.schedule();
   }
 
+  private statements(): NonNullable<LogSink["stmts"]> {
+    this.stmts ??= {
+      insLog: this.db.prepare(
+        `INSERT INTO logs (id, at, level, space, ${COLS.join(", ")}, msg, attrs) VALUES (?, ?, ?, ?, ${COLS.map(() => "?").join(", ")}, ?, ?)`,
+      ),
+      insSpan: this.db.prepare(
+        "INSERT INTO spans (rowid, trace_id, span_id, parent, name, at, dur_us, attrs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      ),
+      seq: this.db.prepare("SELECT row_seq, span_seq FROM log_source WHERE id = ?"),
+      setSeq: this.db.prepare("UPDATE log_source SET row_seq = ?, span_seq = ? WHERE id = ?"),
+      watchRows: this.db.prepare(
+        `SELECT id,at,level,space,${COLS.join(",")},CASE WHEN length(msg) <= 80 THEN msg ELSE 'log.redacted' END AS msg,CASE WHEN length(CAST(attrs AS BLOB)) <= 8192 THEN attrs ELSE NULL END AS attrs FROM logs WHERE id > ? ORDER BY id LIMIT ${FLUSH_BATCH}`,
+      ),
+      watchSpans: this.db.prepare(
+        `SELECT rowid AS source_id,trace_id,span_id,parent,substr(name,1,121) AS name,at,dur_us,CASE WHEN length(CAST(attrs AS BLOB)) <= 8192 THEN attrs ELSE NULL END AS attrs FROM spans WHERE rowid > ? ORDER BY rowid LIMIT ${FLUSH_BATCH}`,
+      ),
+    };
+    return this.stmts;
+  }
+
   private observe(): boolean {
     if (!this.observer) return false;
-    const rawRows = this.db
-      .prepare(
-        `SELECT id,at,level,space,${COLS.join(",")},CASE WHEN length(msg) <= 80 THEN msg ELSE 'log.redacted' END AS msg,CASE WHEN length(CAST(attrs AS BLOB)) <= 8192 THEN attrs ELSE NULL END AS attrs FROM logs WHERE id > ? ORDER BY id LIMIT 1000`,
-      )
-      .all(this.observed.rowId) as Record<string, unknown>[];
-    const rawSpans = this.db
-      .prepare(
-        "SELECT rowid AS source_id,trace_id,span_id,parent,substr(name,1,121) AS name,at,dur_us,CASE WHEN length(CAST(attrs AS BLOB)) <= 8192 THEN attrs ELSE NULL END AS attrs FROM spans WHERE rowid > ? ORDER BY rowid LIMIT 1000",
-      )
-      .all(this.observed.spanId) as Record<string, unknown>[];
+    const st = this.statements();
+    const rawRows = st.watchRows.all(this.observed.rowId) as Record<string, unknown>[];
+    const rawSpans = st.watchSpans.all(this.observed.spanId) as Record<string, unknown>[];
     if (!rawRows.length && !rawSpans.length) return false;
     const position = {
       rowId: Number(rawRows.at(-1)?.["id"] ?? this.observed.rowId),
@@ -351,7 +382,7 @@ export class LogSink implements SpanSink {
     const spans = rawSpans.map((row) => ({ ...row, attrs: attrs(row["attrs"]) })) as unknown as TelemetryBatch["spans"];
     this.observer({ source: this.sourceId, position, rows, spans });
     this.observed = position;
-    return rawRows.length === 1000 || rawSpans.length === 1000;
+    return rawRows.length === FLUSH_BATCH || rawSpans.length === FLUSH_BATCH;
   }
 
   /** Drop content-bearing keys and known secrets. Nested objects are cleaned the same way. */
@@ -435,29 +466,46 @@ export class LogSink implements SpanSink {
     }
   }
 
-  /** At most 1,000 rows/spans per transaction; native persistence remains the recovery source after observer failure. */
+  /** What is left after a flush goes on at the next turn of the loop, not after the batch window: the loop answers what is waiting between two batches, and the rows stay in order. */
+  private scheduleSoon(): void {
+    if (this.batchMs <= 0) {
+      this.schedule();
+      return;
+    }
+    if (this.soon || this.closed) return;
+    this.soon = setImmediate(() => {
+      this.soon = null;
+      try {
+        this.flush();
+      } catch {
+        this.schedule();
+      }
+    });
+    this.soon.unref();
+  }
+
+  /** At most FLUSH_BATCH rows and spans per transaction; native persistence remains the recovery source after observer failure. */
   flush(): void {
     if (this.closed) return;
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    if (this.soon) {
+      clearImmediate(this.soon);
+      this.soon = null;
+    }
     this.rollDue(this.now());
     if (!this.rows.length && !this.spans.length) {
-      if (this.observe()) this.schedule();
+      if (this.observe()) this.scheduleSoon();
       return;
     }
-    const rows = this.rows.splice(0, 1000),
-      spans = this.spans.splice(0, 1000);
-    const insLog = this.db.prepare(
-      `INSERT INTO logs (id, at, level, space, ${COLS.join(", ")}, msg, attrs) VALUES (?, ?, ?, ?, ${COLS.map(() => "?").join(", ")}, ?, ?)`,
-    );
-    const insSpan = this.db.prepare(
-      "INSERT INTO spans (rowid, trace_id, span_id, parent, name, at, dur_us, attrs) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    );
+    const rows = this.rows.splice(0, FLUSH_BATCH),
+      spans = this.spans.splice(0, FLUSH_BATCH);
+    const { insLog, insSpan, seq: readSeq, setSeq } = this.statements();
     this.db.exec("BEGIN");
     try {
-      const sequence = this.db.prepare("SELECT row_seq, span_seq FROM log_source WHERE id = ?").get(this.sourceId)!;
+      const sequence = readSeq.get(this.sourceId)!;
       let rowSeq = Number(sequence["row_seq"]),
         spanSeq = Number(sequence["span_seq"]);
       for (const { at, row } of rows) {
@@ -475,9 +523,7 @@ export class LogSink implements SpanSink {
           s.dur_us,
           s.attrs ? JSON.stringify(this.redact(s.attrs)) : null,
         );
-      this.db
-        .prepare("UPDATE log_source SET row_seq = ?, span_seq = ? WHERE id = ?")
-        .run(rowSeq, spanSeq, this.sourceId);
+      setSeq.run(rowSeq, spanSeq, this.sourceId);
       this.db.exec("COMMIT");
     } catch (e) {
       this.db.exec("ROLLBACK");
@@ -502,7 +548,7 @@ export class LogSink implements SpanSink {
       }
     }
     const more = this.observe();
-    if (this.rows.length || this.spans.length || more) this.schedule();
+    if (this.rows.length || this.spans.length || more) this.scheduleSoon();
   }
 
   /** Native persistence is finite; a failed observer stays recoverable in logs.db. */
@@ -604,6 +650,11 @@ export class LogSink implements SpanSink {
         clearTimeout(this.timer);
         this.timer = null;
       }
+      if (this.soon) {
+        clearImmediate(this.soon);
+        this.soon = null;
+      }
+      this.stmts = undefined;
       this.db.close();
     }
   }
