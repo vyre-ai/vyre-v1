@@ -47,7 +47,11 @@ test("the shell, the route table and each place's files are found, following the
   assert.deepEqual(h.places["chat"], [u("chats"), sh(2), sh(3)]);
   assert.deepEqual(h.places["records"], [u("records"), sh(4)]);
   assert.equal(h.places["vault"], undefined, "a place with no list gets none");
-  assert.deepEqual(h.idle, [u("TaskDetail"), sh(6)], "the pages a place opens later, less what is already in the lists");
+  assert.deepEqual(
+    h.idle,
+    [u("TaskDetail"), sh(6)],
+    "the pages a place opens later, less what is already in the lists",
+  );
   assert.ok(Object.values(PLACE_CHUNKS).includes("chats"));
 });
 

@@ -18,7 +18,12 @@ import { loadConfig } from "../host/src/daemon/config.ts";
 import { boot, scriptedModel, stop } from "./support/eco-live.ts";
 
 /** Budgets in ms (the median of five runs). The brief: the form typable in under 1 s on a fresh visit, a second visit under 400 ms. */
-export const FIRST_LOAD_BUDGET_MS = { signInCold: 400, secondVisit: 400, homeCold: 1000, homeSecondVisit: 650 } as const;
+export const FIRST_LOAD_BUDGET_MS = {
+  signInCold: 400,
+  secondVisit: 400,
+  homeCold: 1000,
+  homeSecondVisit: 650,
+} as const;
 const LINK = { latency: 20, downloadThroughput: (24 * 1_000_000) / 8, uploadThroughput: 625_000 };
 const median = (a: number[]): number => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)]!;
 
