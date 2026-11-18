@@ -15,7 +15,7 @@ import { scopedDb } from "../../../host/src/ctx/db.ts";
 import { hostCalls } from "../consumers.ts";
 import type { LogEvent } from "../consumers.ts";
 import { handlers } from "../handlers/index.ts";
-import { storeOf } from "../projections.ts";
+import { persistMode, storeOf } from "../projections.ts";
 import type { AccessCtx } from "../projections.ts";
 import { accessRowsFull, shareKept } from "../handlers/share.ts";
 
@@ -142,7 +142,11 @@ function seedSpace(raw: HostDb): void {
   });
 }
 
-async function run(seedNo: number, steps: number): Promise<{ incremental: number; built: number; hits: number }> {
+async function run(
+  seedNo: number,
+  steps: number,
+  dumps?: string[],
+): Promise<{ incremental: number; built: number; hits: number }> {
   const raw = fresh(`s${seedNo}`);
   seq = 0;
   clock.now = 1_800_000_000_000;
@@ -318,6 +322,7 @@ async function run(seedNo: number, steps: number): Promise<{ incremental: number
         wantServed.has(k),
         `seed ${seedNo} step ${step} (${what}): a reader was served ${k}, which a full rebuild does not give`,
       );
+    if (dumps) dumps.push(dumpTables(raw));
     const stored = (raw.all("SELECT person, resourceType, resourceId, level, via FROM access_my_access") as Any[])
       .map((r) => keyOf(r))
       .sort();
@@ -396,4 +401,112 @@ test("a share that is revoked is gone on the very next read, whoever made the ch
   });
   await call(raw, "usr_owner", "access.unshare", { grantId: g2.grant.grantId ?? g2.grant.id });
   assert.ok(!(await mia()).includes("fld_b"));
+});
+
+/** Every durable access table as text, the ids of grants left out (they are drawn at random, so two runs differ in them only) and the epoch counter (it only has to move forward: a kept store that took a change in place holds a higher one than a store read again). */
+const norm = (s: string): string => s.replace(/\b(grp|gnt|exc)_[0-9a-f]{10,}\b/g, "$1_#");
+function dumpTables(raw: HostDb): string {
+  const out: string[] = [];
+  for (const table of [
+    "access_roles",
+    "access_groups",
+    "access_principals",
+    "access_assignments",
+    "access_resources",
+    "access_policies",
+    "access_actors",
+  ]) {
+    const rows = (raw.all(`SELECT * FROM ${table}`) as Any[])
+      .map((r) => norm(JSON.stringify(Object.entries(r).filter(([k]) => k !== "updated_at" && k !== "version"))))
+      .sort();
+    out.push(`${table}\n${rows.join("\n")}`);
+  }
+  const grants = (raw.all("SELECT * FROM access_grants") as Any[])
+    .map((r) =>
+      norm(JSON.stringify(Object.entries(r).filter(([k]) => k !== "id" && k !== "updated_at" && k !== "version"))),
+    )
+    .sort();
+  out.push(`access_grants\n${grants.join("\n")}`);
+  return out.join("\n--\n");
+}
+
+test(
+  "a grant handler that writes only the grants leaves every access table exactly as writing the whole store does",
+  { timeout: 600_000 },
+  async () => {
+    for (const seedNo of [31, 32, 33]) {
+      const targeted: string[] = [];
+      const whole: string[] = [];
+      persistMode.targeted = true;
+      await run(seedNo, 150, targeted);
+      persistMode.targeted = false;
+      try {
+        await run(seedNo, 150, whole);
+      } finally {
+        persistMode.targeted = true;
+      }
+      assert.equal(targeted.length, whole.length);
+      for (let i = 0; i < targeted.length; i++)
+        assert.equal(
+          targeted[i],
+          whole[i],
+          `seed ${seedNo} step ${i + 1}: the tables differ between writing the grants and writing the whole store`,
+        );
+    }
+  },
+);
+
+test("taking away what an agent made for a person changes the resource too: it is done on a store of its own, and the tables, the kept snapshot and the rows agree", async () => {
+  const raw = fresh("made");
+  seq = 0;
+  seedSpace(raw);
+  sync(ctxOf(raw), {
+    events: [
+      ev("principal.created", { id: "agt_maker", kind: "agent", name: "Maker", status: "active", owner: "usr_mia" }),
+      ev("principal.role_set", { holder: "agt_maker", role: "rol_member" }),
+      ev("resource.created", {
+        id: "fld_made",
+        type: "folder",
+        parent_id: SPACE,
+        label: 0,
+        owner_id: "usr_mia",
+        holds: 0,
+        made_by: "agt_maker",
+        made_for: "usr_mia",
+      }),
+    ],
+  });
+  const rowJson = (): string =>
+    String((raw.all(`SELECT row_json FROM access_resources WHERE id = 'fld_made'`) as Any[])[0]?.row_json ?? "");
+  assert.match(rowJson(), /madeBy/);
+  const made = `gnt_made${Buffer.from("fld_made", "utf8").toString("hex")}`;
+  const out = await call(raw, "usr_owner", "access.unshare", { grantId: made });
+  assert.equal(out.revoked, 1);
+  assert.doesNotMatch(rowJson(), /madeBy/, "the maker's stamp on the resource was written");
+  // what a reader is served and what is stored equal a full rebuild, and a second change still works on the kept store
+  const oracle = accessRowsFull(ctxOf(raw))
+    .map((r) => keyOf(r))
+    .sort();
+  assert.deepEqual(
+    (raw.all("SELECT person, resourceType, resourceId, level, via FROM access_my_access") as Any[])
+      .map((r) => keyOf(r))
+      .sort(),
+    oracle,
+  );
+  const g = await call(raw, "usr_owner", "access.share", {
+    resource: { type: "folder", id: "fld_a" },
+    subject: { kind: "person", id: "usr_noor" },
+    level: "view",
+  });
+  assert.ok(
+    (await call(raw, "usr_noor", "access.lists", { type: "folder" })).rows.some(
+      (r: { id: string }) => r.id === "fld_a",
+    ),
+  );
+  await call(raw, "usr_owner", "access.unshare", { grantId: g.grant.grantId ?? g.grant.id });
+  assert.ok(
+    !(await call(raw, "usr_noor", "access.lists", { type: "folder" })).rows.some(
+      (r: { id: string }) => r.id === "fld_a",
+    ),
+  );
 });

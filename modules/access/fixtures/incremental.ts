@@ -17,6 +17,7 @@ import { loadStore, storeOf } from "../projections.ts";
 import type { AccessCtx, Db } from "../projections.ts";
 import { labelsSet } from "../handlers/check.ts";
 import { groupsAddMember, groupsRemoveMember, rolesAssign, rolesUnassign } from "../handlers/roles.ts";
+import { share, unshare } from "../handlers/share.ts";
 
 export const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 export const NOW = 1_800_000_000_000;
@@ -179,6 +180,7 @@ export async function stream(
   hydrated: number;
   restarts: number;
   handler: number;
+  shares: number;
   external: number;
 }> {
   const r = rng(seed);
@@ -200,13 +202,22 @@ export async function stream(
   const roles = ["rol_member", "rol_developer", "rol_guest", "rol_admin"];
   const grants: string[] = [];
   let n = 0;
-  const counts = { inPlace: 0, rebuilt: 0, hydrated: 0, restarts: 0, handler: 0, external: 0 };
+  const counts = { inPlace: 0, rebuilt: 0, hydrated: 0, restarts: 0, handler: 0, shares: 0, external: 0 };
   const start = { ...syncCounts };
 
   const boot: LogEvent[] = [
     ev("resource.created", { id: SPACE, type: "space", parent_id: null, label: 0, owner_id: "usr_owner", holds: 0 }),
     ...people.map((id) => ev("principal.created", { id, kind: "person", name: id.slice(4), status: "active" })),
     ev("principal.role_set", { holder: "usr_owner", role: "rol_owner" }),
+    ev("grant.created", {
+      id: "gr_boot_owner",
+      subject_kind: "actor",
+      subject_id: "usr_owner",
+      resource_type: "space",
+      resource_id: SPACE,
+      level: "manage",
+      by: "usr_owner",
+    }),
     ev("principal.role_set", { holder: "usr_ana", role: "rol_member" }),
     ev("principal.role_set", { holder: "usr_ben", role: "rol_guest" }),
     ev("group.member_added", { group: "grp_everyone", member: "usr_ana" }),
@@ -349,7 +360,7 @@ export async function stream(
       counts.handler++;
       const h = ctxOf(raw);
       const x = pick(resources.filter((o) => o.type !== "space"));
-      const k = Math.floor(r() * 6);
+      const k = Math.floor(r() * 9);
       try {
         if (k === 0 && x)
           await labelsSet(h, {
@@ -373,7 +384,20 @@ export async function stream(
             subject: { kind: "person", id: pick(people.filter((p) => p !== "usr_owner")) },
             roleId: pick(roles),
           });
-        else
+        else if (k === 6 && x) {
+          await share(h as never, {
+            resource: { type: x.type, id: x.id },
+            subject: { kind: "person", id: pick(people.filter((p) => p !== "usr_owner")) },
+            level: pick(["view", "edit"] as const),
+          });
+          counts.shares++;
+        } else if (k === 7 || k === 8) {
+          const ids = [...storeOf(h).grants.keys()];
+          if (ids.length) {
+            await unshare(h as never, { grantId: pick(ids) });
+            counts.shares++;
+          }
+        } else
           await (r() < 0.5
             ? groupsAddMember(h, { groupId: "grp_sales", member: { kind: "person", id: pick(people) } })
             : groupsRemoveMember(h, { groupId: "grp_sales", member: { kind: "person", id: pick(people) } }));
