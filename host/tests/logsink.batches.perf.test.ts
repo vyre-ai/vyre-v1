@@ -22,7 +22,8 @@ test("logsink50k: fifty thousand lines through the sink and the mirror hold the 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-sink-perf-"));
     try {
       const mirrorDb = openDb(path.join(dir, "modules.db"));
-      for (const f of fs.readdirSync(MIGRATIONS).sort()) mirrorDb.exec(fs.readFileSync(path.join(MIGRATIONS, f), "utf8"));
+      for (const f of fs.readdirSync(MIGRATIONS).sort())
+        mirrorDb.exec(fs.readFileSync(path.join(MIGRATIONS, f), "utf8"));
       const recorder = createTelemetryRecorder({
         space: "spc_perf",
         db: mirrorDb,
@@ -60,5 +61,8 @@ test("logsink50k: fifty thousand lines through the sink and the mirror hold the 
     `logsink50k loop held at most ${best.toFixed(0)} ms (runs ${held.map((x) => x.toFixed(0)).join(", ")}); write took ${Math.min(...took).toFixed(0)} ms`,
   );
   assert.ok(best <= LOOP_HELD_BUDGET_MS, `the loop was held ${best.toFixed(0)} ms, budget ${LOOP_HELD_BUDGET_MS}`);
-  assert.ok(Math.min(...took) <= WRITE_BUDGET_MS, `the write took ${Math.min(...took).toFixed(0)} ms, budget ${WRITE_BUDGET_MS}`);
+  assert.ok(
+    Math.min(...took) <= WRITE_BUDGET_MS,
+    `the write took ${Math.min(...took).toFixed(0)} ms, budget ${WRITE_BUDGET_MS}`,
+  );
 });

@@ -17,7 +17,8 @@ const MIGRATIONS = path.join(path.dirname(new URL(import.meta.url).pathname), ".
 
 test("one flush writes one small batch in one transaction, and the rest waits for the next turn of the loop", async () => {
   const sink = new LogSink({ batchMs: 60_000 });
-  for (let i = 0; i < FLUSH_BATCH * 3 + 7; i++) sink.log({ space: SPACE, level: 20, msg: "service.state", attrs: { i } });
+  for (let i = 0; i < FLUSH_BATCH * 3 + 7; i++)
+    sink.log({ space: SPACE, level: 20, msg: "service.state", attrs: { i } });
   sink.flush();
   assert.equal(sink.db.prepare("SELECT COUNT(*) AS n FROM logs").get()?.n, FLUSH_BATCH, "a batch, not the backlog");
   await new Promise((r) => setImmediate(r));
