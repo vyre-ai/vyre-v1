@@ -2,8 +2,12 @@
 // the helper chat, Needs you, the computer popup, the recording sheet, Connect an outside agent, All agents, the terminal tab, list and rules and the Waiting on line all draw
 // from the runtime's screens and calls (a fake replica answers them), and the terminal's open, attach, input and resize drive ui/Terminal in order, every call checked against the
 // frozen contract. The controls are pressed the way the screen presses them: through the nav the place hands each part, then the place is drawn on what that left shown.
-import test from "node:test";
+import test, { before } from "node:test";
 import assert from "node:assert/strict";
+import { preloadChatsPages } from "../src/places/chats/mounts/lazy-pages.tsx";
+
+// The pages the place loads on first draw (r39) are fetched first, so a one-pass server render draws them as a browser does once they arrive.
+before(() => preloadChatsPages());
 import { renderToStaticMarkup } from "react-dom/server";
 import { validateInput } from "./validators.support.ts";
 import { Terminal, TerminalFeed, hostMenu, keyToData } from "../../../ui/src/Terminal/index.tsx";
