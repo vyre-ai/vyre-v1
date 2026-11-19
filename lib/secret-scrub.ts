@@ -189,16 +189,26 @@ function inlineSecret(word: string): { text: string; open: string; scheme: boole
   let hit = false;
   let open = "";
   let scheme = false;
-  const out = word.replace(PAIR, (m, q: string, name: string, sep: string, value: string) => {
-    if (!isSecretName(name) || value === "") return m;
+  let out = "";
+  let pos = 0;
+  PAIR.lastIndex = 0;
+  for (let m = PAIR.exec(word); m !== null; m = PAIR.exec(word)) {
+    const [full, q = "", name = "", sep = "", value = ""] = m;
+    const head = full.length - value.length;
+    if (!isSecretName(name) || value === "") {
+      // not a secret pair: look inside its value too (a secret nested in JSON, name:name=value), so scanning resumes right after the separator
+      PAIR.lastIndex = m.index + Math.max(head, 1);
+      continue;
+    }
     hit = true;
     const first = value[0] ?? "";
     // a quoted value that goes on in the next words ("Basic dXNl...") is removed to its closing quote; a Bearer or Basic value takes the word after it
     if ((first === '"' || first === "'" || first === "`") && (value.length === 1 || !value.endsWith(first))) open = first;
     if (SCHEME_WORD.test(value.replace(/^["'`]/, ""))) scheme = true;
-    return `${q}${name}${q}${sep}${REMOVED}`;
-  });
-  return hit ? { text: out, open, scheme } : null;
+    out += word.slice(pos, m.index) + `${q}${name}${q}${sep}${REMOVED}`;
+    pos = m.index + full.length;
+  }
+  return hit ? { text: out + word.slice(pos), open, scheme } : null;
 }
 
 /** An address keeps scheme, host and path: no user name or password, no query, no fragment. */
@@ -307,6 +317,7 @@ export function scrubLog(input: unknown, limit = 4000): string {
         out.push(w);
         continue;
       }
+      if (w.includes("://")) w = trimAddress(w); // an address loses its user name, query and fragment before its pairs are read
       const inline = inlineSecret(w);
       if (inline !== null) {
         out.push(inline.text);

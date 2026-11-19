@@ -152,3 +152,30 @@ test("a header anywhere on a line takes what it carries: every cookie, a quoted 
   assert.ok(!scrubLog("Error parsing cookie: invalid format here").includes("format here"), "a known header name with its colon takes the rest of its line wherever it sits");
   assert.equal(scrubLog("Error parsing cookie invalid format here"), "Error parsing cookie invalid format here", "the same word without a colon is prose");
 });
+
+test("a secret nested inside the value of another pair is found: compact JSON, braces, name:name=value", () => {
+  for (const [text, secret] of [
+    ['{"a":{"password":"hunter2"}}', "hunter2"],
+    ['{"config":{"password":"hunter2","host":"h"}}', "hunter2"],
+    ['{"data":{"token":"abc12","x":1}}', "abc12"],
+    ['cfg={db:{password:"hunter2"}}', "hunter2"],
+    ['{"headers":{"authorization":"Bearer short"}}', "short"],
+    ['{"req":{"headers":{"cookie":"uid=12345"}}}', "uid=12345"],
+    ['{"headers":{"cookie":"a=1; b=2","accept":"x"},"ok":1}', "a=1"],
+    ["a=b:password=hunter2", "hunter2"],
+  ] as const) gone(text, secret);
+  assert.match(scrubLog('{"config":{"password":"hunter2","host":"h"}}'), /"host":"h"/, "the other keys stay");
+});
+
+test("nested pairs stay linear: a 2000-character word of pairs and many such words read in under 100 ms", () => {
+  const shapes = ["a:".repeat(1000), "a=".repeat(1000), '{"a":'.repeat(400), ("k:{".repeat(600) + " ").repeat(8), '{"x":{"y":{"z":'.repeat(150)];
+  for (const t of shapes) {
+    let best = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const start = performance.now();
+      scrubLog((t + " ").repeat(Math.ceil(16_000 / (t.length + 1))));
+      best = Math.min(best, performance.now() - start);
+    }
+    assert.ok(best < 100, `${best.toFixed(0)} ms for ${t.slice(0, 12)}`);
+  }
+});
