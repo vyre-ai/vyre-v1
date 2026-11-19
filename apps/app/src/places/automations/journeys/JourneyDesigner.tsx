@@ -17,6 +17,7 @@ import { Glyph } from "../config/glyphs.tsx";
 import { useJourney, useDesign } from "./data.ts";
 import { FieldsTab } from "./FieldsTab.tsx";
 import { JourneySettings } from "./JourneySettings.tsx";
+import { MigrationBanner } from "./MigrationBanner.tsx";
 import { PathTab } from "./PathTab.tsx";
 import {
   SLOTS,
@@ -567,7 +568,9 @@ function Body({
               on={j.startRule.enabled}
               label="Start records on this Journey"
               disabled={!canDesign}
-              onChange={(on) => void d.design(j.stages, on ? "Turned on" : "Turned off", { ...j.startRule!, enabled: on })}
+              onChange={(on) =>
+                void d.design(j.stages, on ? "Turned on" : "Turned off", { ...j.startRule!, enabled: on })
+              }
             />
           </View>
         ) : null}
@@ -587,6 +590,7 @@ function Body({
         />
         {ask}
       </View>
+      <MigrationBanner journey={j} canDesign={canDesign} />
       <SubTabs
         label="Journey"
         active={tab}
@@ -604,7 +608,13 @@ function Body({
         keyboardShouldPersistTaps="handled"
       >
         {tab === "path" ? (
-          <PathTab journey={j} counts={counts} design={d} canDesign={canDesign} {...(pathStart ? { start: pathStart } : {})} />
+          <PathTab
+            journey={j}
+            counts={counts}
+            design={d}
+            canDesign={canDesign}
+            {...(pathStart ? { start: pathStart } : {})}
+          />
         ) : tab === "settings" && canDesign ? (
           <JourneySettings journey={j} versions={versions} design={d} />
         ) : tab === "fields" ? (

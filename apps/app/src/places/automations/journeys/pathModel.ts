@@ -52,7 +52,12 @@ export function columns(
         final: s.final === true,
         cards: s.automations.map((id) => {
           const a = info(id);
-          return { id, name: a?.name || "An Automation", ...(a?.sentence ? { sentence: a.sentence } : {}), state: a?.state ?? "off" };
+          return {
+            id,
+            name: a?.name || "An Automation",
+            ...(a?.sentence ? { sentence: a.sentence } : {}),
+            state: a?.state ?? "off",
+          };
         }),
       };
     });
@@ -85,7 +90,9 @@ export function eventWords(event: string): string {
 export function strip(j: Journey): { starts: string; finishes: string; carried: string } {
   const done = [...j.stages].filter((s) => s.final).map((s) => s.title);
   return {
-    starts: j.startRule ? `${eventWords(j.startRule.event)}${j.startRule.enabled ? "" : " (off)"}` : startRuleWords(j.startRule),
+    starts: j.startRule
+      ? `${eventWords(j.startRule.event)}${j.startRule.enabled ? "" : " (off)"}`
+      : startRuleWords(j.startRule),
     finishes: done.length === 0 ? "Nowhere yet" : done.join(" or "),
     carried: j.variables && j.variables.length > 0 ? j.variables.map((v) => v.title).join(", ") : "Nothing",
   };

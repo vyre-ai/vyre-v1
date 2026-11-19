@@ -39,7 +39,17 @@ const open = async (call: (cap: string, i: any) => unknown) => {
     call: async (cap: string, input: any) => {
       calls.push({ cap, input });
       if (cap === "automations.list")
-        return { automations: [{ id: "aut_a", name: "Greet", status: "on", failedRuns: 0, sentence: "When a lead is created, email them hello." }] };
+        return {
+          automations: [
+            {
+              id: "aut_a",
+              name: "Greet",
+              status: "on",
+              failedRuns: 0,
+              sentence: "When a lead is created, email them hello.",
+            },
+          ],
+        };
       return call(cap, input);
     },
     name: (id: string) => ({ aut_a: "Greet", aut_b: "Welcome" })[id] ?? id,
@@ -59,7 +69,11 @@ test("the columns show each stage with its count and its Automations, and the fa
   const { root } = await open(() => ({}));
   const t = textOf(root);
   assert.match(t, /Starts when\s+Records are added by hand/);
-  assert.match(textOf(find(root, "path-card-lead-aut_a")!), /Greet\s+When a lead is created, email them hello\./, "the card carries its sentence");
+  assert.match(
+    textOf(find(root, "path-card-lead-aut_a")!),
+    /Greet\s+When a lead is created, email them hello\./,
+    "the card carries its sentence",
+  );
   assert.equal(find(root, "path-add-lead"), null, "no Add button without the right to design");
   assert.doesNotMatch(textOf(find(root, "path-col-lead")!), /No limit|Nothing runs here/);
   assert.match(t, /Finishes at\s+Active/);

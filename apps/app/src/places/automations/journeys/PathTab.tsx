@@ -70,7 +70,11 @@ export function PathTab({
     const a = autos.find((x) => x.id === id);
     const name = a?.name ?? extras.directory.automations.find((x) => x.id === id)?.name;
     if (!name) return undefined;
-    return { name, ...(a?.sentence ? { sentence: a.sentence } : {}), state: a ? (needsYou(a) ? "needs" : a.status === "on" ? "on" : "off") : "off" };
+    return {
+      name,
+      ...(a?.sentence ? { sentence: a.sentence } : {}),
+      state: a ? (needsYou(a) ? "needs" : a.status === "on" ? "on" : "off") : "off",
+    };
   };
   const cols = columns(j, counts, info, (id) => data.name(id) || id);
   const facts = strip(j);
@@ -106,11 +110,18 @@ export function PathTab({
     send({ type: "start", ...(on ? { recordName: on.name } : {}) });
     try {
       const out = (await data.call("journeys.test_path", { journeyId: j.id, ...(on ? { recordId: on.id } : {}) })) as {
-        runs: Parameters<typeof pathTest>[1] extends infer E ? (E extends { type: "started"; runs: infer R } ? R : never) : never;
+        runs: Parameters<typeof pathTest>[1] extends infer E
+          ? E extends { type: "started"; runs: infer R }
+            ? R
+            : never
+          : never;
       };
       send({ type: "started", runs: out.runs });
     } catch (e) {
-      send({ type: "failed", message: (e as { error?: { message?: string } } | null)?.error?.message ?? "The test did not start." });
+      send({
+        type: "failed",
+        message: (e as { error?: { message?: string } } | null)?.error?.message ?? "The test did not start.",
+      });
     }
   };
   useEffect(() => {
@@ -131,7 +142,10 @@ export function PathTab({
     const items: MenuEntry[] = [{ head: `Add to ${c.title}` }];
     const free = autos.filter((a) => !taken.has(a.id)).slice(0, 12);
     for (const a of free)
-      items.push({ label: a.name, onSelect: () => void design.design(addAutomation(j.stages, c.key, a.id), `Added ${a.name} to ${c.title}`) });
+      items.push({
+        label: a.name,
+        onSelect: () => void design.design(addAutomation(j.stages, c.key, a.id), `Added ${a.name} to ${c.title}`),
+      });
     if (free.length === 0) items.push({ label: "Every Automation is here already", disabled: true } as MenuEntry);
     items.push({ separator: true }, { head: "Time limit" });
     for (const h of LIMIT_CHOICES) {
@@ -139,11 +153,18 @@ export function PathTab({
       items.push({
         label: limitWords(l, (id) => data.name(id) || id),
         checked: stage?.timeLimit?.hours === h,
-        onSelect: () => void design.design(setTimeLimit(j.stages, c.key, l), `${c.title}: ${limitWords(l, (id) => data.name(id) || id)}`),
+        onSelect: () =>
+          void design.design(
+            setTimeLimit(j.stages, c.key, l),
+            `${c.title}: ${limitWords(l, (id) => data.name(id) || id)}`,
+          ),
       });
     }
     if (stage?.timeLimit)
-      items.push({ label: "No limit", onSelect: () => void design.design(setTimeLimit(j.stages, c.key, null), `${c.title}: no limit`) });
+      items.push({
+        label: "No limit",
+        onSelect: () => void design.design(setTimeLimit(j.stages, c.key, null), `${c.title}: no limit`),
+      });
     show(items, x, y, "context", { label: `Add to ${c.title}` });
   };
   const here = where && where !== "none" ? where.stage : null;
@@ -247,12 +268,22 @@ function ColumnView({
         <Text style={s.colCount}>{col.count}</Text>
         {here ? <View style={s.here} testID={`path-here-${col.key}`} /> : null}
       </View>
-      {col.limit ? <Text style={[s.quiet, col.over > 0 ? s.late : null]}>{col.over > 0 ? `${col.limit}. ${col.over} late` : col.limit}</Text> : null}
+      {col.limit ? (
+        <Text style={[s.quiet, col.over > 0 ? s.late : null]}>
+          {col.over > 0 ? `${col.limit}. ${col.over} late` : col.limit}
+        </Text>
+      ) : null}
       {/* ui-rows-lint: not a list (Automation cards) */}
       {col.cards.map((a) => {
         const r = runOf(test, a.id, col.key);
         return (
-          <Pressable key={a.id} accessibilityRole="button" onPress={() => onOpen(a.id)} style={s.card} testID={`path-card-${col.key}-${a.id}`}>
+          <Pressable
+            key={a.id}
+            accessibilityRole="button"
+            onPress={() => onOpen(a.id)}
+            style={s.card}
+            testID={`path-card-${col.key}-${a.id}`}
+          >
             <View style={s.cardTop}>
               <View style={[s.dot, { backgroundColor: DOT[a.state] as string }]} />
               <Text style={s.cardName} numberOfLines={2}>
@@ -264,13 +295,15 @@ function ColumnView({
                 {a.sentence}
               </Text>
             ) : null}
-            {r ? <Text style={[s.quiet, r.error ? s.late : null]}>{r.error ?? "Test started. Nothing is sent."}</Text> : null}
+            {r ? (
+              <Text style={[s.quiet, r.error ? s.late : null]}>{r.error ?? "Test started. Nothing is sent."}</Text>
+            ) : null}
           </Pressable>
         );
       })}
       {onAdd ? (
         <Pressable testID={`path-add-${col.key}`} accessibilityRole="button" onPress={onAdd} style={s.add}>
-          <Text style={s.addText}>+  Add an Automation</Text>
+          <Text style={s.addText}>+ Add an Automation</Text>
         </Pressable>
       ) : null}
     </View>
@@ -281,12 +314,32 @@ const s = StyleSheet.create({
   root: { gap: 12 },
   strip: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   fact: { flexGrow: 1, flexBasis: 180, padding: 12, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
-  factKey: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--ink-3)" as string },
+  factKey: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "var(--ink-3)" as string,
+  },
   factVal: { marginTop: 2, fontSize: 13, color: "var(--ink)" as string },
   bar: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 36 },
-  pick: { height: 32, paddingHorizontal: 12, borderRadius: 12, justifyContent: "center", borderWidth: 1, borderColor: "var(--line-2)" as string },
+  pick: {
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+  },
   pickText: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
-  testBar: { flexDirection: "row", alignItems: "center", gap: 12, padding: 10, borderRadius: 12, backgroundColor: "var(--accent-wash)" as string },
+  testBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "var(--accent-wash)" as string,
+  },
   testText: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
   quiet: { fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
   late: { color: "var(--warn)" as string },
@@ -296,14 +349,41 @@ const s = StyleSheet.create({
   colTitle: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   colCount: { fontSize: 12, color: "var(--ink-3)" as string },
   here: { width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--accent)" as string },
-  card: { padding: 12, gap: 6, borderRadius: 12, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1), inset 0 0 0 1px var(--line)" } as object,
+  card: {
+    padding: 12,
+    gap: 6,
+    borderRadius: 12,
+    backgroundColor: "var(--raised)" as string,
+    boxShadow: "var(--sh-1), inset 0 0 0 1px var(--line)",
+  } as object,
   cardTop: { flexDirection: "row", alignItems: "center", gap: 8 },
   cardName: { flex: 1, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   dot: { width: 8, height: 8, borderRadius: 4 },
   add: { height: 32, borderRadius: 12, justifyContent: "center", paddingHorizontal: 10 },
   addText: { fontSize: 13, fontWeight: "500", color: "var(--ink-3)" as string },
-  finish: { gap: 8, paddingLeft: 12, marginLeft: 4, borderLeftWidth: 1, borderLeftColor: "var(--line-2)" as string, borderStyle: "dashed" },
-  finishCap: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--ink-3)" as string },
-  finishLine: { flexDirection: "row", alignItems: "center", gap: 8, height: 40, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
+  finish: {
+    gap: 8,
+    paddingLeft: 12,
+    marginLeft: 4,
+    borderLeftWidth: 1,
+    borderLeftColor: "var(--line-2)" as string,
+    borderStyle: "dashed",
+  },
+  finishCap: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "var(--ink-3)" as string,
+  },
+  finishLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 40,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "var(--sunk)" as string,
+  },
   finishName: { flex: 1, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
 });
