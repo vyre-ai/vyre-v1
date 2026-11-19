@@ -11,6 +11,7 @@ import {
   ingestWatched,
   monitor,
   noteAuto,
+  openHeld,
   syncWatched,
 } from "../handlers/extra/inbound.ts";
 import { isOwnRetry } from "../handlers/extra/delivery.ts";
