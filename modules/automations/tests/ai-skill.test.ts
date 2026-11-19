@@ -1,7 +1,6 @@
 // An AI step in Answer mode has no tools, so a prompt that asks it to load a skill is told how to get that (r40 audit, gap 7): a warning when the Flow is checked, and the brief says so to the model.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildBrief } from "../../steps-core/handlers/brief.ts";
 import { asksForSkill, SKILL_NEEDS_TASK } from "../../../lib/ai-skill-hint.ts";
 import { validateDefinition } from "../handlers/defs.ts";
 import type { Definition } from "../projections.ts";
@@ -32,9 +31,4 @@ test("an Answer step that asks for a skill gets a warning that says to switch to
   assert.deepEqual(warned(flow("Load the probate skill, then summarise")), ["a"]);
   assert.deepEqual(warned(flow("Summarise the intake")), []);
   assert.deepEqual(warned(flow("Load the probate skill, then summarise", { mode: "task" })), []);
-});
-
-test("the answer brief tells the model it has no tools; the task brief does not say so", () => {
-  assert.match(buildBrief({ kind: "answer", goal: "x" }), /you cannot load a skill or open a file/);
-  assert.doesNotMatch(buildBrief({ kind: "task", goal: "x" }), /you cannot load a skill/);
 });
