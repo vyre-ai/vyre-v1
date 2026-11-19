@@ -683,11 +683,12 @@ test("release: publish runs hosted, holds no signing key, fetches its artifacts 
   );
   assert.equal(
     (ai.text.match(/retry\.sh 2 30 docker buildx build --platform linux\/amd64,linux\/arm64 /g) ?? []).length,
-    2,
-    "the workspace and the Space browser image, both platforms",
+    3,
+    "the workspace, the Space browser and the Word converter image, both platforms",
   );
   assert.match(pk.text, /VYRE_BROWSER_IMAGE: \$\{\{ needs\.agent-images\.outputs\.browser \}\}/);
   assert.match(pk.text, /VYRE_WORKSPACE_IMAGE: \$\{\{ needs\.agent-images\.outputs\.workspace \}\}/);
+  assert.match(pk.text, /VYRE_CONVERTER_IMAGE: \$\{\{ needs\.agent-images\.outputs\.converter \}\}/);
   assert.doesNotMatch(
     ai.text,
     /^ {4}if:/m,

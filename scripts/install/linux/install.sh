@@ -705,6 +705,8 @@ write_config() {
     [ -z "$(lock_get VYRE_BROWSER_IMAGE)" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$(lock_get VYRE_BROWSER_IMAGE)"
     # the agent workspace image of this release, by digest, the same way
     [ -z "$(lock_get VYRE_WORKSPACE_IMAGE)" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$(lock_get VYRE_WORKSPACE_IMAGE)"
+    # the Word to PDF converter image, by digest: named here, fetched by the server on first use (not pulled at install)
+    [ -z "$(lock_get VYRE_CONVERTER_IMAGE)" ] || printf 'VYRE_DOC_CONVERTER_IMAGE=%s\n' "$(lock_get VYRE_CONVERTER_IMAGE)"
     printf 'VYRE_PORT=8420\n'
     printf 'VYRE_SPACE=%s\n' "$(space_id)"
     [ -z "$DOMAIN" ] || printf 'VYRE_ADDRESS=%s\n' "$DOMAIN"

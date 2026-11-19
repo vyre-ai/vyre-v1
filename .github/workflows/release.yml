@@ -85,6 +85,7 @@ jobs:
     outputs:
       browser: ${{ steps.browser.outputs.image }}
       workspace: ${{ steps.workspace.outputs.image }}
+      converter: ${{ steps.converter.outputs.image }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/deps
@@ -124,6 +125,23 @@ jobs:
             case "$digest" in sha256:*) ;; *) echo "no image digest in the build metadata"; exit 1 ;; esac
             echo "image=ghcr.io/vyre-ai/agent-workspace@$digest" >> "$GITHUB_OUTPUT"
           fi
+      - name: Word to PDF converter image (LibreOffice, no desktop; fetched by a server the first time a Word file becomes a PDF)
+        id: converter
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          img="ghcr.io/vyre-ai/doc-converter:$VERSION"
+          docker build -t "$img" images/doc-converter
+          # the proof it converts: a small Word file goes in with no network and a PDF comes out, as the documents seam runs it
+          bash scripts/release/doc-converter-proof.sh "$img"
+          if [ "$DRYRUN" != true ]; then
+            bash scripts/release/retry.sh 3 10 bash -c 'echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin'
+            # both platforms, for the same reason as the other agent images
+            bash scripts/release/retry.sh 2 30 docker buildx build --platform linux/amd64,linux/arm64 -t "$img" --push --metadata-file converter-image.json images/doc-converter
+            digest=$(jq -r '."containerimage.digest"' converter-image.json)
+            case "$digest" in sha256:*) ;; *) echo "no image digest in the build metadata"; exit 1 ;; esac
+            echo "image=ghcr.io/vyre-ai/doc-converter@$digest" >> "$GITHUB_OUTPUT"
+          fi
   package:
     needs: [guard, agent-images]
     # the multi-arch image build needs docker buildx and qemu: one host serves the `buildx` label (vyre-ci-7)
@@ -136,6 +154,7 @@ jobs:
       # built and pushed for both platforms by agent-images; empty in a practice run, and `pack` then leaves the line out of images.lock
       VYRE_BROWSER_IMAGE: ${{ needs.agent-images.outputs.browser }}
       VYRE_WORKSPACE_IMAGE: ${{ needs.agent-images.outputs.workspace }}
+      VYRE_CONVERTER_IMAGE: ${{ needs.agent-images.outputs.converter }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/deps

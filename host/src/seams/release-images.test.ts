@@ -26,7 +26,7 @@ test("the image a host asks for: the setting when it names one, else this releas
 });
 
 test("what falls back is never a name the runner refuses to fetch, and every local build name is one it refuses", () => {
-  for (const kind of ["agent-workspace", "vyre-browser", "agent-computer"] as const) {
+  for (const kind of ["agent-workspace", "vyre-browser", "agent-computer", "doc-converter"] as const) {
     assert.equal(LOCAL_ONLY.test(releaseImage(kind, "1.0.0-rc.25", "")), false, kind);
     assert.equal(LOCAL_ONLY.test(LOCAL_IMAGE[kind]), true, `${LOCAL_IMAGE[kind]} would be looked for on Docker Hub`);
   }

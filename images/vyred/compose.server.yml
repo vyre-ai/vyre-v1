@@ -38,6 +38,8 @@ services:
       VYRE_SPACE_BROWSER_IMAGE: ${VYRE_SPACE_BROWSER_IMAGE:-}
       # the agent workspace image of this release, by digest (the same way): every agent's shell and tmux live in a container from it
       VYRE_WORKSPACE_IMAGE: ${VYRE_WORKSPACE_IMAGE:-}
+      # the Word to PDF converter image of this release, by digest: fetched by the server the first time a Word file becomes a PDF, never at install (images/doc-converter)
+      VYRE_DOC_CONVERTER_IMAGE: ${VYRE_DOC_CONVERTER_IMAGE:-}
     env_file:
       - path: ./vyre.env
         required: false
