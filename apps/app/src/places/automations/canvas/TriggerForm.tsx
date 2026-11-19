@@ -8,6 +8,7 @@ import { useOptionalAutomationsData } from "./data.tsx";
 import { Choice, TextBox, Hint } from "./fields.tsx";
 import { fieldsOfTrigger, specOf, triggerText, triggerValue, writeTriggerField } from "./form-model.ts";
 import type { TriggerField } from "./form-model.ts";
+import { addButtonOps, buttonFieldsOf, fieldKeysOf } from "./button-field.ts";
 import { Glyph } from "./icons.tsx";
 import type { DefTrigger } from "./model.ts";
 import { TextButton, pointer } from "./parts.tsx";
@@ -456,6 +457,75 @@ function WebhookAddress({ automationId }: { automationId: string }): ReactElemen
   );
 }
 
+/** A button trigger needs a Button field on its record type. When the type is chosen and has none, say so and offer to add it: one press, and the field runs this Flow. */
+function ButtonFieldOffer({
+  trigger,
+  automationId,
+}: {
+  trigger: DefTrigger;
+  automationId?: string;
+}): ReactElement | null {
+  const data = useOptionalAutomationsData();
+  const type = typeof trigger.config?.["type"] === "string" ? (trigger.config["type"] as string) : "";
+  const title =
+    typeof trigger.config?.["label"] === "string" && trigger.config["label"]
+      ? (trigger.config["label"] as string)
+      : "Run this flow";
+  const [seen, setSeen] = useState<{ type: string; has: boolean; taken: string[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!data || !type) return undefined;
+    let live = true;
+    data.call("schema.describe", { type }).then(
+      (d) => {
+        if (live) setSeen({ type, has: buttonFieldsOf(d).length > 0, taken: fieldKeysOf(d) });
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [data, type]);
+  if (!data || !type || seen?.type !== type || seen.has) return null;
+  const add = (): void => {
+    const { ops } = addButtonOps(type, title, seen.taken, automationId);
+    void (async (): Promise<void> => {
+      try {
+        const preview = (await data.call("schema.diff", { ops })) as {
+          problems?: { message: string }[];
+          previewToken?: string;
+        };
+        if (preview.problems?.[0]) {
+          setError(preview.problems[0].message);
+          return;
+        }
+        await data.call("schema.apply", {
+          ops,
+          ...(preview.previewToken ? { previewToken: preview.previewToken } : {}),
+          confirm: [],
+          reason: `Button for ${title}`,
+          idempotencyKey: `flow-button-${automationId ?? "new"}-${type}`,
+        });
+        setError(null);
+        setSeen({ ...seen, has: true });
+      } catch (e) {
+        setError(e instanceof Error && e.message ? e.message : "Could not add the button.");
+      }
+    })();
+  };
+  return (
+    <View style={s.group} testID="trigger-button-offer">
+      <Hint danger={error !== null}>
+        {error ??
+          `${type} has no Button field yet, so nothing can press this. Add one and it shows on every ${type} record.`}
+      </Hint>
+      <View style={s.hookCopy}>
+        <TextButton label="Add a Button field" onPress={add} testID="trigger-button-add" />
+      </View>
+    </View>
+  );
+}
+
 export function TriggerForm({
   trigger,
   onChange,
@@ -563,6 +633,9 @@ export function TriggerForm({
       ) : null}
       {rest.map(render)}
       {trigger.key === "webhook" && automationId ? <WebhookAddress automationId={automationId} /> : null}
+      {trigger.key === "button" ? (
+        <ButtonFieldOffer trigger={trigger} {...(automationId ? { automationId } : {})} />
+      ) : null}
       {note ? <Hint testID="trigger-note">{note}</Hint> : null}
     </View>
   );

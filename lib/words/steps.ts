@@ -45,6 +45,8 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
   send_sms: "Send a text message",
   sign: "Send for signature",
   start_journey: "Start a journey",
+  "journeys.move_stage": "Move to a journey stage",
+  "forms.link_create": "Make a form link",
   stop: "Stop here",
   transform: "Reshape the data",
   wait: "Wait",

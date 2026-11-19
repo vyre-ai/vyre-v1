@@ -12,6 +12,8 @@ A Journey is a stage flow on a subject record. A Run is one execution, with a du
 ## The definition
 - `definition` is `{ triggers: [{ key, config?, filter? }], nodes: [{ id, key, title?, input, next?, branches?, onError?, ai? }], start?, allowSelfTrigger? }`.
   A node `key` is a step kind such as `records.update`. `next` names the node ids that follow; `branches` route by a label and a `when`.
+- A `{{ }}` reads `trigger.<key>`, `steps.<id>.out.<key>`, `vars`, `item`, `index`, `run.id` or `now()`. Every key must exist: `automations_validate` and the save refuse an unknown one and name the nearest. A trigger that points at a record (record change, form, button, Journey stage) gives `{{trigger.record.<field>}}`, with sealed fields left out. A trigger filter takes only keys its event carries (a record change: `type`, `op`, `fields`, `where`; a form: `formId`, `type`; a stage: `journeyId`, `stage`).
+- To move a record to a Journey stage use the "Move to a stage" step (`journeys.move_stage`). An AI step in Answer mode has one reply and no tools, so it cannot load a skill; switch it to Task for that.
 - Do not invent step kinds or triggers. `automations_steps_list` is the palette with each step's input and output schema and whether it needs the Gate.
   `automations_triggers_list` lists triggers with payload samples and whether a Personal Space can use them (webhooks need a Team Space).
 - A step reads earlier output by reference as the palette shows. Copy the reference form from a step's sample; do not write expressions from memory.

@@ -332,7 +332,17 @@ export const TRIGGER_SPECS: Record<string, TriggerSpec> = {
       f("stage", "Stage", { help: "Leave empty for any stage." }),
     ],
   },
-  button: { fields: [], note: "Starts when someone presses its button. Give it a name so people know what it does." },
+  button: {
+    fields: [
+      f("type", "Record type", {
+        kind: "pick",
+        from: "types",
+        in: "config",
+        help: "The kind of record that has the button. It needs a Button field.",
+      }),
+    ],
+    note: "Starts when someone presses its button on a record. Give it a name so people know what it does.",
+  },
   manual: { fields: [], note: "Starts when you press Run now at the top of the page." },
 };
 

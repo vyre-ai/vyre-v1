@@ -47,6 +47,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "vault.item.put": Handler<"vault.item.put", X>;
   "vault.item.restore": Handler<"vault.item.restore", X>;
   "vault.item.reveal": Handler<"vault.item.reveal", X>;
+  "vault.item.rotate_field": Handler<"vault.item.rotate_field", X>;
   "vault.item.update": Handler<"vault.item.update", X>;
   "vault.item.usage": Handler<"vault.item.usage", X>;
   "vault.items.export_mine": Handler<"vault.items.export_mine", X>;

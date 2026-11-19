@@ -70,7 +70,7 @@ export function momentMs(v: unknown, now: number): number {
 // and a short list of functions. No assignment, no calls on values, no access to anything outside the scope: it is parsed, never evaluated as code.
 
 type Tok = { t: "num" | "str" | "id" | "op" | "p"; v: string | number };
-const TWO = new Set(["==", "!=", "<=", ">=", "&&", "||"]);
+const TWO = new Set(["==", "!=", "<=", ">=", "&&", "||", "??"]);
 const ONE = new Set(["<", ">", "+", "-", "*", "/", "%", "!"]);
 const MAX_EXPR = 2000;
 
@@ -229,7 +229,7 @@ function parse(src: string): Ast {
   const cmp = (): Ast => level(["<", "<=", ">", ">="], add, ["in", "contains"]);
   const eq = (): Ast => level(["==", "!="], cmp);
   const and = (): Ast => level(["&&"], eq);
-  const or = (): Ast => level(["||"], and);
+  const or = (): Ast => level(["||", "??"], and);
   const ast = or();
   if (pos < toks.length) bad(`Unexpected "${String(toks[pos]!.v)}" in the expression.`);
   return ast;
@@ -339,6 +339,10 @@ function ev(a: Ast, scope: Scope): unknown {
       if (a.op === "&&") {
         const l = ev(a.l, scope);
         return truthy(l) ? ev(a.r, scope) : l;
+      }
+      if (a.op === "??") {
+        const l = ev(a.l, scope);
+        return l === null || l === undefined ? ev(a.r, scope) : l;
       }
       if (a.op === "||") {
         const l = ev(a.l, scope);

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import type { MenuEntry } from "../../../../../../../ui/src/Menu/index.tsx";
 import { unnamed } from "../../../chats/names.ts";
+import { SKILL_NEEDS_TASK, asksForSkill } from "../../../../../../../lib/ai-skill-hint.ts";
 import { Avatar } from "../../../../../../../ui/src/Avatar/index.tsx";
 import { ChipText, Choice, TextBox, Group, Hint, More, Rows, Segmented, ReturnsLine } from "../fields.tsx";
 import { useOpenConnect } from "../../../../shell/connect/context.ts";
@@ -780,6 +781,7 @@ export function AiForm({
         testID="field-prompt"
         onCommit={(t) => writeInput(withField(input, "prompt", t))}
       />
+      {asksForSkill(input["prompt"]) ? <Hint testID="ai-skill-hint">{SKILL_NEEDS_TASK}</Hint> : null}
       <Rows
         label="Input data"
         pairs={pairsOf(input["inputs"])}

@@ -17,8 +17,9 @@ import { readSource } from "./handlers/source.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
+import { checkEgress, refuse, scrubber } from "./projections.ts";
+import { accessToken, forgetAllHeld, grantKey, GrantError } from "./refresh-grant.ts";
 import { forgetAllKept } from "./handlers/runtime.ts";
-import { refuse, scrubber } from "./projections.ts";
 import type { BuiltinRow, ConnectorsCtx, ConnectionDb, ConnectorDef } from "./projections.ts";
 import type { SyncDeps, SyncEngine } from "./handlers/sync.ts";
 import { runCadence } from "./handlers/cadence.ts";
@@ -276,12 +277,34 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
                       return refuse(cc, "permission.no_grant", "Vault access changed before this request.");
                 },
               };
-              const value = await port.fill(probeExec, {
-                connector: "sync_spec",
-                connectionId: "probe",
-                slot: "probe",
-                handle: req.handle,
-              });
+              const fillField = (handle: string): Promise<string> =>
+                port.fill(probeExec, { connector: "sync_spec", connectionId: "probe", slot: "probe", handle });
+              // an app that issues its own OAuth client: the Vault item holds client_id, client_secret and refresh_token, and the read goes with the access token they are traded for
+              const value = req.refreshFrom
+                ? await accessToken(grantKey(handle.tx as object, req.handle), req.refreshFrom.tokenUrl, {
+                    now: () => Date.now(),
+                    fill: (field) => fillField(`${req.handle}.${field}`),
+                    http: (url, init) => {
+                      const eg = checkEgress(url, [req.domain, new URL(req.refreshFrom!.tokenUrl).hostname]);
+                      if (!eg.ok) throw new Error(`Egress refused: ${eg.reason}.`);
+                      return cc.http(eg.url.toString(), init);
+                    },
+                    saveRefresh: async (token) => {
+                      const listed = (await cc.call("vault.items.list", { q: req.handle.replace(/^#/, "") })) as {
+                        items: { id: string; handle: string }[];
+                      };
+                      const item = listed.items.find((i) => i.handle === req.handle);
+                      if (!item) throw new Error("the Vault item was not found");
+                      await cc.call("vault.item.rotate_field", { itemId: item.id, key: "refresh_token", value: token });
+                    },
+                  }).catch((e: unknown) =>
+                    refuse(
+                      cc,
+                      e instanceof GrantError && e.kind === "refused" ? "provider.auth_failed" : "provider.unavailable",
+                      e instanceof Error ? e.message : "The sign-in could not be renewed.",
+                    ),
+                  )
+                : await fillField(req.handle);
               const headers: Record<string, string> = { Accept: "application/json", ...(req.headers ?? {}) };
               if (req.style === "bearer") headers["Authorization"] = `Bearer ${value}`;
               else if (req.style === "basic") headers["Authorization"] = `Basic ${value}`;
@@ -519,6 +542,10 @@ export const consumers = {
       "connection.deleted",
       "connection.reconnected",
     ],
-    run: (): void => forgetAllKept(),
+    // what a pass kept of the Vault's values, and every access token kept for an app that issues its own OAuth client: both end together. A refresh token waiting to be saved is not touched here; it is saved first on the next grant.
+    run: (): void => {
+      forgetAllKept();
+      forgetAllHeld();
+    },
   },
 };

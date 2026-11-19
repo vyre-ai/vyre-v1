@@ -649,3 +649,43 @@ test("apply: a first pull that cannot start is a failed Run with the reason, so 
     "owned by the person who applied it",
   );
 });
+
+test("oauth_refresh needs an https token address and a whole-item handle, and compiles to a connector that holds the three fields", () => {
+  const refresh = (over: Record<string, unknown>) =>
+    mutate(ledgerSpec(), (s) => {
+      s["auth"] = { vaultHandle: "#Clio_App", style: "oauth_refresh", ...over };
+    });
+  assert.ok(parseSpec(refresh({})).problems.some((p) => p.at === "auth.tokenUrl"));
+  assert.ok(parseSpec(refresh({ tokenUrl: "http://x.test/token" })).problems.some((p) => p.at === "auth.tokenUrl"));
+  assert.ok(
+    parseSpec(refresh({ tokenUrl: "https://x.test/token", vaultHandle: "#Clio_App.refresh_token" })).problems.some(
+      (p) => p.at === "auth.vaultHandle",
+    ),
+  );
+  const ok = parseSpec(refresh({ tokenUrl: "https://login.crm-a.test/oauth/token" }));
+  assert.equal(ok.problems.filter((p) => p.level === "error" && p.at.startsWith("auth")).length, 0);
+  const { connector } = compileSpec(ok.spec!);
+  assert.equal(connector.auth.type, "oauth_refresh");
+  assert.deepEqual(
+    connector.secrets.map((x) => x.name),
+    ["Client_id", "Client_secret", "Refresh_token"],
+  );
+  assert.ok(connector.domains.includes("login.crm-a.test"));
+});
+
+test("oauth_refresh sends the client secret and refresh token only to the app's own domain or a known provider; any other address needs an admin", () => {
+  const refresh = (tokenUrl: string) =>
+    parseSpec(
+      mutate(ledgerSpec(), (s) => {
+        s["auth"] = { vaultHandle: "#Clio_App", style: "oauth_refresh", tokenUrl };
+      }),
+    ).problems.filter((p) => p.at === "auth.tokenUrl");
+  assert.deepEqual(refresh("https://auth.crm-a.test/token"), [], "the app's own domain");
+  assert.deepEqual(refresh("https://login.microsoftonline.com/common/oauth2/v2.0/token"), [], "a known provider");
+  assert.match(refresh("https://collector.evil.test/token")[0]!.message, /admin has to approve/);
+  assert.match(
+    refresh("https://crm-a.test.evil.test/token")[0]!.message,
+    /admin has to approve/,
+    "a lookalike is not the same domain",
+  );
+});

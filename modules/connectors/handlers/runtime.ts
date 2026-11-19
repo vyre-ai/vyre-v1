@@ -10,6 +10,8 @@ import { buildDef, generateMain } from "./source.ts";
 import { shapeCreated, shapeList, ShapeError } from "./shape.ts";
 import { unflatten } from "../syncspec.ts";
 import { oauthOf, refreshSlot } from "./oauth.ts";
+import { forgetGrantOf, grantKeyOf, grantPortFor } from "./grant-port.ts";
+import { accessToken, forgetAccess, GrantError } from "../refresh-grant.ts";
 import {
   ensureTables,
   mintShort,
@@ -464,6 +466,35 @@ export async function executeAction(
       everySecret.push(tokenValue, `Bearer ${tokenValue}`);
     }
   }
+  // an app that issues its own OAuth client: the connection's Vault item is traded for an access token that is held in memory and renewed a minute before it ends
+  if (def.auth.type === "oauth_refresh" && !o.dryRun) {
+    const port = conn ? grantPortFor(deps, ctx, def, conn) : undefined;
+    if (!port || !def.auth.tokenUrl)
+      refuse(ctx, "validation.precondition_failed", `${def.title} has no connection to sign in with.`);
+    try {
+      tokenValue = await accessToken(grantKeyOf(deps, def, conn!), def.auth.tokenUrl!, port!, o.refreshed === true);
+    } catch (e) {
+      if (e instanceof GrantError) {
+        if (e.kind === "refused") {
+          if (persist) await markReconnect(deps, ctx, conn!);
+          return refuse(ctx, "provider.auth_failed", e.message, { status: e.status });
+        }
+        return refuse(
+          ctx,
+          e.kind === "unreachable"
+            ? "provider.network"
+            : e.kind === "busy"
+              ? "provider.rate_limited"
+              : e.kind === "unavailable" || e.kind === "not_saved"
+                ? "provider.unavailable"
+                : "provider.bad_response",
+          e.message,
+        );
+      }
+      throw e;
+    }
+    everySecret.push(tokenValue, `Bearer ${tokenValue}`);
+  }
   const scrub = scrubber(everySecret);
 
   // the request
@@ -652,6 +683,12 @@ export async function executeAction(
       refreshSlot(def) &&
       (await oauthOf(deps).refresh(ctx, def, conn))
     ) {
+      forgetKept(conn.connection_id);
+      return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
+    }
+    // the same for an app that issues its own OAuth client: the kept access token is dropped, a new one is asked for, and the call is repeated once
+    if (conn && persist && !o.refreshed && def.auth.type === "oauth_refresh") {
+      forgetAccess(grantKeyOf(deps, def, conn));
       forgetKept(conn.connection_id);
       return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
     }
@@ -1426,6 +1463,10 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
           conn.connection_id,
         );
         tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", conn.connection_id);
+        {
+          const full = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", conn.connection_id);
+          if (full) await forgetGrantOf(deps, ctx, full);
+        }
         tx.run("DELETE FROM cn_connections WHERE connection_id = ?", conn.connection_id);
         ctx.emit("connection.deleted", `connection/${conn.connection_id}`, {
           connectionId: conn.connection_id,

@@ -106,7 +106,7 @@ test("the class: every step that names an existing file, record, calendar, form 
   assert.equal(
     await refusal(
       h,
-      [{ id: "n1", key: "files.move", input: { fileId: "{{ trigger.fileId }}", toFolderId: "fld_1" } }],
+      [{ id: "n1", key: "files.move", input: { fileId: "{{ trigger.input.fileId }}", toFolderId: "fld_1" } }],
       alice,
     ),
     null,
