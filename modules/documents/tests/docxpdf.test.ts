@@ -379,6 +379,11 @@ test("links and pictures keep only their text, exactly as before the linear scan
   assert.equal(text("[a](b) and [c](d)"), "a and c");
   assert.equal(text("[not a link] and [x]"), "[not a link] and [x]");
   assert.equal(text("[x]( no close"), "[x]( no close");
-  assert.equal(text("[a\nb](c)"), "[a b](c)".replace("[a b](c)", text("[a\nb](c)")));
-  assert.equal(text("![[x](y)](z)").length > 0, true);
+  // text on two lines is not a link text: left as it stands
+  assert.equal(text("[a\nb](c)"), "[a\nb](c)");
+  // a picture inside a link, and two pictures in a row
+  assert.equal(text("![[x](y)](z)"), "x");
+  assert.equal(text("![a](b)![c](d)"), "ac");
+  assert.equal(text("[a](b"), "[a](b");
+  assert.equal(text("x [a] (b)"), "x [a] (b)");
 });

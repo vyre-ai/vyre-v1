@@ -380,7 +380,8 @@ export function inline(src: string): Run[] {
     else out.push({ text: buf, ...(b ? { b: true } : {}), ...(i ? { i: true } : {}) });
     buf = "";
   };
-  const s = stripLinks(src).replace(/~~(.*?)~~/g, "$1");
+  // twice: stripping a picture can leave a link made of what was around it, which the two passes of the regexes this replaced also stripped
+  const s = stripLinks(stripLinks(src)).replace(/~~(.*?)~~/g, "$1");
   for (let k = 0; k < s.length; k++) {
     const c = s[k] as string;
     if (c === "\\" && k + 1 < s.length && /[\\`*_{}\[\]()#+\-.!|>~]/.test(s[k + 1] as string)) {
