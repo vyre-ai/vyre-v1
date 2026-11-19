@@ -166,7 +166,10 @@ export function ensure(ctx: Pick<VaultCtx, "db">): void {
   ready.add(ctx.db);
 }
 
-/** The Sealed fields folder a Space already has (shared, top level) is marked as one the server keeps. Run once, when the marker table is made. */
+/**
+ * The Sealed fields folder a Space already has is marked as one the server keeps, run once when the marker table is made. Never by name alone: a person's own folder of that name holds their own
+ * items. It is the sealing code's folder when it is shared, top level and every item in it is named as a sealed value is (type.field.rec_...), and it holds at least one.
+ */
 export function markBackingFolders(ctx: Pick<VaultCtx, "db">): void {
   for (const f of ctx.db.all(
     `SELECT * FROM vault_folder WHERE "name" = ? AND "scope" = ?`,
@@ -174,7 +177,14 @@ export function markBackingFolders(ctx: Pick<VaultCtx, "db">): void {
     "shared",
   )) {
     const row = f as Record<string, unknown>;
-    if (typeof row["id"] === "string" && (row["parentId"] === null || row["parentId"] === undefined))
+    if (typeof row["id"] !== "string" || (row["parentId"] !== null && row["parentId"] !== undefined)) continue;
+    const items = ctx.db
+      .all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, row["id"])
+      .filter((r) => (r as Record<string, unknown>)["deleted_at"] == null) as Record<string, unknown>[];
+    if (
+      items.length > 0 &&
+      items.every((r) => /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*\.rec_[A-Za-z0-9_]+$/.test(String(r["name"])))
+    )
       ctx.db.run(`INSERT OR IGNORE INTO vault_backing_folder ("folderId") VALUES (?)`, row["id"]);
   }
 }

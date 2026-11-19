@@ -841,8 +841,23 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           const to = needType(String(d["to"] ?? no("relation.add needs def.to")));
           const inverse = typeof d["inverse"] === "string" ? d["inverse"] : undefined;
           if (!inverse) no("relation.add needs def.inverse: the field on the other record type");
-          if (t.fields.some((x) => x.key === key)) throw new Problem(`${t.key} already has a field ${key}`, true);
-          if (to.fields.some((x) => x.key === inverse) || (to.key === t.key && inverse === key))
+          // both ends already there as this very relation (type.create made them): nothing to do, and no error
+          const nearHave = t.fields.find((x) => x.key === key);
+          const farHave = to.fields.find((x) => x.key === inverse);
+          if (
+            nearHave?.type === "relation" &&
+            farHave?.type === "relation" &&
+            !(to.key === t.key && inverse === key) &&
+            nearHave.options?.["target"] === to.key &&
+            nearHave.options?.["inverse"] === inverse &&
+            farHave.options?.["target"] === t.key &&
+            farHave.options?.["inverse"] === key
+          ) {
+            add(op, `${t.title} is already related to ${to.title} through ${key} and ${inverse}`);
+            break;
+          }
+          if (nearHave) throw new Problem(`${t.key} already has a field ${key}`, true);
+          if (farHave || (to.key === t.key && inverse === key))
             throw new Problem(`${to.key} already has a field ${inverse}`, true);
           const near: FieldDefT = {
             key,

@@ -984,6 +984,11 @@ export async function foldersList(ctx: VaultCtx, input: { scope?: string }) {
         ? str(f, "owner") === ctx.principal.id
         : str(f, "owner") === ctx.principal.id || levelOn(ctx, "vault_folder", str(f, "id")) !== null),
   );
+  // the server looks the folder up to put sealed values in it: from then on it is the sealing code's folder, however it was made
+  if (isHostService(ctx.principal))
+    for (const f of rows)
+      if (str(f, "name") === SEALED_FOLDER && str(f, "scope") === "shared" && !strOrNull(f, "parentId"))
+        ctx.db.run(`INSERT OR IGNORE INTO vault_backing_folder ("folderId") VALUES (?)`, str(f, "id"));
   rows.sort(
     (a, b) =>
       str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") ||

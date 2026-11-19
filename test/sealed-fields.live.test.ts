@@ -277,12 +277,14 @@ test("seal this field live: a crash halfway leaves the plaintext as it was, pres
     let puts = 0;
     // the Vault items the values went into: their list is not a person's to see (the items are the Space's plumbing), so they are counted as the seam makes them
     const refs = new Set<string>();
+    const byRecord = new Map<string, string>();
     setSchemaVault({
       ...real,
       put: async (o) => {
         if (++puts > 20) throw new Error("the Vault went away");
         const ref = await real.put(o);
         refs.add(ref);
+        byRecord.set(o.recordId, ref);
         return ref;
       },
     });
@@ -302,6 +304,10 @@ test("seal this field live: a crash halfway leaves the plaintext as it was, pres
       put: async (o) => {
         const ref = await real.put(o);
         refs.add(ref);
+        // a retried seal finds the item the first try made for that record, not a second one
+        const first = byRecord.get(o.recordId);
+        if (first !== undefined) assert.equal(ref, first, `the retry reuses the item of ${o.recordId}`);
+        byRecord.set(o.recordId, ref);
         return ref;
       },
       scrubField: async (t, f) => {

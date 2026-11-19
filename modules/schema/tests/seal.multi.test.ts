@@ -172,3 +172,34 @@ test("a retype that names a label in its def sets it, and a plain retype of an u
     setSchemaVault(null);
   }
 });
+
+test("relation.add after a relation made with its type is a no-op that succeeds; a real clash still refuses", async () => {
+  const s = await made();
+  await s.handlers["schema.apply"](ctx, {
+    ops: [
+      {
+        op: "type.create",
+        type: "matter",
+        def: {
+          title: "Matter",
+          plural: "Matters",
+          titleField: "name",
+          fields: [
+            field("name"),
+            field("client", "relation", "Client", { options: { target: "party", inverse: "matters" } }),
+          ],
+        },
+      },
+    ],
+  });
+  const same = [
+    { op: "relation.add" as const, type: "matter", field: "client", def: { to: "party", inverse: "matters" } },
+  ];
+  await s.handlers["schema.apply"](ctx, { ops: same });
+  const party = (await s.handlers["schema.types.get"](ctx, { type: "party" })).type;
+  assert.equal(party.fields.filter((f) => f.key === "matters").length, 1);
+  const clash = [
+    { op: "relation.add" as const, type: "matter", field: "client", def: { to: "party", inverse: "name" } },
+  ];
+  assert.equal((await s.handlers["schema.diff"](ctx, { ops: clash })).problems.length, 1);
+});

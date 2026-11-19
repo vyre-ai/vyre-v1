@@ -74,7 +74,7 @@ test("items behind sealed record values are in no list, search or count a person
   h.cleanup();
 });
 
-test("a person's own folder with that name is an ordinary folder", async () => {
+test("a person's own folder with that name is an ordinary folder, also after the migration runs", async () => {
   const h = harness();
   h.actAs("person", ADMIN);
   const mine = String(
@@ -85,9 +85,15 @@ test("a person's own folder with that name is an ordinary folder", async () => {
     ).folder.id,
   );
   await put(h, mine, "Kept");
+  markBackingFolders(h.ctx);
   assert.deepEqual(
     ((await v.itemsList(h.ctx, {})) as { items: Json[] }).items.map((i) => i.name),
     ["Kept"],
+  );
+  assert.ok(
+    ((await v.foldersList(h.ctx, { scope: "shared" })) as { folders: Json[] }).folders.some(
+      (f) => f.name === SEALED_FOLDER,
+    ),
   );
   h.cleanup();
 });
