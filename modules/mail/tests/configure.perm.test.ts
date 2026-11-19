@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../../kernel/src/authorize/index.ts";
 import { registry } from "../../../generated/registry.ts";
 import { CONFIGURE_ROUTE } from "../handlers/setup.ts";
+import { held } from "../fixtures/hold-rules.ts";
 
 type Def = {
   name: string;
@@ -79,14 +80,6 @@ const NOT_HELD: Record<string, string> = {
   "mail.sync_now": "pulls mail now from a mailbox that is already connected",
   "mail.unsubscribe": "a recipient's own unsubscribe link",
 };
-const held = (g: Def["gate"]): boolean =>
-  !!g &&
-  (g.when === undefined
-    ? g.act === "send"
-    : g.when.includes("actor.kind != 'person'") ||
-      g.when.includes("actor.kind == 'agent'") ||
-      /^mail\.[a-z_]+\(input\)$/.test(g.when));
-
 test("every mail capability that writes is held at the Gate for an agent, or is on the short list of ones that do not move mail or change who it is sent as, with the reason", () => {
   const writes = all.filter((c) => c.module === "mail" && c.effects !== "read");
   const unheld = writes.filter((c) => !held(c.gate) && !(c.name in NOT_HELD)).map((c) => c.name);

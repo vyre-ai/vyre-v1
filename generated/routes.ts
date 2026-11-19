@@ -28052,7 +28052,7 @@ const routes5: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -28593,7 +28593,7 @@ const routes5: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -38659,7 +38659,7 @@ const routes6: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -38717,7 +38717,7 @@ const routes7: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -38791,7 +38791,7 @@ const routes7: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -38810,7 +38810,7 @@ const routes7: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -38829,7 +38829,7 @@ const routes7: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -38992,7 +38992,7 @@ const routes7: Route[] = [
     "risk": "medium",
     "offline": "online",
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -40151,7 +40151,7 @@ const routes7: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
-    "gate": "none"
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -40331,7 +40331,7 @@ const routes7: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
-    "gate": "none"
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -41742,7 +41742,7 @@ const routes7: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -41922,7 +41922,7 @@ const routes7: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",

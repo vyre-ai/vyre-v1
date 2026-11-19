@@ -206,6 +206,8 @@ export default defineManifest({
           filter: t.opt(t.json()),
         },
         out: { webhook: webhookRow, secret: t.str({ description: "Shown once" }) },
+        // an outgoing webhook is a new destination for the Space's events: held for an agent
+        gate: { act: "send", when: "actor.kind != 'person'" },
         perm: "connectors.manage",
         idem: "key",
         emits: ["webhook.created"],
@@ -237,6 +239,8 @@ export default defineManifest({
         active: t.opt(t.bool()),
       },
       out: { webhook: webhookRow },
+      // an outgoing webhook is a new destination for the Space's events: held for an agent
+      gate: { act: "send", when: "actor.kind != 'person'" },
       perm: "connectors.manage",
       emits: ["webhook.updated"],
       audit: "always",

@@ -11,7 +11,7 @@ Set the recording policy of a number: off, announce or ask
 | Grant level | manage |
 | Risk | medium |
 | Resource | number (/numberId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

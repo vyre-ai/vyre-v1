@@ -36,7 +36,17 @@ const MORE = [
   "google.user.complete",
   "ms.user.complete",
 ];
-const defs = [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE].map(
+// where calls, texts, voicemail and events go: a phone number's route, hours and recording, a live call sent elsewhere, a webhook address
+const COMMS = [
+  "telephony.number.set_route",
+  "telephony.number.set_hours",
+  "telephony.number.set_recording",
+  "telephony.transfer",
+  "webhooks.create",
+  "webhooks.update",
+  "twilio.number.configure",
+];
+const defs = [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE, ...COMMS].map(
   (n) => registry.capabilities.find((c) => c.name === n) as unknown as CapabilityDef,
 );
 
@@ -44,13 +54,19 @@ function world(): AccessSnapshot {
   const s = new AccessSnapshot();
   s.putResource({ id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "dom_1", type: "domain", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
+  s.putResource({ id: "num_1", type: "number", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "mbx_a", type: "mailbox", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putRole({ id: "member", clearance: 2, perms: [], name: "Member" });
-  s.putRole({ id: "admin", clearance: 3, perms: ["comms.domains", "policy.manage", "comms.templates"], name: "Admin" });
+  s.putRole({
+    id: "admin",
+    clearance: 3,
+    perms: ["comms.domains", "policy.manage", "comms.templates", "comms.numbers", "connectors.manage"],
+    name: "Admin",
+  });
   s.putRole({
     id: "mailer",
     clearance: 2,
-    perms: ["comms.domains", "policy.manage", "comms.templates"],
+    perms: ["comms.domains", "policy.manage", "comms.templates", "comms.numbers", "connectors.manage"],
     name: "Mailer",
   }); // an agent never holds Admin or Owner, so the one it has is a plain role that carries the permission
   for (const [id, role, level] of [
@@ -99,7 +115,10 @@ function rig() {
   const ran: string[] = [];
   const parked: { cap: string; act: string }[] = [];
   const handlers: Record<string, Handler> = Object.fromEntries(
-    [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE].map((n) => [n, (async () => (ran.push(n), {})) as Handler]),
+    [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE, ...COMMS].map((n) => [
+      n,
+      (async () => (ran.push(n), {})) as Handler,
+    ]),
   );
   // the sign-in callbacks make the person's mailbox with mail.connect through the same call chain, as the person who is signing in
   for (const n of ["google.user.complete", "ms.user.complete"])
@@ -180,6 +199,21 @@ const INPUT: Record<string, Record<string, unknown>> = {
   "mail.connect": { provider: "google", address: "pat@north.example", idempotencyKey: "k11" },
   "google.user.complete": { state: "s", code: "c" },
   "ms.user.complete": { state: "s", code: "c" },
+  "telephony.number.set_route": {
+    numberId: "num_1",
+    route: { ring: [{ kind: "external", e164: "+15550100" }], seconds: 20, voicemail: true },
+  },
+  "telephony.number.set_hours": { numberId: "num_1", hours: { always: true } },
+  "telephony.number.set_recording": { numberId: "num_1", recording: { mode: "off" } },
+  "telephony.transfer": { callId: "call_1", to: "+15550100" },
+  "webhooks.create": {
+    name: "hook",
+    url: "https://attacker.example/in",
+    eventTypes: ["record.created"],
+    idempotencyKey: "k20",
+  },
+  "webhooks.update": { webhookId: "whk_1", url: "https://attacker.example/in" },
+  "twilio.number.configure": { sid: "PN1", voiceUrl: "https://attacker.example/voice", idempotencyKey: "k21" },
   "mail.address.move": {
     domainId: "dom_1",
     localPart: "billing",
@@ -367,5 +401,22 @@ test("through the real Gate: the sync's own pause, resume and sync-state calls (
       "held",
       `${name}: an agent is held`,
     );
+  }
+});
+
+test("through the real Gate: an agent changing where calls, texts, voicemail or events go is parked and nothing runs (a number's route, hours or recording, a live call sent to another number, a webhook address); a person's own change is one step", async () => {
+  for (const name of COMMS) {
+    const asAgent = rig();
+    const held = await asAgent.invoke(name, { ...INPUT[name] }, seed("agt_bot", "agent", { actingFor: "usr_admin" }));
+    assert.equal(held.status, "held", `${name}: an agent is held`);
+    assert.deepEqual(asAgent.parked, [{ cap: name, act: "send" }]);
+    assert.deepEqual(asAgent.ran, [], `${name}: nothing ran before a person said yes`);
+    const asPerson = rig();
+    assert.equal(
+      (await asPerson.invoke(name, { ...INPUT[name] }, seed("usr_admin"))).status,
+      "ok",
+      `${name}: a person's own change is one step`,
+    );
+    assert.deepEqual(asPerson.parked, []);
   }
 });

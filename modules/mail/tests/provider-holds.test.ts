@@ -3,28 +3,68 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registry } from "../../../generated/registry.ts";
+import { held } from "../fixtures/hold-rules.ts";
 
 type Def = { name: string; module: string; effects: string; gate?: { act: string; when?: string; reason?: string } };
 const all = registry.capabilities as unknown as Def[];
 const def = (name: string): Def => all.find((c) => c.name === name) as Def;
-const held = (g: Def["gate"]): boolean =>
-  !!g &&
-  ((g.when ?? "").length > 0
-    ? /actor\.kind != 'person'|actor\.kind == 'agent'|^mail\.[a-z_]+\(input(\.key)?\)$/.test(g.when ?? "")
-    : g.act !== "none");
 
-/** Writes outside the mail module whose name says routes, senders, forwarding, aliases, SMTP or inbound mail, and are not held: each with why. */
-const NOT_HELD: Record<string, string> = {
-  "mailgun.domains.verify": "asks Mailgun to re-check DNS; nothing is changed or sent",
-  "resend.domains.verify": "asks Resend to re-check DNS; nothing is changed or sent",
-  "mailgun.receive_inbound": "a signed delivery from Mailgun, not a person's or agent's choice",
-  "mailgun.receive_webhook": "a signed delivery event from Mailgun",
-  "resend.receive_inbound": "a signed delivery from Resend",
-  "resend.receive_webhook": "a signed delivery event from Resend",
-  "telephony.number.set_route": "where a phone number's calls and texts go, not email (comms.numbers)",
-  "access.automation_senders":
-    "a person's own press gives an Automation use of the mailboxes it names, inside that person's access",
-};
+/**
+ * Anything that decides where communications go (email, calls, texts, voicemail and their transcripts) or who gets a copy: a name that says routes, senders, forwarding, aliases, SMTP, inbound mail, relays, bcc or cc, recipients, webhooks, notifications, digests or sharing,
+ * and every write in the phone modules. Each is held for an agent or matches one of these, with why. "Not email" is not a reason.
+ */
+const NOT_HELD: [RegExp, string][] = [
+  [
+    /\.receive_(inbound|webhook|notification)$/,
+    "a signed delivery from the provider, not a person's or an agent's choice",
+  ],
+  [/^(mailgun|resend)\.domains\.verify$/, "asks the provider to re-check DNS; nothing is changed or sent"],
+  [
+    /^notifications\.(send|push\.register|push\.unregister|mark_seen|mute\.set|mute\.clear|away\.set|away\.clear|kind\.set_level|rules\.set)$/,
+    "a person's own notification settings or a push that carries no content; it adds no recipient and sends nothing to anyone new (notifications.delegate.set, which hands approvals to someone, is held)",
+  ],
+  [
+    /^(home\.(away_digest|mark_digest_seen|write_digest)|machines\.alerts_notify)$/,
+    "writes the person's own digest or alert line in the Space (alerts_notify is host only); no new destination",
+  ],
+  [
+    /^(access\.(share|unshare|join_share)|chat\.share|notes\.share|files\.share|vault\.(share|unshare)|skills\.(share|shared\.decide)|automations\.connector_share|meetings\.closeout\.share|engine\.subscription_share\.set)$/,
+    "a grant inside the Space under the caller's own access: an agent is never wider than the person it works for (kernel agent ceiling). Sharing outside the Space is held separately",
+  ],
+  [/^projects\.unshare_out$/, "takes outside access away"],
+  [
+    /^automations\.webhook_url\.rotate$/,
+    "makes a new address for the Space's own incoming webhook; it sends nothing anywhere",
+  ],
+  [
+    /^access\.(automation_senders|agents_can_call\.set)$/,
+    "a person's own press inside that person's access (access.automation_senders: an Automation's use of the mailboxes it names)",
+  ],
+  [
+    /^telephony\.(call\.(attach_summary|log_task|erase)|ingest_recording|ingest_sms|sms\.erase)$/,
+    "records or erases what already happened on a call or text; it routes nothing (erase is under policy.manage)",
+  ],
+  [
+    /^twilio\.(call\.update|recording\.(start|stop|delete))$/,
+    "acts on a call already in progress, which a person is on; it adds no destination",
+  ],
+  [
+    /^telephony\.(answer|decline|hangup|hold|record)$/,
+    "acts on a live call the person is on; it adds no destination (telephony.transfer, which sends a call to another number, is held)",
+  ],
+  [/^telephony\.ingest_(status|voice)$/, "the provider's call events, not a person's or an agent's choice"],
+  [
+    /^telephony\.registration\.(refresh|save|submit)$|^twilio\.(a2p\.create_brand|a2p\.create_campaign|twiml_app\.ensure)$/,
+    "registers the Space's own business with the carriers and its own voice app; it sends nothing to a new destination",
+  ],
+  [
+    /^webhooks\.(delete|rotate_secret|test|send_delivery|replay_delivery)$/,
+    "acts on an endpoint a person already registered (delete removes one, test and replay go only to it); creating or changing the address, webhooks.create and update, is held",
+  ],
+  [/^twilio\.number\.(buy|release)$/, "buying or releasing a number is held by its pay or delete Gate"],
+];
+const notHeldWhy = (name: string): string | undefined => NOT_HELD.find(([re]) => re.test(name))?.[1];
+const SWEEP = /(route|sender|forward|alias|smtp|inbound|relay|bcc|\bcc\b|recipient|webhook|notif|digest|share)/i;
 
 test("every provider-level write that adds a sending domain or an inbound route, and the setting that picks the provider, is held for an agent", () => {
   for (const name of [
@@ -49,23 +89,41 @@ test("every provider-level write that adds a sending domain or an inbound route,
   }
 });
 
-test("a write in any module whose name says routes, senders, forwarding, aliases, SMTP or inbound mail is held, or named here with the reason", () => {
-  const sweep = all.filter(
-    (c) => c.module !== "mail" && c.effects !== "read" && /(route|sender|forward|alias|smtp|inbound)/i.test(c.name),
+test("a write anywhere that routes, copies or forwards communications (email, calls, texts, voicemail, transcripts), changes a sender or adds a recipient is held for an agent, or matches a stated reason", () => {
+  const writes = all.filter(
+    (c) =>
+      c.module !== "mail" &&
+      c.effects !== "read" &&
+      (SWEEP.test(c.name) || ["telephony", "twilio", "mailgun", "resend"].includes(c.module)),
   );
-  const loose = sweep.filter((c) => !held(c.gate) && !(c.name in NOT_HELD)).map((c) => c.name);
+  const loose = writes.filter((c) => !held(c.gate) && notHeldWhy(c.name) === undefined).map((c) => c.name);
   assert.deepEqual(
     loose,
     [],
-    "these change where mail goes or who it is sent as with no hold and no stated reason: hold each (gate act send when the actor is not a person) or add it to NOT_HELD with why",
+    "these change where communications go or who gets them with no hold and no stated reason: hold each (gate act send when the actor is not a person) or add the reason",
   );
-  for (const name of Object.keys(NOT_HELD)) assert.ok(def(name), `${name} on the list is a real capability`);
-  // and the provider modules in full: every write there is held, on the list, or a send that is already held
-  const provider = all.filter((c) => ["mailgun", "resend"].includes(c.module) && c.effects !== "read");
-  assert.deepEqual(
-    provider.filter((c) => !held(c.gate) && !(c.name in NOT_HELD)).map((c) => c.name),
-    [],
-  );
+  // the phone routes, hours, recording, assignment and webhook addresses are held
+  for (const name of [
+    "telephony.number.set_route",
+    "telephony.number.set_hours",
+    "telephony.number.set_recording",
+    "telephony.number.assign",
+    "telephony.number.import",
+    "twilio.number.configure",
+    "twilio.a2p.attach_number",
+    "telephony.transfer",
+    "webhooks.create",
+    "webhooks.update",
+    "notifications.delegate.set",
+    "network.relay_set",
+  ])
+    assert.ok(held(def(name).gate), `${name} is held for an agent`);
+  // every reason names something that exists, so a stale line is noticed
+  for (const [re] of NOT_HELD)
+    assert.ok(
+      all.some((c) => re.test(c.name)),
+      `the reason ${re} matches a real capability`,
+    );
 });
 
 // ---- a Vault handle (a secret reference) together with a place to send it: every such capability is held for an agent or is on this list with why the secret cannot go anywhere a caller chooses
