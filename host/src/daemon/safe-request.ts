@@ -1,7 +1,7 @@
 // No request can take the daemon down (lane r42-mcp, 19 Nov 2026). Everything the daemon does with a request before a route claims it (reading headers, the visitor the relay vouched for, the guards)
 // runs inside this: a throw there, or a promise that rejects, answers 500 and is logged, and the daemon stays up for the next request. An upgrade that throws closes its socket.
 import type http from "node:http";
-import { redact } from "../../../agent/src/transcript/sanitize.ts";
+import { scrubLog } from "../../../lib/secret-scrub.ts";
 import type { Duplex } from "node:stream";
 
 export type OnError = (where: "request" | "upgrade", error: unknown) => void;
@@ -62,59 +62,8 @@ export function guardUpgrade(
   };
 }
 
-const SECRET_WORDS = /^([A-Za-z_.-]{0,40}(?:password|passwd|secret|token|key|authorization|cookie|pw|sid|session)[A-Za-z_.-]{0,20})([=:])(.+)$/i;
-const MAX_SCRUBBED = 4000;
-
-/**
- * What may be written to a log from an error. The text is cut to 4000 characters first, so nothing below can take longer than a few thousand steps, and then read one word at a time (no pattern runs over the
- * whole text): an address keeps its scheme, host and path only (no user name or password, no query, no fragment); the word after "Bearer", "Authorization" or "Cookie" is removed; a word like password=..., token=...
- * or key:... keeps its name and loses its value (the short secrets the shared redact() does not catch: it keeps 8 characters and up); the rest goes through the shared linear redact(). An upstream error can echo a URL or a key in its message, so nothing from an error goes to a log unscrubbed.
- */
-export function scrub(text: string): string {
-  const parts = text.slice(0, MAX_SCRUBBED).split(/(\s+)/);
-  let hideNext = false;
-  const out: string[] = [];
-  for (const part of parts) {
-    if (part === "" || /^\s+$/.test(part)) {
-      out.push(part);
-      continue;
-    }
-    if (hideNext) {
-      // "Authorization: Bearer <token>": the scheme word stays, what follows it goes
-      if (/^(bearer|basic)$/i.test(part)) {
-        out.push(part);
-        continue;
-      }
-      hideNext = false;
-      out.push("[removed]");
-      continue;
-    }
-    if (/^(bearer|basic|authorization:?|cookie:?|set-cookie:?)$/i.test(part)) {
-      hideNext = true;
-      out.push(part);
-      continue;
-    }
-    let w = part;
-    const at = w.indexOf("://");
-    if (at > 0 && at <= 40) {
-      const scheme = w.slice(0, at + 3);
-      let rest = w.slice(at + 3);
-      const cut = rest.search(/[?#]/);
-      if (cut >= 0) rest = rest.slice(0, cut);
-      const slash = rest.indexOf("/");
-      const authority = slash >= 0 ? rest.slice(0, slash) : rest;
-      const atSign = authority.lastIndexOf("@");
-      if (atSign >= 0) rest = rest.slice(atSign + 1);
-      w = scheme + rest;
-    } else {
-      const m = SECRET_WORDS.exec(w.slice(0, 200));
-      if (m) w = `${m[1]}${m[2]}[removed]`;
-    }
-    out.push(w);
-  }
-  // what is left goes through the shared linear redact() that every transcript and tool result goes through (agent/src/transcript/sanitize.ts): vendor keys, tokens, private keys. It never throws.
-  return redact(out.join("")).text;
-}
+/** What may be written to a log from an error: the shared log scrubber (lib/secret-scrub.ts), then cut to 4000 characters at a word boundary. */
+export const scrub = (text: string): string => scrubLog(text, 4000);
 /** An error as a log line carries it: the scrubbed message and the scrubbed stack. */
 export function errorLine(e: unknown): { error: string; stack?: string } {
   if (e instanceof Error) return { error: scrub(e.message), ...(e.stack ? { stack: scrub(e.stack) } : {}) };
