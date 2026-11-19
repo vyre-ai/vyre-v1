@@ -167,6 +167,28 @@ const nodeEvent = t.obj({
   key: t.opt(t.str()),
   payload: t.json(),
 });
+const boardEntry = t.obj({
+  id: t.str(),
+  rootRun: id.run,
+  kind: t.enm("fact", "decision", "question"),
+  topic: t.opt(t.str()),
+  text: t.str(),
+  byRun: id.run,
+  evidence: t.arr(t.str()),
+  at: t.ts(),
+  supersededBy: t.opt(t.str()),
+  answer: t.opt(t.obj({ byRun: t.str(), text: t.str(), at: t.ts() })),
+});
+const nodeMessage = t.obj({
+  id: t.str(),
+  rootRun: id.run,
+  fromRun: id.run,
+  toRun: id.run,
+  body: t.str(),
+  at: t.ts(),
+  deliveredAt: t.opt(t.ts()),
+  seenAt: t.opt(t.ts()),
+});
 const nodeTarget = { runId: id.run };
 
 export default defineManifest({
@@ -454,6 +476,60 @@ export default defineManifest({
             }),
           ),
         },
+      },
+    ),
+    write(
+      "runs.board.put",
+      "A node writes to the board of its tree: a fact or decision with what it stands on, or a question",
+      {
+        in: {
+          ...nodeTarget,
+          kind: t.enm("fact", "decision", "question"),
+          text: t.str({ maxLength: 2000 }),
+          topic: t.opt(t.str({ maxLength: 120 })),
+          evidence: t.opt(t.arr(t.str({ maxLength: 500 }), { maxItems: 12 })),
+        },
+        out: { entry: boardEntry, conflict: t.opt(boardEntry) },
+        on: ["run", "/runId"],
+        level: "use",
+      },
+    ),
+    write("runs.board.answer", "The parent, the owner or a manager answers a question on the board", {
+      in: { ...nodeTarget, entryId: t.str(), text: t.str({ maxLength: 2000 }) },
+      out: { entry: boardEntry },
+      on: ["run", "/runId"],
+      level: "use",
+    }),
+    read("runs.board.list", "The board of a tree: what its nodes know together, newest last", {
+      in: { ...nodeTarget, all: t.opt(t.bool()) },
+      out: { entries: t.arr(boardEntry) },
+      on: ["run", "/runId"],
+    }),
+    write(
+      "runs.message.send",
+      "A node tells another node of its tree something (a sibling, or its parent); it is read at the receiver's next step",
+      {
+        in: { ...nodeTarget, to: t.str(), body: t.str({ maxLength: 2000 }), key: t.opt(t.str({ maxLength: 120 })) },
+        out: { message: nodeMessage, duplicate: t.bool() },
+        on: ["run", "/runId"],
+        level: "use",
+      },
+    ),
+    write("runs.message.take", "The server hands a node what waits for it and marks it delivered, once", {
+      in: nodeTarget,
+      out: { messages: t.arr(nodeMessage) },
+    }),
+    write("runs.message.seen", "The server marks delivered messages as read by their receiver", {
+      in: { messageIds: t.arr(t.str(), { maxItems: 100 }) },
+      out: { marked: t.int({ minimum: 0 }) },
+    }),
+    read(
+      "runs.message.list",
+      "The messages of a node, sent and received, with how far each got; with tree the messages of the whole tree",
+      {
+        in: { ...nodeTarget, tree: t.opt(t.bool()) },
+        out: { messages: t.arr(nodeMessage) },
+        on: ["run", "/runId"],
       },
     ),
     read("runs.events.list", "A tree's events since a cursor, in order (one node's with runId)", {

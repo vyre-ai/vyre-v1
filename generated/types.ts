@@ -35381,6 +35381,92 @@ export type RunsActivityListOut = {
       usdMicros: number;
     }>;
 };
+export type RunsBoardAnswerIn = {
+  runId: string;
+  entryId: string;
+  text: string;
+};
+export type RunsBoardAnswerOut = {
+  entry: {
+    id: string;
+    rootRun: string;
+    kind: "fact" | "decision" | "question";
+    topic?: string;
+    text: string;
+    byRun: string;
+    evidence: Array<string>;
+    at: number;
+    supersededBy?: string;
+    answer?: {
+      byRun: string;
+      text: string;
+      at: number;
+    };
+  };
+};
+export type RunsBoardListIn = {
+  runId: string;
+  all?: boolean;
+};
+export type RunsBoardListOut = {
+  entries: Array<{
+      id: string;
+      rootRun: string;
+      kind: "fact" | "decision" | "question";
+      topic?: string;
+      text: string;
+      byRun: string;
+      evidence: Array<string>;
+      at: number;
+      supersededBy?: string;
+      answer?: {
+        byRun: string;
+        text: string;
+        at: number;
+      };
+    }>;
+};
+export type RunsBoardPutIn = {
+  runId: string;
+  kind: "fact" | "decision" | "question";
+  text: string;
+  topic?: string;
+  evidence?: Array<string>;
+};
+export type RunsBoardPutOut = {
+  entry: {
+    id: string;
+    rootRun: string;
+    kind: "fact" | "decision" | "question";
+    topic?: string;
+    text: string;
+    byRun: string;
+    evidence: Array<string>;
+    at: number;
+    supersededBy?: string;
+    answer?: {
+      byRun: string;
+      text: string;
+      at: number;
+    };
+  };
+  conflict?: {
+    id: string;
+    rootRun: string;
+    kind: "fact" | "decision" | "question";
+    topic?: string;
+    text: string;
+    byRun: string;
+    evidence: Array<string>;
+    at: number;
+    supersededBy?: string;
+    answer?: {
+      byRun: string;
+      text: string;
+      at: number;
+    };
+  };
+};
 export type RunsCountIn = {
   scope: "mine" | "all";
   statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
@@ -35568,6 +35654,62 @@ export type RunsMarkWaitingOut = {
       channelId?: string;
     };
   };
+};
+export type RunsMessageListIn = {
+  runId: string;
+  tree?: boolean;
+};
+export type RunsMessageListOut = {
+  messages: Array<{
+      id: string;
+      rootRun: string;
+      fromRun: string;
+      toRun: string;
+      body: string;
+      at: number;
+      deliveredAt?: number;
+      seenAt?: number;
+    }>;
+};
+export type RunsMessageSeenIn = {
+  messageIds: Array<string>;
+};
+export type RunsMessageSeenOut = {
+  marked: number;
+};
+export type RunsMessageSendIn = {
+  runId: string;
+  to: string;
+  body: string;
+  key?: string;
+};
+export type RunsMessageSendOut = {
+  message: {
+    id: string;
+    rootRun: string;
+    fromRun: string;
+    toRun: string;
+    body: string;
+    at: number;
+    deliveredAt?: number;
+    seenAt?: number;
+  };
+  duplicate: boolean;
+};
+export type RunsMessageTakeIn = {
+  runId: string;
+};
+export type RunsMessageTakeOut = {
+  messages: Array<{
+      id: string;
+      rootRun: string;
+      fromRun: string;
+      toRun: string;
+      body: string;
+      at: number;
+      deliveredAt?: number;
+      seenAt?: number;
+    }>;
 };
 export type RunsNodeBeatIn = {
   runId: string;
@@ -50473,6 +50615,9 @@ export interface CapMap {
   "runbooks.set_target": { in: RunbooksSetTargetIn; out: RunbooksSetTargetOut };
   "runbooks.targets": { in: RunbooksTargetsIn; out: RunbooksTargetsOut };
   "runs.activity.list": { in: RunsActivityListIn; out: RunsActivityListOut };
+  "runs.board.answer": { in: RunsBoardAnswerIn; out: RunsBoardAnswerOut };
+  "runs.board.list": { in: RunsBoardListIn; out: RunsBoardListOut };
+  "runs.board.put": { in: RunsBoardPutIn; out: RunsBoardPutOut };
   "runs.count": { in: RunsCountIn; out: RunsCountOut };
   "runs.erase": { in: RunsEraseIn; out: RunsEraseOut };
   "runs.events.list": { in: RunsEventsListIn; out: RunsEventsListOut };
@@ -50480,6 +50625,10 @@ export interface CapMap {
   "runs.get": { in: RunsGetIn; out: RunsGetOut };
   "runs.list": { in: RunsListIn; out: RunsListOut };
   "runs.mark_waiting": { in: RunsMarkWaitingIn; out: RunsMarkWaitingOut };
+  "runs.message.list": { in: RunsMessageListIn; out: RunsMessageListOut };
+  "runs.message.seen": { in: RunsMessageSeenIn; out: RunsMessageSeenOut };
+  "runs.message.send": { in: RunsMessageSendIn; out: RunsMessageSendOut };
+  "runs.message.take": { in: RunsMessageTakeIn; out: RunsMessageTakeOut };
   "runs.node.beat": { in: RunsNodeBeatIn; out: RunsNodeBeatOut };
   "runs.node.claim": { in: RunsNodeClaimIn; out: RunsNodeClaimOut };
   "runs.node.control": { in: RunsNodeControlIn; out: RunsNodeControlOut };

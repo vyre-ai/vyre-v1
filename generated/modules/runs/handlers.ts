@@ -6,6 +6,9 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.activity.list": Handler<"runs.activity.list", X>;
+  "runs.board.answer": Handler<"runs.board.answer", X>;
+  "runs.board.list": Handler<"runs.board.list", X>;
+  "runs.board.put": Handler<"runs.board.put", X>;
   "runs.count": Handler<"runs.count", X>;
   "runs.erase": Handler<"runs.erase", X>;
   "runs.events.list": Handler<"runs.events.list", X>;
@@ -13,6 +16,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.get": Handler<"runs.get", X>;
   "runs.list": Handler<"runs.list", X>;
   "runs.mark_waiting": Handler<"runs.mark_waiting", X>;
+  "runs.message.list": Handler<"runs.message.list", X>;
+  "runs.message.seen": Handler<"runs.message.seen", X>;
+  "runs.message.send": Handler<"runs.message.send", X>;
+  "runs.message.take": Handler<"runs.message.take", X>;
   "runs.node.beat": Handler<"runs.node.beat", X>;
   "runs.node.claim": Handler<"runs.node.claim", X>;
   "runs.node.control": Handler<"runs.node.control", X>;

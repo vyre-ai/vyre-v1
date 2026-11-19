@@ -4,9 +4,12 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (34)
+## Capabilities (41)
 
 - [runs.activity.list](../capabilities/runs.activity.list.md): Everything of the agent work tree that is running, asleep or paused for the person (or for everyone, for someone who manages runs), newest first
+- [runs.board.answer](../capabilities/runs.board.answer.md): The parent, the owner or a manager answers a question on the board
+- [runs.board.list](../capabilities/runs.board.list.md): The board of a tree: what its nodes know together, newest last
+- [runs.board.put](../capabilities/runs.board.put.md): A node writes to the board of its tree: a fact or decision with what it stands on, or a question
 - [runs.count](../capabilities/runs.count.md): Count Runs by status for badges (failed runs in Needs you, running now)
 - [runs.erase](../capabilities/runs.erase.md): Erase one Run for good with its steps, waits and alerts (governance erase)
 - [runs.events.list](../capabilities/runs.events.list.md): A tree's events since a cursor, in order (one node's with runId)
@@ -14,6 +17,10 @@ Requires: nothing.
 - [runs.get](../capabilities/runs.get.md): Read one Run: status, owner, key and model used, cost, thread, trace
 - [runs.list](../capabilities/runs.list.md): List Runs by owner, subject, kind and status; scope all is for Manage holders and the Console
 - [runs.mark_waiting](../capabilities/runs.mark_waiting.md): Mark a Run as waiting for approval, background work or a key
+- [runs.message.list](../capabilities/runs.message.list.md): The messages of a node, sent and received, with how far each got; with tree the messages of the whole tree
+- [runs.message.seen](../capabilities/runs.message.seen.md): The server marks delivered messages as read by their receiver
+- [runs.message.send](../capabilities/runs.message.send.md): A node tells another node of its tree something (a sibling, or its parent); it is read at the receiver's next step
+- [runs.message.take](../capabilities/runs.message.take.md): The server hands a node what waits for it and marks it delivered, once
 - [runs.node.beat](../capabilities/runs.node.beat.md): A worker's heartbeat on a node it holds; false means the lease is gone and the worker must stop
 - [runs.node.claim](../capabilities/runs.node.claim.md): Take a queued node for a worker: queued to running with a lease; returns the node, or none when it was not free
 - [runs.node.control](../capabilities/runs.node.control.md): Pause, resume or stop a node and, with subtree, everything under it (the owner or someone who manages runs)

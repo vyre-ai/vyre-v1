@@ -21,6 +21,13 @@ import {
 } from "./engine.ts";
 import { stepIo } from "./step-io.ts";
 import {
+  boardAnswerCap,
+  boardListCap,
+  boardPutCap,
+  messageListCap,
+  messageSeenCap,
+  messageSendCap,
+  messageTakeCap,
   activityList,
   eventsList,
   nodeBeat,
@@ -39,6 +46,13 @@ import { agentsOfRun, withReversals } from "../../../lib/reversal.ts";
 
 const base = {
   "runs.activity.list": activityList,
+  "runs.board.answer": boardAnswerCap,
+  "runs.board.list": boardListCap,
+  "runs.board.put": boardPutCap,
+  "runs.message.list": messageListCap,
+  "runs.message.seen": messageSeenCap,
+  "runs.message.send": messageSendCap,
+  "runs.message.take": messageTakeCap,
   "runs.events.list": eventsList,
   "runs.node.beat": nodeBeat,
   "runs.node.claim": nodeClaim,

@@ -246,892 +246,893 @@ export const L204: Leaf = { "t":["string"],"en":["\"vyre_md\"","\"agent_md\"","\
 export const L205: Leaf = { "t":["string"],"en":["\"ok\"","\"amber\"","\"red\""] };
 export const L206: Leaf = { "t":["string"],"en":["\"info\"","\"warn\"","\"error\""] };
 export const L207: Leaf = { "t":["string"],"en":["\"voicemail\"","\"ring\"","\"reject\""] };
-export const L208: Leaf = { "t":["string"],"en":["\"day\"","\"hours\"","\"week\""] };
-export const L209: Leaf = { "t":["integer"],"mn":1,"mx":168 };
-export const L210: Leaf = { "t":["string"],"en":["\"chat\"","\"channel\"","\"thread\"","\"ask\"","\"run\"","\"helper\"","\"console\""] };
-export const L211: Leaf = { "t":["string"], re: new RegExp("^arq_[a-z0-9]+$") };
-export const L212: Leaf = { "t":["string"],"en":["\"waiting\"","\"granted\"","\"declined\""] };
-export const L213: Leaf = { "t":["string"], re: new RegExp("^\\+[1-9][0-9]{6,14}$") };
-export const L214: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"channel\"","\"record\"","\"thread\""] };
-export const L215: Leaf = { "t":["string"],"en":["\"number\"","\"checklist\"","\"owner\""] };
-export const L216: Leaf = { "t":["string"],"en":["\"up\"","\"down\""] };
-export const L217: Leaf = { "t":["string"],"en":["\"records\"","\"connection\"","\"mcp\"","\"automation\"","\"watch\"","\"manual\""] };
-export const L218: Leaf = { "t":["string"], re: new RegExp("^wch_[a-z0-9]+$") };
-export const L219: Leaf = { "t":["string"],"ml":1,"xl":40 };
-export const L220: Leaf = { "t":["string"],"en":["\"waiting\"","\"added\"","\"not_now\""] };
-export const L221: Leaf = { "t":["string"],"en":["\"every\"","\"after_n\""] };
-export const L222: Leaf = { "t":["integer"],"mn":2,"mx":100 };
-export const L223: Leaf = { "t":["string"], re: new RegExp("^chn_[a-z0-9]+$") };
-export const L224: Leaf = { "t":["string"],"c":"\"everyone\"" };
-export const L225: Leaf = { "t":["string"], re: new RegExp("^grp_[a-z0-9]+$") };
-export const L226: Leaf = { "t":["string"],"en":["\"blocks\"","\"html\"","\"plain\""] };
-export const L227: Leaf = { "t":["string"],"en":["\"mcp\"","\"plugin\"","\"hub\"","\"skill\""] };
-export const L228: Leaf = { "t":["string"],"en":["\"mine\"","\"space\"","\"agent\""] };
-export const L229: Leaf = { "t":["string"], re: new RegExp("^plg_[a-z0-9]+$") };
-export const L230: Leaf = { "t":["string"],"en":["\"stdio\"","\"http\"","\"sse\"","\"ws\""] };
-export const L231: Leaf = { "t":["string"],"en":["\"registry\"","\"paste\"","\"import\"","\"hub\"","\"skill\"","\"kit\"","\"hand\"","\"plugin\""] };
-export const L232: Leaf = { "t":["string"],"en":["\"oauth\""] };
-export const L233: Leaf = { "t":["string"],"en":["\"composio\"","\"pipedream\""] };
-export const L234: Leaf = { "t":["string"],"en":["\"ok\"","\"needs_signin\"","\"key_refused\"","\"not_answering\"","\"needs_setup\"","\"off\"","\"unknown\""] };
-export const L235: Leaf = { "t":["string"],"en":["\"1h\"","\"1d\"","\"7d\""] };
-export const L236: Leaf = { "t":["boolean"],"c":"true" };
-export const L237: Leaf = { "t":["string"],"en":["\"s3\"","\"drive\"","\"local\""] };
-export const L238: Leaf = { "t":["string"], re: new RegExp("^cdr_[a-z0-9]+$") };
-export const L239: Leaf = { "t":["string"],"en":["\"person\"","\"space\""] };
-export const L240: Leaf = { "t":["string"],"en":["\"pending\"","\"active\"","\"paused\"","\"needs_reconnect\"","\"failing\""] };
-export const L241: Leaf = { "t":["string"],"en":["\"all\"","\"one\""] };
-export const L242: Leaf = { "t":["string"],"en":["\"started\"","\"claimed\"","\"slept\"","\"woke\"","\"paused\"","\"resumed\"","\"done\"","\"failed\"","\"stopped\"","\"worker_lost\"","\"budget\"","\"stuck\"","\"parent_stopped\"","\"parent_paused\"","\"retry\"","\"lease_lost\""] };
-export const L243: Leaf = { "t":["string"], re: new RegExp("^agr_[a-z0-9]+$") };
-export const L244: Leaf = { "t":["string"], re: new RegExp("^rvw_[a-z0-9]+$") };
-export const L245: Leaf = { "t":["string"],"en":["\"open\"","\"closed\""] };
-export const L246: Leaf = { "t":["string"],"en":["\"turn\"","\"subagent\"","\"helper\"","\"crew\"","\"handoff\"","\"ask\"","\"routine\"","\"wait\"","\"watcher\"","\"terminal\"","\"job\"","\"mcp\"","\"other\""] };
-export const L247: Leaf = { "t":["string"],"en":["\"queued\"","\"running\"","\"waiting\"","\"paused\"","\"succeeded\"","\"failed\"","\"stopped\""] };
-export const L248: Leaf = { "t":["string"],"en":["\"checks\""] };
-export const L249: Leaf = { "t":["string"],"en":["\"pending\"","\"passing\"","\"failing\"","\"none\""] };
-export const L250: Leaf = { "t":["string"],"en":["\"agent_computer\"","\"space_server\"","\"device\""] };
-export const L251: Leaf = { "t":["string"], re: new RegExp("^dev_[a-z0-9]+$") };
-export const L252: Leaf = { "t":["string"],"en":["\"running\"","\"idle\"","\"exited\""] };
-export const L253: Leaf = { "t":["string"],"en":["\"agent\"","\"helper\"","\"person\""] };
-export const L254: Leaf = { "t":["string"], re: new RegExp("^bkg_[a-z0-9]+$") };
-export const L255: Leaf = { "t":["string"],"en":["\"booked\"","\"cancelled\"","\"rescheduled\""] };
-export const L256: Leaf = { "t":["string"],"en":["\"approval.requested\"","\"answer.requested\"","\"unblock.requested\"","\"approval.backstop\"","\"dm\"","\"mention\"","\"call.incoming\"","\"agent.blocked\"","\"incident.owned\"","\"task.assigned\"","\"reply.followed\"","\"agent.task_finished\"","\"digest.away\"","\"mention.thread\"","\"run.failed\"","\"conflict.needs_you\"","\"access.requested\"","\"access.decided\"","\"sync.attention\"","\"health.degraded\"","\"problem.report\"","\"member.joined\"","\"member.join_requested\"","\"limit.hit\"","\"vault.rotation_due\"","\"reply.thread\"","\"task.turn\"","\"task.returned\"","\"task.finished\"","\"task.due\"","\"machine.alert\"","\"item.shared\"","\"space.deletion_scheduled\"","\"space.deletion_cancelled\"","\"ci.paused\"","\"hook.asked\""] };
-export const L257: Leaf = { "t":["string"],"en":["\"todo\"","\"doing\"","\"in_review\"","\"awaiting_approval\"","\"done\"","\"canceled\""] };
-export const L258: Leaf = { "t":["string"],"en":["\"review\"","\"approval\""] };
-export const L259: Leaf = { "t":["string"], re: new RegExp("^pac_[a-z0-9]+$") };
-export const L260: Leaf = { "t":["string"],"en":["\"invited\"","\"active\"","\"disabled\""] };
-export const L261: Leaf = { "t":["string"], re: new RegExp("^rpt_[a-z0-9]+$") };
-export const L262: Leaf = { "t":["string"],"en":["\"open\"","\"accepted\"","\"revoked\"","\"expired\""] };
-export const L263: Leaf = { "t":["string"], re: new RegExp("^mkt_[a-z0-9]+$") };
-export const L264: Leaf = { "t":["string"],"en":["\"space\"","\"agent\""] };
-export const L265: Leaf = { "t":["string"],"en":["\"ask\"","\"show\"","\"hide\""] };
-export const L266: Leaf = { "t":["string"], re: new RegExp("^tpl_[a-z0-9]+$") };
-export const L267: Leaf = { "t":["string"],"en":["\"text\"","\"heading\"","\"image\"","\"button\"","\"columns\"","\"divider\"","\"merge\"","\"footer\"","\"html\"","\"spacer\"","\"social\"","\"saved\""] };
-export const L268: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"actor\"","\"service\"","\"group\"","\"role\"","\"grant\"","\"policy\"","\"review\"","\"device\"","\"session\"","\"invite\""] };
-export const L269: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"actor\"","\"service\""] };
-export const L270: Leaf = { "t":["string"],"en":["\"running\"","\"asleep\"","\"waiting\"","\"error\""] };
-export const L271: Leaf = { "t":["string"],"en":["\"owner\"","\"admin\"","\"viewer\""] };
-export const L272: Leaf = { "t":["string"],"ml":1,"xl":60 };
-export const L273: Leaf = { "t":["string"],"en":["\"always\"","\"ask\"","\"never\""] };
-export const L274: Leaf = { "t":["string"],"en":["\"CNAME\"","\"A\""] };
-export const L275: Leaf = { "t":["string"],"en":["\"waiting_dns\"","\"issuing\"","\"live\""] };
-export const L276: Leaf = { "t":["string"],"en":["\"api_key\"","\"subscription\""] };
-export const L277: Leaf = { "t":["string"],"en":["\"subscription\"","\"reported\"","\"catalog\"","\"estimate\"","\"unknown\"","\"flat\""] };
-export const L278: Leaf = { "t":["string"],"en":["\"input\"","\"output\"","\"cache_read\"","\"cache_write\""] };
-export const L279: Leaf = { "t":["string"],"en":["\"subscription\"","\"api_key\"","\"local_model\""] };
-export const L280: Leaf = { "t":["string"], re: new RegExp("^exc_[a-z0-9]+$") };
-export const L281: Leaf = { "t":["string"],"en":["\"allow\"","\"deny\"","\"own\"","\"ask\""] };
-export const L282: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"actor\"","\"external\""] };
-export const L283: Leaf = { "t":["string"],"en":["\"read\"","\"act\""] };
-export const L284: Leaf = { "t":["string"], re: new RegExp("^hld_[a-z0-9]+$") };
-export const L285: Leaf = { "t":["string"],"en":["\"held\"","\"approved\"","\"denied\"","\"expired\""] };
-export const L286: Leaf = { "t":["integer"],"mn":1,"mx":5000 };
-export const L287: Leaf = { "t":["string"],"en":["\"queued\"","\"running\"","\"succeeded\"","\"failed\"","\"stopped\""] };
-export const L288: Leaf = { "t":["string"],"en":["\"disk_low\"","\"memory_pressure\"","\"offline_pinned\"","\"update_waiting\"","\"backup_failed\""] };
-export const L289: Leaf = { "t":["string"],"en":["\"info\"","\"warn\"","\"bad\""] };
-export const L290: Leaf = { "t":["string"], re: new RegExp("^aud_[a-z0-9]+$") };
-export const L291: Leaf = { "t":["string"],"en":["\"change\"","\"sensitive\"","\"deny\"","\"admin\"","\"erase\"","\"sign_in\""] };
-export const L292: Leaf = { "t":["string"],"en":["\"desktop\"","\"phone\"","\"web\"","\"extension\"","\"daemon\""] };
-export const L293: Leaf = { "t":["string"],"en":["\"totp\"","\"passkey\""] };
-export const L294: Leaf = { "t":["string"],"en":["\"google_drive\"","\"sharepoint\"","\"onedrive\"","\"dropbox\"","\"local\"","\"github\""] };
-export const L295: Leaf = { "t":["string"],"en":["\"idle\"","\"syncing\"","\"paused\"","\"failing\"","\"device_offline\""] };
-export const L296: Leaf = { "t":["string"],"en":["\"server_copy\"","\"live_only\""] };
-export const L297: Leaf = { "t":["string"],"en":["\"push\"","\"poll\""] };
-export const L298: Leaf = { "t":["string"],"en":["\"open\"","\"closed\"","\"merged\""] };
-export const L299: Leaf = { "t":["string"],"en":["\"none\"","\"pending\"","\"passing\"","\"failing\""] };
-export const L300: Leaf = { "t":["string"],"en":["\"chat\"","\"run\"","\"gate\"","\"journey\"","\"meeting\"","\"goal\"","\"manual\""] };
-export const L301: Leaf = { "t":["string"],"xl":200 };
-export const L302: Leaf = { "t":["integer"],"mn":0,"mx":3 };
-export const L303: Leaf = { "t":["string"],"en":["\"ok\"","\"blocked\"","\"note\"","\"error\"","\"timeout\"","\"skipped\"","\"allowed_once\"","\"allowed_always\""] };
-export const L304: Leaf = { "t":["string"], re: new RegExp("^vrq_[a-z0-9]+$") };
-export const L305: Leaf = { "t":["string"],"en":["\"ask\"","\"have\"","\"admin\"","\"asked\"","\"connected\"","\"wrong\"","\"offline\"","\"later\"","\"gone\""] };
-export const L306: Leaf = { "t":["string"],"en":["\"permission\""] };
-export const L307: Leaf = { "t":["string"],"en":["\"file\"","\"channel\"","\"thread\"","\"folder\"","\"person\""] };
-export const L308: Leaf = { "t":["string"], re: new RegExp("^ins_[a-z0-9]+$") };
-export const L309: Leaf = { "t":["string"],"en":["\"skill\"","\"plugin\"","\"mcp_local\"","\"mcp_remote\"","\"site\""] };
-export const L310: Leaf = { "t":["string"],"en":["\"claude\"","\"codex\""] };
-export const L311: Leaf = { "t":["string"],"en":["\"me\"","\"agent\"","\"space\""] };
-export const L312: Leaf = { "t":["string"],"en":["\"sandbox\"","\"space\""] };
-export const L313: Leaf = { "t":["string"],"en":["\"hold\"","\"allow\""] };
-export const L314: Leaf = { "t":["string"],"en":["\"low\"","\"medium\"","\"high\""] };
-export const L315: Leaf = { "t":["string"],"en":["\"drop\"","\"escalate\""] };
-export const L316: Leaf = { "t":["string"],"en":["\"delegate\"","\"role\""] };
-export const L317: Leaf = { "t":["string"],"en":["\"space\"","\"floor\"","\"agent\""] };
-export const L318: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"group\""] };
-export const L319: Leaf = { "t":["string"],"en":["\"error\"","\"warn\""] };
-export const L320: Leaf = { "t":["string"], re: new RegExp("^isc_[a-z0-9]+$") };
-export const L321: Leaf = { "t":["string"],"en":["\"codex\"","\"claude_code\""] };
-export const L322: Leaf = { "t":["string"], re: new RegExp("^spc_[a-z0-9]+$") };
-export const L323: Leaf = { "t":["string"],"en":["\"personal\"","\"team\""] };
-export const L324: Leaf = { "t":["string"],"en":["\"relay\"","\"own_domain\"","\"device\""] };
-export const L325: Leaf = { "t":["string"],"en":["\"email\"","\"phone\""] };
-export const L326: Leaf = { "t":["string"], re: new RegExp("^viw_[a-z0-9]+$") };
-export const L327: Leaf = { "t":["string"],"en":["\"changed_since\"","\"not_undoable\"","\"sent\"","\"deployed\""] };
-export const L328: Leaf = { "t":["string"], re: new RegExp("^cfl_[a-z0-9]+$") };
-export const L329: Leaf = { "t":["string"],"en":["\"open\"","\"proposed\"","\"needs_you\"","\"resolved\""] };
-export const L330: Leaf = { "t":["string"],"en":["\"person\"","\"client\"","\"project\"","\"agent\"","\"record\"","\"topic\"","\"decision\"","\"site\""] };
-export const L331: Leaf = { "t":["string"],"en":["\"user\"","\"assistant\""] };
-export const L332: Leaf = { "t":["string"],"en":["\"off\"","\"announce\"","\"ask\""] };
-export const L333: Leaf = { "t":["string"],"en":["\"none\"","\"pending\"","\"approved\"","\"rejected\""] };
-export const L334: Leaf = { "t":["string"],"en":["\"pending\"","\"active\"","\"released\""] };
-export const L335: Leaf = { "t":["string"], re: new RegExp("^cal_[a-z0-9]+$") };
-export const L336: Leaf = { "t":["string"],"en":["\"ringing\"","\"answered\"","\"voicemail\"","\"completed\"","\"missed\"","\"failed\""] };
-export const L337: Leaf = { "t":["string"],"en":["\"urgent\"","\"high\"","\"normal\"","\"low\""] };
-export const L338: Leaf = { "t":["string"],"en":["\"day\"","\"week\"","\"month\""] };
-export const L339: Leaf = { "t":["integer"],"mn":1,"mx":365 };
-export const L340: Leaf = { "t":["string"],"en":["\"bearer\"","\"basic\"","\"header\""] };
-export const L341: Leaf = { "t":["string"],"en":["\"space\"","\"record_type\"","\"record\"","\"project\"","\"folder\"","\"file\"","\"channel\"","\"thread\"","\"inbox\"","\"mailbox\"","\"vault_folder\"","\"vault_item\"","\"automation_group\"","\"automation\"","\"agent\"","\"connector\"","\"connection\"","\"site\"","\"form\"","\"kit\"","\"terminal\"","\"computer\"","\"task\"","\"run\"","\"number\"","\"domain\"","\"calendar\"","\"skill\""] };
-export const L342: Leaf = { "t":["string"],"en":["\"fail\"","\"continue\"","\"retry\"","\"route\"","\"skip\"","\"substitute\""] };
-export const L343: Leaf = { "t":["integer"],"mn":1,"mx":10 };
-export const L344: Leaf = { "t":["string"],"en":["\"answer\"","\"task\""] };
-export const L345: Leaf = { "t":["string"], re: new RegExp("^vfd_[a-z0-9]+$") };
-export const L346: Leaf = { "t":["string"],"en":["\"mine\"","\"shared\""] };
-export const L347: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\""] };
-export const L348: Leaf = { "t":["string"],"en":["\"debug\"","\"info\"","\"warn\"","\"error\""] };
-export const L349: Leaf = { "t":["string"], re: new RegExp("^[0-9a-f]{7,40}$") };
-export const L350: Leaf = { "t":["string"],"en":["\"send\"","\"post\"","\"pay\"","\"delete\"","\"transfer\"","\"enroll_node\"","\"connection_change\"","\"push_protected\"","\"secret_export\"","\"site_promote\"","\"signature_send\"","\"spend_raise\"","\"signin_change\"","\"install\"","\"approve\"","\"github_approval\"","\"agent_erase\""] };
-export const L351: Leaf = { "t":["string"], re: new RegExp("^bsi_[a-z0-9]+$") };
-export const L352: Leaf = { "t":["string"],"en":["\"chrome\"","\"computers\"","\"both\""] };
-export const L353: Leaf = { "t":["string"],"en":["\"label_denied\"","\"scrub_miss\"","\"runaway_spend\"","\"repeated_failure\"","\"person_report\"","\"other\""] };
-export const L354: Leaf = { "t":["string"],"en":["\"open\"","\"assigned\"","\"resolved\""] };
-export const L355: Leaf = { "t":["string"],"en":["\"tasks\"","\"milestones\"","\"links\"","\"records\"","\"metric\"","\"ci\"","\"goal\"","\"people\"","\"status\""] };
-export const L356: Leaf = { "t":["string"],"en":["\"list\"","\"table\"","\"count\"","\"cards\""] };
-export const L357: Leaf = { "t":["string"],"en":["\"file\"","\"line\"","\"range\"","\"area\"","\"page\"","\"cell\""] };
-export const L358: Leaf = { "t":["string"], re: new RegExp("^(usr|agt|act|svc)_[a-z0-9]+$") };
-export const L359: Leaf = { "t":["string"],"en":["\"invited\"","\"active\"","\"suspended\"","\"removed\""] };
-export const L360: Leaf = { "t":["string"],"en":["\"todo\"","\"doing\"","\"done\"","\"skipped\""] };
-export const L361: Leaf = { "t":["string"], re: new RegExp("^adr_[a-z0-9]+$") };
-export const L362: Leaf = { "t":["string"],"en":["\"email\"","\"phone\"","\"handle\""] };
-export const L363: Leaf = { "t":["string"],"en":["\"text\"","\"markdown\"","\"document\"","\"spreadsheet\"","\"presentation\"","\"pdf\"","\"image\"","\"video\"","\"audio\"","\"code\"","\"archive\"","\"google_native\"","\"other\""] };
-export const L364: Leaf = { "t":["string"], re: new RegExp("^cnv_[a-z0-9]+$") };
-export const L365: Leaf = { "t":["string"],"en":["\"email\"","\"sms\"","\"call\"","\"meeting\""] };
-export const L366: Leaf = { "t":["string"],"en":["\"draft\"","\"planning\"","\"active\"","\"waiting\"","\"stuck\"","\"paused\"","\"done\"","\"missed\"","\"stopped\""] };
-export const L367: Leaf = { "t":["string"],"en":["\"done\"","\"missed\"","\"stopped\""] };
-export const L368: Leaf = { "t":["string"],"en":["\"personal\"","\"shared\"","\"agent\"","\"service\""] };
-export const L369: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\"","\"imap\"","\"inbound_only\""] };
-export const L370: Leaf = { "t":["string"],"en":["\"pending\"","\"syncing\"","\"paused\"","\"error\"","\"disconnected\""] };
-export const L371: Leaf = { "t":["string"], re: new RegExp("^res_[a-z0-9]+$") };
-export const L372: Leaf = { "t":["string"], re: new RegExp("^snp_[a-z0-9]+$") };
-export const L373: Leaf = { "t":["string"],"en":["\"on\"","\"risk\"","\"off\"","\"hold\"","\"done\""] };
-export const L374: Leaf = { "t":["string"], re: new RegExp("^sup_[a-z0-9]+$") };
-export const L375: Leaf = { "t":["string"],"en":["\"bounce_hard\"","\"complaint\"","\"unsubscribe\"","\"stop\"","\"manual\"","\"do_not_contact\"","\"import\""] };
-export const L376: Leaf = { "t":["string"],"en":["\"git\"","\"local\""] };
-export const L377: Leaf = { "t":["string"],"en":["\"agent\"","\"project\"","\"space\""] };
-export const L378: Leaf = { "t":["string"], re: new RegExp("^rte_[a-z0-9]+$") };
-export const L379: Leaf = { "t":["string"], re: new RegExp("^dom_[a-z0-9]+$") };
-export const L380: Leaf = { "t":["string"],"en":["\"resend\"","\"mailgun\""] };
-export const L381: Leaf = { "t":["string"],"en":["\"on\"","\"loading\"","\"not_set_up\"","\"degraded\"","\"off\""] };
-export const L382: Leaf = { "t":["string"],"en":["\"assistant\"","\"teammate\"","\"agent\""] };
-export const L383: Leaf = { "t":["string"],"en":["\"vyre\"","\"outside\""] };
-export const L384: Leaf = { "t":["string"],"en":["\"same_provider\"","\"any\"","\"ask\""] };
-export const L385: Leaf = { "t":["string"],"en":["\"asker\"","\"key\""] };
-export const L386: Leaf = { "t":["string"],"en":["\"auto\"","\"propose\"","\"auto_low_risk\"","\"off\""] };
-export const L387: Leaf = { "t":["string"],"en":["\"open\"","\"proposed\"","\"needs_you\"","\"resolved\"","\"undone\""] };
-export const L388: Leaf = { "t":["string"],"en":["\"ours\"","\"theirs\"","\"merged\"","\"custom\""] };
-export const L389: Leaf = { "t":["string"],"en":["\"zoom\"","\"meet\"","\"teams\"","\"none\""] };
-export const L390: Leaf = { "t":["string"],"en":["\"confirmed\"","\"tentative\"","\"canceled\""] };
-export const L391: Leaf = { "t":["string"],"en":["\"login\"","\"api_key\"","\"env\"","\"card\"","\"note\"","\"totp\"","\"ssh_key\"","\"ai_subscription\"","\"other\""] };
-export const L392: Leaf = { "t":["string"],"xl":14000000 };
-export const L393: Leaf = { "t":["string"],"en":["\"image/png\"","\"image/jpeg\"","\"image/gif\"","\"image/webp\""] };
-export const L394: Leaf = { "t":["string"], re: new RegExp("^prv_[a-z0-9]+$") };
-export const L395: Leaf = { "t":["string"], re: new RegExp("^\\d+\\.\\d+\\.\\d+") };
-export const L396: Leaf = { "t":["string"], re: new RegExp("^reg_[a-z0-9]+$") };
-export const L397: Leaf = { "t":["string"],"en":["\"draft\"","\"submitted\"","\"in_review\"","\"approved\"","\"rejected\""] };
-export const L398: Leaf = { "t":["string"],"en":["\"text\"","\"paragraph\"","\"image\"","\"binary\""] };
-export const L399: Leaf = { "t":["string"], re: new RegExp("^sch_[a-z0-9]+$") };
-export const L400: Leaf = { "t":["string"],"en":["\"skip\"","\"run_once\""] };
-export const L401: Leaf = { "t":["string"],"en":["\"private\"","\"shared\"","\"room\""] };
-export const L402: Leaf = { "t":["string"],"en":["\"scheduled\"","\"live\"","\"ended\"","\"canceled\""] };
-export const L403: Leaf = { "t":["string"],"en":["\"none\"","\"pending\"","\"attached\"","\"unavailable\""] };
-export const L404: Leaf = { "t":["string"],"en":["\"send\"","\"post\"","\"push_protected\"","\"site_promote\"","\"signature_send\""] };
-export const L405: Leaf = { "t":["string"],"en":["\"lead\"","\"listen\""] };
-export const L406: Leaf = { "t":["string"],"en":["\"low\"","\"medium\"","\"high\"","\"max\""] };
-export const L407: Leaf = { "t":["string"],"en":["\"always\"","\"topics\"","\"hours\""] };
-export const L408: Leaf = { "t":["string"], re: new RegExp("^([01][0-9]|2[0-3]):[0-5][0-9]$") };
-export const L409: Leaf = { "t":["string"],"en":["\"short\"","\"full\""] };
-export const L410: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"group\"","\"role\""] };
-export const L411: Leaf = { "t":["string"],"en":["\"digitalocean\""] };
-export const L412: Leaf = { "t":["integer"],"mn":1,"mx":20 };
-export const L413: Leaf = { "t":["number"],"mn":0 };
-export const L414: Leaf = { "t":["integer"],"mn":5,"mx":360 };
-export const L415: Leaf = { "t":["string"], re: new RegExp("^[A-Za-z0-9_.-]{1,40}$") };
-export const L416: Leaf = { "t":["string"],"en":["\"message\"","\"step\""] };
-export const L417: Leaf = { "t":["string"],"en":["\"person\"","\"limit\"","\"transient\"","\"other\""] };
-export const L418: Leaf = { "t":["string"],"en":["\"needs_action\"","\"accepted\"","\"declined\"","\"tentative\""] };
-export const L419: Leaf = { "t":["string"],"en":["\"own\"","\"space\"","\"none\""] };
-export const L420: Leaf = { "t":["string"],"en":["\"ok\"","\"failing\""] };
-export const L421: Leaf = { "t":["string"],"en":["\"ask\"","\"allow\"","\"auto\""] };
-export const L422: Leaf = { "t":["string"],"en":["\"role\"","\"person\""] };
-export const L423: Leaf = { "t":["string"], re: new RegExp("^sug_[a-z0-9]+$") };
-export const L424: Leaf = { "t":["string"],"en":["\"agent_md\"","\"template\""] };
-export const L425: Leaf = { "t":["string"],"en":["\"open\"","\"accepted\"","\"dismissed\""] };
-export const L426: Leaf = { "t":["string"],"en":["\"person\"","\"guest\"","\"agent\"","\"system\""] };
-export const L427: Leaf = { "t":["string"], re: new RegExp("^mrk_[a-z0-9]+$") };
-export const L428: Leaf = { "t":["string"],"en":["\"redact\"","\"highlight\""] };
-export const L429: Leaf = { "t":["string"],"en":["\"span\"","\"box\"","\"range\"","\"name\""] };
-export const L430: Leaf = { "t":["string"], re: new RegExp("^pln_[a-z0-9]+$") };
-export const L431: Leaf = { "t":["string"],"en":["\"added\"","\"modified\"","\"deleted\"","\"renamed\"","\"untracked\"","\"conflicted\""] };
-export const L432: Leaf = { "t":["string"],"en":["\"POST\"","\"PUT\"","\"PATCH\"","\"DELETE\""] };
-export const L433: Leaf = { "t":["string"],"en":["\"failing_check\"","\"expiring_certificate\"","\"failed_run\"","\"stuck_update\"","\"limit_hit\"","\"access_review_due\"","\"join_stuck\"","\"home_channel\"","\"no_ai_account\"","\"space_deletion_scheduled\""] };
-export const L434: Leaf = { "t":["string"],"en":["\"person\"","\"agent\""] };
-export const L435: Leaf = { "t":["string"],"en":["\"type.create\"","\"type.update\"","\"type.drop\"","\"field.add\"","\"field.update\"","\"field.retype\"","\"field.rename\"","\"field.drop\"","\"field.reorder\"","\"relation.add\"","\"relation.drop\""] };
-export const L436: Leaf = { "t":["string"],"en":["\"ok\"","\"second_factor_required\""] };
-export const L437: Leaf = { "t":["string"], re: new RegExp("^chl_[a-z0-9]+$") };
-export const L438: Leaf = { "t":["string"], re: new RegExp("^ses_[a-z0-9]+$") };
-export const L439: Leaf = { "t":["string"],"en":["\"record\"","\"file\"","\"chat\"","\"task\"","\"artifact\"","\"mail_thread\"","\"calendar_event\"","\"github.pr\"","\"github.commit\"","\"ci.run\"","\"url\""] };
-export const L440: Leaf = { "t":["string"],"en":["\"manual\"","\"agent\"","\"rule\""] };
-export const L441: Leaf = { "t":["string"],"en":["\"space\"","\"agent\"","\"mine\""] };
-export const L442: Leaf = { "t":["string"],"en":["\"stdio\"","\"http\""] };
-export const L443: Leaf = { "t":["string"], re: new RegExp("^gnt_[a-z0-9]+$") };
-export const L444: Leaf = { "t":["string"],"en":["\"ask\"","\"auto\"","\"plan\""] };
-export const L445: Leaf = { "t":["string"],"en":["\"space\"","\"person\"","\"agent\"","\"chat\"","\"run\""] };
-export const L446: Leaf = { "t":["string"],"en":["\"session.start\"","\"prompt.submit\"","\"tool.before\"","\"tool.after\"","\"outward.before\"","\"turn.end\"","\"helper.start\"","\"helper.end\""] };
-export const L447: Leaf = { "t":["string"],"en":["\"command\"","\"check\"","\"action\""] };
-export const L448: Leaf = { "t":["string"],"en":["\"admin\"","\"person\"","\"agent\""] };
-export const L449: Leaf = { "t":["integer"],"mn":1,"mx":60 };
-export const L450: Leaf = { "t":["string"],"en":["\"missing\"","\"stale\""] };
-export const L451: Leaf = { "t":["string"],"en":["\"ai_field\"","\"agent_lookup\"","\"task\"","\"form\""] };
-export const L452: Leaf = { "t":["string"],"en":["\"ok\"","\"needs_sign_in\"","\"failing\""] };
-export const L453: Leaf = { "t":["string"],"en":["\"postgres\"","\"redis\""] };
-export const L454: Leaf = { "t":["string"],"en":["\"starting\"","\"ready\"","\"failed\""] };
-export const L455: Leaf = { "t":["string"],"en":["\"region\"","\"page\""] };
-export const L456: Leaf = { "t":["integer"],"mn":5,"mx":10080 };
-export const L457: Leaf = { "t":["string"],"en":["\"computer\"","\"chrome\""] };
-export const L458: Leaf = { "t":["string"],"en":["\"on\"","\"paused\"","\"error\""] };
-export const L459: Leaf = { "t":["string"],"en":["\"api\"","\"mcp\"","\"dwd\"","\"oauth_app\"","\"webhook_only\""] };
-export const L460: Leaf = { "t":["string"],"en":["\"live\"","\"draft\"","\"failing_tests\""] };
-export const L461: Leaf = { "t":["string"],"en":["\"waiting\"","\"fulfilled\"","\"declined\"","\"canceled\""] };
-export const L462: Leaf = { "t":["string"],"en":["\"page\"","\"chat\"","\"run\"","\"record\""] };
-export const L463: Leaf = { "t":["string"],"en":["\"site\"","\"app\"","\"api\"","\"worker\"","\"artifact\""] };
-export const L464: Leaf = { "t":["string"],"en":["\"public\"","\"password\"","\"space\"","\"private\""] };
-export const L465: Leaf = { "t":["string"],"en":["\"link\"","\"space\""] };
-export const L466: Leaf = { "t":["string"],"en":["\"device\"","\"agent_run\""] };
-export const L467: Leaf = { "t":["string"],"en":["\"note\"","\"person\"","\"client\"","\"project\"","\"site\"","\"decision\"","\"record\"","\"chat\"","\"agent\"","\"topic\""] };
-export const L468: Leaf = { "t":["string"],"en":["\"link\"","\"relation\"","\"came_from\"","\"mention\""] };
-export const L469: Leaf = { "t":["string"],"en":["\"queued\"","\"running\"","\"waiting\"","\"succeeded\"","\"failed\"","\"stopped\""] };
-export const L470: Leaf = { "t":["string"], re: new RegExp("^rcd_[a-z0-9]+$") };
-export const L471: Leaf = { "t":["string"],"en":["\"recording\"","\"saved\"","\"processed\""] };
-export const L472: Leaf = { "t":["string"],"en":["\"on\"","\"off\"","\"draft\"","\"paused\""] };
-export const L473: Leaf = { "t":["string"], re: new RegExp("^rtn_[a-z0-9]+$") };
-export const L474: Leaf = { "t":["string"],"en":["\"schedule\"","\"watch\""] };
-export const L475: Leaf = { "t":["string"],"en":["\"running\"","\"succeeded\"","\"failed\"","\"stopped\""] };
-export const L476: Leaf = { "t":["string"], re: new RegExp("^cir_[a-z0-9]+$") };
-export const L477: Leaf = { "t":["string"],"en":["\"queued\"","\"starting\"","\"running\"","\"finished\"","\"failed\"","\"swept\"","\"refused\""] };
-export const L478: Leaf = { "t":["string"],"en":["\"event\"","\"time\"","\"process\"","\"person\"","\"child\"","\"deps\"","\"log\""] };
-export const L479: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"group\"","\"role\"","\"automation\""] };
-export const L480: Leaf = { "t":["string"],"en":["\"agent\"","\"automation\"","\"journey\"","\"record_type\"","\"runbook\"","\"project\"","\"site\"","\"form\"","\"portal\""] };
-export const L481: Leaf = { "t":["string"], re: new RegExp("^prm_[a-z0-9]+$") };
-export const L482: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"actor\"","\"service\"","\"group\""] };
-export const L483: Leaf = { "t":["string"], re: new RegExp("^(usr|agt|act|svc|grp)_[a-z0-9]+$") };
-export const L484: Leaf = { "t":["string"],"en":["\"public\"","\"invite\""] };
-export const L485: Leaf = { "t":["string"],"en":["\"message\""] };
-export const L486: Leaf = { "t":["string"],"en":["\"automation\"","\"journey\"","\"agent_routine\"","\"gate\"","\"task\"","\"system\"","\"goal\""] };
-export const L487: Leaf = { "t":["string"],"en":["\"chat\"","\"channel\"","\"project\"","\"goal\"","\"person\"","\"agent\""] };
-export const L488: Leaf = { "t":["string"],"en":["\"task\"","\"record\"","\"email\"","\"hold\""] };
-export const L489: Leaf = { "t":["string"],"en":["\"proposed\"","\"approved\"","\"skipped\"","\"failed\""] };
-export const L490: Leaf = { "t":["string"],"en":["\"send\"","\"draft\""] };
-export const L491: Leaf = { "t":["string"],"en":["\"task\"","\"record\"","\"comment\"","\"email\"","\"draft\"","\"event\"","\"approval\""] };
-export const L492: Leaf = { "t":["string"],"en":["\"decision\"","\"finished\"","\"record_change\"","\"routine\"","\"notice\"","\"waiting\""] };
-export const L493: Leaf = { "t":["string"],"en":["\"trash\"","\"run_logs\"","\"transcripts\"","\"audit\"","\"file_versions\"","\"logs\"","\"events\"","\"backups\"","\"memory\"","\"records\""] };
-export const L494: Leaf = { "t":["string"],"en":["\"\"","\"rose\"","\"sand\"","\"sage\"","\"sky\"","\"lilac\"","\"slate\""] };
-export const L495: Leaf = { "t":["string"],"en":["\"image\"","\"icon\""] };
-export const L496: Leaf = { "t":["string"],"en":["\"task\"","\"record\""] };
-export const L497: Leaf = { "t":["string"],"en":["\"edit\"","\"view\""] };
-export const L498: Leaf = { "t":["string"],"en":["\"off\"","\"view\"","\"edit\""] };
-export const L499: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\"","\"okta\""] };
-export const L500: Leaf = { "t":["string"],"xl":300 };
-export const L501: Leaf = { "t":["string"],"en":["\"records\"","\"files\"","\"memory\"","\"vault\"","\"automations\"","\"chats\"","\"inbox\"","\"sites\"","\"terminal\"","\"computer\"","\"agents\"","\"tasks\"","\"meta\"","\"engineer\""] };
-export const L502: Leaf = { "t":["number"],"mn":0.1,"mx":16 };
-export const L503: Leaf = { "t":["integer"],"mn":128,"mx":65536 };
-export const L504: Leaf = { "t":["integer"],"mn":256,"mx":1048576 };
-export const L505: Leaf = { "t":["string"],"en":["\"repo\"","\"record_filter\"","\"email_domain\""] };
-export const L506: Leaf = { "t":["string"],"en":["\"admins\"","\"viewers\"","\"chosen\""] };
-export const L507: Leaf = { "t":["string"],"en":["\"allow\"","\"deny\"","\"hold\""] };
-export const L508: Leaf = { "t":["string"],"en":["\"owner\"","\"person\"","\"group\"","\"role\""] };
-export const L509: Leaf = { "t":["string"],"en":["\"any\"","\"approved\"","\"none\""] };
-export const L510: Leaf = { "t":["string"],"en":["\"personal\"","\"shared\"","\"space\"","\"starred\"","\"following\""] };
-export const L511: Leaf = { "t":["string"],"en":["\"owner\"","\"grant\"","\"folder\"","\"space\""] };
-export const L512: Leaf = { "t":["string"],"en":["\"none\"","\"view\"","\"use\"","\"edit\"","\"manage\""] };
-export const L513: Leaf = { "t":["string"],"en":["\"keep\"","\"remove\""] };
-export const L514: Leaf = { "t":["string"],"en":["\"direct\"","\"group\"","\"role\"","\"folder\"","\"owner\""] };
-export const L515: Leaf = { "t":["string"], re: new RegExp("^[a-z][a-z0-9-]{0,63}$") };
-export const L516: Leaf = { "t":["string"],"en":["\"person_only\"","\"no_edit\""] };
-export const L517: Leaf = { "t":["string"],"en":["\"me\"","\"everyone\""] };
-export const L518: Leaf = { "t":["string"],"en":["\"automation\"","\"task\"","\"goal\"","\"project\""] };
-export const L519: Leaf = { "t":["string"],"c":"\".vyre/guide.md\"" };
-export const L520: Leaf = { "t":["string"],"xl":240 };
-export const L521: Leaf = { "t":["string"],"en":["\"agent\"","\"person\"","\"space\""] };
-export const L522: Leaf = { "t":["string"],"en":["\"personal\"","\"shared\"","\"space\""] };
-export const L523: Leaf = { "t":["string"],"en":["\"hide\"","\"include\"","\"only\""] };
-export const L524: Leaf = { "t":["string"], re: new RegExp("^ojb_[a-z0-9]+$") };
-export const L525: Leaf = { "t":["string"],"en":["\"mention\"","\"task\"","\"answer\""] };
-export const L526: Leaf = { "t":["string"],"en":["\"AGENT.md\"","\"agent.toml\""] };
-export const L527: Leaf = { "t":["string"],"en":["\"private\"","\"personal\"","\"shared\"","\"space\""] };
-export const L528: Leaf = { "t":["string"],"en":["\"suggest\"","\"new_only\"","\"off\""] };
-export const L529: Leaf = { "t":["integer"],"mn":1,"mx":90 };
-export const L530: Leaf = { "t":["string"],"en":["\"accepted\"","\"absent\""] };
-export const L531: Leaf = { "t":["string"],"en":["\"declined\"","\"absent\""] };
-export const L532: Leaf = { "t":["string"],"en":["\"missing\"","\"off\""] };
-export const L533: Leaf = { "t":["string"],"en":["\"draft\""] };
-export const L534: Leaf = { "t":["string"],"en":["\"oauth\"","\"api_key\"","\"none\"","\"unknown\""] };
-export const L535: Leaf = { "t":["string"],"en":["\"GET\"","\"POST\"","\"PUT\"","\"PATCH\"","\"DELETE\"","\"HEAD\"","\"OPTIONS\"","\"TRACE\""] };
-export const L536: Leaf = { "t":["string"],"en":["\"path\"","\"query\"","\"header\"","\"body\""] };
-export const L537: Leaf = { "t":["string"],"en":["\"read\"","\"outward\""] };
-export const L538: Leaf = { "t":["string"],"en":["\"header\"","\"query\"","\"body\""] };
-export const L539: Leaf = { "t":["string"],"en":["\"dry_run\"","\"hold\""] };
-export const L540: Leaf = { "t":["string"],"en":["\"connection\""] };
-export const L541: Leaf = { "t":["string"],"en":["\"secret\"","\"string\""] };
-export const L542: Leaf = { "t":["string"],"en":["\"missing\""] };
-export const L543: Leaf = { "t":["string"],"en":["\"GET\"","\"HEAD\""] };
-export const L544: Leaf = { "t":["string"],"en":["\"safe\"","\"ambiguous\"","\"inactive\""] };
-export const L545: Leaf = { "t":["string"],"en":["\"openapi\"","\"html\"","\"text\""] };
-export const L546: Leaf = { "t":["string"],"en":["\"same\"","\"current\""] };
-export const L547: Leaf = { "t":["string"],"en":["\"nobody\"","\"not_active\"","\"cannot_ask\"","\"assistant\""] };
-export const L548: Leaf = { "t":["string"],"en":["\"run_first_n\"","\"run_latest_n\"","\"skip_backlog_and_resume\"","\"change_limits\"","\"keep_paused\""] };
-export const L549: Leaf = { "t":["integer"],"mn":0,"mx":2592000000 };
-export const L550: Leaf = { "t":["string"],"en":["\"queue\"","\"skip_while_active\"","\"bounded_concurrency\""] };
-export const L551: Leaf = { "t":["string"],"en":["\"email\"","\"text\""] };
-export const L552: Leaf = { "t":["string"],"en":["\"data\"","\"send\"","\"ai\"","\"control\"","\"wait\"","\"code\"","\"sheet\"","\"sign\"","\"journey\""] };
-export const L553: Leaf = { "t":["string"],"en":["\"read\"","\"write\"","\"outward\""] };
-export const L554: Leaf = { "t":["string"],"en":["\"tested\"","\"draft\""] };
-export const L555: Leaf = { "t":["string"],"en":["\"error\"","\"warning\""] };
-export const L556: Leaf = { "t":["string"],"en":["\"remove\"","\"pause\"","\"resume\""] };
-export const L557: Leaf = { "t":["string"],"xl":20000 };
-export const L558: Leaf = { "t":["string"],"ml":1,"xl":2000 };
-export const L559: Leaf = { "t":["string"],"c":"\"POST\"" };
-export const L560: Leaf = { "t":["string"], re: new RegExp("^bkp_[a-z0-9]+$") };
-export const L561: Leaf = { "t":["string"],"c":"\"ready\"" };
-export const L562: Leaf = { "t":["string"],"en":["\"scheduled\"","\"manual\"","\"pre_update\""] };
-export const L563: Leaf = { "t":["integer"],"mn":5 };
-export const L564: Leaf = { "t":["string"],"en":["\"chrome_held\"","\"chrome_step\""] };
-export const L565: Leaf = { "t":["string"],"en":["\"send\"","\"drop\"","\"watch\"","\"takeover\""] };
-export const L566: Leaf = { "t":["string"], re: new RegExp("^hld_[0-9a-f]+$") };
-export const L567: Leaf = { "t":["string"],"en":["\"meet\"","\"zoom\"","\"teams\"","\"none\""] };
-export const L568: Leaf = { "t":["integer"],"mn":5,"mx":600 };
-export const L569: Leaf = { "t":["string"],"en":["\"day\"","\"weekday\"","\"week\"","\"two_weeks\"","\"month\"","\"other\""] };
-export const L570: Leaf = { "t":["string"],"en":["\"mine\"","\"shared\"","\"all\""] };
-export const L571: Leaf = { "t":["string"],"en":["\"accepted\"","\"declined\"","\"tentative\""] };
-export const L572: Leaf = { "t":["string"],"en":["\"this\"","\"all\""] };
-export const L573: Leaf = { "t":["string"],"en":["\"meet\"","\"zoom\"","\"teams\""] };
-export const L574: Leaf = { "t":["string"],"en":["\"unified\"","\"split\"","\"words\"","\"paragraph\""] };
-export const L575: Leaf = { "t":["string"],"en":["\"hunks\"","\"full\""] };
-export const L576: Leaf = { "t":["string"],"en":["\"added\"","\"modified\"","\"deleted\"","\"renamed\""] };
-export const L577: Leaf = { "t":["integer"],"mn":1,"mx":200 };
-export const L578: Leaf = { "t":["string"],"en":["\"people\"","\"agents\"","\"runs\""] };
-export const L579: Leaf = { "t":["string"],"en":["\"message\"","\"run\"","\"run_group\""] };
-export const L580: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"actor\""] };
-export const L581: Leaf = { "t":["integer"],"mn":2 };
-export const L582: Leaf = { "t":["string"],"en":["\"booked_by\"","\"contact_agent\"","\"last_used\"","\"none\""] };
-export const L583: Leaf = { "t":["string"],"en":["\"extract\"","\"model\"","\"person\""] };
-export const L584: Leaf = { "t":["string"],"en":["\"@\"","\"#\"","\"/\""] };
-export const L585: Leaf = { "t":["string"],"en":["\"followup\"","\"progress\"","\"question\"","\"result\""] };
-export const L586: Leaf = { "t":["string"],"en":["\"brief\"","\"person\"","\"parent\"","\"helper\""] };
-export const L587: Leaf = { "t":["string"],"en":["\"running\"","\"done\"","\"failed\"","\"stopped\""] };
-export const L588: Leaf = { "t":["integer"],"mn":1,"mx":100 };
-export const L589: Leaf = { "t":["string"],"xl":400 };
-export const L590: Leaf = { "t":["string"],"en":["\"added\"","\"changed\"","\"removed\"","\"paused\"","\"resumed\"","\"blocked\"","\"failed\"","\"allowed\"","\"asked\""] };
-export const L591: Leaf = { "t":["string"],"xl":80 };
-export const L592: Leaf = { "t":["string"],"en":["\"allowed\"","\"always\"","\"denied\""] };
-export const L593: Leaf = { "t":["string"],"en":["\"now\"","\"online\"","\"at\""] };
-export const L594: Leaf = { "t":["string"],"en":["\"approval\"","\"review\"","\"key\""] };
-export const L595: Leaf = { "t":["string"],"xl":2000 };
-export const L596: Leaf = { "t":["string"],"en":["\"sent\"","\"scheduled\""] };
-export const L597: Leaf = { "t":["string"],"en":["\"person\"","\"self\""] };
-export const L598: Leaf = { "t":["string"],"en":["\"save\"","\"dismiss\""] };
-export const L599: Leaf = { "t":["string"],"en":["\"saved\"","\"dismissed\""] };
-export const L600: Leaf = { "t":["string"],"en":["\"off\"","\"already_offered\"","\"too_soon\"","\"declined_recently\""] };
-export const L601: Leaf = { "t":["string"],"en":["\"disabled_by_person\"","\"no_device\""] };
-export const L602: Leaf = { "t":["string"],"en":["\"minutes\"","\"hour\"","\"day\"","\"slow\"","\"unknown\""] };
-export const L603: Leaf = { "t":["string"],"en":["\"all\"","\"mentions\"","\"off\""] };
-export const L604: Leaf = { "t":["string"],"en":["\"online\"","\"away\"","\"offline\"","\"unknown\""] };
-export const L605: Leaf = { "t":["string"],"en":["\"single\"","\"multi\"","\"free\""] };
-export const L606: Leaf = { "t":["string"],"en":["\"terminal\""] };
-export const L607: Leaf = { "t":["string"],"en":["\"read\"","\"change\"","\"danger\""] };
-export const L608: Leaf = { "t":["string"],"en":["\"all\"","\"unread\"","\"people\"","\"agents\""] };
-export const L609: Leaf = { "t":["string"],"en":["\"project\"","\"person\""] };
-export const L610: Leaf = { "t":["string"],"xl":120 };
-export const L611: Leaf = { "t":["string"],"en":["\"keyword\"","\"meaning\"","\"hybrid\""] };
-export const L612: Leaf = { "t":["integer"],"mn":1,"mx":50 };
-export const L613: Leaf = { "t":["string"],"en":["\"keyword\"","\"meaning\"","\"both\""] };
-export const L614: Leaf = { "t":["string"],"en":["\"chat\"","\"ask\""] };
-export const L615: Leaf = { "t":["string"],"en":["\"renamed\"","\"not_a_chat\"","\"direct\"","\"small_talk\"","\"done\"","\"has_title\""] };
-export const L616: Leaf = { "t":["string"],"en":["\"keyword\"","\"semantic\"","\"hybrid\""] };
-export const L617: Leaf = { "t":["string"],"en":["\"user\"","\"assistant\"","\"tool\"","\"system\""] };
-export const L618: Leaf = { "t":["string"],"en":["\"online\"","\"away\""] };
-export const L619: Leaf = { "t":["string"],"en":["\"goals\"","\"pinned\"","\"chats\"","\"channels\"","\"team\""] };
-export const L620: Leaf = { "t":["string"],"en":["\"Allow\"","\"Review\"","\"Answer\"","\"Blocked\"","\"Sign\""] };
-export const L621: Leaf = { "t":["string"], re: new RegExp("^\\d{4}-\\d{2}$") };
-export const L622: Leaf = { "t":["string"],"en":["\"queued\"","\"completed\""] };
-export const L623: Leaf = { "t":["string"],"en":["\"no\"","\"yes\"","\"unknown\""] };
-export const L624: Leaf = { "t":["string"],"en":["\"started\"","\"queued\"","\"refused\"","\"ignored\"","\"finished\"","\"failed\""] };
-export const L625: Leaf = { "t":["string"], re: new RegExp("^[a-z0-9]{2,10}$") };
-export const L626: Leaf = { "t":["string"], re: new RegExp("^[a-z0-9-]{3,40}$") };
-export const L627: Leaf = { "t":["string"], re: new RegExp("^[A-Za-z0-9._-]{3,80}$") };
-export const L628: Leaf = { "t":["number"],"mn":0,"mx":100000 };
-export const L629: Leaf = { "t":["string"],"en":["\"certificate\"","\"secret\""] };
-export const L630: Leaf = { "t":["string"],"en":["\"own\"","\"agent\""] };
-export const L631: Leaf = { "t":["string"],"c":"\"browser\"" };
-export const L632: Leaf = { "t":["string"],"en":["\"live\"","\"asleep\"","\"held\""] };
-export const L633: Leaf = { "t":["string"],"en":["\"mjpeg\""] };
-export const L634: Leaf = { "t":["string"],"en":["\"click\"","\"double_click\"","\"hover\"","\"press\"","\"select\"","\"scroll\"","\"check\"","\"uncheck\"","\"focus\""] };
-export const L635: Leaf = { "t":["string"],"en":["\"GET\"","\"POST\"","\"PUT\"","\"PATCH\"","\"DELETE\""] };
-export const L636: Leaf = { "t":["string"],"en":["\"left\"","\"right\"","\"middle\""] };
-export const L637: Leaf = { "t":["string"],"en":["\"log\"","\"warn\"","\"error\""] };
-export const L638: Leaf = { "t":["string"],"en":["\"tree\"","\"text\""] };
-export const L639: Leaf = { "t":["string"],"en":["\"list\"","\"use\"","\"find\"","\"new\"","\"close\""] };
-export const L640: Leaf = { "t":["string"],"en":["\"load\"","\"text\"","\"selector\"","\"network_idle\"","\"time\""] };
-export const L641: Leaf = { "t":["integer"],"mn":100,"mx":120000 };
-export const L642: Leaf = { "t":["integer"],"mn":0,"mx":1440 };
-export const L643: Leaf = { "t":["integer"],"mn":1,"mx":5000000 };
-export const L644: Leaf = { "t":["string"],"en":["\"utf8\"","\"base64\""] };
-export const L645: Leaf = { "t":["string"],"en":["\"create\"","\"overwrite\"","\"append\""] };
-export const L646: Leaf = { "t":["string"],"en":["\"ready\"","\"missing\""] };
-export const L647: Leaf = { "t":["string"],"en":["\"this\"","\"space\"","\"server\""] };
-export const L648: Leaf = { "t":["string"],"en":["\"make_skill\"","\"learn_routine\"","\"work_out_backend_calls\"","\"learn_workflow\""] };
-export const L649: Leaf = { "t":["integer"],"mn":50,"mx":60000 };
-export const L650: Leaf = { "t":["string"],"en":["\"webrtc\"","\"mjpeg\""] };
-export const L651: Leaf = { "t":["string"],"en":["\"lww_loser\"","\"resolved\"","\"superseded\""] };
-export const L652: Leaf = { "t":["string"],"en":["\"mine\"","\"space\"","\"all\""] };
-export const L653: Leaf = { "t":["string"],"en":["\"pending\"","\"active\"","\"failing\"","\"needs_reconnect\"","\"paused\""] };
-export const L654: Leaf = { "t":["string"],"en":["\"ok\"","\"rejected\"","\"limited\"","\"unreachable\""] };
-export const L655: Leaf = { "t":["string"],"en":["\"none\"","\"api_key\"","\"bearer\""] };
-export const L656: Leaf = { "t":["string"],"en":["\"pending\"","\"sent\"","\"failed\"","\"canceled\"","\"undone\""] };
-export const L657: Leaf = { "t":["string"],"en":["\"create\"","\"update\"","\"delete\""] };
-export const L658: Leaf = { "t":["string"],"en":["\"sent\"","\"failed\""] };
-export const L659: Leaf = { "t":["string"],"en":["\"incremental\"","\"reconcile\"","\"backfill\"","\"dry_run\""] };
-export const L660: Leaf = { "t":["string"],"en":["\"verified\"","\"unverified\""] };
-export const L661: Leaf = { "t":["string"],"en":["\"min\"","\"max\"","\"exact\""] };
-export const L662: Leaf = { "t":["string"],"en":["\"agent\"","\"person\"","\"model\""] };
-export const L663: Leaf = { "t":["string"],"en":["\"sms_stop\"","\"email_unsubscribe\"","\"link\"","\"reply\""] };
-export const L664: Leaf = { "t":["string"],"en":["\"good\"","\"risky\"","\"bounced\"","\"complained\""] };
-export const L665: Leaf = { "t":["string"],"en":["\"audience\"","\"journey_enrol\"","\"import\""] };
-export const L666: Leaf = { "t":["integer"],"mx":0 };
-export const L667: Leaf = { "t":["string"],"en":["\"owner\"","\"shared_inbox\""] };
-export const L668: Leaf = { "t":["string"],"en":["\"device_revoked\"","\"suspended\"","\"removed\"","\"password_reset\"","\"clearance_lowered\"","\"key_rotation\""] };
-export const L669: Leaf = { "t":["string"],"en":["\"online\"","\"away\"","\"offline\""] };
-export const L670: Leaf = { "t":["string"],"en":["\"text\"","\"date\"","\"money\"","\"list\"","\"condition\"","\"loop\""] };
-export const L671: Leaf = { "t":["string"], re: new RegExp("^\\d{4}-\\d{2}-\\d{2}$") };
-export const L672: Leaf = { "t":["string"],"en":["\"docx\"","\"pdf\""] };
-export const L673: Leaf = { "t":["integer"],"mn":1,"mx":2000 };
-export const L674: Leaf = { "t":["integer"],"mn":30,"mx":480 };
-export const L675: Leaf = { "t":["string"],"en":["\"desktop\"","\"mobile\"","\"dark\"","\"plain\""] };
-export const L676: Leaf = { "t":["string"],"en":["\"chat\"","\"wake\"","\"automation\"","\"goal\"","\"agent_work\""] };
-export const L677: Leaf = { "t":["string"],"en":["\"starter\"","\"steerer\"","\"step_key\"","\"backup_key\"","\"none\""] };
-export const L678: Leaf = { "t":["string"],"en":["\"unknown\"","\"expired\"","\"failed\"","\"policy_company\"","\"not_yours\"","\"space_may_not_use\"","\"failed_this_turn\"","\"capped\"","\"no_model\"","\"not_used_for\""] };
-export const L679: Leaf = { "t":["string"],"en":["\"thread\"","\"chat_key\"","\"work\"","\"step\"","\"space\"","\"backup\""] };
-export const L680: Leaf = { "t":["string"],"en":["\"no_account\"","\"expired\"","\"failed\"","\"policy\"","\"no_model\""] };
-export const L681: Leaf = { "t":["string"],"en":["\"chat\"","\"automation\"","\"agent\"","\"space\""] };
-export const L682: Leaf = { "t":["string"],"en":["\"anthropic\"","\"openai\"","\"openrouter\"","\"google\"","\"xai\"","\"opencode_go\"","\"local\"","\"custom\"","\"claude_code\"","\"codex\"","\"grok\""] };
-export const L683: Leaf = { "t":["string"],"en":["\"ok\"","\"expired\"","\"failed\"","\"untested\""] };
-export const L684: Leaf = { "t":["string"],"en":["\"engine\"","\"vyre\""] };
-export const L685: Leaf = { "t":["string"],"en":["\"helper\"","\"teammate\"","\"subagent\""] };
-export const L686: Leaf = { "t":["string"],"en":["\"working\"","\"done\"","\"needs_you\"","\"failed\"","\"stopped\""] };
-export const L687: Leaf = { "t":["string"],"en":["\"running\"","\"passing\"","\"failing\""] };
-export const L688: Leaf = { "t":["string"],"en":["\"cheap\"","\"standard\"","\"strong\""] };
-export const L689: Leaf = { "t":["string"],"en":["\"turn\"","\"wait\""] };
-export const L690: Leaf = { "t":["string"],"en":["\"plugin\"","\"connection\""] };
-export const L691: Leaf = { "t":["string"],"en":["\"label_provider\"","\"policy_model\"","\"not_connected\"","\"usage_limit\"","\"checking\"","\"not_checked\"","\"slow\""] };
-export const L692: Leaf = { "t":["string"],"en":["\"live\"","\"saved\"","\"shipped\""] };
-export const L693: Leaf = { "t":["string"],"en":["\"api_key\"","\"subscription\"","\"local\""] };
-export const L694: Leaf = { "t":["string"],"en":["\"ok\"","\"checking\"","\"unavailable\"","\"unverified\""] };
-export const L695: Leaf = { "t":["string"],"en":["\"read\"","\"not_readable\""] };
-export const L696: Leaf = { "t":["string"],"en":["\"space\"","\"computer\"","\"server\""] };
-export const L697: Leaf = { "t":["string"],"en":["\"message\"","\"interrupt\"","\"wake\"","\"handoff\""] };
-export const L698: Leaf = { "t":["string"],"en":["\"host\"","\"device\"","\"wait\""] };
-export const L699: Leaf = { "t":["string"],"en":["\"device\"","\"space\"","\"server\""] };
-export const L700: Leaf = { "t":["string"],"en":["\"auto\"","\"device\"","\"space\"","\"server\""] };
-export const L701: Leaf = { "t":["string"],"en":["\"any\"","\"company\""] };
-export const L702: Leaf = { "t":["string"],"en":["\"api\"","\"cli\""] };
-export const L703: Leaf = { "t":["string"],"en":["\"waiting\"","\"ok\"","\"flagged\""] };
-export const L704: Leaf = { "t":["string"],"en":["\"ok\"","\"flagged\""] };
-export const L705: Leaf = { "t":["string"],"en":["\"working\"","\"waiting\"","\"replied\"","\"stopped\""] };
-export const L706: Leaf = { "t":["string"],"en":["\"space\"","\"person\"","\"agent\""] };
-export const L707: Leaf = { "t":["string"],"en":["\"run\"","\"day\"","\"month\"","\"turns\"","\"time\""] };
-export const L708: Leaf = { "t":["string"],"en":["\"once\"","\"permanent\""] };
-export const L709: Leaf = { "t":["string"],"en":["\"automation\""] };
-export const L710: Leaf = { "t":["string"],"en":["\"update\""] };
-export const L711: Leaf = { "t":["string"],"en":["\"running\"","\"waiting\"","\"failed\"","\"done\""] };
-export const L712: Leaf = { "t":["string"],"ml":1,"xl":120 };
-export const L713: Leaf = { "t":["string"],"xl":60 };
-export const L714: Leaf = { "t":["string"],"en":["\"text\"","\"thinking\"","\"tool_call\"","\"tool_result\"","\"block\""] };
-export const L715: Leaf = { "t":["string"],"en":["\"message\"","\"interrupt\"","\"wake\"","\"handoff\"","\"none\""] };
-export const L716: Leaf = { "t":["string"],"en":["\"switch_model\"","\"backup_key\""] };
-export const L717: Leaf = { "t":["string"],"en":["\"completed\"","\"failed\"","\"cancelled\""] };
-export const L718: Leaf = { "t":["string"],"en":["\"host\"","\"device\""] };
-export const L719: Leaf = { "t":["string"],"en":["\"started\"","\"waiting\"","\"completed\"","\"failed\"","\"cancelled\""] };
-export const L720: Leaf = { "t":["string"],"en":["\"provider\"","\"estimate\"","\"none\""] };
-export const L721: Leaf = { "t":["string"],"en":["\"day\"","\"person\"","\"agent\"","\"model\"","\"account\""] };
-export const L722: Leaf = { "t":["string"], re: new RegExp("^env_[a-z0-9]+$") };
-export const L723: Leaf = { "t":["string"],"en":["\"vyre\"","\"documenso\"","\"dropbox_sign\"","\"docusign\""] };
-export const L724: Leaf = { "t":["string"],"en":["\"sent\"","\"viewed\"","\"signed\"","\"declined\"","\"cancelled\"","\"expired\""] };
-export const L725: Leaf = { "t":["string"],"en":["\"sign\"","\"decline\"","\"copy\""] };
-export const L726: Leaf = { "t":["integer"],"mn":1,"mx":1000 };
-export const L727: Leaf = { "t":["string"],"en":["\"clear\"","\"hidden\"","\"reviewed\"","\"needs_review\"","\"off\""] };
-export const L728: Leaf = { "t":["string"],"en":["\"clear\"","\"redacted\"","\"needs\"","\"off\""] };
-export const L729: Leaf = { "t":["string"],"en":["\"agent\"","\"project\""] };
-export const L730: Leaf = { "t":["string"],"en":["\"folders\"","\"channels\"","\"all\""] };
-export const L731: Leaf = { "t":["string"],"en":["\"memory\"","\"graph\""] };
-export const L732: Leaf = { "t":["string"],"en":["\"name\"","\"updated\"","\"size\"","\"kind\""] };
-export const L733: Leaf = { "t":["string"],"en":["\"asc\"","\"desc\""] };
-export const L734: Leaf = { "t":["string"],"en":["\"select\"","\"check\"","\"box\"","\"range\"","\"name\""] };
-export const L735: Leaf = { "t":["string"],"en":["\"available\"","\"reviewed\"","\"needs_review\"","\"off\""] };
-export const L736: Leaf = { "t":["string"], re: new RegExp("^rrq_[a-z0-9]+$") };
-export const L737: Leaf = { "t":["string"],"en":["\"text\"","\"base64\"","\"url\""] };
-export const L738: Leaf = { "t":["string"],"en":["\"patterns\""] };
-export const L739: Leaf = { "t":["string"],"en":["\"folder\"","\"virtual\""] };
-export const L740: Leaf = { "t":["string"],"en":["\"provider_api\"","\"open_in_provider\""] };
-export const L741: Leaf = { "t":["string"],"en":["\"record\"","\"person\""] };
-export const L742: Leaf = { "t":["string"],"en":["\"send_back\"","\"drop\""] };
-export const L743: Leaf = { "t":["string"],"en":["\"dropped\"","\"escalated\""] };
-export const L744: Leaf = { "t":["string"],"en":["\"save\"","\"on\""] };
-export const L745: Leaf = { "t":["string"],"en":["\"create\"","\"switch\"","\"delete\""] };
-export const L746: Leaf = { "t":["string"],"en":["\"merge\"","\"rebase\"","\"ff_only\""] };
-export const L747: Leaf = { "t":["string"], re: new RegExp("^https://[^@\\s]+$") };
-export const L748: Leaf = { "t":["string"],"en":["\"all\"","\"selected\""] };
-export const L749: Leaf = { "t":["string"],"en":["\"read\"","\"push_branch\"","\"open_pr\"","\"comment\"","\"merge\"","\"push_default\""] };
-export const L750: Leaf = { "t":["string"],"en":["\"space\"","\"vyre\""] };
-export const L751: Leaf = { "t":["string"],"en":["\"all\"","\"selected\"","\"none\""] };
-export const L752: Leaf = { "t":["string"], re: new RegExp("^[a-z][a-z0-9_.:-]{1,60}$") };
-export const L753: Leaf = { "t":["string"],"en":["\"merge\"","\"squash\"","\"rebase\""] };
-export const L754: Leaf = { "t":["string"],"en":["\"ping\"","\"installation\"","\"push\"","\"pull_request\"","\"issues\"","\"check_run\"","\"workflow_run\"","\"workflow_job\""] };
-export const L755: Leaf = { "t":["string"], re: new RegExp("^\\d+\\.\\d+\\.\\d+$") };
-export const L756: Leaf = { "t":["string"], re: new RegExp("^[A-Za-z0-9_.-]{1,64}$") };
-export const L757: Leaf = { "t":["string"],"ml":1,"xl":80 };
-export const L758: Leaf = { "t":["string"],"ml":1,"xl":600 };
-export const L759: Leaf = { "t":["string"],"ml":1,"xl":140 };
-export const L760: Leaf = { "t":["string"],"en":["\"Plan\"","\"Drafts\"","\"Research\"","\"Reports\""] };
-export const L761: Leaf = { "t":["string"],"en":["\"mine\"","\"helping\"","\"project\"","\"record\"","\"task\"","\"all\""] };
-export const L762: Leaf = { "t":["string"],"ml":1,"xl":400 };
-export const L763: Leaf = { "t":["string"],"en":["\"started\"","\"already_done\"","\"done\""] };
-export const L764: Leaf = { "t":["string"],"en":["\"all\"","\"externalOnly\"","\"none\""] };
-export const L765: Leaf = { "t":["string"],"en":["\"after\"","\"before\"","\"start\"","\"end\""] };
-export const L766: Leaf = { "t":["string"],"en":["\"reader\"","\"commenter\"","\"writer\""] };
-export const L767: Leaf = { "t":["string"],"en":["\"metadata\"","\"full\"","\"raw\""] };
-export const L768: Leaf = { "t":["string"],"en":["\"gmail\"","\"calendar\"","\"drive\"","\"meet\""] };
-export const L769: Leaf = { "t":["string"],"en":["\"RAW\"","\"USER_ENTERED\""] };
-export const L770: Leaf = { "t":["string"], re: new RegExp("^fnd_[a-z0-9]+$") };
-export const L771: Leaf = { "t":["string"],"en":["\"records\"","\"files\"","\"chats\"","\"inbox\"","\"mail\"","\"calls\"","\"memory\"","\"runs\""] };
-export const L772: Leaf = { "t":["string"],"en":["\"idle\"","\"running\"","\"failed\""] };
-export const L773: Leaf = { "t":["string"], re: new RegExp("^(forever|per_policy|[0-9]+[dwmy])$") };
-export const L774: Leaf = { "t":["string"], re: new RegExp("^tmb_[a-z0-9]+$") };
-export const L775: Leaf = { "t":["string"],"en":["\"automations\"","\"sync\"","\"sends\""] };
-export const L776: Leaf = { "t":["string"], re: new RegExp("^bnd_[a-z0-9]+$") };
-export const L777: Leaf = { "t":["string"],"en":["\"overdue\"","\"blocked\"","\"slipped\""] };
-export const L778: Leaf = { "t":["string"], re: new RegExp("^dgs_[a-z0-9]+$") };
-export const L779: Leaf = { "t":["string"],"en":["\"photo_and_title\"","\"connect_mailbox_and_calendar\"","\"meet_assistant\"","\"open_first_project\"","\"import\""] };
-export const L780: Leaf = { "t":["string"],"en":["\"scheduled\"","\"running\"","\"done\"","\"failed\""] };
-export const L781: Leaf = { "t":["string"],"en":["\"engine\"","\"tools\"","\"cli\""] };
-export const L782: Leaf = { "t":["string"],"en":["\"ok\"","\"blocked\"","\"note\"","\"error\"","\"timeout\"","\"skipped\"","\"allowed_once\""] };
-export const L783: Leaf = { "t":["string"],"en":["\"space\""] };
-export const L784: Leaf = { "t":["string"],"xl":1000 };
-export const L785: Leaf = { "t":["string"],"en":["\"contacts\"","\"companies\"","\"deals\""] };
-export const L786: Leaf = { "t":["string"], re: new RegExp("^[a-z0-9_.-]{2,32}$") };
-export const L787: Leaf = { "t":["string"],"en":["\"first_device\"","\"password_change\"","\"reset\"","\"recovery\"","\"space_key_epoch\"","\"new_device\""] };
-export const L788: Leaf = { "t":["string"],"en":["\"app\"","\"phone\"","\"extension\"","\"daemon\""] };
-export const L789: Leaf = { "t":["string"],"xl":32 };
-export const L790: Leaf = { "t":["string"],"en":["\"vault_mine\"","\"private_chats\"","\"personal_memory\""] };
-export const L791: Leaf = { "t":["string"], re: new RegExp("^[0-9]{6}$") };
-export const L792: Leaf = { "t":["string"], re: new RegExp("^enr_[a-z0-9]+$") };
-export const L793: Leaf = { "t":["string"],"xl":1 };
-export const L794: Leaf = { "t":["string"],"en":["\"update\"","\"skip\"","\"create\""] };
-export const L795: Leaf = { "t":["string"],"en":["\"mailbox\"","\"number\""] };
-export const L796: Leaf = { "t":["string"],"en":["\"owner\"","\"project\"","\"follow\"","\"shared_inbox\""] };
-export const L797: Leaf = { "t":["string"],"en":["\"mail_message\"","\"sms\"","\"call\""] };
-export const L798: Leaf = { "t":["string"],"en":["\"sure\"","\"unsure\"","\"none\""] };
-export const L799: Leaf = { "t":["string"],"en":["\"contact\"","\"member\"","\"inbox\"","\"group\""] };
-export const L800: Leaf = { "t":["string"],"en":["\"email\"","\"sms\""] };
-export const L801: Leaf = { "t":["string"],"en":["\"email\"","\"sms\"","\"call\"","\"meeting\"","\"record_chip\"","\"note\""] };
-export const L802: Leaf = { "t":["string"],"en":["\"started\"","\"to\"","\"cc\"","\"added_later\"","\"none\""] };
-export const L803: Leaf = { "t":["string"],"en":["\"todo\"","\"in_review\"","\"blocked\"","\"done\""] };
-export const L804: Leaf = { "t":["string"],"en":["\"apply\"","\"undo\""] };
-export const L805: Leaf = { "t":["string"], re: new RegExp("^rpl_[a-z0-9]+$") };
-export const L806: Leaf = { "t":["string"],"en":["\"running\"","\"done\"","\"failed\""] };
-export const L807: Leaf = { "t":["string"],"en":["\"clear_caches\"","\"stop_idle\"","\"restart_service\""] };
-export const L808: Leaf = { "t":["string"], re: new RegExp("^[a-z][a-z0-9_.-]{0,40}$") };
-export const L809: Leaf = { "t":["string"],"en":["\"done\"","\"failed\""] };
-export const L810: Leaf = { "t":["string"],"en":["\"turn\"","\"site\"","\"automation\""] };
-export const L811: Leaf = { "t":["string"],"en":["\"clear_caches\"","\"stop_idle\"","\"update\""] };
-export const L812: Leaf = { "t":["string"],"en":["\"full\"","\"vyre_only\""] };
-export const L813: Leaf = { "t":["integer"],"mn":1,"mx":64 };
-export const L814: Leaf = { "t":["integer"],"mn":0,"mx":32 };
-export const L815: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\"","\"imap\""] };
-export const L816: Leaf = { "t":["string"], re: new RegExp("^(gua|mua)_[0-9a-f]{32}$") };
-export const L817: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\"","\"imap\"","\"resend\"","\"mailgun\""] };
-export const L818: Leaf = { "t":["string"],"en":["\"shared\"","\"agent\"","\"service\""] };
-export const L819: Leaf = { "t":["string"],"en":["\"error\"","\"syncing\""] };
-export const L820: Leaf = { "t":["string"],"en":["\"mailbox\"","\"space_domain\""] };
-export const L821: Leaf = { "t":["string"],"en":["\"queued\"","\"sent\"","\"held\"","\"suppressed\""] };
-export const L822: Leaf = { "t":["string"],"en":["\"email\""] };
-export const L823: Leaf = { "t":["string"],"en":["\"delivered\"","\"bounced\"","\"complained\"","\"opened\"","\"clicked\"","\"failed\""] };
-export const L824: Leaf = { "t":["string"],"en":["\"hard\"","\"soft\""] };
-export const L825: Leaf = { "t":["string"],"en":["\"accepted\"","\"delivered\"","\"failed\"","\"opened\"","\"clicked\"","\"complained\"","\"unsubscribed\""] };
-export const L826: Leaf = { "t":["string"],"en":["\"permanent\"","\"temporary\""] };
-export const L827: Leaf = { "t":["string"], re: new RegExp("^mca_[a-z0-9]+$") };
-export const L828: Leaf = { "t":["string"],"en":["\"ok\"","\"error\"","\"held\""] };
-export const L829: Leaf = { "t":["string"], re: new RegExp("^oar_[a-z0-9]+$") };
-export const L830: Leaf = { "t":["string"], re: new RegExp("^[0-9]{4}$") };
-export const L831: Leaf = { "t":["integer"],"mn":60,"mx":86400 };
-export const L832: Leaf = { "t":["string"],"en":["\"outside\"","\"driver\""] };
-export const L833: Leaf = { "t":["string"],"en":["\"zoom\"","\"meet\"","\"teams\"","\"upload\""] };
-export const L834: Leaf = { "t":["string"],"en":["\"preparing\"","\"ready\"","\"closed\"","\"nothing\""] };
-export const L835: Leaf = { "t":["string"],"ml":1,"xl":300 };
-export const L836: Leaf = { "t":["string"],"ml":1,"xl":20000 };
-export const L837: Leaf = { "t":["string"],"en":["\"project\"","\"channel\""] };
-export const L838: Leaf = { "t":["string"],"en":["\"calendar\"","\"zoom\"","\"meet\"","\"teams\""] };
-export const L839: Leaf = { "t":["string"],"en":["\"none\"","\"working\"","\"ready\""] };
-export const L840: Leaf = { "t":["string"],"en":["\"live\"","\"ended\""] };
-export const L841: Leaf = { "t":["string"],"c":"\"channel\"" };
-export const L842: Leaf = { "t":["string"],"en":["\"view\"","\"reply\""] };
-export const L843: Leaf = { "t":["string"],"xl":100 };
-export const L844: Leaf = { "t":["string"], re: new RegExp("^jrq_[a-z0-9]+$") };
-export const L845: Leaf = { "t":["string"],"en":["\"waiting\"","\"approved\"","\"declined\""] };
-export const L846: Leaf = { "t":["string"],"en":["\"pause\"","\"reassign\"","\"revoke\"","\"export\"","\"retain\"","\"keep\"","\"delete\""] };
-export const L847: Leaf = { "t":["string"],"en":["\"closed\"","\"idle\"","\"turn\""] };
-export const L848: Leaf = { "t":["string"],"en":["\"model\"","\"rules\"","\"none\""] };
-export const L849: Leaf = { "t":["string"],"en":["\"forgotten\"","\"off\"","\"nothing_new\""] };
-export const L850: Leaf = { "t":["string"],"en":["\"off\"","\"forgotten\"","\"nothing\"","\"duplicate\""] };
-export const L851: Leaf = { "t":["string"],"en":["\"no_key\"","\"key_unavailable\""] };
-export const L852: Leaf = { "t":["string"],"en":["\"agent\"","\"project\"","\"space\"","\"person\""] };
-export const L853: Leaf = { "t":["string"],"en":["\"space\"","\"project\"","\"person\""] };
-export const L854: Leaf = { "t":["string"],"en":["\"learned\"","\"merged\"","\"flagged\""] };
-export const L855: Leaf = { "t":["string"],"en":["\"learning\"","\"rules_only\""] };
-export const L856: Leaf = { "t":["string"],"en":["\"cap\"","\"no_key\""] };
-export const L857: Leaf = { "t":["string"],"en":["\"local\"","\"key\"","\"off\""] };
-export const L858: Leaf = { "t":["string"],"en":["\"notes\"","\"proposed\"","\"recipes\"","\"journal\""] };
-export const L859: Leaf = { "t":["string"],"en":["\"chat\"","\"channel\"","\"project\"","\"task\"","\"goal\"","\"record\""] };
-export const L860: Leaf = { "t":["string"],"en":["\"archive\"","\"delete\""] };
-export const L861: Leaf = { "t":["string"],"en":["\"short_ack\"","\"mid_tool_loop\"","\"no_match\"","\"duplicate\""] };
-export const L862: Leaf = { "t":["string"],"en":["\"private\"","\"shared\""] };
-export const L863: Leaf = { "t":["string"],"en":["\"keep_a\"","\"keep_b\"","\"keep_both\"","\"drop\""] };
-export const L864: Leaf = { "t":["string"],"en":["\"open\"","\"resolved\""] };
-export const L865: Leaf = { "t":["string"],"en":["\"contradiction\"","\"stale\""] };
-export const L866: Leaf = { "t":["string"],"en":["\"fact\"","\"quote\""] };
-export const L867: Leaf = { "t":["string"],"en":["\"trash\"","\"archive\""] };
-export const L868: Leaf = { "t":["string"],"en":["\"note\"","\"fact\"","\"page\""] };
-export const L869: Leaf = { "t":["string"],"en":["\"create\"","\"edit\"","\"merge\"","\"delete\"","\"restore\"","\"archive\"","\"erase\"","\"learn\"","\"undo\"","\"accept\"","\"reject\"","\"promote\"","\"flag\"","\"resolve\""] };
-export const L870: Leaf = { "t":["string"],"en":["\"google_doc\"","\"google_sheet\"","\"google_slides\"","\"google_file\"","\"word\"","\"excel\"","\"powerpoint\"","\"sharepoint_file\"","\"onedrive_file\"","\"dropbox_file\""] };
-export const L871: Leaf = { "t":["string"],"en":["\"replace_text\"","\"insert_text\"","\"read_cells\"","\"write_cells\"","\"append_rows\""] };
-export const L872: Leaf = { "t":["string"],"en":["\"add\"","\"modify\"","\"delete\"","\"rename\""] };
-export const L873: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\"","\"dropbox\"","\"client\""] };
-export const L874: Leaf = { "t":["string"],"en":["\"keep_both\"","\"use_theirs\"","\"keep_here\"","\"discard\""] };
-export const L875: Leaf = { "t":["string"],"en":["\"accept\"","\"decline\"","\"tentativelyAccept\""] };
-export const L876: Leaf = { "t":["string"],"c":"\"powershell\"" };
-export const L877: Leaf = { "t":["string"],"en":["\"read\"","\"write\""] };
-export const L878: Leaf = { "t":["string"],"en":["\"created\"","\"updated\"","\"deleted\""] };
-export const L879: Leaf = { "t":["string"],"en":["\"direct\"","\"relay\"","\"tunnel\""] };
-export const L880: Leaf = { "t":["string"], re: new RegExp("^srv_[a-z0-9]+$") };
-export const L881: Leaf = { "t":["string"],"c":"\"pending\"" };
-export const L882: Leaf = { "t":["string"],"en":["\"pending\"","\"approved\"","\"declined\"","\"revoked\""] };
-export const L883: Leaf = { "t":["string"],"c":"\"approved\"" };
-export const L884: Leaf = { "t":["string"],"c":"\"declined\"" };
-export const L885: Leaf = { "t":["string"],"en":["\"pending\"","\"approved\""] };
-export const L886: Leaf = { "t":["string"],"c":"\"allowed\"" };
-export const L887: Leaf = { "t":["string"],"en":["\"renamed\"","\"kept_aside\""] };
-export const L888: Leaf = { "t":["string"],"en":["\"computer\"","\"server\""] };
-export const L889: Leaf = { "t":["string"],"en":["\"none\"","\"claiming\"","\"claimed\"","\"releasing\"","\"failed\""] };
-export const L890: Leaf = { "t":["string"],"c":"\"claiming\"" };
-export const L891: Leaf = { "t":["string"],"en":["\"none\"","\"releasing\""] };
-export const L892: Leaf = { "t":["string"],"en":["\"app\"","\"console\"","\"site\"","\"form\"","\"booking\"","\"hook\""] };
-export const L893: Leaf = { "t":["string"],"en":["\"own_domain\"","\"relay\""] };
-export const L894: Leaf = { "t":["string"],"en":["\"space\"","\"compute\""] };
-export const L895: Leaf = { "t":["string"],"en":["\"pending\"","\"applied\"","\"failed\""] };
-export const L896: Leaf = { "t":["string"],"xl":100000 };
-export const L897: Leaf = { "t":["string"],"en":["\"image\"","\"link\""] };
-export const L898: Leaf = { "t":["string"],"en":["\"all\"","\"mine\"","\"shared\""] };
-export const L899: Leaf = { "t":["string"],"en":["\"edit\"","\"view\"","\"remove\""] };
-export const L900: Leaf = { "t":["string"],"en":["\"person\"","\"role\""] };
-export const L901: Leaf = { "t":["string"],"en":["\"interrupt\"","\"badge\"","\"digest\""] };
-export const L902: Leaf = { "t":["string"],"en":["\"desktop\"","\"phone\"","\"email\""] };
-export const L903: Leaf = { "t":["string"],"en":["\"home\"","\"chats\"","\"inbox\"","\"records\"","\"files\"","\"apps\"","\"automations\"","\"vault\"","\"settings\"","\"console\""] };
-export const L904: Leaf = { "t":["string"], re: new RegExp("^ntf_[a-z0-9]+$") };
-export const L905: Leaf = { "t":["integer"],"mn":1,"mx":525600 };
-export const L906: Leaf = { "t":["string"],"en":["\"ios\"","\"android\"","\"mac\"","\"windows\"","\"web\""] };
-export const L907: Leaf = { "t":["string"],"en":["\"interrupt\"","\"badge\"","\"digest\"","\"dropped_muted\"","\"capped\""] };
-export const L908: Leaf = { "t":["string"],"en":["\"registry\"","\"paste\"","\"import\"","\"hub\"","\"skill\"","\"kit\"","\"hand\""] };
-export const L909: Leaf = { "t":["string"],"en":["\"mine\""] };
-export const L910: Leaf = { "t":["string"],"en":["\"oauth\"","\"none\""] };
-export const L911: Leaf = { "t":["string"], re: new RegExp("^(plg|sko|skl)_[a-z0-9]+$") };
-export const L912: Leaf = { "t":["string"],"en":["\"official\"","\"smithery\""] };
-export const L913: Leaf = { "t":["string"],"en":["\"http\"","\"sse\""] };
-export const L914: Leaf = { "t":["string"],"en":["\"npm\"","\"pypi\"","\"oci\""] };
-export const L915: Leaf = { "t":["string"],"en":["\"npx\"","\"uvx\"","\"docker\""] };
-export const L916: Leaf = { "t":["string"],"en":["\"oauth\"","\"key\"","\"none\""] };
-export const L917: Leaf = { "t":["string"],"en":["\"magic_link\"","\"password\""] };
-export const L918: Leaf = { "t":["string"],"en":["\"s\"","\"m\"","\"l\"","\"xl\""] };
-export const L919: Leaf = { "t":["string"],"en":["\"native\"","\"pdf\"","\"office\"","\"none\""] };
-export const L920: Leaf = { "t":["string"], re: new RegExp("^csc_[a-z0-9]+$") };
-export const L921: Leaf = { "t":["string"],"en":["\"apply\"","\"keep\""] };
-export const L922: Leaf = { "t":["string"],"en":["\"working\"","\"done\"","\"needs_you\"","\"stopped\""] };
-export const L923: Leaf = { "t":["string"], re: new RegExp("^dec_[a-z0-9]+$") };
-export const L924: Leaf = { "t":["string"],"en":["\"insert\"","\"update\"","\"move\"","\"delete\"","\"set_property\""] };
-export const L925: Leaf = { "t":["string"],"en":["\"lead\"","\"member\"","\"reviewer\""] };
-export const L926: Leaf = { "t":["string"],"en":["\"builtin\"","\"kit\""] };
-export const L927: Leaf = { "t":["string"],"en":["\"api_key\"","\"local_model\""] };
-export const L928: Leaf = { "t":["string"], re: new RegExp("^sub_[a-z0-9]+$") };
-export const L929: Leaf = { "t":["string"],"en":["\"created\"","\"edited\"","\"stage\"","\"linked\"","\"unlinked\"","\"removed\"","\"restored\"","\"synced\""] };
-export const L930: Leaf = { "t":["string"],"en":["\"unavailable\"","\"version_conflict\""] };
-export const L931: Leaf = { "t":["string"],"en":["\"upsert\"","\"patch\"","\"delete\""] };
-export const L932: Leaf = { "t":["string"],"ml":1,"xl":4000 };
-export const L933: Leaf = { "t":["string"],"en":["\"csv\"","\"xlsx\""] };
-export const L934: Leaf = { "t":["integer"],"mn":1,"mx":2 };
-export const L935: Leaf = { "t":["string"],"en":["\"accept\"","\"reject\""] };
-export const L936: Leaf = { "t":["string"],"en":["\"on\"","\"ask\"","\"off\""] };
-export const L937: Leaf = { "t":["string"],"en":["\"sent\"","\"delivered\"","\"bounced\"","\"complained\"","\"opened\"","\"clicked\"","\"failed\"","\"delayed\""] };
-export const L938: Leaf = { "t":["string"],"en":["\"sh\"","\"bash\""] };
-export const L939: Leaf = { "t":["string"],"en":["\"stdout\"","\"stderr\""] };
-export const L940: Leaf = { "t":["string"],"en":["\"mine\"","\"all\""] };
-export const L941: Leaf = { "t":["string"],"en":["\"succeeded\"","\"failed\"","\"stopped\""] };
-export const L942: Leaf = { "t":["string"],"en":["\"mine\"","\"subject\"","\"owner\"","\"all\""] };
-export const L943: Leaf = { "t":["string"],"en":["\"pause\"","\"resume\"","\"stop\""] };
-export const L944: Leaf = { "t":["string"],"en":["\"pending\"","\"running\"","\"succeeded\"","\"failed\"","\"skipped\"","\"waiting\"","\"stopped\""] };
-export const L945: Leaf = { "t":["string"],"en":["\"not_in_space\"","\"cannot_use_agent\"","\"cannot_read_channel\"","\"agent_missing\""] };
-export const L946: Leaf = { "t":["string"],"en":["\"ran_once\"","\"skipped\""] };
-export const L947: Leaf = { "t":["string"],"en":["\"running\"","\"waiting\"","\"done\"","\"failed\"","\"stopped\"","\"skipped\""] };
-export const L948: Leaf = { "t":["string"],"en":["\"call\"","\"routine\"","\"watch\"","\"goal\"","\"baton\""] };
-export const L949: Leaf = { "t":["string"],"en":["\"skip\"","\"coalesce\""] };
-export const L950: Leaf = { "t":["string"], re: new RegExp("^wat_[a-z0-9]+$") };
-export const L951: Leaf = { "t":["string"],"en":["\"subject_deleted\"","\"left_stage\"","\"stopped\"","\"manual\""] };
-export const L952: Leaf = { "t":["string"],"en":["\"open\"","\"matched\"","\"expired\"","\"canceled\""] };
-export const L953: Leaf = { "t":["string"],"en":["\"id_number\"","\"card\"","\"bank\"","\"health\"","\"other\""] };
-export const L954: Leaf = { "t":["string"],"ml":1,"xl":500 };
-export const L955: Leaf = { "t":["string"],"en":["\"answered\"","\"no_access\"","\"no_account\"","\"failed\""] };
-export const L956: Leaf = { "t":["string"],"en":["\"upsert\"","\"delete\""] };
-export const L957: Leaf = { "t":["string"],"en":["\"personal\""] };
-export const L958: Leaf = { "t":["string"],"en":["\"project\"","\"imported_sessions\""] };
-export const L959: Leaf = { "t":["string"],"ml":4,"xl":12 };
-export const L960: Leaf = { "t":["string"],"en":["\"photo\"","\"name\"","\"handle\"","\"timezone\"","\"hours\"","\"contact\""] };
-export const L961: Leaf = { "t":["string"],"en":["\"you\"","\"space\""] };
-export const L962: Leaf = { "t":["integer"],"mn":1,"mx":65535 };
-export const L963: Leaf = { "t":["string"],"en":["\"pending\"","\"issued\"","\"failed\""] };
-export const L964: Leaf = { "t":["string"],"en":["\"site\"","\"artifact\""] };
-export const L965: Leaf = { "t":["string"],"ml":8,"xl":200 };
-export const L966: Leaf = { "t":["string"],"en":["\"skill\"","\"plugin\"","\"codex\""] };
-export const L967: Leaf = { "t":["string"],"en":["\"add\"","\"not_now\""] };
-export const L968: Leaf = { "t":["string"], re: new RegExp("^srl_[a-z0-9]+$") };
-export const L969: Leaf = { "t":["string"],"en":["\"accepted\"","\"duplicate\"","\"rejected\"","\"failed\"","\"linked_pending\""] };
-export const L970: Leaf = { "t":["string"],"en":["\"accepted\"","\"duplicate\"","\"rejected\"","\"failed\""] };
-export const L971: Leaf = { "t":["string"], re: new RegExp("^mat_[a-z0-9]+$") };
-export const L972: Leaf = { "t":["string"],"en":["\"create\"","\"update\"","\"skip\""] };
-export const L973: Leaf = { "t":["string"],"en":["\"apps_public\"","\"console\"","\"webhooks\"","\"always_on_runs\"","\"sharing\"","\"members\""] };
-export const L974: Leaf = { "t":["string"],"en":["\"photo_title\"","\"connect_mailbox\"","\"meet_assistant\"","\"first_project\"","\"import\""] };
-export const L975: Leaf = { "t":["string"],"en":["\"personal\"","\"team\"","\"member\""] };
-export const L976: Leaf = { "t":["string"],"en":["\"done\"","\"later\""] };
-export const L977: Leaf = { "t":["string"],"en":["\"done\"","\"later\"","\"open\""] };
-export const L978: Leaf = { "t":["string"],"en":["\"relay\"","\"own_domain\""] };
-export const L979: Leaf = { "t":["string"],"en":["\"starred\"","\"following\"","\"done\"","\"unread\"","\"muted\"","\"pinned\"","\"any\""] };
-export const L980: Leaf = { "t":["string"],"en":["\"head\"","\"unread\"","\"count\""] };
-export const L981: Leaf = { "t":["string"],"en":["\"payment\"","\"subscription\"","\"setup\""] };
-export const L982: Leaf = { "t":["string"],"en":["\"day\"","\"week\"","\"month\"","\"year\""] };
-export const L983: Leaf = { "t":["string"],"en":["\"duplicate\"","\"fraudulent\"","\"requested_by_customer\""] };
-export const L984: Leaf = { "t":["string"],"en":["\"desktop\"","\"phone\"","\"web\""] };
-export const L985: Leaf = { "t":["string"], re: new RegExp("^(https|wss)://") };
-export const L986: Leaf = { "t":["string"],"en":["\"all\"","\"window\"","\"none\""] };
-export const L987: Leaf = { "t":["string"],"en":["\"live\"","\"update_required\"","\"resync\"","\"purge\""] };
-export const L988: Leaf = { "t":["string"],"c":"\"purge\"" };
-export const L989: Leaf = { "t":["string"],"en":["\"polling\"","\"webhook\""] };
-export const L990: Leaf = { "t":["string"],"en":["\"object\"","\"array\"","\"empty\"","\"text\""] };
-export const L991: Leaf = { "t":["string"],"en":["\"mark_removed\"","\"keep\""] };
-export const L992: Leaf = { "t":["string"],"en":["\"app\"","\"you\"","\"push\""] };
-export const L993: Leaf = { "t":["string"],"en":["\"pull\"","\"push\"","\"conflict\"","\"error\"","\"schema\""] };
-export const L994: Leaf = { "t":["string"],"en":["\"pull\"","\"push\"","\"both\""] };
-export const L995: Leaf = { "t":["string"],"en":["\"synced\"","\"saving\"","\"failed\"","\"local\""] };
-export const L996: Leaf = { "t":["string"],"en":["\"ours\"","\"theirs\"","\"value\""] };
-export const L997: Leaf = { "t":["string"],"en":["\"field_added\"","\"field_removed\"","\"field_retyped\"","\"object_removed\""] };
-export const L998: Leaf = { "t":["string"],"en":["\"own\"","\"space\""] };
-export const L999: Leaf = { "t":["string"],"en":["\"assigned\"","\"reviewer\"","\"approver\""] };
-export const L1000: Leaf = { "t":["string"],"ml":3 };
-export const L1001: Leaf = { "t":["string"],"en":["\"approve\"","\"reject\""] };
-export const L1002: Leaf = { "t":["string"],"en":["\"done\"","\"fixes\""] };
-export const L1003: Leaf = { "t":["string"],"en":["\"timeout\"","\"manual\"","\"away\""] };
-export const L1004: Leaf = { "t":["string"],"en":["\"mine\"","\"given\"","\"everyone\""] };
-export const L1005: Leaf = { "t":["string"],"en":["\"mine\"","\"assigned_by_me\"","\"following\"","\"record\"","\"run\"","\"all\""] };
-export const L1006: Leaf = { "t":["string"],"en":["\"open\"","\"assigned_by_me\"","\"done\"","\"all\""] };
-export const L1007: Leaf = { "t":["string"],"en":["\"ready\"","\"due_today\"","\"overdue\"","\"blocking\""] };
-export const L1008: Leaf = { "t":["string"],"en":["\"thread\"","\"crew\""] };
-export const L1009: Leaf = { "t":["string"],"en":["\"approve\"","\"send_back\""] };
-export const L1010: Leaf = { "t":["string"],"en":["\"approval\"","\"done\"","\"fixes\"","\"person\""] };
-export const L1011: Leaf = { "t":["string"],"en":["\"review\"","\"approval\"","\"done\""] };
-export const L1012: Leaf = { "t":["string"],"en":["\"chat\"","\"run\"","\"gate\"","\"journey\""] };
-export const L1013: Leaf = { "t":["string"], re: new RegExp("^sms_[a-z0-9]+$") };
-export const L1014: Leaf = { "t":["string"],"en":["\"call\"","\"sms\""] };
-export const L1015: Leaf = { "t":["string"],"en":["\"ring\"","\"voicemail\"","\"reject\"","\"agent\""] };
-export const L1016: Leaf = { "t":["string"],"en":["\"start\"","\"stop\""] };
-export const L1017: Leaf = { "t":["string"],"en":["\"queued\"","\"sent\"","\"delivered\"","\"undelivered\"","\"failed\"","\"received\""] };
-export const L1018: Leaf = { "t":["string"],"en":["\"warm\"","\"cold\""] };
-export const L1019: Leaf = { "t":["string"],"en":["\"project\"","\"journey\""] };
-export const L1020: Leaf = { "t":["string"],"en":["\"agent_computer\"","\"device\""] };
-export const L1021: Leaf = { "t":["integer"],"mn":20,"mx":500 };
-export const L1022: Leaf = { "t":["integer"],"mn":5,"mx":200 };
-export const L1023: Leaf = { "t":["string"],"en":["\"deny\"","\"ask\"","\"allow\"","\"none\""] };
-export const L1024: Leaf = { "t":["integer"],"mn":1,"mx":3600 };
-export const L1025: Leaf = { "t":["string"],"en":["\"running\"","\"asleep\"","\"waiting\"","\"none\"","\"unavailable\""] };
-export const L1026: Leaf = { "t":["string"],"en":["\"space\"","\"server\""] };
-export const L1027: Leaf = { "t":["string"],"en":["\"chat\"","\"agent\""] };
-export const L1028: Leaf = { "t":["string"],"en":["\"lead\"","\"listen\"","\"quiet\""] };
-export const L1029: Leaf = { "t":["string"],"en":["\"follow\"","\"mute\"","\"leave\""] };
-export const L1030: Leaf = { "t":["string"],"en":["\"follow\"","\"mute\"","\"none\""] };
-export const L1031: Leaf = { "t":["string"],"en":["\"created\"","\"latest\""] };
-export const L1032: Leaf = { "t":["string"],"en":["\"engine\"","\"outside_queue\""] };
-export const L1033: Leaf = { "t":["string"],"en":["\"hangup\"","\"hold\"","\"resume\"","\"redirect\""] };
-export const L1034: Leaf = { "t":["string"],"en":["\"voice\"","\"sms\"","\"status\"","\"recording\""] };
-export const L1035: Leaf = { "t":["string"],"en":["\"stable\"","\"beta\"","\"nightly\""] };
-export const L1036: Leaf = { "t":["string"],"en":["\"ok\"","\"failed\"","\"rolled_back\""] };
-export const L1037: Leaf = { "t":["string"],"en":["\"connected\"","\"waiting_person\"","\"waiting_admin\"","\"declined\"","\"no_connector\""] };
-export const L1038: Leaf = { "t":["string"],"en":["\"asked\"","\"connected\"","\"declined\""] };
-export const L1039: Leaf = { "t":["string"],"en":["\"asker\"","\"anyone\""] };
-export const L1040: Leaf = { "t":["string"],"en":["\"connected\"","\"wrong\"","\"offline\""] };
-export const L1041: Leaf = { "t":["string"],"en":["\"env\"","\"http_header\"","\"browser\"","\"terminal\"","\"file\"","\"git_credential\"","\"container_env\"","\"route_auth\""] };
-export const L1042: Leaf = { "t":["string"],"en":["\"device\"","\"host\"","\"computer\""] };
-export const L1043: Leaf = { "t":["string"],"en":["\"password\"","\"passphrase\"","\"token\""] };
-export const L1044: Leaf = { "t":["integer"],"mn":8,"mx":128 };
-export const L1045: Leaf = { "t":["integer"],"mn":3,"mx":10 };
-export const L1046: Leaf = { "t":["string"],"en":["\"fair\"","\"good\"","\"strong\""] };
-export const L1047: Leaf = { "t":["string"],"en":["\"weak\"","\"reused\"","\"stale\"","\"rotation_due\""] };
-export const L1048: Leaf = { "t":["string"],"en":["\"onepassword\"","\"bitwarden\"","\"lastpass\"","\"chrome\""] };
-export const L1049: Leaf = { "t":["string"],"en":["\"skip\"","\"overwrite\"","\"keep_both\""] };
-export const L1050: Leaf = { "t":["string"],"en":["\"created\"","\"used\"","\"revealed\"","\"edited\"","\"moved\"","\"rotated\"","\"shared\"","\"unshared\"","\"exported\"","\"deleted\"","\"restored\""] };
-export const L1051: Leaf = { "t":["string"],"en":["\"none\"","\"local\"","\"cloud\""] };
-export const L1052: Leaf = { "t":["string"],"en":["\"scheduled\"","\"live\"","\"upcoming\"","\"previous\""] };
-export const L1053: Leaf = { "t":["string"],"en":["\"meeting.started\"","\"meeting.ended\"","\"recording.completed\"","\"recording.transcript_completed\"","\"endpoint.url_validation\""] };
-export const L1054: Leaf = { "t":["string"],"en":["\"role\"","\"group\"","\"membership\"","\"label\"","\"actor\"","\"assignment\""] };
-export const L1055: Leaf = { "t":["string"],"en":["\"on\"","\"save\"","\"restore\"","\"promote\"","\"cleared\""] };
-export const L1056: Leaf = { "t":["string"],"en":["\"self_trigger\"","\"depth_limit\"","\"paused\"","\"filter_error\"","\"outsider\""] };
-export const L1057: Leaf = { "t":["string"],"en":["\"added\"","\"changed\"","\"paused\"","\"resumed\"","\"removed\""] };
-export const L1058: Leaf = { "t":["string"],"en":["\"question\"","\"plan\""] };
-export const L1059: Leaf = { "t":["string"],"en":["\"vyre\"","\"google\"","\"microsoft\"","\"booking\""] };
-export const L1060: Leaf = { "t":["string"],"en":["\"done\"","\"dismissed\""] };
-export const L1061: Leaf = { "t":["string"],"en":["\"runner_unverified\""] };
-export const L1062: Leaf = { "t":["string"],"en":["\"fork_with_secrets\"","\"cap_reached\"","\"not_enabled\"","\"no_key\"","\"runner_unverified\""] };
-export const L1063: Leaf = { "t":["string"],"en":["\"too_long\"","\"no_run\""] };
-export const L1064: Leaf = { "t":["string"],"en":["\"idle\"","\"requested\""] };
-export const L1065: Leaf = { "t":["string"],"en":["\"rule\"","\"person\"","\"agent\""] };
-export const L1066: Leaf = { "t":["string"],"en":["\"assigned\"","\"delegated\"","\"escalated\""] };
-export const L1067: Leaf = { "t":["string"],"en":["\"success\"","\"failure\"","\"neutral\"","\"cancelled\"","\"timed_out\"","\"action_required\""] };
-export const L1068: Leaf = { "t":["string"],"c":"\"google\"" };
-export const L1069: Leaf = { "t":["string"],"en":["\"added\"","\"changed\"","\"removed\"","\"paused\"","\"resumed\"","\"allowed_once\"","\"allowed_always\"","\"allow_removed\"","\"denied\"","\"agents_on\"","\"agents_off\""] };
-export const L1070: Leaf = { "t":["string"],"en":["\"first_device\"","\"password_change\"","\"reset\"","\"recovery\"","\"space_key_epoch\"","\"new_device\"","\"link\""] };
-export const L1071: Leaf = { "t":["string"],"en":["\"nickname\"","\"limits\"","\"drain\"","\"pins\"","\"full\"","\"room\""] };
-export const L1072: Leaf = { "t":["string"],"en":["\"time_and_attendees\"","\"link\"","\"person\""] };
-export const L1073: Leaf = { "t":["string"],"en":["\"on\"","\"rotated\"","\"off\"","\"role\""] };
-export const L1074: Leaf = { "t":["string"],"c":"\"microsoft\"" };
-export const L1075: Leaf = { "t":["string"],"en":["\"unsupported\"","\"too_large\"","\"corrupt\"","\"converter_down\"","\"timeout\""] };
-export const L1076: Leaf = { "t":["string"],"en":["\"thumbnail\"","\"pages\"","\"text\""] };
-export const L1077: Leaf = { "t":["string"],"en":["\"new\"","\"channel\"","\"journey\"","\"template\""] };
-export const L1078: Leaf = { "t":["string"],"en":["\"accepted\"","\"rejected\""] };
-export const L1079: Leaf = { "t":["string"],"en":["\"in_review\"","\"approved\"","\"rejected\""] };
-export const L1080: Leaf = { "t":["string"],"en":["\"bad_credentials\"","\"bad_code\"","\"locked\"","\"sso_denied\""] };
-export const L1081: Leaf = { "t":["string"],"en":["\"password\"","\"github\"","\"sso\"","\"pair\"","\"recovery\""] };
-export const L1082: Leaf = { "t":["string"],"en":["\"staging\"","\"preview\""] };
-export const L1083: Leaf = { "t":["string"],"en":["\"added\"","\"changed\"","\"removed\"","\"updated\""] };
-export const L1084: Leaf = { "t":["string"],"en":["\"rule\"","\"person\""] };
-export const L1085: Leaf = { "t":["string"],"en":["\"bad_signature\"","\"unknown_source\"","\"paused\"","\"too_large\"","\"bad_payload\""] };
-export const L1086: Leaf = { "t":["string"],"en":["\"read\"","\"done\"","\"star\"","\"follow\"","\"mute\"","\"pin\""] };
-export const L1087: Leaf = { "t":["string"],"en":["\"finished\"","\"blocked\"","\"asked\""] };
-export const L1088: Leaf = { "t":["string"],"en":["\"day\"","\"time\""] };
-export const L1089: Leaf = { "t":["string"],"en":["\"added\"","\"removed\""] };
-export const L1090: Leaf = { "t":["string"],"en":["\"record\"","\"file\"","\"dependency\""] };
-export const L1091: Leaf = { "t":["string"],"en":["\"unblock_waiting\"","\"idle_agent\"","\"waiting_on_decision\""] };
-export const L1092: Leaf = { "t":["string"],"en":["\"work\"","\"review\"","\"approval\""] };
-export const L1093: Leaf = { "t":["string"],"en":["\"person\"","\"mention\""] };
+export const L208: Leaf = { "t":["string"],"en":["\"fact\"","\"decision\"","\"question\""] };
+export const L209: Leaf = { "t":["string"],"en":["\"day\"","\"hours\"","\"week\""] };
+export const L210: Leaf = { "t":["integer"],"mn":1,"mx":168 };
+export const L211: Leaf = { "t":["string"],"en":["\"chat\"","\"channel\"","\"thread\"","\"ask\"","\"run\"","\"helper\"","\"console\""] };
+export const L212: Leaf = { "t":["string"], re: new RegExp("^arq_[a-z0-9]+$") };
+export const L213: Leaf = { "t":["string"],"en":["\"waiting\"","\"granted\"","\"declined\""] };
+export const L214: Leaf = { "t":["string"], re: new RegExp("^\\+[1-9][0-9]{6,14}$") };
+export const L215: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"channel\"","\"record\"","\"thread\""] };
+export const L216: Leaf = { "t":["string"],"en":["\"number\"","\"checklist\"","\"owner\""] };
+export const L217: Leaf = { "t":["string"],"en":["\"up\"","\"down\""] };
+export const L218: Leaf = { "t":["string"],"en":["\"records\"","\"connection\"","\"mcp\"","\"automation\"","\"watch\"","\"manual\""] };
+export const L219: Leaf = { "t":["string"], re: new RegExp("^wch_[a-z0-9]+$") };
+export const L220: Leaf = { "t":["string"],"ml":1,"xl":40 };
+export const L221: Leaf = { "t":["string"],"en":["\"waiting\"","\"added\"","\"not_now\""] };
+export const L222: Leaf = { "t":["string"],"en":["\"every\"","\"after_n\""] };
+export const L223: Leaf = { "t":["integer"],"mn":2,"mx":100 };
+export const L224: Leaf = { "t":["string"], re: new RegExp("^chn_[a-z0-9]+$") };
+export const L225: Leaf = { "t":["string"],"c":"\"everyone\"" };
+export const L226: Leaf = { "t":["string"], re: new RegExp("^grp_[a-z0-9]+$") };
+export const L227: Leaf = { "t":["string"],"en":["\"blocks\"","\"html\"","\"plain\""] };
+export const L228: Leaf = { "t":["string"],"en":["\"mcp\"","\"plugin\"","\"hub\"","\"skill\""] };
+export const L229: Leaf = { "t":["string"],"en":["\"mine\"","\"space\"","\"agent\""] };
+export const L230: Leaf = { "t":["string"], re: new RegExp("^plg_[a-z0-9]+$") };
+export const L231: Leaf = { "t":["string"],"en":["\"stdio\"","\"http\"","\"sse\"","\"ws\""] };
+export const L232: Leaf = { "t":["string"],"en":["\"registry\"","\"paste\"","\"import\"","\"hub\"","\"skill\"","\"kit\"","\"hand\"","\"plugin\""] };
+export const L233: Leaf = { "t":["string"],"en":["\"oauth\""] };
+export const L234: Leaf = { "t":["string"],"en":["\"composio\"","\"pipedream\""] };
+export const L235: Leaf = { "t":["string"],"en":["\"ok\"","\"needs_signin\"","\"key_refused\"","\"not_answering\"","\"needs_setup\"","\"off\"","\"unknown\""] };
+export const L236: Leaf = { "t":["string"],"en":["\"1h\"","\"1d\"","\"7d\""] };
+export const L237: Leaf = { "t":["boolean"],"c":"true" };
+export const L238: Leaf = { "t":["string"],"en":["\"s3\"","\"drive\"","\"local\""] };
+export const L239: Leaf = { "t":["string"], re: new RegExp("^cdr_[a-z0-9]+$") };
+export const L240: Leaf = { "t":["string"],"en":["\"person\"","\"space\""] };
+export const L241: Leaf = { "t":["string"],"en":["\"pending\"","\"active\"","\"paused\"","\"needs_reconnect\"","\"failing\""] };
+export const L242: Leaf = { "t":["string"],"en":["\"all\"","\"one\""] };
+export const L243: Leaf = { "t":["string"],"en":["\"started\"","\"claimed\"","\"slept\"","\"woke\"","\"paused\"","\"resumed\"","\"done\"","\"failed\"","\"stopped\"","\"worker_lost\"","\"budget\"","\"stuck\"","\"parent_stopped\"","\"parent_paused\"","\"retry\"","\"lease_lost\""] };
+export const L244: Leaf = { "t":["string"], re: new RegExp("^agr_[a-z0-9]+$") };
+export const L245: Leaf = { "t":["string"], re: new RegExp("^rvw_[a-z0-9]+$") };
+export const L246: Leaf = { "t":["string"],"en":["\"open\"","\"closed\""] };
+export const L247: Leaf = { "t":["string"],"en":["\"turn\"","\"subagent\"","\"helper\"","\"crew\"","\"handoff\"","\"ask\"","\"routine\"","\"wait\"","\"watcher\"","\"terminal\"","\"job\"","\"mcp\"","\"other\""] };
+export const L248: Leaf = { "t":["string"],"en":["\"queued\"","\"running\"","\"waiting\"","\"paused\"","\"succeeded\"","\"failed\"","\"stopped\""] };
+export const L249: Leaf = { "t":["string"],"en":["\"checks\""] };
+export const L250: Leaf = { "t":["string"],"en":["\"pending\"","\"passing\"","\"failing\"","\"none\""] };
+export const L251: Leaf = { "t":["string"],"en":["\"agent_computer\"","\"space_server\"","\"device\""] };
+export const L252: Leaf = { "t":["string"], re: new RegExp("^dev_[a-z0-9]+$") };
+export const L253: Leaf = { "t":["string"],"en":["\"running\"","\"idle\"","\"exited\""] };
+export const L254: Leaf = { "t":["string"],"en":["\"agent\"","\"helper\"","\"person\""] };
+export const L255: Leaf = { "t":["string"], re: new RegExp("^bkg_[a-z0-9]+$") };
+export const L256: Leaf = { "t":["string"],"en":["\"booked\"","\"cancelled\"","\"rescheduled\""] };
+export const L257: Leaf = { "t":["string"],"en":["\"approval.requested\"","\"answer.requested\"","\"unblock.requested\"","\"approval.backstop\"","\"dm\"","\"mention\"","\"call.incoming\"","\"agent.blocked\"","\"incident.owned\"","\"task.assigned\"","\"reply.followed\"","\"agent.task_finished\"","\"digest.away\"","\"mention.thread\"","\"run.failed\"","\"conflict.needs_you\"","\"access.requested\"","\"access.decided\"","\"sync.attention\"","\"health.degraded\"","\"problem.report\"","\"member.joined\"","\"member.join_requested\"","\"limit.hit\"","\"vault.rotation_due\"","\"reply.thread\"","\"task.turn\"","\"task.returned\"","\"task.finished\"","\"task.due\"","\"machine.alert\"","\"item.shared\"","\"space.deletion_scheduled\"","\"space.deletion_cancelled\"","\"ci.paused\"","\"hook.asked\""] };
+export const L258: Leaf = { "t":["string"],"en":["\"todo\"","\"doing\"","\"in_review\"","\"awaiting_approval\"","\"done\"","\"canceled\""] };
+export const L259: Leaf = { "t":["string"],"en":["\"review\"","\"approval\""] };
+export const L260: Leaf = { "t":["string"], re: new RegExp("^pac_[a-z0-9]+$") };
+export const L261: Leaf = { "t":["string"],"en":["\"invited\"","\"active\"","\"disabled\""] };
+export const L262: Leaf = { "t":["string"], re: new RegExp("^rpt_[a-z0-9]+$") };
+export const L263: Leaf = { "t":["string"],"en":["\"open\"","\"accepted\"","\"revoked\"","\"expired\""] };
+export const L264: Leaf = { "t":["string"], re: new RegExp("^mkt_[a-z0-9]+$") };
+export const L265: Leaf = { "t":["string"],"en":["\"space\"","\"agent\""] };
+export const L266: Leaf = { "t":["string"],"en":["\"ask\"","\"show\"","\"hide\""] };
+export const L267: Leaf = { "t":["string"], re: new RegExp("^tpl_[a-z0-9]+$") };
+export const L268: Leaf = { "t":["string"],"en":["\"text\"","\"heading\"","\"image\"","\"button\"","\"columns\"","\"divider\"","\"merge\"","\"footer\"","\"html\"","\"spacer\"","\"social\"","\"saved\""] };
+export const L269: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"actor\"","\"service\"","\"group\"","\"role\"","\"grant\"","\"policy\"","\"review\"","\"device\"","\"session\"","\"invite\""] };
+export const L270: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"actor\"","\"service\""] };
+export const L271: Leaf = { "t":["string"],"en":["\"running\"","\"asleep\"","\"waiting\"","\"error\""] };
+export const L272: Leaf = { "t":["string"],"en":["\"owner\"","\"admin\"","\"viewer\""] };
+export const L273: Leaf = { "t":["string"],"ml":1,"xl":60 };
+export const L274: Leaf = { "t":["string"],"en":["\"always\"","\"ask\"","\"never\""] };
+export const L275: Leaf = { "t":["string"],"en":["\"CNAME\"","\"A\""] };
+export const L276: Leaf = { "t":["string"],"en":["\"waiting_dns\"","\"issuing\"","\"live\""] };
+export const L277: Leaf = { "t":["string"],"en":["\"api_key\"","\"subscription\""] };
+export const L278: Leaf = { "t":["string"],"en":["\"subscription\"","\"reported\"","\"catalog\"","\"estimate\"","\"unknown\"","\"flat\""] };
+export const L279: Leaf = { "t":["string"],"en":["\"input\"","\"output\"","\"cache_read\"","\"cache_write\""] };
+export const L280: Leaf = { "t":["string"],"en":["\"subscription\"","\"api_key\"","\"local_model\""] };
+export const L281: Leaf = { "t":["string"], re: new RegExp("^exc_[a-z0-9]+$") };
+export const L282: Leaf = { "t":["string"],"en":["\"allow\"","\"deny\"","\"own\"","\"ask\""] };
+export const L283: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"actor\"","\"external\""] };
+export const L284: Leaf = { "t":["string"],"en":["\"read\"","\"act\""] };
+export const L285: Leaf = { "t":["string"], re: new RegExp("^hld_[a-z0-9]+$") };
+export const L286: Leaf = { "t":["string"],"en":["\"held\"","\"approved\"","\"denied\"","\"expired\""] };
+export const L287: Leaf = { "t":["integer"],"mn":1,"mx":5000 };
+export const L288: Leaf = { "t":["string"],"en":["\"queued\"","\"running\"","\"succeeded\"","\"failed\"","\"stopped\""] };
+export const L289: Leaf = { "t":["string"],"en":["\"disk_low\"","\"memory_pressure\"","\"offline_pinned\"","\"update_waiting\"","\"backup_failed\""] };
+export const L290: Leaf = { "t":["string"],"en":["\"info\"","\"warn\"","\"bad\""] };
+export const L291: Leaf = { "t":["string"], re: new RegExp("^aud_[a-z0-9]+$") };
+export const L292: Leaf = { "t":["string"],"en":["\"change\"","\"sensitive\"","\"deny\"","\"admin\"","\"erase\"","\"sign_in\""] };
+export const L293: Leaf = { "t":["string"],"en":["\"desktop\"","\"phone\"","\"web\"","\"extension\"","\"daemon\""] };
+export const L294: Leaf = { "t":["string"],"en":["\"totp\"","\"passkey\""] };
+export const L295: Leaf = { "t":["string"],"en":["\"google_drive\"","\"sharepoint\"","\"onedrive\"","\"dropbox\"","\"local\"","\"github\""] };
+export const L296: Leaf = { "t":["string"],"en":["\"idle\"","\"syncing\"","\"paused\"","\"failing\"","\"device_offline\""] };
+export const L297: Leaf = { "t":["string"],"en":["\"server_copy\"","\"live_only\""] };
+export const L298: Leaf = { "t":["string"],"en":["\"push\"","\"poll\""] };
+export const L299: Leaf = { "t":["string"],"en":["\"open\"","\"closed\"","\"merged\""] };
+export const L300: Leaf = { "t":["string"],"en":["\"none\"","\"pending\"","\"passing\"","\"failing\""] };
+export const L301: Leaf = { "t":["string"],"en":["\"chat\"","\"run\"","\"gate\"","\"journey\"","\"meeting\"","\"goal\"","\"manual\""] };
+export const L302: Leaf = { "t":["string"],"xl":200 };
+export const L303: Leaf = { "t":["integer"],"mn":0,"mx":3 };
+export const L304: Leaf = { "t":["string"],"en":["\"ok\"","\"blocked\"","\"note\"","\"error\"","\"timeout\"","\"skipped\"","\"allowed_once\"","\"allowed_always\""] };
+export const L305: Leaf = { "t":["string"], re: new RegExp("^vrq_[a-z0-9]+$") };
+export const L306: Leaf = { "t":["string"],"en":["\"ask\"","\"have\"","\"admin\"","\"asked\"","\"connected\"","\"wrong\"","\"offline\"","\"later\"","\"gone\""] };
+export const L307: Leaf = { "t":["string"],"en":["\"permission\""] };
+export const L308: Leaf = { "t":["string"],"en":["\"file\"","\"channel\"","\"thread\"","\"folder\"","\"person\""] };
+export const L309: Leaf = { "t":["string"], re: new RegExp("^ins_[a-z0-9]+$") };
+export const L310: Leaf = { "t":["string"],"en":["\"skill\"","\"plugin\"","\"mcp_local\"","\"mcp_remote\"","\"site\""] };
+export const L311: Leaf = { "t":["string"],"en":["\"claude\"","\"codex\""] };
+export const L312: Leaf = { "t":["string"],"en":["\"me\"","\"agent\"","\"space\""] };
+export const L313: Leaf = { "t":["string"],"en":["\"sandbox\"","\"space\""] };
+export const L314: Leaf = { "t":["string"],"en":["\"hold\"","\"allow\""] };
+export const L315: Leaf = { "t":["string"],"en":["\"low\"","\"medium\"","\"high\""] };
+export const L316: Leaf = { "t":["string"],"en":["\"drop\"","\"escalate\""] };
+export const L317: Leaf = { "t":["string"],"en":["\"delegate\"","\"role\""] };
+export const L318: Leaf = { "t":["string"],"en":["\"space\"","\"floor\"","\"agent\""] };
+export const L319: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"group\""] };
+export const L320: Leaf = { "t":["string"],"en":["\"error\"","\"warn\""] };
+export const L321: Leaf = { "t":["string"], re: new RegExp("^isc_[a-z0-9]+$") };
+export const L322: Leaf = { "t":["string"],"en":["\"codex\"","\"claude_code\""] };
+export const L323: Leaf = { "t":["string"], re: new RegExp("^spc_[a-z0-9]+$") };
+export const L324: Leaf = { "t":["string"],"en":["\"personal\"","\"team\""] };
+export const L325: Leaf = { "t":["string"],"en":["\"relay\"","\"own_domain\"","\"device\""] };
+export const L326: Leaf = { "t":["string"],"en":["\"email\"","\"phone\""] };
+export const L327: Leaf = { "t":["string"], re: new RegExp("^viw_[a-z0-9]+$") };
+export const L328: Leaf = { "t":["string"],"en":["\"changed_since\"","\"not_undoable\"","\"sent\"","\"deployed\""] };
+export const L329: Leaf = { "t":["string"], re: new RegExp("^cfl_[a-z0-9]+$") };
+export const L330: Leaf = { "t":["string"],"en":["\"open\"","\"proposed\"","\"needs_you\"","\"resolved\""] };
+export const L331: Leaf = { "t":["string"],"en":["\"person\"","\"client\"","\"project\"","\"agent\"","\"record\"","\"topic\"","\"decision\"","\"site\""] };
+export const L332: Leaf = { "t":["string"],"en":["\"user\"","\"assistant\""] };
+export const L333: Leaf = { "t":["string"],"en":["\"off\"","\"announce\"","\"ask\""] };
+export const L334: Leaf = { "t":["string"],"en":["\"none\"","\"pending\"","\"approved\"","\"rejected\""] };
+export const L335: Leaf = { "t":["string"],"en":["\"pending\"","\"active\"","\"released\""] };
+export const L336: Leaf = { "t":["string"], re: new RegExp("^cal_[a-z0-9]+$") };
+export const L337: Leaf = { "t":["string"],"en":["\"ringing\"","\"answered\"","\"voicemail\"","\"completed\"","\"missed\"","\"failed\""] };
+export const L338: Leaf = { "t":["string"],"en":["\"urgent\"","\"high\"","\"normal\"","\"low\""] };
+export const L339: Leaf = { "t":["string"],"en":["\"day\"","\"week\"","\"month\""] };
+export const L340: Leaf = { "t":["integer"],"mn":1,"mx":365 };
+export const L341: Leaf = { "t":["string"],"en":["\"bearer\"","\"basic\"","\"header\""] };
+export const L342: Leaf = { "t":["string"],"en":["\"space\"","\"record_type\"","\"record\"","\"project\"","\"folder\"","\"file\"","\"channel\"","\"thread\"","\"inbox\"","\"mailbox\"","\"vault_folder\"","\"vault_item\"","\"automation_group\"","\"automation\"","\"agent\"","\"connector\"","\"connection\"","\"site\"","\"form\"","\"kit\"","\"terminal\"","\"computer\"","\"task\"","\"run\"","\"number\"","\"domain\"","\"calendar\"","\"skill\""] };
+export const L343: Leaf = { "t":["string"],"en":["\"fail\"","\"continue\"","\"retry\"","\"route\"","\"skip\"","\"substitute\""] };
+export const L344: Leaf = { "t":["integer"],"mn":1,"mx":10 };
+export const L345: Leaf = { "t":["string"],"en":["\"answer\"","\"task\""] };
+export const L346: Leaf = { "t":["string"], re: new RegExp("^vfd_[a-z0-9]+$") };
+export const L347: Leaf = { "t":["string"],"en":["\"mine\"","\"shared\""] };
+export const L348: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\""] };
+export const L349: Leaf = { "t":["string"],"en":["\"debug\"","\"info\"","\"warn\"","\"error\""] };
+export const L350: Leaf = { "t":["string"], re: new RegExp("^[0-9a-f]{7,40}$") };
+export const L351: Leaf = { "t":["string"],"en":["\"send\"","\"post\"","\"pay\"","\"delete\"","\"transfer\"","\"enroll_node\"","\"connection_change\"","\"push_protected\"","\"secret_export\"","\"site_promote\"","\"signature_send\"","\"spend_raise\"","\"signin_change\"","\"install\"","\"approve\"","\"github_approval\"","\"agent_erase\""] };
+export const L352: Leaf = { "t":["string"], re: new RegExp("^bsi_[a-z0-9]+$") };
+export const L353: Leaf = { "t":["string"],"en":["\"chrome\"","\"computers\"","\"both\""] };
+export const L354: Leaf = { "t":["string"],"en":["\"label_denied\"","\"scrub_miss\"","\"runaway_spend\"","\"repeated_failure\"","\"person_report\"","\"other\""] };
+export const L355: Leaf = { "t":["string"],"en":["\"open\"","\"assigned\"","\"resolved\""] };
+export const L356: Leaf = { "t":["string"],"en":["\"tasks\"","\"milestones\"","\"links\"","\"records\"","\"metric\"","\"ci\"","\"goal\"","\"people\"","\"status\""] };
+export const L357: Leaf = { "t":["string"],"en":["\"list\"","\"table\"","\"count\"","\"cards\""] };
+export const L358: Leaf = { "t":["string"],"en":["\"file\"","\"line\"","\"range\"","\"area\"","\"page\"","\"cell\""] };
+export const L359: Leaf = { "t":["string"], re: new RegExp("^(usr|agt|act|svc)_[a-z0-9]+$") };
+export const L360: Leaf = { "t":["string"],"en":["\"invited\"","\"active\"","\"suspended\"","\"removed\""] };
+export const L361: Leaf = { "t":["string"],"en":["\"todo\"","\"doing\"","\"done\"","\"skipped\""] };
+export const L362: Leaf = { "t":["string"], re: new RegExp("^adr_[a-z0-9]+$") };
+export const L363: Leaf = { "t":["string"],"en":["\"email\"","\"phone\"","\"handle\""] };
+export const L364: Leaf = { "t":["string"],"en":["\"text\"","\"markdown\"","\"document\"","\"spreadsheet\"","\"presentation\"","\"pdf\"","\"image\"","\"video\"","\"audio\"","\"code\"","\"archive\"","\"google_native\"","\"other\""] };
+export const L365: Leaf = { "t":["string"], re: new RegExp("^cnv_[a-z0-9]+$") };
+export const L366: Leaf = { "t":["string"],"en":["\"email\"","\"sms\"","\"call\"","\"meeting\""] };
+export const L367: Leaf = { "t":["string"],"en":["\"draft\"","\"planning\"","\"active\"","\"waiting\"","\"stuck\"","\"paused\"","\"done\"","\"missed\"","\"stopped\""] };
+export const L368: Leaf = { "t":["string"],"en":["\"done\"","\"missed\"","\"stopped\""] };
+export const L369: Leaf = { "t":["string"],"en":["\"personal\"","\"shared\"","\"agent\"","\"service\""] };
+export const L370: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\"","\"imap\"","\"inbound_only\""] };
+export const L371: Leaf = { "t":["string"],"en":["\"pending\"","\"syncing\"","\"paused\"","\"error\"","\"disconnected\""] };
+export const L372: Leaf = { "t":["string"], re: new RegExp("^res_[a-z0-9]+$") };
+export const L373: Leaf = { "t":["string"], re: new RegExp("^snp_[a-z0-9]+$") };
+export const L374: Leaf = { "t":["string"],"en":["\"on\"","\"risk\"","\"off\"","\"hold\"","\"done\""] };
+export const L375: Leaf = { "t":["string"], re: new RegExp("^sup_[a-z0-9]+$") };
+export const L376: Leaf = { "t":["string"],"en":["\"bounce_hard\"","\"complaint\"","\"unsubscribe\"","\"stop\"","\"manual\"","\"do_not_contact\"","\"import\""] };
+export const L377: Leaf = { "t":["string"],"en":["\"git\"","\"local\""] };
+export const L378: Leaf = { "t":["string"],"en":["\"agent\"","\"project\"","\"space\""] };
+export const L379: Leaf = { "t":["string"], re: new RegExp("^rte_[a-z0-9]+$") };
+export const L380: Leaf = { "t":["string"], re: new RegExp("^dom_[a-z0-9]+$") };
+export const L381: Leaf = { "t":["string"],"en":["\"resend\"","\"mailgun\""] };
+export const L382: Leaf = { "t":["string"],"en":["\"on\"","\"loading\"","\"not_set_up\"","\"degraded\"","\"off\""] };
+export const L383: Leaf = { "t":["string"],"en":["\"assistant\"","\"teammate\"","\"agent\""] };
+export const L384: Leaf = { "t":["string"],"en":["\"vyre\"","\"outside\""] };
+export const L385: Leaf = { "t":["string"],"en":["\"same_provider\"","\"any\"","\"ask\""] };
+export const L386: Leaf = { "t":["string"],"en":["\"asker\"","\"key\""] };
+export const L387: Leaf = { "t":["string"],"en":["\"auto\"","\"propose\"","\"auto_low_risk\"","\"off\""] };
+export const L388: Leaf = { "t":["string"],"en":["\"open\"","\"proposed\"","\"needs_you\"","\"resolved\"","\"undone\""] };
+export const L389: Leaf = { "t":["string"],"en":["\"ours\"","\"theirs\"","\"merged\"","\"custom\""] };
+export const L390: Leaf = { "t":["string"],"en":["\"zoom\"","\"meet\"","\"teams\"","\"none\""] };
+export const L391: Leaf = { "t":["string"],"en":["\"confirmed\"","\"tentative\"","\"canceled\""] };
+export const L392: Leaf = { "t":["string"],"en":["\"login\"","\"api_key\"","\"env\"","\"card\"","\"note\"","\"totp\"","\"ssh_key\"","\"ai_subscription\"","\"other\""] };
+export const L393: Leaf = { "t":["string"],"xl":14000000 };
+export const L394: Leaf = { "t":["string"],"en":["\"image/png\"","\"image/jpeg\"","\"image/gif\"","\"image/webp\""] };
+export const L395: Leaf = { "t":["string"], re: new RegExp("^prv_[a-z0-9]+$") };
+export const L396: Leaf = { "t":["string"], re: new RegExp("^\\d+\\.\\d+\\.\\d+") };
+export const L397: Leaf = { "t":["string"], re: new RegExp("^reg_[a-z0-9]+$") };
+export const L398: Leaf = { "t":["string"],"en":["\"draft\"","\"submitted\"","\"in_review\"","\"approved\"","\"rejected\""] };
+export const L399: Leaf = { "t":["string"],"en":["\"text\"","\"paragraph\"","\"image\"","\"binary\""] };
+export const L400: Leaf = { "t":["string"], re: new RegExp("^sch_[a-z0-9]+$") };
+export const L401: Leaf = { "t":["string"],"en":["\"skip\"","\"run_once\""] };
+export const L402: Leaf = { "t":["string"],"en":["\"private\"","\"shared\"","\"room\""] };
+export const L403: Leaf = { "t":["string"],"en":["\"scheduled\"","\"live\"","\"ended\"","\"canceled\""] };
+export const L404: Leaf = { "t":["string"],"en":["\"none\"","\"pending\"","\"attached\"","\"unavailable\""] };
+export const L405: Leaf = { "t":["string"],"en":["\"send\"","\"post\"","\"push_protected\"","\"site_promote\"","\"signature_send\""] };
+export const L406: Leaf = { "t":["string"],"en":["\"lead\"","\"listen\""] };
+export const L407: Leaf = { "t":["string"],"en":["\"low\"","\"medium\"","\"high\"","\"max\""] };
+export const L408: Leaf = { "t":["string"],"en":["\"always\"","\"topics\"","\"hours\""] };
+export const L409: Leaf = { "t":["string"], re: new RegExp("^([01][0-9]|2[0-3]):[0-5][0-9]$") };
+export const L410: Leaf = { "t":["string"],"en":["\"short\"","\"full\""] };
+export const L411: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"group\"","\"role\""] };
+export const L412: Leaf = { "t":["string"],"en":["\"digitalocean\""] };
+export const L413: Leaf = { "t":["integer"],"mn":1,"mx":20 };
+export const L414: Leaf = { "t":["number"],"mn":0 };
+export const L415: Leaf = { "t":["integer"],"mn":5,"mx":360 };
+export const L416: Leaf = { "t":["string"], re: new RegExp("^[A-Za-z0-9_.-]{1,40}$") };
+export const L417: Leaf = { "t":["string"],"en":["\"message\"","\"step\""] };
+export const L418: Leaf = { "t":["string"],"en":["\"person\"","\"limit\"","\"transient\"","\"other\""] };
+export const L419: Leaf = { "t":["string"],"en":["\"needs_action\"","\"accepted\"","\"declined\"","\"tentative\""] };
+export const L420: Leaf = { "t":["string"],"en":["\"own\"","\"space\"","\"none\""] };
+export const L421: Leaf = { "t":["string"],"en":["\"ok\"","\"failing\""] };
+export const L422: Leaf = { "t":["string"],"en":["\"ask\"","\"allow\"","\"auto\""] };
+export const L423: Leaf = { "t":["string"],"en":["\"role\"","\"person\""] };
+export const L424: Leaf = { "t":["string"], re: new RegExp("^sug_[a-z0-9]+$") };
+export const L425: Leaf = { "t":["string"],"en":["\"agent_md\"","\"template\""] };
+export const L426: Leaf = { "t":["string"],"en":["\"open\"","\"accepted\"","\"dismissed\""] };
+export const L427: Leaf = { "t":["string"],"en":["\"person\"","\"guest\"","\"agent\"","\"system\""] };
+export const L428: Leaf = { "t":["string"], re: new RegExp("^mrk_[a-z0-9]+$") };
+export const L429: Leaf = { "t":["string"],"en":["\"redact\"","\"highlight\""] };
+export const L430: Leaf = { "t":["string"],"en":["\"span\"","\"box\"","\"range\"","\"name\""] };
+export const L431: Leaf = { "t":["string"], re: new RegExp("^pln_[a-z0-9]+$") };
+export const L432: Leaf = { "t":["string"],"en":["\"added\"","\"modified\"","\"deleted\"","\"renamed\"","\"untracked\"","\"conflicted\""] };
+export const L433: Leaf = { "t":["string"],"en":["\"POST\"","\"PUT\"","\"PATCH\"","\"DELETE\""] };
+export const L434: Leaf = { "t":["string"],"en":["\"failing_check\"","\"expiring_certificate\"","\"failed_run\"","\"stuck_update\"","\"limit_hit\"","\"access_review_due\"","\"join_stuck\"","\"home_channel\"","\"no_ai_account\"","\"space_deletion_scheduled\""] };
+export const L435: Leaf = { "t":["string"],"en":["\"person\"","\"agent\""] };
+export const L436: Leaf = { "t":["string"],"en":["\"type.create\"","\"type.update\"","\"type.drop\"","\"field.add\"","\"field.update\"","\"field.retype\"","\"field.rename\"","\"field.drop\"","\"field.reorder\"","\"relation.add\"","\"relation.drop\""] };
+export const L437: Leaf = { "t":["string"],"en":["\"ok\"","\"second_factor_required\""] };
+export const L438: Leaf = { "t":["string"], re: new RegExp("^chl_[a-z0-9]+$") };
+export const L439: Leaf = { "t":["string"], re: new RegExp("^ses_[a-z0-9]+$") };
+export const L440: Leaf = { "t":["string"],"en":["\"record\"","\"file\"","\"chat\"","\"task\"","\"artifact\"","\"mail_thread\"","\"calendar_event\"","\"github.pr\"","\"github.commit\"","\"ci.run\"","\"url\""] };
+export const L441: Leaf = { "t":["string"],"en":["\"manual\"","\"agent\"","\"rule\""] };
+export const L442: Leaf = { "t":["string"],"en":["\"space\"","\"agent\"","\"mine\""] };
+export const L443: Leaf = { "t":["string"],"en":["\"stdio\"","\"http\""] };
+export const L444: Leaf = { "t":["string"], re: new RegExp("^gnt_[a-z0-9]+$") };
+export const L445: Leaf = { "t":["string"],"en":["\"ask\"","\"auto\"","\"plan\""] };
+export const L446: Leaf = { "t":["string"],"en":["\"space\"","\"person\"","\"agent\"","\"chat\"","\"run\""] };
+export const L447: Leaf = { "t":["string"],"en":["\"session.start\"","\"prompt.submit\"","\"tool.before\"","\"tool.after\"","\"outward.before\"","\"turn.end\"","\"helper.start\"","\"helper.end\""] };
+export const L448: Leaf = { "t":["string"],"en":["\"command\"","\"check\"","\"action\""] };
+export const L449: Leaf = { "t":["string"],"en":["\"admin\"","\"person\"","\"agent\""] };
+export const L450: Leaf = { "t":["integer"],"mn":1,"mx":60 };
+export const L451: Leaf = { "t":["string"],"en":["\"missing\"","\"stale\""] };
+export const L452: Leaf = { "t":["string"],"en":["\"ai_field\"","\"agent_lookup\"","\"task\"","\"form\""] };
+export const L453: Leaf = { "t":["string"],"en":["\"ok\"","\"needs_sign_in\"","\"failing\""] };
+export const L454: Leaf = { "t":["string"],"en":["\"postgres\"","\"redis\""] };
+export const L455: Leaf = { "t":["string"],"en":["\"starting\"","\"ready\"","\"failed\""] };
+export const L456: Leaf = { "t":["string"],"en":["\"region\"","\"page\""] };
+export const L457: Leaf = { "t":["integer"],"mn":5,"mx":10080 };
+export const L458: Leaf = { "t":["string"],"en":["\"computer\"","\"chrome\""] };
+export const L459: Leaf = { "t":["string"],"en":["\"on\"","\"paused\"","\"error\""] };
+export const L460: Leaf = { "t":["string"],"en":["\"api\"","\"mcp\"","\"dwd\"","\"oauth_app\"","\"webhook_only\""] };
+export const L461: Leaf = { "t":["string"],"en":["\"live\"","\"draft\"","\"failing_tests\""] };
+export const L462: Leaf = { "t":["string"],"en":["\"waiting\"","\"fulfilled\"","\"declined\"","\"canceled\""] };
+export const L463: Leaf = { "t":["string"],"en":["\"page\"","\"chat\"","\"run\"","\"record\""] };
+export const L464: Leaf = { "t":["string"],"en":["\"site\"","\"app\"","\"api\"","\"worker\"","\"artifact\""] };
+export const L465: Leaf = { "t":["string"],"en":["\"public\"","\"password\"","\"space\"","\"private\""] };
+export const L466: Leaf = { "t":["string"],"en":["\"link\"","\"space\""] };
+export const L467: Leaf = { "t":["string"],"en":["\"device\"","\"agent_run\""] };
+export const L468: Leaf = { "t":["string"],"en":["\"note\"","\"person\"","\"client\"","\"project\"","\"site\"","\"decision\"","\"record\"","\"chat\"","\"agent\"","\"topic\""] };
+export const L469: Leaf = { "t":["string"],"en":["\"link\"","\"relation\"","\"came_from\"","\"mention\""] };
+export const L470: Leaf = { "t":["string"],"en":["\"queued\"","\"running\"","\"waiting\"","\"succeeded\"","\"failed\"","\"stopped\""] };
+export const L471: Leaf = { "t":["string"], re: new RegExp("^rcd_[a-z0-9]+$") };
+export const L472: Leaf = { "t":["string"],"en":["\"recording\"","\"saved\"","\"processed\""] };
+export const L473: Leaf = { "t":["string"],"en":["\"on\"","\"off\"","\"draft\"","\"paused\""] };
+export const L474: Leaf = { "t":["string"], re: new RegExp("^rtn_[a-z0-9]+$") };
+export const L475: Leaf = { "t":["string"],"en":["\"schedule\"","\"watch\""] };
+export const L476: Leaf = { "t":["string"],"en":["\"running\"","\"succeeded\"","\"failed\"","\"stopped\""] };
+export const L477: Leaf = { "t":["string"], re: new RegExp("^cir_[a-z0-9]+$") };
+export const L478: Leaf = { "t":["string"],"en":["\"queued\"","\"starting\"","\"running\"","\"finished\"","\"failed\"","\"swept\"","\"refused\""] };
+export const L479: Leaf = { "t":["string"],"en":["\"event\"","\"time\"","\"process\"","\"person\"","\"child\"","\"deps\"","\"log\""] };
+export const L480: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"group\"","\"role\"","\"automation\""] };
+export const L481: Leaf = { "t":["string"],"en":["\"agent\"","\"automation\"","\"journey\"","\"record_type\"","\"runbook\"","\"project\"","\"site\"","\"form\"","\"portal\""] };
+export const L482: Leaf = { "t":["string"], re: new RegExp("^prm_[a-z0-9]+$") };
+export const L483: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"actor\"","\"service\"","\"group\""] };
+export const L484: Leaf = { "t":["string"], re: new RegExp("^(usr|agt|act|svc|grp)_[a-z0-9]+$") };
+export const L485: Leaf = { "t":["string"],"en":["\"public\"","\"invite\""] };
+export const L486: Leaf = { "t":["string"],"en":["\"message\""] };
+export const L487: Leaf = { "t":["string"],"en":["\"automation\"","\"journey\"","\"agent_routine\"","\"gate\"","\"task\"","\"system\"","\"goal\""] };
+export const L488: Leaf = { "t":["string"],"en":["\"chat\"","\"channel\"","\"project\"","\"goal\"","\"person\"","\"agent\""] };
+export const L489: Leaf = { "t":["string"],"en":["\"task\"","\"record\"","\"email\"","\"hold\""] };
+export const L490: Leaf = { "t":["string"],"en":["\"proposed\"","\"approved\"","\"skipped\"","\"failed\""] };
+export const L491: Leaf = { "t":["string"],"en":["\"send\"","\"draft\""] };
+export const L492: Leaf = { "t":["string"],"en":["\"task\"","\"record\"","\"comment\"","\"email\"","\"draft\"","\"event\"","\"approval\""] };
+export const L493: Leaf = { "t":["string"],"en":["\"decision\"","\"finished\"","\"record_change\"","\"routine\"","\"notice\"","\"waiting\""] };
+export const L494: Leaf = { "t":["string"],"en":["\"trash\"","\"run_logs\"","\"transcripts\"","\"audit\"","\"file_versions\"","\"logs\"","\"events\"","\"backups\"","\"memory\"","\"records\""] };
+export const L495: Leaf = { "t":["string"],"en":["\"\"","\"rose\"","\"sand\"","\"sage\"","\"sky\"","\"lilac\"","\"slate\""] };
+export const L496: Leaf = { "t":["string"],"en":["\"image\"","\"icon\""] };
+export const L497: Leaf = { "t":["string"],"en":["\"task\"","\"record\""] };
+export const L498: Leaf = { "t":["string"],"en":["\"edit\"","\"view\""] };
+export const L499: Leaf = { "t":["string"],"en":["\"off\"","\"view\"","\"edit\""] };
+export const L500: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\"","\"okta\""] };
+export const L501: Leaf = { "t":["string"],"xl":300 };
+export const L502: Leaf = { "t":["string"],"en":["\"records\"","\"files\"","\"memory\"","\"vault\"","\"automations\"","\"chats\"","\"inbox\"","\"sites\"","\"terminal\"","\"computer\"","\"agents\"","\"tasks\"","\"meta\"","\"engineer\""] };
+export const L503: Leaf = { "t":["number"],"mn":0.1,"mx":16 };
+export const L504: Leaf = { "t":["integer"],"mn":128,"mx":65536 };
+export const L505: Leaf = { "t":["integer"],"mn":256,"mx":1048576 };
+export const L506: Leaf = { "t":["string"],"en":["\"repo\"","\"record_filter\"","\"email_domain\""] };
+export const L507: Leaf = { "t":["string"],"en":["\"admins\"","\"viewers\"","\"chosen\""] };
+export const L508: Leaf = { "t":["string"],"en":["\"allow\"","\"deny\"","\"hold\""] };
+export const L509: Leaf = { "t":["string"],"en":["\"owner\"","\"person\"","\"group\"","\"role\""] };
+export const L510: Leaf = { "t":["string"],"en":["\"any\"","\"approved\"","\"none\""] };
+export const L511: Leaf = { "t":["string"],"en":["\"personal\"","\"shared\"","\"space\"","\"starred\"","\"following\""] };
+export const L512: Leaf = { "t":["string"],"en":["\"owner\"","\"grant\"","\"folder\"","\"space\""] };
+export const L513: Leaf = { "t":["string"],"en":["\"none\"","\"view\"","\"use\"","\"edit\"","\"manage\""] };
+export const L514: Leaf = { "t":["string"],"en":["\"keep\"","\"remove\""] };
+export const L515: Leaf = { "t":["string"],"en":["\"direct\"","\"group\"","\"role\"","\"folder\"","\"owner\""] };
+export const L516: Leaf = { "t":["string"], re: new RegExp("^[a-z][a-z0-9-]{0,63}$") };
+export const L517: Leaf = { "t":["string"],"en":["\"person_only\"","\"no_edit\""] };
+export const L518: Leaf = { "t":["string"],"en":["\"me\"","\"everyone\""] };
+export const L519: Leaf = { "t":["string"],"en":["\"automation\"","\"task\"","\"goal\"","\"project\""] };
+export const L520: Leaf = { "t":["string"],"c":"\".vyre/guide.md\"" };
+export const L521: Leaf = { "t":["string"],"xl":240 };
+export const L522: Leaf = { "t":["string"],"en":["\"agent\"","\"person\"","\"space\""] };
+export const L523: Leaf = { "t":["string"],"en":["\"personal\"","\"shared\"","\"space\""] };
+export const L524: Leaf = { "t":["string"],"en":["\"hide\"","\"include\"","\"only\""] };
+export const L525: Leaf = { "t":["string"], re: new RegExp("^ojb_[a-z0-9]+$") };
+export const L526: Leaf = { "t":["string"],"en":["\"mention\"","\"task\"","\"answer\""] };
+export const L527: Leaf = { "t":["string"],"en":["\"AGENT.md\"","\"agent.toml\""] };
+export const L528: Leaf = { "t":["string"],"en":["\"private\"","\"personal\"","\"shared\"","\"space\""] };
+export const L529: Leaf = { "t":["string"],"en":["\"suggest\"","\"new_only\"","\"off\""] };
+export const L530: Leaf = { "t":["integer"],"mn":1,"mx":90 };
+export const L531: Leaf = { "t":["string"],"en":["\"accepted\"","\"absent\""] };
+export const L532: Leaf = { "t":["string"],"en":["\"declined\"","\"absent\""] };
+export const L533: Leaf = { "t":["string"],"en":["\"missing\"","\"off\""] };
+export const L534: Leaf = { "t":["string"],"en":["\"draft\""] };
+export const L535: Leaf = { "t":["string"],"en":["\"oauth\"","\"api_key\"","\"none\"","\"unknown\""] };
+export const L536: Leaf = { "t":["string"],"en":["\"GET\"","\"POST\"","\"PUT\"","\"PATCH\"","\"DELETE\"","\"HEAD\"","\"OPTIONS\"","\"TRACE\""] };
+export const L537: Leaf = { "t":["string"],"en":["\"path\"","\"query\"","\"header\"","\"body\""] };
+export const L538: Leaf = { "t":["string"],"en":["\"read\"","\"outward\""] };
+export const L539: Leaf = { "t":["string"],"en":["\"header\"","\"query\"","\"body\""] };
+export const L540: Leaf = { "t":["string"],"en":["\"dry_run\"","\"hold\""] };
+export const L541: Leaf = { "t":["string"],"en":["\"connection\""] };
+export const L542: Leaf = { "t":["string"],"en":["\"secret\"","\"string\""] };
+export const L543: Leaf = { "t":["string"],"en":["\"missing\""] };
+export const L544: Leaf = { "t":["string"],"en":["\"GET\"","\"HEAD\""] };
+export const L545: Leaf = { "t":["string"],"en":["\"safe\"","\"ambiguous\"","\"inactive\""] };
+export const L546: Leaf = { "t":["string"],"en":["\"openapi\"","\"html\"","\"text\""] };
+export const L547: Leaf = { "t":["string"],"en":["\"same\"","\"current\""] };
+export const L548: Leaf = { "t":["string"],"en":["\"nobody\"","\"not_active\"","\"cannot_ask\"","\"assistant\""] };
+export const L549: Leaf = { "t":["string"],"en":["\"run_first_n\"","\"run_latest_n\"","\"skip_backlog_and_resume\"","\"change_limits\"","\"keep_paused\""] };
+export const L550: Leaf = { "t":["integer"],"mn":0,"mx":2592000000 };
+export const L551: Leaf = { "t":["string"],"en":["\"queue\"","\"skip_while_active\"","\"bounded_concurrency\""] };
+export const L552: Leaf = { "t":["string"],"en":["\"email\"","\"text\""] };
+export const L553: Leaf = { "t":["string"],"en":["\"data\"","\"send\"","\"ai\"","\"control\"","\"wait\"","\"code\"","\"sheet\"","\"sign\"","\"journey\""] };
+export const L554: Leaf = { "t":["string"],"en":["\"read\"","\"write\"","\"outward\""] };
+export const L555: Leaf = { "t":["string"],"en":["\"tested\"","\"draft\""] };
+export const L556: Leaf = { "t":["string"],"en":["\"error\"","\"warning\""] };
+export const L557: Leaf = { "t":["string"],"en":["\"remove\"","\"pause\"","\"resume\""] };
+export const L558: Leaf = { "t":["string"],"xl":20000 };
+export const L559: Leaf = { "t":["string"],"ml":1,"xl":2000 };
+export const L560: Leaf = { "t":["string"],"c":"\"POST\"" };
+export const L561: Leaf = { "t":["string"], re: new RegExp("^bkp_[a-z0-9]+$") };
+export const L562: Leaf = { "t":["string"],"c":"\"ready\"" };
+export const L563: Leaf = { "t":["string"],"en":["\"scheduled\"","\"manual\"","\"pre_update\""] };
+export const L564: Leaf = { "t":["integer"],"mn":5 };
+export const L565: Leaf = { "t":["string"],"en":["\"chrome_held\"","\"chrome_step\""] };
+export const L566: Leaf = { "t":["string"],"en":["\"send\"","\"drop\"","\"watch\"","\"takeover\""] };
+export const L567: Leaf = { "t":["string"], re: new RegExp("^hld_[0-9a-f]+$") };
+export const L568: Leaf = { "t":["string"],"en":["\"meet\"","\"zoom\"","\"teams\"","\"none\""] };
+export const L569: Leaf = { "t":["integer"],"mn":5,"mx":600 };
+export const L570: Leaf = { "t":["string"],"en":["\"day\"","\"weekday\"","\"week\"","\"two_weeks\"","\"month\"","\"other\""] };
+export const L571: Leaf = { "t":["string"],"en":["\"mine\"","\"shared\"","\"all\""] };
+export const L572: Leaf = { "t":["string"],"en":["\"accepted\"","\"declined\"","\"tentative\""] };
+export const L573: Leaf = { "t":["string"],"en":["\"this\"","\"all\""] };
+export const L574: Leaf = { "t":["string"],"en":["\"meet\"","\"zoom\"","\"teams\""] };
+export const L575: Leaf = { "t":["string"],"en":["\"unified\"","\"split\"","\"words\"","\"paragraph\""] };
+export const L576: Leaf = { "t":["string"],"en":["\"hunks\"","\"full\""] };
+export const L577: Leaf = { "t":["string"],"en":["\"added\"","\"modified\"","\"deleted\"","\"renamed\""] };
+export const L578: Leaf = { "t":["integer"],"mn":1,"mx":200 };
+export const L579: Leaf = { "t":["string"],"en":["\"people\"","\"agents\"","\"runs\""] };
+export const L580: Leaf = { "t":["string"],"en":["\"message\"","\"run\"","\"run_group\""] };
+export const L581: Leaf = { "t":["string"],"en":["\"person\"","\"agent\"","\"actor\""] };
+export const L582: Leaf = { "t":["integer"],"mn":2 };
+export const L583: Leaf = { "t":["string"],"en":["\"booked_by\"","\"contact_agent\"","\"last_used\"","\"none\""] };
+export const L584: Leaf = { "t":["string"],"en":["\"extract\"","\"model\"","\"person\""] };
+export const L585: Leaf = { "t":["string"],"en":["\"@\"","\"#\"","\"/\""] };
+export const L586: Leaf = { "t":["string"],"en":["\"followup\"","\"progress\"","\"question\"","\"result\""] };
+export const L587: Leaf = { "t":["string"],"en":["\"brief\"","\"person\"","\"parent\"","\"helper\""] };
+export const L588: Leaf = { "t":["string"],"en":["\"running\"","\"done\"","\"failed\"","\"stopped\""] };
+export const L589: Leaf = { "t":["integer"],"mn":1,"mx":100 };
+export const L590: Leaf = { "t":["string"],"xl":400 };
+export const L591: Leaf = { "t":["string"],"en":["\"added\"","\"changed\"","\"removed\"","\"paused\"","\"resumed\"","\"blocked\"","\"failed\"","\"allowed\"","\"asked\""] };
+export const L592: Leaf = { "t":["string"],"xl":80 };
+export const L593: Leaf = { "t":["string"],"en":["\"allowed\"","\"always\"","\"denied\""] };
+export const L594: Leaf = { "t":["string"],"en":["\"now\"","\"online\"","\"at\""] };
+export const L595: Leaf = { "t":["string"],"en":["\"approval\"","\"review\"","\"key\""] };
+export const L596: Leaf = { "t":["string"],"xl":2000 };
+export const L597: Leaf = { "t":["string"],"en":["\"sent\"","\"scheduled\""] };
+export const L598: Leaf = { "t":["string"],"en":["\"person\"","\"self\""] };
+export const L599: Leaf = { "t":["string"],"en":["\"save\"","\"dismiss\""] };
+export const L600: Leaf = { "t":["string"],"en":["\"saved\"","\"dismissed\""] };
+export const L601: Leaf = { "t":["string"],"en":["\"off\"","\"already_offered\"","\"too_soon\"","\"declined_recently\""] };
+export const L602: Leaf = { "t":["string"],"en":["\"disabled_by_person\"","\"no_device\""] };
+export const L603: Leaf = { "t":["string"],"en":["\"minutes\"","\"hour\"","\"day\"","\"slow\"","\"unknown\""] };
+export const L604: Leaf = { "t":["string"],"en":["\"all\"","\"mentions\"","\"off\""] };
+export const L605: Leaf = { "t":["string"],"en":["\"online\"","\"away\"","\"offline\"","\"unknown\""] };
+export const L606: Leaf = { "t":["string"],"en":["\"single\"","\"multi\"","\"free\""] };
+export const L607: Leaf = { "t":["string"],"en":["\"terminal\""] };
+export const L608: Leaf = { "t":["string"],"en":["\"read\"","\"change\"","\"danger\""] };
+export const L609: Leaf = { "t":["string"],"en":["\"all\"","\"unread\"","\"people\"","\"agents\""] };
+export const L610: Leaf = { "t":["string"],"en":["\"project\"","\"person\""] };
+export const L611: Leaf = { "t":["string"],"xl":120 };
+export const L612: Leaf = { "t":["string"],"en":["\"keyword\"","\"meaning\"","\"hybrid\""] };
+export const L613: Leaf = { "t":["integer"],"mn":1,"mx":50 };
+export const L614: Leaf = { "t":["string"],"en":["\"keyword\"","\"meaning\"","\"both\""] };
+export const L615: Leaf = { "t":["string"],"en":["\"chat\"","\"ask\""] };
+export const L616: Leaf = { "t":["string"],"en":["\"renamed\"","\"not_a_chat\"","\"direct\"","\"small_talk\"","\"done\"","\"has_title\""] };
+export const L617: Leaf = { "t":["string"],"en":["\"keyword\"","\"semantic\"","\"hybrid\""] };
+export const L618: Leaf = { "t":["string"],"en":["\"user\"","\"assistant\"","\"tool\"","\"system\""] };
+export const L619: Leaf = { "t":["string"],"en":["\"online\"","\"away\""] };
+export const L620: Leaf = { "t":["string"],"en":["\"goals\"","\"pinned\"","\"chats\"","\"channels\"","\"team\""] };
+export const L621: Leaf = { "t":["string"],"en":["\"Allow\"","\"Review\"","\"Answer\"","\"Blocked\"","\"Sign\""] };
+export const L622: Leaf = { "t":["string"], re: new RegExp("^\\d{4}-\\d{2}$") };
+export const L623: Leaf = { "t":["string"],"en":["\"queued\"","\"completed\""] };
+export const L624: Leaf = { "t":["string"],"en":["\"no\"","\"yes\"","\"unknown\""] };
+export const L625: Leaf = { "t":["string"],"en":["\"started\"","\"queued\"","\"refused\"","\"ignored\"","\"finished\"","\"failed\""] };
+export const L626: Leaf = { "t":["string"], re: new RegExp("^[a-z0-9]{2,10}$") };
+export const L627: Leaf = { "t":["string"], re: new RegExp("^[a-z0-9-]{3,40}$") };
+export const L628: Leaf = { "t":["string"], re: new RegExp("^[A-Za-z0-9._-]{3,80}$") };
+export const L629: Leaf = { "t":["number"],"mn":0,"mx":100000 };
+export const L630: Leaf = { "t":["string"],"en":["\"certificate\"","\"secret\""] };
+export const L631: Leaf = { "t":["string"],"en":["\"own\"","\"agent\""] };
+export const L632: Leaf = { "t":["string"],"c":"\"browser\"" };
+export const L633: Leaf = { "t":["string"],"en":["\"live\"","\"asleep\"","\"held\""] };
+export const L634: Leaf = { "t":["string"],"en":["\"mjpeg\""] };
+export const L635: Leaf = { "t":["string"],"en":["\"click\"","\"double_click\"","\"hover\"","\"press\"","\"select\"","\"scroll\"","\"check\"","\"uncheck\"","\"focus\""] };
+export const L636: Leaf = { "t":["string"],"en":["\"GET\"","\"POST\"","\"PUT\"","\"PATCH\"","\"DELETE\""] };
+export const L637: Leaf = { "t":["string"],"en":["\"left\"","\"right\"","\"middle\""] };
+export const L638: Leaf = { "t":["string"],"en":["\"log\"","\"warn\"","\"error\""] };
+export const L639: Leaf = { "t":["string"],"en":["\"tree\"","\"text\""] };
+export const L640: Leaf = { "t":["string"],"en":["\"list\"","\"use\"","\"find\"","\"new\"","\"close\""] };
+export const L641: Leaf = { "t":["string"],"en":["\"load\"","\"text\"","\"selector\"","\"network_idle\"","\"time\""] };
+export const L642: Leaf = { "t":["integer"],"mn":100,"mx":120000 };
+export const L643: Leaf = { "t":["integer"],"mn":0,"mx":1440 };
+export const L644: Leaf = { "t":["integer"],"mn":1,"mx":5000000 };
+export const L645: Leaf = { "t":["string"],"en":["\"utf8\"","\"base64\""] };
+export const L646: Leaf = { "t":["string"],"en":["\"create\"","\"overwrite\"","\"append\""] };
+export const L647: Leaf = { "t":["string"],"en":["\"ready\"","\"missing\""] };
+export const L648: Leaf = { "t":["string"],"en":["\"this\"","\"space\"","\"server\""] };
+export const L649: Leaf = { "t":["string"],"en":["\"make_skill\"","\"learn_routine\"","\"work_out_backend_calls\"","\"learn_workflow\""] };
+export const L650: Leaf = { "t":["integer"],"mn":50,"mx":60000 };
+export const L651: Leaf = { "t":["string"],"en":["\"webrtc\"","\"mjpeg\""] };
+export const L652: Leaf = { "t":["string"],"en":["\"lww_loser\"","\"resolved\"","\"superseded\""] };
+export const L653: Leaf = { "t":["string"],"en":["\"mine\"","\"space\"","\"all\""] };
+export const L654: Leaf = { "t":["string"],"en":["\"pending\"","\"active\"","\"failing\"","\"needs_reconnect\"","\"paused\""] };
+export const L655: Leaf = { "t":["string"],"en":["\"ok\"","\"rejected\"","\"limited\"","\"unreachable\""] };
+export const L656: Leaf = { "t":["string"],"en":["\"none\"","\"api_key\"","\"bearer\""] };
+export const L657: Leaf = { "t":["string"],"en":["\"pending\"","\"sent\"","\"failed\"","\"canceled\"","\"undone\""] };
+export const L658: Leaf = { "t":["string"],"en":["\"create\"","\"update\"","\"delete\""] };
+export const L659: Leaf = { "t":["string"],"en":["\"sent\"","\"failed\""] };
+export const L660: Leaf = { "t":["string"],"en":["\"incremental\"","\"reconcile\"","\"backfill\"","\"dry_run\""] };
+export const L661: Leaf = { "t":["string"],"en":["\"verified\"","\"unverified\""] };
+export const L662: Leaf = { "t":["string"],"en":["\"min\"","\"max\"","\"exact\""] };
+export const L663: Leaf = { "t":["string"],"en":["\"agent\"","\"person\"","\"model\""] };
+export const L664: Leaf = { "t":["string"],"en":["\"sms_stop\"","\"email_unsubscribe\"","\"link\"","\"reply\""] };
+export const L665: Leaf = { "t":["string"],"en":["\"good\"","\"risky\"","\"bounced\"","\"complained\""] };
+export const L666: Leaf = { "t":["string"],"en":["\"audience\"","\"journey_enrol\"","\"import\""] };
+export const L667: Leaf = { "t":["integer"],"mx":0 };
+export const L668: Leaf = { "t":["string"],"en":["\"owner\"","\"shared_inbox\""] };
+export const L669: Leaf = { "t":["string"],"en":["\"device_revoked\"","\"suspended\"","\"removed\"","\"password_reset\"","\"clearance_lowered\"","\"key_rotation\""] };
+export const L670: Leaf = { "t":["string"],"en":["\"online\"","\"away\"","\"offline\""] };
+export const L671: Leaf = { "t":["string"],"en":["\"text\"","\"date\"","\"money\"","\"list\"","\"condition\"","\"loop\""] };
+export const L672: Leaf = { "t":["string"], re: new RegExp("^\\d{4}-\\d{2}-\\d{2}$") };
+export const L673: Leaf = { "t":["string"],"en":["\"docx\"","\"pdf\""] };
+export const L674: Leaf = { "t":["integer"],"mn":1,"mx":2000 };
+export const L675: Leaf = { "t":["integer"],"mn":30,"mx":480 };
+export const L676: Leaf = { "t":["string"],"en":["\"desktop\"","\"mobile\"","\"dark\"","\"plain\""] };
+export const L677: Leaf = { "t":["string"],"en":["\"chat\"","\"wake\"","\"automation\"","\"goal\"","\"agent_work\""] };
+export const L678: Leaf = { "t":["string"],"en":["\"starter\"","\"steerer\"","\"step_key\"","\"backup_key\"","\"none\""] };
+export const L679: Leaf = { "t":["string"],"en":["\"unknown\"","\"expired\"","\"failed\"","\"policy_company\"","\"not_yours\"","\"space_may_not_use\"","\"failed_this_turn\"","\"capped\"","\"no_model\"","\"not_used_for\""] };
+export const L680: Leaf = { "t":["string"],"en":["\"thread\"","\"chat_key\"","\"work\"","\"step\"","\"space\"","\"backup\""] };
+export const L681: Leaf = { "t":["string"],"en":["\"no_account\"","\"expired\"","\"failed\"","\"policy\"","\"no_model\""] };
+export const L682: Leaf = { "t":["string"],"en":["\"chat\"","\"automation\"","\"agent\"","\"space\""] };
+export const L683: Leaf = { "t":["string"],"en":["\"anthropic\"","\"openai\"","\"openrouter\"","\"google\"","\"xai\"","\"opencode_go\"","\"local\"","\"custom\"","\"claude_code\"","\"codex\"","\"grok\""] };
+export const L684: Leaf = { "t":["string"],"en":["\"ok\"","\"expired\"","\"failed\"","\"untested\""] };
+export const L685: Leaf = { "t":["string"],"en":["\"engine\"","\"vyre\""] };
+export const L686: Leaf = { "t":["string"],"en":["\"helper\"","\"teammate\"","\"subagent\""] };
+export const L687: Leaf = { "t":["string"],"en":["\"working\"","\"done\"","\"needs_you\"","\"failed\"","\"stopped\""] };
+export const L688: Leaf = { "t":["string"],"en":["\"running\"","\"passing\"","\"failing\""] };
+export const L689: Leaf = { "t":["string"],"en":["\"cheap\"","\"standard\"","\"strong\""] };
+export const L690: Leaf = { "t":["string"],"en":["\"turn\"","\"wait\""] };
+export const L691: Leaf = { "t":["string"],"en":["\"plugin\"","\"connection\""] };
+export const L692: Leaf = { "t":["string"],"en":["\"label_provider\"","\"policy_model\"","\"not_connected\"","\"usage_limit\"","\"checking\"","\"not_checked\"","\"slow\""] };
+export const L693: Leaf = { "t":["string"],"en":["\"live\"","\"saved\"","\"shipped\""] };
+export const L694: Leaf = { "t":["string"],"en":["\"api_key\"","\"subscription\"","\"local\""] };
+export const L695: Leaf = { "t":["string"],"en":["\"ok\"","\"checking\"","\"unavailable\"","\"unverified\""] };
+export const L696: Leaf = { "t":["string"],"en":["\"read\"","\"not_readable\""] };
+export const L697: Leaf = { "t":["string"],"en":["\"space\"","\"computer\"","\"server\""] };
+export const L698: Leaf = { "t":["string"],"en":["\"message\"","\"interrupt\"","\"wake\"","\"handoff\""] };
+export const L699: Leaf = { "t":["string"],"en":["\"host\"","\"device\"","\"wait\""] };
+export const L700: Leaf = { "t":["string"],"en":["\"device\"","\"space\"","\"server\""] };
+export const L701: Leaf = { "t":["string"],"en":["\"auto\"","\"device\"","\"space\"","\"server\""] };
+export const L702: Leaf = { "t":["string"],"en":["\"any\"","\"company\""] };
+export const L703: Leaf = { "t":["string"],"en":["\"api\"","\"cli\""] };
+export const L704: Leaf = { "t":["string"],"en":["\"waiting\"","\"ok\"","\"flagged\""] };
+export const L705: Leaf = { "t":["string"],"en":["\"ok\"","\"flagged\""] };
+export const L706: Leaf = { "t":["string"],"en":["\"working\"","\"waiting\"","\"replied\"","\"stopped\""] };
+export const L707: Leaf = { "t":["string"],"en":["\"space\"","\"person\"","\"agent\""] };
+export const L708: Leaf = { "t":["string"],"en":["\"run\"","\"day\"","\"month\"","\"turns\"","\"time\""] };
+export const L709: Leaf = { "t":["string"],"en":["\"once\"","\"permanent\""] };
+export const L710: Leaf = { "t":["string"],"en":["\"automation\""] };
+export const L711: Leaf = { "t":["string"],"en":["\"update\""] };
+export const L712: Leaf = { "t":["string"],"en":["\"running\"","\"waiting\"","\"failed\"","\"done\""] };
+export const L713: Leaf = { "t":["string"],"ml":1,"xl":120 };
+export const L714: Leaf = { "t":["string"],"xl":60 };
+export const L715: Leaf = { "t":["string"],"en":["\"text\"","\"thinking\"","\"tool_call\"","\"tool_result\"","\"block\""] };
+export const L716: Leaf = { "t":["string"],"en":["\"message\"","\"interrupt\"","\"wake\"","\"handoff\"","\"none\""] };
+export const L717: Leaf = { "t":["string"],"en":["\"switch_model\"","\"backup_key\""] };
+export const L718: Leaf = { "t":["string"],"en":["\"completed\"","\"failed\"","\"cancelled\""] };
+export const L719: Leaf = { "t":["string"],"en":["\"host\"","\"device\""] };
+export const L720: Leaf = { "t":["string"],"en":["\"started\"","\"waiting\"","\"completed\"","\"failed\"","\"cancelled\""] };
+export const L721: Leaf = { "t":["string"],"en":["\"provider\"","\"estimate\"","\"none\""] };
+export const L722: Leaf = { "t":["string"],"en":["\"day\"","\"person\"","\"agent\"","\"model\"","\"account\""] };
+export const L723: Leaf = { "t":["string"], re: new RegExp("^env_[a-z0-9]+$") };
+export const L724: Leaf = { "t":["string"],"en":["\"vyre\"","\"documenso\"","\"dropbox_sign\"","\"docusign\""] };
+export const L725: Leaf = { "t":["string"],"en":["\"sent\"","\"viewed\"","\"signed\"","\"declined\"","\"cancelled\"","\"expired\""] };
+export const L726: Leaf = { "t":["string"],"en":["\"sign\"","\"decline\"","\"copy\""] };
+export const L727: Leaf = { "t":["integer"],"mn":1,"mx":1000 };
+export const L728: Leaf = { "t":["string"],"en":["\"clear\"","\"hidden\"","\"reviewed\"","\"needs_review\"","\"off\""] };
+export const L729: Leaf = { "t":["string"],"en":["\"clear\"","\"redacted\"","\"needs\"","\"off\""] };
+export const L730: Leaf = { "t":["string"],"en":["\"agent\"","\"project\""] };
+export const L731: Leaf = { "t":["string"],"en":["\"folders\"","\"channels\"","\"all\""] };
+export const L732: Leaf = { "t":["string"],"en":["\"memory\"","\"graph\""] };
+export const L733: Leaf = { "t":["string"],"en":["\"name\"","\"updated\"","\"size\"","\"kind\""] };
+export const L734: Leaf = { "t":["string"],"en":["\"asc\"","\"desc\""] };
+export const L735: Leaf = { "t":["string"],"en":["\"select\"","\"check\"","\"box\"","\"range\"","\"name\""] };
+export const L736: Leaf = { "t":["string"],"en":["\"available\"","\"reviewed\"","\"needs_review\"","\"off\""] };
+export const L737: Leaf = { "t":["string"], re: new RegExp("^rrq_[a-z0-9]+$") };
+export const L738: Leaf = { "t":["string"],"en":["\"text\"","\"base64\"","\"url\""] };
+export const L739: Leaf = { "t":["string"],"en":["\"patterns\""] };
+export const L740: Leaf = { "t":["string"],"en":["\"folder\"","\"virtual\""] };
+export const L741: Leaf = { "t":["string"],"en":["\"provider_api\"","\"open_in_provider\""] };
+export const L742: Leaf = { "t":["string"],"en":["\"record\"","\"person\""] };
+export const L743: Leaf = { "t":["string"],"en":["\"send_back\"","\"drop\""] };
+export const L744: Leaf = { "t":["string"],"en":["\"dropped\"","\"escalated\""] };
+export const L745: Leaf = { "t":["string"],"en":["\"save\"","\"on\""] };
+export const L746: Leaf = { "t":["string"],"en":["\"create\"","\"switch\"","\"delete\""] };
+export const L747: Leaf = { "t":["string"],"en":["\"merge\"","\"rebase\"","\"ff_only\""] };
+export const L748: Leaf = { "t":["string"], re: new RegExp("^https://[^@\\s]+$") };
+export const L749: Leaf = { "t":["string"],"en":["\"all\"","\"selected\""] };
+export const L750: Leaf = { "t":["string"],"en":["\"read\"","\"push_branch\"","\"open_pr\"","\"comment\"","\"merge\"","\"push_default\""] };
+export const L751: Leaf = { "t":["string"],"en":["\"space\"","\"vyre\""] };
+export const L752: Leaf = { "t":["string"],"en":["\"all\"","\"selected\"","\"none\""] };
+export const L753: Leaf = { "t":["string"], re: new RegExp("^[a-z][a-z0-9_.:-]{1,60}$") };
+export const L754: Leaf = { "t":["string"],"en":["\"merge\"","\"squash\"","\"rebase\""] };
+export const L755: Leaf = { "t":["string"],"en":["\"ping\"","\"installation\"","\"push\"","\"pull_request\"","\"issues\"","\"check_run\"","\"workflow_run\"","\"workflow_job\""] };
+export const L756: Leaf = { "t":["string"], re: new RegExp("^\\d+\\.\\d+\\.\\d+$") };
+export const L757: Leaf = { "t":["string"], re: new RegExp("^[A-Za-z0-9_.-]{1,64}$") };
+export const L758: Leaf = { "t":["string"],"ml":1,"xl":80 };
+export const L759: Leaf = { "t":["string"],"ml":1,"xl":600 };
+export const L760: Leaf = { "t":["string"],"ml":1,"xl":140 };
+export const L761: Leaf = { "t":["string"],"en":["\"Plan\"","\"Drafts\"","\"Research\"","\"Reports\""] };
+export const L762: Leaf = { "t":["string"],"en":["\"mine\"","\"helping\"","\"project\"","\"record\"","\"task\"","\"all\""] };
+export const L763: Leaf = { "t":["string"],"ml":1,"xl":400 };
+export const L764: Leaf = { "t":["string"],"en":["\"started\"","\"already_done\"","\"done\""] };
+export const L765: Leaf = { "t":["string"],"en":["\"all\"","\"externalOnly\"","\"none\""] };
+export const L766: Leaf = { "t":["string"],"en":["\"after\"","\"before\"","\"start\"","\"end\""] };
+export const L767: Leaf = { "t":["string"],"en":["\"reader\"","\"commenter\"","\"writer\""] };
+export const L768: Leaf = { "t":["string"],"en":["\"metadata\"","\"full\"","\"raw\""] };
+export const L769: Leaf = { "t":["string"],"en":["\"gmail\"","\"calendar\"","\"drive\"","\"meet\""] };
+export const L770: Leaf = { "t":["string"],"en":["\"RAW\"","\"USER_ENTERED\""] };
+export const L771: Leaf = { "t":["string"], re: new RegExp("^fnd_[a-z0-9]+$") };
+export const L772: Leaf = { "t":["string"],"en":["\"records\"","\"files\"","\"chats\"","\"inbox\"","\"mail\"","\"calls\"","\"memory\"","\"runs\""] };
+export const L773: Leaf = { "t":["string"],"en":["\"idle\"","\"running\"","\"failed\""] };
+export const L774: Leaf = { "t":["string"], re: new RegExp("^(forever|per_policy|[0-9]+[dwmy])$") };
+export const L775: Leaf = { "t":["string"], re: new RegExp("^tmb_[a-z0-9]+$") };
+export const L776: Leaf = { "t":["string"],"en":["\"automations\"","\"sync\"","\"sends\""] };
+export const L777: Leaf = { "t":["string"], re: new RegExp("^bnd_[a-z0-9]+$") };
+export const L778: Leaf = { "t":["string"],"en":["\"overdue\"","\"blocked\"","\"slipped\""] };
+export const L779: Leaf = { "t":["string"], re: new RegExp("^dgs_[a-z0-9]+$") };
+export const L780: Leaf = { "t":["string"],"en":["\"photo_and_title\"","\"connect_mailbox_and_calendar\"","\"meet_assistant\"","\"open_first_project\"","\"import\""] };
+export const L781: Leaf = { "t":["string"],"en":["\"scheduled\"","\"running\"","\"done\"","\"failed\""] };
+export const L782: Leaf = { "t":["string"],"en":["\"engine\"","\"tools\"","\"cli\""] };
+export const L783: Leaf = { "t":["string"],"en":["\"ok\"","\"blocked\"","\"note\"","\"error\"","\"timeout\"","\"skipped\"","\"allowed_once\""] };
+export const L784: Leaf = { "t":["string"],"en":["\"space\""] };
+export const L785: Leaf = { "t":["string"],"xl":1000 };
+export const L786: Leaf = { "t":["string"],"en":["\"contacts\"","\"companies\"","\"deals\""] };
+export const L787: Leaf = { "t":["string"], re: new RegExp("^[a-z0-9_.-]{2,32}$") };
+export const L788: Leaf = { "t":["string"],"en":["\"first_device\"","\"password_change\"","\"reset\"","\"recovery\"","\"space_key_epoch\"","\"new_device\""] };
+export const L789: Leaf = { "t":["string"],"en":["\"app\"","\"phone\"","\"extension\"","\"daemon\""] };
+export const L790: Leaf = { "t":["string"],"xl":32 };
+export const L791: Leaf = { "t":["string"],"en":["\"vault_mine\"","\"private_chats\"","\"personal_memory\""] };
+export const L792: Leaf = { "t":["string"], re: new RegExp("^[0-9]{6}$") };
+export const L793: Leaf = { "t":["string"], re: new RegExp("^enr_[a-z0-9]+$") };
+export const L794: Leaf = { "t":["string"],"xl":1 };
+export const L795: Leaf = { "t":["string"],"en":["\"update\"","\"skip\"","\"create\""] };
+export const L796: Leaf = { "t":["string"],"en":["\"mailbox\"","\"number\""] };
+export const L797: Leaf = { "t":["string"],"en":["\"owner\"","\"project\"","\"follow\"","\"shared_inbox\""] };
+export const L798: Leaf = { "t":["string"],"en":["\"mail_message\"","\"sms\"","\"call\""] };
+export const L799: Leaf = { "t":["string"],"en":["\"sure\"","\"unsure\"","\"none\""] };
+export const L800: Leaf = { "t":["string"],"en":["\"contact\"","\"member\"","\"inbox\"","\"group\""] };
+export const L801: Leaf = { "t":["string"],"en":["\"email\"","\"sms\""] };
+export const L802: Leaf = { "t":["string"],"en":["\"email\"","\"sms\"","\"call\"","\"meeting\"","\"record_chip\"","\"note\""] };
+export const L803: Leaf = { "t":["string"],"en":["\"started\"","\"to\"","\"cc\"","\"added_later\"","\"none\""] };
+export const L804: Leaf = { "t":["string"],"en":["\"todo\"","\"in_review\"","\"blocked\"","\"done\""] };
+export const L805: Leaf = { "t":["string"],"en":["\"apply\"","\"undo\""] };
+export const L806: Leaf = { "t":["string"], re: new RegExp("^rpl_[a-z0-9]+$") };
+export const L807: Leaf = { "t":["string"],"en":["\"running\"","\"done\"","\"failed\""] };
+export const L808: Leaf = { "t":["string"],"en":["\"clear_caches\"","\"stop_idle\"","\"restart_service\""] };
+export const L809: Leaf = { "t":["string"], re: new RegExp("^[a-z][a-z0-9_.-]{0,40}$") };
+export const L810: Leaf = { "t":["string"],"en":["\"done\"","\"failed\""] };
+export const L811: Leaf = { "t":["string"],"en":["\"turn\"","\"site\"","\"automation\""] };
+export const L812: Leaf = { "t":["string"],"en":["\"clear_caches\"","\"stop_idle\"","\"update\""] };
+export const L813: Leaf = { "t":["string"],"en":["\"full\"","\"vyre_only\""] };
+export const L814: Leaf = { "t":["integer"],"mn":1,"mx":64 };
+export const L815: Leaf = { "t":["integer"],"mn":0,"mx":32 };
+export const L816: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\"","\"imap\""] };
+export const L817: Leaf = { "t":["string"], re: new RegExp("^(gua|mua)_[0-9a-f]{32}$") };
+export const L818: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\"","\"imap\"","\"resend\"","\"mailgun\""] };
+export const L819: Leaf = { "t":["string"],"en":["\"shared\"","\"agent\"","\"service\""] };
+export const L820: Leaf = { "t":["string"],"en":["\"error\"","\"syncing\""] };
+export const L821: Leaf = { "t":["string"],"en":["\"mailbox\"","\"space_domain\""] };
+export const L822: Leaf = { "t":["string"],"en":["\"queued\"","\"sent\"","\"held\"","\"suppressed\""] };
+export const L823: Leaf = { "t":["string"],"en":["\"email\""] };
+export const L824: Leaf = { "t":["string"],"en":["\"delivered\"","\"bounced\"","\"complained\"","\"opened\"","\"clicked\"","\"failed\""] };
+export const L825: Leaf = { "t":["string"],"en":["\"hard\"","\"soft\""] };
+export const L826: Leaf = { "t":["string"],"en":["\"accepted\"","\"delivered\"","\"failed\"","\"opened\"","\"clicked\"","\"complained\"","\"unsubscribed\""] };
+export const L827: Leaf = { "t":["string"],"en":["\"permanent\"","\"temporary\""] };
+export const L828: Leaf = { "t":["string"], re: new RegExp("^mca_[a-z0-9]+$") };
+export const L829: Leaf = { "t":["string"],"en":["\"ok\"","\"error\"","\"held\""] };
+export const L830: Leaf = { "t":["string"], re: new RegExp("^oar_[a-z0-9]+$") };
+export const L831: Leaf = { "t":["string"], re: new RegExp("^[0-9]{4}$") };
+export const L832: Leaf = { "t":["integer"],"mn":60,"mx":86400 };
+export const L833: Leaf = { "t":["string"],"en":["\"outside\"","\"driver\""] };
+export const L834: Leaf = { "t":["string"],"en":["\"zoom\"","\"meet\"","\"teams\"","\"upload\""] };
+export const L835: Leaf = { "t":["string"],"en":["\"preparing\"","\"ready\"","\"closed\"","\"nothing\""] };
+export const L836: Leaf = { "t":["string"],"ml":1,"xl":300 };
+export const L837: Leaf = { "t":["string"],"ml":1,"xl":20000 };
+export const L838: Leaf = { "t":["string"],"en":["\"project\"","\"channel\""] };
+export const L839: Leaf = { "t":["string"],"en":["\"calendar\"","\"zoom\"","\"meet\"","\"teams\""] };
+export const L840: Leaf = { "t":["string"],"en":["\"none\"","\"working\"","\"ready\""] };
+export const L841: Leaf = { "t":["string"],"en":["\"live\"","\"ended\""] };
+export const L842: Leaf = { "t":["string"],"c":"\"channel\"" };
+export const L843: Leaf = { "t":["string"],"en":["\"view\"","\"reply\""] };
+export const L844: Leaf = { "t":["string"],"xl":100 };
+export const L845: Leaf = { "t":["string"], re: new RegExp("^jrq_[a-z0-9]+$") };
+export const L846: Leaf = { "t":["string"],"en":["\"waiting\"","\"approved\"","\"declined\""] };
+export const L847: Leaf = { "t":["string"],"en":["\"pause\"","\"reassign\"","\"revoke\"","\"export\"","\"retain\"","\"keep\"","\"delete\""] };
+export const L848: Leaf = { "t":["string"],"en":["\"closed\"","\"idle\"","\"turn\""] };
+export const L849: Leaf = { "t":["string"],"en":["\"model\"","\"rules\"","\"none\""] };
+export const L850: Leaf = { "t":["string"],"en":["\"forgotten\"","\"off\"","\"nothing_new\""] };
+export const L851: Leaf = { "t":["string"],"en":["\"off\"","\"forgotten\"","\"nothing\"","\"duplicate\""] };
+export const L852: Leaf = { "t":["string"],"en":["\"no_key\"","\"key_unavailable\""] };
+export const L853: Leaf = { "t":["string"],"en":["\"agent\"","\"project\"","\"space\"","\"person\""] };
+export const L854: Leaf = { "t":["string"],"en":["\"space\"","\"project\"","\"person\""] };
+export const L855: Leaf = { "t":["string"],"en":["\"learned\"","\"merged\"","\"flagged\""] };
+export const L856: Leaf = { "t":["string"],"en":["\"learning\"","\"rules_only\""] };
+export const L857: Leaf = { "t":["string"],"en":["\"cap\"","\"no_key\""] };
+export const L858: Leaf = { "t":["string"],"en":["\"local\"","\"key\"","\"off\""] };
+export const L859: Leaf = { "t":["string"],"en":["\"notes\"","\"proposed\"","\"recipes\"","\"journal\""] };
+export const L860: Leaf = { "t":["string"],"en":["\"chat\"","\"channel\"","\"project\"","\"task\"","\"goal\"","\"record\""] };
+export const L861: Leaf = { "t":["string"],"en":["\"archive\"","\"delete\""] };
+export const L862: Leaf = { "t":["string"],"en":["\"short_ack\"","\"mid_tool_loop\"","\"no_match\"","\"duplicate\""] };
+export const L863: Leaf = { "t":["string"],"en":["\"private\"","\"shared\""] };
+export const L864: Leaf = { "t":["string"],"en":["\"keep_a\"","\"keep_b\"","\"keep_both\"","\"drop\""] };
+export const L865: Leaf = { "t":["string"],"en":["\"open\"","\"resolved\""] };
+export const L866: Leaf = { "t":["string"],"en":["\"contradiction\"","\"stale\""] };
+export const L867: Leaf = { "t":["string"],"en":["\"fact\"","\"quote\""] };
+export const L868: Leaf = { "t":["string"],"en":["\"trash\"","\"archive\""] };
+export const L869: Leaf = { "t":["string"],"en":["\"note\"","\"fact\"","\"page\""] };
+export const L870: Leaf = { "t":["string"],"en":["\"create\"","\"edit\"","\"merge\"","\"delete\"","\"restore\"","\"archive\"","\"erase\"","\"learn\"","\"undo\"","\"accept\"","\"reject\"","\"promote\"","\"flag\"","\"resolve\""] };
+export const L871: Leaf = { "t":["string"],"en":["\"google_doc\"","\"google_sheet\"","\"google_slides\"","\"google_file\"","\"word\"","\"excel\"","\"powerpoint\"","\"sharepoint_file\"","\"onedrive_file\"","\"dropbox_file\""] };
+export const L872: Leaf = { "t":["string"],"en":["\"replace_text\"","\"insert_text\"","\"read_cells\"","\"write_cells\"","\"append_rows\""] };
+export const L873: Leaf = { "t":["string"],"en":["\"add\"","\"modify\"","\"delete\"","\"rename\""] };
+export const L874: Leaf = { "t":["string"],"en":["\"google\"","\"microsoft\"","\"dropbox\"","\"client\""] };
+export const L875: Leaf = { "t":["string"],"en":["\"keep_both\"","\"use_theirs\"","\"keep_here\"","\"discard\""] };
+export const L876: Leaf = { "t":["string"],"en":["\"accept\"","\"decline\"","\"tentativelyAccept\""] };
+export const L877: Leaf = { "t":["string"],"c":"\"powershell\"" };
+export const L878: Leaf = { "t":["string"],"en":["\"read\"","\"write\""] };
+export const L879: Leaf = { "t":["string"],"en":["\"created\"","\"updated\"","\"deleted\""] };
+export const L880: Leaf = { "t":["string"],"en":["\"direct\"","\"relay\"","\"tunnel\""] };
+export const L881: Leaf = { "t":["string"], re: new RegExp("^srv_[a-z0-9]+$") };
+export const L882: Leaf = { "t":["string"],"c":"\"pending\"" };
+export const L883: Leaf = { "t":["string"],"en":["\"pending\"","\"approved\"","\"declined\"","\"revoked\""] };
+export const L884: Leaf = { "t":["string"],"c":"\"approved\"" };
+export const L885: Leaf = { "t":["string"],"c":"\"declined\"" };
+export const L886: Leaf = { "t":["string"],"en":["\"pending\"","\"approved\""] };
+export const L887: Leaf = { "t":["string"],"c":"\"allowed\"" };
+export const L888: Leaf = { "t":["string"],"en":["\"renamed\"","\"kept_aside\""] };
+export const L889: Leaf = { "t":["string"],"en":["\"computer\"","\"server\""] };
+export const L890: Leaf = { "t":["string"],"en":["\"none\"","\"claiming\"","\"claimed\"","\"releasing\"","\"failed\""] };
+export const L891: Leaf = { "t":["string"],"c":"\"claiming\"" };
+export const L892: Leaf = { "t":["string"],"en":["\"none\"","\"releasing\""] };
+export const L893: Leaf = { "t":["string"],"en":["\"app\"","\"console\"","\"site\"","\"form\"","\"booking\"","\"hook\""] };
+export const L894: Leaf = { "t":["string"],"en":["\"own_domain\"","\"relay\""] };
+export const L895: Leaf = { "t":["string"],"en":["\"space\"","\"compute\""] };
+export const L896: Leaf = { "t":["string"],"en":["\"pending\"","\"applied\"","\"failed\""] };
+export const L897: Leaf = { "t":["string"],"xl":100000 };
+export const L898: Leaf = { "t":["string"],"en":["\"image\"","\"link\""] };
+export const L899: Leaf = { "t":["string"],"en":["\"all\"","\"mine\"","\"shared\""] };
+export const L900: Leaf = { "t":["string"],"en":["\"edit\"","\"view\"","\"remove\""] };
+export const L901: Leaf = { "t":["string"],"en":["\"person\"","\"role\""] };
+export const L902: Leaf = { "t":["string"],"en":["\"interrupt\"","\"badge\"","\"digest\""] };
+export const L903: Leaf = { "t":["string"],"en":["\"desktop\"","\"phone\"","\"email\""] };
+export const L904: Leaf = { "t":["string"],"en":["\"home\"","\"chats\"","\"inbox\"","\"records\"","\"files\"","\"apps\"","\"automations\"","\"vault\"","\"settings\"","\"console\""] };
+export const L905: Leaf = { "t":["string"], re: new RegExp("^ntf_[a-z0-9]+$") };
+export const L906: Leaf = { "t":["integer"],"mn":1,"mx":525600 };
+export const L907: Leaf = { "t":["string"],"en":["\"ios\"","\"android\"","\"mac\"","\"windows\"","\"web\""] };
+export const L908: Leaf = { "t":["string"],"en":["\"interrupt\"","\"badge\"","\"digest\"","\"dropped_muted\"","\"capped\""] };
+export const L909: Leaf = { "t":["string"],"en":["\"registry\"","\"paste\"","\"import\"","\"hub\"","\"skill\"","\"kit\"","\"hand\""] };
+export const L910: Leaf = { "t":["string"],"en":["\"mine\""] };
+export const L911: Leaf = { "t":["string"],"en":["\"oauth\"","\"none\""] };
+export const L912: Leaf = { "t":["string"], re: new RegExp("^(plg|sko|skl)_[a-z0-9]+$") };
+export const L913: Leaf = { "t":["string"],"en":["\"official\"","\"smithery\""] };
+export const L914: Leaf = { "t":["string"],"en":["\"http\"","\"sse\""] };
+export const L915: Leaf = { "t":["string"],"en":["\"npm\"","\"pypi\"","\"oci\""] };
+export const L916: Leaf = { "t":["string"],"en":["\"npx\"","\"uvx\"","\"docker\""] };
+export const L917: Leaf = { "t":["string"],"en":["\"oauth\"","\"key\"","\"none\""] };
+export const L918: Leaf = { "t":["string"],"en":["\"magic_link\"","\"password\""] };
+export const L919: Leaf = { "t":["string"],"en":["\"s\"","\"m\"","\"l\"","\"xl\""] };
+export const L920: Leaf = { "t":["string"],"en":["\"native\"","\"pdf\"","\"office\"","\"none\""] };
+export const L921: Leaf = { "t":["string"], re: new RegExp("^csc_[a-z0-9]+$") };
+export const L922: Leaf = { "t":["string"],"en":["\"apply\"","\"keep\""] };
+export const L923: Leaf = { "t":["string"],"en":["\"working\"","\"done\"","\"needs_you\"","\"stopped\""] };
+export const L924: Leaf = { "t":["string"], re: new RegExp("^dec_[a-z0-9]+$") };
+export const L925: Leaf = { "t":["string"],"en":["\"insert\"","\"update\"","\"move\"","\"delete\"","\"set_property\""] };
+export const L926: Leaf = { "t":["string"],"en":["\"lead\"","\"member\"","\"reviewer\""] };
+export const L927: Leaf = { "t":["string"],"en":["\"builtin\"","\"kit\""] };
+export const L928: Leaf = { "t":["string"],"en":["\"api_key\"","\"local_model\""] };
+export const L929: Leaf = { "t":["string"], re: new RegExp("^sub_[a-z0-9]+$") };
+export const L930: Leaf = { "t":["string"],"en":["\"created\"","\"edited\"","\"stage\"","\"linked\"","\"unlinked\"","\"removed\"","\"restored\"","\"synced\""] };
+export const L931: Leaf = { "t":["string"],"en":["\"unavailable\"","\"version_conflict\""] };
+export const L932: Leaf = { "t":["string"],"en":["\"upsert\"","\"patch\"","\"delete\""] };
+export const L933: Leaf = { "t":["string"],"ml":1,"xl":4000 };
+export const L934: Leaf = { "t":["string"],"en":["\"csv\"","\"xlsx\""] };
+export const L935: Leaf = { "t":["integer"],"mn":1,"mx":2 };
+export const L936: Leaf = { "t":["string"],"en":["\"accept\"","\"reject\""] };
+export const L937: Leaf = { "t":["string"],"en":["\"on\"","\"ask\"","\"off\""] };
+export const L938: Leaf = { "t":["string"],"en":["\"sent\"","\"delivered\"","\"bounced\"","\"complained\"","\"opened\"","\"clicked\"","\"failed\"","\"delayed\""] };
+export const L939: Leaf = { "t":["string"],"en":["\"sh\"","\"bash\""] };
+export const L940: Leaf = { "t":["string"],"en":["\"stdout\"","\"stderr\""] };
+export const L941: Leaf = { "t":["string"],"en":["\"mine\"","\"all\""] };
+export const L942: Leaf = { "t":["string"],"en":["\"succeeded\"","\"failed\"","\"stopped\""] };
+export const L943: Leaf = { "t":["string"],"en":["\"mine\"","\"subject\"","\"owner\"","\"all\""] };
+export const L944: Leaf = { "t":["string"],"en":["\"pause\"","\"resume\"","\"stop\""] };
+export const L945: Leaf = { "t":["string"],"en":["\"pending\"","\"running\"","\"succeeded\"","\"failed\"","\"skipped\"","\"waiting\"","\"stopped\""] };
+export const L946: Leaf = { "t":["string"],"en":["\"not_in_space\"","\"cannot_use_agent\"","\"cannot_read_channel\"","\"agent_missing\""] };
+export const L947: Leaf = { "t":["string"],"en":["\"ran_once\"","\"skipped\""] };
+export const L948: Leaf = { "t":["string"],"en":["\"running\"","\"waiting\"","\"done\"","\"failed\"","\"stopped\"","\"skipped\""] };
+export const L949: Leaf = { "t":["string"],"en":["\"call\"","\"routine\"","\"watch\"","\"goal\"","\"baton\""] };
+export const L950: Leaf = { "t":["string"],"en":["\"skip\"","\"coalesce\""] };
+export const L951: Leaf = { "t":["string"], re: new RegExp("^wat_[a-z0-9]+$") };
+export const L952: Leaf = { "t":["string"],"en":["\"subject_deleted\"","\"left_stage\"","\"stopped\"","\"manual\""] };
+export const L953: Leaf = { "t":["string"],"en":["\"open\"","\"matched\"","\"expired\"","\"canceled\""] };
+export const L954: Leaf = { "t":["string"],"en":["\"id_number\"","\"card\"","\"bank\"","\"health\"","\"other\""] };
+export const L955: Leaf = { "t":["string"],"ml":1,"xl":500 };
+export const L956: Leaf = { "t":["string"],"en":["\"answered\"","\"no_access\"","\"no_account\"","\"failed\""] };
+export const L957: Leaf = { "t":["string"],"en":["\"upsert\"","\"delete\""] };
+export const L958: Leaf = { "t":["string"],"en":["\"personal\""] };
+export const L959: Leaf = { "t":["string"],"en":["\"project\"","\"imported_sessions\""] };
+export const L960: Leaf = { "t":["string"],"ml":4,"xl":12 };
+export const L961: Leaf = { "t":["string"],"en":["\"photo\"","\"name\"","\"handle\"","\"timezone\"","\"hours\"","\"contact\""] };
+export const L962: Leaf = { "t":["string"],"en":["\"you\"","\"space\""] };
+export const L963: Leaf = { "t":["integer"],"mn":1,"mx":65535 };
+export const L964: Leaf = { "t":["string"],"en":["\"pending\"","\"issued\"","\"failed\""] };
+export const L965: Leaf = { "t":["string"],"en":["\"site\"","\"artifact\""] };
+export const L966: Leaf = { "t":["string"],"ml":8,"xl":200 };
+export const L967: Leaf = { "t":["string"],"en":["\"skill\"","\"plugin\"","\"codex\""] };
+export const L968: Leaf = { "t":["string"],"en":["\"add\"","\"not_now\""] };
+export const L969: Leaf = { "t":["string"], re: new RegExp("^srl_[a-z0-9]+$") };
+export const L970: Leaf = { "t":["string"],"en":["\"accepted\"","\"duplicate\"","\"rejected\"","\"failed\"","\"linked_pending\""] };
+export const L971: Leaf = { "t":["string"],"en":["\"accepted\"","\"duplicate\"","\"rejected\"","\"failed\""] };
+export const L972: Leaf = { "t":["string"], re: new RegExp("^mat_[a-z0-9]+$") };
+export const L973: Leaf = { "t":["string"],"en":["\"create\"","\"update\"","\"skip\""] };
+export const L974: Leaf = { "t":["string"],"en":["\"apps_public\"","\"console\"","\"webhooks\"","\"always_on_runs\"","\"sharing\"","\"members\""] };
+export const L975: Leaf = { "t":["string"],"en":["\"photo_title\"","\"connect_mailbox\"","\"meet_assistant\"","\"first_project\"","\"import\""] };
+export const L976: Leaf = { "t":["string"],"en":["\"personal\"","\"team\"","\"member\""] };
+export const L977: Leaf = { "t":["string"],"en":["\"done\"","\"later\""] };
+export const L978: Leaf = { "t":["string"],"en":["\"done\"","\"later\"","\"open\""] };
+export const L979: Leaf = { "t":["string"],"en":["\"relay\"","\"own_domain\""] };
+export const L980: Leaf = { "t":["string"],"en":["\"starred\"","\"following\"","\"done\"","\"unread\"","\"muted\"","\"pinned\"","\"any\""] };
+export const L981: Leaf = { "t":["string"],"en":["\"head\"","\"unread\"","\"count\""] };
+export const L982: Leaf = { "t":["string"],"en":["\"payment\"","\"subscription\"","\"setup\""] };
+export const L983: Leaf = { "t":["string"],"en":["\"day\"","\"week\"","\"month\"","\"year\""] };
+export const L984: Leaf = { "t":["string"],"en":["\"duplicate\"","\"fraudulent\"","\"requested_by_customer\""] };
+export const L985: Leaf = { "t":["string"],"en":["\"desktop\"","\"phone\"","\"web\""] };
+export const L986: Leaf = { "t":["string"], re: new RegExp("^(https|wss)://") };
+export const L987: Leaf = { "t":["string"],"en":["\"all\"","\"window\"","\"none\""] };
+export const L988: Leaf = { "t":["string"],"en":["\"live\"","\"update_required\"","\"resync\"","\"purge\""] };
+export const L989: Leaf = { "t":["string"],"c":"\"purge\"" };
+export const L990: Leaf = { "t":["string"],"en":["\"polling\"","\"webhook\""] };
+export const L991: Leaf = { "t":["string"],"en":["\"object\"","\"array\"","\"empty\"","\"text\""] };
+export const L992: Leaf = { "t":["string"],"en":["\"mark_removed\"","\"keep\""] };
+export const L993: Leaf = { "t":["string"],"en":["\"app\"","\"you\"","\"push\""] };
+export const L994: Leaf = { "t":["string"],"en":["\"pull\"","\"push\"","\"conflict\"","\"error\"","\"schema\""] };
+export const L995: Leaf = { "t":["string"],"en":["\"pull\"","\"push\"","\"both\""] };
+export const L996: Leaf = { "t":["string"],"en":["\"synced\"","\"saving\"","\"failed\"","\"local\""] };
+export const L997: Leaf = { "t":["string"],"en":["\"ours\"","\"theirs\"","\"value\""] };
+export const L998: Leaf = { "t":["string"],"en":["\"field_added\"","\"field_removed\"","\"field_retyped\"","\"object_removed\""] };
+export const L999: Leaf = { "t":["string"],"en":["\"own\"","\"space\""] };
+export const L1000: Leaf = { "t":["string"],"en":["\"assigned\"","\"reviewer\"","\"approver\""] };
+export const L1001: Leaf = { "t":["string"],"ml":3 };
+export const L1002: Leaf = { "t":["string"],"en":["\"approve\"","\"reject\""] };
+export const L1003: Leaf = { "t":["string"],"en":["\"done\"","\"fixes\""] };
+export const L1004: Leaf = { "t":["string"],"en":["\"timeout\"","\"manual\"","\"away\""] };
+export const L1005: Leaf = { "t":["string"],"en":["\"mine\"","\"given\"","\"everyone\""] };
+export const L1006: Leaf = { "t":["string"],"en":["\"mine\"","\"assigned_by_me\"","\"following\"","\"record\"","\"run\"","\"all\""] };
+export const L1007: Leaf = { "t":["string"],"en":["\"open\"","\"assigned_by_me\"","\"done\"","\"all\""] };
+export const L1008: Leaf = { "t":["string"],"en":["\"ready\"","\"due_today\"","\"overdue\"","\"blocking\""] };
+export const L1009: Leaf = { "t":["string"],"en":["\"thread\"","\"crew\""] };
+export const L1010: Leaf = { "t":["string"],"en":["\"approve\"","\"send_back\""] };
+export const L1011: Leaf = { "t":["string"],"en":["\"approval\"","\"done\"","\"fixes\"","\"person\""] };
+export const L1012: Leaf = { "t":["string"],"en":["\"review\"","\"approval\"","\"done\""] };
+export const L1013: Leaf = { "t":["string"],"en":["\"chat\"","\"run\"","\"gate\"","\"journey\""] };
+export const L1014: Leaf = { "t":["string"], re: new RegExp("^sms_[a-z0-9]+$") };
+export const L1015: Leaf = { "t":["string"],"en":["\"call\"","\"sms\""] };
+export const L1016: Leaf = { "t":["string"],"en":["\"ring\"","\"voicemail\"","\"reject\"","\"agent\""] };
+export const L1017: Leaf = { "t":["string"],"en":["\"start\"","\"stop\""] };
+export const L1018: Leaf = { "t":["string"],"en":["\"queued\"","\"sent\"","\"delivered\"","\"undelivered\"","\"failed\"","\"received\""] };
+export const L1019: Leaf = { "t":["string"],"en":["\"warm\"","\"cold\""] };
+export const L1020: Leaf = { "t":["string"],"en":["\"project\"","\"journey\""] };
+export const L1021: Leaf = { "t":["string"],"en":["\"agent_computer\"","\"device\""] };
+export const L1022: Leaf = { "t":["integer"],"mn":20,"mx":500 };
+export const L1023: Leaf = { "t":["integer"],"mn":5,"mx":200 };
+export const L1024: Leaf = { "t":["string"],"en":["\"deny\"","\"ask\"","\"allow\"","\"none\""] };
+export const L1025: Leaf = { "t":["integer"],"mn":1,"mx":3600 };
+export const L1026: Leaf = { "t":["string"],"en":["\"running\"","\"asleep\"","\"waiting\"","\"none\"","\"unavailable\""] };
+export const L1027: Leaf = { "t":["string"],"en":["\"space\"","\"server\""] };
+export const L1028: Leaf = { "t":["string"],"en":["\"chat\"","\"agent\""] };
+export const L1029: Leaf = { "t":["string"],"en":["\"lead\"","\"listen\"","\"quiet\""] };
+export const L1030: Leaf = { "t":["string"],"en":["\"follow\"","\"mute\"","\"leave\""] };
+export const L1031: Leaf = { "t":["string"],"en":["\"follow\"","\"mute\"","\"none\""] };
+export const L1032: Leaf = { "t":["string"],"en":["\"created\"","\"latest\""] };
+export const L1033: Leaf = { "t":["string"],"en":["\"engine\"","\"outside_queue\""] };
+export const L1034: Leaf = { "t":["string"],"en":["\"hangup\"","\"hold\"","\"resume\"","\"redirect\""] };
+export const L1035: Leaf = { "t":["string"],"en":["\"voice\"","\"sms\"","\"status\"","\"recording\""] };
+export const L1036: Leaf = { "t":["string"],"en":["\"stable\"","\"beta\"","\"nightly\""] };
+export const L1037: Leaf = { "t":["string"],"en":["\"ok\"","\"failed\"","\"rolled_back\""] };
+export const L1038: Leaf = { "t":["string"],"en":["\"connected\"","\"waiting_person\"","\"waiting_admin\"","\"declined\"","\"no_connector\""] };
+export const L1039: Leaf = { "t":["string"],"en":["\"asked\"","\"connected\"","\"declined\""] };
+export const L1040: Leaf = { "t":["string"],"en":["\"asker\"","\"anyone\""] };
+export const L1041: Leaf = { "t":["string"],"en":["\"connected\"","\"wrong\"","\"offline\""] };
+export const L1042: Leaf = { "t":["string"],"en":["\"env\"","\"http_header\"","\"browser\"","\"terminal\"","\"file\"","\"git_credential\"","\"container_env\"","\"route_auth\""] };
+export const L1043: Leaf = { "t":["string"],"en":["\"device\"","\"host\"","\"computer\""] };
+export const L1044: Leaf = { "t":["string"],"en":["\"password\"","\"passphrase\"","\"token\""] };
+export const L1045: Leaf = { "t":["integer"],"mn":8,"mx":128 };
+export const L1046: Leaf = { "t":["integer"],"mn":3,"mx":10 };
+export const L1047: Leaf = { "t":["string"],"en":["\"fair\"","\"good\"","\"strong\""] };
+export const L1048: Leaf = { "t":["string"],"en":["\"weak\"","\"reused\"","\"stale\"","\"rotation_due\""] };
+export const L1049: Leaf = { "t":["string"],"en":["\"onepassword\"","\"bitwarden\"","\"lastpass\"","\"chrome\""] };
+export const L1050: Leaf = { "t":["string"],"en":["\"skip\"","\"overwrite\"","\"keep_both\""] };
+export const L1051: Leaf = { "t":["string"],"en":["\"created\"","\"used\"","\"revealed\"","\"edited\"","\"moved\"","\"rotated\"","\"shared\"","\"unshared\"","\"exported\"","\"deleted\"","\"restored\""] };
+export const L1052: Leaf = { "t":["string"],"en":["\"none\"","\"local\"","\"cloud\""] };
+export const L1053: Leaf = { "t":["string"],"en":["\"scheduled\"","\"live\"","\"upcoming\"","\"previous\""] };
+export const L1054: Leaf = { "t":["string"],"en":["\"meeting.started\"","\"meeting.ended\"","\"recording.completed\"","\"recording.transcript_completed\"","\"endpoint.url_validation\""] };
+export const L1055: Leaf = { "t":["string"],"en":["\"role\"","\"group\"","\"membership\"","\"label\"","\"actor\"","\"assignment\""] };
+export const L1056: Leaf = { "t":["string"],"en":["\"on\"","\"save\"","\"restore\"","\"promote\"","\"cleared\""] };
+export const L1057: Leaf = { "t":["string"],"en":["\"self_trigger\"","\"depth_limit\"","\"paused\"","\"filter_error\"","\"outsider\""] };
+export const L1058: Leaf = { "t":["string"],"en":["\"added\"","\"changed\"","\"paused\"","\"resumed\"","\"removed\""] };
+export const L1059: Leaf = { "t":["string"],"en":["\"question\"","\"plan\""] };
+export const L1060: Leaf = { "t":["string"],"en":["\"vyre\"","\"google\"","\"microsoft\"","\"booking\""] };
+export const L1061: Leaf = { "t":["string"],"en":["\"done\"","\"dismissed\""] };
+export const L1062: Leaf = { "t":["string"],"en":["\"runner_unverified\""] };
+export const L1063: Leaf = { "t":["string"],"en":["\"fork_with_secrets\"","\"cap_reached\"","\"not_enabled\"","\"no_key\"","\"runner_unverified\""] };
+export const L1064: Leaf = { "t":["string"],"en":["\"too_long\"","\"no_run\""] };
+export const L1065: Leaf = { "t":["string"],"en":["\"idle\"","\"requested\""] };
+export const L1066: Leaf = { "t":["string"],"en":["\"rule\"","\"person\"","\"agent\""] };
+export const L1067: Leaf = { "t":["string"],"en":["\"assigned\"","\"delegated\"","\"escalated\""] };
+export const L1068: Leaf = { "t":["string"],"en":["\"success\"","\"failure\"","\"neutral\"","\"cancelled\"","\"timed_out\"","\"action_required\""] };
+export const L1069: Leaf = { "t":["string"],"c":"\"google\"" };
+export const L1070: Leaf = { "t":["string"],"en":["\"added\"","\"changed\"","\"removed\"","\"paused\"","\"resumed\"","\"allowed_once\"","\"allowed_always\"","\"allow_removed\"","\"denied\"","\"agents_on\"","\"agents_off\""] };
+export const L1071: Leaf = { "t":["string"],"en":["\"first_device\"","\"password_change\"","\"reset\"","\"recovery\"","\"space_key_epoch\"","\"new_device\"","\"link\""] };
+export const L1072: Leaf = { "t":["string"],"en":["\"nickname\"","\"limits\"","\"drain\"","\"pins\"","\"full\"","\"room\""] };
+export const L1073: Leaf = { "t":["string"],"en":["\"time_and_attendees\"","\"link\"","\"person\""] };
+export const L1074: Leaf = { "t":["string"],"en":["\"on\"","\"rotated\"","\"off\"","\"role\""] };
+export const L1075: Leaf = { "t":["string"],"c":"\"microsoft\"" };
+export const L1076: Leaf = { "t":["string"],"en":["\"unsupported\"","\"too_large\"","\"corrupt\"","\"converter_down\"","\"timeout\""] };
+export const L1077: Leaf = { "t":["string"],"en":["\"thumbnail\"","\"pages\"","\"text\""] };
+export const L1078: Leaf = { "t":["string"],"en":["\"new\"","\"channel\"","\"journey\"","\"template\""] };
+export const L1079: Leaf = { "t":["string"],"en":["\"accepted\"","\"rejected\""] };
+export const L1080: Leaf = { "t":["string"],"en":["\"in_review\"","\"approved\"","\"rejected\""] };
+export const L1081: Leaf = { "t":["string"],"en":["\"bad_credentials\"","\"bad_code\"","\"locked\"","\"sso_denied\""] };
+export const L1082: Leaf = { "t":["string"],"en":["\"password\"","\"github\"","\"sso\"","\"pair\"","\"recovery\""] };
+export const L1083: Leaf = { "t":["string"],"en":["\"staging\"","\"preview\""] };
+export const L1084: Leaf = { "t":["string"],"en":["\"added\"","\"changed\"","\"removed\"","\"updated\""] };
+export const L1085: Leaf = { "t":["string"],"en":["\"rule\"","\"person\""] };
+export const L1086: Leaf = { "t":["string"],"en":["\"bad_signature\"","\"unknown_source\"","\"paused\"","\"too_large\"","\"bad_payload\""] };
+export const L1087: Leaf = { "t":["string"],"en":["\"read\"","\"done\"","\"star\"","\"follow\"","\"mute\"","\"pin\""] };
+export const L1088: Leaf = { "t":["string"],"en":["\"finished\"","\"blocked\"","\"asked\""] };
+export const L1089: Leaf = { "t":["string"],"en":["\"day\"","\"time\""] };
+export const L1090: Leaf = { "t":["string"],"en":["\"added\"","\"removed\""] };
+export const L1091: Leaf = { "t":["string"],"en":["\"record\"","\"file\"","\"dependency\""] };
+export const L1092: Leaf = { "t":["string"],"en":["\"unblock_waiting\"","\"idle_agent\"","\"waiting_on_decision\""] };
+export const L1093: Leaf = { "t":["string"],"en":["\"work\"","\"review\"","\"approval\""] };
+export const L1094: Leaf = { "t":["string"],"en":["\"person\"","\"mention\""] };
 
 export function d_s_016e5e2f02(v: unknown, p: string, e: string[]): void {
 {
@@ -1769,15 +1770,15 @@ if ("idempotencyKey" in o376) lf(o376["idempotencyKey"], p + "/idempotencyKey", 
 
 export function d_s_52f4e45014(v: unknown, p: string, e: string[]): void {
 {
-const x412 = v;
-const g412 = typeOf(x412);
-const b412: string[] = []; lf(x412, p, b412, L0); if (b412.length) e.push(...b412);
-if (g412 === "object") {
-if (g412 === 'object') { const o412 = x412 as Record<string, unknown>;
-if (!("email" in o412)) e.push(p + "/email" + ': required');
-if (!("excluded" in o412)) e.push(p + "/excluded" + ': required');
-if ("email" in o412) lf(o412["email"], p + "/email", e, L6);
-if ("excluded" in o412) lf(o412["excluded"], p + "/excluded", e, L3);
+const x415 = v;
+const g415 = typeOf(x415);
+const b415: string[] = []; lf(x415, p, b415, L0); if (b415.length) e.push(...b415);
+if (g415 === "object") {
+if (g415 === 'object') { const o415 = x415 as Record<string, unknown>;
+if (!("email" in o415)) e.push(p + "/email" + ': required');
+if (!("excluded" in o415)) e.push(p + "/excluded" + ': required');
+if ("email" in o415) lf(o415["email"], p + "/email", e, L6);
+if ("excluded" in o415) lf(o415["excluded"], p + "/excluded", e, L3);
 }
 }
 }
@@ -1785,13 +1786,13 @@ if ("excluded" in o412) lf(o412["excluded"], p + "/excluded", e, L3);
 
 export function d_s_53cbc8f17b(v: unknown, p: string, e: string[]): void {
 {
-const x413 = v;
-const g413 = typeOf(x413);
-const b413: string[] = []; lf(x413, p, b413, L0); if (b413.length) e.push(...b413);
-if (g413 === "object") {
-if (g413 === 'object') { const o413 = x413 as Record<string, unknown>;
-if ("threadId" in o413) lf(o413["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o413) lf(o413["agentId"], p + "/agentId", e, L10);
+const x416 = v;
+const g416 = typeOf(x416);
+const b416: string[] = []; lf(x416, p, b416, L0); if (b416.length) e.push(...b416);
+if (g416 === "object") {
+if (g416 === 'object') { const o416 = x416 as Record<string, unknown>;
+if ("threadId" in o416) lf(o416["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o416) lf(o416["agentId"], p + "/agentId", e, L10);
 }
 }
 }
@@ -1799,19 +1800,19 @@ if ("agentId" in o413) lf(o413["agentId"], p + "/agentId", e, L10);
 
 export function d_s_540168f373(v: unknown, p: string, e: string[]): void {
 {
-const x414 = v;
-const g414 = typeOf(x414);
-const b414: string[] = []; lf(x414, p, b414, L0); if (b414.length) e.push(...b414);
-if (g414 === "object") {
-if (g414 === 'object') { const o414 = x414 as Record<string, unknown>;
-if (!("threadId" in o414)) e.push(p + "/threadId" + ': required');
-if (!("agentId" in o414)) e.push(p + "/agentId" + ': required');
-if (!("mode" in o414)) e.push(p + "/mode" + ': required');
-if (!("by" in o414)) e.push(p + "/by" + ': required');
-if ("threadId" in o414) lf(o414["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o414) lf(o414["agentId"], p + "/agentId", e, L10);
-if ("mode" in o414) lf(o414["mode"], p + "/mode", e, L1);
-if ("by" in o414) lf(o414["by"], p + "/by", e, L1);
+const x417 = v;
+const g417 = typeOf(x417);
+const b417: string[] = []; lf(x417, p, b417, L0); if (b417.length) e.push(...b417);
+if (g417 === "object") {
+if (g417 === 'object') { const o417 = x417 as Record<string, unknown>;
+if (!("threadId" in o417)) e.push(p + "/threadId" + ': required');
+if (!("agentId" in o417)) e.push(p + "/agentId" + ': required');
+if (!("mode" in o417)) e.push(p + "/mode" + ': required');
+if (!("by" in o417)) e.push(p + "/by" + ': required');
+if ("threadId" in o417) lf(o417["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o417) lf(o417["agentId"], p + "/agentId", e, L10);
+if ("mode" in o417) lf(o417["mode"], p + "/mode", e, L1);
+if ("by" in o417) lf(o417["by"], p + "/by", e, L1);
 }
 }
 }
@@ -1819,40 +1820,40 @@ if ("by" in o414) lf(o414["by"], p + "/by", e, L1);
 
 export function d_s_5634f66b2f(v: unknown, p: string, e: string[]): void {
 {
-const x432 = v;
-const g432 = typeOf(x432);
-const b432: string[] = []; lf(x432, p, b432, L0); if (b432.length) e.push(...b432);
-if (g432 === "object") {
-if (g432 === 'object') { const o432 = x432 as Record<string, unknown>;
-if (!("available" in o432)) e.push(p + "/available" + ': required');
-if ("available" in o432) {
-{
-const x433 = o432["available"];
-const g433 = typeOf(x433);
-const b433: string[] = []; lf(x433, p + "/available", b433, L4); if (b433.length) e.push(...b433);
-if (g433 === "array") {
-if (g433 === 'array') { const a433 = x433 as unknown[];
-for (let i433 = 0; i433 < a433.length; i433++) {
-{
-const x434 = a433[i433];
-const g434 = typeOf(x434);
-const b434: string[] = []; lf(x434, p + "/available" + '/' + i433, b434, L0); if (b434.length) e.push(...b434);
-if (g434 === "object") {
-if (g434 === 'object') { const o434 = x434 as Record<string, unknown>;
-if (!("e164" in o434)) e.push(p + "/available" + '/' + i433 + "/e164" + ': required');
-if (!("capabilities" in o434)) e.push(p + "/available" + '/' + i433 + "/capabilities" + ': required');
-if ("e164" in o434) lf(o434["e164"], p + "/available" + '/' + i433 + "/e164", e, L213);
-if ("locality" in o434) lf(o434["locality"], p + "/available" + '/' + i433 + "/locality", e, L1);
-if ("region" in o434) lf(o434["region"], p + "/available" + '/' + i433 + "/region", e, L1);
-if ("capabilities" in o434) {
-{
-const x435 = o434["capabilities"];
+const x435 = v;
 const g435 = typeOf(x435);
-const b435: string[] = []; lf(x435, p + "/available" + '/' + i433 + "/capabilities", b435, L4); if (b435.length) e.push(...b435);
-if (g435 === "array") {
-if (g435 === 'array') { const a435 = x435 as unknown[];
-for (let i435 = 0; i435 < a435.length; i435++) {
-lf(a435[i435], p + "/available" + '/' + i433 + "/capabilities" + '/' + i435, e, L1);
+const b435: string[] = []; lf(x435, p, b435, L0); if (b435.length) e.push(...b435);
+if (g435 === "object") {
+if (g435 === 'object') { const o435 = x435 as Record<string, unknown>;
+if (!("available" in o435)) e.push(p + "/available" + ': required');
+if ("available" in o435) {
+{
+const x436 = o435["available"];
+const g436 = typeOf(x436);
+const b436: string[] = []; lf(x436, p + "/available", b436, L4); if (b436.length) e.push(...b436);
+if (g436 === "array") {
+if (g436 === 'array') { const a436 = x436 as unknown[];
+for (let i436 = 0; i436 < a436.length; i436++) {
+{
+const x437 = a436[i436];
+const g437 = typeOf(x437);
+const b437: string[] = []; lf(x437, p + "/available" + '/' + i436, b437, L0); if (b437.length) e.push(...b437);
+if (g437 === "object") {
+if (g437 === 'object') { const o437 = x437 as Record<string, unknown>;
+if (!("e164" in o437)) e.push(p + "/available" + '/' + i436 + "/e164" + ': required');
+if (!("capabilities" in o437)) e.push(p + "/available" + '/' + i436 + "/capabilities" + ': required');
+if ("e164" in o437) lf(o437["e164"], p + "/available" + '/' + i436 + "/e164", e, L214);
+if ("locality" in o437) lf(o437["locality"], p + "/available" + '/' + i436 + "/locality", e, L1);
+if ("region" in o437) lf(o437["region"], p + "/available" + '/' + i436 + "/region", e, L1);
+if ("capabilities" in o437) {
+{
+const x438 = o437["capabilities"];
+const g438 = typeOf(x438);
+const b438: string[] = []; lf(x438, p + "/available" + '/' + i436 + "/capabilities", b438, L4); if (b438.length) e.push(...b438);
+if (g438 === "array") {
+if (g438 === 'array') { const a438 = x438 as unknown[];
+for (let i438 = 0; i438 < a438.length; i438++) {
+lf(a438[i438], p + "/available" + '/' + i436 + "/capabilities" + '/' + i438, e, L1);
 }
 }
 }
@@ -1873,29 +1874,29 @@ lf(a435[i435], p + "/available" + '/' + i433 + "/capabilities" + '/' + i435, e, 
 
 export function d_s_56432c461b(v: unknown, p: string, e: string[]): void {
 {
-const x436 = v;
-const g436 = typeOf(x436);
-const b436: string[] = []; lf(x436, p, b436, L0); if (b436.length) e.push(...b436);
-if (g436 === "object") {
-if (g436 === 'object') { const o436 = x436 as Record<string, unknown>;
-if (!("checked" in o436)) e.push(p + "/checked" + ': required');
-if (!("gone" in o436)) e.push(p + "/gone" + ': required');
-if ("checked" in o436) lf(o436["checked"], p + "/checked", e, L2);
-if ("gone" in o436) {
+const x439 = v;
+const g439 = typeOf(x439);
+const b439: string[] = []; lf(x439, p, b439, L0); if (b439.length) e.push(...b439);
+if (g439 === "object") {
+if (g439 === 'object') { const o439 = x439 as Record<string, unknown>;
+if (!("checked" in o439)) e.push(p + "/checked" + ': required');
+if (!("gone" in o439)) e.push(p + "/gone" + ': required');
+if ("checked" in o439) lf(o439["checked"], p + "/checked", e, L2);
+if ("gone" in o439) {
 {
-const x437 = o436["gone"];
-const g437 = typeOf(x437);
-const b437: string[] = []; lf(x437, p + "/gone", b437, L4); if (b437.length) e.push(...b437);
-if (g437 === "array") {
-if (g437 === 'array') { const a437 = x437 as unknown[];
-for (let i437 = 0; i437 < a437.length; i437++) {
-lf(a437[i437], p + "/gone" + '/' + i437, e, L6);
+const x440 = o439["gone"];
+const g440 = typeOf(x440);
+const b440: string[] = []; lf(x440, p + "/gone", b440, L4); if (b440.length) e.push(...b440);
+if (g440 === "array") {
+if (g440 === 'array') { const a440 = x440 as unknown[];
+for (let i440 = 0; i440 < a440.length; i440++) {
+lf(a440[i440], p + "/gone" + '/' + i440, e, L6);
 }
 }
 }
 }
 }
-if ("held" in o436) lf(o436["held"], p + "/held", e, L1);
+if ("held" in o439) lf(o439["held"], p + "/held", e, L1);
 }
 }
 }
@@ -1903,32 +1904,32 @@ if ("held" in o436) lf(o436["held"], p + "/held", e, L1);
 
 export function d_s_568cc80da9(v: unknown, p: string, e: string[]): void {
 {
-const x443 = v;
-const g443 = typeOf(x443);
-const b443: string[] = []; lf(x443, p, b443, L0); if (b443.length) e.push(...b443);
-if (g443 === "object") {
-if (g443 === 'object') { const o443 = x443 as Record<string, unknown>;
-if (!("who" in o443)) e.push(p + "/who" + ': required');
-if ("who" in o443) {
+const x446 = v;
+const g446 = typeOf(x446);
+const b446: string[] = []; lf(x446, p, b446, L0); if (b446.length) e.push(...b446);
+if (g446 === "object") {
+if (g446 === 'object') { const o446 = x446 as Record<string, unknown>;
+if (!("who" in o446)) e.push(p + "/who" + ': required');
+if ("who" in o446) {
 {
-const x444 = o443["who"];
-const t444_0: string[] = [];
-lf(x444, p + "/who", t444_0, L224);
-const t444_1: string[] = [];
+const x447 = o446["who"];
+const t447_0: string[] = [];
+lf(x447, p + "/who", t447_0, L225);
+const t447_1: string[] = [];
 {
-const x445 = x444;
-const g445 = typeOf(x445);
-const b445: string[] = []; lf(x445, p + "/who", b445, L4); if (b445.length) t444_1.push(...b445);
-if (g445 === "array") {
-if (g445 === 'array') { const a445 = x445 as unknown[];
-if (a445.length < 1) t444_1.push(p + "/who" + ': too few items');
-for (let i445 = 0; i445 < a445.length; i445++) {
-lf(a445[i445], p + "/who" + '/' + i445, t444_1, L225);
+const x448 = x447;
+const g448 = typeOf(x448);
+const b448: string[] = []; lf(x448, p + "/who", b448, L4); if (b448.length) t447_1.push(...b448);
+if (g448 === "array") {
+if (g448 === 'array') { const a448 = x448 as unknown[];
+if (a448.length < 1) t447_1.push(p + "/who" + ': too few items');
+for (let i448 = 0; i448 < a448.length; i448++) {
+lf(a448[i448], p + "/who" + '/' + i448, t447_1, L226);
 }
 }
 }
 }
-if (![t444_0, t444_1].some((x) => x.length === 0)) e.push(p + "/who" + ': matches none of anyOf');
+if (![t447_0, t447_1].some((x) => x.length === 0)) e.push(p + "/who" + ': matches none of anyOf');
 }
 }
 }
@@ -1938,32 +1939,32 @@ if (![t444_0, t444_1].some((x) => x.length === 0)) e.push(p + "/who" + ': matche
 
 export function d_s_588af360ec(v: unknown, p: string, e: string[]): void {
 {
-const x455 = v;
-const g455 = typeOf(x455);
-const b455: string[] = []; lf(x455, p, b455, L0); if (b455.length) e.push(...b455);
-if (g455 === "object") {
-if (g455 === 'object') { const o455 = x455 as Record<string, unknown>;
-if (!("busy" in o455)) e.push(p + "/busy" + ': required');
-if ("busy" in o455) {
+const x458 = v;
+const g458 = typeOf(x458);
+const b458: string[] = []; lf(x458, p, b458, L0); if (b458.length) e.push(...b458);
+if (g458 === "object") {
+if (g458 === 'object') { const o458 = x458 as Record<string, unknown>;
+if (!("busy" in o458)) e.push(p + "/busy" + ': required');
+if ("busy" in o458) {
 {
-const x456 = o455["busy"];
-const g456 = typeOf(x456);
-const b456: string[] = []; lf(x456, p + "/busy", b456, L4); if (b456.length) e.push(...b456);
-if (g456 === "array") {
-if (g456 === 'array') { const a456 = x456 as unknown[];
-for (let i456 = 0; i456 < a456.length; i456++) {
+const x459 = o458["busy"];
+const g459 = typeOf(x459);
+const b459: string[] = []; lf(x459, p + "/busy", b459, L4); if (b459.length) e.push(...b459);
+if (g459 === "array") {
+if (g459 === 'array') { const a459 = x459 as unknown[];
+for (let i459 = 0; i459 < a459.length; i459++) {
 {
-const x457 = a456[i456];
-const g457 = typeOf(x457);
-const b457: string[] = []; lf(x457, p + "/busy" + '/' + i456, b457, L0); if (b457.length) e.push(...b457);
-if (g457 === "object") {
-if (g457 === 'object') { const o457 = x457 as Record<string, unknown>;
-if (!("email" in o457)) e.push(p + "/busy" + '/' + i456 + "/email" + ': required');
-if (!("start" in o457)) e.push(p + "/busy" + '/' + i456 + "/start" + ': required');
-if (!("end" in o457)) e.push(p + "/busy" + '/' + i456 + "/end" + ': required');
-if ("email" in o457) lf(o457["email"], p + "/busy" + '/' + i456 + "/email", e, L6);
-if ("start" in o457) lf(o457["start"], p + "/busy" + '/' + i456 + "/start", e, L1);
-if ("end" in o457) lf(o457["end"], p + "/busy" + '/' + i456 + "/end", e, L1);
+const x460 = a459[i459];
+const g460 = typeOf(x460);
+const b460: string[] = []; lf(x460, p + "/busy" + '/' + i459, b460, L0); if (b460.length) e.push(...b460);
+if (g460 === "object") {
+if (g460 === 'object') { const o460 = x460 as Record<string, unknown>;
+if (!("email" in o460)) e.push(p + "/busy" + '/' + i459 + "/email" + ': required');
+if (!("start" in o460)) e.push(p + "/busy" + '/' + i459 + "/start" + ': required');
+if (!("end" in o460)) e.push(p + "/busy" + '/' + i459 + "/end" + ': required');
+if ("email" in o460) lf(o460["email"], p + "/busy" + '/' + i459 + "/email", e, L6);
+if ("start" in o460) lf(o460["start"], p + "/busy" + '/' + i459 + "/start", e, L1);
+if ("end" in o460) lf(o460["end"], p + "/busy" + '/' + i459 + "/end", e, L1);
 }
 }
 }
@@ -1979,22 +1980,22 @@ if ("end" in o457) lf(o457["end"], p + "/busy" + '/' + i456 + "/end", e, L1);
 
 export function d_s_5a34561c27(v: unknown, p: string, e: string[]): void {
 {
-const x463 = v;
-const g463 = typeOf(x463);
-const b463: string[] = []; lf(x463, p, b463, L4); if (b463.length) e.push(...b463);
-if (g463 === "array") {
-if (g463 === 'array') { const a463 = x463 as unknown[];
-for (let i463 = 0; i463 < a463.length; i463++) {
+const x466 = v;
+const g466 = typeOf(x466);
+const b466: string[] = []; lf(x466, p, b466, L4); if (b466.length) e.push(...b466);
+if (g466 === "array") {
+if (g466 === 'array') { const a466 = x466 as unknown[];
+for (let i466 = 0; i466 < a466.length; i466++) {
 {
-const x464 = a463[i463];
-const g464 = typeOf(x464);
-const b464: string[] = []; lf(x464, p + '/' + i463, b464, L0); if (b464.length) e.push(...b464);
-if (g464 === "object") {
-if (g464 === 'object') { const o464 = x464 as Record<string, unknown>;
-if (!("key" in o464)) e.push(p + '/' + i463 + "/key" + ': required');
-if (!("value" in o464)) e.push(p + '/' + i463 + "/value" + ': required');
-if ("key" in o464) lf(o464["key"], p + '/' + i463 + "/key", e, L29);
-if ("value" in o464) lf(o464["value"], p + '/' + i463 + "/value", e, L1);
+const x467 = a466[i466];
+const g467 = typeOf(x467);
+const b467: string[] = []; lf(x467, p + '/' + i466, b467, L0); if (b467.length) e.push(...b467);
+if (g467 === "object") {
+if (g467 === 'object') { const o467 = x467 as Record<string, unknown>;
+if (!("key" in o467)) e.push(p + '/' + i466 + "/key" + ': required');
+if (!("value" in o467)) e.push(p + '/' + i466 + "/value" + ': required');
+if ("key" in o467) lf(o467["key"], p + '/' + i466 + "/key", e, L29);
+if ("value" in o467) lf(o467["value"], p + '/' + i466 + "/value", e, L1);
 }
 }
 }
@@ -2006,28 +2007,28 @@ if ("value" in o464) lf(o464["value"], p + '/' + i463 + "/value", e, L1);
 
 export function d_s_5f3abd3a5c(v: unknown, p: string, e: string[]): void {
 {
-const x484 = v;
-const g484 = typeOf(x484);
-const b484: string[] = []; lf(x484, p, b484, L4); if (b484.length) e.push(...b484);
-if (g484 === "array") {
-if (g484 === 'array') { const a484 = x484 as unknown[];
-for (let i484 = 0; i484 < a484.length; i484++) {
+const x488 = v;
+const g488 = typeOf(x488);
+const b488: string[] = []; lf(x488, p, b488, L4); if (b488.length) e.push(...b488);
+if (g488 === "array") {
+if (g488 === 'array') { const a488 = x488 as unknown[];
+for (let i488 = 0; i488 < a488.length; i488++) {
 {
-const x485 = a484[i484];
-const g485 = typeOf(x485);
-const b485: string[] = []; lf(x485, p + '/' + i484, b485, L0); if (b485.length) e.push(...b485);
-if (g485 === "object") {
-if (g485 === 'object') { const o485 = x485 as Record<string, unknown>;
-if (!("rowId" in o485)) e.push(p + '/' + i484 + "/rowId" + ': required');
-if (!("values" in o485)) e.push(p + '/' + i484 + "/values" + ': required');
-if ("rowId" in o485) lf(o485["rowId"], p + '/' + i484 + "/rowId", e, L1);
-if ("values" in o485) {
+const x489 = a488[i488];
+const g489 = typeOf(x489);
+const b489: string[] = []; lf(x489, p + '/' + i488, b489, L0); if (b489.length) e.push(...b489);
+if (g489 === "object") {
+if (g489 === 'object') { const o489 = x489 as Record<string, unknown>;
+if (!("rowId" in o489)) e.push(p + '/' + i488 + "/rowId" + ': required');
+if (!("values" in o489)) e.push(p + '/' + i488 + "/values" + ': required');
+if ("rowId" in o489) lf(o489["rowId"], p + '/' + i488 + "/rowId", e, L1);
+if ("values" in o489) {
 {
-const x486 = o485["values"];
-const g486 = typeOf(x486);
-const b486: string[] = []; lf(x486, p + '/' + i484 + "/values", b486, L0); if (b486.length) e.push(...b486);
-if (g486 === "object") {
-if (g486 === 'object') { const o486 = x486 as Record<string, unknown>;
+const x490 = o489["values"];
+const g490 = typeOf(x490);
+const b490: string[] = []; lf(x490, p + '/' + i488 + "/values", b490, L0); if (b490.length) e.push(...b490);
+if (g490 === "object") {
+if (g490 === 'object') { const o490 = x490 as Record<string, unknown>;
 }
 }
 }
@@ -2043,26 +2044,26 @@ if (g486 === 'object') { const o486 = x486 as Record<string, unknown>;
 
 export function d_s_62774a3f3d(v: unknown, p: string, e: string[]): void {
 {
-const x502 = v;
-const g502 = typeOf(x502);
-const b502: string[] = []; lf(x502, p, b502, L4); if (b502.length) e.push(...b502);
-if (g502 === "array") {
-if (g502 === 'array') { const a502 = x502 as unknown[];
-for (let i502 = 0; i502 < a502.length; i502++) {
+const x506 = v;
+const g506 = typeOf(x506);
+const b506: string[] = []; lf(x506, p, b506, L4); if (b506.length) e.push(...b506);
+if (g506 === "array") {
+if (g506 === 'array') { const a506 = x506 as unknown[];
+for (let i506 = 0; i506 < a506.length; i506++) {
 {
-const x503 = a502[i502];
-const g503 = typeOf(x503);
-const b503: string[] = []; lf(x503, p + '/' + i502, b503, L0); if (b503.length) e.push(...b503);
-if (g503 === "object") {
-if (g503 === 'object') { const o503 = x503 as Record<string, unknown>;
-if (!("name" in o503)) e.push(p + '/' + i502 + "/name" + ': required');
-if (!("mime" in o503)) e.push(p + '/' + i502 + "/mime" + ': required');
-if (!("size" in o503)) e.push(p + '/' + i502 + "/size" + ': required');
-if (!("blobId" in o503)) e.push(p + '/' + i502 + "/blobId" + ': required');
-if ("name" in o503) lf(o503["name"], p + '/' + i502 + "/name", e, L1);
-if ("mime" in o503) lf(o503["mime"], p + '/' + i502 + "/mime", e, L1);
-if ("size" in o503) lf(o503["size"], p + '/' + i502 + "/size", e, L2);
-if ("blobId" in o503) lf(o503["blobId"], p + '/' + i502 + "/blobId", e, L43);
+const x507 = a506[i506];
+const g507 = typeOf(x507);
+const b507: string[] = []; lf(x507, p + '/' + i506, b507, L0); if (b507.length) e.push(...b507);
+if (g507 === "object") {
+if (g507 === 'object') { const o507 = x507 as Record<string, unknown>;
+if (!("name" in o507)) e.push(p + '/' + i506 + "/name" + ': required');
+if (!("mime" in o507)) e.push(p + '/' + i506 + "/mime" + ': required');
+if (!("size" in o507)) e.push(p + '/' + i506 + "/size" + ': required');
+if (!("blobId" in o507)) e.push(p + '/' + i506 + "/blobId" + ': required');
+if ("name" in o507) lf(o507["name"], p + '/' + i506 + "/name", e, L1);
+if ("mime" in o507) lf(o507["mime"], p + '/' + i506 + "/mime", e, L1);
+if ("size" in o507) lf(o507["size"], p + '/' + i506 + "/size", e, L2);
+if ("blobId" in o507) lf(o507["blobId"], p + '/' + i506 + "/blobId", e, L43);
 }
 }
 }
@@ -2074,14 +2075,14 @@ if ("blobId" in o503) lf(o503["blobId"], p + '/' + i502 + "/blobId", e, L43);
 
 export function d_s_6376ef2ac7(v: unknown, p: string, e: string[]): void {
 {
-const x507 = v;
-const g507 = typeOf(x507);
-const b507: string[] = []; lf(x507, p, b507, L0); if (b507.length) e.push(...b507);
-if (g507 === "object") {
-if (g507 === 'object') { const o507 = x507 as Record<string, unknown>;
-if ("email" in o507) lf(o507["email"], p + "/email", e, L6);
-if ("connectionId" in o507) lf(o507["connectionId"], p + "/connectionId", e, L40);
-if ("files" in o507) lf(o507["files"], p + "/files", e, L3);
+const x511 = v;
+const g511 = typeOf(x511);
+const b511: string[] = []; lf(x511, p, b511, L0); if (b511.length) e.push(...b511);
+if (g511 === "object") {
+if (g511 === 'object') { const o511 = x511 as Record<string, unknown>;
+if ("email" in o511) lf(o511["email"], p + "/email", e, L6);
+if ("connectionId" in o511) lf(o511["connectionId"], p + "/connectionId", e, L40);
+if ("files" in o511) lf(o511["files"], p + "/files", e, L3);
 }
 }
 }
@@ -2089,15 +2090,15 @@ if ("files" in o507) lf(o507["files"], p + "/files", e, L3);
 
 export function d_s_67a40a5508(v: unknown, p: string, e: string[]): void {
 {
-const x533 = v;
-const g533 = typeOf(x533);
-const b533: string[] = []; lf(x533, p, b533, L0); if (b533.length) e.push(...b533);
-if (g533 === "object") {
-if (g533 === 'object') { const o533 = x533 as Record<string, unknown>;
-if (!("folderId" in o533)) e.push(p + "/folderId" + ': required');
-if (!("name" in o533)) e.push(p + "/name" + ': required');
-if ("folderId" in o533) lf(o533["folderId"], p + "/folderId", e, L47);
-if ("name" in o533) lf(o533["name"], p + "/name", e, L1);
+const x537 = v;
+const g537 = typeOf(x537);
+const b537: string[] = []; lf(x537, p, b537, L0); if (b537.length) e.push(...b537);
+if (g537 === "object") {
+if (g537 === 'object') { const o537 = x537 as Record<string, unknown>;
+if (!("folderId" in o537)) e.push(p + "/folderId" + ': required');
+if (!("name" in o537)) e.push(p + "/name" + ': required');
+if ("folderId" in o537) lf(o537["folderId"], p + "/folderId", e, L47);
+if ("name" in o537) lf(o537["name"], p + "/name", e, L1);
 }
 }
 }
@@ -2105,101 +2106,71 @@ if ("name" in o533) lf(o533["name"], p + "/name", e, L1);
 
 export function d_s_6ab15fd7a1(v: unknown, p: string, e: string[]): void {
 {
-const x539 = v;
-const g539 = typeOf(x539);
-const b539: string[] = []; lf(x539, p, b539, L0); if (b539.length) e.push(...b539);
-if (g539 === "object") {
-if (g539 === 'object') { const o539 = x539 as Record<string, unknown>;
-if (!("id" in o539)) e.push(p + "/id" + ': required');
-if (!("at" in o539)) e.push(p + "/at" + ': required');
-if (!("direction" in o539)) e.push(p + "/direction" + ': required');
-if (!("mailboxId" in o539)) e.push(p + "/mailboxId" + ': required');
-if (!("mailboxIds" in o539)) e.push(p + "/mailboxIds" + ': required');
-if (!("from" in o539)) e.push(p + "/from" + ': required');
-if (!("to" in o539)) e.push(p + "/to" + ': required');
-if (!("cc" in o539)) e.push(p + "/cc" + ': required');
-if (!("subject" in o539)) e.push(p + "/subject" + ': required');
-if (!("body" in o539)) e.push(p + "/body" + ': required');
-if (!("reactions" in o539)) e.push(p + "/reactions" + ': required');
-if (!("attachments" in o539)) e.push(p + "/attachments" + ': required');
-if (!("isPrivate" in o539)) e.push(p + "/isPrivate" + ': required');
-if ("id" in o539) lf(o539["id"], p + "/id", e, L24);
-if ("at" in o539) lf(o539["at"], p + "/at", e, L17);
-if ("direction" in o539) lf(o539["direction"], p + "/direction", e, L26);
-if ("mailboxId" in o539) lf(o539["mailboxId"], p + "/mailboxId", e, L25);
-if ("mailboxIds" in o539) {
-{
-const x540 = o539["mailboxIds"];
-const g540 = typeOf(x540);
-const b540: string[] = []; lf(x540, p + "/mailboxIds", b540, L4); if (b540.length) e.push(...b540);
-if (g540 === "array") {
-if (g540 === 'array') { const a540 = x540 as unknown[];
-for (let i540 = 0; i540 < a540.length; i540++) {
-lf(a540[i540], p + "/mailboxIds" + '/' + i540, e, L25);
-}
-}
-}
-}
-}
-if ("from" in o539) d_s_25d114c9ac(o539["from"], p + "/from", e);
-if ("to" in o539) d_s_9eb38dfc46(o539["to"], p + "/to", e);
-if ("cc" in o539) d_s_9eb38dfc46(o539["cc"], p + "/cc", e);
-if ("subject" in o539) lf(o539["subject"], p + "/subject", e, L1);
-if ("body" in o539) lf(o539["body"], p + "/body", e, L1);
-if ("quoted" in o539) lf(o539["quoted"], p + "/quoted", e, L1);
-if ("signature" in o539) lf(o539["signature"], p + "/signature", e, L1);
-if ("html" in o539) lf(o539["html"], p + "/html", e, L1);
-if ("imagesHeld" in o539) lf(o539["imagesHeld"], p + "/imagesHeld", e, L17);
-if ("reactions" in o539) {
-{
-const x541 = o539["reactions"];
-const g541 = typeOf(x541);
-const b541: string[] = []; lf(x541, p + "/reactions", b541, L4); if (b541.length) e.push(...b541);
-if (g541 === "array") {
-if (g541 === 'array') { const a541 = x541 as unknown[];
-for (let i541 = 0; i541 < a541.length; i541++) {
-{
-const x542 = a541[i541];
-const g542 = typeOf(x542);
-const b542: string[] = []; lf(x542, p + "/reactions" + '/' + i541, b542, L0); if (b542.length) e.push(...b542);
-if (g542 === "object") {
-if (g542 === 'object') { const o542 = x542 as Record<string, unknown>;
-if (!("emoji" in o542)) e.push(p + "/reactions" + '/' + i541 + "/emoji" + ': required');
-if (!("from" in o542)) e.push(p + "/reactions" + '/' + i541 + "/from" + ': required');
-if (!("at" in o542)) e.push(p + "/reactions" + '/' + i541 + "/at" + ': required');
-if ("emoji" in o542) lf(o542["emoji"], p + "/reactions" + '/' + i541 + "/emoji", e, L1);
-if ("from" in o542) d_s_25d114c9ac(o542["from"], p + "/reactions" + '/' + i541 + "/from", e);
-if ("at" in o542) lf(o542["at"], p + "/reactions" + '/' + i541 + "/at", e, L17);
-}
-}
-}
-}
-}
-}
-}
-}
-if ("attachments" in o539) {
-{
-const x543 = o539["attachments"];
+const x543 = v;
 const g543 = typeOf(x543);
-const b543: string[] = []; lf(x543, p + "/attachments", b543, L4); if (b543.length) e.push(...b543);
-if (g543 === "array") {
-if (g543 === 'array') { const a543 = x543 as unknown[];
-for (let i543 = 0; i543 < a543.length; i543++) {
+const b543: string[] = []; lf(x543, p, b543, L0); if (b543.length) e.push(...b543);
+if (g543 === "object") {
+if (g543 === 'object') { const o543 = x543 as Record<string, unknown>;
+if (!("id" in o543)) e.push(p + "/id" + ': required');
+if (!("at" in o543)) e.push(p + "/at" + ': required');
+if (!("direction" in o543)) e.push(p + "/direction" + ': required');
+if (!("mailboxId" in o543)) e.push(p + "/mailboxId" + ': required');
+if (!("mailboxIds" in o543)) e.push(p + "/mailboxIds" + ': required');
+if (!("from" in o543)) e.push(p + "/from" + ': required');
+if (!("to" in o543)) e.push(p + "/to" + ': required');
+if (!("cc" in o543)) e.push(p + "/cc" + ': required');
+if (!("subject" in o543)) e.push(p + "/subject" + ': required');
+if (!("body" in o543)) e.push(p + "/body" + ': required');
+if (!("reactions" in o543)) e.push(p + "/reactions" + ': required');
+if (!("attachments" in o543)) e.push(p + "/attachments" + ': required');
+if (!("isPrivate" in o543)) e.push(p + "/isPrivate" + ': required');
+if ("id" in o543) lf(o543["id"], p + "/id", e, L24);
+if ("at" in o543) lf(o543["at"], p + "/at", e, L17);
+if ("direction" in o543) lf(o543["direction"], p + "/direction", e, L26);
+if ("mailboxId" in o543) lf(o543["mailboxId"], p + "/mailboxId", e, L25);
+if ("mailboxIds" in o543) {
 {
-const x544 = a543[i543];
+const x544 = o543["mailboxIds"];
 const g544 = typeOf(x544);
-const b544: string[] = []; lf(x544, p + "/attachments" + '/' + i543, b544, L0); if (b544.length) e.push(...b544);
-if (g544 === "object") {
-if (g544 === 'object') { const o544 = x544 as Record<string, unknown>;
-if (!("attachmentId" in o544)) e.push(p + "/attachments" + '/' + i543 + "/attachmentId" + ': required');
-if (!("name" in o544)) e.push(p + "/attachments" + '/' + i543 + "/name" + ': required');
-if (!("mime" in o544)) e.push(p + "/attachments" + '/' + i543 + "/mime" + ': required');
-if (!("size" in o544)) e.push(p + "/attachments" + '/' + i543 + "/size" + ': required');
-if ("attachmentId" in o544) lf(o544["attachmentId"], p + "/attachments" + '/' + i543 + "/attachmentId", e, L1);
-if ("name" in o544) lf(o544["name"], p + "/attachments" + '/' + i543 + "/name", e, L1);
-if ("mime" in o544) lf(o544["mime"], p + "/attachments" + '/' + i543 + "/mime", e, L1);
-if ("size" in o544) lf(o544["size"], p + "/attachments" + '/' + i543 + "/size", e, L2);
+const b544: string[] = []; lf(x544, p + "/mailboxIds", b544, L4); if (b544.length) e.push(...b544);
+if (g544 === "array") {
+if (g544 === 'array') { const a544 = x544 as unknown[];
+for (let i544 = 0; i544 < a544.length; i544++) {
+lf(a544[i544], p + "/mailboxIds" + '/' + i544, e, L25);
+}
+}
+}
+}
+}
+if ("from" in o543) d_s_25d114c9ac(o543["from"], p + "/from", e);
+if ("to" in o543) d_s_9eb38dfc46(o543["to"], p + "/to", e);
+if ("cc" in o543) d_s_9eb38dfc46(o543["cc"], p + "/cc", e);
+if ("subject" in o543) lf(o543["subject"], p + "/subject", e, L1);
+if ("body" in o543) lf(o543["body"], p + "/body", e, L1);
+if ("quoted" in o543) lf(o543["quoted"], p + "/quoted", e, L1);
+if ("signature" in o543) lf(o543["signature"], p + "/signature", e, L1);
+if ("html" in o543) lf(o543["html"], p + "/html", e, L1);
+if ("imagesHeld" in o543) lf(o543["imagesHeld"], p + "/imagesHeld", e, L17);
+if ("reactions" in o543) {
+{
+const x545 = o543["reactions"];
+const g545 = typeOf(x545);
+const b545: string[] = []; lf(x545, p + "/reactions", b545, L4); if (b545.length) e.push(...b545);
+if (g545 === "array") {
+if (g545 === 'array') { const a545 = x545 as unknown[];
+for (let i545 = 0; i545 < a545.length; i545++) {
+{
+const x546 = a545[i545];
+const g546 = typeOf(x546);
+const b546: string[] = []; lf(x546, p + "/reactions" + '/' + i545, b546, L0); if (b546.length) e.push(...b546);
+if (g546 === "object") {
+if (g546 === 'object') { const o546 = x546 as Record<string, unknown>;
+if (!("emoji" in o546)) e.push(p + "/reactions" + '/' + i545 + "/emoji" + ': required');
+if (!("from" in o546)) e.push(p + "/reactions" + '/' + i545 + "/from" + ': required');
+if (!("at" in o546)) e.push(p + "/reactions" + '/' + i545 + "/at" + ': required');
+if ("emoji" in o546) lf(o546["emoji"], p + "/reactions" + '/' + i545 + "/emoji", e, L1);
+if ("from" in o546) d_s_25d114c9ac(o546["from"], p + "/reactions" + '/' + i545 + "/from", e);
+if ("at" in o546) lf(o546["at"], p + "/reactions" + '/' + i545 + "/at", e, L17);
 }
 }
 }
@@ -2208,9 +2179,39 @@ if ("size" in o544) lf(o544["size"], p + "/attachments" + '/' + i543 + "/size", 
 }
 }
 }
-if ("isPrivate" in o539) lf(o539["isPrivate"], p + "/isPrivate", e, L3);
-if ("rfcMessageId" in o539) lf(o539["rfcMessageId"], p + "/rfcMessageId", e, L1);
-if ("inReplyTo" in o539) lf(o539["inReplyTo"], p + "/inReplyTo", e, L1);
+if ("attachments" in o543) {
+{
+const x547 = o543["attachments"];
+const g547 = typeOf(x547);
+const b547: string[] = []; lf(x547, p + "/attachments", b547, L4); if (b547.length) e.push(...b547);
+if (g547 === "array") {
+if (g547 === 'array') { const a547 = x547 as unknown[];
+for (let i547 = 0; i547 < a547.length; i547++) {
+{
+const x548 = a547[i547];
+const g548 = typeOf(x548);
+const b548: string[] = []; lf(x548, p + "/attachments" + '/' + i547, b548, L0); if (b548.length) e.push(...b548);
+if (g548 === "object") {
+if (g548 === 'object') { const o548 = x548 as Record<string, unknown>;
+if (!("attachmentId" in o548)) e.push(p + "/attachments" + '/' + i547 + "/attachmentId" + ': required');
+if (!("name" in o548)) e.push(p + "/attachments" + '/' + i547 + "/name" + ': required');
+if (!("mime" in o548)) e.push(p + "/attachments" + '/' + i547 + "/mime" + ': required');
+if (!("size" in o548)) e.push(p + "/attachments" + '/' + i547 + "/size" + ': required');
+if ("attachmentId" in o548) lf(o548["attachmentId"], p + "/attachments" + '/' + i547 + "/attachmentId", e, L1);
+if ("name" in o548) lf(o548["name"], p + "/attachments" + '/' + i547 + "/name", e, L1);
+if ("mime" in o548) lf(o548["mime"], p + "/attachments" + '/' + i547 + "/mime", e, L1);
+if ("size" in o548) lf(o548["size"], p + "/attachments" + '/' + i547 + "/size", e, L2);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("isPrivate" in o543) lf(o543["isPrivate"], p + "/isPrivate", e, L3);
+if ("rfcMessageId" in o543) lf(o543["rfcMessageId"], p + "/rfcMessageId", e, L1);
+if ("inReplyTo" in o543) lf(o543["inReplyTo"], p + "/inReplyTo", e, L1);
 }
 }
 }
@@ -2218,15 +2219,15 @@ if ("inReplyTo" in o539) lf(o539["inReplyTo"], p + "/inReplyTo", e, L1);
 
 export function d_s_6c1eb10d98(v: unknown, p: string, e: string[]): void {
 {
-const x549 = v;
-const g549 = typeOf(x549);
-const b549: string[] = []; lf(x549, p, b549, L0); if (b549.length) e.push(...b549);
-if (g549 === "object") {
-if (g549 === 'object') { const o549 = x549 as Record<string, unknown>;
-if (!("kind" in o549)) e.push(p + "/kind" + ': required');
-if (!("id" in o549)) e.push(p + "/id" + ': required');
-if ("kind" in o549) lf(o549["kind"], p + "/kind", e, L269);
-if ("id" in o549) lf(o549["id"], p + "/id", e, L1);
+const x553 = v;
+const g553 = typeOf(x553);
+const b553: string[] = []; lf(x553, p, b553, L0); if (b553.length) e.push(...b553);
+if (g553 === "object") {
+if (g553 === 'object') { const o553 = x553 as Record<string, unknown>;
+if (!("kind" in o553)) e.push(p + "/kind" + ': required');
+if (!("id" in o553)) e.push(p + "/id" + ': required');
+if ("kind" in o553) lf(o553["kind"], p + "/kind", e, L270);
+if ("id" in o553) lf(o553["id"], p + "/id", e, L1);
 }
 }
 }
@@ -2234,13 +2235,13 @@ if ("id" in o549) lf(o549["id"], p + "/id", e, L1);
 
 export function d_s_6d0de879ff(v: unknown, p: string, e: string[]): void {
 {
-const x552 = v;
-const g552 = typeOf(x552);
-const b552: string[] = []; lf(x552, p, b552, L0); if (b552.length) e.push(...b552);
-if (g552 === "object") {
-if (g552 === 'object') { const o552 = x552 as Record<string, unknown>;
-if (!("vaultItem" in o552)) e.push(p + "/vaultItem" + ': required');
-if ("vaultItem" in o552) lf(o552["vaultItem"], p + "/vaultItem", e, L7);
+const x556 = v;
+const g556 = typeOf(x556);
+const b556: string[] = []; lf(x556, p, b556, L0); if (b556.length) e.push(...b556);
+if (g556 === "object") {
+if (g556 === 'object') { const o556 = x556 as Record<string, unknown>;
+if (!("vaultItem" in o556)) e.push(p + "/vaultItem" + ': required');
+if ("vaultItem" in o556) lf(o556["vaultItem"], p + "/vaultItem", e, L7);
 }
 }
 }
@@ -2248,13 +2249,13 @@ if ("vaultItem" in o552) lf(o552["vaultItem"], p + "/vaultItem", e, L7);
 
 export function d_s_6fbfd139dc(v: unknown, p: string, e: string[]): void {
 {
-const x563 = v;
-const g563 = typeOf(x563);
-const b563: string[] = []; lf(x563, p, b563, L0); if (b563.length) e.push(...b563);
-if (g563 === "object") {
-if (g563 === 'object') { const o563 = x563 as Record<string, unknown>;
-if (!("since" in o563)) e.push(p + "/since" + ': required');
-if ("since" in o563) lf(o563["since"], p + "/since", e, L17);
+const x567 = v;
+const g567 = typeOf(x567);
+const b567: string[] = []; lf(x567, p, b567, L0); if (b567.length) e.push(...b567);
+if (g567 === "object") {
+if (g567 === 'object') { const o567 = x567 as Record<string, unknown>;
+if (!("since" in o567)) e.push(p + "/since" + ': required');
+if ("since" in o567) lf(o567["since"], p + "/since", e, L17);
 }
 }
 }
@@ -2262,291 +2263,291 @@ if ("since" in o563) lf(o563["since"], p + "/since", e, L17);
 
 export function d_s_70058de0c7(v: unknown, p: string, e: string[]): void {
 {
-const x567 = v;
-const g567 = typeOf(x567);
-const b567: string[] = []; lf(x567, p, b567, L0); if (b567.length) e.push(...b567);
-if (g567 === "object") {
-if (g567 === 'object') { const o567 = x567 as Record<string, unknown>;
-if (!("turnId" in o567)) e.push(p + "/turnId" + ': required');
-if (!("traceId" in o567)) e.push(p + "/traceId" + ': required');
-if (!("agentId" in o567)) e.push(p + "/agentId" + ': required');
-if (!("asker" in o567)) e.push(p + "/asker" + ': required');
-if (!("model" in o567)) e.push(p + "/model" + ': required');
-if (!("engine" in o567)) e.push(p + "/engine" + ': required');
-if (!("state" in o567)) e.push(p + "/state" + ': required');
-if (!("ranOn" in o567)) e.push(p + "/ranOn" + ': required');
-if (!("timing" in o567)) e.push(p + "/timing" + ': required');
-if (!("tokens" in o567)) e.push(p + "/tokens" + ': required');
-if (!("tools" in o567)) e.push(p + "/tools" + ': required');
-if (!("files" in o567)) e.push(p + "/files" + ': required');
-if (!("skills" in o567)) e.push(p + "/skills" + ': required');
-if (!("switches" in o567)) e.push(p + "/switches" + ': required');
-if (!("private" in o567)) e.push(p + "/private" + ': required');
-if (!("partial" in o567)) e.push(p + "/partial" + ': required');
-if ("turnId" in o567) lf(o567["turnId"], p + "/turnId", e, L183);
-if ("traceId" in o567) lf(o567["traceId"], p + "/traceId", e, L79);
-if ("agentId" in o567) lf(o567["agentId"], p + "/agentId", e, L10);
-if ("asker" in o567) lf(o567["asker"], p + "/asker", e, L1);
-if ("model" in o567) lf(o567["model"], p + "/model", e, L1);
-if ("effort" in o567) lf(o567["effort"], p + "/effort", e, L1);
-if ("engine" in o567) lf(o567["engine"], p + "/engine", e, L1);
-if ("provider" in o567) lf(o567["provider"], p + "/provider", e, L1);
-if ("accountKind" in o567) lf(o567["accountKind"], p + "/accountKind", e, L276);
-if ("shared" in o567) lf(o567["shared"], p + "/shared", e, L3);
-if ("accountRef" in o567) lf(o567["accountRef"], p + "/accountRef", e, L1);
-if ("state" in o567) lf(o567["state"], p + "/state", e, L184);
-if ("paid" in o567) lf(o567["paid"], p + "/paid", e, L1);
-if ("ranOn" in o567) {
-{
-const x568 = o567["ranOn"];
-const g568 = typeOf(x568);
-const b568: string[] = []; lf(x568, p + "/ranOn", b568, L4); if (b568.length) e.push(...b568);
-if (g568 === "array") {
-if (g568 === 'array') { const a568 = x568 as unknown[];
-for (let i568 = 0; i568 < a568.length; i568++) {
-{
-const x569 = a568[i568];
-const g569 = typeOf(x569);
-const b569: string[] = []; lf(x569, p + "/ranOn" + '/' + i568, b569, L0); if (b569.length) e.push(...b569);
-if (g569 === "object") {
-if (g569 === 'object') { const o569 = x569 as Record<string, unknown>;
-if (!("kind" in o569)) e.push(p + "/ranOn" + '/' + i568 + "/kind" + ': required');
-if (!("name" in o569)) e.push(p + "/ranOn" + '/' + i568 + "/name" + ': required');
-if ("kind" in o569) lf(o569["kind"], p + "/ranOn" + '/' + i568 + "/kind", e, L1);
-if ("name" in o569) lf(o569["name"], p + "/ranOn" + '/' + i568 + "/name", e, L1);
-if ("note" in o569) lf(o569["note"], p + "/ranOn" + '/' + i568 + "/note", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-if ("timing" in o567) {
-{
-const x570 = o567["timing"];
-const g570 = typeOf(x570);
-const b570: string[] = []; lf(x570, p + "/timing", b570, L0); if (b570.length) e.push(...b570);
-if (g570 === "object") {
-if (g570 === 'object') { const o570 = x570 as Record<string, unknown>;
-if (!("startedAt" in o570)) e.push(p + "/timing" + "/startedAt" + ': required');
-if ("queuedAt" in o570) lf(o570["queuedAt"], p + "/timing" + "/queuedAt", e, L17);
-if ("startedAt" in o570) lf(o570["startedAt"], p + "/timing" + "/startedAt", e, L17);
-if ("firstTokenAt" in o570) lf(o570["firstTokenAt"], p + "/timing" + "/firstTokenAt", e, L17);
-if ("endedAt" in o570) lf(o570["endedAt"], p + "/timing" + "/endedAt", e, L17);
-}
-}
-}
-}
-if ("tokens" in o567) {
-{
-const x571 = o567["tokens"];
+const x571 = v;
 const g571 = typeOf(x571);
-const b571: string[] = []; lf(x571, p + "/tokens", b571, L0); if (b571.length) e.push(...b571);
+const b571: string[] = []; lf(x571, p, b571, L0); if (b571.length) e.push(...b571);
 if (g571 === "object") {
 if (g571 === 'object') { const o571 = x571 as Record<string, unknown>;
-if (!("in" in o571)) e.push(p + "/tokens" + "/in" + ': required');
-if (!("out" in o571)) e.push(p + "/tokens" + "/out" + ': required');
-if ("in" in o571) lf(o571["in"], p + "/tokens" + "/in", e, L2);
-if ("out" in o571) lf(o571["out"], p + "/tokens" + "/out", e, L2);
-if ("context" in o571) lf(o571["context"], p + "/tokens" + "/context", e, L2);
-if ("cacheRead" in o571) lf(o571["cacheRead"], p + "/tokens" + "/cacheRead", e, L2);
-if ("cacheWrite" in o571) lf(o571["cacheWrite"], p + "/tokens" + "/cacheWrite", e, L2);
-if ("reasoning" in o571) lf(o571["reasoning"], p + "/tokens" + "/reasoning", e, L2);
-}
-}
-}
-}
-if ("cost" in o567) {
+if (!("turnId" in o571)) e.push(p + "/turnId" + ': required');
+if (!("traceId" in o571)) e.push(p + "/traceId" + ': required');
+if (!("agentId" in o571)) e.push(p + "/agentId" + ': required');
+if (!("asker" in o571)) e.push(p + "/asker" + ': required');
+if (!("model" in o571)) e.push(p + "/model" + ': required');
+if (!("engine" in o571)) e.push(p + "/engine" + ': required');
+if (!("state" in o571)) e.push(p + "/state" + ': required');
+if (!("ranOn" in o571)) e.push(p + "/ranOn" + ': required');
+if (!("timing" in o571)) e.push(p + "/timing" + ': required');
+if (!("tokens" in o571)) e.push(p + "/tokens" + ': required');
+if (!("tools" in o571)) e.push(p + "/tools" + ': required');
+if (!("files" in o571)) e.push(p + "/files" + ': required');
+if (!("skills" in o571)) e.push(p + "/skills" + ': required');
+if (!("switches" in o571)) e.push(p + "/switches" + ': required');
+if (!("private" in o571)) e.push(p + "/private" + ': required');
+if (!("partial" in o571)) e.push(p + "/partial" + ': required');
+if ("turnId" in o571) lf(o571["turnId"], p + "/turnId", e, L183);
+if ("traceId" in o571) lf(o571["traceId"], p + "/traceId", e, L79);
+if ("agentId" in o571) lf(o571["agentId"], p + "/agentId", e, L10);
+if ("asker" in o571) lf(o571["asker"], p + "/asker", e, L1);
+if ("model" in o571) lf(o571["model"], p + "/model", e, L1);
+if ("effort" in o571) lf(o571["effort"], p + "/effort", e, L1);
+if ("engine" in o571) lf(o571["engine"], p + "/engine", e, L1);
+if ("provider" in o571) lf(o571["provider"], p + "/provider", e, L1);
+if ("accountKind" in o571) lf(o571["accountKind"], p + "/accountKind", e, L277);
+if ("shared" in o571) lf(o571["shared"], p + "/shared", e, L3);
+if ("accountRef" in o571) lf(o571["accountRef"], p + "/accountRef", e, L1);
+if ("state" in o571) lf(o571["state"], p + "/state", e, L184);
+if ("paid" in o571) lf(o571["paid"], p + "/paid", e, L1);
+if ("ranOn" in o571) {
 {
-const x572 = o567["cost"];
+const x572 = o571["ranOn"];
 const g572 = typeOf(x572);
-const b572: string[] = []; lf(x572, p + "/cost", b572, L0); if (b572.length) e.push(...b572);
-if (g572 === "object") {
-if (g572 === 'object') { const o572 = x572 as Record<string, unknown>;
-if (!("source" in o572)) e.push(p + "/cost" + "/source" + ': required');
-if ("source" in o572) lf(o572["source"], p + "/cost" + "/source", e, L277);
-if ("micros" in o572) lf(o572["micros"], p + "/cost" + "/micros", e, L2);
-if ("lines" in o572) {
+const b572: string[] = []; lf(x572, p + "/ranOn", b572, L4); if (b572.length) e.push(...b572);
+if (g572 === "array") {
+if (g572 === 'array') { const a572 = x572 as unknown[];
+for (let i572 = 0; i572 < a572.length; i572++) {
 {
-const x573 = o572["lines"];
+const x573 = a572[i572];
 const g573 = typeOf(x573);
-const b573: string[] = []; lf(x573, p + "/cost" + "/lines", b573, L4); if (b573.length) e.push(...b573);
-if (g573 === "array") {
-if (g573 === 'array') { const a573 = x573 as unknown[];
-for (let i573 = 0; i573 < a573.length; i573++) {
+const b573: string[] = []; lf(x573, p + "/ranOn" + '/' + i572, b573, L0); if (b573.length) e.push(...b573);
+if (g573 === "object") {
+if (g573 === 'object') { const o573 = x573 as Record<string, unknown>;
+if (!("kind" in o573)) e.push(p + "/ranOn" + '/' + i572 + "/kind" + ': required');
+if (!("name" in o573)) e.push(p + "/ranOn" + '/' + i572 + "/name" + ': required');
+if ("kind" in o573) lf(o573["kind"], p + "/ranOn" + '/' + i572 + "/kind", e, L1);
+if ("name" in o573) lf(o573["name"], p + "/ranOn" + '/' + i572 + "/name", e, L1);
+if ("note" in o573) lf(o573["note"], p + "/ranOn" + '/' + i572 + "/note", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("timing" in o571) {
 {
-const x574 = a573[i573];
+const x574 = o571["timing"];
 const g574 = typeOf(x574);
-const b574: string[] = []; lf(x574, p + "/cost" + "/lines" + '/' + i573, b574, L0); if (b574.length) e.push(...b574);
+const b574: string[] = []; lf(x574, p + "/timing", b574, L0); if (b574.length) e.push(...b574);
 if (g574 === "object") {
 if (g574 === 'object') { const o574 = x574 as Record<string, unknown>;
-if (!("kind" in o574)) e.push(p + "/cost" + "/lines" + '/' + i573 + "/kind" + ': required');
-if (!("tokens" in o574)) e.push(p + "/cost" + "/lines" + '/' + i573 + "/tokens" + ': required');
-if (!("perMillion" in o574)) e.push(p + "/cost" + "/lines" + '/' + i573 + "/perMillion" + ': required');
-if (!("micros" in o574)) e.push(p + "/cost" + "/lines" + '/' + i573 + "/micros" + ': required');
-if ("kind" in o574) lf(o574["kind"], p + "/cost" + "/lines" + '/' + i573 + "/kind", e, L278);
-if ("tokens" in o574) lf(o574["tokens"], p + "/cost" + "/lines" + '/' + i573 + "/tokens", e, L2);
-if ("perMillion" in o574) lf(o574["perMillion"], p + "/cost" + "/lines" + '/' + i573 + "/perMillion", e, L86);
-if ("micros" in o574) lf(o574["micros"], p + "/cost" + "/lines" + '/' + i573 + "/micros", e, L2);
+if (!("startedAt" in o574)) e.push(p + "/timing" + "/startedAt" + ': required');
+if ("queuedAt" in o574) lf(o574["queuedAt"], p + "/timing" + "/queuedAt", e, L17);
+if ("startedAt" in o574) lf(o574["startedAt"], p + "/timing" + "/startedAt", e, L17);
+if ("firstTokenAt" in o574) lf(o574["firstTokenAt"], p + "/timing" + "/firstTokenAt", e, L17);
+if ("endedAt" in o574) lf(o574["endedAt"], p + "/timing" + "/endedAt", e, L17);
 }
 }
 }
 }
-}
-}
-}
-}
-if ("priceAsOf" in o572) lf(o572["priceAsOf"], p + "/cost" + "/priceAsOf", e, L1);
-if ("missing" in o572) {
+if ("tokens" in o571) {
 {
-const x575 = o572["missing"];
+const x575 = o571["tokens"];
 const g575 = typeOf(x575);
-const b575: string[] = []; lf(x575, p + "/cost" + "/missing", b575, L4); if (b575.length) e.push(...b575);
-if (g575 === "array") {
-if (g575 === 'array') { const a575 = x575 as unknown[];
-for (let i575 = 0; i575 < a575.length; i575++) {
-lf(a575[i575], p + "/cost" + "/missing" + '/' + i575, e, L1);
+const b575: string[] = []; lf(x575, p + "/tokens", b575, L0); if (b575.length) e.push(...b575);
+if (g575 === "object") {
+if (g575 === 'object') { const o575 = x575 as Record<string, unknown>;
+if (!("in" in o575)) e.push(p + "/tokens" + "/in" + ': required');
+if (!("out" in o575)) e.push(p + "/tokens" + "/out" + ': required');
+if ("in" in o575) lf(o575["in"], p + "/tokens" + "/in", e, L2);
+if ("out" in o575) lf(o575["out"], p + "/tokens" + "/out", e, L2);
+if ("context" in o575) lf(o575["context"], p + "/tokens" + "/context", e, L2);
+if ("cacheRead" in o575) lf(o575["cacheRead"], p + "/tokens" + "/cacheRead", e, L2);
+if ("cacheWrite" in o575) lf(o575["cacheWrite"], p + "/tokens" + "/cacheWrite", e, L2);
+if ("reasoning" in o575) lf(o575["reasoning"], p + "/tokens" + "/reasoning", e, L2);
 }
 }
 }
 }
-}
-}
-}
-}
-}
-if ("tools" in o567) {
+if ("cost" in o571) {
 {
-const x576 = o567["tools"];
+const x576 = o571["cost"];
 const g576 = typeOf(x576);
-const b576: string[] = []; lf(x576, p + "/tools", b576, L4); if (b576.length) e.push(...b576);
-if (g576 === "array") {
-if (g576 === 'array') { const a576 = x576 as unknown[];
-for (let i576 = 0; i576 < a576.length; i576++) {
+const b576: string[] = []; lf(x576, p + "/cost", b576, L0); if (b576.length) e.push(...b576);
+if (g576 === "object") {
+if (g576 === 'object') { const o576 = x576 as Record<string, unknown>;
+if (!("source" in o576)) e.push(p + "/cost" + "/source" + ': required');
+if ("source" in o576) lf(o576["source"], p + "/cost" + "/source", e, L278);
+if ("micros" in o576) lf(o576["micros"], p + "/cost" + "/micros", e, L2);
+if ("lines" in o576) {
 {
-const x577 = a576[i576];
+const x577 = o576["lines"];
 const g577 = typeOf(x577);
-const b577: string[] = []; lf(x577, p + "/tools" + '/' + i576, b577, L0); if (b577.length) e.push(...b577);
-if (g577 === "object") {
-if (g577 === 'object') { const o577 = x577 as Record<string, unknown>;
-if (!("name" in o577)) e.push(p + "/tools" + '/' + i576 + "/name" + ': required');
-if ("name" in o577) lf(o577["name"], p + "/tools" + '/' + i576 + "/name", e, L1);
-if ("args" in o577) lf(o577["args"], p + "/tools" + '/' + i576 + "/args", e, L1);
-if ("ok" in o577) lf(o577["ok"], p + "/tools" + '/' + i576 + "/ok", e, L3);
-if ("durationMs" in o577) lf(o577["durationMs"], p + "/tools" + '/' + i576 + "/durationMs", e, L2);
-if ("heldTaskId" in o577) lf(o577["heldTaskId"], p + "/tools" + '/' + i576 + "/heldTaskId", e, L59);
-}
-}
-}
-}
-}
-}
-}
-}
-if ("files" in o567) {
+const b577: string[] = []; lf(x577, p + "/cost" + "/lines", b577, L4); if (b577.length) e.push(...b577);
+if (g577 === "array") {
+if (g577 === 'array') { const a577 = x577 as unknown[];
+for (let i577 = 0; i577 < a577.length; i577++) {
 {
-const x578 = o567["files"];
+const x578 = a577[i577];
 const g578 = typeOf(x578);
-const b578: string[] = []; lf(x578, p + "/files", b578, L0); if (b578.length) e.push(...b578);
+const b578: string[] = []; lf(x578, p + "/cost" + "/lines" + '/' + i577, b578, L0); if (b578.length) e.push(...b578);
 if (g578 === "object") {
 if (g578 === 'object') { const o578 = x578 as Record<string, unknown>;
-if (!("read" in o578)) e.push(p + "/files" + "/read" + ': required');
-if (!("written" in o578)) e.push(p + "/files" + "/written" + ': required');
-if ("read" in o578) {
+if (!("kind" in o578)) e.push(p + "/cost" + "/lines" + '/' + i577 + "/kind" + ': required');
+if (!("tokens" in o578)) e.push(p + "/cost" + "/lines" + '/' + i577 + "/tokens" + ': required');
+if (!("perMillion" in o578)) e.push(p + "/cost" + "/lines" + '/' + i577 + "/perMillion" + ': required');
+if (!("micros" in o578)) e.push(p + "/cost" + "/lines" + '/' + i577 + "/micros" + ': required');
+if ("kind" in o578) lf(o578["kind"], p + "/cost" + "/lines" + '/' + i577 + "/kind", e, L279);
+if ("tokens" in o578) lf(o578["tokens"], p + "/cost" + "/lines" + '/' + i577 + "/tokens", e, L2);
+if ("perMillion" in o578) lf(o578["perMillion"], p + "/cost" + "/lines" + '/' + i577 + "/perMillion", e, L86);
+if ("micros" in o578) lf(o578["micros"], p + "/cost" + "/lines" + '/' + i577 + "/micros", e, L2);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("priceAsOf" in o576) lf(o576["priceAsOf"], p + "/cost" + "/priceAsOf", e, L1);
+if ("missing" in o576) {
 {
-const x579 = o578["read"];
+const x579 = o576["missing"];
 const g579 = typeOf(x579);
-const b579: string[] = []; lf(x579, p + "/files" + "/read", b579, L4); if (b579.length) e.push(...b579);
+const b579: string[] = []; lf(x579, p + "/cost" + "/missing", b579, L4); if (b579.length) e.push(...b579);
 if (g579 === "array") {
 if (g579 === 'array') { const a579 = x579 as unknown[];
 for (let i579 = 0; i579 < a579.length; i579++) {
-lf(a579[i579], p + "/files" + "/read" + '/' + i579, e, L1);
+lf(a579[i579], p + "/cost" + "/missing" + '/' + i579, e, L1);
 }
 }
 }
 }
 }
-if ("written" in o578) {
+}
+}
+}
+}
+if ("tools" in o571) {
 {
-const x580 = o578["written"];
+const x580 = o571["tools"];
 const g580 = typeOf(x580);
-const b580: string[] = []; lf(x580, p + "/files" + "/written", b580, L4); if (b580.length) e.push(...b580);
+const b580: string[] = []; lf(x580, p + "/tools", b580, L4); if (b580.length) e.push(...b580);
 if (g580 === "array") {
 if (g580 === 'array') { const a580 = x580 as unknown[];
 for (let i580 = 0; i580 < a580.length; i580++) {
-lf(a580[i580], p + "/files" + "/written" + '/' + i580, e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-}
-if ("skills" in o567) {
 {
-const x581 = o567["skills"];
+const x581 = a580[i580];
 const g581 = typeOf(x581);
-const b581: string[] = []; lf(x581, p + "/skills", b581, L4); if (b581.length) e.push(...b581);
-if (g581 === "array") {
-if (g581 === 'array') { const a581 = x581 as unknown[];
-for (let i581 = 0; i581 < a581.length; i581++) {
-lf(a581[i581], p + "/skills" + '/' + i581, e, L1);
+const b581: string[] = []; lf(x581, p + "/tools" + '/' + i580, b581, L0); if (b581.length) e.push(...b581);
+if (g581 === "object") {
+if (g581 === 'object') { const o581 = x581 as Record<string, unknown>;
+if (!("name" in o581)) e.push(p + "/tools" + '/' + i580 + "/name" + ': required');
+if ("name" in o581) lf(o581["name"], p + "/tools" + '/' + i580 + "/name", e, L1);
+if ("args" in o581) lf(o581["args"], p + "/tools" + '/' + i580 + "/args", e, L1);
+if ("ok" in o581) lf(o581["ok"], p + "/tools" + '/' + i580 + "/ok", e, L3);
+if ("durationMs" in o581) lf(o581["durationMs"], p + "/tools" + '/' + i580 + "/durationMs", e, L2);
+if ("heldTaskId" in o581) lf(o581["heldTaskId"], p + "/tools" + '/' + i580 + "/heldTaskId", e, L59);
 }
 }
 }
 }
 }
-if ("switches" in o567) {
+}
+}
+}
+if ("files" in o571) {
 {
-const x582 = o567["switches"];
+const x582 = o571["files"];
 const g582 = typeOf(x582);
-const b582: string[] = []; lf(x582, p + "/switches", b582, L4); if (b582.length) e.push(...b582);
-if (g582 === "array") {
-if (g582 === 'array') { const a582 = x582 as unknown[];
-for (let i582 = 0; i582 < a582.length; i582++) {
+const b582: string[] = []; lf(x582, p + "/files", b582, L0); if (b582.length) e.push(...b582);
+if (g582 === "object") {
+if (g582 === 'object') { const o582 = x582 as Record<string, unknown>;
+if (!("read" in o582)) e.push(p + "/files" + "/read" + ': required');
+if (!("written" in o582)) e.push(p + "/files" + "/written" + ': required');
+if ("read" in o582) {
 {
-const x583 = a582[i582];
+const x583 = o582["read"];
 const g583 = typeOf(x583);
-const b583: string[] = []; lf(x583, p + "/switches" + '/' + i582, b583, L0); if (b583.length) e.push(...b583);
-if (g583 === "object") {
-if (g583 === 'object') { const o583 = x583 as Record<string, unknown>;
-if (!("at" in o583)) e.push(p + "/switches" + '/' + i582 + "/at" + ': required');
-if (!("why" in o583)) e.push(p + "/switches" + '/' + i582 + "/why" + ': required');
-if (!("sameAccount" in o583)) e.push(p + "/switches" + '/' + i582 + "/sameAccount" + ': required');
-if ("at" in o583) lf(o583["at"], p + "/switches" + '/' + i582 + "/at", e, L17);
-if ("why" in o583) lf(o583["why"], p + "/switches" + '/' + i582 + "/why", e, L1);
-if ("sameAccount" in o583) lf(o583["sameAccount"], p + "/switches" + '/' + i582 + "/sameAccount", e, L3);
-if ("from" in o583) lf(o583["from"], p + "/switches" + '/' + i582 + "/from", e, L1);
-if ("to" in o583) lf(o583["to"], p + "/switches" + '/' + i582 + "/to", e, L1);
+const b583: string[] = []; lf(x583, p + "/files" + "/read", b583, L4); if (b583.length) e.push(...b583);
+if (g583 === "array") {
+if (g583 === 'array') { const a583 = x583 as unknown[];
+for (let i583 = 0; i583 < a583.length; i583++) {
+lf(a583[i583], p + "/files" + "/read" + '/' + i583, e, L1);
 }
 }
 }
 }
 }
-}
-}
-}
-if ("error" in o567) {
+if ("written" in o582) {
 {
-const x584 = o567["error"];
+const x584 = o582["written"];
 const g584 = typeOf(x584);
-const b584: string[] = []; lf(x584, p + "/error", b584, L0); if (b584.length) e.push(...b584);
-if (g584 === "object") {
-if (g584 === 'object') { const o584 = x584 as Record<string, unknown>;
-if (!("code" in o584)) e.push(p + "/error" + "/code" + ': required');
-if (!("message" in o584)) e.push(p + "/error" + "/message" + ': required');
-if ("code" in o584) lf(o584["code"], p + "/error" + "/code", e, L1);
-if ("message" in o584) lf(o584["message"], p + "/error" + "/message", e, L1);
+const b584: string[] = []; lf(x584, p + "/files" + "/written", b584, L4); if (b584.length) e.push(...b584);
+if (g584 === "array") {
+if (g584 === 'array') { const a584 = x584 as unknown[];
+for (let i584 = 0; i584 < a584.length; i584++) {
+lf(a584[i584], p + "/files" + "/written" + '/' + i584, e, L1);
 }
 }
 }
 }
-if ("private" in o567) lf(o567["private"], p + "/private", e, L3);
-if ("partial" in o567) lf(o567["partial"], p + "/partial", e, L3);
+}
+}
+}
+}
+}
+if ("skills" in o571) {
+{
+const x585 = o571["skills"];
+const g585 = typeOf(x585);
+const b585: string[] = []; lf(x585, p + "/skills", b585, L4); if (b585.length) e.push(...b585);
+if (g585 === "array") {
+if (g585 === 'array') { const a585 = x585 as unknown[];
+for (let i585 = 0; i585 < a585.length; i585++) {
+lf(a585[i585], p + "/skills" + '/' + i585, e, L1);
+}
+}
+}
+}
+}
+if ("switches" in o571) {
+{
+const x586 = o571["switches"];
+const g586 = typeOf(x586);
+const b586: string[] = []; lf(x586, p + "/switches", b586, L4); if (b586.length) e.push(...b586);
+if (g586 === "array") {
+if (g586 === 'array') { const a586 = x586 as unknown[];
+for (let i586 = 0; i586 < a586.length; i586++) {
+{
+const x587 = a586[i586];
+const g587 = typeOf(x587);
+const b587: string[] = []; lf(x587, p + "/switches" + '/' + i586, b587, L0); if (b587.length) e.push(...b587);
+if (g587 === "object") {
+if (g587 === 'object') { const o587 = x587 as Record<string, unknown>;
+if (!("at" in o587)) e.push(p + "/switches" + '/' + i586 + "/at" + ': required');
+if (!("why" in o587)) e.push(p + "/switches" + '/' + i586 + "/why" + ': required');
+if (!("sameAccount" in o587)) e.push(p + "/switches" + '/' + i586 + "/sameAccount" + ': required');
+if ("at" in o587) lf(o587["at"], p + "/switches" + '/' + i586 + "/at", e, L17);
+if ("why" in o587) lf(o587["why"], p + "/switches" + '/' + i586 + "/why", e, L1);
+if ("sameAccount" in o587) lf(o587["sameAccount"], p + "/switches" + '/' + i586 + "/sameAccount", e, L3);
+if ("from" in o587) lf(o587["from"], p + "/switches" + '/' + i586 + "/from", e, L1);
+if ("to" in o587) lf(o587["to"], p + "/switches" + '/' + i586 + "/to", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("error" in o571) {
+{
+const x588 = o571["error"];
+const g588 = typeOf(x588);
+const b588: string[] = []; lf(x588, p + "/error", b588, L0); if (b588.length) e.push(...b588);
+if (g588 === "object") {
+if (g588 === 'object') { const o588 = x588 as Record<string, unknown>;
+if (!("code" in o588)) e.push(p + "/error" + "/code" + ': required');
+if (!("message" in o588)) e.push(p + "/error" + "/message" + ': required');
+if ("code" in o588) lf(o588["code"], p + "/error" + "/code", e, L1);
+if ("message" in o588) lf(o588["message"], p + "/error" + "/message", e, L1);
+}
+}
+}
+}
+if ("private" in o571) lf(o571["private"], p + "/private", e, L3);
+if ("partial" in o571) lf(o571["partial"], p + "/partial", e, L3);
 }
 }
 }
@@ -2554,16 +2555,16 @@ if ("partial" in o567) lf(o567["partial"], p + "/partial", e, L3);
 
 export function d_s_744cca82fa(v: unknown, p: string, e: string[]): void {
 {
-const x607 = v;
-const g607 = typeOf(x607);
-const b607: string[] = []; lf(x607, p, b607, L0); if (b607.length) e.push(...b607);
-if (g607 === "object") {
-if (g607 === 'object') { const o607 = x607 as Record<string, unknown>;
-if (!("before" in o607)) e.push(p + "/before" + ': required');
-if (!("idempotencyKey" in o607)) e.push(p + "/idempotencyKey" + ': required');
-if ("before" in o607) lf(o607["before"], p + "/before", e, L17);
-if ("limit" in o607) lf(o607["limit"], p + "/limit", e, L286);
-if ("idempotencyKey" in o607) lf(o607["idempotencyKey"], p + "/idempotencyKey", e, L55);
+const x611 = v;
+const g611 = typeOf(x611);
+const b611: string[] = []; lf(x611, p, b611, L0); if (b611.length) e.push(...b611);
+if (g611 === "object") {
+if (g611 === 'object') { const o611 = x611 as Record<string, unknown>;
+if (!("before" in o611)) e.push(p + "/before" + ': required');
+if (!("idempotencyKey" in o611)) e.push(p + "/idempotencyKey" + ': required');
+if ("before" in o611) lf(o611["before"], p + "/before", e, L17);
+if ("limit" in o611) lf(o611["limit"], p + "/limit", e, L287);
+if ("idempotencyKey" in o611) lf(o611["idempotencyKey"], p + "/idempotencyKey", e, L55);
 }
 }
 }
@@ -2571,16 +2572,16 @@ if ("idempotencyKey" in o607) lf(o607["idempotencyKey"], p + "/idempotencyKey", 
 
 export function d_s_7a2160f39e(v: unknown, p: string, e: string[]): void {
 {
-const x628 = v;
-const g628 = typeOf(x628);
-const b628: string[] = []; lf(x628, p, b628, L0); if (b628.length) e.push(...b628);
-if (g628 === "object") {
-if (g628 === 'object') { const o628 = x628 as Record<string, unknown>;
-if (!("configured" in o628)) e.push(p + "/configured" + ': required');
-if ("configured" in o628) lf(o628["configured"], p + "/configured", e, L3);
-if ("clientId" in o628) lf(o628["clientId"], p + "/clientId", e, L1);
-if ("vaultItem" in o628) lf(o628["vaultItem"], p + "/vaultItem", e, L1);
-if ("redirectUri" in o628) lf(o628["redirectUri"], p + "/redirectUri", e, L1);
+const x632 = v;
+const g632 = typeOf(x632);
+const b632: string[] = []; lf(x632, p, b632, L0); if (b632.length) e.push(...b632);
+if (g632 === "object") {
+if (g632 === 'object') { const o632 = x632 as Record<string, unknown>;
+if (!("configured" in o632)) e.push(p + "/configured" + ': required');
+if ("configured" in o632) lf(o632["configured"], p + "/configured", e, L3);
+if ("clientId" in o632) lf(o632["clientId"], p + "/clientId", e, L1);
+if ("vaultItem" in o632) lf(o632["vaultItem"], p + "/vaultItem", e, L1);
+if ("redirectUri" in o632) lf(o632["redirectUri"], p + "/redirectUri", e, L1);
 }
 }
 }
@@ -2588,36 +2589,36 @@ if ("redirectUri" in o628) lf(o628["redirectUri"], p + "/redirectUri", e, L1);
 
 export function d_s_7ab22817bc(v: unknown, p: string, e: string[]): void {
 {
-const x632 = v;
-const g632 = typeOf(x632);
-const b632: string[] = []; lf(x632, p, b632, L0); if (b632.length) e.push(...b632);
-if (g632 === "object") {
-if (g632 === 'object') { const o632 = x632 as Record<string, unknown>;
-if (!("versions" in o632)) e.push(p + "/versions" + ': required');
-if ("versions" in o632) {
+const x636 = v;
+const g636 = typeOf(x636);
+const b636: string[] = []; lf(x636, p, b636, L0); if (b636.length) e.push(...b636);
+if (g636 === "object") {
+if (g636 === 'object') { const o636 = x636 as Record<string, unknown>;
+if (!("versions" in o636)) e.push(p + "/versions" + ': required');
+if ("versions" in o636) {
 {
-const x633 = o632["versions"];
-const g633 = typeOf(x633);
-const b633: string[] = []; lf(x633, p + "/versions", b633, L4); if (b633.length) e.push(...b633);
-if (g633 === "array") {
-if (g633 === 'array') { const a633 = x633 as unknown[];
-for (let i633 = 0; i633 < a633.length; i633++) {
+const x637 = o636["versions"];
+const g637 = typeOf(x637);
+const b637: string[] = []; lf(x637, p + "/versions", b637, L4); if (b637.length) e.push(...b637);
+if (g637 === "array") {
+if (g637 === 'array') { const a637 = x637 as unknown[];
+for (let i637 = 0; i637 < a637.length; i637++) {
 {
-const x634 = a633[i633];
-const g634 = typeOf(x634);
-const b634: string[] = []; lf(x634, p + "/versions" + '/' + i633, b634, L0); if (b634.length) e.push(...b634);
-if (g634 === "object") {
-if (g634 === 'object') { const o634 = x634 as Record<string, unknown>;
-if (!("versionId" in o634)) e.push(p + "/versions" + '/' + i633 + "/versionId" + ': required');
-if (!("n" in o634)) e.push(p + "/versions" + '/' + i633 + "/n" + ': required');
-if (!("by" in o634)) e.push(p + "/versions" + '/' + i633 + "/by" + ': required');
-if (!("at" in o634)) e.push(p + "/versions" + '/' + i633 + "/at" + ': required');
-if ("versionId" in o634) lf(o634["versionId"], p + "/versions" + '/' + i633 + "/versionId", e, L141);
-if ("n" in o634) lf(o634["n"], p + "/versions" + '/' + i633 + "/n", e, L2);
-if ("by" in o634) lf(o634["by"], p + "/versions" + '/' + i633 + "/by", e, L1);
-if ("at" in o634) lf(o634["at"], p + "/versions" + '/' + i633 + "/at", e, L17);
-if ("reason" in o634) lf(o634["reason"], p + "/versions" + '/' + i633 + "/reason", e, L1);
-if ("name" in o634) lf(o634["name"], p + "/versions" + '/' + i633 + "/name", e, L1);
+const x638 = a637[i637];
+const g638 = typeOf(x638);
+const b638: string[] = []; lf(x638, p + "/versions" + '/' + i637, b638, L0); if (b638.length) e.push(...b638);
+if (g638 === "object") {
+if (g638 === 'object') { const o638 = x638 as Record<string, unknown>;
+if (!("versionId" in o638)) e.push(p + "/versions" + '/' + i637 + "/versionId" + ': required');
+if (!("n" in o638)) e.push(p + "/versions" + '/' + i637 + "/n" + ': required');
+if (!("by" in o638)) e.push(p + "/versions" + '/' + i637 + "/by" + ': required');
+if (!("at" in o638)) e.push(p + "/versions" + '/' + i637 + "/at" + ': required');
+if ("versionId" in o638) lf(o638["versionId"], p + "/versions" + '/' + i637 + "/versionId", e, L141);
+if ("n" in o638) lf(o638["n"], p + "/versions" + '/' + i637 + "/n", e, L2);
+if ("by" in o638) lf(o638["by"], p + "/versions" + '/' + i637 + "/by", e, L1);
+if ("at" in o638) lf(o638["at"], p + "/versions" + '/' + i637 + "/at", e, L17);
+if ("reason" in o638) lf(o638["reason"], p + "/versions" + '/' + i637 + "/reason", e, L1);
+if ("name" in o638) lf(o638["name"], p + "/versions" + '/' + i637 + "/name", e, L1);
 }
 }
 }
@@ -2633,14 +2634,14 @@ if ("name" in o634) lf(o634["name"], p + "/versions" + '/' + i633 + "/name", e, 
 
 export function d_s_7c93479a7e(v: unknown, p: string, e: string[]): void {
 {
-const x652 = v;
-const g652 = typeOf(x652);
-const b652: string[] = []; lf(x652, p, b652, L0); if (b652.length) e.push(...b652);
-if (g652 === "object") {
-if (g652 === 'object') { const o652 = x652 as Record<string, unknown>;
-if (!("fileId" in o652)) e.push(p + "/fileId" + ': required');
-if ("fileId" in o652) lf(o652["fileId"], p + "/fileId", e, L35);
-if ("versionId" in o652) lf(o652["versionId"], p + "/versionId", e, L141);
+const x656 = v;
+const g656 = typeOf(x656);
+const b656: string[] = []; lf(x656, p, b656, L0); if (b656.length) e.push(...b656);
+if (g656 === "object") {
+if (g656 === 'object') { const o656 = x656 as Record<string, unknown>;
+if (!("fileId" in o656)) e.push(p + "/fileId" + ': required');
+if ("fileId" in o656) lf(o656["fileId"], p + "/fileId", e, L35);
+if ("versionId" in o656) lf(o656["versionId"], p + "/versionId", e, L141);
 }
 }
 }
@@ -2648,23 +2649,23 @@ if ("versionId" in o652) lf(o652["versionId"], p + "/versionId", e, L141);
 
 export function d_s_7d8a982423(v: unknown, p: string, e: string[]): void {
 {
-const x656 = v;
-const g656 = typeOf(x656);
-const b656: string[] = []; lf(x656, p, b656, L4); if (b656.length) e.push(...b656);
-if (g656 === "array") {
-if (g656 === 'array') { const a656 = x656 as unknown[];
-if (a656.length > 2) e.push(p + ': too many items');
-for (let i656 = 0; i656 < a656.length; i656++) {
+const x660 = v;
+const g660 = typeOf(x660);
+const b660: string[] = []; lf(x660, p, b660, L4); if (b660.length) e.push(...b660);
+if (g660 === "array") {
+if (g660 === 'array') { const a660 = x660 as unknown[];
+if (a660.length > 2) e.push(p + ': too many items');
+for (let i660 = 0; i660 < a660.length; i660++) {
 {
-const x657 = a656[i656];
-const g657 = typeOf(x657);
-const b657: string[] = []; lf(x657, p + '/' + i656, b657, L0); if (b657.length) e.push(...b657);
-if (g657 === "object") {
-if (g657 === 'object') { const o657 = x657 as Record<string, unknown>;
-if (!("label" in o657)) e.push(p + '/' + i656 + "/label" + ': required');
-if (!("ask" in o657)) e.push(p + '/' + i656 + "/ask" + ': required');
-if ("label" in o657) lf(o657["label"], p + '/' + i656 + "/label", e, L15);
-if ("ask" in o657) lf(o657["ask"], p + '/' + i656 + "/ask", e, L301);
+const x661 = a660[i660];
+const g661 = typeOf(x661);
+const b661: string[] = []; lf(x661, p + '/' + i660, b661, L0); if (b661.length) e.push(...b661);
+if (g661 === "object") {
+if (g661 === 'object') { const o661 = x661 as Record<string, unknown>;
+if (!("label" in o661)) e.push(p + '/' + i660 + "/label" + ': required');
+if (!("ask" in o661)) e.push(p + '/' + i660 + "/ask" + ': required');
+if ("label" in o661) lf(o661["label"], p + '/' + i660 + "/label", e, L15);
+if ("ask" in o661) lf(o661["ask"], p + '/' + i660 + "/ask", e, L302);
 }
 }
 }
@@ -2676,14 +2677,14 @@ if ("ask" in o657) lf(o657["ask"], p + '/' + i656 + "/ask", e, L301);
 
 export function d_s_8e1c2363e1(v: unknown, p: string, e: string[]): void {
 {
-const x732 = v;
-const g732 = typeOf(x732);
-const b732: string[] = []; lf(x732, p, b732, L0); if (b732.length) e.push(...b732);
-if (g732 === "object") {
-if (g732 === 'object') { const o732 = x732 as Record<string, unknown>;
-if ("folder" in o732) lf(o732["folder"], p + "/folder", e, L47);
-if ("cursor" in o732) lf(o732["cursor"], p + "/cursor", e, L1);
-if ("limit" in o732) lf(o732["limit"], p + "/limit", e, L122);
+const x736 = v;
+const g736 = typeOf(x736);
+const b736: string[] = []; lf(x736, p, b736, L0); if (b736.length) e.push(...b736);
+if (g736 === "object") {
+if (g736 === 'object') { const o736 = x736 as Record<string, unknown>;
+if ("folder" in o736) lf(o736["folder"], p + "/folder", e, L47);
+if ("cursor" in o736) lf(o736["cursor"], p + "/cursor", e, L1);
+if ("limit" in o736) lf(o736["limit"], p + "/limit", e, L122);
 }
 }
 }
@@ -2691,34 +2692,34 @@ if ("limit" in o732) lf(o732["limit"], p + "/limit", e, L122);
 
 export function d_s_8e8b8fb9fc(v: unknown, p: string, e: string[]): void {
 {
-const x735 = v;
-const g735 = typeOf(x735);
-const b735: string[] = []; lf(x735, p, b735, L0); if (b735.length) e.push(...b735);
-if (g735 === "object") {
-if (g735 === 'object') { const o735 = x735 as Record<string, unknown>;
-if (!("members" in o735)) e.push(p + "/members" + ': required');
-if ("members" in o735) {
+const x739 = v;
+const g739 = typeOf(x739);
+const b739: string[] = []; lf(x739, p, b739, L0); if (b739.length) e.push(...b739);
+if (g739 === "object") {
+if (g739 === 'object') { const o739 = x739 as Record<string, unknown>;
+if (!("members" in o739)) e.push(p + "/members" + ': required');
+if ("members" in o739) {
 {
-const x736 = o735["members"];
-const g736 = typeOf(x736);
-const b736: string[] = []; lf(x736, p + "/members", b736, L4); if (b736.length) e.push(...b736);
-if (g736 === "array") {
-if (g736 === 'array') { const a736 = x736 as unknown[];
-for (let i736 = 0; i736 < a736.length; i736++) {
+const x740 = o739["members"];
+const g740 = typeOf(x740);
+const b740: string[] = []; lf(x740, p + "/members", b740, L4); if (b740.length) e.push(...b740);
+if (g740 === "array") {
+if (g740 === 'array') { const a740 = x740 as unknown[];
+for (let i740 = 0; i740 < a740.length; i740++) {
 {
-const x737 = a736[i736];
-const g737 = typeOf(x737);
-const b737: string[] = []; lf(x737, p + "/members" + '/' + i736, b737, L0); if (b737.length) e.push(...b737);
-if (g737 === "object") {
-if (g737 === 'object') { const o737 = x737 as Record<string, unknown>;
-if (!("email" in o737)) e.push(p + "/members" + '/' + i736 + "/email" + ': required');
-if (!("mapped" in o737)) e.push(p + "/members" + '/' + i736 + "/mapped" + ': required');
-if (!("excluded" in o737)) e.push(p + "/members" + '/' + i736 + "/excluded" + ': required');
-if ("email" in o737) lf(o737["email"], p + "/members" + '/' + i736 + "/email", e, L6);
-if ("userId" in o737) lf(o737["userId"], p + "/members" + '/' + i736 + "/userId", e, L16);
-if ("mapped" in o737) lf(o737["mapped"], p + "/members" + '/' + i736 + "/mapped", e, L3);
-if ("excluded" in o737) lf(o737["excluded"], p + "/members" + '/' + i736 + "/excluded", e, L3);
-if ("mailboxState" in o737) lf(o737["mailboxState"], p + "/members" + '/' + i736 + "/mailboxState", e, L1);
+const x741 = a740[i740];
+const g741 = typeOf(x741);
+const b741: string[] = []; lf(x741, p + "/members" + '/' + i740, b741, L0); if (b741.length) e.push(...b741);
+if (g741 === "object") {
+if (g741 === 'object') { const o741 = x741 as Record<string, unknown>;
+if (!("email" in o741)) e.push(p + "/members" + '/' + i740 + "/email" + ': required');
+if (!("mapped" in o741)) e.push(p + "/members" + '/' + i740 + "/mapped" + ': required');
+if (!("excluded" in o741)) e.push(p + "/members" + '/' + i740 + "/excluded" + ': required');
+if ("email" in o741) lf(o741["email"], p + "/members" + '/' + i740 + "/email", e, L6);
+if ("userId" in o741) lf(o741["userId"], p + "/members" + '/' + i740 + "/userId", e, L16);
+if ("mapped" in o741) lf(o741["mapped"], p + "/members" + '/' + i740 + "/mapped", e, L3);
+if ("excluded" in o741) lf(o741["excluded"], p + "/members" + '/' + i740 + "/excluded", e, L3);
+if ("mailboxState" in o741) lf(o741["mailboxState"], p + "/members" + '/' + i740 + "/mailboxState", e, L1);
 }
 }
 }
@@ -2727,8 +2728,8 @@ if ("mailboxState" in o737) lf(o737["mailboxState"], p + "/members" + '/' + i736
 }
 }
 }
-if ("next" in o735) lf(o735["next"], p + "/next", e, L1);
-if ("total" in o735) lf(o735["total"], p + "/total", e, L2);
+if ("next" in o739) lf(o739["next"], p + "/next", e, L1);
+if ("total" in o739) lf(o739["total"], p + "/total", e, L2);
 }
 }
 }
@@ -2736,15 +2737,15 @@ if ("total" in o735) lf(o735["total"], p + "/total", e, L2);
 
 export function d_s_9287e79a4f(v: unknown, p: string, e: string[]): void {
 {
-const x755 = v;
-const g755 = typeOf(x755);
-const b755: string[] = []; lf(x755, p, b755, L0); if (b755.length) e.push(...b755);
-if (g755 === "object") {
-if (g755 === 'object') { const o755 = x755 as Record<string, unknown>;
-if (!("type" in o755)) e.push(p + "/type" + ': required');
-if (!("recordId" in o755)) e.push(p + "/recordId" + ': required');
-if ("type" in o755) lf(o755["type"], p + "/type", e, L32);
-if ("recordId" in o755) lf(o755["recordId"], p + "/recordId", e, L28);
+const x759 = v;
+const g759 = typeOf(x759);
+const b759: string[] = []; lf(x759, p, b759, L0); if (b759.length) e.push(...b759);
+if (g759 === "object") {
+if (g759 === 'object') { const o759 = x759 as Record<string, unknown>;
+if (!("type" in o759)) e.push(p + "/type" + ': required');
+if (!("recordId" in o759)) e.push(p + "/recordId" + ': required');
+if ("type" in o759) lf(o759["type"], p + "/type", e, L32);
+if ("recordId" in o759) lf(o759["recordId"], p + "/recordId", e, L28);
 }
 }
 }
@@ -2752,44 +2753,44 @@ if ("recordId" in o755) lf(o755["recordId"], p + "/recordId", e, L28);
 
 export function d_s_951cc300db(v: unknown, p: string, e: string[]): void {
 {
-const x770 = v;
-const g770 = typeOf(x770);
-const b770: string[] = []; lf(x770, p, b770, L0); if (b770.length) e.push(...b770);
-if (g770 === "object") {
-if (g770 === 'object') { const o770 = x770 as Record<string, unknown>;
-if (!("url" in o770)) e.push(p + "/url" + ': required');
-if ("url" in o770) lf(o770["url"], p + "/url", e, L1);
-if ("expiresAt" in o770) lf(o770["expiresAt"], p + "/expiresAt", e, L17);
+const x774 = v;
+const g774 = typeOf(x774);
+const b774: string[] = []; lf(x774, p, b774, L0); if (b774.length) e.push(...b774);
+if (g774 === "object") {
+if (g774 === 'object') { const o774 = x774 as Record<string, unknown>;
+if (!("url" in o774)) e.push(p + "/url" + ': required');
+if ("url" in o774) lf(o774["url"], p + "/url", e, L1);
+if ("expiresAt" in o774) lf(o774["expiresAt"], p + "/expiresAt", e, L17);
 }
 }
 }
 }
 
 export function d_s_96787fc2f6(v: unknown, p: string, e: string[]): void {
-lf(v, p, e, L341);
+lf(v, p, e, L342);
 }
 
 export function d_s_9c53155de1(v: unknown, p: string, e: string[]): void {
 {
-const x807 = v;
-const g807 = typeOf(x807);
-const b807: string[] = []; lf(x807, p, b807, L0); if (b807.length) e.push(...b807);
-if (g807 === "object") {
-if (g807 === 'object') { const o807 = x807 as Record<string, unknown>;
-if ("by" in o807) {
+const x811 = v;
+const g811 = typeOf(x811);
+const b811: string[] = []; lf(x811, p, b811, L0); if (b811.length) e.push(...b811);
+if (g811 === "object") {
+if (g811 === 'object') { const o811 = x811 as Record<string, unknown>;
+if ("by" in o811) {
 {
-const x808 = o807["by"];
-const g808 = typeOf(x808);
-const b808: string[] = []; lf(x808, p + "/by", b808, L0); if (b808.length) e.push(...b808);
-if (g808 === "object") {
-if (g808 === 'object') { const o808 = x808 as Record<string, unknown>;
-if ("name" in o808) lf(o808["name"], p + "/by" + "/name", e, L1);
-if ("email" in o808) lf(o808["email"], p + "/by" + "/email", e, L1);
+const x812 = o811["by"];
+const g812 = typeOf(x812);
+const b812: string[] = []; lf(x812, p + "/by", b812, L0); if (b812.length) e.push(...b812);
+if (g812 === "object") {
+if (g812 === 'object') { const o812 = x812 as Record<string, unknown>;
+if ("name" in o812) lf(o812["name"], p + "/by" + "/name", e, L1);
+if ("email" in o812) lf(o812["email"], p + "/by" + "/email", e, L1);
 }
 }
 }
 }
-if ("at" in o807) lf(o807["at"], p + "/at", e, L17);
+if ("at" in o811) lf(o811["at"], p + "/at", e, L17);
 }
 }
 }
@@ -2797,33 +2798,33 @@ if ("at" in o807) lf(o807["at"], p + "/at", e, L17);
 
 export function d_s_9c97baf2a0(v: unknown, p: string, e: string[]): void {
 {
-const x809 = v;
-const g809 = typeOf(x809);
-const b809: string[] = []; lf(x809, p, b809, L0); if (b809.length) e.push(...b809);
-if (g809 === "object") {
-if (g809 === 'object') { const o809 = x809 as Record<string, unknown>;
-if (!("people" in o809)) e.push(p + "/people" + ': required');
-if (!("idempotencyKey" in o809)) e.push(p + "/idempotencyKey" + ': required');
-if ("people" in o809) {
+const x813 = v;
+const g813 = typeOf(x813);
+const b813: string[] = []; lf(x813, p, b813, L0); if (b813.length) e.push(...b813);
+if (g813 === "object") {
+if (g813 === 'object') { const o813 = x813 as Record<string, unknown>;
+if (!("people" in o813)) e.push(p + "/people" + ': required');
+if (!("idempotencyKey" in o813)) e.push(p + "/idempotencyKey" + ': required');
+if ("people" in o813) {
 {
-const x810 = o809["people"];
-const g810 = typeOf(x810);
-const b810: string[] = []; lf(x810, p + "/people", b810, L4); if (b810.length) e.push(...b810);
-if (g810 === "array") {
-if (g810 === 'array') { const a810 = x810 as unknown[];
-if (a810.length < 1) e.push(p + "/people" + ': too few items');
-if (a810.length > 100) e.push(p + "/people" + ': too many items');
-for (let i810 = 0; i810 < a810.length; i810++) {
+const x814 = o813["people"];
+const g814 = typeOf(x814);
+const b814: string[] = []; lf(x814, p + "/people", b814, L4); if (b814.length) e.push(...b814);
+if (g814 === "array") {
+if (g814 === 'array') { const a814 = x814 as unknown[];
+if (a814.length < 1) e.push(p + "/people" + ': too few items');
+if (a814.length > 100) e.push(p + "/people" + ': too many items');
+for (let i814 = 0; i814 < a814.length; i814++) {
 {
-const x811 = a810[i810];
-const g811 = typeOf(x811);
-const b811: string[] = []; lf(x811, p + "/people" + '/' + i810, b811, L0); if (b811.length) e.push(...b811);
-if (g811 === "object") {
-if (g811 === 'object') { const o811 = x811 as Record<string, unknown>;
-if (!("email" in o811)) e.push(p + "/people" + '/' + i810 + "/email" + ': required');
-if (!("role" in o811)) e.push(p + "/people" + '/' + i810 + "/role" + ': required');
-if ("email" in o811) lf(o811["email"], p + "/people" + '/' + i810 + "/email", e, L6);
-if ("role" in o811) lf(o811["role"], p + "/people" + '/' + i810 + "/role", e, L157);
+const x815 = a814[i814];
+const g815 = typeOf(x815);
+const b815: string[] = []; lf(x815, p + "/people" + '/' + i814, b815, L0); if (b815.length) e.push(...b815);
+if (g815 === "object") {
+if (g815 === 'object') { const o815 = x815 as Record<string, unknown>;
+if (!("email" in o815)) e.push(p + "/people" + '/' + i814 + "/email" + ': required');
+if (!("role" in o815)) e.push(p + "/people" + '/' + i814 + "/role" + ': required');
+if ("email" in o815) lf(o815["email"], p + "/people" + '/' + i814 + "/email", e, L6);
+if ("role" in o815) lf(o815["role"], p + "/people" + '/' + i814 + "/role", e, L157);
 }
 }
 }
@@ -2832,7 +2833,7 @@ if ("role" in o811) lf(o811["role"], p + "/people" + '/' + i810 + "/role", e, L1
 }
 }
 }
-if ("idempotencyKey" in o809) lf(o809["idempotencyKey"], p + "/idempotencyKey", e, L55);
+if ("idempotencyKey" in o813) lf(o813["idempotencyKey"], p + "/idempotencyKey", e, L55);
 }
 }
 }
@@ -2840,13 +2841,13 @@ if ("idempotencyKey" in o809) lf(o809["idempotencyKey"], p + "/idempotencyKey", 
 
 export function d_s_9eb38dfc46(v: unknown, p: string, e: string[]): void {
 {
-const x826 = v;
-const g826 = typeOf(x826);
-const b826: string[] = []; lf(x826, p, b826, L4); if (b826.length) e.push(...b826);
-if (g826 === "array") {
-if (g826 === 'array') { const a826 = x826 as unknown[];
-for (let i826 = 0; i826 < a826.length; i826++) {
-d_s_25d114c9ac(a826[i826], p + '/' + i826, e);
+const x830 = v;
+const g830 = typeOf(x830);
+const b830: string[] = []; lf(x830, p, b830, L4); if (b830.length) e.push(...b830);
+if (g830 === "array") {
+if (g830 === 'array') { const a830 = x830 as unknown[];
+for (let i830 = 0; i830 < a830.length; i830++) {
+d_s_25d114c9ac(a830[i830], p + '/' + i830, e);
 }
 }
 }
@@ -2855,14 +2856,14 @@ d_s_25d114c9ac(a826[i826], p + '/' + i826, e);
 
 export function d_s_a02beb108e(v: unknown, p: string, e: string[]): void {
 {
-const x831 = v;
-const g831 = typeOf(x831);
-const b831: string[] = []; lf(x831, p, b831, L0); if (b831.length) e.push(...b831);
-if (g831 === "object") {
-if (g831 === 'object') { const o831 = x831 as Record<string, unknown>;
-if (!("threadId" in o831)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o831) lf(o831["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o831) lf(o831["messageId"], p + "/messageId", e, L93);
+const x835 = v;
+const g835 = typeOf(x835);
+const b835: string[] = []; lf(x835, p, b835, L0); if (b835.length) e.push(...b835);
+if (g835 === "object") {
+if (g835 === 'object') { const o835 = x835 as Record<string, unknown>;
+if (!("threadId" in o835)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o835) lf(o835["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o835) lf(o835["messageId"], p + "/messageId", e, L93);
 }
 }
 }
@@ -2870,13 +2871,13 @@ if ("messageId" in o831) lf(o831["messageId"], p + "/messageId", e, L93);
 
 export function d_s_a764aa8ba1(v: unknown, p: string, e: string[]): void {
 {
-const x855 = v;
-const g855 = typeOf(x855);
-const b855: string[] = []; lf(x855, p, b855, L4); if (b855.length) e.push(...b855);
-if (g855 === "array") {
-if (g855 === 'array') { const a855 = x855 as unknown[];
-for (let i855 = 0; i855 < a855.length; i855++) {
-d_s_38b6d47dbd(a855[i855], p + '/' + i855, e);
+const x859 = v;
+const g859 = typeOf(x859);
+const b859: string[] = []; lf(x859, p, b859, L4); if (b859.length) e.push(...b859);
+if (g859 === "array") {
+if (g859 === 'array') { const a859 = x859 as unknown[];
+for (let i859 = 0; i859 < a859.length; i859++) {
+d_s_38b6d47dbd(a859[i859], p + '/' + i859, e);
 }
 }
 }
@@ -2885,46 +2886,46 @@ d_s_38b6d47dbd(a855[i855], p + '/' + i855, e);
 
 export function d_s_b3314cd142(v: unknown, p: string, e: string[]): void {
 {
-const x886 = v;
-const g886 = typeOf(x886);
-const b886: string[] = []; lf(x886, p, b886, L0); if (b886.length) e.push(...b886);
-if (g886 === "object") {
-if (g886 === 'object') { const o886 = x886 as Record<string, unknown>;
-if (!("name" in o886)) e.push(p + "/name" + ': required');
-if (!("label" in o886)) e.push(p + "/label" + ': required');
-if (!("options" in o886)) e.push(p + "/options" + ': required');
-if ("name" in o886) lf(o886["name"], p + "/name", e, L1);
-if ("label" in o886) lf(o886["label"], p + "/label", e, L1);
-if ("options" in o886) {
+const x890 = v;
+const g890 = typeOf(x890);
+const b890: string[] = []; lf(x890, p, b890, L0); if (b890.length) e.push(...b890);
+if (g890 === "object") {
+if (g890 === 'object') { const o890 = x890 as Record<string, unknown>;
+if (!("name" in o890)) e.push(p + "/name" + ': required');
+if (!("label" in o890)) e.push(p + "/label" + ': required');
+if (!("options" in o890)) e.push(p + "/options" + ': required');
+if ("name" in o890) lf(o890["name"], p + "/name", e, L1);
+if ("label" in o890) lf(o890["label"], p + "/label", e, L1);
+if ("options" in o890) {
 {
-const x887 = o886["options"];
-const g887 = typeOf(x887);
-const b887: string[] = []; lf(x887, p + "/options", b887, L4); if (b887.length) e.push(...b887);
-if (g887 === "array") {
-if (g887 === 'array') { const a887 = x887 as unknown[];
-for (let i887 = 0; i887 < a887.length; i887++) {
+const x891 = o890["options"];
+const g891 = typeOf(x891);
+const b891: string[] = []; lf(x891, p + "/options", b891, L4); if (b891.length) e.push(...b891);
+if (g891 === "array") {
+if (g891 === 'array') { const a891 = x891 as unknown[];
+for (let i891 = 0; i891 < a891.length; i891++) {
 {
-const x888 = a887[i887];
-const g888 = typeOf(x888);
-const b888: string[] = []; lf(x888, p + "/options" + '/' + i887, b888, L0); if (b888.length) e.push(...b888);
-if (g888 === "object") {
-if (g888 === 'object') { const o888 = x888 as Record<string, unknown>;
-if (!("value" in o888)) e.push(p + "/options" + '/' + i887 + "/value" + ': required');
-if (!("label" in o888)) e.push(p + "/options" + '/' + i887 + "/label" + ': required');
-if (!("connector" in o888)) e.push(p + "/options" + '/' + i887 + "/connector" + ': required');
-if (!("hosts" in o888)) e.push(p + "/options" + '/' + i887 + "/hosts" + ': required');
-if ("value" in o888) lf(o888["value"], p + "/options" + '/' + i887 + "/value", e, L1);
-if ("label" in o888) lf(o888["label"], p + "/options" + '/' + i887 + "/label", e, L1);
-if ("connector" in o888) lf(o888["connector"], p + "/options" + '/' + i887 + "/connector", e, L1);
-if ("hosts" in o888) {
+const x892 = a891[i891];
+const g892 = typeOf(x892);
+const b892: string[] = []; lf(x892, p + "/options" + '/' + i891, b892, L0); if (b892.length) e.push(...b892);
+if (g892 === "object") {
+if (g892 === 'object') { const o892 = x892 as Record<string, unknown>;
+if (!("value" in o892)) e.push(p + "/options" + '/' + i891 + "/value" + ': required');
+if (!("label" in o892)) e.push(p + "/options" + '/' + i891 + "/label" + ': required');
+if (!("connector" in o892)) e.push(p + "/options" + '/' + i891 + "/connector" + ': required');
+if (!("hosts" in o892)) e.push(p + "/options" + '/' + i891 + "/hosts" + ': required');
+if ("value" in o892) lf(o892["value"], p + "/options" + '/' + i891 + "/value", e, L1);
+if ("label" in o892) lf(o892["label"], p + "/options" + '/' + i891 + "/label", e, L1);
+if ("connector" in o892) lf(o892["connector"], p + "/options" + '/' + i891 + "/connector", e, L1);
+if ("hosts" in o892) {
 {
-const x889 = o888["hosts"];
-const g889 = typeOf(x889);
-const b889: string[] = []; lf(x889, p + "/options" + '/' + i887 + "/hosts", b889, L4); if (b889.length) e.push(...b889);
-if (g889 === "array") {
-if (g889 === 'array') { const a889 = x889 as unknown[];
-for (let i889 = 0; i889 < a889.length; i889++) {
-lf(a889[i889], p + "/options" + '/' + i887 + "/hosts" + '/' + i889, e, L1);
+const x893 = o892["hosts"];
+const g893 = typeOf(x893);
+const b893: string[] = []; lf(x893, p + "/options" + '/' + i891 + "/hosts", b893, L4); if (b893.length) e.push(...b893);
+if (g893 === "array") {
+if (g893 === 'array') { const a893 = x893 as unknown[];
+for (let i893 = 0; i893 < a893.length; i893++) {
+lf(a893[i893], p + "/options" + '/' + i891 + "/hosts" + '/' + i893, e, L1);
 }
 }
 }
@@ -2945,16 +2946,16 @@ lf(a889[i889], p + "/options" + '/' + i887 + "/hosts" + '/' + i889, e, L1);
 
 export function d_s_c6cb50d174(v: unknown, p: string, e: string[]): void {
 {
-const x979 = v;
-const g979 = typeOf(x979);
-const b979: string[] = []; lf(x979, p, b979, L0); if (b979.length) e.push(...b979);
-if (g979 === "object") {
-if (g979 === 'object') { const o979 = x979 as Record<string, unknown>;
-if (!("removed" in o979)) e.push(p + "/removed" + ': required');
-if (!("more" in o979)) e.push(p + "/more" + ': required');
-if ("removed" in o979) lf(o979["removed"], p + "/removed", e, L17);
-if ("more" in o979) lf(o979["more"], p + "/more", e, L3);
-if ("skippedOnHold" in o979) lf(o979["skippedOnHold"], p + "/skippedOnHold", e, L17);
+const x983 = v;
+const g983 = typeOf(x983);
+const b983: string[] = []; lf(x983, p, b983, L0); if (b983.length) e.push(...b983);
+if (g983 === "object") {
+if (g983 === 'object') { const o983 = x983 as Record<string, unknown>;
+if (!("removed" in o983)) e.push(p + "/removed" + ': required');
+if (!("more" in o983)) e.push(p + "/more" + ': required');
+if ("removed" in o983) lf(o983["removed"], p + "/removed", e, L17);
+if ("more" in o983) lf(o983["more"], p + "/more", e, L3);
+if ("skippedOnHold" in o983) lf(o983["skippedOnHold"], p + "/skippedOnHold", e, L17);
 }
 }
 }
@@ -2962,16 +2963,16 @@ if ("skippedOnHold" in o979) lf(o979["skippedOnHold"], p + "/skippedOnHold", e, 
 
 export function d_s_d06586147f(v: unknown, p: string, e: string[]): void {
 {
-const x1025 = v;
-const g1025 = typeOf(x1025);
-const b1025: string[] = []; lf(x1025, p, b1025, L0); if (b1025.length) e.push(...b1025);
-if (g1025 === "object") {
-if (g1025 === 'object') { const o1025 = x1025 as Record<string, unknown>;
-if ("cpuPercent" in o1025) lf(o1025["cpuPercent"], p + "/cpuPercent", e, L18);
-if ("memoryUsedBytes" in o1025) lf(o1025["memoryUsedBytes"], p + "/memoryUsedBytes", e, L17);
-if ("memoryTotalBytes" in o1025) lf(o1025["memoryTotalBytes"], p + "/memoryTotalBytes", e, L17);
-if ("diskFreeBytes" in o1025) lf(o1025["diskFreeBytes"], p + "/diskFreeBytes", e, L17);
-if ("diskTotalBytes" in o1025) lf(o1025["diskTotalBytes"], p + "/diskTotalBytes", e, L17);
+const x1029 = v;
+const g1029 = typeOf(x1029);
+const b1029: string[] = []; lf(x1029, p, b1029, L0); if (b1029.length) e.push(...b1029);
+if (g1029 === "object") {
+if (g1029 === 'object') { const o1029 = x1029 as Record<string, unknown>;
+if ("cpuPercent" in o1029) lf(o1029["cpuPercent"], p + "/cpuPercent", e, L18);
+if ("memoryUsedBytes" in o1029) lf(o1029["memoryUsedBytes"], p + "/memoryUsedBytes", e, L17);
+if ("memoryTotalBytes" in o1029) lf(o1029["memoryTotalBytes"], p + "/memoryTotalBytes", e, L17);
+if ("diskFreeBytes" in o1029) lf(o1029["diskFreeBytes"], p + "/diskFreeBytes", e, L17);
+if ("diskTotalBytes" in o1029) lf(o1029["diskTotalBytes"], p + "/diskTotalBytes", e, L17);
 }
 }
 }
@@ -2979,15 +2980,15 @@ if ("diskTotalBytes" in o1025) lf(o1025["diskTotalBytes"], p + "/diskTotalBytes"
 
 export function d_s_d616552431(v: unknown, p: string, e: string[]): void {
 {
-const x1048 = v;
-const g1048 = typeOf(x1048);
-const b1048: string[] = []; lf(x1048, p, b1048, L0); if (b1048.length) e.push(...b1048);
-if (g1048 === "object") {
-if (g1048 === 'object') { const o1048 = x1048 as Record<string, unknown>;
-if (!("name" in o1048)) e.push(p + "/name" + ': required');
-if (!("idempotencyKey" in o1048)) e.push(p + "/idempotencyKey" + ': required');
-if ("name" in o1048) lf(o1048["name"], p + "/name", e, L1);
-if ("idempotencyKey" in o1048) lf(o1048["idempotencyKey"], p + "/idempotencyKey", e, L55);
+const x1052 = v;
+const g1052 = typeOf(x1052);
+const b1052: string[] = []; lf(x1052, p, b1052, L0); if (b1052.length) e.push(...b1052);
+if (g1052 === "object") {
+if (g1052 === 'object') { const o1052 = x1052 as Record<string, unknown>;
+if (!("name" in o1052)) e.push(p + "/name" + ': required');
+if (!("idempotencyKey" in o1052)) e.push(p + "/idempotencyKey" + ': required');
+if ("name" in o1052) lf(o1052["name"], p + "/name", e, L1);
+if ("idempotencyKey" in o1052) lf(o1052["idempotencyKey"], p + "/idempotencyKey", e, L55);
 }
 }
 }
@@ -2995,15 +2996,15 @@ if ("idempotencyKey" in o1048) lf(o1048["idempotencyKey"], p + "/idempotencyKey"
 
 export function d_s_da0a8cbea6(v: unknown, p: string, e: string[]): void {
 {
-const x1075 = v;
-const g1075 = typeOf(x1075);
-const b1075: string[] = []; lf(x1075, p, b1075, L0); if (b1075.length) e.push(...b1075);
-if (g1075 === "object") {
-if (g1075 === 'object') { const o1075 = x1075 as Record<string, unknown>;
-if (!("threadId" in o1075)) e.push(p + "/threadId" + ': required');
-if (!("messageId" in o1075)) e.push(p + "/messageId" + ': required');
-if ("threadId" in o1075) lf(o1075["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o1075) lf(o1075["messageId"], p + "/messageId", e, L93);
+const x1079 = v;
+const g1079 = typeOf(x1079);
+const b1079: string[] = []; lf(x1079, p, b1079, L0); if (b1079.length) e.push(...b1079);
+if (g1079 === "object") {
+if (g1079 === 'object') { const o1079 = x1079 as Record<string, unknown>;
+if (!("threadId" in o1079)) e.push(p + "/threadId" + ': required');
+if (!("messageId" in o1079)) e.push(p + "/messageId" + ': required');
+if ("threadId" in o1079) lf(o1079["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o1079) lf(o1079["messageId"], p + "/messageId", e, L93);
 }
 }
 }
@@ -3011,24 +3012,24 @@ if ("messageId" in o1075) lf(o1075["messageId"], p + "/messageId", e, L93);
 
 export function d_s_db772584cc(v: unknown, p: string, e: string[]): void {
 {
-const x1087 = v;
-const g1087 = typeOf(x1087);
-const b1087: string[] = []; lf(x1087, p, b1087, L4); if (b1087.length) e.push(...b1087);
-if (g1087 === "array") {
-if (g1087 === 'array') { const a1087 = x1087 as unknown[];
-for (let i1087 = 0; i1087 < a1087.length; i1087++) {
+const x1091 = v;
+const g1091 = typeOf(x1091);
+const b1091: string[] = []; lf(x1091, p, b1091, L4); if (b1091.length) e.push(...b1091);
+if (g1091 === "array") {
+if (g1091 === 'array') { const a1091 = x1091 as unknown[];
+for (let i1091 = 0; i1091 < a1091.length; i1091++) {
 {
-const x1088 = a1087[i1087];
-const g1088 = typeOf(x1088);
-const b1088: string[] = []; lf(x1088, p + '/' + i1087, b1088, L0); if (b1088.length) e.push(...b1088);
-if (g1088 === "object") {
-if (g1088 === 'object') { const o1088 = x1088 as Record<string, unknown>;
-if (!("type" in o1088)) e.push(p + '/' + i1087 + "/type" + ': required');
-if (!("id" in o1088)) e.push(p + '/' + i1087 + "/id" + ': required');
-if (!("title" in o1088)) e.push(p + '/' + i1087 + "/title" + ': required');
-if ("type" in o1088) lf(o1088["type"], p + '/' + i1087 + "/type", e, L1);
-if ("id" in o1088) lf(o1088["id"], p + '/' + i1087 + "/id", e, L1);
-if ("title" in o1088) lf(o1088["title"], p + '/' + i1087 + "/title", e, L1);
+const x1092 = a1091[i1091];
+const g1092 = typeOf(x1092);
+const b1092: string[] = []; lf(x1092, p + '/' + i1091, b1092, L0); if (b1092.length) e.push(...b1092);
+if (g1092 === "object") {
+if (g1092 === 'object') { const o1092 = x1092 as Record<string, unknown>;
+if (!("type" in o1092)) e.push(p + '/' + i1091 + "/type" + ': required');
+if (!("id" in o1092)) e.push(p + '/' + i1091 + "/id" + ': required');
+if (!("title" in o1092)) e.push(p + '/' + i1091 + "/title" + ': required');
+if ("type" in o1092) lf(o1092["type"], p + '/' + i1091 + "/type", e, L1);
+if ("id" in o1092) lf(o1092["id"], p + '/' + i1091 + "/id", e, L1);
+if ("title" in o1092) lf(o1092["title"], p + '/' + i1091 + "/title", e, L1);
 }
 }
 }
@@ -3040,18 +3041,18 @@ if ("title" in o1088) lf(o1088["title"], p + '/' + i1087 + "/title", e, L1);
 
 export function d_s_e4327547f1(v: unknown, p: string, e: string[]): void {
 {
-const x1157 = v;
-const g1157 = typeOf(x1157);
-const b1157: string[] = []; lf(x1157, p, b1157, L0); if (b1157.length) e.push(...b1157);
-if (g1157 === "object") {
-if (g1157 === 'object') { const o1157 = x1157 as Record<string, unknown>;
-if (!("email" in o1157)) e.push(p + "/email" + ': required');
-if (!("mapped" in o1157)) e.push(p + "/mapped" + ': required');
-if (!("connected" in o1157)) e.push(p + "/connected" + ': required');
-if ("email" in o1157) lf(o1157["email"], p + "/email", e, L6);
-if ("userId" in o1157) lf(o1157["userId"], p + "/userId", e, L16);
-if ("mapped" in o1157) lf(o1157["mapped"], p + "/mapped", e, L3);
-if ("connected" in o1157) lf(o1157["connected"], p + "/connected", e, L3);
+const x1161 = v;
+const g1161 = typeOf(x1161);
+const b1161: string[] = []; lf(x1161, p, b1161, L0); if (b1161.length) e.push(...b1161);
+if (g1161 === "object") {
+if (g1161 === 'object') { const o1161 = x1161 as Record<string, unknown>;
+if (!("email" in o1161)) e.push(p + "/email" + ': required');
+if (!("mapped" in o1161)) e.push(p + "/mapped" + ': required');
+if (!("connected" in o1161)) e.push(p + "/connected" + ': required');
+if ("email" in o1161) lf(o1161["email"], p + "/email", e, L6);
+if ("userId" in o1161) lf(o1161["userId"], p + "/userId", e, L16);
+if ("mapped" in o1161) lf(o1161["mapped"], p + "/mapped", e, L3);
+if ("connected" in o1161) lf(o1161["connected"], p + "/connected", e, L3);
 }
 }
 }
@@ -3059,15 +3060,15 @@ if ("connected" in o1157) lf(o1157["connected"], p + "/connected", e, L3);
 
 export function d_s_e6d65cc314(v: unknown, p: string, e: string[]): void {
 {
-const x1166 = v;
-const g1166 = typeOf(x1166);
-const b1166: string[] = []; lf(x1166, p, b1166, L0); if (b1166.length) e.push(...b1166);
-if (g1166 === "object") {
-if (g1166 === 'object') { const o1166 = x1166 as Record<string, unknown>;
-if (!("accountId" in o1166)) e.push(p + "/accountId" + ': required');
-if (!("email" in o1166)) e.push(p + "/email" + ': required');
-if ("accountId" in o1166) lf(o1166["accountId"], p + "/accountId", e, L1);
-if ("email" in o1166) lf(o1166["email"], p + "/email", e, L6);
+const x1170 = v;
+const g1170 = typeOf(x1170);
+const b1170: string[] = []; lf(x1170, p, b1170, L0); if (b1170.length) e.push(...b1170);
+if (g1170 === "object") {
+if (g1170 === 'object') { const o1170 = x1170 as Record<string, unknown>;
+if (!("accountId" in o1170)) e.push(p + "/accountId" + ': required');
+if (!("email" in o1170)) e.push(p + "/email" + ': required');
+if ("accountId" in o1170) lf(o1170["accountId"], p + "/accountId", e, L1);
+if ("email" in o1170) lf(o1170["email"], p + "/email", e, L6);
 }
 }
 }
@@ -3075,22 +3076,22 @@ if ("email" in o1166) lf(o1166["email"], p + "/email", e, L6);
 
 export function d_s_e9725ed975(v: unknown, p: string, e: string[]): void {
 {
-const x1182 = v;
-const g1182 = typeOf(x1182);
-const b1182: string[] = []; lf(x1182, p, b1182, L4); if (b1182.length) e.push(...b1182);
-if (g1182 === "array") {
-if (g1182 === 'array') { const a1182 = x1182 as unknown[];
-for (let i1182 = 0; i1182 < a1182.length; i1182++) {
+const x1186 = v;
+const g1186 = typeOf(x1186);
+const b1186: string[] = []; lf(x1186, p, b1186, L4); if (b1186.length) e.push(...b1186);
+if (g1186 === "array") {
+if (g1186 === 'array') { const a1186 = x1186 as unknown[];
+for (let i1186 = 0; i1186 < a1186.length; i1186++) {
 {
-const x1183 = a1182[i1182];
-const g1183 = typeOf(x1183);
-const b1183: string[] = []; lf(x1183, p + '/' + i1182, b1183, L0); if (b1183.length) e.push(...b1183);
-if (g1183 === "object") {
-if (g1183 === 'object') { const o1183 = x1183 as Record<string, unknown>;
-if (!("epoch" in o1183)) e.push(p + '/' + i1182 + "/epoch" + ': required');
-if (!("wrapped" in o1183)) e.push(p + '/' + i1182 + "/wrapped" + ': required');
-if ("epoch" in o1183) lf(o1183["epoch"], p + '/' + i1182 + "/epoch", e, L17);
-if ("wrapped" in o1183) lf(o1183["wrapped"], p + '/' + i1182 + "/wrapped", e, L1);
+const x1187 = a1186[i1186];
+const g1187 = typeOf(x1187);
+const b1187: string[] = []; lf(x1187, p + '/' + i1186, b1187, L0); if (b1187.length) e.push(...b1187);
+if (g1187 === "object") {
+if (g1187 === 'object') { const o1187 = x1187 as Record<string, unknown>;
+if (!("epoch" in o1187)) e.push(p + '/' + i1186 + "/epoch" + ': required');
+if (!("wrapped" in o1187)) e.push(p + '/' + i1186 + "/wrapped" + ': required');
+if ("epoch" in o1187) lf(o1187["epoch"], p + '/' + i1186 + "/epoch", e, L17);
+if ("wrapped" in o1187) lf(o1187["wrapped"], p + '/' + i1186 + "/wrapped", e, L1);
 }
 }
 }
@@ -3102,21 +3103,21 @@ if ("wrapped" in o1183) lf(o1183["wrapped"], p + '/' + i1182 + "/wrapped", e, L1
 
 export function d_s_eb798ed593(v: unknown, p: string, e: string[]): void {
 {
-const x1192 = v;
-const g1192 = typeOf(x1192);
-const b1192: string[] = []; lf(x1192, p, b1192, L0); if (b1192.length) e.push(...b1192);
-if (g1192 === "object") {
-if (g1192 === 'object') { const o1192 = x1192 as Record<string, unknown>;
-if (!("line1" in o1192)) e.push(p + "/line1" + ': required');
-if (!("city" in o1192)) e.push(p + "/city" + ': required');
-if (!("region" in o1192)) e.push(p + "/region" + ': required');
-if (!("postal" in o1192)) e.push(p + "/postal" + ': required');
-if (!("country" in o1192)) e.push(p + "/country" + ': required');
-if ("line1" in o1192) lf(o1192["line1"], p + "/line1", e, L1);
-if ("city" in o1192) lf(o1192["city"], p + "/city", e, L1);
-if ("region" in o1192) lf(o1192["region"], p + "/region", e, L1);
-if ("postal" in o1192) lf(o1192["postal"], p + "/postal", e, L1);
-if ("country" in o1192) lf(o1192["country"], p + "/country", e, L1);
+const x1196 = v;
+const g1196 = typeOf(x1196);
+const b1196: string[] = []; lf(x1196, p, b1196, L0); if (b1196.length) e.push(...b1196);
+if (g1196 === "object") {
+if (g1196 === 'object') { const o1196 = x1196 as Record<string, unknown>;
+if (!("line1" in o1196)) e.push(p + "/line1" + ': required');
+if (!("city" in o1196)) e.push(p + "/city" + ': required');
+if (!("region" in o1196)) e.push(p + "/region" + ': required');
+if (!("postal" in o1196)) e.push(p + "/postal" + ': required');
+if (!("country" in o1196)) e.push(p + "/country" + ': required');
+if ("line1" in o1196) lf(o1196["line1"], p + "/line1", e, L1);
+if ("city" in o1196) lf(o1196["city"], p + "/city", e, L1);
+if ("region" in o1196) lf(o1196["region"], p + "/region", e, L1);
+if ("postal" in o1196) lf(o1196["postal"], p + "/postal", e, L1);
+if ("country" in o1196) lf(o1196["country"], p + "/country", e, L1);
 }
 }
 }
@@ -3124,31 +3125,31 @@ if ("country" in o1192) lf(o1192["country"], p + "/country", e, L1);
 
 export function d_s_ec9defdf0d(v: unknown, p: string, e: string[]): void {
 {
-const x1195 = v;
-const g1195 = typeOf(x1195);
-const b1195: string[] = []; lf(x1195, p, b1195, L0); if (b1195.length) e.push(...b1195);
-if (g1195 === "object") {
-if (g1195 === 'object') { const o1195 = x1195 as Record<string, unknown>;
-if (!("data" in o1195)) e.push(p + "/data" + ': required');
-if (!("idempotencyKey" in o1195)) e.push(p + "/idempotencyKey" + ': required');
-if ("data" in o1195) {
+const x1199 = v;
+const g1199 = typeOf(x1199);
+const b1199: string[] = []; lf(x1199, p, b1199, L0); if (b1199.length) e.push(...b1199);
+if (g1199 === "object") {
+if (g1199 === 'object') { const o1199 = x1199 as Record<string, unknown>;
+if (!("data" in o1199)) e.push(p + "/data" + ': required');
+if (!("idempotencyKey" in o1199)) e.push(p + "/idempotencyKey" + ': required');
+if ("data" in o1199) {
 {
-const x1196 = o1195["data"];
-const g1196 = typeOf(x1196);
-const b1196: string[] = []; lf(x1196, p + "/data", b1196, L0); if (b1196.length) e.push(...b1196);
-if (g1196 === "object") {
-if (g1196 === 'object') { const o1196 = x1196 as Record<string, unknown>;
-if (!("mail" in o1196)) e.push(p + "/data" + "/mail" + ': required');
-if (!("calendar" in o1196)) e.push(p + "/data" + "/calendar" + ': required');
-if (!("files" in o1196)) e.push(p + "/data" + "/files" + ': required');
-if ("mail" in o1196) lf(o1196["mail"], p + "/data" + "/mail", e, L3);
-if ("calendar" in o1196) lf(o1196["calendar"], p + "/data" + "/calendar", e, L3);
-if ("files" in o1196) lf(o1196["files"], p + "/data" + "/files", e, L3);
+const x1200 = o1199["data"];
+const g1200 = typeOf(x1200);
+const b1200: string[] = []; lf(x1200, p + "/data", b1200, L0); if (b1200.length) e.push(...b1200);
+if (g1200 === "object") {
+if (g1200 === 'object') { const o1200 = x1200 as Record<string, unknown>;
+if (!("mail" in o1200)) e.push(p + "/data" + "/mail" + ': required');
+if (!("calendar" in o1200)) e.push(p + "/data" + "/calendar" + ': required');
+if (!("files" in o1200)) e.push(p + "/data" + "/files" + ': required');
+if ("mail" in o1200) lf(o1200["mail"], p + "/data" + "/mail", e, L3);
+if ("calendar" in o1200) lf(o1200["calendar"], p + "/data" + "/calendar", e, L3);
+if ("files" in o1200) lf(o1200["files"], p + "/data" + "/files", e, L3);
 }
 }
 }
 }
-if ("idempotencyKey" in o1195) lf(o1195["idempotencyKey"], p + "/idempotencyKey", e, L55);
+if ("idempotencyKey" in o1199) lf(o1199["idempotencyKey"], p + "/idempotencyKey", e, L55);
 }
 }
 }
@@ -3156,15 +3157,15 @@ if ("idempotencyKey" in o1195) lf(o1195["idempotencyKey"], p + "/idempotencyKey"
 
 export function d_s_f05a3f77df(v: unknown, p: string, e: string[]): void {
 {
-const x1225 = v;
-const g1225 = typeOf(x1225);
-const b1225: string[] = []; lf(x1225, p, b1225, L0); if (b1225.length) e.push(...b1225);
-if (g1225 === "object") {
-if (g1225 === 'object') { const o1225 = x1225 as Record<string, unknown>;
-if (!("kind" in o1225)) e.push(p + "/kind" + ': required');
-if (!("id" in o1225)) e.push(p + "/id" + ': required');
-if ("kind" in o1225) lf(o1225["kind"], p + "/kind", e, L479);
-if ("id" in o1225) lf(o1225["id"], p + "/id", e, L1);
+const x1229 = v;
+const g1229 = typeOf(x1229);
+const b1229: string[] = []; lf(x1229, p, b1229, L0); if (b1229.length) e.push(...b1229);
+if (g1229 === "object") {
+if (g1229 === 'object') { const o1229 = x1229 as Record<string, unknown>;
+if (!("kind" in o1229)) e.push(p + "/kind" + ': required');
+if (!("id" in o1229)) e.push(p + "/id" + ': required');
+if ("kind" in o1229) lf(o1229["kind"], p + "/kind", e, L480);
+if ("id" in o1229) lf(o1229["id"], p + "/id", e, L1);
 }
 }
 }
@@ -3172,14 +3173,14 @@ if ("id" in o1225) lf(o1225["id"], p + "/id", e, L1);
 
 export function d_s_f1ba657719(v: unknown, p: string, e: string[]): void {
 {
-const x1233 = v;
-const g1233 = typeOf(x1233);
-const b1233: string[] = []; lf(x1233, p, b1233, L0); if (b1233.length) e.push(...b1233);
-if (g1233 === "object") {
-if (g1233 === 'object') { const o1233 = x1233 as Record<string, unknown>;
-if ("cursor" in o1233) lf(o1233["cursor"], p + "/cursor", e, L1);
-if ("limit" in o1233) lf(o1233["limit"], p + "/limit", e, L122);
-if ("mailbox" in o1233) lf(o1233["mailbox"], p + "/mailbox", e, L6);
+const x1237 = v;
+const g1237 = typeOf(x1237);
+const b1237: string[] = []; lf(x1237, p, b1237, L0); if (b1237.length) e.push(...b1237);
+if (g1237 === "object") {
+if (g1237 === 'object') { const o1237 = x1237 as Record<string, unknown>;
+if ("cursor" in o1237) lf(o1237["cursor"], p + "/cursor", e, L1);
+if ("limit" in o1237) lf(o1237["limit"], p + "/limit", e, L122);
+if ("mailbox" in o1237) lf(o1237["mailbox"], p + "/mailbox", e, L6);
 }
 }
 }
@@ -3187,17 +3188,17 @@ if ("mailbox" in o1233) lf(o1233["mailbox"], p + "/mailbox", e, L6);
 
 export function d_s_f34c269949(v: unknown, p: string, e: string[]): void {
 {
-const x1238 = v;
-const g1238 = typeOf(x1238);
-const b1238: string[] = []; lf(x1238, p, b1238, L0); if (b1238.length) e.push(...b1238);
-if (g1238 === "object") {
-if (g1238 === 'object') { const o1238 = x1238 as Record<string, unknown>;
-if (!("providerEventId" in o1238)) e.push(p + "/providerEventId" + ': required');
-if (!("envelopeId" in o1238)) e.push(p + "/envelopeId" + ': required');
-if (!("status" in o1238)) e.push(p + "/status" + ': required');
-if ("providerEventId" in o1238) lf(o1238["providerEventId"], p + "/providerEventId", e, L1);
-if ("envelopeId" in o1238) lf(o1238["envelopeId"], p + "/envelopeId", e, L1);
-if ("status" in o1238) lf(o1238["status"], p + "/status", e, L1);
+const x1242 = v;
+const g1242 = typeOf(x1242);
+const b1242: string[] = []; lf(x1242, p, b1242, L0); if (b1242.length) e.push(...b1242);
+if (g1242 === "object") {
+if (g1242 === 'object') { const o1242 = x1242 as Record<string, unknown>;
+if (!("providerEventId" in o1242)) e.push(p + "/providerEventId" + ': required');
+if (!("envelopeId" in o1242)) e.push(p + "/envelopeId" + ': required');
+if (!("status" in o1242)) e.push(p + "/status" + ': required');
+if ("providerEventId" in o1242) lf(o1242["providerEventId"], p + "/providerEventId", e, L1);
+if ("envelopeId" in o1242) lf(o1242["envelopeId"], p + "/envelopeId", e, L1);
+if ("status" in o1242) lf(o1242["status"], p + "/status", e, L1);
 }
 }
 }
@@ -3205,32 +3206,32 @@ if ("status" in o1238) lf(o1238["status"], p + "/status", e, L1);
 
 export function d_s_f3add3544d(v: unknown, p: string, e: string[]): void {
 {
-const x1239 = v;
-const g1239 = typeOf(x1239);
-const b1239: string[] = []; lf(x1239, p, b1239, L0); if (b1239.length) e.push(...b1239);
-if (g1239 === "object") {
-if (g1239 === 'object') { const o1239 = x1239 as Record<string, unknown>;
-if (!("fileId" in o1239)) e.push(p + "/fileId" + ': required');
-if (!("signers" in o1239)) e.push(p + "/signers" + ': required');
-if ("fileId" in o1239) lf(o1239["fileId"], p + "/fileId", e, L35);
-if ("signers" in o1239) {
+const x1243 = v;
+const g1243 = typeOf(x1243);
+const b1243: string[] = []; lf(x1243, p, b1243, L0); if (b1243.length) e.push(...b1243);
+if (g1243 === "object") {
+if (g1243 === 'object') { const o1243 = x1243 as Record<string, unknown>;
+if (!("fileId" in o1243)) e.push(p + "/fileId" + ': required');
+if (!("signers" in o1243)) e.push(p + "/signers" + ': required');
+if ("fileId" in o1243) lf(o1243["fileId"], p + "/fileId", e, L35);
+if ("signers" in o1243) {
 {
-const x1240 = o1239["signers"];
-const g1240 = typeOf(x1240);
-const b1240: string[] = []; lf(x1240, p + "/signers", b1240, L4); if (b1240.length) e.push(...b1240);
-if (g1240 === "array") {
-if (g1240 === 'array') { const a1240 = x1240 as unknown[];
-for (let i1240 = 0; i1240 < a1240.length; i1240++) {
+const x1244 = o1243["signers"];
+const g1244 = typeOf(x1244);
+const b1244: string[] = []; lf(x1244, p + "/signers", b1244, L4); if (b1244.length) e.push(...b1244);
+if (g1244 === "array") {
+if (g1244 === 'array') { const a1244 = x1244 as unknown[];
+for (let i1244 = 0; i1244 < a1244.length; i1244++) {
 {
-const x1241 = a1240[i1240];
-const g1241 = typeOf(x1241);
-const b1241: string[] = []; lf(x1241, p + "/signers" + '/' + i1240, b1241, L0); if (b1241.length) e.push(...b1241);
-if (g1241 === "object") {
-if (g1241 === 'object') { const o1241 = x1241 as Record<string, unknown>;
-if (!("name" in o1241)) e.push(p + "/signers" + '/' + i1240 + "/name" + ': required');
-if (!("email" in o1241)) e.push(p + "/signers" + '/' + i1240 + "/email" + ': required');
-if ("name" in o1241) lf(o1241["name"], p + "/signers" + '/' + i1240 + "/name", e, L1);
-if ("email" in o1241) lf(o1241["email"], p + "/signers" + '/' + i1240 + "/email", e, L1);
+const x1245 = a1244[i1244];
+const g1245 = typeOf(x1245);
+const b1245: string[] = []; lf(x1245, p + "/signers" + '/' + i1244, b1245, L0); if (b1245.length) e.push(...b1245);
+if (g1245 === "object") {
+if (g1245 === 'object') { const o1245 = x1245 as Record<string, unknown>;
+if (!("name" in o1245)) e.push(p + "/signers" + '/' + i1244 + "/name" + ': required');
+if (!("email" in o1245)) e.push(p + "/signers" + '/' + i1244 + "/email" + ': required');
+if ("name" in o1245) lf(o1245["name"], p + "/signers" + '/' + i1244 + "/name", e, L1);
+if ("email" in o1245) lf(o1245["email"], p + "/signers" + '/' + i1244 + "/email", e, L1);
 }
 }
 }
@@ -3246,15 +3247,15 @@ if ("email" in o1241) lf(o1241["email"], p + "/signers" + '/' + i1240 + "/email"
 
 export function d_s_f423029e33(v: unknown, p: string, e: string[]): void {
 {
-const x1242 = v;
-const g1242 = typeOf(x1242);
-const b1242: string[] = []; lf(x1242, p, b1242, L0); if (b1242.length) e.push(...b1242);
-if (g1242 === "object") {
-if (g1242 === 'object') { const o1242 = x1242 as Record<string, unknown>;
-if (!("type" in o1242)) e.push(p + "/type" + ': required');
-if (!("id" in o1242)) e.push(p + "/id" + ': required');
-if ("type" in o1242) d_s_96787fc2f6(o1242["type"], p + "/type", e);
-if ("id" in o1242) lf(o1242["id"], p + "/id", e, L1);
+const x1246 = v;
+const g1246 = typeOf(x1246);
+const b1246: string[] = []; lf(x1246, p, b1246, L0); if (b1246.length) e.push(...b1246);
+if (g1246 === "object") {
+if (g1246 === 'object') { const o1246 = x1246 as Record<string, unknown>;
+if (!("type" in o1246)) e.push(p + "/type" + ': required');
+if (!("id" in o1246)) e.push(p + "/id" + ': required');
+if ("type" in o1246) d_s_96787fc2f6(o1246["type"], p + "/type", e);
+if ("id" in o1246) lf(o1246["id"], p + "/id", e, L1);
 }
 }
 }
@@ -3262,24 +3263,24 @@ if ("id" in o1242) lf(o1242["id"], p + "/id", e, L1);
 
 export function d_s_fd1ce6dded(v: unknown, p: string, e: string[]): void {
 {
-const x1307 = v;
-const g1307 = typeOf(x1307);
-const b1307: string[] = []; lf(x1307, p, b1307, L4); if (b1307.length) e.push(...b1307);
-if (g1307 === "array") {
-if (g1307 === 'array') { const a1307 = x1307 as unknown[];
-for (let i1307 = 0; i1307 < a1307.length; i1307++) {
+const x1313 = v;
+const g1313 = typeOf(x1313);
+const b1313: string[] = []; lf(x1313, p, b1313, L4); if (b1313.length) e.push(...b1313);
+if (g1313 === "array") {
+if (g1313 === 'array') { const a1313 = x1313 as unknown[];
+for (let i1313 = 0; i1313 < a1313.length; i1313++) {
 {
-const x1308 = a1307[i1307];
-const g1308 = typeOf(x1308);
-const b1308: string[] = []; lf(x1308, p + '/' + i1307, b1308, L0); if (b1308.length) e.push(...b1308);
-if (g1308 === "object") {
-if (g1308 === 'object') { const o1308 = x1308 as Record<string, unknown>;
-if (!("email" in o1308)) e.push(p + '/' + i1307 + "/email" + ': required');
-if (!("suspended" in o1308)) e.push(p + '/' + i1307 + "/suspended" + ': required');
-if ("email" in o1308) lf(o1308["email"], p + '/' + i1307 + "/email", e, L6);
-if ("name" in o1308) lf(o1308["name"], p + '/' + i1307 + "/name", e, L1);
-if ("suspended" in o1308) lf(o1308["suspended"], p + '/' + i1307 + "/suspended", e, L3);
-if ("userId" in o1308) lf(o1308["userId"], p + '/' + i1307 + "/userId", e, L16);
+const x1314 = a1313[i1313];
+const g1314 = typeOf(x1314);
+const b1314: string[] = []; lf(x1314, p + '/' + i1313, b1314, L0); if (b1314.length) e.push(...b1314);
+if (g1314 === "object") {
+if (g1314 === 'object') { const o1314 = x1314 as Record<string, unknown>;
+if (!("email" in o1314)) e.push(p + '/' + i1313 + "/email" + ': required');
+if (!("suspended" in o1314)) e.push(p + '/' + i1313 + "/suspended" + ': required');
+if ("email" in o1314) lf(o1314["email"], p + '/' + i1313 + "/email", e, L6);
+if ("name" in o1314) lf(o1314["name"], p + '/' + i1313 + "/name", e, L1);
+if ("suspended" in o1314) lf(o1314["suspended"], p + '/' + i1313 + "/suspended", e, L3);
+if ("userId" in o1314) lf(o1314["userId"], p + '/' + i1313 + "/userId", e, L16);
 }
 }
 }
@@ -3291,18 +3292,18 @@ if ("userId" in o1308) lf(o1308["userId"], p + '/' + i1307 + "/userId", e, L16);
 
 export function d_s_fdf34fa22c(v: unknown, p: string, e: string[]): void {
 {
-const x1310 = v;
-const g1310 = typeOf(x1310);
-const b1310: string[] = []; lf(x1310, p, b1310, L0); if (b1310.length) e.push(...b1310);
-if (g1310 === "object") {
-if (g1310 === 'object') { const o1310 = x1310 as Record<string, unknown>;
-if (!("connectionId" in o1310)) e.push(p + "/connectionId" + ': required');
-if (!("messageId" in o1310)) e.push(p + "/messageId" + ': required');
-if (!("idempotencyKey" in o1310)) e.push(p + "/idempotencyKey" + ': required');
-if ("connectionId" in o1310) lf(o1310["connectionId"], p + "/connectionId", e, L40);
-if ("as" in o1310) lf(o1310["as"], p + "/as", e, L6);
-if ("messageId" in o1310) lf(o1310["messageId"], p + "/messageId", e, L1);
-if ("idempotencyKey" in o1310) lf(o1310["idempotencyKey"], p + "/idempotencyKey", e, L55);
+const x1316 = v;
+const g1316 = typeOf(x1316);
+const b1316: string[] = []; lf(x1316, p, b1316, L0); if (b1316.length) e.push(...b1316);
+if (g1316 === "object") {
+if (g1316 === 'object') { const o1316 = x1316 as Record<string, unknown>;
+if (!("connectionId" in o1316)) e.push(p + "/connectionId" + ': required');
+if (!("messageId" in o1316)) e.push(p + "/messageId" + ': required');
+if (!("idempotencyKey" in o1316)) e.push(p + "/idempotencyKey" + ': required');
+if ("connectionId" in o1316) lf(o1316["connectionId"], p + "/connectionId", e, L40);
+if ("as" in o1316) lf(o1316["as"], p + "/as", e, L6);
+if ("messageId" in o1316) lf(o1316["messageId"], p + "/messageId", e, L1);
+if ("idempotencyKey" in o1316) lf(o1316["idempotencyKey"], p + "/idempotencyKey", e, L55);
 }
 }
 }
@@ -3310,22 +3311,22 @@ if ("idempotencyKey" in o1310) lf(o1310["idempotencyKey"], p + "/idempotencyKey"
 
 export function d_s_fe17a01e9e(v: unknown, p: string, e: string[]): void {
 {
-const x1311 = v;
-const g1311 = typeOf(x1311);
-const b1311: string[] = []; lf(x1311, p, b1311, L4); if (b1311.length) e.push(...b1311);
-if (g1311 === "array") {
-if (g1311 === 'array') { const a1311 = x1311 as unknown[];
-for (let i1311 = 0; i1311 < a1311.length; i1311++) {
+const x1317 = v;
+const g1317 = typeOf(x1317);
+const b1317: string[] = []; lf(x1317, p, b1317, L4); if (b1317.length) e.push(...b1317);
+if (g1317 === "array") {
+if (g1317 === 'array') { const a1317 = x1317 as unknown[];
+for (let i1317 = 0; i1317 < a1317.length; i1317++) {
 {
-const x1312 = a1311[i1311];
-const g1312 = typeOf(x1312);
-const b1312: string[] = []; lf(x1312, p + '/' + i1311, b1312, L0); if (b1312.length) e.push(...b1312);
-if (g1312 === "object") {
-if (g1312 === 'object') { const o1312 = x1312 as Record<string, unknown>;
-if (!("kind" in o1312)) e.push(p + '/' + i1311 + "/kind" + ': required');
-if (!("id" in o1312)) e.push(p + '/' + i1311 + "/id" + ': required');
-if ("kind" in o1312) lf(o1312["kind"], p + '/' + i1311 + "/kind", e, L434);
-if ("id" in o1312) lf(o1312["id"], p + '/' + i1311 + "/id", e, L1);
+const x1318 = a1317[i1317];
+const g1318 = typeOf(x1318);
+const b1318: string[] = []; lf(x1318, p + '/' + i1317, b1318, L0); if (b1318.length) e.push(...b1318);
+if (g1318 === "object") {
+if (g1318 === 'object') { const o1318 = x1318 as Record<string, unknown>;
+if (!("kind" in o1318)) e.push(p + '/' + i1317 + "/kind" + ': required');
+if (!("id" in o1318)) e.push(p + '/' + i1317 + "/id" + ': required');
+if ("kind" in o1318) lf(o1318["kind"], p + '/' + i1317 + "/kind", e, L435);
+if ("id" in o1318) lf(o1318["id"], p + '/' + i1317 + "/id", e, L1);
 }
 }
 }
@@ -3337,13 +3338,13 @@ if ("id" in o1312) lf(o1312["id"], p + '/' + i1311 + "/id", e, L1);
 
 export function d_s_ff7445c64f(v: unknown, p: string, e: string[]): void {
 {
-const x1316 = v;
-const g1316 = typeOf(x1316);
-const b1316: string[] = []; lf(x1316, p, b1316, L0); if (b1316.length) e.push(...b1316);
-if (g1316 === "object") {
-if (g1316 === 'object') { const o1316 = x1316 as Record<string, unknown>;
-if (!("until" in o1316)) e.push(p + "/until" + ': required');
-if ("until" in o1316) lf(o1316["until"], p + "/until", e, L17);
+const x1322 = v;
+const g1322 = typeOf(x1322);
+const b1322: string[] = []; lf(x1322, p, b1322, L0); if (b1322.length) e.push(...b1322);
+if (g1322 === "object") {
+if (g1322 === 'object') { const o1322 = x1322 as Record<string, unknown>;
+if (!("until" in o1322)) e.push(p + "/until" + ': required');
+if ("until" in o1322) lf(o1322["until"], p + "/until", e, L17);
 }
 }
 }

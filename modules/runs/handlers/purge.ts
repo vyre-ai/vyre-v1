@@ -46,6 +46,7 @@ function removeTrees(ctx: RunsCtx, before: number, limit: number): void {
       ) as { run_id: string }[]
     ).map((r) => String(r.run_id));
     for (const root of roots) {
+      for (const t of ["runs_board", "runs_message"]) ctx.db.run(`DELETE FROM ${t} WHERE "root_run" = ?`, root);
       ctx.db.run(`DELETE FROM runs_event WHERE "root_run" = ?`, root);
       ctx.db.run(`DELETE FROM runs_node WHERE "root_run" = ?`, root);
     }

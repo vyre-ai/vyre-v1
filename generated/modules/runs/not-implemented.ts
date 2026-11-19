@@ -6,6 +6,9 @@ import type { Handlers } from './handlers.ts';
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
   "runs.activity.list": async (ctx) => { throw new VyreErr(notImplemented("runs.activity.list", ctx.trace)); },
+  "runs.board.answer": async (ctx) => { throw new VyreErr(notImplemented("runs.board.answer", ctx.trace)); },
+  "runs.board.list": async (ctx) => { throw new VyreErr(notImplemented("runs.board.list", ctx.trace)); },
+  "runs.board.put": async (ctx) => { throw new VyreErr(notImplemented("runs.board.put", ctx.trace)); },
   "runs.count": async (ctx) => { throw new VyreErr(notImplemented("runs.count", ctx.trace)); },
   "runs.erase": async (ctx) => { throw new VyreErr(notImplemented("runs.erase", ctx.trace)); },
   "runs.events.list": async (ctx) => { throw new VyreErr(notImplemented("runs.events.list", ctx.trace)); },
@@ -13,6 +16,10 @@ export const handlers: Handlers<HandlerCtx> = {
   "runs.get": async (ctx) => { throw new VyreErr(notImplemented("runs.get", ctx.trace)); },
   "runs.list": async (ctx) => { throw new VyreErr(notImplemented("runs.list", ctx.trace)); },
   "runs.mark_waiting": async (ctx) => { throw new VyreErr(notImplemented("runs.mark_waiting", ctx.trace)); },
+  "runs.message.list": async (ctx) => { throw new VyreErr(notImplemented("runs.message.list", ctx.trace)); },
+  "runs.message.seen": async (ctx) => { throw new VyreErr(notImplemented("runs.message.seen", ctx.trace)); },
+  "runs.message.send": async (ctx) => { throw new VyreErr(notImplemented("runs.message.send", ctx.trace)); },
+  "runs.message.take": async (ctx) => { throw new VyreErr(notImplemented("runs.message.take", ctx.trace)); },
   "runs.node.beat": async (ctx) => { throw new VyreErr(notImplemented("runs.node.beat", ctx.trace)); },
   "runs.node.claim": async (ctx) => { throw new VyreErr(notImplemented("runs.node.claim", ctx.trace)); },
   "runs.node.control": async (ctx) => { throw new VyreErr(notImplemented("runs.node.control", ctx.trace)); },

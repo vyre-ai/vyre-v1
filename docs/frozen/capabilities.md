@@ -754,3 +754,5 @@ Changed contracts: `manifests/runs.ts` and `manifests/terminal.ts`. Nothing was 
 - Snapshots: docs/frozen/snapshots/runs.json, docs/frozen/snapshots/terminal.json.
 
 Signed: lead, 19 Nov 2026
+
+19 Nov 2026, lane r42-runtime, later: new capabilities `runs.board.put`, `runs.board.answer`, `runs.board.list` (the board of a tree: facts and decisions with evidence, questions) and `runs.message.send`, `runs.message.take`, `runs.message.seen`, `runs.message.list` (messages between nodes of one tree, delivered once). Tables `runs_board` and `runs_message` (runs migration 0007). The board and the messages are read in full only by the people who see the whole tree; a person who only watches the chat gets none. Not yet signed by the lead.
