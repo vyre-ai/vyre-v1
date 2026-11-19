@@ -7564,10 +7564,10 @@ const routes1: Route[] = [
       "type": "space"
     },
     "idempotency": "natural",
-    "risk": "low",
+    "risk": "medium",
     "offline": "online",
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",

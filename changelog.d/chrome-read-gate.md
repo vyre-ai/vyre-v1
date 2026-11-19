@@ -1,0 +1,1 @@
+chrome_read now waits for a person unless its host came from the agent's own search in that turn or is on the person's Browser connections; addresses and searches never carry a Vault value; search.key is checked against the setter's Vault access when it is set.

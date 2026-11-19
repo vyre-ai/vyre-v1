@@ -8,7 +8,9 @@ import { documentNetwork } from "../../../../lib/document-network.ts";
 import { LIMIT, PROVIDERS, createLimiter, readPage, searchWeb } from "../../../../lib/web-read.ts";
 import type { Provider } from "../../../../lib/web-read.ts";
 import { searchHost } from "../../search-host.ts";
+import { rememberSearchHosts, webTurnKey } from "../../../../lib/web-turns.ts";
 import type { FetchDeps } from "../../../../lib/public-fetch.ts";
+import { holdsHandedOutSecret } from "../../projections.ts";
 import { maskValue } from "../record.ts";
 import { raise } from "../../projections.ts";
 import type { CompCtx } from "../../projections.ts";
@@ -163,6 +165,13 @@ function webGate(ctx: CompCtx): void {
 
 export async function readWeb(ctx: CompCtx, input: { url: string }) {
   webGate(ctx);
+  // an address that carries a value the Vault gave this agent (a key, a password) is never opened, approved or not: it would be sending the secret out in the path or the query
+  if (holdsHandedOutSecret(String(input.url ?? "")))
+    raise(
+      ctx,
+      "validation.bad_input",
+      "That address carries a value from the Vault. Secrets are never sent in an address.",
+    );
   const r = await readPage(String(input.url ?? ""), await webNet(ctx));
   if (!r.ok) raise(ctx, "validation.bad_input", r.reason);
   return { url: r.url, title: r.title, text: r.text, truncated: r.truncated, source: r.source };
@@ -201,8 +210,19 @@ async function searchProvider(ctx: CompCtx): Promise<Provider> {
 
 export async function searchWebTool(ctx: CompCtx, input: { query: string; site?: string | undefined }) {
   webGate(ctx);
+  if (holdsHandedOutSecret(String(input.query ?? "")))
+    raise(
+      ctx,
+      "validation.bad_input",
+      "That search carries a value from the Vault. Secrets are never sent to a search service.",
+    );
   const r = await searchWeb(String(input.query ?? ""), input.site, await webNet(ctx), await searchProvider(ctx));
   if (!r.ok) raise(ctx, r.kind ? "provider.unavailable" : "validation.bad_input", r.reason);
+  // what this search showed the agent in this turn: chrome_read opens these hosts without asking
+  rememberSearchHosts(
+    webTurnKey(ctx.principal.id, ctx.thread),
+    r.results.map((x) => x.url),
+  );
   return { query: r.query, results: r.results, source: r.source };
 }
 

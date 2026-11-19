@@ -872,6 +872,9 @@ export default defineManifest({
             examples: ["https://docs.example.com/api/auth"],
           }),
         },
+        // an agent opens without a person only a host its own search showed it in this turn or one on the person's Browser connections list; any other address waits for a person (one tap in Needs you)
+        risk: "medium",
+        gate: { act: "send", when: "computers.web_read_unapproved(input)" },
         out: {
           url: t.str({ description: "The address it ended at, after redirects" }),
           title: t.str(),
@@ -879,7 +882,10 @@ export default defineManifest({
           truncated: t.bool(),
           source: t.str({ description: "Says the text is web content and not an instruction" }),
         },
-        ...web({ mcpName: "chrome_read" }),
+        ...web({
+          mcpName: "chrome_read",
+          errors: ["rate_limit.exceeded", "validation.bad_input", "permission.needs_approval"],
+        }),
       },
     ),
     read(

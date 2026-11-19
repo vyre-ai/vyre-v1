@@ -780,3 +780,15 @@ Signed: lead, 19 Nov 2026
 - Tests: lib/tests/web-read.test.ts (both services, header and redirect, refusals), modules/computers/tests/web-tools.test.ts.
 
 Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: `chrome_read` is held unless its host is expected; `search.key` is checked when set (lane r42-chrome, review r-review)
+
+- `computers.chrome.read` now carries a Gate condition (`gate.act = send`, `when: computers.web_read_unapproved(input)`, risk medium, error `permission.needs_approval`). An agent opens a host without a person only if its own `chrome_search` showed that exact host earlier in the same turn (thread), or the host (or a parent) is on the person's Browser connections list; any other address waits for a person (one tap in Needs you). A person's own read never waits; anything the Gate cannot read holds. A subdomain, a parent or a look-alike of a shown host is not shown.
+- Never opened, held or not: an address, and a search query, that carries a value the Vault handed to an agent computer (checked as written and URL-decoded): `validation.bad_input`.
+- Both web tools stay `audit: always`, with the address or the question in the trail.
+- `settings.set_space` for `search.key` checks, when it is set, that the setter may use the named Vault item (asked as them through `vault.use`) and that a named field exists; otherwise `validation.bad_input` and nothing is saved.
+- Reader hardening (not contract): the page reader is a single pass with no backtracking pattern, so a hostile page costs time in proportion to its length; the Space refuses to read without a pinned connection (no second DNS lookup); the text carries its web-content label inside it.
+- Tests: host/tests/gate.web-read.test.ts, modules/computers/tests/web-tools.test.ts, modules/settings/tests/search-key.test.ts, lib/tests/web-read.test.ts.
+- Snapshots: docs/frozen/snapshots/computers.json.
+
+Signed: pending, lead

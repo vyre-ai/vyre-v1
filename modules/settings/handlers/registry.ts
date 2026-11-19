@@ -147,6 +147,21 @@ export async function setSpace(ctx: SettingsCtx, input: { key: string; value: un
       "validation.field_locked",
       `${d.title}: the owner floor does not allow anything less strict than ${JSON.stringify(floor)}.`,
     );
+  // the key of the web search service is a Vault handle: the person who sets it must be able to use that item (and the field must exist), so no one can point a Space's search at a secret they cannot use
+  if (input.key === "search.key" && typeof input.value === "string" && input.value.trim() !== "") {
+    const m = /^#?([^.\s]+)(?:\.([A-Za-z0-9_]+))?$/.exec(input.value.trim());
+    if (!m) raise(ctx, "validation.bad_input", "That is not a Vault handle, such as #Brave_Search.api_key.");
+    let fields: unknown;
+    try {
+      fields = (
+        (await ctx.call("vault.use", { item: m![1], purpose: "web search key" })) as { fields?: unknown } | null
+      )?.fields;
+    } catch {
+      raise(ctx, "validation.bad_input", "You cannot use that Vault item. Choose one you may use.");
+    }
+    if (m![2] !== undefined && !(Array.isArray(fields) && fields.includes(m![2])))
+      raise(ctx, "validation.bad_input", "That Vault item has no such field.");
+  }
   const before = stored(ctx, input.key, "space", "")?.value ?? d.default;
   put(ctx, input.key, "space", "", input.value);
   changed(ctx, input.key, "space", person, before, input.value);

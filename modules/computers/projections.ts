@@ -631,6 +631,18 @@ export function rememberSecrets(computerId: string, secrets: readonly Secret[], 
     handedOut.set(computerId, h);
   }
 }
+/** Does this text hold a value the Vault handed to any agent computer (a key, a password)? For a reader that sends text outward: a path or query must never carry one. */
+export function holdsHandedOutSecret(text: string): boolean {
+  let decoded = text;
+  try {
+    decoded = decodeURIComponent(text);
+  } catch {
+    /* read it as written */
+  }
+  for (const list of secretsByComputer.values())
+    for (const x of list) if (text.includes(x.value) || decoded.includes(x.value)) return true;
+  return false;
+}
 export function forgetSecrets(computerId: string): void {
   secretsByComputer.delete(computerId);
   handedOut.delete(computerId);

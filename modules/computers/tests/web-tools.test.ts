@@ -5,6 +5,7 @@ import { setDocumentNetwork } from "../../../lib/document-network.ts";
 import { WEB_LABEL } from "../../../lib/web-read.ts";
 import { codeOf } from "../fixtures/harness.ts";
 import { setSearchHost } from "../search-host.ts";
+import { forgetSecrets, rememberSecrets } from "../projections.ts";
 import { tool, world } from "./tools.fixture.ts";
 
 /** The Space's public-page network always dials checked addresses (a pinned connect); the tests' scripted fetch stands behind one. */
@@ -184,4 +185,43 @@ test("the default search being refused answers provider.unavailable with the pla
     tool["computers.chrome.search"]!(ctx, { query: "auth" }),
     (e: any) => codeOf(e) === "provider.unavailable" && /Search is not answering/.test(e?.error?.message ?? ""),
   );
+});
+
+test("an address or a search that carries a value the Vault handed out is never sent, approved or not", async () => {
+  const w = await world();
+  const asked = net({ "https://docs.example.com/a": page("<p>a</p>") });
+  rememberSecrets("cmp_any", [{ handle: "#Dana_Key.api_key", value: "sk-live-abcdef123456" }]);
+  try {
+    const ctx = { ...w.agent().ctx, principal: { kind: "agent" as const, id: "agt_secretive" } };
+    for (const url of [
+      "https://docs.example.com/a?k=sk-live-abcdef123456",
+      "https://docs.example.com/a?k=sk-live-abcdef123456".replace("sk-live-", "sk%2Dlive%2D"),
+      "https://docs.example.com/sk-live-abcdef123456/a",
+    ])
+      await assert.rejects(
+        tool["computers.chrome.read"]!(ctx, { url }),
+        (e) => codeOf(e) === "validation.bad_input",
+        url,
+      );
+    await assert.rejects(
+      tool["computers.chrome.search"]!(ctx, { query: "how to use sk-live-abcdef123456" }),
+      (e) => codeOf(e) === "validation.bad_input",
+    );
+    assert.deepEqual(asked, [], "nothing went out");
+    assert.equal((await tool["computers.chrome.read"]!(ctx, { url: "https://docs.example.com/a" })).title, "Docs");
+  } finally {
+    forgetSecrets("cmp_any");
+  }
+});
+
+test("what a search showed the agent is remembered for the turn, so chrome_read of those hosts is not held", async () => {
+  const w = await world();
+  net({
+    "https://html.duckduckgo.com/html/?q=auth": '<a class="result__a" href="https://docs.shown.example/auth">Auth</a>',
+  });
+  const ctx = { ...w.agent().ctx, principal: { kind: "agent" as const, id: "agt_shown" }, thread: "thr_shown" };
+  await tool["computers.chrome.search"]!(ctx, { query: "auth" });
+  const { searchShowed, webTurnKey } = await import("../../../lib/web-turns.ts");
+  assert.equal(searchShowed(webTurnKey("agt_shown", "thr_shown"), "docs.shown.example"), true);
+  assert.equal(searchShowed(webTurnKey("agt_shown", "thr_shown"), "other.example"), false);
 });

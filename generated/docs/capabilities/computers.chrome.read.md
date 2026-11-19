@@ -9,9 +9,9 @@ Read one public web page as text: the documentation of a site you are working on
 | Effects | read |
 | Permission | computers.use |
 | Grant level | view |
-| Risk | low |
+| Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when computers.web_read_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
@@ -45,6 +45,7 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
+- permission.needs_approval
 - permission.no_grant
 - permission.role_lacks_permission
 - rate_limit.exceeded
