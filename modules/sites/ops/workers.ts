@@ -86,12 +86,20 @@ export function advance(s: Service, ev: ServiceEvent): ServiceOut {
     case "restart":
       // a clean slate: no streak, no history, started at once
       return keep(
-        { ...s, state: "starting", streak: 0, crashes: [], restartAt: undefined, note: undefined },
+        {
+          ...s,
+          state: "starting",
+          streak: 0,
+          crashes: [],
+          startedAt: undefined,
+          restartAt: undefined,
+          note: undefined,
+        },
         s.state === "running" || s.state === "starting" ? "restart" : "start",
       );
     case "stop":
       return keep(
-        { ...s, state: "stopped", restartAt: undefined, note: undefined },
+        { ...s, state: "stopped", startedAt: undefined, restartAt: undefined, note: undefined },
         s.state === "running" || s.state === "starting" ? "kill" : "none",
       );
     case "spawned":
@@ -103,7 +111,7 @@ export function advance(s: Service, ev: ServiceEvent): ServiceOut {
       if (s.state === "running" && s.startedAt !== undefined && ev.at - s.startedAt >= STABLE_MS && s.streak > 0)
         return keep({ ...s, streak: 0 });
       if (s.state === "backoff" && s.restartAt !== undefined && ev.at >= s.restartAt)
-        return keep({ ...s, state: "starting", restartAt: undefined }, "start");
+        return keep({ ...s, state: "starting", startedAt: undefined, restartAt: undefined }, "start");
       return keep(s);
     }
     case "exited": {
@@ -119,6 +127,7 @@ export function advance(s: Service, ev: ServiceEvent): ServiceOut {
           streak,
           crashes,
           lastExit,
+          startedAt: undefined,
           restartAt: undefined,
           note: `${why(ev.code, ev.oom)} It stopped ${crashes.length} times in ${Math.round(LOOP_WINDOW_MS / 60_000)} minutes, so it is not restarting by itself. Fix it and press Restart.`,
         });
@@ -129,6 +138,7 @@ export function advance(s: Service, ev: ServiceEvent): ServiceOut {
         streak,
         crashes,
         lastExit,
+        startedAt: undefined,
         restartAt: ev.at + wait,
         note: `${why(ev.code, ev.oom)} Starting again in ${Math.max(1, Math.round(wait / 1000))} seconds.`,
       });

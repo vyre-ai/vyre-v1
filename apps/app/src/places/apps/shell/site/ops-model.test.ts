@@ -2,6 +2,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  RUN_WORD,
+  jobProblem,
+  presetOf,
+  runMark,
+  serviceMark,
+  serviceNote,
+  sizeText,
+  took,
   KEEP,
   NO_FILTER,
   asText,
@@ -206,4 +214,68 @@ test("a chart path rises with the value, and a gap breaks the line", () => {
   assert.deepEqual(paths([], 100, 20), { line: "", area: "" });
   assert.deepEqual(paths([1], 100, 20), { line: "", area: "" });
   assert.deepEqual(paths([null, null], 100, 20), { line: "", area: "" });
+});
+
+test("a run's words and marks", () => {
+  assert.equal(RUN_WORD.succeeded, "Finished");
+  assert.equal(RUN_WORD.interrupted, "Cut short");
+  assert.deepEqual(
+    (["succeeded", "failed", "timed_out", "interrupted", "running", "queued", "skipped", "canceled"] as const).map(
+      runMark,
+    ),
+    ["ok", "failed", "failed", "failed", "running", "running", "skipped", "skipped"],
+  );
+  assert.deepEqual((["running", "failed", "stopped", "starting", "backoff"] as const).map(serviceMark), [
+    "ok",
+    "failed",
+    "skipped",
+    "running",
+    "running",
+  ]);
+});
+
+test("how long a run took", () => {
+  const r = (s: number, e: number) => ({ startedAt: s * 1000, endedAt: e * 1000 });
+  assert.equal(took(r(0, 38)), "38 s");
+  assert.equal(took(r(0, 60)), "1 min");
+  assert.equal(took(r(0, 242)), "4 min 2 s");
+  assert.equal(took(r(0, 3900)), "1 h 5 min");
+  assert.equal(took(r(0, 7200)), "2 h");
+  assert.equal(took({ startedAt: 5 }), "");
+  assert.equal(took({}), "");
+});
+
+test("schedule presets: a preset is found by its schedule, anything else is Custom", () => {
+  assert.equal(presetOf("0 2 * * *"), "0 2 * * *");
+  assert.equal(presetOf("@hourly"), "@hourly");
+  assert.equal(presetOf("5 4 * * *"), "custom");
+  assert.equal(presetOf("custom"), "custom");
+});
+
+test("a worker row says its note, or its state", () => {
+  const v = { serviceId: "w", siteId: "s", name: "q", kind: "worker", command: "x", state: "running" as const };
+  assert.equal(serviceNote(v), "Running");
+  assert.equal(
+    serviceNote({
+      ...v,
+      state: "backoff",
+      note: "It stopped with an error (exit code 1). Starting again in 4 seconds.",
+    }),
+    "It stopped with an error (exit code 1). Starting again in 4 seconds.",
+  );
+  assert.equal(serviceNote({ ...v, state: "failed" }), "Stopped after crashing");
+});
+
+test("sizes", () => {
+  assert.equal(sizeText(100), "1 KB");
+  assert.equal(sizeText(300 * 1024), "300 KB");
+  assert.equal(sizeText(48 * 1024 * 1024), "48 MB");
+  assert.equal(sizeText(1.5 * 1024 * 1024 * 1024), "1.5 GB");
+});
+
+test("the job form's check is one plain sentence", () => {
+  assert.equal(jobProblem({ name: " ", schedule: "@daily", command: "x" }), "Give the job a name.");
+  assert.equal(jobProblem({ name: "a", schedule: "", command: "x" }), "Say when it runs.");
+  assert.equal(jobProblem({ name: "a", schedule: "@daily", command: " " }), "Give the command to run.");
+  assert.equal(jobProblem({ name: "a", schedule: "@daily", command: "x" }), null);
 });

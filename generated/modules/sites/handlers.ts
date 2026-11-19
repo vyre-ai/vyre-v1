@@ -10,6 +10,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.artifact_open": Handler<"sites.artifact_open", X>;
   "sites.artifact_publish": Handler<"sites.artifact_publish", X>;
   "sites.artifact_thumb_set": Handler<"sites.artifact_thumb_set", X>;
+  "sites.backup_create": Handler<"sites.backup_create", X>;
+  "sites.backup_delete": Handler<"sites.backup_delete", X>;
+  "sites.backup_pin": Handler<"sites.backup_pin", X>;
+  "sites.backup_restore": Handler<"sites.backup_restore", X>;
+  "sites.backups_list": Handler<"sites.backups_list", X>;
   "sites.build": Handler<"sites.build", X>;
   "sites.chat_viewing": Handler<"sites.chat_viewing", X>;
   "sites.create": Handler<"sites.create", X>;
@@ -26,6 +31,13 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.env_set": Handler<"sites.env_set", X>;
   "sites.get": Handler<"sites.get", X>;
   "sites.host": Handler<"sites.host", X>;
+  "sites.job_cancel": Handler<"sites.job_cancel", X>;
+  "sites.job_create": Handler<"sites.job_create", X>;
+  "sites.job_delete": Handler<"sites.job_delete", X>;
+  "sites.job_run": Handler<"sites.job_run", X>;
+  "sites.job_runs": Handler<"sites.job_runs", X>;
+  "sites.job_update": Handler<"sites.job_update", X>;
+  "sites.jobs_list": Handler<"sites.jobs_list", X>;
   "sites.list": Handler<"sites.list", X>;
   "sites.logs": Handler<"sites.logs", X>;
   "sites.logs_read": Handler<"sites.logs_read", X>;
@@ -39,7 +51,12 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.promote": Handler<"sites.promote", X>;
   "sites.publish": Handler<"sites.publish", X>;
   "sites.rollback": Handler<"sites.rollback", X>;
+  "sites.service_add": Handler<"sites.service_add", X>;
   "sites.service_identity": Handler<"sites.service_identity", X>;
+  "sites.service_remove": Handler<"sites.service_remove", X>;
+  "sites.service_restart": Handler<"sites.service_restart", X>;
+  "sites.service_stop": Handler<"sites.service_stop", X>;
+  "sites.services_list": Handler<"sites.services_list", X>;
   "sites.ship": Handler<"sites.ship", X>;
   "sites.signin_link": Handler<"sites.signin_link", X>;
   "sites.staging_password_set": Handler<"sites.staging_password_set", X>;

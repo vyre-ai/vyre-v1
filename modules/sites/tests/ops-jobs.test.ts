@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CATCH_UP_MS,
+  words,
   ENDED,
   KEEP_RUNS,
   NOTE,
@@ -231,4 +232,22 @@ test("a job a person wrote is checked in plain words", () => {
   assert.equal(checkJob({ ...ok, command: ["a", ""] }, validZone), "Give the command to run.");
   assert.match(checkJob({ ...ok, timeoutSec: 1 }, validZone) ?? "", /between 5 seconds/);
   assert.match(checkJob({ ...ok, zone: "Mars/Base" }, validZone) ?? "", /time zone/);
+});
+
+test("recover leaves a running run whose container is still there", () => {
+  const now = 10 * QUEUE_MAX_MS;
+  const out = recover([run("running", { id: "a" }), run("running", { id: "b" })], now, new Set(["b"]));
+  assert.deepEqual(out, [{ id: "a", ev: { t: "lost", at: now } }]);
+});
+
+test("words splits a typed command the way a person means it", () => {
+  assert.deepEqual(words("node scripts/sync-stock.js"), ["node", "scripts/sync-stock.js"]);
+  assert.deepEqual(words('node sync.js --since "last week"'), ["node", "sync.js", "--since", "last week"]);
+  assert.deepEqual(words("sh -c 'echo a && echo b'"), ["sh", "-c", "echo a && echo b"]);
+  assert.deepEqual(words("  a   b  "), ["a", "b"]);
+  assert.deepEqual(words('echo ""'), ["echo", ""]);
+  assert.deepEqual(words("a\\ b"), ["a b"]);
+  assert.deepEqual(words('say "a \\"quoted\\" word"'), ["say", 'a "quoted" word']);
+  assert.deepEqual(words(""), []);
+  assert.equal(words('echo "open'), null);
 });

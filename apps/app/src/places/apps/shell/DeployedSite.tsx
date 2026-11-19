@@ -29,6 +29,8 @@ import {
 } from "./site/model.ts";
 import { LogLines, StepMark, markOf } from "./site/parts.tsx";
 import { SiteLogs } from "./site/Logs.tsx";
+import { JobsAndWorkers } from "./site/Jobs.tsx";
+import { Backups } from "./site/Backups.tsx";
 import { MetricCards } from "./site/Metrics.tsx";
 import { Variables } from "./site/Variables.tsx";
 import type { EnvEntry } from "./site/model.ts";
@@ -383,6 +385,7 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
         {redis ? (
           <Row id="run-redis" title="Redis" note={`${redis.state === "ready" ? "Running" : "Starting"} · REDIS_URL`} />
         ) : null}
+        <JobsAndWorkers siteId={id} />
       </Card>
       <Card title="App log">
         <LogLines lines={runLog.slice(-60)} testID="site-logs-peek" empty="Nothing logged yet." height={160} />
@@ -590,6 +593,7 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
             )
           }
         />
+        {pg?.state === "ready" ? <Backups siteId={id} /> : null}
         {pg?.state === "ready" ? (
           <>
             <Text style={ui.text}>

@@ -37256,6 +37256,75 @@ export type SitesArtifactThumbSetIn = {
 export type SitesArtifactThumbSetOut = {
   set: boolean;
 };
+export type SitesBackupCreateIn = {
+  siteId: string;
+};
+export type SitesBackupCreateOut = {
+  backup: {
+    backupId: string;
+    siteId: string;
+    state: "queued" | "running" | "ready" | "failed";
+    by: "schedule" | "person";
+    at: number;
+    endedAt?: number;
+    bytes?: number;
+    note?: string;
+    pinned?: boolean;
+  };
+};
+export type SitesBackupDeleteIn = {
+  siteId: string;
+  backupId: string;
+};
+export type SitesBackupDeleteOut = {
+  removed: boolean;
+};
+export type SitesBackupPinIn = {
+  siteId: string;
+  backupId: string;
+  pinned?: boolean;
+};
+export type SitesBackupPinOut = {
+  backup: {
+    backupId: string;
+    siteId: string;
+    state: "queued" | "running" | "ready" | "failed";
+    by: "schedule" | "person";
+    at: number;
+    endedAt?: number;
+    bytes?: number;
+    note?: string;
+    pinned?: boolean;
+  };
+};
+export type SitesBackupRestoreIn = {
+  siteId: string;
+  backupId: string;
+};
+export type SitesBackupRestoreOut = {
+  ok: boolean;
+  detail: string;
+};
+export type SitesBackupsListIn = {
+  siteId: string;
+};
+export type SitesBackupsListOut = {
+  backups: Array<{
+      backupId: string;
+      siteId: string;
+      state: "queued" | "running" | "ready" | "failed";
+      by: "schedule" | "person";
+      at: number;
+      endedAt?: number;
+      bytes?: number;
+      note?: string;
+      pinned?: boolean;
+    }>;
+  hasDatabase: boolean;
+  database?: {
+    bytes?: number;
+  };
+};
 export type SitesBuildIn = {
   siteId: string;
   branch?: string;
@@ -37639,6 +37708,162 @@ export type SitesHostOut = {
   deploy?: boolean;
   deployNeed?: string;
   sitesDomain?: string;
+};
+export type SitesJobCancelIn = {
+  siteId: string;
+  runId: string;
+};
+export type SitesJobCancelOut = {
+  run: {
+    runId: string;
+    jobId: string;
+    state: "queued" | "running" | "succeeded" | "failed" | "timed_out" | "canceled" | "skipped" | "interrupted";
+    at: number;
+    startedAt?: number;
+    endedAt?: number;
+    exitCode?: number;
+    note?: string;
+    by: "schedule" | "person";
+  };
+};
+export type SitesJobCreateIn = {
+  siteId: string;
+  name: string;
+  schedule: string;
+  command: string;
+  zone?: string;
+  timeoutSec?: number;
+  idempotencyKey: string;
+};
+export type SitesJobCreateOut = {
+  job: {
+    jobId: string;
+    siteId: string;
+    name: string;
+    schedule: string;
+    when: string;
+    command: string;
+    zone: string;
+    enabled: boolean;
+    timeoutSec: number;
+    nextAt?: number;
+    last?: {
+      runId: string;
+      jobId: string;
+      state: "queued" | "running" | "succeeded" | "failed" | "timed_out" | "canceled" | "skipped" | "interrupted";
+      at: number;
+      startedAt?: number;
+      endedAt?: number;
+      exitCode?: number;
+      note?: string;
+      by: "schedule" | "person";
+    };
+  };
+};
+export type SitesJobDeleteIn = {
+  siteId: string;
+  jobId: string;
+};
+export type SitesJobDeleteOut = {
+  removed: boolean;
+};
+export type SitesJobRunIn = {
+  siteId: string;
+  jobId: string;
+};
+export type SitesJobRunOut = {
+  run: {
+    runId: string;
+    jobId: string;
+    state: "queued" | "running" | "succeeded" | "failed" | "timed_out" | "canceled" | "skipped" | "interrupted";
+    at: number;
+    startedAt?: number;
+    endedAt?: number;
+    exitCode?: number;
+    note?: string;
+    by: "schedule" | "person";
+  };
+};
+export type SitesJobRunsIn = {
+  siteId: string;
+  jobId: string;
+  limit?: number;
+};
+export type SitesJobRunsOut = {
+  runs: Array<{
+      runId: string;
+      jobId: string;
+      state: "queued" | "running" | "succeeded" | "failed" | "timed_out" | "canceled" | "skipped" | "interrupted";
+      at: number;
+      startedAt?: number;
+      endedAt?: number;
+      exitCode?: number;
+      note?: string;
+      by: "schedule" | "person";
+    }>;
+};
+export type SitesJobUpdateIn = {
+  siteId: string;
+  jobId: string;
+  name?: string;
+  schedule?: string;
+  command?: string;
+  zone?: string;
+  timeoutSec?: number;
+  enabled?: boolean;
+};
+export type SitesJobUpdateOut = {
+  job: {
+    jobId: string;
+    siteId: string;
+    name: string;
+    schedule: string;
+    when: string;
+    command: string;
+    zone: string;
+    enabled: boolean;
+    timeoutSec: number;
+    nextAt?: number;
+    last?: {
+      runId: string;
+      jobId: string;
+      state: "queued" | "running" | "succeeded" | "failed" | "timed_out" | "canceled" | "skipped" | "interrupted";
+      at: number;
+      startedAt?: number;
+      endedAt?: number;
+      exitCode?: number;
+      note?: string;
+      by: "schedule" | "person";
+    };
+  };
+};
+export type SitesJobsListIn = {
+  siteId: string;
+};
+export type SitesJobsListOut = {
+  jobs: Array<{
+      jobId: string;
+      siteId: string;
+      name: string;
+      schedule: string;
+      when: string;
+      command: string;
+      zone: string;
+      enabled: boolean;
+      timeoutSec: number;
+      nextAt?: number;
+      last?: {
+        runId: string;
+        jobId: string;
+        state: "queued" | "running" | "succeeded" | "failed" | "timed_out" | "canceled" | "skipped" | "interrupted";
+        at: number;
+        startedAt?: number;
+        endedAt?: number;
+        exitCode?: number;
+        note?: string;
+        by: "schedule" | "person";
+      };
+    }>;
 };
 export type SitesListIn = {
   section?: "personal" | "shared" | "space";
@@ -38104,6 +38329,26 @@ export type SitesRollbackOut = {
       }>;
   };
 };
+export type SitesServiceAddIn = {
+  siteId: string;
+  name: string;
+  command: string;
+  kind?: "worker";
+  idempotencyKey: string;
+};
+export type SitesServiceAddOut = {
+  service: {
+    serviceId: string;
+    siteId: string;
+    name: string;
+    kind: "worker" | "web";
+    command: string;
+    state: "stopped" | "starting" | "running" | "backoff" | "failed";
+    note?: string;
+    startedAt?: number;
+    restartAt?: number;
+  };
+};
 export type SitesServiceIdentityIn = {
   siteId: string;
 };
@@ -38112,6 +38357,63 @@ export type SitesServiceIdentityOut = {
   grants: Array<{
       resource: string;
       level: string;
+    }>;
+};
+export type SitesServiceRemoveIn = {
+  siteId: string;
+  serviceId: string;
+};
+export type SitesServiceRemoveOut = {
+  removed: boolean;
+};
+export type SitesServiceRestartIn = {
+  siteId: string;
+  serviceId: string;
+};
+export type SitesServiceRestartOut = {
+  service: {
+    serviceId: string;
+    siteId: string;
+    name: string;
+    kind: "worker" | "web";
+    command: string;
+    state: "stopped" | "starting" | "running" | "backoff" | "failed";
+    note?: string;
+    startedAt?: number;
+    restartAt?: number;
+  };
+};
+export type SitesServiceStopIn = {
+  siteId: string;
+  serviceId: string;
+};
+export type SitesServiceStopOut = {
+  service: {
+    serviceId: string;
+    siteId: string;
+    name: string;
+    kind: "worker" | "web";
+    command: string;
+    state: "stopped" | "starting" | "running" | "backoff" | "failed";
+    note?: string;
+    startedAt?: number;
+    restartAt?: number;
+  };
+};
+export type SitesServicesListIn = {
+  siteId: string;
+};
+export type SitesServicesListOut = {
+  services: Array<{
+      serviceId: string;
+      siteId: string;
+      name: string;
+      kind: "worker" | "web";
+      command: string;
+      state: "stopped" | "starting" | "running" | "backoff" | "failed";
+      note?: string;
+      startedAt?: number;
+      restartAt?: number;
     }>;
 };
 export type SitesShipIn = {
@@ -50438,6 +50740,11 @@ export interface CapMap {
   "sites.artifact_open": { in: SitesArtifactOpenIn; out: SitesArtifactOpenOut };
   "sites.artifact_publish": { in: SitesArtifactPublishIn; out: SitesArtifactPublishOut };
   "sites.artifact_thumb_set": { in: SitesArtifactThumbSetIn; out: SitesArtifactThumbSetOut };
+  "sites.backup_create": { in: SitesBackupCreateIn; out: SitesBackupCreateOut };
+  "sites.backup_delete": { in: SitesBackupDeleteIn; out: SitesBackupDeleteOut };
+  "sites.backup_pin": { in: SitesBackupPinIn; out: SitesBackupPinOut };
+  "sites.backup_restore": { in: SitesBackupRestoreIn; out: SitesBackupRestoreOut };
+  "sites.backups_list": { in: SitesBackupsListIn; out: SitesBackupsListOut };
   "sites.build": { in: SitesBuildIn; out: SitesBuildOut };
   "sites.chat_viewing": { in: SitesChatViewingIn; out: SitesChatViewingOut };
   "sites.create": { in: SitesCreateIn; out: SitesCreateOut };
@@ -50454,6 +50761,13 @@ export interface CapMap {
   "sites.env_set": { in: SitesEnvSetIn; out: SitesEnvSetOut };
   "sites.get": { in: SitesGetIn; out: SitesGetOut };
   "sites.host": { in: SitesHostIn; out: SitesHostOut };
+  "sites.job_cancel": { in: SitesJobCancelIn; out: SitesJobCancelOut };
+  "sites.job_create": { in: SitesJobCreateIn; out: SitesJobCreateOut };
+  "sites.job_delete": { in: SitesJobDeleteIn; out: SitesJobDeleteOut };
+  "sites.job_run": { in: SitesJobRunIn; out: SitesJobRunOut };
+  "sites.job_runs": { in: SitesJobRunsIn; out: SitesJobRunsOut };
+  "sites.job_update": { in: SitesJobUpdateIn; out: SitesJobUpdateOut };
+  "sites.jobs_list": { in: SitesJobsListIn; out: SitesJobsListOut };
   "sites.list": { in: SitesListIn; out: SitesListOut };
   "sites.logs": { in: SitesLogsIn; out: SitesLogsOut };
   "sites.logs_read": { in: SitesLogsReadIn; out: SitesLogsReadOut };
@@ -50467,7 +50781,12 @@ export interface CapMap {
   "sites.promote": { in: SitesPromoteIn; out: SitesPromoteOut };
   "sites.publish": { in: SitesPublishIn; out: SitesPublishOut };
   "sites.rollback": { in: SitesRollbackIn; out: SitesRollbackOut };
+  "sites.service_add": { in: SitesServiceAddIn; out: SitesServiceAddOut };
   "sites.service_identity": { in: SitesServiceIdentityIn; out: SitesServiceIdentityOut };
+  "sites.service_remove": { in: SitesServiceRemoveIn; out: SitesServiceRemoveOut };
+  "sites.service_restart": { in: SitesServiceRestartIn; out: SitesServiceRestartOut };
+  "sites.service_stop": { in: SitesServiceStopIn; out: SitesServiceStopOut };
+  "sites.services_list": { in: SitesServicesListIn; out: SitesServicesListOut };
   "sites.ship": { in: SitesShipIn; out: SitesShipOut };
   "sites.signin_link": { in: SitesSigninLinkIn; out: SitesSigninLinkOut };
   "sites.staging_password_set": { in: SitesStagingPasswordSetIn; out: SitesStagingPasswordSetOut };

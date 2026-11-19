@@ -287,3 +287,135 @@ export function edgeLabels(now: number, windowKey: string, zone: string): { from
   const p = partsIn(now - ms, zone);
   return { from: `${p.hour}:${String(p.minute).padStart(2, "0")}`, to: "Now" };
 }
+
+// ---- jobs, workers and backups
+
+export type RunState =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "timed_out"
+  | "canceled"
+  | "skipped"
+  | "interrupted";
+export interface JobRun {
+  runId: string;
+  jobId: string;
+  state: RunState;
+  at: number;
+  startedAt?: number;
+  endedAt?: number;
+  exitCode?: number;
+  note?: string;
+  by: "schedule" | "person";
+}
+export interface JobOut {
+  jobId: string;
+  siteId: string;
+  name: string;
+  schedule: string;
+  when: string;
+  command: string;
+  zone: string;
+  enabled: boolean;
+  timeoutSec: number;
+  nextAt?: number;
+  last?: JobRun;
+}
+export type ServiceState = "stopped" | "starting" | "running" | "backoff" | "failed";
+export interface ServiceOut {
+  serviceId: string;
+  siteId: string;
+  name: string;
+  kind: string;
+  command: string;
+  state: ServiceState;
+  note?: string;
+  startedAt?: number;
+  restartAt?: number;
+}
+export interface BackupOut {
+  backupId: string;
+  siteId: string;
+  state: "queued" | "running" | "ready" | "failed";
+  by: string;
+  at: number;
+  endedAt?: number;
+  bytes?: number;
+  note?: string;
+  pinned?: boolean;
+}
+
+/** The words a run is called by. */
+export const RUN_WORD: Readonly<Record<RunState, string>> = {
+  queued: "Waiting",
+  running: "Running",
+  succeeded: "Finished",
+  failed: "Failed",
+  timed_out: "Timed out",
+  canceled: "Canceled",
+  skipped: "Skipped",
+  interrupted: "Cut short",
+};
+export type Mark = "ok" | "failed" | "running" | "waiting" | "skipped";
+export const runMark = (s: RunState): Mark =>
+  s === "succeeded"
+    ? "ok"
+    : s === "failed" || s === "timed_out" || s === "interrupted"
+      ? "failed"
+      : s === "running" || s === "queued"
+        ? "running"
+        : "skipped";
+
+export const SERVICE_WORD: Readonly<Record<ServiceState, string>> = {
+  stopped: "Stopped",
+  starting: "Starting",
+  running: "Running",
+  backoff: "Restarting",
+  failed: "Stopped after crashing",
+};
+export const serviceMark = (s: ServiceState): Mark =>
+  s === "running" ? "ok" : s === "failed" ? "failed" : s === "stopped" ? "skipped" : "running";
+
+/** How long a run took, in the words a person says: 38 s, 4 min 2 s, 1 h 5 min. Nothing for a run that has not both started and ended. */
+export function took(r: Pick<JobRun, "startedAt" | "endedAt">): string {
+  if (r.startedAt === undefined || r.endedAt === undefined) return "";
+  const s = Math.max(0, Math.round((r.endedAt - r.startedAt) / 1000));
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return s % 60 === 0 ? `${m} min` : `${m} min ${s % 60} s`;
+  const h = Math.floor(m / 60);
+  return m % 60 === 0 ? `${h} h` : `${h} h ${m % 60} min`;
+}
+
+export const SCHEDULE_PRESETS = [
+  { key: "@hourly", title: "Every hour" },
+  { key: "*/15 * * * *", title: "Every 15 minutes" },
+  { key: "@daily", title: "Every day at midnight" },
+  { key: "0 2 * * *", title: "Every day at 2:00 am" },
+  { key: "0 9 * * 1", title: "Every Monday at 9:00 am" },
+  { key: "custom", title: "Another schedule" },
+] as const;
+/** The picker's key for a schedule: a preset when it is one, else Custom. */
+export const presetOf = (schedule: string): string =>
+  SCHEDULE_PRESETS.some((p) => p.key === schedule && p.key !== "custom") ? schedule : "custom";
+
+/** What a worker row says under its name. */
+export function serviceNote(v: ServiceOut): string {
+  return v.note ? v.note : SERVICE_WORD[v.state];
+}
+
+/** The size of a dump or a database: 48 MB, 1.2 GB. */
+export function sizeText(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return memText(bytes / (1024 * 1024));
+}
+
+/** The form's check before it asks the server, in one plain sentence; null when it is fine. */
+export function jobProblem(f: { name: string; schedule: string; command: string }): string | null {
+  if (f.name.trim() === "") return "Give the job a name.";
+  if (f.schedule.trim() === "") return "Say when it runs.";
+  if (f.command.trim() === "") return "Give the command to run.";
+  return null;
+}

@@ -100,15 +100,13 @@ export async function logsRead(
 }
 
 function scopeList(ctx: Ctx, siteId: string): ScopeOut[] {
-  const out: ScopeOut[] = st
-    .logScopes(ctx.db, siteId)
-    .map((s) => ({
-      scope: s.scope,
-      source: s.source,
-      title: titleOf(ctx, siteId, s.scope, s.source),
-      at: s.lastAt,
-      lines: s.lines,
-    }));
+  const out: ScopeOut[] = st.logScopes(ctx.db, siteId).map((s) => ({
+    scope: s.scope,
+    source: s.source,
+    title: titleOf(ctx, siteId, s.scope, s.source),
+    at: s.lastAt,
+    lines: s.lines,
+  }));
   // every deploy has a build log, even when its app printed nothing
   for (const d of many(
     ctx,

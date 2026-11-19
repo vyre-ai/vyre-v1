@@ -487,13 +487,18 @@ const backupOf = (r: Row): Backup => ({
 });
 export function insertBackup(db: OpsDb, b: Backup): void {
   db.run(
-    "INSERT INTO sites_backup (id, site_id, kind, state, by, at, pinned) VALUES (?, ?, ?, ?, ?, ?, 0)",
+    "INSERT INTO sites_backup (id, site_id, kind, state, by, at, ended_at, bytes, file_id, note, pinned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     b.id,
     b.siteId,
     b.kind,
     b.state,
     b.by,
     b.at,
+    b.endedAt ?? null,
+    b.bytes ?? null,
+    b.fileId ?? null,
+    b.note ?? null,
+    b.pinned ? 1 : 0,
   );
 }
 export function saveBackup(db: OpsDb, b: Backup, was: BackupState): boolean {

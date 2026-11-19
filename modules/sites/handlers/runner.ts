@@ -16,6 +16,7 @@ import { tarFiles } from "./tar.ts";
 import type { TarEntry } from "./tar.ts";
 import type { SitePlan } from "./plan.ts";
 import type { DockerStats } from "../ops/metrics.ts";
+import { untarFirst } from "../ops/tarread.ts";
 
 export interface Limits {
   cpus: number;
@@ -108,6 +109,8 @@ export interface Runner {
   removeAddon(siteId: string, kind: AddonKind): Promise<void>;
   /** run a command in a site's container, as its own user; the env values go only through the exec's environment */
   exec(containerId: string, cmd: string[], env: Record<string, string>): Promise<{ code: number; out: string }>;
+  /** one file a command wrote under /tmp/vyre-backup, as its bytes (Docker sends it inside a tar; the first file is returned) */
+  getFile(containerId: string, path: string): Promise<Uint8Array>;
   /** put one file into a container's folder */
   put(containerId: string, dir: string, name: string, bytes: Uint8Array): Promise<void>;
 }
@@ -768,6 +771,19 @@ export function dockerRunner(link: RunnerLink): Runner {
       const name = addonName(siteId, kind);
       await call({ method: "DELETE", path: `/containers/${name}`, query: { force: "true", v: "true" } });
       await call({ method: "DELETE", path: `/volumes/${name}-data` });
+    },
+
+    async getFile(containerId, path) {
+      const r = await call({
+        method: "GET",
+        path: `/containers/${containerId}/archive`,
+        query: { path },
+        timeoutMs: 10 * 60_000,
+      });
+      if (r.status !== 200) throw new Error(`Could not copy the file out: ${message(r.body, r.status)}`);
+      const file = untarFirst(r.body);
+      if (!file) throw new Error("The file was not in what the container sent.");
+      return file;
     },
 
     async put(containerId, dir, name, bytes) {

@@ -19,6 +19,11 @@ Area: sites. Risk: medium. Applies to: site.
 - portal.link_record
 - sites.addon_add
 - sites.addon_remove
+- sites.backup_create
+- sites.backup_delete
+- sites.backup_pin
+- sites.backup_restore
+- sites.backups_list
 - sites.build
 - sites.create
 - sites.db_import
@@ -26,6 +31,11 @@ Area: sites. Risk: medium. Applies to: site.
 - sites.deploy
 - sites.deploy_cancel
 - sites.env_set
+- sites.job_cancel
+- sites.job_create
+- sites.job_delete
+- sites.job_run
+- sites.job_update
 - sites.logs
 - sites.logs_read
 - sites.password_set
@@ -36,6 +46,10 @@ Area: sites. Risk: medium. Applies to: site.
 - sites.promote
 - sites.publish
 - sites.rollback
+- sites.service_add
+- sites.service_remove
+- sites.service_restart
+- sites.service_stop
 - sites.ship
 - sites.staging_password_set
 - sites.stop

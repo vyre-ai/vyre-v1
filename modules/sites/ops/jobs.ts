@@ -199,14 +199,47 @@ export function prune(runs: readonly Run[], keep: number = KEEP_RUNS): string[] 
   return ended.slice(keep).map((r) => r.id);
 }
 
-/** After a restart: what to do with every run the store says is not ended. Running runs are lost (their process is gone); queued runs wait or expire. */
-export function recover(runs: readonly Run[], now: number): { id: string; ev: RunEvent }[] {
+/** What to do with every run the store says is not ended, given the runs whose container is still there (`alive`): a running run with no container is lost (its process is gone, as after a restart), a queued run that waited too long expires, a fresh queued run waits. */
+export function recover(
+  runs: readonly Run[],
+  now: number,
+  alive: ReadonlySet<string> = new Set(),
+): { id: string; ev: RunEvent }[] {
   const out: { id: string; ev: RunEvent }[] = [];
   for (const r of runs) {
-    if (r.state === "running") out.push({ id: r.id, ev: { t: "lost", at: now } });
+    if (r.state === "running" && !alive.has(r.id)) out.push({ id: r.id, ev: { t: "lost", at: now } });
     else if (r.state === "queued" && now - r.queuedAt > QUEUE_MAX_MS)
       out.push({ id: r.id, ev: { t: "expire", at: now } });
   }
+  return out;
+}
+
+/** The words of a command a person typed: spaces separate, quotes keep words together, a backslash keeps the next character. `node sync.js --since "last week"` is four words. Null for an unclosed quote. */
+export function words(text: string): string[] | null {
+  const out: string[] = [];
+  let cur = "";
+  let has = false;
+  let q: string | null = null;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i] as string;
+    if (q) {
+      if (c === q) q = null;
+      else if (c === "\\" && q === '"' && i + 1 < text.length) cur += text[++i];
+      else cur += c;
+    } else if (c === '"' || c === "'") {
+      q = c;
+      has = true;
+    } else if (c === "\\" && i + 1 < text.length) {
+      cur += text[++i];
+      has = true;
+    } else if (/\s/.test(c)) {
+      if (has || cur !== "") out.push(cur);
+      cur = "";
+      has = false;
+    } else cur += c;
+  }
+  if (q) return null;
+  if (has || cur !== "") out.push(cur);
   return out;
 }
 

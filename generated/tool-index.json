@@ -8342,6 +8342,36 @@
     },
     {
       "deferred": false,
+      "name": "sites_backup_create",
+      "summary": "Back up the site's Postgres now. It runs in the background: read sites_backups_list to see it finish",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_backup_delete",
+      "summary": "Delete a backup and its file",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_backup_pin",
+      "summary": "Keep a backup for good (the clean-up never deletes a pinned one), or let it go again",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_backup_restore",
+      "summary": "Put a finished backup back: the site's database is made again from the dump, and everything in it now is replaced. Back up what is there first if it matters",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_backups_list",
+      "summary": "A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under two weeks old are kept",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_build",
       "summary": "Build the site from its repo (the site agent runs in the repo); test and verify",
       "toolset": "sites"
@@ -8438,6 +8468,48 @@
     },
     {
       "deferred": false,
+      "name": "sites_job_cancel",
+      "summary": "Stop a job run that is queued or going",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_job_create",
+      "summary": "Add a scheduled job to a deployed site: a command (for example `node scripts/sync-stock.js`) run on a cron schedule in the site's own image, with the site's variables. At most one run goes at a time; a slot that comes while the last run goes is skipped",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_job_delete",
+      "summary": "Delete a scheduled job and its history; a run that is going is stopped",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_job_run",
+      "summary": "Run a scheduled job now. Refused while one of its runs is still going",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_job_runs",
+      "summary": "The newest runs of a job (up to 50): when, how long, how it ended and one sentence for any end that is not a success. Its output is in sites_logs_read with source jobs and the run's id as scope",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_job_update",
+      "summary": "Change a scheduled job: its name, schedule, command, time zone, time limit, or pause and resume it. Resuming does not run what was missed",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_jobs_list",
+      "summary": "A site's scheduled jobs: each runs a command in the site's own image on a schedule, with the site's environment, and keeps a history",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_list",
       "summary": "List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder",
       "toolset": "sites"
@@ -8510,8 +8582,38 @@
     },
     {
       "deferred": false,
+      "name": "sites_service_add",
+      "summary": "Add a worker to a deployed site: a command run in the site's own image, with the site's variables and no port. It starts at once, restarts itself when it crashes, and moves to the newest deploy when the site is deployed again",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_service_identity",
       "summary": "The site service identity and its grants (capped by the owner)",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_service_remove",
+      "summary": "Remove a worker",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_service_restart",
+      "summary": "Restart a worker now, clearing a crash loop that stopped it",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_service_stop",
+      "summary": "Stop a worker and keep it stopped until it is restarted",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_services_list",
+      "summary": "A site's workers: processes of its image that stay up without a port (a queue consumer, a bot). A crashing one waits longer each time and stops for good after eight crashes in ten minutes",
       "toolset": "sites"
     },
     {

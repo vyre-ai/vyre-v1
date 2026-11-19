@@ -409,7 +409,12 @@ export function judge(
 
 /** What a site's container may be asked, by method and query. */
 export function siteAllows(action: string, method: string, query: URLSearchParams): boolean {
-  if (action === "archive") return method === "PUT" && query.get("path") === "/tmp";
+  if (action === "archive")
+    return (
+      (method === "PUT" && query.get("path") === "/tmp") ||
+      // a database dump written under /tmp/vyre-backup by a backup, read out once
+      (method === "GET" && /^\/tmp\/vyre-backup[A-Za-z0-9._-]{0,64}$/.test(query.get("path") ?? ""))
+    );
   return action !== "wait";
 }
 

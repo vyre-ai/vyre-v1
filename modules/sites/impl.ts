@@ -27,13 +27,15 @@ import { configureDomainEdge, configureRoutes, routeHandlers } from "./handlers/
 import { domainRouteHandlers } from "./handlers/route-domains.ts";
 import { releaseHandlers } from "./handlers/release.ts";
 import { opsHandlers } from "./handlers/ops.ts";
+import { jobHandlers } from "./handlers/ops-jobs.ts";
+import { backupHandlers } from "./handlers/ops-backups.ts";
 export { refreshDomainRoutes } from "./handlers/route-domains.ts";
 export { opsTickOf as opsTick, accessLineOf as accessLine } from "./handlers/ops-host.ts";
 
 // A site is a route (owner, 2 Nov): handlers/route.ts is what ships. The build pipeline below it (deploy, previews, staging, promote, site tables) is dormant and deferred: each of its capabilities stays registered and
 // refuses with "Not in this version yet" (ruling 60, docs/deferred.md). Nothing wires configureSites or dockerRuntime.
 // Sites Vyre builds and runs (owner, 3 Nov): deploy, rollback, env from the Vault, Postgres and Redis, password and Space sign-in at a site's own address (handlers/release.ts).
-const live = { ...routeHandlers, ...domainRouteHandlers, ...releaseHandlers, ...opsHandlers };
+const live = { ...routeHandlers, ...domainRouteHandlers, ...releaseHandlers, ...opsHandlers, ...jobHandlers, ...backupHandlers };
 const dormant = registry.capabilities.filter((c) => c.module === "sites" && !(c.name in live)).map((c) => c.name);
 export const handlers = { ...deferredHandlers(dormant), ...live };
 export const consumers = {};
