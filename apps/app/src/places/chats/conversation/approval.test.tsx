@@ -700,7 +700,13 @@ test("a connection the person cannot see gets its own words and no retry; and wh
   const root1 = await mount(createRoot, <ApprovalCard taskId="tsk_dn" agent="Scout" agentId="agt_1" data={denied} />);
   await flush();
   assert.match(textOf(root1), /You can't see this connection\. Ask its owner to allow it\./);
-  await press(find(root1, "approval-allow-tsk_dn"));
+  const allow1 = find(root1, "approval-allow-tsk_dn")!;
+  assert.ok(
+    allow1.props["aria-disabled"] === true || allow1.props["disabled"] === true,
+    "Allow is off, not just explained",
+  );
+  assert.ok(find(root1, "approval-deny-tsk_dn"), "Deny is still there");
+  await press(allow1);
   await flush();
   assert.equal(calls1.filter((c) => c === "connections.get").length, 1, "no retry of a refused read");
   assert.ok(!calls1.some((c) => ["tasks.act", "automations.key_hosts.allow"].includes(c)));
@@ -718,6 +724,53 @@ test("a connection the person cannot see gets its own words and no retry; and wh
     2,
     "one reload, not one per press: Allow is off while it runs",
   );
+});
+
+test("when the connection took the list but the Vault's save failed, the card says exactly that and the hold stays open", async () => {
+  const calls: string[] = [];
+  const held = {
+    task: {
+      id: "tsk_sf",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
+        },
+      ],
+      actions: [{ key: "approve", label: "Approve" }],
+    },
+  };
+  const d = {
+    call: async (cap: string) => {
+      calls.push(cap);
+      if (cap === "tasks.get") return held;
+      if (cap === "automations.key_hosts.pending_bind")
+        return {
+          found: true,
+          items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+          hosts: ["*.app.n8n.cloud"],
+        };
+      if (cap === "connections.get") return { connection: { pendingHosts: ["domain:*.app.n8n.cloud:443"] } };
+      if (cap === "automations.key_hosts.allow") throw new Error("vault down");
+      return {};
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_sf" agent="Scout" agentId="agt_1" data={d} />);
+  await flush();
+  await press(find(root, "approval-allow-tsk_sf"));
+  await flush();
+  assert.match(textOf(root), /Where the key may go is saved\. Saving the key's approval failed\. Try again\./);
+  assert.ok(calls.includes("connections.approve_hosts"), "the connection's record took the list");
+  assert.ok(!calls.includes("tasks.act"), "the hold is still open");
 });
 
 test("a card with no capability, no ask and no question is drawn as its plain words: no Allow, no Deny; a plain question reads as the question", async () => {

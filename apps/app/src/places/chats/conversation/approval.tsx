@@ -78,6 +78,7 @@ const clock = (at: number, timeZone?: string): string => {
 };
 
 const PENDING_LINE = "Couldn't load where the key may go. Try again.";
+const SAVE_FAILED_AFTER_RECORD = "Where the key may go is saved. Saving the key's approval failed. Try again.";
 const DENIED_LINE = "You can't see this connection. Ask its owner to allow it.";
 const CHANGED_LINE = "This changed since you looked. Check the list and press Allow again.";
 
@@ -451,13 +452,24 @@ export function ApprovalCard({
       void record()
         .then(async (done) => {
           if (!done) return;
-          await Promise.all(
-            keyBind.items.flatMap((i) =>
-              keyBind.hosts.map((host) =>
-                Promise.resolve(data.call("automations.key_hosts.allow", { vaultItemId: i.itemId, host })),
+          try {
+            await Promise.all(
+              keyBind.items.flatMap((i) =>
+                keyBind.hosts.map((host) =>
+                  Promise.resolve(data.call("automations.key_hosts.allow", { vaultItemId: i.itemId, host })),
+                ),
               ),
-            ),
-          );
+            );
+          } catch {
+            // the connection's record took the list, the Vault's did not: say exactly that, so the retry is understood
+            setBusy(false);
+            setLine(
+              typeof connectionId === "string" && pending !== null
+                ? SAVE_FAILED_AFTER_RECORD
+                : "Could not save where the key may go. Try again.",
+            );
+            return;
+          }
           answerTask(key, note);
         })
         .catch(() => {
@@ -617,10 +629,24 @@ export function ApprovalCard({
         <CardActions
           busy={busy}
           secondary={[
-            ...(allowable ? [{ label: "Always allow", onPress: always, testID: `approval-always-${taskId}` }] : []),
+            ...(allowable
+              ? [
+                  {
+                    label: "Always allow",
+                    onPress: always,
+                    testID: `approval-always-${taskId}`,
+                    disabled: pending === "denied",
+                  },
+                ]
+              : []),
             { label: "Deny", onPress: () => setDenying(true), testID: `approval-deny-${taskId}` },
           ]}
-          primary={{ label: "Allow", onPress: () => act("approve"), testID: `approval-allow-${taskId}` }}
+          primary={{
+            label: "Allow",
+            onPress: () => act("approve"),
+            testID: `approval-allow-${taskId}`,
+            disabled: pending === "denied",
+          }}
           error={line}
         />
       )}
