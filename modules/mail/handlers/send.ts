@@ -373,7 +373,11 @@ function authorizeSender(ctx: SendCtx, box: Row): void {
   const resource = { type: "mailbox", id: str(box, "id") };
   if (!perm) return allow(ctx, "use", resource);
   const decision = ctx.authorize({ perm, level: "use" }, resource);
-  if (decision.effect !== "allow") throw fail("permission.no_grant", ctx.trace.traceId, { details: { perm } });
+  if (decision.effect === "allow") return;
+  // Per-address control (owner, 19 Nov 2026): a share of this one inbox at use level (access.share) is enough to send as it. comms.shared_send stays the blanket for people who run every shared inbox.
+  // The check is on this inbox's own resource, so a share to one address never lets anyone send as another.
+  if (ctx.authorize({ perm: null, level: "use" }, resource).effect === "allow") return;
+  throw fail("permission.no_grant", ctx.trace.traceId, { details: { perm } });
 }
 
 const memberProvider = (box: Row): boolean => ["google", "microsoft"].includes(str(box, "provider"));

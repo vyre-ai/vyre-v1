@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { send, sendAs, sendPreview } from "../handlers/send.ts";
-import { codeOf } from "../fixtures/harness.ts";
+import { codeOf, seedMailbox } from "../fixtures/harness.ts";
 import { rig, sendIn } from "./send.rig.test.ts";
 
 async function refusal(p: Promise<unknown>): Promise<{ code: string; message: string }> {
@@ -69,7 +69,8 @@ test("a chosen sender the caller may no longer use is refused as not allowed", a
     (await refusal(send(r.ctx, sendIn({ mailboxId: "mbx_maya", senderId: "mbx_maya" })))).code,
     "permission.no_grant",
   );
-  const shared = rig({ deniedPerms: ["comms.shared_send"] });
+  // lacking the blanket comms.shared_send and with no share of this inbox: refused
+  const shared = rig({ deniedPerms: ["comms.shared_send"], denied: new Set(["mbx_hello"]) });
   assert.equal((await refusal(send(shared.ctx, sendIn({ senderId: "mbx_hello" })))).code, "permission.no_grant");
   assert.equal(r.sent().length + shared.sent().length, 0);
 });
@@ -123,4 +124,21 @@ test("send_as and the preview take a senderId the same way", async () => {
   );
   assert.equal(down.code, "validation.bad_input", "send_as answers with its declared code; the message is the same");
   assert.match(down.message, /needs to be reconnected/);
+});
+
+test("a share of one shared inbox is enough to send as it, without the blanket comms.shared_send, and lets nobody send as another inbox", async () => {
+  // the caller lacks comms.shared_send; hello@ is shared with them, support@ is not
+  const r = rig({ deniedPerms: ["comms.shared_send"], denied: new Set(["mbx_support"]) });
+  seedMailbox(r.h, "mbx_support", "support@vyre.test", { kind: "shared", provider: "inbound_only" });
+  assert.equal((await send(r.ctx, sendIn({ mailboxId: "mbx_hello", senderId: "mbx_hello" }))).status, "sent");
+  assert.equal(r.sent().length, 1);
+  const other = await refusal(send(r.ctx, sendIn({ mailboxId: "mbx_support", senderId: "mbx_support" })));
+  assert.equal(other.code, "permission.no_grant");
+  assert.equal(r.sent().length, 1, "nothing went out as support@");
+});
+
+test("comms.shared_send alone still sends as any shared inbox", async () => {
+  const r = rig();
+  seedMailbox(r.h, "mbx_support", "support@vyre.test", { kind: "shared", provider: "inbound_only" });
+  assert.equal((await send(r.ctx, sendIn({ mailboxId: "mbx_support", senderId: "mbx_support" }))).status, "sent");
 });

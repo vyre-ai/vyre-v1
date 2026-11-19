@@ -264,6 +264,8 @@ test("logout closes the socket when the goodbye fails and is safe to repeat", as
 test("the handler map covers exactly the capabilities this module has built, each in the registry", () => {
   const names = Object.keys(handlers).sort();
   const core = [
+    "mail.address.add",
+    "mail.address.list",
     "mail.connect",
     "mail.draft",
     "mail.drafts.discard",
@@ -273,6 +275,10 @@ test("the handler map covers exactly the capabilities this module has built, eac
     "mail.send",
     "mail.send_as",
     "mail.send_preview",
+    "mail.setup.status",
+    "mail.smtp.get",
+    "mail.smtp.set",
+    "mail.smtp.verify",
     "mail.sync_now",
     "mail.unsubscribe",
   ];

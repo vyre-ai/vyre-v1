@@ -87,7 +87,11 @@ export function EmailPage(): ReactElement {
             ))}
           </Group>
         )}
-        <Button label="Add domain" testID="email-add-domain" onPress={() => data.nav.openPage("domains", { create: "true" })} />
+        <Button
+          label="Add domain"
+          testID="email-add-domain"
+          onPress={() => data.nav.openPage("domains", { create: "true" })}
+        />
       </ObjectSection>
       {query.error || action.note ? <Note>{query.error || action.note}</Note> : null}
     </View>
@@ -111,11 +115,17 @@ function SmtpForm({ smtp, onSaved }: { smtp: Setup["smtp"]; onSaved(): void }): 
   const canSave = host.trim() !== "" && validPort && username.trim() !== "" && handle.trim() !== "";
   const save = async (): Promise<void> => {
     setResult("");
-    const out = await action.run("mail.smtp.set", { host: host.trim(), port: portNumber, username: username.trim(), passwordHandle: handle.trim() }, "Mail server saved");
+    const out = await action.run(
+      "mail.smtp.set",
+      { host: host.trim(), port: portNumber, username: username.trim(), passwordHandle: handle.trim() },
+      "Mail server saved",
+    );
     if (out) setHandle("");
   };
   const test = async (): Promise<void> => {
-    const out = await action.run<CapMap["mail.smtp.verify"]["out"]>("mail.smtp.verify", {}, (o) => (o.ok ? "Connected and signed in." : o.message));
+    const out = await action.run<CapMap["mail.smtp.verify"]["out"]>("mail.smtp.verify", {}, (o) =>
+      o.ok ? "Connected and signed in." : o.message,
+    );
     if (out) setResult(out.ok ? "Connected and signed in." : out.message);
   };
   return (
@@ -123,9 +133,27 @@ function SmtpForm({ smtp, onSaved }: { smtp: Setup["smtp"]; onSaved(): void }): 
       <TextBox label="Server" testID="smtp-host" value={host} onChange={setHost} />
       <TextBox label="Port" testID="smtp-port" value={port} onChange={setPort} />
       <TextBox label="Username" testID="smtp-username" value={username} onChange={setUsername} />
-      <TextBox label="Password handle in the Vault" testID="smtp-handle" value={handle} onChange={setHandle} hint="Keep the password in the Vault and give its handle, like #Smtp_Password." />
-      <Button label="Save" testID="smtp-save" disabled={!canSave || action.busy} why={!canSave ? "Fill in every field" : undefined} onPress={() => void save()} />
-      <Button label="Test server" testID="smtp-test" disabled={!smtp.configured || action.busy} why={!smtp.configured ? "Save the server first" : undefined} onPress={() => void test()} />
+      <TextBox
+        label="Password handle in the Vault"
+        testID="smtp-handle"
+        value={handle}
+        onChange={setHandle}
+        hint="Keep the password in the Vault in an item whose name starts with Smtp, like #Smtp_Password, and give that handle. Give it again whenever you change the server, port or username."
+      />
+      <Button
+        label="Save"
+        testID="smtp-save"
+        disabled={!canSave || action.busy}
+        {...(!canSave ? { why: "Fill in every field" } : {})}
+        onPress={() => void save()}
+      />
+      <Button
+        label="Test server"
+        testID="smtp-test"
+        disabled={!smtp.configured || action.busy}
+        {...(!smtp.configured ? { why: "Save the server first" } : {})}
+        onPress={() => void test()}
+      />
       {smtp.state === "failed" && smtp.detail && !result ? <Note>{smtp.detail}</Note> : null}
       {result ? <Note testID="smtp-result">{result}</Note> : null}
     </ObjectSection>
