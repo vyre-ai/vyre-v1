@@ -7,7 +7,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useConsoleData } from "../../shell/data.tsx";
 import { Empty, Group, Section } from "../../shell/ui.tsx";
 import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
-import { useCommsRows, CommsList, CommsObject, providerName } from "./common.tsx";
+import { useCommsRows, CommsList, CommsObject } from "./common.tsx";
 import { PRIVACY_OPTIONS } from "./model.ts";
 type Mailbox = CapMap["mail.mailbox.get"]["out"]["mailbox"];
 const providerName = (provider: string): string =>
