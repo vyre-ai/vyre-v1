@@ -879,7 +879,7 @@ export default defineManifest({
     write("memory.promotion.approve", "Approve a promotion request (the approver action on its task)", {
       in: { promotionId },
       out: { fact: factRow },
-      gate: { act: "send", when: "gate.by_actor(input)" },
+      gate: { act: "admit", when: "gate.by_actor(input)" },
       emits: ["memory.promoted"],
       tool: "memory",
       audit: "sensitive",

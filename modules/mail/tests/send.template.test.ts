@@ -26,7 +26,7 @@ function withRecords(r: Rig): Rig {
 const base = { document_title: "Service agreement", sender_name: "Pat Lee", sign_link: "https://sign.vyre.test/a" };
 const templated = (over: Record<string, unknown> = {}) => {
   const { subject: _s, text: _t, ...rest } = sendIn();
-  return { ...rest, templateKey: "signature.request", vars: base, ...over } as ReturnType<typeof sendIn>;
+  return { ...rest, templateKey: "signature.request", vars: base, ...over } as unknown as ReturnType<typeof sendIn>;
 };
 
 test("a template send fills the subject and the body, from the record and the values, and goes out once", async () => {

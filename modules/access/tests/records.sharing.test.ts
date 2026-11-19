@@ -377,6 +377,29 @@ test("a record's Files folder follows its record: who cannot see the record cann
   assert.equal(await code(audienceSet(r.ctx, { resource: one, follows: "rec_two" })), "validation.bad_input");
 });
 
+test("hanging a folder under a record needs Manage on the folder from any caller but the host's own services: a form, a site or an Automation's service is refused", async () => {
+  const r = rig();
+  r.store.resources.set("fld_deal", {
+    id: "fld_deal",
+    type: "folder",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+    row: { name: "Acme files", itemType: "file", scope: "space" },
+  });
+  r.store.bump();
+  const folder = { type: "folder", id: "fld_deal" };
+  const asService = (id: string): ShareCtx => ({ ...r.ctx, principal: { kind: "service", id } });
+  for (const id of ["svc_form_x", "svc_site_x", `svc_${"a1".repeat(16)}`, "svc_unknown"])
+    assert.equal(
+      await code(audienceSet(asService(id), { resource: folder, follows: "rec_one" })),
+      "permission.no_grant",
+      `${id} is refused`,
+    );
+  await audienceSet(asService("svc_host"), { resource: folder, follows: "rec_one" });
+});
+
 test("an agent changes who a type is open to on behalf of an admin, and is refused on behalf of a member without manage; with no one behind it it is refused", async () => {
   const r = rig();
   putPrincipal(r.store, { id: "agt_helper", kind: "agent", name: "Helper", owner: "usr_ada" });

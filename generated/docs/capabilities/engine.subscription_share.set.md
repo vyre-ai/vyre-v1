@@ -11,7 +11,7 @@ Let the Space run work on my subscription (server runs for my chats, routines an
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | send when gate.by_actor(input) |
+| Gate | admit when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

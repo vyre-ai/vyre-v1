@@ -11,7 +11,7 @@ Give a person, agent or group a project role: Lead, Member, Reviewer or Guest (a
 | Grant level | manage |
 | Risk | medium |
 | Resource | project (/projectId) |
-| Gate | send when gate.by_actor(input) |
+| Gate | admit when gate.by_actor(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

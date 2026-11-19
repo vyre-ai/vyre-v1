@@ -25,6 +25,8 @@ const DOES: Record<Rule["act"], string> = {
   signature_send: "send for signature to",
   spend_raise: "raise the spend limit of",
   signin_change: "change the sign-in of",
+  admit: "let in",
+  access_change: "change the access of",
   approve: "approve",
   github_approval: "use GitHub for",
   agent_erase: "delete for good",

@@ -386,15 +386,17 @@ export async function membersAdd(
   if (t.kind === "channel" && t.channelId !== undefined && channelManageDenied(ctx, t.channelId))
     raise(ctx, "permission.role_lacks_permission", "Only a channel manager adds people to a channel.");
   const asker = askerOf(ctx);
+  // "Include earlier messages" is a person's choice: an agent, an outside actor or an Automation step that asks for it gets the default (reading from now on in a private chat), never more history for someone
+  const explicitStart = ctx.principal.kind === "person" ? input.fromStart : undefined;
   // Owner ruling (4 Nov 2026): a private chat gains people, and becomes a group chat. The newcomer reads from now on unless the adder says "Include earlier messages"; a goal chat shows its history.
   // A channel's own people keep reading everything it holds.
-  const fromStart = input.fromStart ?? (!isPrivateRoot(root) || root.scopeType === "goal");
+  const fromStart = explicitStart ?? (!isPrivateRoot(root) || root.scopeType === "goal");
   // nobody grants more than they read themselves: "earlier messages" means from the adder's own floor (0 when the adder reads all of it)
   const adderFloor = readFloor(ctx, root);
   const known = isMember(ctx.db, t.id, input.personId);
   if (known) {
     // asked again with earlier messages on, the owner widens a person's reading, never beyond the owner's own floor. A member who is not the owner changes nobody's floor, their own included.
-    if (input.fromStart === true) {
+    if (explicitStart === true) {
       const current = floorOfPerson(ctx, root.id, input.personId);
       if (current > 0) {
         // widening someone who is already in is the owner's alone: a plain refusal, never a quiet no-op (a client shows it)

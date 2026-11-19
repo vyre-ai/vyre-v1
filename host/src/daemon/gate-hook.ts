@@ -10,7 +10,7 @@ import { CARRIES_MARK, HELD_FROM_AUTOMATION_SET } from "../../../lib/automation-
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
-import { isTenantService } from "../../../lib/trust.ts";
+import { isHostOwnService } from "../../../lib/trust.ts";
 import { KEY_HOST_CAPS, carriesHandle, hostOfUrl, keyReadHost, keySendOf } from "../../../lib/key-target.ts";
 import { resolveKeyRef } from "../seams/key-ref.ts";
 import { HostError, fail } from "../routes/errors.ts";
@@ -102,6 +102,12 @@ export function whenHolds(when: string | undefined, input: unknown, seed: Pick<C
 /** `fn.name(input.field)`: a condition the module behind `fn.name` evaluates. */
 const MODULE_WHEN = /^\s*([a-z_]+\.[a-z_]+)\(\s*input(?:\.[A-Za-z_]+)*\s*\)\s*$/;
 
+/** A refusal the key rule chose to make: an error carrying a code and details.refusal === true. Read by shape, not by class, so a copy of the error class (another module graph, a serialised error) counts too. */
+export function isMarkedRefusal(e: unknown): boolean {
+  const err = (e as { error?: { code?: unknown; details?: { refusal?: unknown } } } | null)?.error;
+  return typeof err?.code === "string" && err.details?.refusal === true;
+}
+
 async function appliesWhen(
   d: Pick<GateHookDeps, "evaluators">,
   when: string | undefined,
@@ -119,7 +125,7 @@ async function appliesWhen(
     return await evaluate(input, seed);
   } catch (e) {
     // a refusal the condition itself marked (details.refusal: an agent that may not use the key at all) is the answer; every other failure, a HostError from an inner call included, holds
-    if (e instanceof HostError && (e.error.details as { refusal?: unknown } | undefined)?.refusal === true) throw e;
+    if (isMarkedRefusal(e)) throw e;
     return true;
   }
 }
@@ -163,12 +169,12 @@ function threadsIn(output: unknown): string[] {
   return [...out];
 }
 
-/** An agent, an outside actor, an Automation step, or a service a tenant can make: not a person and not a service the host runs. */
+/** An agent, an outside actor, or any service that is not one the host itself runs (an allow-list: a tenant's, a legacy or an unknown service id is held; svc_host, svc_engine, svc_sync are not). */
 export function actorLike(p: { kind: string; id: string }): boolean {
   return (
     p.kind === "agent" ||
     p.kind === "actor" ||
-    (p.kind === "service" && (String(p.id).startsWith("aut_") || isTenantService({ kind: "service", id: p.id })))
+    (p.kind === "service" && !isHostOwnService({ kind: "service", id: p.id }))
   );
 }
 
@@ -470,6 +476,12 @@ export function moduleWhens(
   // an invitation, a role, a grant or another way in made by an agent, an outside actor, an Automation step or a service a tenant can make (svc_form_*, svc_site_*, svc_<32 hex>) is held; the host's own
   // services (svc_host, svc_engine, svc_sync: the seed and the join flow among them) are not. The setup grant ("Act for me, including setup", owner ruling 3 Nov) names these, so an outside agent under it is not held.
   out["gate.by_actor"] = (_input, seed) => actorLike(seed.principal) && seed.setupGrant !== true;
+  // a Vault key handed to someone is a way in to whatever it opens: held for an agent, outside actor, Automation step or tenant service, on vault.share and on access.share of a Vault item or folder (a share of anything
+  // else inside the Space stays under the caller's own access); the card names the key and who gets it (lib/hold-words.ts)
+  out["gate.vault_share_by_actor"] = (input, seed) => {
+    const t = (input as { resource?: { type?: unknown } } | null)?.resource?.type;
+    return actorLike(seed.principal) && seed.setupGrant !== true && (t === "vault_item" || t === "vault_folder");
+  };
   // a changeset's approval is a reviewer's: any agent is held, push or not; a person's own approval is held only for a push to a protected branch
   out["changesets.agent_or_push"] = (input, seed) =>
     actorLike(seed.principal) || (input as { push?: unknown } | null)?.push === true;

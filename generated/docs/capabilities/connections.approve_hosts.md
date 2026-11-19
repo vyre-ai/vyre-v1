@@ -11,7 +11,7 @@ The person who owns a connection allows the hosts its connector now calls (it ga
 | Grant level | manage |
 | Risk | medium |
 | Resource | connection (/connectionId) |
-| Gate | send when gate.by_actor(input) |
+| Gate | admit when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

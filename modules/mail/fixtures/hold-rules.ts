@@ -14,6 +14,7 @@ export const HOLD_WHENS: ReadonlySet<string> = new Set([
   "mail.non_sync_actor(input)",
   "vault.key_host_unapproved(input)",
   "gate.by_actor(input)",
+  "gate.vault_share_by_actor(input)",
   "changesets.agent_or_push(input)",
 ]);
 /** A gate with a known holding condition, or a Gate on every call (any act but "none"). */

@@ -288,7 +288,7 @@ export const installCapabilities: CapabilityDef[] = [
     {
       in: { skillId: skoId, agentId: id.agent, level: t.nullable(level) },
       out: { grants: t.arr(grant) },
-      gate: { act: "send", when: "gate.by_actor(input)" },
+      gate: { act: "admit", when: "gate.by_actor(input)" },
       perm: null,
       level: "edit",
       idem: "none",

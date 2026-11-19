@@ -135,6 +135,8 @@ test("steps, triggers and connectors each have a declaring module and an example
 
 test("gate acts follow spec 2.14", () => {
   assert.deepEqual(gateActs.map((g) => g.key).sort(), [
+    "access_change",
+    "admit",
     "agent_erase", // 16 Nov 2026: deleting an agent for good, a person's press only (signed in docs/frozen/capabilities.md)
     "approve",
     "connection_change",

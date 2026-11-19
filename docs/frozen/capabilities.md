@@ -743,3 +743,9 @@ Signed: lead, 17 Nov 2026
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: lead, 17 Nov 2026
+
+## 19 Nov 2026: two new gate acts, admit and access_change (lane r42-email)
+
+Two acts join the Gate's list (modules/gate/projections.ts, manifests/gate.ts, docs/frozen/kinds.md). `admit` ("Let someone in or change who can reach what", medium, approver the asker) is held for an agent, an outside actor, an Automation step and a service a tenant can make (svc_form_*, svc_site_*, svc_<32 hex>) on invitations, join links, join requests, reactivate, suspend, members and groups, grants, role assignment, skills.grant, project members, server join codes, host approval of a connection, memory promotion, meeting close-out, Gate grants and the subscription share. `access_change` ("Change the rules of access", high, approver role:admin) always stops for such a caller, in every mode, like signin_change: access.policies.set, access.exceptions.set, access.actors.create, access.roles.create, update and apply, chat.approve_plan. Neither is in OUTWARD_ACTS (lib/grants.ts), so a turn's grant for an outward act ("email Sarah") can never lift them. A person's own press is never held; the host's own services (svc_host, svc_engine, svc_sync) are not held; an outside agent under the setup grant is not held (its call runs as the person who gave it). `spaces.transfer_ownership` is held with the existing act `transfer`. No capability was added or removed.
+
+Signed: pending, lead

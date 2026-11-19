@@ -381,7 +381,7 @@ test("through the real Gate: a provider-level route or domain write, and the mai
         throw new Error(`${name}: ${e instanceof HostError ? JSON.stringify(e.error) : String(e)}`);
       });
     assert.equal(held.status, "held", `${name}: an agent is held`);
-    assert.deepEqual(asAgent.parked, [{ cap: name, act: name === "changesets.approve" ? "push_protected" : "send" }]);
+    assert.deepEqual(asAgent.parked, [{ cap: name, act: actOfCap(name) }]);
     assert.deepEqual(asAgent.ran, [], `${name}: nothing ran before a person said yes`);
     const asPerson = rig();
     const one = await asPerson.invoke(name, { ...INPUT[name] }, seed("usr_admin")).catch((e: unknown) => {
@@ -512,7 +512,7 @@ test("through the real Gate: an agent changing where calls, texts, voicemail or 
         throw new Error(`${name}: ${e instanceof HostError ? JSON.stringify(e.error) : String(e)}`);
       });
     assert.equal(held.status, "held", `${name}: an agent is held`);
-    assert.deepEqual(asAgent.parked, [{ cap: name, act: name === "changesets.approve" ? "push_protected" : "send" }]);
+    assert.deepEqual(asAgent.parked, [{ cap: name, act: actOfCap(name) }]);
     assert.deepEqual(asAgent.ran, [], `${name}: nothing ran before a person said yes`);
     const asPerson = rig();
     assert.equal(
@@ -534,12 +534,12 @@ test("through the real Gate: an invitation by an agent is held unless the person
   const at = async (principal: { kind: string; id: string }): Promise<unknown> =>
     await r.gate.applies(r.defOf("members.invites.create"), input, { space: "spc_1", principal } as never);
   assert.equal(
-    await at({ kind: "service", id: "svc_seed" }),
+    await at({ kind: "service", id: "svc_host" }),
     null,
     "the host's own service (the seed, the join flow) is not an actor",
   );
-  assert.deepEqual(await at({ kind: "service", id: "aut_1" }), { act: "send" }, "an Automation step is held");
-  assert.deepEqual(await at({ kind: "actor", id: "act_1" }), { act: "send" }, "an outside actor is held");
+  assert.deepEqual(await at({ kind: "service", id: "aut_1" }), { act: "admit" }, "an Automation step is held");
+  assert.deepEqual(await at({ kind: "actor", id: "act_1" }), { act: "admit" }, "an outside actor is held");
   const granted = rig();
   assert.equal(
     (
@@ -592,6 +592,9 @@ function keyWorld(access: "allow" | "deny" = "allow") {
     } satisfies RigOptions,
   };
 }
+/** The act a capability's own manifest names for its Gate. */
+const actOfCap = (name: string): string =>
+  (registry.capabilities.find((c) => c.name === name) as unknown as { gate?: { act?: string } }).gate?.act ?? "";
 const asAgent = (id = "agt_bot") => seed(id, "agent", { actingFor: "usr_admin" });
 
 test("through the real Gate: an agent sending a Vault key to a new host is held, a person's approval makes that host flow next time, a different host is held again, and a person is one step", async () => {
@@ -713,11 +716,10 @@ test("a service a tenant can make (a form, a site, an Automation's own service) 
     await r.gate.applies(r.defOf("members.invites.create"), INPUT["members.invites.create"], {
       principal: { kind, id },
     } as never);
-  for (const id of ["svc_form_x", "svc_site_x", `svc_${"a1".repeat(16)}`, "aut_1"])
-    assert.deepEqual(await at(id), { act: "send" }, `${id} is held`);
-  for (const id of ["svc_host", "svc_engine", "svc_sync", "svc_seed"])
-    assert.equal(await at(id), null, `${id} is one step`);
-  assert.deepEqual(await at("act_1", "actor"), { act: "send" });
+  for (const id of ["svc_form_x", "svc_site_x", `svc_${"a1".repeat(16)}`, "aut_1", "svc_legacy_thing", "svc_seed"])
+    assert.deepEqual(await at(id), { act: "admit" }, `${id} is held`);
+  for (const id of ["svc_host", "svc_engine", "svc_sync"]) assert.equal(await at(id), null, `${id} is one step`);
+  assert.deepEqual(await at("act_1", "actor"), { act: "admit" });
   assert.equal(await at("usr_admin", "person"), null);
   // a changeset's approval: any agent is held with or without a push; a person only for a push
   const c = rig();
@@ -762,6 +764,56 @@ test("a key in a shape the rule cannot read holds an agent (it fails closed), an
   );
 });
 
+test("handing a Vault key to someone is held for an agent on vault.share and on access.share of a Vault item or folder; a share of anything else, and a person's own, are not", async () => {
+  const r = rig();
+  const def = (n: string) => registry.capabilities.find((c) => c.name === n) as unknown as CapabilityDef;
+  const share = (type: string) => ({
+    resource: { type, id: "vit_crm" },
+    subject: { kind: "agent", id: "agt_other" },
+    level: "use",
+    idempotencyKey: "vs-1",
+  });
+  const at = async (n: string, input: unknown, principal: { kind: string; id: string }) =>
+    await r.gate.applies(def(n), input, { principal } as never);
+  const agent = { kind: "agent", id: "agt_bot" };
+  assert.deepEqual(await at("vault.share", share("vault_item"), agent), { act: "admit" });
+  assert.deepEqual(await at("access.share", share("vault_folder"), agent), { act: "admit" });
+  assert.equal(
+    await at("access.share", share("record"), agent),
+    null,
+    "a share of a record stays under the caller's access",
+  );
+  assert.equal(await at("vault.share", share("vault_item"), { kind: "person", id: "usr_admin" }), null);
+  assert.deepEqual(await at("vault.share", share("vault_item"), { kind: "service", id: "svc_form_x" }), {
+    act: "admit",
+  });
+});
+
+test("a marked refusal passes through the Gate whatever class the error is; an unmarked one, of any class, holds", async () => {
+  const def = { name: "x.y", effects: "write", gate: { act: "send", when: "x.y(input)" } } as unknown as CapabilityDef;
+  const gateWith = (thrown: unknown) =>
+    createGateHook({
+      call: async (cap: string) => (cap === "gate.effective_rule" ? { hold: true } : null),
+      unseal: () => new Uint8Array(),
+      now: () => 1,
+      evaluators: {
+        "x.y": () => {
+          throw thrown;
+        },
+      },
+    } as never);
+  const seedOf = { principal: { kind: "agent", id: "agt_bot" } } as never;
+  const marked = { error: { code: "permission.no_grant", message: "no", details: { refusal: true } } };
+  await assert.rejects(
+    async () => await gateWith(marked).applies(def, {}, seedOf),
+    (e: unknown) => e === marked,
+  );
+  assert.deepEqual(await gateWith({ error: { code: "internal.unavailable", details: {} } }).applies(def, {}, seedOf), {
+    act: "send",
+  });
+  assert.deepEqual(await gateWith(new Error("boom")).applies(def, {}, seedOf), { act: "send" });
+});
+
 test("an evaluator whose inner call fails with a refusal still holds: only a refusal the key rule marks is passed through", async () => {
   const read = registry.capabilities.find((c) => c.name === "automations.read_link") as unknown as CapabilityDef;
   const down = rig({
@@ -803,10 +855,6 @@ test("through the real Gate: an Automation's step is held on a pause, resume or 
       `${name}: an Automation's step is held`,
     );
     assert.equal(await at({ kind: "person", id: "usr_admin" }), null, `${name}: a person is one step`);
-    assert.equal(
-      await at({ kind: "service", id: "svc_google_sync" }),
-      null,
-      `${name}: the Google sync's own service is one step`,
-    );
+    assert.equal(await at({ kind: "service", id: "svc_host" }), null, `${name}: the host's own service is one step`);
   }
 });
