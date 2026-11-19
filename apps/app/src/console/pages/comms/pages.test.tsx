@@ -209,11 +209,11 @@ test("Email setup lists the addresses with where each goes, offers New address a
     "mail.mailbox.list": { mailboxes: [], total: 0 },
   });
   assert.match(html, /address-new/);
-  assert.match(html, /Inbox: Hello/);
-  assert.match(html, /Also delivers to Hello/);
+  assert.match(html, /hello@northwind\.example/);
+  assert.match(html, /Delivers to Hello/);
   assert.match(html, /address-move-billing@northwind\.example/);
   assert.doesNotMatch(html, /address-move-hello@/);
-  assert.match(html, /Sends only: mail to it arrives at your own mail server/);
+  assert.match(html, /Send only/);
   // without a verified domain there is nowhere to make an address yet
   const none = draw(<EmailPage />, {
     "mail.setup.status": {
@@ -252,13 +252,13 @@ test("Email setup offers a test send only when the setup is ready", async () => 
     ready: true,
   };
   const rows = { "mail.address.list": { addresses: [], total: 0 }, "mail.mailbox.list": { mailboxes: [], total: 0 } };
-  assert.match(draw(<EmailPage />, { ...rows, "mail.setup.status": base }), /test-send/);
+  assert.match(draw(<EmailPage />, { ...rows, "mail.setup.status": base }), /test-open/);
   assert.doesNotMatch(
     draw(<EmailPage />, {
       ...rows,
       "mail.setup.status": { ...base, ready: false, step: "publish_dns", next: "Publish the DNS records." },
     }),
-    /test-send/,
+    /test-open/,
   );
 });
 
@@ -267,10 +267,10 @@ test("the daily re-check is shown on the domain: a first failure as a warning, t
   assert.equal(recheckNote(undefined, true), "");
   assert.match(
     recheckNote({ domainId: "d", failures: 1, why: "DKIM no longer passes in DNS." }, true),
-    /Last daily check failed\. DKIM no longer passes in DNS\. It stops sending if the next one fails too\./,
+    /^Last daily check failed: DKIM no longer passes in DNS\.$/,
   );
   assert.match(
     recheckNote({ domainId: "d", failures: 2, why: "SPF no longer passes in DNS." }, false),
-    /Stopped after two failed daily checks\. SPF no longer passes in DNS\. It starts again when a check passes\./,
+    /^Stopped after two failed daily checks: SPF no longer passes in DNS\.$/,
   );
 });

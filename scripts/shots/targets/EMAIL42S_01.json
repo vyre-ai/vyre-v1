@@ -3,7 +3,7 @@
     {
       "id": "EMAIL42S_01-setup",
       "route": "/m/EMAIL42S_01?part=setup",
-      "proto": "console,at:commsdom-how,{skin}",
+      "proto": "console,at:commsdom,{skin}",
       "waitFor": "[data-testid='console-email']",
       "note": "Ready: provider, steps, the domain, the addresses, and a test send."
     },
@@ -47,6 +47,7 @@
       "waitFor": "[data-testid='console-email']",
       "note": "A test email sent: who it came from and that it should arrive.",
       "steps": [
+        "click|test-open",
         "fill|test-to|maya@example.com",
         "click|test-send",
         "see|test-note"
@@ -62,7 +63,7 @@
     {
       "id": "EMAIL42S_01-needs",
       "route": "/m/EMAIL42S_01?part=needs",
-      "proto": "console,at:commsdom-dns,{skin}",
+      "proto": "console,at:commsdom,{skin}",
       "waitFor": "[data-testid='console-email']",
       "note": "Needs a look: a route being removed, and a duplicate that was removed."
     },
