@@ -16,18 +16,20 @@ const ask = { providerKey: "anthropic", connection: "api_key", caller: "usr_x", 
 
 test("with no fetch and no accept mode the key check refuses loudly and never reaches the network", async () => {
   await withEnv({ NODE_TEST_CONTEXT: "child-v8", VYRE_TEST_KEY_CHECK: undefined }, async () => {
+    const r = await createProviderProbe()(ask);
+    assert.equal(r.ok, false);
+    assert.equal(r.refused, true);
+    assert.match(r.detail ?? "", /A test reached a real provider/);
+  });
+});
+
+test("a stand-in vendor put in globalThis.fetch is asked for real: the guard stops only the runtime's own fetch", async () => {
+  await withEnv({ NODE_TEST_CONTEXT: "child-v8", VYRE_TEST_KEY_CHECK: undefined }, async () => {
     const real = globalThis.fetch;
-    let reached = false;
-    globalThis.fetch = (() => {
-      reached = true;
-      return Promise.reject(new Error("network"));
-    }) as never;
+    globalThis.fetch = (() =>
+      Promise.resolve(new Response(JSON.stringify({ data: [{ id: "m2" }] }), { status: 200 }))) as never;
     try {
-      const r = await createProviderProbe()(ask);
-      assert.equal(r.ok, false);
-      assert.equal(r.refused, true);
-      assert.match(r.detail ?? "", /A test reached a real provider/);
-      assert.equal(reached, false);
+      assert.deepEqual((await createProviderProbe()(ask)).models, ["m2"]);
     } finally {
       globalThis.fetch = real;
     }
