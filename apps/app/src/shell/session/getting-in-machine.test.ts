@@ -349,3 +349,11 @@ test("Back while a row is being reached shows Your Spaces, and reaching never ta
   assert.deepEqual([o.home, o.reaching], [true, B], "the list stays up while the Space is asked");
   assert.equal(overlayStep(o, { e: "reach", address: null }).home, true);
 });
+
+test("moving on from a screen clears the busy mark, so the next screen is not left disabled", () => {
+  const busy = { ...OVERLAY_START, busy: true, trouble: 1 as unknown, home: true };
+  assert.equal(overlayStep(busy, { e: "back", spaces: true }).busy, false);
+  assert.equal(overlayStep(busy, { e: "browser", browser: 2 }).busy, false);
+  assert.equal(overlayStep(busy, { e: "trouble", trouble: 3 }).busy, false);
+  assert.equal(overlayStep(busy, { e: "enter" }).busy, false);
+});

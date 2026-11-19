@@ -291,15 +291,15 @@ export function overlayStep<T, B>(o: Overlay<T, B>, ev: OverlayEvent<T, B>): Ove
     case "reach":
       return { ...o, reaching: ev.address };
     case "trouble":
-      return { ...o, reaching: null, browser: null, trouble: ev.trouble };
+      return { ...o, reaching: null, busy: false, browser: null, trouble: ev.trouble };
     case "busy":
       return { ...o, busy: ev.on };
     case "trouble-clear":
       return { ...o, trouble: null };
     case "browser":
-      return { ...o, trouble: null, reaching: null, home: false, browser: ev.browser };
+      return { ...o, trouble: null, reaching: null, busy: false, home: false, browser: ev.browser };
     case "back":
-      return { ...o, trouble: null, browser: null, home: ev.spaces ? true : o.home };
+      return { ...o, trouble: null, browser: null, busy: false, home: ev.spaces ? true : o.home };
   }
 }
 
