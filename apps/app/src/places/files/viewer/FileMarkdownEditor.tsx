@@ -1,6 +1,6 @@
 // A Markdown file edited in the viewer: the one Markdown editor (ui/RichEditor), saved by itself as new versions with Undo (the same rule as AGENT.md, review/useFileAutosave.ts). The row above it
 // holds the Saved state with the version number, Undo, and the Styled and Markdown switch; the text is plain .md, the same text agents read.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MarkdownEditor, ViewSwitch } from "../../../../../../ui/src/RichEditor/index.tsx";
@@ -36,6 +36,8 @@ export function FileMarkdownEditor({
 }: FileMarkdownEditorProps): ReactElement {
   const [suggesting, setSuggesting] = useState(false);
   const on = doc?.suggesting ?? suggesting;
+  // the save the editor last asked for: the draft that is that text came from the editor, any other draft came from outside (an agent, another person, a restore)
+  const own = useRef<{ text: string; id: string | undefined }>({ text: text, id: undefined });
   const fa = useFileAutosave({
     call,
     fileId,
@@ -80,7 +82,10 @@ export function FileMarkdownEditor({
       ) : null}
       <MarkdownEditor
         value={fa.draft}
-        onChange={fa.edit}
+        onChange={(t, id) => {
+          own.current = { text: t, id };
+          fa.edit(t);
+        }}
         view={view}
         onView={setView}
         toggle={false}
@@ -92,6 +97,7 @@ export function FileMarkdownEditor({
           ? {
               doc: {
                 ...doc,
+                valueId: fa.draft === own.current.text ? (own.current.id ?? null) : null,
                 suggesting: on,
                 onSuggesting: (v: boolean) => {
                   setSuggesting(v);

@@ -214,7 +214,6 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
     if (
       (ch === "*" || ch === "_") &&
       c1 === ch &&
-      c1 !== "" &&
       /\S/.test(src.charAt(i + 2)) &&
       (ch === "*" || !WORD.test(pv)) &&
       !known(ch + ch, i)
@@ -1090,7 +1089,10 @@ function blockText(b: PMNode): string {
         // an item whose own block opened on the marker's line ("- - x") is written that way again
         const kids = it.content ?? [];
         const onMarkerLine =
-          it.attrs?.["inline"] === true && kids.length > 1 && kids[0]?.type === "paragraph" && (kids[0].content ?? []).length === 0;
+          it.attrs?.["inline"] === true &&
+          kids.length > 1 &&
+          kids[0]?.type === "paragraph" &&
+          (kids[0].content ?? []).length === 0;
         const inner = blocksToMarkdownBody(onMarkerLine ? kids.slice(1) : kids);
         if (n > 0) text += it.attrs?.["gap"] === true ? "\n\n" : "\n";
         text += indentLines(inner, " ".repeat(mk.length), mk);

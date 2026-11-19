@@ -73,6 +73,11 @@ export interface DocEditing {
   now?: () => string;
   /** The number of suggestions changed. */
   onChanges?: (count: number) => void;
+  /**
+   * Which save the `value` is. Each `onChange` carries a save id; a host that gives the id back with the content it saved passes it here (a string), or null when `value` came from anywhere else.
+   * The page then ignores only its own saves. Left out (undefined), the page matches the latest text it sent.
+   */
+  valueId?: string | null;
   /** What a pane beside the page (SuggestionsPane) reads and presses: the page fills it with the suggestions and takes its Accept, Reject and go-to. */
   controller?: DocController;
 }
@@ -81,7 +86,7 @@ export interface MarkdownEditorProps {
   /** The Markdown the editor shows. A value that is not the text the editor last reported replaces what it shows (a restore, an agent's change). */
   value: string;
   /** Each edit, with the whole text as Markdown. Never called for text that came in through `value`. */
-  onChange?: (markdown: string) => void;
+  onChange?: (markdown: string, saveId?: string) => void;
   /** read draws the same styled page, not editable, with no bar. */
   mode?: "edit" | "read";
   /** Styled or raw Markdown. Left out, the editor keeps it and shows its own switch in the bar. */
@@ -704,6 +709,8 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
   suggestingNow.current = suggesting;
   const changesRef = useRef<Change[]>([]);
   const sent = useRef<string[]>([]);
+  const saveIds = useRef<Set<string>>(new Set());
+  const saveSeq = useRef(0);
   const pending = useRef<{ timer: ReturnType<typeof setTimeout>; run: () => void } | null>(null);
   const flushPending = (): void => {
     const p = pending.current;
@@ -961,8 +968,10 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
             if (md === last.current) return;
             last.current = md;
             if (!clean) {
-              noteSent(sent.current, md);
-              cb.current.onChange?.(md);
+              saveSeq.current += 1;
+              const id = `s${saveSeq.current}`;
+              noteSent(sent.current, saveIds.current, md, id);
+              cb.current.onChange?.(md, id);
             }
           };
           // a long document is written out a moment after the last key, not on every key, so typing stays smooth; blur, save, an incoming change and closing write it at once
@@ -1057,7 +1066,7 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
     } | null;
     if (cb.current.doc && ed) {
       // the file giving back what this page just saved is not news; and a person's words are never replaced by setContent
-      if (isOwnEcho(sent.current, props.value)) return;
+      if (isOwnEcho(props.value, cb.current.doc.valueId, saveIds.current, sent.current)) return;
       sent.current = [];
       const m = mergeRemote(ed.state, was, props.value, {
         author: cb.current.doc.remoteAuthor ?? "Agent",

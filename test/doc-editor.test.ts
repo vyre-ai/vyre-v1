@@ -323,16 +323,30 @@ test("the agent deletes a block the person is editing: their words stay, struck,
   assert.equal(mdOf(r.state.apply(resolveChanges(r.state, false) as never)), "one\n\nXtwo\n\nthree\n");
 });
 
-test("the file giving back the page's own save is recognised and not merged again", () => {
+test("the file giving back the page's own save is recognised by its save id, a revert never is", () => {
   const sent: string[] = [];
-  noteSent(sent, "X\n");
-  noteSent(sent, "X more\n");
-  assert.equal(isOwnEcho(sent, "X more\n"), true);
-  assert.equal(isOwnEcho(sent, "X\n"), false, "an older text coming back is news (a revert), not an echo");
-  assert.equal(isOwnEcho(sent, "agent text\n"), false);
-  for (let i = 0; i < 20; i += 1) noteSent(sent, `t${i}\n`);
-  assert.equal(sent.length, 8);
-  assert.equal(isOwnEcho([], "x"), false);
+  const ids = new Set<string>();
+  noteSent(sent, ids, "T1\n", "s1");
+  noteSent(sent, ids, "T2\n", "s2");
+  // with ids: only a save this page issued is its own, whatever the text; anything else is news even when its text was sent before
+  assert.equal(isOwnEcho("T1\n", "s1", ids, sent), true);
+  assert.equal(isOwnEcho("T1\n", null, ids, sent), false, "T1 written back by someone else while s2 is in flight");
+  assert.equal(isOwnEcho("T2\n", "s9", ids, sent), false);
+  // without ids: the latest text only
+  assert.equal(isOwnEcho("T2\n", undefined, ids, sent), true);
+  assert.equal(isOwnEcho("T1\n", undefined, ids, sent), false);
+  assert.equal(isOwnEcho("x", undefined, new Set(), []), false);
+  for (let i = 0; i < 100; i += 1) noteSent(sent, ids, `t${i}\n`, `n${i}`);
+  assert.equal(sent.length <= 64 && ids.size <= 64, true);
+});
+
+test("a revert to older text from another source while saves are in flight is merged into the page", () => {
+  const T1 = "one\n";
+  const T2 = "one\n\ntwo\n";
+  const s = stateOf(T2, false);
+  const m = mergeRemote(s, T2, T1, { author: "Agent", now });
+  assert.ok(m);
+  assert.equal(mdOf(s.apply(m.tr)), T1);
 });
 
 test("suggesting: text deleted across two paragraphs is struck in each, and the paragraphs stay", () => {
@@ -616,11 +630,13 @@ test("a list nested 300 levels deep, and a quote 5,000 deep, come back exactly a
 });
 
 test("lists and quotes opened on the marker's line come back as written, at depth 2 and depth 50", () => {
-  for (const n of [2, 3, 50]) for (const mk of ["- ", "1. ", "* ", "> "]) {
-    const t = `${mk.repeat(n)}x\n`;
-    assert.equal(roundtrip(t), t, `${n} x ${mk}`);
-    assert.equal(docToMarkdown(markdownToDoc(t)), t, `plain ${n} x ${mk}`);
-  }
-  for (const t of ["- > q\n", "1. - x\n     more\n", "- [ ] - x\n", "- - a\n  - b\n- c\n", "a\n\n- - x\n\nb\n"]) assert.equal(roundtrip(t), t, t);
+  for (const n of [2, 3, 50])
+    for (const mk of ["- ", "1. ", "* ", "> "]) {
+      const t = `${mk.repeat(n)}x\n`;
+      assert.equal(roundtrip(t), t, `${n} x ${mk}`);
+      assert.equal(docToMarkdown(markdownToDoc(t)), t, `plain ${n} x ${mk}`);
+    }
+  for (const t of ["- > q\n", "1. - x\n     more\n", "- [ ] - x\n", "- - a\n  - b\n- c\n", "a\n\n- - x\n\nb\n"])
+    assert.equal(roundtrip(t), t, t);
   schema.nodeFromJSON(markdownToDoc(`${"- ".repeat(50)}x\n`, D)).check();
 });

@@ -264,12 +264,26 @@ export function mergeRemote(state: EditorState, base: string, remote: string, wh
   return { tr, clashed, clean: !localEdited };
 }
 
-/** The last few texts the page handed to its host to save. The file echoing one of them back is the person's own save coming home, not the other side's change. */
-export const SENT_KEEP = 8;
-export function noteSent(sent: string[], text: string): void {
-  sent.push(text);
-  if (sent.length > SENT_KEEP) sent.shift();
+/**
+ * Whether a text that arrived as the page's `value` is the page's own save coming home. A host that echoes save ids passes `valueId`: the id of the save the value is (a string), or null when it
+ * came from anywhere else (an agent, another person, a restore). Only an id this page issued is its own, so a revert to older text is never taken for an echo, however many saves are in flight.
+ * A host that does not pass ids (`undefined`) is matched by text: only the latest text sent counts, and the page then merges anything else.
+ */
+export function isOwnEcho(
+  value: string,
+  valueId: string | null | undefined,
+  ids: ReadonlySet<string>,
+  sent: readonly string[],
+): boolean {
+  if (valueId !== undefined) return valueId !== null && ids.has(valueId);
+  return sent.length > 0 && sent[sent.length - 1] === value;
 }
-/** Only the latest text sent counts: the file giving back an older one (a revert, another person's save) is news and is merged. */
-export const isOwnEcho = (sent: readonly string[], value: string): boolean =>
-  sent.length > 0 && sent[sent.length - 1] === value;
+
+/** The last few texts the page handed to its host to save, and the ids it gave those saves. */
+export const SENT_KEEP = 64;
+export function noteSent(sent: string[], ids: Set<string>, text: string, id: string): void {
+  sent.push(text);
+  ids.add(id);
+  if (sent.length > SENT_KEEP) sent.shift();
+  if (ids.size > SENT_KEEP) ids.delete(ids.values().next().value as string);
+}
