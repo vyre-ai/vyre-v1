@@ -72,24 +72,20 @@ const NOT_HELD: Record<string, string> = {
   "mail.draft": "makes a draft; nothing leaves until mail.send, which is held",
   "mail.drafts.discard": "throws away one's own draft",
   "mail.ingest": "the provider's inbound mail, not a person's or agent's choice",
-  "mail.mailbox.pause": "stops syncing one mailbox; it routes nothing elsewhere",
-  "mail.mailbox.resume": "starts syncing one mailbox again",
-  "mail.mailbox.set_sync_state": "the sync's own bookkeeping",
   "mail.member_pause": "the connector pauses a member's mailbox when the member leaves or the company turns Mail off",
   "mail.message.erase": "erases one message under policy.manage",
   "mail.message.set_private": "hides one message from others; it does not move mail",
   "mail.status_update": "the provider's delivery events",
   "mail.sync_now": "pulls mail now from a mailbox that is already connected",
-  "mail.template.for_document.clear": "wording of an email, under comms.templates",
-  "mail.template.for_document.set": "wording of an email, under comms.templates",
-  "mail.template.reset": "wording of an email, under comms.templates",
-  "mail.template.save": "wording of an email, under comms.templates",
-  "mail.templates": "wording of an email, under comms.templates",
   "mail.unsubscribe": "a recipient's own unsubscribe link",
-  "mail.smtp.verify": "opens a connection and signs in; nothing is sent and nothing is changed",
 };
 const held = (g: Def["gate"]): boolean =>
-  !!g && ((g.when ?? "").includes("actor.kind != 'person'") || (g.act === "send" && g.when === undefined));
+  !!g &&
+  (g.when === undefined
+    ? g.act === "send"
+    : g.when.includes("actor.kind != 'person'") ||
+      g.when.includes("actor.kind == 'agent'") ||
+      /^mail\.[a-z_]+\(input\)$/.test(g.when));
 
 test("every mail capability that writes is held at the Gate for an agent, or is on the short list of ones that do not move mail or change who it is sent as, with the reason", () => {
   const writes = all.filter((c) => c.module === "mail" && c.effects !== "read");
@@ -114,7 +110,16 @@ test("every mail capability that writes is held at the Gate for an agent, or is 
     "mail.mailbox.update",
     "mail.mailbox.set_privacy",
     "mail.mailbox.disconnect",
+    "mail.mailbox.pause",
+    "mail.mailbox.resume",
+    "mail.mailbox.set_sync_state",
     "mail.connect",
+    "mail.smtp.verify",
+    "mail.template.save",
+    "mail.template.reset",
+    "mail.template.for_document.set",
+    "mail.template.for_document.clear",
+    "mail.templates",
   ])
     assert.ok(held(def(name).gate), `${name} is held for an agent`);
 });

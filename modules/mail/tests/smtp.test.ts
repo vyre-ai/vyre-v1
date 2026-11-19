@@ -88,7 +88,7 @@ const err = (code: string, extra: Record<string, unknown> = {}): Error =>
   Object.assign(new Error((extra.message as string) ?? code), { code, ...extra });
 
 /** The Vault as the module sees it: a value per handle, and the handles that were read. */
-function vault(values: Record<string, string> = { "#Smtp_Password": PASSWORD }): {
+function vault(values: Record<string, string> = { "#Smtp_Password": PASSWORD, "#Smtp_Other": "other password" }): {
   read: string[];
   values: Record<string, string>;
 } {
@@ -137,7 +137,7 @@ test("smtp.set: port 465 starts secure unless the person chose, and saving again
   assert.equal((await smtpSet(h.ctx, { ...SERVER, port: 465, security: "starttls" })).security, "starttls");
   assert.equal((await smtpVerify(h.ctx, {})).ok, true);
   assert.equal((await smtpGet(h.ctx)).state, "ok");
-  const again = await smtpSet(h.ctx, { ...SERVER, host: "SMTP.Other.Example " });
+  const again = await smtpSet(h.ctx, { ...SERVER, host: "SMTP.Other.Example ", passwordHandle: "#Smtp_Other" });
   assert.equal(again.host, "smtp.other.example");
   assert.equal(again.state, "unchecked");
   assert.equal(again.checkedAt, undefined);
@@ -219,7 +219,7 @@ test("smtp.verify with other values tries them and leaves the saved server's sta
   await smtpSet(h.ctx, SERVER);
   w.fail = err("ETIMEDOUT");
   await smtpVerify(h.ctx, {});
-  const tried = await smtpVerify(h.ctx, { port: 2525, passwordHandle: "#Smtp_Password" });
+  const tried = await smtpVerify(h.ctx, { port: 2525, passwordHandle: "#Smtp_Other" });
   assert.equal(tried.ok, true);
   assert.equal(w.verified[0]?.port, 2525);
   assert.equal(w.verified[0]?.host, "smtp.northwind.example", "what was not given falls back to the saved server");
@@ -438,7 +438,7 @@ const DKIM_KEY = "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----";
 /** A Space whose sending provider is smtp: the server saved, one verified smtp domain with a DKIM key in the Vault. */
 async function smtpSpace(o: { origin?: string; dkim?: boolean } = {}) {
   const r = rig({ noDomain: true, settings: { "mail.provider": "smtp" }, ...(o.origin ? { origin: o.origin } : {}) });
-  const v = vault({ "#Smtp_Password": PASSWORD, "#Smtp_Dkim_vyre_test": DKIM_KEY });
+  const v = vault({ "#Smtp_Password": PASSWORD, "#Smtp_Other": "other password", "#Smtp_Dkim_vyre_test": DKIM_KEY });
   const w = wire(r.ctx);
   await smtpSet(r.ctx, { ...SERVER, host: "smtp.vyre.test", username: "hello@vyre.test" });
   r.h.ctx.db.run(
@@ -756,7 +756,7 @@ test("what people and agents read of the username is its first two letters and t
   const saved = await smtpSet(h.ctx, SERVER);
   assert.equal(saved.username, "he…@northwind.example");
   assert.ok(!JSON.stringify(await smtpGet(h.ctx)).includes("hello@northwind"));
-  const again = await smtpSet(h.ctx, { host: SERVER.host, port: 2525, passwordHandle: "#Smtp_Password" });
+  const again = await smtpSet(h.ctx, { host: SERVER.host, port: 2525, passwordHandle: "#Smtp_Other" });
   assert.equal(again.port, 2525);
   assert.equal(
     h.rows(`SELECT username FROM mail_smtp`)[0]?.username,
@@ -800,7 +800,7 @@ test("a domain whose mail server fails stops saying verified on the second failu
   assert.deepEqual([verified(), strikes()], [0, 2]);
   // moving the server is a new place: it stops a verified domain at once
   r.h.ctx.db.run(`UPDATE mail_domain SET verified = ? WHERE id = ?`, 1, "dom_vyretest");
-  await smtpSet(r.ctx, { host: "smtp.moved.example", passwordHandle: "#Smtp_Password" });
+  await smtpSet(r.ctx, { host: "smtp.moved.example", passwordHandle: "#Smtp_Other" });
   assert.equal(verified(), 0);
 });
 
@@ -887,4 +887,26 @@ test("a passing server test does not lose a stopped domain's place as the defaul
     [1, 1],
     "verified again and the default sender again",
   );
+});
+
+test("the saved password is for the saved server only: a different server, port or username with the saved handle is refused for everyone, a new Vault item is needed, and testing the saved server with no input still works", async () => {
+  const h = harness();
+  const v = vault({ "#Smtp_Password": PASSWORD, "#Smtp_Other": "a new password" });
+  const w = wire(h.ctx);
+  await smtpSet(h.ctx, SERVER);
+  v.read.length = 0;
+  for (const over of [{ host: "attacker.example.com" }, { port: 2525 }, { username: "someone@else.example" }]) {
+    for (const run of [
+      () => smtpVerify(h.ctx, { ...over, passwordHandle: "#Smtp_Password" }),
+      () => smtpSet(h.ctx, { ...SERVER, ...over, passwordHandle: "#Smtp_Password" }),
+    ])
+      assert.match(await moveRefused(run), /^validation\.bad_input: That Vault item is the saved server's password/);
+  }
+  assert.deepEqual(v.read, [], "the saved password was never read for another place");
+  assert.equal(w.verified.length, 0, "no connection was made");
+  // a new Vault item for the new place works; the saved server with nothing typed still tests
+  assert.equal((await smtpVerify(h.ctx, { host: "smtp.other.example", passwordHandle: "#Smtp_Other" })).ok, true);
+  assert.equal(w.verified.at(-1)?.password, "a new password");
+  assert.equal((await smtpVerify(h.ctx, {})).ok, true);
+  assert.equal(w.verified.at(-1)?.host, "smtp.northwind.example");
 });

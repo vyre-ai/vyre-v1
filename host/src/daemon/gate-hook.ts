@@ -426,6 +426,12 @@ export function moduleWhens(
 ): NonNullable<GateHookDeps["evaluators"]> {
   const out: NonNullable<GateHookDeps["evaluators"]> = {};
   // How the Space sends email is set by one setting (mail.provider). An agent changing it, or putting it back to its default, waits for a person; every other setting, and a person's own change, goes straight through.
+  // Testing the Space's own mail server with nothing typed is open to everyone. Typing a host, port, username, security or password handle sends a sign-in to a place the person names: for an agent that waits for a person.
+  out["mail.smtp_override"] = (input, seed) =>
+    seed.principal.kind !== "person" &&
+    ["host", "port", "security", "username", "passwordHandle"].some(
+      (k) => (input as Record<string, unknown> | null)?.[k] !== undefined,
+    );
   out["mail.is_provider_setting"] = (input, seed) =>
     seed.principal.kind !== "person" && (input as { key?: unknown } | null)?.key === "mail.provider";
   // an agent's delete inside work/ on its own computer is its own change; anywhere else asks

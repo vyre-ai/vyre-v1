@@ -349,6 +349,12 @@ function clean(ctx: MailCtx, input: SmtpIn, base: Row | null): Clean {
       ctx,
       "You changed the server, port or username, so give the password's Vault handle again. A saved password is never sent to a different place.",
     );
+  // and the saved handle is for the saved server only: pointing it at another server is refused whoever asks, so the saved password can never be sent to a place a person did not give it to. A new place needs its own Vault item.
+  if (moved && base && input.passwordHandle === str(base, "passwordHandle"))
+    bad(
+      ctx,
+      "That Vault item is the saved server's password. Give a different Vault item for a different server, port or username.",
+    );
   const passwordHandle =
     typeof input.passwordHandle === "string" ? input.passwordHandle : base ? str(base, "passwordHandle") : "";
   if (!HANDLE.test(passwordHandle))

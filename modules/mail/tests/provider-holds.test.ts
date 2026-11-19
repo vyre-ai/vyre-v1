@@ -10,7 +10,7 @@ const def = (name: string): Def => all.find((c) => c.name === name) as Def;
 const held = (g: Def["gate"]): boolean =>
   !!g &&
   ((g.when ?? "").length > 0
-    ? /actor\.kind != 'person'|^mail\.is_provider_setting\(/.test(g.when ?? "")
+    ? /actor\.kind != 'person'|actor\.kind == 'agent'|^mail\.[a-z_]+\(input(\.key)?\)$/.test(g.when ?? "")
     : g.act !== "none");
 
 /** Writes outside the mail module whose name says routes, senders, forwarding, aliases, SMTP or inbound mail, and are not held: each with why. */
@@ -66,4 +66,78 @@ test("a write in any module whose name says routes, senders, forwarding, aliases
     provider.filter((c) => !held(c.gate) && !(c.name in NOT_HELD)).map((c) => c.name),
     [],
   );
+});
+
+// ---- a Vault handle (a secret reference) together with a place to send it: every such capability is held for an agent or is on this list with why the secret cannot go anywhere a caller chooses
+
+type Schema = {
+  $ref?: string;
+  properties?: Record<string, Schema>;
+  pattern?: string;
+  allOf?: Schema[];
+  anyOf?: Schema[];
+  oneOf?: Schema[];
+  items?: Schema;
+};
+const defs = (registry as unknown as { $defs?: Record<string, Schema> }).$defs ?? {};
+const resolve = (s: Schema | undefined, depth = 0): Schema | undefined =>
+  s?.$ref && depth < 6 ? resolve(defs[s.$ref.split("/").pop() as string], depth + 1) : s;
+/** Every property path of an input schema, nested objects included (an `imap: { host, passwordHandle }` counts), with whether it is a handle. */
+function paths(s: Schema | undefined, prefix = "", depth = 0): { path: string; handle: boolean }[] {
+  const r = resolve(s);
+  if (!r || depth > 4) return [];
+  const out: { path: string; handle: boolean }[] = [];
+  for (const [k, v] of Object.entries(r.properties ?? {})) {
+    const rv = resolve(v);
+    out.push({ path: `${prefix}${k}`, handle: typeof rv?.pattern === "string" && rv.pattern.startsWith("^#") });
+    out.push(...paths(rv, `${prefix}${k}.`, depth + 1));
+  }
+  for (const part of [...(r.allOf ?? []), ...(r.anyOf ?? []), ...(r.oneOf ?? [])])
+    out.push(...paths(part, prefix, depth + 1));
+  return out;
+}
+const PLACE = /(host|url|endpoint|server|origin|baseurl|uri|webhook|callback)/i;
+
+/** Capabilities that take a handle and a place and are fine, each with why. */
+const HANDLE_OK: Record<string, string> = {
+  "automations.http_read":
+    "not an agent capability (agent: false), and a Vault key goes only to a host a person approved for that key (modules/automations/key-hosts.ts)",
+  "automations.http_send":
+    "not an agent capability (agent: false), held by the Gate like any send, and a key goes only to an approved host",
+  "import.parse_airtable": "the address only names the base; the request always goes to api.airtable.com",
+  "import.parse_notion": "the address only names the page; the request always goes to api.notion.com",
+  "mail.configure":
+    "routes to mail.smtp.verify, mail.smtp.set and mail.connect, each held for an agent that names a server",
+};
+
+/** Found by the same sweep, checked, and NOT fixed here: they live in other lanes and changing who may call them changes those lanes' flows. Reported to the lead on 19 Nov. The test fails the day one is held, so the line is removed with the fix. */
+const OPEN: Record<string, string> = {
+  "sites.create": "a Vault token goes to the git host of the repo address the caller types (any https host)",
+  "sync_specs.apply": "a spec's Vault handle is used with the app address the spec names",
+  "sync_specs.preview": "a spec's Vault handle is used with the app address the spec names",
+  "sync_specs.sample": "a Vault handle is sent to the url the caller types",
+  "sync_specs.validate": "a spec's Vault handle is used with the app address the spec names",
+};
+
+test("every capability that takes a Vault handle together with a host or address (nested objects included) is held for an agent, or is named with why the secret cannot be sent where a caller chooses", () => {
+  const found = all
+    .map((c) => {
+      const p = paths((c as unknown as { input?: Schema }).input);
+      return {
+        name: c.name,
+        handles: p.filter((x) => x.handle).map((x) => x.path),
+        places: p.filter((x) => PLACE.test(x.path)).map((x) => x.path),
+        gate: c.gate,
+      };
+    })
+    .filter((x) => x.handles.length && x.places.length);
+  const names = found.map((x) => x.name);
+  for (const must of ["mail.smtp.set", "mail.smtp.verify", "mail.connect", "import.parse_airtable"])
+    assert.ok(names.includes(must), `${must} is seen by the sweep (a handle and a place)`);
+  const loose = found
+    .filter((x) => !held(x.gate) && !(x.name in HANDLE_OK) && !(x.name in OPEN))
+    .map((x) => `${x.name} ${JSON.stringify(x.handles)} with ${JSON.stringify(x.places)}`);
+  assert.deepEqual(loose, [], "these send a Vault secret to a place the caller names with no hold and no reason");
+  for (const name of Object.keys(HANDLE_OK)) assert.ok(def(name), `${name} on the list is a real capability`);
+  for (const name of Object.keys(OPEN)) assert.ok(!held(def(name)?.gate), `${name} is now held: remove it from OPEN`);
 });

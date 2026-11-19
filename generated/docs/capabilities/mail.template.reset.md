@@ -11,7 +11,7 @@ Reset a template to the one that ships with Vyre
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

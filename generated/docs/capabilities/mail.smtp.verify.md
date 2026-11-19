@@ -11,7 +11,7 @@ Test an SMTP server (sign in only, nothing sent); no input tests the saved one
 | Grant level | use |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | send when mail.smtp_override(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

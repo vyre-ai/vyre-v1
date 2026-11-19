@@ -11,7 +11,7 @@ Resume a paused mailbox connection
 | Grant level | manage |
 | Risk | medium |
 | Resource | mailbox (/mailboxId) |
-| Gate | none |
+| Gate | send when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

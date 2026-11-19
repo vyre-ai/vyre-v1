@@ -11,7 +11,7 @@ Give a document its own email template wording
 | Grant level | edit |
 | Risk | medium |
 | Resource | file (/documentId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

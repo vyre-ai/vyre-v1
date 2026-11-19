@@ -11,7 +11,7 @@ Email templates: list|get|set|preview|reset; documentId = one document's
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' and (input.action == 'set' or input.action == 'reset') |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

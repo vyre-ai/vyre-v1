@@ -11,7 +11,7 @@ Return a document to the Space's template
 | Grant level | edit |
 | Risk | medium |
 | Resource | file (/documentId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

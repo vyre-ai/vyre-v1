@@ -11,7 +11,7 @@ Save the Space's email template; text may hold {{field}} or {{field|fallback}}
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
