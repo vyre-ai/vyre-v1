@@ -109,9 +109,10 @@ type Out = {
       why: string;
       askedAt: number;
       lookDone?: {
-        quote: string;
-        by: string;
-        at: number;
+        threadId: string;
+        quote?: string;
+        by?: string;
+        at?: number;
       };
     }>;
   total: number;
@@ -138,7 +139,8 @@ type Out = {
         "lookDone": {
           "at": 1760000000000,
           "by": "example",
-          "quote": "example"
+          "quote": "example",
+          "threadId": "thr_a1b2c3"
         },
         "task": {
           "actions": [

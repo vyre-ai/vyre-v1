@@ -43,7 +43,7 @@ export interface LookDeps {
 }
 
 const SYSTEM =
-  'You help keep a task list honest. For each task you are shown, decide whether to say nothing, to ask the owner if it still matters ("ask"), or to say it looks done ("done"). Say "done" only if one of the shown messages of that task states it is finished, and then give that message\'s id and copy the words that say so exactly. Reply with a JSON array and nothing else: [{"id":"tsk_..","say":"ask","why":"at most 8 plain words"},{"id":"tsk_..","say":"done","message":"msg_..","quote":"the exact words"}]. Leave a task out when unsure.';
+  'You help keep a task list honest. For each task you are shown, decide whether to say nothing, to ask the owner if it still matters ("ask"), or to say it looks done ("done"). Say "done" only if one of the shown messages of that task states it is finished, and then give that message\'s id and copy the words that say so exactly. Reply with a JSON array and nothing else: [{"id":"tsk_..","say":"ask"},{"id":"tsk_..","say":"done","message":"msg_..","quote":"the exact words"}]. Leave a task out when unsure.';
 
 const cut = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1)}…`);
 const one = (s: string): string => s.replace(/\s+/g, " ").trim();
@@ -104,7 +104,7 @@ export function promptOf(seen: readonly Seen[]): string {
     .join("\n");
 }
 
-type Proposal = { id: string; say: "ask" | "done"; why?: string; message?: string; quote?: string };
+type Proposal = { id: string; say: "ask" | "done"; message?: string; quote?: string };
 
 /** The model's answer as proposals; anything that is not the asked shape is dropped. */
 export function parse(text: string): Proposal[] {
@@ -125,7 +125,6 @@ export function parse(text: string): Proposal[] {
     out.push({
       id: o["id"],
       say: o["say"],
-      ...(typeof o["why"] === "string" ? { why: o["why"] } : {}),
       ...(typeof o["message"] === "string" ? { message: o["message"] } : {}),
       ...(typeof o["quote"] === "string" ? { quote: o["quote"] } : {}),
     });
@@ -165,8 +164,8 @@ export async function lookOnce(
       continue;
     }
     if (p.say === "ask") {
-      // what the model wrote is shown as plain words under the task and never as a "looks done": one line, cut
-      if (putOnCard(ctx, t, cut(one(p.why ?? "Might be finished."), 50))) asked += 1;
+      // the model only picks "ask": the reason the card shows is a fixed sentence chosen here, never anything it wrote
+      if (putOnCard(ctx, t, "Might be finished.")) asked += 1;
       continue;
     }
     const thread = threadOf(t);

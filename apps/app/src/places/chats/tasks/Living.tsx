@@ -51,6 +51,7 @@ export function StillCard({
   call,
   who,
   nameOf,
+  openChat,
   rev,
   openTask,
   onChanged,
@@ -58,6 +59,7 @@ export function StillCard({
   call: Call;
   who: string;
   nameOf(id: string): string;
+  openChat(threadId: string): void;
   rev: string | undefined;
   openTask(id: string): void;
   onChanged(): void;
@@ -154,20 +156,32 @@ export function StillCard({
           ? card.items.map((i) => {
               // a row the daily look says looks done: the exact words are the proof, and Done closes it
               // drawn only from what the server verified (lookDone), never from text a model wrote
-              const looks = i.lookDone !== undefined;
+              const look = i.lookDone;
+              const shown = look?.quote !== undefined;
               return (
                 <Row
                   key={i.task.id}
                   title={i.task.title}
-                  note={i.lookDone ? lookNote(i.lookDone, nameOf) : i.why}
-                  {...(looks ? { noteLead: "Looks done" } : {})}
+                  note={
+                    look
+                      ? shown
+                        ? lookNote({ quote: look.quote!, by: look.by ?? "", at: look.at ?? 0 }, nameOf)
+                        : "Open the chat to see why"
+                      : i.why
+                  }
+                  {...(look ? { noteLead: "Looks done" } : {})}
+                  {...(look && !shown
+                    ? { noteAction: { label: "Open the chat", onPress: () => openChat(look.threadId) } }
+                    : {})}
                   tall
-                  onPress={() => openTask(i.task.id)}
+                  {...(look && !shown ? {} : { onPress: () => openTask(i.task.id) })}
                   trailing={
                     <View style={st.btns}>
-                      {looks ? (
+                      {look ? (
                         <>
-                          <Btn label="Done" testID="still-done" onPress={() => answer([i.task.id], "done")} />
+                          {shown ? (
+                            <Btn label="Done" testID="still-done" onPress={() => answer([i.task.id], "done")} />
+                          ) : null}
                           <Btn label="Not yet" testID="still-keep" onPress={() => answer([i.task.id], "keep")} />
                         </>
                       ) : (

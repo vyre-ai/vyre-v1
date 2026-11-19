@@ -930,7 +930,9 @@ export default defineManifest({
               task: taskRow,
               why: t.str(),
               askedAt: t.ts(),
-              lookDone: t.opt(t.obj({ quote: t.str(), by: t.str(), at: t.ts() })),
+              lookDone: t.opt(
+                t.obj({ threadId: id.thread, quote: t.opt(t.str()), by: t.opt(t.str()), at: t.opt(t.ts()) }),
+              ),
             }),
           ),
           total: t.int(),

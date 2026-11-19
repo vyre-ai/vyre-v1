@@ -43918,9 +43918,10 @@ export type TasksStillNeededOut = {
       why: string;
       askedAt: number;
       lookDone?: {
-        quote: string;
-        by: string;
-        at: number;
+        threadId: string;
+        quote?: string;
+        by?: string;
+        at?: number;
       };
     }>;
   total: number;

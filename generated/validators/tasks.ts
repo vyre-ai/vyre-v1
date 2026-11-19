@@ -1771,9 +1771,8 @@ const g6624 = typeOf(x6624);
 const b6624: string[] = []; lf(x6624, p + "/items" + '/' + i6622 + "/lookDone", b6624, L0); if (b6624.length) e.push(...b6624);
 if (g6624 === "object") {
 if (g6624 === 'object') { const o6624 = x6624 as Record<string, unknown>;
-if (!("quote" in o6624)) e.push(p + "/items" + '/' + i6622 + "/lookDone" + "/quote" + ': required');
-if (!("by" in o6624)) e.push(p + "/items" + '/' + i6622 + "/lookDone" + "/by" + ': required');
-if (!("at" in o6624)) e.push(p + "/items" + '/' + i6622 + "/lookDone" + "/at" + ': required');
+if (!("threadId" in o6624)) e.push(p + "/items" + '/' + i6622 + "/lookDone" + "/threadId" + ': required');
+if ("threadId" in o6624) lf(o6624["threadId"], p + "/items" + '/' + i6622 + "/lookDone" + "/threadId", e, L13);
 if ("quote" in o6624) lf(o6624["quote"], p + "/items" + '/' + i6622 + "/lookDone" + "/quote", e, L1);
 if ("by" in o6624) lf(o6624["by"], p + "/items" + '/' + i6622 + "/lookDone" + "/by", e, L1);
 if ("at" in o6624) lf(o6624["at"], p + "/items" + '/' + i6622 + "/lookDone" + "/at", e, L17);

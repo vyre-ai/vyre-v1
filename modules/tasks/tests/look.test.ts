@@ -61,10 +61,11 @@ test("ask goes on the card with a short why; done needs the real quoted message;
   const d = deps(() =>
     JSON.stringify([
       { id: a, say: "done", message: "msg_1", quote: "Payment received, $171.56" },
-      { id: b, say: "ask", why: "Might be finished, nothing has moved for a week or more." },
+      { id: b, say: "ask" },
       { id: c, say: "done", message: "msg_1", quote: "The invoice is sent and paid" },
     ]),
   );
+  h.callee("threads.get", () => ({ thread: { kind: "chat", members: [{ kind: "person", id: alice.id }] } }));
   const r = await lookOnce(ctxOf(h), d);
   assert.deepEqual(r, { ran: true, asked: 1, done: 1, rejected: 1 });
   const items = (await card(h)).items;
@@ -73,7 +74,7 @@ test("ask goes on the card with a short why; done needs the real quoted message;
     items.every((i) => i.why.length <= 50),
     "every why fits the card line",
   );
-  const looked = items.find((i) => i.task.id === a) as { lookDone?: { quote: string; by: string } } | undefined;
+  const looked = items.find((i) => i.task.id === a) as { lookDone?: { quote?: string; by?: string } } | undefined;
   assert.deepEqual(
     { quote: looked?.lookDone?.quote, by: looked?.lookDone?.by },
     { quote: "Payment received, $171.56", by: "usr_sara" },
@@ -222,9 +223,10 @@ test("privacy: a chat everyone on the task cannot read is never read or quoted; 
   h3.advance(8 * DAY);
   await lookOnce(
     ctxOf(h3),
-    deps(() => JSON.stringify([{ id: b, say: "ask", why: 'Looks done: "all finished"' }])),
+    deps(() => JSON.stringify([{ id: b, say: "ask", why: "A private line from the chat: the merger is off" }])),
   );
   const it = (await card(h3)).items[0] as { why: string; lookDone?: unknown };
+  assert.equal(it.why, "Might be finished.", "the reason is the app's own fixed sentence, never the model's words");
   assert.equal(it.lookDone, undefined, "no lookDone: the app draws no Done row");
   // the message is older than the task's last move
   const h4 = harness();
@@ -253,4 +255,38 @@ test("someone who cannot move the task cannot answer done on it", async () => {
   assert.equal(r.done, 0);
   assert.equal((await get(h, a)).state, "todo", "it was not closed");
   assert.equal((await card(h)).total, 1, "and it is still on the card for the people on the task");
+});
+
+test("the quote reaches only a reader who can read that chat right now; anyone else on the card sees that it looks done and where to look", async () => {
+  const h = harness();
+  const a = await mk(h, "Pay the hosting invoice", {
+    source: { kind: "chat", id: "thr_1" },
+    reviewer: { kind: "person", id: "usr_cara" },
+  });
+  h.advance(8 * DAY);
+  await lookOnce(
+    ctxOf(h),
+    deps(() => JSON.stringify([{ id: a, say: "done", message: "msg_1", quote: "Payment received, $171.56" }])),
+  );
+  let members = [alice.id, "usr_cara"];
+  h.callee("threads.get", () => ({ thread: { kind: "chat", members: members.map((id) => ({ kind: "person", id })) } }));
+  const seen = async (who: string) =>
+    (
+      (await h.call("tasks.still_needed", {}, { id: who })) as {
+        items: { lookDone?: { threadId: string; quote?: string; by?: string } }[];
+      }
+    ).items[0]!.lookDone;
+  assert.equal((await seen(alice.id))?.quote, "Payment received, $171.56", "a member of the chat reads the quote");
+  members = [alice.id]; // the reviewer is not in the chat
+  const cara = await seen("usr_cara");
+  assert.deepEqual(cara, { threadId: "thr_1" }, "another person on the task sees only that it looks done and where");
+  assert.equal((await seen(alice.id))?.quote, "Payment received, $171.56");
+  h.callee("threads.get", () => {
+    throw new Error("not found");
+  });
+  assert.deepEqual(
+    await seen(alice.id),
+    { threadId: "thr_1" },
+    "a chat that no longer opens for the reader shows no quote",
+  );
 });

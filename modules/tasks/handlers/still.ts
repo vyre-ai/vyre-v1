@@ -151,6 +151,18 @@ export function archiveUnanswered(ctx: TasksCtx): number {
   return n;
 }
 
+/** Can the reader read this chat right now: it opens for them and they are one of its members. */
+async function canRead(ctx: TasksCtx, threadId: string): Promise<boolean> {
+  if (!ctx.call) return false;
+  try {
+    const r = (await ctx.call("threads.get", { threadId })) as { thread?: { members?: { id: string }[] } };
+    const me = whoIs(ctx);
+    return (r.thread?.members ?? []).some((m) => m.id === me.id || m.id === me.actingFor);
+  } catch {
+    return false;
+  }
+}
+
 /** The card: what is asked of the reader, oldest ask first, at most seven. */
 export async function stillNeeded(ctx: TasksCtx, _input: In): Promise<unknown> {
   const idx = openIndex(ctx.db);
@@ -169,22 +181,25 @@ export async function stillNeeded(ctx: TasksCtx, _input: In): Promise<unknown> {
     task: Record<string, unknown>;
     why: string;
     askedAt: number;
-    lookDone?: { quote: string; by: string; at: number };
+    lookDone?: { threadId: string; quote?: string; by?: string; at?: number };
   }[] = [];
   let total = 0;
   for (const r of rows) {
     const t = findTask(ctx.db, r.task_id);
     if (!t || !isOpen(t.state) || t.archived !== undefined || !visibleTo(ctx, t) || !mayLetGo(ctx, t)) continue;
     total += 1;
-    if (items.length < CARD_MAX)
-      items.push({
-        task: outFor(ctx, t, idx),
-        why: r.why,
-        askedAt: r.at,
-        ...(r.look === "done" && r.quote
-          ? { lookDone: { quote: r.quote, by: r.quote_by ?? "", at: r.quote_at ?? 0 } }
-          : {}),
-      });
+    if (items.length >= CARD_MAX) continue;
+    let lookDone: { threadId: string; quote?: string; by?: string; at?: number } | undefined;
+    if (r.look === "done" && r.quote) {
+      // the quote is a line of a chat: it is shown only to someone who can read that chat right now, checked for this reader; anyone else sees that it looks done and where to look
+      const thread = t.threadId ?? (t.source?.kind === "chat" ? t.source.id : undefined);
+      if (thread) {
+        lookDone = (await canRead(ctx, thread))
+          ? { threadId: thread, quote: r.quote, by: r.quote_by ?? "", at: r.quote_at ?? 0 }
+          : { threadId: thread };
+      }
+    }
+    items.push({ task: outFor(ctx, t, idx), why: r.why, askedAt: r.at, ...(lookDone ? { lookDone } : {}) });
   }
   return { items, total };
 }
