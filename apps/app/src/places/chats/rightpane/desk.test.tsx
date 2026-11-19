@@ -689,3 +689,102 @@ test("in the terminal or files room the browser's keys do nothing: Space, S and 
     off();
   }
 });
+
+test("the agent's browser dies while you watch: the bar says it stopped and offers Restart, Pause and Stop go away, the look back and the cursor end; Restart brings the page back", async () => {
+  const off = installDom();
+  deskReset();
+  try {
+    const r = rig(open);
+    r.data.steps = async () => [
+      { idx: 0, at: 1, caption: "Opened", tool: "chrome_open", by: "agent", frameFileId: "fil_a" },
+    ];
+    r.data.frame = async (id) => `/spaces/spc_x/blobs/${id}`;
+    deskOpen(r.session);
+    const root = await mount(cr, <DeskHost />);
+    await flush();
+    await press(find(root, "step-ring-button"));
+    await press(find(root, "step-0"));
+    await flush();
+    assert.ok(find(root, "scrubbed"));
+    r.push({ state: "error", line: "The browser stopped.", canTakeOver: true, sites: [] });
+    await flush();
+    assert.equal(find(root, "scrubbed"), null, "the look back ends with the page");
+    assert.equal(find(root, "browser-pause"), null);
+    assert.equal(find(root, "browser-stop"), null);
+    assert.equal(find(root, "step-ring"), null);
+    assert.match(textOf(find(root, "desk-bar")), /The browser stopped/);
+    await press(find(root, "browser-restart"));
+    await flush();
+    assert.ok(r.calls.includes("open agt_dex"));
+    r.push(open);
+    await flush();
+    assert.ok(find(root, "browser-pause"), "a page that is back is the desk's again");
+  } finally {
+    unmountAll();
+    deskReset();
+    off();
+  }
+});
+
+test("a dropped network never breaks the desk: a failed pointer or steps read keeps the last answer and the desk keeps working; a failed pause or resume is said in words", async () => {
+  const off = installDom();
+  deskReset();
+  try {
+    const r = rig(open);
+    let asks = 0;
+    r.data.pointer = async () => {
+      asks += 1;
+      throw new Error("offline");
+    };
+    r.data.steps = async () => {
+      throw new Error("offline");
+    };
+    deskOpen(r.session);
+    const root = await mount(cr, <DeskHost />);
+    await flush();
+    await flush();
+    assert.ok(asks >= 1);
+    assert.ok(find(root, "desk"), "still there");
+    assert.equal(find(root, "agent-cursor"), null);
+    r.data.pause = async () => {
+      throw new Error("The Space did not answer.");
+    };
+    await press(find(root, "browser-pause"));
+    await flush();
+    assert.deepEqual(r.notes, ["The Space did not answer."]);
+    assert.ok(find(root, "browser-pause"), "the button is back for another try");
+  } finally {
+    unmountAll();
+    deskReset();
+    off();
+  }
+});
+
+test("two people: when someone else paused the browser, Resume that they may not do is refused in the server's words and the desk stays as it was", async () => {
+  const off = installDom();
+  deskReset();
+  try {
+    const r = rig({ state: "open", canTakeOver: true, sites: [], paused: true, pausedBy: "Omar" });
+    r.data.resume = async () => {
+      throw new Error("Someone else paused it.");
+    };
+    deskOpen(r.session);
+    const root = await mount(cr, <DeskHost />);
+    await flush();
+    assert.match(textOf(find(root, "desk-bar")), /Paused/);
+    await press(find(root, "browser-resume"));
+    await flush();
+    assert.deepEqual(r.notes, ["Someone else paused it."]);
+    assert.ok(find(root, "browser-resume"), "still paused, still offered");
+    // and someone else taking the browser while you watch replaces the bar at once with who has it
+    r.push(hold(false));
+    await flush();
+    assert.match(textOf(find(root, "desk-bar")), /Dana has the browser/);
+    assert.equal(find(root, "browser-resume"), null);
+    assert.equal(find(root, "browser-pause"), null);
+  } finally {
+    unmountAll();
+    deskReset();
+    off();
+  }
+});
