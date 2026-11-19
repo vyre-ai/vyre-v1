@@ -294,3 +294,14 @@ export function compareDiff(
 
 /** The label above a side: the first run, then Run 2, Run 3. */
 export const sideLabel = (i: number): string => (i === 0 ? "First run" : `Run ${i + 1}`);
+
+/** A queued stand-in for a helper that has not had its first turn has a thread and no name: it takes the name the strip shows for that chat. Every other node is left as it is. */
+export function nameStandIns<T extends Pick<RunNode, "name" | "threadId">>(
+  nodes: readonly T[],
+  titles: ReadonlyMap<string, string>,
+): T[] {
+  return nodes.map((n) => {
+    const t = n.name === undefined && n.threadId !== undefined ? titles.get(n.threadId) : undefined;
+    return t ? { ...n, name: t } : n;
+  });
+}

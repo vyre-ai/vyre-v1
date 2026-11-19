@@ -6,6 +6,7 @@ import type { CrewMember, CrewStatusOut } from "./model.ts";
 import { useCrewStatus } from "./status.ts";
 import { useRunData } from "./run/useRun.ts";
 import type { RunData } from "./run/useRun.ts";
+import { nameStandIns } from "./run/model.ts";
 import type { RunNode } from "./run/model.ts";
 import type { Call } from "./status.ts";
 
@@ -82,10 +83,7 @@ export function CrewProvider({
         ? run
         : {
             ...run,
-            nodes: run.nodes.map((n) => {
-              const t = n.name === undefined && n.threadId !== undefined ? titles.get(n.threadId) : undefined;
-              return t ? { ...n, name: t } : n;
-            }),
+            nodes: nameStandIns(run.nodes, titles),
           },
     [run, titles],
   );
