@@ -752,4 +752,4 @@ Signed: lead, 17 Nov 2026
 - Why this is safe: `vault.connect_card.submit` is a person's call (`personOnly`, `agent: false`) and the app's card always sends `revision`; an already-open older bundle that omits it is told "Open it again" and reloads. `pin` is optional on `connections.create`, so no other caller changes. The added output fields are optional.
 - Snapshots: docs/frozen/snapshots/connectors.json, docs/frozen/snapshots/vault-requests.json.
 
-Signed: pending, lead
+Signed: lead, 20 Nov 2026
