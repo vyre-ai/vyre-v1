@@ -1,6 +1,6 @@
 // The Journey as a path (rc.41): its stages as columns, each with the Automations that run there, how a record gets in and where it ends, where one record is on it, and a test of the whole path.
 // What the page draws comes from pathModel.ts; the page only reads (journeys.where, journeys.test_path, records.query) and never changes a record.
-import { useReducer, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -22,7 +22,16 @@ const nameOfRow = (r: { id: string; fields?: Record<string, unknown> }): string 
   return r.id;
 };
 
-export function PathTab({ journey: j, counts }: { journey: Journey; counts: StageCounts }): ReactElement {
+export function PathTab({
+  journey: j,
+  counts,
+  start,
+}: {
+  journey: Journey;
+  counts: StageCounts;
+  /** Open already looking at one record, and optionally with its whole-path test running (a link into the page, and the screenshots). */
+  start?: { recordId: string; name: string; test?: boolean };
+}): ReactElement {
   const data = useAutomationsData();
   const extras = useConfigExtras();
   const { element, show } = useMenu();
@@ -57,13 +66,13 @@ export function PathTab({ journey: j, counts }: { journey: Journey; counts: Stag
       setWhere("none");
     }
   };
-  const runTest = async (): Promise<void> => {
+  const runTest = async (on: Rec | null = rec): Promise<void> => {
     if (test.phase === "starting") return;
-    send({ type: "start", ...(rec ? { recordName: rec.name } : {}) });
+    send({ type: "start", ...(on ? { recordName: on.name } : {}) });
     try {
       const out = (await data.call("journeys.test_path", {
         journeyId: j.id,
-        ...(rec ? { recordId: rec.id } : {}),
+        ...(on ? { recordId: on.id } : {}),
       })) as {
         runs: Parameters<typeof pathTest>[1] extends infer E
           ? E extends { type: "started"; runs: infer R }
@@ -80,6 +89,24 @@ export function PathTab({ journey: j, counts }: { journey: Journey; counts: Stag
     }
   };
   const here = where && where !== "none" ? where.stage : null;
+  useEffect(() => {
+    if (!start) return;
+    void (async () => {
+      await choose({ id: start.recordId, name: start.name });
+      if (start.test) await runTest({ id: start.recordId, name: start.name });
+    })();
+    // once, when the page opens on a record
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!start) return;
+    void (async () => {
+      await choose({ id: start.recordId, name: start.name });
+      if (start.test) await runTest({ id: start.recordId, name: start.name });
+    })();
+    // once, when the page opens on a record
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <View testID="journey-path" style={s.root}>

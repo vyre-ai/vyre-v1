@@ -56,6 +56,8 @@ export interface JourneyDesignerProps {
   initialFolded?: readonly string[];
   /** The shared Ask control, supplied by the shell. */
   ask?: ReactNode;
+  /** The Path tab opens looking at one record, and optionally with its whole-path test started. */
+  pathStart?: { recordId: string; name: string; test?: boolean };
 }
 
 export function JourneyDesigner({
@@ -66,6 +68,7 @@ export function JourneyDesigner({
   canDesign = true,
   initialFolded = [],
   ask,
+  pathStart,
 }: JourneyDesignerProps): ReactElement {
   const st = useJourney(journeyId);
   const [tab, setTab] = useState<DesignerTab>(initialTab);
@@ -100,6 +103,7 @@ export function JourneyDesigner({
       canDesign={canDesign}
       initialFolded={initialFolded}
       ask={ask}
+      pathStart={pathStart}
     />
   );
 }
@@ -115,6 +119,7 @@ function Body({
   canDesign,
   initialFolded,
   ask,
+  pathStart,
 }: {
   journey: Journey;
   counts: StageCounts;
@@ -126,6 +131,7 @@ function Body({
   canDesign: boolean;
   initialFolded: readonly string[];
   ask: ReactNode;
+  pathStart: JourneyDesignerProps["pathStart"];
 }): ReactElement {
   const data = useAutomationsData();
   const extras = useConfigExtras();
@@ -582,7 +588,7 @@ function Body({
       />
       <ScrollView style={s.scroll} contentContainerStyle={s.col} keyboardShouldPersistTaps="handled">
         {tab === "path" ? (
-          <PathTab journey={j} counts={counts} />
+          <PathTab journey={j} counts={counts} {...(pathStart ? { start: pathStart } : {})} />
         ) : tab === "settings" && canDesign ? (
           <JourneySettings journey={j} versions={versions} design={d} />
         ) : tab === "fields" ? (
