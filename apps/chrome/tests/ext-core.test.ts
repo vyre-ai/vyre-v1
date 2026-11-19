@@ -1017,3 +1017,28 @@ test("operations the bridge does not own go to the host's handlers; without them
     await bare.close();
   }
 });
+
+test("link.js talks to nothing but the linked Space's own address and writes only its two keys", () => {
+  const src = read("src/worker/link.js")
+    .replace(/\/\/.*$/gm, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+  const fetches = [...src.matchAll(/\bdoFetch\(\s*([^,]+),/g)].map((m) => m[1].trim());
+  assert.deepEqual(
+    fetches,
+    ["`${p.origin}/v1/identity/pair_redeem`"],
+    "one request, to the pending Space's pair_redeem",
+  );
+  const sockets = [...src.matchAll(/new WS\((`[^`]*`)\)/g)].map((m) => m[1].trim());
+  assert.deepEqual(
+    sockets,
+    ['`${link.address.replace(/^http/, "ws")}${SOCKET_PATH}`'],
+    "one socket, to the linked Space",
+  );
+  assert.ok(!/XMLHttpRequest|sendBeacon|EventSource|importScripts|chrome\.runtime\.sendNativeMessage/.test(src));
+  // every write to storage names one of the two keys
+  const writes = [...src.matchAll(/\.(set|remove)\(\s*(\[?\{?\s*\[?)([A-Za-z_]+)/g)].map((m) => m[3]);
+  assert.ok(writes.length > 0);
+  for (const w of writes) assert.ok(["KEY", "PENDING_KEY", "list"].includes(w), `storage written under ${w}`);
+  // the address it will use is vetted: https, or this computer's own http
+  assert.match(src, /u\.protocol !== "https:" && !\(u\.protocol === "http:" && local\)/);
+});

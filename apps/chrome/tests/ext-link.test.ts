@@ -342,3 +342,24 @@ test("the extension updates or the worker sleeps mid-session: a pairing in progr
   await later.refresh();
   assert.equal(later.current(), null);
 });
+
+test("every request and socket of a whole connect goes to the Space the person typed, and nowhere else", async () => {
+  const urls: string[] = [];
+  const w = world({
+    fetch: async (url: string) => {
+      urls.push(url);
+      return { ok: true, json: async () => ({ data: { session: { token: "vst_tok" } } }) };
+    },
+  });
+  await w.link.begin("team.example.com");
+  await w.link.redeem({ origin: "https://team.example.com", code: "AAAA-BBBB" });
+  w.link.openPort(w.link.current()!);
+  assert.deepEqual(urls, ["https://team.example.com/v1/identity/pair_redeem"]);
+  assert.deepEqual(
+    FakeSocket.all.map((s) => new URL(s.url).host),
+    ["team.example.com"],
+  );
+  // only two keys were ever written
+  assert.deepEqual(Object.keys(w.local.data), ["vyreLinks"]);
+  assert.deepEqual(Object.keys(w.session.data), []);
+});
