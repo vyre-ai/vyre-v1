@@ -29,7 +29,7 @@ function seededDir(): string {
       vis: "space",
       entity: "role",
       entity_id: "owner",
-      payload: { id: "owner", clearance: 3, perms: [...ROLE_PERMS["owner"], "comms.domains", "comms.shared_send"], name: "owner" },
+      payload: { id: "owner", clearance: 3, perms: [...ROLE_PERMS["owner"], "comms.domains", "comms.shared_send", "connectors.manage"], name: "owner" },
     },
   ]);
   assert.ok(stored?.ok, "the role event is accepted");
