@@ -305,3 +305,20 @@ test("save as agent carries the helper's tool limits only for someone who manage
   assert.equal(plain.toolsCarried, "default");
   assert.ok(!("tools" in none.seen.created[0]!), "no limits recorded: the default tools");
 });
+
+test("two briefs that differ by one character start two re-runs; the same brief twice starts one", async () => {
+  const { h, seen } = rig();
+  const { n } = await helper(h, { brief: { goal: "g", instructions: "Use the 2025 sheet." } });
+  await h.call("runs.node.rerun", { runId: n.id, instructions: "Use the 2026 sheet." }, owner);
+  await h.call("runs.node.rerun", { runId: n.id, instructions: "Use the 2026 sheet!" }, owner);
+  assert.equal(seen.started.length, 2, "one character apart is a different brief");
+  assert.notEqual(seen.started[0]!["idempotencyKey"], seen.started[1]!["idempotencyKey"]);
+  await h.call("runs.node.rerun", { runId: n.id, instructions: "Use the 2026 sheet!" }, owner);
+  assert.equal(seen.started.length, 2, "the same again is the one already started");
+  await h.call(
+    "runs.node.rerun",
+    { runId: n.id, instructions: "Use the 2026 sheet.", model: "claude-sonnet-5-5" },
+    owner,
+  );
+  assert.equal(seen.started.length, 3, "the same words on another model are another re-run");
+});

@@ -57,17 +57,6 @@ async function briefOf(ctx: RunsCtx, n: Node): Promise<Brief | undefined> {
   return undefined;
 }
 
-/** A short stable mark of a text (FNV-1a, twice over): the same brief and model give the same one, so the same press is known again. */
-function signature(text: string): string {
-  let a = 0x811c9dc5;
-  let b = 0x01000193;
-  for (let k = 0; k < text.length; k++) {
-    a = Math.imul(a ^ text.charCodeAt(k), 0x01000193) >>> 0;
-    b = Math.imul(b + text.charCodeAt(k), 0x811c9dc5) >>> 0;
-  }
-  return `${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}`;
-}
-
 const textOf = (b: Brief): string => [b.goal, b.instructions].filter((x) => x && x.trim() !== "").join("\n\n");
 
 /** A node's brief, model and tools become a new agent. */
@@ -133,10 +122,15 @@ export async function rerun(ctx: RunsCtx, input: In): Promise<unknown> {
     raise(ctx, "validation.bad_input", "Change the brief or the model, or there is nothing to compare.", {
       reason: "nothing_changed",
     });
-  // the same press again (same brief and model from the same work) is the one already started, not another
-  const sig = signature(JSON.stringify([next.goal ?? "", next.instructions ?? "", input.model ?? n.model ?? ""]));
-  const prior = ((n.origin as { reruns?: Array<{ threadId: string; sig?: string }> } | undefined)?.reruns ?? []).find(
-    (r) => r.sig === sig,
+  // the same press again (the same goal, instructions and model from the same work) is the one already started, not another: compared as they were kept, never by a mark of them
+  const model = input.model ?? n.model ?? "";
+  type Entry = { threadId: string; at: number; goal?: string; instructions?: string; model?: string };
+  const before = ((n.origin as { reruns?: Entry[] } | undefined)?.reruns ?? []) as Entry[];
+  const prior = before.find(
+    (r) =>
+      (r.goal ?? "") === (next.goal ?? "") &&
+      (r.instructions ?? "") === (next.instructions ?? "") &&
+      (r.model ?? "") === model,
   );
   if (prior) return { threadId: prior.threadId, rerunOf: n.id };
   const parent = n.parentRun === undefined ? undefined : findNode(ctx.db, n.parentRun);
@@ -151,13 +145,22 @@ export async function rerun(ctx: RunsCtx, input: In): Promise<unknown> {
     instruction: next.instructions ?? next.goal ?? "",
     ...(n.whoId ? { agentId: n.whoId } : {}),
     ...((input.model ?? n.model) ? { model: input.model ?? n.model } : {}),
-    idempotencyKey: `rerun:${n.id}:${sig}`,
+    idempotencyKey: `rerun:${n.id}:${before.length}`,
   })) as { helper?: { threadId?: string } } | undefined;
   const threadId = started?.helper?.threadId;
   if (!threadId) raise(ctx, "internal.unexpected", "The helper was not started.");
   // the link lives on the first node: the threads of what was started again from it, in order
-  const origin = (n.origin as { reruns?: Array<{ threadId: string; at: number; sig?: string }> } | undefined) ?? {};
-  const reruns = [...(origin.reruns ?? []), { threadId: threadId!, at: ctx.now(), sig }].slice(-20);
+  const origin = (n.origin as { reruns?: Entry[] } | undefined) ?? {};
+  const reruns = [
+    ...(origin.reruns ?? []),
+    {
+      threadId: threadId!,
+      at: ctx.now(),
+      ...(next.goal !== undefined ? { goal: next.goal } : {}),
+      ...(next.instructions !== undefined ? { instructions: next.instructions } : {}),
+      model,
+    },
+  ].slice(-20);
   ctx.db.run(
     "UPDATE runs_node SET origin_json = ?, updated_at = ? WHERE run_id = ?",
     JSON.stringify({ ...origin, reruns }),
