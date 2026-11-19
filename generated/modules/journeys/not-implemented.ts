@@ -13,6 +13,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "journeys.get": async (ctx) => { throw new VyreErr(notImplemented("journeys.get", ctx.trace)); },
   "journeys.list": async (ctx) => { throw new VyreErr(notImplemented("journeys.list", ctx.trace)); },
   "journeys.migrate": async (ctx) => { throw new VyreErr(notImplemented("journeys.migrate", ctx.trace)); },
+  "journeys.migration_state": async (ctx) => { throw new VyreErr(notImplemented("journeys.migration_state", ctx.trace)); },
   "journeys.move_stage": async (ctx) => { throw new VyreErr(notImplemented("journeys.move_stage", ctx.trace)); },
   "journeys.preview_migrate": async (ctx) => { throw new VyreErr(notImplemented("journeys.preview_migrate", ctx.trace)); },
   "journeys.rename": async (ctx) => { throw new VyreErr(notImplemented("journeys.rename", ctx.trace)); },
@@ -20,5 +21,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "journeys.stage_counts": async (ctx) => { throw new VyreErr(notImplemented("journeys.stage_counts", ctx.trace)); },
   "journeys.start": async (ctx) => { throw new VyreErr(notImplemented("journeys.start", ctx.trace)); },
   "journeys.tasks": async (ctx) => { throw new VyreErr(notImplemented("journeys.tasks", ctx.trace)); },
+  "journeys.to_pipeline": async (ctx) => { throw new VyreErr(notImplemented("journeys.to_pipeline", ctx.trace)); },
   "journeys.versions": async (ctx) => { throw new VyreErr(notImplemented("journeys.versions", ctx.trace)); },
 };

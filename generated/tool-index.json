@@ -4982,6 +4982,12 @@
     },
     {
       "deferred": false,
+      "name": "journeys_migration_state",
+      "summary": "Where a move onto the pipeline stands: records done, failed (with why) and the Journey's mode",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "journeys_move_stage",
       "summary": "Move a Journey record to another stage by hand; the reason is required and handoffs post in the record channel",
       "toolset": "automations"
@@ -5020,6 +5026,12 @@
       "deferred": false,
       "name": "journeys_tasks",
       "summary": "The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "journeys_to_pipeline",
+      "summary": "Move a Journey onto its subject type as a pipeline: the records carry the stage themselves and the per-subject Journey records are folded into them. Safe to run again after a stop; nothing is deleted",
       "toolset": "automations"
     },
     {

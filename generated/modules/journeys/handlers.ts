@@ -13,6 +13,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "journeys.get": Handler<"journeys.get", X>;
   "journeys.list": Handler<"journeys.list", X>;
   "journeys.migrate": Handler<"journeys.migrate", X>;
+  "journeys.migration_state": Handler<"journeys.migration_state", X>;
   "journeys.move_stage": Handler<"journeys.move_stage", X>;
   "journeys.preview_migrate": Handler<"journeys.preview_migrate", X>;
   "journeys.rename": Handler<"journeys.rename", X>;
@@ -20,5 +21,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "journeys.stage_counts": Handler<"journeys.stage_counts", X>;
   "journeys.start": Handler<"journeys.start", X>;
   "journeys.tasks": Handler<"journeys.tasks", X>;
+  "journeys.to_pipeline": Handler<"journeys.to_pipeline", X>;
   "journeys.versions": Handler<"journeys.versions", X>;
 }

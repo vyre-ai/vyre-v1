@@ -23945,6 +23945,13 @@ export type JourneysCreateIn = {
     filter?: unknown;
     enabled: boolean;
   };
+  mode?: "subject" | "pipeline";
+  recordType?: string;
+  stageField?: string;
+  variables?: Array<{
+      key: string;
+      title: string;
+    }>;
   idempotencyKey: string;
 };
 export type JourneysCreateOut = {
@@ -24003,6 +24010,13 @@ export type JourneysCreateOut = {
       enabled: boolean;
     };
     startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24123,6 +24137,13 @@ export type JourneysDesignOut = {
       enabled: boolean;
     };
     startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24188,6 +24209,13 @@ export type JourneysGetOut = {
       enabled: boolean;
     };
     startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24219,6 +24247,20 @@ export type JourneysMigrateIn = {
 };
 export type JourneysMigrateOut = {
   runId: string;
+};
+export type JourneysMigrationStateIn = {
+  journeyId: string;
+};
+export type JourneysMigrationStateOut = {
+  mode: "subject" | "migrating" | "pipeline";
+  total: number;
+  done: number;
+  failed: Array<{
+      recordId: string;
+      error: string;
+    }>;
+  states: unknown;
+  pending: number;
 };
 export type JourneysMoveStageIn = {
   journeyId: string;
@@ -24307,6 +24349,13 @@ export type JourneysRenameOut = {
       enabled: boolean;
     };
     startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24383,6 +24432,13 @@ export type JourneysRulesSetOut = {
       enabled: boolean;
     };
     startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24425,6 +24481,85 @@ export type JourneysTasksOut = {
         id: string;
       };
     }>;
+};
+export type JourneysToPipelineIn = {
+  journeyId: string;
+  stageField?: string;
+};
+export type JourneysToPipelineOut = {
+  journey: {
+    id: string;
+    name: string;
+    subjectType: string;
+    recordType: string;
+    version: number;
+    stages: Array<{
+        key: string;
+        title: string;
+        order: number;
+        exit: {
+          requireTasks: boolean;
+          manualOnly?: boolean;
+        };
+        timeLimit?: {
+          hours: number;
+          escalateTo?: {
+            kind: "role" | "person";
+            id: string;
+          };
+        };
+        tasks: Array<{
+            key: string;
+            title: string;
+            description?: string;
+            kind?: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+            assigned: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            required: boolean;
+            dueAfterHours?: number;
+            keyId?: string;
+            backupKeyId?: string;
+            doneByAutomation?: string;
+          }>;
+        automations: Array<string>;
+        final?: boolean;
+        onLeaving?: Array<string>;
+        makesProject?: boolean;
+      }>;
+    startRule?: {
+      event: string;
+      filter?: unknown;
+      enabled: boolean;
+    };
+    startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
+    inFlight: number;
+    createdAt: number;
+    updatedAt: number;
+  };
+  total: number;
+  done: number;
+  failed: Array<{
+      recordId: string;
+      error: string;
+    }>;
+  finished: boolean;
 };
 export type JourneysVersionsIn = {
   journeyId: string;
@@ -49552,6 +49687,7 @@ export interface CapMap {
   "journeys.get": { in: JourneysGetIn; out: JourneysGetOut };
   "journeys.list": { in: JourneysListIn; out: JourneysListOut };
   "journeys.migrate": { in: JourneysMigrateIn; out: JourneysMigrateOut };
+  "journeys.migration_state": { in: JourneysMigrationStateIn; out: JourneysMigrationStateOut };
   "journeys.move_stage": { in: JourneysMoveStageIn; out: JourneysMoveStageOut };
   "journeys.preview_migrate": { in: JourneysPreviewMigrateIn; out: JourneysPreviewMigrateOut };
   "journeys.rename": { in: JourneysRenameIn; out: JourneysRenameOut };
@@ -49559,6 +49695,7 @@ export interface CapMap {
   "journeys.stage_counts": { in: JourneysStageCountsIn; out: JourneysStageCountsOut };
   "journeys.start": { in: JourneysStartIn; out: JourneysStartOut };
   "journeys.tasks": { in: JourneysTasksIn; out: JourneysTasksOut };
+  "journeys.to_pipeline": { in: JourneysToPipelineIn; out: JourneysToPipelineOut };
   "journeys.versions": { in: JourneysVersionsIn; out: JourneysVersionsOut };
   "kits.builder_open": { in: KitsBuilderOpenIn; out: KitsBuilderOpenOut };
   "kits.choose": { in: KitsChooseIn; out: KitsChooseOut };

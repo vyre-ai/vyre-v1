@@ -34342,8 +34342,25 @@
             "minLength": 1,
             "type": "string"
           },
+          "mode": {
+            "enum": [
+              "subject",
+              "pipeline"
+            ],
+            "type": "string"
+          },
           "name": {
             "minLength": 1,
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "stageField": {
             "type": "string"
           },
           "stages": {
@@ -34610,6 +34627,24 @@
             ],
             "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
+          },
+          "variables": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -35050,6 +35085,32 @@
     },
     {
       "blocks": [],
+      "cap": "journeys.migration_state",
+      "deferred": false,
+      "description": "Where a move onto the pipeline stands: records done, failed (with why) and the Journey's mode",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "journeyId": {
+            "examples": [
+              "jrn_a1b2c3"
+            ],
+            "pattern": "^jrn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "journeyId"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_migration_state",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "journeys.move_stage",
       "deferred": false,
       "description": "Move a Journey record to another stage by hand; the reason is required and handoffs post in the record channel",
@@ -35355,6 +35416,35 @@
       },
       "name": "journeys_tasks",
       "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "journeys.to_pipeline",
+      "deferred": false,
+      "description": "Move a Journey onto its subject type as a pipeline: the records carry the stage themselves and the per-subject Journey records are folded into them. Safe to run again after a stop; nothing is deleted",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "journeyId": {
+            "examples": [
+              "jrn_a1b2c3"
+            ],
+            "pattern": "^jrn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "stageField": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "journeyId"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_to_pipeline",
+      "planMode": "blocked",
       "toolset": "automations",
       "v": 1
     },

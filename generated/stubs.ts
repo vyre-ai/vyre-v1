@@ -1582,6 +1582,7 @@ export function stubs(ctx: CallCtx) {
       get: call("journeys.get"),
       list: call("journeys.list"),
       migrate: call("journeys.migrate"),
+      migration_state: call("journeys.migration_state"),
       move_stage: call("journeys.move_stage"),
       preview_migrate: call("journeys.preview_migrate"),
       rename: call("journeys.rename"),
@@ -1591,6 +1592,7 @@ export function stubs(ctx: CallCtx) {
       stage_counts: call("journeys.stage_counts"),
       start: call("journeys.start"),
       tasks: call("journeys.tasks"),
+      to_pipeline: call("journeys.to_pipeline"),
       versions: call("journeys.versions"),
     },
     kits: {

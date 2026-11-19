@@ -4,3 +4,4 @@
 - "Why didn't this run?" on a record lists every Automation that watches that kind of record and what became of each: did not start (and the check that stopped it), stopped or failed at a step, waiting, ran, or off.
 - A signature request now waits for a yes unless its author turned "Ask before sending" off on that step; before, it went out like an email once the Automation was on.
 - "Ask before sending" on a chat post now really waits for approval; before, the switch did nothing for a post.
+- A Journey can be a pipeline on a record type: the records of the type move through its stage field themselves, with no separate Journey record, channel or folder per record. Every move still goes through the Journey, so its gates, tasks, Automations and time limits cannot be skipped. A Journey made the old way moves onto its subject type with `journeys.to_pipeline`; a stop halfway resumes, nothing is deleted, and the old records keep their channels and folders.

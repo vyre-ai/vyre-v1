@@ -1582,6 +1582,7 @@ export function createClient(transport: Transport) {
       get: call("journeys.get", 1),
       list: call("journeys.list", 1),
       migrate: call("journeys.migrate", 1),
+      migration_state: call("journeys.migration_state", 1),
       move_stage: call("journeys.move_stage", 1),
       preview_migrate: call("journeys.preview_migrate", 1),
       rename: call("journeys.rename", 1),
@@ -1591,6 +1592,7 @@ export function createClient(transport: Transport) {
       stage_counts: call("journeys.stage_counts", 1),
       start: call("journeys.start", 1),
       tasks: call("journeys.tasks", 1),
+      to_pipeline: call("journeys.to_pipeline", 1),
       versions: call("journeys.versions", 1),
     },
     kits: {

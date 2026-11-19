@@ -1,0 +1,172 @@
+// Moving a Journey onto a pipeline (rc.41): the records of the subject type carry the stage themselves, and the per-subject Journey records are folded into them.
+// The model is an explicit state machine, so a stop at any point resumes and nothing is lost:
+//   Journey:  subject --journeys.to_pipeline--> migrating --(every record done)--> pipeline
+//   a record: planned -> wrote_stage -> moved_links -> done          (a failure in any step makes it `failed`; the next call starts it again from planned)
+// Every step of a record can run twice with the same result: the stage field is set to a value, the links are re-filed by id, the Journey record row changes its id in one statement.
+// While the Journey is `migrating` nothing moves, starts or advances it (refuseWhileMigrating), so no change lands on a record that was already copied.
+// Nothing is deleted: the old record type, its records, their channels and folders stay where they were. A moved record remembers its old id (legacyRecordId), and the Journey the old type.
+import {
+  clean,
+  emitJ,
+  findRecord,
+  getJourney,
+  inFlight,
+  me,
+  migrationRows,
+  out,
+  pipelineOfType,
+  raise,
+  refileLinks,
+  saveJourney,
+  saveMigration,
+  countInFlight,
+} from "../projections.ts";
+import type { Journey, JourneysCtx, MigrationRow } from "../projections.ts";
+import { bindStageField, stageFieldOf } from "./stages.ts";
+
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+const message = (e: unknown): string =>
+  (e as { error?: { message?: string } } | null)?.error?.message ?? (e instanceof Error ? e.message : "it failed");
+
+/** The rows of every Journey record, old ones included: a finished Journey record moves too, so the board shows where the work ended. */
+function allOf(ctx: JourneysCtx, j: Journey): { recordId: string; subjectRecordId: string }[] {
+  const rows = (
+    ctx.db.all(
+      "SELECT record_id, subject_record_id FROM journeys_records WHERE journey_id = ? ORDER BY record_id",
+      j.id,
+    ) as {
+      record_id: string;
+      subject_record_id: string;
+    }[]
+  ).map((r) => ({ recordId: r.record_id, subjectRecordId: r.subject_record_id }));
+  return rows;
+}
+
+function stateOf(rows: readonly MigrationRow[]): {
+  total: number;
+  done: number;
+  failed: { recordId: string; error: string }[];
+} {
+  return {
+    total: rows.length,
+    done: rows.filter((r) => r.state === "done").length,
+    failed: rows
+      .filter((r) => r.state === "failed")
+      .map((r) => ({ recordId: r.legacyRecordId, error: r.error ?? "it failed" })),
+  };
+}
+
+export async function toPipeline(ctx: JourneysCtx, input: In): Promise<unknown> {
+  const j = getJourney(ctx, input.journeyId);
+  if (j.mode === "pipeline")
+    return { journey: out(j, countInFlight(ctx.db, j.id)), ...stateOf(migrationRows(ctx.db, j.id)), finished: true };
+  const other = pipelineOfType(ctx.db, j.subjectType);
+  if (other && other.id !== j.id)
+    raise(ctx, "validation.duplicate", `${other.name} already runs this record type.`, {
+      reason: "type_has_journey",
+      recordType: j.subjectType,
+    });
+  if (!ctx.call) raise(ctx, "internal.unavailable", "Records are not available right now.");
+  const subjectType = j.subjectType;
+  const oldType = j.legacyType ?? j.recordType;
+  // plan: one migration row per Journey record, once (a resumed run keeps the rows and their states)
+  if (j.mode !== "migrating") {
+    const field =
+      typeof input.stageField === "string" && input.stageField ? input.stageField : (j.stageField ?? "stage");
+    const next: Journey = { ...j, stageField: field };
+    // the stage field is bound first: if that is refused nothing has changed
+    await bindStageField(ctx, { ...next, recordType: subjectType });
+    j.stageField = field;
+    j.mode = "migrating";
+    j.legacyType = oldType;
+    j.updatedAt = ctx.now();
+    saveJourney(ctx.db, j);
+  }
+  const have = new Map(migrationRows(ctx.db, j.id).map((m) => [m.legacyRecordId, m]));
+  for (const r of allOf(ctx, j))
+    if (!have.has(r.recordId) && !findRecord(ctx.db, r.subjectRecordId)?.legacyRecordId)
+      saveMigration(ctx.db, {
+        journeyId: j.id,
+        legacyRecordId: r.recordId,
+        subjectRecordId: r.subjectRecordId,
+        state: "planned",
+        at: ctx.now(),
+      });
+  for (const m of migrationRows(ctx.db, j.id)) await step(ctx, j, m);
+  const rows = migrationRows(ctx.db, j.id);
+  const st = stateOf(rows);
+  const finished = st.failed.length === 0 && rows.every((r) => r.state === "done");
+  if (finished) {
+    j.mode = "pipeline";
+    j.recordType = subjectType;
+    j.updatedAt = ctx.now();
+    saveJourney(ctx.db, j);
+    emitJ(ctx, "journey.designed", `entity/${j.id}`, {
+      journeyId: j.id,
+      version: j.version,
+      stages: j.stages.map((s) => s.key),
+      by: me(ctx),
+    });
+  }
+  return { journey: out(j, countInFlight(ctx.db, j.id)), ...st, finished };
+}
+
+/** Advance one record as far as it goes; a failure is kept on its row and does not stop the others. */
+async function step(ctx: JourneysCtx, j: Journey, m: MigrationRow): Promise<void> {
+  let cur: MigrationRow = m.state === "failed" ? { ...m, state: "planned" } : m;
+  const keep = (state: MigrationRow["state"], error?: string): void => {
+    cur = clean({ ...cur, state, error, at: ctx.now() }) as MigrationRow;
+    if (error === undefined) delete (cur as { error?: string }).error;
+    saveMigration(ctx.db, cur);
+  };
+  try {
+    if (cur.state === "planned") {
+      const old = findRecord(ctx.db, cur.legacyRecordId);
+      // already folded in by a run that stopped before it wrote the row: the record under the subject's id says which Journey record it replaced
+      const moved = findRecord(ctx.db, cur.subjectRecordId);
+      if (!old && moved?.legacyRecordId === cur.legacyRecordId) return keep("done");
+      if (!old) throw new Error("The Journey record is gone.");
+      await ctx.call!("records.update", {
+        type: j.subjectType,
+        recordId: cur.subjectRecordId,
+        patch: { [stageFieldOf(j)]: old.stage },
+      });
+      keep("wrote_stage");
+    }
+    if (cur.state === "wrote_stage") {
+      refileLinks(ctx.db, cur.legacyRecordId, cur.subjectRecordId);
+      keep("moved_links");
+    }
+    if (cur.state === "moved_links") {
+      const old = findRecord(ctx.db, cur.legacyRecordId);
+      if (old) {
+        const clash = findRecord(ctx.db, cur.subjectRecordId);
+        if (clash && clash.recordId !== cur.legacyRecordId) throw new Error("The record is already in a Journey.");
+        // one statement: the row changes its id and remembers the old one
+        ctx.db.run(
+          "UPDATE journeys_records SET record_id = ?, legacy_record_id = ? WHERE record_id = ?",
+          cur.subjectRecordId,
+          cur.legacyRecordId,
+          cur.legacyRecordId,
+        );
+      }
+      keep("done");
+    }
+  } catch (e) {
+    keep("failed", message(e));
+  }
+}
+
+/** Where a move onto the pipeline stands: how many records are done and which failed and why. */
+export async function migrationState(ctx: JourneysCtx, input: In): Promise<unknown> {
+  const j = getJourney(ctx, input.journeyId);
+  const rows = migrationRows(ctx.db, j.id);
+  const counts: Record<string, number> = {};
+  for (const r of rows) counts[r.state] = (counts[r.state] ?? 0) + 1;
+  return {
+    mode: j.mode ?? "subject",
+    ...stateOf(rows),
+    states: counts,
+    pending: j.mode === "migrating" ? inFlight(ctx.db, j.id).length : 0,
+  };
+}

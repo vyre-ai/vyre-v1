@@ -2861,6 +2861,9 @@
     "toVersion": 1,
     "stageMap": {}
   },
+  "journeys_migration_state": {
+    "journeyId": "jrn_a1b2c3"
+  },
   "journeys_move_stage": {
     "journeyId": "jrn_a1b2c3",
     "recordId": "rec_a1b2c3",
@@ -2888,6 +2891,9 @@
   },
   "journeys_tasks": {
     "recordId": "rec_a1b2c3"
+  },
+  "journeys_to_pipeline": {
+    "journeyId": "jrn_a1b2c3"
   },
   "journeys_versions": {
     "journeyId": "jrn_a1b2c3"

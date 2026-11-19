@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (16)
+## Capabilities (18)
 
 - [journeys.advance](../capabilities/journeys.advance.md): Check the exit rule of the current stage and advance when its required tasks are done (called on task.completed)
 - [journeys.check_limits](../capabilities/journeys.check_limits.md): Find stages over their time limit, raise Needs you for the owner then the escalation role (called by the scheduler)
@@ -14,6 +14,7 @@ Requires: nothing.
 - [journeys.get](../capabilities/journeys.get.md): Read a Journey design: stages, tasks, rules, time limits and the start rule
 - [journeys.list](../capabilities/journeys.list.md): List Journeys with their stages count and in-flight records
 - [journeys.migrate](../capabilities/journeys.migrate.md): Migrate in-flight records to a new Journey version through a stage mapping (a Run; stoppable)
+- [journeys.migration_state](../capabilities/journeys.migration_state.md): Where a move onto the pipeline stands: records done, failed (with why) and the Journey's mode
 - [journeys.move_stage](../capabilities/journeys.move_stage.md): Move a Journey record to another stage by hand; the reason is required and handoffs post in the record channel
 - [journeys.preview_migrate](../capabilities/journeys.preview_migrate.md): Preview a migration: records per old stage, where each goes, unmapped stages and blockers
 - [journeys.rename](../capabilities/journeys.rename.md): Rename a Journey
@@ -21,6 +22,7 @@ Requires: nothing.
 - [journeys.stage_counts](../capabilities/journeys.stage_counts.md): Records in flight per stage, with how many are over their time limit
 - [journeys.start](../capabilities/journeys.start.md): Start a Journey on a subject record: creates the Journey record with its channel and folder and enters the first stage
 - [journeys.tasks](../capabilities/journeys.tasks.md): The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)
+- [journeys.to_pipeline](../capabilities/journeys.to_pipeline.md): Move a Journey onto its subject type as a pipeline: the records carry the stage themselves and the per-subject Journey records are folded into them. Safe to run again after a stop; nothing is deleted
 - [journeys.versions](../capabilities/journeys.versions.md): List versions of a Journey definition
 
 ## Events (10)
