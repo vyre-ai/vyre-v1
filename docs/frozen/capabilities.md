@@ -743,3 +743,11 @@ Signed: lead, 17 Nov 2026
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: lead, 17 Nov 2026
+
+## 19 Nov 2026: living tasks, put away with a reason (lane r42-alive)
+
+- Changed contracts, all in `manifests/tasks.ts`, all additive (snapshot `docs/frozen/snapshots/tasks.json`): new `tasks.archive` and `tasks.unarchive` (a task is put away with its reason and put back; the mark is a row beside the task, not a seventh state); `tasks.index` gains the optional input `archived`; the task row gains the optional outputs `archived` and `relevantUntil`; `tasks.create` gains the optional input `relevantUntil`; `tasks.clock` also returns `passed` and may emit `task.archived`; new `tasks.still_needed` and `tasks.still_answer` (the weekly card "Still need these?": Keep or Archive); new events `task.archived` and `task.unarchived`.
+- Rule: only a moment someone stated (a person, or an agent that named one) puts a task away by itself. The moment the Space guesses for an agent that named none (due plus a day, else 14 days) never archives silently: it puts the task on the card, and the task archives itself only when nobody answers for a week. A due date alone never archives. Nothing is deleted; Put back undoes every one.
+- Tables (migrations `0005_archive`, `0006_moment`, `0007_ask`): `tasks_archive`, `tasks_moment`, `tasks_ask`.
+
+Signed: lead, 19 Nov 2026

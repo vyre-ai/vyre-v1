@@ -20,6 +20,7 @@ import {
 import type { Assignee, Task, TasksCtx } from "../projections.ts";
 import { findStuck } from "./act.ts";
 import { cannotArchive, putAway } from "./archive.ts";
+import { archiveUnanswered, putOnCard } from "./still.ts";
 
 type In = Record<string, unknown>;
 const DAY = 86_400_000;
@@ -150,8 +151,9 @@ export function momentWords(at: number, tz: string): string {
 }
 
 /**
- * Moments pass: an open task whose relevantUntil is a grace period behind us is put away with "<title> was for Thu 5 Nov". Only the moment does this, never a due date, and never a task that a held act,
- * a Run or other work waits on (those go through their own path). It only archives, so Put back undoes it; the archived task is out of the next pass, so the sentence is said once.
+ * Moments pass. A moment someone STATED (a person, or an agent that named one) puts the task away a grace period after it: "It was for Thu 5 Nov." A moment the Space only guessed (the default an agent gets)
+ * never does that: the task goes on the weekly "Still need these?" card (tasks_ask), and archives itself only when nobody answers for a week (code quiet). A due date alone does neither. Nothing is deleted,
+ * Put back undoes it, a task a held act, a Run or other work waits on is skipped, and an archived or asked task is out of the next pass, so each sentence is said once. Returns how many were put away.
  */
 export function archivePassed(ctx: TasksCtx): number {
   const now = ctx.now();
@@ -162,6 +164,10 @@ export function archivePassed(ctx: TasksCtx): number {
     now - MOMENT_GRACE_MS,
   ).slice(0, MAX)) {
     if (t.relevantUntil === undefined || cannotArchive(ctx, t) !== null) continue;
+    if (t.momentStated === false) {
+      putOnCard(ctx, t, "Nothing said when it stops mattering, and the day it was guessed for has passed.");
+      continue;
+    }
     const holder = stepHolder(t);
     const tz = holder.kind === "person" ? tzOf(ctx.db, holder.id) : "UTC";
     putAway(ctx, t, {
@@ -171,7 +177,7 @@ export function archivePassed(ctx: TasksCtx): number {
     });
     n += 1;
   }
-  return n;
+  return n + archiveUnanswered(ctx);
 }
 
 export function tick(ctx: TasksCtx): { due: number; woke: number; nudged: number; passed: number } {

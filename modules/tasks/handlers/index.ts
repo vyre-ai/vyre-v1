@@ -1,4 +1,5 @@
 // One handler per tasks capability (30). State changes and reads live in state.ts; act, delegate, escalate and stuck detection in act.ts.
+import { stillAnswer, stillNeeded } from "./still.ts";
 import { act, delegate, escalate } from "./act.ts";
 import { agentOnIt, ask, block, decide, review, submit } from "./baton.ts";
 import {
@@ -40,6 +41,8 @@ import type { TasksCtx } from "../projections.ts";
 const base = {
   "tasks.by_key": byKey,
   "tasks.clock": clock,
+  "tasks.still_needed": stillNeeded,
+  "tasks.still_answer": stillAnswer,
   "tasks.delete": remove,
   "tasks.digest": digest,
   "tasks.index": index,

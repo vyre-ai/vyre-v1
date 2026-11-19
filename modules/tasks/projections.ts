@@ -71,6 +71,8 @@ export interface Task {
   expiresAt?: number;
   /** When the task stops mattering (tasks_moment); a due date is not a moment. The clock puts it away one grace period after. */
   relevantUntil?: number;
+  /** false when the Space guessed the moment (the default an agent gets): it asks, it never archives by itself */
+  momentStated?: boolean;
   /** Gate holds: the decision and payload hash the approval token is bound to (set once, never edited). */
   decisionId?: string;
   payloadHash?: string;
@@ -225,7 +227,7 @@ const SELECT = `SELECT c.id AS id, m.kind AS kind, c.title AS title, c.summary A
   m.payload_hash AS payload_hash, c.handled_by AS handled_by, c.handled_at AS handled_at, c.responsible AS responsible,
   c.created_by AS created_by, c.created_at AS created_at, c.updated_at AS updated_at, m.version AS version,
   c.key AS key, c.key_no AS key_no, c.priority AS priority, c.labels AS labels, c.start_at AS start_at, c.fields AS fields, c.recur AS recur, c.worker_thread AS worker_thread, c.created_for AS created_for,
-  a.at AS archived_at, a.by AS archived_by, a.code AS archived_code, a.why AS archived_why, mo.until AS moment_until
+  a.at AS archived_at, a.by AS archived_by, a.code AS archived_code, a.why AS archived_why, mo.until AS moment_until, mo.stated AS moment_stated
   FROM tasks_core c JOIN tasks_meta m ON m.id = c.id LEFT JOIN tasks_archive a ON a.task_id = c.id LEFT JOIN tasks_moment mo ON mo.task_id = c.id`;
 
 type Raw = Record<string, unknown>;
@@ -315,7 +317,10 @@ function rowToTask(r: Raw): Task {
   const createdFor = str(r.created_for);
   if (createdFor !== undefined) t.createdFor = createdFor;
   const until = num(r.moment_until);
-  if (until !== undefined) t.relevantUntil = until;
+  if (until !== undefined) {
+    t.relevantUntil = until;
+    t.momentStated = r.moment_stated !== 0;
+  }
   const archivedAt = num(r.archived_at);
   if (archivedAt !== undefined)
     t.archived = {
@@ -334,7 +339,12 @@ const js = (v: unknown): string => JSON.stringify(v);
 export function saveTask(db: Db, t: Task): void {
   if (t.keyNo === undefined) mintKey(db, t);
   if (t.relevantUntil !== undefined)
-    db.run("INSERT OR REPLACE INTO tasks_moment (task_id, until) VALUES (?, ?)", t.id, t.relevantUntil);
+    db.run(
+      "INSERT OR REPLACE INTO tasks_moment (task_id, until, stated) VALUES (?, ?, ?)",
+      t.id,
+      t.relevantUntil,
+      t.momentStated === false ? 0 : 1,
+    );
   db.run(
     `INSERT OR REPLACE INTO tasks_core (id, title, summary, state, actions, file_ids, record_id, created_by, created_at, updated_at, handled_by, handled_at, responsible, key, key_no, priority, labels, start_at, fields, recur, worker_thread, created_for)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -482,6 +492,7 @@ export function markArchived(db: Db, t: Task, a: Archived, proof?: unknown): voi
 export function clearMoment(db: Db, t: Task): void {
   db.run("DELETE FROM tasks_moment WHERE task_id = ?", t.id);
   delete t.relevantUntil;
+  delete t.momentStated;
 }
 export function clearArchived(db: Db, t: Task): boolean {
   const had = t.archived !== undefined;

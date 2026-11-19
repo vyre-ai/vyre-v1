@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (42)
+## Capabilities (44)
 
 - [tasks.act](../capabilities/tasks.act.md): Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once
 - [tasks.agent_on_it](../capabilities/tasks.agent_on_it.md): Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads "<Agent> is on it for you". Only that person, or the host, may say so
@@ -40,6 +40,8 @@ Requires: nothing.
 - [tasks.rev](../capabilities/tasks.rev.md): A short mark that changes whenever any task changes, for a screen that holds a long list
 - [tasks.review](../capabilities/tasks.review.md): Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)
 - [tasks.snooze](../capabilities/tasks.snooze.md): Snooze an open task until a time, or clear the snooze with null
+- [tasks.still_answer](../capabilities/tasks.still_answer.md): Answer the card for one or several tasks: keep (not asked again for 90 days) or archive (put away, Put back undoes it)
+- [tasks.still_needed](../capabilities/tasks.still_needed.md): The card Still need these?: tasks the Space cannot tell about (a guessed moment passed), each with why it is asked; at most seven, oldest first
 - [tasks.submit](../capabilities/tasks.submit.md): Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done
 - [tasks.take](../capabilities/tasks.take.md): Take a group or role task; the first Take locks it and others see taken by
 - [tasks.transition](../capabilities/tasks.transition.md): Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules

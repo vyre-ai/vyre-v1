@@ -45,18 +45,75 @@ test("a due date alone never puts a task away: overdue work is still owed", asyn
   assert.equal((await get(h, id)).archived, undefined);
 });
 
-test("an agent that names no moment gets one: the due date plus a day, else 14 days", async () => {
+const card = async (h: Harness): Promise<{ items: { task: { id: string }; why: string }[]; total: number }> =>
+  (await h.call("tasks.still_needed", {}, me)) as never;
+
+test("an agent that names no moment gets a guessed one (due plus a day, else 14 days); the guess never archives, it asks", async () => {
   const h = harness();
   const due = h.now() + 3 * DAY;
   const withDue = await mk(h, { title: "Reply to the client", due }, agent);
   const bare = await mk(h, { title: "Check the report" }, agent);
+  const named = await mk(h, { title: "The agent named it", relevantUntil: h.now() + DAY }, agent);
   assert.equal((await get(h, withDue)).relevantUntil, due + DAY);
   assert.equal((await get(h, bare)).relevantUntil, h.now() + 14 * DAY);
   const person = await mk(h, { title: "Mine" });
   assert.equal((await get(h, person)).relevantUntil, undefined, "a person's task has none unless they name one");
-  h.advance(14 * DAY + DAY + 1);
-  assert.equal(await tick(h), 2, "both of the agent's passed; the person's stays");
-  assert.equal((await get(h, person)).archived, undefined);
+  h.advance(2 * DAY + 1);
+  assert.equal(await tick(h), 1, "the moment the agent named archives by itself");
+  assert.equal((await get(h, named)).archived.code, "passed");
+  h.advance(14 * DAY);
+  assert.equal(await tick(h), 0, "a guess archives nothing");
+  assert.equal((await get(h, withDue)).archived, undefined);
+  assert.equal((await get(h, bare)).archived, undefined);
+  const c = await card(h);
+  assert.deepEqual(c.items.map((i) => i.task.id).sort(), [bare, withDue].sort(), "both are on the card, with why");
+  assert.ok(c.items.every((i) => i.why !== ""));
+  assert.equal(await tick(h), 0);
+  assert.equal((await card(h)).total, 2, "asked once, not again");
+});
+
+test("nobody answers the card for a week: the task archives itself, with that reason, and Put back drops the guess", async () => {
+  const h = harness();
+  const id = await mk(h, { title: "Check the report" }, agent);
+  h.advance(15 * DAY);
+  await tick(h);
+  assert.equal((await card(h)).total, 1);
+  h.advance(6 * DAY);
+  assert.equal(await tick(h), 0, "still inside the week");
+  h.advance(2 * DAY);
+  assert.equal(await tick(h), 1);
+  const t = await get(h, id);
+  assert.equal(t.archived.code, "quiet");
+  assert.equal((await card(h)).total, 0);
+  await h.call("tasks.unarchive", { taskId: id }, me);
+  assert.equal((await get(h, id)).relevantUntil, undefined);
+  h.advance(30 * DAY);
+  assert.equal(await tick(h), 0, "put back means it still matters: not asked or archived again");
+  assert.equal((await card(h)).total, 0);
+});
+
+test("Keep stops the question for 90 days; Archive puts the task away with the person's own words", async () => {
+  const h = harness();
+  const keep = await mk(h, { title: "Keep me" }, agent);
+  const drop = await mk(h, { title: "Drop me" }, agent);
+  h.advance(15 * DAY);
+  await tick(h);
+  const r = (await h.call("tasks.still_answer", { taskIds: [keep], answer: "keep" }, me)) as {
+    kept: number;
+    archived: number;
+  };
+  assert.deepEqual(r, { kept: 1, archived: 0 });
+  const r2 = (await h.call("tasks.still_answer", { taskIds: [drop], answer: "archive" }, me)) as {
+    kept: number;
+    archived: number;
+  };
+  assert.deepEqual(r2, { kept: 0, archived: 1 });
+  assert.equal((await get(h, drop)).archived.code, "asked");
+  assert.equal((await card(h)).total, 0);
+  h.advance(60 * DAY);
+  assert.equal(await tick(h), 0, "kept: nothing is asked or archived");
+  assert.equal((await get(h, keep)).archived, undefined);
+  assert.equal((await card(h)).total, 0);
 });
 
 test("Put back after a moment passed clears the moment, so the task is not put away again", async () => {

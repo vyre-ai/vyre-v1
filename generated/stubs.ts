@@ -2879,6 +2879,8 @@ export function stubs(ctx: CallCtx) {
       rev: call("tasks.rev"),
       review: call("tasks.review"),
       snooze: call("tasks.snooze"),
+      still_answer: call("tasks.still_answer"),
+      still_needed: call("tasks.still_needed"),
       submit: call("tasks.submit"),
       take: call("tasks.take"),
       transition: call("tasks.transition"),

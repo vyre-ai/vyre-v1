@@ -558,6 +558,7 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   // the moment it stops mattering: what the caller said; an agent that said nothing gets one (due plus a day, else 14 days), so nothing an agent opens lives forever
   if (input.relevantUntil !== undefined) t.relevantUntil = input.relevantUntil;
   else if (ctx.principal.kind === "agent") {
+    t.momentStated = false;
     t.relevantUntil = t.due !== undefined ? t.due + MOMENT_GRACE_MS : now + 14 * 86_400_000;
   }
   if (input.notes && typeof input.notes === "object") {

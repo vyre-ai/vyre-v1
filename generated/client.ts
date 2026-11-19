@@ -2879,6 +2879,8 @@ export function createClient(transport: Transport) {
       rev: call("tasks.rev", 1),
       review: call("tasks.review", 1),
       snooze: call("tasks.snooze", 1),
+      still_answer: call("tasks.still_answer", 1),
+      still_needed: call("tasks.still_needed", 1),
       submit: call("tasks.submit", 1),
       take: call("tasks.take", 1),
       transition: call("tasks.transition", 1),

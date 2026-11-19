@@ -889,6 +889,27 @@ export default defineManifest({
         errors: ["validation.precondition_failed"],
       },
     ),
+    read(
+      "tasks.still_needed",
+      "The card Still need these?: tasks the Space cannot tell about (a guessed moment passed), each with why it is asked; at most seven, oldest first",
+      {
+        in: {},
+        out: {
+          items: t.arr(t.obj({ task: taskRow, why: t.str(), askedAt: t.ts() })),
+          total: t.int(),
+        },
+      },
+    ),
+    write(
+      "tasks.still_answer",
+      "Answer the card for one or several tasks: keep (not asked again for 90 days) or archive (put away, Put back undoes it)",
+      {
+        in: { taskIds: t.arr(id.task), answer: t.enm("keep", "archive") },
+        out: { kept: t.int(), archived: t.int() },
+        emits: ["task.archived"],
+        errors: ["validation.precondition_failed"],
+      },
+    ),
     write("tasks.unarchive", "Put an archived task back", {
       in: target,
       out: { task: taskRow },

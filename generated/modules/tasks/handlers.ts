@@ -39,6 +39,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.rev": Handler<"tasks.rev", X>;
   "tasks.review": Handler<"tasks.review", X>;
   "tasks.snooze": Handler<"tasks.snooze", X>;
+  "tasks.still_answer": Handler<"tasks.still_answer", X>;
+  "tasks.still_needed": Handler<"tasks.still_needed", X>;
   "tasks.submit": Handler<"tasks.submit", X>;
   "tasks.take": Handler<"tasks.take", X>;
   "tasks.transition": Handler<"tasks.transition", X>;

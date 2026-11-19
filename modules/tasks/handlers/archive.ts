@@ -81,7 +81,8 @@ export async function unarchive(ctx: TasksCtx, input: In): Promise<unknown> {
   const was = t.archived;
   clearArchived(ctx.db, t);
   // put back after its moment passed: a person says it still matters, so it is not put away again a minute later
-  if (was.code === "passed") clearMoment(ctx.db, t);
+  if (was.code === "passed" || was.code === "quiet" || was.code === "asked") clearMoment(ctx.db, t);
+  ctx.db.run("DELETE FROM tasks_ask WHERE task_id = ?", t.id);
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.unarchived", t, { code: was.code }, { type: "unarchived", by: ctx.principal.id });
   return { task: out(ctx, t) };

@@ -43631,6 +43631,92 @@ export type TasksSnoozeOut = {
     };
   };
 };
+export type TasksStillAnswerIn = {
+  taskIds: Array<string>;
+  answer: "keep" | "archive";
+};
+export type TasksStillAnswerOut = {
+  kept: number;
+  archived: number;
+};
+export type TasksStillNeededIn = Record<string, unknown>;
+export type TasksStillNeededOut = {
+  items: Array<{
+      task: {
+        id: string;
+        key?: string;
+        kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+        title: string;
+        summary?: string;
+        why?: string;
+        state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+        blocked: boolean;
+        blocks: Array<{
+            type: string;
+            v?: number;
+            data: unknown;
+          }>;
+        actions: Array<{
+            key: string;
+            label: string;
+            note?: "required" | "optional";
+          }>;
+        assigned: {
+          kind: "person" | "agent" | "group" | "role" | "automation";
+          id: string;
+        };
+        reviewer?: {
+          kind: "person" | "agent" | "group" | "role" | "automation";
+          id: string;
+        };
+        approver?: {
+          kind: "person" | "agent" | "group" | "role" | "automation";
+          id: string;
+        };
+        takenBy?: string;
+        due?: number;
+        effort?: number;
+        recordId?: string;
+        fileIds: Array<string>;
+        source?: {
+          kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
+          id: string;
+        };
+        parentTaskId?: string;
+        dependsOn: Array<string>;
+        followers: Array<string>;
+        workingNotes: Record<string, string>;
+        threadId?: string;
+        reviewLoops: number;
+        snoozedUntil?: number;
+        expiresAt?: number;
+        relevantUntil?: number;
+        createdBy: string;
+        createdAt: number;
+        updatedAt: number;
+        version?: number;
+        yourTurn?: boolean;
+        priority?: "urgent" | "high" | "normal" | "low";
+        labels?: Array<string>;
+        start?: number;
+        fields?: Record<string, unknown>;
+        recur?: {
+          every: "day" | "week" | "month";
+          n?: number;
+        };
+        workerThread?: string;
+        archived?: {
+          at: number;
+          by: string;
+          code: "hand" | "asked" | "passed" | "gone" | "quiet";
+          why: string;
+        };
+      };
+      why: string;
+      askedAt: number;
+    }>;
+  total: number;
+};
 export type TasksSubmitIn = {
   taskId: string;
   outputs?: Record<string, unknown>;
@@ -50757,6 +50843,8 @@ export interface CapMap {
   "tasks.rev": { in: TasksRevIn; out: TasksRevOut };
   "tasks.review": { in: TasksReviewIn; out: TasksReviewOut };
   "tasks.snooze": { in: TasksSnoozeIn; out: TasksSnoozeOut };
+  "tasks.still_answer": { in: TasksStillAnswerIn; out: TasksStillAnswerOut };
+  "tasks.still_needed": { in: TasksStillNeededIn; out: TasksStillNeededOut };
   "tasks.submit": { in: TasksSubmitIn; out: TasksSubmitOut };
   "tasks.take": { in: TasksTakeIn; out: TasksTakeOut };
   "tasks.transition": { in: TasksTransitionIn; out: TasksTransitionOut };
