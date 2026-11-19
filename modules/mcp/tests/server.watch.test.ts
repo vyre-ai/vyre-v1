@@ -230,3 +230,15 @@ test("changeOf carries only ids: never a title, a field or a name; an event with
   assert.equal(changeOf("space.renamed", {}), null);
   assert.deepEqual(changeOf("skill.removed", {}), { prompts: true });
 });
+
+test("one change that shows as several events is announced once to the same app within a moment", async () => {
+  const r = rig();
+  const s = await r.listen({ notifications: { resourceSubscriptions: ["vyre://task/tsk_1"] } });
+  const first = await r.server.changed(changeOf("task.created", { taskId: "tsk_1" })!);
+  const second = await r.server.changed(changeOf("task.assigned", { taskId: "tsk_1", to: "usr_imran" })!);
+  assert.equal(first, 1);
+  assert.equal(second, 0, "the second event in the same moment is not a second announcement");
+  assert.deepEqual(updated(s.lines), ["vyre://task/tsk_1"]);
+  s.drop();
+  await s.finished;
+});

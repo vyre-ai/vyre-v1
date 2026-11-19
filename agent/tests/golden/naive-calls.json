@@ -3256,9 +3256,6 @@
   },
   "mcp_connected_link": {},
   "mcp_connected_list": {},
-  "mcp_connected_remove": {
-    "agentId": "agt_a1b2c3"
-  },
   "mcp_read": {
     "agentId": "agt_a1b2c3",
     "server": "Quarterly planning",

@@ -1022,6 +1022,9 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     valid(): Promise<boolean>;
     end(): void;
   }
+  /** An address that was just announced to a listener is not announced again within this time: one change often shows as several events (a task created and assigned). */
+  const QUIET_MS = 300;
+  const told = new WeakMap<Listener, Map<string, number>>();
   const listeners = new Set<Listener>();
   const keepAliveMs = deps.keepAliveMs ?? KEEP_ALIVE_MS;
   const streamsOf = (s: Session): number => [...listeners].filter((l) => l.s === s).length;
@@ -1126,7 +1129,12 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         if (hits.length === 0) continue;
         if (change.proof && !(await readFor(l.s, change.proof.tool, change.proof.args, false))) continue;
         if (!listeners.has(l)) continue;
+        const recent = told.get(l) ?? new Map<string, number>();
+        told.set(l, recent);
         for (const t of hits) {
+          const at = now();
+          if (at - (recent.get(t.uri) ?? -Infinity) < QUIET_MS) continue;
+          recent.set(t.uri, at);
           l.notify("notifications/resources/updated", { uri: t.uri });
           sent += 1;
         }
@@ -1153,7 +1161,13 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       const token = bearer(req.headers["authorization"]);
       if (!token) return unauthorized(req.origin);
       const known = byToken.get(await sha256(token));
-      if (!known || known.caller.kind !== "outside") return empty(405, { allow: "POST, DELETE" });
+      if (!known) {
+        // never seen: a sign-in that does not stand is refused so the app signs in again; a CLI engine's is told "not offered"
+        const who = await deps.open(token, undefined, req.origin);
+        if (!who) return unauthorized(req.origin, "invalid_token");
+        return empty(405, { allow: "POST, DELETE" });
+      }
+      if (known.caller.kind !== "outside") return empty(405, { allow: "POST, DELETE" });
       const s = await sessionFor(token, known.tokenKey, undefined, req.origin);
       if (!s) return unauthorized(req.origin, "invalid_token");
       if (streamsOf(s) >= MAX_STREAMS) return empty(429);

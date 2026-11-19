@@ -5677,12 +5677,6 @@
       "toolset": "meta"
     },
     {
-      "deferred": true,
-      "name": "mcp_connected_remove",
-      "summary": "Remove an outside agent: its tokens end at once, a call in flight fails, and the agent goes to Trash",
-      "toolset": "meta"
-    },
-    {
       "deferred": false,
       "name": "mcp_read",
       "summary": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call",

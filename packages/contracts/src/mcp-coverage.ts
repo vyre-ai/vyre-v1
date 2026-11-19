@@ -80,7 +80,6 @@ export const MCP_TOOLS: Readonly<Record<string, Toolset>> = {
   "gate.allow.remove": "engineer",
   "gate.links.known": "engineer",
   "mcp.connected.list": "meta",
-  "mcp.connected.remove": "meta",
   "members.invites.guest": "engineer",
   "sites.password_set": "sites",
 };
@@ -120,7 +119,6 @@ export const MCP_HELD: Readonly<Record<string, string>> = {
   "backup.export_start": "approve",
   "gate.allow.set": "approve",
   "gate.allow.remove": "approve",
-  "mcp.connected.remove": "signin_change",
   "members.invites.guest": "signin_change",
   "sites.password_set": "signin_change",
 };
@@ -140,7 +138,7 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   [/\.(health|health_check)$|^health\.|\.jobs_health$|^reports(-client)?\./, SYSTEM],
   [/\.receive_(webhook|push|inbound|notification)$|\.hook$/, SYSTEM],
   [/^(access\.(exceptions\.lapse|projection_health)|hooks\.fire|scheduler|steps|webhooks|audit|engine|scheduler-api|sync|governance|state|steps-core|search|previews|logs|sources|mounts|events|updates|network|git|home|notifications|telephony\.ingest_|calendar\.|meetings|contacts\.|inbox\.link_message|mail\.(auto_connect|ingest|member_pause|status_update|unsubscribe)|runs\.(finish|mark_waiting|pin_version|record_|start|states|status)|tasks\.(clock|escalate|held_revise|withdraw)|journeys\.|goals\.(go|wake_claim)|automations\.(fire|code_reach)|chat\.(chapters_write|hook_|title_make|transcript\.(append|summar))|memory\.(archive_sweep|capture|index_graph|key\.resolve|maintain|pointer|recall\.|find_by_subject)|agents\.(assistant_of|config\.|memory_key|outside\.|routine|share_class|snapshot)|connections\.mark_working|connectors\.(push|read|sync_poll|sync_run|complete_auth)|channels\.home_join|console\.assistant_context_set|notifications\.|projects\.shared_view|threads\.open_state|spaces\.image|plugins\.files|esign\.(health|hook)|files\.health|computers\.health|vault\.(report_scrub_miss|service_health|text_check|mark_signin_needed))/, SYSTEM],
-  [/^(identity|devices)\.|^connections\.complete_auth$|^mcp\.(oauth\.|session\.mint|setup\.set)|^portal\.|^sites\.signin_link$|^access\.actors\.redeem$|^members\.|^vault\./, CREDENTIAL],
+  [/^(identity|devices)\.|^connections\.complete_auth$|^mcp\.(oauth\.|session\.mint|setup\.set|connected\.remove)|^portal\.|^sites\.signin_link$|^access\.actors\.redeem$|^members\.|^vault\./, CREDENTIAL],
   [/^gate\./, GATE],
   [/^(twilio|mailgun|resend|google|microsoft|ms|dropbox|dropbox-sign|dropbox_sign|providers|documenso|docusign|github|stripe|zoom|hubspot)\./, PROVIDER],
   [/^(forms|bookings|esign\.signer_)/, PUBLIC],

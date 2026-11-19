@@ -39753,32 +39753,6 @@
     },
     {
       "blocks": [],
-      "cap": "mcp.connected.remove",
-      "deferred": true,
-      "description": "Remove an outside agent: its tokens end at once, a call in flight fails, and the agent goes to Trash",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "agentId": {
-            "examples": [
-              "agt_a1b2c3"
-            ],
-            "pattern": "^agt_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "agentId"
-        ],
-        "type": "object"
-      },
-      "name": "mcp_connected_remove",
-      "planMode": "blocked",
-      "toolset": "meta",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "engine.mcp.read",
       "deferred": false,
       "description": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call",

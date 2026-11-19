@@ -22741,7 +22741,7 @@ const routes4: Route[] = [
     "risk": "high",
     "offline": "online",
     "teamOnly": false,
-    "gate": "signin_change"
+    "gate": null
   },
   {
     "method": "POST",

@@ -16,9 +16,9 @@ const CALLS: Array<{ act: string; cap: string; tool: string; args: Record<string
   },
   {
     act: "signin_change",
-    cap: "mcp.connected.remove",
-    tool: "mcp_connected_remove",
-    args: { agentId: "<its own, set below>" },
+    cap: "members.invites.guest",
+    tool: "members_invites_guest",
+    args: { email: "guest@walk.test", level: "view", scope: { type: "channel", id: "<made below>" }, idempotencyKey: "h-guest" },
   },
   { act: "approve", cap: "hooks.pause", tool: "hooks_pause", args: { id: "hook_walk1", paused: true } },
 ];
@@ -35,7 +35,12 @@ withSpace(
       clientInfo: { name: "claude-code", version: "2.1" },
     });
     const taskOf: Record<string, string> = {};
-    CALLS[2]!.args["agentId"] = agentId;
+    const ch = expectStatus(
+      await s.call("channels.create", owner, { name: "walk-channel", visibility: "public", idempotencyKey: "h-chan" }),
+      200,
+      "channels.create",
+    );
+    CALLS[2]!.args["scope"] = { type: "channel", id: (ch.channel?.channelId ?? ch.channelId ?? ch.channel?.id) as string };
     for (const k of CALLS) {
       // deferred tools are found first, then called
       const found = (await c.tool("tool_search", { query: k.tool.replace(/_/g, " ") })).json.result.structuredContent.data
@@ -78,7 +83,7 @@ withSpace(
     // the ones nobody answered are still waiting, and nothing ran
     const still = expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list")
       .holds as Json[];
-    assert.deepEqual(still.map((x) => x.capName).sort(), ["hooks.pause", "mcp.connected.remove"]);
+    assert.deepEqual(still.map((x) => x.capName).sort(), ["hooks.pause", "members.invites.guest"]);
     // the same capability pressed by a person is never held
     const mine = await s.call("skills.policy.set", owner, { scriptsAdminOnly: false, idempotencyKey: "h-person" });
     assert.notEqual(mine.status, 202, "a person's own press runs at once");
