@@ -418,7 +418,7 @@ const manifest = defineManifest({
     ),
     read(
       "inbox.counts",
-      "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
+      "Unread conversation counts per inbox and number, and how many need a match",
       {
         in: {},
         out: {
@@ -450,7 +450,7 @@ const manifest = defineManifest({
     }),
     write(
       "inbox.follow_set",
-      "Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)",
+      "Follow a contact or set Alert me on replies",
       {
         in: { contactId: id.record, follow: t.bool(), alertOnReplies: t.opt(t.bool()) },
         out: { following: t.bool(), alertOnReplies: t.bool() },
