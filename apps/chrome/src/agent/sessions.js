@@ -254,6 +254,20 @@ export function createSessions({
     },
     release,
     group,
+    /**
+     * May the debugger go on this tab? In the person's own Chrome only a tab that sits in this agent's own tab group: a person's tab joins the group when they hand it over
+     * (begin puts it there), so a tab outside it is never debugged. An agent computer's browser has no groups and no person's tabs. @param {string} agentId @param {number} tabId
+     */
+    async inGroup(agentId, tabId) {
+      if (!grouping() || !ext.tabs || typeof ext.tabs.group !== "function") return true;
+      const gid = groupIds.get(agentId);
+      if (gid === undefined) return false;
+      try {
+        return (await ext.tabs.get(tabId)).groupId === gid;
+      } catch {
+        return false;
+      }
+    },
     /** The agent's cursor goes to a point; with `click`, a ring. @param {number} tabId @param {number} x @param {number} y @param {boolean} [click] */
     async cursor(tabId, x, y, click) {
       await quiet(() =>

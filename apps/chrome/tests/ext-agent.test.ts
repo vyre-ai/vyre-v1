@@ -326,9 +326,14 @@ function makeWorld(over = {}) {
       world.attached.add(tabId);
     },
     detach: async ({ tabId }) => {
+      if (world.heldByOther?.has(tabId)) throw new Error("Debugger is not attached to the tab with id: " + tabId);
       world.attached.delete(tabId);
       world.detaches.push(tabId);
     },
+    getTargets: async () => [
+      ...[...world.attached, ...(world.heldByOther ?? [])].map((tabId) => ({ tabId, attached: true })),
+      { tabId: 99, attached: false },
+    ],
     sendCommand: async ({ tabId }, method, params = {}) => {
       if (!world.attached.has(tabId)) throw new Error("Debugger is not attached to the tab with id: " + tabId);
       switch (method) {
@@ -2023,4 +2028,58 @@ test("a find belongs to the agent that made it: another agent cannot use the tab
   );
   await w.call("chrome_tabs", { action: "find", site: "mail.test" });
   await w.fails("chrome_tabs", { action: "use", tabId: "8" }, "not_yours", { id: "agt_scout", name: "Scout" });
+});
+
+test("a debugger left behind when the worker slept is let go: the bar never stays on a tab the person is reading", async () => {
+  const w = await ready();
+  // a tab Chrome still shows as debugged, with no driver, no idle clock and nothing in the worker's memory (what a worker restart leaves)
+  w.attached.add(41);
+  // a tab DevTools holds: not ours, so it stays
+  w.heldByOther = new Set([42]);
+  // a tab an agent is driving right now: kept
+  await w.call("chrome_snapshot");
+  assert.ok(w.attached.has(7));
+  const released = await w.control.sweepStray();
+  assert.deepEqual(released, [41]);
+  assert.ok(!w.attached.has(41), "the stray is detached");
+  assert.ok(w.attached.has(7), "the tab being driven keeps its debugger");
+  assert.ok(!w.detaches.includes(42), "another debugger's tab is not touched");
+  assert.deepEqual(await w.control.sweepStray(), [], "nothing left to release");
+  await w.advance(21_000);
+  assert.equal(w.attached.size, 0, "and the driven tab still goes at idle");
+});
+
+test("the debugger goes only on a tab in the agent's own group; a tab outside it stays untouched", async () => {
+  const w = withMail(
+    await ready({}).then(async (x) => {
+      await x.optIn("personal");
+      return x;
+    }),
+  );
+  let gid = 500;
+  w.ext.tabs.group = async ({ tabIds, groupId }) => {
+    const g = groupId ?? ++gid;
+    for (const id of tabIds) w.tabs.get(id).groupId = g;
+    return g;
+  };
+  w.ext.tabGroups = { update: async () => {} };
+  w.ext.tabs.update = async (id) => {
+    w.tabs.get(id).active = true;
+    return {};
+  };
+  await w.call("chrome_tabs", { action: "find", site: "mail.test" });
+  await w.call("chrome_tabs", { action: "use", tabId: "8" });
+  await w.call("chrome_snapshot");
+  assert.ok(w.attached.has(8), "handed over, grouped, then debugged");
+  assert.equal(w.tabs.get(8).groupId, 501);
+  await w.advance(21_000);
+  assert.equal(w.attached.size, 0);
+  // the browser refuses to make the group: the person's tab is never debugged outside it
+  w.tabs.get(8).groupId = -1;
+  w.ext.tabs.group = async () => {
+    throw new Error("refused");
+  };
+  await w.fails("chrome_snapshot", {}, "not_yours");
+  assert.equal(w.attached.size, 0, "no debugger on the person's tab");
+  assert.equal(w.overlay.size, 0, "and no frame on it");
 });

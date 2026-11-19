@@ -320,16 +320,25 @@ export function createTools(kit) {
     return tabId;
   }
 
-  /** Resolve the tab, put the agent's frame on it, attach, run, and keep the idle clock honest. @template T @param {Call} call @param {Record<string, any>} input @param {(tabId: number) => Promise<T>} fn */
-  async function drive(call, input, fn) {
-    const tabId = await tabFor(call, input);
-    await sessions.begin(call, tabId);
+  /** Attach the debugger to a tab the agent has begun driving, but only if the tab is in the agent's own group; otherwise give the tab back untouched. @param {Call} call @param {number} tabId */
+  async function attachDriven(call, tabId) {
+    if (!(await sessions.inGroup(call.agent.id, tabId))) {
+      await sessions.release(tabId, "denied");
+      fail("not_yours");
+    }
     try {
       await cdp.attach(tabId);
     } catch (e) {
       await sessions.release(tabId, "denied");
       throw e;
     }
+  }
+
+  /** Resolve the tab, put the agent's frame on it, attach, run, and keep the idle clock honest. @template T @param {Call} call @param {Record<string, any>} input @param {(tabId: number) => Promise<T>} fn */
+  async function drive(call, input, fn) {
+    const tabId = await tabFor(call, input);
+    await sessions.begin(call, tabId);
+    await attachDriven(call, tabId);
     try {
       return await fn(tabId);
     } finally {
@@ -692,12 +701,7 @@ export function createTools(kit) {
         sessions.setCurrent(call.agent.id, tabId);
       } else tabId = await newTab(call, url, false);
       await sessions.begin(call, tabId);
-      try {
-        await cdp.attach(tabId);
-      } catch (e) {
-        await sessions.release(tabId, "denied");
-        throw e;
-      }
+      await attachDriven(call, tabId);
       try {
         const loaded = cdp.waitFor(tabId, (m) => m === "Page.loadEventFired", 20_000);
         const nav = await cdp.send(tabId, "Page.navigate", { url });
@@ -791,7 +795,7 @@ export function createTools(kit) {
         const id = await newTab(call, url, false);
         if (url !== "about:blank") {
           await sessions.begin(call, id);
-          await cdp.attach(id);
+          await attachDriven(call, id);
           await cdp.send(id, "Page.navigate", { url });
           sessions.touch(id);
         }

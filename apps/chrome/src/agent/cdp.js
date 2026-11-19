@@ -9,7 +9,7 @@ import { AgentFailure, fail } from "./protocol.js";
 export const PROTOCOL_VERSION = "1.3";
 
 /**
- * @typedef {{ attach(t: { tabId: number }, version: string): Promise<void>, detach(t: { tabId: number }): Promise<void>, sendCommand(t: { tabId: number }, method: string, params?: object): Promise<any>,
+ * @typedef {{ attach(t: { tabId: number }, version: string): Promise<void>, detach(t: { tabId: number }): Promise<void>, getTargets?(): Promise<{ tabId?: number, attached?: boolean }[]>, sendCommand(t: { tabId: number }, method: string, params?: object): Promise<any>,
  *   onEvent: { addListener(f: (source: { tabId?: number }, method: string, params?: any) => void): void },
  *   onDetach: { addListener(f: (source: { tabId?: number }, reason: string) => void): void } }} Debugger
  * @typedef {(tabId: number, method: string, params: any) => void} EventHandler
@@ -36,9 +36,13 @@ export function createCdp(dbg) {
     for (const h of detachHandlers) h(source.tabId, reason);
   });
 
+  /** Who may be debugged right now. Set by the agent control to "a tab an agent is driving", so a late call (a picture taken as the agent goes idle, a stopped agent's last read) can never put the debugger back on a tab the person has again. @type {(tabId: number) => boolean} */
+  let mayAttach = () => true;
+
   /** @param {number} tabId */
   async function attach(tabId) {
     if (attached.has(tabId)) return;
+    if (!mayAttach(tabId)) fail("no_tab", "The agent is not working in that tab now.");
     const pending = attaching.get(tabId);
     if (pending) return pending;
     const p = (async () => {
@@ -68,6 +72,10 @@ export function createCdp(dbg) {
 
   return {
     attach,
+    /** @param {(tabId: number) => boolean} f */
+    allowOnly(f) {
+      mayAttach = f;
+    },
     /** @param {number} tabId */
     isAttached: (tabId) => attached.has(tabId),
     get attachedTabs() {
@@ -98,6 +106,36 @@ export function createCdp(dbg) {
       } catch {
         /* the tab closed first */
       }
+    },
+    /**
+     * Let go of every tab Chrome still shows as debugged that no agent is driving now. Chrome keeps a debugger attached when the extension's worker goes to sleep, but the worker's
+     * memory (what is attached, the idle clock) is gone, so nothing would ever detach it and Chrome's "started debugging this browser" bar would stay on a tab the person is just
+     * reading. Run when the worker starts and on a timer. A detach of a tab another debugger (DevTools) holds fails and changes nothing, so only our own is released.
+     * @param {number[]} [keep] tabs an agent is driving right now
+     * @returns {Promise<number[]>} the tabs released
+     */
+    async sweep(keep = []) {
+      if (typeof dbg.getTargets !== "function") return [];
+      let targets;
+      try {
+        targets = await dbg.getTargets();
+      } catch {
+        return [];
+      }
+      /** @type {number[]} */
+      const released = [];
+      for (const t of targets) {
+        if (t.tabId === undefined || !t.attached || keep.includes(t.tabId)) continue;
+        if (attaching.has(t.tabId)) continue;
+        attached.delete(t.tabId);
+        try {
+          await dbg.detach({ tabId: t.tabId });
+          released.push(t.tabId);
+        } catch {
+          /* not ours (DevTools or another extension), or the tab closed first */
+        }
+      }
+      return released;
     },
     /** @param {EventHandler} h @returns {() => void} */
     onEvent(h) {

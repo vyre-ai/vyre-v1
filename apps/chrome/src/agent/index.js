@@ -86,6 +86,8 @@ export function createAgentControl(ext, o = {}) {
     ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}),
   });
 
+  cdp.allowOnly((tabId) => sessions.driverOf(tabId) !== null);
+
   /** The agent's Space must be the one active here, and the person (or the agent computer's owner) must have opened Chrome to it. @param {{ space: string }} call */
   async function authorize(call) {
     if ((await activeSpace()) !== call.space) fail("wrong_space");
@@ -252,6 +254,8 @@ export function createAgentControl(ext, o = {}) {
     transport,
     rights,
     connect: () => transport.connect(),
+    /** Release any debugger Chrome still holds for this extension that no agent is driving (see cdp.sweep). */
+    sweepStray: () => cdp.sweep(sessions.driven),
     run: tools.run,
     onIncoming,
     get optedIn() {
@@ -275,6 +279,17 @@ function start() {
     control.connect();
   };
   boot();
+  // A worker that slept while an agent drove a tab left the debugger attached with nothing to detach it: let go of those now and every minute.
+  const sweep = () => {
+    if (control) void control.sweepStray();
+  };
+  sweep();
+  if (ext.alarms && ext.alarms.create && ext.alarms.onAlarm) {
+    ext.alarms.create("vyre.agent.sweep", { periodInMinutes: 1 });
+    ext.alarms.onAlarm.addListener((/** @type {{ name: string }} */ a) => {
+      if (a.name === "vyre.agent.sweep") sweep();
+    });
+  }
   if (ext.permissions && ext.permissions.onAdded) ext.permissions.onAdded.addListener(boot);
 }
 
