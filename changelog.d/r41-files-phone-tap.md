@@ -1,0 +1,1 @@
+On a phone, one tap on a folder or a file in Files now opens it. It used to only select the row, because opening was a double tap, so nothing seemed to happen. A new phone walk covers a folder and a file.
