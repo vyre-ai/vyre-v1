@@ -24,6 +24,8 @@ export interface CrewCtx {
   /** The Crew pane (the shared side pane with its own Crew tab) is showing. */
   open: boolean;
   close(): void;
+  /** The Crew pane is on screen, however it was opened (the pane tab by hand, a press on a helper): the runtime is read while it is. */
+  reveal(on: boolean): void;
   call: Call | undefined;
   threadId: string;
   /** The nodes of this chat's newest tree of work (the runtime's step, stuck and dependsOn per helper); empty when there is none or this person only watches. */
@@ -66,7 +68,9 @@ export function CrewProvider({
   // the runtime's view of the same helpers, read once for the chat and shared by every strip and the pane (a server without it gives nothing). Only a chat that has helpers, or whose pane is open, asks:
   // a chat that never had one costs no request, and a chat with no tree of work is asked about rarely
   const absent = useMemo<Call>(() => async () => Promise.reject(new Error("unknown capability")), []);
-  const run = useRunData(call ?? absent, threadId, { enabled: shown && call !== undefined && ((status?.members.length ?? 0) > 0 || open) });
+  const run = useRunData(call ?? absent, threadId, {
+    enabled: shown && call !== undefined && ((status?.members.length ?? 0) > 0 || open),
+  });
   const nodes = run.status === "ready" ? run.nodes : NO_NODES;
   const value = useMemo<CrewCtx>(
     () => ({
@@ -84,6 +88,7 @@ export function CrewProvider({
         setOpen(false);
         setSelected(null);
       },
+      reveal: (on) => setOpen(on),
       show: (id) => {
         setSelected(id);
         setSeq((n) => n + 1);

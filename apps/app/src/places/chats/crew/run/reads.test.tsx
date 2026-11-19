@@ -1,7 +1,7 @@
 // The reads behind the run views (lane r42-subagents): the runtime's rows become the shapes the views draw, a server without a read shows nothing and never an error, and "Running and asleep" in the Crew pane asks only
 // when opened, opens a run's own chat on a press and says so when it has none.
 import test, { mock } from "node:test";
-import { act, useState } from "react";
+import { act, useEffect, useState } from "react";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { Pressable, Text } from "react-native";
@@ -19,7 +19,7 @@ import {
   threadOfRun,
 } from "./reads.ts";
 import { CrewTabs } from "./CrewTabs.tsx";
-import { CrewProvider } from "../context.tsx";
+import { CrewProvider, useCrew } from "../context.tsx";
 import { useShown } from "./useShown.ts";
 
 installDom();
@@ -392,21 +392,67 @@ test("another chat shows nothing of the last one's board while it is read", asyn
 
 test("the chat reads the runtime only while it has helpers or its pane is open; a pane given the shared reads reads none of its own", async () => {
   const asked: string[] = [];
-  const mk = (members: unknown[]) => async (cap: string): Promise<unknown> => {
-    asked.push(cap);
-    if (cap === "engine.crew.status") return { members, totals: { members: members.length, working: members.length, done: 0, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 0 } };
-    if (cap === "runs.tree.find") return { roots: [] };
-    return {};
-  };
+  const mk =
+    (members: unknown[]) =>
+    async (cap: string): Promise<unknown> => {
+      asked.push(cap);
+      if (cap === "engine.crew.status")
+        return {
+          members,
+          totals: {
+            members: members.length,
+            working: members.length,
+            done: 0,
+            needsYou: 0,
+            failed: 0,
+            stopped: 0,
+            tokensIn: 0,
+            tokensOut: 0,
+            costMicros: 0,
+            filesChanged: 0,
+            added: 0,
+            deleted: 0,
+            elapsedMs: 0,
+          },
+        };
+      if (cap === "runs.tree.find") return { roots: [] };
+      return {};
+    };
   const Probe = (): ReturnType<typeof CrewTabs> => null as never;
   void Probe;
-  const idle = await mount(createRoot, <CrewProvider call={mk([]) as never} threadId="thr_0"><Text>x</Text></CrewProvider>);
+  const idle = await mount(
+    createRoot,
+    <CrewProvider call={mk([]) as never} threadId="thr_0">
+      <Text>x</Text>
+    </CrewProvider>,
+  );
   await flush();
-  assert.equal(asked.filter((c) => c.startsWith("runs.")).length, 0, "a chat that never had a helper asks the runtime nothing");
+  assert.equal(
+    asked.filter((c) => c.startsWith("runs.")).length,
+    0,
+    "a chat that never had a helper asks the runtime nothing",
+  );
   void idle;
   asked.length = 0;
-  const member = { kind: "helper", id: "thr_h", parentThreadId: "thr_0", title: "T", agentId: "a", state: "working", startedAt: 1, elapsedMs: 1, tokensIn: 0, tokensOut: 0, costMicros: 0 };
-  await mount(createRoot, <CrewProvider call={mk([member]) as never} threadId="thr_0"><Text>x</Text></CrewProvider>);
+  const member = {
+    kind: "helper",
+    id: "thr_h",
+    parentThreadId: "thr_0",
+    title: "T",
+    agentId: "a",
+    state: "working",
+    startedAt: 1,
+    elapsedMs: 1,
+    tokensIn: 0,
+    tokensOut: 0,
+    costMicros: 0,
+  };
+  await mount(
+    createRoot,
+    <CrewProvider call={mk([member]) as never} threadId="thr_0">
+      <Text>x</Text>
+    </CrewProvider>,
+  );
   await flush();
   await flush();
   assert.ok(asked.includes("runs.tree.find"), "a chat with a helper does");
@@ -414,15 +460,49 @@ test("the chat reads the runtime only while it has helpers or its pane is open; 
   const shared = { status: "ready" as const, board: [], messages: [], nodes: [], stale: false };
   await mount(createRoot, <CrewTabs call={mk([]) as never} threadId="thr_0" helpers={HELP} run={shared} />);
   await flush();
-  assert.equal(asked.filter((c) => c === "runs.tree.find").length, 0, "the pane uses the shared read, not a second one");
+  assert.equal(
+    asked.filter((c) => c === "runs.tree.find").length,
+    0,
+    "the pane uses the shared read, not a second one",
+  );
 });
 
 test("the chat's runtime read pauses while its place is hidden and reads at once when it shows again", async () => {
   const asked: string[] = [];
-  const member = { kind: "helper", id: "thr_h", parentThreadId: "thr_0", title: "T", agentId: "a", state: "working", startedAt: 1, elapsedMs: 1, tokensIn: 0, tokensOut: 0, costMicros: 0 };
+  const member = {
+    kind: "helper",
+    id: "thr_h",
+    parentThreadId: "thr_0",
+    title: "T",
+    agentId: "a",
+    state: "working",
+    startedAt: 1,
+    elapsedMs: 1,
+    tokensIn: 0,
+    tokensOut: 0,
+    costMicros: 0,
+  };
   const call = async (cap: string): Promise<unknown> => {
     asked.push(cap);
-    if (cap === "engine.crew.status") return { members: [member], totals: { members: 1, working: 1, done: 0, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 0 } };
+    if (cap === "engine.crew.status")
+      return {
+        members: [member],
+        totals: {
+          members: 1,
+          working: 1,
+          done: 0,
+          needsYou: 0,
+          failed: 0,
+          stopped: 0,
+          tokensIn: 0,
+          tokensOut: 0,
+          costMicros: 0,
+          filesChanged: 0,
+          added: 0,
+          deleted: 0,
+          elapsedMs: 0,
+        },
+      };
     if (cap === "runs.tree.find") return { roots: [] };
     return {};
   };
@@ -452,11 +532,16 @@ test("a place is shown unless the window is hidden or the place has no size; it 
   const g = globalThis as { document?: unknown };
   const had = g.document;
   const listeners: Array<() => void> = [];
-  const doc = { visibilityState: "visible", addEventListener: (_t: string, f: () => void) => void listeners.push(f), removeEventListener: () => undefined };
+  const doc = {
+    visibilityState: "visible",
+    addEventListener: (_t: string, f: () => void) => void listeners.push(f),
+    removeEventListener: () => undefined,
+  };
   g.document = doc;
   let size = { width: 100, height: 100 };
   const ref = { current: { getBoundingClientRect: () => size } };
-  const Host = (): ReturnType<typeof CrewTabs> => (<Text testID="state">{useShown(ref) ? "shown" : "hidden"}</Text>) as never;
+  const Host = (): ReturnType<typeof CrewTabs> =>
+    (<Text testID="state">{useShown(ref) ? "shown" : "hidden"}</Text>) as never;
   try {
     const root = await mount(createRoot, <Host />);
     assert.equal(textOf(find(root, "state")), "shown");
@@ -473,4 +558,65 @@ test("a place is shown unless the window is hidden or the place has no size; it 
   } finally {
     g.document = had;
   }
+});
+
+test("the Crew pane being on screen, however it opened, turns the runtime read on even for a chat with no helper yet", async () => {
+  const asked: string[] = [];
+  const call = async (cap: string): Promise<unknown> => {
+    asked.push(cap);
+    if (cap === "engine.crew.status")
+      return {
+        members: [],
+        totals: {
+          members: 0,
+          working: 0,
+          done: 0,
+          needsYou: 0,
+          failed: 0,
+          stopped: 0,
+          tokensIn: 0,
+          tokensOut: 0,
+          costMicros: 0,
+          filesChanged: 0,
+          added: 0,
+          deleted: 0,
+          elapsedMs: 0,
+        },
+      };
+    if (cap === "runs.tree.find") return { roots: [] };
+    return {};
+  };
+  const Pane = (): ReturnType<typeof CrewTabs> => {
+    const crew = useCrew();
+    const reveal = crew?.reveal;
+    useEffect(() => {
+      reveal?.(true);
+      return () => reveal?.(false);
+    }, [reveal]);
+    return (<Text>pane</Text>) as never;
+  };
+  const Host = (): ReturnType<typeof CrewTabs> => {
+    const [on, setOn] = useState(false);
+    return (
+      <>
+        <Pressable testID="open-pane" onPress={() => setOn((x) => !x)}>
+          {null}
+        </Pressable>
+        <CrewProvider call={call as never} threadId="thr_0">
+          {on ? <Pane /> : <Text>none</Text>}
+        </CrewProvider>
+      </>
+    ) as never;
+  };
+  const root = await mount(createRoot, <Host />);
+  await flush();
+  assert.equal(asked.filter((c) => c.startsWith("runs.")).length, 0, "no helper and no pane: nothing is read");
+  await press(find(root, "open-pane"));
+  await flush();
+  assert.ok(asked.includes("runs.tree.find"), "the pane is showing: read");
+  asked.length = 0;
+  await press(find(root, "open-pane"));
+  await flush();
+  await flush();
+  assert.equal(asked.filter((c) => c.startsWith("runs.")).length, 0, "the pane closed: reading stops");
 });

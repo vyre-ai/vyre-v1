@@ -1,5 +1,6 @@
 // Right pane > Crew (DESIGN-crew.md, step 3): one row per teammate working for this chat, what it is on in a few words and how it stands. A row opens the teammate's own thread beside the chat, where you can
 // type to it directly; a finished one offers Merge, a running one offers Stop. The lead's chat stays calm: this list is where the crew lives, and the result card is where a finish arrives.
+import { useEffect } from "react";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
@@ -111,6 +112,12 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
   );
   // with the live read of the chat's crew (the strip's own), the pane shows the overview or one helper's peek; the teammate list below keeps Merge, Run again and Stop for code work
   const crew = useCrew();
+  // the pane is showing, however it was opened: the runtime is read for its Board and Tokens while it is
+  const reveal = crew?.reveal;
+  useEffect(() => {
+    reveal?.(true);
+    return () => reveal?.(false);
+  }, [reveal]);
   const status = crew?.status ?? null;
   if (crew && status && status.members.length > 0) {
     const sel = crew.selected !== null ? status.members.find((m) => m.id === crew.selected) : undefined;
