@@ -21,6 +21,7 @@ import {
 } from "./engine.ts";
 import { stepIo } from "./step-io.ts";
 import {
+  treeFind,
   boardAnswerCap,
   boardListCap,
   boardPutCap,
@@ -62,6 +63,7 @@ const base = {
   "runs.node.move": nodeMove,
   "runs.node.reclaim": nodeReclaim,
   "runs.node.start": nodeStart,
+  "runs.tree.find": treeFind,
   "runs.tree.get": treeGet,
   "runs.erase": erase,
   "runs.purge": purge,

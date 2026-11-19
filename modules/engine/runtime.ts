@@ -1535,14 +1535,14 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       else if (
         ev.type === "turn.completed" ||
         (ev.type === "turn.cancelled" && ev.asker === undefined) ||
-        (ev.type === "turn.failed" && ev.code !== "host_lost") ||
+        (ev.type === "turn.failed" && ev.code !== "host_lost" && ev.code !== "host_resumed") ||
         (ev.type === "turn.waiting" && ev.reason === "approval")
       ) {
         awake.down();
         h.turns?.(awake.running());
       }
       // a turn a dead host left is not in this engine's rows: its record is closed from what recover() knows, so the turn list, Try again and the agent's Working status are right
-      if (ev.type === "turn.failed" && ev.code === "host_lost") {
+      if (ev.type === "turn.failed" && (ev.code === "host_lost" || ev.code === "host_resumed")) {
         void mirror.turn(
           { id: ev.turnId, threadId: ev.threadId, agentId: ev.agentId, ...(ev.asker ? { asker: ev.asker } : {}) },
           "failed",

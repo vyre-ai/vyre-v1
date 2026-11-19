@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (41)
+## Capabilities (42)
 
 - [runs.activity.list](../capabilities/runs.activity.list.md): Everything of the agent work tree that is running, asleep or paused for the person (or for everyone, for someone who manages runs), newest first
 - [runs.board.answer](../capabilities/runs.board.answer.md): The parent, the owner or a manager answers a question on the board
@@ -44,6 +44,7 @@ Requires: nothing.
 - [runs.step_io](../capabilities/runs.step_io.md): What one step of a Run was given and what it answered, as the step log holds them, with anything that looks like a key hidden
 - [runs.steps](../capabilities/runs.steps.md): The durable step log of a Run
 - [runs.stop](../capabilities/runs.stop.md): Stop a Run (owner or Manage holder); stoppable work halts at the next safe point
+- [runs.tree.find](../capabilities/runs.tree.find.md): The trees of agent work that ran in a chat or in a helper's own thread, newest first, with the root of each (only those the person may see; full says whether they see all of it or only that it goes on)
 - [runs.tree.get](../capabilities/runs.tree.get.md): Read a whole tree of agent work: every node, with what each has spent and what it waits for
 - [runs.undo](../capabilities/runs.undo.md): Undo this run: replay the inverse of its writes for events still at the Run version and report the rest
 - [runs.wait_for](../capabilities/runs.wait_for.md): Wait in the background for an event, another Run or a time; ends the turn and wakes the thread on a match (default timeout 30 days)

@@ -2468,6 +2468,7 @@ export function createClient(transport: Transport) {
       steps: call("runs.steps", 1),
       stop: call("runs.stop", 1),
       tree: {
+        find: call("runs.tree.find", 1),
         get: call("runs.tree.get", 1),
       },
       undo: call("runs.undo", 1),

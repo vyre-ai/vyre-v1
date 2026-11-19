@@ -22,6 +22,7 @@ import {
   getNode,
   isTerminal,
   liveNodes,
+  nodesOfThread,
   moveNode,
   pauseSubtree,
   reclaimExpired,
@@ -407,4 +408,30 @@ export async function messageSeenCap(ctx: RunsCtx, input: In): Promise<unknown> 
 export async function messageListCap(ctx: RunsCtx, input: In): Promise<unknown> {
   const n = fullOnly(ctx, input.runId);
   return { messages: input.tree === true ? messagesInTree(ctx.db, n.rootRun) : messagesOf(ctx.db, n.id) };
+}
+
+/** The trees of work that ran in a chat (or a helper's thread), newest first, each with the node that ran there and the root to read the tree from. Only trees the person may see, in full or as a watcher. */
+export async function treeFind(ctx: RunsCtx, input: In): Promise<unknown> {
+  const out: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  for (const n of nodesOfThread(ctx.db, input.threadId, input.active === true, Math.min(100, input.limit ?? 30) * 3)) {
+    if (seen.has(n.rootRun)) continue; // one line per tree: the newest node of it that ran here
+    seen.add(n.rootRun);
+    try {
+      const { full } = look(ctx, n.id);
+      out.push({
+        rootRun: n.rootRun,
+        runId: n.id,
+        kind: n.kind,
+        status: n.status,
+        startedAt: n.startedAt,
+        ...(n.endedAt === undefined ? {} : { endedAt: n.endedAt }),
+        full,
+      });
+    } catch {
+      /* not theirs to see */
+    }
+    if (out.length >= Math.min(100, input.limit ?? 30)) break;
+  }
+  return { roots: out };
 }

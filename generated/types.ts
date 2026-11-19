@@ -36315,6 +36315,22 @@ export type RunsStopOut = {
     };
   };
 };
+export type RunsTreeFindIn = {
+  threadId: string;
+  active?: boolean;
+  limit?: number;
+};
+export type RunsTreeFindOut = {
+  roots: Array<{
+      rootRun: string;
+      runId: string;
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+      startedAt: number;
+      endedAt?: number;
+      full: boolean;
+    }>;
+};
 export type RunsTreeGetIn = {
   runId: string;
 };
@@ -50655,6 +50671,7 @@ export interface CapMap {
   "runs.step_io": { in: RunsStepIoIn; out: RunsStepIoOut };
   "runs.steps": { in: RunsStepsIn; out: RunsStepsOut };
   "runs.stop": { in: RunsStopIn; out: RunsStopOut };
+  "runs.tree.find": { in: RunsTreeFindIn; out: RunsTreeFindOut };
   "runs.tree.get": { in: RunsTreeGetIn; out: RunsTreeGetOut };
   "runs.undo": { in: RunsUndoIn; out: RunsUndoOut };
   "runs.wait_for": { in: RunsWaitForIn; out: RunsWaitForOut };

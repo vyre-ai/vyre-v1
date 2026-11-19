@@ -447,6 +447,26 @@ export default defineManifest({
       on: ["run", "/runId"],
     }),
     read(
+      "runs.tree.find",
+      "The trees of agent work that ran in a chat or in a helper's own thread, newest first, with the root of each (only those the person may see; full says whether they see all of it or only that it goes on)",
+      {
+        in: { threadId: id.thread, active: t.opt(t.bool()), limit: t.opt(t.int({ minimum: 1, maximum: 100 })) },
+        out: {
+          roots: t.arr(
+            t.obj({
+              rootRun: id.run,
+              runId: id.run,
+              kind: nodeKind,
+              status: nodeStatus,
+              startedAt: t.ts(),
+              endedAt: t.opt(t.ts()),
+              full: t.bool(),
+            }),
+          ),
+        },
+      },
+    ),
+    read(
       "runs.tree.get",
       "Read a whole tree of agent work: every node, with what each has spent and what it waits for",
       {

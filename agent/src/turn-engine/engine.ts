@@ -11,7 +11,7 @@ import { payLine } from "../accounts/paid.ts";
 import { createMemoryQueue } from "./queue.ts";
 import type { QueueStore } from "./queue.ts";
 import { HEARTBEAT_MS, createMemoryLeases } from "./lease.ts";
-import { createMemoryJournal, planResume, resumeNote, summaryOf } from "./journal.ts";
+import { createMemoryJournal, planResume, resumeNote, scrubInput, summaryOf } from "./journal.ts";
 import type { JournalStore, ResumePlan, Safety } from "./journal.ts";
 import type { LeaseStore } from "./lease.ts";
 import { createMemoryMessages, createMemoryWaits } from "./stores.ts";
@@ -490,7 +490,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (
       (e.type === "turn.completed" ||
         e.type === "turn.cancelled" ||
-        (e.type === "turn.failed" && e.code !== "host_lost")) &&
+        (e.type === "turn.failed" && e.code !== "host_lost" && e.code !== "host_resumed")) &&
       "turnId" in e
     )
       try {
@@ -1936,6 +1936,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     ctx: ToolContext,
   ): Promise<ToolRunResult> {
     if (!fn) return { ok: false, content: { code: "no_tools", message: "this engine has no tool runner" } };
+    const kept = scrubInput(call.input);
     const entry = (
       state: "started" | "done" | "failed" | "held",
       more: { summary?: string; endedAt?: number } = {},
@@ -1947,7 +1948,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           turnId: ctx.turnId,
           callId: call.id,
           name: call.name,
-          input: call.input,
+          input: kept.value,
+          ...(kept.changed ? { scrubbed: true } : {}),
           ...(callKey === undefined ? {} : { callKey }),
           safety: opts.toolSafety(call.name),
           state,
@@ -1980,7 +1982,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       };
     try {
       const r = await fn(call, ctx);
-      entry(r.held ? "held" : r.ok ? "done" : "failed", { summary: summaryOf(r.content), endedAt: now() });
+      entry(r.held ? "held" : r.ok ? "done" : "failed", {
+        summary: summaryOf(scrubInput(r.content).value),
+        endedAt: now(),
+      });
       if (opts.takeNotes && !r.held) {
         try {
           const got = await opts.takeNotes({ threadId: ctx.threadId, turnId: ctx.turnId, agentId: ctx.agentId });
@@ -2293,7 +2298,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           threadId,
           turnId: lostId,
           agentId: row.agentId,
-          code: "host_lost",
+          code: plan?.resumable ? "host_resumed" : "host_lost",
           qseq: row.qseq,
           asker: row.from.startsWith("usr_") ? row.from : st.thread.starter,
         });

@@ -198,3 +198,48 @@ test("work in another chat that a person cannot open is not shown to them, thoug
   assert.ok(ids.includes(here.id));
   assert.equal(ids.includes(there.id), false);
 });
+
+test("tree.find: the trees that ran in a chat, newest first, for people who may see them; a helper's own thread maps to its node; a stranger gets none", async () => {
+  const h = harness({ authorize: member });
+  const HELPER = `thr_${"9".repeat(32)}`;
+  const { root, a } = await built(h);
+  void a;
+  h.advance(1);
+  const kid = (
+    await h.call(
+      "runs.node.start",
+      { kind: "helper", owner: alice.id, parentRun: root.id, threadId: HELPER, name: "Own thread" },
+      engine,
+    )
+  ).node;
+  h.advance(1);
+  const later = (await h.call("runs.node.start", { kind: "turn", owner: alice.id, threadId: THREAD }, engine)).node;
+  const mine = await h.call("runs.tree.find", { threadId: THREAD }, at0(alice));
+  assert.deepEqual(
+    mine.roots.map((r: any) => r.rootRun),
+    [later.id, root.id],
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.equal(
+    mine.roots.every((r: any) => r.full),
+    true,
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const helper = await h.call("runs.tree.find", { threadId: HELPER }, at0(alice));
+  assert.deepEqual(
+    helper.roots.map((r: any) => [r.rootRun, r.runId]),
+    [[root.id, kid.id]],
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const watcher = await h.call("runs.tree.find", { threadId: THREAD }, at0(bob));
+  assert.equal(watcher.roots.length > 0 && watcher.roots.every((r: any) => r.full === false), true); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    (await h.call("runs.tree.find", { threadId: THREAD }, { id: "usr_carol", kind: "person" as const, depth: 0 }))
+      .roots,
+    [],
+  );
+  await h.call("runs.node.move", { runId: later.id, to: "stopped", why: "stopped" }, engine);
+  const live = await h.call("runs.tree.find", { threadId: THREAD, active: true }, at0(alice));
+  assert.equal(
+    live.roots.some((r: any) => r.rootRun === later.id),
+    false,
+    "a finished tree is not active",
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
+});

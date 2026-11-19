@@ -2468,6 +2468,7 @@ export function stubs(ctx: CallCtx) {
       steps: call("runs.steps"),
       stop: call("runs.stop"),
       tree: {
+        find: call("runs.tree.find"),
         get: call("runs.tree.get"),
       },
       undo: call("runs.undo"),

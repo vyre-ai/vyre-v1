@@ -714,3 +714,18 @@ export function liveNodes(db: Db, owner: string | undefined, limit: number): Nod
   ) as Row[];
   return rows.map(nodeOf);
 }
+
+/** The nodes that ran in one chat or helper thread, newest first, with the root of each tree. active: only trees that still have a live node. */
+export function nodesOfThread(db: Db, threadId: string, active: boolean, limit: number): Node[] {
+  const rows = (
+    db.all(
+      active
+        ? `SELECT n.* FROM runs_node n WHERE n.thread_id = ? AND EXISTS (SELECT 1 FROM runs_node l WHERE l.root_run = n.root_run AND l.status IN ('queued','running','waiting','paused'))
+           ORDER BY n.started_at DESC, n.run_id DESC LIMIT ?`
+        : "SELECT * FROM runs_node WHERE thread_id = ? ORDER BY started_at DESC, run_id DESC LIMIT ?",
+      threadId,
+      limit,
+    ) as Row[]
+  ).map(nodeOf);
+  return rows;
+}

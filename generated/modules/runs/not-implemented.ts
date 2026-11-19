@@ -43,6 +43,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "runs.step_io": async (ctx) => { throw new VyreErr(notImplemented("runs.step_io", ctx.trace)); },
   "runs.steps": async (ctx) => { throw new VyreErr(notImplemented("runs.steps", ctx.trace)); },
   "runs.stop": async (ctx) => { throw new VyreErr(notImplemented("runs.stop", ctx.trace)); },
+  "runs.tree.find": async (ctx) => { throw new VyreErr(notImplemented("runs.tree.find", ctx.trace)); },
   "runs.tree.get": async (ctx) => { throw new VyreErr(notImplemented("runs.tree.get", ctx.trace)); },
   "runs.undo": async (ctx) => { throw new VyreErr(notImplemented("runs.undo", ctx.trace)); },
   "runs.wait_for": async (ctx) => { throw new VyreErr(notImplemented("runs.wait_for", ctx.trace)); },

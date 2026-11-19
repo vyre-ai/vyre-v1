@@ -276,6 +276,11 @@ const STATUS_WORDS: Record<
     cause: "A paid key could answer. It is in your Tasks for you to say yes.",
     retryable: false,
   },
+  host_resumed: {
+    message: say("host_resumed"),
+    cause: "It carried on by itself from the last step it had finished, in a new reply below.",
+    retryable: false,
+  },
   host_lost: {
     message: say("host_lost"),
     cause: "It may have done part of the work. Check before running it again.",

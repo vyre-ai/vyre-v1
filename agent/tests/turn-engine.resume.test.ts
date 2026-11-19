@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createTurnEngine, createMemoryLeases, createMemoryQueue, scriptedProvider } from "../src/turn-engine/index.ts";
-import { createMemoryJournal } from "../src/turn-engine/journal.ts";
+import { createMemoryJournal, scrubInput } from "../src/turn-engine/journal.ts";
 import type { DriverEvent, EngineAgent, OpenThread } from "../src/turn-engine/index.ts";
 import { gate, manualClock, until } from "../src/turn-engine/harness.ts";
 
@@ -104,9 +104,10 @@ test("a read in flight is asked again under its old call id, the finished call i
   assert.match(notice(r), /read_policy was running when it stopped; it was asked again and answered/);
   assert.equal(r.b.turns("T").at(-1)?.state, "completed");
   assert.ok(
-    r.b.events("T").some((e) => e.type === "turn.failed" && e.code === "host_lost"),
-    "the old turn is closed honestly",
+    r.b.events("T").some((e) => e.type === "turn.failed" && e.code === "host_resumed"),
+    "the old turn is closed honestly, and says it was carried on",
   );
+  assert.ok(!r.b.events("T").some((e) => e.type === "turn.failed" && e.code === "host_lost"));
   await r.release();
 });
 
@@ -240,4 +241,37 @@ test("journal first, then act: when a call cannot be written down as started, a 
     results.find((r) => r.id === "c1"),
     { id: "c1", ok: false, code: "journal_failed" },
   );
+});
+
+test("what is kept of a call has no secrets in it: a field named like one, a key, a held token; a Vault reference stays because it is not a value", () => {
+  const out = scrubInput({
+    to: "a@b.example",
+    password: "hunter2",
+    nested: { apiKey: "abc", fine: "hello" },
+    list: ["ok", "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"],
+    ref: "#Mail.password",
+    n: 3,
+  });
+  assert.equal(out.changed, true);
+  assert.deepEqual(out.value, {
+    to: "a@b.example",
+    password: "[secret]",
+    nested: { apiKey: "[secret]", fine: "hello" },
+    list: ["ok", "[secret]"],
+    ref: "#Mail.password",
+    n: 3,
+  });
+  assert.equal(scrubInput({ title: "Call the supplier", count: 2 }).changed, false);
+});
+
+test("a call that had a secret in its input and was in flight is not asked again: the turn ends host_lost", async () => {
+  const r = await crash([
+    { type: "tool_call", id: "c1", name: "read_prices", input: {} },
+    { type: "tool_call", id: "c2", name: "keyed_create_task", input: { title: "x", apiKey: "abc123" } },
+    { type: "done" },
+  ]);
+  assert.equal(r.pb.sessions.length, 0);
+  assert.equal(r.ranB.length, 0);
+  assert.ok(r.b.events("T").some((e) => e.type === "turn.failed" && e.code === "host_lost"));
+  await r.release();
 });

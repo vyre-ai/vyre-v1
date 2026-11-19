@@ -259,7 +259,7 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
           /* nothing waiting */
         }
       }
-      if (e.kind === "end") ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);
+      if (e.kind === "end") ended.set(e.turnId, e.code === "host_lost" || e.code === "host_resumed" ? "lost" : e.state);
       if (e.kind === "final") await helperResult(e);
       return;
     }
@@ -272,7 +272,7 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
       return;
     }
     if (e.kind === "end") {
-      ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);
+      ended.set(e.turnId, e.code === "host_lost" || e.code === "host_resumed" ? "lost" : e.state);
       if (e.state === "waiting")
         o.db.run(
           "UPDATE engine_crew_job SET state = 'waiting' WHERE job_id = ? AND state = 'working'",

@@ -43,6 +43,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.step_io": Handler<"runs.step_io", X>;
   "runs.steps": Handler<"runs.steps", X>;
   "runs.stop": Handler<"runs.stop", X>;
+  "runs.tree.find": Handler<"runs.tree.find", X>;
   "runs.tree.get": Handler<"runs.tree.get", X>;
   "runs.undo": Handler<"runs.undo", X>;
   "runs.wait_for": Handler<"runs.wait_for", X>;
