@@ -26,10 +26,18 @@ test("phone: Vault and Settings open on their list, Back goes list then out; the
     await shot("vault-list-first");
     assert.equal(await page.getByTestId("vault-section-page").count(), 0, "no item list yet");
     await page.getByTestId("row-nav-logins").click();
-    // wait for the list's own title: the first list-title on the page is sometimes the sidebar's or the previous screen's until the Logins list has drawn
-    const logins = page.getByTestId("list-title").filter({ hasText: /^Logins/ });
-    await logins.first().waitFor({ timeout: 10_000 });
-    assert.match(await logins.first().innerText(), /^Logins/, "the row opens its own list");
+    // the first list-title on the page must be the Logins list's: wait (retrying) until it says so, and fail with what it said if it never does
+    const title = page.getByTestId("list-title").first();
+    await title.waitFor({ timeout: 10_000 });
+    await page
+      .waitForFunction(
+        () =>
+          /^Logins/.test((document.querySelector('[data-testid="list-title"]') as HTMLElement | null)?.innerText ?? ""),
+        null,
+        { timeout: 10_000 },
+      )
+      .catch(() => undefined);
+    assert.match(await title.innerText(), /^Logins/, "the row opens its own list");
     say(`vault logins: ${await screens(page)}`);
     await shot("vault-logins");
     assert.ok(
