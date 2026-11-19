@@ -4,12 +4,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { act } from "react";
 import { createRoot } from "test-renderer";
-import { find, flush, installDom, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { RecordsDataProvider, RecordsStateProvider } from "../sidebar/index.ts";
 import type { RecordsData } from "../sidebar/index.ts";
 import { RecordViews } from "../views-a/index.ts";
-import { northwind } from "../views-a/sample.ts";
+import { createViewsSample, northwind } from "../views-a/sample.ts";
 import { createSampleRecords } from "../table/sample.ts";
 import type { SampleSpace } from "../table/sample.ts";
 import type { FieldDef, RecordRow, TypeDef } from "../table/model.ts";
@@ -92,7 +92,7 @@ const DESIGN = [
   { key: "stage3", title: "Done", order: 2, final: true, tasks: [], automations: [], exit: { requireTasks: false } },
 ];
 
-function sample(o: { actor?: string } = {}) {
+function sample(o: { actor?: string; failMove?: string } = {}) {
   const base = createSampleRecords(space);
   const calls: { cap: string; input: Record<string, unknown> }[] = [];
   const data: RecordsData = {
@@ -132,6 +132,7 @@ function sample(o: { actor?: string } = {}) {
         return { entries: [{ id: "e1", kind: "stage", at: NOW, actor: o.actor ?? "usr_omar" }] };
       if (cap === "journeys.move_stage") {
         calls.push({ cap, input: i });
+        if (o.failMove) throw new Error(o.failMove);
         const cur = (base.replica.rows(`records:${JOURNEY.key}`) as unknown as RecordRow[]).find(
           (r) => r.id === i["recordId"],
         )!;
@@ -269,6 +270,29 @@ test("a drag lights the lane it is over with a placeholder, and dropping moves t
   }
 });
 
+test("a refusal stays on the card after the drag ends (the browser's dragend must not clear it)", async () => {
+  const restore = installDom();
+  const s = sample({ failMove: "stage precondition: required task t1 is not done (validation.precondition_failed)" });
+  const b = await mountBoard(s);
+  try {
+    await drag(b.root, "jr_2");
+    await over(b.root, "stage2");
+    await drop(b.root, "stage2");
+    await act(async () => {
+      (find(b.root, "drag-jr_2")!.props.onDragEnd as () => void)();
+    });
+    await flush();
+    await flush();
+    assert.match(textOf(find(b.root, "card-refused-jr_2")), /Finish the required tasks in this stage first\./);
+    assert.equal(count(b.root, "stage1"), "2", "the card stays where it was");
+    await press(find(b.root, "card-refused-dismiss-jr_2"));
+    assert.equal(find(b.root, "card-refused-jr_2"), null, "the little cross puts the reason away");
+  } finally {
+    await b.stop();
+    restore();
+  }
+});
+
 test("two people on one card: someone moved it while it was held, so the drop never overwrites theirs", async () => {
   const restore = installDom();
   const s = sample({ actor: "usr_omar" });
@@ -393,22 +417,170 @@ test("bands by owner: one band per person with a card, each with its own columns
   }
 });
 
-test("the card face editor: Detailed lifts the amount out; a switch takes a field off the card", async () => {
+test("the card face editor: a Journey's board starts Detailed; Simple takes the figure off, Visual adds a cover; the editor closes", async () => {
   const restore = installDom();
   const s = sample();
   const b = await mountBoard(s);
   try {
-    assert.equal(find(b.root, "card-amount-jr_1"), null, "Simple has no big figure");
+    assert.match(textOf(find(b.root, "card-amount-jr_1")), /\$4,000/, "Detailed lifts the amount out");
     await press(find(b.root, "board-face"));
     assert.ok(find(b.root, "face-panel"));
-    await press(find(b.root, "face-preset-detail"));
+    await press(find(b.root, "face-preset-simple"));
     await flush();
-    assert.match(textOf(find(b.root, "card-amount-jr_1")), /\$4,000/);
+    assert.equal(find(b.root, "card-amount-jr_1"), null, "Simple has no big figure");
     await press(find(b.root, "face-preset-visual"));
     await flush();
     assert.ok(find(b.root, "cover-jr_1"), "Visual has a cover");
+    await press(find(b.root, "face-switch-amount"));
+    await flush();
+    assert.equal(find(b.root, "card-amount-jr_1"), null, "the Amount switch takes the figure off the card");
     await press(find(b.root, "face-close"));
     assert.equal(find(b.root, "face-panel"), null);
+  } finally {
+    await b.stop();
+    restore();
+  }
+});
+
+// ---------------------------------------------------------------- an ordinary type's board: WIP limits from the view, quick add
+
+async function plainBoard(
+  s: { data: RecordsData },
+  initial: { type: string; viewId?: string },
+): Promise<{ root: Node; stop(): Promise<void> }> {
+  const r = createRoot();
+  await act(async () => {
+    r.render(
+      <RecordsDataProvider value={s.data}>
+        <RecordsStateProvider initial={initial}>
+          <RecordViews kind="board" />
+        </RecordsStateProvider>
+      </RecordsDataProvider>,
+    );
+  });
+  await flush();
+  await flush();
+  return {
+    root: r.container as unknown as Node,
+    stop: async () => {
+      await act(async () => {
+        r.unmount();
+      });
+    },
+  };
+}
+
+test("a view's WIP limit shows on the column head as 'n of limit', says Over its limit, and the head's menu sets another", async () => {
+  const restore = installDom();
+  const plainSpace: SampleSpace = {
+    ...northwind,
+    views: [
+      ...northwind.views,
+      {
+        viewId: "vw_board",
+        type: "projects",
+        kind: "board",
+        title: "Board",
+        shared: false,
+        ownerId: "usr_imran",
+        config: { wip: { planning: 2 } },
+        updatedAt: NOW,
+      } as never,
+    ],
+  };
+  const base = createViewsSample(plainSpace);
+  const saves: Record<string, unknown>[] = [];
+  const s = {
+    data: {
+      ...base.data,
+      async call(cap: string, input: unknown) {
+        if (cap === "views.save") {
+          saves.push(input as Record<string, unknown>);
+          return { view: { viewId: "vw_board" } };
+        }
+        return base.data.call(cap, input);
+      },
+    } as RecordsData,
+  };
+  const b = await plainBoard(s, { type: "projects", viewId: "vw_board" });
+  try {
+    assert.equal(count(b.root, "planning"), "3 of 2", "three cards against a limit of two");
+    assert.match(textOf(find(b.root, "col-over-planning")), /Over its limit/);
+    assert.equal(find(b.root, "col-over-active"), null);
+    await press(find(b.root, "col-limit-button-planning"));
+    assert.ok(find(b.root, "menu-item-5 cards"), "the menu offers limits");
+    await press(find(b.root, "menu-item-5 cards"));
+    await flush();
+    assert.equal(saves.length, 1);
+    assert.deepEqual((saves[0]!["config"] as Record<string, unknown>)["wip"], { planning: 5 }, "kept with the view");
+    assert.equal(saves[0]!["viewId"], "vw_board", "the person's own view is updated, not a new one made");
+  } finally {
+    await b.stop();
+    restore();
+  }
+});
+
+test("quick add: New at the foot of a column opens a name field; Enter makes the card in that column", async () => {
+  const restore = installDom();
+  const base = createViewsSample();
+  const made: Record<string, unknown>[] = [];
+  const s = {
+    data: {
+      ...base.data,
+      async call(cap: string, input: unknown) {
+        if (cap === "records.create") {
+          made.push(input as Record<string, unknown>);
+          return { record: { id: "projects_new" } };
+        }
+        return base.data.call(cap, input);
+      },
+    } as RecordsData,
+  };
+  const b = await plainBoard(s, { type: "projects" });
+  try {
+    await press(find(b.root, "add-planning"));
+    const input = find(b.root, "quick-planning");
+    assert.ok(input, "a name field opens in the column");
+    await typeInto(input, "Orchard rollout");
+    await act(async () => {
+      (find(b.root, "quick-planning")!.props.onKeyDown as (e: unknown) => void)({
+        key: "Enter",
+        shiftKey: false,
+        preventDefault() {},
+        stopPropagation() {},
+        isDefaultPrevented: () => false,
+        target: { value: "Orchard rollout", blur() {} },
+        currentTarget: { value: "Orchard rollout" },
+        nativeEvent: { key: "Enter", shiftKey: false, isComposing: false },
+      });
+    });
+    await flush();
+    assert.equal(made.length, 1);
+    assert.deepEqual((made[0]!["fields"] as Record<string, unknown>)["name"], "Orchard rollout");
+    assert.equal((made[0]!["fields"] as Record<string, unknown>)["status"], "planning", "in the column it was typed in");
+    assert.match(textOf(find(b.root, "board-toast-text")), /Added Orchard rollout to/);
+  } finally {
+    await b.stop();
+    restore();
+  }
+});
+
+test("Assign on the bar gives the selected cards one owner, or none", async () => {
+  const restore = installDom();
+  const s = sample();
+  const b = await mountBoard(s);
+  try {
+    await press(find(b.root, "tick-jr_1"));
+    await press(find(b.root, "tick-jr_2"));
+    await press(find(b.root, "bar-assign"));
+    await press(find(b.root, "menu-item-No one"));
+    await flush();
+    const updates = s.calls.filter((c) => c.cap === "records.update");
+    assert.deepEqual(
+      updates.map((c) => [c.input["recordId"], (c.input["patch"] as Record<string, unknown>)["owner"]]),
+      [["jr_1", null], ["jr_2", null]],
+    );
+    assert.equal(find(b.root, "board-select-bar"), null, "the selection clears");
   } finally {
     await b.stop();
     restore();

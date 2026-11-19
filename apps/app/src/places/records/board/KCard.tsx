@@ -170,6 +170,7 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
     if (el?.focus && active && !(active as { matches?: (s: string) => boolean }).matches?.("input,textarea"))
       el.focus();
   }, [focused]);
+  const [hover, setHover] = useState(false);
   const edge = age?.late === true;
   const card = (
     <Pressable
@@ -179,6 +180,8 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
       accessibilityState={{ selected }}
       focusable={focused}
       testID={`card-${row.id}`}
+      onHoverIn={() => setHover(true)}
+      onHoverOut={() => setHover(false)}
       onPress={() => {
         board.setFocus(row.id);
         if (multi) board.toggle(row.id);
@@ -217,7 +220,7 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
           testID={`tick-${row.id}`}
           focusable={false}
           onPress={() => board.toggle(row.id)}
-          style={[k.ck, selected && k.ckOn, !selected && !multi && k.ckHidden]}
+          style={[k.ck, selected && k.ckOn, !selected && !multi && !hover && k.ckHidden]}
         >
           {selected ? <Glyph name="check" size={11} color="#fff" width={2} /> : null}
         </Pressable>
@@ -337,7 +340,7 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
       },
       onDragEnd: () => {
         board.drag.current = null;
-        board.send({ t: "cancel" });
+        board.send({ t: "release" });
       },
       style: { cursor: "grab", width: "100%" },
     },

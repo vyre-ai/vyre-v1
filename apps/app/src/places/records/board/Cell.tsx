@@ -143,13 +143,13 @@ export function Cell({
             >{`Show ${Math.min(LANE_PAGE, count - rows.length)} more of ${(count - rows.length).toLocaleString("en-US")}`}</Text>
           </Pressable>
         ) : null}
-        {count === 0 && !failed && !over ? (
+        {count === 0 && !failed && !over && swimKey === null ? (
           <Text style={c.none} testID={`empty-${tid}`}>
             No cards
           </Text>
         ) : null}
       </ScrollView>
-      {lane.none ? null : adding ? (
+      {lane.none || swimKey !== null ? null : adding ? (
         <View style={c.qi}>
           <TextField
             value={name}

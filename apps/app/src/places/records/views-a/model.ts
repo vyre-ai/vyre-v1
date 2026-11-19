@@ -275,8 +275,8 @@ const faceOf = (v: unknown): CardFace | undefined => {
   return { preset: c.preset, fields, mark: c.mark !== false };
 };
 /** The face a card has: a person's own (their view's `config.card`), else the type's, else the plain one. A value that is not a face is passed over. */
-export function cardFaceOf(def: TypeDef, saved?: Pick<ViewRow, "config">): CardFace {
-  return faceOf(saved?.config?.["card"]) ?? faceOf((def as { card?: unknown }).card) ?? PLAIN_FACE;
+export function cardFaceOf(def: TypeDef, saved?: Pick<ViewRow, "config">, fallback: CardFace = PLAIN_FACE): CardFace {
+  return faceOf(saved?.config?.["card"]) ?? faceOf((def as { card?: unknown }).card) ?? fallback;
 }
 
 /** The field a gallery card and a list row show as a tag: the type's first status, else its first choice. */

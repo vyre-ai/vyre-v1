@@ -162,7 +162,11 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const [faceOpen, setFaceOpen] = useState(false);
   const [localFace, setLocalFace] = useState<CardFace | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
-  const face = localFace ?? cardFaceOf(ctx.def, ctx.saved);
+  const [boxW, setBoxW] = useState(0);
+  // a Journey's board starts on the Detailed face (owner, amount, days in the stage); an ordinary board on the plain one
+  const face =
+    localFace ??
+    cardFaceOf(ctx.def, ctx.saved, ctx.journey ? { preset: "detail", fields: null, mark: true } : undefined);
   const own = field ? lanesOf(field, chosen) : [];
   const lanes = useMemo(
     () => [...own.filter((l) => l.none), ...own.filter((l) => !l.none)],
@@ -490,10 +494,71 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     );
   };
 
+  const swimEntries = (): MenuEntry[] =>
+    !field
+      ? []
+      : [
+          { head: "Swimlanes" },
+          {
+            label: "None",
+            checked: swim === null,
+            onSelect: () => {
+              setSwimKey(null);
+              persistSoon({ swim: null });
+            },
+          },
+          ...each(
+            ctx.def.fields.filter((f) => swimmable(f, field, ctx.def.titleField)),
+            (f): MenuEntry => ({
+              label: f.title,
+              checked: swim?.key === f.key,
+              onSelect: () => {
+                setSwimKey(f.key);
+                persistSoon({ swim: f.key });
+              },
+            }),
+          ),
+        ];
+  const headTools = field ? (
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={swim ? `Swimlanes by ${swim.title}` : "Swimlanes"}
+        testID="board-swim"
+        onPress={(e) => {
+          const p = (e as { nativeEvent?: { pageX?: number; pageY?: number } }).nativeEvent;
+          menu.show(swimEntries(), p?.pageX ?? 0, p?.pageY ?? 0, "other");
+        }}
+        style={({ hovered }: { hovered?: boolean }) => [s.tool, swim && s.toolOn, hovered === true && s.toolOver]}
+      >
+        <Glyph name="lanes" size={14} color="var(--ink-2)" />
+        <Text style={s.toolText}>{swim ? `Swimlanes: ${swim.title}` : "Swimlanes"}</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        testID="board-face"
+        onPress={() => setFaceOpen((o) => !o)}
+        style={({ hovered }: { hovered?: boolean }) => [s.tool, faceOpen && s.toolOn, hovered === true && s.toolOver]}
+      >
+        <Glyph name="card" size={14} color="var(--ink-2)" />
+        <Text style={s.toolText}>Card face</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Undo the last move"
+        testID="board-undo-button"
+        onPress={undoLast}
+        style={({ hovered }: { hovered?: boolean }) => [s.tool, hovered === true && s.toolOver]}
+      >
+        <Glyph name="undo" size={14} color="var(--ink-2)" />
+      </Pressable>
+    </>
+  ) : null;
   const head = (
     <ViewHead
       ctx={ctx}
       st={st}
+      extra={headTools}
       lanes={{
         field,
         choices: ctx.journey ? [ctx.journey.field] : ctx.def.fields.filter(isLaneField),
@@ -532,8 +597,12 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       </View>
     );
   }
-  const laneWidth = isPhoneWidth(width) ? Math.max(220, width - 56) : LANE_W;
   const isFinish = (l: Lane): boolean => !l.none && bs.by[l.key]?.final === true && !expanded.has(l.key);
+  // columns share the width the board has, between 184 and 280 px each; a phone shows one column and a peek of the next
+  const strips = lanes.filter(isFinish).length;
+  const open = Math.max(1, lanes.length - strips);
+  const fit = boxW > 0 ? Math.floor((boxW - 32 - 12 * (lanes.length - 1) - strips * 88) / open) : LANE_W;
+  const laneWidth = isPhoneWidth(width) ? Math.max(220, width - 56) : Math.max(184, Math.min(LANE_W + 4, fit));
   const board: Board = {
     ctx,
     st,
@@ -674,28 +743,6 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     if (next) setFocus(next);
   };
 
-  const swimEntries = (): MenuEntry[] => [
-    { head: "Swimlanes" },
-    {
-      label: "None",
-      checked: swim === null,
-      onSelect: () => {
-        setSwimKey(null);
-        persist({ swim: null });
-      },
-    },
-    ...each(
-      ctx.def.fields.filter((f) => swimmable(f, field, ctx.def.titleField)),
-      (f): MenuEntry => ({
-        label: f.title,
-        checked: swim?.key === f.key,
-        onSelect: () => {
-          setSwimKey(f.key);
-          persist({ swim: f.key });
-        },
-      }),
-    ),
-  ];
   const wipEntries = (l: Lane): MenuEntry[] => [
     { head: `${l.title} limit` },
     ...each(
@@ -709,39 +756,6 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   return (
     <View style={s.main} testID="records-board" accessibilityLabel={`${ctx.def.plural} board`}>
       {head}
-      <View style={s.tools}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={swim ? `Swimlanes by ${swim.title}` : "Swimlanes"}
-          testID="board-swim"
-          onPress={(e) => {
-            const p = (e as { nativeEvent?: { pageX?: number; pageY?: number } }).nativeEvent;
-            menu.show(swimEntries(), p?.pageX ?? 0, p?.pageY ?? 0, "other");
-          }}
-          style={({ hovered }: { hovered?: boolean }) => [s.tool, swim && s.toolOn, hovered === true && s.toolOver]}
-        >
-          <Glyph name="lanes" size={14} color="var(--ink-2)" />
-          <Text style={s.toolText}>{swim ? `Swimlanes: ${swim.title}` : "Swimlanes"}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          testID="board-face"
-          onPress={() => setFaceOpen((o) => !o)}
-          style={({ hovered }: { hovered?: boolean }) => [s.tool, faceOpen && s.toolOn, hovered === true && s.toolOver]}
-        >
-          <Glyph name="card" size={14} color="var(--ink-2)" />
-          <Text style={s.toolText}>Card face</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Undo the last move"
-          testID="board-undo-button"
-          onPress={undoLast}
-          style={({ hovered }: { hovered?: boolean }) => [s.tool, hovered === true && s.toolOver]}
-        >
-          <Glyph name="undo" size={14} color="var(--ink-2)" />
-        </Pressable>
-      </View>
       {error ? (
         <Text style={s.error} accessibilityRole="alert" testID="board-error">
           {error}
