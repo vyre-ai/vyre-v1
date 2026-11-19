@@ -18,6 +18,8 @@ export interface Backup {
   note?: string;
   /** a person kept it: retention never deletes it */
   pinned?: boolean | undefined;
+  /** kept until this time whatever the clean-up rule says (a backup made before a restore) */
+  keepUntil?: number | undefined;
 }
 
 export type BackupEvent =
@@ -81,7 +83,7 @@ export function expired(all: readonly Backup[], now: number, p: Policy = POLICY)
   const out: string[] = [];
   const ready = all.filter((b) => b.state === "ready").sort((a, b) => b.at - a.at);
   ready.forEach((b, i) => {
-    if (i === 0 || b.pinned) return;
+    if (i === 0 || b.pinned || (b.keepUntil !== undefined && b.keepUntil > now)) return;
     if (i >= p.keep && now - b.at > p.days * DAY) out.push(b.id);
   });
   for (const b of all) if (b.state === "failed" && !b.pinned && now - b.at > DAY) out.push(b.id);
@@ -100,3 +102,5 @@ export function fileName(siteSlug: string, at: number): string {
   const d = new Date(at).toISOString().replace(/[:]/g, "-").slice(0, 19);
   return `${siteSlug.replace(/[^a-z0-9-]/gi, "-").slice(0, 40) || "site"}-${d}.sql.gz`;
 }
+
+export const SAFETY_DAYS = 7;

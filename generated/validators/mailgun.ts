@@ -5,23 +5,23 @@ import type { Check } from './core.ts';
 
 function d_s_09238f98e5(v: unknown, p: string, e: string[]): void {
 {
-const x45 = v;
-const g45 = typeOf(x45);
-const b45: string[] = []; lf(x45, p, b45, L0); if (b45.length) e.push(...b45);
-if (g45 === "object") {
-if (g45 === 'object') { const o45 = x45 as Record<string, unknown>;
-if (!("name" in o45)) e.push(p + "/name" + ': required');
-if (!("state" in o45)) e.push(p + "/state" + ': required');
-if (!("spf" in o45)) e.push(p + "/spf" + ': required');
-if (!("dkim" in o45)) e.push(p + "/dkim" + ': required');
-if (!("dmarc" in o45)) e.push(p + "/dmarc" + ': required');
-if (!("region" in o45)) e.push(p + "/region" + ': required');
-if ("name" in o45) lf(o45["name"], p + "/name", e, L1);
-if ("state" in o45) lf(o45["state"], p + "/state", e, L36);
-if ("spf" in o45) lf(o45["spf"], p + "/spf", e, L37);
-if ("dkim" in o45) lf(o45["dkim"], p + "/dkim", e, L37);
-if ("dmarc" in o45) lf(o45["dmarc"], p + "/dmarc", e, L37);
-if ("region" in o45) lf(o45["region"], p + "/region", e, L38);
+const x44 = v;
+const g44 = typeOf(x44);
+const b44: string[] = []; lf(x44, p, b44, L0); if (b44.length) e.push(...b44);
+if (g44 === "object") {
+if (g44 === 'object') { const o44 = x44 as Record<string, unknown>;
+if (!("name" in o44)) e.push(p + "/name" + ': required');
+if (!("state" in o44)) e.push(p + "/state" + ': required');
+if (!("spf" in o44)) e.push(p + "/spf" + ': required');
+if (!("dkim" in o44)) e.push(p + "/dkim" + ': required');
+if (!("dmarc" in o44)) e.push(p + "/dmarc" + ': required');
+if (!("region" in o44)) e.push(p + "/region" + ': required');
+if ("name" in o44) lf(o44["name"], p + "/name", e, L1);
+if ("state" in o44) lf(o44["state"], p + "/state", e, L36);
+if ("spf" in o44) lf(o44["spf"], p + "/spf", e, L37);
+if ("dkim" in o44) lf(o44["dkim"], p + "/dkim", e, L37);
+if ("dmarc" in o44) lf(o44["dmarc"], p + "/dmarc", e, L37);
+if ("region" in o44) lf(o44["region"], p + "/region", e, L38);
 }
 }
 }
@@ -29,33 +29,33 @@ if ("region" in o45) lf(o45["region"], p + "/region", e, L38);
 
 function d_s_0fd5100e68(v: unknown, p: string, e: string[]): void {
 {
-const x70 = v;
-const g70 = typeOf(x70);
-const b70: string[] = []; lf(x70, p, b70, L0); if (b70.length) e.push(...b70);
-if (g70 === "object") {
-if (g70 === 'object') { const o70 = x70 as Record<string, unknown>;
-if (!("routeId" in o70)) e.push(p + "/routeId" + ': required');
-if (!("expression" in o70)) e.push(p + "/expression" + ': required');
-if (!("forwardTo" in o70)) e.push(p + "/forwardTo" + ': required');
-if (!("priority" in o70)) e.push(p + "/priority" + ': required');
-if ("routeId" in o70) lf(o70["routeId"], p + "/routeId", e, L1);
-if ("expression" in o70) lf(o70["expression"], p + "/expression", e, L1);
-if ("forwardTo" in o70) {
+const x69 = v;
+const g69 = typeOf(x69);
+const b69: string[] = []; lf(x69, p, b69, L0); if (b69.length) e.push(...b69);
+if (g69 === "object") {
+if (g69 === 'object') { const o69 = x69 as Record<string, unknown>;
+if (!("routeId" in o69)) e.push(p + "/routeId" + ': required');
+if (!("expression" in o69)) e.push(p + "/expression" + ': required');
+if (!("forwardTo" in o69)) e.push(p + "/forwardTo" + ': required');
+if (!("priority" in o69)) e.push(p + "/priority" + ': required');
+if ("routeId" in o69) lf(o69["routeId"], p + "/routeId", e, L1);
+if ("expression" in o69) lf(o69["expression"], p + "/expression", e, L1);
+if ("forwardTo" in o69) {
 {
-const x71 = o70["forwardTo"];
-const g71 = typeOf(x71);
-const b71: string[] = []; lf(x71, p + "/forwardTo", b71, L4); if (b71.length) e.push(...b71);
-if (g71 === "array") {
-if (g71 === 'array') { const a71 = x71 as unknown[];
-for (let i71 = 0; i71 < a71.length; i71++) {
-lf(a71[i71], p + "/forwardTo" + '/' + i71, e, L1);
+const x70 = o69["forwardTo"];
+const g70 = typeOf(x70);
+const b70: string[] = []; lf(x70, p + "/forwardTo", b70, L4); if (b70.length) e.push(...b70);
+if (g70 === "array") {
+if (g70 === 'array') { const a70 = x70 as unknown[];
+for (let i70 = 0; i70 < a70.length; i70++) {
+lf(a70[i70], p + "/forwardTo" + '/' + i70, e, L1);
 }
 }
 }
 }
 }
-if ("priority" in o70) lf(o70["priority"], p + "/priority", e, L2);
-if ("description" in o70) lf(o70["description"], p + "/description", e, L1);
+if ("priority" in o69) lf(o69["priority"], p + "/priority", e, L2);
+if ("description" in o69) lf(o69["description"], p + "/description", e, L1);
 }
 }
 }
@@ -63,15 +63,15 @@ if ("description" in o70) lf(o70["description"], p + "/description", e, L1);
 
 function d_s_c81f008ed8(v: unknown, p: string, e: string[]): void {
 {
-const x994 = v;
-const g994 = typeOf(x994);
-const b994: string[] = []; lf(x994, p, b994, L0); if (b994.length) e.push(...b994);
-if (g994 === "object") {
-if (g994 === 'object') { const o994 = x994 as Record<string, unknown>;
-if (!("domain" in o994)) e.push(p + "/domain" + ': required');
-if (!("records" in o994)) e.push(p + "/records" + ': required');
-if ("domain" in o994) d_s_09238f98e5(o994["domain"], p + "/domain", e);
-if ("records" in o994) d_s_13c1b1d2bc(o994["records"], p + "/records", e);
+const x993 = v;
+const g993 = typeOf(x993);
+const b993: string[] = []; lf(x993, p, b993, L0); if (b993.length) e.push(...b993);
+if (g993 === "object") {
+if (g993 === 'object') { const o993 = x993 as Record<string, unknown>;
+if (!("domain" in o993)) e.push(p + "/domain" + ': required');
+if (!("records" in o993)) e.push(p + "/records" + ': required');
+if ("domain" in o993) d_s_09238f98e5(o993["domain"], p + "/domain", e);
+if ("records" in o993) d_s_13c1b1d2bc(o993["records"], p + "/records", e);
 }
 }
 }

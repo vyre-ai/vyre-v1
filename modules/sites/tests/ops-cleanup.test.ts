@@ -1,6 +1,7 @@
 // Deleting a site takes its workers, runs, backups and logs with it (r42-sites-run).
 // @reads ../migrations/0010_ops.sql
 // @reads ../migrations/0011_ops_runs.sql
+// @reads ../migrations/0012_ops_locks.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -12,7 +13,7 @@ import * as st from "../ops/store.ts";
 
 test("a site's workers, running jobs, backup files and rows go; another site's stay", async () => {
   const raw = new DatabaseSync(":memory:");
-  for (const f of ["0010_ops.sql", "0011_ops_runs.sql"])
+  for (const f of ["0010_ops.sql", "0011_ops_runs.sql", "0012_ops_locks.sql"])
     raw.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const db = {
     all: (q: string, ...a: unknown[]) => raw.prepare(q).all(...(a as never[])),

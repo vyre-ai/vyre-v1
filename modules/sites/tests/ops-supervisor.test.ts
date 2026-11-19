@@ -1,6 +1,7 @@
 // The supervisor over a real SQLite and a fake runner: workers started, crashed, backed off and stopped; jobs scheduled, run, ended, timed out, skipped when they overlap, and found again after a restart (r42-sites-run, slice 5).
 // @reads ../migrations/0010_ops.sql
 // @reads ../migrations/0011_ops_runs.sql
+// @reads ../migrations/0012_ops_locks.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -23,12 +24,12 @@ interface Box {
   kind: string;
 }
 
-function world(o: { siteRunning?: boolean } = {}) {
+function world(o: { siteRunning?: boolean; afterStart?: (cid: string, db: OpsDb) => void } = {}) {
   const raw = new DatabaseSync(":memory:");
   raw.exec(
     "CREATE TABLE sites_site (id TEXT PRIMARY KEY, container_id TEXT, current_deployment TEXT, limits TEXT, deleted_at INTEGER); CREATE TABLE sites_deployment (id TEXT PRIMARY KEY, image TEXT);",
   );
-  for (const f of ["0010_ops.sql", "0011_ops_runs.sql"])
+  for (const f of ["0010_ops.sql", "0011_ops_runs.sql", "0012_ops_locks.sql"])
     raw.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const db: OpsDb = {
     all: (q, ...a) => raw.prepare(q).all(...(a as never[])),
@@ -60,6 +61,7 @@ function world(o: { siteRunning?: boolean } = {}) {
       if (failStart) throw new Error("no room on the server");
       const cid = `c${++n}`;
       boxes.set(cid, { running: true, cmd: a.cmd, env: a.env, image: a.image, kind: a.kind });
+      o.afterStart?.(cid, db);
       return { containerId: cid, name: `vyre-site-x-${a.id}` };
     },
     remove: async (cid) => {
@@ -475,4 +477,50 @@ test("two ticks at once do not start a run twice", async () => {
   await Promise.all([w.sup.tick(), w.sup.tick()]);
   assert.equal(st.listRuns(w.db, "j1").length, 1);
   assert.equal(w.boxes.size, 1);
+});
+
+test("a worker stopped while its container was being made has the container removed, never left running with no row", async () => {
+  const w = world({
+    afterStart: (_cid, db) => void db.run("UPDATE sites_service SET state = 'stopped' WHERE id = 'v1'"),
+  });
+  addService(w);
+  want(w);
+  await w.sup.tick();
+  assert.equal(st.getService(w.db, "v1")?.state, "stopped");
+  assert.equal(st.getService(w.db, "v1")?.containerId, undefined);
+  assert.equal(w.boxes.size, 0, "the container that was made is gone");
+  assert.equal(w.removed.length, 1);
+});
+
+test("a worker removed while its container was being made has the container removed", async () => {
+  const w = world({ afterStart: (_cid, db) => void db.run("UPDATE sites_service SET deleted_at = 5 WHERE id = 'v1'") });
+  addService(w);
+  want(w);
+  await w.sup.tick();
+  assert.equal(w.boxes.size, 0);
+});
+
+test("a job run cancelled while its container was being made has the container removed", async () => {
+  const w = world({
+    afterStart: (_cid, db) => void db.run("UPDATE sites_job_run SET state = 'canceled', ended_at = 9"),
+  });
+  st.insertJob(w.db, job(), "usr_1", T0);
+  st.insertRun(w.db, "s1", { id: "r1", jobId: "j1", state: "queued", slot: T0, by: "person", queuedAt: T0 });
+  w.at(T0 + 10);
+  await w.sup.tick();
+  assert.equal(st.getRun(w.db, "r1")?.state, "canceled");
+  assert.equal(w.boxes.size, 0, "no process is left running for a cancelled run");
+  assert.equal(w.removed.length, 1);
+});
+
+test("a worker's start is written down as starting before its container is made, so a crash between the two leaves a row that starts again", async () => {
+  let seen = "";
+  const w = world({
+    afterStart: (_cid, db) =>
+      void (seen = JSON.stringify(db.all("SELECT state, container_id FROM sites_service WHERE id = 'v1'"))),
+  });
+  addService(w);
+  want(w);
+  await w.sup.tick();
+  assert.equal(seen, JSON.stringify([{ state: "starting", container_id: null }]));
 });

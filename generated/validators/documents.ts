@@ -5,15 +5,15 @@ import type { Check } from './core.ts';
 
 function d_s_44b3e62fc2(v: unknown, p: string, e: string[]): void {
 {
-const x345 = v;
-const g345 = typeOf(x345);
-const b345: string[] = []; lf(x345, p, b345, L0); if (b345.length) e.push(...b345);
-if (g345 === "object") {
-if (g345 === 'object') { const o345 = x345 as Record<string, unknown>;
-if (!("fileId" in o345)) e.push(p + "/fileId" + ': required');
-if (!("isTemplate" in o345)) e.push(p + "/isTemplate" + ': required');
-if ("fileId" in o345) lf(o345["fileId"], p + "/fileId", e, L35);
-if ("isTemplate" in o345) lf(o345["isTemplate"], p + "/isTemplate", e, L3);
+const x344 = v;
+const g344 = typeOf(x344);
+const b344: string[] = []; lf(x344, p, b344, L0); if (b344.length) e.push(...b344);
+if (g344 === "object") {
+if (g344 === 'object') { const o344 = x344 as Record<string, unknown>;
+if (!("fileId" in o344)) e.push(p + "/fileId" + ': required');
+if (!("isTemplate" in o344)) e.push(p + "/isTemplate" + ': required');
+if ("fileId" in o344) lf(o344["fileId"], p + "/fileId", e, L35);
+if ("isTemplate" in o344) lf(o344["isTemplate"], p + "/isTemplate", e, L3);
 }
 }
 }

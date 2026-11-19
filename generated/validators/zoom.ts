@@ -5,40 +5,40 @@ import type { Check } from './core.ts';
 
 function d_s_0a656f2423(v: unknown, p: string, e: string[]): void {
 {
-const x49 = v;
+const x48 = v;
+const g48 = typeOf(x48);
+const b48: string[] = []; lf(x48, p, b48, L0); if (b48.length) e.push(...b48);
+if (g48 === "object") {
+if (g48 === 'object') { const o48 = x48 as Record<string, unknown>;
+if (!("id" in o48)) e.push(p + "/id" + ': required');
+if (!("topic" in o48)) e.push(p + "/topic" + ': required');
+if (!("joinUrl" in o48)) e.push(p + "/joinUrl" + ': required');
+if ("id" in o48) lf(o48["id"], p + "/id", e, L1);
+if ("uuid" in o48) lf(o48["uuid"], p + "/uuid", e, L1);
+if ("topic" in o48) lf(o48["topic"], p + "/topic", e, L1);
+if ("startTime" in o48) lf(o48["startTime"], p + "/startTime", e, L17);
+if ("durationMinutes" in o48) lf(o48["durationMinutes"], p + "/durationMinutes", e, L2);
+if ("joinUrl" in o48) lf(o48["joinUrl"], p + "/joinUrl", e, L1);
+if ("password" in o48) lf(o48["password"], p + "/password", e, L1);
+if ("hostEmail" in o48) lf(o48["hostEmail"], p + "/hostEmail", e, L6);
+if ("timezone" in o48) lf(o48["timezone"], p + "/timezone", e, L1);
+if ("dialIns" in o48) {
+{
+const x49 = o48["dialIns"];
 const g49 = typeOf(x49);
-const b49: string[] = []; lf(x49, p, b49, L0); if (b49.length) e.push(...b49);
-if (g49 === "object") {
-if (g49 === 'object') { const o49 = x49 as Record<string, unknown>;
-if (!("id" in o49)) e.push(p + "/id" + ': required');
-if (!("topic" in o49)) e.push(p + "/topic" + ': required');
-if (!("joinUrl" in o49)) e.push(p + "/joinUrl" + ': required');
-if ("id" in o49) lf(o49["id"], p + "/id", e, L1);
-if ("uuid" in o49) lf(o49["uuid"], p + "/uuid", e, L1);
-if ("topic" in o49) lf(o49["topic"], p + "/topic", e, L1);
-if ("startTime" in o49) lf(o49["startTime"], p + "/startTime", e, L17);
-if ("durationMinutes" in o49) lf(o49["durationMinutes"], p + "/durationMinutes", e, L2);
-if ("joinUrl" in o49) lf(o49["joinUrl"], p + "/joinUrl", e, L1);
-if ("password" in o49) lf(o49["password"], p + "/password", e, L1);
-if ("hostEmail" in o49) lf(o49["hostEmail"], p + "/hostEmail", e, L6);
-if ("timezone" in o49) lf(o49["timezone"], p + "/timezone", e, L1);
-if ("dialIns" in o49) {
+const b49: string[] = []; lf(x49, p + "/dialIns", b49, L4); if (b49.length) e.push(...b49);
+if (g49 === "array") {
+if (g49 === 'array') { const a49 = x49 as unknown[];
+for (let i49 = 0; i49 < a49.length; i49++) {
 {
-const x50 = o49["dialIns"];
+const x50 = a49[i49];
 const g50 = typeOf(x50);
-const b50: string[] = []; lf(x50, p + "/dialIns", b50, L4); if (b50.length) e.push(...b50);
-if (g50 === "array") {
-if (g50 === 'array') { const a50 = x50 as unknown[];
-for (let i50 = 0; i50 < a50.length; i50++) {
-{
-const x51 = a50[i50];
-const g51 = typeOf(x51);
-const b51: string[] = []; lf(x51, p + "/dialIns" + '/' + i50, b51, L0); if (b51.length) e.push(...b51);
-if (g51 === "object") {
-if (g51 === 'object') { const o51 = x51 as Record<string, unknown>;
-if (!("number" in o51)) e.push(p + "/dialIns" + '/' + i50 + "/number" + ': required');
-if ("number" in o51) lf(o51["number"], p + "/dialIns" + '/' + i50 + "/number", e, L1);
-if ("country" in o51) lf(o51["country"], p + "/dialIns" + '/' + i50 + "/country", e, L1);
+const b50: string[] = []; lf(x50, p + "/dialIns" + '/' + i49, b50, L0); if (b50.length) e.push(...b50);
+if (g50 === "object") {
+if (g50 === 'object') { const o50 = x50 as Record<string, unknown>;
+if (!("number" in o50)) e.push(p + "/dialIns" + '/' + i49 + "/number" + ': required');
+if ("number" in o50) lf(o50["number"], p + "/dialIns" + '/' + i49 + "/number", e, L1);
+if ("country" in o50) lf(o50["country"], p + "/dialIns" + '/' + i49 + "/country", e, L1);
 }
 }
 }
@@ -54,26 +54,26 @@ if ("country" in o51) lf(o51["country"], p + "/dialIns" + '/' + i50 + "/country"
 
 function d_s_10de03fcd5(v: unknown, p: string, e: string[]): void {
 {
-const x72 = v;
-const g72 = typeOf(x72);
-const b72: string[] = []; lf(x72, p, b72, L4); if (b72.length) e.push(...b72);
-if (g72 === "array") {
-if (g72 === 'array') { const a72 = x72 as unknown[];
-for (let i72 = 0; i72 < a72.length; i72++) {
+const x71 = v;
+const g71 = typeOf(x71);
+const b71: string[] = []; lf(x71, p, b71, L4); if (b71.length) e.push(...b71);
+if (g71 === "array") {
+if (g71 === 'array') { const a71 = x71 as unknown[];
+for (let i71 = 0; i71 < a71.length; i71++) {
 {
-const x73 = a72[i72];
-const g73 = typeOf(x73);
-const b73: string[] = []; lf(x73, p + '/' + i72, b73, L0); if (b73.length) e.push(...b73);
-if (g73 === "object") {
-if (g73 === 'object') { const o73 = x73 as Record<string, unknown>;
-if (!("id" in o73)) e.push(p + '/' + i72 + "/id" + ': required');
-if (!("fileType" in o73)) e.push(p + '/' + i72 + "/fileType" + ': required');
-if ("id" in o73) lf(o73["id"], p + '/' + i72 + "/id", e, L1);
-if ("fileType" in o73) lf(o73["fileType"], p + '/' + i72 + "/fileType", e, L1);
-if ("recordingType" in o73) lf(o73["recordingType"], p + '/' + i72 + "/recordingType", e, L1);
-if ("fileSize" in o73) lf(o73["fileSize"], p + '/' + i72 + "/fileSize", e, L2);
-if ("downloadUrl" in o73) lf(o73["downloadUrl"], p + '/' + i72 + "/downloadUrl", e, L1);
-if ("status" in o73) lf(o73["status"], p + '/' + i72 + "/status", e, L1);
+const x72 = a71[i71];
+const g72 = typeOf(x72);
+const b72: string[] = []; lf(x72, p + '/' + i71, b72, L0); if (b72.length) e.push(...b72);
+if (g72 === "object") {
+if (g72 === 'object') { const o72 = x72 as Record<string, unknown>;
+if (!("id" in o72)) e.push(p + '/' + i71 + "/id" + ': required');
+if (!("fileType" in o72)) e.push(p + '/' + i71 + "/fileType" + ': required');
+if ("id" in o72) lf(o72["id"], p + '/' + i71 + "/id", e, L1);
+if ("fileType" in o72) lf(o72["fileType"], p + '/' + i71 + "/fileType", e, L1);
+if ("recordingType" in o72) lf(o72["recordingType"], p + '/' + i71 + "/recordingType", e, L1);
+if ("fileSize" in o72) lf(o72["fileSize"], p + '/' + i71 + "/fileSize", e, L2);
+if ("downloadUrl" in o72) lf(o72["downloadUrl"], p + '/' + i71 + "/downloadUrl", e, L1);
+if ("status" in o72) lf(o72["status"], p + '/' + i71 + "/status", e, L1);
 }
 }
 }
@@ -85,13 +85,13 @@ if ("status" in o73) lf(o73["status"], p + '/' + i72 + "/status", e, L1);
 
 function d_s_3bf726dac3(v: unknown, p: string, e: string[]): void {
 {
-const x274 = v;
-const g274 = typeOf(x274);
-const b274: string[] = []; lf(x274, p, b274, L0); if (b274.length) e.push(...b274);
-if (g274 === "object") {
-if (g274 === 'object') { const o274 = x274 as Record<string, unknown>;
-if (!("meeting" in o274)) e.push(p + "/meeting" + ': required');
-if ("meeting" in o274) d_s_0a656f2423(o274["meeting"], p + "/meeting", e);
+const x273 = v;
+const g273 = typeOf(x273);
+const b273: string[] = []; lf(x273, p, b273, L0); if (b273.length) e.push(...b273);
+if (g273 === "object") {
+if (g273 === 'object') { const o273 = x273 as Record<string, unknown>;
+if (!("meeting" in o273)) e.push(p + "/meeting" + ': required');
+if ("meeting" in o273) d_s_0a656f2423(o273["meeting"], p + "/meeting", e);
 }
 }
 }

@@ -14,7 +14,7 @@ Requires: nothing.
 - [sites.backup_create](../capabilities/sites.backup_create.md): Back up the site's Postgres now. It runs in the background: read sites_backups_list to see it finish
 - [sites.backup_delete](../capabilities/sites.backup_delete.md): Delete a backup and its file
 - [sites.backup_pin](../capabilities/sites.backup_pin.md): Keep a backup for good (the clean-up never deletes a pinned one), or let it go again
-- [sites.backup_restore](../capabilities/sites.backup_restore.md): Put a finished backup back: the site's database is made again from the dump, and everything in it now is replaced. Back up what is there first if it matters
+- [sites.backup_restore](../capabilities/sites.backup_restore.md): Put a finished backup back, never losing data: the live database is backed up first (kept 7 days, else the restore is refused), the dump loads into a new database, and it is swapped in only if that worked
 - [sites.backups_list](../capabilities/sites.backups_list.md): A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under two weeks old are kept
 - [sites.build](../capabilities/sites.build.md): Build the site from its repo (the site agent runs in the repo); test and verify
 - [sites.chat_viewing](../capabilities/sites.chat_viewing.md): The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds

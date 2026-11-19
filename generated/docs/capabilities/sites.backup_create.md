@@ -43,6 +43,7 @@ type Out = {
     bytes?: number;
     note?: string;
     pinned?: boolean;
+    keepUntil?: number;
   };
 };
 ```
@@ -72,6 +73,7 @@ type Out = {
       "by": "schedule",
       "bytes": 1,
       "endedAt": 1760000000000,
+      "keepUntil": 1760000000000,
       "note": "example",
       "pinned": true,
       "siteId": "sit_a1b2c3",

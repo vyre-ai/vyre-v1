@@ -37,6 +37,7 @@ async function world() {
     site2: { "vyre.site": "sit_02zzz", "vyre.kind": "app" },
     vyred: { "com.docker.compose.service": "vyred", "vyre.ingress": "1" },
     other: { "com.docker.compose.service": "postgres" },
+    comp1: { "vyre.computer": "cmt_abc12345" },
   };
   // the containers on each network, as Docker's network inspect lists them
   const onNet: Record<string, string[]> = {};
@@ -394,4 +395,15 @@ test("a worker or a job is a container of the site's own image with its own comm
     403,
   );
   assert.equal((await w.call("POST", "/containers/create?name=vyre-site-zzzzz-svcabc", body)).status, 403);
+});
+
+test("an agent computer's CPU and memory are not read through the sites runner", async (t) => {
+  const w = await world();
+  t.after(w.close);
+  assert.equal((await w.call("GET", "/containers/comp1/stats?stream=false")).status, 403);
+  assert.equal(
+    (await w.call("GET", "/containers/comp1/json")).status,
+    200,
+    "what a computer may be asked is unchanged",
+  );
 });

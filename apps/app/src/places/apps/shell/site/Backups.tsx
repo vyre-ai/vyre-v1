@@ -74,7 +74,7 @@ export function Backups({ siteId }: { siteId: string }): ReactElement | null {
             b.state === "failed"
               ? (b.note ?? "It failed.")
               : b.state === "ready"
-                ? `${b.bytes !== undefined ? sizeText(b.bytes) : ""}${b.pinned ? " · Kept" : ""}`
+                ? `${b.bytes !== undefined ? sizeText(b.bytes) : ""}${b.pinned ? " · Kept" : ""}${b.keepUntil ? " · Made before a restore" : ""}`
                 : "Backing up…"
           }
           leading={<StepMark state={b.state === "ready" ? "ok" : b.state === "failed" ? "failed" : "running"} />}
@@ -88,7 +88,7 @@ export function Backups({ siteId }: { siteId: string }): ReactElement | null {
                     ? [
                         {
                           label: "Put it back",
-                          hint: "Replaces what is in the database now",
+                          hint: "Keeps a copy of what is there now for 7 days",
                           danger: true,
                           onSelect: () =>
                             void call("sites.backup_restore", { backupId: b.backupId }).then((o) => {

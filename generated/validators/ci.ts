@@ -5,50 +5,50 @@ import type { Check } from './core.ts';
 
 function d_s_c51df3c0c7(v: unknown, p: string, e: string[]): void {
 {
-const x976 = v;
-const g976 = typeOf(x976);
-const b976: string[] = []; lf(x976, p, b976, L0); if (b976.length) e.push(...b976);
-if (g976 === "object") {
-if (g976 === 'object') { const o976 = x976 as Record<string, unknown>;
-if (!("enabled" in o976)) e.push(p + "/enabled" + ': required');
-if (!("provider" in o976)) e.push(p + "/provider" + ': required');
-if (!("vaultKeyRef" in o976)) e.push(p + "/vaultKeyRef" + ': required');
-if (!("region" in o976)) e.push(p + "/region" + ': required');
-if (!("size" in o976)) e.push(p + "/size" + ': required');
-if (!("image" in o976)) e.push(p + "/image" + ': required');
-if (!("maxConcurrent" in o976)) e.push(p + "/maxConcurrent" + ': required');
-if (!("monthlyCapUsd" in o976)) e.push(p + "/monthlyCapUsd" + ': required');
-if (!("maxJobMinutes" in o976)) e.push(p + "/maxJobMinutes" + ': required');
-if (!("labels" in o976)) e.push(p + "/labels" + ': required');
-if ("enabled" in o976) lf(o976["enabled"], p + "/enabled", e, L3);
-if ("provider" in o976) lf(o976["provider"], p + "/provider", e, L419);
-if ("vaultKeyRef" in o976) {
+const x975 = v;
+const g975 = typeOf(x975);
+const b975: string[] = []; lf(x975, p, b975, L0); if (b975.length) e.push(...b975);
+if (g975 === "object") {
+if (g975 === 'object') { const o975 = x975 as Record<string, unknown>;
+if (!("enabled" in o975)) e.push(p + "/enabled" + ': required');
+if (!("provider" in o975)) e.push(p + "/provider" + ': required');
+if (!("vaultKeyRef" in o975)) e.push(p + "/vaultKeyRef" + ': required');
+if (!("region" in o975)) e.push(p + "/region" + ': required');
+if (!("size" in o975)) e.push(p + "/size" + ': required');
+if (!("image" in o975)) e.push(p + "/image" + ': required');
+if (!("maxConcurrent" in o975)) e.push(p + "/maxConcurrent" + ': required');
+if (!("monthlyCapUsd" in o975)) e.push(p + "/monthlyCapUsd" + ': required');
+if (!("maxJobMinutes" in o975)) e.push(p + "/maxJobMinutes" + ': required');
+if (!("labels" in o975)) e.push(p + "/labels" + ': required');
+if ("enabled" in o975) lf(o975["enabled"], p + "/enabled", e, L3);
+if ("provider" in o975) lf(o975["provider"], p + "/provider", e, L419);
+if ("vaultKeyRef" in o975) {
 {
-const x977 = o976["vaultKeyRef"];
-const t977_0: string[] = [];
-lf(x977, p + "/vaultKeyRef", t977_0, L7);
-const t977_1: string[] = [];
-lf(x977, p + "/vaultKeyRef", t977_1, L84);
-if (![t977_0, t977_1].some((x) => x.length === 0)) e.push(p + "/vaultKeyRef" + ': matches none of anyOf');
+const x976 = o975["vaultKeyRef"];
+const t976_0: string[] = [];
+lf(x976, p + "/vaultKeyRef", t976_0, L7);
+const t976_1: string[] = [];
+lf(x976, p + "/vaultKeyRef", t976_1, L84);
+if (![t976_0, t976_1].some((x) => x.length === 0)) e.push(p + "/vaultKeyRef" + ': matches none of anyOf');
 }
 }
-if ("region" in o976) lf(o976["region"], p + "/region", e, L1);
-if ("size" in o976) lf(o976["size"], p + "/size", e, L1);
-if ("image" in o976) lf(o976["image"], p + "/image", e, L1);
-if ("maxConcurrent" in o976) lf(o976["maxConcurrent"], p + "/maxConcurrent", e, L420);
-if ("monthlyCapUsd" in o976) lf(o976["monthlyCapUsd"], p + "/monthlyCapUsd", e, L421);
-if ("maxJobMinutes" in o976) lf(o976["maxJobMinutes"], p + "/maxJobMinutes", e, L422);
-if ("labels" in o976) {
+if ("region" in o975) lf(o975["region"], p + "/region", e, L1);
+if ("size" in o975) lf(o975["size"], p + "/size", e, L1);
+if ("image" in o975) lf(o975["image"], p + "/image", e, L1);
+if ("maxConcurrent" in o975) lf(o975["maxConcurrent"], p + "/maxConcurrent", e, L420);
+if ("monthlyCapUsd" in o975) lf(o975["monthlyCapUsd"], p + "/monthlyCapUsd", e, L421);
+if ("maxJobMinutes" in o975) lf(o975["maxJobMinutes"], p + "/maxJobMinutes", e, L422);
+if ("labels" in o975) {
 {
-const x978 = o976["labels"];
-const g978 = typeOf(x978);
-const b978: string[] = []; lf(x978, p + "/labels", b978, L4); if (b978.length) e.push(...b978);
-if (g978 === "array") {
-if (g978 === 'array') { const a978 = x978 as unknown[];
-if (a978.length < 1) e.push(p + "/labels" + ': too few items');
-if (a978.length > 5) e.push(p + "/labels" + ': too many items');
-for (let i978 = 0; i978 < a978.length; i978++) {
-lf(a978[i978], p + "/labels" + '/' + i978, e, L423);
+const x977 = o975["labels"];
+const g977 = typeOf(x977);
+const b977: string[] = []; lf(x977, p + "/labels", b977, L4); if (b977.length) e.push(...b977);
+if (g977 === "array") {
+if (g977 === 'array') { const a977 = x977 as unknown[];
+if (a977.length < 1) e.push(p + "/labels" + ': too few items');
+if (a977.length > 5) e.push(p + "/labels" + ': too many items');
+for (let i977 = 0; i977 < a977.length; i977++) {
+lf(a977[i977], p + "/labels" + '/' + i977, e, L423);
 }
 }
 }

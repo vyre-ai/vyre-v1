@@ -5,6 +5,7 @@
 // @reads ../migrations/0004_deploy.sql
 // @reads ../migrations/0010_ops.sql
 // @reads ../migrations/0011_ops_runs.sql
+// @reads ../migrations/0012_ops_locks.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -26,6 +27,7 @@ function world() {
     "0004_deploy.sql",
     "0010_ops.sql",
     "0011_ops_runs.sql",
+    "0012_ops_locks.sql",
   ])
     raw.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const db = {
@@ -206,4 +208,21 @@ test("metrics: six hours and a day come as at most sixty points", async () => {
   const w = world();
   for (const win of ["6h", "24h"])
     assert.equal((await call(w.ctx, "sites.metrics", { siteId: "sit_a", window: win })).samples.length, 60);
+});
+
+test("a key the app printed by mistake is hidden in the log, in the app lines and in the build log", async () => {
+  const { configureRoutes } = await import("../handlers/route.ts");
+  configureRoutes({ runner: { envOf: async () => ({ STRIPE_KEY: "sk_live_abcdef123456", PORT: "3000" }) } } as never);
+  const w = world();
+  w.db.run("UPDATE sites_site SET container_id = 'ctr_1' WHERE id = 'sit_a'");
+  st.addLogs(w.db, "sit_a", "dpl_1", "app", [{ at: 1, text: "charging with sk_live_abcdef123456 on port 3000" }]);
+  w.db.run(
+    "INSERT INTO sites_deployment (id, site_id, env, state, at, log, created_by, updated_at) VALUES ('dpl_1', 'sit_a', 'production', 'ready', 1, ?, 'usr_1', 1)",
+    JSON.stringify(["key sk_live_abcdef123456"]),
+  );
+  const app = await call(w.ctx, "sites.logs_read", { siteId: "sit_a" });
+  assert.equal(app.lines[0].text, "charging with ••• on port 3000");
+  const build = await call(w.ctx, "sites.logs_read", { siteId: "sit_a", source: "build" });
+  assert.equal(build.lines[0].text, "key •••");
+  configureRoutes(null);
 });

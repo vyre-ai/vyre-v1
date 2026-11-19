@@ -5,7 +5,8 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { fail, isNull, many, mustSite, num, one, optInt, optStr, rec, reqStr, str } from "./deploy.ts";
 import { limitsOf, parseJson } from "./release.ts";
-import { LOG_SOURCES, leftOut, levelOf, matches, terms } from "../ops/logs.ts";
+import { LOG_SOURCES, leftOut, levelOf, mask, matches, secretsOf, terms } from "../ops/logs.ts";
+import { siteRunner } from "./route.ts";
 import type { LogLevel, LogLine, LogSource } from "../ops/logs.ts";
 import { MINUTE, bucketed, minuteOf, rightNow, window } from "../ops/metrics.ts";
 import * as st from "../ops/store.ts";
@@ -90,13 +91,33 @@ export async function logsRead(
   const scopes = scopeList(ctx, siteId);
   if (source === "build") {
     const ts = terms(q);
-    const lines = buildLines(ctx, siteId, scope).filter((l) => matches(l, query, ts));
+    const secrets = await secretsFor(site);
+    const lines = buildLines(ctx, siteId, scope)
+      .filter((l) => matches(l, query, ts))
+      .map((l) => (secrets.length ? { ...l, text: mask(l.text, secrets) } : l));
     const want = limit ?? 200;
     return { lines: lines.slice(-want), lastSeq: lines.at(-1)?.seq ?? 0, scopes };
   }
   const r = st.readLogs(ctx.db, siteId, query);
   const note = leftOut(r.dropped);
-  return { lines: r.lines, ...(note ? { leftOut: note } : {}), lastSeq: r.lastSeq, scopes };
+  const secrets = await secretsFor(site);
+  return {
+    lines: secrets.length ? r.lines.map((l) => ({ ...l, text: mask(l.text, secrets) })) : r.lines,
+    ...(note ? { leftOut: note } : {}),
+    lastSeq: r.lastSeq,
+    scopes,
+  };
+}
+
+/** The values of the site's own environment, to hide if its app printed one. */
+async function secretsFor(site: Record<string, unknown>): Promise<string[]> {
+  const r = siteRunner();
+  if (!r || isNull(site.container_id)) return [];
+  try {
+    return secretsOf((await r.envOf(str(site.container_id))) ?? {});
+  } catch {
+    return [];
+  }
 }
 
 function scopeList(ctx: Ctx, siteId: string): ScopeOut[] {

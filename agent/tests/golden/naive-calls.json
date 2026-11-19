@@ -4699,6 +4699,24 @@
     "artifactId": "sit_a1b2c3",
     "thumb": "Quarterly planning"
   },
+  "sites_backup_create": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_backup_delete": {
+    "siteId": "sit_a1b2c3",
+    "backupId": "bkp_a1b2c3"
+  },
+  "sites_backup_pin": {
+    "siteId": "sit_a1b2c3",
+    "backupId": "bkp_a1b2c3"
+  },
+  "sites_backup_restore": {
+    "siteId": "sit_a1b2c3",
+    "backupId": "bkp_a1b2c3"
+  },
+  "sites_backups_list": {
+    "siteId": "sit_a1b2c3"
+  },
   "sites_build": {
     "siteId": "sit_a1b2c3"
   },
@@ -4754,8 +4772,43 @@
     "siteId": "sit_a1b2c3"
   },
   "sites_host": {},
+  "sites_job_cancel": {
+    "siteId": "sit_a1b2c3",
+    "runId": "jrx_a1b2c3"
+  },
+  "sites_job_create": {
+    "siteId": "sit_a1b2c3",
+    "name": "Quarterly planning",
+    "schedule": "0 2 * * *",
+    "command": "node scripts/sync-stock.js"
+  },
+  "sites_job_delete": {
+    "siteId": "sit_a1b2c3",
+    "jobId": "job_a1b2c3"
+  },
+  "sites_job_run": {
+    "siteId": "sit_a1b2c3",
+    "jobId": "job_a1b2c3"
+  },
+  "sites_job_runs": {
+    "siteId": "sit_a1b2c3",
+    "jobId": "job_a1b2c3"
+  },
+  "sites_job_update": {
+    "siteId": "sit_a1b2c3",
+    "jobId": "job_a1b2c3"
+  },
+  "sites_jobs_list": {
+    "siteId": "sit_a1b2c3"
+  },
   "sites_list": {},
   "sites_logs": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_logs_read": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_metrics": {
     "siteId": "sit_a1b2c3"
   },
   "sites_plan": {},
@@ -4783,7 +4836,27 @@
   "sites_rollback": {
     "siteId": "sit_a1b2c3"
   },
+  "sites_service_add": {
+    "siteId": "sit_a1b2c3",
+    "name": "Quarterly planning",
+    "command": "node worker.js"
+  },
   "sites_service_identity": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_service_remove": {
+    "siteId": "sit_a1b2c3",
+    "serviceId": "wkr_a1b2c3"
+  },
+  "sites_service_restart": {
+    "siteId": "sit_a1b2c3",
+    "serviceId": "wkr_a1b2c3"
+  },
+  "sites_service_stop": {
+    "siteId": "sit_a1b2c3",
+    "serviceId": "wkr_a1b2c3"
+  },
+  "sites_services_list": {
     "siteId": "sit_a1b2c3"
   },
   "sites_ship": {

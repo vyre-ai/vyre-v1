@@ -258,3 +258,36 @@ export class LogFollower {
     return n;
   }
 }
+
+/** The values of a site's environment worth hiding in its log: eight characters or more, and not a plain setting. */
+export function secretsOf(env: Readonly<Record<string, string>>): string[] {
+  const plain = new Set([
+    "PORT",
+    "HOST",
+    "HOSTNAME",
+    "NODE_ENV",
+    "PATH",
+    "HOME",
+    "PGHOST",
+    "PGPORT",
+    "PGUSER",
+    "PGDATABASE",
+    "LANG",
+    "PWD",
+    "PYTHONUNBUFFERED",
+  ]);
+  return [
+    ...new Set(
+      Object.entries(env)
+        .filter(([k, v]) => !plain.has(k) && v.length >= 8)
+        .map(([, v]) => v),
+    ),
+  ].sort((a, b) => b.length - a.length);
+}
+
+/** Every secret value replaced by bullets, so a log an agent reads never carries a key the app printed by mistake. */
+export function mask(text: string, secrets: readonly string[]): string {
+  let out = text;
+  for (const v of secrets) if (out.includes(v)) out = out.split(v).join("\u2022\u2022\u2022");
+  return out;
+}

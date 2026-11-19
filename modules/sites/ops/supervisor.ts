@@ -151,9 +151,12 @@ export class Supervisor {
         st.saveService(this.d.db, { ...v, state: "stopped", note: NO_SITE }, null);
         return;
       }
+      // the row says starting with no container before one is made, so the claim below can tell a row that was stopped meanwhile
+      st.saveService(this.d.db, v, null);
+      let made: { containerId: string } | null = null;
       try {
         const env = (await r.envOf(site.containerId)) ?? {};
-        const made = await r.startProcess({
+        made = await r.startProcess({
           siteId: v.siteId,
           id: v.id,
           kind: "service",
@@ -162,10 +165,6 @@ export class Supervisor {
           env,
           limits: site.limits,
         });
-        v = advance(v, { t: "spawned", at: now }).service;
-        st.saveService(this.d.db, v, made.containerId);
-        this.d.db.run("UPDATE sites_service SET deployment_id = ? WHERE id = ?", site.deploymentId, v.id);
-        return;
       } catch (e) {
         v = advance(v, { t: "spawned", at: now }).service;
         v = advance(v, { t: "exited", at: now, code: 255 }).service;
@@ -176,6 +175,19 @@ export class Supervisor {
         );
         return;
       }
+      // the container exists: it is written onto the row only if the row still wants one; otherwise (stopped, removed, or the save failed) it is removed, never left running with no row
+      let kept = false;
+      try {
+        kept = st.claimService(
+          this.d.db,
+          advance(v, { t: "spawned", at: now }).service,
+          made.containerId,
+          site.deploymentId,
+        );
+      } finally {
+        if (!kept) await r.remove(made.containerId).catch(() => undefined);
+      }
+      return;
     }
     st.saveService(this.d.db, v);
   }
@@ -278,8 +290,9 @@ export class Supervisor {
           limits: site.limits,
         });
         const next = step(q.run, { t: "start", at: now }, j);
-        if (next.ok) st.saveRun(db, next.run, "queued", made.containerId);
-        else await r.remove(made.containerId).catch(() => undefined);
+        // the run takes the container only if it is still queued; a run cancelled meanwhile must not leave its process running
+        if (!next.ok || !st.saveRun(db, next.run, "queued", made.containerId))
+          await r.remove(made.containerId).catch(() => undefined);
       } catch (e) {
         this.failToStart(q.run, j, `It could not start: ${(e instanceof Error ? e.message : String(e)).slice(0, 160)}`);
       }

@@ -1,6 +1,6 @@
 # sites.backup_restore
 
-Put a finished backup back: the site's database is made again from the dump, and everything in it now is replaced. Back up what is there first if it matters
+Put a finished backup back, never losing data: the live database is backed up first (kept 7 days, else the restore is refused), the dump loads into a new database, and it is swapped in only if that worked
 
 | | |
 |---|---|

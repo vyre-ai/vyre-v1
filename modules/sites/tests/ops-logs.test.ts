@@ -2,6 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  secretsOf,
+  mask,
   LOG_CAPS,
   LogFollower,
   LogRing,
@@ -202,4 +204,18 @@ test("a follower that fails changes nothing, and one restarted from a cursor doe
   const again = mk(f.cursor); // the server restarted; the store kept the cursor
   await again.poll();
   assert.deepEqual(got, ["a", "b"]);
+});
+
+test("secret values of a site's environment are hidden in what is read, plain settings are not", () => {
+  const secrets = secretsOf({
+    STRIPE_KEY: "sk_live_abcdef123456",
+    PORT: "3000",
+    NODE_ENV: "production",
+    SHORT: "abc",
+    DATABASE_URL: "postgres://app:pw12345678@db:5432/app",
+  });
+  assert.deepEqual(secrets, ["postgres://app:pw12345678@db:5432/app", "sk_live_abcdef123456"]);
+  assert.equal(mask("charging with sk_live_abcdef123456 now", secrets), "charging with \u2022\u2022\u2022 now");
+  assert.equal(mask("listening on 3000 in production", secrets), "listening on 3000 in production");
+  assert.equal(mask("a", []), "a");
 });

@@ -5,15 +5,15 @@ import type { Check } from './core.ts';
 
 function d_s_c0084dac30(v: unknown, p: string, e: string[]): void {
 {
-const x945 = v;
-const g945 = typeOf(x945);
-const b945: string[] = []; lf(x945, p, b945, L0); if (b945.length) e.push(...b945);
-if (g945 === "object") {
-if (g945 === 'object') { const o945 = x945 as Record<string, unknown>;
-if (!("from" in o945)) e.push(p + "/from" + ': required');
-if (!("to" in o945)) e.push(p + "/to" + ': required');
-if ("from" in o945) lf(o945["from"], p + "/from", e, L403);
-if ("to" in o945) lf(o945["to"], p + "/to", e, L403);
+const x944 = v;
+const g944 = typeOf(x944);
+const b944: string[] = []; lf(x944, p, b944, L0); if (b944.length) e.push(...b944);
+if (g944 === "object") {
+if (g944 === 'object') { const o944 = x944 as Record<string, unknown>;
+if (!("from" in o944)) e.push(p + "/from" + ': required');
+if (!("to" in o944)) e.push(p + "/to" + ': required');
+if ("from" in o944) lf(o944["from"], p + "/from", e, L403);
+if ("to" in o944) lf(o944["to"], p + "/to", e, L403);
 }
 }
 }

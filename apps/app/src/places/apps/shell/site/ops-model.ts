@@ -345,6 +345,7 @@ export interface BackupOut {
   bytes?: number;
   note?: string;
   pinned?: boolean;
+  keepUntil?: number;
 }
 
 /** The words a run is called by. */

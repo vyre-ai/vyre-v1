@@ -1,6 +1,7 @@
 // The collector: log lines from a container into the store without repeats, CPU and memory once a minute, request counts and lines, and what happens when Docker fails (r42-sites-run, slice 4).
 // @reads ../migrations/0010_ops.sql
 // @reads ../migrations/0011_ops_runs.sql
+// @reads ../migrations/0012_ops_locks.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -16,7 +17,7 @@ function mem(): OpsDb {
   db.exec(
     "CREATE TABLE sites_site (id TEXT PRIMARY KEY, container_id TEXT, current_deployment TEXT, deleted_at INTEGER);",
   );
-  for (const f of ["0010_ops.sql", "0011_ops_runs.sql"])
+  for (const f of ["0010_ops.sql", "0011_ops_runs.sql", "0012_ops_locks.sql"])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   return {
     all: (q, ...a) => db.prepare(q).all(...(a as never[])),

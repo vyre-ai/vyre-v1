@@ -333,6 +333,24 @@ export function saveService(db: OpsDb, v: Service, containerId?: string | null):
     v.id,
   );
 }
+/** Record the container a worker was started in, only if the row is still waiting for one (starting, no container). False means it was stopped or removed meanwhile: the caller must remove the container. */
+export function claimService(db: OpsDb, v: Service, containerId: string, deploymentId: string): boolean {
+  return (
+    db.run(
+      "UPDATE sites_service SET state = ?, started_at = ?, restart_at = ?, streak = ?, crashes = ?, last_exit = ?, note = ?, container_id = ?, deployment_id = ? WHERE id = ? AND state = 'starting' AND container_id IS NULL AND deleted_at IS NULL",
+      v.state,
+      v.startedAt ?? null,
+      v.restartAt ?? null,
+      v.streak,
+      JSON.stringify(v.crashes),
+      v.lastExit ? JSON.stringify(v.lastExit) : null,
+      v.note ?? null,
+      containerId,
+      deploymentId,
+      v.id,
+    ).changes === 1
+  );
+}
 export const getService = (db: OpsDb, id: string): ServiceRow | undefined => {
   const r = rows(db, "SELECT * FROM sites_service WHERE id = ? AND deleted_at IS NULL", id)[0];
   return r ? serviceOf(r) : undefined;
@@ -484,10 +502,11 @@ const backupOf = (r: Row): Backup => ({
   ...(r["file_id"] ? { fileId: s(r["file_id"]) } : {}),
   ...(r["note"] ? { note: s(r["note"]) } : {}),
   ...(n(r["pinned"]) === 1 ? { pinned: true } : {}),
+  ...(opt(r["keep_until"], n) !== undefined ? { keepUntil: n(r["keep_until"]) } : {}),
 });
 export function insertBackup(db: OpsDb, b: Backup): void {
   db.run(
-    "INSERT INTO sites_backup (id, site_id, kind, state, by, at, ended_at, bytes, file_id, note, pinned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO sites_backup (id, site_id, kind, state, by, at, ended_at, bytes, file_id, note, pinned, keep_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     b.id,
     b.siteId,
     b.kind,
@@ -499,6 +518,7 @@ export function insertBackup(db: OpsDb, b: Backup): void {
     b.fileId ?? null,
     b.note ?? null,
     b.pinned ? 1 : 0,
+    b.keepUntil ?? null,
   );
 }
 export function saveBackup(db: OpsDb, b: Backup, was: BackupState): boolean {
@@ -530,3 +550,42 @@ export const listBackups = (db: OpsDb, siteId?: string): Backup[] =>
 export const deleteBackups = (db: OpsDb, ids: readonly string[]): void => {
   for (const id of ids) db.run("DELETE FROM sites_backup WHERE id = ?", id);
 };
+
+// ---- one backup or restore at a time per site
+
+/** This process: a lock held by another one belongs to a process that is gone. */
+export const HOLDER = `p${Math.random().toString(36).slice(2, 10)}`;
+export const LOCK_TTL_MS = 60 * 60_000;
+export interface Lock {
+  kind: string;
+  since: number;
+}
+
+/** Take the site's lock, or say who has it. A lock from an earlier process, or older than an hour, is taken over. */
+export function lockSite(
+  db: OpsDb,
+  siteId: string,
+  kind: string,
+  now: number,
+  holder: string = HOLDER,
+): { ok: true } | { ok: false; heldBy: Lock } {
+  const have = rows(db, "SELECT * FROM sites_site_lock WHERE site_id = ?", siteId)[0];
+  if (have) {
+    const stale = s(have["holder"]) !== holder || now - n(have["since"]) >= LOCK_TTL_MS;
+    if (!stale) return { ok: false, heldBy: { kind: s(have["kind"]), since: n(have["since"]) } };
+    db.run("DELETE FROM sites_site_lock WHERE site_id = ?", siteId);
+  }
+  const got =
+    db.run(
+      "INSERT INTO sites_site_lock (site_id, kind, holder, since) VALUES (?, ?, ?, ?) ON CONFLICT (site_id) DO NOTHING",
+      siteId,
+      kind,
+      holder,
+      now,
+    ).changes === 1;
+  if (got) return { ok: true };
+  const now2 = rows(db, "SELECT * FROM sites_site_lock WHERE site_id = ?", siteId)[0];
+  return { ok: false, heldBy: { kind: s(now2?.["kind"]), since: n(now2?.["since"]) } };
+}
+export const unlockSite = (db: OpsDb, siteId: string, holder: string = HOLDER): void =>
+  void db.run("DELETE FROM sites_site_lock WHERE site_id = ? AND holder = ?", siteId, holder);

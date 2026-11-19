@@ -5,6 +5,7 @@
 // @reads ../migrations/0004_deploy.sql
 // @reads ../migrations/0010_ops.sql
 // @reads ../migrations/0011_ops_runs.sql
+// @reads ../migrations/0012_ops_locks.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -25,6 +26,7 @@ function world() {
     "0004_deploy.sql",
     "0010_ops.sql",
     "0011_ops_runs.sql",
+    "0012_ops_locks.sql",
   ])
     raw.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const db = {

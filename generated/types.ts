@@ -37270,6 +37270,7 @@ export type SitesBackupCreateOut = {
     bytes?: number;
     note?: string;
     pinned?: boolean;
+    keepUntil?: number;
   };
 };
 export type SitesBackupDeleteIn = {
@@ -37295,6 +37296,7 @@ export type SitesBackupPinOut = {
     bytes?: number;
     note?: string;
     pinned?: boolean;
+    keepUntil?: number;
   };
 };
 export type SitesBackupRestoreIn = {
@@ -37319,6 +37321,7 @@ export type SitesBackupsListOut = {
       bytes?: number;
       note?: string;
       pinned?: boolean;
+      keepUntil?: number;
     }>;
   hasDatabase: boolean;
   database?: {

@@ -96,3 +96,13 @@ test("the file name sorts by time and has no unsafe characters", () => {
   assert.equal(fileName("My Site!", Date.parse("2026-11-19T10:05:07Z")), "My-Site--2026-11-19T10-05-07.sql.gz");
   assert.equal(fileName("", 0).startsWith("site-1970-01-01T00-00-00"), true);
 });
+
+test("a backup made before a restore is kept until its date even when it is old and past the newest seven", () => {
+  const all: Backup[] = [];
+  for (let i = 0; i < 9; i++) all.push(b("ready", { id: `d${i}`, at: NOW - (20 + i) * DAY }));
+  all.push(b("ready", { id: "safety", at: NOW - 30 * DAY, keepUntil: NOW + 2 * DAY }));
+  all.push(b("ready", { id: "late", at: NOW - 40 * DAY, keepUntil: NOW - 1 }));
+  const gone = new Set(expired(all, NOW));
+  assert.equal(gone.has("safety"), false);
+  assert.equal(gone.has("late"), true, "once its date has passed the rule applies again");
+});

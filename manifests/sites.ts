@@ -190,6 +190,9 @@ const backupRow = t.obj({
   bytes: t.opt(t.int()),
   note: t.opt(t.str()),
   pinned: t.opt(t.bool()),
+  keepUntil: t.opt(
+    t.ts({ description: "Kept until then whatever the clean-up rule says (the backup made before a restore)" }),
+  ),
 });
 const target = {
   computerId: t.opt(id.computer),
@@ -1037,7 +1040,7 @@ export default defineManifest({
     }),
     write(
       "sites.backup_restore",
-      "Put a finished backup back: the site's database is made again from the dump, and everything in it now is replaced. Back up what is there first if it matters",
+      "Put a finished backup back, never losing data: the live database is backed up first (kept 7 days, else the restore is refused), the dump loads into a new database, and it is swapped in only if that worked",
       {
         in: { siteId: id.site, backupId: t.id("bkp") },
         out: { ok: t.bool(), detail: t.str() },

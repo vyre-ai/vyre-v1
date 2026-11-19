@@ -16,7 +16,7 @@ import { tarFiles } from "./tar.ts";
 import type { TarEntry } from "./tar.ts";
 import type { SitePlan } from "./plan.ts";
 import type { DockerStats } from "../ops/metrics.ts";
-import { untarFirst } from "../ops/tarread.ts";
+import { TarFirst } from "../ops/tarread.ts";
 
 export interface Limits {
   cpus: number;
@@ -110,7 +110,7 @@ export interface Runner {
   /** run a command in a site's container, as its own user; the env values go only through the exec's environment */
   exec(containerId: string, cmd: string[], env: Record<string, string>): Promise<{ code: number; out: string }>;
   /** one file a command wrote under /tmp/vyre-backup, as its bytes (Docker sends it inside a tar; the first file is returned) */
-  getFile(containerId: string, path: string): Promise<Uint8Array>;
+  getFile(containerId: string, path: string, maxBytes: number): Promise<Uint8Array>;
   /** put one file into a container's folder */
   put(containerId: string, dir: string, name: string, bytes: Uint8Array): Promise<void>;
 }
@@ -773,15 +773,49 @@ export function dockerRunner(link: RunnerLink): Runner {
       await call({ method: "DELETE", path: `/volumes/${name}-data` });
     },
 
-    async getFile(containerId, path) {
-      const r = await call({
-        method: "GET",
-        path: `/containers/${containerId}/archive`,
-        query: { path },
-        timeoutMs: 10 * 60_000,
+    async getFile(containerId, path, maxBytes) {
+      const tar = new TarFirst(maxBytes);
+      await new Promise<void>((resolve, reject) => {
+        const q = http.request(
+          {
+            socketPath: link.socketPath,
+            method: "GET",
+            path: `/containers/${containerId}/archive?${new URLSearchParams({ path }).toString()}`,
+            headers: { authorization: `Bearer ${link.token()}` },
+          },
+          (res) => {
+            if (res.statusCode !== 200) {
+              const bad: Buffer[] = [];
+              res.on("data", (c: Buffer) => bad.length < 8 && bad.push(c));
+              res.on("end", () =>
+                reject(
+                  new Error(
+                    `Could not copy the file out: ${message(new Uint8Array(Buffer.concat(bad)), res.statusCode ?? 0)}`,
+                  ),
+                ),
+              );
+              return;
+            }
+            res.on("data", (c: Buffer) => {
+              try {
+                tar.push(c);
+                if (tar.done) q.destroy();
+              } catch (e) {
+                q.destroy();
+                reject(e);
+              }
+            });
+            res.on("end", () => resolve());
+            res.on("error", (e) => (tar.done ? resolve() : reject(e)));
+          },
+        );
+        const timer = setTimeout(() => q.destroy(new Error("the copy took longer than 10 minutes")), 10 * 60_000);
+        timer.unref?.();
+        q.on("close", () => clearTimeout(timer));
+        q.on("error", (e) => (tar.done ? resolve() : reject(e)));
+        q.end();
       });
-      if (r.status !== 200) throw new Error(`Could not copy the file out: ${message(r.body, r.status)}`);
-      const file = untarFirst(r.body);
+      const file = tar.result();
       if (!file) throw new Error("The file was not in what the container sent.");
       return file;
     },

@@ -421,7 +421,7 @@ export function siteAllows(action: string, method: string, query: URLSearchParam
 /** What a computer's container may be asked: everything a site's may, and read and write inside its own home. The removal helper is the one container that is waited for. */
 export function computerAllows(action: string, method: string, query: URLSearchParams, helper: boolean): boolean {
   if (helper) return action === "start" || action === "wait" || action === "remove" || action === "json";
-  if (action === "wait") return false;
+  if (action === "wait" || action === "stats") return false; // CPU and memory are read for a site's containers only
   if (action === "archive") return archiveOk(method, query);
   return true;
 }

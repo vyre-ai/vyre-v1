@@ -1,6 +1,7 @@
 // The database side of site operations, on a real SQLite with the real migration (r42-sites-run).
 // @reads ../migrations/0010_ops.sql
 // @reads ../migrations/0011_ops_runs.sql
+// @reads ../migrations/0012_ops_locks.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -13,7 +14,7 @@ import { fresh, advance } from "../ops/workers.ts";
 
 function mem(): OpsDb {
   const db = new DatabaseSync(":memory:");
-  for (const f of ["0010_ops.sql", "0011_ops_runs.sql"])
+  for (const f of ["0010_ops.sql", "0011_ops_runs.sql", "0012_ops_locks.sql"])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   return {
     all: (q, ...a) => db.prepare(q).all(...(a as never[])),
@@ -315,4 +316,61 @@ test("a run keeps its container so a restart can find it", () => {
   assert.equal(st.openRuns(db)[0]?.containerId, "ctr_9");
   assert.equal(st.saveRun(db, { ...run, state: "succeeded", startedAt: 2, endedAt: 3, exitCode: 0 }, "running"), true);
   assert.equal(st.getRun(db, "r1")?.containerId, "ctr_9", "ending a run leaves its container id as it was");
+});
+
+test("one lock per site: a second is refused with who has it, a different site is free, another process's lock is taken over, and unlock lets go", () => {
+  const db = mem();
+  assert.deepEqual(st.lockSite(db, "s1", "backup", 1000), { ok: true });
+  assert.deepEqual(st.lockSite(db, "s1", "restore", 2000), { ok: false, heldBy: { kind: "backup", since: 1000 } });
+  assert.deepEqual(st.lockSite(db, "s2", "restore", 2000), { ok: true });
+  assert.deepEqual(
+    st.lockSite(db, "s1", "restore", 3000, "pother"),
+    { ok: true },
+    "a lock held by another process is dead",
+  );
+  st.unlockSite(db, "s1", "pnot-the-holder");
+  assert.equal(st.lockSite(db, "s1", "backup", 4000, "pother").ok, false, "only the holder lets go");
+  st.unlockSite(db, "s1", "pother");
+  assert.deepEqual(st.lockSite(db, "s1", "backup", 5000), { ok: true });
+});
+
+test("a lock older than its limit is taken over even by the same process", () => {
+  const db = mem();
+  st.lockSite(db, "s1", "backup", 0);
+  assert.equal(st.lockSite(db, "s1", "backup", st.LOCK_TTL_MS - 1).ok, false);
+  assert.equal(st.lockSite(db, "s1", "backup", st.LOCK_TTL_MS).ok, true);
+});
+
+test("a worker's container is claimed only while the row still waits for one", () => {
+  const db = mem();
+  st.insertService(db, { id: "v1", siteId: "s1", name: "q", kind: "worker", command: ["x"], at: 1 });
+  const v = {
+    id: "v1",
+    siteId: "s1",
+    name: "q",
+    kind: "worker" as const,
+    state: "starting" as const,
+    streak: 0,
+    crashes: [],
+  };
+  st.saveService(db, v, null);
+  assert.equal(st.claimService(db, v, "ctr_1", "dpl_1"), true);
+  assert.equal(st.claimService(db, v, "ctr_2", "dpl_1"), false, "already has one");
+  st.saveService(db, { ...v, state: "stopped" }, null);
+  assert.equal(st.claimService(db, v, "ctr_3", "dpl_1"), false, "stopped meanwhile");
+  assert.equal(st.getService(db, "v1")?.containerId, undefined);
+});
+
+test("a backup keeps its keep-until date", () => {
+  const db = mem();
+  st.insertBackup(db, {
+    id: "b1",
+    siteId: "s1",
+    kind: "postgres",
+    state: "ready",
+    by: "person",
+    at: 1,
+    keepUntil: 999,
+  });
+  assert.equal(st.getBackup(db, "b1")?.keepUntil, 999);
 });
