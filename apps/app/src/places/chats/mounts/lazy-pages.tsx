@@ -7,6 +7,7 @@ import type { AgentForm as AgentFormView } from "../agentform/AgentForm.tsx";
 import type { GoalPage as GoalPageView } from "../goals/GoalPage.tsx";
 import type { ProjectScreen as ProjectScreenView } from "../projects/ProjectScreen.tsx";
 import type { TaskDetail as TaskDetailView } from "../tasks/TaskDetail.tsx";
+import type { NotesPage as NotesPageView } from "../notes/NotesPage.tsx";
 import type { TasksPage as TasksPageView } from "../tasks/TasksPage.tsx";
 import type { AgentInTrash as AgentInTrashView } from "../agentpage/AgentInTrash.tsx";
 import type { CrewSide as CrewSideView } from "../crew/CrewSide.tsx";
@@ -125,6 +126,12 @@ const phoneProfilePage = lazyPage<ComponentProps<typeof PhoneProfileView>>(() =>
 );
 export const PhoneProfile = phoneProfilePage.Draw;
 
+// Notes carries the collaborative editor (yjs and the rich editor, about 80 KB sent): out of the first signed-in screen. What a note started elsewhere hands the page is in its props, not in a mount-time side channel.
+const notesPage = lazyPage<ComponentProps<typeof NotesPageView>>(() =>
+  import("../notes/NotesPage.tsx").then((m) => m.NotesPage),
+);
+export const NotesPage = notesPage.Draw;
+
 /** Fetch every page of this file; after it resolves each draws at once. */
 export function preloadChatsPages(): Promise<void> {
   return Promise.all(
@@ -147,6 +154,7 @@ export function preloadChatsPages(): Promise<void> {
       agentShareHostPage,
       projectChatGatePage,
       phoneProfilePage,
+      notesPage,
     ].map((p) => p.preload()),
   ).then(() => undefined);
 }

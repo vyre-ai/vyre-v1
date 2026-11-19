@@ -84,7 +84,6 @@ import type { Call } from "../details/read.ts";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
 import { ChatWork } from "../tasks/ChatWork.tsx";
-import { NotesPage } from "../notes/NotesPage.tsx";
 import {
   AgentForm,
   AgentInTrash,
@@ -94,6 +93,7 @@ import {
   ArtifactsPage,
   CrewSide,
   GoalPage,
+  NotesPage,
   PhoneProfile,
   ProjectChatGate,
   ProjectScreen,
