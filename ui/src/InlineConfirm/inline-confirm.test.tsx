@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { find, flush, installDom, mount, press } from "../testing/dom.ts";
 import { escapeLayers } from "../Overlay/escape.ts";
 import { useState } from "react";
+import { setReportProblemHandler } from "../Menu/index.tsx";
 import { InlineConfirm, step } from "./index.tsx";
 import type { ConfirmEvent, ConfirmState } from "./logic.ts";
 
@@ -156,6 +157,39 @@ test("a slow action never fires twice: with a promise the strip arms again only 
     await flush();
     assert.deepEqual(log, ["delete", "delete"], "the request ended and the strip is still here: it can be tried again");
   } finally {
+    restore();
+  }
+});
+
+test("a caller promise that rejects re-arms the strip and goes to the problem report, never to the global error handler", async () => {
+  const restore = installDom();
+  const reports: string[] = [];
+  const off = setReportProblemHandler((c) => void reports.push(c.label ?? ""));
+  try {
+    const log: string[] = [];
+    const root = await mount(
+      createRoot,
+      <InlineConfirm
+        question="Delete?"
+        confirmLabel="Delete"
+        armMs={30}
+        onConfirm={() => {
+          log.push("delete");
+          return Promise.reject(new Error("network down"));
+        }}
+        onCancel={() => undefined}
+        confirmTestID="ic-go"
+      />,
+    );
+    await wait(60);
+    await press(find(root, "ic-go"));
+    await wait(100);
+    assert.deepEqual(reports, ["Delete: network down"]);
+    await press(find(root, "ic-go"));
+    await flush();
+    assert.deepEqual(log, ["delete", "delete"], "armed again after the failure");
+  } finally {
+    off();
     restore();
   }
 });

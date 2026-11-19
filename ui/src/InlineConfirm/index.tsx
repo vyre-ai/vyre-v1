@@ -11,7 +11,11 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useEscapeLayer } from "../Overlay/escape.ts";
 import { Tip } from "../Tip/index.tsx";
+import { reportProblem } from "../Menu/index.tsx";
 import { armDelay, step } from "./logic.ts";
+
+/** The longest a caller's promise holds the strip dimmed. */
+const PENDING_MAX_MS = 30_000;
 import type { ConfirmEvent, ConfirmState } from "./logic.ts";
 export { ARM_MS, armDelay, setArmDelay, step } from "./logic.ts";
 
@@ -122,13 +126,21 @@ export function InlineConfirm({
           spent.current.pending = false;
           tryArm();
         };
-        void (out as Promise<unknown>).then(done, (e: unknown) => {
-          done();
-          // a rejection is the caller's to show; do not swallow it (a caller that handles its own errors never rejects)
-          setTimeout(() => {
-            throw e;
-          }, 0);
-        });
+        // a request that never answers does not hold Delete off for ever: after a long wait the strip arms again
+        const cap = setTimeout(done, PENDING_MAX_MS);
+        (cap as { unref?: () => void }).unref?.();
+        void (out as Promise<unknown>).then(
+          () => {
+            clearTimeout(cap);
+            done();
+          },
+          (e: unknown) => {
+            clearTimeout(cap);
+            done();
+            // a rejection is the caller's to show; a caller that handles its own errors never rejects. An unexpected one goes to the problem report, not to the JS error handler.
+            reportProblem({ label: `${confirmLabel}: ${e instanceof Error ? e.message : String(e)}` });
+          },
+        );
       } else tryArm();
     } else if (r.fire === "cancel") {
       if (timer.current) clearTimeout(timer.current);
