@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { forDocumentClear, forDocumentGet, forDocumentSet, get, list, preview, reset, resolve, save } from "../handlers/extra/template.ts";
-import { fillTokens, tokensIn } from "../../../lib/merge-tokens.ts";
+import { fillTokens, tokensIn, unsafeUrl } from "../../../lib/merge-tokens.ts";
 import { script } from "../handlers/extra/kit.ts";
 import { codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -163,4 +163,29 @@ test("a document the caller cannot open is not read through get or preview, and 
   await assert.rejects(preview(h.ctx, { subject: "x", text: "y" }), (e) => codeOf(e) === "permission.no_grant");
   assert.equal((await preview(h.ctx, { key: "signature.reminder", vars: { document_title: "P" } })).source, "builtin");
   await assert.rejects(preview(h.ctx, { key: "signature.reminder", subject: "x" }), (e) => codeOf(e) === "validation.bad_input");
+});
+
+test("a link value in a tag is http, https, mailto or tel; anything else becomes # and is never an href", () => {
+  for (const bad of ["javascript:alert(1)", " JaVa\nScRiPt:alert(1)", "data:text/html,<b>x</b>", "vbscript:x", "file:///etc/passwd"]) {
+    assert.equal(unsafeUrl(bad), true, bad);
+    assert.equal(fillTokens('<a href="{{sign_link}}">go</a>', { sign_link: bad }, { html: true }).text, '<a href="#">go</a>');
+    assert.equal(fillTokens('<img src={{sign_link}}>', { sign_link: bad }, { html: true }).text, "<img src=#>");
+  }
+  for (const ok of ["https://sign.vyre.test/a?x=1&y=2", "http://a.test", "mailto:pat@acme.test", "tel:+15550100", "/relative/path", "Plan: v2"]) {
+    assert.equal(unsafeUrl(ok), ok === "Plan: v2" ? false : false, ok);
+  }
+  assert.equal(fillTokens('<a href="{{l}}">go</a>', { l: "https://sign.vyre.test/a?x=1&y=2" }, { html: true }).text, '<a href="https://sign.vyre.test/a?x=1&amp;y=2">go</a>');
+  // in the text between tags the same value is only text: shown, escaped, not a link
+  assert.equal(fillTokens("<p>{{l}}</p>", { l: "javascript:alert(1)" }, { html: true }).text, "<p>javascript:alert(1)</p>");
+  // plain text mode is left alone
+  assert.equal(fillTokens("{{l}}", { l: "javascript:alert(1)" }).text, "javascript:alert(1)");
+});
+
+test("saving a key twice, with a reset between, leaves one live template", async () => {
+  const h = setup();
+  await save(h.ctx, { key: "signature.request", subject: "A", text: "a" });
+  await reset(h.ctx, { key: "signature.request" });
+  await save(h.ctx, { key: "signature.request", subject: "B", text: "b" });
+  await save(h.ctx, { key: "signature.request", subject: "C", text: "c" });
+  assert.equal(h.rows(`SELECT id FROM mail_template WHERE key = ? AND deleted_at IS NULL`, "signature.request").length, 1);
 });

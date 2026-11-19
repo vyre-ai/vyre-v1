@@ -9,6 +9,15 @@ const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"
 const escape = (s: string): string => s.replace(/[&<>"']/g, (c) => ESC[c] ?? c);
 const humanize = (key: string): string => key.replace(/_/g, " ");
 const MAX_KEY = 64;
+/** The only schemes a value may carry inside an HTML tag (an href or a src). Anything else becomes "#": never a link. */
+const SAFE_SCHEMES = new Set(["https", "http", "mailto", "tel"]);
+
+/** True when a value would act as a link with a scheme that is not allowed (javascript:, data:, vbscript:, file: ...). Spaces and control characters inside the scheme are ignored, as browsers do. */
+export function unsafeUrl(value: string): boolean {
+  const flat = value.replace(/[\u0000-\u0020\u007f-\u009f]/g, "");
+  const m = /^([a-z][a-z0-9+.-]*):/i.exec(flat);
+  return m !== null && !SAFE_SCHEMES.has((m[1] ?? "").toLowerCase());
+}
 const MAX_FALLBACK = 200;
 
 export interface Filled {
@@ -76,9 +85,14 @@ export function fillTokens(source: string, values: Record<string, string>, opts:
   const blanks = new Set<string>();
   const fallbacks = new Set<string>();
   let text = "";
+  let inTag = false; // inside <...>: a value there is an attribute, so a link scheme must be safe
   for (const p of scan(source)) {
     if (p.literal !== undefined) {
       text += p.literal;
+      const lt = p.literal.lastIndexOf("<");
+      const gt = p.literal.lastIndexOf(">");
+      if (lt > gt) inTag = true;
+      else if (gt > lt) inTag = false;
       continue;
     }
     const key = p.key as string;
@@ -92,6 +106,7 @@ export function fillTokens(source: string, values: Record<string, string>, opts:
       blanks.add(key);
       out = humanize(key);
     }
+    if (opts.html && inTag && unsafeUrl(out)) out = "#";
     text += opts.html ? escape(out) : out;
   }
   return { text, blanks: [...blanks], fallbacks: [...fallbacks] };
