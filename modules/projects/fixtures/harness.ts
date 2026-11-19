@@ -76,6 +76,8 @@ export function fakeWorld(clock: { t: number }) {
     ["contact", { key: "contact", title: "Contact" }],
   ]);
   const down = new Set<string>();
+  /** access.audience_set refuses the follows branch (a caller without Manage on the folder). */
+  const refuse = { follows: false };
   /** Principals and groups the Space does not know: access.principals.get and access.groups.get refuse them, as the real module does. */
   const unknown = new Set<string>();
   let n = 0;
@@ -344,6 +346,11 @@ export function fakeWorld(clock: { t: number }) {
       }
       return { revoked: before - grants.length };
     },
+    "access.audience_set": (i) => {
+      if (i.follows !== undefined && refuse.follows)
+        fail("permission.no_grant", "only a manager attaches a folder to its record");
+      return {};
+    },
     "tasks.create": (i, o) =>
       keyed(o, "tc", () => {
         const t: FakeTask = {
@@ -394,6 +401,7 @@ export function fakeWorld(clock: { t: number }) {
     handlers,
     root,
     down,
+    refuse,
     unknown,
     next,
     agents,

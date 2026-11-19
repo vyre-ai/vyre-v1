@@ -685,7 +685,7 @@ export default defineManifest({
           ),
         },
         out: { grant: grantRow },
-        gate: { act: "admit", when: "gate.vault_share_by_actor(input)" },
+        gate: { act: "access", when: "gate.vault_share_by_actor(input)" },
         emits: ["grant.created", "access.changed", "folder.shared", "access.shared_with"],
         audit: "always",
         tool: "meta",

@@ -46164,6 +46164,7 @@ export type ThreadsMembersAddOut = {
     parentTitle?: string;
     preview?: string;
   };
+  note?: string;
 };
 export type ThreadsMembersRemoveIn = {
   threadId: string;

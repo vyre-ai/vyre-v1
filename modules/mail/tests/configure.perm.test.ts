@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../../kernel/src/authorize/index.ts";
 import { registry } from "../../../generated/registry.ts";
 import { CONFIGURE_ROUTE } from "../handlers/setup.ts";
+import fs from "node:fs";
 import { held } from "../fixtures/hold-rules.ts";
 
 type Def = {
@@ -115,4 +116,11 @@ test("every mail capability that writes is held at the Gate for an agent, or is 
     "mail.templates",
   ])
     assert.ok(held(def(name).gate), `${name} is held for an agent`);
+});
+
+test("the host live test names exactly the capabilities mail.configure routes to (it imports no module, so this keeps the two the same)", () => {
+  const text = fs.readFileSync(new URL("../../../host/tests/mail.configure.live.test.ts", import.meta.url), "utf8");
+  const block = /const CALLEES = \[([^\]]*)\]/.exec(text)?.[1] ?? "";
+  const named = [...block.matchAll(/"([a-z_.]+)"/g)].map((m) => m[1]).sort();
+  assert.deepEqual(named, CALLEES.filter((n) => n !== "mail.setup.test_send").sort());
 });

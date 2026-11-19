@@ -11,7 +11,7 @@ Make a new Request to join address; the old one stops working at once and reques
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | admit when actor.kind != 'person' |
+| Gate | admit when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

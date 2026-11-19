@@ -46,7 +46,12 @@ async function lateJoiner() {
 
 test("an agent that asks for earlier messages for someone it adds gets the default: the newcomer reads from now on; a person's own ask still gives them", async () => {
   const { hn, id } = await lateJoiner();
-  await h["threads.members.add"]!(hn.agent(INTAKE, DANA), { threadId: id, personId: LEO, fromStart: true });
+  const said = await h["threads.members.add"]!(hn.agent(INTAKE, DANA), {
+    threadId: id,
+    personId: LEO,
+    fromStart: true,
+  });
+  assert.match(said.note, /Only a person can give earlier messages/, "the agent is told in one line");
   assert.equal(await reads(hn.person(LEO), id, "OLDSECRET"), false, "an agent cannot give history");
   assert.equal(await reads(hn.person(LEO), id, "NEWWORD"), true, "they read from now on");
 });

@@ -444,3 +444,33 @@ test("a record share taken away while the folder's sync is mid-way is not writte
     "Maya keeps hers",
   );
 });
+
+test("a folder that cannot follow its record is narrowed to the people added, the person gets a task saying so, and it is never left quietly wider", async () => {
+  const h = harness();
+  h.world.refuse.follows = true;
+  const id = mkRecord(h, { title: "Private deal" });
+  await created(h, id);
+  const folder = named(h, "Private deal")[0]!.folderId;
+  const sets = h.only("access.audience_set").map((c) => c.input as Record<string, unknown>);
+  assert.ok(
+    sets.some((i) => i["follows"] === id),
+    "it tried to follow",
+  );
+  assert.ok(
+    sets.some((i) => i["audience"] === "added" && (i["resource"] as { id: string }).id === folder),
+    "and, refused, it narrowed the folder",
+  );
+  const tasks = h.only("tasks.create").map((c) => c.input as { title: string; recordId: string });
+  assert.ok(
+    tasks.some((t) => /could not follow its record/.test(t.title) && t.recordId === id),
+    "the person gets a Needs-you task",
+  );
+});
+
+test("a folder that follows its record makes no task and is not narrowed", async () => {
+  const h = harness();
+  const id = mkRecord(h, { title: "Open deal" });
+  await created(h, id);
+  assert.equal(h.only("tasks.create").length, 0);
+  assert.ok(!h.only("access.audience_set").some((c) => (c.input as { audience?: string }).audience === "added"));
+});

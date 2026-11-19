@@ -11,7 +11,7 @@ Turn the Request to join link on (the address people open), or change the role i
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | admit when actor.kind != 'person' |
+| Gate | admit when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
