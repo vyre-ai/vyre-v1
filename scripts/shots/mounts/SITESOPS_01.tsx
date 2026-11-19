@@ -60,12 +60,42 @@ function logLines(): unknown[] {
   for (let i = 0; i < 44; i++) {
     const r = REQ[i % REQ.length] as (typeof REQ)[number];
     const at = t0 + i * 27_000;
-    out.push({ seq: ++seq, at, source: "requests", scope: "dpl_2", text: `${r[0]} ${r[1]} ${r[2]}ms`, level: r[1] >= 500 ? "error" : "info" });
+    out.push({
+      seq: ++seq,
+      at,
+      source: "requests",
+      scope: "dpl_2",
+      text: `${r[0]} ${r[1]} ${r[2]}ms`,
+      level: r[1] >= 500 ? "error" : "info",
+    });
     if (r[1] === 500) {
-      out.push({ seq: ++seq, at, source: "app", scope: "dpl_2", text: "Error: card_declined is not handled in /api/checkout", level: "error" });
-      out.push({ seq: ++seq, at, source: "app", scope: "dpl_2", text: "    at charge (/app/lib/pay.js:41:9)", level: "info" });
-    } else if (i % 5 === 0) out.push({ seq: ++seq, at, source: "app", scope: "dpl_2", text: `cart ${4100 + i} saved`, level: "info" });
-    if (i === 17) out.push({ seq: ++seq, at, source: "jobs", scope: "jrx_1", text: "Nightly stock sync: 412 products checked, 6 changed", level: "info" });
+      out.push({
+        seq: ++seq,
+        at,
+        source: "app",
+        scope: "dpl_2",
+        text: "Error: card_declined is not handled in /api/checkout",
+        level: "error",
+      });
+      out.push({
+        seq: ++seq,
+        at,
+        source: "app",
+        scope: "dpl_2",
+        text: "    at charge (/app/lib/pay.js:41:9)",
+        level: "info",
+      });
+    } else if (i % 5 === 0)
+      out.push({ seq: ++seq, at, source: "app", scope: "dpl_2", text: `cart ${4100 + i} saved`, level: "info" });
+    if (i === 17)
+      out.push({
+        seq: ++seq,
+        at,
+        source: "jobs",
+        scope: "jrx_1",
+        text: "Nightly stock sync: 412 products checked, 6 changed",
+        level: "info",
+      });
   }
   return out;
 }
@@ -107,7 +137,14 @@ export default function Mount(): ReactNode {
       "sites.list": () => ({ sites: [site] }),
       "sites.get": () => ({ site }),
       "sites.status": () => ({ answering: true, live: true, blocked: false, url: site.url }),
-      "sites.host": () => ({ origin: "https://northwind.vyre.run", relay: false, computers: false, domains: true, deploy: true, sitesDomain: "northwind.vyre.run" }),
+      "sites.host": () => ({
+        origin: "https://northwind.vyre.run",
+        relay: false,
+        computers: false,
+        domains: true,
+        deploy: true,
+        sitesDomain: "northwind.vyre.run",
+      }),
       "sites.domains_get": () => ({ domains: [] }),
       "sites.deployments": () => ({ deployments: [site.lastDeploy], total: 1 }),
       "sites.previews": () => ({ previews: [] }),
@@ -115,7 +152,20 @@ export default function Mount(): ReactNode {
       "sites.logs": () => ({ lines: ["Ready in 412ms"], state: "ready" }),
       "sites.logs_read": (i) =>
         i["source"] === "jobs" && i["scope"]
-          ? { lines: [{ seq: 1, at: SAMPLE_NOW - 9 * 60 * M, source: "jobs", scope: "jrx_1", text: "Nightly stock sync: 412 products checked, 6 changed", level: "info" }], lastSeq: 1, scopes: [] }
+          ? {
+              lines: [
+                {
+                  seq: 1,
+                  at: SAMPLE_NOW - 9 * 60 * M,
+                  source: "jobs",
+                  scope: "jrx_1",
+                  text: "Nightly stock sync: 412 products checked, 6 changed",
+                  level: "info",
+                },
+              ],
+              lastSeq: 1,
+              scopes: [],
+            }
           : i["after"]
             ? { lines: [], lastSeq: 9999, scopes: [] }
             : {
@@ -129,7 +179,13 @@ export default function Mount(): ReactNode {
       "sites.metrics": () => ({
         window: "1h",
         samples,
-        now: { cpu: { value: 4, of: 100 }, mem: { valueMb: 202, ofMb: 512 }, requestsPerMin: 101, p95: 48, errorRate: 0.4 },
+        now: {
+          cpu: { value: 4, of: 100 },
+          mem: { valueMb: 202, ofMb: 512 },
+          requestsPerMin: 101,
+          p95: 48,
+          errorRate: 0.4,
+        },
         measured: true,
         requests: true,
       }),
@@ -160,7 +216,14 @@ export default function Mount(): ReactNode {
       }),
       "sites.services_list": () => ({
         services: [
-          { serviceId: "wkr_1", siteId: "sit_cx", name: "Queue", kind: "worker", command: "node worker.js", state: "running" },
+          {
+            serviceId: "wkr_1",
+            siteId: "sit_cx",
+            name: "Queue",
+            kind: "worker",
+            command: "node worker.js",
+            state: "running",
+          },
           {
             serviceId: "wkr_2",
             siteId: "sit_cx",
@@ -176,9 +239,31 @@ export default function Mount(): ReactNode {
         hasDatabase: true,
         database: { bytes: 48 * 1024 * 1024 },
         backups: [
-          { backupId: "bkp_1", siteId: "sit_cx", state: "ready", by: "schedule", at: SAMPLE_NOW - 3 * 60 * M, bytes: 12 * 1024 * 1024 },
-          { backupId: "bkp_2", siteId: "sit_cx", state: "ready", by: "person", at: SAMPLE_NOW - 27 * 60 * M, bytes: 11 * 1024 * 1024, pinned: true },
-          { backupId: "bkp_3", siteId: "sit_cx", state: "failed", by: "schedule", at: SAMPLE_NOW - 51 * 60 * M, note: "The dump failed: the database did not answer." },
+          {
+            backupId: "bkp_1",
+            siteId: "sit_cx",
+            state: "ready",
+            by: "schedule",
+            at: SAMPLE_NOW - 3 * 60 * M,
+            bytes: 12 * 1024 * 1024,
+          },
+          {
+            backupId: "bkp_2",
+            siteId: "sit_cx",
+            state: "ready",
+            by: "person",
+            at: SAMPLE_NOW - 27 * 60 * M,
+            bytes: 11 * 1024 * 1024,
+            pinned: true,
+          },
+          {
+            backupId: "bkp_3",
+            siteId: "sit_cx",
+            state: "failed",
+            by: "schedule",
+            at: SAMPLE_NOW - 51 * 60 * M,
+            note: "The dump failed: the database did not answer.",
+          },
         ],
       }),
       "vault.items.list": () => ({ items: [], counts: {} }),

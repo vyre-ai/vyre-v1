@@ -110,7 +110,7 @@ export function JobsAndWorkers({ siteId }: { siteId: string }): ReactElement {
           }
         />
       ))}
-      {/* ui-rows-lint: each item is a ui/Row with its detail opened under it */}
+      {/* ui-rows-lint: not a list (each item is a ui/Row with its detail opened under it) */}
       {(jobs.data?.jobs ?? []).map((j) => (
         <View key={j.jobId}>
           <Row
@@ -233,7 +233,7 @@ function JobDetail({
       {calls.error ? <Text style={s.error}>{calls.error}</Text> : null}
       <Text style={s.title}>Runs</Text>
       {(runs.data?.runs ?? []).length === 0 ? <Text style={s.hint}>None yet.</Text> : null}
-      {/* ui-rows-lint: each item is a ui/Row with its output opened under it */}
+      {/* ui-rows-lint: not a list (each item is a ui/Row with its output opened under it) */}
       {(runs.data?.runs ?? []).map((r) => (
         <View key={r.runId}>
           <Row
