@@ -19,6 +19,8 @@ import { recordWork, sessionWorkKey } from "../../agent/src/tools/work-cards.ts"
 import type { McpCaller, McpServer, McpServerDeps } from "../../agent/src/mcp/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
+import { createGuardedFetch } from "../../lib/net-guard.ts";
+import { fetchDoc, isDocId, keepDoc } from "./client-doc.ts";
 import { WATCHED_EVENTS, changeOf } from "../../agent/src/mcp/watch.ts";
 import { onAgentDeleted, onHoldAnswered, onKeyAnswered } from "./handlers/oauth.ts";
 import type { OauthCtx } from "./handlers/oauth.ts";
@@ -43,6 +45,7 @@ import { allowTab, refusalPage } from "./allow-page.ts";
 import {
   beginAuthorize,
   challenge,
+  clientBy,
   collect,
   createLimiter,
   exchange,
@@ -62,6 +65,8 @@ export interface RuntimeOptions {
   endpoint?: Endpoint | (() => Endpoint);
   /** Are this agent and the person it acts for still active members? Read on every request, so a person removed or suspended ends their agents at once. Unset means no. */
   active?: (agentId: string, person: string) => boolean;
+  /** How a client metadata document is read (tests give their own); default is the guarded fetch that refuses private addresses. */
+  clientDocGet?: Parameters<typeof fetchDoc>[1];
   /** The Space's name, for the page a client opens. */
   spaceName?: () => Promise<string>;
   /** A capability called as the host itself. */
@@ -193,6 +198,12 @@ const formOf = (body: string): Record<string, string | undefined> | null => {
 };
 
 /** The MCP server on this host's tables. Binds itself so mcp.session.close also ends the live session. */
+/** A kept client page older than a day is read again. */
+function docIsOld(db: Db, clientId: string, at: number): boolean {
+  const r = (db.all("SELECT created_at FROM mcp_oauth_clients WHERE client_id = ?", clientId) as Array<Record<string, unknown>>)[0];
+  return r !== undefined && at - Number(r["created_at"]) > 24 * 3_600_000;
+}
+
 export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
   const now = o.now ?? Date.now;
   ensure(o.db);
@@ -477,6 +488,12 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
           return { status: 400, headers: { ...page.headers }, body: page.body };
         }
         q[k] = v;
+      }
+      // an app that names itself by an address: read its page once (guarded), keep it as a registered client; a page that cannot be read leaves the client unknown, which is the usual refusal
+      const named = q["client_id"];
+      if (named && isDocId(named) && (clientBy(o.db, named) === null || docIsOld(o.db, named, at))) {
+        const doc = await fetchDoc(named, o.clientDocGet ?? createGuardedFetch({ own: false }));
+        if (!("refused" in doc)) keepDoc(o.db, doc, at);
       }
       const begun = beginAuthorize(o.db, q, origin, at);
       if (begun.kind === "refuse") {
