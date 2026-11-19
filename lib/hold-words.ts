@@ -219,6 +219,9 @@ export function holdTitle(cap: string, input: unknown, actTitle?: string): strin
 export interface HoldNames {
   people?: Record<string, string>;
   file?: string;
+  /** The Vault key a share hands over, by its name (never a value), and who gets it. */
+  key?: string;
+  recipient?: string;
 }
 
 const listNames = (xs: string[]): string =>
@@ -246,6 +249,16 @@ export function holdShort(cap: string, input: unknown, n: HoldNames = {}): strin
     if (o.channel === "post")
       return who[0] === "this chat" || who.length === 0 ? "post in this chat" : `post in ${who[0]}`;
     return "add a calendar event";
+  }
+  if (cap === "vault.share" || cap === "access.share") {
+    const sub = obj(obj(input)["subject"]);
+    const kind = str(sub["kind"]);
+    const who =
+      n.recipient ??
+      (kind === "agent" ? "an agent" : kind === "group" ? "a group" : kind === "person" ? "a teammate" : "someone");
+    const res = str(obj(obj(input)["resource"])["type"]);
+    if (res === "vault_item" || res === "vault_folder")
+      return `share ${res === "vault_folder" ? "a Vault folder" : n.key ? `the key ${n.key}` : "a Vault key"} with ${who}`;
   }
   if (cap === "files.share_external") return `share ${n.file ?? "a file"} with a link for someone outside the Space`;
   const w =

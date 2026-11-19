@@ -11,7 +11,7 @@ Approve close-out items (all the proposed ones when none are named): create the 
 | Grant level | edit |
 | Risk | medium |
 | Resource | record (/meetingId) |
-| Gate | send when gate.by_actor(input) |
+| Gate | admit when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

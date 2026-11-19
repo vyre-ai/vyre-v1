@@ -43,7 +43,7 @@ import {
   storeOf,
   decisionSnapshot,
 } from "../projections.ts";
-import { isHostService, isSystemCall } from "../../../lib/trust.ts";
+import { isHostOwnService, isHostService, isSystemCall } from "../../../lib/trust.ts";
 import { canonical } from "../../../lib/canonical.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
@@ -1673,9 +1673,8 @@ export async function audienceSet(
     if (res.type !== "folder") raise(trace, "validation.bad_input", "only a Files folder can follow a record");
     const rec = store.resources.get(input.follows);
     if (!rec || rec.type !== "record") raise(trace, "validation.not_found", "no such record");
-    // the host's own sweeps (kind svc) bring old folders in line; it only narrows who may open the folder
-    if (ctx.principal.kind !== "svc" && !ctx.principal.id.startsWith("svc_"))
-      must(ctx, store, res, "manage", "attaching the folder to its record");
+    // the host's own sweeps (svc_host and the host's other own services, by name) bring old folders in line; any other caller, a tenant's service included, needs Manage on the folder like everyone else
+    if (!isHostOwnService(ctx.principal)) must(ctx, store, res, "manage", "attaching the folder to its record");
     const wasFresh = isFresh(ctx, store, ss);
     res.parentId = rec.id;
     changed(ctx, store, "assignment");

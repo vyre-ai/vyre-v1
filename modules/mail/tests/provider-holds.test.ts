@@ -5,6 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { registry } from "../../../generated/registry.ts";
 import { held } from "../fixtures/hold-rules.ts";
+import { OUTWARD_ACTS } from "../../../lib/grants.ts";
 
 type Def = { name: string; module: string; effects: string; gate?: { act: string; when?: string; reason?: string } };
 const all = registry.capabilities as unknown as Def[];
@@ -30,7 +31,7 @@ const NOT_HELD: [RegExp, string][] = [
   ],
   [
     /^(access\.(share|unshare|join_share|audience_set)|chat\.share|notes\.share|files\.share|vault\.(share|unshare)|skills\.(share|shared\.decide)|automations\.connector_share|meetings\.closeout\.share)$/,
-    "a grant inside the Space: an agent acts for a person and is never wider than that person (kernel/tests/authorize.agent.test.ts, the property over 200 worlds), it needs Manage on the thing (modules/access/handlers/share.ts:904), audience_set needs Manage (share.ts:1699), vault.share needs manage (modules/vault/handlers/items.ts:910) and then calls access.share, skills.share only offers a card the recipient accepts (manifests/_agents-skills.ts:279), a guest or an agent for a guest never shares with Everyone (share.ts:1001), and in a thread an outside-started Run marked, these are held for a yes (lib/automation-content.ts:42). Sharing outside the Space is held separately",
+    "a grant inside the Space: an agent acts for a person and is never wider than that person (kernel/tests/authorize.agent.test.ts, the property over 200 worlds), it needs Manage on the thing (modules/access/handlers/share.ts:904), audience_set needs Manage (share.ts:1699), vault.unshare takes access away, skills.share is the skill owner's own (modules/agents/handlers/skill-scopes.ts:932) and a recipient only has it once they decide to add it (:984), vault.share and access.share of a Vault item or folder are held for an agent (a key is a way in), a guest or an agent for a guest never shares with Everyone (share.ts:1001), and in a thread an outside-started Run marked, these are held for a yes (lib/automation-content.ts:42). Sharing outside the Space is held separately",
   ],
   [
     /^(threads|channels)\.members\.add$/,
@@ -288,4 +289,24 @@ test("what the key-host rule leaves free on purpose has a stated reason, and the
   for (const [what, why] of Object.entries(SAME_SOURCE_BY_DESIGN)) assert.ok(why.length > 40, `${what} has a reason`);
   for (const name of ["sites.deploy", "sites.update", "sites.plan", "sites.ship", "sites.preview_promote"])
     assert.equal(def(name).gate?.when, "vault.key_host_unapproved(input)", `${name} is where a source change is held`);
+});
+
+test("a way-in hold is never under an outward act, so a turn's grant to email or post can never lift it; the rules of access always stop for an agent", () => {
+  const wayIn = all.filter(
+    (c) => c.gate?.when !== undefined && /^gate\.(by_actor|vault_share_by_actor)\(/.test(c.gate.when),
+  );
+  assert.ok(wayIn.length > 25, `${wayIn.length} way-in holds`);
+  for (const c of wayIn) assert.ok(!OUTWARD_ACTS.has(c.gate!.act), `${c.name}: ${c.gate!.act} is outward`);
+  for (const name of [
+    "access.policies.set",
+    "access.exceptions.set",
+    "access.actors.create",
+    "access.roles.create",
+    "access.roles.update",
+    "access.roles.apply",
+    "chat.approve_plan",
+  ])
+    assert.equal(def(name).gate?.act, "access_change", `${name} always stops`);
+  for (const name of ["vault.share", "access.share"]) assert.equal(def(name).gate?.act, "admit", name);
+  assert.equal(def("spaces.transfer_ownership").gate?.act, "transfer");
 });

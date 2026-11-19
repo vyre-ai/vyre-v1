@@ -11,7 +11,7 @@ Share an item or folder with a person, group, agent or automation at Use, View, 
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | admit when gate.vault_share_by_actor(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

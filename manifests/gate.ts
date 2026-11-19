@@ -20,6 +20,8 @@ const actKey = t.enm(
   "signature_send",
   "spend_raise",
   "signin_change",
+  "admit",
+  "access_change",
   "install",
   "approve",
   "github_approval",
@@ -114,6 +116,15 @@ export default defineManifest({
     gateAct("signature_send", "Send a document for signature", "high", "file"),
     gateAct("spend_raise", "Raise a spend cap", "medium", "table"),
     gateAct("signin_change", "Change how people sign in to the Space", "high", "record_card", {
+      approvers: { default: "asker", peopleOnly: true },
+    }),
+    // Letting someone in or widening what they reach, asked by an agent, an outside actor or an Automation step (invitations, join requests, members, groups, grants, roles). Not an outward act: a turn's "email Sarah"
+    // never covers it. Signed: pending, lead.
+    gateAct("admit", "Let someone in or change who can reach what", "medium", "record_card", {
+      approvers: { default: "asker", peopleOnly: true },
+    }),
+    // Changing the rules of access itself (a role's permissions, an exception, a Space policy, an outside actor, an approved plan): stops for a person every time, in every mode. Signed: pending, lead.
+    gateAct("access_change", "Change the rules of access", "high", "record_card", {
       approvers: { default: "asker", peopleOnly: true },
     }),
     // A session's use of the person's own GitHub (a push to the default branch, a merge, a delete of it): only the person it acts for lifts it, once. No Space rule, Always allow, goal or turn can.
@@ -270,7 +281,7 @@ export default defineManifest({
           ),
         },
         out: { grants: t.arr(grantRow) },
-        gate: { act: "send", when: "gate.by_actor(input)" },
+        gate: { act: "admit", when: "gate.by_actor(input)" },
         perm: null,
         level: "view",
         audit: "always",
@@ -306,7 +317,7 @@ export default defineManifest({
           set: t.opt(t.arr(t.obj({ act: actKey, target: t.str({ minLength: 1 }) }), { maxItems: 10 })),
         },
         out: { acts: t.int({ minimum: 0 }), rows: t.int({ minimum: 0 }) },
-        gate: { act: "send", when: "gate.by_actor(input)" },
+        gate: { act: "admit", when: "gate.by_actor(input)" },
         perm: null,
         level: "view",
         audit: "always",

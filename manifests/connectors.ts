@@ -814,7 +814,7 @@ export default defineManifest({
         },
         out: { hosts: t.arr(t.str()) },
         on: ["connection", "/connectionId"],
-        gate: { act: "send", when: "gate.by_actor(input)" },
+        gate: { act: "admit", when: "gate.by_actor(input)" },
         level: "manage",
         audit: "always",
         agent: false,

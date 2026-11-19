@@ -591,7 +591,7 @@ export default defineManifest({
         in: { projectId: id.project, principal, role },
         out: { member },
         on: ["project", "/projectId"],
-        gate: { act: "send", when: "gate.by_actor(input)" },
+        gate: { act: "admit", when: "gate.by_actor(input)" },
         level: "manage",
         idem: "key",
         audit: "always",

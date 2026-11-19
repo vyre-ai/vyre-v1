@@ -146,6 +146,24 @@ export async function holdNamesOf(ctx: GateCtx, cap: string, input: unknown): Pr
       /* the plain word stands */
     }
   }
+  // a Vault key handed to someone: the key by its name (never a value) and the one who gets it
+  if (cap === "vault.share" || cap === "access.share") {
+    const i = (input ?? {}) as { resource?: { type?: string; id?: string }; subject?: { kind?: string; id?: string } };
+    if (i.resource?.type === "vault_item" && typeof i.resource.id === "string") {
+      try {
+        const r = (await ctx.call?.("vault.item.get", { itemId: i.resource.id })) as {
+          item?: { name?: string };
+        } | null;
+        if (r?.item?.name) out.key = cut(r.item.name, 60);
+      } catch {
+        /* the plain word stands */
+      }
+    }
+    if ((i.subject?.kind === "person" || i.subject?.kind === "agent") && typeof i.subject.id === "string") {
+      const n = await nameOf(ctx, { kind: i.subject.kind, id: i.subject.id }, "");
+      if (n) out.recipient = n;
+    }
+  }
   const fileId =
     typeof (input as { fileId?: unknown } | null)?.fileId === "string" ? (input as { fileId: string }).fileId : "";
   if (cap.startsWith("files.") && fileId) {

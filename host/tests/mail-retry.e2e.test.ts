@@ -288,7 +288,7 @@ test("a soft bounce is retried by the host's own schedule, as the host service, 
       address: "pat@acme.test",
       attempt: 2,
     });
-    assert.equal(early.error?.code ?? early.body.error?.code, "permission.no_grant");
+    assert.equal(early.body.error?.code, "permission.no_grant");
   } finally {
     await d.stop();
   }

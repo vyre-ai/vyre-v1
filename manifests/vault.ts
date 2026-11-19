@@ -549,6 +549,7 @@ export default defineManifest({
           notify: t.opt(t.obj({ message: t.opt(t.str()) })),
         },
         out: { granted: t.bool() },
+        gate: { act: "admit", when: "gate.vault_share_by_actor(input)" },
         emits: ["grant.created", "access.changed", "folder.shared"],
         audit: "always",
         tool: "vault",

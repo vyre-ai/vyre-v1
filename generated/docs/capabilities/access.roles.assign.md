@@ -11,7 +11,7 @@ Give a role to a person, group or agent (agents never get Owner or Admin)
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | send when gate.by_actor(input) |
+| Gate | admit when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

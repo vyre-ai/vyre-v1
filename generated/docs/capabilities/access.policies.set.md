@@ -11,7 +11,7 @@ Set a policy value; applies last in the decision
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | send when gate.by_actor(input) |
+| Gate | access_change when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
