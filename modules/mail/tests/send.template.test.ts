@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { send } from "../handlers/send.ts";
+import type { SendIn } from "../handlers/send.ts";
 import { forDocumentSet, save } from "../handlers/extra/template.ts";
 import { codeOf, contractErrors } from "../fixtures/harness.ts";
 import { rig, sendIn } from "./send.rig.test.ts";
@@ -24,9 +25,11 @@ function withRecords(r: Rig): Rig {
 }
 
 const base = { document_title: "Service agreement", sender_name: "Pat Lee", sign_link: "https://sign.vyre.test/a" };
-const templated = (over: Record<string, unknown> = {}) => {
+const templated = (over: Partial<SendIn> = {}): SendIn => {
   const { subject: _s, text: _t, ...rest } = sendIn();
-  return { ...rest, templateKey: "signature.request", vars: base, ...over } as unknown as ReturnType<typeof sendIn>;
+  // a template send has no subject of its own: the template fills it
+  const input: Omit<SendIn, "subject"> = { ...rest, templateKey: "signature.request", vars: base, ...over };
+  return input as SendIn;
 };
 
 test("a template send fills the subject and the body, from the record and the values, and goes out once", async () => {
