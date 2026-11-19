@@ -125,12 +125,12 @@ export interface MailTag {
   close: boolean;
 }
 
-/** The scan budget of one mail body: a tag attempt that fails costs what it read, and the body gets a few times its own length. */
+/** The scan budget of one mail body: a tag attempt that fails costs what it read, and the body gets twice its own length. */
 export interface MailScan {
   work: number;
   limit: number;
 }
-export const newMailScan = (html: string): MailScan => ({ work: 0, limit: html.length * 4 + 100_000 });
+export const newMailScan = (html: string): MailScan => ({ work: 0, limit: html.length * 2 + 50_000 });
 
 const isWs = (c: number): boolean =>
   c === 32 || (c >= 9 && c <= 13) || c === 160 || c === 0xfeff || c === 0x2028 || c === 0x2029;
@@ -242,7 +242,7 @@ export function closeTagEnd(low: string, name: string, from: number): number {
 
 /**
  * Removes whole `<name ...> ... </name>` blocks and (with `comments`) `<!-- ... -->`. An open tag with no closing tag anywhere after it
- * stays as it is (the caller's tag stripper then takes it). `accept` can refuse an open tag by its text. Each name's missing close is
+ * stays as it is (the caller's tag stripper then takes it). `accept` can refuse an open tag by its (lowercased) text. Each name's missing close is
  * looked up once, so the time is linear however many open tags there are.
  */
 export function cutBlocks(
@@ -288,7 +288,7 @@ export function cutBlocks(
       c = { start: low.lastIndexOf("</", e), end: e };
       closes.set(name, c);
     }
-    if (opts.accept && !opts.accept(name, s.slice(at, at + 4096))) continue;
+    if (opts.accept && !opts.accept(name, low.slice(at, at + 600))) continue;
     const end = c.end;
     out += s.slice(i, at) + (opts.repl ?? "");
     i = from = end;
