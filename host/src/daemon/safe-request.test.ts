@@ -113,7 +113,7 @@ test("in a test process (or with VYRE_STRICT_REJECTIONS=1) the backstop logs and
 });
 
 test("what an error writes to a log is scrubbed: addresses are cut to origin and path, long token-like runs are removed, and the stack is kept", () => {
-  const e = new Error("fetch failed https://api.example.com/v1/x?token=abc123SECRET&k=v key=" + "Qz9".repeat(14));;
+  const e = new Error("fetch failed https://api.example.com/v1/x?token=abc123SECRET&k=v key=" + "Qz9".repeat(14));
   const l = errorLine(e);
   assert.ok(!l.error.includes("SECRET") && !l.error.includes("Qz9Qz9Qz9"), l.error);
   assert.match(l.error, /https:\/\/api\.example\.com\/v1\/x/);
