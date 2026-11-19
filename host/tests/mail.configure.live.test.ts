@@ -74,6 +74,7 @@ const KEYED = [
   "sites.plan",
   "sites.deploy",
   "sites.ship",
+  "sites.env_set",
 ];
 const defs = [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE, ...COMMS, ...KEYED].map(
   (n) => registry.capabilities.find((c) => c.name === n) as unknown as CapabilityDef,
@@ -669,6 +670,51 @@ test("through the real Gate: an agent sending a Vault key to a new host is held,
       { act: "send" },
       `${name}: a repo on a new host is held for an agent`,
     );
+  // a Vault key given to a site as env runs inside code an agent may have chosen: held for an agent, with or without a token, on any host; plain values and a person are one step
+  const envOf = (entries: unknown[]) => ({ siteId: "sit_1", entries });
+  assert.deepEqual(
+    await site.gate.applies(site.defOf("sites.env_set"), envOf([{ name: "K", vaultHandle: "#Stripe_Key" }]), {
+      ...asAgent(),
+    } as never),
+    { act: "send" },
+    "env_set with a Vault key is held for an agent",
+  );
+  assert.equal(
+    await site.gate.applies(site.defOf("sites.env_set"), envOf([{ name: "MODE", value: "calm" }]), {
+      ...asAgent(),
+    } as never),
+    null,
+    "a plain value is the agent's own",
+  );
+  assert.equal(
+    await site.gate.applies(site.defOf("sites.env_set"), envOf([{ name: "K", vaultHandle: "#Stripe_Key" }]), {
+      ...seed("usr_admin"),
+    } as never),
+    null,
+    "a person is one step",
+  );
+  assert.deepEqual(
+    await site.gate.applies(
+      site.defOf("sites.ship"),
+      { name: "s", source: { repo: "https://github.com/a/b" }, env: [{ name: "K", vaultHandle: "#Stripe_Key" }] },
+      { ...asAgent() } as never,
+    ),
+    { act: "send" },
+    "ship with a Vault key in env is held even for a public repo with no token",
+  );
+  assert.deepEqual(
+    await site.gate.applies(
+      site.defOf("sites.ship"),
+      {
+        name: "s",
+        source: { repo: "acme/app", tokenHandle: "#Crm_Key" },
+        env: [{ name: "K", vaultHandle: "#Stripe_Key" }],
+      },
+      { ...asAgent() } as never,
+    ),
+    { act: "send" },
+    "an approved token host does not carry a second key in env through",
+  );
   // a call that names no key is not touched by the rule
   assert.equal(keySendOf({ name: "s" }), undefined);
   assert.equal(keySendOf({ name: "s", source: { repo: "acme/app", tokenHandle: "#T" } })?.host, "github.com");

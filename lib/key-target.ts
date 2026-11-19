@@ -61,6 +61,19 @@ export function carriesHandle(v: unknown, depth = 0): boolean {
   return Object.values(v as Record<string, unknown>).some((x) => carriesHandle(x, depth + 1));
 }
 
+/** A Vault handle given as a site's env (sites_env_set entries, sites_ship env): the key goes into the process the site runs, so code a caller chose can send it anywhere. */
+export function envHandles(input: unknown): string[] {
+  const i = (input ?? {}) as Record<string, unknown>;
+  const out: string[] = [];
+  for (const list of [i["entries"], i["env"]])
+    if (Array.isArray(list))
+      for (const e of list) {
+        const h = (e as { vaultHandle?: unknown } | null)?.vaultHandle;
+        if (typeof h === "string" && h.trim() !== "") out.push(h.trim());
+      }
+  return out;
+}
+
 /** Calls that send a Vault key to a place the call names: a sync spec's or a sample read's app domain, a site's git repo. One rule for them all: the key goes only to a host a person approved for that item. */
 export const KEY_HOST_CAPS: ReadonlySet<string> = new Set([
   "sync_specs.sample",

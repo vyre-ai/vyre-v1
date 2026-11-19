@@ -11,7 +11,14 @@ import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
 import { isTenantService } from "../../../lib/trust.ts";
-import { KEY_HOST_CAPS, carriesHandle, hostOfUrl, keyReadHost, keySendOf } from "../../../lib/key-target.ts";
+import {
+  KEY_HOST_CAPS,
+  carriesHandle,
+  envHandles,
+  hostOfUrl,
+  keyReadHost,
+  keySendOf,
+} from "../../../lib/key-target.ts";
 import { resolveKeyRef } from "../seams/key-ref.ts";
 import { HostError, fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
@@ -124,7 +131,7 @@ async function appliesWhen(
   }
 }
 
-export { KEY_HOST_CAPS, carriesHandle, keySendOf };
+export { KEY_HOST_CAPS, carriesHandle, envHandles, keySendOf };
 
 interface Claims {
   v?: unknown;
@@ -521,6 +528,8 @@ export function moduleWhens(
   // An agent that may not use the item itself is refused (not held): its person's access does not stand in for its own. Anything this cannot read holds.
   out["vault.key_host_unapproved"] = async (input, seed) => {
     if (seed.principal.kind === "person") return false;
+    // a key given to a site as env goes into the process the site runs, which an agent may have chosen the code of: it waits for a person, whatever host the source is on
+    if (envHandles(input).length > 0) return true;
     const use = keySendOf(input);
     // a Vault handle anywhere in the input that no known shape reads holds: the rule cannot tell where it goes
     if (use === undefined) return carriesHandle(input);

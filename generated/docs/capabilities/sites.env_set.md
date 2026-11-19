@@ -11,7 +11,7 @@ Set a site's env vars (replaces the list): a Vault key, or a plain value (not a 
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |
