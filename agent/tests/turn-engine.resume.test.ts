@@ -6,6 +6,7 @@ import { createTurnEngine, createMemoryLeases, createMemoryQueue, scriptedProvid
 import { createMemoryJournal, scrubInput } from "../src/turn-engine/journal.ts";
 import type { DriverEvent, EngineAgent, OpenThread } from "../src/turn-engine/index.ts";
 import { gate, manualClock, until } from "../src/turn-engine/harness.ts";
+import { readsEpoch } from "../src/tools/reads-epoch.ts";
 
 const person = (id: string) => ({ kind: "person" as const, id });
 const agents = (): EngineAgent[] => [{ id: "intake", mode: "lead" }];
@@ -98,6 +99,11 @@ test("a read in flight is asked again under its old call id, the finished call i
     r.ranB.map((c) => [c.id, c.turnId]),
     [["c2", r.lost.id]],
     "only the call in flight was asked again, as the same call of the same turn",
+  );
+  assert.equal(
+    readsEpoch(r.lost.id) > 0,
+    true,
+    "what the lost turn had read is forgotten, so a replayed read comes back whole",
   );
   assert.match(notice(r), /server stopped/);
   assert.match(notice(r), /Done: read_prices answered: \{"rows":3\}/);

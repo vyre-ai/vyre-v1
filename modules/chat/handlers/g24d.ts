@@ -6,6 +6,8 @@
 // model refresh; search is lexical, because the module holds no embedding index.
 import { stepWords } from "../../../lib/plain-words.ts";
 import { modelName } from "../../../lib/model-names.ts";
+import { briefJob, tierOf } from "../../../lib/model-tiers.ts";
+import { questionBody } from "../../../lib/helper-result.ts";
 import { readFloor } from "./floor.ts";
 import { createTranscript, redact, refreshSummary, transcriptPath } from "../../../agent/src/transcript/index.ts";
 import type { Part, Turn } from "../../../agent/src/transcript/index.ts";
@@ -829,6 +831,7 @@ async function chooseHelperModel(
   parentId: string,
   askingAgent: string,
   input: { model?: string; provider?: string; account?: string; why?: string },
+  brief?: string,
 ): Promise<Picked | null> {
   if (!ctx.call) return null;
   type Cat = {
@@ -838,8 +841,9 @@ async function chooseHelperModel(
       label: string;
       models: Array<{ model: string; tier: string; available: boolean }>;
     }>;
-    parent: { provider?: string };
+    parent: { provider?: string; model?: string };
     policy: "same_provider" | "any" | "ask";
+    suggest?: { read?: { account: string; model: string } | null };
   };
   let cat: Cat | null = null;
   try {
@@ -855,6 +859,23 @@ async function chooseHelperModel(
       "Ask the person which model this helper should use, with the choices, before you start it.",
       { reason: "ask_first" },
     );
+  // a plain read, search or extraction goes to the fast model of the parent's own account by itself (r42-runtime-tokens): shown on the helper's row as the pick, and changed with Change model like any other.
+  // Only a brief that is plainly reading (lib/model-tiers.ts briefJob), only when the agent did not choose, never above the parent's own tier, and never when the agent must ask first.
+  let auto = false;
+  if (
+    input.model === undefined &&
+    input.account === undefined &&
+    input.provider === undefined &&
+    input.why === undefined &&
+    brief !== undefined &&
+    briefJob(brief) === "read"
+  ) {
+    const read = cat.suggest?.read;
+    if (read && tierOf(read.model) === "cheap" && !(cat.parent.model && tierOf(cat.parent.model) === "cheap")) {
+      input = { ...input, model: read.model, account: read.account };
+      auto = true;
+    }
+  }
   if (input.model === undefined && input.account === undefined) return null;
   const account =
     input.account !== undefined
@@ -902,7 +923,7 @@ async function chooseHelperModel(
       accountLabel: account.label,
       provider: account.provider,
       model,
-      ...(input.why ? { why: input.why } : {}),
+      ...(auto ? { why: "plain lookup, so the faster model" } : input.why ? { why: input.why } : {}),
       ...(fellBackFrom ? { fellBackFrom } : {}),
     },
   };
@@ -943,6 +964,7 @@ export async function helperStart(
     parent.id,
     ctx.principal.kind === "agent" ? ctx.principal.id : agentId,
     input,
+    input.crew === true ? undefined : instruction,
   );
   if (chosen) {
     input = { ...input, model: chosen.model, provider: chosen.provider, account: chosen.account };
@@ -1220,7 +1242,7 @@ export async function helperNote(
       const pm = insertMessage(ctx, parent.id, {
         author: by.id,
         kind: "agent",
-        body: `Helper "${title}" asks: ${body}`,
+        body: questionBody(title, body),
         depth,
         blocks: [
           {
@@ -1449,8 +1471,7 @@ export async function handoff(
   // one agent hands work to another only when the other allows calls from agents in the Space (access.agents_can_call, On unless a person turned it Off)
   if (ctx.principal.kind === "agent" && ctx.call) {
     const gate = (await ctx.call("access.agents_can_call.get", { agentId: input.toAgentId })) as
-      | { on?: boolean }
-      | undefined;
+      { on?: boolean } | undefined;
     if (gate?.on === false)
       raise(
         ctx,

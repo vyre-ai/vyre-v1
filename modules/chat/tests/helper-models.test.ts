@@ -6,7 +6,7 @@ import { DANA, DRAFTER, INTAKE, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { g24dHandlers as g } from "../handlers/g24d.ts";
 import { start } from "../handlers/thread.ts";
-import { pick, tierFor, tierOf } from "../../../lib/model-tiers.ts";
+import { briefJob, pick, tierFor, tierOf } from "../../../lib/model-tiers.ts";
 
 const model = (m: string, available = true) => ({ model: m, tier: tierOf(m), available });
 const CAT = (policy: "same_provider" | "any" | "ask" = "same_provider") => ({
@@ -274,4 +274,80 @@ test("any member of the chat can message a running helper; someone outside it ca
     "validation.precondition_failed",
     "not in the chat",
   );
+});
+
+test("only a plainly mechanical brief is a read; legal substance, judgement, writing, images and long inputs keep the strong model (r42-runtime-tokens)", () => {
+  const mechanical = [
+    "Find every invoice over 5,000 from October and list its number and amount.",
+    "List the open tasks for each person and count them.",
+    "Extract the invoice number, date and total from the three spreadsheets.",
+    "Look up the opening hours of the Fresno office and copy them as a table.",
+    "Count how many matters were opened in March.",
+  ];
+  const strong = [
+    "Summarize the deposition of Ms. Alvarez.",
+    "Find the clause in the lease that says who pays for repairs.",
+    "List the risks in the settlement agreement.",
+    "Find the emails that show the client knew about the defect and tell me whether that hurts us.",
+    "Extract the dates from the medical records and flag any gaps.",
+    "Identify which exhibits are privileged.",
+    "Verify the totals match the invoice.",
+    "Determine who is liable for the damage.",
+    "Find the filing deadline and check whether we are in time.",
+    "Read the agreements and tell me if any are risky.",
+    "List what is in the attached screenshot.",
+    "Extract the text from this PDF.",
+    "Draft a reply to Dana about the lease.",
+    "Find the bug in the sync code and fix it.",
+    "Why did the invoice total change last week?",
+    "Find the cause of the failing test.",
+    "Find out how the auth flow works.",
+    "Extract the key points of the call.",
+    "Format this as a polished client email.",
+    "Do it.",
+    "",
+    `Find ${"every one of these files and ".repeat(40)}`,
+  ];
+  for (const t of mechanical) assert.equal(briefJob(t), "read", t);
+  for (const t of strong) assert.equal(briefJob(t), undefined, t);
+});
+
+test("a plain read goes to the parent account's fast model by itself and the row says so; a thinking brief, a named model, a cheap parent, an ask-first agent and a crew keep their own rules", async () => {
+  const cat = (parentModel?: string, policy: "same_provider" | "any" | "ask" = "same_provider") => ({
+    ...CAT(policy),
+    parent: { provider: "anthropic", ...(parentModel ? { model: parentModel } : {}) },
+    suggest: { read: { account: "#Mine_Claude", model: "claude-haiku-5-5" } },
+  });
+  const run = async (c: unknown, extra: Record<string, unknown>) => {
+    const hn = harness({ calls: { "engine.helper_models": () => c } });
+    const threadId = await chatOf(hn);
+    const h = (await startHelper(hn, threadId, extra)).helper["threadId"] as string;
+    return pickOf(hn, h);
+  };
+  const reading = { instruction: "Find every invoice over 5,000 from October and list its number and amount." };
+  assert.deepEqual(await run(cat("claude-opus-5-5"), reading), {
+    accountRef: "#Mine_Claude",
+    accountLabel: "Claude · Imran",
+    provider: "anthropic",
+    model: "claude-haiku-5-5",
+    why: "plain lookup, so the faster model",
+  });
+  assert.equal(
+    await run(cat("claude-opus-5-5"), { ...reading, why: "cheap reader" }),
+    undefined,
+    "a why of the agent's own is never replaced",
+  );
+  assert.equal(
+    await run(cat("claude-opus-5-5"), { instruction: "Summarize the deposition of Ms. Alvarez." }),
+    undefined,
+  );
+  assert.equal(await run(cat("claude-opus-5-5"), { instruction: "Draft a reply to Dana about the lease." }), undefined);
+  assert.equal(
+    (await run(cat("claude-opus-5-5"), { ...reading, account: "#Mine_Claude", model: "claude-opus-5-5" }))?.["model"],
+    "claude-opus-5-5",
+    "a model the agent named is never replaced",
+  );
+  assert.equal(await run(cat("claude-haiku-5-5"), reading), undefined, "a parent that is already fast keeps its model");
+  assert.equal(await run({ ...cat("claude-opus-5-5"), suggest: undefined }, reading), undefined);
+  assert.equal(await run(cat("claude-opus-5-5"), { ...reading, crew: true }), undefined, "a crew writes code");
 });

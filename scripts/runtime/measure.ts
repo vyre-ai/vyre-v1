@@ -8,9 +8,13 @@
 // an ASSUMPTION (they do not: each helper opens its own session with its own identity block), switched by FEATURES=prefix.
 //   node scripts/runtime/measure.ts                       the baseline: what the engine does today
 //   FEATURES=prefix,readcache,compact,sleep,tail,tier node scripts/runtime/measure.ts      with the slices that exist switched on
+// Built and measured with real code: prefix (modules/engine/tests/context.siblings.test.ts proves the bytes), tier (g24d.ts chooseHelperModel), tail (the real shapeOutput). NOT built, a ceiling only: `readcache` models a sibling
+// that is served a 60-token line instead of the file, which cannot be true, because a helper must see the file in its own context to use it; the slice that exists (agent/src/tools/repeat-read.ts) shortens only the SAME agent's
+// repeat read inside one turn, and how often agents do that is unmeasured, so there is no job here for it. `compact` is a ceiling too: crew-watch.ts already cuts a helper's answer to 1,500 characters before the parent reads it.
 //   JSON=1 ...                                             one JSON line per job, for diffing runs
 import { estimateTokens } from "../../lib/reply-format.ts";
 import { readFileSync } from "node:fs";
+import { shapeOutput } from "../../agent/src/tools/compact.ts";
 
 const F = new Set(
   (process.env["FEATURES"] ?? "")
@@ -132,12 +136,30 @@ function sleepJob(): { t: Tally; note: string } {
 function logJob(): { t: Tally; note: string } {
   const t = tally();
   const model = "claude-sonnet-5-5";
-  const log = Math.round(estimateTokens("x".repeat(200_000)));
-  const seen = F.has("tail") ? 900 : log; // tail 40 lines + grep of errors
+  // The command prints 200 KB; terminal.run keeps its last 100,000 characters (maxOutput in modules/terminal/impl.ts), so that is what the model gets whole today.
+  const printed = Array.from({ length: 2_600 }, (_, i) =>
+    i === 310 || i === 1_900 || i === 2_599
+      ? `step ${i}: ERROR could not resolve module "pkg-${i}" at /build/src/a/very/long/path/${"x".repeat(20)}`
+      : `step ${i}: compiled module ${i} of 2600 in ${(i * 7) % 90} ms ${".".repeat(30)}`,
+  ).join("\n");
+  const kept = printed.slice(printed.length - 100_000);
+  const log = Math.round(estimateTokens(kept));
+  // with the slice, the number is what the REAL shaping code (agent/src/tools/compact.ts shapeOutput) returns for this output
+  const shaped = shapeOutput("terminal.run", {
+    terminalId: "trm_1",
+    exitCode: 1,
+    output: kept,
+    truncated: true,
+    durationMs: 412_000,
+  });
+  const seen = F.has("tail") && shaped ? Math.round(estimateTokens(JSON.stringify(shaped.data))) : log;
   call(t, model, SYSTEM + TOOLS + 2000, SYSTEM + TOOLS, 0, 100);
   t.toolCalls++;
   call(t, model, SYSTEM + TOOLS + 2000 + 100 + seen, SYSTEM + TOOLS + 2000, 0, 300);
-  return { t, note: `a command prints 200 KB (${log} tokens)` };
+  return {
+    t,
+    note: `a command prints 200 KB, the last 100,000 characters kept (${log} tokens whole, ${seen} as read)`,
+  };
 }
 
 const rows = [

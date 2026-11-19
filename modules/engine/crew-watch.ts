@@ -1,6 +1,7 @@
 // The crew's lifecycle (DESIGN-crew.md, step 2): what a teammate's turns do to its job, and the one result card that reaches the lead's chat when a teammate finishes. The bridge reports every turn start, end and
 // the moment the reply is posted (StreamEvent); this reads those for the threads that are crew jobs and nothing else. A finished teammate has its leftovers committed, its branch summarised, and posts one
 // message in the lead's chat, as itself and mentioning the lead, with a `crew_result` block. That message is the wake: the lead's turn starts from it the ordinary way, so nobody polls and nothing new is routed.
+import { failedBody, oneLineTitle, parentBody, teammateBody } from "../../lib/helper-result.ts";
 import { noteSteps } from "./helper-tests.ts";
 import { hangOwn, noteOwn, settleOwn } from "./own-subagents.ts";
 import type { Db } from "./projections.ts";
@@ -17,7 +18,7 @@ type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const cut = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1)}…`);
 
-/** The reply text a card quotes: the last thing the teammate said, short. */
+/** The reply text a card quotes: the last thing the teammate said, short, framed as the teammate's own words (lib/helper-result.ts teammateBody). */
 export function cardBody(o: {
   name: string;
   title: string;
@@ -26,13 +27,27 @@ export function cardBody(o: {
   summary?: CrewSummary;
   text?: string;
 }): string {
-  if (o.state === "failed") return `${o.name} could not finish "${o.title}".${o.text ? `\n\n${cut(o.text, 600)}` : ""}`;
+  if (o.state === "failed")
+    return teammateBody({
+      name: o.name,
+      title: o.title,
+      state: "failed",
+      ...(o.text ? { text: o.text } : {}),
+      max: 600,
+    });
   const s = o.summary;
   const work =
     s && (s.ahead > 0 || s.files.length > 0)
       ? `${s.ahead} commit${s.ahead === 1 ? "" : "s"}, ${s.files.length} file${s.files.length === 1 ? "" : "s"} on ${o.branch}.`
       : `no changes on ${o.branch}.`;
-  return `${o.name} finished "${o.title}": ${work}${o.text ? `\n\n${cut(o.text, 1500)}` : ""}`;
+  return teammateBody({
+    name: o.name,
+    title: o.title,
+    state: "done",
+    work,
+    ...(o.text ? { text: o.text } : {}),
+    max: 1500,
+  });
 }
 
 export function createCrewWatcher(o: {
@@ -98,10 +113,10 @@ export function createCrewWatcher(o: {
     // the server stopped under it: it may have done part of the work, so the lead hears that and decides, and the result is not "found"
     const body =
       state === "lost"
-        ? `Helper "${title}" was stopped when the server restarted. It may have done part of its work, so look at what is done before you start it again.`
+        ? `Helper "${oneLineTitle(title)}" was stopped when the server restarted. It may have done part of its work, so look at what is done before you start it again.`
         : state === "failed"
-          ? `Helper "${title}" could not finish.${text ? `\n\n${cut(text, 600)}` : ""}`
-          : `Helper "${title}" found:\n\n${text ? cut(text, 1500) : "(it ended with no words)"}`;
+          ? failedBody(title, text)
+          : parentBody(title, text, e.messageId ? { threadId: e.threadId, messageId: e.messageId } : undefined);
     await o.host.postAs(e.agentId, {
       actingFor: asker,
       threadId: th.parentThreadId,
