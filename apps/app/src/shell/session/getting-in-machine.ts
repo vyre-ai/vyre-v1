@@ -98,6 +98,28 @@ const has = (list: readonly string[], a: string): boolean => list.includes(a);
 const without = (list: readonly string[], a: string): string[] => list.filter((x) => x !== a);
 const add = (list: readonly string[], a: string): string[] => (has(list, a) ? [...list] : [...list, a]);
 
+// The screens Getting in puts over the sign-in and the shell (Your Spaces, a Space that did not open, a relay Space handed to the browser) are decided by overlayStep, the reducer SessionGate
+// runs: `step` below asks it for every move into or out of them, so the model and the gate cannot disagree about those screens.
+type Tr = { address: string; kind: TroubleKind };
+type Br = { address: string };
+const toOverlay = (st: State): Overlay<Tr, Br> => ({
+  ...(OVERLAY_START as Overlay<Tr, Br>),
+  home: st.s === "list",
+  trouble: st.s === "trouble" ? { address: st.address, kind: st.kind } : null,
+  browser: st.s === "browser" ? { address: st.address } : null,
+  reaching: st.s === "finding" && st.from === "row" ? st.address : null,
+});
+const viewOf = (o: Overlay<Tr, Br>, other: State): State =>
+  o.browser
+    ? { s: "browser", address: o.browser.address }
+    : o.trouble
+      ? { s: "trouble", address: o.trouble.address, kind: o.trouble.kind }
+      : o.home
+        ? { s: "list" }
+        : other;
+const via = (st: State, ev: OverlayEvent<Tr, Br>, other: State): State => viewOf(overlayStep(toOverlay(st), ev), other);
+const backTo = (st: State, ctx: Ctx): State => via(st, { e: "back", spaces: ctx.known.length > 0 }, { s: "box" });
+
 export interface Stepped {
   state: State;
   ctx: Ctx;
@@ -144,13 +166,12 @@ export function step(st: State, ev: Event, ctx: Ctx): Stepped {
         if (has(ctx.saved, ev.address)) return { state: { s: "shell", address: ev.address }, ctx };
         return { state: { s: "finding", address: ev.address, from: "box", attempt: 0 }, ctx };
       }
-      if (ev.e === "back") return ctx.known.length ? { state: { s: "list" }, ctx } : stay;
+      if (ev.e === "back") return ctx.known.length ? { state: via(st, { e: "list" }, st), ctx } : stay;
       return stay;
     case "finding": {
       if (ev.e === "quiet-retry")
         return st.attempt < QUIET_TRIES - 1 ? { state: { ...st, attempt: st.attempt + 1 }, ctx } : stay;
-      if (ev.e === "back")
-        return { state: st.from === "box" ? { s: "box" } : ctx.known.length ? { s: "list" } : { s: "box" }, ctx };
+      if (ev.e === "back") return { state: st.from === "box" ? { s: "box" } : backTo(st, ctx), ctx };
       if (ev.e !== "found") return stay;
       const f = ev.found;
       if (st.from === "box") {
@@ -161,8 +182,18 @@ export function step(st: State, ev: Event, ctx: Ctx): Stepped {
       if (f.kind === "direct")
         return { state: { s: "signin", address: st.address }, ctx: { ...ctx, known: add(ctx.known, st.address) } };
       if (f.kind === "relay" && ctx.place === "app" && !(f.sure && !f.online))
-        return { state: { s: "browser", address: st.address }, ctx: { ...ctx, known: add(ctx.known, st.address) } };
-      return { state: { s: "trouble", address: st.address, kind: troubleKind(f, has(ctx.saved, st.address)) }, ctx };
+        return {
+          state: via(st, { e: "browser", browser: { address: st.address } }, st),
+          ctx: { ...ctx, known: add(ctx.known, st.address) },
+        };
+      return {
+        state: via(
+          st,
+          { e: "trouble", trouble: { address: st.address, kind: troubleKind(f, has(ctx.saved, st.address)) } },
+          st,
+        ),
+        ctx,
+      };
     }
     case "trouble":
       if (ev.e === "try-again" || ev.e === "wake")
@@ -171,16 +202,18 @@ export function step(st: State, ev: Event, ctx: Ctx): Stepped {
           ctx,
         };
       if (ev.e === "open-in-browser")
-        return ctx.place === "app" ? { state: { s: "browser", address: st.address }, ctx } : stay;
+        return ctx.place === "app"
+          ? { state: via(st, { e: "browser", browser: { address: st.address } }, st), ctx }
+          : stay;
       if (ev.e === "clear-old-data")
         return ctx.place === "web"
           ? { state: { s: "finding", address: st.address, from: "row", attempt: 0 }, ctx }
           : stay;
-      if (ev.e === "back") return { state: ctx.known.length ? { s: "list" } : { s: "box" }, ctx };
+      if (ev.e === "back") return { state: backTo(st, ctx), ctx };
       return stay;
     case "browser":
       if (ev.e === "open-in-browser" || ev.e === "pick") return stay;
-      if (ev.e === "back") return { state: ctx.known.length ? { s: "list" } : { s: "box" }, ctx };
+      if (ev.e === "back") return { state: backTo(st, ctx), ctx };
       // the Space moved to an address of its own: the same row signs in inside the app
       if (ev.e === "found" && ev.found.kind === "direct") return { state: { s: "signin", address: st.address }, ctx };
       return stay;
@@ -190,14 +223,14 @@ export function step(st: State, ev: Event, ctx: Ctx): Stepped {
           state: { s: "shell", address: st.address },
           ctx: { ...ctx, saved: add(ctx.saved, st.address), known: add(ctx.known, st.address) },
         };
-      if (ev.e === "back") return { state: ctx.known.length ? { s: "list" } : { s: "box" }, ctx };
+      if (ev.e === "back") return { state: backTo(st, ctx), ctx };
       return stay;
     case "shell":
       if (ev.e === "shell-unreachable")
         return { state: { s: "finding", address: st.address, from: "shell", attempt: 0 }, ctx };
       if (ev.e === "session-expired" || ev.e === "device-revoked" || ev.e === "sign-out")
         return { state: { s: "signin", address: st.address }, ctx: { ...ctx, saved: without(ctx.saved, st.address) } };
-      if (ev.e === "back") return { state: ctx.known.length ? { s: "list" } : { s: "box" }, ctx };
+      if (ev.e === "back") return { state: backTo(st, ctx), ctx };
       return stay;
   }
 }

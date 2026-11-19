@@ -219,6 +219,11 @@ export function ErrorState({ props, startOpen = false }: { props: ErrorProps; st
           <Button label={props.action.label} onPress={props.action.onPress} primary testID="state-action" />
         </View>
       ) : null}
+      {props.second ? (
+        <View style={styles.actions}>
+          <Button label={props.second.label} onPress={props.second.onPress} testID="state-second" />
+        </View>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         onPress={() => setOpen(!open)}

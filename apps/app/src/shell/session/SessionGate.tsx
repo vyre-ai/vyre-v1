@@ -1571,9 +1571,9 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     // a Space that opens in the browser: asked where it is now, since it may have moved to an address of its own
     rowBusy.current = true;
     try {
-      const found = await findSpaceQuietly(row.address, { onRetry: () => giDo({ e: "reach", address: row.address }) }).catch(
-        () => OFFLINE,
-      );
+      const found = await findSpaceQuietly(row.address, {
+        onRetry: () => giDo({ e: "reach", address: row.address }),
+      }).catch(() => OFFLINE);
       giDo({ e: "reach", address: null });
       if (found.kind === "direct") {
         setSignInAs(row.username);
@@ -1917,6 +1917,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
             onHub={onHub}
             voice={props.voice}
             onSwitchSpace={(id) => void switchSpace(id)}
+            onYourSpaces={() => giDo({ e: "list" })}
             onAddSpace={() => {
               setReturnSession(phase.stored);
               setEntryStart("choice");

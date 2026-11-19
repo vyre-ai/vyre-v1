@@ -1,6 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { QUIET_TRIES, decideEntry, decideLanded, exits, opening, step, troubleKind } from "./getting-in-machine.ts";
+import {
+  OVERLAY_START,
+  QUIET_TRIES,
+  decideEntry,
+  decideLanded,
+  exits,
+  opening,
+  overlayStep,
+  step,
+  troubleKind,
+} from "./getting-in-machine.ts";
 import type { Ctx, Event, State } from "./getting-in-machine.ts";
 import type { Found } from "./caps.ts";
 
@@ -281,4 +291,21 @@ test("from any state a path to a Space or to the box exists using only the perso
       assert.ok(reached, `${JSON.stringify(from)} on ${web ? "web" : "app"} cannot reach a Space`);
     }
   }
+});
+
+test("the model's moves into and out of Your Spaces, a trouble screen and the browser screen are the gate's own reducer", () => {
+  const ctx: Ctx = { place: "app", saved: [], known: [A] };
+  const trouble: State = { s: "trouble", address: A, kind: "not-answering" };
+  // the same events the gate sends give the same screen
+  assert.deepEqual(overlayStep(OVERLAY_START, { e: "list" }).home, true);
+  assert.deepEqual(step(trouble, { e: "back" }, ctx).state, { s: "list" });
+  assert.deepEqual(step(trouble, { e: "back" }, { ...ctx, known: [] }).state, { s: "box" });
+  const o = overlayStep({ ...OVERLAY_START, home: true, reaching: A }, { e: "trouble", trouble: 1 });
+  assert.deepEqual(
+    [o.home, o.reaching, o.trouble, o.browser],
+    [true, null, 1, null],
+    "a trouble screen shows over the list and ends the reaching",
+  );
+  const b = overlayStep(o, { e: "browser", browser: 2 });
+  assert.deepEqual([b.home, b.trouble, b.browser], [false, null, 2], "the browser screen replaces both");
 });

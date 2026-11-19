@@ -94,6 +94,8 @@ export interface ShellHostProps {
   initialSearchOpen?: boolean;
   voice?: LoadVoiceDevice | undefined;
   onAddSpace?: () => void;
+  /** The way out of a Space that will not open, besides trying again: the list of Spaces this device has used. */
+  onYourSpaces?: () => void;
   onSwitchSpace?: (spaceId: string) => void;
   /** The saved Space could not be opened (not a sign-out): the gate asks where the Space is now. */
   onUnreachable?: () => void;
@@ -108,6 +110,7 @@ export function ShellHost({
   initialSearchOpen = false,
   voice,
   onAddSpace,
+  onYourSpaces,
   onSwitchSpace,
   onUnreachable,
 }: ShellHostProps): ReactElement {
@@ -640,6 +643,7 @@ export function ShellHost({
         next="Try again"
         retryable
         onRetry={() => setAttempt((n) => n + 1)}
+        {...(onYourSpaces ? { second: { label: "Your Spaces", onPress: onYourSpaces } } : {})}
       />
     ) : (
       <PlaceHost
