@@ -9,8 +9,8 @@ import { framed } from "../oauth/AllowScreen.tsx";
 export const CHALLENGE = /^[0-9a-f]{64}$/;
 /** The value in the address: only a well-formed hash, never anything else. */
 export const challengeFrom = (hash: string): string | null => {
-  const m = /^#challenge=([0-9a-fA-F]{64})$/.exec(hash);
-  return m && CHALLENGE.test(m[1].toLowerCase()) ? m[1].toLowerCase() : null;
+  const found = /^#challenge=([0-9a-fA-F]{64})$/.exec(hash)?.[1]?.toLowerCase();
+  return found !== undefined && CHALLENGE.test(found) ? found : null;
 };
 
 export const NOT_ANSWERED =

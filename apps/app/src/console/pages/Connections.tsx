@@ -72,7 +72,7 @@ export function ConnectionsPage({ initialId }: { initialId?: string } = {}): Rea
     </View>
   );
 }
-function VaultReference({
+export function VaultReference({
   name,
   description,
   value,
