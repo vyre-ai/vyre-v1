@@ -25,6 +25,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "access.exceptions.list": async (ctx) => { throw new VyreErr(notImplemented("access.exceptions.list", ctx.trace)); },
   "access.exceptions.remove": async (ctx) => { throw new VyreErr(notImplemented("access.exceptions.remove", ctx.trace)); },
   "access.exceptions.set": async (ctx) => { throw new VyreErr(notImplemented("access.exceptions.set", ctx.trace)); },
+  "access.folder_narrow": async (ctx) => { throw new VyreErr(notImplemented("access.folder_narrow", ctx.trace)); },
   "access.grants.list": async (ctx) => { throw new VyreErr(notImplemented("access.grants.list", ctx.trace)); },
   "access.grants.update": async (ctx) => { throw new VyreErr(notImplemented("access.grants.update", ctx.trace)); },
   "access.groups.add_member": async (ctx) => { throw new VyreErr(notImplemented("access.groups.add_member", ctx.trace)); },

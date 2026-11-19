@@ -1663,6 +1663,7 @@ function addGrant(ctx: ShareCtx, store: AccessStore, res: ResourceRec, subject: 
 export async function audienceSet(
   ctx: ShareCtx,
   input: { resource: ResourceRef; audience?: Audience; exporters?: Exporters; outside?: boolean; follows?: string },
+  opts?: { hostNarrow?: boolean },
 ) {
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
@@ -1694,7 +1695,10 @@ export async function audienceSet(
   if (folder && isHostService(ctx.principal) && input.audience !== undefined && input.audience === audienceOf(res))
     return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
   // the host's own sweep brings a chat's own agents and their folders in line with their chats: without Manage only on those (hostMayCloseFolder), never on any other folder or agent
-  if (!(folder && isHostService(ctx.principal) && hostMayCloseFolder(store, res)))
+  if (
+    !(folder && isHostService(ctx.principal) && hostMayCloseFolder(store, res)) &&
+    !(opts?.hostNarrow === true && res.type === "folder")
+  )
     must(ctx, store, res, "manage", "changing who it is open to");
   // asking a folder or an agent to be what it already is changes nothing: answered quietly, but only after the rights check, so it tells an outsider nothing (an agent an open channel made:
   // its folder is open to the Space from the start, and the maker's own followHome asks for that)
@@ -2346,4 +2350,19 @@ export function accessRowsFull(ctx: AccessCtx): AccessRow[] {
   return [...computeRows(ss, store, snap, people, null, ctx.now()).values()].sort((a, b) =>
     ak(a.person, a.type, a.id) < ak(b.person, b.type, b.id) ? -1 : 1,
   );
+}
+
+/**
+ * The host's own safety step (a consumer of projects' project.folder_unfollowed): a Files folder that could not follow its record is closed to the people added. Only the host's own services call it; it
+ * only narrows (audience "added"), so it needs no Manage; every other folder rule stays as it was.
+ */
+export async function folderNarrow(ctx: ShareCtx, input: { folderId: string }) {
+  if (!isHostOwnService(ctx.principal))
+    raise(ctx.trace.traceId, "permission.no_grant", "Only the server narrows a folder this way.");
+  const r = await audienceSet(
+    ctx,
+    { resource: { type: "folder", id: input.folderId } as ResourceRef, audience: "added" },
+    { hostNarrow: true },
+  );
+  return { audience: r.audience };
 }

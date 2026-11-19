@@ -11,22 +11,21 @@ import {
   usedGateFp,
 } from "../../lib/key-target.ts";
 import { siteFacts } from "../../modules/sites/impl.ts";
-import { world as sitesWorld, h as siteH, useDatabase } from "../../modules/sites/tests/deploy-world.ts";
+import { world as sitesWorld, h as siteH, useDatabase } from "../../sites/tests/deploy-world.ts";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
-import { createIdempotency } from "../../kernel/src/idempotency/index.ts";
-import { registry } from "../../generated/registry.ts";
-import { createGateHook, keySendOf, markRefusal, moduleWhens, payloadHash } from "../src/daemon/gate-hook.ts";
-import { effectiveRule } from "../../modules/gate/projections.ts";
-import type { PrincipalRef } from "../../modules/gate/projections.ts";
-import { createInvoke, createRateLimiter, indexCapabilities } from "../src/invoke.ts";
-import type { CtxSeed, Handler, InvokeDeps } from "../src/invoke.ts";
-import { HostError } from "../src/routes/errors.ts";
+import { AccessSnapshot, authorize } from "../../../kernel/src/authorize/index.ts";
+import { createIdempotency } from "../../../kernel/src/idempotency/index.ts";
+import { registry } from "../../../generated/registry.ts";
+import { createGateHook, keySendOf, markRefusal, moduleWhens, payloadHash } from "../../../host/src/daemon/gate-hook.ts";
+import { createInvoke, createRateLimiter, indexCapabilities } from "../../../host/src/invoke.ts";
+import type { CtxSeed, Handler, InvokeDeps } from "../../../host/src/invoke.ts";
+import { harness as gateHarness } from "../fixtures/db.ts";
+import { HostError } from "../../../host/src/routes/errors.ts";
 
 // what mail.configure routes to (modules/mail/handlers/setup.ts CONFIGURE_ROUTE, minus the test email): kept here by name so a host test imports no module; modules/mail/tests/configure.perm.test.ts fails when the two differ
-import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
+import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
 
 // the callees come from mail.configure's own routing table (minus the test email, which goes through mail.send and has its own tests), so a new action is checked the day it is added
 const CALLEES = [
@@ -224,9 +223,8 @@ interface RigOptions {
   call?: (cap: string, input: unknown) => Promise<unknown>;
   callAs?: (cap: string, input: unknown, person: string) => Promise<unknown>;
 }
-/** An empty gate rule table: the Space's default rule applies. */
-const NO_RULES = { all: (): unknown[] => [], run: () => ({ changes: 0 }) };
 function rig(o: RigOptions = {}) {
+  const realGate = gateHarness();
   const snap = world(o.siteIds);
   const ran: string[] = [];
   const parked: { cap: string; act: string }[] = [];
@@ -250,13 +248,11 @@ function rig(o: RigOptions = {}) {
     )) as unknown as Handler;
   const store = new Map<string, { hash: string; result: unknown }>();
   const gate = createGateHook({
-    // the real rule, over an empty rule table (the default: the Space asks): an agent, a service or an outside actor is held, a person is not unless the act is one that stops people too
-    call: async (cap, input) => {
-      if (cap !== "gate.effective_rule") return (await o.call?.(cap, input)) ?? null;
-      const i = input as { principal: PrincipalRef; act: string; adminOnly?: boolean };
-      const e = effectiveRule(NO_RULES, i.principal, i.act, undefined, i.adminOnly === true);
-      return { hold: e.hold, adminRule: e.adminRule, reason: e.reason, approvers: e.approvers };
-    },
+    // the Gate module's own effective_rule over its real tables and default rules: nothing is stubbed to hold
+    call: async (cap, input) =>
+      cap === "gate.effective_rule"
+        ? await realGate.call("gate.effective_rule", input, { id: "usr_owner", kind: "person" })
+        : ((await o.call?.(cap, input)) ?? null),
     unseal: o.unseal ?? (() => new Uint8Array()),
     now: () => 0,
     hold: () => null,
@@ -1424,11 +1420,10 @@ test("a marked refusal passes through the Gate whatever class the error is; an u
   const def = { name: "x.y", effects: "write", gate: { act: "send", when: "x.y(input)" } } as unknown as CapabilityDef;
   const gateWith = (thrown: unknown) =>
     createGateHook({
-      call: async (cap: string, input?: unknown) => {
-        if (cap !== "gate.effective_rule") return null;
-        const i = input as { principal: PrincipalRef; act: string };
-        return { hold: effectiveRule(NO_RULES, i.principal, i.act).hold };
-      },
+      call: async (cap: string, input?: unknown) =>
+        cap === "gate.effective_rule"
+          ? await gateHarness().call("gate.effective_rule", input, { id: "usr_owner", kind: "person" })
+          : null,
       unseal: () => new Uint8Array(),
       now: () => 1,
       evaluators: {

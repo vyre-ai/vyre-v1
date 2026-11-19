@@ -21,6 +21,7 @@
     "access.exceptions.list@1": "e160da5b48b16671f6e71227348b5d1552782122b5fd25a10721690491647033",
     "access.exceptions.remove@1": "0a69d9b4d92510be7f14c322a975467a07406f40de3a58f8358c1abc7b148907",
     "access.exceptions.set@1": "8400024a4927d7f2a5808d1ec1061fc509cb656d9f464b4f7bd6100494b924e5",
+    "access.folder_narrow@1": "b1f69279c3023c042b16ef8422ab435accd51f9d7064522c88b205688b096bda",
     "access.grants.list@1": "98442e700ef00f2d01866362072a4cdfc74dd8c499dd9d9cca0cf81076b88e2b",
     "access.grants.update@1": "19f6c874c9cc54d633b95795d921b17d1c728cb1c5f2288d80e72030197d7783",
     "access.groups.add_member@1": "e660a42c02434b2792836e4d42d572ed30ada2b07921d928c47cfb0aae12c480",

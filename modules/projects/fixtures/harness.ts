@@ -346,6 +346,7 @@ export function fakeWorld(clock: { t: number }) {
       }
       return { revoked: before - grants.length };
     },
+    "access.folder_narrow": () => ({ audience: "added" }),
     "access.audience_set": (i) => {
       if (i.follows !== undefined && refuse.follows)
         fail("permission.no_grant", "only a manager attaches a folder to its record");

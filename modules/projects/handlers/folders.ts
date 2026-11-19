@@ -528,3 +528,53 @@ export async function fileIntoRecord(
   if (got.file?.folderId !== folderId) await call(ctx, "files.move", { fileId: input.fileId, toFolderId: folderId });
   return folderId!;
 }
+
+/**
+ * Runs as the host's own service (a consumer of project.folder_unfollowed). The folder is narrowed to the people added: the host needs no Manage for this one narrowing and it never widens. The log line names
+ * the caller that was refused. The task says whether it was narrowed, and goes to the person who asked, else the record's owner, else the Space's admins.
+ */
+export async function onFolderUnfollowed(ctx: ProjectsCtx, payload: Record<string, unknown>): Promise<void> {
+  const folderId = String(payload["folderId"] ?? "");
+  const recordId = String(payload["recordId"] ?? "");
+  const by = String(payload["by"] ?? "");
+  if (!folderId || !recordId) return;
+  let narrowed = true;
+  try {
+    await call(ctx, "access.folder_narrow", { folderId });
+  } catch {
+    narrowed = false;
+  }
+  ctx.log.warn(
+    narrowed
+      ? "projects: a folder that could not follow its record was narrowed to the people added"
+      : "projects: a folder that could not follow its record could not be narrowed",
+    { folderId, recordId, refusedCaller: by, reason: String(payload["why"] ?? "") },
+  );
+  let who: { kind: "person" | "role"; id: string } = { kind: "role", id: "rol_admin" };
+  if (by.startsWith("usr_")) who = { kind: "person", id: by };
+  else {
+    const rec = (
+      await tolerant<{ record?: { fields?: Record<string, unknown> } }>(ctx, "records.get", { recordId }, {})
+    ).record;
+    for (const k of ["owner", "ownerId", "assigned", "createdBy"]) {
+      const v = rec?.fields?.[k];
+      if (typeof v === "string" && v.startsWith("usr_")) {
+        who = { kind: "person", id: v };
+        break;
+      }
+    }
+  }
+  await tolerant(
+    ctx,
+    "tasks.create",
+    {
+      title: narrowed
+        ? "A files folder could not follow its record, so it was limited to the people added"
+        : "A files folder could not follow its record and could not be limited: check who can open it",
+      assigned: who,
+      recordId,
+      idempotencyKey: `fld-follow:${folderId}`,
+    },
+    {},
+  );
+}

@@ -617,3 +617,22 @@ test("a deploy a push asked for, which runs as a person, is judged as anything t
   assert.equal(held.rule.reason, "Acts of this kind wait for approval.");
   assert.doesNotMatch(held.rule.reason, /A person's own act/);
 });
+
+test("an access or admit hold with no person behind it (a service, an Automation step, no actingFor) goes to the Space's admins, never to nobody", async () => {
+  for (const act of ["access", "admit"])
+    for (const who of [
+      { kind: "service" as const, id: "svc_form_x" },
+      { kind: "service" as const, id: `svc_${"a1".repeat(16)}` },
+      { kind: "service" as const, id: "aut_9" },
+    ]) {
+      const h = harness();
+      const r = await park(h, { act, principal: who, actingFor: undefined, decisionId: `dec_${act}_${who.id}` });
+      const row = findHold(h.db, r.holdId)!;
+      assert.deepEqual(row.approver, { kind: "role", id: "rol_admin" }, `${act} by ${who.id}`);
+      assert.ok(r.taskId, "and a task exists for them");
+    }
+  // with a person behind it, the person decides
+  const h = harness();
+  const r = await park(h, { act: "access", principal: bot, actingFor: alice.id });
+  assert.deepEqual(findHold(h.db, r.holdId)!.approver, { kind: "person", id: alice.id });
+});
