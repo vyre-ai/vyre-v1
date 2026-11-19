@@ -2954,6 +2954,10 @@ export function createClient(transport: Transport) {
       interrupt: call("terminal.interrupt", 1),
       keys: call("terminal.keys", 1),
       list: call("terminal.list", 1),
+      log: {
+        list: call("terminal.log.list", 1),
+        read: call("terminal.log.read", 1),
+      },
       open: call("terminal.open", 1),
       open_server: call("terminal.open_server", 1),
       read: call("terminal.read", 1),

@@ -2954,6 +2954,10 @@ export function stubs(ctx: CallCtx) {
       interrupt: call("terminal.interrupt"),
       keys: call("terminal.keys"),
       list: call("terminal.list"),
+      log: {
+        list: call("terminal.log.list"),
+        read: call("terminal.log.read"),
+      },
       open: call("terminal.open"),
       open_server: call("terminal.open_server"),
       read: call("terminal.read"),

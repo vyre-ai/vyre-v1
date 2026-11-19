@@ -45016,6 +45016,42 @@ export type TerminalListOut = {
   next?: string;
   total?: number;
 };
+export type TerminalLogListIn = {
+  terminalId: string;
+  limit?: number;
+};
+export type TerminalLogListOut = {
+  commands: Array<{
+      commandId: number;
+      command: string;
+      exitCode: number | null;
+      startedAt: number;
+      durationMs?: number;
+      kept: boolean;
+      bytes: number;
+      cutBytes?: number;
+    }>;
+};
+export type TerminalLogReadIn = {
+  terminalId: string;
+  commandId: number;
+  tail?: number;
+  match?: Array<string>;
+  context?: number;
+  from?: number;
+  to?: number;
+};
+export type TerminalLogReadOut = {
+  lines: Array<{
+      n: number;
+      text: string;
+    }>;
+  totalLines: number;
+  bytes: number;
+  cutBytes: number;
+  exitCode: number | null;
+  more: boolean;
+};
 export type TerminalOpenIn = {
   host?: "agent_computer" | "device";
   agentId?: string;
@@ -45198,6 +45234,7 @@ export type TerminalRunIn = {
 };
 export type TerminalRunOut = {
   terminalId: string;
+  commandId?: number;
   exitCode: number | null;
   output: string;
   truncated: boolean;
@@ -50560,6 +50597,8 @@ export interface CapMap {
   "terminal.interrupt": { in: TerminalInterruptIn; out: TerminalInterruptOut };
   "terminal.keys": { in: TerminalKeysIn; out: TerminalKeysOut };
   "terminal.list": { in: TerminalListIn; out: TerminalListOut };
+  "terminal.log.list": { in: TerminalLogListIn; out: TerminalLogListOut };
+  "terminal.log.read": { in: TerminalLogReadIn; out: TerminalLogReadOut };
   "terminal.open": { in: TerminalOpenIn; out: TerminalOpenOut };
   "terminal.open_server": { in: TerminalOpenServerIn; out: TerminalOpenServerOut };
   "terminal.read": { in: TerminalReadIn; out: TerminalReadOut };

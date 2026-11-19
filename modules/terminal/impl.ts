@@ -1,3 +1,4 @@
+import { eraseCmdLogsOfAgent, expireCmdLogs } from "./cmdlog.ts";
 import { tryAll, tryRun } from "../../lib/erase-agent.ts";
 import { ensure as ensureTerminalTables, forgetAgentSecrets } from "./projections.ts";
 type Row = Record<string, unknown>;
@@ -200,7 +201,9 @@ export async function shellAtPrompt(exec: Exec, target: string): Promise<boolean
   const cursorOk = cursor !== undefined && /^\d+$/.test(cursor);
   const [p, line] = await Promise.all([
     exec(["ps", "-o", "tpgid=", "-p", pid]).catch(() => null),
-    cursorOk ? exec(["tmux", "capture-pane", "-p", "-t", target, "-S", cursor, "-E", cursor]).catch(() => null) : Promise.resolve(undefined),
+    cursorOk
+      ? exec(["tmux", "capture-pane", "-p", "-t", target, "-S", cursor, "-E", cursor]).catch(() => null)
+      : Promise.resolve(undefined),
   ]);
   if (p === null || p.code !== 0 || p.stdout.trim() !== pid) return false;
   // a construct a person left open (an open bracket or quote, a here-document) has the shell on its continuation prompt: the line the cursor is on starts with PS2, by default "> ".
@@ -1378,6 +1381,15 @@ function accessDeps(ctx: TermCtx): AccessDeps {
 }
 
 export const periodic = {
+  /** Hourly: the kept output of commands that ended a week ago or more is deleted (cmdlog.ts). */
+  "terminal.cmdlog_expire": {
+    everyMs: 60 * 60_000,
+    run: (ctx: TermCtx): string[] => {
+      ensureTerminalTables(ctx.db);
+      const n = expireCmdLogs(ctx.db, ctx.now());
+      return n > 0 ? [`${n} kept outputs expired`] : [];
+    },
+  },
   /** Every 15 seconds: whoever lost the use of an agent in any way (a group, a role, an expiry, a suspension) is out of its computer and their programs there end; chat folders follow chat membership. */
   "terminal.use_sweep": {
     everyMs: 15_000,
@@ -1483,6 +1495,14 @@ export const hostCalls = {
 
 /** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
 export const consumers = {
+  /** An agent was deleted for good: the output its commands kept goes with it (cmdlog.ts). */
+  "terminal.cmdlog_agent_deleted": {
+    on: ["agent.deleted"],
+    run: (ctx: TermCtx, event: { payload: { agentId?: unknown } }): number => {
+      ensureTerminalTables(ctx.db);
+      return typeof event.payload.agentId === "string" ? eraseCmdLogsOfAgent(ctx.db, event.payload.agentId) : 0;
+    },
+  },
   /** A person left the Space: unreachable at once, their processes stopped where they run; their folder is erased at once where it is (and by the hourly pass where the workspace could not be reached). */
   "terminal.person_left": {
     on: ["member.removed"],

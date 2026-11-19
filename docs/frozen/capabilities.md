@@ -776,3 +776,13 @@ Signed: lead, 19 Nov 2026
 - Snapshots: docs/frozen/snapshots/computers.json.
 
 Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: the retained output of terminal commands (lane r42-computer, the lead's rules of 19 Nov)
+
+- `terminal.run` also answers `commandId`: the command's own number (the number of its row in the terminal's commands), for reading part of its output later.
+- `terminal.log.list` (read, same access as reading the terminal): the commands of a terminal, newest first (`commandId`, the command as the model wrote it, at most 300 characters, `exitCode`, `startedAt`, `durationMs`), and for each whether its output is still `kept` and how many `bytes` (`cutBytes` when the start was dropped to fit the cap). Works on a closed terminal.
+- `terminal.log.read` (read, same access): part of one command's kept output, never the whole: `tail` (default the last 40 lines, at most 400), or `match` (up to five words, case-insensitive, with `context` lines around each, at most 5), or `from` and `to` (a range of lines, 1-based). Answers `lines` (`n`, `text`, each cut at 1,000 characters), `totalLines`, `bytes`, `cutBytes`, `exitCode` and `more` (more lines matched than the answer holds; an answer is at most 400 lines and 20,000 characters). A command whose output is not kept answers `validation.not_found` in words.
+- The rules: what is kept is the text the run answered, scrubbed by the Vault's scrubber before it is stored (a Vault value never reaches disk) and scrubbed again on every read; at most 5 MB per command (the oldest output goes, the cut is marked in the text and in `cutBytes`) and 200 MB per agent (the oldest commands' logs go first); kept for 7 days after the command ended, then deleted (hourly); erased when the agent is deleted; stored in the Space's data (terminal_cmd_log), never in a cache. It keeps what the run answered (up to the host's 100,000 character answer); the full pane capture of a longer output is the next step.
+- Snapshots: docs/frozen/snapshots/terminal.json.
+
+Signed: pending, lead

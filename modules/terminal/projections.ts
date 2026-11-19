@@ -3,6 +3,7 @@
 // @reads /modules/terminal/migrations/0004_hold.sql
 // @reads /modules/terminal/migrations/0006_people.sql
 // @reads /modules/terminal/migrations/0007_use.sql
+// @reads /modules/terminal/migrations/0008_cmd_log.sql
 // Durable rows of the terminal module (sessions, commands, rules, attach tickets), the port to the machine a session lives on, the rule matcher and the per-session secret scrubbers.
 // Every statement names a terminal_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -308,6 +309,13 @@ const USE_SCHEMA = readFileSync(new URL("./migrations/0007_use.sql", import.meta
   .split(";")
   .map((x) => x.trim())
   .filter((x) => x.length > 0);
+const CMDLOG_SCHEMA = readFileSync(new URL("./migrations/0008_cmd_log.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -352,6 +360,12 @@ export function ensure(db: Db): void {
     db.all("SELECT person FROM terminal_use_lost WHERE person = ?", "probe");
   } catch {
     for (const stmt of USE_SCHEMA) db.run(stmt);
+  }
+  // and before the retained output of commands
+  try {
+    db.all("SELECT seq FROM terminal_cmd_log WHERE seq = ?", -1);
+  } catch {
+    for (const stmt of CMDLOG_SCHEMA) db.run(stmt);
   }
   ready.add(db);
 }

@@ -9722,6 +9722,18 @@
     },
     {
       "deferred": false,
+      "name": "terminal_log_list",
+      "summary": "The commands of a terminal, newest first, and whether the output of each is still kept (a week after it ended)",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_log_read",
+      "summary": "Part of what one command printed, scrubbed: the last lines, the lines that contain words (with context), or a range of lines; never the whole output",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
       "name": "terminal_open",
       "summary": "Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)",
       "toolset": "terminal"

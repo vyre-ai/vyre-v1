@@ -38940,6 +38940,44 @@ const routes7: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/terminal/log/list",
+    "cap": "terminal.log.list",
+    "v": 1,
+    "module": "terminal",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "terminal",
+      "id": "/terminalId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/terminal/log/read",
+    "cap": "terminal.log.read",
+    "v": 1,
+    "module": "terminal",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "terminal",
+      "id": "/terminalId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/terminal/open",
     "cap": "terminal.open",
     "v": 1,
