@@ -252,3 +252,33 @@ test("document wording needs edit on the file and comms.templates; reading needs
   await assert.rejects(forDocumentClear(h.ctx, { documentId: DOC, key: "signature.reminder" }), (e) => codeOf(e) === "permission.no_grant");
   assert.equal((await forDocumentGet(h.ctx, { documentId: DOC, key: "signature.reminder" })).override, true);
 });
+
+import { delivery, templates } from "../handlers/extra/tools.ts";
+test("mail.templates and mail.delivery: the two tools route to the same behaviour, and changing a template asks for the right to", async () => {
+  const h = setup();
+  const list = (await templates(h.ctx, { action: "list" })).result as { templates: { key: string }[] };
+  assert.equal(list.templates.length, 4);
+  assert.deepEqual(contractErrors("mail.templates", "out", await templates(h.ctx, { action: "list" })), []);
+  const set = (await templates(h.ctx, { action: "set", key: "signature.reminder", subject: "S {{document_title}}", text: "T {{sign_link}}" })).result as { template: { source: string } };
+  assert.equal(set.template.source, "space");
+  assert.equal(((await templates(h.ctx, { action: "get", key: "signature.reminder" })).result as { template: { subject: string } }).template.subject, "S {{document_title}}");
+  const view = (await templates(h.ctx, { action: "preview", key: "signature.reminder", vars: { document_title: "Plan", sign_link: "https://sign.vyre.test/p" } })).result as { subject: string };
+  assert.equal(view.subject, "S Plan");
+  // a document's own wording through the same door
+  await templates(h.ctx, { action: "set", key: "signature.reminder", documentId: DOC, subject: "Doc", text: "Doc text" });
+  assert.equal(((await templates(h.ctx, { action: "get", key: "signature.reminder", documentId: DOC })).result as { override: boolean }).override, true);
+  assert.equal(((await templates(h.ctx, { action: "reset", key: "signature.reminder", documentId: DOC })).result as { cleared: boolean }).cleared, true);
+  assert.equal(((await templates(h.ctx, { action: "reset", key: "signature.reminder" })).result as { reset: boolean }).reset, true);
+  // refusals: no key, no words, an unknown action, and no right to change
+  await assert.rejects(templates(h.ctx, { action: "get" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(templates(h.ctx, { action: "set", key: "a.b" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(templates(h.ctx, { action: "nope" as never }), (e) => codeOf(e) === "validation.bad_input");
+  h.denied.add("spc_mailtest");
+  await assert.rejects(templates(h.ctx, { action: "set", key: "a.b", subject: "s", text: "t" }), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(templates(h.ctx, { action: "reset", key: "signature.reminder" }), (e) => codeOf(e) === "permission.no_grant");
+  assert.equal(((await templates(h.ctx, { action: "list" })).result as { templates: unknown[] }).templates.length, 4); // reading stays open
+  // delivery: a message id gives its trail, none gives inbox health
+  assert.deepEqual(contractErrors("mail.delivery", "out", await delivery(h.ctx, {})), []);
+  assert.ok(Array.isArray(((await delivery(h.ctx, {})).result as { inboxes: unknown[] }).inboxes));
+  await assert.rejects(delivery(h.ctx, { messageId: "eml_none" }), (e) => codeOf(e) === "validation.not_found");
+});
