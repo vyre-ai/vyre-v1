@@ -285,9 +285,33 @@ test("hostile input cannot make the readers slow: a tag opened a hundred thousan
   assert.ok(Date.now() - t0 < 2000, `the Word readers took ${Date.now() - t0} ms`);
   const { parse, inline } = await import("../handlers/vdoc.ts");
   const t1 = Date.now();
-  for (const md of ["[a".repeat(N), "![".repeat(N), "[a](".repeat(N), "{~~a~>".repeat(N)]) {
+  for (const md of [
+    "[a".repeat(N),
+    "![".repeat(N),
+    "[a](".repeat(N),
+    "{~~a~>".repeat(N),
+    `# a${" ".repeat(N)}x`,
+    `# ${"a #".repeat(N)}`,
+    `${"# a\n".repeat(N / 10)}`,
+  ]) {
     parse(md);
     inline(md);
   }
   assert.ok(Date.now() - t1 < 6000, `the Markdown readers took ${Date.now() - t1} ms`);
+});
+
+test("headings read as before: closing hashes and spaces are cut, inner hashes stay, and a line of spaces after a heading word is linear", async () => {
+  const { parse } = await import("../handlers/vdoc.ts");
+  const text = (md: string) => {
+    const b = parse(md)[0];
+    return b && b.t === "h" ? `${b.level}:${b.runs.map((r) => r.text).join("")}` : "";
+  };
+  assert.equal(text("# Title"), "1:Title");
+  assert.equal(text("## Title ##"), "2:Title");
+  assert.equal(text("### C# notes #"), "3:C# notes");
+  assert.equal(text("#### Four  \t"), "3:Four");
+  assert.equal(text("# a#"), "1:a");
+  const t0 = Date.now();
+  parse(`# a${" ".repeat(200_000)}x`);
+  assert.ok(Date.now() - t0 < 1500, `a heading of 200 KB took ${Date.now() - t0} ms`);
 });

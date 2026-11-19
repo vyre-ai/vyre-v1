@@ -418,10 +418,16 @@ export function parse(md: string): Block[] {
       endPara();
       continue;
     }
-    const h = /^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*#*$/.exec(line);
+    // a heading: the lazy form of this match was quadratic on a line of spaces; the closing hashes and spaces are cut by hand
+    const h = /^ {0,3}(#{1,6})[ \t]+(.*)$/.exec(line);
     if (h) {
       endPara();
-      out.push({ t: "h", level: Math.min((h[1] as string).length, 3) as 1 | 2 | 3, runs: inline(h[2] as string) });
+      let text = h[2] as string;
+      let e = text.length;
+      while (e > 0 && text[e - 1] === "#") e--;
+      while (e > 0 && (text[e - 1] === " " || text[e - 1] === "\t")) e--;
+      text = text.slice(0, e);
+      out.push({ t: "h", level: Math.min((h[1] as string).length, 3) as 1 | 2 | 3, runs: inline(text) });
       continue;
     }
     if (/^ {0,3}(-{3,}|\*{3,}|_{3,})$/.test(line)) {
