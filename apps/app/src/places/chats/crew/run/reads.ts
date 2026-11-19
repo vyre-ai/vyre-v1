@@ -1,6 +1,6 @@
 // The reads behind the run views, in one file (lane r42-subagents): what the runtime serves (manifests/runs.ts on wip/r42-runtime: runs.activity.list, runs.board.list, runs.message.list, runs.node.get) turned into the
 // shapes run/model.ts draws. A server that does not have a read yet answers with an error; every function here then says "nothing", never throws at a screen. When the runtime renames a field, this is the one file to change.
-import type { ActivityRow, BoardEntry, NodeMessage, RunNode } from "./model.ts";
+import type { ActivityRow, BoardEntry, CompareSide, NodeMessage, RunNode } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 type Obj = Record<string, unknown>;
@@ -212,10 +212,14 @@ export function nodesOf(out: unknown): RunNode[] {
         ...(str(n["model"]) !== undefined ? { model: str(n["model"])! } : {}),
         ...(str(n["summary"]) !== undefined ? { summary: str(n["summary"])! } : {}),
         ...(str(n["whoName"]) !== undefined ? { whoName: str(n["whoName"])! } : {}),
-        ...(Array.isArray(n["dependsOn"]) ? { dependsOn: (n["dependsOn"] as unknown[]).filter((x): x is string => typeof x === "string") } : {}),
+        ...(Array.isArray(n["dependsOn"])
+          ? { dependsOn: (n["dependsOn"] as unknown[]).filter((x): x is string => typeof x === "string") }
+          : {}),
         ...(stepTextOf(n["step"]) !== undefined ? { step: stepTextOf(n["step"])! } : {}),
         ...(stepIconOf(n["step"]) !== undefined ? { stepIcon: stepIconOf(n["step"])! } : {}),
-        ...(n["stuck"] && typeof n["stuck"] === "object" && str((n["stuck"] as Obj)["reason"]) !== undefined ? { stuck: { since: num((n["stuck"] as Obj)["since"]) ?? 0, reason: str((n["stuck"] as Obj)["reason"])! } } : {}),
+        ...(n["stuck"] && typeof n["stuck"] === "object" && str((n["stuck"] as Obj)["reason"]) !== undefined
+          ? { stuck: { since: num((n["stuck"] as Obj)["since"]) ?? 0, reason: str((n["stuck"] as Obj)["reason"])! } }
+          : {}),
         ...(needOf(n["need"]) ? { need: needOf(n["need"])! } : {}),
         ...(num(n["endedAt"]) !== undefined ? { endedAt: num(n["endedAt"])! } : {}),
         ...(wake
@@ -239,4 +243,64 @@ export async function readTree(call: Call, runId: string): Promise<RunNode[] | n
   } catch {
     return null;
   }
+}
+
+/** runs.node.compare sides as the compare draws them; a side with no status is dropped, numbers that are not numbers read 0. */
+export function sidesOf(out: unknown): CompareSide[] {
+  const rows = (out as { sides?: unknown } | null)?.sides;
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((r): CompareSide[] => {
+    if (!r || typeof r !== "object") return [];
+    const o = r as Obj;
+    const status = str(o["status"]);
+    if (status === undefined) return [];
+    const b = o["brief"];
+    const goal = b && typeof b === "object" ? str((b as Obj)["goal"]) : undefined;
+    const instructions = b && typeof b === "object" ? str((b as Obj)["instructions"]) : undefined;
+    return [
+      {
+        status,
+        ...(str(o["runId"]) !== undefined ? { runId: str(o["runId"])! } : {}),
+        ...(str(o["threadId"]) !== undefined ? { threadId: str(o["threadId"])! } : {}),
+        ...(goal !== undefined || instructions !== undefined
+          ? {
+              brief: {
+                ...(goal !== undefined ? { goal } : {}),
+                ...(instructions !== undefined ? { instructions } : {}),
+              },
+            }
+          : {}),
+        ...(str(o["result"]) !== undefined ? { result: str(o["result"])! } : {}),
+        usdMicros: num(o["usdMicros"]) ?? 0,
+        tokens: num(o["tokens"]) ?? 0,
+        ...(num(o["seconds"]) !== undefined ? { seconds: num(o["seconds"])! } : {}),
+        ...(str(o["model"]) !== undefined ? { model: str(o["model"])! } : {}),
+      },
+    ];
+  });
+}
+
+/** The first run and what was started again from it: the sides, "absent" when this server has no such read, "failed" when this one request failed. */
+export async function readCompare(call: Call, runId: string): Promise<CompareSide[] | "absent" | "failed"> {
+  try {
+    return sidesOf(await call("runs.node.compare", { runId }));
+  } catch (e) {
+    return isAbsent(e) ? "absent" : "failed";
+  }
+}
+
+/** Words for a refusal of Save as agent or Run again; the reason the runtime gives, else a plain failure. */
+export function refusalWords(e: unknown, what: "save" | "rerun"): string {
+  const d = (e as { details?: { reason?: unknown }; reason?: unknown } | null) ?? {};
+  const reason = String(d.details?.reason ?? d.reason ?? "");
+  const code = String((e as { code?: unknown } | null)?.code ?? "");
+  if (reason === "manage_required" || /no_grant|role_lacks|above_clearance/.test(code))
+    return "Only the person who started it, or someone who manages runs, can do that.";
+  if (reason === "nothing_changed") return "Change the brief or the model first, or there is nothing to compare.";
+  if (reason === "not_finished") return "It is still working. Try again when it is done.";
+  if (reason === "not_a_helper") return "Only a helper can be run again.";
+  if (reason === "no_parent_chat") return "The chat it came from is not there to run it in.";
+  if (reason === "no_brief") return "It has no written brief to save.";
+  if (/duplicate/.test(code)) return "An agent with that name is already in the Space.";
+  return what === "save" ? "It could not be saved as an agent. Try again." : "It could not run again. Try again.";
 }

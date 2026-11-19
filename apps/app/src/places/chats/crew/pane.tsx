@@ -13,6 +13,7 @@ import { HelperHooksSection } from "../helper/HelperHooks.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { FolderMovePicker } from "../../files/tree/FolderMovePicker.tsx";
 import { CrewTabs } from "./run/CrewTabs.tsx";
+import { CompareView, RerunForm, SaveAgentForm, useCompare } from "./run/rerun.tsx";
 import type { RunData } from "./run/useRun.ts";
 import { RecordPicker } from "../../records/RecordPicker.tsx";
 import type { PickedRecord } from "../../records/RecordPicker.tsx";
@@ -153,140 +154,141 @@ export function CrewOverview({
         {...(onOpenThread ? { onOpenThread } : {})}
         helpers={
           <>
-      <Text testID="crew-overview-totals" style={st.sub}>
-        {/* ui-rows-lint: not a list (the totals are one sentence; each part is a word you press to sort) */}
-        {totalsParts(status.totals).map((p, i) => (
-          <Text key={p.key}>
-            {i > 0 ? " · " : ""}
-            <Text
-              accessibilityRole="button"
-              testID={`crew-sort-${p.key}`}
-              onPress={() => setSortKey(p.key)}
-              style={sortKey === p.key && p.key !== "state" ? st.sortOn : undefined}
-            >
-              {p.text}
+            <Text testID="crew-overview-totals" style={st.sub}>
+              {/* ui-rows-lint: not a list (the totals are one sentence; each part is a word you press to sort) */}
+              {totalsParts(status.totals).map((p, i) => (
+                <Text key={p.key}>
+                  {i > 0 ? " · " : ""}
+                  <Text
+                    accessibilityRole="button"
+                    testID={`crew-sort-${p.key}`}
+                    onPress={() => setSortKey(p.key)}
+                    style={sortKey === p.key && p.key !== "state" ? st.sortOn : undefined}
+                  >
+                    {p.text}
+                  </Text>
+                </Text>
+              ))}
             </Text>
-          </Text>
-        ))}
-      </Text>
-      <View style={st.bar}>
-        <Pressable
-          accessibilityRole="button"
-          testID="crew-show"
-          onPress={(e) => {
-            const r = (e as unknown as { nativeEvent?: { pageX?: number; pageY?: number } }).nativeEvent;
-            menu.show(showEntries(show, setShow), r?.pageX ?? 0, r?.pageY ?? 0, "context", { label: "Show" });
-          }}
-          style={st.quiet}
-        >
-          <Text style={st.quietText}>{`Show: ${SHOW.find((o) => o.key === show)!.label} ▾`}</Text>
-        </Pressable>
-        {stoppable ? (
-          <Pressable accessibilityRole="button" testID="crew-stop-all" onPress={stopAll} style={st.quiet}>
-            <Text style={st.quietText}>Stop all</Text>
-          </Pressable>
-        ) : null}
-      </View>
+            <View style={st.bar}>
+              <Pressable
+                accessibilityRole="button"
+                testID="crew-show"
+                onPress={(e) => {
+                  const r = (e as unknown as { nativeEvent?: { pageX?: number; pageY?: number } }).nativeEvent;
+                  menu.show(showEntries(show, setShow), r?.pageX ?? 0, r?.pageY ?? 0, "context", { label: "Show" });
+                }}
+                style={st.quiet}
+              >
+                <Text style={st.quietText}>{`Show: ${SHOW.find((o) => o.key === show)!.label} ▾`}</Text>
+              </Pressable>
+              {stoppable ? (
+                <Pressable accessibilityRole="button" testID="crew-stop-all" onPress={stopAll} style={st.quiet}>
+                  <Text style={st.quietText}>Stop all</Text>
+                </Pressable>
+              ) : null}
+            </View>
 
-      {rows.length === 0 ? (
-        <Text testID="crew-empty-show" style={st.hint}>
-          {NONE[show]}
-        </Text>
-      ) : (
-        <View testID="crew-rows" style={st.card}>
-          {/* ui-rows-lint: not a list (the same helper rows as the strip in the chat: a face in a ring with a state, a name, a line and a clock) */}
-          {rows.map((m, i) => (
-            <HelperChip
-              key={m.id}
-              m={m}
-              now={now}
-              index={i}
-              last={i === rows.length - 1}
-              onPress={() => onPeek(m.id)}
-            />
-          ))}
-        </View>
-      )}
-
-      {/* Side by side says something only when two or more helpers have run long enough to compare; one bar, or bars of a second each, mean nothing */}
-      {sideBySide(all) ? <Text style={st.section}>Side by side</Text> : null}
-      <View testID="crew-timeline" style={{ gap: 3 }}>
-        {(sideBySide(all) ? all : []).map((m, i) => (
-          <Row
-            key={m.id}
-            id={`crew-tl-${m.id}`}
-            title={nameOf(m)}
-            onPress={() => onPeek(m.id)}
-            leading={
-              <View style={{ marginRight: 8 }}>
-                <Avatar name={nameOf(m)} seedId={faceSeed(m)} kind="agent" size={18} />
+            {rows.length === 0 ? (
+              <Text testID="crew-empty-show" style={st.hint}>
+                {NONE[show]}
+              </Text>
+            ) : (
+              <View testID="crew-rows" style={st.card}>
+                {/* ui-rows-lint: not a list (the same helper rows as the strip in the chat: a face in a ring with a state, a name, a line and a clock) */}
+                {rows.map((m, i) => (
+                  <HelperChip
+                    key={m.id}
+                    m={m}
+                    now={now}
+                    index={i}
+                    last={i === rows.length - 1}
+                    onPress={() => onPeek(m.id)}
+                  />
+                ))}
               </View>
-            }
-            trailing={
-              <View style={st.tlt}>
-                <View
-                  testID={`crew-tl-${m.id}-bar`}
-                  style={
-                    {
-                      position: "absolute",
-                      top: 0,
-                      bottom: 0,
-                      left: `${(tl[i]?.left ?? 0) * 100}%`,
-                      width: `${(tl[i]?.width ?? 1) * 100}%`,
-                      borderRadius: 5,
-                      backgroundColor: BAR[m.state] as string,
-                      opacity: m.state === "failed" || m.state === "stopped" ? 0.5 : 1,
-                    } as object
+            )}
+
+            {/* Side by side says something only when two or more helpers have run long enough to compare; one bar, or bars of a second each, mean nothing */}
+            {sideBySide(all) ? <Text style={st.section}>Side by side</Text> : null}
+            <View testID="crew-timeline" style={{ gap: 3 }}>
+              {(sideBySide(all) ? all : []).map((m, i) => (
+                <Row
+                  key={m.id}
+                  id={`crew-tl-${m.id}`}
+                  title={nameOf(m)}
+                  onPress={() => onPeek(m.id)}
+                  leading={
+                    <View style={{ marginRight: 8 }}>
+                      <Avatar name={nameOf(m)} seedId={faceSeed(m)} kind="agent" size={18} />
+                    </View>
+                  }
+                  trailing={
+                    <View style={st.tlt}>
+                      <View
+                        testID={`crew-tl-${m.id}-bar`}
+                        style={
+                          {
+                            position: "absolute",
+                            top: 0,
+                            bottom: 0,
+                            left: `${(tl[i]?.left ?? 0) * 100}%`,
+                            width: `${(tl[i]?.width ?? 1) * 100}%`,
+                            borderRadius: 5,
+                            backgroundColor: BAR[m.state] as string,
+                            opacity: m.state === "failed" || m.state === "stopped" ? 0.5 : 1,
+                          } as object
+                        }
+                      />
+                    </View>
                   }
                 />
-              </View>
-            }
-          />
-        ))}
-      </View>
-      {together ? (
-        <Text testID="crew-ran-together" style={st.together}>
-          {together}
-        </Text>
-      ) : null}
+              ))}
+            </View>
+            {together ? (
+              <Text testID="crew-ran-together" style={st.together}>
+                {together}
+              </Text>
+            ) : null}
 
-      {status.totals.costMicros > 0 ? (
-        <View style={st.kv}>
-          <Text style={st.k}>Total cost</Text>
-          <Text testID="crew-cost" style={st.v}>
-            {money(status.totals.costMicros)}
-          </Text>
-        </View>
-      ) : null}
-      <View style={st.kv}>
-        <Text style={st.k}>Total time</Text>
-        <Text testID="crew-time" style={st.v}>
-          {span(status.totals.elapsedMs)}
-        </Text>
-      </View>
-      {status.totals.tokensIn + status.totals.tokensOut > 0 ? (
-        <View testID="crew-tokens" style={{ gap: 5, marginTop: 6 }}>
-          <View style={st.tokbar}>
-            <View style={{ flex: split.input, backgroundColor: "var(--accent)" as string }} />
-            <View style={{ flex: split.output, backgroundColor: "var(--ok)" as string }} />
-          </View>
-          <Text style={st.hint}>
-            {tokens(status.totals.tokensIn)} in · {tokens(status.totals.tokensOut)} out
-          </Text>
-        </View>
-      ) : null}
-      {status.totals.filesChanged > 0 ? (
-        <View style={st.kv}>
-          <Text style={st.k}>Files changed</Text>
-          <Text testID="crew-files" style={st.v}>
-            {status.totals.filesChanged} · <Text style={{ color: "var(--ok)" as string }}>+{status.totals.added}</Text>{" "}
-            <Text style={{ color: "var(--danger)" as string }}>−{status.totals.deleted}</Text>
-          </Text>
-        </View>
-      ) : null}
-      <Text testID="crew-keys" style={st.keys}>
-        ⌘ . stops all · ⌥ 1 to ⌥ 9 jump to a helper
-      </Text>
+            {status.totals.costMicros > 0 ? (
+              <View style={st.kv}>
+                <Text style={st.k}>Total cost</Text>
+                <Text testID="crew-cost" style={st.v}>
+                  {money(status.totals.costMicros)}
+                </Text>
+              </View>
+            ) : null}
+            <View style={st.kv}>
+              <Text style={st.k}>Total time</Text>
+              <Text testID="crew-time" style={st.v}>
+                {span(status.totals.elapsedMs)}
+              </Text>
+            </View>
+            {status.totals.tokensIn + status.totals.tokensOut > 0 ? (
+              <View testID="crew-tokens" style={{ gap: 5, marginTop: 6 }}>
+                <View style={st.tokbar}>
+                  <View style={{ flex: split.input, backgroundColor: "var(--accent)" as string }} />
+                  <View style={{ flex: split.output, backgroundColor: "var(--ok)" as string }} />
+                </View>
+                <Text style={st.hint}>
+                  {tokens(status.totals.tokensIn)} in · {tokens(status.totals.tokensOut)} out
+                </Text>
+              </View>
+            ) : null}
+            {status.totals.filesChanged > 0 ? (
+              <View style={st.kv}>
+                <Text style={st.k}>Files changed</Text>
+                <Text testID="crew-files" style={st.v}>
+                  {status.totals.filesChanged} ·{" "}
+                  <Text style={{ color: "var(--ok)" as string }}>+{status.totals.added}</Text>{" "}
+                  <Text style={{ color: "var(--danger)" as string }}>−{status.totals.deleted}</Text>
+                </Text>
+              </View>
+            ) : null}
+            <Text testID="crew-keys" style={st.keys}>
+              ⌘ . stops all · ⌥ 1 to ⌥ 9 jump to a helper
+            </Text>
           </>
         }
       />
@@ -477,7 +479,7 @@ export const taskTitleOf = (m: Pick<CrewMember, "found" | "title">): string =>
     .replace(/[.!?]$/, "")
     .slice(0, 100)}`;
 
-type PeekTab = "transcript" | "files" | "details";
+type PeekTab = "transcript" | "files" | "compare" | "details";
 
 /** A helper's pane. Keyed by the helper: opening another one starts clean, so a draft, a made task or a saved file of one can never be read, sent or filed under another. */
 export function CrewPeek(props: PeekProps): ReactElement {
@@ -508,11 +510,21 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
   const [saved, setSaved] = useState<string | null>(null);
   const [pickRecord, setPickRecord] = useState(false);
   const [addedTo, setAddedTo] = useState<string | null>(null);
+  // finished work becomes an agent, or runs again beside the first (r42-runtime slice 7); the compare reads while there is a re-run
+  const [form, setForm] = useState<"agent" | "rerun" | null>(null);
+  const [agentMade, setAgentMade] = useState<string | null>(null);
   // a different helper opens on its transcript, never on the tab the last one was left on
-  useEffect(() => setTab("transcript"), [member.id]);
+  useEffect(() => {
+    setTab("transcript");
+    setForm(null);
+    setAgentMade(null);
+  }, [member.id]);
   const live = member.state === "working" || member.state === "needs_you";
   const now = useNow(live);
   const fileCount = member.files?.length ?? 0;
+  const finished = member.state === "done" && member.runId !== undefined;
+  const compare = useCompare(call, member.runId, finished && member.kind !== "subagent");
+  const reruns = Math.max(0, compare.sides.length - 1);
   // what a helper returned, in full; nothing to turn into a task, a file or a note when it returned nothing
   const resultText = (member.answer || member.found || "").trim();
   // only the tabs that have something: the transcript and the details are always there, the files when it touched any or is code
@@ -521,6 +533,7 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
     ...(isCode(member) || fileCount > 0
       ? [{ key: "files" as const, label: "Files", ...(fileCount > 0 ? { count: fileCount } : {}) }]
       : []),
+    ...(reruns > 0 ? [{ key: "compare" as const, label: "Compare", count: reruns }] : []),
     { key: "details", label: "Details" },
   ];
   // a subagent the engine started in its own turn: no chat of its own, so no notes, no steering, no model to change; the row says all there is
@@ -884,6 +897,65 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
             ) : null}
           </>
         ) : null}
+        {finished && meId !== undefined && member.runId !== undefined ? (
+          <>
+            <View testID="crew-finish-actions" style={st.actions}>
+              {agentMade !== null ? (
+                <Text testID="crew-agent-made" style={st.hint}>
+                  {agentMade} is now an agent in your Space.
+                </Text>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  testID="crew-save-agent"
+                  onPress={() => setForm(form === "agent" ? null : "agent")}
+                  style={st.pill}
+                >
+                  <Text style={st.pillText}>Save as an agent</Text>
+                </Pressable>
+              )}
+              {!own ? (
+                <Pressable
+                  accessibilityRole="button"
+                  testID="crew-rerun"
+                  onPress={() => setForm(form === "rerun" ? null : "rerun")}
+                  style={st.pill}
+                >
+                  <Text style={st.pillText}>Run again</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {form === "agent" ? (
+              <SaveAgentForm
+                call={call}
+                runId={member.runId}
+                name={nameOf(member)}
+                role=""
+                onCancel={() => setForm(null)}
+                onSaved={(n) => {
+                  setAgentMade(n);
+                  setForm(null);
+                }}
+              />
+            ) : null}
+            {form === "rerun" ? (
+              <RerunForm
+                call={call}
+                runId={member.runId}
+                parentThreadId={member.parentThreadId}
+                agentId={member.agentId}
+                brief={brief?.body ?? ""}
+                model={member.model}
+                onCancel={() => setForm(null)}
+                onStarted={() => {
+                  setForm(null);
+                  compare.refresh();
+                  setTab("compare");
+                }}
+              />
+            ) : null}
+          </>
+        ) : null}
         {log.length > 0 ? <Text style={st.section}>Notes</Text> : null}
         {/* ui-rows-lint: not a list (a read-only log of what was said between the helper and the agent that started it, each entry a sender and words, nothing to press) */}
         {log.map((n) => (
@@ -923,6 +995,9 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
             </Text>
           </View>
         ))}
+      </View>
+      <View testID="crew-peek-panel-compare" style={tab === "compare" ? undefined : st.hidden}>
+        {reruns > 0 ? <CompareView sides={compare.sides} onOpenThread={onOpenChat} /> : null}
       </View>
       <View testID="crew-peek-panel-details" style={tab === "details" ? undefined : st.hidden}>
         {own ? null : (

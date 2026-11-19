@@ -248,3 +248,47 @@ export function routeAt<T extends Pick<RunNode, "id" | "name" | "kind" | "status
     ? { kind: "to", node: n, body: m[3]!.trim() }
     : { kind: "finished", name: name.split(" ")[0]! };
 }
+
+/** One side of a compare: the first run, or one started again from it. A re-run with no turn yet has a threadId and no runId. */
+export interface CompareSide {
+  runId?: string;
+  threadId?: string;
+  status: string;
+  brief?: { goal?: string; instructions?: string };
+  result?: string;
+  usdMicros: number;
+  tokens: number;
+  seconds?: number;
+  model?: string;
+}
+
+const briefText = (s: CompareSide): string =>
+  [s.brief?.goal, s.brief?.instructions].filter((x) => x !== undefined && x.trim() !== "").join("\n\n");
+
+/** A side that has not finished: the run is queued, working or asleep, so it has no result to set beside the first. */
+export const sideOpen = (s: CompareSide): boolean => !["succeeded", "failed", "stopped"].includes(s.status);
+
+/** What changed between the first run and one started again from it, as plain lines. Only facts the two sides carry; nothing is judged. */
+export function compareDiff(
+  first: CompareSide,
+  next: CompareSide,
+  fmt: { money: (micros: number) => string; model: (id: string) => string },
+): string[] {
+  if (sideOpen(next)) return [];
+  const out: string[] = [];
+  const a = briefText(first);
+  const b = briefText(next);
+  if (a !== "" && b !== "") out.push(a === b ? "Same brief" : "The brief changed");
+  if (first.model !== undefined && next.model !== undefined && first.model !== next.model)
+    out.push(`Model: ${fmt.model(first.model)} to ${fmt.model(next.model)}`);
+  if (first.result !== undefined && next.result !== undefined)
+    out.push(first.result.trim() === next.result.trim() ? "Same result" : "The result is different");
+  const d = next.usdMicros - first.usdMicros;
+  if (first.usdMicros > 0 && next.usdMicros > 0 && Math.abs(d) >= 1000)
+    out.push(`${fmt.money(Math.abs(d))} ${d > 0 ? "more" : "less"} than the first`);
+  if (next.status !== "succeeded") out.push(next.status === "failed" ? "It could not finish" : "It was stopped");
+  return out;
+}
+
+/** The label above a side: the first run, then Run 2, Run 3. */
+export const sideLabel = (i: number): string => (i === 0 ? "First run" : `Run ${i + 1}`);
