@@ -809,14 +809,14 @@ Signed: lead, 19 Nov 2026
 - Not contract: the secret check ignores values under 8 characters; a queued pause belongs to its task; a tab's recorded network calls are dropped when it goes to another site; the page reader follows hidden elements by depth in one pass and folds only ASCII case, so no page's length or tag names change its cost or skip its filters.
 - Tests: host/tests/gate.web-read.test.ts, modules/computers/tests/web-tools.test.ts, modules/settings/tests/search-key.test.ts, lib/tests/web-read.test.ts, apps/chrome/tests/ext-agent.test.ts.
 
-Signed: pending, lead
+Signed: lead, 19 Nov 2026
 
 ## 19 Nov 2026: the held read card and the secret check on a search (lane r42-chrome, review r-review third round)
 
 - The held card of `computers.chrome.read` reads "<Agent> wants to read a web page on <host>", and shows the WHOLE address in a block of its own that wraps and scrolls after about six lines, with its length when it is long. Every control and format character (Unicode Cc and Cf, line and paragraph separators, private-use characters, variation selectors, U+061C and the tag characters) is written out as `[U+XXXX]`, so none can hide or reorder what is read. The address is never cut. An address that is not an http or https address is not held: the read refuses it with its reason (`validation.bad_input`).
-- `computers.chrome.search` and `computers.chrome.read` refuse, before anything leaves the Space, a query or an address that the shared credential scanner (`lib/secret-scrub.ts`) finds a secret in, with the kind named and never the value (`validation.bad_input`). The text is cut to 4,000 characters before it is scanned. The search description tells the agent the question goes to the Space's search service.
+- `computers.chrome.search` and `computers.chrome.read` refuse, before anything leaves the Space, a query or an address in which the shared credential scanner (`lib/secret-scrub.ts`) finds a secret of a known shape, with the kind named and never the value (`validation.bad_input`). The text is cut to 4,000 characters before it is scanned. The search description tells the agent the question goes to the Space's search service.
 - Not contract: `</head` no longer ends at `</header`.
 - Tests: test/hold-words.test.ts, apps/app/src/places/chats/conversation/approval.test.tsx, modules/computers/tests/web-tools.test.ts, lib/tests/web-secret-guard.test.ts, lib/tests/web-read.test.ts, host/tests/gate.web-read.test.ts.
 - Snapshots: docs/frozen/snapshots/computers.json.
 
-Signed: pending, lead
+Signed: lead, 19 Nov 2026
