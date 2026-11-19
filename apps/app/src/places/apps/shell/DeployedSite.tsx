@@ -22,13 +22,14 @@ import {
   depNote,
   depState,
   depTitle,
-  findLines,
   isRunning,
   missingName,
   siteWord,
   sourceLine,
 } from "./site/model.ts";
 import { LogLines, StepMark, markOf } from "./site/parts.tsx";
+import { SiteLogs } from "./site/Logs.tsx";
+import { MetricCards } from "./site/Metrics.tsx";
 import { Variables } from "./site/Variables.tsx";
 import type { EnvEntry } from "./site/model.ts";
 
@@ -83,7 +84,6 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
   const [follow, setFollow] = useState(false);
   // after a rollback the build it replaced can be put back with one press
   const [undo, setUndo] = useState<{ id: string; title: string } | null>(null);
-  const [find, setFind] = useState("");
   const [envName, setEnvName] = useState(""),
     [password, setPassword] = useState(""),
     [domain, setDomain] = useState(""),
@@ -370,6 +370,7 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
         ) : null}
         {x.source ? <Text style={ui.text}>{`From ${sourceLine(x.source)}`}</Text> : null}
       </Card>
+      <MetricCards siteId={id} />
       <Card title="Runs with">
         <Row id="run-web" title="Web" note={x.live ? "Serving its address" : "Not serving"} />
         {pg ? (
@@ -488,26 +489,7 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
     </>
   );
 
-  const logsTab = (
-    <Card title="App log">
-      <TextInput
-        accessibilityLabel="Search the log"
-        testID="site-log-search"
-        value={find}
-        onChangeText={setFind}
-        placeholder="Search"
-        placeholderTextColor="var(--ink-4)"
-        autoCapitalize="none"
-        style={ui.input}
-      />
-      <LogLines
-        lines={findLines(runLog, find)}
-        testID="site-logs"
-        empty={find.trim() ? "No line has that." : "Nothing logged yet."}
-        height={420}
-      />
-    </Card>
-  );
+  const logsTab = <SiteLogs siteId={id} height={wide ? 560 : 440} />;
 
   const saveEnv = async (entries: readonly EnvEntry[]): Promise<boolean> =>
     (await run("Saving", "sites.env_set", { siteId: id, entries })) !== null;
