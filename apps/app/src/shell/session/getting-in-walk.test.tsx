@@ -95,6 +95,9 @@ async function mountGate(): Promise<{ root: Node; stop: () => Promise<void> }> {
   };
 }
 
+/** What an input node holds. */
+const textOrValue = (n: Node): string => String((n as unknown as { props?: { value?: string } }).props?.value ?? "");
+
 function rng(seed: number): () => number {
   let x = seed >>> 0 || 1;
   return () => {
@@ -317,7 +320,7 @@ test("a saved Space that answers its health check but fails its calls: Your Spac
   }
 });
 
-test("one Space saved at two addresses, the used-last one dead: the list shows it, one press opens the other that answers, and both sign-ins stay saved", async () => {
+test("one Space saved at two addresses, the used-last one dead: the list shows it, one press lands on the other address's sign-in (username there, no saved token sent), and both sign-ins stay saved", async () => {
   const realFetch = g.fetch;
   const restore = setQuietWaitsForTests([1, 1]);
   let stop: () => Promise<void> = async () => undefined;
@@ -350,10 +353,19 @@ test("one Space saved at two addresses, the used-last one dead: the list shows i
     writeStored({ ...SAVED_SESSION, baseUrl: "https://new.example", token: "vds_new" }, kv);
     const before = JSON.stringify(readStoredSessions(kv));
     const asked: string[] = [];
-    g.fetch = (async (input: RequestInfo | URL) => {
+    const authed: string[] = [];
+    g.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
       asked.push(url.origin + url.pathname);
+      if (
+        url.origin === "https://new.example" &&
+        JSON.stringify(init?.headers ?? {})
+          .toLowerCase()
+          .includes("authorization")
+      )
+        authed.push(url.pathname);
       if (url.origin === "https://new.example" && url.pathname === "/healthz") return json(200, HEALTH);
+      if (url.origin === "https://new.example" && url.pathname.endsWith("sign_in_options")) return json(200, OPTIONS);
       throw new TypeError("Failed to fetch");
     }) as typeof fetch;
     const gate = await mountGate();
@@ -372,8 +384,10 @@ test("one Space saved at two addresses, the used-last one dead: the list shows i
     const end = Date.now() + 10000;
     while (!asked.includes("https://new.example/healthz") && Date.now() < end) await flush();
     assert.ok(asked.includes("https://new.example/healthz"));
-    for (let i = 0; i < 30; i++) await flush();
+    const signIn = await until("si-user");
+    assert.equal(textOrValue(signIn), "imran", "the username is already there");
     assert.equal(find(root, "step-not-answering"), null, "the person is not left on the dead address");
+    assert.deepEqual(authed, [], "no saved sign-in went to the other address: it is not proven to be the Space");
     assert.equal(JSON.stringify(readStoredSessions(kv)), before, "both sign-ins are still saved, unchanged");
   } finally {
     await stop();

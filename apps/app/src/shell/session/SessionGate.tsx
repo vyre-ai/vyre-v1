@@ -1440,8 +1440,8 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     giDo({ e: "trouble", trouble: { target, name, found, ...(stored ? { stored } : {}) } });
   };
   /** The address answers as a Space: go in. A saved sign-in opens it; an owner link claims it; anything else is its sign-in or its invite. */
-  const enterTarget = async (target: EntryTarget, stored?: StoredSession): Promise<void> => {
-    const have = stored ?? (target.kind === "signin" ? readStored(undefined, target.address) : null);
+  const enterTarget = async (target: EntryTarget, stored?: StoredSession, fresh = false): Promise<void> => {
+    const have = fresh ? null : (stored ?? (target.kind === "signin" ? readStored(undefined, target.address) : null));
     if (have && target.kind === "signin") {
       await enterSaved(have);
       return;
@@ -1596,7 +1596,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     }
   };
   /** The shell could not open a saved Space: ask where the Space is now. It answers: open once more. It moved to the relay: the browser. Else the screen with the fix. The sign-in is kept. */
-  /** A Space with two saved addresses whose used-last one does not answer: the other is asked, checked to be the same Space, and opened when it answers. An address is tried at most once a minute, so two flaky ones never trade places, and a later failure tries it again. The person may have moved on while it was asked: then nothing opens. */
+  /** A Space with two saved addresses whose used-last one does not answer: the other is asked, and when it answers its sign-in opens (never its saved token). An address is tried at most once a minute, so two flaky ones never trade places, and a later failure tries it again. The person may have moved on while it was asked: then nothing opens. */
   const [underShell, setUnderShell] = useState<string | null>(null);
   useEffect(() => {
     if (!home) setUnderShell(null);
@@ -1615,12 +1615,14 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       const found = await findSpaceQuietly(other.baseUrl).catch(() => OFFLINE);
       if (!still()) return true;
       if (found.kind !== "direct") continue;
-      // a guard against an accident, not a proof: a reused address that is another Space now names another id, so the saved sign-in is not sent there. (A Space id is public; /healthz of any server can say it.)
+      // A Space id is public: any server can say it, so naming the same id proves nothing and a saved sign-in is never sent to an address on that word. The person gets the Space's own sign-in
+      // there instead (its name and picture, their username already typed) and signs in with their password. The saved sign-in stays where it is, unused. (A signed proof of the Space's identity
+      // would let this open with one press; the product has no such proof yet.)
       const named = await spaceIdAt(other.baseUrl);
       if (named === null || named !== stored.def.spaceId || named !== other.def.spaceId) continue;
       if (!still()) return true;
-      shellRetried.current.delete(other.baseUrl);
-      await enterSaved(other);
+      setSignInAs(other.username);
+      await enterTarget({ kind: "signin", address: other.baseUrl }, undefined, true);
       return true;
     }
     return false;

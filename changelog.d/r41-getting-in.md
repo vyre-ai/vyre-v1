@@ -12,4 +12,4 @@ Getting in is one explicit state machine: from every screen there is a press tha
 
 A Space that opens but cannot load its pages now offers Your Spaces beside Try again. Your Spaces opens over the Space, which stays as it was: Back returns to the same screen, and the saved sign-in is never touched. The same extra way out is available to every error screen that needs one.
 
-A Space saved at two addresses (a Personal Space that changed port, a team Space that moved) no longer leaves a person on the address that does not answer: the list shows the one used last, and when it does not answer the other is tried and opened. Both sign-ins stay saved.
+A Space saved at two addresses (a Personal Space that changed port, a team Space that moved) no longer leaves a person on the address that does not answer: the list shows the one used last, and when it does not answer the other is tried and its sign-in opens with the username already typed. A saved sign-in is never sent to an address on the strength of the Space's public name, so the person signs in with their password there. Both saved sign-ins stay where they are.
