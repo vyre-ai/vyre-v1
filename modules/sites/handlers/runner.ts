@@ -826,7 +826,7 @@ export function dockerRunner(link: RunnerLink): Runner {
                   }
                 })
                 .then(
-                  () => res.resume(),
+                  () => void res.resume(),
                   (e) => {
                     chainErr = e;
                     fail(e);

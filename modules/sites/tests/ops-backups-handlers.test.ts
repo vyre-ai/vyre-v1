@@ -20,9 +20,21 @@ import type { Backup } from "../ops/backups.ts";
 
 const NOW = Date.parse("2026-11-19T10:30:00Z");
 const DAY = 86_400_000;
-function world(
-  o: { dumpCode?: number; dumpOut?: string; dump?: Uint8Array; restoreCode?: number; noPostgres?: boolean } = {},
-) {
+interface WorldOpts {
+  dumpCode?: number;
+  dumpOut?: string;
+  dump?: Uint8Array;
+  restoreCode?: number;
+  swapCode?: number;
+  swapFailsFor?: number;
+  noPostgres?: boolean;
+  dumpFails?: () => boolean;
+  statSize?: number;
+  getFileThrows?: Error;
+  onGetFile?: () => void;
+  oldBytes?: number;
+}
+function world(o: WorldOpts = {}) {
   _test.clearSizes();
   _test.setRetryMs(0);
   const raw = new DatabaseSync(":memory:");
@@ -544,10 +556,10 @@ test("a failure after the first rename puts the live database back under its nam
 
 test("the safety backup is not marked lost by the page's own list call while it is being made", async () => {
   let w!: ReturnType<typeof world>;
-  let listed: { backups: { state: string; keepUntil?: number }[] } | null = null;
+  const seen: { listed: { backups: { state: string; keepUntil?: number }[] } | null } = { listed: null };
   w = world({
     onGetFile: () => {
-      void call(w.ctx, "sites.backups_list", { siteId: "sit_a" }).then((x) => (listed = x));
+      void call(w.ctx, "sites.backups_list", { siteId: "sit_a" }).then((x) => (seen.listed = x));
     },
   });
   await ready(w);
@@ -556,8 +568,8 @@ test("the safety backup is not marked lost by the page's own list call while it 
   const safety = st.listBackups(w.db, "sit_a").find((b) => b.keepUntil !== undefined)!;
   assert.equal(safety.state, "ready", "still ready, with its file");
   assert.ok(safety.fileId);
-  assert.ok(listed);
-  assert.notEqual(listed!.backups.find((b) => b.keepUntil !== undefined)?.state, "failed");
+  assert.ok(seen.listed);
+  assert.notEqual(seen.listed!.backups.find((b) => b.keepUntil !== undefined)?.state, "failed");
 });
 
 test("parts left in the container by an earlier restore that was cut off are cleared before the new ones go in", async () => {

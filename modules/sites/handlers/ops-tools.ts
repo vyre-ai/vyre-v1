@@ -18,6 +18,30 @@ const j = jobHandlers as unknown as Record<string, H>;
 const b = backupHandlers as unknown as Record<string, H>;
 const o = opsHandlers as unknown as Record<string, H>;
 
+/** What each action needs, as the sentence a wrong first call is answered with: the exact shape, so the next call goes through. `id` is top level, the rest is in `args`. */
+const NEEDS: Readonly<Record<string, { id?: string; args?: readonly string[]; shape: string }>> = {
+  job_create: {
+    args: ["name", "schedule", "command"],
+    shape: "{action:'job_create', args:{name, schedule, command}} (schedule is cron, like '0 2 * * *')",
+  },
+  job_update: {
+    id: "job id",
+    shape: "{action:'job_update', id:<job id>, args:{name?, schedule?, command?, enabled?}}",
+  },
+  job_delete: { id: "job id", shape: "{action:'job_delete', id:<job id>}" },
+  job_run: { id: "job id", shape: "{action:'job_run', id:<job id>}" },
+  job_cancel: { id: "run id", shape: "{action:'job_cancel', id:<run id>}" },
+  job_runs: { id: "job id", shape: "{action:'job_runs', id:<job id>}" },
+  worker_add: { args: ["name", "command"], shape: "{action:'worker_add', args:{name, command}}" },
+  worker_restart: { id: "worker id", shape: "{action:'worker_restart', id:<worker id>}" },
+  worker_stop: { id: "worker id", shape: "{action:'worker_stop', id:<worker id>}" },
+  worker_remove: { id: "worker id", shape: "{action:'worker_remove', id:<worker id>}" },
+  backup_delete: { id: "backup id", shape: "{action:'backup_delete', id:<backup id>}" },
+  backup_pin: { id: "backup id", shape: "{action:'backup_pin', id:<backup id>, args:{pinned?}}" },
+  backup_download: { id: "backup id", shape: "{action:'backup_download', id:<backup id>}" },
+  backup_restore: { id: "backup id", shape: "{action:'backup_restore', id:<backup id>}" },
+};
+
 export const ACTIONS: Readonly<Record<string, Action>> = {
   logs: { h: o["sites.logs_read"] as H },
   metrics: { h: o["sites.metrics"] as H },
@@ -47,6 +71,17 @@ async function ops(ctx: Ctx, input: unknown): Promise<{ result: unknown }> {
   const a = ACTIONS[name];
   if (!a) fail(ctx, "validation.bad_input", `Pick one of: ${Object.keys(ACTIONS).join(", ")}.`, { field: "action" });
   const args = i["args"] === undefined ? {} : rec(ctx, i["args"]);
+  const need = NEEDS[name];
+  if (need) {
+    const missing = (need.args ?? []).filter((k) => typeof args[k] !== "string" || args[k] === "");
+    if ((need.id && (typeof i["id"] !== "string" || i["id"] === "")) || missing.length > 0)
+      fail(
+        ctx,
+        "validation.bad_input",
+        `${name} needs ${need.shape}${missing.length ? `. Missing: ${missing.join(", ")}` : ""}.`,
+        { field: need.id && !i["id"] ? "id" : "args" },
+      );
+  }
   if (a.manage) {
     const site = mustSite(ctx, siteId);
     if (ctx.authorize({ perm: "sites.deploy", level: "manage" }, { type: "site", id: str(site.id) }).effect !== "allow")

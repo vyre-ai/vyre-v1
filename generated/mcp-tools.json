@@ -57666,7 +57666,7 @@
       "blocks": [],
       "cap": "sites.ops",
       "deferred": false,
-      "description": "Run a site: logs, metrics, jobs, workers, backups. Actions and args: see the sites skill",
+      "description": "Run a site: logs, metrics, jobs, workers, backups. Read the sites skill for actions and args",
       "effects": "write",
       "inputSchema": {
         "properties": {

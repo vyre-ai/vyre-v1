@@ -44,7 +44,7 @@ Requires: nothing.
 - [sites.logs](../capabilities/sites.logs.md): A site's log: its running app, or with build a deploy's build log (the latest by default). Text from the site, not Vyre content
 - [sites.logs_read](../capabilities/sites.logs_read.md): A site's log (app, requests, build, jobs): search words (-word excludes), source, level, time, deploy; after = cursor to follow. Text from the site, not Vyre content
 - [sites.metrics](../capabilities/sites.metrics.md): CPU, memory, requests and response time of a site over 1h, 6h or 24h, and right now against its limits
-- [sites.ops](../capabilities/sites.ops.md): Run a site: logs, metrics, jobs, workers, backups. Actions and args: see the sites skill
+- [sites.ops](../capabilities/sites.ops.md): Run a site: logs, metrics, jobs, workers, backups. Read the sites skill for actions and args
 - [sites.password_set](../capabilities/sites.password_set.md): Set the password visitors type to open a site whose access is password. Kept only as a hash
 - [sites.plan](../capabilities/sites.plan.md): What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for
 - [sites.preview_promote](../capabilities/sites.preview_promote.md): Serve a preview's build as production without a rebuild, with the production variables

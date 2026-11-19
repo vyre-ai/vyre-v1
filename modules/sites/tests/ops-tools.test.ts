@@ -167,3 +167,41 @@ test("every action the skill names exists", () => {
   ])
     assert.ok(ACTIONS[n], n);
 });
+
+test("a wrong first call is answered with the exact shape the action needs, so the next call goes through", async () => {
+  const w = world();
+  const msg = async (input: unknown): Promise<string> => {
+    try {
+      await toolHandlers["sites.ops"](w.ctx, input);
+    } catch (e) {
+      if (e instanceof VyreErr) return e.error.message;
+    }
+    return "";
+  };
+  // the arguments put at the top level, or named wrongly
+  assert.equal(
+    await msg({ siteId: "sit_a", action: "job_create" }),
+    "job_create needs {action:'job_create', args:{name, schedule, command}} (schedule is cron, like '0 2 * * *'). Missing: name, schedule, command.",
+  );
+  assert.match(
+    await msg({ siteId: "sit_a", action: "job_create", args: { name: "x", cmd: "node a.js", schedule: "@daily" } }),
+    /Missing: command\./,
+  );
+  assert.equal(await msg({ siteId: "sit_a", action: "job_run" }), "job_run needs {action:'job_run', id:<job id>}.");
+  assert.match(
+    await msg({ siteId: "sit_a", action: "worker_add", args: { name: "q" } }),
+    /worker_add needs .*Missing: command/,
+  );
+  assert.match(
+    await msg({ siteId: "sit_a", action: "backup_restore" }),
+    /backup_restore needs \{action:'backup_restore', id:<backup id>\}/,
+  );
+  assert.match(await msg({ siteId: "sit_a", action: "explode" }), /Pick one of: logs, metrics, jobs, job_create/);
+  // and the call the hint describes goes through
+  const made = await ops(w.ctx, {
+    siteId: "sit_a",
+    action: "job_create",
+    args: { name: "x", command: "node a.js", schedule: "@daily" },
+  });
+  assert.equal(made.job.name, "x");
+});

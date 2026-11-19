@@ -8451,7 +8451,7 @@
     {
       "deferred": false,
       "name": "sites_ops",
-      "summary": "Run a site: logs, metrics, jobs, workers, backups. Actions and args: see the sites skill",
+      "summary": "Run a site: logs, metrics, jobs, workers, backups. Read the sites skill for actions and args",
       "toolset": "sites"
     },
     {
