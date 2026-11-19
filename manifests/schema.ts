@@ -296,6 +296,17 @@ export default defineManifest({
       emits: ["schema.label_changed", "schema.changed"],
       tool: "engineer",
     }),
+    write("schema.set_mergeable", "Switch \"Can go in emails\" on or off for one field: whether a template may merge its value into an email. Private and secret fields can never be switched on", {
+      in: { type: id.recordType, field: fieldKey, mergeable: t.bool() },
+      out: { ok: t.bool() },
+      on: ["record_type", "/type"],
+      perm: "schema.manage",
+      audit: "always",
+      emits: ["schema.changed"],
+      tool: "engineer",
+      idem: "natural",
+      errors: ["validation.bad_input", "validation.not_found", "validation.precondition_failed"],
+    }),
     read(
       "schema.infer",
       "Propose a record type from pasted CSV text or a CSV/XLSX file: field names, types, choices and a title field",
