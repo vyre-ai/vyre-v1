@@ -35,7 +35,7 @@ type In = {
   audience?: "asker" | "anyone";
   choice?: string;
   hosts: Array<string>;
-  version?: string;
+  version: string;
 };
 ```
 

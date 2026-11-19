@@ -176,7 +176,10 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     if (!c) return {};
     const def = JSON.parse(c.def) as ConnectorDef;
     if (def.auth.type === "none") return {};
-    const rec = tx.get<{ hosts: string }>("SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?", r.connection_id);
+    const rec = tx.get<{ hosts: string }>(
+      "SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?",
+      r.connection_id,
+    );
     const have = new Set(rec ? (JSON.parse(rec.hosts) as string[]) : []);
     const all = recordFor(def);
     return all.some((h) => !have.has(h)) ? { pendingHosts: all } : {};
@@ -337,7 +340,11 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       // (an action whose address takes its host from the caller's input has no fixed host to record: such a connection keeps the connector's declared domains as its limit, and the card never connects it)
       // always, when a key can travel: an empty list (a connector with no addresses yet) allows no host until a person approves one
       if (def.auth.type !== "none")
-        tx.run("INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)", id, JSON.stringify(recordFor(def)));
+        tx.run(
+          "INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
+          id,
+          JSON.stringify(recordFor(def)),
+        );
       const row = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", id)!;
       const authUrl = authUrlFor(def, row, input.scopes ?? [], false, ctx);
       // An OAuth connection is made when the sign-in comes back (complete_auth announces it); every other kind exists now.
@@ -571,10 +578,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const hosts = recordFor(def);
       // what the person approves is what they were shown: a connector republished between the card and the press has other addresses, and nothing is recorded
       if (
-        [...input.hosts]
-          .map((h) => h.toLowerCase())
-          .sort()
-          .join("\n") !== [...hosts].sort().join("\n")
+        [...new Set(input.hosts.map((h) => h.toLowerCase()))].sort().join("\n") !==
+        [...new Set(hosts)].sort().join("\n")
       )
         refuse(
           ctx,

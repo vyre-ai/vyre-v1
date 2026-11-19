@@ -486,7 +486,11 @@ test("a held set_secret names a domain pattern in plain words, and Allow also ap
         {
           type: "doc_excerpt",
           v: 1,
-          data: { act: "approve", cap: "connections.set_secret", input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" } },
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
         },
       ],
       actions: [{ key: "approve", label: "Approve" }],
@@ -497,7 +501,11 @@ test("a held set_secret names a domain pattern in plain words, and Allow also ap
       calls.push({ cap, input });
       if (cap === "tasks.get") return held;
       if (cap === "automations.key_hosts.pending_bind")
-        return { found: true, items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }], hosts: ["*.app.n8n.cloud"] };
+        return {
+          found: true,
+          items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+          hosts: ["*.app.n8n.cloud"],
+        };
       if (cap === "connections.get") return { connection: { pendingHosts: ["domain:*.app.n8n.cloud:443"] } };
       return {};
     },
@@ -514,10 +522,13 @@ test("a held set_secret names a domain pattern in plain words, and Allow also ap
     connectionId: "con_n8n",
     hosts: ["domain:*.app.n8n.cloud:443"],
   });
-  assert.ok(order.indexOf("connections.approve_hosts") < order.indexOf("tasks.act"), "recorded before the hold is answered");
+  assert.ok(
+    order.indexOf("connections.approve_hosts") < order.indexOf("tasks.act"),
+    "recorded before the hold is answered",
+  );
 });
 
-test("Allow on a held set_secret submits the addresses the card showed, not a later read: a connector that gained a host meanwhile is refused and the hold stays unanswered", async () => {
+test("Allow on a held set_secret submits the addresses the card showed, not a later read; when the server says it changed, the card shows that, reloads the list and Allow works on the new one", async () => {
   const calls: { cap: string; input: unknown }[] = [];
   let gets = 0;
   const held = {
@@ -530,26 +541,36 @@ test("Allow on a held set_secret submits the addresses the card showed, not a la
         {
           type: "doc_excerpt",
           v: 1,
-          data: { act: "approve", cap: "connections.set_secret", input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" } },
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
         },
       ],
       actions: [{ key: "approve", label: "Approve" }],
     },
   };
   const shown = ["domain:*.app.n8n.cloud:443"];
+  const later = [...shown, "collect.attacker.example:443"];
   const d = {
     call: async (cap: string, input: unknown) => {
       calls.push({ cap, input });
       if (cap === "tasks.get") return held;
       if (cap === "automations.key_hosts.pending_bind")
-        return { found: true, items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }], hosts: ["*.app.n8n.cloud"] };
+        return {
+          found: true,
+          items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+          hosts: ["*.app.n8n.cloud"],
+        };
       if (cap === "connections.get") {
         gets++;
         // the agent republishes with its own host after the card loaded
-        return { connection: { pendingHosts: gets === 1 ? shown : [...shown, "collect.attacker.example:443"] } };
+        return { connection: { pendingHosts: gets === 1 ? shown : later } };
       }
       // the server's rule: what is submitted must be exactly the connector's addresses now
-      if (cap === "connections.approve_hosts" && (input as { hosts: string[] }).hosts.length !== 2) throw new Error("changed");
+      if (cap === "connections.approve_hosts" && (input as { hosts: string[] }).hosts.length !== 2)
+        throw new Error("Tenant changed since you looked. Open the connection again.");
       return {};
     },
     nav: { openBeside: () => undefined },
@@ -559,10 +580,75 @@ test("Allow on a held set_secret submits the addresses the card showed, not a la
   assert.ok(!/attacker/.test(textOf(root)), "the card never named the later host");
   await press(find(root, "approval-allow-tsk_late"));
   await flush();
-  assert.deepEqual(calls.find((c) => c.cap === "connections.approve_hosts")?.input, { connectionId: "con_n8n", hosts: shown });
-  assert.equal(gets, 1, "connections.get is read once, when the card loads");
+  const approves = calls.filter((c) => c.cap === "connections.approve_hosts");
+  assert.deepEqual(approves[0]?.input, { connectionId: "con_n8n", hosts: shown });
   assert.ok(!calls.some((c) => c.cap === "tasks.act"), "the hold is not answered when the record was refused");
-  assert.match(textOf(root), /Could not save where the key may go/);
+  assert.match(textOf(root), /changed since you looked/, "the server's wording is shown");
+  assert.match(textOf(root), /attacker\.example/, "the new list is shown, so the person sees what changed");
+  await press(find(root, "approval-allow-tsk_late"));
+  await flush();
+  assert.deepEqual(calls.filter((c) => c.cap === "connections.approve_hosts")[1]?.input, {
+    connectionId: "con_n8n",
+    hosts: later,
+  });
+  assert.ok(
+    calls.some((c) => c.cap === "tasks.act"),
+    "pressing Allow on the new list answers the hold",
+  );
+});
+
+test("a held set_secret whose connection cannot be read is not answered: the card says it could not load where the key may go and stays waiting", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const held = {
+    task: {
+      id: "tsk_nl",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
+        },
+      ],
+      actions: [{ key: "approve", label: "Approve" }],
+    },
+  };
+  for (const failing of ["throws", "empty"] as const) {
+    calls.length = 0;
+    const d = {
+      call: async (cap: string, input: unknown) => {
+        calls.push({ cap, input });
+        if (cap === "tasks.get") return held;
+        if (cap === "automations.key_hosts.pending_bind")
+          return {
+            found: true,
+            items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+            hosts: ["*.app.n8n.cloud"],
+          };
+        if (cap === "connections.get") {
+          if (failing === "throws") throw new Error("offline");
+          return {};
+        }
+        return {};
+      },
+      nav: { openBeside: () => undefined },
+    } as never;
+    const root = await mount(createRoot, <ApprovalCard taskId="tsk_nl" agent="Scout" agentId="agt_1" data={d} />);
+    await flush();
+    assert.match(textOf(root), /Couldn't load where the key may go/, failing);
+    await press(find(root, "approval-allow-tsk_nl"));
+    await flush();
+    assert.ok(
+      !calls.some((c) => c.cap === "tasks.act" || c.cap === "connections.approve_hosts"),
+      `${failing}: nothing was answered or approved`,
+    );
+  }
 });
 
 test("a card with no capability, no ask and no question is drawn as its plain words: no Allow, no Deny; a plain question reads as the question", async () => {

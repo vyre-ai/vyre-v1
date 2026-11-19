@@ -77,6 +77,9 @@ const clock = (at: number, timeZone?: string): string => {
   }
 };
 
+const PENDING_LINE = "Couldn't load where the key may go. Try again.";
+const CHANGED_LINE = "This changed since you looked. Check the list and press Allow again.";
+
 export function ApprovalCard({
   taskId,
   agent,
@@ -120,11 +123,27 @@ export function ApprovalCard({
     hosts: string[];
   } | null>(null);
   /** A held set_secret's connection: the addresses its record does not allow yet, as they were when the card loaded. This list is what the card names and what Allow submits, never a later read. */
-  const [pending, setPending] = useState<string[] | null>(null);
+  const [pending, setPending] = useState<string[] | "failed" | null>(null);
   const mounted = useRef(true);
   const described = useRef(false);
 
   // the task on every change; what the held call touches only once, because it does not change
+  /** The addresses a connection's record does not allow yet, as the server says them now: a list, null when nothing waits, "failed" when the answer could not be read. */
+  const readPending = useCallback(
+    async (connectionId: string): Promise<string[] | "failed" | null> => {
+      try {
+        const r = (await data.call("connections.get", { connectionId })) as {
+          connection?: { pendingHosts?: string[] };
+        } | null;
+        if (!r || typeof r !== "object" || !r.connection) return "failed";
+        const p = r.connection.pendingHosts;
+        return Array.isArray(p) && p.length > 0 ? p : null;
+      } catch {
+        return "failed";
+      }
+    },
+    [data],
+  );
   const load = useCallback(async (): Promise<void> => {
     try {
       const t = ((await data.call("tasks.get", { taskId })) as CapMap["tasks.get"]["out"]).task;
@@ -170,13 +189,11 @@ export function ApprovalCard({
           : null;
       const pend =
         h.cap === "connections.set_secret" && typeof h.input["connectionId"] === "string"
-          ? await Promise.resolve(data.call("connections.get", { connectionId: h.input["connectionId"] })).then(
-              (r) => (r as { connection?: { pendingHosts?: string[] } } | null)?.connection?.pendingHosts ?? null,
-              () => null,
-            )
+          ? await readPending(h.input["connectionId"])
           : null;
       if (mounted.current) {
-        setPending(Array.isArray(pend) && pend.length > 0 ? pend : null);
+        setPending(pend);
+        if (pend === "failed") setLine(PENDING_LINE);
         setSubject(s);
         setDiff(d);
         setTheirTz(tz);
@@ -186,7 +203,7 @@ export function ApprovalCard({
     } catch {
       if (mounted.current) setTask((was) => was ?? null);
     }
-  }, [data, taskId]);
+  }, [data, taskId, readPending]);
   useEffect(() => {
     mounted.current = true;
     void load();
@@ -393,18 +410,45 @@ export function ApprovalCard({
       );
       // the connection's own record of where its key may go is the connector module's, apart from the Vault's list: a held set_secret on a connection allows what was shown there too
       const connectionId = held.cap === "connections.set_secret" ? held.input["connectionId"] : undefined;
-      const record = async (): Promise<void> => {
-        if (typeof connectionId !== "string" || pending === null) return;
-        // the list the card named: approve_hosts refuses when the connector's addresses are no longer exactly these
-        await data.call("connections.approve_hosts", { connectionId, hosts: pending });
+      // where the key may go could not be read: the hold is not answered, and the list is read again so the person can press Allow on what it says
+      if (typeof connectionId === "string" && pending === "failed") {
+        setBusy(false);
+        setLine(PENDING_LINE);
+        void readPending(connectionId).then((p) => {
+          if (!mounted.current) return;
+          setPending(p);
+          if (p !== "failed") setLine(null);
+        });
+        return;
+      }
+      /** true when the connection's record took the list; false when it was refused (the card shows why and the list as it is now) */
+      const record = async (): Promise<boolean> => {
+        if (typeof connectionId !== "string" || pending === null || pending === "failed") return true;
+        try {
+          // the list the card named: approve_hosts refuses when the connector's addresses are no longer exactly these
+          await data.call("connections.approve_hosts", { connectionId, hosts: pending });
+          return true;
+        } catch (e) {
+          const fresh = await readPending(connectionId);
+          if (mounted.current) {
+            setPending(fresh);
+            setBusy(false);
+            setLine(e instanceof Error && e.message ? e.message : CHANGED_LINE);
+          }
+          return false;
+        }
       };
-      void Promise.all(saves).then(record).then(
-        () => answerTask(key, note),
-        () => {
-          setBusy(false);
-          setLine("Could not save where the key may go. Try again.");
-        },
-      );
+      void Promise.all(saves)
+        .then(record)
+        .then(
+          (done) => {
+            if (done) answerTask(key, note);
+          },
+          () => {
+            setBusy(false);
+            setLine("Could not save where the key may go. Try again.");
+          },
+        );
       return;
     }
     answerTask(key, note);
@@ -448,7 +492,7 @@ export function ApprovalCard({
   const both = (xs: readonly string[]): string =>
     xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : (xs[0] ?? "");
   const bindLine = keyBind?.found
-    ? `${agent} wants to use ${both(keyBind.items.map((i) => i.handle))} with ${both([...new Set([...keyBind.hosts, ...(pending ?? [])].map(hostWords))])}`
+    ? `${agent} wants to use ${both(keyBind.items.map((i) => i.handle))} with ${both([...new Set([...keyBind.hosts, ...(Array.isArray(pending) ? pending : [])].map(hostWords))])}`
     : null;
   const keyLine =
     bindLine ??

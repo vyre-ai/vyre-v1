@@ -480,7 +480,7 @@ export async function connectSubmit(
     audience?: KeyAudience;
     hosts: string[];
     /** the service version the card showed */
-    version?: string;
+    version: string;
     /** the option the person picked for the service's choice (a region); the first one when left out */
     choice?: string;
   },
@@ -517,7 +517,7 @@ export async function connectSubmit(
     )
   )
     raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
-  if (input.version !== undefined && input.version !== svc.version)
+  if (input.version !== svc.version)
     raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
   const card = await cardOf(ctx, row.id);
   if (!card.mayFill)

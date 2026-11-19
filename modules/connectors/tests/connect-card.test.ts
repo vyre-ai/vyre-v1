@@ -343,7 +343,10 @@ test("B: a connection made before the host record existed (a data folder shaped 
   assert.equal(k.tx.all("SELECT * FROM cn_connection_hosts WHERE connection_id = ?", id).length, 0);
   k.tx.run("DELETE FROM cn_host_backfill"); // a server that never ran the pass: the table is new to it
   // the version that was live when the connection was made
-  k.tx.run("INSERT INTO cn_versions (key, version, def, at, by, note, tests) VALUES ('fathom', '1.0.0', ?, 0, 'x', '', '[]')", JSON.stringify(FATHOM));
+  k.tx.run(
+    "INSERT INTO cn_versions (key, version, def, at, by, note, tests) VALUES ('fathom', '1.0.0', ?, 0, 'x', '', '[]')",
+    JSON.stringify(FATHOM),
+  );
   backfillHosts(k.tx);
   backfillHosts(k.tx); // idempotent
   assert.deepEqual(
@@ -452,6 +455,29 @@ test("B: a connector that gains a host does not send the key there on its own: t
   // a connector that lost a host: the old host is simply not called; nothing is refused for it
   k.install(linkApp({ domains: ["api.fathom.test"], actions: [{ name: "list", url: "https://api.fathom.test/p" }] }));
   await k.hs["connectors.run"](k.ctx, { key: "wide2", action: "list", connectionId: id, input: {} } as never);
+});
+
+test("approve_hosts takes a list with a repeated address as the same list, and records each address once", async () => {
+  const k = kit();
+  k.install(linkApp({ domains: ["api.fathom.test", "api2.fathom.test"] }));
+  const id = await connect(k);
+  k.install(
+    linkApp({
+      domains: ["api.fathom.test", "api2.fathom.test"],
+      actions: [
+        { name: "list", url: "https://api.fathom.test/p" },
+        { name: "more", url: "https://api2.fathom.test/p" },
+      ],
+    }),
+  );
+  await k.hs["connections.approve_hosts"](k.ctx, {
+    connectionId: id,
+    hosts: ["api.fathom.test:443", "api2.fathom.test:443", "api.fathom.test:443", "API2.fathom.test:443"],
+  });
+  const rec = JSON.parse(
+    k.tx.get<{ hosts: string }>("SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?", id)!.hosts,
+  ) as string[];
+  assert.deepEqual([...rec].sort(), ["api.fathom.test:443", "api2.fathom.test:443"]);
 });
 
 test("a built-in connector wins over an agent-published namesake; two of equal standing answer none, and the agent is told why", async () => {

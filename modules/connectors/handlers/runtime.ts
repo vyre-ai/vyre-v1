@@ -470,7 +470,14 @@ export async function executeAction(
       }
     if (!linked && after !== undefined && a.shape?.cursor?.param) u.searchParams.set(a.shape.cursor.param, after);
     // the first page of a page or offset list is asked for by its start, as the sync engine's own first request is
-    else if (!linked && after === undefined && a.shape?.cursor?.param && a.shape.cursor.start !== undefined && (a.shape.cursor.kind === "page" || a.shape.cursor.kind === "offset") && !u.searchParams.has(a.shape.cursor.param))
+    else if (
+      !linked &&
+      after === undefined &&
+      a.shape?.cursor?.param &&
+      a.shape.cursor.start !== undefined &&
+      (a.shape.cursor.kind === "page" || a.shape.cursor.kind === "offset") &&
+      !u.searchParams.has(a.shape.cursor.param)
+    )
       u.searchParams.set(a.shape.cursor.param, String(a.shape.cursor.start));
     // what changed since a time: the app's own filter, on every page (a link page already carries it)
     const since = (input as Record<string, unknown>)["since"];
@@ -1121,18 +1128,33 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       let authDoc: Record<string, unknown>;
       if (kind === "basic") {
         if (typeof input.auth.user !== "string" || typeof input.auth.password !== "string")
-          refuse(ctx, "validation.bad_input", "auth basic needs user and password (a secret like {secret.Shop_User}, or plain words).");
+          refuse(
+            ctx,
+            "validation.bad_input",
+            "auth basic needs user and password (a secret like {secret.Shop_User}, or plain words).",
+          );
         const named = secretsIn([input.auth.user, input.auth.password]);
         const first = [...named][0];
-        if (!first) refuse(ctx, "validation.bad_input", "auth basic reads at least one secret: put {secret.Name} in user or password.");
+        if (!first)
+          refuse(
+            ctx,
+            "validation.bad_input",
+            "auth basic reads at least one secret: put {secret.Name} in user or password.",
+          );
         authDoc = { type: "api_key", secret: first, basic: { user: input.auth.user, pass: input.auth.password } };
       } else if (kind === "header") {
         if (typeof input.auth.header !== "string" || input.auth.header.trim() === "")
           refuse(ctx, "validation.bad_input", "auth header needs the name of the header it fills.");
-        if (typeof input.auth.template !== "string") refuse(ctx, "validation.bad_input", "auth header needs a template over its secrets.");
+        if (typeof input.auth.template !== "string")
+          refuse(ctx, "validation.bad_input", "auth header needs a template over its secrets.");
         const named = secretsIn(input.auth.template);
         const first = [...named][0];
-        if (!first) refuse(ctx, "validation.bad_input", "auth header's template reads at least one secret: put {secret.Name} in it.");
+        if (!first)
+          refuse(
+            ctx,
+            "validation.bad_input",
+            "auth header's template reads at least one secret: put {secret.Name} in it.",
+          );
         authDoc = { type: "api_key", secret: first, header: input.auth.header, template: input.auth.template };
       } else
         authDoc = {
@@ -1156,14 +1178,27 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         let shape: Record<string, unknown> | undefined;
         if (paginate !== undefined) {
           const at = `${a.name}.paginate`;
-          if (!PAGE_KINDS.includes(paginate.kind)) refuse(ctx, "validation.bad_input", `${at}.kind is one of ${PAGE_KINDS.join(", ")}.`);
+          if (!PAGE_KINDS.includes(paginate.kind))
+            refuse(ctx, "validation.bad_input", `${at}.kind is one of ${PAGE_KINDS.join(", ")}.`);
           for (const k of ["items", "id"] as const)
             if (typeof paginate[k] !== "string" || !(paginate[k] === "" || paginate[k].startsWith("/")))
-              refuse(ctx, "validation.bad_input", `${at}.${k} is a JSON pointer into the answer (for example /data${k === "id" ? "" : ""}).`);
+              refuse(
+                ctx,
+                "validation.bad_input",
+                `${at}.${k} is a JSON pointer into the answer (for example /data${k === "id" ? "" : ""}).`,
+              );
           if (paginate.kind !== "link" && (typeof paginate.param !== "string" || paginate.param === ""))
-            refuse(ctx, "validation.bad_input", `${at}.param names the query parameter that carries the ${paginate.kind}.`);
+            refuse(
+              ctx,
+              "validation.bad_input",
+              `${at}.param names the query parameter that carries the ${paginate.kind}.`,
+            );
           if (paginate.kind === "cursor" && (typeof paginate.next !== "string" || !paginate.next.startsWith("/")))
-            refuse(ctx, "validation.bad_input", `${at}.next is the pointer to the next cursor in the answer: a cursor needs next.`);
+            refuse(
+              ctx,
+              "validation.bad_input",
+              `${at}.next is the pointer to the next cursor in the answer: a cursor needs next.`,
+            );
           shape = {
             items: paginate.items,
             id: paginate.id,

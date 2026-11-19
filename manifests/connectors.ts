@@ -84,13 +84,19 @@ const connectionRow = t.obj({
   createdAt: t.ts(),
   handles: t.arr(id.handle, { description: "The Vault handles this connection uses. Names only, never a value." }),
   filled: t.arr(t.str(), { description: "Secret slots holding a Vault handle; a declared slot not listed is empty." }),
-  pendingHosts: t.opt(t.arr(t.str(), { description: "The connector's addresses, when not all are allowed yet; what approve_hosts takes." })),
+  pendingHosts: t.opt(
+    t.arr(t.str(), {
+      description: "The connector's addresses, when not all are allowed yet; what approve_hosts takes.",
+    }),
+  ),
 });
 
 const serviceChoice = t.obj({
   name: t.str(),
   label: t.str(),
-  options: t.arr(t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()), version: t.str() })),
+  options: t.arr(
+    t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()), version: t.str() }),
+  ),
 });
 const serviceRow = t.obj({
   key: id.connector,

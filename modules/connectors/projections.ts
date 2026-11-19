@@ -406,7 +406,8 @@ function fill(t: unknown, scope: Scope3): unknown {
     const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
     for (const [k, v] of Object.entries(t as Record<string, unknown>)) {
       const f = fill(v, scope);
-      if (f !== ABSENT) Object.defineProperty(out, k, { value: f, enumerable: true, writable: true, configurable: true });
+      if (f !== ABSENT)
+        Object.defineProperty(out, k, { value: f, enumerable: true, writable: true, configurable: true });
     }
     return out;
   }
@@ -662,12 +663,20 @@ export function backfillHosts(tx: Tx, now = 0): void {
     let def: ConnectorDef | null = null;
     if (r.builtin === 1) def = JSON.parse(r.def) as ConnectorDef;
     else {
-      const v = tx.get<{ def: string }>("SELECT def FROM cn_versions WHERE key = ? AND at <= ? ORDER BY at DESC LIMIT 1", r.connector, r.created_at);
+      const v = tx.get<{ def: string }>(
+        "SELECT def FROM cn_versions WHERE key = ? AND at <= ? ORDER BY at DESC LIMIT 1",
+        r.connector,
+        r.created_at,
+      );
       if (v) def = JSON.parse(v.def) as ConnectorDef;
     }
     const rec = def === null ? [] : def.auth.type === "none" ? null : recordFor(def);
     if (rec === null) continue;
-    tx.run("INSERT OR IGNORE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)", r.connection_id, JSON.stringify(rec));
+    tx.run(
+      "INSERT OR IGNORE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
+      r.connection_id,
+      JSON.stringify(rec),
+    );
   }
   tx.run("INSERT OR IGNORE INTO cn_host_backfill (id, at) VALUES (1, ?)", now);
 }

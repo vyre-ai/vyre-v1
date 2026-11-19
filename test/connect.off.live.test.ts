@@ -82,7 +82,10 @@ test("with the switch off, an agent asking for a Fathom key gets the plain key r
     for (const [cap, input] of [
       ["vault.connect", { service: "Fathom", idempotencyKey: "off-person-connect" }],
       ["vault.connect_card.get", { requestId: card.data.requestId }],
-      ["vault.connect_card.submit", { requestId: card.data.requestId, useSaved: true, hosts: ["api.fathom.ai"] }],
+      [
+        "vault.connect_card.submit",
+        { requestId: card.data.requestId, useSaved: true, hosts: ["api.fathom.ai"], version: "1.0.0" },
+      ],
       ["connectors.for_service", { service: "Fathom" }],
     ] as const) {
       const r = await call(d, cap, input);
