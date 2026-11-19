@@ -62,6 +62,7 @@ const journeyRow = t.obj({
     t.arr(t.obj({ key: t.str(), title: t.str() }), { description: "Values the Journey carries from stage to stage" }),
   ),
   legacyType: t.opt(id.recordType),
+  migrateNote: t.opt(t.str()),
   inFlight: t.int({ minimum: 0 }),
   createdAt: t.ts(),
   updatedAt: t.ts(),
@@ -74,6 +75,8 @@ const journeySummary = t.obj({
   version: t.int(),
   stages: t.int(),
   inFlight: t.int(),
+  mode: t.opt(t.enm("subject", "migrating", "pipeline")),
+  migrateNote: t.opt(t.str()),
   updatedAt: t.ts(),
 });
 const target = { journeyId: id.journey };

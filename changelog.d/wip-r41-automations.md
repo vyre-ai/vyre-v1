@@ -8,3 +8,4 @@
 - A board card shows the type's card face (or a person's own): its fields in the order chosen, and a cover for the visual face.
 - A Journey opens on a Path: its stages as columns with the Automations that run in each, how a record gets in, where it ends, what travels with it, where one record is on it (how long in its stage against the limit) and a test of the whole path that tries every stage's Automations on one record without sending anything.
 - A record type has a card face: a preset (simple, detail or visual) and up to six fields, set with `type.update` (the same write for a person's editor, an agent and the API) and checked against the type's own fields. System types may choose their card.
+- After the upgrade the Journeys made the old way move onto their subject type by themselves, in the background, one a minute. A Journey that cannot move keeps the reason and waits for Retry; nothing is deleted and the old records keep their channels and folders.

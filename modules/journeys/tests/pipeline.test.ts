@@ -101,7 +101,7 @@ test("moving the old Journey onto its subject type: every record keeps its stage
   const writes = h
     .only("records.update")
     .filter((c) => c.input.type === "contact")
-    .map((c) => `${c.input.recordId}:${c.input.patch.stage}`)
+    .map((c) => `${c.input.recordId}:${c.input.patch.journey_stage}`)
     .sort();
   assert.deepEqual(writes, ["rec_s0:lead", "rec_s1:won", "rec_s2:lead"]);
   const row = h.db.all("SELECT record_id, legacy_record_id, stage FROM journeys_records ORDER BY record_id") as any[];
@@ -317,4 +317,91 @@ test("test_path: every stage's Automations are tried in order on the record, a r
     recordType: "client",
   });
   assert.equal(h.only("records.update").length, 0, "a test changes no record");
+});
+
+import { autoPipeline } from "../handlers/pipeline.ts";
+const tick = (h: Harness): Promise<string[]> => {
+  h.callee("journeys.to_pipeline", (i) => h.call("journeys.to_pipeline", i, alice));
+  return autoPipeline(h.ctxFor("journeys.to_pipeline", alice));
+};
+
+test("after an upgrade the old Journeys move by themselves, one a tick, and then there is nothing to do", async () => {
+  const h = harness();
+  const a = await old(h, 2);
+  h.advance(60_000);
+  const b = (
+    await h.call("journeys.create", newJourney({ name: "Second", subjectType: "matter", stages: noTasks() }), alice)
+  ).journey;
+  await h.call("journeys.start", { journeyId: b.id, subjectRecordId: "rec_m1" }, alice);
+  assert.deepEqual(await tick(h), [a.j.id], "the oldest first");
+  assert.equal((await h.call("journeys.get", { journeyId: a.j.id }, alice)).journey.mode, "pipeline");
+  assert.equal(
+    (await h.call("journeys.get", { journeyId: b.id }, alice)).journey.mode,
+    "subject",
+    "one Journey a tick",
+  );
+  assert.deepEqual(await tick(h), [b.id]);
+  assert.deepEqual(await tick(h), []);
+});
+
+test("a Journey that cannot move keeps the reason and is left alone until Retry, which finishes it and clears the reason", async () => {
+  const h = harness();
+  let down = true;
+  h.callee("records.update", (i) => {
+    if (i.type === "contact" && down) throw new Error("the records module is down");
+    return { record: {} };
+  });
+  const { j } = await old(h, 2);
+  assert.deepEqual(await tick(h), [j.id]);
+  const g = (await h.call("journeys.get", { journeyId: j.id }, alice)).journey;
+  assert.equal(g.mode, "migrating");
+  assert.match(g.migrateNote, /2 records could not be moved: the records module is down/);
+  assert.deepEqual(await tick(h), [], "not tried again by itself");
+  down = false;
+  const r = await h.call("journeys.to_pipeline", { journeyId: j.id }, alice);
+  assert.equal(r.finished, true);
+  assert.equal(r.journey.migrateNote, undefined);
+  assert.deepEqual(await tick(h), []);
+});
+
+test("a type that already has a Journey is a reason, not a loop", async () => {
+  const h = harness();
+  await pipe(h, { recordType: "contact", subjectType: "contact" });
+  const { j } = await old(h, 1);
+  assert.deepEqual(await tick(h), [j.id]);
+  assert.match(
+    (await h.call("journeys.get", { journeyId: j.id }, alice)).journey.migrateNote,
+    /already runs this record type/,
+  );
+  assert.deepEqual(await tick(h), []);
+});
+
+test("an rc.39 Space's Journeys survive the new migrations: the rows are still there and read as the old model", async () => {
+  const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
+  const { readFileSync } = process.getBuiltinModule("node:fs");
+  const dir = new URL("../migrations/", import.meta.url);
+  const sql = (n: string): string => readFileSync(new URL(n, dir), "utf8");
+  const db = new DatabaseSync(":memory:");
+  db.exec(sql("0001_journeys.sql"));
+  db.exec(sql("0002_task_done_run.sql"));
+  db.prepare(
+    "INSERT INTO journeys_defs (id, name, subject_type, record_type, version, stages, created_at, updated_at) VALUES ('jrn_old', 'ATP', 'client', 'journey_atp', 3, '[]', 1, 2)",
+  ).run();
+  db.prepare(
+    "INSERT INTO journeys_records (record_id, journey_id, subject_record_id, version, stage, start_stage, entered_at, owner_id, start_key, channel_id, thread_id, started_at) VALUES ('rec_j1', 'jrn_old', 'rec_c1', 3, 'review', 'intake', 5, 'usr_a', 'k1', 'chn_1', 'thr_1', 4)",
+  ).run();
+  db.exec(sql("0003_pipeline.sql"));
+  db.exec(sql("0004_migrate_note.sql"));
+  const j = db
+    .prepare("SELECT mode, stage_field, legacy_type, migrate_note, variables FROM journeys_defs WHERE id = 'jrn_old'")
+    .get() as Record<string, unknown>;
+  assert.deepEqual(
+    { ...j },
+    { mode: "subject", stage_field: null, legacy_type: null, migrate_note: null, variables: null },
+  );
+  const r = db
+    .prepare("SELECT stage, channel_id, legacy_record_id FROM journeys_records WHERE record_id = 'rec_j1'")
+    .get() as Record<string, unknown>;
+  assert.deepEqual({ ...r }, { stage: "review", channel_id: "chn_1", legacy_record_id: null });
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM journeys_migration").get() as { n: number }).n, 0);
 });

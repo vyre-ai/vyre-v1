@@ -6,6 +6,7 @@
 // While the Journey is `migrating` nothing moves, starts or advances it (refuseWhileMigrating), so no change lands on a record that was already copied.
 // Nothing is deleted: the old record type, its records, their channels and folders stay where they were. A moved record remembers its old id (legacyRecordId), and the Journey the old type.
 import {
+  allJourneys,
   clean,
   emitJ,
   findRecord,
@@ -26,6 +27,7 @@ import type { Journey, JourneysCtx, MigrationRow } from "../projections.ts";
 import { bindStageField, stageFieldOf } from "./stages.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+const plural = (n: number, w: string): string => `${n} ${w}${n === 1 ? "" : "s"}`;
 const message = (e: unknown): string =>
   (e as { error?: { message?: string } } | null)?.error?.message ?? (e instanceof Error ? e.message : "it failed");
 
@@ -73,7 +75,7 @@ export async function toPipeline(ctx: JourneysCtx, input: In): Promise<unknown> 
   // plan: one migration row per Journey record, once (a resumed run keeps the rows and their states)
   if (j.mode !== "migrating") {
     const field =
-      typeof input.stageField === "string" && input.stageField ? input.stageField : (j.stageField ?? "stage");
+      typeof input.stageField === "string" && input.stageField ? input.stageField : (j.stageField ?? "journey_stage");
     const next: Journey = { ...j, stageField: field };
     // the stage field is bound first: if that is refused nothing has changed
     await bindStageField(ctx, { ...next, recordType: subjectType });
@@ -97,7 +99,12 @@ export async function toPipeline(ctx: JourneysCtx, input: In): Promise<unknown> 
   const rows = migrationRows(ctx.db, j.id);
   const st = stateOf(rows);
   const finished = st.failed.length === 0 && rows.every((r) => r.state === "done");
+  if (!finished && st.failed.length > 0) {
+    j.migrateNote = `${plural(st.failed.length, "record")} could not be moved: ${st.failed[0]!.error}`;
+    saveJourney(ctx.db, j);
+  }
   if (finished) {
+    delete j.migrateNote;
     j.mode = "pipeline";
     j.recordType = subjectType;
     j.updatedAt = ctx.now();
@@ -214,4 +221,25 @@ export async function adopt(ctx: JourneysCtx, input: In): Promise<unknown> {
     adopted += 1;
   }
   return { adopted, skipped, ...(page.next ? { next: page.next } : {}) };
+}
+
+/**
+ * After an upgrade nobody presses anything: every minute this takes the next Journey still on the old model and moves it onto its subject type, one Journey at a time, and the next minute the next.
+ * A Journey that cannot be moved (its type already has a Journey, or some records would not move) keeps the reason in `migrateNote` and is left alone until a person presses Retry in Console,
+ * which is journeys.to_pipeline itself. A stop between ticks loses nothing: a Journey that is `migrating` is picked up again from its journal.
+ */
+export async function autoPipeline(ctx: JourneysCtx): Promise<string[]> {
+  if (!ctx.call) return [];
+  const todo = allJourneys(ctx.db)
+    .filter((j) => (j.mode ?? "subject") !== "pipeline" && j.migrateNote === undefined)
+    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))[0];
+  if (!todo) return [];
+  try {
+    await ctx.call("journeys.to_pipeline", { journeyId: todo.id });
+  } catch (e) {
+    const j = getJourney(ctx, todo.id);
+    j.migrateNote = message(e);
+    saveJourney(ctx.db, j);
+  }
+  return [todo.id];
 }

@@ -172,6 +172,8 @@ export async function list(ctx: JourneysCtx, input: In): Promise<unknown> {
     version: j.version,
     stages: j.stages.length,
     inFlight: countInFlight(ctx.db, j.id),
+    mode: j.mode ?? "subject",
+    ...(j.migrateNote ? { migrateNote: j.migrateNote } : {}),
     updatedAt: j.updatedAt,
   }));
   return clean({ journeys, next: p.next, total: p.total });

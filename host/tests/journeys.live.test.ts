@@ -253,3 +253,62 @@ test("a Start rule starts the Journey when the record is made, and the record ha
     await d.stop();
   }
 });
+
+test("after an upgrade the old Journeys move onto their subject type by themselves, nothing is lost, and the old records stay", async () => {
+  const d = await boot(seededDir());
+  try {
+    const j = await journey(d, "Legacy intake", [
+      stage("start", 0),
+      stage("review", 1),
+      stage("done", 2, { final: true }),
+    ]);
+    const a = await started(d, j.id, "Acme Legacy");
+    const b = await started(d, j.id, "Bolt Legacy");
+    const subjects = [((await ok(d, "/v1/journeys/get", { journeyId: j.id }))["journey"] as { id: string }).id];
+    assert.ok(subjects.length === 1);
+    await ok(d, "/v1/journeys/move_stage", {
+      journeyId: j.id,
+      recordId: b,
+      toStage: "review",
+      reason: "Ready",
+      idempotencyKey: "legacy-move",
+    });
+    // the next minute's job
+    await d.hooks!.runPeriodic("journeys.auto_pipeline");
+    const after = (await ok(d, "/v1/journeys/get", { journeyId: j.id }))["journey"] as {
+      mode: string;
+      recordType: string;
+      legacyType: string;
+      migrateNote?: string;
+    };
+    assert.equal(after.migrateNote, undefined);
+    assert.equal(after.mode, "pipeline");
+    assert.equal(after.recordType, "company");
+    assert.equal(after.legacyType, j.recordType);
+    // the stage lives on the company record itself now, and the old Journey records are still there with their channels
+    const counts = (await ok(d, "/v1/journeys/stage_counts", { journeyId: j.id }))["stages"] as {
+      stage: string;
+      count: number;
+    }[];
+    assert.deepEqual(
+      counts
+        .filter((c) => c.count > 0)
+        .map((c) => [c.stage, c.count])
+        .sort(),
+      [
+        ["review", 1],
+        ["start", 1],
+      ],
+    );
+    const old = (await ok(d, "/v1/records/get", { type: j.recordType, recordId: a }))["record"] as { id: string };
+    assert.equal(old.id, a, "the old record can still be opened");
+    // a second tick has nothing to do and changes nothing
+    await d.hooks!.runPeriodic("journeys.auto_pipeline");
+    assert.equal(
+      ((await ok(d, "/v1/journeys/get", { journeyId: j.id }))["journey"] as { mode: string }).mode,
+      "pipeline",
+    );
+  } finally {
+    await d.stop();
+  }
+});

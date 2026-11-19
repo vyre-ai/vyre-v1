@@ -63,6 +63,8 @@ export interface Journey {
   variables?: { key: string; title: string }[];
   /** The record type that held the Journey records before the move onto a pipeline. */
   legacyType?: string;
+  /** Why the automatic move onto a pipeline stopped; cleared when it finishes. */
+  migrateNote?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -171,6 +173,8 @@ function rowToJourney(r: Raw): Journey {
   if (mode === "subject" || mode === "migrating" || mode === "pipeline") j.mode = mode;
   const sf = str(r.stage_field);
   if (sf !== undefined) j.stageField = sf;
+  const mn = str(r.migrate_note);
+  if (mn !== undefined) j.migrateNote = mn;
   const lt = str(r.legacy_type);
   if (lt !== undefined) j.legacyType = lt;
   const vars = json<{ key: string; title: string }[] | null>(r.variables, null);
@@ -179,8 +183,8 @@ function rowToJourney(r: Raw): Journey {
 }
 export function saveJourney(db: Db, j: Journey): void {
   db.run(
-    `INSERT OR REPLACE INTO journeys_defs (id, name, subject_type, record_type, version, stages, start_rule, start_automation_id, created_at, updated_at, deleted_at, mode, stage_field, variables, legacy_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO journeys_defs (id, name, subject_type, record_type, version, stages, start_rule, start_automation_id, created_at, updated_at, deleted_at, mode, stage_field, variables, legacy_type, migrate_note)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
     j.id,
     j.name,
     j.subjectType,
@@ -195,6 +199,7 @@ export function saveJourney(db: Db, j: Journey): void {
     nul(j.stageField),
     j.variables ? js(j.variables) : null,
     nul(j.legacyType),
+    nul(j.migrateNote),
   );
 }
 export function findJourney(db: Db, id: string): Journey | undefined {
@@ -292,6 +297,7 @@ export function out(j: Journey, inFlight: number): Record<string, unknown> {
     stageField: j.stageField,
     variables: j.variables,
     legacyType: j.legacyType,
+    migrateNote: j.migrateNote,
     inFlight,
     createdAt: j.createdAt,
     updatedAt: j.updatedAt,
