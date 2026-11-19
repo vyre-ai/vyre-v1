@@ -531,3 +531,26 @@ test("a folder whose audience a person chose is not re-attached by the host: a m
   await folderNarrow(host, { folderId: "fld_plain" });
   assert.notEqual(r.store.resources.get("fld_plain")!.row?.["audienceChosen"], true);
 });
+
+test("what a folder follows is read from access.shares_of (inherits), not from the Files tree: empty before the follow, the record after it, and gone again when the folder is moved", async () => {
+  const r = rig();
+  r.store.resources.set("fld_deal", {
+    id: "fld_deal",
+    type: "folder",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+    row: { name: "Acme files", itemType: "file", scope: "space" },
+  });
+  r.store.bump();
+  const folder = { type: "folder", id: "fld_deal" };
+  const host: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_host" } };
+  assert.equal((await sharesOf(r.ctx, { resource: folder })).inherits, undefined, "it follows nothing yet");
+  await audienceSet(host, { resource: folder, follows: "rec_one" });
+  assert.equal(
+    (await sharesOf(r.ctx, { resource: folder })).inherits,
+    "rec_one",
+    "after the real follow it says which record",
+  );
+});

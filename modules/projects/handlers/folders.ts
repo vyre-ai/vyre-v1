@@ -551,8 +551,14 @@ export async function onFolderUnfollowed(
   const by = String(payload["by"] ?? "");
   if (!folderId || !recordId) return;
   // asked again before anything changes: a folder that follows its record by now (a retry or the sweep made it so) is left exactly as it is
-  const now = await tolerant<{ folder?: { parentId?: string | null } }>(ctx, "files.folder.get", { folderId }, {});
-  if (now.folder?.parentId === recordId) return;
+  // (access.shares_of says what a folder follows, from the access store the follow writes; the Files tree's own parent is not that)
+  const now = await tolerant<{ inherits?: string }>(
+    ctx,
+    "access.shares_of",
+    { resource: { type: "folder", id: folderId } },
+    {},
+  );
+  if (now.inherits === recordId) return;
   // the host's own service may attach any folder to its record: if that works the folder follows after all and nothing is narrowed; only a refusal of rights narrows it
   try {
     await call(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId });

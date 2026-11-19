@@ -1527,8 +1527,19 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
   }
   const mine = callerLevel(ctx, store, res) ?? undefined;
   const agentsCanCall = res.type === "agent" ? res.row?.["agentsCanCall"] !== false : undefined;
-  if (!RECORDS.has(res.type))
-    return { shares, ...(mine ? { mine } : {}), ...(agentsCanCall === undefined ? {} : { agentsCanCall }) };
+  if (!RECORDS.has(res.type)) {
+    // a Files folder that follows its record says which one (the real signal, read from the access store that audience_set follows writes; files.folder.get's parent is the Files tree's own)
+    const follows =
+      res.type === "folder" && res.parentId !== null && store.resources.get(res.parentId)?.type === "record"
+        ? res.parentId
+        : undefined;
+    return {
+      shares,
+      ...(mine ? { mine } : {}),
+      ...(agentsCanCall === undefined ? {} : { agentsCanCall }),
+      ...(follows ? { inherits: follows } : {}),
+    };
+  }
   const audience = audienceOf(res);
   const out: {
     shares: typeof shares;

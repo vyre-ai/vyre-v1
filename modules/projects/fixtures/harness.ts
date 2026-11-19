@@ -203,15 +203,22 @@ export function fakeWorld(clock: { t: number }) {
     },
     "records.query": (i) => ({ rows: [...records.values()].filter((r) => r.type === i.type).map(recordOut) }),
     "access.shares_of": (i) =>
-      outside.answer === "fails" && i.resource.type === "record_type"
-        ? fail("internal.unavailable", "down")
-        : {
-            ...(outside.answer === "absent" ? {} : { outside: outside.answer }),
-            shares: (i.resource.type === "record" ? (recordShares.get(i.resource.id) ?? []) : []).map((g) => ({
-              grant: { subject: g.subject, level: g.level, resource: i.resource },
-              through: "direct",
-            })),
-          },
+      i.resource.type === "folder"
+        ? {
+            shares: [],
+            ...(folders.get(i.resource.id)?.parentId?.startsWith("rec_")
+              ? { inherits: folders.get(i.resource.id)!.parentId }
+              : {}),
+          }
+        : outside.answer === "fails" && i.resource.type === "record_type"
+          ? fail("internal.unavailable", "down")
+          : {
+              ...(outside.answer === "absent" ? {} : { outside: outside.answer }),
+              shares: (i.resource.type === "record" ? (recordShares.get(i.resource.id) ?? []) : []).map((g) => ({
+                grant: { subject: g.subject, level: g.level, resource: i.resource },
+                through: "direct",
+              })),
+            },
     "access.grants.list": (i) => ({
       grants: grants
         .filter(
