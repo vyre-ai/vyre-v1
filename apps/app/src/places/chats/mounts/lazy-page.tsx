@@ -12,7 +12,7 @@ export function lazyPage<P extends object>(
   Draw: (props: P) => ReactElement;
   preload: () => Promise<void>;
 } {
-  const Part = lazyPart<P>(() => load().then((c) => ({ default: c })));
+  const Part = lazyPart<ComponentType<P>>(() => load().then((c) => ({ default: c })));
   function Draw(props: P): ReactElement {
     return (
       <Suspense fallback={placeholder ? placeholder(props) : null}>

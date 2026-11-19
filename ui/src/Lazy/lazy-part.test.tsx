@@ -170,3 +170,35 @@ test("a crash of the part's own code is not the load boundary's: it goes on to t
     undo();
   }
 });
+
+test("a loader that throws before it returns a promise shows Retry; it is not a crash of the page", async () => {
+  const undo = installDom();
+  const log = console.error;
+  console.error = () => undefined;
+  try {
+    let tries = 0;
+    const Part = lazyPart<typeof Page>(() => {
+      tries += 1;
+      if (tries === 1) throw new Error("the loader broke before it started");
+      return Promise.resolve({ default: Page });
+    });
+    const r = createRoot();
+    await act(async () => {
+      r.render(
+        <Shell>
+          <Part label="s" />
+        </Shell>,
+      );
+    });
+    await flush();
+    const root = r.container as never;
+    assert.ok(find(root, "shell"));
+    assert.ok(find(root, "lazy-part-failed"), "Retry, not a crash");
+    await press(find(root, "lazy-part-retry"));
+    await flush();
+    assert.ok(find(root, "box"));
+  } finally {
+    console.error = log;
+    undo();
+  }
+});
