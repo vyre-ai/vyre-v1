@@ -28,6 +28,8 @@ type In = {
   connectionId: string;
   as?: string;
   to: Array<string>;
+  cc?: Array<string>;
+  bcc?: Array<string>;
   subject: string;
   text?: string;
   html?: string;
@@ -61,6 +63,12 @@ type Out = {
   "name": "example",
   "input": {
     "as": "maya@example.com",
+    "bcc": [
+      "maya@example.com"
+    ],
+    "cc": [
+      "maya@example.com"
+    ],
     "connectionId": "con_a1b2c3",
     "html": "example",
     "idempotencyKey": "idem_1",

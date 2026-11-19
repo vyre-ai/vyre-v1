@@ -21137,6 +21137,8 @@ export type GoogleGmailCreateDraftIn = {
   connectionId: string;
   as?: string;
   to: Array<string>;
+  cc?: Array<string>;
+  bcc?: Array<string>;
   subject: string;
   text?: string;
   html?: string;
@@ -40142,7 +40144,8 @@ export type SyncSpecsApplyIn = {
     };
     auth: {
       vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
+      style: "bearer" | "header" | "basic" | "query" | "oauth" | "oauth_refresh";
+      tokenUrl?: string;
       header?: string;
       prefix?: string;
       headers?: Record<string, string>;
@@ -40291,7 +40294,8 @@ export type SyncSpecsGetOut = {
     };
     auth: {
       vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
+      style: "bearer" | "header" | "basic" | "query" | "oauth" | "oauth_refresh";
+      tokenUrl?: string;
       header?: string;
       prefix?: string;
       headers?: Record<string, string>;
@@ -40421,7 +40425,8 @@ export type SyncSpecsPreviewIn = {
     };
     auth: {
       vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
+      style: "bearer" | "header" | "basic" | "query" | "oauth" | "oauth_refresh";
+      tokenUrl?: string;
       header?: string;
       prefix?: string;
       headers?: Record<string, string>;
@@ -40674,7 +40679,8 @@ export type SyncSpecsValidateIn = {
     };
     auth: {
       vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
+      style: "bearer" | "header" | "basic" | "query" | "oauth" | "oauth_refresh";
+      tokenUrl?: string;
       header?: string;
       prefix?: string;
       headers?: Record<string, string>;

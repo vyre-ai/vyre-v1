@@ -70,3 +70,43 @@ test("both steps are in the catalogue, write steps that a test run stubs, and na
     );
   }
 });
+
+test("Draft a Gmail message makes a draft with the copies and the From address, and never sends", async () => {
+  const h = harness({ "google.gmail.create_draft": () => ({ draftId: "r-1" }) });
+  const out = await runStep(
+    h.env,
+    node("d", "google.gmail.create_draft", {
+      connectionId: "con_a1b2c3",
+      as: "ann@firm.example",
+      to: ["c@x.example"],
+      cc: ["b@x.example"],
+      subject: "Hi",
+      text: "Body",
+    }),
+    callOf({ trigger: {} }),
+  );
+  assert.deepEqual(out.output, { draftId: "r-1" });
+  const sent = h.log[0]!.input as Record<string, unknown>;
+  assert.deepEqual([sent["as"], sent["cc"]], ["ann@firm.example", ["b@x.example"]]);
+  assert.equal(
+    h.log.some((c) => /send_message/.test(c.cap)),
+    false,
+  );
+  const s = registry.steps.find((x) => x.key === "google.gmail.create_draft");
+  assert.equal(s?.gateAct, undefined, "a draft has no send act on the Gate");
+});
+
+test("the read and draft-only steps of the connected apps are in the catalogue", () => {
+  for (const key of [
+    "google.gmail.create_draft",
+    "google.gmail.get_message",
+    "google.calendar.get_event",
+    "google.drive.get_file",
+    "ms.mail.create_draft",
+    "ms.mail.get_message",
+  ]) {
+    const s = registry.steps.find((x) => x.key === key);
+    assert.ok(s, key);
+    assert.ok(!s.gateAct || s.gateAct !== "send", `${key} must not be a send`);
+  }
+});

@@ -30552,6 +30552,26 @@
             "pattern": "^[^@\\s]+@[^@\\s]+$",
             "type": "string"
           },
+          "bcc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
           "connectionId": {
             "examples": [
               "con_a1b2c3"
@@ -61672,8 +61692,13 @@
                       "header",
                       "basic",
                       "query",
-                      "oauth"
+                      "oauth",
+                      "oauth_refresh"
                     ],
+                    "type": "string"
+                  },
+                  "tokenUrl": {
+                    "description": "oauth_refresh: the https address that trades the refresh token for an access token",
                     "type": "string"
                   },
                   "vaultHandle": {
@@ -62363,8 +62388,13 @@
                       "header",
                       "basic",
                       "query",
-                      "oauth"
+                      "oauth",
+                      "oauth_refresh"
                     ],
+                    "type": "string"
+                  },
+                  "tokenUrl": {
+                    "description": "oauth_refresh: the https address that trades the refresh token for an access token",
                     "type": "string"
                   },
                   "vaultHandle": {
@@ -63173,8 +63203,13 @@
                       "header",
                       "basic",
                       "query",
-                      "oauth"
+                      "oauth",
+                      "oauth_refresh"
                     ],
+                    "type": "string"
+                  },
+                  "tokenUrl": {
+                    "description": "oauth_refresh: the https address that trades the refresh token for an access token",
                     "type": "string"
                   },
                   "vaultHandle": {

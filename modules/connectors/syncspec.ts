@@ -24,7 +24,7 @@ export type SpecFieldType = (typeof FIELD_TYPES)[number];
 export const SECRET_ID =
   /(?<![a-z])(ssn|ein|tin)(?![a-z])|social[ _-]?security|tax[ _-]?id|account[ _-]?(number|no|num)(?![a-z])|routing|licen[cs]e[ _-]?(number|no|num)(?![a-z])|driver'?s?[ _-]?licen[cs]e|passport|card[ _-]?(number|no|num)(?![a-z])/i;
 export const SSN_SHAPE = /^\d{3}-\d{2}-\d{4}$/;
-export const AUTH_STYLES = ["bearer", "header", "basic", "query", "oauth"] as const;
+export const AUTH_STYLES = ["bearer", "header", "basic", "query", "oauth", "oauth_refresh"] as const;
 export const CURSOR_KINDS = ["none", "page", "cursor", "offset", "link"] as const;
 export const DIRECTIONS = ["both", "pull", "push", "off"] as const;
 
@@ -128,6 +128,8 @@ export interface SyncSpec {
   auth: {
     vaultHandle: string;
     style: (typeof AUTH_STYLES)[number];
+    /** oauth_refresh: where the refresh token is traded for an access token. The Vault item at vaultHandle holds client_id, client_secret and refresh_token. */
+    tokenUrl?: string;
     header?: string;
     prefix?: string;
     headers?: Record<string, string>;
@@ -185,6 +187,25 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
     bad("auth.style", "A key in the address is refused: use bearer or header.");
   if (isObj(auth) && auth["style"] === "oauth")
     bad("auth.style", "Sign in with OAuth in Console > Integrations first; the spec takes a key held in the Vault.");
+  if (isObj(auth) && auth["style"] === "oauth_refresh") {
+    const token = str(auth["tokenUrl"]);
+    let ok = false;
+    try {
+      ok = token !== "" && new URL(token).protocol === "https:";
+    } catch {
+      ok = false;
+    }
+    if (!ok)
+      bad(
+        "auth.tokenUrl",
+        "auth.tokenUrl is the https address that renews the sign-in, such as https://app.example.com/oauth/token.",
+      );
+    if (str(auth["vaultHandle"]).includes("."))
+      bad(
+        "auth.vaultHandle",
+        "For oauth_refresh the handle names the whole Vault item (#Clio_App), which holds client_id, client_secret and refresh_token.",
+      );
+  }
   const objects = raw["objects"],
     mapping = raw["mapping"];
   if (!Array.isArray(objects) || !objects.length) bad("objects", "List at least one object.");
@@ -910,8 +931,17 @@ export function compileSpec(spec: SyncSpec): Compiled {
     });
   }
 
-  const auth: ConnectorDef["auth"] =
-    spec.auth.style === "bearer"
+  const refreshing = spec.auth.style === "oauth_refresh";
+  const refreshSlots = { id: "Client_id", secret: "Client_secret", refresh: "Refresh_token" };
+  const auth: ConnectorDef["auth"] = refreshing
+    ? {
+        type: "oauth_refresh",
+        tokenUrl: spec.auth.tokenUrl ?? "",
+        clientIdSecret: refreshSlots.id,
+        clientSecret: refreshSlots.secret,
+        refreshSecret: refreshSlots.refresh,
+      }
+    : spec.auth.style === "bearer"
       ? { type: "bearer", secret: secretSlot }
       : {
           type: "api_key",
@@ -926,8 +956,19 @@ export function compileSpec(spec: SyncSpec): Compiled {
     scope: "space",
     version: "0.0.0",
     auth,
-    domains: [spec.app.domain],
-    secrets: [{ name: secretSlot, description: `Key for ${spec.app.name}` }],
+    domains: [
+      ...new Set([
+        spec.app.domain,
+        ...(refreshing && spec.auth.tokenUrl ? [new URL(spec.auth.tokenUrl).hostname] : []),
+      ]),
+    ],
+    secrets: refreshing
+      ? [
+          { name: refreshSlots.id, description: `Client id of the ${spec.app.name} app` },
+          { name: refreshSlots.secret, description: `Client secret of the ${spec.app.name} app` },
+          { name: refreshSlots.refresh, description: `Refresh token for ${spec.app.name}` },
+        ]
+      : [{ name: secretSlot, description: `Key for ${spec.app.name}` }],
     actions,
     objects,
     syncedTypes: spec.mapping.map((m) => m.remote),

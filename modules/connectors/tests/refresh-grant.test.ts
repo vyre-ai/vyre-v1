@@ -1,0 +1,172 @@
+// An app that issues its own OAuth client (item 8): the Vault item holds client_id, client_secret and refresh_token; the connector trades them for an access token, renews it before it ends, writes a rotated
+// refresh token back into the same item, and repeats a call once when the app answers 401. The app here is a stand-in that rotates refresh tokens, as Clio does, and refuses one it has already retired.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { kit } from "../fixtures/kit.ts";
+import type { Kit, Sent } from "../fixtures/kit.ts";
+import { resetGrants } from "../refresh-grant.ts";
+import type { ConnectorDef } from "../projections.ts";
+
+const CLIO: ConnectorDef = {
+  key: "clio",
+  title: "Clio Manage",
+  mode: "api",
+  scope: "space",
+  version: "1.0.0",
+  auth: {
+    type: "oauth_refresh",
+    tokenUrl: "https://app.clio.com/oauth/token",
+    clientIdSecret: "Client_id",
+    clientSecret: "Client_secret",
+    refreshSecret: "Refresh_token",
+  },
+  domains: ["app.clio.com"],
+  secrets: [
+    { name: "Client_id", description: "id" },
+    { name: "Client_secret", description: "secret" },
+    { name: "Refresh_token", description: "refresh" },
+  ],
+  health: "ping",
+  actions: [{ name: "ping", url: "https://app.clio.com/api/v4/ping", output: "/ok" }],
+};
+
+/** The app: one live refresh token and one live access token; using a retired refresh token is refused. */
+function app(k: Kit) {
+  const s = { refresh: "rt_1", access: "", n: 0, posts: 0, api: 0, lifetime: 3600 };
+  k.state.reply = (req: Sent) => {
+    if (req.url.endsWith("/oauth/token")) {
+      s.posts += 1;
+      const form = new URLSearchParams(req.body ?? "");
+      if (form.get("grant_type") !== "refresh_token" || form.get("refresh_token") !== s.refresh)
+        return { status: 400, body: { error: "invalid_grant" } };
+      if (form.get("client_id") !== "cid" || form.get("client_secret") !== "csecret")
+        return { status: 401, body: { error: "invalid_client" } };
+      s.n += 1;
+      s.access = `at_${s.n}`;
+      s.refresh = `rt_${s.n + 1}`;
+      return {
+        status: 200,
+        body: { access_token: s.access, refresh_token: s.refresh, expires_in: s.lifetime, token_type: "bearer" },
+      };
+    }
+    s.api += 1;
+    return req.headers["Authorization"] === `Bearer ${s.access}` && s.access !== ""
+      ? { status: 200, body: { ok: true } }
+      : { status: 401, body: { error: "expired" } };
+  };
+  return s;
+}
+
+async function connected(k: Kit): Promise<string> {
+  resetGrants();
+  k.install(CLIO);
+  k.items["vit_9"] = { handle: "#Clio_App", name: "Clio_App", value: "", folderId: "vfd_1" };
+  Object.assign(k.vault, {
+    "#Clio_App.client_id": "cid",
+    "#Clio_App.client_secret": "csecret",
+    "#Clio_App.refresh_token": "rt_1",
+  });
+  const made = await k.hs["connections.create"](k.ctx, {
+    connector: "clio",
+    title: "Clio",
+    ownerKind: "space",
+    secrets: {
+      Client_id: "#Clio_App.client_id",
+      Client_secret: "#Clio_App.client_secret",
+      Refresh_token: "#Clio_App.refresh_token",
+    },
+  } as never);
+  return made.connection.connectionId;
+}
+const ping = (k: Kit, id: string) =>
+  k.hs["connectors.run"](k.ctx, { key: "clio", action: "ping", connectionId: id, input: {} });
+const posts = (k: Kit): Sent[] => k.sent.filter((r) => r.url.endsWith("/oauth/token"));
+
+test("the first call trades the refresh token, sends the access token, and writes the rotated refresh token back into the same Vault item", async () => {
+  const k = kit();
+  const s = app(k);
+  const id = await connected(k);
+  const out = await ping(k, id);
+  assert.equal(out.output, true);
+  assert.equal(s.posts, 1);
+  assert.equal(k.vault["#Clio_App.refresh_token"], "rt_2", "the item holds the refresh token the app issued");
+  const api = k.sent.find((r) => r.url.includes("/api/v4/ping"))!;
+  assert.equal(api.headers["Authorization"], "Bearer at_1");
+  assert.equal(k.calls.filter((c) => c.cap === "vault.item.update").length, 1, "one update");
+});
+
+test("the access token is kept until a minute before it ends, then renewed with the rotated refresh token", async () => {
+  const k = kit();
+  const s = app(k);
+  const id = await connected(k);
+  await ping(k, id);
+  await ping(k, id);
+  assert.equal(s.posts, 1, "the second call reuses the token");
+  k.clock.t += 3_539_000; // 61 s left of the hour
+  await ping(k, id);
+  assert.equal(s.posts, 1);
+  k.clock.t += 2_000; // under a minute left
+  await ping(k, id);
+  assert.equal(s.posts, 2);
+  assert.equal(k.vault["#Clio_App.refresh_token"], "rt_3");
+  assert.equal(posts(k).length, 2);
+});
+
+test("a 401 is answered with one new token and one repeat; a second 401 asks for a reconnect and no more calls follow", async () => {
+  const k = kit();
+  const s = app(k);
+  const id = await connected(k);
+  await ping(k, id);
+  s.access = "revoked_at_the_app"; // the app retired the token we hold
+  const out = await ping(k, id);
+  assert.equal(out.output, true);
+  assert.equal(s.posts, 2);
+  assert.equal(s.api, 3, "the 401 and its repeat");
+  // an app that keeps refusing: one repeat only
+  const before = s.api;
+  k.state.reply = (req: Sent) =>
+    req.url.endsWith("/oauth/token")
+      ? { status: 200, body: { access_token: "x", refresh_token: "rt_x", expires_in: 3600 } }
+      : { status: 401, body: {} };
+  await assert.rejects(ping(k, id), (e) => (e as { error?: { code?: string } }).error?.code === "provider.auth_failed");
+  assert.equal(s.api, before, "no call reached the stand-in app");
+  assert.equal(k.sent.filter((r) => r.url.includes("/api/v4/ping")).length - before, 2);
+});
+
+test("a refused refresh token fails with a plain line that has no token in it", async () => {
+  const k = kit();
+  app(k);
+  const id = await connected(k);
+  k.vault["#Clio_App.refresh_token"] = "rt_old_and_retired";
+  await assert.rejects(ping(k, id), (e) => {
+    const err = (e as { error?: { code?: string; message?: string } }).error!;
+    assert.equal(err.code, "provider.auth_failed");
+    assert.doesNotMatch(String(err.message), /rt_|csecret|at_/);
+    return true;
+  });
+});
+
+test("a rotated refresh token the Vault could not take is kept and saved first on the next call", async () => {
+  const k = kit();
+  const s = app(k);
+  const id = await connected(k);
+  const real = k.mk;
+  void real;
+  k.vaultFault.next = null;
+  // the Vault refuses the update twice (the grant tries twice), then recovers
+  let refuse = 2;
+  const call = k.ctx.call;
+  k.ctx.call = async (cap, input) => {
+    if (cap === "vault.item.update" && refuse-- > 0) throw new Error("vault is busy");
+    return call(cap, input);
+  };
+  await assert.rejects(ping(k, id), (e) =>
+    /could not be saved to the Vault item/.test(String((e as { error?: { message?: string } }).error?.message)),
+  );
+  assert.equal(k.vault["#Clio_App.refresh_token"], "rt_1", "the item still has the retired one");
+  k.clock.t += 4_000_000;
+  const out = await ping(k, id);
+  assert.equal(out.output, true);
+  assert.equal(k.vault["#Clio_App.refresh_token"], "rt_3", "the held token went in first, then the next rotation");
+  assert.equal(s.n, 2);
+});

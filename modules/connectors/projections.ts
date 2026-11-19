@@ -20,7 +20,7 @@ export type ConnectionState = "pending" | "active" | "paused" | "needs_reconnect
 export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface AuthDef {
-  type: "api_key" | "bearer" | "oauth2" | "client_credentials" | "none";
+  type: "api_key" | "bearer" | "oauth2" | "client_credentials" | "oauth_refresh" | "none";
   /** Declared secret that holds the key or the access token. */
   secret?: string;
   /** api_key: the header the key travels in, and a prefix such as "Token ". Default Authorization. */
@@ -33,6 +33,9 @@ export interface AuthDef {
   scopes?: string[];
   /** The NAME of a declared secret that holds the client secret (never the secret itself). */
   clientSecret?: string;
+  /** oauth_refresh: the NAMES of the declared secrets that hold the client id and the refresh token (clientSecret names the client secret). One Vault item holds all three; a rotated refresh token is written back to it. */
+  clientIdSecret?: string;
+  refreshSecret?: string;
   /** Where a token is revoked when a connection is deleted; optional, best effort. */
   revokeUrl?: string;
   /** api_key or bearer only: send HTTP Basic (user:password) instead of a header. Both are templates (`{secret.Name}` or plain words, "api"); the password may be empty. The joined value is scrubbed like a secret. */
@@ -188,6 +191,8 @@ export interface ProbeRequest {
   headers?: Record<string, string>;
   domain: string;
   url: string;
+  /** Sign in by trading a refresh token (auth style oauth_refresh): the item's handle is `handle`, and style is bearer once the token is had. */
+  refreshFrom?: { tokenUrl: string };
 }
 export interface ProbeReply {
   status: number;

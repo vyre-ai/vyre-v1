@@ -88,9 +88,25 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
         if (String(i["item"]).toLowerCase() === "#stripe_live") throw new Error("permission.no_grant");
         return { handle: i["item"], itemId: "vit_kit0001", fields: ["value"] };
       }
+      if (cap === "vault.items.list") {
+        const q = String(i["q"] ?? "").toLowerCase();
+        return {
+          items: Object.entries(items)
+            .filter(([, it]) => it.name.toLowerCase().includes(q))
+            .map(([id, it]) => ({ id, name: it.name, handle: it.handle })),
+        };
+      }
       if (cap === "vault.item.update") {
         const it = items[i["itemId"]];
         if (!it) throw new Error("no item");
+        // an item with several fields: the handle plus a dot names one
+        if (i["fieldsSet"][0].key !== "token") {
+          for (const f of i["fieldsSet"] as { key: string; value: string }[]) {
+            vault[`${it.handle}.${f.key}`] = f.value;
+            stored.push({ name: `${it.name}.${f.key}`, value: f.value });
+          }
+          return { item: { id: i["itemId"], handle: it.handle } };
+        }
         it.value = i["fieldsSet"][0].value;
         vault[it.handle] = it.value;
         stored.push({ name: it.name, value: it.value });

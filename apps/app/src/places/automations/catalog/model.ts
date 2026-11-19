@@ -41,6 +41,8 @@ const VYRE_PRODUCT = /^(calendar\.|files\.|forms\.)/;
 /** Connected-app order: common operations for one app, then the next app, then the authenticated request. */
 const CONNECTED_ORDER = [
   "google.gmail.list_messages",
+  "google.gmail.create_draft",
+  "google.gmail.get_message",
   "google.gmail.send_message",
   "google.calendar.list_events",
   "google.calendar.create_event",
@@ -50,6 +52,8 @@ const CONNECTED_ORDER = [
   "google.sheets.append_values",
   "google.docs.create_document",
   "ms.mail.list_messages",
+  "ms.mail.create_draft",
+  "ms.mail.get_message",
   "ms.mail.send_message",
   "ms.calendar.list_events",
   "ms.calendar.create_event",
