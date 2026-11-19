@@ -77,16 +77,18 @@ export function lazyPart<T extends AnyComponent>(
   let loaded: T | null = null;
   let pending: Promise<T> | null = null;
   const get = (): Promise<T> =>
-    (pending ??= load().then(
-      (m) => {
-        loaded = m.default;
-        return m.default;
-      },
-      (e: unknown) => {
-        pending = null; // a failed load is not kept: the next use asks again
-        throw e;
-      },
-    ));
+    (pending ??= Promise.resolve()
+      .then(load)
+      .then(
+        (m) => {
+          loaded = m.default;
+          return m.default;
+        },
+        (e: unknown) => {
+          pending = null; // a failed load is not kept: the next use asks again
+          throw e;
+        },
+      ));
   let current = fresh();
   function Inner(props: P): ReactElement {
     const attempt = current;
