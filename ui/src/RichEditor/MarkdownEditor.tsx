@@ -14,6 +14,12 @@ import { Row } from "../Row/index.tsx";
 import { MarkdownText } from "../stream/MarkdownText.tsx";
 import { blockOfLine, dedentPaste, docToMarkdown, looksLikeMarkdown, markdownToDoc } from "./mdtree.ts";
 import type { PMNode } from "./mdtree.ts";
+import { ChangeCard, DocBar } from "./doc/DocBar.tsx";
+import { chipNode, matchFields } from "./doc/fields.ts";
+import type { FieldDef, FieldResolver } from "./doc/fields.ts";
+import { mergeRemote } from "./doc/merge.ts";
+import { changeAt, listChanges, resolveChanges } from "./doc/track.ts";
+import type { Change } from "./doc/track.ts";
 import { belowPhone } from "../SidePane/layout.ts";
 
 export type MarkdownView = "styled" | "raw";
@@ -32,7 +38,7 @@ export interface SuggestItem {
  */
 export interface SuggestOptions {
   /** "/" opens at the start of an empty line (the slash menu: the host lists what it can insert). */
-  trigger: "[[" | "@" | "/";
+  trigger: "[[" | "@" | "/" | "{";
   items: readonly SuggestItem[];
   /** A pick that inserts a block rather than text: the node (ProseMirror JSON, see liveBlockNode) to put in place of the trigger. Null falls back to `insert`. */
   insertNode?: (item: SuggestItem) => unknown;
@@ -42,6 +48,30 @@ export interface SuggestOptions {
   label: string;
   menuTestID?: string;
   itemTestID?: (item: SuggestItem) => string;
+}
+
+/**
+ * What makes the page a Vyre document: blanks drawn as chips (`{client.name}`), a picker for them, and suggestions (tracked changes) that a person or an agent makes and anyone who may edit accepts or rejects.
+ * Left out, the editor is the plain Markdown editor and `{` and `{++` are only text.
+ */
+export interface DocEditing {
+  /** What each chip reads from the record the page is bound to: a value, null for "this record has none" (the chip turns amber), undefined for "no record" (the chip shows its name). */
+  resolve?: FieldResolver;
+  /** The fields of the template's record type: what typing `{` or pressing Field lists. */
+  fields?: readonly FieldDef[];
+  /** Who is editing. With a name the page offers Editing and Suggesting, and a suggestion is signed with it. */
+  author?: string;
+  /** Suggesting is on (controlled). Left out, the page keeps it. */
+  suggesting?: boolean;
+  onSuggesting?: (on: boolean) => void;
+  /** The person may accept and reject (they can edit the document). Default true. */
+  canResolve?: boolean;
+  /** Who wrote text that arrives from outside while the page is open (an agent), named on the suggestion it becomes if it clashes with the person's edit. */
+  remoteAuthor?: string;
+  /** The clock of a suggestion's time. Tests pass their own. */
+  now?: () => string;
+  /** The number of suggestions changed. */
+  onChanges?: (count: number) => void;
 }
 
 export interface MarkdownEditorProps {
@@ -78,6 +108,8 @@ export interface MarkdownEditorProps {
   focusKey?: number;
   /** A menu at the caret for a trigger typed in the styled view. */
   suggest?: SuggestOptions;
+  /** Make the page a Vyre document: field chips and tracked changes. */
+  doc?: DocEditing;
   /**
    * How a live block (a `:::live {json}` line) is drawn: the host returns its own view for the block's attributes. `api.update` changes the block's type, spec or view; `api.remove` deletes it.
    * Read mode with this prop keeps the live blocks drawn (the rest is the same styled page, not editable).
@@ -110,6 +142,12 @@ const MD_CSS = [
   ".vyre-md hr{border:0;border-top:1px solid var(--line-2);margin:16px 0}.vyre-md a{color:var(--accent);text-decoration:none}.vyre-md a:hover{text-decoration:underline}.vyre-md s{color:var(--ink-3)}",
   ".vyre-md .vyre-hit{animation:vyre-md-hit 1.6s ease-out;border-radius:4px}@keyframes vyre-md-hit{0%,55%{background:var(--accent-wash);box-shadow:-6px 0 0 var(--accent-wash),6px 0 0 var(--accent-wash)}100%{background:transparent;box-shadow:none}}",
   ".vyre-md .ProseMirror-gapcursor{display:none}",
+  // a Vyre document: field chips (name, value, amber when the record has none, signing mark) and suggestions (added text underlined, removed text struck)
+  ".vyre-chip{display:inline-block;padding:0 7px;margin:0 1px;border-radius:6px;font-size:13.5px;line-height:21px;white-space:nowrap;cursor:default;background:var(--accent-wash);color:var(--accent);user-select:none}",
+  ".vyre-chip-value{background:var(--sunk);color:var(--ink)}.vyre-chip-sign{background:var(--sunk);color:var(--ink-2);font-style:italic}",
+  ".vyre-chip-missing{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--warn) 45%,transparent)}.vyre-chip.ProseMirror-selectednode{box-shadow:0 0 0 2px var(--accent)}",
+  ".vyre-md ins.vyre-sg-add{text-decoration:underline;text-decoration-color:var(--accent);text-underline-offset:3px;background:var(--accent-wash)}",
+  ".vyre-md del.vyre-sg-del{text-decoration:line-through;text-decoration-color:var(--danger);color:var(--ink-3);background:color-mix(in srgb,var(--danger) 8%,transparent)}",
   // the raw view: the text drawn behind a transparent textarea of the same box, sized to its text so there is no scroll to keep in step
   ".vyre-rawwrap{position:relative}.vyre-rawwrap pre,.vyre-rawwrap textarea{font-family:var(--ui,inherit);font-size:15px;line-height:24px;letter-spacing:normal;white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;margin:0;padding:0;border:0;width:100%;box-sizing:border-box;tab-size:2}",
   ".vyre-rawwrap pre{position:absolute;left:0;top:0;right:0;color:var(--ink);pointer-events:none}.vyre-rawwrap textarea{position:relative;display:block;background:transparent;color:transparent;caret-color:var(--accent);resize:none;overflow:hidden;outline:none}",
@@ -308,13 +346,15 @@ function RawMarkdown(p: {
 }
 
 /** Where the text before the caret ends in a trigger: the query typed after it and how many characters the trigger and query take. "[[Bro" is `Bro`, 5; "hi @Sa" is `Sa`, 3; text with the trigger closed or far behind is null. */
-export function findTrigger(before: string, trigger: "[[" | "@" | "/"): { query: string; length: number } | null {
+export function findTrigger(before: string, trigger: "[[" | "@" | "/" | "{"): { query: string; length: number } | null {
   const m =
     trigger === "[["
       ? /\[\[([^\]\n]*)$/.exec(before)
       : trigger === "/"
         ? /^\/([\p{L}\p{N} _-]*)$/u.exec(before)
-        : /(?:^|\s)@([\p{L}\p{N}_.-]*)$/u.exec(before);
+        : trigger === "{"
+          ? /(?:^|[^{\\])\{([A-Za-z0-9_.]*)$/.exec(before)
+          : /(?:^|\s)@([\p{L}\p{N}_.-]*)$/u.exec(before);
   if (!m) return null;
   const query = m[1] ?? "";
   return { query, length: trigger.length + query.length };
@@ -582,7 +622,7 @@ const rectOf = (e: unknown): { x: number; y: number } => {
 
 /** Read-only text is the chat's block renderer, so a note read and a reply read the same; editing is the editor. */
 export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
-  if (props.mode === "read" && props.liveBlockView === undefined)
+  if (props.mode === "read" && props.liveBlockView === undefined && props.doc === undefined)
     return (
       <View
         testID={props.testID ?? "markdown-editor"}
@@ -595,8 +635,36 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
   return <MarkdownEditorEdit {...props} />;
 }
 
-function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
+function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
   ensureMarkdownCss();
+  // a document page lists its record type's fields when `{` is typed (a host with its own menu keeps it)
+  const [fieldQuery, setFieldQuery] = useState<string | null>(null);
+  const fields = given.doc?.fields;
+  const props: MarkdownEditorProps =
+    fields && !given.suggest
+      ? {
+          ...given,
+          suggest: {
+            trigger: "{",
+            label: "Fields",
+            menuTestID: "doc-fields",
+            items: matchFields(fields, fieldQuery ?? "").map((f) => ({
+              id: f.tag,
+              label: f.label,
+              ...(f.detail ? { detail: f.detail } : {}),
+              ...(f.group ? { group: f.group } : {}),
+            })),
+            insertNode: (item) => chipNode(item.id),
+            onQuery: setFieldQuery,
+          },
+        }
+      : given;
+  const docOn = props.doc !== undefined;
+  const mdo = (): { doc: true } | undefined => (cb.current.doc ? { doc: true } : undefined);
+  const [suggestingOwn, setSuggestingOwn] = useState(false);
+  const suggesting = props.doc?.suggesting ?? suggestingOwn;
+  const [changes, setChanges] = useState<Change[]>([]);
+  const [card, setCard] = useState<{ change: Change; left: number; top: number } | null>(null);
   const mode = props.mode ?? "edit";
   const editable = mode === "edit";
   const compact = props.density === "compact";
@@ -623,8 +691,13 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
   const host = useRef<unknown>(null);
   const wrap = useRef<{ getBoundingClientRect?: () => { left: number; top: number } } | null>(null);
   const last = useRef(props.value);
+  // the text the file last held, as far as the other side is concerned (what arrived as `value`): what an incoming change is merged against
+  const base = useRef(props.value);
   const cb = useRef(props);
   cb.current = props;
+  const suggestingNow = useRef(suggesting);
+  suggestingNow.current = suggesting;
+  const changesRef = useRef<Change[]>([]);
   const { element: menu, show } = useMenu();
 
   const say = useCallback((s: string) => {
@@ -696,7 +769,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
       ? opt.insert(item)
       : opt.trigger === "[["
         ? `[[${item.label}]]`
-        : opt.trigger === "/"
+        : opt.trigger === "/" || opt.trigger === "{"
           ? ""
           : `@${item.label} `;
     (
@@ -752,8 +825,20 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
         extensions: markdownExtensions({
           onLink: openLink,
           ...(cb.current.liveBlockView ? { liveBlock: renderLive } : {}),
+          ...(cb.current.doc
+            ? {
+                doc: {
+                  resolve: () => cb.current.doc?.resolve,
+                  suggesting: () => {
+                    const d = cb.current.doc;
+                    return d?.author ? { on: suggestingNow.current, author: d.author } : undefined;
+                  },
+                  ...(cb.current.doc.now ? { now: () => cb.current.doc?.now?.() ?? new Date().toISOString() } : {}),
+                },
+              }
+            : {}),
         }),
-        content: markdownToDoc(last.current) as never,
+        content: markdownToDoc(last.current, mdo()) as never,
         editable,
         editorProps: {
           attributes: {
@@ -778,7 +863,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
             }
             const d = dedentPaste(text);
             if (looksLikeMarkdown(d.text)) {
-              const parsed = markdownToDoc(d.text);
+              const parsed = markdownToDoc(d.text, mdo());
               ed.commands.insertContent(parsed.content as never);
               say(
                 d.removed > 0
@@ -833,7 +918,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
             return false;
           },
         },
-        onTransaction: ({ transaction }: { transaction: { docChanged: boolean } }) => {
+        onTransaction: ({ transaction }: { transaction: { docChanged: boolean; getMeta(k: string): unknown } }) => {
           const ed = editorRef.current;
           if (!ed) return;
           const on: string[] = [];
@@ -843,9 +928,19 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
           readTrigger(ed);
           ed.view.dom.setAttribute("data-empty", ed.state.doc.content.size <= 2 ? "true" : "false");
           if (!transaction.docChanged) return;
-          const md = docToMarkdown(ed.getJSON());
+          if (cb.current.doc) {
+            const list = listChanges(
+              (ed as unknown as { state: { doc: Parameters<typeof listChanges>[0] } }).state.doc,
+            );
+            changesRef.current = list;
+            setChanges(list);
+            cb.current.doc.onChanges?.(list.length);
+          }
+          const md = docToMarkdown(ed.getJSON(), mdo());
           if (md === last.current) return;
           last.current = md;
+          // text that came in from outside onto an untouched page is the file's own text: it is not an edit to report
+          if (transaction.getMeta("vyre-remote-clean") === true) return;
           cb.current.onChange?.(md);
         },
         onSelectionUpdate: () => {
@@ -857,6 +952,14 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
           }
           const { from, to, empty } = ed.state.selection;
           const box = wrap.current?.getBoundingClientRect?.();
+          if (cb.current.doc && box) {
+            // the card of the suggestion the caret is in
+            const at = changeAt(changesRef.current, from);
+            if (at) {
+              const pt = ed.view.coordsAtPos(from);
+              setCard({ change: at, left: Math.max(4, pt.left - box.left), top: pt.bottom - box.top + 6 });
+            } else setCard(null);
+          }
           if (empty || !box) {
             setBubble(null);
             return;
@@ -895,19 +998,52 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
     editor?.setEditable(editable);
   }, [editor, editable]);
 
-  // text that came in from outside replaces what the page shows
+  // text that came in from outside replaces what the page shows; on a document page it is merged in by blocks, so the person's place and unsaved words stay
   useEffect(() => {
+    const was = base.current;
+    base.current = props.value;
     if (props.value === last.current) return;
+    const ed = editorRef.current as unknown as {
+      state: Parameters<typeof mergeRemote>[0];
+      view: { dispatch(tr: unknown): void };
+    } | null;
+    if (cb.current.doc && ed) {
+      const m = mergeRemote(ed.state, was, props.value, {
+        author: cb.current.doc.remoteAuthor ?? "Agent",
+        now: cb.current.doc.now ?? (() => new Date().toISOString().replace(/\.\d{3}Z$/, "Z")),
+      });
+      if (m) {
+        ed.view.dispatch(m.tr);
+        return;
+      }
+    }
     last.current = props.value;
-    editorRef.current?.commands.setContent(markdownToDoc(props.value) as never, false);
+    editorRef.current?.commands.setContent(markdownToDoc(props.value, mdo()) as never, false);
   }, [props.value]);
+
+  // the record changed: every chip reads it again
+  useEffect(() => {
+    (
+      editorRef.current as unknown as { storage?: { fieldChip?: { refresh(): void } } } | null
+    )?.storage?.fieldChip?.refresh();
+  }, [props.doc?.resolve, editor]);
+
+  // the suggestions already in the text when the page opens
+  useEffect(() => {
+    const ed = editorRef.current as unknown as { state: { doc: Parameters<typeof listChanges>[0] } } | null;
+    if (!ed || !cb.current.doc) return;
+    const list = listChanges(ed.state.doc);
+    changesRef.current = list;
+    setChanges(list);
+    cb.current.doc.onChanges?.(list.length);
+  }, [editor]);
 
   // a check chip pressed: put the caret on that line's block and flash it
   useEffect(() => {
     const j = props.jump;
     const e = editorRef.current;
     if (!j || !e || view !== "styled") return;
-    const doc = markdownToDoc(last.current);
+    const doc = markdownToDoc(last.current, mdo());
     const index = blockOfLine(doc, j.line);
     let pos = 0;
     e.state.doc.forEach((n, off, i) => {
@@ -927,6 +1063,64 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
     if (!props.focusKey || view !== "styled") return;
     editorRef.current?.commands.focus("end");
   }, [props.focusKey, editor]);
+
+  const settle = (accept: boolean, which?: Change[]): void => {
+    const ed = editorRef.current as unknown as {
+      state: Parameters<typeof resolveChanges>[0];
+      view: { dispatch(tr: unknown): void };
+    } | null;
+    if (!ed) return;
+    const tr = resolveChanges(ed.state, accept, which);
+    if (tr) ed.view.dispatch(tr);
+    setCard(null);
+  };
+  const stepTo = (dir: 1 | -1): void => {
+    const list = changesRef.current;
+    const ed = editorRef.current;
+    if (list.length === 0 || !ed) return;
+    const head = ed.state.selection.to;
+    const at =
+      dir === 1
+        ? (list.find((c) => c.from > head) ?? list[0])
+        : ([...list].reverse().find((c) => c.to < ed.state.selection.from) ?? list[list.length - 1]);
+    if (!at) return;
+    (ed.chain().focus() as unknown as { setTextSelection(p: number): { scrollIntoView(): { run(): boolean } } })
+      .setTextSelection(at.from)
+      .scrollIntoView()
+      .run();
+  };
+  const docBar =
+    docOn && view === "styled" && editor !== null ? (
+      <DocBar
+        canSuggest={editable && Boolean(props.doc?.author)}
+        suggesting={suggesting}
+        onSuggesting={(on) => {
+          setSuggestingOwn(on);
+          props.doc?.onSuggesting?.(on);
+        }}
+        hasFields={editable && (props.doc?.fields?.length ?? 0) > 0}
+        onField={() => {
+          call(editor, "insertContent", "{");
+        }}
+        count={changes.length}
+        onPrev={() => stepTo(-1)}
+        onNext={() => stepTo(1)}
+        onAcceptAll={() => settle(true)}
+        onRejectAll={() => settle(false)}
+        canResolve={editable && props.doc?.canResolve !== false}
+      />
+    ) : null;
+  const changeCard =
+    docOn && card !== null && view === "styled" ? (
+      <ChangeCard
+        change={card.change}
+        left={card.left}
+        top={card.top}
+        canResolve={editable && props.doc?.canResolve !== false}
+        onAccept={() => settle(true, [card.change])}
+        onReject={() => settle(false, [card.change])}
+      />
+    ) : null;
 
   const onRawChange = (v: string): void => {
     last.current = v;
@@ -1278,10 +1472,12 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
       {...webProps({ role: "group", dataSet: { view, mode } })}
     >
       {!phone ? bar : null}
+      {docBar}
       <View style={[st.page, compact && st.pageCompact, props.bare === true && st.pageBare]} ref={wrap as never}>
         {body}
         {bubbleNode}
         {suggestNode}
+        {changeCard}
       </View>
       {pill}
       {phone ? bar : null}

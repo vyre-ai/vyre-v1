@@ -20,6 +20,8 @@ import Paragraph from "@tiptap/extension-paragraph";
 import Strike from "@tiptap/extension-strike";
 import Text from "@tiptap/extension-text";
 import { tableExtensions } from "./table.ts";
+import { docExtensions } from "./doc/extensions.ts";
+import type { DocOptions } from "./doc/extensions.ts";
 
 // The starter kit is not used: the lockfile resolves its extensions to 2.27.3 while @tiptap/core is pinned at 2.11.5, and the horizontal rule of 2.27.3 imports a name 2.11.5 does not export.
 // Each extension below loads against core 2.11.5; the divider is written here.
@@ -115,6 +117,8 @@ export interface MarkdownExtensionOptions {
   liveBlock?: LiveBlockRenderer;
   /** Cmd+K: the editor opens its link field. */
   onLink?: () => void;
+  /** A Vyre document page: field chips and tracked changes (see doc/). Left out, the editor is the plain Markdown editor. */
+  doc?: DocOptions;
 }
 
 export const Link = Mark.create<MarkdownExtensionOptions>({
@@ -361,5 +365,6 @@ export function markdownExtensions(options: MarkdownExtensionOptions = {}): Exte
     RawBlock,
     ...tableExtensions,
     LiveBlock.configure({ render: options.liveBlock }),
+    ...(options.doc ? docExtensions(options.doc) : []),
   ];
 }

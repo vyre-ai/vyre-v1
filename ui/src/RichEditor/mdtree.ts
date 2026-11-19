@@ -18,6 +18,26 @@ export interface PMNode {
 
 const doc = (content: PMNode[]): PMNode => ({ type: "doc", content });
 
+/**
+ * A Vyre document page reads two more things out of its Markdown: a field chip (`{client.name}`, `{sign:client}`: the blanks of the fill engine) and a tracked change (CriticMarkup:
+ * `{++added++}`, `{--removed--}`, `{~~old~>new~~}`, each followed by `{>>author|time<<}`). Any other Markdown file keeps both as the plain text they are, so only a page that asks for it
+ * (`{ doc: true }`) sees chips and suggestions. What is written back is the same text that was read, byte for byte.
+ */
+export interface MdOptions {
+  doc?: boolean;
+}
+let DOC = false;
+function withDoc<T>(opt: MdOptions | undefined, run: () => T): T {
+  if (opt === undefined) return run();
+  const prev = DOC;
+  DOC = opt.doc === true;
+  try {
+    return run();
+  } finally {
+    DOC = prev;
+  }
+}
+
 /* ---------- inline ---------- */
 
 type MarkType = "bold" | "italic" | "strike" | "link";
@@ -25,9 +45,30 @@ interface Span {
   text: string;
   marks: PMMark[];
 }
-type Piece = Span | "br";
+interface Chip {
+  chip: string;
+  marks: PMMark[];
+}
+type Piece = Span | Chip | "br";
 
-const MARK_ORDER: readonly string[] = ["link", "bold", "italic", "strike"];
+const MARK_ORDER: readonly string[] = ["suggestAdd", "suggestDel", "link", "bold", "italic", "strike"];
+
+// a field chip: a value tag the fill engine reads ({client.name}, spaces inside the braces kept) or a signing mark ({sign:client}, {date:client})
+const CHIP = /^\{(\s*[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*\s*|(?:sign|date):[A-Za-z0-9_]+)\}/;
+// a tracked change; the part after it, {>>author|time<<}, says who and when (left out, both are empty)
+const META = String.raw`(?:\{>>([^|<>{}\n]*)\|([^<>{}\n]*)<<\})?`;
+const SG_ADD = new RegExp(String.raw`^\{\+\+([\s\S]+?)\+\+\}` + META);
+const SG_DEL = new RegExp(String.raw`^\{--([\s\S]+?)--\}` + META);
+const SG_SUB = new RegExp(String.raw`^\{~~([\s\S]+?)~>([\s\S]*?)~~\}` + META);
+const sgMark = (
+  type: "suggestAdd" | "suggestDel",
+  author: string | undefined,
+  at: string | undefined,
+  sub: boolean,
+): PMMark => ({
+  type,
+  attrs: { author: author ?? "", at: at ?? "", ...(sub ? { sub: true } : {}) },
+});
 const ESCAPABLE = /[\\`*_{}[\]()#+\-.!~<>|]/;
 const WORD = /[\p{L}\p{N}_]/u;
 
@@ -59,6 +100,33 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       continue;
     }
     let m: RegExpExecArray | null = null;
+    if (DOC && ch === "{") {
+      if ((m = CHIP.exec(rest))) {
+        flush();
+        out.push({ chip: m[1] ?? "", marks: [...marks] });
+        i += m[0].length;
+        continue;
+      }
+      if ((m = SG_ADD.exec(rest))) {
+        flush();
+        scan(m[1] ?? "", [...marks, sgMark("suggestAdd", m[2], m[3], false)], out, "");
+        i += m[0].length;
+        continue;
+      }
+      if ((m = SG_DEL.exec(rest))) {
+        flush();
+        scan(m[1] ?? "", [...marks, sgMark("suggestDel", m[2], m[3], false)], out, "");
+        i += m[0].length;
+        continue;
+      }
+      if ((m = SG_SUB.exec(rest))) {
+        flush();
+        scan(m[1] ?? "", [...marks, sgMark("suggestDel", m[3], m[4], true)], out, "");
+        scan(m[2] ?? "", [...marks, sgMark("suggestAdd", m[3], m[4], true)], out, "");
+        i += m[0].length;
+        continue;
+      }
+    }
     if (ch === "`" && (m = /^(`+)(?!`)([\s\S]*?[^`])\1(?!`)/.exec(rest))) {
       flush();
       const body = (m[2] ?? "").replace(/^ (.*[^ ].*) $/s, "$1");
@@ -128,13 +196,20 @@ function sameMarks(a: readonly PMMark[], b: readonly PMMark[]): boolean {
 }
 
 /** Inline markdown to document nodes (text with marks, hard breaks). Neighbours with the same marks join. */
-export function inlineToNodes(src: string): PMNode[] {
+export function inlineToNodes(src: string, opt?: MdOptions): PMNode[] {
+  return withDoc(opt, () => inlineNodes(src));
+}
+function inlineNodes(src: string): PMNode[] {
   const pieces: Piece[] = [];
   scan(src, [], pieces, "");
   const out: PMNode[] = [];
   for (const p of pieces) {
     if (p === "br") {
       out.push({ type: "hardBreak" });
+      continue;
+    }
+    if ("chip" in p) {
+      out.push({ type: "fieldChip", attrs: { raw: p.chip }, ...(p.marks.length > 0 ? { marks: p.marks } : {}) });
       continue;
     }
     if (p.text === "") continue;
@@ -149,19 +224,21 @@ export function inlineToNodes(src: string): PMNode[] {
 /** The plain text of inline nodes. */
 export function nodesText(nodes: readonly PMNode[] | undefined): string {
   let s = "";
-  for (const n of nodes ?? []) s += n.type === "hardBreak" ? "\n" : (n.text ?? "");
+  for (const n of nodes ?? [])
+    s +=
+      n.type === "hardBreak" ? "\n" : n.type === "fieldChip" ? `{${String(n.attrs?.["raw"] ?? "")}}` : (n.text ?? "");
   return s;
 }
 
 /** Text that would not read as itself when parsed gets backslashes before its markup characters; everything else is written as typed. */
 function escapeText(text: string): string {
-  const back = (): string => nodesText(inlineToNodes(text));
+  const back = (): string => nodesText(inlineNodes(text));
   const plain = ((): boolean => {
-    const n = inlineToNodes(text);
+    const n = inlineNodes(text);
     return n.length <= 1 && n.every((x) => x.type === "text" && x.marks === undefined) && back() === text;
   })();
   if (plain) return text;
-  return text.replace(/([\\`*_~[\]])/g, "\\$1");
+  return text.replace(DOC ? /([\\`*_~[\]{])/g : /([\\`*_~[\]])/g, "\\$1");
 }
 
 const BLOCK_START = /^(#{1,6}\s|[-*+]\s|\d{1,9}[.)]\s|>|```|\s{0,3}([-*_])(?:\s*\2){2,}\s*$)/;
@@ -176,12 +253,26 @@ function markOpen(m: PMMark): string {
       return "~~";
     case "link":
       return "[";
+    case "suggestAdd":
+      return m.attrs?.["sub"] === true ? "" : "{++";
+    case "suggestDel":
+      return m.attrs?.["sub"] === true ? "{~~" : "{--";
     default:
       return "";
   }
 }
+/** Who and when, after a tracked change; nothing when neither is known. */
+function metaOf(m: PMMark): string {
+  const a = String(m.attrs?.["author"] ?? "");
+  const t = String(m.attrs?.["at"] ?? "");
+  return a === "" && t === "" ? "" : `{>>${a}|${t}<<}`;
+}
 function markClose(m: PMMark): string {
   switch (m.type) {
+    case "suggestAdd":
+      return `${m.attrs?.["sub"] === true ? "~~}" : "++}"}${metaOf(m)}`;
+    case "suggestDel":
+      return m.attrs?.["sub"] === true ? "~>" : `--}${metaOf(m)}`;
     case "bold":
       return "**";
     case "italic":
@@ -196,7 +287,48 @@ function markClose(m: PMMark): string {
 }
 
 /** Document inline nodes to markdown. Marks open and close in a fixed order and keep spaces outside; a line that would read as a block start is escaped. */
-export function nodesToInline(nodes: readonly PMNode[] | undefined): string {
+export function nodesToInline(nodes: readonly PMNode[] | undefined, opt?: MdOptions): string {
+  return withDoc(opt, () => inlineText(nodes));
+}
+
+const hasMark = (n: PMNode, type: string, sub: boolean): PMMark | undefined =>
+  (n.marks ?? []).find((m) => m.type === type && (m.attrs?.["sub"] === true) === sub);
+
+/** A replacement is written `{~~old~>new~~}` only when its removed part is followed at once by its added part; a half that lost its partner is written as a plain removal or addition. */
+function pairedNodes(nodes: readonly PMNode[]): readonly PMNode[] {
+  if (!nodes.some((n) => hasMark(n, "suggestDel", true) || hasMark(n, "suggestAdd", true))) return nodes;
+  const keep = new Set<number>();
+  for (let i = 0; i < nodes.length; i += 1) {
+    const d = nodes[i] ? hasMark(nodes[i] as PMNode, "suggestDel", true) : undefined;
+    if (!d) continue;
+    let j = i;
+    while (
+      j < nodes.length &&
+      nodes[j] &&
+      JSON.stringify(hasMark(nodes[j] as PMNode, "suggestDel", true)) === JSON.stringify(d)
+    )
+      j += 1;
+    let k = j;
+    while (k < nodes.length && nodes[k] && hasMark(nodes[k] as PMNode, "suggestAdd", true)) k += 1;
+    if (k > j) for (let x = i; x < k; x += 1) keep.add(x);
+    i = Math.max(i, k - 1);
+  }
+  return nodes.map((n, i) =>
+    keep.has(i) || !(hasMark(n, "suggestDel", true) || hasMark(n, "suggestAdd", true))
+      ? n
+      : {
+          ...n,
+          marks: (n.marks ?? []).map((m) =>
+            (m.type === "suggestAdd" || m.type === "suggestDel") && m.attrs?.["sub"] === true
+              ? { type: m.type, attrs: { author: m.attrs["author"], at: m.attrs["at"] } }
+              : m,
+          ),
+        },
+  );
+}
+
+function inlineText(raw: readonly PMNode[] | undefined): string {
+  const nodes = pairedNodes(raw ?? []);
   let out = "";
   const open: PMMark[] = [];
   let lineStart = true;
@@ -204,7 +336,7 @@ export function nodesToInline(nodes: readonly PMNode[] | undefined): string {
   const closeTo = (keep: number): void => {
     while (open.length > keep) out += markClose(open.pop() as PMMark);
   };
-  for (const n of nodes ?? []) {
+  for (const n of nodes) {
     if (n.type === "hardBreak") {
       closeTo(0);
       pend = "";
@@ -212,16 +344,20 @@ export function nodesToInline(nodes: readonly PMNode[] | undefined): string {
       lineStart = true;
       continue;
     }
-    if (n.type !== "text" || n.text === undefined) continue;
+    const chip = n.type === "fieldChip";
+    if (!chip && (n.type !== "text" || n.text === undefined)) continue;
+    const body = chip ? `{${String(n.attrs?.["raw"] ?? "")}}` : (n.text as string);
     const ms = (n.marks ?? [])
       .filter((m) => m.type !== "code")
       .sort((a, b) => MARK_ORDER.indexOf(a.type) - MARK_ORDER.indexOf(b.type));
-    const isCode = (n.marks ?? []).some((m) => m.type === "code");
-    const lead = /^\s*/.exec(n.text)?.[0] ?? "";
-    const trail = /\s*$/.exec(n.text.slice(lead.length))?.[0] ?? "";
-    const core = n.text.slice(lead.length, n.text.length - trail.length);
+    const isCode = !chip && (n.marks ?? []).some((m) => m.type === "code");
+    // a chip, and anything inside a tracked change, keeps its own spaces: moving one across a mark would change what was removed or added
+    const whole = chip || ms.some((m) => m.type === "suggestAdd" || m.type === "suggestDel");
+    const lead = whole ? "" : (/^\s*/.exec(body)?.[0] ?? "");
+    const trail = whole ? "" : (/\s*$/.exec(body.slice(lead.length))?.[0] ?? "");
+    const core = body.slice(lead.length, body.length - trail.length);
     if (core === "") {
-      pend += n.text;
+      pend += body;
       continue;
     }
     let keep = 0;
@@ -236,6 +372,8 @@ export function nodesToInline(nodes: readonly PMNode[] | undefined): string {
     if (isCode) {
       const fence = "`".repeat((core.match(/`+/g) ?? []).reduce((a, b) => Math.max(a, b.length), 0) + 1);
       out += core.startsWith("`") || core.endsWith("`") ? `${fence} ${core} ${fence}` : `${fence}${core}${fence}`;
+    } else if (chip) {
+      out += core;
     } else {
       let t = escapeText(core);
       if (lineStart && out.replace(/^[\s\S]*\n/, "") === "" && BLOCK_START.test(t)) t = `\\${t}`;
@@ -738,7 +876,10 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
 }
 
 /** A whole markdown text to the editor's document. */
-export function markdownToDoc(md: string): PMNode {
+export function markdownToDoc(md: string, opt?: MdOptions): PMNode {
+  return withDoc(opt, () => toDoc(md));
+}
+function toDoc(md: string): PMNode {
   const text = md.replace(/\r\n?/g, "\n");
   const lines = text.split("\n");
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
@@ -823,7 +964,10 @@ function blocksToMarkdownBody(blocks: readonly PMNode[]): string {
 }
 
 /** The editor's document back to markdown. The file ends in one newline. */
-export function docToMarkdown(d: PMNode): string {
+export function docToMarkdown(d: PMNode, opt?: MdOptions): string {
+  return withDoc(opt, () => toMarkdown(d));
+}
+function toMarkdown(d: PMNode): string {
   const blocks = d.content ?? [];
   if (blocks.length === 1 && blocks[0]?.type === "paragraph" && (blocks[0].content ?? []).length === 0) return "";
   const body = blocksToMarkdownBody(blocks);
@@ -840,6 +984,10 @@ export function docText(d: PMNode): string {
     }
     if (n.type === "hardBreak") {
       out.push("\n");
+      return;
+    }
+    if (n.type === "fieldChip") {
+      out.push(`{${String(n.attrs?.["raw"] ?? "")}}`);
       return;
     }
     for (const c of n.content ?? []) walk(c);
