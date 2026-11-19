@@ -9,6 +9,7 @@ import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { limited, shapeOutput } from "./compact.ts";
 import { turnStartOf } from "./turn-start.ts";
+import { RepeatReads, repeatLine } from "./repeat-read.ts";
 import {
   HIDDEN_FROM_MODEL,
   SeenVersions,
@@ -130,6 +131,8 @@ export function createToolSession(deps: CallDeps): ToolSession {
   const newTrace = deps.traceId ?? ((): string => hex(16));
   /** The versions this session's agents have seen of the files, records and tasks they read or wrote (agent/src/tools/versions.ts). */
   const seen = new SeenVersions();
+  /** What each agent has read in its current turn, so the same read again is one line when nothing changed (agent/src/tools/repeat-read.ts). */
+  const repeats = new RepeatReads();
   /** How many times each tool has been called in each turn (the key of a repeat on purpose differs from the key of a replay) and what its last call came to, for the first-call record. */
   const turnCalls = new Map<string, Map<string, { n: number; rejected: boolean }>>();
   const countCall = (
@@ -606,10 +609,11 @@ export function createToolSession(deps: CallDeps): ToolSession {
       }
       recordWork(ctx.turnId, workCardOf(t.cap, input, res.output));
       // the calendar and mail reads come back to a model as compact rows with a count and a size (compact.ts); the full answer is what the hooks and the work card see
-      const shaped = isDynamic ? null : shapeOutput(t.cap, res.output);
+      const again = isDynamic ? null : repeats.check(ctx, t.name, t.cap, body, res.output);
+      const shaped = isDynamic || again ? null : shapeOutput(t.cap, res.output);
       // times in the person's zone beside the ISO and epoch ones, for the tools that return times people schedule by
       const zone = TIMED.test(t.cap) ? deps.zoneOf?.(ctx) : undefined;
-      const data = shaped ? shaped.data : res.output;
+      const data = again ? repeatLine(t.name, again.bytes) : shaped ? shaped.data : res.output;
       const content: { data: unknown; meta?: unknown; blocks?: string[]; next?: string } = {
         data: zone ? withLocalTimes(data, zone) : data,
         ...(shaped ? { meta: shaped.meta } : {}),
