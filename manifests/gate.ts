@@ -119,11 +119,11 @@ export default defineManifest({
       approvers: { default: "asker", peopleOnly: true },
     }),
     // Letting someone in or widening what they reach, asked by an agent, an outside actor or an Automation step (invitations, join requests, members, groups, grants, roles). Not an outward act: a turn's "email Sarah"
-    // never covers it. Signed: pending, lead.
+    // never covers it. Signed: lead, 20 Nov 2026.
     gateAct("admit", "Let someone in or change who can reach what", "medium", "record_card", {
       approvers: { default: "asker", peopleOnly: true },
     }),
-    // Changing the rules of access itself (a role's permissions, an exception, a Space policy, an outside actor, an approved plan): stops for a person every time, in every mode. Signed: pending, lead.
+    // Changing the rules of access itself (a role's permissions, an exception, a Space policy, an outside actor, an approved plan): stops for a person every time, in every mode. Signed: lead, 20 Nov 2026.
     gateAct("access", "Change the rules of access", "high", "record_card", {
       approvers: { default: "asker", peopleOnly: true },
     }),
