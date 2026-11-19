@@ -2,6 +2,8 @@
 // mail.configure routes to these, so they are its whole door: a member without comms.domains is refused, an admin is let in, and when an agent changes the Space's mail server or moves an address the call is held for a person's ok.
 import { wantsFromInput } from "../../lib/hold-words.ts";
 import { sourceKeyHost, uploadFingerprint } from "../../lib/key-target.ts";
+import { siteFacts } from "../../modules/sites/impl.ts";
+import { world as sitesWorld, h as siteH } from "../../modules/sites/fixtures/deploy-world.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
@@ -84,7 +86,7 @@ const defs = [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE, ...COMMS, ...KEYED]
   (n) => registry.capabilities.find((c) => c.name === n) as unknown as CapabilityDef,
 );
 
-function world(): AccessSnapshot {
+function world(sites: readonly string[] = []): AccessSnapshot {
   const s = new AccessSnapshot();
   s.putResource({ id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "dom_1", type: "domain", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
@@ -94,7 +96,8 @@ function world(): AccessSnapshot {
   s.putResource({ id: "thr_1", type: "thread", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "chg_1", type: "changeset", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "mbx_a", type: "mailbox", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
-  s.putResource({ id: "sit_1", type: "site", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
+  for (const id of ["sit_1", ...sites])
+    s.putResource({ id, type: "site", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putRole({ id: "member", clearance: 2, perms: [], name: "Member" });
   s.putRole({
     id: "admin",
@@ -172,6 +175,8 @@ function world(): AccessSnapshot {
 }
 
 interface RigOptions {
+  /** the real sites a test made: the access snapshot knows them */
+  siteIds?: readonly string[];
   /** the Gate's own reads and the reads it makes as a person (the Vault's approved hosts, an agent's right to use an item) */
   exports?: ReadonlyMap<string, Record<string, unknown>>;
   db?: () => {
@@ -182,7 +187,7 @@ interface RigOptions {
   callAs?: (cap: string, input: unknown, person: string) => Promise<unknown>;
 }
 function rig(o: RigOptions = {}) {
-  const snap = world();
+  const snap = world(o.siteIds);
   const ran: string[] = [];
   const parked: { cap: string; act: string }[] = [];
   const handlers: Record<string, Handler> = Object.fromEntries(
@@ -784,8 +789,9 @@ test("through a full invoke: sites.ship with a repo on a new host is parked; aft
   assert.equal((await rig(w.opts).invoke("sites.ship", { ...ship }, seed("usr_admin"))).status, "ok");
 });
 
-const SRC = (repo: string): Promise<string> =>
-  sourceKeyHost(`git:${JSON.stringify([`https://github.com/${repo.toLowerCase()}`, "", ""])}`);
+const STORED = { name: "K", handle: "#Crm_Key" };
+const SRC = (repo: string, branch = "", root = ""): Promise<string> =>
+  sourceKeyHost(`git:${JSON.stringify([`https://github.com/${repo.toLowerCase()}`, branch, root])}`);
 test("a Vault key given to a site as env: held for an agent unless a person approved that key for that source; after a yes the same source flows, another source is held again, a person is one step", async () => {
   const w = keyWorld();
   const env = [{ name: "K", vaultHandle: "#Crm_Key" }];
@@ -837,79 +843,144 @@ test("a Vault key given to a site as env: held for an agent unless a person appr
   );
 });
 
-type Facts = {
-  source: { repo?: string; folderId?: string; branch?: string; root?: string; fp?: string } | null;
-  deployedFp?: string | null;
-  env: { name: string; handle: string; scope: string }[];
-  builtFrom: { repo?: string; branch?: string } | null;
-};
-/** A world with a site (sit_1) the Gate can read: where its code comes from, its stored Vault env, and where its preview was built from. */
-function siteWorld(facts: Facts) {
+/** One file in the fake Files tree: the id and version that Files hands out, and where it sits. */
+type FileRow = { fileId: string; name: string; version: number; size: number };
+/**
+ * A world with REAL sites: the real sites handlers over a real SQLite with the sites migrations (create, deploy, preview, update), the real `siteFacts` the Gate reads, and Files faked as the person the call is for.
+ * No facts are written by hand: a test makes a site, deploys it, stores keys the way env_set does, and then an agent calls.
+ */
+function siteWorld() {
   const w = keyWorld();
-  const holder = { facts: facts as Facts | null, files: { fld_up: 1 } as Record<string, number> };
+  const tree: { files: Record<string, FileRow[]>; folders: Record<string, { folderId: string; name: string }[]> } = {
+    files: { fld_up: [{ fileId: "fil_a", name: "index.html", version: 1, size: 10 }] },
+    folders: {},
+  };
+  const state = { fetchFp: undefined as string | undefined, readable: true };
+  const filesAnswer = (cap: string, input: unknown): unknown => {
+    if (!state.readable) return null;
+    const i = input as { folder?: string; fileId?: string; cursor?: string; limit?: number };
+    if (cap === "files.list") {
+      const all = tree.files[i.folder as string];
+      if (!all) return null;
+      // pages, as Files gives them: the cursor is where the next page starts
+      const from = Number(i.cursor ?? 0);
+      const to = Math.min(all.length, from + (i.limit ?? 500));
+      return {
+        files: all.slice(from, to),
+        folders: from === 0 ? (tree.folders[i.folder as string] ?? []) : [],
+        ...(to < all.length ? { next: String(to) } : {}),
+      };
+    }
+    if (cap === "files.get") {
+      const f = Object.values(tree.files)
+        .flat()
+        .find((x) => x.fileId === i.fileId);
+      return f ? { file: f } : null;
+    }
+    return null;
+  };
+  const sw = sitesWorld({ files: filesAnswer, fetchFp: () => state.fetchFp });
+  const kdb = (
+    w.opts.db as () => {
+      all(s: string, ...a: unknown[]): unknown[];
+      run(s: string, ...a: unknown[]): { changes: number };
+    }
+  )();
+  const keyed = (sql: string): boolean => /vault_meta|automations_key_hosts/.test(sql);
+  const db = {
+    all: (sql: string, ...a: unknown[]) => (keyed(sql) ? kdb.all(sql, ...a) : sw.sdb.all(sql, ...a)),
+    run: (sql: string, ...a: unknown[]) => (keyed(sql) ? kdb.run(sql, ...a) : sw.sdb.run(sql, ...a)),
+  };
+  const known: string[] = [];
   const opts = {
     ...w.opts,
-    // Files as the person the agent works for: a folder's files with their versions
-    callAs: async (cap: string, input: unknown, person: string) => {
-      if (cap === "files.list") {
-        const v = holder.files[(input as { folder: string }).folder];
-        return v === undefined ? null : { files: [{ fileId: "fil_a", version: v, size: 10 }], folders: [] };
-      }
-      return w.opts.callAs(cap, input, person);
-    },
-    exports: new Map<string, Record<string, unknown>>([
-      ...w.opts.exports,
-      ["sites", { siteFacts: () => holder.facts }],
-    ]),
+    siteIds: known,
+    db: () => db,
+    callAs: async (cap: string, input: unknown, person: string) =>
+      cap.startsWith("files.") ? filesAnswer(cap, input) : w.opts.callAs(cap, input, person),
+    exports: new Map<string, Record<string, unknown>>([...w.opts.exports, ["sites", { siteFacts }]]),
   };
   const yes = async (cap: string, input: unknown, n: string): Promise<void> => {
     const r = rig(opts);
     await r.gate.seen?.(r.defOf(cap), input, {}, { ...asAgent(), approval: n, approvedBy: "usr_member" } as never, 0);
   };
-  return { w, holder, opts, yes };
+  const call = (cap: string, input: Record<string, unknown>) => siteH[cap]!(sw.ctx, input);
+  /** What the real create and a real deploy leave behind: a site, its live deployment, and where that was built from. */
+  const site = async (name: string, source?: Record<string, unknown>, deploy = true): Promise<string> => {
+    const siteId = (await call("sites.create", { name, ...(source ? { source } : {}) })).site.siteId as string;
+    known.push(siteId);
+    if (deploy) await call("sites.deploy", { siteId, wait: true });
+    return siteId;
+  };
+  /** The keys a site stores, the rows env_set writes for a Vault handle. */
+  const store = (siteId: string, name: string, handle: string, scope = "production"): void => {
+    sw.sdb.run(
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
+      siteId,
+      name,
+      handle,
+      0,
+      null,
+      scope,
+    );
+  };
+  const keysOff = (siteId: string): void => void sw.sdb.run("DELETE FROM sites_env WHERE site_id = ?", siteId);
+  const fp = async (folder = "fld_up"): Promise<string> =>
+    (await uploadFingerprint({ folderId: folder }, (cap, i) => filesAnswer(cap, i) as Promise<unknown>)) as string;
+  /** A deploy of an uploaded folder as it is now: the build records the fingerprint of what it read. */
+  const deployUpload = async (siteId: string): Promise<void> => {
+    state.fetchFp = await fp();
+    // a deploy fills the stored keys' values from the Vault, which this world does not have: the keys are put back after it
+    const kept = sw.sdb.all("SELECT name, vault_handle, scope FROM sites_env WHERE site_id = ?", siteId) as {
+      name: string;
+      vault_handle: string;
+      scope: string;
+    }[];
+    keysOff(siteId);
+    await call("sites.deploy", { siteId, wait: true });
+    for (const k of kept) store(siteId, k.name, k.vault_handle, k.scope);
+  };
+  const agent = async (cap: string, input: unknown): Promise<string> =>
+    (await rig(opts).invoke(cap, input, asAgent())).status as string;
+  const person = async (cap: string, input: unknown): Promise<string> =>
+    (await rig(opts).invoke(cap, input, seed("usr_admin"))).status as string;
+  return { w, sw, tree, state, known, opts, yes, call, site, store, keysOff, fp, deployUpload, agent, person };
 }
-const STORED = { name: "K", handle: "#Crm_Key", scope: "production" };
+const hostsOf = (s: ReturnType<typeof siteWorld>): string[] =>
+  s.w.hosts.filter((h) => h.host !== "").map((h) => h.host);
 
-test("sites_env_set: a key added to a site that exists is approved for the site's source once; the same key unchanged is no new pair; another source is held again", async () => {
-  const s = siteWorld({ source: { repo: "acme/app" }, env: [], builtFrom: null });
-  const add = { siteId: "sit_1", entries: [{ name: "K", vaultHandle: "#Crm_Key" }] };
-  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "held");
+test("sites_env_set on a real site: a key added is approved for the site's source once; the same key stored is no new pair; another source, a site with no source and an unreadable one are held", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git" });
+  const add = { siteId, entries: [{ name: "K", vaultHandle: "#Crm_Key" }] };
+  assert.equal(await s.agent("sites.env_set", add), "held");
   await s.yes("sites.env_set", add, "apv_e1");
-  assert.deepEqual(
-    s.w.hosts.filter((h) => h.host !== "").map((h) => h.host),
-    [await SRC("acme/app")],
-  );
-  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "ok", "approved for that source");
-  // the key is stored now: submitting the same env again is nothing new (a ship that re-sends its env never parks a card)
-  s.holder.facts = { ...(s.holder.facts as Facts), env: [STORED] };
+  assert.deepEqual(hostsOf(s), [await SRC("acme/app")]);
+  assert.equal(await s.agent("sites.env_set", add), "ok", "approved for that source");
+  // the key is stored now: the same env again is nothing new (a ship that re-sends its env never parks a card)
+  s.store(siteId, "K", "#Crm_Key");
   s.w.hosts.length = 0;
-  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "ok");
+  assert.equal(await s.agent("sites.env_set", add), "ok");
   // a changed key (the same name, another item) is new
-  const other = { siteId: "sit_1", entries: [{ name: "K", vaultHandle: "#Crm_Key.other" }] };
-  assert.equal((await rig(s.opts).invoke("sites.env_set", other, asAgent())).status, "held");
-  // the site's files are uploaded files: another source, named by the site id
-  s.holder.facts = { source: { folderId: "fld_up" }, env: [], builtFrom: null };
-  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "held");
-  await s.yes("sites.env_set", add, "apv_e2");
-  const fp1 = await uploadFingerprint(
-    { folderId: "fld_up" },
-    (cap, i) => s.opts.callAs(cap, i, "usr_admin") as Promise<unknown>,
+  assert.equal(
+    await s.agent("sites.env_set", { siteId, entries: [{ name: "K", vaultHandle: "#Crm_Key.other" }] }),
+    "held",
   );
-  assert.ok(fp1, "the files can be read");
+  // the site's files are uploaded files: another source, named by the site id and what the files are
+  const up = await s.site("Up", { folderId: "fld_up" });
+  const addUp = { siteId: up, entries: [{ name: "K", vaultHandle: "#Crm_Key" }] };
+  assert.equal(await s.agent("sites.env_set", addUp), "held");
+  await s.yes("sites.env_set", addUp, "apv_e2");
   assert.ok(
     s.w.hosts.some((h) => h.item_id === "vit_crm" && h.host !== ""),
     "uploaded files are approved as their own source",
   );
-  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "ok");
+  assert.equal(await s.agent("sites.env_set", addUp), "ok");
   // a site with no source this can read holds; a plain value and a person are open
-  s.holder.facts = { source: null, env: [], builtFrom: null };
-  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "held");
-  assert.equal(
-    (await rig(s.opts).invoke("sites.env_set", { siteId: "sit_1", entries: [{ name: "M", value: "calm" }] }, asAgent()))
-      .status,
-    "ok",
-  );
-  assert.equal((await rig(s.opts).invoke("sites.env_set", add, seed("usr_admin"))).status, "ok");
+  const bare = await s.site("Bare", undefined, false);
+  assert.equal(await s.agent("sites.env_set", { siteId: bare, entries: STORED_ENTRY }), "held");
+  assert.equal(await s.agent("sites.env_set", { siteId, entries: [{ name: "M", value: "calm" }] }), "ok");
+  assert.equal(await s.person("sites.env_set", add), "ok");
   assert.equal(
     wantsFromInput("sites.ship", {
       name: "Dash",
@@ -919,148 +990,118 @@ test("sites_env_set: a key added to a site that exists is approved for the site'
     "give the key Crm_Key to the site Dash, built from acme/app",
   );
 });
+const STORED_ENTRY = [{ name: "K", vaultHandle: "#Crm_Key" }];
 
-test("a site with keys stored moved to another source (update, deploy, plan, ship): held until a person approves every stored key for that source; a call that names no source, or the same one, is free", async () => {
-  const s = siteWorld({ source: { repo: "acme/app" }, env: [STORED], builtFrom: null });
-  for (const cap of ["sites.update", "sites.deploy", "sites.plan", "sites.ship"]) {
-    const move = { siteId: "sit_1", source: { repo: "https://attacker.example/x.git" } };
+test("a real site with keys stored moved to another source (update, deploy, plan, ship): held until a person approves every stored key for that source; a call that names no source, or the same one, is free", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git" });
+  s.store(siteId, STORED.name, STORED.handle);
+  for (const cap of ["sites.update", "sites.deploy", "sites.plan", "sites.ship"])
     assert.equal(
-      (await rig(s.opts).invoke(cap, move, asAgent())).status,
+      await s.agent(cap, { siteId, source: { repo: "https://attacker.example/x.git" } }),
       "held",
       `${cap} to another repo with a stored key is held`,
     );
-  }
-  const move = { siteId: "sit_1", source: { repo: "evil/app" } };
-  assert.equal((await rig(s.opts).invoke("sites.update", move, asAgent())).status, "held", "a public repo, no token");
+  const move = { siteId, source: { repo: "evil/app" } };
+  assert.equal(await s.agent("sites.update", move), "held", "a public repo, no token");
   await s.yes("sites.update", move, "apv_m1");
-  assert.deepEqual(
-    s.w.hosts.filter((h) => h.host !== "").map((h) => [h.item_id, h.host]),
-    [["vit_crm", await SRC("evil/app")]],
-  );
-  assert.equal((await rig(s.opts).invoke("sites.update", move, asAgent())).status, "ok", "after a yes it goes through");
-  assert.equal((await rig(s.opts).invoke("sites.deploy", move, asAgent())).status, "ok", "and so does its deploy");
-  assert.equal(
-    (await rig(s.opts).invoke("sites.update", { siteId: "sit_1", source: { repo: "other/app" } }, asAgent())).status,
-    "held",
-    "another repo is held again",
-  );
-  // an agent's redeploy of the same source, or with no source named, never waits
-  assert.equal((await rig(s.opts).invoke("sites.deploy", { siteId: "sit_1" }, asAgent())).status, "ok");
-  assert.equal(
-    (
-      await rig(s.opts).invoke(
-        "sites.deploy",
-        { siteId: "sit_1", source: { repo: "https://github.com/Acme/App.git" } },
-        asAgent(),
-      )
-    ).status,
-    "ok",
-  );
+  assert.deepEqual(hostsOf(s), [await SRC("evil/app")]);
+  assert.equal(await s.agent("sites.update", move), "ok", "after a yes it goes through");
+  assert.equal(await s.agent("sites.deploy", move), "ok", "and so does its deploy");
+  assert.equal(await s.agent("sites.update", { siteId, source: { repo: "other/app" } }), "held", "another repo again");
+  // the move itself (a real update) makes evil/app the site's source; a redeploy with no source, or the same one, never waits
+  await s.call("sites.update", { siteId, source: { repo: "evil/app" } });
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok");
+  assert.equal(await s.agent("sites.deploy", { siteId, source: { repo: "https://github.com/Evil/App.git" } }), "ok");
   // a site with no keys stored is nothing to protect
-  s.holder.facts = { source: { repo: "acme/app" }, env: [], builtFrom: null };
-  assert.equal(
-    (await rig(s.opts).invoke("sites.update", { siteId: "sit_1", source: { repo: "new/one" } }, asAgent())).status,
-    "ok",
-  );
+  s.keysOff(siteId);
+  assert.equal(await s.agent("sites.update", { siteId, source: { repo: "new/one" } }), "ok");
   // a person is one step
-  s.holder.facts = { source: { repo: "acme/app" }, env: [STORED], builtFrom: null };
-  assert.equal(
-    (await rig(s.opts).invoke("sites.update", { siteId: "sit_1", source: { repo: "third/app" } }, seed("usr_admin")))
-      .status,
-    "ok",
-  );
+  s.store(siteId, STORED.name, STORED.handle);
+  assert.equal(await s.person("sites.update", { siteId, source: { repo: "third/app" } }), "ok");
 });
 
-test("a branch or folder of the same repo is another source: an agent that can push a feature branch cannot put the production keys in front of it; a same-branch redeploy is free", async () => {
-  const s = siteWorld({ source: { repo: "acme/app", branch: "main" }, env: [STORED], builtFrom: null });
-  for (const cap of ["sites.deploy", "sites.update", "sites.plan", "sites.ship"]) {
-    const other = { siteId: "sit_1", source: { repo: "acme/app", branch: "agent-x" } };
+test("a branch or folder of the same repo is another source, read from the stored site: an agent that can push a feature branch cannot put the production keys in front of it; a same-branch redeploy is free", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
+  s.store(siteId, STORED.name, STORED.handle);
+  for (const cap of ["sites.deploy", "sites.update", "sites.plan", "sites.ship"])
     assert.equal(
-      (await rig(s.opts).invoke(cap, other, asAgent())).status,
+      await s.agent(cap, { siteId, source: { repo: "acme/app", branch: "agent-x" } }),
       "held",
       `${cap}: another branch of the same repo is held`,
     );
-  }
   assert.equal(
-    (
-      await rig(s.opts).invoke(
-        "sites.deploy",
-        { siteId: "sit_1", source: { repo: "https://github.com/Acme/App.git", branch: "main" } },
-        asAgent(),
-      )
-    ).status,
+    await s.agent("sites.deploy", { siteId, source: { repo: "https://github.com/Acme/App.git", branch: "main" } }),
     "ok",
     "the same branch is free",
   );
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok", "no source named is free");
   assert.equal(
-    (await rig(s.opts).invoke("sites.deploy", { siteId: "sit_1" }, asAgent())).status,
-    "ok",
-    "no source named is free",
-  );
-  assert.equal(
-    (
-      await rig(s.opts).invoke(
-        "sites.deploy",
-        { siteId: "sit_1", source: { repo: "acme/app", branch: "main", root: "apps/other" } },
-        asAgent(),
-      )
-    ).status,
+    await s.agent("sites.deploy", { siteId, source: { repo: "acme/app", branch: "main", root: "apps/other" } }),
     "held",
     "another folder is another source",
   );
-  const move = { siteId: "sit_1", source: { repo: "acme/app", branch: "agent-x" } };
+  // the repo alone, with no branch, is not the stored branch either (it would move the site to the repo's default branch)
+  assert.equal(await s.agent("sites.update", { siteId, source: { repo: "acme/app" } }), "held");
+  const move = { siteId, source: { repo: "acme/app", branch: "agent-x" } };
   await s.yes("sites.deploy", move, "apv_b1");
+  assert.deepEqual(hostsOf(s), [await SRC("acme/app", "agent-x")], "the pair is the key and the repo with its branch");
+  assert.equal(await s.agent("sites.deploy", move), "ok", "after a yes: that repo and branch");
   assert.equal(
-    (await rig(s.opts).invoke("sites.deploy", move, asAgent())).status,
-    "ok",
-    "after a yes: that repo and branch",
-  );
-  assert.equal(
-    (
-      await rig(s.opts).invoke(
-        "sites.deploy",
-        { siteId: "sit_1", source: { repo: "acme/app", branch: "agent-y" } },
-        asAgent(),
-      )
-    ).status,
+    await s.agent("sites.deploy", { siteId, source: { repo: "acme/app", branch: "agent-y" } }),
     "held",
     "another branch is held again",
   );
-  assert.equal(
-    (
-      await rig(s.opts).invoke(
-        "sites.deploy",
-        { siteId: "sit_1", source: { repo: "acme/app", branch: "agent-z" } },
-        seed("usr_admin"),
-      )
-    ).status,
-    "ok",
-    "a person is one step",
-  );
-  // a preview of a branch other than the production branch is another source; a preview of the production branch is the site's own
-  const promote = { siteId: "sit_1", branch: "feat/x" };
-  s.holder.facts = {
-    source: { repo: "acme/app", branch: "main" },
-    env: [STORED],
-    builtFrom: { repo: "acme/app", branch: "feat/x" },
-  };
-  assert.equal(
-    (await rig(s.opts).invoke("sites.preview_promote", promote, asAgent())).status,
-    "held",
-    "promoting a branch preview is held",
-  );
-  s.holder.facts = {
-    source: { repo: "acme/app", branch: "main" },
-    env: [STORED],
-    builtFrom: { repo: "acme/app", branch: "main" },
-  };
-  assert.equal((await rig(s.opts).invoke("sites.preview_promote", promote, asAgent())).status, "ok");
+  assert.equal(await s.person("sites.deploy", { siteId, source: { repo: "acme/app", branch: "agent-z" } }), "ok");
 });
 
-test("what reaches production on a site that stores Vault keys is a person's to change: the webhook's branches, deploy on push, the settings; a site with no keys is free", async () => {
-  const s = siteWorld({ source: { repo: "acme/app", branch: "main" }, env: [STORED], builtFrom: null });
-  const held = async (cap: string, input: Record<string, unknown>) =>
-    (await rig(s.opts).invoke(cap, { siteId: "sit_1", ...input }, asAgent())).status;
+test("promote on a real site: a preview of the production branch is the site's own; a preview of another branch, or of a repo the site moved away from, puts the production keys in front of that code until a person approves each; previews-scope keys are no part of it", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
+  // real previews, built by the real pipeline
+  await s.call("sites.preview_rebuild", { siteId, branch: "feat/x", wait: true });
+  await s.call("sites.preview_rebuild", { siteId, branch: "main", wait: true });
+  s.store(siteId, STORED.name, STORED.handle);
+  s.store(siteId, "P", "#Crm_Key.preview", "previews");
+  assert.equal(
+    await s.agent("sites.preview_promote", { siteId, branch: "main" }),
+    "ok",
+    "a preview of the production branch is the site's own",
+  );
+  const held = rig(s.opts);
+  assert.equal(
+    (await held.invoke("sites.preview_promote", { siteId, branch: "feat/x" }, asAgent())).status,
+    "held",
+    "a preview of another branch of the same repo is held",
+  );
+  assert.deepEqual(held.parked, [{ cap: "sites.preview_promote", act: "send" }]);
+  await s.yes("sites.preview_promote", { siteId, branch: "feat/x" }, "apv_p1");
+  assert.deepEqual(
+    hostsOf(s),
+    [await SRC("acme/app", "feat/x")],
+    "the production key is approved for that branch; the previews-scope key is not part of it",
+  );
+  assert.equal(await s.agent("sites.preview_promote", { siteId, branch: "feat/x" }), "ok");
+  assert.equal(await s.person("sites.preview_promote", { siteId, branch: "feat/x" }), "ok", "a person is one step");
+  // the site moves to another repo (a real update); the old preview is built from somewhere else now
+  await s.call("sites.update", { siteId, source: { repo: "https://github.com/other/app.git", branch: "main" } });
+  assert.equal(await s.agent("sites.preview_promote", { siteId, branch: "main" }), "held", "a repo it moved away from");
+  // a preview with no recorded origin (a build from before it was kept) is not known to be the site's own: it holds
+  s.sw.sdb.run("UPDATE sites_deployment SET built_from = NULL WHERE site_id = ? AND env = 'preview'", siteId);
+  await s.call("sites.update", { siteId, source: { repo: "https://github.com/acme/app.git", branch: "main" } });
+  assert.equal(await s.agent("sites.preview_promote", { siteId, branch: "main" }), "held");
+  assert.equal(
+    wantsFromInput("sites.preview_promote", { siteId, branch: "main" }),
+    "serve a preview as production with the site's keys",
+  );
+});
+
+test("what reaches production on a real site that stores Vault keys is a person's to change: the webhook's branches, deploy on push, the settings; a site with no keys is free", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
+  s.store(siteId, STORED.name, STORED.handle);
+  const held = (cap: string, input: Record<string, unknown>) => s.agent(cap, { siteId, ...input });
   assert.equal(await held("sites.webhook_set", { follow: ["*"] }), "held", "which branches the webhook builds");
   assert.equal(await held("sites.webhook_set", { enabled: true }), "held", "turning it on");
   assert.equal(await held("sites.update", { autoDeploy: true }), "held", "deploy on push");
@@ -1068,18 +1109,10 @@ test("what reaches production on a site that stores Vault keys is a person's to 
   assert.equal(await held("sites.webhook_set", { rotate: true }), "ok", "a new secret changes nothing that is built");
   assert.equal(await held("sites.webhook_set", { enabled: false }), "ok", "turning it off");
   assert.equal(await held("sites.update", { name: "New name" }), "ok", "a name");
-  assert.equal(
-    (await rig(s.opts).invoke("sites.webhook_set", { siteId: "sit_1", follow: ["*"] }, seed("usr_admin"))).status,
-    "ok",
-    "a person is one step",
-  );
-  s.holder.facts = { source: { repo: "acme/app", branch: "main" }, env: [], builtFrom: null };
+  assert.equal(await s.person("sites.webhook_set", { siteId, follow: ["*"] }), "ok", "a person is one step");
+  s.keysOff(siteId);
   assert.equal(await held("sites.webhook_set", { follow: ["*"] }), "ok", "no keys stored, nothing to protect");
-  s.holder.facts = {
-    source: { repo: "acme/app" },
-    env: [{ name: "P", handle: "#Crm_Key.p", scope: "previews" }],
-    builtFrom: null,
-  };
+  s.store(siteId, "P", "#Crm_Key.p", "previews");
   assert.equal(
     await held("sites.webhook_set", { follow: ["*"] }),
     "ok",
@@ -1088,135 +1121,102 @@ test("what reaches production on a site that stores Vault keys is a person's to 
 });
 
 test("anything the Gate cannot read holds an agent: a site it cannot see, a preview with no recorded origin, a source it cannot name", async () => {
-  const s = siteWorld({ source: { repo: "acme/app" }, env: [STORED], builtFrom: null });
-  // the site's facts are not there
-  s.holder.facts = null;
-  assert.equal(
-    (await rig(s.opts).invoke("sites.deploy", { siteId: "sit_1", source: { repo: "acme/app" } }, asAgent())).status,
-    "held",
-  );
-  assert.equal(
-    (await rig(s.opts).invoke("sites.preview_promote", { siteId: "sit_1", branch: "x" }, asAgent())).status,
-    "held",
-  );
-  assert.equal(
-    (await rig(s.opts).invoke("sites.webhook_set", { siteId: "sit_1", follow: ["*"] }, asAgent())).status,
-    "held",
-  );
+  const s = siteWorld();
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git" });
+  s.store(siteId, STORED.name, STORED.handle);
+  // a site that is not there
+  const ghost = "sit_ghost";
+  s.known.push(ghost);
+  assert.equal(await s.agent("sites.deploy", { siteId: ghost, source: { repo: "acme/app" } }), "held");
+  assert.equal(await s.agent("sites.preview_promote", { siteId: ghost, branch: "x" }), "held");
+  assert.equal(await s.agent("sites.webhook_set", { siteId: ghost, follow: ["*"] }), "held");
   // a preview built before its origin was kept
-  s.holder.facts = { source: { repo: "acme/app" }, env: [STORED], builtFrom: null };
-  assert.equal(
-    (await rig(s.opts).invoke("sites.preview_promote", { siteId: "sit_1", branch: "x" }, asAgent())).status,
-    "held",
-  );
-  // a source that cannot be named is not the same as a stored one that cannot be named either
-  s.holder.facts = { source: null, env: [STORED], builtFrom: null };
-  assert.equal(
-    (
-      await rig(s.opts).invoke(
-        "sites.deploy",
-        { siteId: "sit_1", source: { repo: "https://u:p@git.example/a/b" } },
-        asAgent(),
-      )
-    ).status,
-    "held",
-  );
+  await s.call("sites.preview_rebuild", { siteId, branch: "x", wait: true });
+  s.sw.sdb.run("UPDATE sites_deployment SET built_from = NULL WHERE site_id = ? AND env = 'preview'", siteId);
+  assert.equal(await s.agent("sites.preview_promote", { siteId, branch: "x" }), "held");
+  // a source that cannot be named, on a site whose own source is not there
+  s.sw.sdb.run("UPDATE sites_site SET source = NULL WHERE id = ?", siteId);
+  assert.equal(await s.agent("sites.deploy", { siteId, source: { repo: "https://u:p@git.example/a/b" } }), "held");
   // a person is one step through all of it
-  assert.equal(
-    (await rig(s.opts).invoke("sites.preview_promote", { siteId: "sit_1", branch: "x" }, seed("usr_admin"))).status,
-    "ok",
-  );
+  assert.equal(await s.person("sites.preview_promote", { siteId, branch: "x" }), "ok");
 });
 
-test("uploaded files are other code when they are replaced: an agent's redeploy of the same files is free, of replaced files is held until that exact content is approved, and a person's own upload is one step", async () => {
-  const s = siteWorld({ source: { folderId: "fld_up" }, env: [STORED], builtFrom: null });
-  const read = (p: string) => s.opts.callAs("files.list", { folder: "fld_up" }, p);
-  void read;
-  const fp = async (): Promise<string> =>
-    (await uploadFingerprint(
-      { folderId: "fld_up" },
-      (cap, i) => s.opts.callAs(cap, i, "usr_admin") as Promise<unknown>,
-    )) as string;
-  // the live deploy was built from the files as they are
-  s.holder.facts = { ...(s.holder.facts as Facts), deployedFp: await fp() };
-  assert.equal(
-    (await rig(s.opts).invoke("sites.deploy", { siteId: "sit_1" }, asAgent())).status,
-    "ok",
-    "the same files: free",
-  );
+test("uploaded files on a real site are other code when they are replaced, renamed or moved: the same files are free, others are held until that exact content is approved, and a person's own upload is one step", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("Up", { folderId: "fld_up" }, false);
+  await s.deployUpload(siteId);
+  s.store(siteId, STORED.name, STORED.handle);
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok", "the same files: free");
   // an agent replaces a file in the folder (a new version) and redeploys: other code
-  s.holder.files["fld_up"] = 2;
-  const redeploy = { siteId: "sit_1" };
-  assert.equal(
-    (await rig(s.opts).invoke("sites.deploy", redeploy, asAgent())).status,
-    "held",
-    "replaced files with a stored key",
-  );
-  await s.yes("sites.deploy", redeploy, "apv_u1");
-  assert.equal(
-    (await rig(s.opts).invoke("sites.deploy", redeploy, asAgent())).status,
-    "ok",
-    "that exact content is approved",
-  );
-  s.holder.files["fld_up"] = 3;
-  assert.equal(
-    (await rig(s.opts).invoke("sites.deploy", redeploy, asAgent())).status,
-    "held",
-    "replaced again: held again",
-  );
-  // a person's own upload is one step
-  assert.equal((await rig(s.opts).invoke("sites.deploy", redeploy, seed("usr_admin"))).status, "ok");
+  s.tree.files["fld_up"]![0]!.version = 2;
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "replaced files with a stored key");
+  // naming the same folder again is no way around it: the files are not the deployed ones
+  assert.equal(await s.agent("sites.deploy", { siteId, source: { folderId: "fld_up" } }), "held");
+  await s.yes("sites.deploy", { siteId }, "apv_u1");
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok", "that exact content is approved");
+  s.tree.files["fld_up"]![0]!.version = 3;
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "replaced again: held again");
+  // the same content under another name, or in a subfolder, is other code too
+  s.tree.files["fld_up"]![0]!.version = 2;
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok", "back to the approved content");
+  s.tree.files["fld_up"]![0]!.name = "evil.html";
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "a renamed file");
+  s.tree.files["fld_up"]![0]!.name = "index.html";
+  s.tree.folders["fld_up"] = [{ folderId: "fld_sub", name: "sub" }];
+  s.tree.files["fld_sub"] = [];
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "a new folder in the tree");
+  delete s.tree.folders["fld_up"];
+  // a person's own upload is one step, and its build records what it read, so the agent's next redeploy is free
+  s.tree.files["fld_up"]![0]!.version = 4;
+  assert.equal(await s.person("sites.deploy", { siteId }), "ok");
+  await s.deployUpload(siteId);
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok", "the person's deploy is the baseline now");
   // an agent names another folder: another source
-  s.holder.files["fld_other"] = 1;
-  assert.equal(
-    (await rig(s.opts).invoke("sites.update", { siteId: "sit_1", source: { folderId: "fld_other" } }, asAgent()))
-      .status,
-    "held",
-  );
+  s.tree.files["fld_other"] = [{ fileId: "fil_o", name: "x", version: 1, size: 1 }];
+  assert.equal(await s.agent("sites.update", { siteId, source: { folderId: "fld_other" } }), "held");
   // a site with no keys stored has nothing to protect
-  s.holder.facts = { source: { folderId: "fld_up" }, deployedFp: "old", env: [], builtFrom: null };
-  assert.equal((await rig(s.opts).invoke("sites.deploy", redeploy, asAgent())).status, "ok");
+  s.keysOff(siteId);
+  s.tree.files["fld_up"]![0]!.version = 9;
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok");
 });
 
-test("sites_preview_promote: a preview built from the site's own repo is the same source; one built from somewhere else puts the production keys in front of that code until a person approves each; previews-scope keys are no part of it", async () => {
-  const P = { name: "P", handle: "#Crm_Key.preview", scope: "previews" };
-  const s = siteWorld({ source: { repo: "acme/app" }, env: [STORED, P], builtFrom: { repo: "acme/app" } });
-  const promote = { siteId: "sit_1", branch: "feat/x" };
-  assert.equal(
-    (await rig(s.opts).invoke("sites.preview_promote", promote, asAgent())).status,
-    "ok",
-    "an agent's own branch in the approved repo is the same source",
-  );
-  s.holder.facts = { ...(s.holder.facts as Facts), builtFrom: { repo: "fork-owner/app" } };
-  const held = rig(s.opts);
-  assert.equal(
-    (await held.invoke("sites.preview_promote", promote, asAgent())).status,
-    "held",
-    "a fork is another source",
-  );
-  assert.deepEqual(held.parked, [{ cap: "sites.preview_promote", act: "send" }]);
-  await s.yes("sites.preview_promote", promote, "apv_p1");
-  assert.deepEqual(
-    s.w.hosts.filter((h) => h.host !== "").map((h) => [h.item_id, h.host]),
-    [["vit_crm", await SRC("fork-owner/app")]],
-    "the production key is approved for the fork; the previews-scope key is not part of it",
-  );
-  assert.equal((await rig(s.opts).invoke("sites.preview_promote", promote, asAgent())).status, "ok");
-  s.holder.facts = { ...(s.holder.facts as Facts), builtFrom: { repo: "another/app" } };
-  assert.equal(
-    (await rig(s.opts).invoke("sites.preview_promote", promote, asAgent())).status,
-    "held",
-    "a different origin is held again",
-  );
-  assert.equal(
-    (await rig(s.opts).invoke("sites.preview_promote", promote, seed("usr_admin"))).status,
-    "ok",
-    "a person is one step",
-  );
-  // a preview with no recorded origin (a build from before it was kept) is not known to be the site's own: it holds
-  s.holder.facts = { ...(s.holder.facts as Facts), builtFrom: null };
-  assert.equal((await rig(s.opts).invoke("sites.preview_promote", promote, asAgent())).status, "held");
-  assert.equal(wantsFromInput("sites.preview_promote", promote), "serve a preview as production with the site's keys");
+test("a fingerprint the Gate cannot make holds an agent, never passes as unchanged: a Files read error, a folder over the cap, a site deployed before fingerprints were kept", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("Up", { folderId: "fld_up" }, false);
+  await s.deployUpload(siteId);
+  s.store(siteId, STORED.name, STORED.handle);
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok", "the files are read and are the deployed ones");
+  // Files cannot be read
+  s.state.readable = false;
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "a Files read error");
+  assert.equal(await s.agent("sites.deploy", { siteId, source: { folderId: "fld_up" } }), "held");
+  s.state.readable = true;
+  // a folder past what a fingerprint reads
+  s.tree.files["fld_big"] = Array.from({ length: 20_001 }, (_, n) => ({
+    fileId: `fil_${n}`,
+    name: `f${n}`,
+    version: 1,
+    size: 1,
+  }));
+  assert.equal(await s.agent("sites.update", { siteId, source: { folderId: "fld_big" } }), "held", "over the cap");
+  // pages: a file on the third page is read, so replacing it is seen
+  s.tree.files["fld_up"] = Array.from({ length: 1200 }, (_, n) => ({
+    fileId: `fil_${n}`,
+    name: `f${n}`,
+    version: 1,
+    size: 1,
+  }));
+  await s.deployUpload(siteId);
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok");
+  s.tree.files["fld_up"]![1100]!.version = 2;
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "a change on the last page");
+  // a site deployed before fingerprints were kept: no baseline, so the first agent deploy is held once, and approved after a yes
+  s.tree.files["fld_up"]![1100]!.version = 1;
+  s.sw.sdb.run("UPDATE sites_deployment SET built_from = NULL WHERE site_id = ?", siteId);
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "no recorded baseline");
+  await s.yes("sites.deploy", { siteId }, "apv_u2");
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok", "held once");
+  assert.equal(await s.person("sites.deploy", { siteId }), "ok");
 });
 
 test("a service a tenant can make (a form, a site, an Automation's own service) is held like an agent; the host's own services are not", async () => {

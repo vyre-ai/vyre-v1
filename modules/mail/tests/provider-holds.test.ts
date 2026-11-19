@@ -275,3 +275,17 @@ test("the Gate's key-host list, the held list and the manifest agree in both dir
     if (c.gate?.when === "vault.key_host_unapproved(input)")
       assert.ok(KEY_HOST_CAPS.has(c.name), `${c.name} is held by the key-host rule but missing from KEY_HOST_CAPS`);
 });
+
+/** What the key-host rule leaves free on purpose, each with why. A gap that is not here is a hole. */
+const SAME_SOURCE_BY_DESIGN: Record<string, string> = {
+  "an agent's commit on the site's own production branch (or its redeploy of the files a person deployed)":
+    "it is the same source: whoever can write to that branch already controls production, so a Vault key reaching it adds no reach. The rule holds a change of repo, branch or folder, a preview of another branch, and replaced, renamed or moved uploaded files, not new commits on the approved branch",
+  "an agent's call that names the site's own source again":
+    "naming the same repo, branch and folder (however it is written) is no change; the key was approved for it",
+};
+
+test("what the key-host rule leaves free on purpose has a stated reason, and the calls that decide it are held by the rule", () => {
+  for (const [what, why] of Object.entries(SAME_SOURCE_BY_DESIGN)) assert.ok(why.length > 40, `${what} has a reason`);
+  for (const name of ["sites.deploy", "sites.update", "sites.plan", "sites.ship", "sites.preview_promote"])
+    assert.equal(def(name).gate?.when, "vault.key_host_unapproved(input)", `${name} is where a source change is held`);
+});

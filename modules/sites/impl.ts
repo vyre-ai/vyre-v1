@@ -52,7 +52,7 @@ function parseSource(raw: unknown): Src | null {
   try {
     const s = JSON.parse(raw) as Record<string, unknown>;
     const out: Src = {};
-    for (const k of ["repo", "folderId", "fileId", "path"] as const)
+    for (const k of ["repo", "folderId", "fileId", "path", "branch", "root", "fp"] as const)
       if (typeof s[k] === "string") out[k] = s[k] as string;
     return out;
   } catch {

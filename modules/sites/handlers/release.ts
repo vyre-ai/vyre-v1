@@ -569,6 +569,8 @@ interface Job {
   signal: AbortSignal;
   /** A preview deploy: its own container at its own address, behind sign-in, never the site's address. */
   preview?: { branch: string; host: string };
+  /** For uploaded files: what the files were when the deploy was asked for. The build refuses to go on if the files it fetches are other ones. */
+  expectFp?: string | null;
 }
 
 /** The deploys this process is running, by id, with the switch that cancels each. */
@@ -712,15 +714,20 @@ async function runJob(j: Job): Promise<void> {
       return;
     }
     live();
+    // the files this build read are the ones the deploy was asked for (and the Gate looked at), or nothing is built from them
+    if (j.expectFp && fetched.fp && j.expectFp !== fetched.fp) {
+      const why =
+        "The files in Files changed after this deploy was asked for, so nothing was built from them. Deploy again to build the new files.";
+      log.add(why);
+      end("failed", { problem: why, fix: "retry" });
+      return;
+    }
     // where this build's code came from, without the token: a promoted preview is judged by it
     {
       const origin: SourceSpec & { fp?: string } = { ...j.source };
       delete origin.tokenHandle;
-      // uploaded files are fingerprinted (ids and versions), so the Gate can tell when they were replaced since
-      if (origin.folderId || origin.fileId) {
-        const fp = await uploadFingerprint(origin, (cap, input) => j.call(cap, input));
-        if (fp) origin.fp = fp;
-      }
+      // uploaded files carry the fingerprint of the versions this build read (not a later look), so the Gate can tell when they were replaced since
+      if ((origin.folderId || origin.fileId) && fetched.fp) origin.fp = fetched.fp;
       j.db.run("UPDATE sites_deployment SET built_from = ? WHERE id = ?", JSON.stringify(origin), j.depId);
     }
     if (fetched.commit) {
@@ -1042,6 +1049,11 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
   const siteId = str(site.id);
   const current = isNull(site.current_deployment) ? null : str(site.current_deployment);
   const token = source.tokenHandle ? await filled(ctx, source.tokenHandle, `${siteId}:token:${ctx.now()}`) : null;
+  // uploaded files: what they are right now, read as the caller, which the build checks against what it fetches
+  const expectFp =
+    source.folderId || source.fileId
+      ? await uploadFingerprint(source, (cap, inp) => ctx.call(cap as never, inp))
+      : null;
   if (optBool(ctx, o, "onlyIfChanged") === true && source.repo) {
     const last = one(
       ctx,
@@ -1122,6 +1134,7 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     call: (cap, inp) => ctx.call(cap as never, inp),
     publicNeedsPromote: ctx.principal.kind !== "person",
     signal: ac.signal,
+    expectFp,
   };
   const p = enqueue(() => runJob(job)).finally(() => {
     done.delete(depId);

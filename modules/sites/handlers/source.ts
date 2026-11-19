@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
+import { fileLine, fingerprintOf, folderLine, SKIP_DIRS } from "../../../lib/key-target.ts";
 import { untar } from "./tar.ts";
 
 export interface SourceSpec {
@@ -25,6 +26,8 @@ export interface Fetched {
   commit?: string;
   message?: string;
   branch?: string;
+  /** For uploaded files: the fingerprint of the versions that were actually read (ids, versions, sizes, names and places), the same one the Gate reads (lib/key-target.ts uploadFingerprint). */
+  fp?: string;
   cleanup(): void;
 }
 export class SourceError extends Error {
@@ -37,7 +40,7 @@ export class SourceError extends Error {
 
 const FILES_MAX = 5000;
 const BYTES_MAX = 300 * 1024 * 1024;
-const SKIP = new Set([".git", "node_modules", ".next", ".venv", "venv", "__pycache__"]);
+const SKIP = new Set(SKIP_DIRS);
 
 /** owner/name, a github.com address with or without .git, or any https git address. */
 export function repoUrl(raw: string): string {
@@ -255,8 +258,11 @@ export interface SourceDeps {
   tmp?: string;
 }
 
-async function fromFolder(dir: string, folderId: string, d: SourceDeps): Promise<void> {
+async function fromFolder(dir: string, folderId: string, d: SourceDeps): Promise<string | undefined> {
   const entries: Array<{ name: string; data: Uint8Array }> = [];
+  // what was actually read: each file's version and size as the read answered, where it sits, and the folders walked
+  const lines: string[] = [];
+  let complete = true;
   const walk = async (folder: string, prefix: string): Promise<void> => {
     let cursor: string | undefined;
     do {
@@ -270,24 +276,44 @@ async function fromFolder(dir: string, folderId: string, d: SourceDeps): Promise
           throw new SourceError(
             `A folder holds at most ${FILES_MAX} files to deploy. Leave node_modules and build output out.`,
           );
-        const got = (await d.call("files.read", { fileId: f.fileId, as: "base64" })) as { base64?: string };
+        const got = (await d.call("files.read", { fileId: f.fileId, as: "base64" })) as {
+          base64?: string;
+          version?: number;
+          size?: number;
+        };
         if (typeof got.base64 !== "string") throw new SourceError(`${prefix}${f.name} could not be read.`);
+        if (typeof got.version === "number")
+          lines.push(fileLine(f.fileId, got.version, got.size ?? f.size ?? 0, `${prefix}${f.name}`));
+        else complete = false;
         entries.push({ name: `${prefix}${f.name}`, data: Buffer.from(got.base64, "base64") });
       }
-      for (const sub of page.folders ?? []) if (!SKIP.has(sub.name)) await walk(sub.folderId, `${prefix}${sub.name}/`);
+      for (const sub of page.folders ?? [])
+        if (!SKIP.has(sub.name)) {
+          lines.push(folderLine(sub.folderId, `${prefix}${sub.name}/`));
+          await walk(sub.folderId, `${prefix}${sub.name}/`);
+        }
       cursor = page.next;
     } while (cursor);
   };
   await walk(folderId, "");
   if (entries.length === 0) throw new SourceError("That folder is empty.");
   writeAll(dir, entries);
+  return complete ? fingerprintOf(lines) : undefined;
 }
 
-async function fromArchive(dir: string, fileId: string, d: SourceDeps): Promise<void> {
+async function fromArchive(dir: string, fileId: string, d: SourceDeps): Promise<string | undefined> {
   const meta = (await d.call("files.get", { fileId })) as { file?: { name?: string; size?: number } };
   const name = meta.file?.name ?? "";
-  const got = (await d.call("files.read", { fileId, as: "base64" })) as { base64?: string };
+  const got = (await d.call("files.read", { fileId, as: "base64" })) as {
+    base64?: string;
+    version?: number;
+    size?: number;
+  };
   if (typeof got.base64 !== "string") throw new SourceError("That file could not be read.");
+  const fp =
+    typeof got.version === "number"
+      ? await fingerprintOf([fileLine(fileId, got.version, got.size ?? meta.file?.size ?? 0, name)])
+      : undefined;
   const buf = Buffer.from(got.base64, "base64");
   if (/\.zip$/i.test(name) || buf.readUInt32LE(0) === 0x04034b50) writeAll(dir, unzip(buf));
   else if (/\.(tar\.gz|tgz|tar)$/i.test(name) || (buf[0] === 0x1f && buf[1] === 0x8b)) {
@@ -300,6 +326,7 @@ async function fromArchive(dir: string, fileId: string, d: SourceDeps): Promise<
     );
   } else throw new SourceError("Upload a .zip or .tar.gz of the project, or a folder.");
   lift(dir);
+  return fp;
 }
 
 /** Fetch the code into a new folder. The caller removes it with cleanup() once the build has read it. */
@@ -314,16 +341,20 @@ export async function fetchSource(s: SourceSpec, d: SourceDeps): Promise<Fetched
     fs.rmSync(`${dir}.lift`, { recursive: true, force: true });
   };
   try {
-    let meta: { commit?: string; message?: string; branch?: string } = {};
+    let meta: { commit?: string; message?: string; branch?: string; fp?: string } = {};
     const given = [s.repo, s.folderId, s.fileId, s.path].filter((v) => v !== undefined && v !== "").length;
     if (given !== 1)
       throw new SourceError(
         "Give the site one source: a GitHub repo, a folder or zip in Files, or a folder on this computer.",
       );
     if (s.repo) meta = await fromRepo(dir, s, s.tokenHandle ? await d.token(s.tokenHandle) : null);
-    else if (s.folderId) await fromFolder(dir, s.folderId, d);
-    else if (s.fileId) await fromArchive(dir, s.fileId, d);
-    else {
+    else if (s.folderId) {
+      const fp = await fromFolder(dir, s.folderId, d);
+      if (fp) meta.fp = fp;
+    } else if (s.fileId) {
+      const fp = await fromArchive(dir, s.fileId, d);
+      if (fp) meta.fp = fp;
+    } else {
       if (d.contained)
         throw new SourceError(
           "A path is a folder on your own computer, and this Vyre runs on a server. Upload the folder, put it in Files, or give a GitHub repo.",

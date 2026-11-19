@@ -121,9 +121,30 @@ export async function sourceKeyHost(key: string): Promise<string> {
   return `${hex.slice(0, 32)}.${hex.slice(32)}.src.invalid`;
 }
 
+/** Folders that are never part of a deploy (the fetcher skips them, so the fingerprint does too). */
+export const SKIP_DIRS: readonly string[] = [".git", "node_modules", ".next", ".venv", "venv", "__pycache__"];
+/** The most files and folders a fingerprint reads, and how deep it goes; a folder past either cannot be fingerprinted, which holds (a deploy refuses more than 5000 files anyway). */
+const FP_MAX = 20_000;
+const FP_DEPTH = 64;
+
+/** One file as the fingerprint counts it: which file, which version and size, and where it sits and what it is called (renaming or moving a file is a change). */
+export const fileLine = (id: string, version: number, size: number, where: string): string =>
+  `f:${id}:${version}:${size}:${where}`;
+/** One folder as the fingerprint counts it: its place in the tree. */
+export const folderLine = (id: string, where: string): string => `d:${id}:${where}`;
+/** The fingerprint of a list of file and folder lines: their hash, in an order that does not depend on how the listing was paged. */
+export async function fingerprintOf(lines: string[]): Promise<string> {
+  const d = new Uint8Array(
+    await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode([...lines].sort().join("\n"))),
+  );
+  return Array.from(d, (b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 32);
+}
+
 /**
- * A fingerprint of the uploaded files a source names: every file's id, version and size, folders walked in order (a replaced file is a new version). Null when it cannot be read or is too large to read here, which holds.
- * `call` reads Files as the person the caller works for, in the Gate, and as the deploy's caller when a build records what it built from.
+ * A fingerprint of the uploaded files a source names: every file's id, version, size, name and place in the folders, and every folder's place (a replaced, renamed or moved file is a change). Folders are read in pages up to FP_MAX
+ * entries. Null when it cannot be read or is larger than that, which holds. `call` reads Files as the person the caller works for, in the Gate, and as the deploy's caller when a deploy is asked for.
  */
 export async function uploadFingerprint(
   s: SiteSource,
@@ -134,39 +155,42 @@ export async function uploadFingerprint(
     if (s.fileId) {
       const f = (
         (await call("files.get", { fileId: s.fileId })) as {
-          file?: { fileId?: string; version?: number; size?: number };
+          file?: { fileId?: string; name?: string; version?: number; size?: number };
         } | null
       )?.file;
       if (!f || typeof f.version !== "number") return null;
-      lines.push(`f:${s.fileId}:${f.version}:${f.size ?? 0}`);
+      lines.push(fileLine(s.fileId, f.version, f.size ?? 0, f.name ?? ""));
     } else if (s.folderId) {
-      const walk = async (folder: string, depth: number): Promise<boolean> => {
+      const walk = async (folder: string, where: string, depth: number): Promise<boolean> => {
         let cursor: string | undefined;
         do {
           const page = (await call("files.list", { folder, limit: 500, ...(cursor ? { cursor } : {}) })) as {
-            files?: { fileId: string; version?: number; size?: number }[];
-            folders?: { folderId: string }[];
+            files?: { fileId: string; name?: string; version?: number; size?: number }[];
+            folders?: { folderId: string; name?: string }[];
             next?: string;
           } | null;
           if (!page || !Array.isArray(page.files)) return false;
-          for (const f of page.files) lines.push(`f:${f.fileId}:${f.version ?? 0}:${f.size ?? 0}`);
-          if (lines.length > 3000 || depth > 12) return false;
-          for (const sub of page.folders ?? []) if (!(await walk(sub.folderId, depth + 1))) return false;
+          for (const f of page.files) {
+            if (typeof f.version !== "number") return false;
+            lines.push(fileLine(f.fileId, f.version, f.size ?? 0, `${where}${f.name ?? ""}`));
+          }
+          if (lines.length > FP_MAX || depth > FP_DEPTH) return false;
+          for (const sub of page.folders ?? []) {
+            if (SKIP_DIRS.includes(sub.name ?? "")) continue;
+            const at = `${where}${sub.name ?? ""}/`;
+            lines.push(folderLine(sub.folderId, at));
+            if (!(await walk(sub.folderId, at, depth + 1))) return false;
+          }
           cursor = page.next;
         } while (cursor);
         return true;
       };
-      if (!(await walk(s.folderId, 0))) return null;
+      if (!(await walk(s.folderId, "", 0))) return null;
     } else return null;
   } catch {
     return null;
   }
-  const d = new Uint8Array(
-    await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(lines.join("\n"))),
-  );
-  return Array.from(d, (b) => b.toString(16).padStart(2, "0"))
-    .join("")
-    .slice(0, 32);
+  return fingerprintOf(lines);
 }
 
 /** What the Gate knows about a site the call names: where its code comes from now, its stored Vault env rows, where a preview of a branch was built from, and what the files were when it was last deployed. */
@@ -233,20 +257,24 @@ export function siteKeyPairs(
   }
   const storedKey = sourceKey(facts?.source ?? null, siteId);
   const stored = (facts?.env ?? []).filter((e) => e.handle !== "");
-  const toward = sourceKey(given ?? facts?.source ?? null, siteId);
+  const target = given ?? facts?.source ?? null;
+  const toward = sourceKey(target, siteId);
   for (const e of entries) if (!stored.some((s) => s.name === e.name && s.handle === e.handle)) add(e.handle, toward);
-  const givenKey = given ? sourceKey(given, siteId) : null;
-  // a source that cannot be named is never "the same" as one that cannot be named either
-  if (given && givenKey === null && (stored.length > 0 || entries.length > 0)) add("?", null);
-  if (given && givenKey !== storedKey) {
-    for (const s of stored) add(s.handle, givenKey);
-    for (const e of entries) add(e.handle, givenKey);
-  }
-  // uploaded files replaced since they were deployed, with no source named: the next deploy is other code
-  const fp = facts?.source?.fp;
-  if (!given && fp && facts?.deployedFp && fp !== facts.deployedFp) {
-    for (const s of stored) add(s.handle, storedKey);
-    for (const e of entries) add(e.handle, storedKey);
+  // what the keys were last approved to reach: the site's source, and for uploaded files the files as they were when last deployed (a deploy records them; none recorded is a baseline no call matches)
+  const uploaded = !!(facts.source && (facts.source.folderId || facts.source.fileId) && !facts.source.repo);
+  const baseline = uploaded
+    ? facts.deployedFp
+      ? sourceKey({ ...facts.source, fp: facts.deployedFp }, siteId)
+      : null
+    : storedKey;
+  if (target && (stored.length > 0 || entries.length > 0)) {
+    // a source that cannot be named (uploaded files whose fingerprint could not be read are one) is never "the same" as another: it holds
+    if (toward === null) {
+      if (given || uploaded) add("?", null);
+    } else if (toward !== baseline) {
+      for (const s of stored) add(s.handle, toward);
+      for (const e of entries) add(e.handle, toward);
+    }
   }
   const promote =
     typeof i["branch"] === "string" &&

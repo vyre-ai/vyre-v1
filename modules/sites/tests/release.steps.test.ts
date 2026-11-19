@@ -12,157 +12,9 @@ import { acceptWebhook, markPushDone, markPushFailed, pendingPushes, signed, fol
 import { createHmac } from "node:crypto";
 import { handlers, siteFacts } from "../impl.ts";
 import { deployHandlers } from "../handlers/deploy.ts";
-import { harness as base } from "../fixtures/world.ts";
-
-const FIXTURE = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "..",
-  "fixtures",
-  "sites",
-  "static",
-);
-const h = handlers as unknown as Record<string, (ctx: unknown, input: unknown) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-interface Fake {
-  /** how long the build takes; a cancel ends it at once */
-  buildMs?: number;
-  failBuild?: boolean;
-  /** a build that does not stop when it is canceled (a step the engine cannot cut off) */
-  uncuttable?: boolean;
-}
-
-function world(o: Fake = {}) {
-  const w = base();
-  const db = new DatabaseSync(":memory:");
-  for (const f of [
-    "0001_sites_core.sql",
-    "0002_promote_tables.sql",
-    "0003_routes.sql",
-    "0004_deploy.sql",
-    "0005_deploy_steps.sql",
-    "0006_env_plain.sql",
-    "0007_webhook.sql",
-    "0009_hook_failures.sql",
-    "0013_hook_order.sql",
-    "0014_hook_seq.sql",
-    "0015_built_from.sql",
-  ])
-    db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
-  const sdb = {
-    all: (sql: string, ...a: unknown[]) => db.prepare(sql).all(...(a as never[])),
-    run: (sql: string, ...a: unknown[]) => ({ changes: Number(db.prepare(sql).run(...(a as never[])).changes) }),
-  };
-  let clock = Date.now();
-  // a call from a handler to another capability goes to that handler (sites_ship composes the others); any other capability answers nothing
-  const ctx: any = {
-    ...w.ctx,
-    db: sdb,
-    now: () => ++clock,
-    // a sealed value that opens again (the harness's stub seals to nothing)
-    seal: {
-      seal: (v: Uint8Array) => ({ keyId: "k", nonce: "n", bytes: Buffer.from(v).toString("base64") }),
-      unseal: (s: { bytes: string }) => new Uint8Array(Buffer.from(s.bytes, "base64")),
-    },
-    call: async (cap: string, inp: unknown) => (h[cap] ? h[cap]!(ctx, inp) : {}),
-  }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const seen = {
-    builds: 0,
-    cut: 0,
-    removed: [] as string[],
-    running: [] as string[],
-    envs: {} as Record<string, Record<string, string>>,
-    images: [] as string[],
-    droppedImages: [] as string[],
-  };
-  const fake = { ...o };
-  const hooks = { hostRoute: (async () => undefined) as (...a: unknown[]) => Promise<void> };
-  const runner = {
-    ping: async () => true,
-    freeMb: async () => 50_000,
-    async build(a: { deploymentId: string; onLine(l: string): void; signal?: AbortSignal }) {
-      seen.builds++;
-      a.onLine("Step 1/2 : FROM caddy:2-alpine");
-      if (fake.uncuttable) await new Promise<void>((res) => setTimeout(res, fake.buildMs ?? 300));
-      else if (fake.buildMs)
-        await new Promise<void>((res) => {
-          const t = setTimeout(res, fake.buildMs);
-          a.signal?.addEventListener(
-            "abort",
-            () => {
-              seen.cut++;
-              clearTimeout(t);
-              res();
-            },
-            { once: true },
-          );
-        });
-      if (a.signal?.aborted && !fake.uncuttable) return { ok: false as const, reason: "The build was canceled." };
-      if (fake.failBuild) {
-        a.onLine('npm ERR! Missing script: "build"');
-        return { ok: false as const, reason: "The command returned a non-zero code: 1" };
-      }
-      a.onLine("Successfully built 4be1a09c77d2");
-      return { ok: true as const, image: `img-${a.deploymentId}` };
-    },
-    network: async () => ({ name: "vyre-site-test", subnet: "10.250.0.0/28" }),
-    removeNetwork: async () => undefined,
-    async run(a: { deploymentId: string; env?: Record<string, string> }) {
-      seen.running.push(`c-${a.deploymentId}`);
-      seen.envs[a.deploymentId] = a.env ?? {};
-      return { containerId: `c-${a.deploymentId}`, name: `vyre-site-${a.deploymentId}` };
-    },
-    address: async () => "10.250.0.2",
-    state: async () => ({ running: true }),
-    logs: async () => ["Serving on 3000"],
-    remove: async (id: string) => void seen.removed.push(id),
-    removeImage: async (i: string) => void seen.droppedImages.push(i),
-    imageExists: async () => true,
-    addon: async () => ({ containerId: "addon" }),
-    removeAddon: async () => undefined,
-    exec: async () => ({ code: 0, out: "PONG" }),
-    put: async () => undefined,
-  };
-  configureRoutes({
-    origin: () => ({ origin: "https://space.test", relay: false }),
-    probe: async () => ({ answering: true }),
-    runner,
-    contained: false,
-    tmp: os.tmpdir(),
-    sitesDomain: () => "sites.test",
-    domainOf: () => null,
-    hostRoute: (...a: unknown[]) => hooks.hostRoute(...a),
-    take: () => undefined,
-  } as never);
-  const make = async (name: string): Promise<string> =>
-    (await h["sites.create"]!(ctx, { name, source: { path: FIXTURE } })).site.siteId as string;
-  // a repo site: its source is fetched by a stand-in that returns the static fixture with a commit (a repo cannot be cloned here)
-  let n = 0;
-  _test.useFetcher((async (s: { branch?: string }) => ({
-    dir: FIXTURE,
-    commit: `c0ffee${(++n).toString(16).padStart(2, "0")}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
-    message: `Change ${n}`,
-    branch: s.branch ?? "main",
-    cleanup: () => undefined,
-  })) as never);
-  const makeRepo = async (name: string, o: Record<string, unknown> = {}): Promise<string> =>
-    (await h["sites.create"]!(ctx, { name, source: { repo: "https://github.com/acme/app.git", branch: "main" }, ...o }))
-      .site.siteId as string;
-  return {
-    ctx,
-    sdb,
-    seen,
-    fake,
-    hooks,
-    make,
-    makeRepo,
-    done: () => {
-      _test.useFetcher(null);
-      configureRoutes(null);
-    },
-  };
-}
+import { FIXTURE, h, world, type Fake } from "../fixtures/deploy-world.ts";
+import { uploadFingerprint } from "../../../lib/key-target.ts";
+import { fetchSource } from "../handlers/source.ts";
 
 const states = (steps: Array<{ key: string; state: string }>): string =>
   steps.map((s) => `${s.key}:${s.state}`).join(" ");
@@ -1701,5 +1553,112 @@ test("a build keeps where its code came from (never the token), and the Gate rea
     assert.equal(siteFacts({ db: w.sdb } as never, "sit_nope"), null);
   } finally {
     w.done();
+  }
+});
+
+test("the Gate's facts keep a stored site's branch and folder, and a deployment's own branch and fingerprint", async () => {
+  const rows = [{ fileId: "fil_a", name: "index.html", version: 1, size: 4 }];
+  const files = (cap: string, input: unknown): unknown =>
+    cap === "files.list" && (input as { folder: string }).folder === "fld_up" ? { files: rows, folders: [] } : null;
+  const w = world({ files, fetchFp: () => fpNow });
+  let fpNow: string | undefined;
+  try {
+    const repo = (
+      await h["sites.create"]!(w.ctx, {
+        name: "Repo",
+        source: { repo: "https://github.com/acme/app.git", branch: "main", root: "apps/web" },
+      })
+    ).site.siteId as string;
+    await h["sites.deploy"]!(w.ctx, { siteId: repo, wait: true });
+    await h["sites.preview_rebuild"]!(w.ctx, { siteId: repo, branch: "feat/x", wait: true });
+    const f = siteFacts({ db: w.sdb } as never, repo, "feat/x")!;
+    assert.equal(f.source!.branch, "main");
+    assert.equal(f.source!.root, "apps/web");
+    assert.equal(f.builtFrom!.branch, "feat/x", "the preview was built from its own branch");
+    assert.equal(f.builtFrom!.root, "apps/web");
+    const up = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site.siteId as string;
+    fpNow = (await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i))) ?? undefined;
+    await h["sites.deploy"]!(w.ctx, { siteId: up, wait: true });
+    const g = siteFacts({ db: w.sdb } as never, up)!;
+    assert.equal(g.deployedFp, fpNow, "what the live build read");
+    assert.equal(g.source!.fp, undefined, "the stored source holds no fingerprint (the Gate reads the files)");
+  } finally {
+    w.done();
+  }
+});
+
+test("a build refuses files other than the ones the deploy was asked for, in plain words, and records what it read", async () => {
+  const rows = [{ fileId: "fil_a", name: "index.html", version: 1, size: 4 }];
+  const files = (cap: string, input: unknown): unknown =>
+    cap === "files.list" && (input as { folder: string }).folder === "fld_up" ? { files: rows, folders: [] } : null;
+  let read: string | undefined;
+  const w = world({ files, fetchFp: () => read });
+  try {
+    const siteId = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site
+      .siteId as string;
+    const asked = await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i));
+    // the files change between the ask and the fetch: the build reads other versions
+    read = "00000000000000000000000000000000";
+    const bad = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(bad.deployment.state, "failed");
+    assert.match(bad.deployment.problem, /files in Files changed after this deploy was asked for/);
+    assert.equal(bad.deployment.fix, "retry");
+    assert.equal(w.seen.builds, 0, "nothing was built from them");
+    assert.equal(siteFacts({ db: w.sdb } as never, siteId)!.deployedFp, null);
+    // the files it read are the ones asked for: it goes on, and the build keeps that fingerprint
+    read = asked!;
+    const ok = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
+    assert.equal(siteFacts({ db: w.sdb } as never, siteId)!.deployedFp, asked);
+    // the files changed again after the ask: the fetch reads other versions than the ones asked for, and refuses
+    rows[0]!.version = 2;
+    const again = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(again.deployment.state, "failed", "read now: a changed version, but the fetch says the old one");
+  } finally {
+    w.done();
+  }
+});
+
+test("the fetcher fingerprints the versions it read, the same way the Gate does", async () => {
+  const tree: Record<
+    string,
+    {
+      files: { fileId: string; name: string; version: number; size: number }[];
+      folders: { folderId: string; name: string }[];
+    }
+  > = {
+    fld: {
+      files: [{ fileId: "fil_1", name: "index.html", version: 3, size: 5 }],
+      folders: [
+        { folderId: "fld_s", name: "css" },
+        { folderId: "fld_nm", name: "node_modules" },
+      ],
+    },
+    fld_s: { files: [{ fileId: "fil_2", name: "a.css", version: 1, size: 2 }], folders: [] },
+    fld_nm: { files: [{ fileId: "fil_3", name: "x.js", version: 1, size: 1 }], folders: [] },
+  };
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    const q = input as { folder?: string; fileId?: string };
+    if (cap === "files.list") return tree[q.folder as string] ?? null;
+    if (cap === "files.read") {
+      const f = Object.values(tree)
+        .flatMap((t) => t.files)
+        .find((x) => x.fileId === q.fileId)!;
+      return { base64: Buffer.from("x".repeat(f.size)).toString("base64"), version: f.version, size: f.size };
+    }
+    return null;
+  };
+  const got = await fetchSource({ folderId: "fld" }, { call, token: async () => null, contained: true });
+  try {
+    assert.ok(got.fp, "the fetch says what it read");
+    assert.equal(got.fp, await uploadFingerprint({ folderId: "fld" }, call), "the Gate would read the same");
+    tree["fld"]!.files[0]!.version = 4;
+    assert.notEqual(
+      got.fp,
+      await uploadFingerprint({ folderId: "fld" }, call),
+      "a later version is another fingerprint",
+    );
+  } finally {
+    got.cleanup();
   }
 });
