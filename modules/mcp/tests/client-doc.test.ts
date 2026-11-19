@@ -129,3 +129,15 @@ test("two sites under the same country suffix are two sources: example.co.uk and
   assert.equal(keepDoc(h.db, { clientId: "https://www.example.co.uk/x.json", name: "x", redirectUris: ["https://www.example.co.uk/cb"] }, 1000), false);
   assert.equal(keepDoc(h.db, { clientId: "https://other.co.uk/app.json", name: "x", redirectUris: ["https://other.co.uk/cb"] }, 1000), true);
 });
+
+test("the cap is counted on the parsed host: a path that names another domain, or a port, does not move a page between sources", () => {
+  const h = harness();
+  ensure(h.db);
+  for (let i = 0; i < MAX_DOCS_PER_HOST; i++)
+    assert.equal(keepDoc(h.db, { clientId: `https://attacker.example/victim.test/${i}.json`, name: "x", redirectUris: ["https://attacker.example/cb"] }, 1000), true);
+  assert.equal(keepDoc(h.db, { clientId: "https://victim.test/app.json", name: "x", redirectUris: ["https://victim.test/cb"] }, 1000), true, "the attacker's paths do not count against victim.test");
+  for (let i = 0; i < MAX_DOCS_PER_HOST - 1; i++)
+    assert.equal(keepDoc(h.db, { clientId: `https://port.example:8443/${i}.json`, name: "x", redirectUris: ["https://port.example/cb"] }, 1000), true);
+  assert.equal(keepDoc(h.db, { clientId: "https://port.example/x.json", name: "x", redirectUris: ["https://port.example/cb"] }, 1000), true);
+  assert.equal(keepDoc(h.db, { clientId: "https://port.example:9000/y.json", name: "x", redirectUris: ["https://port.example/cb"] }, 1000), false, "a port does not dodge the cap");
+});

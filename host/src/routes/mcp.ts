@@ -28,6 +28,8 @@ export interface McpRuntime {
 }
 
 const MAX_BODY = 1024 * 1024;
+/** The most a stream may have written and not yet delivered before it is cut. */
+const MAX_BUFFERED = 256 * 1024;
 const SIGN_IN = /^\/(oauth\/|\.well-known\/oauth-)/;
 
 export interface McpRouteDeps {
@@ -101,14 +103,22 @@ export function createMcpRoute(deps: McpRouteDeps): {
         if (out.stream) {
           // an open stream: every write goes out at once; it ends when the app goes away or the server ends it
           const closed = new Promise<void>((resolve) => {
-            // the response's own close: a request's close fires once its body is read, which is not the app going away
-            res.once("close", resolve);
+            // the response's own close: a request's close fires once its body is read, which is not the app going away.
+            // An app that went away while the runtime was answering has already closed it: that settles at once.
+            if (res.destroyed || res.writableEnded) resolve();
+            else res.once("close", resolve);
           });
           res.flushHeaders();
           try {
             await out.stream({
               write: (chunk) => {
-                if (!res.writableEnded && !res.destroyed) res.write(chunk);
+                if (res.writableEnded || res.destroyed) return;
+                // a client that stops reading does not make the server hold what it was never sent: past this much waiting the stream is cut
+                if (res.writableLength > MAX_BUFFERED) {
+                  res.destroy();
+                  return;
+                }
+                res.write(chunk);
               },
               closed,
             });

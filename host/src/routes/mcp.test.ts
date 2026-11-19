@@ -98,3 +98,39 @@ test("a request to the sign-in addresses reaches the module with the address thi
     await s.close();
   }
 });
+
+test("an app that goes away while the runtime is still answering does not hold its stream open", async () => {
+  let ended = false;
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const s = await serve(() => ({
+    async handle() {
+      await gate;
+      return {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+        body: "",
+        stream: async ({ closed }) => {
+          await closed;
+          ended = true;
+        },
+      };
+    },
+  }));
+  try {
+    const ctl = new AbortController();
+    const asked = fetch(s.url, { method: "GET", headers: { accept: "text/event-stream" }, signal: ctl.signal }).catch(() => undefined);
+    await new Promise((r) => setTimeout(r, 100));
+    ctl.abort();
+    await asked;
+    await new Promise((r) => setTimeout(r, 100));
+    release();
+    for (let i = 0; i < 50 && !ended; i++) await new Promise((r) => setTimeout(r, 40));
+    assert.equal(ended, true, "the stream ended although the app was gone before the response began");
+  } finally {
+    release();
+    await s.close();
+  }
+});

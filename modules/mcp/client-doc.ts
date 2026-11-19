@@ -94,9 +94,17 @@ export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectU
   if (!known) {
     db.run("DELETE FROM mcp_oauth_clients WHERE used_at IS NULL AND created_at < ?", now - UNUSED_CLIENT_MS);
     // one host cannot fill the table: a few pages per host
-    // counted per registered domain (the last two labels), so a wildcard of subdomains is one source; and half the table is kept for clients that have been used
+    // counted per registered domain, compared on the parsed host (never on a pattern over the whole address, which a path or a port could match or dodge); half the table is kept for clients that have been used
     const domain = registeredDomain(new URL(doc.clientId).hostname);
-    const mine = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients WHERE lower(client_id) LIKE ? ESCAPE '\\'", `https://%${domain.replace(/[%_\\]/g, (c) => `\\${c}`)}/%`) as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
+    const ids = db.all("SELECT client_id FROM mcp_oauth_clients WHERE client_id LIKE 'https://%'") as Array<Record<string, unknown>>;
+    let mine = 0;
+    for (const r of ids) {
+      try {
+        if (registeredDomain(new URL(String(r["client_id"])).hostname) === domain) mine += 1;
+      } catch {
+        /* an id that is not an address is not counted */
+      }
+    }
     if (mine >= MAX_DOCS_PER_HOST) return false;
     const unused = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients WHERE used_at IS NULL") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
     if (unused >= MAX_CLIENTS / 2) return false;
