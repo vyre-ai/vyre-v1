@@ -3,10 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
-import { PlaceHashProvider } from "../../../apps/app/src/shell/hash/context.tsx";
-import { ShellRuntimeProvider } from "../../../apps/app/src/shell/providers/runtime.tsx";
-import { sampleRuntime } from "../../../apps/app/src/shell/providers/misc-test-runtime.tsx";
-import AutomationsPlace from "../../../apps/app/src/shell/providers/automations.tsx";
+import { AutomationsList } from "../../../apps/app/src/places/automations/sidebar/AutomationsList.tsx";
 import { AutomationsDataProvider } from "../../../apps/app/src/places/automations/canvas/data.tsx";
 import { ConfigExtrasProvider } from "../../../apps/app/src/places/automations/config/data.tsx";
 import { createConfigSample } from "../../../apps/app/src/places/automations/config/sample.ts";
@@ -87,33 +84,41 @@ function PathPage({ part }: { part: string }): ReactNode {
   );
 }
 
-/** The Journey inside the Automations place: the sidebar, the page head, the Path. The Journey's row is pressed once the place is up. */
+/** The Journey next to the Automations list, as the place lays it out: the list on the left with its Journeys, the page on the right. */
 function PlacePage(): ReactNode {
   const s = useMemo(() => createConfigSample(northwind), []);
-  const rt = useMemo(() => {
-    const r = sampleRuntime({ screens: s.data.screens, call: s.data.call });
-    const snap = r.principals.getSnapshot();
-    const people = { status: "ready", data: snap.status === "ready" ? (snap as { data: unknown[] }).data : [] };
-    (r as { principals: unknown }).principals = { subscribe: () => () => undefined, getSnapshot: () => people };
-    return r;
-  }, [s]);
-  useEffect(() => {
-    const g = globalThis as { document?: { querySelector(q: string): { click?: () => void } | null } };
-    const t = setInterval(() => {
-      const row = g.document?.querySelector('[data-testid="row-jrn_onboard"]');
-      if (row) {
-        row.click?.();
-        clearInterval(t);
-      }
-    }, 300);
-    return () => clearInterval(t);
-  }, []);
   return (
-    <ShellRuntimeProvider value={rt}>
-      <PlaceHashProvider hash="" opened={() => undefined}>
-        <AutomationsPlace place="automations" />
-      </PlaceHashProvider>
-    </ShellRuntimeProvider>
+    <AutomationsDataProvider value={s.data}>
+      <ConfigExtrasProvider value={s.extras}>
+        <View
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            minHeight: 0,
+            backgroundColor: "var(--rail)" as string,
+            gap: 8,
+            paddingRight: 8,
+            paddingBottom: 8,
+          }}
+        >
+          <View style={{ width: 256, backgroundColor: "var(--side)" as string, borderRadius: 12, padding: 8 }}>
+            <AutomationsList selectedId="jrn_onboard" query="" onChoose={() => undefined} />
+          </View>
+          <View
+            style={{
+              flex: 1,
+              minHeight: 0,
+              minWidth: 0,
+              backgroundColor: "var(--win)" as string,
+              borderRadius: 12,
+              overflow: "hidden",
+            }}
+          >
+            <JourneyDesigner journeyId="jrn_onboard" initialTab="path" canDesign />
+          </View>
+        </View>
+      </ConfigExtrasProvider>
+    </AutomationsDataProvider>
   );
 }
 
