@@ -12915,6 +12915,7 @@ export type DocumentsSigningOut = {
   signers: Array<string>;
   places: Array<unknown>;
   stale?: boolean;
+  plain?: boolean;
   templateFileId?: string;
   recordId?: string;
 };
@@ -15391,6 +15392,7 @@ export type EsignSendIn = {
   provider?: "vyre" | "documenso" | "dropbox_sign" | "docusign";
   message?: string;
   places?: Array<unknown>;
+  plainOk?: boolean;
   expiresInDays?: number;
   idempotencyKey: string;
 };

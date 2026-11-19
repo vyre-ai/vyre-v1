@@ -122,3 +122,22 @@ test("a Word file with no text is refused in plain words", async () => {
     handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: FOLDER, values: {}, format: "pdf" }),
   );
 });
+
+test("a PDF set in the plain page look says so to signing; one the converter made does not; a newer version of the file is not ours to call plain", async () => {
+  const w = world();
+  const id = w.add("Agreement.docx", docx(para("Hello {name}")));
+  configureDocuments(null);
+  const plain = await handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: FOLDER, values: { name: "Imran" }, format: "pdf" });
+  assert.equal(plain.layout, "simple");
+  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, true);
+  w.files.get(plain.file.fileId)!.versions = 2;
+  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, undefined);
+  configureDocuments({ pdf: async () => Buffer.from("%PDF-1.7 exact") });
+  try {
+    const exact = await handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: FOLDER, values: { name: "Imran" }, format: "pdf", name: "Exact" });
+    assert.equal(exact.layout, "word");
+    assert.equal((await handlers["documents.signing"](w.ctx, { fileId: exact.file.fileId })).plain, undefined);
+  } finally {
+    configureDocuments(null);
+  }
+});

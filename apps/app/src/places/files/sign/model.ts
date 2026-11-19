@@ -42,6 +42,8 @@ export interface SendInput {
   recordId?: string;
   signers: { name: string; email?: string; order: number }[];
   message?: string;
+  /** Send a copy set in the plain page look anyway (the sender chose). */
+  plainOk?: boolean;
   idempotencyKey: string;
 }
 
@@ -53,6 +55,7 @@ export function sendInput(
   message: string,
   key: string,
   oneAfterAnother = false,
+  plainOk = false,
 ): SendInput {
   const signers = drafts
     .filter((d) => !isBlank(d))
@@ -66,9 +69,14 @@ export function sendInput(
     ...(recordId ? { recordId } : {}),
     signers,
     ...(message.trim() !== "" ? { message: message.trim() } : {}),
-    idempotencyKey: key,
+    ...(plainOk ? { plainOk: true } : {}),
+    idempotencyKey: plainOk ? `${key}-plain` : key,
   };
 }
+
+/** The server's sentence when a copy set in the plain page look is held; the sheet then offers the choice. */
+export const isPlainHold = (error: string | null): boolean =>
+  !!error && /Letterhead and pictures are missing/.test(error);
 
 export type EnvState = "approval" | "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
 

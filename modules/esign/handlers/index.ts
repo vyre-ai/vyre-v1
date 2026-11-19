@@ -8,6 +8,7 @@ import {
   cancelVyre,
   fetchVyre,
   isBuiltIn,
+  isPlainCopy,
   listAll,
   providersVyre,
   remind,
@@ -29,9 +30,29 @@ export const handlers = {
   ...sendHandlers,
   ...hookHandlers,
   "esign.send": async (ctx: Ctx, input: unknown) => {
-    if (isBuiltIn(ctx, rec(ctx, input).provider)) return sendVyre(ctx, input);
-    await prime();
-    return sendHandlers["esign.send"](ctx, input);
+    const o = rec(ctx, input);
+    // a copy set in the plain page look has no letterhead or pictures: it goes out only when the sender says so, and that choice is kept
+    const plain = typeof o.fileId === "string" && (await isPlainCopy(ctx, o.fileId));
+    if (plain && o.plainOk !== true)
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        "Letterhead and pictures are missing in this copy. Wait for the exact copy, or send this one anyway.",
+        { plain: true, field: "plainOk" },
+      );
+    const out = isBuiltIn(ctx, o.provider)
+      ? await sendVyre(ctx, input)
+      : (await prime(), await sendHandlers["esign.send"](ctx, input));
+    const id = (out as { envelopeId?: unknown }).envelopeId;
+    if (plain && typeof id === "string")
+      ctx.db.run(
+        "INSERT INTO esign_event (envelope_id, signer_idx, at, kind, ip, ua, detail) VALUES (?, NULL, ?, ?, NULL, NULL, ?)",
+        id,
+        ctx.now(),
+        "plain_copy_sent",
+        "sent as the plain copy by the sender's choice",
+      );
+    return out;
   },
   "esign.status": (ctx: Ctx, input: unknown) =>
     builtInEnvelope(ctx, input)

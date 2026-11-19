@@ -10,7 +10,7 @@ import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
 import { copyText, sendForSignature } from "./actions.ts";
 import type { Sent } from "./actions.ts";
 import { useSignData } from "./data.tsx";
-import { blankSigner, first, mailWords, problemsOf, sendInput } from "./model.ts";
+import { blankSigner, first, isPlainHold, mailWords, problemsOf, sendInput } from "./model.ts";
 import type { SentLink, SignerDraft } from "./model.ts";
 
 const web = Platform.OS === "web";
@@ -42,7 +42,7 @@ export function SignSheet({ fileId, fileName, recordId, suggest, onClose, onSent
   const problems = tried ? problemsOf(rows) : [];
   const change = (k: string, patch: Partial<SignerDraft>): void =>
     setRows((rs) => rs.map((r) => (r.key === k ? { ...r, ...patch } : r)));
-  const send = (): void => {
+  const send = (plainOk = false): void => {
     if (busy) return;
     setTried(true);
     if (problemsOf(rows).length > 0) return;
@@ -50,7 +50,7 @@ export function SignSheet({ fileId, fileName, recordId, suggest, onClose, onSent
     setError(null);
     void sendForSignature(
       d.call,
-      sendInput(fileId, recordId, rows, message, key.current, inOrder),
+      sendInput(fileId, recordId, rows, message, key.current, inOrder, plainOk),
       d.origin ?? originOf(),
     ).then((r) => {
       setBusy(false);
@@ -83,7 +83,13 @@ export function SignSheet({ fileId, fileName, recordId, suggest, onClose, onSent
       testID="sign-sheet"
       actions={[
         { label: "Cancel", onPress: onClose, testID: "sign-cancel" },
-        { label: busy ? "Sending…" : "Send", primary: true, disabled: busy, onPress: send, testID: "sign-send" },
+        {
+          label: busy ? "Sending…" : "Send",
+          primary: true,
+          disabled: busy,
+          onPress: () => send(),
+          testID: "sign-send",
+        },
       ]}
     >
       <View style={st.stack}>
@@ -178,6 +184,28 @@ export function SignSheet({ fileId, fileName, recordId, suggest, onClose, onSent
           <Text accessibilityRole="alert" role="alert" style={st.problem} testID="sign-error">
             {error}
           </Text>
+        ) : null}
+        {isPlainHold(error) ? (
+          <View style={st.stack} testID="sign-plain-hold">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Send this copy anyway"
+              testID="sign-plain-anyway"
+              onPress={() => send(true)}
+              style={st.add}
+            >
+              <Text style={st.addText}>Send this one anyway</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Wait for the exact copy"
+              testID="sign-plain-wait"
+              onPress={onClose}
+              style={st.add}
+            >
+              <Text style={st.addText}>Wait for the exact copy</Text>
+            </Pressable>
+          </View>
         ) : null}
       </View>
     </Dialog>

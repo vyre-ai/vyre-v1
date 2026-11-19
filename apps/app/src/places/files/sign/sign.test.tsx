@@ -176,3 +176,18 @@ test("remind mints one new link for one person; cancel and the list are plain ca
   assert.equal(list[0]?.fileId, "fil_1");
   assert.deepEqual(calls[2], { cap: "esign.list", input: { fileId: "fil_1" } });
 });
+
+test("a held plain copy: the server's sentence shows with the two choices, and the one that sends anyway asks again with plainOk and its own key", async () => {
+  const model = await import("./model.ts");
+  assert.equal(
+    model.isPlainHold(
+      "Letterhead and pictures are missing in this copy. Wait for the exact copy, or send this one anyway.",
+    ),
+    true,
+  );
+  assert.equal(model.isPlainHold("Something else."), false);
+  const input = model.sendInput("fil_1", undefined, [model.blankSigner("Andrea Lindahl")], "", "k1", false, true);
+  assert.equal(input.plainOk, true);
+  assert.equal(input.idempotencyKey, "k1-plain");
+  assert.equal(model.sendInput("fil_1", undefined, [model.blankSigner("Andrea Lindahl")], "", "k1").plainOk, undefined);
+});

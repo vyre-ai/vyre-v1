@@ -651,3 +651,23 @@ test("an envelope nobody touches again still ends when its time runs out: told o
   assert.deepEqual(again, { ended: 0, told: 1 });
   assert.deepEqual(await expireDue(h2.ctxFor(null, SYSTEM)), { ended: 0, told: 0 });
 });
+
+test("a PDF of a Word file set in the plain page look is held: no send until the sender chooses, the choice is kept, and a normal PDF is not asked", async () => {
+  const h = await setup();
+  h.callee("documents.signing", () => ({ signers: [], places: [], plain: true }));
+  const e = await send(h, [ANDREA]).catch((x) => x);
+  assert.equal(e.error.code, "validation.precondition_failed");
+  assert.match(e.error.message, /Letterhead and pictures are missing in this copy/);
+  assert.equal(h.rows("esign_envelope").length, 0, "nothing was sent or kept");
+  const out = await send(h, [ANDREA], { plainOk: true });
+  assert.match(out.envelopeId, /^env_/);
+  const kept = h.rows("esign_event").filter((r) => r.kind === "plain_copy_sent");
+  assert.equal(kept.length, 1, "the sender's choice is logged");
+  // a PDF documents does not call plain, or a Space with no documents module, is sent without asking
+  const h2 = await setup();
+  h2.callee("documents.signing", () => ({ signers: [], places: [] }));
+  assert.match((await send(h2, [ANDREA])).envelopeId, /^env_/);
+  const h3 = await setup();
+  assert.match((await send(h3, [ANDREA])).envelopeId, /^env_/);
+  assert.equal(h3.rows("esign_event").filter((r) => r.kind === "plain_copy_sent").length, 0);
+});

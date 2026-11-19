@@ -226,7 +226,12 @@ test("a Word template goes from template to signed PDF on a fresh Space: the PDF
     const filled = await cap(d, "documents.fill", { templateFileId, intoFolderId: folderId, values: { firm: "Northwind Traders", client: "Andrea Lindahl" }, format: "pdf" });
     assert.ok(["word", "simple"].includes(filled.layout), `layout ${filled.layout}`);
     assert.match(filled.file.name, /\.pdf$/);
-    const sent = await cap(d, "esign.send", { fileId: filled.file.fileId, signers: [{ name: "Andrea Lindahl", email: "andrea@northwind.example" }] });
+    const who = [{ name: "Andrea Lindahl", email: "andrea@northwind.example" }];
+    if (filled.layout === "simple") {
+      // the plain copy has no letterhead: it is held until the sender says send it anyway
+      await assert.rejects(cap(d, "esign.send", { fileId: filled.file.fileId, signers: who }), /Letterhead and pictures are missing in this copy/);
+    }
+    const sent = await cap(d, "esign.send", { fileId: filled.file.fileId, signers: who, ...(filled.layout === "simple" ? { plainOk: true } : {}) });
     const link = sent.links[0].path as string;
     const doc = await direct(d, "GET", `${link}doc`);
     assert.match(doc.body.subarray(0, 5).toString("latin1"), /%PDF-/);

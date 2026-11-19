@@ -21598,6 +21598,10 @@
             },
             "type": "array"
           },
+          "plainOk": {
+            "description": "Send a PDF set in the plain page look (no letterhead or pictures) anyway",
+            "type": "boolean"
+          },
           "provider": {
             "enum": [
               "vyre",

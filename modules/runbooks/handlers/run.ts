@@ -10,7 +10,7 @@
 // The run is a Run of kind runbook: ctx.run is the run id when the host made one. The call returns when the run has ended; the run events (run_started, block_finished, run_finished)
 // stream while it goes, and requestStop(runId) makes it stop after the block in progress and interrupts that block.
 
-import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr , vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 
@@ -263,7 +263,7 @@ async function runbooksTargets(ctx: Ctx): Promise<{
     }
   } catch (e) {
     // a Personal Space has no agent computers; a computer the caller may not watch is not a target
-    if (!(e instanceof VyreErr)) throw e;
+    if (vyreErrorOf(e) === undefined) throw e;
   }
   return { targets };
 }
@@ -354,7 +354,7 @@ async function markdownFiles(
           ...(cursor === undefined ? {} : { cursor }),
         })) as Listing & { next?: unknown };
       } catch (e) {
-        if (!(e instanceof VyreErr)) throw e;
+        if (vyreErrorOf(e) === undefined) throw e;
         break;
       }
       for (const f of got.files ?? []) {
@@ -418,7 +418,7 @@ async function runbooksList(
     try {
       blocks = parseBlocks((await source(ctx, f.fileId, undefined)).text).blocks.length;
     } catch (e) {
-      if (!(e instanceof VyreErr)) throw e;
+      if (vyreErrorOf(e) === undefined) throw e;
       continue;
     }
     if (blocks === 0) continue;
@@ -463,7 +463,7 @@ export async function requestStop(ctx: Ctx, runId: string): Promise<boolean> {
   try {
     await ctx.call("terminal.interrupt", { terminalId });
   } catch (e) {
-    if (!(e instanceof VyreErr)) throw e;
+    if (vyreErrorOf(e) === undefined) throw e;
   }
   return true;
 }
@@ -608,9 +608,10 @@ async function runbooksRun(ctx: Ctx, input: unknown): Promise<{ runId: string }>
         ms = typeof r.durationMs === "number" ? r.durationMs : Math.max(0, ctx.now() - t0);
         text = typeof r.output === "string" ? r.output : "";
       } catch (e) {
-        if (!(e instanceof VyreErr)) throw e;
+        const shaped = vyreErrorOf(e);
+        if (shaped === undefined) throw e;
         ms = Math.max(0, ctx.now() - t0);
-        text = e.error.message;
+        text = shaped.message;
       }
       if (text !== "") {
         seq += 1;

@@ -264,7 +264,7 @@ async function makePdf(ctx: Ctx, input: unknown): Promise<{ file: Saved; pages: 
 async function signing(
   ctx: Ctx,
   input: unknown,
-): Promise<{ signers: string[]; places: unknown[]; stale?: true; templateFileId?: string; recordId?: string }> {
+): Promise<{ signers: string[]; places: unknown[]; stale?: true; plain?: true; templateFileId?: string; recordId?: string }> {
   const fileId = reqStr(ctx, rec(ctx, input), "fileId");
   mayView(ctx, fileId);
   const row = (ctx.db.all("SELECT * FROM documents_signing WHERE file_id = ?", fileId) as Row[])[0];
@@ -284,6 +284,7 @@ async function signing(
     }
   };
   return {
+    ...(Number(row.plain) === 1 ? { plain: true as const } : {}),
     signers: list(row.roles).filter((r): r is string => typeof r === "string"),
     places: list(row.places),
     ...(typeof row.template_file_id === "string" ? { templateFileId: row.template_file_id } : {}),

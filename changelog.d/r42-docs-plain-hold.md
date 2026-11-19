@@ -1,0 +1,1 @@
+A PDF of a Word file set in the plain page look (no letterhead or pictures) is held when sent for signature: the sender sees "Letterhead and pictures are missing in this copy" and chooses to wait for the exact copy or send this one anyway, and the choice is kept.

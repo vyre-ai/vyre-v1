@@ -580,6 +580,7 @@ for (let i2762 = 0; i2762 < a2762.length; i2762++) {
 }
 }
 if ("stale" in o2760) lf(o2760["stale"], p + "/stale", e, L3);
+if ("plain" in o2760) lf(o2760["plain"], p + "/plain", e, L3);
 if ("templateFileId" in o2760) lf(o2760["templateFileId"], p + "/templateFileId", e, L35);
 if ("recordId" in o2760) lf(o2760["recordId"], p + "/recordId", e, L28);
 }

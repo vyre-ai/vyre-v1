@@ -85,6 +85,7 @@ export default defineManifest({
           provider: t.opt(provider),
           message: t.opt(t.str()),
           places: t.opt(t.arr(t.json())),
+          plainOk: t.opt(t.bool({ description: "Send a PDF set in the plain page look (no letterhead or pictures) anyway" })),
           expiresInDays: t.opt(t.int()),
         },
         out: {

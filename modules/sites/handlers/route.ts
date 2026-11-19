@@ -10,7 +10,7 @@
 // @reads ../migrations/0003_routes.sql
 
 import { isViewing, noteViewing } from "./viewing.ts";
-import { VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
 import {
@@ -908,8 +908,9 @@ async function announce(ctx: Ctx, id: string, title: string, openFor?: string): 
     });
     return true;
   } catch (e) {
-    if (!(e instanceof VyreErr)) throw e;
-    ctx.log.warn("sites: the artifact card was not posted", { code: e.error.code });
+    const shaped = vyreErrorOf(e);
+    if (shaped === undefined) throw e;
+    ctx.log.warn("sites: the artifact card was not posted", { code: shaped.code });
     return false;
   }
 }

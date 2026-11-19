@@ -396,6 +396,7 @@ for (let i3172 = 0; i3172 < a3172.length; i3172++) {
 }
 }
 }
+if ("plainOk" in o3169) lf(o3169["plainOk"], p + "/plainOk", e, L3);
 if ("expiresInDays" in o3169) lf(o3169["expiresInDays"], p + "/expiresInDays", e, L2);
 if ("idempotencyKey" in o3169) lf(o3169["idempotencyKey"], p + "/idempotencyKey", e, L55);
 }

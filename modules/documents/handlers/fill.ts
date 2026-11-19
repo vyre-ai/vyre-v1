@@ -1003,6 +1003,18 @@ export async function documentsFill(
     key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? templateFileId}`,
   });
   const { fileId, versionId } = saved;
+  // a PDF set in the plain page look is a preview of the Word file: signing asks before it goes out (documents.signing says plain)
+  if (layout === "simple")
+    ctx.db.run(
+      "INSERT OR REPLACE INTO documents_signing (file_id, roles, places, version_id, template_file_id, record_id, made_at, plain) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+      fileId,
+      "[]",
+      "[]",
+      versionId,
+      templateFileId,
+      optStr(ctx, o, "recordId") ?? null,
+      ctx.now(),
+    );
   const payload: Record<string, unknown> = { fileId, templateFileId, fields: made.used.length, missing: 0 };
   const recordId = optStr(ctx, o, "recordId");
   if (recordId !== undefined) payload.recordId = recordId;

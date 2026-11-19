@@ -172,6 +172,7 @@ export default defineManifest({
           signers: t.arr(t.str()),
           places: t.arr(t.json()),
           stale: t.opt(t.bool()),
+          plain: t.opt(t.bool({ description: "True for a PDF of a Word file set in the plain page look (no letterhead or pictures)" })),
           templateFileId: t.opt(id.file),
           recordId: t.opt(id.record),
         },

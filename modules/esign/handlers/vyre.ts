@@ -291,6 +291,15 @@ function readPlaces(ctx: Ctx, raw: unknown): Place[] | undefined {
   });
 }
 
+/** A PDF of a Word file set in the plain page look is a preview: true when documents says so for this file. A Space without the documents module, or a file it never made, is not plain. */
+export async function isPlainCopy(ctx: Ctx, fileId: string): Promise<boolean> {
+  try {
+    return ((await ctx.call("documents.signing", { fileId })) as { plain?: unknown }).plain === true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * A PDF made from a Vyre document knows where each of its signers signs ({sign:role} in the text; documents.signing). When the send names no places, those are used, so nobody places a signature
  * by hand. The roles stand in signing order and the signers of the send must be the same number in the same order; a mismatch is refused in words naming the roles, never guessed at.
