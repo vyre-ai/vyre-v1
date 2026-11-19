@@ -163,7 +163,13 @@ test("a secret nested inside the value of another pair is found: compact JSON, b
     ['{"req":{"headers":{"cookie":"uid=12345"}}}', "uid=12345"],
     ['{"headers":{"cookie":"a=1; b=2","accept":"x"},"ok":1}', "a=1"],
     ["a=b:password=hunter2", "hunter2"],
+    ['{"a":{"b":{"password":"hunter2"}}}', "hunter2"],
+    ['{"a":{"b":{"c":{"token":"abc12"}}}}', "abc12"],
+    ['[{"password":"hunter2"},{"token":"abc12"}]', "hunter2"],
+    ['{"users":[{"name":"x","password":"hunter2"},{"name":"y","secret":"abc12"}]}', "abc12"],
+    ['{"users":[{"password":"hunter2"}]}', "hunter2"],
   ] as const) gone(text, secret);
+  assert.match(scrubLog('{"users":[{"name":"x","password":"hunter2"}]}'), /"name":"x"/, "names in an array of objects stay");
   assert.match(scrubLog('{"config":{"password":"hunter2","host":"h"}}'), /"host":"h"/, "the other keys stay");
 });
 
