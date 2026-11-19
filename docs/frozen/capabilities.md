@@ -743,3 +743,12 @@ Signed: lead, 17 Nov 2026
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: lead, 17 Nov 2026
+
+## 20 Nov 2026: `runs.steps` carries a step's notes (lead)
+
+- What changed in contracts: the step row of `runs.steps` gains an optional `notes` (a list of text). It is kept in a new table, `runs_step_notes` (migration `0005_step_notes.sql`), one row per line, and is returned with the step it belongs to. No input changed; `runs.erase` and `runs.purge` remove a Run's notes with the Run.
+- What a note holds: only the name of a variable and fixed words, such as "{{trigger.email}} isn't set when this runs by hand. Use {{trigger.input.email}}." A note never holds a value from a record, a message or a secret. Each line is cut at 500 characters. A step writes one when an automation saved before the variable check ran with a name that was not there and read it as empty.
+- Not a contract change, the rule the tests pin: a version the server saves is marked as checked (`automations_checked`, migration `0017_checked.sql`) and a step of an unmarked version does not fail on such a name; a version made from a marked one (a restore, a copy, a promote, a schedule-limit change) stays marked.
+- Snapshots: docs/frozen/snapshots/runs.json.
+
+Signed: pending, lead

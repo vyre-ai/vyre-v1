@@ -403,9 +403,13 @@ export function saveVersion(ctx: AutoCtx, a: Automation, reason?: string): Versi
   );
   return row;
 }
-/** This version was saved after the save check existed. */
+/** This version passed the save check: the server saved it after the check existed, or made it from a version that had passed. */
 export function markChecked(db: Db, automationId: string, n: number): void {
   db.run("INSERT OR IGNORE INTO automations_checked (automation_id, n) VALUES (?, ?)", automationId, n);
+}
+/** A version made from another one (a restore, a copy, a promote, a schedule-limit change) is as strict as its source was: strictness never silently resets, and a version that was never checked does not become one. */
+export function carryChecked(db: Db, fromId: string, fromN: number, toId: string, toN: number): void {
+  if (isChecked(db, fromId, fromN)) markChecked(db, toId, toN);
 }
 export function isChecked(db: Db, automationId: string, n: number): boolean {
   return db.all("SELECT 1 FROM automations_checked WHERE automation_id = ? AND n = ?", automationId, n).length > 0;
