@@ -173,9 +173,7 @@ async function heldSends(ctx: CompCtx): Promise<Map<string, HeldView>> {
   } catch {
     return out;
   }
-  const mine = holds
-    .filter((h) => h.capName === "computers.chrome.send")
-    .sort((a, b) => a.createdAt - b.createdAt);
+  const mine = holds.filter((h) => h.capName === "computers.chrome.send").sort((a, b) => a.createdAt - b.createdAt);
   for (const h of mine) {
     const agent = h.principal.id;
     const had = out.get(agent);
@@ -183,18 +181,25 @@ async function heldSends(ctx: CompCtx): Promise<Map<string, HeldView>> {
       had.count += 1;
       continue;
     }
-    let what = "A send waits for approval";
-    let mayAnswer = false;
+    // a send can carry a client's words: the one-line of it goes only to a caller the Approve task lets answer it; anyone else who may watch gets the count and nothing of what it says
+    let first: HeldView["first"];
     try {
-      const t = ((await ctx.call("tasks.get", { taskId: h.taskId })) as {
-        task?: { title?: string; actions?: Array<{ key: string }> };
-      }).task;
-      if (t?.title) what = t.title.replace(/\s+/g, " ").trim().slice(0, 120);
-      mayAnswer = t?.actions?.some((a) => a.key === "approve") === true;
+      const t = (
+        (await ctx.call("tasks.get", { taskId: h.taskId })) as {
+          task?: { title?: string; actions?: Array<{ key: string }> };
+        }
+      ).task;
+      if (t?.actions?.some((a) => a.key === "approve") === true)
+        first = {
+          holdId: h.id,
+          taskId: h.taskId,
+          what: (t.title ?? "A send waits for approval").replace(/\s+/g, " ").trim().slice(0, 120),
+          mayAnswer: true,
+        };
     } catch {
-      /* the line stays general and nobody is offered the choice */
+      /* nothing about it is shown */
     }
-    out.set(agent, { count: 1, first: { holdId: h.id, taskId: h.taskId, what, mayAnswer } });
+    out.set(agent, { count: 1, ...(first ? { first } : {}) });
   }
   return out;
 }

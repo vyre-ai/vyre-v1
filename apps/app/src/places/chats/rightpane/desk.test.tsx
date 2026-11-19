@@ -815,9 +815,11 @@ test("a send waiting for approval: the bar says so with what it is, offers Allow
     await flush();
     assert.ok(r.asked.includes('tasks.decide {"taskId":"tsk_1","verdict":"reject"}'));
     // someone who may not answer sees what waits and is offered nothing
-    r.push(held(false));
+    r.push({ state: "open", canTakeOver: true, sites: [], held: { count: 2, what: "", taskId: "", mayAnswer: false } });
     await flush();
-    assert.match(textOf(find(root, "desk-bar")), /Send asks you first/);
+    assert.match(textOf(find(root, "desk-bar")), /A send is waiting for approval/);
+    assert.match(textOf(find(root, "desk-bar")), /2 waiting/);
+    assert.ok(!/Northwind|report/.test(textOf(find(root, "desk-bar"))), "nothing of what it says");
     assert.equal(find(root, "browser-allow"), null);
     assert.equal(find(root, "browser-deny"), null);
     // a refusal is said in words and the choice stays

@@ -29,7 +29,7 @@ function heldOf(r: BrowserRowLike): Pick<BrowserView, "held"> {
     ? {
         held: {
           count: r.held.count,
-          what: r.held.first?.what ?? "A send waits for approval",
+          what: r.held.first?.what ?? "",
           taskId: r.held.first?.taskId ?? "",
           mayAnswer: r.held.first?.mayAnswer === true,
         },

@@ -43,7 +43,15 @@ const signedOut: string[] = [];
 /** Profiles that hold Chrome data in the fake service (an agent that has browsed before). */
 const warmUsed = new Set<string>();
 /** What the fake service says the agent last did on its page. */
-let ptr: { seq: number; tool: string; x: number; y: number; at: number; box?: { x: number; y: number; w: number; h: number }; label?: string } | null = null;
+let ptr: {
+  seq: number;
+  tool: string;
+  x: number;
+  y: number;
+  at: number;
+  box?: { x: number; y: number; w: number; h: number };
+  label?: string;
+} | null = null;
 function rig() {
   const rows = new Map<string, ProfileRow>([
     ["agt_named", row("agt_named")],
@@ -131,7 +139,13 @@ function rig() {
   return { seen, rows };
 }
 /** What the fake Gate and tasks answer (tests set them): the holds waiting, each task's title and what the caller may do on it. */
-let heldHolds: Array<{ id: string; capName: string; taskId: string; principal: { kind: string; id: string }; createdAt: number }> = [];
+let heldHolds: Array<{
+  id: string;
+  capName: string;
+  taskId: string;
+  principal: { kind: string; id: string };
+  createdAt: number;
+}> = [];
 let heldTasks: Record<string, { title: string; actions: Array<{ key: string }> }> = {};
 let gateDown = false;
 const respond = {
@@ -726,7 +740,15 @@ test("warm starts the browser for whoever may watch it, only for an agent that h
 test("the pointer is a look at where the agent last acted: for whoever may watch, never starts a browser, held for everyone but the person at the controls, refused to a stranger and an agent", async () => {
   const r = rig();
   try {
-    ptr = { seq: 3, tool: "chrome_click", x: 410, y: 220, at: 1_760_000_000_000, box: { x: 380, y: 200, w: 120, h: 40 }, label: "Send request" };
+    ptr = {
+      seq: 3,
+      tool: "chrome_click",
+      x: 410,
+      y: 220,
+      at: 1_760_000_000_000,
+      box: { x: 380, y: 200, w: 120, h: 40 },
+      label: "Send request",
+    };
     const dana = as(DANA, false);
     const live = await tool["computers.browser.pointer"]!(dana.ctx, { agentId: "agt_dex" });
     assert.equal(live.state, "live");
@@ -765,25 +787,49 @@ test("the row says what the agent's browser has waiting for approval: how many, 
   rig();
   try {
     const dana = as(DANA, false);
-    const row = async () => (await tool["computers.browser.profiles"]!(dana.ctx, {})).profiles.find((p: { agentId: string }) => p.agentId === "agt_dex");
+    const row = async () =>
+      (await tool["computers.browser.profiles"]!(dana.ctx, {})).profiles.find(
+        (p: { agentId: string }) => p.agentId === "agt_dex",
+      );
     assert.equal((await row()).held, undefined, "nothing waits");
     heldTasks = {
       tsk_1: { title: "  Send the report\n to Northwind  ", actions: [{ key: "approve" }, { key: "reject" }] },
       tsk_2: { title: "Send the second", actions: [] },
     };
     heldHolds = [
-      { id: "hld_2", capName: "computers.chrome.send", taskId: "tsk_2", principal: { kind: "agent", id: "agt_dex" }, createdAt: 20 },
-      { id: "hld_1", capName: "computers.chrome.send", taskId: "tsk_1", principal: { kind: "agent", id: "agt_dex" }, createdAt: 10 },
+      {
+        id: "hld_2",
+        capName: "computers.chrome.send",
+        taskId: "tsk_2",
+        principal: { kind: "agent", id: "agt_dex" },
+        createdAt: 20,
+      },
+      {
+        id: "hld_1",
+        capName: "computers.chrome.send",
+        taskId: "tsk_1",
+        principal: { kind: "agent", id: "agt_dex" },
+        createdAt: 10,
+      },
       { id: "hld_x", capName: "mail.send", taskId: "tsk_9", principal: { kind: "agent", id: "agt_dex" }, createdAt: 5 },
-      { id: "hld_y", capName: "computers.chrome.send", taskId: "tsk_1", principal: { kind: "agent", id: "agt_mine" }, createdAt: 1 },
+      {
+        id: "hld_y",
+        capName: "computers.chrome.send",
+        taskId: "tsk_1",
+        principal: { kind: "agent", id: "agt_mine" },
+        createdAt: 1,
+      },
     ];
-    assert.deepEqual((await row()).held, { count: 2, first: { holdId: "hld_1", taskId: "tsk_1", what: "Send the report to Northwind", mayAnswer: true } });
-    // a caller the Approve task does not offer Allow to is told so, and is not offered the choice
+    assert.deepEqual((await row()).held, {
+      count: 2,
+      first: { holdId: "hld_1", taskId: "tsk_1", what: "Send the report to Northwind", mayAnswer: true },
+    });
+    // a caller the Approve task does not offer Allow to gets the count and nothing of what the send says: no line, no ids
     heldTasks["tsk_1"] = { title: "Send the report", actions: [] };
-    assert.equal((await row()).held.first.mayAnswer, false);
-    // the oldest task cannot be read: the line stays general and nobody is offered the choice
+    assert.deepEqual((await row()).held, { count: 2 });
+    // the oldest task cannot be read: nothing about it is shown either
     delete heldTasks["tsk_1"];
-    assert.deepEqual((await row()).held.first, { holdId: "hld_1", taskId: "tsk_1", what: "A send waits for approval", mayAnswer: false });
+    assert.deepEqual((await row()).held, { count: 2 });
     gateDown = true;
     assert.equal((await row()).held, undefined, "a Gate that does not answer says nothing waits");
   } finally {

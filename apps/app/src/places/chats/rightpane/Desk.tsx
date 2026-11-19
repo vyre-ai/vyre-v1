@@ -363,11 +363,15 @@ export function Desk({
                     <>
                       <Icon name="shield" size={16} color="var(--warn)" />
                       <Text style={st.barBold} numberOfLines={1}>
-                        Send asks you first
+                        {view.held.mayAnswer ? "Send asks you first" : "A send is waiting for approval"}
                       </Text>
-                      <Text style={st.barNote} numberOfLines={1}>
-                        {view.held.count > 1 ? `${view.held.what} and ${view.held.count - 1} more` : view.held.what}
-                      </Text>
+                      {view.held.mayAnswer ? (
+                        <Text style={st.barNote} numberOfLines={1}>
+                          {view.held.count > 1 ? `${view.held.what} and ${view.held.count - 1} more` : view.held.what}
+                        </Text>
+                      ) : view.held.count > 1 ? (
+                        <Text style={st.barNote} numberOfLines={1}>{`${view.held.count} waiting`}</Text>
+                      ) : null}
                     </>
                   ) : (
                     <>

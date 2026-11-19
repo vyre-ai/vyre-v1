@@ -284,7 +284,7 @@ test("the view carries what waits for approval, pausing and who paused; a row wi
   );
   assert.deepEqual(browserView("agt_dex", [row({ held: { count: 1 } })], d).held, {
     count: 1,
-    what: "A send waits for approval",
+    what: "",
     taskId: "",
     mayAnswer: false,
   });

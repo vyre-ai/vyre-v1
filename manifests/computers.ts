@@ -94,8 +94,10 @@ const browserRow = t.obj({
           t.obj({
             holdId: t.id("hld"),
             taskId: id.task,
-            what: t.str({ description: "The oldest one, in one line" }),
-            mayAnswer: t.bool({ description: "The caller may Allow or Deny it (the Approve task offers them the choice)" }),
+            what: t.str({ description: "The oldest one, in one line; only for a caller who may answer it" }),
+            mayAnswer: t.bool({
+              description: "Always true when `first` is present: the Approve task offers the caller Allow",
+            }),
           }),
         ),
       },
@@ -537,12 +539,16 @@ export default defineManifest({
           by: t.opt(id.user),
           pointer: t.opt(
             t.obj({
-              seq: t.int({ description: "How many actions the agent has taken in this browser; a viewer draws each once" }),
+              seq: t.int({
+                description: "How many actions the agent has taken in this browser; a viewer draws each once",
+              }),
               tool: t.str(),
               x: t.int({ description: "In the page's pixels" }),
               y: t.int(),
               box: t.opt(t.obj({ x: t.int(), y: t.int(), w: t.int(), h: t.int() })),
-              label: t.opt(t.str({ description: "The chosen element's visible name, cut short; never a field's text" })),
+              label: t.opt(
+                t.str({ description: "The chosen element's visible name, cut short; never a field's text" }),
+              ),
               at: t.ts(),
             }),
           ),
