@@ -327,6 +327,7 @@ test("a press right after Back, while the old probe still hangs, is not blocked:
     const before = JSON.stringify(readStoredSessions(kv));
     const asked: string[] = [];
     const authed: string[] = [];
+    let healthCalls = 0;
     let release: () => void = () => undefined;
     const slow = new Promise<void>((r) => (release = r));
     g.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -340,8 +341,14 @@ test("a press right after Back, while the old probe still hangs, is not blocked:
       )
         authed.push(url.pathname);
       if (url.origin === "https://new.example" && url.pathname === "/healthz") {
-        await slow;
-        return json(200, HEALTH);
+        // the first question (the first probe) is held and then answers as the right Space; the second probe's two questions answer at once; after that the address names another Space, so a
+        // late answer of the first probe, if it were taken, would land a not-answering screen over the sign-in
+        const n = ++healthCalls;
+        if (n === 1) {
+          await slow;
+          return json(200, HEALTH);
+        }
+        return json(200, n <= 3 ? HEALTH : { ...HEALTH, space: "spc_other" });
       }
       if (url.origin === "https://new.example" && url.pathname.endsWith("sign_in_options")) return json(200, OPTIONS);
       throw new TypeError("Failed to fetch");
@@ -373,8 +380,13 @@ test("a press right after Back, while the old probe still hangs, is not blocked:
       asked.filter((u) => u === "https://new.example/healthz").length >= 2,
       "the press after Back asked again, it was not blocked",
     );
-    release();
+    // the second probe answered at once: the sign-in of the screen the person is on is up
     await until("si-user");
+    // the first probe now answers late (as another Space: if it were taken, it would land a not-answering screen over this one)
+    release();
+    for (let i = 0; i < 60; i++) await flush();
+    assert.ok(find(root, "si-user"), "the late answer of the old probe changed nothing");
+    assert.equal(find(root, "step-not-answering"), null, "and landed nothing over it");
     assert.equal(JSON.stringify(readStoredSessions(kv)), before, "both sign-ins are still saved, unchanged");
   } finally {
     await stop();
