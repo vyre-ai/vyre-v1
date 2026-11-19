@@ -1,6 +1,7 @@
 // The MCP module owns protocol/auth/tool semantics; the host only adapts its structural request/response port to the daemon's shared Node HTTP server, and says which address a request reached: a token is bound to that
 // address, so the answer can never come from the Host header alone (see `origin` in the daemon).
 import type http from "node:http";
+import { PROOF_HEADER, provesRelay } from "../seams/visitor-proof.ts";
 
 export interface McpRuntime {
   handle(req: {
@@ -33,13 +34,14 @@ const MAX_BUFFERED = 256 * 1024;
 const SIGN_IN = /^\/(oauth\/|\.well-known\/oauth-)/;
 
 /**
- * Who is asking, for the per-visitor limits. The relay forwards over the loopback and puts the address it saw in x-vyre-visitor, overwriting any the visitor sent; so that header is believed only on a loopback
- * connection. On any other connection (the daemon reached directly) a header the client wrote is ignored, so no one picks the identity the limits count.
+ * Who is asking, for the per-visitor limits. The relay forwards over the loopback, writes the address it saw in x-vyre-visitor and proves it is the relay with a secret that exists only in this process (seams/visitor-proof.ts).
+ * The header is believed only with that proof, on a loopback connection. From anyone else (a client reaching the daemon directly, a local proxy that passes headers through, another process on the host) the header is
+ * ignored and the connection's own address stands, so no one picks the identity the limits count.
  */
 export function visitorOf(headers: Record<string, string | undefined>, remote: string): string {
   const loop = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1";
   const said = headers["x-vyre-visitor"];
-  return loop && typeof said === "string" && said !== "" ? said.slice(0, 64) : remote;
+  return loop && provesRelay(headers[PROOF_HEADER]) && typeof said === "string" && said !== "" ? said.slice(0, 64) : remote;
 }
 
 export interface McpRouteDeps {

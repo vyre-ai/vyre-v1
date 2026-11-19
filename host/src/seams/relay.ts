@@ -22,6 +22,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { PROOF_HEADER, relayProof } from "./visitor-proof.ts";
 import { ed25519Pair, ed25519Sign, x25519Pair, x25519Public, x25519Shared } from "../../../kernel/src/seal/index.ts";
 
 const subtle = globalThis.crypto.subtle;
@@ -651,6 +652,7 @@ export function servePublic(
   else delete headers["cookie"];
   if (m.path.split("?")[0] !== "/mcp") delete headers["authorization"];
   headers["x-vyre-visitor"] = m.ip.slice(0, 64);
+  headers[PROOF_HEADER] = relayProof();
   if (body.length) headers["content-length"] = String(body.length);
   const req = http.request(
     {

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { createMcpRoute, visitorOf } from "./mcp.ts";
+import { PROOF_HEADER, relayProof } from "../seams/visitor-proof.ts";
 
 type Runtime = ReturnType<Parameters<typeof createMcpRoute>[0]["runtime"]>;
 const SIGN_IN_NOTHING = { oauth: async () => null };
@@ -79,7 +80,7 @@ test("a request to the sign-in addresses reaches the module with the address thi
     assert.equal(
       (
         await fetch(`${base}/.well-known/oauth-protected-resource/mcp`, {
-          headers: { "x-vyre-visitor": "203.0.113.9" },
+          headers: { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: relayProof() },
         })
       ).status,
       200,
@@ -135,13 +136,16 @@ test("an app that goes away while the runtime is still answering does not hold i
   }
 });
 
-test("the visitor header is believed only from the relay's loopback connection; from anywhere else the connection's own address stands", () => {
-  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9" }, "127.0.0.1"), "203.0.113.9");
-  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9" }, "::1"), "203.0.113.9");
-  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9" }, "198.51.100.7"), "198.51.100.7", "a header written by a direct client is ignored");
+test("the visitor header is believed only with the relay's proof on a loopback connection; from anywhere else the connection's own address stands", () => {
+  const proof = { [PROOF_HEADER]: relayProof() };
+  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", ...proof }, "127.0.0.1"), "203.0.113.9");
+  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", ...proof }, "::1"), "203.0.113.9");
+  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", ...proof }, "198.51.100.7"), "198.51.100.7", "a proof from outside the loopback is not believed");
+  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9" }, "127.0.0.1"), "127.0.0.1", "a loopback connection with a forged header and no proof (a local proxy that passes headers through)");
+  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: "x".repeat(64) }, "127.0.0.1"), "127.0.0.1", "a wrong proof");
   assert.equal(visitorOf({}, "198.51.100.7"), "198.51.100.7");
-  assert.equal(visitorOf({ "x-vyre-visitor": "" }, "127.0.0.1"), "127.0.0.1");
-  assert.equal(visitorOf({ "x-vyre-visitor": "x".repeat(300) }, "127.0.0.1").length, 64);
+  assert.equal(visitorOf({ "x-vyre-visitor": "", ...proof }, "127.0.0.1"), "127.0.0.1");
+  assert.equal(visitorOf({ "x-vyre-visitor": "x".repeat(300), ...proof }, "127.0.0.1").length, 64);
 });
 
 test("a forged visitor header does not reset a count: every forged value from one outside address is the same visitor", () => {
