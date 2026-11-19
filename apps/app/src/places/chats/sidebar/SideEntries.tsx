@@ -9,11 +9,14 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
 import { MoreRow } from "../../../../../../ui/src/MoreRow/index.tsx";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
+import { StateMark } from "../../../../../../ui/src/Status/StateMark.tsx";
+import { STATE_MARKS } from "../../../../../../ui/src/Status/states.ts";
+import type { WorkState } from "../../../../../../ui/src/Status/states.ts";
 import { Glyph } from "./parts.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
-import { aggMarks } from "./layout.ts";
+import { VERB_STATE, aggMarks } from "./layout.ts";
 import type { Item, LayoutEntry, Mark, SectionId, Shape } from "./layout.ts";
-import { plusWords } from "./side-menus.ts";
+import { plusKey, plusWords } from "./side-menus.ts";
 
 type Entry<T extends LayoutEntry["type"]> = Extract<LayoutEntry, { type: T }>;
 
@@ -28,8 +31,13 @@ export const SHAPE_WORDS: Record<Shape, string> = {
   goal: "Goal",
   task: "Needs you",
 };
-/** The words under a name on hover: what it is, then what is going on with it. */
+/** The state a waiting task is in, from its verb: the row draws its mark, the tip and the screen reader say its words. */
+export const stateOfItem = (x: Item): WorkState | null =>
+  x.kind === "task" && x.verb ? (VERB_STATE[x.verb.label] ?? "review") : null;
+/** The words under a name on hover: what it is, then what is going on with it. A waiting task says what it asks ("Needs your approval") and who is waiting, since its row shows a mark and no word. */
 export function tipOf(x: Item): { title: string; who: string } {
+  const ws = stateOfItem(x);
+  if (ws) return { title: x.title, who: [STATE_MARKS[ws].words, ...(x.sub ? [x.sub] : [])].join(" · ") };
   const bits: string[] = [x.private === true ? "Private channel" : SHAPE_WORDS[x.shape]];
   if (x.progress) bits.push(`${x.progress.done} of ${x.progress.total}`);
   if (x.failed !== undefined) bits.push(x.failed === "" ? "Failed" : x.failed);
@@ -173,20 +181,12 @@ const MARK_LABEL: Record<Mark["kind"], string> = {
   draft: "Draft",
   working: "Working",
 };
-/** One mark, each a different shape and tone: a red outlined circle, a grey bell with a slash, an accent count, an accent dot, a grey pencil. Working is the face's moving ring, so it draws nothing here
+/** One mark, each a different shape and tone: a red triangle (the shared StateMark, so failed looks the same in every list), a grey bell with a slash, an accent count, an accent dot, a grey pencil. Working is the face's moving ring, so it draws nothing here
  * (on a folded head it is a coral dot). */
 export function MarkView({ mark, onHead = false }: { mark: Mark; onHead?: boolean }): ReactElement | null {
   switch (mark.kind) {
     case "failed":
-      return (
-        <View
-          testID="mark-failed"
-          accessibilityLabel={mark.why ? `Failed: ${mark.why}` : "Failed"}
-          style={s.markBox as never}
-        >
-          <Glyph name="alert" size={15} color="var(--danger)" />
-        </View>
-      );
+      return <StateMark state="failed" tip={false} testID="mark-failed" {...(mark.why ? { note: mark.why } : {})} />;
     case "muted":
       return (
         <View testID="mark-muted" accessibilityLabel="Muted" style={s.markBox as never}>
@@ -318,16 +318,18 @@ export function ItemRow({
   const x = entry.item;
   const two = entry.h === 44;
   const un = !x.muted && (x.unread > 0 || x.mentions > 0);
-  const trailing: ReactElement = x.verb ? (
-    <Text testID="row-verb" style={[s.verb, x.verb.tone === "warn" && s.verbWarn] as never}>
-      {x.verb.label}
-    </Text>
-  ) : (
+  // a waiting task ends in the mark of what it asks, never the word: the word is in the row's tip, its menu and its accessible name
+  const ws = stateOfItem(x);
+  const trailing: ReactElement = (
     <View style={s.trail as never}>
       {entry.digit !== undefined && state.digits === true ? (
         <Text testID={`digit-${entry.digit}`} style={s.digit as never}>{`⌘${entry.digit}`}</Text>
       ) : null}
-      {entry.mark ? <MarkView mark={entry.mark} /> : null}
+      {ws ? (
+        <StateMark state={ws} tip={false} testID="row-state" />
+      ) : entry.mark ? (
+        <MarkView mark={entry.mark} />
+      ) : null}
       <HoverSlot on={state.cursor}>
         <MoreButton label={x.title} {...(on.more ? { onPress: on.more } : {})} />
       </HoverSlot>
@@ -353,6 +355,7 @@ export function ItemRow({
           "aria-label": `${x.title}, ${tipOf(x).who}`,
           "data-kind": x.kind,
           "data-mark": entry.mark?.kind ?? "",
+          ...(ws ? { "data-state": ws } : {}),
         }}
       />
     </Tooltip>,
@@ -412,26 +415,7 @@ export function TasksRow({
   );
 }
 
-/** One quiet line in a section with nothing in it: "No goals yet" and its one action. */
-export function HintView({ entry, onPress }: { entry: Entry<"hint">; onPress(): void }): ReactElement {
-  return wrap(
-    entry,
-    <View testID={`hint-${entry.section}`} style={s.err as never}>
-      <Text style={s.errText as never}>{entry.text}</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={entry.action}
-        testID={`hint-${entry.section}-action`}
-        onPress={onPress}
-        style={s.retry as never}
-      >
-        <Text style={s.retryText as never}>{entry.action}</Text>
-      </Pressable>
-    </View>,
-  );
-}
-
-/** The head's "+" (the design's section plus): drawn for the sections that have things to add (the layout gives `on.plus` only then). It is in a slot hidden at rest and shown while the pointer is over the head, while the head or the plus has focus, while the keyboard cursor is on the head, and always on a touch screen. Its words say what it does. */
+/** The head's "+" (the design's section plus): drawn for the sections that have things to add (the layout gives `on.plus` only then). It is in a slot hidden at rest and shown while the pointer is over the head, while the head or the plus has focus, while the keyboard cursor is on the head, and always on a touch screen. Its words say what it makes (New goal, New chat, New channel, Add teammate) and its tip adds the key. No section action is a text link. */
 function HeadPlus({
   label,
   section,
@@ -445,10 +429,11 @@ function HeadPlus({
 }): ReactElement {
   ensureHoverCss();
   const words = plusWords(section, label);
+  const key = plusKey(section);
   return createElement(
     "div",
     { className: "vyre-hp", style: { alignItems: "center" }, ...(cursor ? { "data-on": "1" } : {}) },
-    <Tooltip text={words}>
+    <Tooltip text={key ? `${words}\n${key}` : words}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={words}
@@ -470,7 +455,8 @@ function HeadPlus({
   );
 }
 
-/** A section head: its label, a chevron, and when folded its count and the sum of its marks, so a folded Chats still says there is a mention in it. Sticky heads are the list's job. */
+/** A section head: its label, a chevron, and when folded its count and the sum of its marks, so a folded Chats still says there is a mention in it. Sticky heads are the list's job.
+ * A bare head (a section the person can add to, with nothing in it) is the label alone, dimmer and without a chevron: there is nothing to fold, so a press on it does what its "+" does. */
 export function HeadView({
   entry,
   state,
@@ -488,17 +474,26 @@ export function HeadView({
     createElement(
       "div",
       { className: "vyre-hd", style: { display: "flex", flexDirection: "row", height: "100%" } },
-      <View testID={`head-${h.section}`} style={[s.head, { flex: 1 }] as never} {...(on.dom ?? {})}>
+      <View
+        testID={`head-${h.section}`}
+        style={[s.head, { flex: 1 }] as never}
+        {...(on.dom ?? {})}
+        {...(h.bare === true ? ({ dataSet: { bare: "1" } } as object) : {})}
+      >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${h.label}${h.folded ? `, ${h.count}, folded` : ""}`}
-          accessibilityState={{ expanded: !h.folded }}
+          accessibilityLabel={
+            h.bare === true
+              ? `${h.label}, empty. ${plusWords(h.section, h.label)}`
+              : `${h.label}${h.folded ? `, ${h.count}, folded` : ""}`
+          }
+          {...(h.bare === true ? {} : { "aria-expanded": !h.folded })}
           testID={`toggle-${h.section}`}
           onPress={on.press}
           style={[s.headLabel, state.cursor && s.headCursor] as never}
         >
-          <Glyph name="chev" size={10} color="var(--ink-4)" />
-          <Text style={s.headText as never}>{h.label}</Text>
+          {h.bare === true ? <View style={s.chevGap as never} /> : <Glyph name="chev" size={10} color="var(--ink-4)" />}
+          <Text style={[s.headText, h.bare === true && s.headBare] as never}>{h.label}</Text>
           {h.folded ? (
             <>
               <Text testID={`count-${h.section}`} style={s.headCount as never}>
@@ -655,12 +650,12 @@ const s = StyleSheet.create({
   digit: { fontSize: 11, color: "var(--ink-4)" as string },
   hoverMore: { flexDirection: "row", alignItems: "center" },
   moreBtn: { width: 22, height: 22, borderRadius: 6, alignItems: "center", justifyContent: "center" },
-  verb: { fontSize: 12, fontWeight: "600", color: "var(--accent)" as string },
-  verbWarn: { color: "var(--warn)" as string },
   head: { height: 34, flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 8, paddingBottom: 6 },
   headLabel: { flexDirection: "row", alignItems: "center", gap: 6, height: 22, paddingHorizontal: 2, borderRadius: 6 },
   headCursor: { backgroundColor: "var(--hover)" as string },
   headText: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string },
+  headBare: { color: "var(--ink-4)" as string },
+  chevGap: { width: 10, height: 10 },
   headCount: { fontSize: 12, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] } as object,
   grow: { flex: 1, minWidth: 0 },
   tools: { flexDirection: "row", alignItems: "center", gap: 2 },

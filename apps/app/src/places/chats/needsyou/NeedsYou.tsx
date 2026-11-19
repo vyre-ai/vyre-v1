@@ -266,7 +266,6 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
           trailing={
             <RowEnd
               time={arrivedLabel(i.task.updatedAt, clock)}
-              lit={sel}
               quick={
                 quick && holder(i, data.me).kind === "free" ? (
                   <Tool
@@ -994,13 +993,12 @@ function WithdrawnLabel({ label }: { label: string }): ReactElement {
   );
 }
 
-/** The end of a row: when it arrived and the quick action, which shows on hover and on the selected row. */
-function RowEnd({ time, lit, quick }: { time: string; lit: boolean; quick: ReactElement | null }): ReactElement {
-  const [over, setOver] = useState(false);
+/** The end of a row: when it arrived and the quick action, always visible (lead, 19 Nov 2026: a Needs you action never waits for a hover). */
+function RowEnd({ time, quick }: { time: string; quick: ReactElement | null }): ReactElement {
   return (
-    <View {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }} style={st.rowEnd}>
+    <View style={st.rowEnd}>
       <Text style={st.time}>{time}</Text>
-      {quick ? <View style={{ opacity: over || lit ? 1 : 0 }}>{quick}</View> : null}
+      {quick}
     </View>
   );
 }
