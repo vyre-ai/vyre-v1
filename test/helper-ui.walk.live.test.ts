@@ -27,6 +27,10 @@ test("a queued helper reads as 'Starts when Alpha is done' from the real nodes, 
       await alphaGo;
       yield { type: "text", text: "alpha done" };
     } else if (body.includes("BETA")) yield { type: "text", text: "beta done" };
+    else if (body.includes("GAMMA")) {
+      yield { type: "error", code: "model.failed", message: "gamma could not finish" };
+      return;
+    }
   });
   const d = await boot(seededDir(), model);
   try {
@@ -82,6 +86,20 @@ test("a queued helper reads as 'Starts when Alpha is done' from the real nodes, 
     release();
     await waitFor(async () => ((await seen("Beta")).node?.status === "succeeded" ? true : null), 30_000);
     assert.equal((await seen("Beta")).line, undefined, "once it has run there is no line");
+
+    // a helper behind one that fails: what the UI reads for it (printed, then asserted below)
+    await start("Gamma", "GAMMA: this one fails");
+    await waitFor(async () => ((await seen("Gamma")).node?.status === "failed" ? true : null), 30_000);
+    await start("Delta", "DELTA: after gamma", ["Gamma"]);
+    const delta = await waitFor(async () => {
+      const s = await seen("Delta");
+      return s.node && s.node.status !== "queued" && s.node.status !== "running" ? s : null;
+    }, 30_000);
+    const dn = delta.node as { status: string; errorMessage?: string };
+    console.log("DELTA", JSON.stringify({ status: dn.status, errorMessage: dn.errorMessage, line: delta.line }));
+    assert.equal(dn.status, "failed", "it fails with the one it waited for");
+    assert.equal(delta.line, undefined, "a failed helper shows no waiting line");
+    assert.match(String(dn.errorMessage), /after Gamma, which did not finish/, "and says which one it waited for");
 
     // save the finished Alpha as an agent with the instructions edited
     const alpha = (await seen("Alpha")).node!;

@@ -212,6 +212,7 @@ export function nodesOf(out: unknown): RunNode[] {
         ...(str(n["name"]) !== undefined ? { name: str(n["name"])! } : {}),
         ...(str(n["model"]) !== undefined ? { model: str(n["model"])! } : {}),
         ...(str(n["summary"]) !== undefined ? { summary: str(n["summary"])! } : {}),
+        ...(str(n["errorMessage"]) !== undefined ? { errorMessage: str(n["errorMessage"])! } : {}),
         ...(str(n["whoName"]) !== undefined ? { whoName: str(n["whoName"])! } : {}),
         ...(Array.isArray(n["dependsOn"])
           ? { dependsOn: (n["dependsOn"] as unknown[]).filter((x): x is string => typeof x === "string") }
