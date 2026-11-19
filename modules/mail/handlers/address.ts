@@ -286,6 +286,7 @@ export async function addressMove(
     localPart,
     mailboxId: str(target, "id"),
     idempotencyKey: input.idempotencyKey,
+    expectMailboxId: input.fromMailboxId,
   });
   return {
     address: describe(ctx, domain, address, str(target, "id"), out.route.id, true),

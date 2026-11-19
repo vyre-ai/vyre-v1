@@ -844,6 +844,16 @@ const manifest = defineManifest({
             checkedAt: t.opt(t.ts()),
           }),
         ),
+        cleanups: t.arr(
+          t.obj({
+            id: t.str(),
+            kind: t.enm("provider_route", "duplicate_route"),
+            note: t.str(),
+            attempts: t.int({ minimum: 0 }),
+            lastError: t.opt(t.str()),
+            createdAt: t.ts(),
+          }),
+        ),
         done: t.arr(setupStep),
         step: setupStep,
         next: t.str({ description: "The next thing to do, one sentence" }),

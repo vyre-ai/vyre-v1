@@ -5,6 +5,7 @@
 import { fail } from "../../../../host/src/routes/errors.ts";
 import { bad, first, isId, missing, newId, num, rowsOf, str } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
+import { oweProviderRouteDelete } from "../cleanup.ts";
 import {
   duplicate,
   ensureAll,
@@ -78,7 +79,15 @@ export function mailgunExpression(localPart: string, domain: string): string {
 
 export async function routeSet(
   ctx: MailCtx,
-  input: { domainId: string; localPart: string; mailboxId: string; idempotencyKey: string; create?: boolean },
+  input: {
+    domainId: string;
+    localPart: string;
+    mailboxId: string;
+    idempotencyKey: string;
+    create?: boolean;
+    /** a move: the inbox the caller saw the address going to; if it goes elsewhere now, nothing is changed */
+    expectMailboxId?: string;
+  },
 ): Promise<{ route: RouteOut }> {
   ensureAll(ctx);
   const prior = idemRef(ctx, input.idempotencyKey, "routeset");
@@ -111,6 +120,11 @@ export async function routeSet(
   // `create` is an add, never a move: a name that is taken is refused, and nothing is repointed (mail.address.move does that on purpose)
   if (existing && input.create === true)
     duplicate(ctx, `${localPart}@${str(domain, "name")} is already in use. Moving it is a separate step.`);
+  if (existing && input.expectMailboxId !== undefined && str(existing, "mailboxId") !== input.expectMailboxId)
+    duplicate(
+      ctx,
+      `${localPart}@${str(domain, "name")} now goes somewhere else, not where you saw it. Look again before moving it.`,
+    );
   if (existing) {
     routeId = str(existing, "id");
     if (str(existing, "mailboxId") !== input.mailboxId) {
@@ -136,11 +150,29 @@ export async function routeSet(
     }
     routeId = newId("rte", now);
     // The provider call above took time. Look again, then write: the unique index on the live address is the last word, and the loser takes its provider route back and says so.
-    const lost = (): never => {
-      if (providerRouteId)
-        void ctx
-          .call("mailgun.routes.delete", { idempotencyKey: `mail.routes.lost:${routeId}`, routeId: providerRouteId })
-          .catch(() => undefined);
+    // The loser's own Mailgun route must go, or every inbound message for the address would arrive twice: it is deleted now (three tries), and if it still stays it is queued, retried in the background and shown on the Email page.
+    const lost = async (): Promise<never> => {
+      if (providerRouteId) {
+        let removed = false;
+        for (let attempt = 0; attempt < 3 && !removed; attempt++) {
+          try {
+            await ctx.call("mailgun.routes.delete", {
+              idempotencyKey: `mail.routes.lost:${routeId}:${attempt}`,
+              routeId: providerRouteId,
+            });
+            removed = true;
+          } catch (e) {
+            if ((e as { error?: { code?: unknown } } | null)?.error?.code === "validation.not_found") removed = true;
+            else if (attempt < 2) await new Promise((r) => setTimeout(r, 40 * (attempt + 1)));
+          }
+        }
+        if (!removed)
+          oweProviderRouteDelete(
+            ctx,
+            providerRouteId,
+            `${localPart}@${str(domain, "name")}: a Mailgun route made by an add that lost a race could not be deleted yet. It is retried until it is gone.`,
+          );
+      }
       return duplicate(ctx, `${localPart}@${str(domain, "name")} was just taken by someone else.`);
     };
     if (
@@ -152,7 +184,7 @@ export async function routeSet(
         ),
       )
     )
-      lost();
+      return lost();
     try {
       ctx.db.run(
         `INSERT INTO mail_route (id, "domainId", "localPart", "mailboxId", provider, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -166,7 +198,9 @@ export async function routeSet(
         null,
       );
     } catch (e) {
-      if (/unique|constraint/i.test(e instanceof Error ? e.message : String(e))) lost();
+      // only the address index means "taken": any other constraint failure is a real error and is rethrown
+      const said = String(e instanceof Error ? e.message : e);
+      if (/unique/i.test(said) && /mail_route/.test(said)) return lost();
       throw e;
     }
     if (providerRouteId)

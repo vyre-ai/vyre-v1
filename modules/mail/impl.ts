@@ -31,6 +31,7 @@ import {
 } from "./handlers/smtp.ts";
 import { setupStatus, testSend } from "./handlers/setup.ts";
 import { recheckDomains } from "./handlers/recheck.ts";
+import { retryCleanups } from "./handlers/cleanup.ts";
 import { addressAdd, addressList, addressMove } from "./handlers/address.ts";
 import { setMailLinksHost, unsubscribe } from "./handlers/unsubscribe.ts";
 import type { ImapConfig, ImapMessage, ImapSession, ImapSessionFactory } from "./handlers/ingest.ts";
@@ -109,6 +110,11 @@ export const periodic = {
   "mail.recheck_domains": {
     everyMs: 24 * 60 * 60_000,
     run: (ctx: MailCtx) => recheckDomains(ctx),
+  },
+  /** Every five minutes: a provider route that had to be deleted and was not is tried again, backing off up to six hours, until it is gone. */
+  "mail.cleanup_retry": {
+    everyMs: 5 * 60_000,
+    run: (ctx: MailCtx) => retryCleanups(ctx),
   },
 };
 export const projections = { inline, consumers: consumersAll };

@@ -2,7 +2,19 @@
 // The extra tables are this packet's own (CREATE IF NOT EXISTS, applied once per database next to the core mail schema).
 // Known gap outside this packet's files: mail.route.set accepts localPart '*', but ingest.ts resolveMailbox looks up the exact local part only; the catch-all fallback belongs to the packet that owns ingest.ts.
 import { fail } from "../../../../host/src/routes/errors.ts";
-import { bad, ensure, first, num, readParties, readStrings, str, strOrNull, statements } from "../../projections.ts";
+import {
+  bad,
+  ensure,
+  first,
+  num,
+  readParties,
+  readStrings,
+  rowsOf,
+  str,
+  strOrNull,
+  statements,
+} from "../../projections.ts";
+import { ensureCleanup, noteRemovedDuplicate, oweProviderRouteDelete } from "../cleanup.ts";
 import type { MailCtx, Party, Row } from "../../projections.ts";
 
 const EXTRA_SQL = `
@@ -21,11 +33,51 @@ CREATE TABLE IF NOT EXISTS mail_status_log (
 `;
 
 const ROUTE_UNIQUE = `CREATE UNIQUE INDEX IF NOT EXISTS mail_route__address ON mail_route ("domainId", "localPart") WHERE deleted_at IS NULL`;
+/** Two live routes for one address: keep the oldest (the smallest id, which carries its time), remove the rest, and leave a visible note. A removed route's provider route is queued for deletion so mail is not delivered twice. */
+function dedupeRoutes(ctx: Pick<MailCtx, "db" | "now">): void {
+  const live = rowsOf(ctx.db.all(`SELECT * FROM mail_route`)).filter(
+    (r) => r.deleted_at === null || r.deleted_at === undefined,
+  );
+  const groups = new Map<string, Row[]>();
+  for (const r of live) {
+    const k = `${str(r, "domainId")}/${str(r, "localPart")}`;
+    groups.set(k, [...(groups.get(k) ?? []), r]);
+  }
+  for (const rows of groups.values()) {
+    if (rows.length < 2) continue;
+    rows.sort((a, b) => (str(a, "id") < str(b, "id") ? -1 : 1));
+    const [keep, ...rest] = rows as [Row, ...Row[]];
+    const domain = first(ctx.db.all(`SELECT name FROM mail_domain WHERE id = ?`, str(keep, "domainId")));
+    const address = `${str(keep, "localPart")}@${domain ? str(domain, "name") : "a domain"}`;
+    for (const r of rest) {
+      ctx.db.run(
+        `UPDATE mail_route SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
+        ctx.now(),
+        num(r, "version") + 1,
+        ctx.now(),
+        str(r, "id"),
+      );
+      const ext = first(ctx.db.all(`SELECT "providerRouteId" FROM mail_route_ext WHERE "routeId" = ?`, str(r, "id")));
+      if (ext && str(ext, "providerRouteId"))
+        oweProviderRouteDelete(
+          ctx,
+          str(ext, "providerRouteId"),
+          `${address}: the duplicate Mailgun route is being deleted.`,
+        );
+    }
+    noteRemovedDuplicate(
+      ctx,
+      `${address} had ${rows.length} routes. The oldest was kept and ${rest.length === 1 ? "the other was" : "the others were"} removed, so mail goes to one inbox only.`,
+    );
+  }
+}
+
 const ready = new WeakSet<object>();
 
 /** Make sure the core mail tables and this packet's extra tables exist. One cheap probe per call after the first. */
-export function ensureAll(ctx: Pick<MailCtx, "db">): void {
+export function ensureAll(ctx: Pick<MailCtx, "db" | "now" | "log">): void {
   ensure(ctx);
+  ensureCleanup(ctx);
   if (ready.has(ctx.db)) return;
   try {
     ctx.db.all(`SELECT "routeId" FROM mail_route_ext WHERE "routeId" = ?`, "probe");
@@ -33,11 +85,18 @@ export function ensureAll(ctx: Pick<MailCtx, "db">): void {
     for (const statement of statements(EXTRA_SQL)) ctx.db.run(statement);
   }
   // One live route per address. The database refuses a second, so two people adding the same name at once cannot both write it: the loser is told, and nothing is repointed.
-  // An old database that already holds a duplicate keeps working without the index (the handlers still check).
+  // An older database may already hold two: the oldest is kept, the others are removed, and a note says so (and a provider route left behind is queued for deletion), before the index is made.
+  dedupeRoutes(ctx);
   try {
     ctx.db.run(ROUTE_UNIQUE);
-  } catch {
-    /* a duplicate from before: left as it is */
+  } catch (e) {
+    ctx.log.warn("mail: the unique index on route addresses could not be made", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+    throw fail("internal.unexpected", "0000000000000000", {
+      message:
+        "The mail routes could not be made safe against duplicates. Nothing was changed; ask an admin to look at the log.",
+    });
   }
   ready.add(ctx.db);
 }

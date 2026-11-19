@@ -59,6 +59,14 @@ type Out = {
       why?: string;
       checkedAt?: number;
     }>;
+  cleanups: Array<{
+      id: string;
+      kind: "provider_route" | "duplicate_route";
+      note: string;
+      attempts: number;
+      lastError?: string;
+      createdAt: number;
+    }>;
   done: Array<"choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready">;
   step: "choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready";
   next: string;
@@ -81,6 +89,16 @@ type Out = {
   "name": "example",
   "input": {},
   "output": {
+    "cleanups": [
+      {
+        "attempts": 1,
+        "createdAt": 1760000000000,
+        "id": "example",
+        "kind": "provider_route",
+        "lastError": "example",
+        "note": "example"
+      }
+    ],
     "domains": [
       {
         "checkedAt": 1760000000000,

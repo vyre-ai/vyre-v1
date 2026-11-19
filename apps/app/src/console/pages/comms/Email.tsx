@@ -58,6 +58,21 @@ export function EmailPage(): ReactElement {
           ))}
         </Group>
       </Section>
+      {setup.cleanups.length ? (
+        <ObjectSection title="Needs a look">
+          <Group>
+            {setup.cleanups.map((c) => (
+              <Row
+                key={c.id}
+                title={
+                  c.kind === "provider_route" ? "A mail route is being removed" : "A duplicate address was removed"
+                }
+                note={`${c.note}${c.kind === "provider_route" ? ` Tried ${c.attempts} time${c.attempts === 1 ? "" : "s"}.` : ""}`}
+              />
+            ))}
+          </Group>
+        </ObjectSection>
+      ) : null}
       <ObjectSection title="How the Space sends">
         <Select
           label="Sending provider"

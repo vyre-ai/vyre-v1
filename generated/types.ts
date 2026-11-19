@@ -25949,6 +25949,14 @@ export type MailSetupStatusOut = {
       why?: string;
       checkedAt?: number;
     }>;
+  cleanups: Array<{
+      id: string;
+      kind: "provider_route" | "duplicate_route";
+      note: string;
+      attempts: number;
+      lastError?: string;
+      createdAt: number;
+    }>;
   done: Array<"choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready">;
   step: "choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready";
   next: string;
