@@ -162,3 +162,22 @@ test("Settings on a phone draws its own back chevron (list, then out), as the co
   assert.equal(headerBack({ tab: "you", screen: "you:settings" }), true);
   assert.equal(headerBack({ tab: "you", screen: "you" }), false);
 });
+
+test("phone: a link to a view of a tab's place keeps its hash (the Inbox's Unmatched list, Meetings), so the place opens on that view", () => {
+  for (const [place, hash] of [
+    ["inbox", "screen=inbox.unmatched"],
+    ["inbox", "main=meetings"],
+    ["records", "screen=records.search&q=x"],
+  ] as const) {
+    const e = entryFor(place, hash);
+    assert.equal(e.tab, place);
+    assert.notEqual(e.screen, place, "an entry of its own, not the place's first screen");
+    assert.deepEqual(placeOf(e), { place, hash }, "the hash comes back whole");
+  }
+  // nothing to keep: the tab's own first screen, as before
+  assert.deepEqual(entryFor("inbox", ""), { tab: "inbox", screen: "inbox" });
+  assert.deepEqual(placeOf(entryFor("inbox", "")), { place: "inbox", hash: "" });
+  // a subject still opens its item, and the Replies link its own screen
+  assert.equal(entryFor("inbox", "subject=conversation%3Acnv_1").screen, "conversation:cnv_1");
+  assert.equal(entryFor("inbox", "screen=inbox.replies").screen, "replies:list");
+});

@@ -93,6 +93,9 @@ export function entryFor(place: PlaceId, hash: string): Entry {
   if (place === "records" && t.screen === "records.projects")
     return { tab: "records", screen: `rscreen:${encodeURIComponent(hash)}`, title: "Projects" };
   if (t.subject) return { tab: tabOf(place), screen: `${t.subject.type}:${t.subject.id}` };
+  // a link to a view of a tab's place (the Inbox's Unmatched list, Meetings, a filter): the screen keeps the whole hash, so the place opens on that view. It used to be dropped, and a phone landed on the place's list.
+  if ((TAB_PLACES as readonly string[]).includes(place) && (t.screen || Object.keys(t.args).length > 0))
+    return { tab: place as TabId, screen: `view:${place}:${encodeURIComponent(hash)}` };
   if ((TAB_PLACES as readonly string[]).includes(place)) return { tab: place as TabId, screen: place };
   if (place === "settings") return { tab: "you", screen: "you:settings", title: "Settings" };
   if (place === "automations") return { tab: "you", screen: "you:automations", title: "Automations" };
@@ -111,6 +114,17 @@ export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
   const kind = i < 0 ? e.screen : e.screen.slice(0, i);
   if (i < 0) return (TAB_PLACES as readonly string[]).includes(kind) ? { place: kind as PlaceId, hash: "" } : null;
   if (kind === "desktop") return null;
+  if (kind === "view") {
+    const m = /^view:([a-z]+):(.*)$/.exec(e.screen);
+    if (m && (TAB_PLACES as readonly string[]).includes(m[1]!)) {
+      try {
+        return { place: m[1] as PlaceId, hash: decodeURIComponent(m[2]!) };
+      } catch {
+        return { place: m[1] as PlaceId, hash: "" };
+      }
+    }
+    return null;
+  }
   if (kind === "apps" || kind === "vault") {
     try {
       return { place: kind, hash: decodeURIComponent(e.screen.slice(i + 1)) };

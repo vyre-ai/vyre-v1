@@ -310,7 +310,8 @@ function InboxFrame({
   const inSlot = useInSidebarSlot();
   const { state } = useInboxState();
   const { target } = usePlaceHash();
-  const [entered, setEntered] = useState(false);
+  // a link that opens a view (Replies) is already in the state at the first frame, so a phone draws it at once instead of the list of inboxes for a frame first
+  const [entered, setEntered] = useState(state.main !== "list");
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -351,7 +352,9 @@ function InboxFrame({
       </View>
     );
   }
-  const inMain = entered || (openId !== null && openId !== "") || !!target.args["contactId"];
+  // the Unmatched list is a link (a conversation's Match button opens it): a phone draws it at once, not the list of inboxes with the link waiting under the first tap
+  const inMain =
+    entered || (openId !== null && openId !== "") || !!target.args["contactId"] || target.screen === "inbox.unmatched";
   return (
     <View testID="inbox-place" style={st.row}>
       {inMain ? (
