@@ -518,6 +518,8 @@ function eventRanges(s: string, low: string, browser: boolean): Array<[number, n
   const n = s.length;
   const out: Array<[number, number]> = [];
   let from = 0;
+  let e1 = -2;
+  let e2 = -2;
   for (;;) {
     const at = s.indexOf("<", from);
     if (at < 0) break;
@@ -530,8 +532,9 @@ function eventRanges(s: string, low: string, browser: boolean): Array<[number, n
         else if (s.startsWith("<!--->", at)) end = at + 6;
         else {
           // a comment ends at "-->" or "--!>"
-          const e1 = s.indexOf("-->", at + 4);
-          const e2 = s.indexOf("--!>", at + 4);
+          // each terminator is searched for once and reused until it is passed (-1 means there is none left): a run of comments was quadratic
+          if (e1 !== -1 && e1 < at + 4) e1 = s.indexOf("-->", at + 4);
+          if (e2 !== -1 && e2 < at + 4) e2 = s.indexOf("--!>", at + 4);
           end = e1 < 0 && e2 < 0 ? n : e1 < 0 ? e2 + 4 : e2 < 0 || e1 < e2 ? e1 + 3 : e2 + 4;
         }
         from = end;

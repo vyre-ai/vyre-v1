@@ -302,6 +302,8 @@ test("raw-text elements, comments and unterminated tags are read as a browser re
   assert.equal(stripEventAttrs("<p>a</p>"), "<p>a</p>");
   fast('<style><a b=" N', () => stripEventAttrs('<style><a b="'.repeat(N / 13)));
   fast("<!-- N", () => stripEventAttrs("<!--".repeat(N / 4)));
+  for (const c of ["<!--!>", "<!--a--!>", "<!----!>", "<!-- -->", "<!--!><!--", "<!--a-->"])
+    fast(`${c} x 500 KB`, () => cleanHtml(c.repeat(500_000 / c.length)));
   fast("<textarea N", () => stripEventAttrs("<textarea>".repeat(N / 10)));
   fast("<title <a N", () => stripEventAttrs('<title><a b="</title>'.repeat(N / 22)));
 });
