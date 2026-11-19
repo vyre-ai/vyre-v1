@@ -197,7 +197,7 @@ export const POLICY_DEFAULTS: Policy = {
   tidy: true,
   askAfterDays: 14,
   momentGraceDays: 1,
-  assistantLook: true,
+  assistantLook: false,
 };
 
 const POLICY_KEYS: ReadonlySet<string> = new Set([

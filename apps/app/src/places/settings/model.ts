@@ -319,7 +319,7 @@ export const SPACE_ROWS: readonly SpaceRowDef[] = [
     "Tasks",
     "Let a cheap model look at tasks that may be done",
     { kind: "switch" },
-    "Once a day, one short batch of up to 20 tasks goes to the cheapest model your Space AI accounts allow. It can only suggest; the Still need these card is where you decide.",
+    "Off until you turn it on. Once a day, the title and the last two messages of up to 20 tasks go to the cheapest model your Space AI accounts allow, only from chats everyone on the task can read. It can only suggest; the Still need these card is where you decide.",
   ),
   sr(
     "tasks.moment_grace_days",

@@ -156,12 +156,12 @@ test("Keep stops the question for 90 days; Archive puts the task away with the p
     kept: number;
     archived: number;
   };
-  assert.deepEqual(r, { kept: 1, archived: 0 });
+  assert.deepEqual(r, { kept: 1, archived: 0, done: 0 });
   const r2 = (await h.call("tasks.still_answer", { taskIds: [drop], answer: "archive" }, me)) as {
     kept: number;
     archived: number;
   };
-  assert.deepEqual(r2, { kept: 0, archived: 1 });
+  assert.deepEqual(r2, { kept: 0, archived: 1, done: 0 });
   assert.equal((await get(h, drop)).archived.code, "asked");
   assert.equal((await card(h)).total, 0);
   h.advance(60 * DAY);

@@ -1,6 +1,7 @@
 // The daily look (lane r42-alive, living tasks). Once a day, at most 20 unclear tasks of the Space (about 60 tokens each) go to the cheapest model the Space's own AI accounts allow, in ONE call. The model may only
 // propose two things: "ask about this" or "this looks done". "Done" counts only with a quoted line from a named, later message in the task's own chat that really says it. Nothing here ever archives or closes
 // a task: a proposal puts the task on the Still need these card, where a person answers. No Space AI account, or tidy or the look switched off: the rules alone run and nothing is called.
+// Privacy: off by default; only chats every person on the task can read are read, never an Ask pane, helper, run or encrypted message, and a quote is shown only for such a chat.
 // Cost is never a guess: every run writes its model and tokens to tasks_look_log.
 import { cheapestModel } from "../../../lib/cheap-model.ts";
 import type { ListedModel } from "../../../lib/cheap-model.ts";
@@ -31,9 +32,14 @@ export interface Asked {
 }
 /** What the look needs from outside, so a test can stand a model in: one ask, and one message read. */
 export interface LookDeps {
+  /** a Space AI account and a cheap model exist: checked first, so a Space without one costs no chat reads */
+  ready(): Promise<boolean>;
   ask(system: string, prompt: string): Promise<Asked | null>;
-  message(threadId: string, messageId: string): Promise<{ body: string; at: number } | null>;
+  /** one message of a chat, with who wrote it; null when it is encrypted or cannot be read */
+  message(threadId: string, messageId: string): Promise<{ body: string; at: number; by: string } | null>;
   recent(threadId: string): Promise<{ id: string; at: number; text: string }[]>;
+  /** the chat is an ordinary shared one (not an Ask pane, a helper, a run or a console) and every one of these people is in it */
+  readable(threadId: string, people: readonly string[]): Promise<boolean>;
 }
 
 const SYSTEM =
@@ -62,9 +68,21 @@ export function candidates(ctx: TasksCtx): Task[] {
   return out;
 }
 
+/** The chat a task lives in, if any. */
+export const threadOf = (t: Task): string | undefined =>
+  t.threadId ?? (t.source?.kind === "chat" ? t.source.id : undefined);
+/** The people on a task: the slots that are people, and who made it if a person. */
+export function peopleOn(t: Task): string[] {
+  const ids = [t.assigned, t.reviewer, t.approver].flatMap((a) => (a && a.kind === "person" ? [a.id] : []));
+  if (t.createdBy.startsWith("usr_")) ids.push(t.createdBy);
+  return [...new Set(ids)];
+}
+
 async function describe(ctx: TasksCtx, deps: LookDeps, t: Task): Promise<Seen> {
-  const thread = t.threadId ?? (t.source?.kind === "chat" ? t.source.id : undefined);
-  const lines = thread ? (await deps.recent(thread).catch(() => [])).slice(-2) : [];
+  const thread = threadOf(t);
+  // the words of a chat go to the model only when everyone on the task can read that chat
+  const open = thread ? await deps.readable(thread, peopleOn(t)).catch(() => false) : false;
+  const lines = thread && open ? (await deps.recent(thread).catch(() => [])).slice(-2) : [];
   return {
     id: t.id,
     kind: t.kind,
@@ -127,6 +145,7 @@ export async function lookOnce(
   const policy = readPolicy(ctx.db);
   if (!policy.tidy || !policy.assistantLook) return none;
   const now = ctx.now();
+  if (!(await deps.ready().catch(() => false))) return none; // no account or model: not one chat read is made
   const last = ctx.db.all("SELECT MAX(at) AS at FROM tasks_look_log")[0] as { at?: number | null } | undefined;
   if (last?.at != null && now - last.at < LOOK_EVERY_MS) return none;
   const tasks = candidates(ctx);
@@ -146,17 +165,20 @@ export async function lookOnce(
       continue;
     }
     if (p.say === "ask") {
+      // what the model wrote is shown as plain words under the task and never as a "looks done": one line, cut
       if (putOnCard(ctx, t, cut(one(p.why ?? "Might be finished."), 50))) asked += 1;
       continue;
     }
-    const thread = t.threadId ?? (t.source?.kind === "chat" ? t.source.id : undefined);
-    const msg = thread && p.message && p.quote ? await deps.message(thread, p.message).catch(() => null) : null;
+    const thread = threadOf(t);
+    const open = thread ? await deps.readable(thread, peopleOn(t)).catch(() => false) : false;
+    const msg = thread && open && p.message && p.quote ? await deps.message(thread, p.message).catch(() => null) : null;
     const quote = one(p.quote ?? "");
-    if (!msg || quote.length < 8 || msg.at <= t.createdAt || !one(msg.body).includes(quote)) {
+    // a real message of the task's own chat, written after the task last moved, that says those words
+    if (!msg || quote.length < 8 || msg.at <= t.updatedAt || msg.at <= t.createdAt || !one(msg.body).includes(quote)) {
       rejected += 1;
       continue;
     }
-    if (putOnCard(ctx, t, cut(`Looks done: "${quote}"`, 50))) done += 1;
+    if (putOnCard(ctx, t, "Looks done", { quote: cut(quote, 120), by: msg.by, at: msg.at })) done += 1;
   }
   ctx.db.run(
     "INSERT INTO tasks_look_log (at, model, tasks, asked, done, rejected, tokens_in, tokens_out) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -178,18 +200,33 @@ type AccountRow = { ref: string; driver: string; kind: string; status: string; s
 export function realDeps(ctx: TasksCtx): LookDeps | null {
   const call = ctx.call;
   if (!call) return null;
+  const pick = async (): Promise<{ account: AccountRow; model: string } | null> => {
+    const accounts = (
+      (await call("engine.accounts.list", { place: "space", runsAs: "space" })) as { accounts?: AccountRow[] }
+    ).accounts;
+    const account = (accounts ?? []).find((a) => a.mine !== true && a.status === "ok" && a.kind === "api_key");
+    if (!account) return null;
+    const listed =
+      ((await call("engine.models.list", { accountRef: account.ref, probe: false })) as { models?: ListedModel[] })
+        .models ?? [];
+    const model = cheapestModel(account.driver, listed);
+    return model ? { account, model } : null;
+  };
   return {
+    async ready() {
+      return (await pick()) !== null;
+    },
+    async readable(threadId, people) {
+      const r = (await call("threads.get", { threadId })) as { thread?: { kind: string; members: { id: string }[] } };
+      const th = r.thread;
+      if (!th || !["chat", "channel", "thread"].includes(th.kind)) return false;
+      const here = new Set(th.members.map((m) => m.id));
+      return people.length > 0 && people.every((p) => here.has(p));
+    },
     async ask(system, prompt) {
-      const accounts = (
-        (await call("engine.accounts.list", { place: "space", runsAs: "space" })) as { accounts?: AccountRow[] }
-      ).accounts;
-      const account = (accounts ?? []).find((a) => a.mine !== true && a.status === "ok" && a.kind === "api_key");
-      if (!account) return null;
-      const listed =
-        ((await call("engine.models.list", { accountRef: account.ref, probe: false })) as { models?: ListedModel[] })
-          .models ?? [];
-      const model = cheapestModel(account.driver, listed);
-      if (!model) return null;
+      const chosen = await pick();
+      if (!chosen) return null;
+      const { account, model } = chosen;
       const r = (await call("engine.complete", { accountRef: account.ref, model, system, prompt })) as {
         text?: string;
         tokensIn?: number;
@@ -204,16 +241,17 @@ export function realDeps(ctx: TasksCtx): LookDeps | null {
     },
     async message(threadId, messageId) {
       const r = (await call("chat.message.get", { threadId, messageId })) as {
-        message?: { body: string; createdAt: number };
+        message?: { body: string; createdAt: number; enc?: number; author?: { id?: string } };
       };
-      return r.message ? { body: r.message.body, at: r.message.createdAt } : null;
+      const m = r.message;
+      return m && !m.enc ? { body: m.body, at: m.createdAt, by: String(m.author?.id ?? "") } : null;
     },
     async recent(threadId) {
       const r = (await call("chat.messages.list", { threadId, limit: 3 })) as {
-        messages?: { messageId: string; body: string; createdAt: number; kind: string }[];
+        messages?: { messageId: string; body: string; createdAt: number; kind: string; enc?: number }[];
       };
       return (r.messages ?? [])
-        .filter((m) => m.kind !== "system")
+        .filter((m) => m.kind !== "system" && !m.enc)
         .map((m) => ({ id: m.messageId, at: m.createdAt, text: m.body }));
     },
   };

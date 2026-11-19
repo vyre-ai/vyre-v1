@@ -1094,6 +1094,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
           />
           <StillCard
             who={rt.me.id}
+            nameOf={nameOf}
             call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
             rev={revValue}
             openTask={openTask}

@@ -38,18 +38,28 @@ export function cardOnScreen(doc: Document): boolean {
   return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < h && r.left < w;
 }
 
+/** The words under a looks-done row: the quote in a fixed frame, who wrote it and when. */
+export function lookNote(l: { quote: string; by: string; at: number }, nameOf: (id: string) => string): string {
+  const when = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" })
+    .format(l.at)
+    .replace(",", "");
+  return `\u201c${l.quote}\u201d, ${l.by === "" ? "someone" : nameOf(l.by)}, ${when}`;
+}
+
 /** The card stays open across a redraw of the page (a width change draws it again from nothing), for the same person only. */
 let remembered: { who: string; open: boolean } = { who: "", open: false };
 
 export function StillCard({
   call,
   who,
+  nameOf,
   rev,
   openTask,
   onChanged,
 }: {
   call: Call;
   who: string;
+  nameOf(id: string): string;
   rev: string | undefined;
   openTask(id: string): void;
   onChanged(): void;
@@ -96,14 +106,19 @@ export function StillCard({
       return () => clearTimeout(t);
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let sent = false;
+    let poll: ReturnType<typeof setInterval> | undefined;
     const arm = (): void => {
+      if (sent) return;
       if (timer !== undefined) clearTimeout(timer);
       timer = undefined;
       if (!cardOnScreen(doc)) return;
       timer = setTimeout(() => {
         timer = undefined;
         if (cardOnScreen(doc)) {
+          sent = true;
           doc.removeEventListener("visibilitychange", arm);
+          if (poll !== undefined) clearInterval(poll);
           send();
         }
       }, 1000);
@@ -111,10 +126,10 @@ export function StillCard({
     doc.addEventListener("visibilitychange", arm);
     arm();
     // the card may be scrolled to or the page shown later: look again now and then until it has been seen
-    const poll = setInterval(arm, 1500);
+    poll = setInterval(arm, 1500);
     return () => {
       doc.removeEventListener("visibilitychange", arm);
-      clearInterval(poll);
+      if (poll !== undefined) clearInterval(poll);
       if (timer !== undefined) clearTimeout(timer);
     };
   }, [call, shownIds]);
@@ -140,12 +155,13 @@ export function StillCard({
         {open
           ? card.items.map((i) => {
               // a row the daily look says looks done: the exact words are the proof, and Done closes it
-              const looks = i.why.startsWith("Looks done");
+              // drawn only from what the server verified (lookDone), never from text a model wrote
+              const looks = i.lookDone !== undefined;
               return (
                 <Row
                   key={i.task.id}
                   title={i.task.title}
-                  note={looks ? i.why.replace(/^Looks done:\s*/, "") : i.why}
+                  note={i.lookDone ? lookNote(i.lookDone, nameOf) : i.why}
                   {...(looks ? { noteLead: "Looks done" } : {})}
                   tall
                   onPress={() => openTask(i.task.id)}

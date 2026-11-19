@@ -22,7 +22,10 @@ function orphanable(ctx: TasksCtx, t: Task, waiters: ReadonlyMap<string, string[
 export function onGoalEnded(ctx: TasksCtx, event: Ev): string[] {
   if (!readPolicy(ctx.db).tidy) return [];
   const goalId = typeof event.payload.goalId === "string" ? event.payload.goalId : "";
-  const outcome = typeof event.payload.outcome === "string" ? event.payload.outcome : "over";
+  const outcome =
+    typeof event.payload.outcome === "string"
+      ? event.payload.outcome.replace(/\s+/g, " ").trim().slice(0, 12) || "over"
+      : "over";
   if (goalId === "") return [];
   const idx = openIndex(ctx.db);
   const out: string[] = [];

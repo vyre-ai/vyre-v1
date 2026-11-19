@@ -34,7 +34,7 @@ export function momentWords(at: number, tz: string): string {
 }
 
 /**
- * Visit the matching tasks a page at a time, round and round: each pass reads the next `size` after where the last one stopped (tasks_cursor) and wraps at the end, so rows that are skipped every time (snoozed, due
+ * Visit the matching tasks a page at a time (a Space with 20,000 stale tasks takes about 100 passes, so about 100 minutes of the minute clock, to go all the way round), round and round: each pass reads the next `size` after where the last one stopped (tasks_cursor) and wraps at the end, so rows that are skipped every time (snoozed, due
  * later, waited on) never keep the rows behind them from being read, and no pass loads every stale task. `keyCol` is the sorted column and `keyOf` its value on the row.
  */
 export function rotate(
@@ -101,16 +101,25 @@ export function askUntouched(ctx: TasksCtx): number {
 }
 
 /** Put a task on the card, once: a task already asked, or kept and not yet due to be asked again, is left alone. */
-export function putOnCard(ctx: TasksCtx, t: Task, why: string): boolean {
+export function putOnCard(
+  ctx: TasksCtx,
+  t: Task,
+  why: string,
+  look?: { quote: string; by: string; at: number },
+): boolean {
   const row = ctx.db.all("SELECT kept_until FROM tasks_ask WHERE task_id = ?", t.id)[0] as
     | { kept_until?: number | null }
     | undefined;
   if (row && (row.kept_until == null || row.kept_until > ctx.now())) return false;
   ctx.db.run(
-    "INSERT OR REPLACE INTO tasks_ask (task_id, at, why, kept_until) VALUES (?, ?, ?, NULL)",
+    "INSERT OR REPLACE INTO tasks_ask (task_id, at, why, kept_until, look, quote, quote_by, quote_at) VALUES (?, ?, ?, NULL, ?, ?, ?, ?)",
     t.id,
     ctx.now(),
     why,
+    look ? "done" : null,
+    look?.quote ?? null,
+    look?.by ?? null,
+    look?.at ?? null,
   );
   return true;
 }
@@ -145,18 +154,37 @@ export function archiveUnanswered(ctx: TasksCtx): number {
 /** The card: what is asked of the reader, oldest ask first, at most seven. */
 export async function stillNeeded(ctx: TasksCtx, _input: In): Promise<unknown> {
   const idx = openIndex(ctx.db);
-  const rows = ctx.db.all("SELECT task_id, at, why FROM tasks_ask WHERE kept_until IS NULL ORDER BY at, task_id") as {
+  const rows = ctx.db.all(
+    "SELECT task_id, at, why, look, quote, quote_by, quote_at FROM tasks_ask WHERE kept_until IS NULL ORDER BY at, task_id",
+  ) as {
     task_id: string;
     at: number;
     why: string;
+    look: string | null;
+    quote: string | null;
+    quote_by: string | null;
+    quote_at: number | null;
   }[];
-  const items: { task: Record<string, unknown>; why: string; askedAt: number }[] = [];
+  const items: {
+    task: Record<string, unknown>;
+    why: string;
+    askedAt: number;
+    lookDone?: { quote: string; by: string; at: number };
+  }[] = [];
   let total = 0;
   for (const r of rows) {
     const t = findTask(ctx.db, r.task_id);
     if (!t || !isOpen(t.state) || t.archived !== undefined || !visibleTo(ctx, t) || !mayLetGo(ctx, t)) continue;
     total += 1;
-    if (items.length < CARD_MAX) items.push({ task: outFor(ctx, t, idx), why: r.why, askedAt: r.at });
+    if (items.length < CARD_MAX)
+      items.push({
+        task: outFor(ctx, t, idx),
+        why: r.why,
+        askedAt: r.at,
+        ...(r.look === "done" && r.quote
+          ? { lookDone: { quote: r.quote, by: r.quote_by ?? "", at: r.quote_at ?? 0 } }
+          : {}),
+      });
   }
   return { items, total };
 }

@@ -108,6 +108,11 @@ type Out = {
       };
       why: string;
       askedAt: number;
+      lookDone?: {
+        quote: string;
+        by: string;
+        at: number;
+      };
     }>;
   total: number;
 };
@@ -130,6 +135,11 @@ type Out = {
     "items": [
       {
         "askedAt": 1760000000000,
+        "lookDone": {
+          "at": 1760000000000,
+          "by": "example",
+          "quote": "example"
+        },
         "task": {
           "actions": [
             {

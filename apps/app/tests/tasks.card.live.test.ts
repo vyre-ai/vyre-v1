@@ -70,7 +70,7 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     const why = [
       "Nothing has happened for 14 days.",
       "Its expected date has passed.",
-      'Looks done: "Payment received, $171.56"',
+      "Nothing has happened for 14 days.",
       "Nothing has happened for 14 days.",
     ];
     const withDb = <T>(f: (db: DatabaseSync) => T): T => {
@@ -84,10 +84,16 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     };
     withDb((db) => {
       for (const [n, id] of ids.entries())
-        db.prepare("INSERT INTO tasks_ask (task_id, at, why, kept_until) VALUES (?, ?, ?, NULL)").run(
+        db.prepare(
+          "INSERT INTO tasks_ask (task_id, at, why, kept_until, look, quote, quote_by, quote_at) VALUES (?, ?, ?, NULL, ?, ?, ?, ?)",
+        ).run(
           id,
           Date.now() - 86_400_000 + n,
-          why[n],
+          n === 2 ? "Looks done" : why[n],
+          n === 2 ? "done" : null,
+          n === 2 ? "Payment received, $171.56" : null,
+          n === 2 ? owner : null,
+          n === 2 ? Date.now() - 2 * 86_400_000 : null,
         );
     });
     const kept = (id: string): number | null =>
@@ -109,6 +115,11 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
               | undefined
           )?.seen_at ?? null,
       );
+    let seenCalls = 0;
+    await page.route("**/v1/tasks/still_answer", (route) => {
+      if ((route.request().postDataJSON() as { answer?: string }).answer === "seen") seenCalls += 1;
+      return route.continue();
+    });
     // a hidden tab never counts as seeing the card: the page says it is hidden for a while, nothing is stamped, then it shows and it is
     await page.addInitScript(() => {
       (window as unknown as { __vis: string }).__vis = "hidden";
@@ -127,6 +138,8 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     });
     for (let i = 0; i < 40 && seenAt(ids[0]!) === null; i++) await page.waitForTimeout(250);
     assert.ok(seenAt(ids[0]!) !== null, "showing the card stamps that someone saw it");
+    await page.waitForTimeout(6000);
+    assert.equal(seenCalls, 1, "the seen call stops once it was sent");
     assert.match(await page.getByTestId("tasks-still").innerText(), /4 tasks may be finished/);
     await shot("card-closed-dark-desktop");
     await page.getByTestId("still-open").click();
@@ -134,9 +147,10 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     await page.getByText(/Its expected date has passed/).waitFor();
     await shot("card-open-dark-desktop");
     await page
-      .getByText(/Looks done: .Payment received/)
-      .first()
+      .getByTestId("tasks-still")
+      .getByText(/Payment received, \$171\.56/)
       .waitFor();
+    await page.getByTestId("still-done").waitFor();
     await shot("card-look-dark-desktop");
     await page.emulateMedia({ colorScheme: "light" });
     await page.waitForTimeout(400);

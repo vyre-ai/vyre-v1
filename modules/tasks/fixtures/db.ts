@@ -25,6 +25,7 @@ const proofSql = readFileSync(new URL("../migrations/0008_proof.sql", import.met
 const seenSql = readFileSync(new URL("../migrations/0009_ask_seen.sql", import.meta.url), "utf8");
 const lookSql = readFileSync(new URL("../migrations/0010_look.sql", import.meta.url), "utf8");
 const cursorSql = readFileSync(new URL("../migrations/0011_cursor_putback.sql", import.meta.url), "utf8");
+const proofSql2 = readFileSync(new URL("../migrations/0012_look_proof.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
 export interface Ev {
@@ -79,6 +80,7 @@ export function harness(o: HarnessOptions = {}) {
   sqlite.exec(seenSql);
   sqlite.exec(lookSql);
   sqlite.exec(cursorSql);
+  sqlite.exec(proofSql2);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
     run: (sql, ...args) => ({ changes: Number(sqlite.prepare(sql).run(...(args.map(norm) as never[])).changes) }),

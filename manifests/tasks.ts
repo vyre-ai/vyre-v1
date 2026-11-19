@@ -925,7 +925,14 @@ export default defineManifest({
       {
         in: {},
         out: {
-          items: t.arr(t.obj({ task: taskRow, why: t.str(), askedAt: t.ts() })),
+          items: t.arr(
+            t.obj({
+              task: taskRow,
+              why: t.str(),
+              askedAt: t.ts(),
+              lookDone: t.opt(t.obj({ quote: t.str(), by: t.str(), at: t.ts() })),
+            }),
+          ),
           total: t.int(),
         },
       },
@@ -1178,7 +1185,7 @@ export default defineManifest({
       "Policies",
       "Once a day, let a cheap model look at tasks that may be done",
       t.bool(),
-      true,
+      false,
     ),
     setting(
       "tasks.moment_grace_days",
