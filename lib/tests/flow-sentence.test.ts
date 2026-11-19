@@ -133,3 +133,17 @@ test("a cron is said in words when it has a common shape", () => {
   assert.equal(cronWords("0 7 1 * *"), "On day 1 of every month at 7 am");
   assert.equal(cronWords("5 4 * 2 *"), "On a schedule");
 });
+
+test("a step title is shortened in linear time, whatever hostile text it holds, and keeps its old reading", async () => {
+  const { withoutTrailingParen, trimEndChars } = await import("../flow-sentence.ts");
+  const t0 = Date.now();
+  withoutTrailingParen("(".repeat(50_000) + "x");
+  withoutTrailingParen(" ".repeat(50_000) + "(a");
+  trimEndChars(".".repeat(50_000) + "x", ".:;");
+  assert.ok(Date.now() - t0 < 100, `took ${Date.now() - t0} ms`);
+  assert.equal(withoutTrailingParen("Email the client (draft)"), "Email the client");
+  assert.equal(withoutTrailingParen("Email (a (b)"), "Email");
+  assert.equal(withoutTrailingParen("Email the client"), "Email the client");
+  assert.equal(withoutTrailingParen("(only)"), "");
+  assert.equal(trimEndChars("Send it.:;", ".:;"), "Send it");
+});
