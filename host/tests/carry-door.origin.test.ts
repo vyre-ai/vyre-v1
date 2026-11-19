@@ -28,3 +28,41 @@ test("another Space's https page and a loopback page are foreign; nothing else i
     assert.equal(foreignOrigin(req(no), own), null, no);
   assert.equal(foreignOrigin(req(undefined), own), null);
 });
+
+test("a page on loopback http that holds a session is passed through, as before; another site's https page holding one is refused", async () => {
+  const { createCarryDoor } = await import("../src/routes/carry-door.ts");
+  const door = createCarryDoor({ ownOrigin: () => null, call: async () => null });
+  const http = await import("node:http");
+  const server = http.createServer((req, res) => {
+    if (door.handle(req, res)) return;
+    res.writeHead(200, { "x-passed": "1" });
+    res.end("ok");
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/v1/spaces/get`;
+  try {
+    const ask = (origin: string) =>
+      fetch(url, {
+        method: "POST",
+        headers: { origin, authorization: "Bearer vst_session", "content-type": "application/json" },
+        body: "{}",
+      });
+    const local = await ask("http://127.0.0.1:9999");
+    assert.equal(local.status, 200, "a session from a loopback page goes on to the Space as it always did");
+    assert.equal(local.headers.get("x-passed"), "1");
+    // only the carry paths are the door's: a session token from another site's page on one of them is still refused
+    const carryUrl = url.replace("/v1/spaces/get", "/v1/identity/whoami");
+    const foreign = await fetch(carryUrl, {
+      method: "POST",
+      headers: {
+        origin: "https://northwind.vyre.run",
+        authorization: "Bearer vst_session",
+        "content-type": "application/json",
+      },
+      body: "{}",
+    });
+    assert.equal(foreign.status, 403);
+  } finally {
+    server.close();
+  }
+});

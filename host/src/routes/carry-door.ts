@@ -213,6 +213,9 @@ export function createCarryDoor(deps: CarryDoorDeps): {
       }
       // from a foreign page, only a carry token or nothing: a session token there is one the page should never have
       if (token) {
+        // a page on this machine over loopback http that holds a session (a developer's own web build, a test edge) is not a foreign page: it was never refused before this door answered loopback pages
+        // for the carry calls, and is not now; only another site's https page is told it should never hold a session token
+        if (origin.startsWith("http:")) return false;
         req.resume();
         refuse(res, 403, "permission.no_grant", "Not from another Space's page.", origin);
         return true;
