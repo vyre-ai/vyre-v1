@@ -384,8 +384,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       );
       const secrets = { ...secretsOf(r), [input.slot]: input.handle };
       // credentials pasted again: what was kept for the old ones, and for the new ones, is dropped
-      forgetGrantOf(deps, r);
-      forgetGrantOf(deps, r, secrets);
+      await forgetGrantOf(deps, ctx, r);
+      await forgetGrantOf(deps, ctx, r, secrets);
       const state = r.state === "pending" ? initialState(def, secrets) : r.state;
       tx.run(
         "UPDATE cn_connections SET secrets = ?, state = ? WHERE connection_id = ?",
@@ -776,7 +776,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       );
       tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", r.connection_id);
       tx.run("DELETE FROM cn_connection_hosts WHERE connection_id = ?", r.connection_id);
-      forgetGrantOf(deps, r);
+      await forgetGrantOf(deps, ctx, r);
       tx.run("DELETE FROM cn_connections WHERE connection_id = ?", r.connection_id);
       ctx.emit("connection.deleted", `connection/${r.connection_id}`, {
         connectionId: r.connection_id,

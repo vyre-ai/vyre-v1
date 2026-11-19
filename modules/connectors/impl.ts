@@ -18,7 +18,8 @@ import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
 import { checkEgress, refuse, scrubber } from "./projections.ts";
-import { accessToken, grantKey, GrantError } from "./refresh-grant.ts";
+import { accessToken, forgetAllHeld, grantKey, GrantError } from "./refresh-grant.ts";
+import { forgetAllKept } from "./handlers/runtime.ts";
 import type { BuiltinRow, ConnectorsCtx, ConnectionDb, ConnectorDef } from "./projections.ts";
 import type { SyncDeps, SyncEngine } from "./handlers/sync.ts";
 import { runCadence } from "./handlers/cadence.ts";
@@ -312,6 +313,21 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
               const text = scrubber([value]).text(await res.text());
               return { status: res.status, text, ...(res.link ? { link: res.link } : {}) };
             },
+            recheckSecret: async (
+              secretHandle: string,
+              binding: { connector: string; connectionId: string; slot: string },
+            ) => {
+              const item = ITEM_OF.get(`${binding.connectionId}|${binding.slot}|${secretHandle}`);
+              if (item === undefined) return false;
+              // the same two checks every call makes: the connection (as the caller), and Use on the Vault item the key came from
+              await ctx.call("connections.get", { connectionId: binding.connectionId });
+              if (ctx.authorize({ perm: null, level: "use" }, { type: "vault_item", id: item }).effect !== "allow")
+                return refuse(cc, "permission.no_grant", "Vault access changed before this connector request.");
+              usedVaultItems.add(item);
+              usedBindings.set(`${binding.connectionId}:${binding.slot}`, { ...binding, handle: secretHandle });
+              return true;
+            },
+            pace: (ms: number) => new Promise<void>((done) => setTimeout(done, ms)),
             resolveSecret: async (
               secretHandle: string,
               binding?: { connector: string; connectionId: string; slot: string },
@@ -336,7 +352,11 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
                 return refuse(cc, "permission.no_grant", "That connection cannot use this Vault item.");
               await ctx.call("connections.get", { connectionId: selected.connection_id });
               usedBindings.set(`${binding.connectionId}:${binding.slot}`, { ...binding, handle: secretHandle });
-              return port.fill(execution, { ...binding, handle: secretHandle });
+              const before = new Set(usedVaultItems);
+              const value = await port.fill(execution, { ...binding, handle: secretHandle });
+              const made = [...usedVaultItems].filter((id) => !before.has(id));
+              if (made.length === 1) ITEM_OF.set(`${binding.connectionId}|${binding.slot}|${secretHandle}`, made[0]!);
+              return value;
             },
           }
         : {}),
@@ -468,6 +488,8 @@ export const hostCalls = {
   ): Promise<unknown> => acceptWebhook(live(ctx as { db?: unknown }).tx, ctx, a),
 };
 
+/** The Vault item each connection slot's key came from, as the last fill said: what a kept key is checked against on every use. */
+const ITEM_OF = new Map<string, string>();
 export { dueSyncs, runCadence } from "./handlers/cadence.ts";
 
 /**
@@ -493,3 +515,37 @@ export const periodic = {
 };
 
 export { SYNC_PASS_TOKEN, SEALED_HELD } from "./projections.ts";
+
+/**
+ * What the module reads from the event log (the host runs each after commit, at least once). A sync pass keeps the keys it read from the Vault for the pass (handlers/runtime.ts); a key that was
+ * changed, moved, rotated, deleted or shared away, a grant that was revoked or changed, a person who was suspended or removed, or a connection that was paused, deleted or reconnected ends that
+ * at once: the next request of the pass asks the Vault again, and the Vault says what it says now.
+ */
+export const consumers = {
+  "connectors.forget_pass_keys": {
+    on: [
+      "vault.item_updated",
+      "vault.item_moved",
+      "vault.item_rotated",
+      "vault.item_deleted",
+      "vault.item_restored",
+      "vault.folder_updated",
+      "vault.folder_deleted",
+      "vault.export_revoked",
+      "grant.revoked",
+      "grant.updated",
+      "access.changed",
+      "principal.suspended",
+      "member.removed",
+      "connection.paused",
+      "connection.resumed",
+      "connection.deleted",
+      "connection.reconnected",
+    ],
+    // what a pass kept of the Vault's values, and every access token kept for an app that issues its own OAuth client: both end together. A refresh token waiting to be saved is not touched here; it is saved first on the next grant.
+    run: (): void => {
+      forgetAllKept();
+      forgetAllHeld();
+    },
+  },
+};

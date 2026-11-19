@@ -2,7 +2,7 @@
 // that puts a rotated refresh token back into the same item.
 import { checkEgress, nowOf } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
-import { forgetItem, grantKey } from "../refresh-grant.ts";
+import { forgetItem, grantKey, settle } from "../refresh-grant.ts";
 import type { GrantPort } from "../refresh-grant.ts";
 
 const FIELD_SLOT = {
@@ -61,17 +61,24 @@ export function grantKeyOf(deps: ConnectorsDeps, def: ConnectorDef, conn: Connec
   return grantKey(deps.tx as object, secrets[def.auth.refreshSecret ?? ""] ?? conn.connection_id);
 }
 
-/** A connection of an app that issues its own OAuth client was deleted, or its Vault item was changed: what is kept for that item (the access token, a refresh token waiting to be saved) goes with it. */
-export function forgetGrantOf(
+/**
+ * A connection of an app that issues its own OAuth client was deleted, or its Vault item was pasted again: the refresh token that was waiting to be saved is saved first (never dropped), then the access token kept for
+ * the item goes. One path, called wherever a connection or its credentials end.
+ */
+export async function forgetGrantOf(
   deps: ConnectorsDeps,
+  ctx: ConnectorsCtx,
   conn: ConnectionDb,
   secretsOverride?: Record<string, string>,
-): void {
+): Promise<void> {
   const row = deps.tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = ?", conn.connector);
   if (!row) return;
   const def = JSON.parse(row.def) as ConnectorDef;
   if (def.auth.type !== "oauth_refresh") return;
   const secrets = secretsOverride ?? (JSON.parse(conn.secrets) as Record<string, string>);
   const handle = secrets[def.auth.refreshSecret ?? ""];
-  if (handle) forgetItem(grantKey(deps.tx as object, handle));
+  if (!handle) return;
+  const key = grantKey(deps.tx as object, handle);
+  await settle(key, grantPortFor(deps, ctx, def, { ...conn, secrets: JSON.stringify(secrets) }));
+  forgetItem(key);
 }

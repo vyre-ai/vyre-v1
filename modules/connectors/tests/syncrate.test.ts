@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ledgerSpec } from "../fixtures/crm.ts";
 import { world } from "../fixtures/crm-world.ts";
+import { SYNC_PASS_TOKEN } from "../projections.ts";
+import { consumers } from "../impl.ts";
 import { remoteStore } from "../../../host/src/daemon/syncengine.ts";
 import { compileSpec, parseSpec, rateOf } from "../syncspec.ts";
 import type { SyncSpec } from "../syncspec.ts";
@@ -70,6 +72,8 @@ async function applied(requestsPerMinute?: number) {
         w.k.clock.t += ms;
       },
       onSlow: (ms) => slows.push(ms),
+      unmaskToken: SYNC_PASS_TOKEN,
+      nonce: "pass1",
     });
   return { w, out, store, slept, slows, call: ctx.call };
 }
@@ -276,4 +280,153 @@ test("a spec sets how often an object is read whole; without it the first schedu
       .join(" "),
     /checkEveryMinutes/,
   );
+});
+
+test("a call at the connection's budget waits in line: the pull finishes, the app never says slow down and no call is refused", async () => {
+  const a = await applied(30);
+  (a.w.k.deps as { pace?: (ms: number) => Promise<void> }).pace = async (ms) => {
+    a.w.k.clock.t += ms;
+  };
+  const refused: string[] = [];
+  const read = (a.w.k.hs as any)["connectors.read"];
+  (a.w.k.hs as any)["connectors.read"] = async (c: unknown, i: unknown) => {
+    try {
+      return await read(c, i);
+    } catch (e: any) {
+      refused.push(e?.error?.code);
+      throw e;
+    }
+  };
+  const app = standIn(a.w, (now, seen) => (seen.filter((t) => t > now - 60_000).length >= 30 ? {} : undefined));
+  const got = await pullBoth(a.store);
+  assert.equal(app.refused.length, 0, "the app never had to say slow down");
+  assert.deepEqual(refused, [], "no call came back refused: each waited for its turn");
+  assert.equal(new Set(got["organizations"]).size, 35);
+  assert.equal(new Set(got["people"]).size, 7);
+  assert.ok(busiest(app.seen) <= 30);
+});
+
+test("a pass reads the connection's key from the Vault once, not once per request; a key the app rejects is read again", async () => {
+  const a = await applied();
+  let reads = 0;
+  const deps = a.w.k.deps as { resolveSecret?: (h: string, b?: unknown) => Promise<string | undefined> };
+  const real = deps.resolveSecret!;
+  deps.resolveSecret = async (h, b) => {
+    reads++;
+    return real(h, b);
+  };
+  const app = standIn(a.w, () => undefined);
+  await pullBoth(a.store);
+  assert.ok(app.seen.length >= 8, "a pass of several requests");
+  assert.ok(reads <= 4, `the Vault was read ${reads} times for ${app.seen.length} requests`);
+  // the key is changed in the app: the first answer is a rejection, the key is read again and sent once more
+  const before = reads;
+  a.w.k.clock.t += 1000;
+  let rejected = 1;
+  a.w.k.state.reply = () => (rejected-- > 0 ? { status: 401, body: {} } : { status: 200, body: { data: [] } });
+  await a.store("organizations").page();
+  assert.ok(reads > before, "after a rejection the key was read from the Vault again");
+});
+
+test("a Vault or access change ends what a pass kept at once: the next request asks the Vault again, and a key used now is not the old one", async () => {
+  const a = await applied();
+  let reads = 0;
+  const deps = a.w.k.deps as { resolveSecret?: (h: string, b?: unknown) => Promise<string | undefined> };
+  const real = deps.resolveSecret!;
+  deps.resolveSecret = async (h, b) => {
+    reads++;
+    return real(h, b);
+  };
+  standIn(a.w, () => undefined);
+  const o = a.store("organizations");
+  await o.page();
+  const warm = reads;
+  await o.page("2");
+  assert.equal(reads, warm, "kept: the second page asked the Vault for nothing");
+  for (const event of consumers["connectors.forget_pass_keys"].on) {
+    await o.page();
+    const before = reads;
+    consumers["connectors.forget_pass_keys"].run();
+    await o.page("2");
+    assert.ok(reads > before, `after ${event}-class change the Vault was asked again`);
+    await o.page("3");
+  }
+  // the key is rotated in the Vault: the request after the event sends the new one
+  const sent: string[] = [];
+  const reply = a.w.k.state.reply;
+  a.w.k.state.reply = (req) => {
+    sent.push(JSON.stringify(req.headers));
+    return reply(req);
+  };
+  const vault = a.w.k.vault as Record<string, string>;
+  const handle = "#Ledger_Key";
+  const old = vault[handle];
+  vault[handle] = "rotated-value-777";
+  consumers["connectors.forget_pass_keys"].run();
+  await o.page("4");
+  assert.ok(
+    sent.some((h) => h.includes("rotated-value-777")),
+    "the rotated key went out, not the kept one",
+  );
+  vault[handle] = old!;
+});
+
+test("a call waits in line for the budget at most 30 s altogether, then fails with the wait it still needs", async () => {
+  const a = await applied(15);
+  const paced: number[] = [];
+  (a.w.k.deps as { pace?: (ms: number) => Promise<void> }).pace = async (ms) => {
+    paced.push(ms); // the clock does not move: the budget never refills
+  };
+  standIn(a.w, () => undefined);
+  const read = () =>
+    a.call("connectors.read", {
+      key: a.out.connector,
+      action: "list_organizations",
+      connectionId: a.out.connectionId,
+      input: {},
+    });
+  await read();
+  await assert.rejects(
+    read(),
+    (e: any) => e.error?.code === "rate_limit.exceeded" && e.error?.details?.retryAfterMs > 0,
+  );
+  assert.ok(paced.length > 0, "it did wait in line first");
+  assert.ok(paced.reduce((x, y) => x + y, 0) <= 30_000, `waited ${paced.reduce((x, y) => x + y, 0)} ms in all`);
+});
+
+test("a kept key is checked again for every call: a share taken away mid-pass stops the very next call", async () => {
+  const a = await applied();
+  const deps = a.w.k.deps as {
+    recheckSecret?: (h: string, b: unknown) => Promise<boolean | void>;
+  };
+  let allowed = true;
+  let rechecks = 0;
+  deps.recheckSecret = async () => {
+    rechecks++;
+    if (!allowed)
+      throw { error: { code: "permission.no_grant", message: "Vault access changed before this connector request." } };
+  };
+  const app = standIn(a.w, () => undefined);
+  const o = a.store("organizations");
+  await o.page();
+  await o.page("2");
+  assert.ok(rechecks >= 1, "the second page checked access again");
+  const sent = app.seen.length;
+  allowed = false; // the Vault item's share is removed, mid-pass
+  await assert.rejects(o.page("3"), (e: any) => e.error?.code === "permission.no_grant");
+  assert.equal(app.seen.length, sent, "nothing went to the app after the share was removed");
+  // a host that cannot tell (false) reads the key again
+  allowed = true;
+  let reads = 0;
+  const d2 = a.w.k.deps as { resolveSecret?: (h: string, b?: unknown) => Promise<string | undefined> };
+  const real = d2.resolveSecret!;
+  d2.resolveSecret = async (h, b) => {
+    reads++;
+    return real(h, b);
+  };
+  deps.recheckSecret = async () => false;
+  await o.page("2");
+  const r1 = reads;
+  await o.page("3");
+  assert.ok(reads > r1, "no kept key was used when the host could not vouch for it");
 });

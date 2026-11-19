@@ -56,11 +56,31 @@ export function grantKey(space: object, handle: string): string {
 export const forgetAccess = (key: string): void => {
   held.delete(key);
 };
-/** A connection was deleted or its credentials were pasted again: nothing kept for the item may outlive that, least of all a refresh token that was waiting to be saved. */
+/** A connection was deleted or its credentials were pasted again, or the Vault revoked something: no access token kept for the item is used after it. A refresh token that was waiting to be saved is never dropped here (see settle). */
 export const forgetItem = (key: string): void => {
   held.delete(key);
-  unsaved.delete(key);
 };
+/** Every access token kept, for a Vault revoke or a change of who may use what that does not say which item. */
+export const forgetAllHeld = (): void => held.clear();
+/**
+ * Before anything kept for an item is let go: a refresh token the app issued that the Vault does not have yet is saved, if the Vault still holds the one it replaced. If someone pasted another token meanwhile the waiting
+ * one is stale and goes. If it cannot be saved now it stays, and is saved first on the next grant.
+ */
+export async function settle(key: string, port: GrantPort): Promise<void> {
+  const waiting = unsaved.get(key);
+  if (!waiting) return;
+  let current: string;
+  try {
+    current = await port.fill("refresh_token");
+  } catch {
+    return;
+  }
+  if (current !== waiting.from) {
+    unsaved.delete(key);
+    return;
+  }
+  if (await saveTries(port, waiting.to)) unsaved.delete(key);
+}
 export const resetGrants = (): void => {
   held.clear();
   running.clear();

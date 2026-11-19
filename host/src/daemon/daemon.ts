@@ -1,3 +1,4 @@
+import { startStallWatch } from "../scheduler/stallwatch.ts";
 import { workspaceInTurn } from "./workspace-turns.ts";
 import { activeCodeBuiltins } from "../../../lib/builtin-connectors.ts";
 import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources.ts";
@@ -1965,6 +1966,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     running: () => scheduler.runningNames(),
     warn: (msg, attrs) => sink.log({ space: space ?? "-", level: 40, msg, place: "scheduler", attrs }),
   });
+
+  // a stall over half a second names the code that held the loop (the stack, written from a watchdog thread)
+  const stall = startStallWatch({
+    log: (m) =>
+      sink.log({ space: space ?? "-", level: 40, msg: "scheduler.loop_stalled", place: "scheduler", attrs: m }),
+  });
+  closers.push(() => stall.stop());
 
   /** The terminal module's first read of the agent workspaces' subnets, awaited before the server listens (third look T5). */
   let workspacesReady: (() => Promise<void>) | null = null;

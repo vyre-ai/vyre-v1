@@ -884,8 +884,8 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           }
         : { [slot]: spec.auth.vaultHandle };
     if (conn && JSON.stringify(JSON.parse(conn.secrets)) !== JSON.stringify(held)) {
-      forgetGrantOf(deps, conn as never);
-      forgetGrantOf(deps, conn as never, held);
+      await forgetGrantOf(deps, ctx, conn as never);
+      await forgetGrantOf(deps, ctx, conn as never, held);
       tx.run(
         "UPDATE cn_connections SET secrets = ?, state = 'active' WHERE connection_id = ?",
         JSON.stringify(held),

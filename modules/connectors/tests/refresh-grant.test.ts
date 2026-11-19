@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { kit } from "../fixtures/kit.ts";
 import type { Kit, Sent } from "../fixtures/kit.ts";
 import { accessToken, grantKey, resetGrants } from "../refresh-grant.ts";
+import { consumers } from "../impl.ts";
 import type { ConnectorDef } from "../projections.ts";
 
 const CLIO: ConnectorDef = {
@@ -275,4 +276,42 @@ test("deleting the connection, or pasting its credentials again, drops what was 
   const again = await second(k);
   assert.equal((await ping(k, again)).output, true, "the stale waiting token was not put over the pasted one");
   assert.equal(k.vault["#Clio_App.refresh_token"], `rt_${s.n + 1}`);
+});
+
+test("the one consumer that ends what a pass kept of the Vault (modules/connectors/tests/syncrate.test.ts) also ends every kept access token, so a Vault revoke is felt by both", async () => {
+  const k = kit();
+  const s = app(k);
+  const id = await connected(k);
+  await ping(k, id);
+  await ping(k, id);
+  assert.equal(s.posts, 1, "the access token is kept");
+  assert.ok(consumers["connectors.forget_pass_keys"].on.includes("vault.item_updated"));
+  assert.ok(consumers["connectors.forget_pass_keys"].on.includes("connection.deleted"));
+  consumers["connectors.forget_pass_keys"].run();
+  await ping(k, id);
+  assert.equal(s.posts, 2, "after a Vault change the next call asks the app for a new token");
+});
+
+test("a connection deleted while the Vault could not take a rotated refresh token still gets it saved: the next connection on the item saves it first", async () => {
+  const k = kit();
+  const s = app(k);
+  const id = await connected(k);
+  const call = k.ctx.call;
+  k.ctx.call = async (cap, input) => {
+    if (cap === "vault.item.rotate_field") throw new Error("vault is down");
+    return call(cap, input);
+  };
+  await assert.rejects(ping(k, id));
+  await k.hs["connections.delete"](k.ctx, { connectionId: id } as never);
+  assert.equal(
+    k.vault["#Clio_App.refresh_token"],
+    "rt_1",
+    "the Vault is still down: nothing was saved, nothing was dropped",
+  );
+  k.ctx.call = call;
+  consumers["connectors.forget_pass_keys"].run();
+  const again = await second(k);
+  assert.equal((await ping(k, again)).output, true);
+  assert.equal(k.vault["#Clio_App.refresh_token"], "rt_3", "rt_2 was saved first, then traded for rt_3");
+  assert.equal(s.n, 2);
 });

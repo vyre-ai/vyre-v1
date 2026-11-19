@@ -339,6 +339,8 @@ export function remoteStore(
     nameUpdate = names.update ?? `update_${one}`,
     nameDelete = names.delete ?? `delete_${one}`;
   const stamps = new Map<string, number>();
+  // a pass without a nonce of its own still has one that no other pass has: what is kept for a pass (keys read from the Vault, sealed values held) is never shared between passes
+  const passNonce = opts.nonce ?? `p_${globalThis.crypto.randomUUID()}`;
   const sleep = opts.sleep ?? pause;
   // A pass over thousands of records is many calls. An app (or the connection's own budget) that says slow down is waited for, not failed. The wait is what the app asked (Retry-After), or the connection's own
   // refill time; with no Retry-After the connection backs off from 30 s, doubling. Only after SLOW_DOWNS waits in a row with nothing answered does the pass give up (and then it counts as a failed pass).
@@ -360,8 +362,12 @@ export function remoteStore(
           action,
           connectionId: b.connectionId,
           input:
-            opts.unmaskToken && reading && opts.sealed?.length
-              ? { ...(isObj(input) ? input : {}), __unmask: `${opts.unmaskToken}:${opts.nonce ?? "pass"}` }
+            opts.unmaskToken && reading
+              ? {
+                  ...(isObj(input) ? input : {}),
+                  ...(opts.sealed?.length ? { __unmask: `${opts.unmaskToken}:${passNonce}` } : {}),
+                  __keep: `${opts.unmaskToken}:${passNonce}`,
+                }
               : input,
           idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}|${opts.nonce ?? ""}`).slice(0, 32)}`,
         })) as { output?: unknown };
@@ -397,7 +403,7 @@ export function remoteStore(
     if ((!fields.length && !joins.length && !whens.length) || !isObj(r.data)) return r.data;
     const data = { ...r.data } as Record<string, unknown>;
     // the connector's answer carries "[sealed]" at sealed pointers; the real values are taken from the process's own keeping
-    const real = opts.heldOf?.(opts.nonce ?? "pass", r.id);
+    const real = opts.heldOf?.(passNonce, r.id);
     if (real) for (const [k, v] of Object.entries(real)) data[k] = v;
     for (const wk of whens) {
       const c = JSON.parse(wk.slice("=when:".length)) as { p: string; w: string; e: string[] };
