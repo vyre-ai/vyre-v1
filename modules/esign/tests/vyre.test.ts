@@ -907,14 +907,14 @@ test("only a person can choose to send a copy that is not the exact one: an agen
   assert.match(ok.envelopeId, /^env_/);
 });
 
-test("an Automation's sign step runs as the person who built it but is not that person's choice: plainOk from inside another capability (depth 1 or more) is refused like an agent's", async () => {
+test("an Automation's sign step runs as the person who built it but is not that person's choice: plainOk from inside another capability (named by callerCap) is refused like an agent's", async () => {
   const h = await setup();
   h.callee("documents.signing", () => ({ signers: [], places: [], plain: true }));
   const e = await h
     .call(
       "esign.send",
       { fileId: FILE, signers: [ANDREA], plainOk: true, idempotencyKey: "auto1" },
-      { ...dana, depth: 1 },
+      { ...dana, depth: 1, callerCap: "steps-core.run_step" },
     )
     .catch((x: unknown) => x);
   assert.equal((e as { error: { code: string } }).error.code, "permission.needs_approval");
@@ -943,8 +943,13 @@ test("an Automation's sign step runs as the person who built it but is not that 
   // without plainOk an Automation's send of an exact copy is unaffected
   const h2 = await setup();
   assert.match(
-    (await h2.call("esign.send", { fileId: FILE, signers: [ANDREA], idempotencyKey: "auto2" }, { ...dana, depth: 1 }))
-      .envelopeId,
+    (
+      await h2.call(
+        "esign.send",
+        { fileId: FILE, signers: [ANDREA], idempotencyKey: "auto2" },
+        { ...dana, depth: 1, callerCap: "steps-core.run_step" },
+      )
+    ).envelopeId,
     /^env_/,
   );
 });

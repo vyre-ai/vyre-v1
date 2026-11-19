@@ -438,7 +438,8 @@ function isTableRule(line: string): boolean {
 }
 
 export function parse(md: string): Block[] {
-  const lines = md.split("\n");
+  // CRLF and a lone CR are line ends like LF: a table rule that ends in a carriage return is still a rule
+  const lines = md.replace(/\r\n?/g, "\n").split("\n");
   const out: Block[] = [];
   let para: string[] = [];
   let quote = false;

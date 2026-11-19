@@ -480,3 +480,23 @@ test("with no key of its own, fill for another record is another file even when 
   w.records.set("rec_imran", { name: "Imran Ibarra (corrected)" });
   assert.notEqual(await keyOf("rec_imran"), a, "the record was corrected: not the old document");
 });
+
+test("documents.make with no key: two records, different documents; a corrected record, a new one; a plain retry, the same one", async () => {
+  const w = linked();
+  w.records.set("rec_other", { name: "Imran Ibarra" });
+  const id = w.add("Letter.docx", docx(para("Dear {name}, welcome.")));
+  await handlers["documents.mark_template"](w.ctx, { fileId: id, isTemplate: true });
+  const keyOf = async (recordId: string) => {
+    const n = w.calls.filter((c) => c.cap === "files.create").length;
+    await handlers["documents.make"](w.ctx, { template: "Letter", recordId, format: "docx" });
+    return String(w.calls.filter((c) => c.cap === "files.create")[n]!.input.idempotencyKey).replace(
+      /:[^:]*\.docx$/,
+      "",
+    );
+  };
+  const a = await keyOf("rec_imran");
+  assert.equal(await keyOf("rec_imran"), a, "a plain retry is the same document");
+  assert.notEqual(await keyOf("rec_other"), a, "another record, even with the same words in it");
+  w.records.set("rec_imran", { name: "Imran Ibarra (corrected)" });
+  assert.notEqual(await keyOf("rec_imran"), a, "a corrected record is a new document");
+});

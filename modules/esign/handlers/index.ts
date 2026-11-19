@@ -34,10 +34,12 @@ export const handlers = {
     // a copy set in the plain page look has no letterhead or pictures: it goes out only when the sender says so, and that choice is kept. A copy that could not be checked is held the same way.
     const state = typeof o.fileId === "string" ? await copyState(ctx, o.fileId) : "exact";
     // the choice to send a copy that is not known to be exact is a person's: an agent or an Automation acting for someone cannot make it
-    // a person at the top of the call: not an agent, not someone's agent acting for them, and not a call made from inside another capability (an Automation's step runs as its person but arrives at depth 1 or more)
-    // (a held send of a person's own, resumed by the Gate after approval, runs as that person one level down through gate.release: the person who pressed Allow chose)
+    // the choice is a person's: not an agent, not someone's agent acting for them, and not an Automation's step (which runs as its person but is a call made by another capability, so ctx.callerCap names it).
+    // A person's own call has no caller capability; a held send of theirs that the Gate resumes after they pressed Allow carries the Gate's own marker, gate.release, which only the host sets.
     const person =
-      ctx.principal.kind === "person" && !ctx.actingFor && (ctx.depth === 0 || ctx.callerCap === "gate.release");
+      ctx.principal.kind === "person" &&
+      !ctx.actingFor &&
+      (ctx.callerCap === undefined || ctx.callerCap === "gate.release");
     if (state !== "exact" && o.plainOk === true && !person)
       fail(
         ctx,

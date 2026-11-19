@@ -229,6 +229,7 @@ export function world(): World {
         case "projects.files_folder":
           return { folderId: FOLDER };
         case "documents.fill":
+        case "documents.preview_fill":
         case "documents.templates.list": {
           const { handlers } = await import("../impl.ts");
           return (handlers as Record<string, (c: Ctx, x: unknown) => Promise<unknown>>)[cap]!(ctx, input);

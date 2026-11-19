@@ -387,20 +387,27 @@ async function make(ctx: Ctx, input: unknown): Promise<Filled> {
   // the key of the ask: the caller's own when it gave one (a retry with it is the same document), else made from what is asked, as fill does: template and its version, the values, the date, the name,
   // the format, the record, the folder and the person. A retry of the same ask is the same document; another person, folder, template version or value is another.
   const given = typeof o.idempotencyKey === "string" ? o.idempotencyKey : "";
-  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${
-    given !== ""
-      ? given
-      : await askKey([
-          o.values,
-          o.signingDate,
-          o.name,
-          o.format,
-          recordId,
-          folder.folderId,
-          ctx.actingFor ?? ctx.principal.id,
-          await fileVersion(ctx, templateFileId),
-        ])
-  }`;
+  let ask = "";
+  if (given === "") {
+    // what the document will say as the record stands now: the page filled from the record and the typed values. A corrected record is another ask, another record another.
+    const shown = (await ctx.call("documents.preview_fill", {
+      templateFileId,
+      recordId,
+      ...(o.values !== undefined ? { values: o.values } : {}),
+      ...(o.signingDate !== undefined ? { signingDate: o.signingDate } : {}),
+    })) as { excerpt?: unknown; missing?: unknown };
+    ask = await askKey([
+      shown.excerpt,
+      shown.missing,
+      o.name,
+      o.format,
+      recordId,
+      folder.folderId,
+      ctx.actingFor ?? ctx.principal.id,
+      await fileVersion(ctx, templateFileId),
+    ]);
+  }
+  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${given !== "" ? given : ask}`;
   return (await ctx.call("documents.fill", pass)) as Filled;
 }
 
