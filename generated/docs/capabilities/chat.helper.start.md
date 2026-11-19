@@ -36,6 +36,7 @@ type In = {
   why?: string;
   crew?: boolean;
   taskId?: string;
+  dependsOn?: Array<string>;
 };
 ```
 
@@ -120,6 +121,9 @@ type Out = {
     "account": "example",
     "agentId": "agt_a1b2c3",
     "crew": true,
+    "dependsOn": [
+      "example"
+    ],
     "effort": "low",
     "instruction": "example",
     "model": "example",

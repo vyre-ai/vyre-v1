@@ -40,7 +40,7 @@ export function nodeKindOf(threadKind: string): "turn" | "helper" | "crew" {
 
 /** What the mirror needs of a turn: a lost turn (a host that died under it) is not in the engine's rows, so it is known by these alone. */
 export type TurnFacts = Pick<TurnRow, "id" | "threadId" | "agentId"> &
-  Partial<Pick<TurnRow, "asker" | "model" | "tokensIn" | "tokensOut">>;
+  Partial<Pick<TurnRow, "asker" | "model" | "tokensIn" | "tokensOut" | "info">>;
 
 /** What a held call asks to do, in words: the plain line for a file, command or web step, else the tool's own name made readable ("Mail send"). */
 function askWhat(tool: string): string {
@@ -63,7 +63,8 @@ export function createNodeMirror(h: MirrorHost) {
     if (facts.has(threadId)) return facts.get(threadId) ?? null;
     try {
       const r = (await h.call("threads.get", { threadId }, asker === "" ? undefined : asker)) as
-        { thread?: Record<string, unknown> } | undefined;
+        | { thread?: Record<string, unknown> }
+        | undefined;
       const t = r?.thread ?? (r as Record<string, unknown> | undefined);
       const f: ThreadFacts | null = t
         ? {
@@ -140,6 +141,8 @@ export function createNodeMirror(h: MirrorHost) {
       ...(f?.title && kind !== "turn" ? { name: f.title } : {}),
       ...(kind !== "turn" && f?.parentThreadId ? { parentThread: f.parentThreadId } : {}),
       idemKey: `turn:${turn.id}`,
+      // a helper that was told to wait for others has its node already, queued: its first turn is that node
+      ...(kind === "helper" ? { adoptKey: `helper:${turn.threadId}` } : {}),
       running: true,
     })) as { node: { id: string; status: string; attempt: number } };
     const id = started.node.id;

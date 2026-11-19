@@ -410,8 +410,21 @@ export interface StartInput {
   origin?: unknown;
   policy?: unknown;
   idemKey?: string | undefined;
+  /** a node made earlier under this key and still queued is this one (it was made so others could start after it, or it could wait for others): it is taken, with its dependencies, and goes to running */
+  adoptKey?: string | undefined;
   /** the node starts already running (it was running before this record was made: a helper's turn, an engine subagent's call) */
   running?: boolean | undefined;
+}
+
+/** Add nodes of the same tree to what a node that is still queued starts after. */
+export function addDeps(ctx: RunsCtx, id: string, deps: readonly string[]): void {
+  const me = getNode(ctx, id);
+  for (const d of new Set(deps)) {
+    const on = findNode(ctx.db, d);
+    if (!on || on.rootRun !== me.rootRun || d === id)
+      raise(ctx, "validation.bad_input", "It can only start after work of the same job.", { reason: "bad_dependency" });
+    ctx.db.run("INSERT OR IGNORE INTO runs_dep (run_id, on_run) VALUES (?, ?)", id, d);
+  }
 }
 
 /** Make a node. With an idemKey, the second call returns the first node (a retried start, a resumed caller). A child's root is its parent's root; a parent that is finished takes no new children. */
@@ -419,6 +432,28 @@ export function startNode(ctx: RunsCtx, i: StartInput): { node: Node; created: b
   if (i.idemKey !== undefined) {
     const have = (ctx.db.all("SELECT run_id FROM runs_node WHERE idem_key = ?", i.idemKey) as Row[])[0];
     if (have) return { node: getNode(ctx, String(have["run_id"])), created: false };
+  }
+  if (i.adoptKey !== undefined) {
+    const have = (
+      ctx.db.all("SELECT run_id FROM runs_node WHERE idem_key = ? AND status = 'queued'", i.adoptKey) as Row[]
+    )[0];
+    if (have) {
+      const id = String(have["run_id"]);
+      // it goes to running first: if what it waits for is not done, nothing about it has changed
+      if (i.running === true) moveNode(ctx, id, "running", { why: "claimed" });
+      // it is the same work: it goes under the key of this start, so a restarted caller finds it again
+      ctx.db.run(
+        "UPDATE runs_node SET idem_key = ?, who_kind = COALESCE(?, who_kind), who_id = COALESCE(?, who_id), who_name = COALESCE(?, who_name), model = COALESCE(?, model), name = COALESCE(name, ?) WHERE run_id = ?",
+        i.idemKey ?? null,
+        i.whoKind ?? null,
+        i.whoId ?? null,
+        i.whoName ?? null,
+        i.model ?? null,
+        i.name ?? null,
+        id,
+      );
+      return { node: getNode(ctx, id), created: false };
+    }
   }
   let root: string | undefined;
   let depth = 0;

@@ -136,7 +136,8 @@ export async function classifyAgent(ctx: AgentsCtx, a: AgentRec): Promise<{ clas
   let subjects: Array<{ kind?: string; id?: string }> = [];
   try {
     const r = (await ctx.call?.("access.shares_of", { resource: { type: "agent", id: a.id } })) as
-      { shares?: Array<{ grant?: { subject?: { kind?: string; id?: string } } }> } | undefined;
+      | { shares?: Array<{ grant?: { subject?: { kind?: string; id?: string } } }> }
+      | undefined;
     subjects = (r?.shares ?? []).map((s) => s.grant?.subject ?? {});
   } catch {
     /* what cannot be read is not shared: the narrower answer */

@@ -359,6 +359,8 @@ export default defineManifest({
           whoId: t.opt(t.str()),
           whoName: t.opt(t.str({ maxLength: 120 })),
           dependsOn: t.opt(t.arr(id.run, { maxItems: 20 })),
+          dependsOnThreads: t.opt(t.arr(id.thread, { maxItems: 20 })),
+          adoptKey: t.opt(t.str()),
           engine: t.opt(t.str()),
           model: t.opt(t.str()),
           brief: t.opt(t.json()),

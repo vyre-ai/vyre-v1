@@ -45,7 +45,8 @@ async function briefOf(ctx: RunsCtx, n: Node): Promise<Brief | undefined> {
   if (n.threadId !== undefined && (n.kind === "helper" || n.kind === "crew")) {
     try {
       const r = (await ctx.call?.("chat.messages.list", { threadId: n.threadId, after: 0, limit: 1 })) as
-        { messages?: Array<{ body?: string }> } | undefined;
+        | { messages?: Array<{ body?: string }> }
+        | undefined;
       const body = r?.messages?.[0]?.body;
       if (typeof body === "string" && body.trim() !== "")
         return { ...(n.name ? { goal: n.name } : {}), instructions: cut(body) };
@@ -153,7 +154,8 @@ async function lastWords(ctx: RunsCtx, n: Node): Promise<string | undefined> {
   if (n.threadId === undefined) return undefined;
   try {
     const r = (await ctx.call?.("chat.messages.list", { threadId: n.threadId, limit: 1 })) as
-      { messages?: Array<{ body?: string; threadSeq?: number }> } | undefined;
+      | { messages?: Array<{ body?: string; threadSeq?: number }> }
+      | undefined;
     const m = r?.messages?.[r.messages.length - 1];
     return m?.body && (m.threadSeq ?? 2) > 1 ? cut(m.body) : undefined;
   } catch {

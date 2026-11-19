@@ -16,6 +16,7 @@ import {
 import { canSee, mayManage, raise } from "../projections.ts";
 import type { RunsCtx } from "../projections.ts";
 import {
+  addDeps,
   beatNode,
   claimNode,
   eventsSince,
@@ -81,8 +82,30 @@ const manageNode = (ctx: RunsCtx, id: string): Node => {
 
 export async function nodeStart(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
-  const { node, created } = startNode(ctx, input as StartInput);
-  return { node: out(ctx, node), created };
+  // helpers it starts after, by their threads: each one's node is found, or made queued under the key its own first turn will adopt
+  const deps = [...((input.dependsOn as string[] | undefined) ?? [])];
+  for (const t of (input.dependsOnThreads as string[] | undefined) ?? []) {
+    const have = nodesOfThread(ctx.db, t, false, 1)[0];
+    deps.push(
+      (
+        have ??
+        startNode(ctx, {
+          kind: "helper",
+          owner: input.owner,
+          threadId: t,
+          ...(input.parentThread ? { parentThread: input.parentThread } : {}),
+          idemKey: `helper:${t}`,
+        }).node
+      ).id,
+    );
+  }
+  const { node, created } = startNode(ctx, {
+    ...(input as StartInput),
+    ...(deps.length > 0 ? { dependsOn: deps } : {}),
+  });
+  // a node that was made earlier so others could wait for it: now it waits for what it starts after
+  if (!created && deps.length > 0 && node.status === "queued") addDeps(ctx, node.id, deps);
+  return { node: out(ctx, getNode(ctx, node.id)), created };
 }
 export async function nodeMove(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);

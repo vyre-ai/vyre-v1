@@ -943,6 +943,7 @@ export async function helperStart(
     why?: string;
     crew?: boolean;
     taskId?: string;
+    dependsOn?: string[];
     idempotencyKey?: string;
   },
 ) {
@@ -958,6 +959,21 @@ export async function helperStart(
   const agentId = workerFor(ctx, parent, input.agentId);
   const asker = askerOf(ctx);
   const by = author(ctx);
+  // helpers of this same chat it starts after, named by title or thread id: each must be there now
+  const waitsFor: string[] = [];
+  for (const w of new Set((input.dependsOn ?? []).map((x) => x.trim()).filter((x) => x !== ""))) {
+    const rows = ctx.db.all(
+      "SELECT id FROM chat_thread WHERE parentThreadId = ? AND kind = 'helper' AND deleted_at IS NULL AND (id = ? OR title = ?) ORDER BY createdAt DESC",
+      parent.id,
+      w,
+      w,
+    ) as Array<{ id: string }>;
+    if (!rows[0])
+      raise(ctx, "validation.bad_input", `This chat has no helper called "${w.slice(0, 60)}" to wait for.`, {
+        reason: "no_such_helper",
+      });
+    if (!waitsFor.includes(rows[0]!.id)) waitsFor.push(rows[0]!.id);
+  }
   // which model the helper runs on: the agent's pick, checked against the accounts the person may use and the agent's own rule (owner, 4 Nov 2026)
   const chosen = await chooseHelperModel(
     ctx,
@@ -1005,6 +1021,7 @@ export async function helperStart(
           ...(input.model !== undefined ? { model: input.model } : {}),
           ...(chosen ? { pick: chosen.pick } : {}),
           ...(input.crew === true ? { crew: true } : {}),
+          ...(waitsFor.length > 0 ? { dependsOn: waitsFor } : {}),
         },
         state: "live",
         traceId: ctx.trace.traceId,
@@ -1471,7 +1488,8 @@ export async function handoff(
   // one agent hands work to another only when the other allows calls from agents in the Space (access.agents_can_call, On unless a person turned it Off)
   if (ctx.principal.kind === "agent" && ctx.call) {
     const gate = (await ctx.call("access.agents_can_call.get", { agentId: input.toAgentId })) as
-      { on?: boolean } | undefined;
+      | { on?: boolean }
+      | undefined;
     if (gate?.on === false)
       raise(
         ctx,
