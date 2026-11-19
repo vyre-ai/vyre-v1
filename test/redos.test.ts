@@ -16,6 +16,69 @@ import { links, toPlain } from "../lib/md.ts";
 import { plainOf } from "../apps/app/src/places/chats/needsyou/heldmail.ts";
 import { docsMarkdown } from "../apps/app/src/places/files/viewer/model.ts";
 
+// Fixed hostile samples and the outputs the code gave on rc.39 (the safe output is unchanged), as [input, cleanHtml, htmlToText, sanitizeHtml, mail htmlToText].
+// One deliberate change: a <link rel=import> block is now removed (rc.39 left it in).
+const SAMPLES: string[][] = [
+  ['<p onclick="x()">a</p>', "<p>a</p>", "a", "<p>a</p>", "a"],
+  [
+    "<a href='javascript:alert(1)' onmouseover=alert(2)>x</a>",
+    "<a href='#'>x</a>",
+    "x (javascript:alert(1))",
+    "<a>x</a>",
+    "x",
+  ],
+  ["<img src=x onerror=alert(1)>", "<img src=x>", "", "", ""],
+  ['<IMG SRC=x OnError = "alert(1)" alt=1>', "<IMG SRC=x alt=1>", "", "", ""],
+  ["<svg onload=alert(1)><script>alert(2)</script></svg>", "<svg></svg>", "", "", ""],
+  ['<iframe src="https://e.example"></iframe><p>t</p>', "<p>t</p>", "t", "<p>t</p>", "t"],
+  ["<form action=x><input name=a><button formaction=y>b</button></form>", "", "b", "", ""],
+  ["<!-- c --><p>x</p><!-- unclosed", "<p>x</p><!-- unclosed", "x\n<!-- unclosed", "<p>x</p>", "x"],
+  ['<meta http-equiv="refresh" content="0;url=x"><p>m</p>', "<p>m</p>", "m", "<p>m</p>", "m"],
+  ['<a href="data:text/html,<b>x</b>">d</a>', '<a href="#">d</a>', "d (data:text/html,x)", "<a>d</a>", "d"],
+  [
+    '<div style="background:url(javascript:alert(1))">u</div>',
+    '<div style="background:none)">u</div>',
+    "u",
+    "<div>u</div>",
+    "u",
+  ],
+  [
+    '<style>@import "x";</style><p style="width:expression(alert(1))">e</p>',
+    '<style>@import "x";</style><p style="width:blocked(alert(1))">e</p>',
+    "e",
+    "<p>e</p>",
+    "e",
+  ],
+  ['<link rel="import" href="x"></link><p>l</p>', "<p>l</p>", "l", "<p>l</p>", "l"],
+  ['<base href="https://e.example/"><p>b</p>', "<p>b</p>", "b", "<p>b</p>", "b"],
+  ["<a onclick='a>b' href=x>q</a>", "<a href=x>q</a>", "b' href=x>q", "<a>q</a>", "q"],
+  ["<p>1 < 2 and 3 > 2</p>", "<p>1 < 2 and 3 > 2</p>", "1 2", "<p>1 &lt; 2 and 3 &gt; 2</p>", "1 < 2 and 3 > 2"],
+  [
+    "<b>bold</b> <i>it</i><br>line<br/>two",
+    "<b>bold</b> <i>it</i><br>line<br/>two",
+    "bold it\nline\ntwo",
+    "<b>bold</b> <i>it</i><br>line<br>two",
+    "bold it\nline\ntwo",
+  ],
+  [
+    '<a href="https://northwind.example/x">Site</a> and <a href="#">hash</a> <a href=\'mailto:a@b.example\'>mail</a> <a name=z>none</a>',
+    '<a href="https://northwind.example/x">Site</a> and <a href="#">hash</a> <a href=\'mailto:a@b.example\'>mail</a> <a name=z>none</a>',
+    "Site (https://northwind.example/x) and hash mail (mailto:a@b.example) none",
+    '<a href="https://northwind.example/x" target="_blank" rel="noopener noreferrer nofollow">Site</a> <span class="vy-link-host">(northwind.example)</span> and <a>hash</a> <a href="mailto:a@b.example" target="_blank" rel="noopener noreferrer nofollow">mail</a> <span class="vy-link-host">(a@b.example)</span> <a>none</a>',
+    "Site and hash mail none",
+  ],
+  ["<script>x</script <p>after", "x</script <p>after", "xafter", "after", "after"],
+  ["<scr<!-- -->ipt>alert(1)</script>", "", "ipt>alert(1)", "&lt;script&gt;alert(1)", "<script>alert(1)"],
+  ["<img o<!---->nerror=alert(1)>", "<img>", "nerror=alert(1)>", "nerror=alert(1)&gt;", "nerror=alert(1)>"],
+  [
+    '<p>a</p><p>unclosed <a href="x">link',
+    '<p>a</p><p>unclosed <a href="x">link',
+    "a\nunclosed link",
+    "<p>a</p><p>unclosed <a>link</a></p>",
+    "a\n\nunclosed link",
+  ],
+];
+
 const N = 100_000;
 const BUDGET_MS = 100;
 function fast<T>(label: string, fn: () => T): T {
@@ -102,6 +165,17 @@ test("sanitizer keeps its meaning at the new limits (cleanHtml, mail tags, insta
   );
   fast("<link N closed", () => cleanHtml("<link ".repeat(20_000) + "</link>"));
   fast("<link N", () => cleanHtml("<link ".repeat(80_000)));
+});
+
+test("the safe output of the HTML guards is unchanged on fixed hostile samples", () => {
+  for (const [input, clean, text, safe, mail] of SAMPLES) {
+    assert.equal(cleanHtml(input!), clean, `cleanHtml ${input}`);
+    assert.equal(htmlToText(input!), text, `htmlToText ${input}`);
+    assert.equal(sanitizeHtml(input!).html, safe, `sanitizeHtml ${input}`);
+    assert.equal(mailText(input!), mail, `mail htmlToText ${input}`);
+  }
+  fast("<a quote N then >", () => htmlToText('<a "'.repeat(N / 4) + ">"));
+  fast("<a href=' N then >", () => htmlToText("<a href='".repeat(N / 9) + ">"));
 });
 
 test("asked: an address pattern reads a long word once (lib/asked.ts)", () => {

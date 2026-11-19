@@ -296,6 +296,23 @@ export function cutBlocks(
   return i === 0 ? s : out + s.slice(i);
 }
 
+/** The ">" that ends the tag opened at s[at], skipping ">" inside a quoted value (read within 1 KB; beyond that, or with an unclosed quote, the first ">"). `first` is the first ">" after `at`. */
+function openTagEnd(s: string, at: number, first: number): number {
+  if (first - at > 1024) return first;
+  let p = at;
+  const stop = Math.min(s.length, at + 1024);
+  while (p < stop) {
+    const c = s.charCodeAt(p);
+    if (c === 34 || c === 39) {
+      const e = s.indexOf(String.fromCharCode(c), p + 1);
+      if (e < 0 || e >= stop) return first;
+      p = e + 1;
+    } else if (c === 62) return p;
+    else p += 1;
+  }
+  return first;
+}
+
 /**
  * Replaces each `<a ...> label </a>` whose opening tag `accept` takes with fn(tagText, label); an anchor with no closing tag
  * after it stays. The next close is remembered between anchors, so a run of unclosed anchors is read once. Linear.
@@ -309,6 +326,7 @@ export function replaceAnchors(
   let out = "";
   let i = 0;
   let from = 0;
+  let firstGt = -1; // the next ">" is found once and reused until it is passed
   let closeAt = -1; // start of the cached "</a>"
   let closeEnd = -1;
   for (;;) {
@@ -317,8 +335,9 @@ export function replaceAnchors(
     from = at + 2;
     const b = low.charCodeAt(at + 2);
     if (isNameChar(b) && b !== 45 && b !== 58) continue;
-    const gt = s.indexOf(">", at);
-    if (gt < 0) break;
+    if (firstGt < at) firstGt = s.indexOf(">", at);
+    if (firstGt < 0) break;
+    const gt = openTagEnd(s, at, firstGt);
     if (gt - at > 4096) continue;
     const tag = s.slice(at, gt + 1);
     if (!accept(tag)) continue;
