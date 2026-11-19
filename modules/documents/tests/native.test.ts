@@ -500,3 +500,42 @@ test("documents.make with no key: two records, different documents; a corrected 
   w.records.set("rec_imran", { name: "Imran Ibarra (corrected)" });
   assert.notEqual(await keyOf("rec_imran"), a, "a corrected record is a new document");
 });
+
+test("documents.make with no key is keyed on every resolved value, not on the shown excerpt: a value only in a footer, or past the 200-entry excerpt cap, changes the key", async () => {
+  const w = linked();
+  w.records.set("rec_imran", { name: "Imran Ibarra", footer_note: "Valid until June", late: "1,500" });
+  const footerDoc = docx(para("Dear {name}, welcome."), {
+    "word/footer1.xml": `<?xml version="1.0"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>{footer_note}</w:t></w:r></w:p></w:ftr>`,
+  });
+  const a = w.add("Footer letter.docx", footerDoc);
+  const long = w.add(
+    "Schedule.md",
+    enc(
+      `${Array.from({ length: 260 }, (_, i) => `Item ${i + 1} of the schedule.`).join("\n\n")}\n\nThe last figure is {late}.\n`,
+    ),
+  );
+  await handlers["documents.mark_template"](w.ctx, { fileId: a, isTemplate: true });
+  await handlers["documents.mark_template"](w.ctx, { fileId: long, isTemplate: true });
+  const keyOf = async (template: string, format: string, ext: string) => {
+    const n = w.calls.filter((c) => c.cap === "files.create").length;
+    await handlers["documents.make"](w.ctx, { template, recordId: "rec_imran", format } as never);
+    return String(w.calls.filter((c) => c.cap === "files.create")[n]!.input.idempotencyKey).replace(
+      new RegExp(`:[^:]*\\.${ext}$`),
+      "",
+    );
+  };
+  const footer1 = await keyOf("Footer letter", "docx", "docx");
+  assert.equal(await keyOf("Footer letter", "docx", "docx"), footer1);
+  w.records.set("rec_imran", { name: "Imran Ibarra", footer_note: "Valid until July", late: "1,500" });
+  assert.notEqual(await keyOf("Footer letter", "docx", "docx"), footer1, "a value only in the footer was corrected");
+  const late1 = await keyOf("Schedule", "md", "md");
+  w.records.set("rec_imran", { name: "Imran Ibarra", footer_note: "Valid until July", late: "2,500" });
+  assert.notEqual(await keyOf("Schedule", "md", "md"), late1, "a value past the 200th excerpt entry was corrected");
+  // the excerpt really is capped: the preview shows no trace of the late figure
+  const shown = (await handlers["documents.preview_fill"](w.ctx, { templateFileId: long, recordId: "rec_imran" })) as {
+    excerpt: { text: string }[];
+    digest: string;
+  };
+  assert.ok(!shown.excerpt.some((e) => e.text.includes("2,500")), "past the cap, not shown");
+  assert.match(shown.digest, /^[0-9a-f]{64}$/);
+});

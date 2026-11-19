@@ -90,6 +90,8 @@ export default defineManifest({
           ),
           missing: t.arr(t.str()),
           unused: t.arr(t.str()),
+          digest: t.str(),
+          templateVersion: t.opt(t.str()),
         },
         on: ["file", "/templateFileId"],
         tool: "files",

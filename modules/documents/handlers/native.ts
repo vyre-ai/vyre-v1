@@ -7,6 +7,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import {
   FillError,
   addTemplateReader,
+  askDigest,
   askKey,
   baseName,
   documentsFill,
@@ -109,7 +110,10 @@ async function fields(ctx: Ctx, input: unknown): Promise<Fields> {
   return { fields: out, loops: asked.loops, problems: [], ...(asked.roles.length > 0 ? { signers: asked.roles } : {}) };
 }
 
-async function preview(ctx: Ctx, input: unknown): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[] }> {
+async function preview(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[]; digest: string; templateVersion?: string }> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "templateFileId");
   if (!isVyreDoc(await fileName(ctx, fileId))) return previewFill(ctx, input);
@@ -117,7 +121,7 @@ async function preview(ctx: Ctx, input: unknown): Promise<{ excerpt: Excerpt[]; 
   const { values, given } = await valuesOf(ctx, o, asked);
   try {
     const got = mdExcerpt(text, values);
-    return { ...got, unused: unusedFor(asked, given) };
+    return { ...got, unused: unusedFor(asked, given), ...(await askDigest(ctx, fileId, values)) };
   } catch (e) {
     return refuse(ctx, e);
   }
@@ -395,17 +399,9 @@ async function make(ctx: Ctx, input: unknown): Promise<Filled> {
       recordId,
       ...(o.values !== undefined ? { values: o.values } : {}),
       ...(o.signingDate !== undefined ? { signingDate: o.signingDate } : {}),
-    })) as { excerpt?: unknown; missing?: unknown };
-    ask = await askKey([
-      shown.excerpt,
-      shown.missing,
-      o.name,
-      o.format,
-      recordId,
-      folder.folderId,
-      ctx.actingFor ?? ctx.principal.id,
-      await fileVersion(ctx, templateFileId),
-    ]);
+    })) as { digest?: unknown };
+    // the digest covers every resolved value and the template version it was read at (one read, so an edit between the two cannot split them)
+    ask = await askKey([shown.digest, o.name, o.format, recordId, folder.folderId, ctx.actingFor ?? ctx.principal.id]);
   }
   pass.idempotencyKey = `make:${recordId}:${templateFileId}:${given !== "" ? given : ask}`;
   return (await ctx.call("documents.fill", pass)) as Filled;

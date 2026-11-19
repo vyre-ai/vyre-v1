@@ -75,6 +75,20 @@ export async function sha256Of(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * What a fill would say, in one word: the SHA-256 of every resolved value (each tag the template uses in any part, headers and footers included, read from the record and the typed values) and the version of
+ * the template it was read from. The excerpt a person is shown is capped and covers the body; this is not, so a retry with no key is the same document only when nothing it says has changed.
+ */
+export async function askDigest(
+  ctx: Ctx,
+  fileId: string,
+  values: unknown,
+): Promise<{ digest: string; templateVersion?: string }> {
+  const got = (await ctx.call("files.get", { fileId })) as { file?: { version?: unknown } };
+  const v = got.file?.version;
+  return { digest: await askKey([values, v]), ...(v !== undefined ? { templateVersion: String(v) } : {}) };
+}
+
 // ---- drivers ----
 
 export interface DocumentsDrivers {
@@ -926,12 +940,13 @@ function asked(bytes: Buffer): Placeholders | null {
 export async function previewFill(
   ctx: Ctx,
   input: unknown,
-): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[] }> {
+): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[]; digest: string; templateVersion?: string }> {
   const o = rec(ctx, input);
-  const bytes = await templateBytes(ctx, reqStr(ctx, o, "templateFileId"));
+  const fileId = reqStr(ctx, o, "templateFileId");
+  const bytes = await templateBytes(ctx, fileId);
   const { values, given } = await valuesOf(ctx, o, asked(bytes));
   try {
-    return preview(bytes, values, given);
+    return { ...preview(bytes, values, given), ...(await askDigest(ctx, fileId, values)) };
   } catch (e) {
     return refuse(ctx, e);
   }
