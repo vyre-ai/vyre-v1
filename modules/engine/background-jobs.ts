@@ -13,6 +13,7 @@ export function createBackgroundPort(
   graceMs: number = BACKGROUND_GRACE_MS,
 ): BackgroundPort & { running(): number } {
   const beats = new Map<string, ReturnType<typeof setInterval>>();
+  const attempts = new Map<string, number>(); // the attempt this process claimed, named in its moves
   return {
     graceMs,
     running: () => beats.size,
@@ -27,13 +28,14 @@ export function createBackgroundPort(
         origin: { background: true, tool: t.name },
         policy: { onLost: "fail" },
         ...(ctx.turnId && ctx.callId ? { idemKey: `bg:${ctx.turnId}:${ctx.callId}` } : {}),
-      })) as { node: { id: string; status: string } };
+      })) as { node: { id: string; status: string; attempt: number } };
       const id = started.node.id;
-      const got = (await h.call("runs.node.claim", { runId: id, holder })) as { node?: unknown };
+      const got = (await h.call("runs.node.claim", { runId: id, holder })) as { node?: { attempt?: number } };
+      attempts.set(id, got.node?.attempt ?? started.node.attempt);
       if (!got.node && started.node.status !== "running") {
         // no node is left queued for ever when the command is simply waited for instead
         await h
-          .call("runs.node.move", { runId: id, to: "stopped", why: "stopped", stopReason: "not_started" })
+          .call("runs.node.move", { runId: id, attempt: started.node.attempt, to: "stopped", why: "stopped", stopReason: "not_started" })
           .catch(() => undefined);
         return null;
       }
@@ -51,9 +53,12 @@ export function createBackgroundPort(
     },
     async end(runId, outcome) {
       stop(runId);
+      const attempt = attempts.get(runId) ?? 1;
+      attempts.delete(runId);
       try {
         await h.call("runs.node.move", {
           holder,
+          attempt,
           runId,
           to: outcome.held ? "stopped" : outcome.ok ? "succeeded" : "failed",
           why: outcome.held ? "stopped" : outcome.ok ? "done" : "failed",

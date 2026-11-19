@@ -235,7 +235,7 @@ test("tree.find: the trees that ran in a chat, newest first, for people who may 
       .roots,
     [],
   );
-  await h.call("runs.node.move", { runId: later.id, to: "stopped", why: "stopped" }, engine);
+  await h.call("runs.node.move", { ...hold(h, later.id), runId: later.id, to: "stopped", why: "stopped" }, engine);
   const live = await h.call("runs.tree.find", { threadId: THREAD, active: true }, at0(alice));
   assert.equal(
     live.roots.some((r: any) => r.rootRun === later.id),

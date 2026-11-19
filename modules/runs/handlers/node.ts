@@ -86,15 +86,13 @@ export async function nodeStart(ctx: RunsCtx, input: In): Promise<unknown> {
 }
 export async function nodeMove(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
-  // a worker's move is fenced by its lease: once the node was taken from it (its lease ran out and another worker claimed it, or it was queued again as the next attempt) a late move of the old worker is refused
+  // a worker's move is fenced by its lease and its attempt, both of them, every time: once the node was taken from it (its lease ran out and another worker claimed it, or it was queued again as the next attempt) a late
+  // move of the old worker is refused, whether it names a lease or not
   const cur = getNode(ctx, input.runId);
-  if (cur.leaseHolder !== undefined && input.holder !== cur.leaseHolder)
+  if (input.attempt !== cur.attempt)
+    raise(ctx, "validation.precondition_failed", "That run has started again since.", { reason: "stale_attempt", attempt: cur.attempt });
+  if (cur.leaseHolder !== undefined ? input.holder !== cur.leaseHolder : input.holder !== undefined)
     raise(ctx, "validation.precondition_failed", "That run belongs to another worker now.", { reason: "not_holder" });
-  if (input.attempt !== undefined && input.attempt !== cur.attempt)
-    raise(ctx, "validation.precondition_failed", "That run has started again since.", {
-      reason: "stale_attempt",
-      attempt: cur.attempt,
-    });
   const { node, changed } = moveNode(ctx, input.runId, input.to as NodeStatus, {
     why: input.why as Why,
     expectedVersion: input.expectedVersion,
@@ -363,10 +361,10 @@ export async function activityList(ctx: RunsCtx, input: In): Promise<unknown> {
 
 /** The host's sweep, every few seconds: nodes whose worker stopped beating go back to the queue with the next attempt. */
 export const NODE_SWEEP_MS = 5_000;
-export function nodeSweep(ctx: RunsCtx): void {
+export async function nodeSweep(ctx: RunsCtx): Promise<void> {
   reclaimExpired(ctx);
   settleDeps(ctx);
-  detectStuck(ctx);
+  await detectStuck(ctx);
 }
 
 // ---- the board and the messages of a tree (board.ts) ----
@@ -397,16 +395,24 @@ export async function boardPutCap(ctx: RunsCtx, input: In): Promise<unknown> {
 export async function boardAnswerCap(ctx: RunsCtx, input: In): Promise<unknown> {
   const n = getNode(ctx, input.runId);
   const root = findNode(ctx.db, n.rootRun) ?? n;
-  // the node that asked may not answer itself: its parent's agent, the owner, a manager, or the server
-  const parent = n.parentRun ? findNode(ctx.db, n.parentRun) : undefined;
-  const parentAgent = parent?.whoKind === "agent" && parent.whoId !== undefined && parent.whoId === ctx.principal.id;
+  // the entry is looked up on this tree only; who asked it is the node that wrote it
+  const entry = (ctx.db.all("SELECT by_run FROM runs_board WHERE id = ? AND root_run = ?", input.entryId, n.rootRun) as Array<{ by_run: string }>)[0];
+  if (!entry) raise(ctx, "permission.not_found", "That run is not available.");
+  const asker = findNode(ctx.db, String(entry.by_run)) ?? n;
+  // the node that asked may not answer itself, even when its parent runs as the same agent: its parent's agent (another agent), the owner, a manager, or the server
+  const parent = asker.parentRun ? findNode(ctx.db, asker.parentRun) : undefined;
+  const parentAgent =
+    parent?.whoKind === "agent" &&
+    parent.whoId !== undefined &&
+    parent.whoId === ctx.principal.id &&
+    asker.whoId !== ctx.principal.id;
   if (
     !isSystemCall(ctx as Parameters<typeof isSystemCall>[0]) &&
     !parentAgent &&
     !mayManage(ctx, { id: root.id, owner: root.owner })
   )
     raise(ctx, "permission.not_found", "That run is not available.");
-  return { entry: boardAnswer(ctx, input.entryId, ctx.actingFor ?? ctx.principal.id, input.text) };
+  return { entry: boardAnswer(ctx, input.entryId, ctx.actingFor ?? ctx.principal.id, input.text, n.rootRun) };
 }
 export async function boardListCap(ctx: RunsCtx, input: In): Promise<unknown> {
   const n = look(ctx, input.runId);
@@ -426,7 +432,8 @@ export async function messageTakeCap(ctx: RunsCtx, input: In): Promise<unknown> 
   return {
     messages: takeMessages(ctx, input.runId).map((m) => {
       const from = findNode(ctx.db, m.fromRun);
-      return { ...m, fromName: from?.name ?? from?.kind ?? "A helper" };
+      // the name of whoever works, never the label a model gave the task: that is words from outside
+      return { ...m, fromName: from?.whoName ?? "A helper of this job" };
     }),
   };
 }
@@ -469,7 +476,8 @@ export async function treeFind(ctx: RunsCtx, input: In): Promise<unknown> {
 export async function nodeLabel(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
   const n = getNode(ctx, input.runId);
-  const name = String(input.name).trim();
+  // one plain line, as short as a name: whatever a model wrote about its task is cut and cleaned here, not trusted to have been
+  const name = String(input.name).replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
   if (name !== "" && n.name === undefined)
     ctx.db.run("UPDATE runs_node SET name = ?, updated_at = ? WHERE run_id = ?", name, ctx.now(), n.id);
   return { ok: true };

@@ -132,7 +132,7 @@ export interface Node {
   /** an approval it waits on: the Gate task, what it would do and why it asks */
   need?: { requestId: string; what: string; why: string };
   /** why it looks stuck (no news for a while, the same step again and again) */
-  stuck?: { since: number; reason: string };
+  stuck?: { since: number; reason: string; escalatedAt?: number };
   whoName?: string;
   errorCode?: string;
   errorMessage?: string;
@@ -436,6 +436,14 @@ export function startNode(ctx: RunsCtx, i: StartInput): { node: Node; created: b
     root = p.rootRun;
     depth = p.depth + 1;
   }
+  // what it starts after: nodes of this same tree, each already there. All checked before anything is written: a start that fails leaves nothing behind that a retry with the same key would find.
+  for (const d of new Set(i.dependsOn ?? [])) {
+    const on = findNode(ctx.db, d);
+    if (!on || on.rootRun !== (root ?? "")) {
+      // a node with no parent is its own root: it has nothing in its tree yet to start after
+      raise(ctx, "validation.bad_input", "It can only start after work of the same job.", { reason: "bad_dependency" });
+    }
+  }
   const id = newRunId();
   const now = ctx.now();
   if (i.running === true && (i.dependsOn?.length ?? 0) > 0)
@@ -471,14 +479,7 @@ export function startNode(ctx: RunsCtx, i: StartInput): { node: Node; created: b
     now,
     nul(i.whoName),
   );
-  // what it starts after: nodes of this same tree, each already there
-  const deps = [...new Set(i.dependsOn ?? [])];
-  for (const d of deps) {
-    const on = findNode(ctx.db, d);
-    if (!on || on.rootRun !== (root ?? id))
-      raise(ctx, "validation.bad_input", "It can only start after work of the same job.", { reason: "bad_dependency" });
-    ctx.db.run("INSERT OR IGNORE INTO runs_dep (run_id, on_run) VALUES (?, ?)", id, d);
-  }
+  for (const d of [...new Set(i.dependsOn ?? [])]) ctx.db.run("INSERT OR IGNORE INTO runs_dep (run_id, on_run) VALUES (?, ?)", id, d);
   const node = getNode(ctx, id);
   writeEvent(ctx, id, {
     type: "state",
@@ -542,6 +543,8 @@ export function moveNode(ctx: RunsCtx, id: string, to: NodeStatus, o: MoveOpts):
       reason: "stale_version",
       version: cur.version,
     });
+  if (cur.status === "queued" && to === "running" && unmetDeps(ctx.db, id).length > 0)
+    raise(ctx, "validation.precondition_failed", "It starts after other work that is not done yet.", { reason: "dependency_unmet" });
   if (!legalEdge(cur.status, to))
     raise(
       ctx,
@@ -814,7 +817,7 @@ export function settleDeps(ctx: RunsCtx): Node[] {
           by: "svc_host",
           error: {
             code: "dependency_failed",
-            message: `It was to start after ${bad.name ?? "other work"}, which ${bad.status === "stopped" ? "was stopped" : "did not finish"}.`,
+            message: `It was to start after ${(bad.name ?? "other work").replace(/\s+/g, " ").replace(/["\u201c\u201d:]/g, "'").slice(0, 60)}, which ${bad.status === "stopped" ? "was stopped" : "did not finish"}.`,
           },
         }).node,
       );
@@ -832,50 +835,60 @@ const STUCK_IDLE_MS = 10 * 60_000;
 const SAME_STEP_TIMES = 4;
 
 /**
- * Nodes that look stuck: running with no news for a while, or the same step again and again. Each is marked (once; a new step, word or use clears it), says why in a plain sentence, and is nudged: a message to itself that it
- * sees at its next step. A person is not asked yet: the mark is what the Island and the tile show.
+ * Nodes that look stuck: running with no news for a while, or the same step (the same touched thing, not just the same tool) again and again. A node that is on a long step, or whose helpers are working, is not stuck.
+ * The first time: the node is marked (the Island and the tile show it, with the reason in a plain sentence) and nudged: a message to itself that it sees at its next step. If it makes no progress for as long again, the
+ * owner is told in Needs you with what it was doing; any sign of life (a step, words, use) clears all of it.
  */
-export function detectStuck(ctx: RunsCtx): Node[] {
+export async function detectStuck(ctx: RunsCtx): Promise<Node[]> {
   const now = ctx.now();
   const out: Node[] = [];
-  const rows = ctx.db.all("SELECT * FROM runs_node WHERE status = 'running' AND stuck_json IS NULL LIMIT 500") as Row[];
+  const rows = ctx.db.all("SELECT * FROM runs_node WHERE status = 'running' LIMIT 500") as Row[];
   for (const r of rows) {
     const n = nodeOf(r);
-    const last =
-      int(
-        (ctx.db.all("SELECT MAX(at) AS m FROM runs_event WHERE run_id = ? AND type != 'state'", n.id) as Row[])[0]?.[
-          "m"
-        ],
-      ) ?? n.startedAt;
+    // its helpers are working for it: it is waiting on them, not stuck
+    const busy = (ctx.db.all("SELECT 1 AS x FROM runs_node WHERE parent_run = ? AND status IN ('queued','running','waiting','paused') LIMIT 1", n.id) as Row[]).length > 0;
+    if (busy) continue;
+    if (n.stuck) {
+      // marked and nudged: as long again without progress, and the person hears of it, once
+      if (!n.stuck.escalatedAt && now - n.stuck.since >= STUCK_IDLE_MS) {
+        ctx.db.run("UPDATE runs_node SET stuck_json = ? WHERE run_id = ? AND stuck_json IS NOT NULL", JSON.stringify({ ...n.stuck, escalatedAt: now }), n.id);
+        appendEvent(ctx.db, { rootRun: n.rootRun, runId: n.id, at: now, type: "stuck", actor: "svc_host", key: `stuck-told:${n.stuck.since}`, payload: { told: true } });
+        try {
+          await ctx.call?.(
+            "tasks.create",
+            clean({
+              kind: "unblock",
+              title: `${(n.name ?? "A helper").replace(/\s+/g, " ").slice(0, 60)} looks stuck`,
+              summary: `${n.stuck.reason} It was ${n.step ? n.step.text.toLowerCase() : "working"}.`,
+              why: "It was told and has not moved on. Look at it, tell it something, or stop it.",
+              assigned: { kind: "person", id: n.owner },
+              source: { kind: "run", id: n.id },
+              idempotencyKey: `stuck:${n.id}:${n.stuck.since}`,
+            }),
+          );
+        } catch {
+          /* the mark and the event stand */
+        }
+        out.push(getNode(ctx, n.id));
+      }
+      continue;
+    }
+    const last = int((ctx.db.all("SELECT MAX(at) AS m FROM runs_event WHERE run_id = ? AND type != 'state'", n.id) as Row[])[0]?.["m"]) ?? n.startedAt;
     let reason: string | undefined;
     if (now - last >= STUCK_IDLE_MS) reason = `Nothing new for ${Math.floor((now - last) / 60_000)} minutes.`;
     else {
-      const steps = (
-        ctx.db.all(
-          "SELECT payload_json FROM runs_event WHERE run_id = ? AND type = 'step' ORDER BY seq DESC LIMIT ?",
-          n.id,
-          SAME_STEP_TIMES,
-        ) as Row[]
-      ).map((x) => String(x["payload_json"]));
-      if (steps.length === SAME_STEP_TIMES && new Set(steps).size === 1)
-        reason = `The same step ${SAME_STEP_TIMES} times in a row.`;
+      // the same thing four times: steps that say what they touched, so four calls of one tool on four files are four steps
+      const touched = (
+        ctx.db.all("SELECT payload_json FROM runs_event WHERE run_id = ? AND type = 'step' ORDER BY seq DESC LIMIT 40", n.id) as Row[]
+      )
+        .map((x) => parse<{ detail?: string }>(x["payload_json"])?.detail)
+        .filter((d): d is string => typeof d === "string" && d !== "")
+        .slice(0, SAME_STEP_TIMES);
+      if (touched.length === SAME_STEP_TIMES && new Set(touched).size === 1) reason = `The same step ${SAME_STEP_TIMES} times in a row.`;
     }
     if (!reason) continue;
-    ctx.db.run(
-      "UPDATE runs_node SET stuck_json = ?, updated_at = ? WHERE run_id = ? AND stuck_json IS NULL",
-      JSON.stringify({ since: now, reason }),
-      now,
-      n.id,
-    );
-    appendEvent(ctx.db, {
-      rootRun: n.rootRun,
-      runId: n.id,
-      at: now,
-      type: "stuck",
-      actor: "svc_host",
-      key: `stuck:${now}`,
-      payload: { since: now, reason },
-    });
+    ctx.db.run("UPDATE runs_node SET stuck_json = ?, updated_at = ? WHERE run_id = ? AND stuck_json IS NULL", JSON.stringify({ since: now, reason }), now, n.id);
+    appendEvent(ctx.db, { rootRun: n.rootRun, runId: n.id, at: now, type: "stuck", actor: "svc_host", key: `stuck:${now}`, payload: { since: now, reason } });
     ctx.db.run(
       "INSERT INTO runs_message (id, root_run, from_run, to_run, body, at, msg_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
       `msg_${newRunId().slice(4)}`,

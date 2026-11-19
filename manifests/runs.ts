@@ -393,6 +393,10 @@ export default defineManifest({
           stopReason: t.opt(t.str()),
           wake: t.opt(nodeWake),
           checkpoint: t.opt(t.json()),
+          holder: t.opt(
+            t.str({ description: "The lease a worker holds: a move by a worker that no longer holds it is refused; none when the node holds none" }),
+          ),
+          attempt: t.int({ minimum: 1, description: "The attempt the worker holds: a move of an older attempt is refused" }),
         },
         out: { node: nodeRow, changed: t.bool() },
         emits: ["run.node_state", "run.node_ended"],

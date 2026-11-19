@@ -39,6 +39,7 @@ export function createSubNodes(h: {
   const names = new Map<string, string>(); // `${threadId}:${callId}` -> the tool's name, to put a touched file in its step
   const agentNames = new Map<string, string | undefined>();
   const ids = new Map<string, string>(); // `${threadId}:${callId}` -> node id
+  const attempts = new Map<string, number>(); // node id -> the attempt it was made with (a move names it)
   const chain = new Map<string, Promise<void>>(); // per thread: in order
   const key = (threadId: string, callId: string): string => `${threadId}:${callId}`;
 
@@ -68,7 +69,8 @@ export function createSubNodes(h: {
       ...(up ? { parentRun: up } : { parentThread: threadId }),
       idemKey: `sub:${threadId}:${callId}`,
       running: true,
-    })) as { node: { id: string } };
+    })) as { node: { id: string; attempt: number } };
+    attempts.set(r.node.id, r.node.attempt);
     if (ids.size > 5000) ids.delete(ids.keys().next().value as string);
     ids.set(k, r.node.id);
     return r.node.id;
@@ -101,6 +103,7 @@ export function createSubNodes(h: {
         return;
       await h.call("runs.node.move", {
         runId: id,
+        attempt: attempts.get(id) ?? 1,
         to: e.ok === false ? "failed" : "succeeded",
         why: e.ok === false ? "failed" : "done",
         ...(answered ? { summary: cut(e.result as string, 600) } : {}),

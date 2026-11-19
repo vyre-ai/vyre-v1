@@ -70,7 +70,8 @@ export function planResume(entries: readonly JournalEntry[]): ResumePlan {
   return { resumable: true, done, replay: flight };
 }
 
-const SECRET_KEY = /(pass(word|wd)?|secret|token|api[-_]?key|authorization|credential|cookie|private[-_]?key|seal)/i;
+// names that mean a credential; not "tokens" (a count), "sealed" (a flag) or "cookie_count"
+const SECRET_KEY = /^(pass(word|wd|phrase)?|secret|client[-_]?secret|(api|access|auth|bearer|refresh|session)[-_]?(key|token)|token|authorization|credentials?|cookie|set[-_]?cookie|private[-_]?key)$/i;
 /**
  * The input of a call as it may be kept: a field whose name says it is a secret, a held token, and anything that reads like a key or a certificate are replaced by [secret]. A Vault reference (#Handle.field) is not a
  * value and stays. `changed` says something was taken out; such a call is never asked again after a restart, since what would be sent is not what was sent.
@@ -92,11 +93,7 @@ export function scrubInput(input: unknown): { value: unknown; changed: boolean }
       return Object.fromEntries(
         Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, walk(x, k, depth + 1)]),
       );
-    if (SECRET_KEY.test(key) && v !== null && v !== undefined && v !== false) {
-      changed = true;
-      return "[secret]";
-    }
-    return v;
+    return v; // a number or a flag is never a secret, whatever it is called
   };
   return { value: walk(input, "", 0), changed };
 }

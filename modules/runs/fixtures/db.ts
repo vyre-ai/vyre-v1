@@ -171,13 +171,13 @@ export function reasonOf(e: unknown): unknown {
   return ((e as { error?: { details?: { reason?: unknown } } } | null)?.error?.details ?? {}).reason;
 }
 
-/** The lease a node is held under, as a move names it: {} when nobody holds it. A worker's move carries it (runs.node.move is fenced by it). */
+/** What a worker's move names: the attempt always, and the lease when the node holds one. runs.node.move is fenced by both. */
 export function hold(
   h: { sqlite: { prepare(sql: string): { get(...a: unknown[]): unknown } } },
   runId: string,
-): { holder?: string } {
-  const r = h.sqlite.prepare("SELECT lease_holder FROM runs_node WHERE run_id = ?").get(runId) as
-    | { lease_holder: string | null }
+): { holder?: string; attempt: number } {
+  const r = h.sqlite.prepare("SELECT lease_holder, attempt FROM runs_node WHERE run_id = ?").get(runId) as
+    | { lease_holder: string | null; attempt: number }
     | undefined;
-  return r?.lease_holder ? { holder: r.lease_holder } : {};
+  return { ...(r?.lease_holder ? { holder: r.lease_holder } : {}), attempt: r?.attempt ?? 1 };
 }

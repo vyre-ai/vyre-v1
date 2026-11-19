@@ -46,7 +46,7 @@ test("an approval a node waits on is its need while it waits, and is gone the mo
   const n = await start(h, { running: true });
   await h.call(
     "runs.node.move",
-    { runId: n.id, to: "waiting", why: "slept", wake: { kind: "person", label: "your answer", on: { task: "tsk_1" } } },
+    { ...hold(h, n.id), runId: n.id, to: "waiting", why: "slept", wake: { kind: "person", label: "your answer", on: { task: "tsk_1" } } },
     engine,
   );
   await h.call(
@@ -64,7 +64,7 @@ test("an approval a node waits on is its need while it waits, and is gone the mo
     what: "Sending an email",
     why: "It needs your yes before it goes ahead.",
   });
-  await h.call("runs.node.move", { runId: n.id, to: "queued", why: "woke" }, engine);
+  await h.call("runs.node.move", { ...hold(h, n.id), runId: n.id, to: "queued", why: "woke" }, engine);
   assert.equal((await h.call("runs.node.get", { runId: n.id }, owner)).node.need, undefined);
 });
 
@@ -80,14 +80,14 @@ test("a node that starts after another is not taken until it has succeeded, and 
     "not before Research is done",
   );
   await h.call("runs.node.claim", { runId: research.id, holder: "host:a" }, host);
-  await h.call("runs.node.move", { runId: research.id, to: "succeeded", why: "done", ...hold(h, research.id) }, engine);
+  await h.call("runs.node.move", { ...hold(h, research.id), runId: research.id, to: "succeeded", why: "done", ...hold(h, research.id) }, engine);
   assert.equal((await h.call("runs.node.claim", { runId: docs.id, holder: "host:a" }, host)).node.status, "running");
   // the other way: Research fails, Docs never starts
   const r2 = await start(h, { parentRun: root.id, name: "Numbers" });
   const d2 = await start(h, { parentRun: root.id, name: "Report", dependsOn: [r2.id] });
   await h.call(
     "runs.node.move",
-    { runId: r2.id, to: "failed", why: "failed", error: { code: "x", message: "no column" } },
+    { ...hold(h, r2.id), runId: r2.id, to: "failed", why: "failed", error: { code: "x", message: "no column" } },
     engine,
   );
   await h.engineRun(host, async (ctx) => settleDeps(ctx));
@@ -124,40 +124,55 @@ test("a dependency must be work of the same job, and a node that is already runn
   );
 });
 
-test("a node with no news for ten minutes, or the same step four times, is marked stuck with a plain reason and nudged; any sign of life clears it", async () => {
+test("a node with no news for ten minutes, or the same thing four times, is marked stuck with a plain reason and nudged; as long again with no progress and the owner is told, once; any sign of life clears it", async () => {
   const h = harness();
-  const quiet = await start(h, { running: true });
+  const tasks: Array<Record<string, any>> = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("tasks.create", (i: Record<string, any>) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    tasks.push(i);
+    return { task: { id: "tsk_1" } };
+  });
+  const quiet = await start(h, { running: true, name: "Pine bid" });
   const loop = await start(h, { running: true });
   for (let i = 0; i < 4; i++)
-    await h.call(
-      "runs.node.event",
-      { runId: loop.id, type: "step", payload: { icon: "read", text: "Reading a file" } },
-      engine,
-    );
+    await h.call("runs.node.event", { runId: loop.id, type: "step", payload: { icon: "read", text: "Reading a.xlsx", detail: "a.xlsx" } }, engine);
   h.advance(11 * 60_000);
-  await h.call(
-    "runs.node.event",
-    { runId: loop.id, type: "step", payload: { icon: "read", text: "Reading a file" } },
-    engine,
-  );
+  await h.call("runs.node.event", { runId: loop.id, type: "step", payload: { icon: "read", text: "Reading a.xlsx", detail: "a.xlsx" } }, engine);
   const marked = await h.engineRun(host, async (ctx) => detectStuck(ctx));
   assert.deepEqual(marked.map((n) => n.id).sort(), [quiet.id, loop.id].sort());
   const q = (await h.call("runs.node.get", { runId: quiet.id }, owner)).node;
   assert.match(q.stuck.reason, /Nothing new for 11 minutes/);
   const l = (await h.call("runs.node.get", { runId: loop.id }, owner)).node;
   assert.match(l.stuck.reason, /same step 4 times/);
-  const nudge = h.sqlite.prepare("SELECT body FROM runs_message WHERE to_run = ?").all(quiet.id) as Array<{
-    body: string;
-  }>;
+  const nudge = h.sqlite.prepare("SELECT body FROM runs_message WHERE to_run = ?").all(quiet.id) as Array<{ body: string }>;
   assert.equal(nudge.length, 1);
   assert.match(nudge[0]!.body, /stuck/);
+  assert.equal(tasks.length, 0, "the owner is not asked at the first mark");
   assert.equal((await h.engineRun(host, async (ctx) => detectStuck(ctx))).length, 0, "marked once, nudged once");
-  await h.call(
-    "runs.node.event",
-    { runId: quiet.id, type: "step", payload: { icon: "find", text: "Looking for the right tool" } },
-    engine,
-  );
+  // as long again with no progress: the owner hears of it with what it was doing, once
+  await h.call("runs.node.event", { runId: quiet.id, type: "step", payload: { icon: "read", text: "Reading Pine's quote", detail: "pine.pdf" } }, engine);
+  h.advance(11 * 60_000);
+  await h.engineRun(host, async (ctx) => detectStuck(ctx));
+  const again = await h.engineRun(host, async (ctx) => detectStuck(ctx));
+  assert.equal(again.length, 0);
+  assert.equal(tasks.length, 2, "the two that made no progress, once each");
+  assert.match(String(tasks.find((x) => /Pine bid/.test(x.title))?.summary), /Nothing new|It was/);
+  assert.equal(tasks[0]!.assigned.id, alice.id);
+  await h.call("runs.node.event", { runId: quiet.id, type: "step", payload: { icon: "find", text: "Looking for the right tool" } }, engine);
   assert.equal((await h.call("runs.node.get", { runId: quiet.id }, owner)).node.stuck, undefined);
+});
+
+test("four calls of one tool on four different things are not the same step, a node whose helpers are working is waiting on them, and a long step with its helper busy is not stuck", async () => {
+  const h = harness();
+  const bash = await start(h, { running: true });
+  for (const f of ["a", "b", "c", "d"]) await h.call("runs.node.event", { runId: bash.id, type: "step", payload: { icon: "term", text: "Running a command", detail: f } }, engine);
+  for (let i = 0; i < 4; i++) await h.call("runs.node.event", { runId: bash.id, type: "step", payload: { icon: "term", text: "Running a command" } }, engine);
+  const lead = await start(h, { running: true });
+  await start(h, { parentRun: lead.id, running: true });
+  h.advance(30 * 60_000);
+  await h.call("runs.node.event", { runId: bash.id, type: "step", payload: { icon: "term", text: "Running a command", detail: "z" } }, engine);
+  const marked = await h.engineRun(host, async (ctx) => detectStuck(ctx));
+  assert.deepEqual(marked.map((n) => n.name ?? n.id).filter((id) => id === bash.id), [], "no false mark for ordinary calls");
+  assert.equal(marked.some((n) => n.id === lead.id), false, "its helper is working: it waits on it");
 });
 
 test("a node that sleeps or has finished is never called stuck", async () => {
@@ -165,11 +180,11 @@ test("a node that sleeps or has finished is never called stuck", async () => {
   const asleep = await start(h, { running: true });
   await h.call(
     "runs.node.move",
-    { runId: asleep.id, to: "waiting", why: "slept", wake: { kind: "time", dueAt: h.now() + 3_600_000 } },
+    { ...hold(h, asleep.id), runId: asleep.id, to: "waiting", why: "slept", wake: { kind: "time", dueAt: h.now() + 3_600_000 } },
     engine,
   );
   const done = await start(h, { running: true });
-  await h.call("runs.node.move", { runId: done.id, to: "succeeded", why: "done" }, engine);
+  await h.call("runs.node.move", { ...hold(h, done.id), runId: done.id, to: "succeeded", why: "done" }, engine);
   h.advance(60 * 60_000);
   assert.equal((await h.engineRun(host, async (ctx) => detectStuck(ctx))).length, 0);
 });
@@ -185,7 +200,7 @@ test("a person who only watches the chat is told none of it: no step, need, stuc
   );
   await h.call(
     "runs.node.move",
-    { runId: n.id, to: "waiting", why: "slept", wake: { kind: "person", label: "Rubab's yes" } },
+    { ...hold(h, n.id), runId: n.id, to: "waiting", why: "slept", wake: { kind: "person", label: "Rubab's yes" } },
     engine,
   );
   await h.call(
@@ -213,4 +228,25 @@ test("a person who only watches the chat is told none of it: no step, need, stuc
     ),
     "permission.not_found",
   );
+});
+
+test("a start that names a dependency it cannot have leaves nothing behind: a retry with the same key does not find a node that runs with no dependency", async () => {
+  const h = harness();
+  const a = await start(h, { kind: "turn" });
+  const b = await start(h, { kind: "turn" });
+  const bad = await h.call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: a.id, dependsOn: [b.id], idemKey: "k-dep" }, engine).catch((e) => e);
+  assert.equal(reasonOf(bad), "bad_dependency");
+  assert.equal((h.sqlite.prepare("SELECT COUNT(*) AS n FROM runs_node WHERE idem_key = 'k-dep'").get() as { n: number }).n, 0);
+  const retry = await h.call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: a.id, dependsOn: [b.id], idemKey: "k-dep" }, engine).catch((e) => e);
+  assert.equal(reasonOf(retry), "bad_dependency");
+});
+
+test("a worker that moves a queued node to running instead of claiming it does not get past its dependencies", async () => {
+  const h = harness();
+  const root = await start(h, { kind: "turn" });
+  const first = await start(h, { parentRun: root.id });
+  const second = await start(h, { parentRun: root.id, dependsOn: [first.id] });
+  const e = await h.call("runs.node.move", { ...hold(h, second.id), runId: second.id, to: "running", why: "claimed" }, engine).catch((x) => x);
+  assert.equal(reasonOf(e), "dependency_unmet");
+  assert.equal(statusOf(h, second.id), "queued");
 });

@@ -450,6 +450,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const resumes = new Map<string, ResumePlan & { turnId: string; paused?: string }>();
   const keySeq = new Map<string, number>();
   const noted = new Map<string, Array<{ from: string; body: string }>>();
+  let noteSeq = 0;
   const rowKey = (threadId: string, qseq: number): string => `${threadId}:${qseq}`;
   const leases = opts.leases ?? createMemoryLeases();
   const messages = opts.messages ?? createMemoryMessages();
@@ -1047,9 +1048,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     const said = noted.get(turn.id);
     if (said && said.length > 0) {
       noted.delete(turn.id);
-      for (const n of said)
+      for (const [k, n] of said.entries())
         run.session.inject({
-          id: `note:${turn.id}:${noted.size}:${n.from}`,
+          id: `note:${turn.id}:${++noteSeq}:${k}`,
           threadId: st.thread.id,
           threadSeq: 0,
           author: { kind: "agent", id: n.from },

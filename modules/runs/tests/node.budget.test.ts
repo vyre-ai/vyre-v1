@@ -91,7 +91,7 @@ test("raising the limit past what was used lets the paused work go on; raising i
   const { root, a } = await job(r, { usdMicros: 1_000_000 });
   await use(r, a.id, "u1", { usdMicros: 1_200_000 });
   // what the engine does at the safe point: the turn's node says paused
-  for (const id of [root.id, a.id]) await r.h.call("runs.node.move", { runId: id, to: "paused", why: "budget", ...hold(r.h, id) }, engine);
+  for (const id of [root.id, a.id]) await r.h.call("runs.node.move", { ...hold(h, id), runId: id, to: "paused", why: "budget", ...hold(r.h, id) }, engine);
   const little = await r.h.call("runs.budget.set", { runId: root.id, usdMicros: 1_100_000 }, owner);
   assert.equal(little.resumed, 0);
   assert.deepEqual(r.resumed, []);
@@ -103,7 +103,7 @@ test("raising the limit past what was used lets the paused work go on; raising i
   // the same limit reached again acts again: a new limit is a new decision
   const again = await job(r, { usdMicros: 1_000_000 });
   await use(r, again.a.id, "z1", { usdMicros: 2_000_000 });
-  await r.h.call("runs.node.move", { runId: again.root.id, to: "paused", why: "budget", ...hold(r.h, again.root.id) }, engine);
+  await r.h.call("runs.node.move", { ...hold(h, again.root.id), runId: again.root.id, to: "paused", why: "budget", ...hold(r.h, again.root.id) }, engine);
   const cleared = await r.h.call("runs.budget.set", { runId: again.root.id, clear: true }, owner);
   assert.ok(cleared.resumed >= 1);
 });
@@ -112,7 +112,7 @@ test("resume from the tile is refused while a limit above is still reached, and 
   const r = rig();
   const { root, a } = await job(r, { tokens: 100 });
   await use(r, a.id, "u1", { tokensIn: 150 });
-  await r.h.call("runs.node.move", { runId: a.id, to: "paused", why: "budget", ...hold(r.h, a.id) }, engine);
+  await r.h.call("runs.node.move", { ...hold(h, a.id), runId: a.id, to: "paused", why: "budget", ...hold(r.h, a.id) }, engine);
   assert.equal(reasonOf(await r.h.call("runs.node.control", { runId: a.id, action: "resume" }, owner).catch((e) => e)), "over_budget");
   assert.equal(status(r.h, a.id), "paused");
   await r.h.call("runs.budget.set", { runId: root.id, tokens: 10_000 }, owner);

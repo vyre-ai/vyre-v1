@@ -148,8 +148,9 @@ export const boardList = (db: Db, rootRun: string, includeOld = false): BoardEnt
   ).map(entryOf);
 
 /** The parent or a person answers a question; the asker reads the answer on the board. Answering twice keeps the first. */
-export function boardAnswer(ctx: RunsCtx, entryId: string, by: string, text: string): BoardEntry {
-  const row = (ctx.db.all("SELECT * FROM runs_board WHERE id = ?", entryId) as Row[])[0];
+export function boardAnswer(ctx: RunsCtx, entryId: string, by: string, text: string, rootRun: string): BoardEntry {
+  // an entry of another tree is not found, whoever asks: an id learnt elsewhere gives no way into another job
+  const row = (ctx.db.all("SELECT * FROM runs_board WHERE id = ? AND root_run = ?", entryId, rootRun) as Row[])[0];
   if (!row || String(row["kind"]) !== "question")
     raise(ctx, "validation.not_found", "That question is not on the board.", { reason: "no_question" });
   const t = text.trim();

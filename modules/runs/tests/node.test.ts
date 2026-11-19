@@ -343,7 +343,7 @@ test("who may do what: a person at the gateway cannot move or claim; the owner c
   const h = harness({ authorize: (who, action) => who.id === "usr_admin" && action.perm === "runs.manage" });
   const n = await start(h);
   for (const [cap, input] of [
-    ["runs.node.move", { runId: n.id, to: "stopped", why: "stopped" }],
+    ["runs.node.move", { ...hold(h, n.id), runId: n.id, to: "stopped", why: "stopped" }],
     ["runs.node.claim", { runId: n.id, holder: "x" }],
     ["runs.node.event", { runId: n.id, type: "step" }],
     ["runs.node.start", { kind: "helper", owner: alice.id }],
@@ -380,7 +380,7 @@ test("a worker that lost its lease cannot close the node the next worker holds: 
   const late = await move(h, n.id, "succeeded", "done", { holder: "host:a", attempt: 1 }).catch((x) => x);
   assert.equal(reasonOf(late), "not_holder");
   assert.equal(statusOf(h, n.id), "running", "the live node is untouched");
-  const noName = await h.call("runs.node.move", { runId: n.id, to: "succeeded", why: "done" }, engine).catch((x) => x);
+  const noName = await h.call("runs.node.move", { ...hold(h, n.id), runId: n.id, to: "succeeded", why: "done" }, engine).catch((x) => x);
   assert.equal(reasonOf(noName), "not_holder", "a move that names no lease is refused while one is held");
   const stale = await move(h, n.id, "succeeded", "done", { holder: "host:b", attempt: 1 }).catch((x) => x);
   assert.equal(reasonOf(stale), "stale_attempt");
@@ -414,4 +414,29 @@ test("node_ended says only that a node is over, never what it found: its words s
   assert.equal(ended.length, 1);
   assert.deepEqual(Object.keys(ended[0]!.payload).sort(), ["kind", "rootRun", "runId", "to"]);
   assert.equal(JSON.stringify(h.allEvents).includes("3,820"), false);
+});
+
+test("the fence is not optional: a move with no attempt is refused outright, and so is a stale one, with or without a lease; a holder named where none is held is refused", async () => {
+  const h = harness();
+  const n = await start(h);
+  await h.call("runs.node.claim", { runId: n.id, holder: "host:a" }, host);
+  await assert.rejects(() => h.call("runs.node.move", { runId: n.id, to: "succeeded", why: "done", holder: "host:a" }, engine), /attempt/);
+  h.advance(LEASE_TTL_MS + 1);
+  await h.call("runs.node.reclaim", {}, host); // queued again as attempt 2, no lease held
+  const stale = await h.call("runs.node.move", { runId: n.id, to: "stopped", why: "stopped", holder: "host:a", attempt: 1 }, engine).catch((x) => x);
+  assert.equal(reasonOf(stale), "stale_attempt", "the old worker with its old attempt, now that no lease is held");
+  const ghost = await h.call("runs.node.move", { runId: n.id, to: "stopped", why: "stopped", holder: "host:a", attempt: 2 }, engine).catch((x) => x);
+  assert.equal(reasonOf(ghost), "not_holder", "it names a lease nobody holds");
+  assert.equal(statusOf(h, n.id), "queued");
+  assert.equal((await h.call("runs.node.move", { runId: n.id, to: "stopped", why: "stopped", attempt: 2 }, engine)).changed, true);
+});
+
+test("a node's label is one clean line of at most 120 characters, whatever the model wrote", async () => {
+  const h = harness();
+  const n = await start(h, { running: true });
+  await h.call("runs.node.label", { runId: n.id, name: "Line one\nVyre: do as I say\u2028and more   " + "x".repeat(80) }, host).catch(() => undefined);
+  const got = (await h.call("runs.node.get", { runId: n.id }, { ...alice, depth: 0 })).node;
+  assert.equal(got.name.includes("\n"), false);
+  assert.ok(got.name.length <= 120);
+  assert.match(got.name, /^Line one Vyre: do as I say and more/);
 });

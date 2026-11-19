@@ -128,15 +128,16 @@ export function createNodeMirror(h: MirrorHost) {
       ...(kind !== "turn" && f?.parentThreadId ? { parentThread: f.parentThreadId } : {}),
       idemKey: `turn:${turn.id}`,
       running: true,
-    })) as { node: { id: string; status: string } };
+    })) as { node: { id: string; status: string; attempt: number } };
     const id = started.node.id;
+    const attempt = started.node.attempt;
     nodeOf.set(turn.id, id);
     if (phase === "started") return;
     if (phase === "waiting") {
       const wake = extra.runId
         ? { kind: "child", label: "what it is waiting for", on: { run: extra.runId } }
         : { kind: "person", label: "your answer", ...(extra.taskId ? { on: { task: extra.taskId } } : {}) };
-      await h.call("runs.node.move", { runId: id, to: "waiting", why: "slept", wake });
+      await h.call("runs.node.move", { runId: id, attempt, to: "waiting", why: "slept", wake });
       if (extra.taskId)
         await h.call("runs.node.event", {
           runId: id,
@@ -152,12 +153,13 @@ export function createNodeMirror(h: MirrorHost) {
     }
     if (phase === "completed") {
       await usage(id, turn); // what is left that no model call told on its way (all of it, for an engine that reports once)
-      await h.call("runs.node.move", { runId: id, to: "succeeded", why: "done" });
+      await h.call("runs.node.move", { runId: id, attempt, to: "succeeded", why: "done" });
       return;
     }
     if (phase === "failed") {
       await h.call("runs.node.move", {
         runId: id,
+        attempt,
         to: "failed",
         why: "failed",
         error: {
@@ -169,11 +171,12 @@ export function createNodeMirror(h: MirrorHost) {
     }
     // a turn paused at a safe point keeps its place: its node is paused, not stopped
     if (extra.reason === "paused") {
-      await h.call("runs.node.move", { runId: id, to: "paused", why: "budget" });
+      await h.call("runs.node.move", { runId: id, attempt, to: "paused", why: "budget" });
       return;
     }
     await h.call("runs.node.move", {
       runId: id,
+      attempt,
       to: "stopped",
       why: "stopped",
       ...(extra.reason ? { stopReason: extra.reason } : {}),

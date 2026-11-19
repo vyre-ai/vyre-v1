@@ -2,7 +2,7 @@
 // and a parent that sleeps until a node ends has one event to wait on.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { codeOf, harness, reasonOf } from "../fixtures/db.ts";
+import { codeOf, harness, reasonOf, hold } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, engine, newRun, HOUR } from "../fixtures/seed.ts";
 import { sweepWaits, wake } from "../handlers/engine.ts";
@@ -120,7 +120,7 @@ test("a node a tree holds is removed with its erased Run, and a finished tree is
   );
   // a tree made through the node core: one finished, one live
   const done = (await h.call("runs.node.start", { kind: "turn", owner: alice.id }, engine)).node.id;
-  await h.call("runs.node.move", { runId: done, to: "stopped", why: "stopped" }, engine);
+  await h.call("runs.node.move", { ...hold(h, done), runId: done, to: "stopped", why: "stopped" }, engine);
   const live = (await h.call("runs.node.start", { kind: "turn", owner: alice.id }, engine)).node.id;
   h.advance(10 * HOUR);
   await h.call("runs.purge", { before: h.now(), idempotencyKey: "k2" }, { id: "usr_admin", kind: "service" });
