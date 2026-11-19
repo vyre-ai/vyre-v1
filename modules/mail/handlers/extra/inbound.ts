@@ -10,7 +10,7 @@ import type { MailCtx, Row } from "../../projections.ts";
 import { ensureAll } from "./common.ts";
 import { DOWN_MS, HEALTHY_MS } from "./status.ts";
 
-const SQL = readFileSync(fileURLToPath(new URL("../../migrations/0009_inbound_watch.sql", import.meta.url)), "utf8");
+const SQL = readFileSync(fileURLToPath(new URL("../../migrations/0012_inbound_watch.sql", import.meta.url)), "utf8");
 const ready = new WeakSet<object>();
 
 export function ensureInbound(ctx: Pick<MailCtx, "db">): void {

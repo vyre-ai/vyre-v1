@@ -119,3 +119,48 @@ test("a value with a line break never splits the subject", async () => {
   assert.equal(out.subject, "Re: Plan Bcc: someone@vyre.test");
   assert.ok(!/[\r\n]/.test(out.subject));
 });
+
+test("hostile text cannot slow the reader: a megabyte of unfinished tokens is read in well under a second", async () => {
+  const hostile = "{{a|".repeat(250_000);
+  const t0 = Date.now();
+  const f = fillTokens(hostile, {});
+  assert.equal(f.text, hostile);
+  assert.deepEqual(tokensIn(hostile), []);
+  const nested = "{{".repeat(500_000) + "x";
+  fillTokens(nested, {});
+  const longKey = "{{" + "a".repeat(400_000) + "}}";
+  assert.deepEqual(fillTokens(longKey, {}).blanks, []);
+  assert.ok(Date.now() - t0 < 1000, "the scan is linear");
+  const h = setup();
+  const p0 = Date.now();
+  await preview(h.ctx, { subject: "x", text: hostile.slice(0, 99_000) });
+  assert.ok(Date.now() - p0 < 1000);
+});
+
+test("{{constructor}} and other prototype names are blank like any unknown field, in text and in html", async () => {
+  for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+    const f = fillTokens(`a {{${name}}} b`, {});
+    assert.deepEqual(f.blanks, [name.toLowerCase()]);
+    assert.ok(!f.text.includes("native code"));
+    fillTokens(`<b>{{${name}}}</b>`, {}, { html: true });
+  }
+  const h = setup();
+  const out = await preview(h.ctx, { subject: "{{constructor}}", text: "x", vars: { constructor: "Pat" } });
+  assert.equal(out.subject, "Pat");
+  const bare = await preview(h.ctx, { subject: "{{constructor}}", text: "x" });
+  assert.deepEqual(bare.blanks, ["constructor"]);
+});
+
+test("a document the caller cannot open is not read through get or preview, and free-text preview needs comms.templates", async () => {
+  const h = setup();
+  await forDocumentSet(h.ctx, { documentId: DOC, key: "signature.reminder", subject: "Secret {{document_title}}", text: "Secret wording" });
+  h.denied.add(DOC);
+  await assert.rejects(get(h.ctx, { key: "signature.reminder", documentId: DOC }), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(preview(h.ctx, { key: "signature.reminder", documentId: DOC }), (e) => codeOf(e) === "validation.not_found");
+  h.denied.delete(DOC);
+  assert.equal((await preview(h.ctx, { key: "signature.reminder", documentId: DOC, vars: { document_title: "P" } })).subject, "Secret P");
+  h.denied.add("spc_mailtest"); // the Space's template permission
+  await assert.rejects(preview(h.ctx, { subject: "x", text: "y" }), (e) => codeOf(e) === "permission.no_grant");
+  assert.equal((await preview(h.ctx, { key: "signature.reminder", vars: { document_title: "P" } })).source, "builtin");
+  await assert.rejects(preview(h.ctx, { key: "signature.reminder", subject: "x" }), (e) => codeOf(e) === "validation.bad_input");
+});

@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { statusUpdate } from "../handlers/extra/status.ts";
-import { BACKOFF_MS, MAX_RETRIES, retry, trail } from "../handlers/extra/delivery.ts";
+import { BACKOFF_MS, CLAIM_STALE_MS, MAX_RETRIES, retry as retryNow, trail } from "../handlers/extra/delivery.ts";
 import { script, seedSent, eventErrors } from "../handlers/extra/kit.ts";
 import { codeOf, contractErrors, harness, NOW, seedMailbox } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -15,7 +15,7 @@ interface Scheduled {
 }
 
 function setup(opts: { scheduler?: boolean } = {}): { h: Harness; scheduled: Scheduled[]; sent: Record<string, unknown>[] } {
-  const h = harness();
+  const h = harness({ principal: { kind: "service", id: "svc_scheduler" } });
   seedMailbox(h, "mbx_maya", "maya@vyre.test", { kind: "personal", provider: "google", ownerId: "usr_maya01", privacy: "space" });
   const scheduled: Scheduled[] = [];
   const sent: Record<string, unknown>[] = [];
@@ -42,6 +42,13 @@ function setup(opts: { scheduler?: boolean } = {}): { h: Harness; scheduled: Sch
   return { h, scheduled, sent };
 }
 
+/** The scheduler's call, a day later than the plan: every attempt is due by then. */
+const retry = async (h: Harness, input: Parameters<typeof retryNow>[1]) => {
+  h.advance(86_400_000);
+  return retryNow(h.ctx, input);
+};
+const planned = (s: Scheduled[]): number => new Set(s.map((x) => x.input.attempt)).size;
+const planOf = (s: Scheduled[], n: number): Scheduled => s.find((x) => x.input.attempt === n)!;
 let at = NOW;
 type Update = Parameters<typeof statusUpdate>[1];
 const event = (providerId: string, status: Update["status"], extra: Partial<Update> = {}): Update => ({
@@ -106,15 +113,18 @@ test("a soft bounce waits and retries once to that address only, never twice for
   assert.equal(scheduled.length, 1);
   assert.deepEqual(scheduled[0]!.input, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 });
   assert.equal(scheduled[0]!.at, NOW + BACKOFF_MS[0]);
+  // a call before the wait is over changes nothing; Vyre's scheduler is the only caller
+  assert.deepEqual(await retryNow(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), { outcome: "skipped" });
+  assert.equal(sent.length, 0);
   // a second soft-bounce event while one retry waits does not add another
   await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft", address: "pat@acme.test", reason: "Mailbox full" }));
   assert.equal(scheduled.length, 1);
 
   const again = { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 };
-  const first = await retry(h.ctx, again);
+  const first = await retry(h, again);
   assert.deepEqual(contractErrors("mail.delivery.retry", "out", first), []);
   assert.deepEqual(first, { outcome: "sent", messageId: "eml_retry1" });
-  assert.deepEqual(await retry(h.ctx, again), { outcome: "skipped" }); // the scheduler delivered the call twice
+  assert.deepEqual(await retry(h, again), { outcome: "skipped" }); // the scheduler delivered the call twice
   assert.equal(sent.length, 1);
   assert.deepEqual(sent[0]!.to, [{ address: "pat@acme.test" }]); // kim is not mailed again
   assert.equal(sent[0]!.idempotencyKey, "retry:eml_m1:pat@acme.test:1");
@@ -127,7 +137,7 @@ test("a retry that delivers makes the message delivered when it went to one pers
   const { h } = setup();
   seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
   await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft", reason: "Mailbox full" }));
-  const r = await retry(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 });
+  const r = await retry(h, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 });
   seedSent(h, { id: String(r.messageId), mailboxId: "mbx_maya", providerId: "re_2" });
   await statusUpdate(h.ctx, event("re_2", "delivered"));
   assert.equal(status(h, "eml_m1"), "delivered");
@@ -141,15 +151,15 @@ test("three soft bounces in a row use the tries up: the message is bounced once,
   let provider = "re_1";
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     await statusUpdate(h.ctx, event(provider, "bounced", { kind: "soft", reason: "Mailbox full" }));
-    assert.equal(scheduled.length, attempt);
-    assert.equal(scheduled[attempt - 1]!.at, h.ctx.now() + BACKOFF_MS[attempt - 1]!);
-    const r = await retry(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt });
+    assert.equal(planned(scheduled), attempt);
+    assert.equal(planOf(scheduled, attempt).at, h.ctx.now() + BACKOFF_MS[attempt - 1]!);
+    const r = await retry(h, { messageId: "eml_m1", address: "pat@acme.test", attempt });
     assert.equal(r.outcome, "sent");
     provider = `re_c${attempt}`;
     seedSent(h, { id: String(r.messageId), mailboxId: "mbx_maya", providerId: provider });
   }
   await statusUpdate(h.ctx, event(provider, "bounced", { kind: "soft", reason: "Mailbox full" }));
-  assert.equal(scheduled.length, MAX_RETRIES); // no fourth retry
+  assert.equal(planned(scheduled), MAX_RETRIES); // no fourth retry
   assert.equal(status(h, "eml_m1"), "bounced");
   assert.equal(h.named("message.bounced").filter((e) => e.payload.messageId === "eml_m1").length, 1);
   const out = await trail(h.ctx, { messageId: "eml_m1" });
@@ -163,14 +173,14 @@ test("a retry is skipped when the message was delivered meanwhile, and stops at 
   seedSent(a.h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
   await statusUpdate(a.h.ctx, event("re_1", "bounced", { kind: "soft" }));
   await statusUpdate(a.h.ctx, event("re_1", "delivered")); // the provider's own retry got through
-  assert.deepEqual(await retry(a.h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), { outcome: "skipped" });
+  assert.deepEqual(await retry(a.h, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), { outcome: "skipped" });
   assert.equal(a.sent.length, 0);
 
   const b = setup();
   seedSent(b.h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
   await statusUpdate(b.h.ctx, event("re_1", "bounced", { kind: "soft" }));
   script(b.h, { "contacts.suppression.check": () => ({ suppressed: [{ address: "pat@acme.test", reason: "unsubscribed" }] }) });
-  assert.deepEqual(await retry(b.h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), { outcome: "gave_up" });
+  assert.deepEqual(await retry(b.h, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), { outcome: "gave_up" });
   assert.equal(b.sent.length, 0);
 });
 
@@ -183,10 +193,10 @@ test("when the retry send fails the next try is scheduled, and the last failure 
     },
   });
   await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft", reason: "Mailbox full" }));
-  assert.deepEqual(await retry(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), { outcome: "rescheduled" });
-  assert.deepEqual(scheduled[1]!.input, { messageId: "eml_m1", address: "pat@acme.test", attempt: 2 });
-  assert.deepEqual(await retry(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 2 }), { outcome: "rescheduled" });
-  assert.deepEqual(await retry(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 3 }), { outcome: "gave_up" });
+  assert.deepEqual(await retry(h, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), { outcome: "rescheduled" });
+  assert.deepEqual(planOf(scheduled, 2).input, { messageId: "eml_m1", address: "pat@acme.test", attempt: 2 });
+  assert.deepEqual(await retry(h, { messageId: "eml_m1", address: "pat@acme.test", attempt: 2 }), { outcome: "rescheduled" });
+  assert.deepEqual(await retry(h, { messageId: "eml_m1", address: "pat@acme.test", attempt: 3 }), { outcome: "gave_up" });
   assert.equal(status(h, "eml_m1"), "bounced");
   assert.equal(h.named("message.bounced").length, 1);
 });
@@ -206,6 +216,78 @@ test("trail refuses a bad id and a message the caller may not see answers as mis
   seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
   h.denied.add("mbx_maya");
   await assert.rejects(trail(h.ctx, { messageId: "eml_m1" }), (e) => codeOf(e) === "validation.not_found");
-  await assert.rejects(retry(h.ctx, { messageId: "eml_m1", address: "", attempt: 1 }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(retry(h.ctx, { messageId: "eml_m1", address: "a@b.test", attempt: 9 }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(retry(h, { messageId: "eml_m1", address: "", attempt: 1 }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(retry(h, { messageId: "eml_m1", address: "a@b.test", attempt: 9 }), (e) => codeOf(e) === "validation.bad_input");
+});
+
+test("a person or an agent holding the message id cannot run a retry", async () => {
+  const { h } = setup();
+  seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
+  await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft" }));
+  for (const kind of ["person", "agent"] as const) {
+    const other = { ...h.ctx, principal: { kind, id: "usr_x" } };
+    h.advance(86_400_000);
+    await assert.rejects(retryNow(other, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), (e) => codeOf(e) === "permission.no_grant");
+  }
+  assert.equal(status(h, "eml_m1"), "sent");
+});
+
+test("a hard bounce or a complaint on a retry reaches the message the person sent, once, and closes the retry", async () => {
+  for (const [ev, expect, emitted] of [["bounced", "bounced", "message.bounced"], ["complained", "complained", "message.complained"]] as const) {
+    const { h } = setup();
+    seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
+    await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft" }));
+    const r = await retry(h, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 });
+    seedSent(h, { id: String(r.messageId), mailboxId: "mbx_maya", providerId: "re_2" });
+    await statusUpdate(h.ctx, event("re_2", ev, ev === "bounced" ? { kind: "hard", reason: "No such user" } : {}));
+    assert.equal(status(h, "eml_m1"), expect);
+    assert.equal(h.named(emitted).filter((e) => e.payload.messageId === "eml_m1").length, 1);
+    const out = await trail(h.ctx, { messageId: "eml_m1" });
+    assert.equal(out.state, expect);
+    assert.equal(out.retry, undefined);
+    assert.equal(h.rows(`SELECT state FROM mail_delivery_retry`)[0]!.state, "gave_up");
+  }
+});
+
+test("a retry resends the same message: its attachments and its place in the thread; one it cannot rebuild ends as bounced", async () => {
+  const { h, sent } = setup();
+  seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
+  h.ctx.db.run(`UPDATE mail_message SET attachments = ? WHERE id = ?`, JSON.stringify([{ attachmentId: "att_1", name: "plan.pdf", mime: "application/pdf", size: 10, fileId: "fil_plan0001" }]), "eml_m1");
+  await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft", reason: "Mailbox full" }));
+  await retry(h, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 });
+  assert.deepEqual(sent[0]!.attachments, ["fil_plan0001"]);
+  assert.equal(sent[0]!.subject, "Hello");
+
+  const blob = setup();
+  seedSent(blob.h, { id: "eml_m2", mailboxId: "mbx_maya", providerId: "re_9" });
+  blob.h.ctx.db.run(`UPDATE mail_message SET attachments = ? WHERE id = ?`, JSON.stringify([{ attachmentId: "att_1", name: "plan.pdf", mime: "application/pdf", size: 10, blobId: "blb_x" }]), "eml_m2");
+  await statusUpdate(blob.h.ctx, event("re_9", "bounced", { kind: "soft" }));
+  assert.deepEqual(await retry(blob.h, { messageId: "eml_m2", address: "pat@acme.test", attempt: 1 }), { outcome: "gave_up" });
+  assert.equal(blob.sent.length, 0);
+  assert.equal(status(blob.h, "eml_m2"), "bounced");
+});
+
+test("a retry that died after its claim is taken up again once, keyed so the provider is never asked twice", async () => {
+  const { h, sent } = setup();
+  seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
+  await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft" }));
+  // the process died after the claim: the row says sending, with the claim time
+  h.ctx.db.run(`UPDATE mail_delivery_retry SET state = ?, attempts = ?, "nextAt" = ?`, "sending", 1, h.ctx.now());
+  assert.equal((await trail(h.ctx, { messageId: "eml_m1" })).state, "retrying"); // never a silent stuck row
+  assert.deepEqual(await retryNow(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), { outcome: "skipped" }); // too soon
+  h.advance(CLAIM_STALE_MS + 1);
+  assert.equal((await retryNow(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 })).outcome, "sent");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.idempotencyKey, "retry:eml_m1:pat@acme.test:1");
+  assert.deepEqual(await retryNow(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), { outcome: "skipped" });
+});
+
+test("two calls for the same attempt at once: only one sends", async () => {
+  const { h, sent } = setup();
+  seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
+  await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft" }));
+  h.advance(86_400_000);
+  const both = await Promise.all([1, 2].map(() => retryNow(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 })));
+  assert.deepEqual(both.map((b) => b.outcome).sort(), ["sent", "skipped"]);
+  assert.equal(sent.length, 1);
 });

@@ -11,7 +11,7 @@
 import { bad, first, isId, missing, num, readParties, rowsOf, str, strOrNull } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
 import { ensureAll } from "./common.ts";
-import { childDelivered, ensureDelivery, giveUp, planRetry, recordTrail, rootOf } from "./delivery.ts";
+import { childDelivered, childEnded, ensureDelivery, giveUp, planRetry, recordTrail, rootOf } from "./delivery.ts";
 import type { TrailKind } from "./delivery.ts";
 
 // ---- mail.health
@@ -186,6 +186,8 @@ export async function statusUpdate(
           if (root !== messageId) {
             const rootMsg = first(ctx.db.all(`SELECT * FROM mail_message WHERE id = ?`, root));
             if (rootMsg) await giveUp(ctx, rootMsg, address, input.reason ?? FALLBACK_REASON);
+            setStatus(ctx, msg, "bounced"); // the child ends quietly: the message the person sent already announced the bounce
+            break;
           }
         }
         setStatus(ctx, msg, "bounced");
@@ -224,6 +226,12 @@ export async function statusUpdate(
       ctx.emit("message.clicked", subject, payload);
       break;
     }
+  }
+  // a retry child that ended for good ends the message the person sent too, and closes its retry
+  if (root !== messageId && address) {
+    if (hardBounce) childEnded(ctx, root, address, "bounced", input.reason);
+    else if (complaint) childEnded(ctx, root, address, "complained", input.reason);
+    else if (input.status === "failed") childEnded(ctx, root, address, "failed", input.reason);
   }
   ctx.db.run(
     `INSERT OR IGNORE INTO mail_status_log ("eventKey", "messageId", suppressed, "appliedAt") VALUES (?, ?, ?, ?)`,

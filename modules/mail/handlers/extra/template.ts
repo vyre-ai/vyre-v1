@@ -7,14 +7,14 @@
 import { fail } from "../../../../host/src/routes/errors.ts";
 import { findRecord } from "../../../../lib/record-type.ts";
 import { fillTokens, tokensIn } from "../../../../lib/merge-tokens.ts";
-import { bad, first, missing, newId, num, rowsOf, statements, str, strOrNull } from "../../projections.ts";
+import { bad, can, first, missing, newId, num, rowsOf, statements, str, strOrNull } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ensureAll } from "./common.ts";
 import { BUILTINS } from "./template-builtins.ts";
 
-const SQL = readFileSync(fileURLToPath(new URL("../../migrations/0008_templates.sql", import.meta.url)), "utf8");
+const SQL = readFileSync(fileURLToPath(new URL("../../migrations/0011_templates.sql", import.meta.url)), "utf8");
 const ready = new WeakSet<object>();
 
 export function ensureTemplates(ctx: Pick<MailCtx, "db">): void {
@@ -55,6 +55,12 @@ const keyOf = (ctx: MailCtx, v: unknown): string => {
 const documentOf = (ctx: MailCtx, v: unknown): string => {
   if (typeof v !== "string" || !FILE.test(v)) bad(ctx, "Document id is not valid.");
   return v;
+};
+/** A document the caller may not open answers as one that is not there; its own wording is not read through the template calls. */
+const readableDocument = (ctx: MailCtx, v: unknown): string => {
+  const id = documentOf(ctx, v);
+  if (!can(ctx, "view", { type: "file", id })) return missing(ctx, "That document does not exist.");
+  return id;
 };
 
 interface Body {
@@ -145,7 +151,7 @@ export async function list(ctx: MailCtx): Promise<{
 
 export async function get(ctx: MailCtx, input: { key: string; documentId?: string }): Promise<{ template: TemplateOut }> {
   const key = keyOf(ctx, input.key);
-  const documentId = input.documentId === undefined ? undefined : documentOf(ctx, input.documentId);
+  const documentId = input.documentId === undefined ? undefined : readableDocument(ctx, input.documentId);
   const t = resolve(ctx, key, documentId);
   if (!t) return missing(ctx, "There is no template with that key.");
   return { template: t };
@@ -250,7 +256,7 @@ export interface Rendered {
 }
 
 function valuesOf(fields: unknown): Record<string, string> {
-  const out: Record<string, string> = {};
+  const out: Record<string, string> = Object.create(null) as Record<string, string>;
   if (typeof fields !== "object" || fields === null) return out;
   for (const [k, v] of Object.entries(fields as Record<string, unknown>))
     if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") out[k.toLowerCase()] = String(v);
@@ -268,18 +274,23 @@ export async function render(
   ensureTemplates(ctx);
   let source: Rendered["source"];
   let body: Body;
+  if (input.key !== undefined && (input.subject !== undefined || input.text !== undefined || input.html !== undefined))
+    bad(ctx, "Preview a saved template or a draft, not both.");
   if (input.key !== undefined) {
     const key = keyOf(ctx, input.key);
-    const documentId = input.documentId === undefined ? undefined : documentOf(ctx, input.documentId);
+    const documentId = input.documentId === undefined ? undefined : readableDocument(ctx, input.documentId);
     const t = resolve(ctx, key, documentId);
     if (!t) return missing(ctx, "There is no template with that key.");
     source = t.source;
     body = { subject: t.subject, text: t.text, ...(t.html ? { html: t.html } : {}) };
   } else {
+    // free text is a template being written: only people who may edit templates
+    const d = ctx.authorize({ perm: "comms.templates", level: "use" }, { type: "space", id: ctx.space });
+    if (d.effect !== "allow") throw fail("permission.no_grant", ctx.trace.traceId);
     source = "draft";
     body = bodyOf(ctx, input as unknown as Record<string, unknown>);
   }
-  const values: Record<string, string> = {};
+  const values: Record<string, string> = Object.create(null) as Record<string, string>;
   if (input.recordId !== undefined) {
     if (typeof input.recordId !== "string" || !/^rec_[a-z0-9]+$/.test(input.recordId)) bad(ctx, "Record id is not valid.");
     const found = await findRecord((cap, i) => ctx.call(cap, i), input.recordId);
@@ -288,6 +299,7 @@ export async function render(
   }
   if (input.vars !== undefined) {
     if (typeof input.vars !== "object" || input.vars === null || Array.isArray(input.vars)) bad(ctx, "Vars is a list of names and values.");
+    if (Object.keys(input.vars).length > 100) bad(ctx, "Too many values.");
     for (const [k, v] of Object.entries(input.vars)) {
       if (!/^[a-z][a-z0-9_]*$/i.test(k)) bad(ctx, `${k} is not a field name.`);
       if (v === null || v === undefined) continue;

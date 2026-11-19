@@ -25,9 +25,11 @@ import {
   strOrNull,
 } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
+import { fail } from "../../../../host/src/routes/errors.ts";
+import { readAttachments } from "./messages.ts";
 import { ensureAll } from "./common.ts";
 
-const SQL = readFileSync(fileURLToPath(new URL("../../migrations/0007_delivery_trail.sql", import.meta.url)), "utf8");
+const SQL = readFileSync(fileURLToPath(new URL("../../migrations/0010_delivery_trail.sql", import.meta.url)), "utf8");
 const ready = new WeakSet<object>();
 
 /** Make sure the trail and retry tables exist (one cheap probe per call after the first). */
@@ -145,7 +147,7 @@ export async function trail(ctx: MailCtx, input: { messageId: string }): Promise
     events.unshift({ kind: "sent", at: sentAt, label: WORDS.sent });
 
   const retries = rowsOf(ctx.db.all(`SELECT * FROM mail_delivery_retry WHERE "messageId" = ?`, input.messageId));
-  const live = retries.find((r) => str(r, "state") === "pending");
+  const live = retries.find((r) => ["pending", "sending"].includes(str(r, "state")));
   const status = str(msg, "status");
   const state: TrailOut["state"] = live
     ? "retrying"
@@ -226,7 +228,7 @@ export async function planRetry(
     ctx.db.all(`SELECT * FROM mail_delivery_retry WHERE "messageId" = ? AND address = ?`, rootId, address),
   );
   const attempts = row ? num(row, "attempts") : 0;
-  if (row && str(row, "state") === "pending") return true; // one retry waits already; a second soft bounce event does not add another
+  if (row && (str(row, "state") === "pending" || str(row, "state") === "sending")) return true; // one retry waits already; a second soft bounce event does not add another
   if (attempts >= MAX_RETRIES) {
     markGaveUp(ctx, rootId, address, reason, at);
     return false;
@@ -304,9 +306,20 @@ export interface RetryIn {
   attempt: number;
 }
 
-/** The scheduled retry. Safe to call twice for the same attempt: only the first one sends. */
+/** How long a claimed attempt may stay unfinished before the recovery call takes it up again. */
+export const CLAIM_STALE_MS = 10 * 60_000;
+
+/** Only Vyre's own scheduler (a service or an actor) runs a retry; a person or an agent holding the message id cannot. */
+const isSystem = (ctx: MailCtx): boolean => ctx.principal.kind === "service" || ctx.principal.kind === "actor";
+
+/**
+ * The scheduled retry. Safe to call twice for the same attempt: only the first one sends.
+ * The attempt is claimed in the same step that checks it, before any await, so two calls cannot both win. A claimed attempt that never finished
+ * (the process died) is taken up by the recovery call scheduled with the claim; sending again is safe because the send is keyed by the attempt.
+ */
 export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: RetryOutcome; messageId?: string }> {
   ensureDelivery(ctx);
+  if (!isSystem(ctx)) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Retries are run by Vyre itself." });
   if (!isId("eml", input.messageId)) bad(ctx, "Message id is not valid.");
   if (typeof input.address !== "string" || input.address.trim() === "") bad(ctx, "Address is required.");
   if (!Number.isSafeInteger(input.attempt) || input.attempt < 1 || input.attempt > MAX_RETRIES)
@@ -315,12 +328,51 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
   const row = first(
     ctx.db.all(`SELECT * FROM mail_delivery_retry WHERE "messageId" = ? AND address = ?`, input.messageId, address),
   );
-  // already made, superseded, finished or never planned: nothing to send
-  if (!row || str(row, "state") !== "pending" || num(row, "attempts") + 1 !== input.attempt) return { outcome: "skipped" };
+  if (!row) return { outcome: "skipped" };
+  const state = str(row, "state");
+  const attempts = num(row, "attempts");
+  const now = ctx.now();
+  let recovering = false;
+  if (state === "pending" && attempts + 1 === input.attempt) {
+    // not due yet: nothing happens and the attempt stays waiting for its time
+    if (typeof row.nextAt === "number" && row.nextAt > now) return { outcome: "skipped" };
+    ctx.db.run(
+      `UPDATE mail_delivery_retry SET attempts = ?, state = ?, "nextAt" = ? WHERE "messageId" = ? AND address = ? AND state = ?`,
+      input.attempt,
+      "sending",
+      now,
+      input.messageId,
+      address,
+      "pending",
+    );
+    const check = first(
+      ctx.db.all(`SELECT state, attempts FROM mail_delivery_retry WHERE "messageId" = ? AND address = ?`, input.messageId, address),
+    );
+    if (!check || str(check, "state") !== "sending" || num(check, "attempts") !== input.attempt) return { outcome: "skipped" };
+  } else if (state === "sending" && attempts === input.attempt) {
+    // a claimed attempt that never finished: resume it once the claim is stale
+    const claimedAt = typeof row.nextAt === "number" ? row.nextAt : 0;
+    if (now - claimedAt < CLAIM_STALE_MS) return { outcome: "skipped" };
+    recovering = true;
+    ctx.db.run(`UPDATE mail_delivery_retry SET "nextAt" = ? WHERE "messageId" = ? AND address = ?`, now, input.messageId, address);
+  } else return { outcome: "skipped" };
+
+  // the recovery call: if this attempt dies before it ends, this wakes it
+  const scheduler = ctx as unknown as Scheduler;
+  if (!recovering && typeof scheduler.schedule === "function")
+    await scheduler.schedule(now + CLAIM_STALE_MS + 1_000, "mail.delivery.retry", {
+      messageId: input.messageId,
+      address,
+      attempt: input.attempt,
+    }).catch(() => undefined);
+
   const msg = first(
     ctx.db.all(`SELECT * FROM mail_message WHERE id = ? AND direction = ? AND deleted_at IS NULL`, input.messageId, "out"),
   );
-  if (!msg) return { outcome: "skipped" };
+  if (!msg) {
+    finish(ctx, input.messageId, address, "gave_up");
+    return { outcome: "skipped" };
+  }
   const status = str(msg, "status");
   if (status === "delivered" || status === "complained") {
     finish(ctx, input.messageId, address, "done");
@@ -342,28 +394,20 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
     return { outcome: "gave_up" };
   }
 
-  // claim the attempt before sending: a crash after this point cannot send the same attempt twice
-  ctx.db.run(
-    `UPDATE mail_delivery_retry SET attempts = ?, state = ?, "nextAt" = ? WHERE "messageId" = ? AND address = ? AND attempts = ?`,
-    input.attempt,
-    "sending",
-    null,
-    input.messageId,
-    address,
-    input.attempt - 1,
-  );
-  const body = first(ctx.db.all(`SELECT text, html FROM mail_body WHERE "messageId" = ?`, input.messageId));
-  const text = strOrNull(body, "text");
-  const html = strOrNull(body, "html");
+  // the same message again: its own subject, body, attachments and place in the thread; only the one address that bounced
+  const rebuilt = rebuild(ctx, msg);
+  if (typeof rebuilt === "string") {
+    await giveUp(ctx, msg, address, rebuilt);
+    return { outcome: "gave_up" };
+  }
   const key = `retry:${input.messageId}:${address}:${input.attempt}`;
   let childId: string | undefined;
+  let held = false;
   try {
     const sent = (await ctx.call("mail.send", {
       mailboxId: str(msg, "mailboxId"),
       to: [{ address }],
-      subject: str(msg, "subject"),
-      ...(text ? { text } : {}),
-      ...(html ? { html } : {}),
+      ...rebuilt,
       idempotencyKey: key,
     })) as { messageId?: string; status?: string };
     childId = sent.messageId;
@@ -371,6 +415,7 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
       finish(ctx, input.messageId, address, "gave_up");
       return { outcome: "gave_up" };
     }
+    held = sent.status === "held" || sent.status === "queued";
   } catch (e) {
     ctx.log.warn("mail.delivery.retry failed", { messageId: input.messageId, attempt: input.attempt });
     // the attempt counted; the next one waits longer, or the tries are used up and the message is bounced
@@ -389,34 +434,86 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
     return { outcome: "rescheduled" };
   }
   if (childId) {
-    ctx.db.run(
-      `INSERT OR IGNORE INTO mail_delivery_child ("childId", "rootId", address) VALUES (?, ?, ?)`,
-      childId,
-      input.messageId,
-      address,
-    );
-    ctx.db.run(
-      `UPDATE mail_delivery_retry SET "childId" = ? WHERE "messageId" = ? AND address = ?`,
-      childId,
-      input.messageId,
-      address,
-    );
+    ctx.db.run(`INSERT OR IGNORE INTO mail_delivery_child ("childId", "rootId", address) VALUES (?, ?, ?)`, childId, input.messageId, address);
+    ctx.db.run(`UPDATE mail_delivery_retry SET "childId" = ? WHERE "messageId" = ? AND address = ?`, childId, input.messageId, address);
   }
   recordTrail(
     ctx,
     input.messageId,
-    { kind: "retried", at: ctx.now(), address, detail: `Try ${input.attempt} of ${MAX_RETRIES}` },
-    `retried|${input.messageId}|${address}|${input.attempt}`,
+    {
+      kind: held ? "held" : "retried",
+      at: ctx.now(),
+      address,
+      detail: held ? `Try ${input.attempt} of ${MAX_RETRIES} is waiting to leave` : `Try ${input.attempt} of ${MAX_RETRIES}`,
+    },
+    `${held ? "held" : "retried"}|${input.messageId}|${address}|${input.attempt}`,
   );
-  // 'sending' stays until the child reports: a soft bounce of the child comes back through planRetry
+  // 'sending' ends here: the child's own events now decide what happens next
   ctx.db.run(
-    `UPDATE mail_delivery_retry SET state = ? WHERE "messageId" = ? AND address = ? AND state = ?`,
+    `UPDATE mail_delivery_retry SET state = ?, "nextAt" = ? WHERE "messageId" = ? AND address = ? AND state = ?`,
     "waiting",
+    null,
     input.messageId,
     address,
     "sending",
   );
   return { outcome: "sent", ...(childId ? { messageId: childId } : {}) };
+}
+
+/**
+ * What mail.send needs to send a stored message again: subject, text, html, attachments, and the message it answered. A string means it cannot be rebuilt
+ * (no body, or an attachment that is not a Vyre file) and says why.
+ */
+function rebuild(ctx: MailCtx, msg: Row): Record<string, unknown> | string {
+  const id = str(msg, "id");
+  const body = first(ctx.db.all(`SELECT text, html, headers FROM mail_body WHERE "messageId" = ?`, id));
+  const text = strOrNull(body, "text");
+  const html = strOrNull(body, "html");
+  if (!text && !html) return "The message could not be sent again because its body is not kept.";
+  const files: string[] = [];
+  for (const a of readAttachments(str(msg, "attachments"))) {
+    if (!a.fileId) return "The message could not be sent again because an attachment is not kept.";
+    files.push(a.fileId);
+  }
+  const out: Record<string, unknown> = { subject: str(msg, "subject"), ...(text ? { text } : {}), ...(html ? { html } : {}) };
+  if (files.length) out.attachments = files;
+  try {
+    const headers = JSON.parse(strOrNull(body, "headers") ?? "{}") as Record<string, unknown>;
+    const parentRfc = String(headers["In-Reply-To"] ?? headers["in-reply-to"] ?? "").trim().toLowerCase();
+    if (parentRfc) {
+      const parent = first(ctx.db.all(`SELECT "messageId" FROM mail_rfc WHERE "rfcMessageId" = ?`, parentRfc));
+      if (parent) out.replyToMessageId = str(parent, "messageId");
+    }
+  } catch {
+    /* no readable headers: sent without a thread, which is better than not sent */
+  }
+  return out;
+}
+
+/** A retry child ended for good (hard bounce, complaint, failure): the message the person sent ends the same way, and its retry closes. */
+export function childEnded(
+  ctx: MailCtx,
+  rootId: string,
+  address: string,
+  status: "bounced" | "complained" | "failed",
+  reason: string | undefined,
+): void {
+  finish(ctx, rootId, address, "gave_up");
+  const root = first(ctx.db.all(`SELECT * FROM mail_message WHERE id = ?`, rootId));
+  if (!root) return;
+  const current = str(root, "status");
+  if (["bounced", "complained", "failed"].includes(current) && !(status === "complained" && current !== "complained")) return;
+  ctx.db.run(
+    `UPDATE mail_message SET status = ?, version = ?, updated_at = ? WHERE id = ?`,
+    status,
+    num(root, "version") + 1,
+    ctx.now(),
+    rootId,
+  );
+  const subject = `mail_message/${rootId}`;
+  if (status === "bounced") ctx.emit("message.bounced", subject, { messageId: rootId, channel: "email", address, kind: "hard", ...(reason ? { reason } : {}) });
+  else if (status === "complained") ctx.emit("message.complained", subject, { messageId: rootId, channel: "email", address });
+  else ctx.emit("message.failed", subject, { messageId: rootId, channel: "email", reason: reason || "The provider could not send the message." });
 }
 
 function finish(ctx: MailCtx, messageId: string, address: string, state: string): void {
