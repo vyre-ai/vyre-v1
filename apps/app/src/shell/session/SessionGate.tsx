@@ -1615,8 +1615,9 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       const found = await findSpaceQuietly(other.baseUrl).catch(() => OFFLINE);
       if (!still()) return true;
       if (found.kind !== "direct") continue;
-      // a reused address may be another Space now: the saved sign-in goes only to the Space it was made for
-      if ((await spaceIdAt(other.baseUrl)) !== stored.def.spaceId) continue;
+      // a guard against an accident, not a proof: a reused address that is another Space now names another id, so the saved sign-in is not sent there. (A Space id is public; /healthz of any server can say it.)
+      const named = await spaceIdAt(other.baseUrl);
+      if (named === null || named !== stored.def.spaceId || named !== other.def.spaceId) continue;
       if (!still()) return true;
       shellRetried.current.delete(other.baseUrl);
       await enterSaved(other);
