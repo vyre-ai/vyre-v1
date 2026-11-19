@@ -82,6 +82,10 @@ export function ReportHost({
       off = true;
     };
   }, [call, mayReadPolicy]);
+  // The session opened, or the connection came back: what was queued while there was no session goes now, oldest first (it was queued, never sent, and nothing else ever sent it).
+  useEffect(() => {
+    if (call) void controller.reconnect();
+  }, [call, controller]);
   useEffect(
     () =>
       installReport(controller, {
@@ -97,7 +101,10 @@ export function ReportHost({
       addEventListener?: (t: string, f: () => void) => void;
       removeEventListener?: (t: string, f: () => void) => void;
     };
-    const up = (): void => setOnline(true),
+    const up = (): void => {
+        setOnline(true);
+        if (callRef.current) void controller.reconnect();
+      },
       down = (): void => setOnline(false);
     g.addEventListener?.("online", up);
     g.addEventListener?.("offline", down);
@@ -105,6 +112,6 @@ export function ReportHost({
       g.removeEventListener?.("online", up);
       g.removeEventListener?.("offline", down);
     };
-  }, []);
+  }, [controller]);
   return <ReportSheet controller={controller} online={online && call !== null} />;
 }

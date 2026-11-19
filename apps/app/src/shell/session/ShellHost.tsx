@@ -45,6 +45,7 @@ import { readUrlIntoHub } from "./url.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
 import { OnboardingHost } from "../../onboarding/OnboardingHost.tsx";
+import { revokeToken } from "./revoke-token.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { readStored, verifyStoredSession, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
@@ -651,7 +652,9 @@ export function ShellHost({
     forgetKey(stored.token);
     void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
     void unlinkComputer(stored);
-    void session?.call("identity.sign_out", {}).catch(() => undefined);
+    // the session may not have opened yet (the shell draws first): the sign-in is revoked with the stored token then
+    if (session) void session.call("identity.sign_out", {}).catch(() => undefined);
+    else void revokeToken(stored);
     onSignedOut("manual");
   };
   signOutRef.current = signOut;
