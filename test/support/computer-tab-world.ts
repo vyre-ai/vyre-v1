@@ -103,15 +103,23 @@ export async function world(
     await w.owner.ok("terminal.open", { host: "agent_computer", agentId, idempotencyKey: "walk-term-1" });
   const me = await seat(s, w.owner, "Owner");
   const guard = guardCrashes(me.page);
-  const computerTab = async (): Promise<void> => {
-    await open(me, s, "/chat");
-    await me.page.getByTestId("chats-place").waitFor({ timeout: 20_000 });
-    await me.page.getByText("Desk work", { exact: true }).first().click();
-    await me.page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
+  const computerTabOf = async (who: typeof me): Promise<void> => {
+    await open(who, s, "/chat");
+    await who.page.getByTestId("chats-place").waitFor({ timeout: 20_000 });
+    await who.page.getByText("Desk work", { exact: true }).first().click();
+    await who.page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
     // the chat frame of 15 Nov: the chat's right pane has no agent header and may already be on its Computer tab
-    if ((await me.page.getByTestId("chats-right-pane").count()) === 0) await me.page.getByTestId("pane-button").click();
-    await me.page.getByTestId("chats-right-pane").waitFor({ timeout: 20_000 });
-    await me.page.getByTestId("tab-computer").or(me.page.getByTestId("tab-computer-selected")).first().click();
+    if ((await who.page.getByTestId("chats-right-pane").count()) === 0)
+      await who.page.getByTestId("pane-button").click();
+    await who.page.getByTestId("chats-right-pane").waitFor({ timeout: 20_000 });
+    await who.page.getByTestId("tab-computer").or(who.page.getByTestId("tab-computer-selected")).first().click();
+  };
+  const computerTab = (): Promise<void> => computerTabOf(me);
+  /** The same person on a second device (another browser window), on the Computer tab: two watchers of one browser. */
+  const watcher = async (): Promise<typeof me> => {
+    const other = await seat(s, w.owner, "Owner");
+    await computerTabOf(other);
+    return other;
   };
   const close = async (): Promise<void> => {
     if (o.realWorkspace === true) {
@@ -148,5 +156,5 @@ export async function world(
     if (o.tmux === true) await stopRealTmux();
     await s.close();
   };
-  return { s, w, me, guard, agentId, threadId, browserd, real, computerTab, close };
+  return { s, w, me, guard, agentId, threadId, browserd, real, computerTab, watcher, close };
 }

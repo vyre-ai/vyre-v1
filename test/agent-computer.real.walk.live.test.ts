@@ -170,7 +170,7 @@ test(
         if (/\/stream/.test(r.url())) streams.push(`FAILED ${r.failure()?.errorText} ${r.url().slice(0, 140)}`);
       });
       await still.click();
-      await page.getByTestId("browser-popup").waitFor({ timeout: 15_000 });
+      await page.getByTestId("desk").waitFor({ timeout: 15_000 });
       await page.getByTestId("browser-live-view-image").waitFor({ timeout: 30_000 });
       // the live view has its first frame: an image that has loaded, or a canvas that has been sized for the page
       const frame = (): Promise<{ tag?: string; w?: number; h?: number; nat?: number; bg?: boolean }> =>
@@ -193,7 +193,7 @@ test(
       }
       assert.ok(
         f.tag === "CANVAS" ? f.w !== 300 : (f.nat ?? 0) > 1 || f.bg === true,
-        `the live view drew no frame: ${JSON.stringify(f)} ${JSON.stringify(k.me.logs.slice(-6))} ${JSON.stringify(streams)} ${await page.getByTestId("browser-popup").innerText()}`,
+        `the live view drew no frame: ${JSON.stringify(f)} ${JSON.stringify(k.me.logs.slice(-6))} ${JSON.stringify(streams)} ${await page.getByTestId("desk").innerText()}`,
       );
       stages.push(`watching ${await viewers()}`);
       await shoot(page, DIR, "browser-live-view");
@@ -205,8 +205,8 @@ test(
       await page.getByTestId("browser-take").waitFor({ timeout: 20_000 });
       await page.waitForTimeout(1500);
       stages.push(`given back ${await viewers()}`);
-      await page.getByTestId("browser-popup-close").click();
-      await page.getByTestId("browser-popup").waitFor({ state: "detached", timeout: 10_000 });
+      await page.getByTestId("desk-close").click();
+      await page.getByTestId("desk").waitFor({ state: "detached", timeout: 10_000 });
       // asleep again: the pane says so, with when it was last seen. Closing the live view lets go of its stream: nobody is watching, so the browser can sleep.
       const v0 = Date.now();
       while ((await viewers()) > 0 && Date.now() - v0 < 8000) await page.waitForTimeout(250);
@@ -227,7 +227,7 @@ test(
       await shoot(page, DIR, "browser-asleep-last-seen");
       // woken from the tab: pressing the sleeping picture opens the sheet, which starts the browser and shows it live
       await page.getByTestId("browser-picture").click();
-      await page.getByTestId("browser-popup").waitFor({ timeout: 15_000 });
+      await page.getByTestId("desk").waitFor({ timeout: 15_000 });
       let g = await frame();
       const wk0 = Date.now();
       while (!(g.tag === "CANVAS" ? g.w !== 300 : (g.nat ?? 0) > 1 || g.bg === true) && Date.now() - wk0 < 30_000) {
@@ -239,8 +239,8 @@ test(
         `pressing the sleeping browser did not wake it to a live view: ${JSON.stringify(g)}`,
       );
       await shoot(page, DIR, "browser-woken-from-the-tab");
-      await page.getByTestId("browser-popup-close").click();
-      await page.getByTestId("browser-popup").waitFor({ state: "detached", timeout: 10_000 });
+      await page.getByTestId("desk-close").click();
+      await page.getByTestId("desk").waitFor({ state: "detached", timeout: 10_000 });
     } finally {
       await k.close();
     }

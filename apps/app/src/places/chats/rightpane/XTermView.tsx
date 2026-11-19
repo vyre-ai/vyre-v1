@@ -25,21 +25,38 @@ function ensureStyle(): void {
 const BASIC = ["#1f2430", "#e06c75", "#7fbf7a", "#d9b45a", "#6a9fe8", "#c07fe0", "#5fbfc0", "#c9cdd6"];
 const BRIGHT = ["#5c6370", "#ff8b94", "#9be39a", "#f2d27a", "#8cb8ff", "#dca0f5", "#82dcdc", "#ffffff"];
 
-function cssVar(name: string, fallback: string): string {
+/** A colour the page's own tokens give at `from`, as the browser resolves it (rgb): a token can be a chain of other tokens, which xterm cannot read. */
+function paint(prop: "color" | "backgroundColor", token: string, fallback: string, from?: Element | null): string {
   try {
-    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const host = from ?? document.body;
+    const probe = document.createElement("span");
+    probe.style.cssText = `position:absolute;visibility:hidden;${prop === "color" ? "color" : "background-color"}:var(${token}, ${fallback})`;
+    host.appendChild(probe);
+    const v = getComputedStyle(probe)[prop];
+    host.removeChild(probe);
     return v === "" ? fallback : v;
   } catch {
     return fallback;
   }
 }
 
-function themeNow(): Record<string, string> {
+function cssVar(name: string, fallback: string, from?: Element | null): string {
+  try {
+    const v = getComputedStyle(from ?? document.documentElement)
+      .getPropertyValue(name)
+      .trim();
+    return v === "" ? fallback : v;
+  } catch {
+    return fallback;
+  }
+}
+
+function themeNow(from?: Element | null): Record<string, string> {
   const t: Record<string, string> = {
-    foreground: cssVar("--ink", "#e6e8ee"),
-    background: cssVar("--sunk", "#14161c"),
-    cursor: cssVar("--accent", "#6a9fe8"),
-    cursorAccent: cssVar("--accent-ink", "#ffffff"),
+    foreground: paint("color", "--ink", "#e6e8ee", from),
+    background: paint("backgroundColor", "--sunk", "#14161c", from),
+    cursor: paint("backgroundColor", "--accent", "#6a9fe8", from),
+    cursorAccent: paint("color", "--accent-ink", "#ffffff", from),
     selectionBackground: "rgba(106,159,232,0.35)",
   };
   const names = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
@@ -55,19 +72,24 @@ export function XTermView({
   shot,
   onReady,
   onFail,
+  onPaste,
 }: {
   shot: XShot;
   onReady?: () => void;
   onFail?: () => void;
+  onPaste?: (text: string) => void;
 }): ReactElement {
   const host = useRef<HTMLElement | null>(null);
   const term = useRef<Terminal | null>(null);
   const told = useRef(false);
   const last = useRef("");
+  const lastTheme = useRef("");
   const readyRef = useRef(onReady);
   readyRef.current = onReady;
   const failRef = useRef(onFail);
   failRef.current = onFail;
+  const pasteRef = useRef(onPaste);
+  pasteRef.current = onPaste;
   useEffect(() => {
     ensureStyle();
     let t: Terminal;
@@ -84,7 +106,7 @@ export function XTermView({
         fontSize: 13,
         lineHeight: 1.35,
         allowProposedApi: false,
-        theme: themeNow(),
+        theme: themeNow(host.current),
       });
       if (host.current) t.open(host.current);
     } catch {
@@ -92,7 +114,19 @@ export function XTermView({
       return;
     }
     term.current = t;
+    // xterm takes no key itself: every key goes to the screen's owner (TmuxScreen), as on the plain screen
+    t.attachCustomKeyEventHandler(() => false);
+    // a paste into xterm's own hidden textarea is taken here, before xterm sees it (it would stop it from reaching the screen's owner): the text goes to the owner, the one place that sends it
+    const el = host.current;
+    const onPasteEvent = (ev: Event): void => {
+      const text = (ev as ClipboardEvent).clipboardData?.getData("text") ?? "";
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (text !== "") pasteRef.current?.(text);
+    };
+    el?.addEventListener("paste", onPasteEvent, true);
     return () => {
+      el?.removeEventListener("paste", onPasteEvent, true);
       term.current = null;
       t.dispose();
     };
@@ -102,6 +136,13 @@ export function XTermView({
   useEffect(() => {
     const t = term.current;
     if (!t) return;
+    // a change of light or dark mode or of skin shows on the next frame
+    const theme = themeNow(host.current);
+    const themeKey = JSON.stringify(theme);
+    if (themeKey !== lastTheme.current) {
+      lastTheme.current = themeKey;
+      t.options.theme = theme;
+    }
     const lines = shot.text.split("\n").length;
     const frame = frameOf(shot);
     const key = `${shot.cols}x${lines}|${frame}`;

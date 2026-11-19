@@ -117,3 +117,102 @@ test(
     }
   },
 );
+
+test(
+  "the desk through a network drop and with two watchers: nothing breaks, nothing is lost, the other window follows",
+  { timeout: 300_000 },
+  async (t) => {
+    const k = await world(t);
+    if (!k) return;
+    try {
+      const page = k.me.page;
+      await k.computerTab();
+      await page.getByTestId("browser-picture").click();
+      await page.getByTestId("desk-live").waitFor({ timeout: 15_000 });
+      // the network drops under the open desk: the desk stays, the page does not crash, and when the network is back the live picture and the controls work again
+      await page.context().setOffline(true);
+      await page.waitForTimeout(3_000);
+      assert.equal(await page.getByTestId("desk").count(), 1, "the desk stays while offline");
+      await page.getByTestId("desk").getByText("Offline", { exact: true }).waitFor({ timeout: 5_000 });
+      await shoot(page, DIR, "offline");
+      await page.context().setOffline(false);
+      await page.getByTestId("desk-live").waitFor({ timeout: 30_000 });
+      await page.getByTestId("browser-pause").click();
+      await page.getByTestId("browser-resume").waitFor({ timeout: 30_000 });
+      await page.getByTestId("browser-resume").click();
+      await page.getByTestId("browser-pause").waitFor({ timeout: 30_000 });
+      // a second window of the same person: it sees the pause the first made, and the first sees the resume the second makes
+      const b = await k.watcher();
+      await b.page.getByTestId("browser-picture").click();
+      await b.page.getByTestId("desk-live").waitFor({ timeout: 15_000 });
+      await page.getByTestId("browser-pause").click();
+      await page.getByTestId("browser-resume").waitFor({ timeout: 15_000 });
+      await b.page.getByTestId("browser-resume").waitFor({ timeout: 30_000 });
+      await shoot(b.page, DIR, "second-watcher-paused");
+      await b.page.getByTestId("browser-resume").click();
+      await b.page.getByTestId("browser-pause").waitFor({ timeout: 15_000 });
+      await page.getByTestId("browser-pause").waitFor({ timeout: 30_000 });
+      await k.guard.check();
+    } finally {
+      await k.close();
+    }
+  },
+);
+
+test(
+  "the desk's terminal room with a real terminal: the screen is drawn by xterm.js, what is typed shows, dark and light",
+  { timeout: 300_000 },
+  async (t) => {
+    const k = await world(t, { tmux: true });
+    if (!k) return;
+    try {
+      const page = k.me.page;
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await k.computerTab();
+      await page.getByTestId("browser-picture").click();
+      await page.getByTestId("desk").waitFor({ timeout: 15_000 });
+      await page.getByTestId("desk-room-term").click();
+      // the person's own terminal, in the desk's rail
+      await page.getByTestId("desk").getByText("Terminal 1", { exact: true }).click();
+      await page.getByTestId("terminal-popup").waitFor({ timeout: 20_000 });
+      await page.getByTestId("terminal-take").click();
+      await page.getByText("You have the keyboard").waitFor({ timeout: 10_000 });
+      await page.locator('[data-testid="terminal-screen"][data-renderer="xterm"]').waitFor({ timeout: 20_000 });
+      await page.keyboard.type('echo "hello from xterm"; ls --color=always /', { delay: 0 });
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(
+        () =>
+          /hello from xterm\n/.test(
+            (document.querySelector("[data-testid=terminal-screen]") as HTMLElement | null)?.innerText ?? "",
+          ),
+        undefined,
+        { timeout: 15_000 },
+      );
+      await shoot(page, DIR, "xterm");
+      // a paste into xterm's own hidden box reaches the terminal through the screen's owner (the one place that sends it), once
+      await page.evaluate(() => {
+        const ta = document.querySelector(".xterm-helper-textarea") as HTMLTextAreaElement | null;
+        if (!ta) throw new Error("no xterm textarea");
+        ta.focus();
+        const dt = new DataTransfer();
+        dt.setData("text", "echo pasted-once-ok\n");
+        ta.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+      });
+      await page.waitForFunction(
+        () =>
+          ((document.querySelector("[data-testid=terminal-screen]") as HTMLElement | null)?.innerText ?? "").split(
+            "pasted-once-ok",
+          ).length >= 3,
+        undefined,
+        { timeout: 15_000 },
+      );
+      const shown = await page.evaluate(
+        () => (document.querySelector("[data-testid=terminal-screen]") as HTMLElement).innerText,
+      );
+      assert.equal(shown.split("pasted-once-ok").length - 1, 2, "typed once: the line and its output, nothing twice");
+      await k.guard.check();
+    } finally {
+      await k.close();
+    }
+  },
+);

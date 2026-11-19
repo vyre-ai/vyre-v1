@@ -12,7 +12,7 @@ export interface XShot {
  */
 export function sgrOnly(line: string): string {
   const re =
-    /\x1b\[([0-9;:]*)m|\x1b\[[0-9;:?<=>! ]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[^[\]]?|[\x00-\x08\x0b-\x1a\x1c-\x1f\x7f]/g;
+    /\x1b\[([0-9;:]*)m|\x1b\[[0-9;:?<=>! ]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[^[\]]?|[\x00-\x08\x0b-\x1a\x1c-\x1f\x7f-\x9f]/g;
   return line.replace(re, (m, sgr: string | undefined) => (sgr !== undefined ? `\x1b[${sgr.replace(/:/g, ";")}m` : ""));
 }
 

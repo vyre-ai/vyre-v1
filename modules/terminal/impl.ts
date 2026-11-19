@@ -234,13 +234,20 @@ s=$1; line=$2; end=$3; rc=$4; scroll=$5; deadline=$6; cx=$7
 tmux send-keys -t "$s" -l -- "$line" || exit 90
 tmux send-keys -t "$s" Enter || exit 91
 printf '__VYRE_SENT__\n' >&2
+nl='
+'
 t0=$(date +%s); st=wait; n=0; cap=; rcv=
 while :; do
   n=$((n + 1))
   out=$(tmux capture-pane -p -J -t "$s" -S "-$scroll" \\; display-message -p -t "$s" "__VYRE_X__#{$rc}|#{$cx}")
   meta=\${out##*__VYRE_X__}; cap=\${out%__VYRE_X__*}
   rcv=\${meta%%|*}; cxv=\${meta#*|}
-  case $cap in *"$end:"[0-9]*) st=done; break;; esac
+  # the end mark counts only as a whole line of its own: a command that prints the mark text in the middle of a line, or with more after the digits, does not end the run
+  rest=\${nl}\${cap}; rest=\${rest#*"\${nl}$end:"}
+  if [ "$rest" != "\${nl}\${cap}" ]; then
+    num=\${rest%%"$nl"*}
+    case $num in ''|*[!0-9]*) ;; *) st=done; break;; esac
+  fi
   case $rcv in ''|*[!0-9]*) ;; *) st=done; break;; esac
   if [ -n "$cxv" ]; then st=cancel; break; fi
   if [ $n -gt 25 ]; then

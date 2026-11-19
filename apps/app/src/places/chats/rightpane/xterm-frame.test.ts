@@ -25,3 +25,9 @@ test("frameOf hides the cursor when tmux gives none, and a hostile line cannot m
   assert.ok(f.endsWith("\x1b[?25l"));
   assert.equal(f.split("\x1b[2J").length, 2);
 });
+
+test("sgrOnly strips the C1 controls too: xterm takes U+009B as CSI and U+009D as OSC", () => {
+  assert.equal(sgrOnly("a\u009b2Jb\u009d0;titlec\u0090d\u0085e"), "a2Jb0;titlecde");
+  assert.equal(sgrOnly("\u009b31mred"), "31mred");
+  assert.equal(sgrOnly("é ñ ü"), "é ñ ü", "ordinary accented letters stay");
+});

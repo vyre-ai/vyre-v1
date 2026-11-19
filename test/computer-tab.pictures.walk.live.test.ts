@@ -24,7 +24,7 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
     await shoot(page, DIR, "a-pane-lived-in");
     // the browser full screen: watching, in control
     await page.getByTestId("browser-picture").click();
-    await page.getByTestId("browser-popup").waitFor({ timeout: 10_000 });
+    await page.getByTestId("desk").waitFor({ timeout: 10_000 });
     await page.waitForTimeout(800);
     await shoot(page, DIR, "b-browser-watching");
     await page.getByTestId("browser-take").click();
@@ -33,7 +33,7 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
     await shoot(page, DIR, "c-browser-in-control");
     await page.getByTestId("browser-give").click();
     await page.getByTestId("browser-take").waitFor({ timeout: 20_000 });
-    await page.getByTestId("browser-popup-close").click();
+    await page.getByTestId("desk-close").click();
     // two more terminals, the agent's own and a helper's, so the rail and the groups show
     await k.w.owner.ok("terminal.open", {
       host: "agent_computer",
@@ -96,9 +96,9 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
     await page.waitForTimeout(500);
     await shoot(page, DIR, "e-pane-browser-asleep");
     await page.getByTestId("browser-picture").click();
-    await page.getByTestId("browser-popup").waitFor({ timeout: 10_000 });
+    await page.getByTestId("desk").waitFor({ timeout: 10_000 });
     await shoot(page, DIR, "f-browser-starting");
-    await page.getByTestId("browser-popup-close").click();
+    await page.getByTestId("desk-close").click();
     // phone width: the chat, then its pane's Computer tab, then both sheets
     await page.setViewportSize(SIZES.phone);
     await page.waitForTimeout(800);
@@ -114,10 +114,10 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
     await page.waitForTimeout(800);
     await shoot(page, DIR, "g-phone-pane");
     await page.getByTestId("browser-picture").click();
-    await page.getByTestId("browser-popup").waitFor({ timeout: 10_000 });
+    await page.getByTestId("desk").waitFor({ timeout: 10_000 });
     await page.waitForTimeout(500);
     await shoot(page, DIR, "h-phone-browser");
-    await page.getByTestId("browser-popup-close").click();
+    await page.getByTestId("desk-close").click();
     await page.locator(ROW).first().click();
     await page.getByTestId("terminal-popup").waitFor({ timeout: 20_000 });
     await page.getByTestId("terminal-screen").first().waitFor({ timeout: 20_000 });

@@ -4,7 +4,7 @@
 //
 // While you only watch: F full view, T take over, Esc one step down. While you hold the controls every key belongs to the page (the buttons are the way out), and closing hands the browser back, so a
 // closed desk never leaves the agent waiting.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
@@ -142,6 +142,27 @@ const typingIn = (t: unknown): boolean => {
   const tag = el?.tagName?.toUpperCase();
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable === true;
 };
+
+/** Whether this window has a network (the browser's own word), so the bar can say so instead of "Watching" over a picture that stopped. */
+function useWindowOnline(): boolean {
+  const g = globalThis as {
+    navigator?: { onLine?: boolean };
+    addEventListener?: (n: string, f: () => void) => void;
+    removeEventListener?: (n: string, f: () => void) => void;
+  };
+  return useSyncExternalStore(
+    (f) => {
+      g.addEventListener?.("online", f);
+      g.addEventListener?.("offline", f);
+      return () => {
+        g.removeEventListener?.("online", f);
+        g.removeEventListener?.("offline", f);
+      };
+    },
+    () => g.navigator?.onLine !== false,
+    () => true,
+  );
+}
 
 export function DeskHost(): ReactElement | null {
   const { state, session } = useDesk();
@@ -346,6 +367,7 @@ export function Desk({
   const e = edgesOf(mode, win);
   const head = browserHead(view);
   const bar = barOf(view, name, mine, Date.now() - t0.current);
+  const online = useWindowOnline();
   const live = view.state === "open" || (view.state === "takeover" && mine);
   return (
     <>
@@ -456,9 +478,13 @@ export function Desk({
                   ) : (
                     <>
                       <Text style={st.barBold} numberOfLines={1}>
-                        {bar.title}
+                        {online ? bar.title : "Offline"}
                       </Text>
-                      {bar.note ? (
+                      {!online ? (
+                        <Text style={st.barNote} numberOfLines={1}>
+                          The picture comes back when the connection does.
+                        </Text>
+                      ) : bar.note ? (
                         <Text style={st.barNote} numberOfLines={1}>
                           {bar.note}
                         </Text>

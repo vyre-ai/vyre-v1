@@ -492,12 +492,18 @@ export function TmuxScreen({
     e.stopPropagation();
     press(k);
   };
+  /** A paste (from the plain screen, or from xterm's own box): one write to the terminal, only for whoever holds the keyboard. */
+  const pasteText = (text: string): void => {
+    if (!keys && taking?.current !== true) return;
+    if (text === "") return;
+    press({ paste: text });
+  };
   const onPaste = (e: ClipboardEvent): void => {
     if (!keys && taking?.current !== true) return;
     const text = e.clipboardData?.getData("text") ?? "";
     if (text === "") return;
     e.preventDefault();
-    press({ paste: text });
+    pasteText(text);
   };
   return (
     <View testID="terminal-popup-screen-inner" style={st.fill}>
@@ -543,6 +549,7 @@ export function TmuxScreen({
                   shot: shot ?? NO_SCREEN,
                   onReady: () => setXReady(true),
                   onFail: () => setXt(null),
+                  onPaste: pasteText,
                 }),
               ),
             ]
