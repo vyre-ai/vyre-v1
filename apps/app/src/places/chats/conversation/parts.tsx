@@ -75,6 +75,8 @@ const PATHS = {
   remember: ["M4.500 2.500h7v11l-3.500-2.600-3.500 2.600z"],
   download: ["M8 2.500v8", "M4.500 7.500L8 11l3.500-3.500", "M3 13.500h10"],
   flag: ["M3.500 14V2.500", "M3.500 3h8l-1.500 3 1.500 3h-8"],
+  tiles: ["M2.500 3.500h4.500v9h-4.500z", "M9 3.500h4.500v9h-4.500z"],
+  rows: ["M3 4.500h10", "M3 8h10", "M3 11.500h10"],
 } as const;
 export type GlyphName = keyof typeof PATHS;
 

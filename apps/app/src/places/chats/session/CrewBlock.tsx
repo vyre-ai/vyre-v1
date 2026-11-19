@@ -2,7 +2,7 @@
 // word of status and a clock. A row opens in place to the helper's last three steps; its name opens the helper's pane. Same data and the same test ids as the crew strip (crew/strip.tsx), no rings and no boxes.
 import { createElement, useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
@@ -12,6 +12,8 @@ import type { HelperStep } from "../crew/pane.tsx";
 import { stripTone, faceSeed } from "../crew/model.ts";
 import type { CrewMember, CrewTotals } from "../crew/model.ts";
 import { useNow } from "../crew/strip.tsx";
+import { toRunView } from "../crew/run-view.ts";
+import { CrewTiles } from "./CrewTiles.tsx";
 import { durationWords } from "../../../../../../lib/duration.ts";
 import type { Call } from "../crew/status.ts";
 
@@ -207,7 +209,13 @@ export function CrewBlock({
   onStopAll,
   onOpenPane,
   onRetry,
+  view: viewProp = "auto",
+  width,
 }: {
+  /** The width of the column when the caller knows it (else this block measures itself). */
+  width?: number;
+  /** auto: side by side while two or more work and the column is wide, rows otherwise. */
+  view?: "auto" | "tiles" | "rows";
   members: readonly CrewMember[];
   totals: CrewTotals;
   call?: Call | undefined;
@@ -221,11 +229,25 @@ export function CrewBlock({
   const live = totals.working + totals.needsYou > 0;
   const now = useNow(live);
   const [reviewed, setReviewed] = useState(false);
+  const [picked, setPicked] = useState<"tiles" | "rows" | null>(null);
+  // the width of this block's own column; the window's until it has been measured (the pane beside the chat narrows it)
+  const winW = useWindowDimensions().width;
+  const [colW, setColW] = useState<number | null>(null);
+  const wide = (width ?? colW ?? winW) >= 600;
   if (members.length === 0) return null;
+  const auto = live && members.length >= 2 && wide ? "tiles" : "rows";
+  const want = picked ?? (viewProp === "auto" ? auto : viewProp);
+  const shown: "tiles" | "rows" = want === "tiles" && wide && members.length >= 2 ? "tiles" : "rows";
   if (web) injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-crew-block", CSS);
   const tone = stripTone(totals);
   return (
-    <View testID="crew-strip" accessibilityRole="summary" {...(web ? { dataSet: { tone } } : {})} style={st.block}>
+    <View
+      testID="crew-strip"
+      accessibilityRole="summary"
+      {...(web ? { dataSet: { tone } } : {})}
+      style={st.block}
+      onLayout={(e) => setColW(e.nativeEvent.layout.width)}
+    >
       <View style={st.head}>
         <Text style={st.headLead}>Crew</Text>
         <Text numberOfLines={1} testID="crew-strip-title" style={st.headMeta}>
@@ -259,6 +281,18 @@ export function CrewBlock({
             Merged
           </Text>
         ) : null}
+        {wide && members.length >= 2 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={shown === "tiles" ? "Show as rows" : "Show side by side"}
+            accessibilityState={{ selected: shown === "tiles" }}
+            testID="crew-strip-view"
+            onPress={() => setPicked(shown === "tiles" ? "rows" : "tiles")}
+            style={st.pane}
+          >
+            <Glyph name={shown === "tiles" ? "rows" : "tiles"} size={14} />
+          </Pressable>
+        ) : null}
         {live && onStopAll ? (
           <Pressable accessibilityRole="button" testID="crew-strip-stop-all" onPress={onStopAll}>
             <Text style={st.action}>Stop all</Text>
@@ -276,18 +310,38 @@ export function CrewBlock({
           </Pressable>
         ) : null}
       </View>
-      {/* ui-rows-lint: not a list (the rows of one crew block: a face, a name, what it was asked, a status and a clock, drawn together as the prototype t-session shows them) */}
-      {members.map((m) => (
-        <HelperRow
-          key={m.id}
-          m={m}
+      {shown === "tiles" ? (
+        <CrewTiles
+          runs={members.map(toRunView)}
           now={now}
-          call={call}
-          selected={selectedId === m.id}
-          onPeek={onPeek}
-          onRetry={onRetry}
+          selectedId={selectedId}
+          onPress={(id) => {
+            const m = members.find((x) => x.id === id);
+            if (m) onPeek(m);
+          }}
+          onRetry={
+            onRetry
+              ? (id) => {
+                  const m = members.find((x) => x.id === id);
+                  if (m) onRetry(m);
+                }
+              : undefined
+          }
         />
-      ))}
+      ) : null}
+      {/* ui-rows-lint: not a list (the rows of one crew block: a face, a name, what it was asked, a status and a clock, drawn together as the prototype t-session shows them) */}
+      {shown === "rows" &&
+        members.map((m) => (
+          <HelperRow
+            key={m.id}
+            m={m}
+            now={now}
+            call={call}
+            selected={selectedId === m.id}
+            onPeek={onPeek}
+            onRetry={onRetry}
+          />
+        ))}
     </View>
   );
 }

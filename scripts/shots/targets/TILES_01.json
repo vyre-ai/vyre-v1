@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "TILES_01-tiles",
+      "route": "/m/TILES_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='tiles-mount']",
+      "note": "Helpers side by side while they work: tiles three across with a live window, tokens, cost and clock; one waits for the person, one could not finish and offers Retry."
+    },
+    {
+      "id": "TILES_01-rows",
+      "route": "/m/TILES_01?view=rows",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='tiles-mount']",
+      "note": "The same crew as rows (the switch, or any column under 600 wide)."
+    }
+  ]
+}
