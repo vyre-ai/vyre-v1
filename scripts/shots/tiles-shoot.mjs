@@ -142,6 +142,35 @@ for (const t of targets)
       }
       await ctx.close();
     }
+// the needs-you tile in every skin: the amber ground comes from the skin's own warn colour, so each one shows it
+const ALL = [
+  "vyre-black",
+  "graphite",
+  "obsidian",
+  "charcoal",
+  "slate",
+  "ember",
+  "moss",
+  "dusk",
+  "vyre-light",
+  "paper",
+  "fog",
+  "linen",
+];
+for (const skin of ALL) {
+  const ctx = await browser.newContext({ viewport: SIZES.wide, deviceScaleFactor: 1, reducedMotion: "reduce" });
+  const page = await ctx.newPage();
+  await page.goto(routeUrl(real.origin, "/m/TILES_01", skin), { waitUntil: "load", timeout: 60000 });
+  await page.waitForSelector("[data-testid='crew-tile-sub_b-allow']", { timeout: 8000 }).catch(() => undefined);
+  await page.waitForTimeout(500);
+  const tile = page.locator("[data-testid='crew-tile-sub_b']");
+  if ((await tile.count()) > 0) await tile.screenshot({ path: path.join(out, `needs-${skin}.png`) });
+  report.push({
+    file: `needs-${skin}.png`,
+    shadow: (await tile.count()) > 0 ? await tile.evaluate((e) => getComputedStyle(e).boxShadow.slice(0, 60)) : null,
+  });
+  await ctx.close();
+}
 console.log(JSON.stringify(report, null, 1));
 await browser.close();
 real.close();

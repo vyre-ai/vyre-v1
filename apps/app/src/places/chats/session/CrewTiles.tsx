@@ -53,8 +53,9 @@ export function HelperTile({
       {...(web ? { dataSet: { state: r.state, kind: r.kind } } : {})}
       style={[
         st.tile,
-        r.state === "needs_you" && st.need,
-        selected && st.sel,
+        r.state === "needs_you" && !selected && st.need,
+        r.state === "needs_you" && selected && st.needSel,
+        r.state !== "needs_you" && selected && st.sel,
         web ? ({ animationDelay: `${index * 60}ms` } as object) : null,
       ]}
     >
@@ -94,7 +95,10 @@ export function HelperTile({
             {x}
           </Text>
         ))}
-        {r.state === "needs_you" && r.holdTaskId !== undefined && onDecide !== undefined && (may?.approve || may?.reject) ? (
+        {r.state === "needs_you" &&
+        r.holdTaskId !== undefined &&
+        onDecide !== undefined &&
+        (may?.approve || may?.reject) ? (
           decided === "approve" || decided === "reject" ? (
             <Text testID={`${id}-decided`} style={st.line}>
               {decided === "approve" ? "Allowed" : "Denied"}
@@ -128,12 +132,22 @@ export function HelperTile({
               ) : (
                 <View style={st.decideRow}>
                   {may?.approve ? (
-                    <Pressable accessibilityRole="button" testID={`${id}-allow`} onPress={() => onDecide(r.id, "approve")} style={st.allow}>
+                    <Pressable
+                      accessibilityRole="button"
+                      testID={`${id}-allow`}
+                      onPress={() => onDecide(r.id, "approve")}
+                      style={st.allow}
+                    >
                       <Text style={st.allowText}>Allow</Text>
                     </Pressable>
                   ) : null}
                   {may?.reject ? (
-                    <Pressable accessibilityRole="button" testID={`${id}-deny`} onPress={() => setAsking(true)} style={st.retry}>
+                    <Pressable
+                      accessibilityRole="button"
+                      testID={`${id}-deny`}
+                      onPress={() => setAsking(true)}
+                      style={st.retry}
+                    >
                       <Text style={st.retryText}>Deny</Text>
                     </Pressable>
                   ) : null}
@@ -223,7 +237,11 @@ const st = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "var(--raised)" as string,
   },
-  need: { backgroundColor: "var(--warn-wash, var(--sel))" as string },
+  // the warn colour of the skin at low alpha, laid over the tile (a colour mix is dropped as a background by the web layer, an inset shadow is not): the same in every skin and both modes
+  need: { boxShadow: "inset 0 0 0 600px color-mix(in srgb, var(--warn) 13%, transparent)" } as object,
+  needSel: {
+    boxShadow: "inset 0 0 0 600px color-mix(in srgb, var(--warn) 13%, transparent), inset 0 0 0 1.5px var(--accent)",
+  } as object,
   sel: { boxShadow: "inset 0 0 0 1.5px var(--accent)" } as object,
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
   av: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
@@ -238,7 +256,16 @@ const st = StyleSheet.create({
   lineFail: { color: "var(--ink)" as string },
   decide: { gap: 4 },
   decideRow: { flexDirection: "row", gap: 6, marginTop: 6 },
-  reason: { flex: 1, minWidth: 0, height: 26, paddingHorizontal: 8, borderRadius: 8, backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 12.5 },
+  reason: {
+    flex: 1,
+    minWidth: 0,
+    height: 26,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: "var(--field)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 12.5,
+  },
   allow: {
     height: 26,
     paddingHorizontal: 12,
