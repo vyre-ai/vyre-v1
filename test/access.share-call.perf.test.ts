@@ -28,7 +28,9 @@ test(
   "a share, an unshare and a change of a share on a Space of 20,000 records answer within the budget, and so does the first list after each and after a sync",
   { timeout: 300_000 },
   async () => {
-    const d = await boot(seededDir(), null);
+    const dir = seededDir();
+    const d = await boot(dir, null);
+    let stopped = false;
     try {
       await cap(d, "schema.apply", {
         ops: [
@@ -154,8 +156,26 @@ test(
           best[k] <= budgets[k],
           `${words[k]} took ${best[k]} ms in its best of 3 rounds (budget ${budgets[k]} ms)`,
         );
-    } finally {
+      // after a restart: the build the server makes by itself is waited for, then the first list is in the warm range
+      stopped = true;
       await d.stop();
+      const again = await boot(dir, null);
+      try {
+        await again.hooks!.runPeriodic("access.warm_lists");
+        const afterStart = await timed(again, "access.lists", lists);
+        process.stderr.write(
+          `[share-call] first list after a restart and its warm-up ${afterStart} ms, load ${os.loadavg()[0]!.toFixed(1)}\n`,
+        );
+        assert.ok(
+          afterStart <= READ_BUDGET_MS,
+          `the first list after a restart took ${afterStart} ms (budget ${READ_BUDGET_MS} ms)`,
+        );
+      } finally {
+        await again.stop();
+      }
+      return;
+    } finally {
+      if (!stopped) await d.stop();
     }
   },
 );

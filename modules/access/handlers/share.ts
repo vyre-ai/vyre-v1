@@ -112,6 +112,8 @@ export class ShareStore {
   byRes: Map<string, Set<string>> | null = null;
   /** `access` by person and type (`person\ntype` -> key -> row): what a list reads, built when first needed and kept in step by `setRow` and `dropRow`, so a list never walks every row of every person. */
   byPT: Map<string, Map<string, AccessRow>> | null = null;
+  /** While the index is being filled (in slices, after a start, or all at once by the first read that needs it): where the one build has got to. Null when it is whole. */
+  byPTIter: Iterator<[string, AccessRow]> | null = null;
 }
 
 const SHARES = new WeakMap<Db, ShareStore>();
@@ -579,7 +581,7 @@ function rowsByResource(ss: ShareStore): Map<string, Set<string>> {
   }
   return ss.byRes;
 }
-function setRow(ss: ShareStore, key: string, row: AccessRow): void {
+export function setRow(ss: ShareStore, key: string, row: AccessRow): void {
   const old = ss.access.get(key);
   ss.access.set(key, row);
   if (ss.byPT) {
@@ -594,7 +596,7 @@ function setRow(ss: ShareStore, key: string, row: AccessRow): void {
   keys.add(key);
   ss.byRes.set(row.id, keys);
 }
-function dropRow(ss: ShareStore, key: string): void {
+export function dropRow(ss: ShareStore, key: string): void {
   const old = ss.access.get(key);
   ss.access.delete(key);
   if (old && ss.byPT) ss.byPT.get(`${old.person}\n${old.type}`)?.delete(key);
@@ -2238,19 +2240,46 @@ function titleOf(ss: ShareStore, res: ResourceRec): string {
   return typeof t === "string" && t ? t : res.id;
 }
 
+/**
+ * Brings the per-person-and-type index of `access` forward by up to `max` rows; true when it is whole. One build per ShareStore: the first call starts it (the index exists from then on, and `setRow` and
+ * `dropRow` keep what it holds current), every later call carries on from the same place.
+ */
+export function fillIndex(ss: ShareStore, max: number): boolean {
+  if (!ss.byPT) {
+    ss.byPT = new Map();
+    ss.byPTIter = ss.access.entries();
+  }
+  const it = ss.byPTIter;
+  if (!it) return true;
+  for (let n = 0; n < max; n++) {
+    const next = it.next();
+    if (next.done) {
+      ss.byPTIter = null;
+      return true;
+    }
+    const [key, row] = next.value;
+    const pt = `${row.person}\n${row.type}`;
+    let m = ss.byPT.get(pt);
+    if (!m) ss.byPT.set(pt, (m = new Map()));
+    m.set(key, row);
+  }
+  return false;
+}
+
+/** After a start: the kept share state and the index are made in slices, so the first list of a person finds them ready (a read that comes sooner finishes the one build itself). */
+export async function warmLists(ctx: AccessCtx): Promise<string[]> {
+  const store = storeOf(ctx);
+  const ss = shareOf(ctx);
+  ensureFresh(ctx, store, ss);
+  while (!fillIndex(ss, 20_000)) await new Promise<void>((done) => setImmediate(done));
+  return [];
+}
+
 /** Items of one type this person can see, with their section. Section comes from `via` alone, so a replica can compute it from my_access. */
 function mine(ctx: AccessCtx, store: AccessStore, ss: ShareStore, person: string, type: string): AccessRow[] {
   ensureFresh(ctx, store, ss);
-  if (!ss.byPT) {
-    ss.byPT = new Map();
-    for (const [key, row] of ss.access) {
-      const pt = `${row.person}\n${row.type}`;
-      let m = ss.byPT.get(pt);
-      if (!m) ss.byPT.set(pt, (m = new Map()));
-      m.set(key, row);
-    }
-  }
-  return [...(ss.byPT.get(`${person}\n${type}`)?.values() ?? [])];
+  fillIndex(ss, Infinity); // a read that comes before the background build is done finishes that one build itself; there is never a second
+  return [...(ss.byPT!.get(`${person}\n${type}`)?.values() ?? [])];
 }
 
 export const sectionOfVia = (via: Via): Section =>
