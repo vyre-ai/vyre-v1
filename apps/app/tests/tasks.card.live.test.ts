@@ -1,7 +1,9 @@
-// Living tasks, the Still need these card (lane r42-alive): the card at the top of Tasks lists what the Space cannot tell about with why, Keep and Archive answer one or all and each sends the right call. The server's list is a fixture here (the real one needs two weeks to pass); the rules are in modules/tasks/tests/moment.test.ts and needs-decay.test.ts.
+// Living tasks, the Still need these card (lane r42-alive): the card at the top of Tasks lists what the Space cannot tell about with why, Keep and Archive answer one or all and each sends the right call. The Space is seeded the way other walks seed state: the ask rows go into the module's own table (the real clock needs two weeks to pass); every answer then goes through the real server and is read back.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { createCapCaller } from "../../../client/src/gateway/index.ts";
 import { routes } from "../../../generated/routes.ts";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
@@ -61,50 +63,49 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
       ).task.id;
     const read = async (id: string): Promise<CapMap["tasks.get"]["out"]["task"]> =>
       ((await api("tasks.get", { taskId: id })) as CapMap["tasks.get"]["out"]).task;
-    await make("Open one real task so the page has a list");
-    let items = [
-      { id: "tsk_fix1", title: "Check the quarterly report", why: "Nothing has happened here for 14 days." },
-      {
-        id: "tsk_fix2",
-        title: "Reply to the vendor",
-        why: "Nothing said when it stops mattering, and the day it was guessed for has passed.",
-      },
-      { id: "tsk_fix3", title: "Book the venue", why: "Nothing has happened here for 14 days." },
+    const titles = ["Check the quarterly report", "Reply to the vendor", "Book the venue", "Update the handbook"];
+    const ids: string[] = [];
+    for (const title of titles) ids.push(await make(title));
+    const open = await make("A task that stays on the list");
+    const why = [
+      "Nothing has happened here for 14 days.",
+      "Nothing said when it stops mattering, and the day it was guessed for has passed.",
+      "Nothing has happened here for 14 days.",
+      "Nothing has happened here for 14 days.",
     ];
-    const answers: { taskIds: string[]; answer: string }[] = [];
-    const row = (i: { id: string; title: string; why: string }) => ({
-      task: { id: i.id, title: i.title, kind: "work", state: "todo" },
-      why: i.why,
-      askedAt: Date.now() - 86_400_000,
+    const withDb = <T>(f: (db: DatabaseSync) => T): T => {
+      const db = new DatabaseSync(path.join(space.dir, "modules.db"));
+      try {
+        db.exec("PRAGMA busy_timeout=5000");
+        return f(db);
+      } finally {
+        db.close();
+      }
+    };
+    withDb((db) => {
+      for (const [n, id] of ids.entries())
+        db.prepare("INSERT INTO tasks_ask (task_id, at, why, kept_until) VALUES (?, ?, ?, NULL)").run(
+          id,
+          Date.now() - 86_400_000 + n,
+          why[n],
+        );
     });
-    await page.route("**/v1/tasks/still_needed*", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ data: { items: items.map(row), total: items.length } }),
-      }),
-    );
-    await page.route("**/v1/tasks/still_answer", async (route) => {
-      const body = route.request().postDataJSON() as { taskIds: string[]; answer: string };
-      answers.push(body);
-      items = items.filter((i) => !body.taskIds.includes(i.id));
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          data: {
-            kept: body.answer === "keep" ? body.taskIds.length : 0,
-            archived: body.answer === "archive" ? body.taskIds.length : 0,
-          },
-        }),
-      });
-    });
+    const kept = (id: string): number | null =>
+      withDb(
+        (db) =>
+          (
+            db.prepare("SELECT kept_until FROM tasks_ask WHERE task_id = ?").get(id) as
+              | { kept_until: number | null }
+              | undefined
+          )?.kept_until ?? null,
+      );
+    void open;
     await page.goto(`${web.origin}/chats#screen=tasks.my-work`, { waitUntil: "load" });
     await page.getByTestId("tasks-still").waitFor({ timeout: 30_000 });
-    assert.match(await page.getByTestId("tasks-still").innerText(), /3 tasks may be finished/);
+    assert.match(await page.getByTestId("tasks-still").innerText(), /4 tasks may be finished/);
     await shot("card-closed-dark-desktop");
     await page.getByTestId("still-open").click();
-    await page.getByText("Reply to the vendor", { exact: true }).waitFor();
+    await page.getByTestId("tasks-still").getByText("Reply to the vendor", { exact: true }).waitFor();
     await page.getByText(/Nothing said when it stops mattering/).waitFor();
     await shot("card-open-dark-desktop");
     await page.emulateMedia({ colorScheme: "light" });
@@ -130,15 +131,31 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     // a resize may redraw the page: open the card again if it closed
     await page.getByTestId("tasks-still").waitFor({ timeout: 10_000 });
     if ((await page.getByTestId("still-keep").count()) === 0) await page.getByTestId("still-open").click();
-    // Keep one, then Archive the rest
+
+    // Keep the first: the server remembers it for 90 days and the row goes
     await page.getByTestId("still-keep").first().click();
-    for (let i = 0; i < 40 && answers.length < 1; i++) await page.waitForTimeout(250);
-    assert.deepEqual(answers[0], { taskIds: ["tsk_fix1"], answer: "keep" });
-    await page.getByText("Check the quarterly report", { exact: true }).waitFor({ state: "detached", timeout: 10_000 });
-    await page.getByTestId("still-archive-all").click();
-    for (let i = 0; i < 40 && answers.length < 2; i++) await page.waitForTimeout(250);
-    assert.deepEqual(answers[1], { taskIds: ["tsk_fix2", "tsk_fix3"], answer: "archive" });
+    for (let i = 0; i < 40 && kept(ids[0]!) === null; i++) await page.waitForTimeout(250);
+    assert.ok((kept(ids[0]!) ?? 0) > Date.now() + 80 * 86_400_000, "kept for about 90 days");
+    await page
+      .getByTestId("tasks-still")
+      .getByText(titles[0]!, { exact: true })
+      .waitFor({ state: "detached", timeout: 10_000 });
+    assert.equal((await read(ids[0]!)).archived, undefined, "kept is not archived");
+    // Archive the next: it is put away with the card's code and Put back is possible
+    await page.getByTestId("still-archive").first().click();
+    for (let i = 0; i < 40 && (await read(ids[1]!)).archived === undefined; i++) await page.waitForTimeout(250);
+    assert.equal((await read(ids[1]!)).archived?.code, "asked");
+    await page
+      .getByTestId("tasks-still")
+      .getByText(titles[1]!, { exact: true })
+      .waitFor({ state: "detached", timeout: 10_000 });
+    await shot("card-two-left-dark-desktop");
+    // Keep all: the rest are kept and the card goes
+    await page.getByTestId("still-keep-all").click();
+    for (let i = 0; i < 40 && (kept(ids[2]!) === null || kept(ids[3]!) === null); i++) await page.waitForTimeout(250);
+    assert.ok(kept(ids[2]!) !== null && kept(ids[3]!) !== null);
     await page.getByTestId("tasks-still").waitFor({ state: "detached", timeout: 10_000 });
+    assert.equal((await read(ids[2]!)).archived, undefined);
     await guard.check("at the end");
     assert.deepEqual(errors, []);
   } catch (failure) {
