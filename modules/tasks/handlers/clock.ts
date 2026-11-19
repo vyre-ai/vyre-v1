@@ -5,6 +5,7 @@
 // It only reads and emits; notifications turn task.due and task.nudged into a line for the person, and automations can start on task.due.
 import { isTrustedService } from "../../../lib/trust.ts";
 import {
+  MOMENT_GRACE_MS,
   NOT_ARCHIVED,
   actionableSlot,
   allTasks,
@@ -18,6 +19,7 @@ import {
 } from "../projections.ts";
 import type { Assignee, Task, TasksCtx } from "../projections.ts";
 import { findStuck } from "./act.ts";
+import { cannotArchive, putAway } from "./archive.ts";
 
 type In = Record<string, unknown>;
 const DAY = 86_400_000;
@@ -136,9 +138,45 @@ export function nudgeStuck(ctx: TasksCtx, o: { idleMs?: number } = {}): number {
 }
 
 /** One pass of the clock. */
-export function tick(ctx: TasksCtx): { due: number; woke: number; nudged: number } {
+/** The words a person reads for a moment: "Thu 5 Nov", on the clock of whoever holds the task. */
+export function momentWords(at: number, tz: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: tz })
+      .format(at)
+      .replace(",", "");
+  } catch {
+    return new Date(at).toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * Moments pass: an open task whose relevantUntil is a grace period behind us is put away with "<title> was for Thu 5 Nov". Only the moment does this, never a due date, and never a task that a held act,
+ * a Run or other work waits on (those go through their own path). It only archives, so Put back undoes it; the archived task is out of the next pass, so the sentence is said once.
+ */
+export function archivePassed(ctx: TasksCtx): number {
+  const now = ctx.now();
+  let n = 0;
+  for (const t of allTasks(
+    ctx.db,
+    `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND mo.until IS NOT NULL AND mo.until <= ?`,
+    now - MOMENT_GRACE_MS,
+  ).slice(0, MAX)) {
+    if (t.relevantUntil === undefined || cannotArchive(ctx, t) !== null) continue;
+    const holder = stepHolder(t);
+    const tz = holder.kind === "person" ? tzOf(ctx.db, holder.id) : "UTC";
+    putAway(ctx, t, {
+      code: "passed",
+      why: `It was for ${momentWords(t.relevantUntil, tz)}.`,
+      proof: { relevantUntil: t.relevantUntil },
+    });
+    n += 1;
+  }
+  return n;
+}
+
+export function tick(ctx: TasksCtx): { due: number; woke: number; nudged: number; passed: number } {
   const woke = wakeSnoozed(ctx);
-  return { due: sayDue(ctx), woke, nudged: nudgeStuck(ctx) };
+  return { due: sayDue(ctx), woke, nudged: nudgeStuck(ctx), passed: archivePassed(ctx) };
 }
 
 /** tasks.clock: the same pass, for the server only (the periodic job runs it every minute). */

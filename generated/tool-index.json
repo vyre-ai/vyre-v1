@@ -9351,7 +9351,7 @@
     {
       "deferred": false,
       "name": "tasks_create",
-      "summary": "Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys",
+      "summary": "Create a task (Work by default)",
       "toolset": "tasks"
     },
     {

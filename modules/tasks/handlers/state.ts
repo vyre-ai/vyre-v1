@@ -30,6 +30,7 @@ import {
   visibleTo,
   whoIs,
   whoOn,
+  MOMENT_GRACE_MS,
 } from "../projections.ts";
 import { ensureThread, syncThread, unseat } from "./thread.ts";
 import type {
@@ -554,6 +555,11 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.source) t.source = input.source as TaskSource;
   if (input.parentTaskId !== undefined) t.parentTaskId = input.parentTaskId;
   if (input.expiresAt !== undefined) t.expiresAt = input.expiresAt;
+  // the moment it stops mattering: what the caller said; an agent that said nothing gets one (due plus a day, else 14 days), so nothing an agent opens lives forever
+  if (input.relevantUntil !== undefined) t.relevantUntil = input.relevantUntil;
+  else if (ctx.principal.kind === "agent") {
+    t.relevantUntil = t.due !== undefined ? t.due + MOMENT_GRACE_MS : now + 14 * 86_400_000;
+  }
   if (input.notes && typeof input.notes === "object") {
     // notes the task starts with: a brief, a checklist, a schema. The two reserved keys belong to a held act and are never taken from here.
     const notes: Record<string, string> = {};

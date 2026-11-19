@@ -1,6 +1,6 @@
 # tasks.create
 
-Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys
+Create a task (Work by default)
 
 | | |
 |---|---|
@@ -65,6 +65,7 @@ type In = {
   parentTaskId?: string;
   dependsOn?: Array<string>;
   expiresAt?: number;
+  relevantUntil?: number;
   actions?: Array<{
       key: string;
       label: string;
@@ -129,6 +130,7 @@ type Out = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -214,6 +216,7 @@ type Out = {
       "every": "day",
       "n": 1
     },
+    "relevantUntil": 1760000000000,
     "reviewer": {
       "id": "usr_a1b2c3",
       "kind": "person"
@@ -286,6 +289,7 @@ type Out = {
         "every": "day",
         "n": 1
       },
+      "relevantUntil": 1760000000000,
       "reviewLoops": 1,
       "reviewer": {
         "id": "usr_a1b2c3",

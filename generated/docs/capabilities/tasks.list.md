@@ -92,6 +92,7 @@ type Out = {
       reviewLoops: number;
       snoozedUntil?: number;
       expiresAt?: number;
+      relevantUntil?: number;
       createdBy: string;
       createdAt: number;
       updatedAt: number;
@@ -209,6 +210,7 @@ type Out = {
           "every": "day",
           "n": 1
         },
+        "relevantUntil": 1760000000000,
         "reviewLoops": 1,
         "reviewer": {
           "id": "usr_a1b2c3",

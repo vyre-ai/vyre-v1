@@ -5,6 +5,7 @@
 import { isTrustedService } from "../../../lib/trust.ts";
 import {
   clearArchived,
+  clearMoment,
   emitTask,
   getTask,
   isOpen,
@@ -79,6 +80,8 @@ export async function unarchive(ctx: TasksCtx, input: In): Promise<unknown> {
   if (t.archived === undefined) return { task: out(ctx, t) };
   const was = t.archived;
   clearArchived(ctx.db, t);
+  // put back after its moment passed: a person says it still matters, so it is not put away again a minute later
+  if (was.code === "passed") clearMoment(ctx.db, t);
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.unarchived", t, { code: was.code }, { type: "unarchived", by: ctx.principal.id });
   return { task: out(ctx, t) };

@@ -65542,7 +65542,7 @@
       "blocks": [],
       "cap": "tasks.create",
       "deferred": false,
-      "description": "Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys",
+      "description": "Create a task (Work by default)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -65775,6 +65775,14 @@
               "every"
             ],
             "type": "object"
+          },
+          "relevantUntil": {
+            "description": "When it stops mattering",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
           },
           "reviewer": {
             "properties": {

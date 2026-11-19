@@ -41516,6 +41516,7 @@ export type TasksActOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -41592,6 +41593,7 @@ export type TasksAgentOnItOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -41667,6 +41669,7 @@ export type TasksArchiveOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -41746,6 +41749,7 @@ export type TasksAskOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -41826,6 +41830,7 @@ export type TasksAssignOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -41901,6 +41906,7 @@ export type TasksBlockOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -41935,6 +41941,7 @@ export type TasksClockOut = {
   due: number;
   woke: number;
   nudged: number;
+  passed: number;
 };
 export type TasksCountNeedsYouIn = Record<string, unknown>;
 export type TasksCountNeedsYouOut = {
@@ -41981,6 +41988,7 @@ export type TasksCreateIn = {
   parentTaskId?: string;
   dependsOn?: Array<string>;
   expiresAt?: number;
+  relevantUntil?: number;
   actions?: Array<{
       key: string;
       label: string;
@@ -42040,6 +42048,7 @@ export type TasksCreateOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -42116,6 +42125,7 @@ export type TasksDecideOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -42196,6 +42206,7 @@ export type TasksDelegateOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -42281,6 +42292,7 @@ export type TasksDependenciesAddOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -42356,6 +42368,7 @@ export type TasksDependenciesRemoveOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -42440,6 +42453,7 @@ export type TasksEscalateOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -42515,6 +42529,7 @@ export type TasksFollowersAddOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -42590,6 +42605,7 @@ export type TasksFollowersRemoveOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -42664,6 +42680,7 @@ export type TasksGetOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -42835,6 +42852,7 @@ export type TasksLinksAddOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -42911,6 +42929,7 @@ export type TasksLinksRemoveOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -42996,6 +43015,7 @@ export type TasksListOut = {
       reviewLoops: number;
       snoozedUntil?: number;
       expiresAt?: number;
+      relevantUntil?: number;
       createdBy: string;
       createdAt: number;
       updatedAt: number;
@@ -43074,6 +43094,7 @@ export type TasksMyWorkOut = {
       reviewLoops: number;
       snoozedUntil?: number;
       expiresAt?: number;
+      relevantUntil?: number;
       createdBy: string;
       createdAt: number;
       updatedAt: number;
@@ -43156,6 +43177,7 @@ export type TasksNeedsYouOut = {
         reviewLoops: number;
         snoozedUntil?: number;
         expiresAt?: number;
+        relevantUntil?: number;
         createdBy: string;
         createdAt: number;
         updatedAt: number;
@@ -43271,6 +43293,7 @@ export type TasksPlanOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -43351,6 +43374,7 @@ export type TasksReleaseOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -43425,6 +43449,7 @@ export type TasksRestoreOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -43506,6 +43531,7 @@ export type TasksReviewOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -43582,6 +43608,7 @@ export type TasksSnoozeOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -43658,6 +43685,7 @@ export type TasksSubmitOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -43733,6 +43761,7 @@ export type TasksTakeOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -43810,6 +43839,7 @@ export type TasksTransitionOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -43884,6 +43914,7 @@ export type TasksUnarchiveOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -43980,6 +44011,7 @@ export type TasksUpdateOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -44064,6 +44096,7 @@ export type TasksWorkingNotesDeleteOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -44141,6 +44174,7 @@ export type TasksWorkingNotesSetOut = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;

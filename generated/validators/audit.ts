@@ -21,28 +21,28 @@ if ("id" in o544) lf(o544["id"], p + "/id", e, L60);
 
 function d_s_787e089ccf(v: unknown, p: string, e: string[]): void {
 {
-const x619 = v;
-const g619 = typeOf(x619);
-const b619: string[] = []; lf(x619, p, b619, L0); if (b619.length) e.push(...b619);
-if (g619 === "object") {
-if (g619 === 'object') { const o619 = x619 as Record<string, unknown>;
-if (!("id" in o619)) e.push(p + "/id" + ': required');
-if (!("at" in o619)) e.push(p + "/at" + ': required');
-if (!("actor" in o619)) e.push(p + "/actor" + ': required');
-if (!("action" in o619)) e.push(p + "/action" + ': required');
-if (!("class" in o619)) e.push(p + "/class" + ': required');
-if (!("traceId" in o619)) e.push(p + "/traceId" + ': required');
-if (!("seq" in o619)) e.push(p + "/seq" + ': required');
-if ("id" in o619) lf(o619["id"], p + "/id", e, L287);
-if ("at" in o619) lf(o619["at"], p + "/at", e, L17);
-if ("actor" in o619) d_s_6c1eb10d98(o619["actor"], p + "/actor", e);
-if ("onBehalfOf" in o619) d_s_6c1eb10d98(o619["onBehalfOf"], p + "/onBehalfOf", e);
-if ("action" in o619) lf(o619["action"], p + "/action", e, L1);
-if ("resource" in o619) d_s_f423029e33(o619["resource"], p + "/resource", e);
-if ("class" in o619) lf(o619["class"], p + "/class", e, L288);
-if ("traceId" in o619) lf(o619["traceId"], p + "/traceId", e, L79);
-if ("requestId" in o619) lf(o619["requestId"], p + "/requestId", e, L211);
-if ("seq" in o619) lf(o619["seq"], p + "/seq", e, L17);
+const x620 = v;
+const g620 = typeOf(x620);
+const b620: string[] = []; lf(x620, p, b620, L0); if (b620.length) e.push(...b620);
+if (g620 === "object") {
+if (g620 === 'object') { const o620 = x620 as Record<string, unknown>;
+if (!("id" in o620)) e.push(p + "/id" + ': required');
+if (!("at" in o620)) e.push(p + "/at" + ': required');
+if (!("actor" in o620)) e.push(p + "/actor" + ': required');
+if (!("action" in o620)) e.push(p + "/action" + ': required');
+if (!("class" in o620)) e.push(p + "/class" + ': required');
+if (!("traceId" in o620)) e.push(p + "/traceId" + ': required');
+if (!("seq" in o620)) e.push(p + "/seq" + ': required');
+if ("id" in o620) lf(o620["id"], p + "/id", e, L287);
+if ("at" in o620) lf(o620["at"], p + "/at", e, L17);
+if ("actor" in o620) d_s_6c1eb10d98(o620["actor"], p + "/actor", e);
+if ("onBehalfOf" in o620) d_s_6c1eb10d98(o620["onBehalfOf"], p + "/onBehalfOf", e);
+if ("action" in o620) lf(o620["action"], p + "/action", e, L1);
+if ("resource" in o620) d_s_f423029e33(o620["resource"], p + "/resource", e);
+if ("class" in o620) lf(o620["class"], p + "/class", e, L288);
+if ("traceId" in o620) lf(o620["traceId"], p + "/traceId", e, L79);
+if ("requestId" in o620) lf(o620["requestId"], p + "/requestId", e, L211);
+if ("seq" in o620) lf(o620["seq"], p + "/seq", e, L17);
 }
 }
 }
@@ -50,19 +50,19 @@ if ("seq" in o619) lf(o619["seq"], p + "/seq", e, L17);
 
 function d_s_a0ed41fd75(v: unknown, p: string, e: string[]): void {
 {
-const x823 = v;
-const g823 = typeOf(x823);
-const b823: string[] = []; lf(x823, p, b823, L0); if (b823.length) e.push(...b823);
-if (g823 === "object") {
-if (g823 === 'object') { const o823 = x823 as Record<string, unknown>;
-if (!("seq" in o823)) e.push(p + "/seq" + ': required');
-if (!("at" in o823)) e.push(p + "/at" + ': required');
-if (!("hash" in o823)) e.push(p + "/hash" + ': required');
-if (!("signatureOk" in o823)) e.push(p + "/signatureOk" + ': required');
-if ("seq" in o823) lf(o823["seq"], p + "/seq", e, L17);
-if ("at" in o823) lf(o823["at"], p + "/at", e, L17);
-if ("hash" in o823) lf(o823["hash"], p + "/hash", e, L1);
-if ("signatureOk" in o823) lf(o823["signatureOk"], p + "/signatureOk", e, L3);
+const x824 = v;
+const g824 = typeOf(x824);
+const b824: string[] = []; lf(x824, p, b824, L0); if (b824.length) e.push(...b824);
+if (g824 === "object") {
+if (g824 === 'object') { const o824 = x824 as Record<string, unknown>;
+if (!("seq" in o824)) e.push(p + "/seq" + ': required');
+if (!("at" in o824)) e.push(p + "/at" + ': required');
+if (!("hash" in o824)) e.push(p + "/hash" + ': required');
+if (!("signatureOk" in o824)) e.push(p + "/signatureOk" + ': required');
+if ("seq" in o824) lf(o824["seq"], p + "/seq", e, L17);
+if ("at" in o824) lf(o824["at"], p + "/at", e, L17);
+if ("hash" in o824) lf(o824["hash"], p + "/hash", e, L1);
+if ("signatureOk" in o824) lf(o824["signatureOk"], p + "/signatureOk", e, L3);
 }
 }
 }

@@ -15,7 +15,7 @@ Requires: nothing.
 - [tasks.by_key](../capabilities/tasks.by_key.md): Find a task by its short key, such as VY-123
 - [tasks.clock](../capabilities/tasks.clock.md): What the clock moves, once a minute: the day a task is due begins for its holder, a due time passes, a snooze ends, a step sat with someone too long
 - [tasks.count_needs_you](../capabilities/tasks.count_needs_you.md): Count of Ready requests for the rail badge and the Space switcher dot
-- [tasks.create](../capabilities/tasks.create.md): Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys
+- [tasks.create](../capabilities/tasks.create.md): Create a task (Work by default)
 - [tasks.decide](../capabilities/tasks.decide.md): Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)
 - [tasks.delegate](../capabilities/tasks.delegate.md): Hand a request to someone else with a note; never widens access, so it walks the delegate chain to the first who can act
 - [tasks.delete](../capabilities/tasks.delete.md): Delete a task; Undo brings it back. A held act and a task a Run waits on are canceled instead
