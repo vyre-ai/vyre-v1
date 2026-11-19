@@ -317,7 +317,7 @@ export function SaveAgentForm({
           { id: "everyone", label: "Everyone" },
         ]}
       />
-      <Text style={st.hint}>It also keeps the model and the tools it used.</Text>
+      <Text style={st.hint}>It also keeps the model it ran on.</Text>
       {err ? (
         <Text testID="save-agent-error" style={st.err}>
           {err}

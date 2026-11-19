@@ -136,7 +136,7 @@ test("a finished helper can be saved as an agent: a name to confirm, one runs.no
     "Compare the three bids.",
     "the words the agent will be told are shown before saving",
   );
-  assert.match(textOf(find(root, "save-agent-form")), /keeps the model and the tools/);
+  assert.match(textOf(find(root, "save-agent-form")), /keeps the model it ran on/);
   await typeInto(find(root, "save-agent-name"), "Bid reader");
   await press(find(root, "save-agent-go"));
   await press(find(root, "save-agent-go"));
