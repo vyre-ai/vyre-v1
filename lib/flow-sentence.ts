@@ -40,6 +40,21 @@ export interface SentenceNames {
   ): string | undefined;
 }
 
+/** The text without a "(...)" at its end (and the spaces before it), as `/\s*\([^)]*\)\s*$/` took off, in one pass: that pattern backtracked in quadratic time over a long run of "(" or spaces. */
+export function withoutTrailingParen(title: string): string {
+  const end = title.trimEnd();
+  if (!end.endsWith(")")) return title;
+  const last = end.length - 1;
+  const open = end.indexOf("(", end.lastIndexOf(")", last - 1) + 1);
+  return open < 0 || open > last ? title : end.slice(0, open).trimEnd();
+}
+/** The text without the characters of `chars` at its end. */
+export function trimEndChars(s: string, chars: string): string {
+  let n = s.length;
+  while (n > 0 && chars.includes(s[n - 1]!)) n--;
+  return n === s.length ? s : s.slice(0, n);
+}
+
 const words = (key: string): string =>
   key
     .replace(/[_\-.]+/g, " ")
@@ -190,7 +205,7 @@ const quiet = (n: SentenceNode): boolean =>
 function doOf(n: SentenceNode, names: SentenceNames): string {
   const title = (n.title ?? "").trim();
   if (title !== "" && !idLike(title)) {
-    const short = title.replace(/\s*\([^)]*\)\s*$/, "").replace(/[.:;]+$/, "");
+    const short = trimEndChars(withoutTrailingParen(title), ".:;");
     return lower(short.length > 64 ? `${short.slice(0, 61).trimEnd()}…` : short);
   }
   const i = n.input ?? {};

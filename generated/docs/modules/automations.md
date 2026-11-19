@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (86)
+## Capabilities (87)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -69,6 +69,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.senders](../capabilities/automations.senders.md): What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now
 - [automations.set_enabled](../capabilities/automations.set_enabled.md): Turn an Automation on or off
 - [automations.set_owner](../capabilities/automations.set_owner.md): Hand a Space Automation to another person as its accountable owner; the previous owner keeps Manage
+- [automations.stage_offers](../capabilities/automations.stage_offers.md): Space Automations that start on a stage of a Journey's type and are not part of it
 - [automations.step_ask](../capabilities/automations.step_ask.md): System: a chat post set to ask passes the Gate here first. It does nothing itself
 - [automations.steps.list](../capabilities/automations.steps.list.md): The step palette: every step kind with category, input and output schema, effects and Gate act
 - [automations.stop](../capabilities/automations.stop.md): Stop one run of an Automation, or all its running runs and pause it

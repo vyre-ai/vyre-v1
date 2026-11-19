@@ -291,6 +291,7 @@ export function createClient(transport: Transport) {
       senders: call("automations.senders", 1),
       set_enabled: call("automations.set_enabled", 1),
       set_owner: call("automations.set_owner", 1),
+      stage_offers: call("automations.stage_offers", 1),
       step_ask: call("automations.step_ask", 1),
       steps: {
         list: call("automations.steps.list", 1),

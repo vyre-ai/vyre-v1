@@ -376,6 +376,8 @@ export function learnedRows(
  * for people's clients. Tools whose version field was already shown to models before F50 (files_write baseVersion, tasks_update expectedVersion, records_update, memory pages, automations) keep it as it was.
  */
 export const HIDDEN_FROM_MODEL: Readonly<Record<string, readonly string[]>> = {
+  // a system move (a Journey migration) writes quietly: no Automation runs for it. The model is never offered that switch.
+  "records.update": ["quiet"],
   "sites.update": ["expectedUpdatedAt"],
   "sites.artifact_publish": ["expectedUpdatedAt"],
   "goals.update": ["expectedUpdatedAt"],

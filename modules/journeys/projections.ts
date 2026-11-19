@@ -65,6 +65,8 @@ export interface Journey {
   legacyType?: string;
   /** Why the automatic move onto a pipeline stopped; cleared when it finishes. */
   migrateNote?: string;
+  /** Ticks in a row the automatic move failed for a reason that may pass. */
+  migrateTries?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -173,6 +175,8 @@ function rowToJourney(r: Raw): Journey {
   if (mode === "subject" || mode === "migrating" || mode === "pipeline") j.mode = mode;
   const sf = str(r.stage_field);
   if (sf !== undefined) j.stageField = sf;
+  const mt = num(r.migrate_tries);
+  if (mt !== undefined && mt > 0) j.migrateTries = mt;
   const mn = str(r.migrate_note);
   if (mn !== undefined) j.migrateNote = mn;
   const lt = str(r.legacy_type);
@@ -183,8 +187,8 @@ function rowToJourney(r: Raw): Journey {
 }
 export function saveJourney(db: Db, j: Journey): void {
   db.run(
-    `INSERT OR REPLACE INTO journeys_defs (id, name, subject_type, record_type, version, stages, start_rule, start_automation_id, created_at, updated_at, deleted_at, mode, stage_field, variables, legacy_type, migrate_note)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO journeys_defs (id, name, subject_type, record_type, version, stages, start_rule, start_automation_id, created_at, updated_at, deleted_at, mode, stage_field, variables, legacy_type, migrate_note, migrate_tries)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
     j.id,
     j.name,
     j.subjectType,
@@ -200,6 +204,7 @@ export function saveJourney(db: Db, j: Journey): void {
     j.variables ? js(j.variables) : null,
     nul(j.legacyType),
     nul(j.migrateNote),
+    j.migrateTries ?? 0,
   );
 }
 export function findJourney(db: Db, id: string): Journey | undefined {
@@ -548,6 +553,14 @@ export function migrationRows(db: Db, journeyId: string): MigrationRow[] {
 export function refileLinks(db: Db, fromId: string, toId: string): void {
   db.run("UPDATE journeys_tasks SET record_id = ? WHERE record_id = ?", toId, fromId);
   db.run("UPDATE journeys_breaches SET record_id = ? WHERE record_id = ?", toId, fromId);
+  // the values the Journey carried follow the record; a key the record already has keeps its own value (the new id's) and the old one is dropped
+  const kept = new Set(
+    (db.all("SELECT key FROM journeys_values WHERE record_id = ?", toId) as Raw[]).map((r) => r.key as string),
+  );
+  for (const r of db.all("SELECT key FROM journeys_values WHERE record_id = ?", fromId) as Raw[])
+    if (!kept.has(r.key as string))
+      db.run("UPDATE journeys_values SET record_id = ? WHERE record_id = ? AND key = ?", toId, fromId, r.key);
+  db.run("DELETE FROM journeys_values WHERE record_id = ?", fromId);
 }
 
 // ---- carried values ----

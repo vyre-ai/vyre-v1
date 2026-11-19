@@ -19,7 +19,10 @@ export function migrationLine(s: State | null, note?: string): { text: string; r
   if (!s || s.mode === "pipeline") return null;
   if (note) return { text: `Moving this Journey to its new form stopped: ${note}`, retry: true };
   if (s.mode === "migrating")
-    return { text: `Moving this Journey to its new form: ${s.done} of ${s.total} records done.`, retry: false };
+    return {
+      text: `Moving this Journey to its new form: ${s.done} of ${s.total} records done.${s.failed.length > 0 ? ` ${s.failed.length} will be tried again.` : ""}`,
+      retry: false,
+    };
   return { text: "This Journey moves to its new form by itself in a moment.", retry: false };
 }
 

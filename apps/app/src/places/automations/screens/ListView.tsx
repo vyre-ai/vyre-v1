@@ -35,6 +35,43 @@ export function ListView({
   const q = query ?? own;
   const setQ = setOwn;
   const v = listView(rows, q);
+  const row = (r: (typeof v.rows)[number]): ReactElement => (
+    // ui-rows-lint: not a list (each item is a ui/Row; the View only carries the row's menu trigger)
+    <View key={r.id} {...(onMenu ? menuTrigger((x, y) => onMenu(r.id, x, y)) : {})}>
+      <Row
+        id={`auto-${r.id}`}
+        {...(selectedId === r.id ? { selected: true } : {})}
+        title={r.name}
+        leading={<View style={[s.dot, { backgroundColor: DOT[r.dot] as string }]} />}
+        domProps={{ style: { minHeight: 34, ...(r.sentence ? { paddingTop: 6, paddingBottom: 6 } : {}) } }}
+        // what it does, in one sentence, under its name; what it is missing leads that line in the warning colour
+        {...(r.sentence ? { tall: true, note: r.sentence } : r.blocked ? { note: r.blocked.short } : {})}
+        {...(r.blocked && r.sentence ? { noteLead: r.blocked.short, noteLeadTone: "warning" as const } : {})}
+        {...(r.blocked && onFix
+          ? {
+              trailing: (
+                <Pressable
+                  testID={`al-fix-${r.id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${r.blocked.button}: ${r.blocked.short}`}
+                  onPress={(e) => {
+                    (e as { stopPropagation?: () => void } | undefined)?.stopPropagation?.();
+                    onFix(r.id);
+                  }}
+                  style={s.fix}
+                >
+                  <Text style={s.fixText}>{r.blocked.button}</Text>
+                </Pressable>
+              ),
+            }
+          : r.scope && r.scope !== "Journey"
+            ? { trailing: <Text style={s.quiet}>{r.scope}</Text> }
+            : {})}
+        onPress={() => onOpen(r.id)}
+      />
+    </View>
+  );
+  const journeys = v.rows.filter((r) => r.scope === "Journey");
   return (
     <View style={s.col} testID="auto-list">
       {query !== undefined ? null : (
@@ -49,6 +86,7 @@ export function ListView({
               </Pressable>
             ) : null}
           </Pressable>
+
           <TextInput
             value={q}
             onChangeText={setQ}
@@ -60,42 +98,13 @@ export function ListView({
           />
         </>
       )}
-      {v.rows.map((r) => (
-        // ui-rows-lint: not a list (each item is a ui/Row; the View only carries the row's menu trigger)
-        <View key={r.id} {...(onMenu ? menuTrigger((x, y) => onMenu(r.id, x, y)) : {})}>
-          <Row
-            id={`auto-${r.id}`}
-            {...(selectedId === r.id ? { selected: true } : {})}
-            title={r.name}
-            leading={<View style={[s.dot, { backgroundColor: DOT[r.dot] as string }]} />}
-            domProps={{ style: { minHeight: 34, ...(r.sentence ? { paddingTop: 6, paddingBottom: 6 } : {}) } }}
-            // what it does, in one sentence, under its name; what it is missing leads that line in the warning colour
-            {...(r.sentence ? { tall: true, note: r.sentence } : r.blocked ? { note: r.blocked.short } : {})}
-            {...(r.blocked && r.sentence ? { noteLead: r.blocked.short, noteLeadTone: "warning" as const } : {})}
-            {...(r.blocked && onFix
-              ? {
-                  trailing: (
-                    <Pressable
-                      testID={`al-fix-${r.id}`}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${r.blocked.button}: ${r.blocked.short}`}
-                      onPress={(e) => {
-                        (e as { stopPropagation?: () => void } | undefined)?.stopPropagation?.();
-                        onFix(r.id);
-                      }}
-                      style={s.fix}
-                    >
-                      <Text style={s.fixText}>{r.blocked.button}</Text>
-                    </Pressable>
-                  ),
-                }
-              : r.scope
-                ? { trailing: <Text style={s.quiet}>{r.scope}</Text> }
-                : {})}
-            onPress={() => onOpen(r.id)}
-          />
+      {journeys.length > 0 ? (
+        <View style={s.group} testID="al-journeys">
+          <Text style={s.groupCap}>Journeys</Text>
+          {journeys.map(row)}
         </View>
-      ))}
+      ) : null}
+      {v.rows.filter((r) => r.scope !== "Journey").map(row)}
       {/* the empty line sits under the list's own heading, never beside the page's Needs you block */}
       {v.empty && query !== undefined ? <Text style={s.title}>Automations</Text> : null}
       {v.empty ? <Text style={s.quiet}>{v.empty}</Text> : null}
@@ -104,6 +113,17 @@ export function ListView({
 }
 
 const s = StyleSheet.create({
+  group: { gap: 2, paddingBottom: 6 },
+  groupCap: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "var(--ink-3)" as string,
+    paddingHorizontal: 8,
+    paddingTop: 2,
+    paddingBottom: 4,
+  },
   col: { gap: 2, padding: 8 },
   head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, height: 40 },
   title: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string },

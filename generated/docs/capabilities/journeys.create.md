@@ -76,6 +76,7 @@ type In = {
     enabled: boolean;
   };
   mode?: "subject" | "pipeline";
+  useExisting?: boolean;
   recordType?: string;
   stageField?: string;
   variables?: Array<{
@@ -238,6 +239,7 @@ type Out = {
       "filter": {}
     },
     "subjectType": "contact",
+    "useExisting": true,
     "variables": [
       {
         "key": "example",

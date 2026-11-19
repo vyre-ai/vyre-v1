@@ -21,6 +21,13 @@ interface Rec {
   id: string;
   name: string;
 }
+/** An Automation that starts on a stage of this Journey and is not part of it. */
+interface Offer {
+  automationId: string;
+  name: string;
+  stage: string;
+  on: boolean;
+}
 const nameOfRow = (r: { id: string; fields?: Record<string, unknown> }): string => {
   const f = r.fields ?? {};
   for (const k of ["name", "title", "label"]) if (typeof f[k] === "string" && f[k]) return f[k] as string;
@@ -66,6 +73,29 @@ export function PathTab({
       live = false;
     };
   }, [data]);
+  const [offers, setOffers] = useState<readonly Offer[]>([]);
+  const memberIds = j.stages.flatMap((s) => s.automations);
+  const stageKeys = j.stages.map((s) => s.key);
+  const offerKey = `${memberIds.join(",")}|${stageKeys.join(",")}`;
+  useEffect(() => {
+    let live = true;
+    data
+      .call("automations.stage_offers", {
+        recordType: j.recordType,
+        ...(j.stageField ? { stageField: j.stageField } : {}),
+        stages: stageKeys,
+        members: memberIds,
+      })
+      .then((r) => {
+        if (live) setOffers(((r as { offers?: Offer[] }).offers ?? []) as Offer[]);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+    // the offers are read again when the members or the stages change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, offerKey]);
   const info = (id: string): AutoInfo | undefined => {
     const a = autos.find((x) => x.id === id);
     const name = a?.name ?? extras.directory.automations.find((x) => x.id === id)?.name;
@@ -175,6 +205,13 @@ export function PathTab({
       here={here === c.key}
       test={test}
       onOpen={(id) => data.nav.openAutomation(id)}
+      offers={offers.filter((o) => o.stage === c.key)}
+      {...(canDesign && design
+        ? {
+            onTake: (o: Offer) =>
+              void design.design(addAutomation(j.stages, c.key, o.automationId), `Added ${o.name} to ${c.title}`),
+          }
+        : {})}
       {...(canDesign && design && !c.final ? { onAdd: (e: unknown) => addMenu(c, at(e).x, at(e).y) } : {})}
     />
   );
@@ -215,6 +252,9 @@ export function PathTab({
           </Text>
         ) : null}
         <View style={{ flex: 1 }} />
+        {canDesign ? (
+          <TextButton label="New Journey" icon="plus" testID="path-new" onPress={() => data.nav.newJourney?.()} />
+        ) : null}
         <TextButton
           label={test.phase === "started" || test.phase === "failed" ? "Run again" : "Test the whole path"}
           icon="play"
@@ -252,7 +292,11 @@ function ColumnView({
   test,
   onOpen,
   onAdd,
+  offers,
+  onTake,
 }: {
+  offers: readonly Offer[];
+  onTake?: (o: Offer) => void;
   col: Column;
   here: boolean;
   test: Parameters<typeof runOf>[0];
@@ -301,6 +345,20 @@ function ColumnView({
           </Pressable>
         );
       })}
+      {/* ui-rows-lint: not a list (offered Automations) */}
+      {offers.map((o) => (
+        <View key={o.automationId} style={s.offer} testID={`path-offer-${col.key}-${o.automationId}`}>
+          <Text style={s.cardName} numberOfLines={2}>
+            {o.name}
+          </Text>
+          <Text style={s.quiet}>{`It already starts when the stage becomes ${col.title}.`}</Text>
+          {onTake ? (
+            <Pressable testID={`path-take-${o.automationId}`} accessibilityRole="button" onPress={() => onTake(o)}>
+              <Text style={s.offerTake}>Add to this Journey</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ))}
       {onAdd ? (
         <Pressable testID={`path-add-${col.key}`} accessibilityRole="button" onPress={onAdd} style={s.add}>
           <Text style={s.addText}>+ Add an Automation</Text>
@@ -343,12 +401,21 @@ const s = StyleSheet.create({
   testText: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
   quiet: { fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
   late: { color: "var(--warn)" as string },
-  cols: { gap: 12, paddingBottom: 12, alignItems: "flex-start" },
-  col: { width: 216, gap: 8 },
+  cols: { gap: 12, paddingBottom: 12, alignItems: "flex-start", minWidth: "100%" },
+  col: { flexGrow: 1, flexBasis: 0, minWidth: 190, maxWidth: 300, gap: 8 },
   colHead: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4 },
   colTitle: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   colCount: { fontSize: 12, color: "var(--ink-3)" as string },
   here: { width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--accent)" as string },
+  offer: {
+    padding: 12,
+    gap: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "var(--line-2)" as string,
+  },
+  offerTake: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   card: {
     padding: 12,
     gap: 6,
@@ -362,6 +429,8 @@ const s = StyleSheet.create({
   add: { height: 32, borderRadius: 12, justifyContent: "center", paddingHorizontal: 10 },
   addText: { fontSize: 13, fontWeight: "500", color: "var(--ink-3)" as string },
   finish: {
+    width: 230,
+    flexShrink: 0,
     gap: 8,
     paddingLeft: 12,
     marginLeft: 4,

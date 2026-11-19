@@ -196,6 +196,7 @@ export default defineManifest({
           stages: t.opt(t.arr(stage)),
           startRule: t.opt(startRule),
           mode: t.opt(t.enm("subject", "pipeline")),
+          useExisting: t.opt(t.bool()),
           recordType: t.opt(id.recordType),
           stageField: t.opt(t.str()),
           variables: t.opt(t.arr(t.obj({ key: t.str(), title: t.str() }))),
@@ -288,7 +289,13 @@ export default defineManifest({
       "journeys.move_stage",
       "Move a Journey record to another stage by hand; the reason is required and handoffs post in the record channel",
       {
-        in: { ...target, recordId: id.record, toStage: stageKey, reason: t.str({ minLength: 1 }) },
+        in: {
+          ...target,
+          recordId: id.record,
+          toStage: stageKey,
+          reason: t.str({ minLength: 1 }),
+          expectedVersion: t.opt(t.int()),
+        },
         out: { recordId: id.record, stage: stageKey },
         on: ["record", "/recordId"],
         perm: "journeys.manage",
@@ -296,7 +303,7 @@ export default defineManifest({
         tool: "automations",
         hook: true,
         audit: "sensitive",
-        errors: ["validation.precondition_failed"],
+        errors: ["validation.precondition_failed", "validation.version_conflict"],
       },
     ),
     write(
@@ -352,7 +359,7 @@ export default defineManifest({
       "journeys.to_pipeline",
       "Move a Journey onto its subject type as a pipeline; run again after a stop, nothing is deleted",
       {
-        in: { ...target, stageField: t.opt(t.str()) },
+        in: { ...target, stageField: t.opt(t.str()), useExisting: t.opt(t.bool()) },
         out: {
           journey: journeyRow,
           total: t.int(),

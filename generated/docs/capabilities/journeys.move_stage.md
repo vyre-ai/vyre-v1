@@ -29,6 +29,7 @@ type In = {
   recordId: string;
   toStage: string;
   reason: string;
+  expectedVersion?: number;
 };
 ```
 
@@ -50,6 +51,7 @@ type Out = {
 - validation.bad_input
 - validation.not_found
 - validation.precondition_failed
+- validation.version_conflict
 
 ## Example
 
@@ -57,6 +59,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "expectedVersion": 1,
     "journeyId": "jrn_a1b2c3",
     "reason": "example",
     "recordId": "rec_a1b2c3",

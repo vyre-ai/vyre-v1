@@ -59,8 +59,22 @@ function stateOf(rows: readonly MigrationRow[]): {
   };
 }
 
+/** Journeys a run is stepping now: a Retry and the background tick never step the same Journey at once. */
+const RUNNING = new Set<string>();
+
 export async function toPipeline(ctx: JourneysCtx, input: In): Promise<unknown> {
   const j = getJourney(ctx, input.journeyId);
+  if (RUNNING.has(j.id))
+    return { journey: out(j, countInFlight(ctx.db, j.id)), ...stateOf(migrationRows(ctx.db, j.id)), finished: false };
+  RUNNING.add(j.id);
+  try {
+    return await toPipelineNow(ctx, input, j);
+  } finally {
+    RUNNING.delete(j.id);
+  }
+}
+
+async function toPipelineNow(ctx: JourneysCtx, input: In, j: Journey): Promise<unknown> {
   if (j.mode === "pipeline")
     return { journey: out(j, countInFlight(ctx.db, j.id)), ...stateOf(migrationRows(ctx.db, j.id)), finished: true };
   const other = pipelineOfType(ctx.db, j.subjectType);
@@ -78,7 +92,7 @@ export async function toPipeline(ctx: JourneysCtx, input: In): Promise<unknown> 
       typeof input.stageField === "string" && input.stageField ? input.stageField : (j.stageField ?? "journey_stage");
     const next: Journey = { ...j, stageField: field };
     // the stage field is bound first: if that is refused nothing has changed
-    await bindStageField(ctx, { ...next, recordType: subjectType });
+    await bindStageField(ctx, { ...next, recordType: subjectType }, { useExisting: input.useExisting === true });
     j.stageField = field;
     j.mode = "migrating";
     j.legacyType = oldType;
@@ -100,11 +114,15 @@ export async function toPipeline(ctx: JourneysCtx, input: In): Promise<unknown> 
   const st = stateOf(rows);
   const finished = st.failed.length === 0 && rows.every((r) => r.state === "done");
   if (!finished && st.failed.length > 0) {
-    j.migrateNote = `${plural(st.failed.length, "record")} could not be moved: ${st.failed[0]!.error}`;
+    // records that did not move are tried again by the next tick; after MAX_TRIES in a row the reason is kept and the Journey waits for Retry
+    j.migrateTries = (j.migrateTries ?? 0) + 1;
+    if (j.migrateTries >= MAX_TRIES)
+      j.migrateNote = `${plural(st.failed.length, "record")} could not be moved: ${st.failed[0]!.error}`;
     saveJourney(ctx.db, j);
   }
   if (finished) {
     delete j.migrateNote;
+    delete j.migrateTries;
     j.mode = "pipeline";
     j.recordType = subjectType;
     j.updatedAt = ctx.now();
@@ -138,6 +156,8 @@ async function step(ctx: JourneysCtx, j: Journey, m: MigrationRow): Promise<void
         type: j.subjectType,
         recordId: cur.subjectRecordId,
         patch: { [stageFieldOf(j)]: old.stage },
+        // a system move: no Automation starts for it, however many listen for a record change
+        quiet: true,
       });
       keep("wrote_stage");
     }
@@ -238,8 +258,16 @@ export async function autoPipeline(ctx: JourneysCtx): Promise<string[]> {
     await ctx.call("journeys.to_pipeline", { journeyId: todo.id });
   } catch (e) {
     const j = getJourney(ctx, todo.id);
-    j.migrateNote = message(e);
+    const code = (e as { error?: { code?: string } } | null)?.error?.code ?? "";
+    // a refusal that will not change by itself (the type already has a Journey, the field does not fit) is kept at once; a failure that may pass (the records module was busy) is tried again, five ticks in a row
+    if (code.startsWith("validation.")) j.migrateNote = message(e);
+    else {
+      j.migrateTries = (j.migrateTries ?? 0) + 1;
+      if (j.migrateTries >= MAX_TRIES) j.migrateNote = `${message(e)} (tried ${MAX_TRIES} times)`;
+    }
     saveJourney(ctx.db, j);
   }
   return [todo.id];
 }
+/** Ticks in a row a Journey's move may fail for a reason that may pass before it waits for Retry. */
+export const MAX_TRIES = 5;

@@ -42,6 +42,8 @@ export function shareRepeats(
       next[key] = {
         type: o["type"] ?? "object",
         additionalProperties: true,
+        // the names it must carry stay: a model that has not read the full shape still knows what to fill
+        ...(Array.isArray(o["required"]) ? { required: o["required"] } : {}),
         description: `The same ${seen.key === key ? key : `${seen.key} (as ${key})`} as ${seen.tool}: read its shape there.`,
       };
     }

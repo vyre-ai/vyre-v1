@@ -713,3 +713,32 @@ export async function whyNot(ctx: AutoCtx, input: In): Promise<unknown> {
   rows.sort((x, y) => x.order - y.order || String(x.row["name"]).localeCompare(String(y.row["name"])));
   return { record, changes, eventId: chosen.id, automations: rows.map((r) => r.row) };
 }
+
+
+/**
+ * The Automations that already start on a Journey's stages without belonging to it (rc.41): one that watches a change of the type's stage field (or a record entering a Journey stage) and is not among the stages' members.
+ * The Path page offers each under the stage it listens for, with one press to add it. A listing is read only, and an Automation that names no one stage is offered nowhere.
+ */
+export async function stageOffers(ctx: AutoCtx, input: In): Promise<unknown> {
+  const type = String(input.recordType);
+  const field = typeof input.stageField === "string" && input.stageField ? input.stageField : "stage";
+  const members = new Set<string>(Array.isArray(input.members) ? (input.members as string[]) : []);
+  const stages = new Set<string>(Array.isArray(input.stages) ? (input.stages as string[]) : []);
+  const offers: { automationId: string; name: string; stage: string; on: boolean }[] = [];
+  for (const a of allAutomations(ctx.db)) {
+    if (members.has(a.id) || a.kind !== "space") continue;
+    for (const t of a.definition.triggers) {
+      const f = (t.filter ?? {}) as { type?: unknown; fields?: unknown; where?: Record<string, unknown>; stage?: unknown };
+      let stage: unknown;
+      if (t.key === "record_change" && f.type === type) {
+        const watches = Array.isArray(f.fields) ? f.fields.includes(field) : f.where !== undefined && field in f.where;
+        if (watches) stage = f.where?.[field];
+      } else if (t.key === "journey_stage_entered") stage = f.stage;
+      if (typeof stage === "string" && stages.has(stage)) {
+        offers.push({ automationId: a.id, name: a.name, stage, on: a.status === "on" });
+        break;
+      }
+    }
+  }
+  return { offers };
+}

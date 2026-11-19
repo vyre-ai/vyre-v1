@@ -405,3 +405,20 @@ test("a test can start from something real: a row of the event log, or a record 
   );
   assert.equal(gone, "That is not there any more. Pick another.");
 });
+
+test("offers: an Automation that starts on a stage of the Journey's type and is not part of it is offered under that stage; members and other types are not", async () => {
+  const h = harness();
+  world(h);
+  const SIGNED_TRIGGER = { key: "record_change", filter: { type: "customer", fields: ["stage"], where: { stage: "signed" } } };
+  const onSigned = await made(h, welcome({ name: "On signed", definition: goodDefinition({ triggers: [SIGNED_TRIGGER] }) }));
+  const entered = await made(h, create({ name: "On entered", definition: goodDefinition({ triggers: [{ key: "journey_stage_entered", filter: { stage: "proposal" } }] }) }));
+  await made(h, create({ name: "Other type", definition: goodDefinition({ triggers: [{ key: "record_change", filter: { type: "matter", fields: ["stage"], where: { stage: "signed" } } }] }) }));
+  await made(h, create({ name: "Any change", definition: goodDefinition({ triggers: [{ key: "record_change", filter: { type: "customer" } }] }) }));
+  for (const id of [onSigned, entered]) await h.call("automations.promote", { automationId: id, confirm: true }, alice);
+  const ask = (over: Record<string, unknown> = {}) =>
+    h.call("automations.stage_offers", { recordType: "customer", stages: ["proposal", "signed"], ...over }, alice);
+  const all = (await ask()).offers as { automationId: string; name: string; stage: string }[];
+  assert.deepEqual(all.map((o) => [o.name, o.stage]).sort(), [["On entered", "proposal"], ["On signed", "signed"]], "only those that name one stage of this type");
+  assert.deepEqual((await ask({ members: [onSigned] })).offers.map((o: { automationId: string }) => o.automationId), [entered], "a member is not offered");
+  assert.deepEqual((await ask({ stages: ["signed"] })).offers.map((o: { stage: string }) => o.stage), ["signed"], "a stage the Journey does not have is not offered");
+});
