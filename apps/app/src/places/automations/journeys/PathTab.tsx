@@ -206,7 +206,12 @@ export function PathTab({
       test={test}
       onOpen={(id) => data.nav.openAutomation(id)}
       offers={offers.filter((o) => o.stage === c.key)}
-      {...(canDesign && design ? { onTake: (o: Offer) => void design.design(addAutomation(j.stages, c.key, o.automationId), `Added ${o.name} to ${c.title}`) } : {})}
+      {...(canDesign && design
+        ? {
+            onTake: (o: Offer) =>
+              void design.design(addAutomation(j.stages, c.key, o.automationId), `Added ${o.name} to ${c.title}`),
+          }
+        : {})}
       {...(canDesign && design && !c.final ? { onAdd: (e: unknown) => addMenu(c, at(e).x, at(e).y) } : {})}
     />
   );
@@ -247,7 +252,9 @@ export function PathTab({
           </Text>
         ) : null}
         <View style={{ flex: 1 }} />
-        {canDesign ? <TextButton label="New Journey" icon="plus" testID="path-new" onPress={() => data.nav.newJourney?.()} /> : null}
+        {canDesign ? (
+          <TextButton label="New Journey" icon="plus" testID="path-new" onPress={() => data.nav.newJourney?.()} />
+        ) : null}
         <TextButton
           label={test.phase === "started" || test.phase === "failed" ? "Run again" : "Test the whole path"}
           icon="play"
@@ -400,7 +407,14 @@ const s = StyleSheet.create({
   colTitle: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   colCount: { fontSize: 12, color: "var(--ink-3)" as string },
   here: { width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--accent)" as string },
-  offer: { padding: 12, gap: 6, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", borderColor: "var(--line-2)" as string },
+  offer: {
+    padding: 12,
+    gap: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "var(--line-2)" as string,
+  },
   offerTake: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   card: {
     padding: 12,

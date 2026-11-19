@@ -134,7 +134,8 @@ test("a test that cannot start says why, and can be run again", async () => {
 
 test("an Automation that already starts on a stage is offered in that column; pressing Add puts it in the stage through journeys.design", async () => {
   const { root, calls } = await open((cap) => {
-    if (cap === "automations.stage_offers") return { offers: [{ automationId: "aut_x", name: "Welcome new customers", stage: "won", on: true }] };
+    if (cap === "automations.stage_offers")
+      return { offers: [{ automationId: "aut_x", name: "Welcome new customers", stage: "won", on: true }] };
     return { journey: {} };
   }, true);
   const offer = find(root, "path-offer-won-aut_x");
@@ -147,12 +148,20 @@ test("an Automation that already starts on a stage is offered in that column; pr
   });
   await press(find(root, "path-take-aut_x"));
   await flush();
-  const saved = calls.find((c) => c.cap === "journeys.design")!.input as { stages: { key: string; automations: string[] }[] };
+  const saved = calls.find((c) => c.cap === "journeys.design")!.input as {
+    stages: { key: string; automations: string[] }[];
+  };
   assert.deepEqual(saved.stages.find((s) => s.key === "won")!.automations, ["aut_b", "aut_x"]);
 });
 
 test("without the right to design the offer is shown and cannot be taken", async () => {
-  const { root } = await open((cap) => (cap === "automations.stage_offers" ? { offers: [{ automationId: "aut_x", name: "W", stage: "lead", on: true }] } : {}), false);
+  const { root } = await open(
+    (cap) =>
+      cap === "automations.stage_offers"
+        ? { offers: [{ automationId: "aut_x", name: "W", stage: "lead", on: true }] }
+        : {},
+    false,
+  );
   assert.ok(find(root, "path-offer-lead-aut_x"));
   assert.equal(find(root, "path-take-aut_x"), null);
 });

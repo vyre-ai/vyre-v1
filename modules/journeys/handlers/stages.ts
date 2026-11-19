@@ -1048,7 +1048,9 @@ export async function moveStage(ctx: JourneysCtx, input: In): Promise<unknown> {
       record?: { version?: number };
     } | null;
     if (typeof now?.record?.version === "number" && now.record.version !== input.expectedVersion)
-      raise(ctx, "validation.version_conflict", "It changed first. Look at the card and try again.", { reason: "stale" });
+      raise(ctx, "validation.version_conflict", "It changed first. Look at the card and try again.", {
+        reason: "stale",
+      });
   }
   const reason = String(input.reason).trim();
   if (!reason)

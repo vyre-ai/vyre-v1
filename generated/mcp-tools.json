@@ -35124,6 +35124,9 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "expectedVersion": {
+            "type": "integer"
+          },
           "journeyId": {
             "examples": [
               "jrn_a1b2c3"

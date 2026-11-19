@@ -5873,6 +5873,20 @@ export type AutomationsSetOwnerOut = {
     runsAs?: string;
   };
 };
+export type AutomationsStageOffersIn = {
+  recordType: string;
+  stageField?: string;
+  stages: Array<string>;
+  members?: Array<string>;
+};
+export type AutomationsStageOffersOut = {
+  offers: Array<{
+      automationId: string;
+      name: string;
+      stage: string;
+      on: boolean;
+    }>;
+};
 export type AutomationsStepAskIn = {
   act: "post";
   threadId?: string;
@@ -24321,6 +24335,7 @@ export type JourneysMoveStageIn = {
   recordId: string;
   toStage: string;
   reason: string;
+  expectedVersion?: number;
 };
 export type JourneysMoveStageOut = {
   recordId: string;
@@ -48879,6 +48894,7 @@ export interface CapMap {
   "automations.senders": { in: AutomationsSendersIn; out: AutomationsSendersOut };
   "automations.set_enabled": { in: AutomationsSetEnabledIn; out: AutomationsSetEnabledOut };
   "automations.set_owner": { in: AutomationsSetOwnerIn; out: AutomationsSetOwnerOut };
+  "automations.stage_offers": { in: AutomationsStageOffersIn; out: AutomationsStageOffersOut };
   "automations.step_ask": { in: AutomationsStepAskIn; out: AutomationsStepAskOut };
   "automations.steps.list": { in: AutomationsStepsListIn; out: AutomationsStepsListOut };
   "automations.stop": { in: AutomationsStopIn; out: AutomationsStopOut };

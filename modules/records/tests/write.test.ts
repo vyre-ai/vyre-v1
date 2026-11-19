@@ -165,7 +165,11 @@ test("quiet is for the server's own Journey moves only: a person, an agent, a sc
   await rec.store.create("item", id, { name: "A", qty: 1, status: "open", code: "q1" });
   const seen: Record<string, unknown>[] = [];
   const as = (callerCap?: string) =>
-    ({ ...ctx, ...(callerCap ? { callerCap } : {}), emit: (_n: string, _s: string, p: Record<string, unknown>) => void seen.push(p) }) as never;
+    ({
+      ...ctx,
+      ...(callerCap ? { callerCap } : {}),
+      emit: (_n: string, _s: string, p: Record<string, unknown>) => void seen.push(p),
+    }) as never;
   const update = (c: never, patch: Record<string, unknown>, quiet?: boolean) =>
     rec.handlers["records.update"](c, { type: "item", recordId: id, patch, ...(quiet === undefined ? {} : { quiet }) });
   await update(as(), { qty: 2 });

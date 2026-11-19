@@ -291,6 +291,7 @@ export function stubs(ctx: CallCtx) {
       senders: call("automations.senders"),
       set_enabled: call("automations.set_enabled"),
       set_owner: call("automations.set_owner"),
+      stage_offers: call("automations.stage_offers"),
       step_ask: call("automations.step_ask"),
       steps: {
         list: call("automations.steps.list"),

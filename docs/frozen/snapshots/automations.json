@@ -64,6 +64,7 @@
     "automations.senders@1": "70edf64e56cc65e6132edb9d4aeaea8b549d76dd80a3e8092bc08e30c61049c7",
     "automations.set_enabled@1": "9bfb6dd004d6162d817d96e87bb8435828a588207c45ea7def8755d4f65ebb56",
     "automations.set_owner@1": "bb8560ae493607cbcb7ba8f27df91fc86cdbf66a5551b680e19730e84a3e240a",
+    "automations.stage_offers@1": "0b7df1a9c698901e29962c1a565651d430397c16ec80a0381a01664827e4353b",
     "automations.step_ask@1": "d232bd39a77a83f8d2e0ffac028760441df5a2d07bd8f571b947f281a0636e75",
     "automations.steps.list@1": "1b9edca6bd6e26e1d888d52b74095da776405c44b5b3f42e98888676f1a10d55",
     "automations.stop@1": "0982ffb6da7e549a04fafef760c81c9d2dfbbefb88ba433a618c1d21e48f856e",

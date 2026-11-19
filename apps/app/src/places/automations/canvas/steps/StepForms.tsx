@@ -801,7 +801,9 @@ export function AiForm({
         hint="The Space's skills this step follows; their instructions are given to it"
         onCommit={(t) => writeAi(setSkills(ai, t))}
       />
-      {asksForSkill(input["prompt"]) && !(ai.skills?.length ?? 0) ? <Hint testID="ai-skill-hint">{SKILL_NEEDS_TASK}</Hint> : null}
+      {asksForSkill(input["prompt"]) && !(ai.skills?.length ?? 0) ? (
+        <Hint testID="ai-skill-hint">{SKILL_NEEDS_TASK}</Hint>
+      ) : null}
       <Rows
         label="Input data"
         pairs={pairsOf(input["inputs"])}

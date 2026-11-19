@@ -68,6 +68,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "automations.senders": async (ctx) => { throw new VyreErr(notImplemented("automations.senders", ctx.trace)); },
   "automations.set_enabled": async (ctx) => { throw new VyreErr(notImplemented("automations.set_enabled", ctx.trace)); },
   "automations.set_owner": async (ctx) => { throw new VyreErr(notImplemented("automations.set_owner", ctx.trace)); },
+  "automations.stage_offers": async (ctx) => { throw new VyreErr(notImplemented("automations.stage_offers", ctx.trace)); },
   "automations.step_ask": async (ctx) => { throw new VyreErr(notImplemented("automations.step_ask", ctx.trace)); },
   "automations.steps.list": async (ctx) => { throw new VyreErr(notImplemented("automations.steps.list", ctx.trace)); },
   "automations.stop": async (ctx) => { throw new VyreErr(notImplemented("automations.stop", ctx.trace)); },
