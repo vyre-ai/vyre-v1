@@ -14,6 +14,9 @@ import { useConsoleData } from "../../shell/data.tsx";
 import { Empty, Group } from "../../shell/ui.tsx";
 import { Help, Button, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
 export type Resource = { type: "domain" | "number" | "mailbox"; id: string };
+/** How a sending domain or route sends, as a person reads it. */
+export const providerName = (provider: string): string =>
+  provider === "mailgun" ? "Mailgun" : provider === "smtp" ? "SMTP" : "Resend";
 export function CommsList({
   rows,
   onOpen,

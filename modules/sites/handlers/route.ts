@@ -97,6 +97,8 @@ export interface SitesHost {
   runner?: Runner;
   /** a value the Vault filled for a deploy (kind container_env), taken once */
   take?(ref: string): string | undefined;
+  /** a call the host makes as itself (svc_host), for what a site's own action needs and the caller's hold would only stop: the Vault folder, item and shares of a webhook secret. The caller and the person it works for are named in the audit line. */
+  asHost?(cap: string, input: unknown): Promise<unknown>;
   /** true when this daemon runs in a container: a path on its disk is not an agent's */
   contained?: boolean;
   /** where a source is fetched and built from */
@@ -494,7 +496,9 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   mustFolder(ctx, folderId);
   const cleanedName = name === undefined ? site.name : cleanName(ctx, name);
   unchangedSince(ctx, mustSite(ctx, str(site.id)), o); // the awaits above let another change land: check again in the same step as the first write
-  if (source !== null) ctx.db.run("UPDATE sites_site SET source = ? WHERE id = ?", source, site.id);
+  if (source !== null)
+    // another source is another branch on another host: what was found out about the old one is no longer known
+    ctx.db.run("UPDATE sites_site SET source = ?, protection = NULL WHERE id = ?", source, site.id);
   if (limits !== null) ctx.db.run("UPDATE sites_site SET limits = ? WHERE id = ?", limits, site.id);
   if (auto !== undefined) ctx.db.run("UPDATE sites_site SET auto_deploy = ? WHERE id = ?", auto ? 1 : 0, site.id);
   // becoming public is an outward act: it comes down here and goes back up through sites.promote and the Gate

@@ -1,7 +1,7 @@
 {
   "module": "resend",
   "capabilities": {
-    "resend.domains.create@1": "2959c7668ec26964166405d7b1094128301aeb44a07c0925761a830dd1c4cb97",
+    "resend.domains.create@1": "55be5df5a7080922f12bd3a45d5aeabdb0d064c8d0443bf353307cc1d30dfa53",
     "resend.domains.delete@1": "3cd8dea064a71d4a5eb6941fdab492031abe55249d536aff3ff766b722834f64",
     "resend.domains.get@1": "16100b16d7b843ef97db9c13a6fb34c399e40cb30f1dc35d2c6efd27c865edc8",
     "resend.domains.list@1": "39b74d125e864fac8d9f8afdae92c7481f235b10e3bc7ef8110f3bd68e60b377",

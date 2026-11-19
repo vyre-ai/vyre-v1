@@ -19,6 +19,11 @@ const TENANT_SERVICE: readonly RegExp[] = [/^svc_form_/, /^svc_site_/, /^svc_[0-
 export const isTenantService = (p: PrincipalLike | null | undefined): boolean =>
   !!p && p.kind === "service" && TENANT_SERVICE.some((re) => re.test(p.id));
 
+/** The services the host itself runs, by name. An allow-list: any other service id (a tenant's, a legacy one, one nobody has heard of) is not one of them. */
+export const HOST_OWN_SERVICES: ReadonlySet<string> = new Set(["svc_host", "svc_engine", "svc_sync"]);
+export const isHostOwnService = (p: PrincipalLike | null | undefined): boolean =>
+  !!p && p.kind === "service" && HOST_OWN_SERVICES.has(p.id);
+
 /** A service the host runs (svc_host, svc_engine, svc_sync...), never one a tenant made. This is what "a service caller acts for every slot" means. */
 export const isTrustedService = (p: PrincipalLike | null | undefined): boolean =>
   !!p && p.kind === "service" && !isTenantService(p);

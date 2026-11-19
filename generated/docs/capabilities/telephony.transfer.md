@@ -11,7 +11,7 @@ Transfer a call to a teammate or an agent (warm or cold)
 | Grant level | use |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

@@ -1,6 +1,6 @@
 # sites.webhook_set
 
-Turn the GitHub webhook on or off, rotate its secret (shown once), or set which branches get a preview (names, prefix*, or *)
+Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get previews
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Turn the GitHub webhook on or off, rotate its secret (shown once), or set which 
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |
@@ -40,6 +40,7 @@ type Out = {
   url?: string;
   follow: Array<string>;
   secret?: string;
+  vault?: string;
   lastDeliveryAt?: number;
   failed: Array<{
       branch: string;
@@ -88,7 +89,8 @@ type Out = {
     ],
     "lastDeliveryAt": 1760000000000,
     "secret": "example",
-    "url": "example"
+    "url": "example",
+    "vault": "example"
   }
 }
 ```

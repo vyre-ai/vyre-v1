@@ -1,6 +1,6 @@
 # sites.deploy
 
-Build the site from its source and run it here: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends
+Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Build the site from its source and run it here: Dockerfile, Node, Next.js, Vite,
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | send when sites.deploy_gate(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |
@@ -37,6 +37,8 @@ type In = {
   };
   wait?: boolean;
   onlyIfChanged?: boolean;
+  commit?: string;
+  fp?: string;
 };
 ```
 
@@ -86,6 +88,8 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "commit": "example",
+    "fp": "example",
     "onlyIfChanged": true,
     "siteId": "sit_a1b2c3",
     "source": {

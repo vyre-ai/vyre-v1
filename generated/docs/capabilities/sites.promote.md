@@ -1,6 +1,6 @@
 # sites.promote
 
-Put a site on the public internet at its address. Held for approval unless the person asked for it this turn
+Put a site on the public internet. Held for approval unless the person asked this turn
 
 | | |
 |---|---|

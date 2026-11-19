@@ -1,6 +1,6 @@
 # comms.senders.list
 
-Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why
+Addresses and numbers the caller can send from; one that cannot send now says usable false and why
 
 | | |
 |---|---|

@@ -100,8 +100,14 @@ test("a site's GitHub webhook over the real edge route: signed deliveries are ta
   // the tick runs the queued preview as the site's owner; there is no runner here, so it is recorded as failed
   const failed = await waitFor(
     async () => {
-      const f = (await call(d, "sites.webhook_get", { siteId })).data.failed as { branch: string; error: string }[];
-      return f.length ? f : null;
+      const f = (await call(d, "sites.webhook_get", { siteId })).data.failed as {
+        branch: string;
+        action: string;
+        error: string;
+      }[];
+      // the auto-deploy a push asked for may sit beside it (it shows on the card with its reason too): the push's own is the one asked about
+      const mine = f.filter((x) => x.branch === "feat/e2e");
+      return mine.length ? mine : null;
     },
     20_000,
     () => hostLog(d),
@@ -127,4 +133,77 @@ test("a site's GitHub webhook over the real edge route: signed deliveries are ta
   // and GitHub's redelivery of the same delivery is taken again
   const again = await delivery(body, "e2e00001-aaaa");
   assert.equal(again.status, 200, again.text);
+});
+
+test("on a booted daemon, a push to the production branch of a site that holds a Vault key is not parked unpinned: when the branch head cannot be read (no network here) the deploy is refused, nothing is held, and the site's card says why", async (t) => {
+  const dir = seededDir();
+  const d = await boot(dir, null);
+  t.after(async () => {
+    await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const made = await call(d, "sites.create", {
+    name: "Keyed app",
+    source: { repo: "acme/keyed", branch: "main" },
+    idempotencyKey: "hook-site-2",
+  });
+  assert.equal(made.status, 200, JSON.stringify(made.data));
+  const siteId = made.data.site.siteId as string;
+  const folder = await call(d, "vault.folders.create", {
+    name: "Keys",
+    scope: "shared",
+    idempotencyKey: "keys-folder",
+  });
+  assert.equal(folder.status, 200, JSON.stringify(folder.data));
+  const item = await call(d, "vault.item.put", {
+    folderId: folder.data.folder.id,
+    name: "Payments",
+    kind: "other",
+    fields: [{ key: "token", value: "sk_live_x", secret: true }],
+    idempotencyKey: "keys-item",
+  });
+  assert.equal(item.status, 200, JSON.stringify(item.data));
+  const set = await call(d, "sites.env_set", {
+    siteId,
+    entries: [{ name: "PAYMENTS", vaultHandle: item.data.item.handle }],
+  });
+  assert.equal(set.status, 200, JSON.stringify(set.data));
+  assert.equal((await call(d, "sites.update", { siteId, autoDeploy: true })).status, 200);
+  const on = await call(d, "sites.webhook_set", { siteId, enabled: true });
+  const secret = on.data.secret as string;
+  const body = JSON.stringify({
+    ref: "refs/heads/main",
+    after: "b".repeat(40),
+    repository: { full_name: "acme/keyed", default_branch: "main" },
+  });
+  const r = await fetch(`${d.url}/hooks/sites`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-github-event": "push",
+      "x-github-delivery": "keyed0001-aaaa",
+      "x-hub-signature-256": await sign(secret, body),
+    },
+    body,
+    signal: AbortSignal.timeout(8_000),
+  });
+  assert.equal(r.status, 200);
+  // the tick asks as the person who deployed last, with origin sites-push, and the real Gate and rule judge it; with no head to read the card cannot show what would deploy, so it is refused and never parked
+  const failed = await waitFor(
+    async () => {
+      const f = (await call(d, "sites.webhook_get", { siteId })).data.failed as { action: string; error: string }[];
+      const mine = f.filter((x) => x.action === "deploy");
+      return mine.length ? mine : null;
+    },
+    30_000,
+    () => hostLog(d),
+  );
+  assert.match(failed[0]!.error, /Couldn't read main to show what would deploy|Waiting for a person/);
+  const tasks = await call(d, "tasks.list", { scope: "all", kinds: ["approve"], limit: 20 });
+  assert.equal(tasks.status, 200, JSON.stringify(tasks.data).slice(0, 300));
+  assert.doesNotMatch(
+    JSON.stringify(tasks.data),
+    /deploy Keyed app: anyone who can push to main can use Payments(?! at)/,
+    "no card is parked unpinned",
+  );
 });

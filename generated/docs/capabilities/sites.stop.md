@@ -1,6 +1,6 @@
 # sites.stop
 
-Stop serving a site. Its address answers nothing; the process on the computer keeps running
+Stop serving a site. Its address answers nothing
 
 | | |
 |---|---|

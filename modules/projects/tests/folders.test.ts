@@ -4,7 +4,14 @@ import assert from "node:assert/strict";
 import { DANA, LEO, MAYA, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { mkProject } from "../fixtures/seed.ts";
-import { adoptRecord, backfill, folderNameOf, onRecordEvent, syncAccess } from "../handlers/folders.ts";
+import {
+  adoptRecord,
+  backfill,
+  folderNameOf,
+  onFolderUnfollowed,
+  onRecordEvent,
+  syncAccess,
+} from "../handlers/folders.ts";
 
 /** A project record made the way the Records page makes one: a row with no projects row and no folder. */
 function mkRecord(h: Harness, fields: Record<string, unknown>, type = "project"): string {
@@ -443,4 +450,52 @@ test("a record share taken away while the folder's sync is mid-way is not writte
     h.world.grants.some((g) => g.resource.id === folderId && g.subject.id === MAYA),
     "Maya keeps hers",
   );
+});
+
+test("a folder that cannot follow its record says so as an event, and the host's consumer narrows it to the people added and tells the person who asked", async () => {
+  const h = harness();
+  h.world.refuse.follows = true;
+  const id = mkRecord(h, { title: "Private deal" });
+  await created(h, id);
+  const folder = named(h, "Private deal")[0]!.folderId;
+  const ev = h.emitted.find((e) => e.name === "project.folder_unfollowed");
+  assert.ok(ev, "the refusal is an event, never a quiet gap");
+  assert.equal(ev!.payload["folderId"], folder);
+  assert.equal(
+    h.only("tasks.create").length,
+    0,
+    "the caller itself narrows and notifies nothing: it has no Manage to narrow with",
+  );
+  await onFolderUnfollowed(h.ctx, ev!.payload);
+  assert.deepEqual(
+    h.only("access.folder_narrow").map((c) => c.input),
+    [{ folderId: folder }],
+  );
+  const tasks = h.only("tasks.create").map((c) => c.input as { title: string; assigned: { kind: string; id: string } });
+  assert.equal(tasks.length, 1);
+  assert.match(tasks[0]!.title, /limited to the people added/);
+  assert.deepEqual(tasks[0]!.assigned, { kind: "person", id: String(ev!.payload["by"]) });
+});
+
+test("a refused caller that is a service goes to the record's owner, else the Space's admins; a folder the host could not narrow says so", async () => {
+  const h = harness();
+  const id = mkRecord(h, { title: "Owned deal", assigned: "usr_owner1" });
+  await onFolderUnfollowed(h.ctx, { folderId: "fld_x", recordId: id, by: "svc_form_x", why: "no_grant" });
+  const t1 = h.only("tasks.create").map((c) => c.input as { assigned: { kind: string; id: string } });
+  assert.deepEqual(t1[0]!.assigned, { kind: "person", id: "usr_owner1" });
+  const h2 = harness();
+  const id2 = mkRecord(h2, { title: "Nobody's deal" });
+  h2.world.down.add("access.folder_narrow");
+  await onFolderUnfollowed(h2.ctx, { folderId: "fld_y", recordId: id2, by: `svc_${"a1".repeat(16)}`, why: "no_grant" });
+  const t2 = h2.only("tasks.create").map((c) => c.input as { title: string; assigned: { kind: string; id: string } });
+  assert.deepEqual(t2[0]!.assigned, { kind: "role", id: "rol_admin" });
+  assert.match(t2[0]!.title, /could not be limited/);
+});
+
+test("a folder that follows its record makes no task and is not narrowed", async () => {
+  const h = harness();
+  const id = mkRecord(h, { title: "Open deal" });
+  await created(h, id);
+  assert.equal(h.only("tasks.create").length, 0);
+  assert.equal(h.only("access.folder_narrow").length, 0);
 });

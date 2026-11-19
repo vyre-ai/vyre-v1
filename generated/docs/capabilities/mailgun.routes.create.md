@@ -11,7 +11,7 @@ Create a route that forwards inbound mail for an address to /hooks/mail/mailgun
 | Grant level | use |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

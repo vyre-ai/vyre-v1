@@ -1,0 +1,60 @@
+{
+  "targets": [
+    {
+      "id": "EMAIL42_01-templates",
+      "route": "/m/EMAIL42_01?part=templates",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='console-templates']",
+      "note": "Console, Messaging, Email: the templates list; the signature request is changed by the Space."
+    },
+    {
+      "id": "EMAIL42_01-template",
+      "route": "/m/EMAIL42_01?part=template",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='template-object']",
+      "note": "One template open: words, field buttons, and a preview that names the fields that would go out empty."
+    },
+    {
+      "id": "EMAIL42_01-template-record",
+      "route": "/m/EMAIL42_01?part=template-record",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='template-object']",
+      "note": "The same template previewed on a real record: every field has a value."
+    },
+    {
+      "id": "EMAIL42_01-inbox",
+      "route": "/m/EMAIL42_01?part=inbox",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='inbox-health']",
+      "note": "A shared inbox that works: how mail arrives, last received and received today."
+    },
+    {
+      "id": "EMAIL42_01-inbox-failing",
+      "route": "/m/EMAIL42_01?part=inbox-failing",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='inbox-problem']",
+      "note": "A shared inbox whose sign-in failed: the reason and the one fix."
+    },
+    {
+      "id": "EMAIL42_01-trail-delivered",
+      "route": "/m/EMAIL42_01?part=trail-delivered",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='email42-trail']",
+      "note": "Under a sent email: Delivered 09:12."
+    },
+    {
+      "id": "EMAIL42_01-trail-bounced",
+      "route": "/m/EMAIL42_01?part=trail-bounced",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='email42-trail']",
+      "note": "Under a sent email that bounced: why, and that the address is blocked."
+    },
+    {
+      "id": "EMAIL42_01-trail-retrying",
+      "route": "/m/EMAIL42_01?part=trail-retrying",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='email42-trail']",
+      "note": "Under a sent email that could not be delivered yet: when it tries again."
+    }
+  ]
+}

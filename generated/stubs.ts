@@ -40,6 +40,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("access.exceptions.remove"),
         set: call("access.exceptions.set"),
       },
+      folder_narrow: call("access.folder_narrow"),
       grants: {
         list: call("access.grants.list"),
         update: call("access.grants.update"),
@@ -1631,11 +1632,22 @@ export function stubs(ctx: CallCtx) {
       set: call("machines.set"),
     },
     mail: {
+      address: {
+        add: call("mail.address.add"),
+        list: call("mail.address.list"),
+        move: call("mail.address.move"),
+      },
       attachment: {
         save: call("mail.attachment.save"),
       },
       auto_connect_members: call("mail.auto_connect_members"),
+      configure: call("mail.configure"),
       connect: call("mail.connect"),
+      delivery: {
+        retry: call("mail.delivery.retry"),
+        trail: call("mail.delivery.trail"),
+      },
+      delivery_state: call("mail.delivery_state"),
       domain: {
         add: call("mail.domain.add"),
         check: call("mail.domain.check"),
@@ -1650,6 +1662,9 @@ export function stubs(ctx: CallCtx) {
         list: call("mail.drafts.list"),
       },
       health: call("mail.health"),
+      inbox: {
+        monitor: call("mail.inbox.monitor"),
+      },
       ingest: call("mail.ingest"),
       mailbox: {
         create: call("mail.mailbox.create"),
@@ -1678,8 +1693,30 @@ export function stubs(ctx: CallCtx) {
       send: call("mail.send"),
       send_as: call("mail.send_as"),
       send_preview: call("mail.send_preview"),
+      setup: {
+        status: call("mail.setup.status"),
+        test_send: call("mail.setup.test_send"),
+      },
+      smtp: {
+        get: call("mail.smtp.get"),
+        set: call("mail.smtp.set"),
+        verify: call("mail.smtp.verify"),
+      },
       status_update: call("mail.status_update"),
       sync_now: call("mail.sync_now"),
+      template: {
+        for_document: {
+          clear: call("mail.template.for_document.clear"),
+          get: call("mail.template.for_document.get"),
+          set: call("mail.template.for_document.set"),
+        },
+        get: call("mail.template.get"),
+        list: call("mail.template.list"),
+        preview: call("mail.template.preview"),
+        reset: call("mail.template.reset"),
+        save: call("mail.template.save"),
+      },
+      templates: call("mail.templates"),
       thread: {
         get: call("mail.thread.get"),
       },
@@ -2491,6 +2528,7 @@ export function stubs(ctx: CallCtx) {
         scan: call("schema.sensitivity.scan"),
       },
       set_label: call("schema.set_label"),
+      set_mergeable: call("schema.set_mergeable"),
       trash: {
         list: call("schema.trash.list"),
       },
@@ -2592,6 +2630,7 @@ export function stubs(ctx: CallCtx) {
       env_list: call("sites.env_list"),
       env_set: call("sites.env_set"),
       get: call("sites.get"),
+      head_check: call("sites.head_check"),
       host: call("sites.host"),
       job_cancel: call("sites.job_cancel"),
       job_create: call("sites.job_create"),

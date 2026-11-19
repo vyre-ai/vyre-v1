@@ -10,6 +10,9 @@
 // @reads ../migrations/0004_deploy.sql
 // @reads ../migrations/0005_deploy_steps.sql
 // @reads ../migrations/0006_env_plain.sql
+// @reads ../migrations/0015_built_from.sql
+// @reads ../migrations/0016_branch_protection.sql
+// @reads ../migrations/0017_hook_vault.sql
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
 import {
@@ -28,12 +31,14 @@ import {
   reqStr,
   str,
 } from "./deploy.ts";
+import { takeGateFp, uploadFingerprint, wasApproved } from "../../../lib/key-target.ts";
 import { looksSecret } from "./secrets.ts";
 import { sitePlan } from "./plan.ts";
 import type { SitePlan } from "./plan.ts";
 import { addonHost, DEFAULT_LIMITS, MIN_FREE_MB } from "./runner.ts";
 import type { AddonKind, Limits, Runner } from "./runner.ts";
 import { cleanBranch, fetchSource, remoteHead, repoUrl, SourceError } from "./source.ts";
+import { DENIED_PREFIX, WAITING_MS, WAITING_PREFIX } from "./waiting.ts";
 import type { SourceSpec } from "./source.ts";
 import { routesHost, siteRunner } from "./route.ts";
 import { cleanupOps } from "./ops-cleanup.ts";
@@ -480,18 +485,34 @@ async function addonEnv(ctx: Ctx, siteId: string): Promise<Record<string, string
 }
 
 /** The env vars of a deploy: the site's databases, then each var whose scope applies to this kind of deploy (all, and production or previews). A plain value is used as kept; a secret is filled from the Vault now. */
+/** The branches a person named in the site's webhook follow list, one by one: a pattern with a * names none. */
+function namedBranches(ctx: Ctx, siteId: string): string[] {
+  const site = one(ctx, "SELECT hook_follow FROM sites_site WHERE id = ?", siteId);
+  try {
+    const v = JSON.parse(!site || isNull(site.hook_follow) ? "[]" : str(site.hook_follow)) as unknown;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !x.includes("*")) : [];
+  } catch {
+    return [];
+  }
+}
+
 async function envOf(
   ctx: Ctx,
   siteId: string,
   depId: string,
   kind: "production" | "preview" = "production",
+  branch?: string,
 ): Promise<Record<string, string>> {
   // a preview never gets the site's own databases: it would write to production data. It gets the ones its variables name (scope previews).
   const out = kind === "production" ? await addonEnv(ctx, siteId) : {};
   const want = kind === "production" ? "production" : "previews";
+  // a Vault key scoped to everything reaches a preview only for a branch a person named in the follow list: a "*" follow, or any branch a push can make, gets plain values and the keys made for previews
+  const named = kind === "preview" ? namedBranches(ctx, siteId) : [];
   for (const e of many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", siteId)) {
     const scope = isNull(e.scope) ? "production" : str(e.scope);
     if (scope !== "all" && scope !== want) continue;
+    if (kind === "preview" && scope === "all" && isNull(e.plain) && !(branch !== undefined && named.includes(branch)))
+      continue;
     out[str(e.name)] = !isNull(e.plain)
       ? str(e.plain)
       : await filled(ctx, str(e.vault_handle), `${depId}:${str(e.name)}`);
@@ -506,10 +527,11 @@ async function envForNew(
   depId: string,
   kind: "production" | "preview",
   ac: AbortController,
+  branch?: string,
 ): Promise<Record<string, string> | null> {
   cancels.set(depId, ac);
   try {
-    const env = await envOf(ctx, siteId, depId, kind);
+    const env = await envOf(ctx, siteId, depId, kind, branch);
     if (!ac.signal.aborted) return env;
   } catch (e) {
     cancels.delete(depId);
@@ -568,6 +590,10 @@ interface Job {
   signal: AbortSignal;
   /** A preview deploy: its own container at its own address, behind sign-in, never the site's address. */
   preview?: { branch: string; host: string };
+  /** For uploaded files: what the files were when the deploy was asked for. The build refuses to go on if the files it fetches are other ones. */
+  expectFp?: string | null;
+  /** The deploy is by anything but a person on a site with a production Vault key: it builds only files it can prove are the ones that were approved. */
+  strict?: boolean;
 }
 
 /** The deploys this process is running, by id, with the switch that cancels each. */
@@ -582,6 +608,9 @@ function stopIfCanceled(signal: AbortSignal): void {
 function stopIfClosed(db: Db, depId: string): void {
   if (!isOpen(db, depId)) throw new Canceled();
 }
+/** How a branch's head is read; a test replaces it (no network here). */
+let headReader: typeof remoteHead = remoteHead;
+
 /** How a source is fetched; a test replaces it (a repo cannot be cloned there). */
 let fetcher: typeof fetchSource = fetchSource;
 
@@ -711,6 +740,35 @@ async function runJob(j: Job): Promise<void> {
       return;
     }
     live();
+    // the commit a person approved is the commit built
+    if (j.source.commit && fetched.commit && fetched.commit !== j.source.commit) {
+      const why = "The branch moved while this waited, and the commit that was approved could not be built. Ask again.";
+      log.add(why);
+      end("failed", { problem: why, fix: "retry" });
+      return;
+    }
+    // the files this build read are the ones the deploy was asked for (and the Gate looked at), or nothing is built from them
+    if (j.strict && (j.source.folderId || j.source.fileId) && (!j.expectFp || !fetched.fp)) {
+      const why =
+        "The files could not be checked against the ones that were approved, so nothing was built from them. A person can deploy them.";
+      log.add(why);
+      end("failed", { problem: why, fix: "retry" });
+      return;
+    }
+    if (j.expectFp && fetched.fp && j.expectFp !== fetched.fp) {
+      const why = "The files changed while this waited, so nothing was built from them. Ask again.";
+      log.add(why);
+      end("failed", { problem: why, fix: "retry" });
+      return;
+    }
+    // where this build's code came from, without the token: a promoted preview is judged by it
+    {
+      const origin: SourceSpec & { fp?: string } = { ...j.source };
+      delete origin.tokenHandle;
+      // uploaded files carry the fingerprint of the versions this build read (not a later look), so the Gate can tell when they were replaced since
+      if ((origin.folderId || origin.fileId) && fetched.fp) origin.fp = fetched.fp;
+      j.db.run("UPDATE sites_deployment SET built_from = ? WHERE id = ?", JSON.stringify(origin), j.depId);
+    }
     if (fetched.commit) {
       say(`Commit ${fetched.commit.slice(0, 7)}${fetched.message ? `: ${fetched.message}` : ""}`);
       j.db.run(
@@ -1010,6 +1068,75 @@ export function siteSubnets(ctx: Pick<Ctx, "db">): string[] {
 
 // ---- capabilities
 
+/** owner/name of a GitHub repo, as the source writes it; null for any other host. */
+function githubRepo(raw: string): { owner: string; name: string } | null {
+  const m = /^(?:(?:https?:\/\/)?(?:www\.)?github\.com\/)?([A-Za-z0-9_-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/i.exec(
+    raw.trim(),
+  );
+  if (!m || /^\.+$/.test(m[1]!) || /^\.+$/.test(m[2]!)) return null;
+  return { owner: m[1]!, name: m[2]! };
+}
+
+/**
+ * What the host says about the production branch: protected (required reviews or restricted pushes), open, or unknown (anything that could not be read, a repo that is not on GitHub). Recorded on the site for the Gate, which holds a deploy by
+ * anything but a person while the branch is not protected: anyone who can push to it can use the site's keys. Never throws.
+ */
+async function refreshProtection(ctx: Ctx, siteId: string, source: SourceSpec, token: string | null): Promise<string> {
+  const gh = source.repo ? githubRepo(source.repo) : null;
+  if (!gh) return "unknown";
+  const api = `https://api.github.com/repos/${gh.owner}/${gh.name}`;
+  const headers: Record<string, string> = { accept: "application/vnd.github+json", "user-agent": "vyre-sites" };
+  if (token) headers["authorization"] = `Bearer ${token}`;
+  let state = "unknown";
+  let branch = source.branch ?? "";
+  const get = async (url: string): Promise<{ status: number; body: unknown }> => {
+    const r = await ctx.http(url, { headers });
+    let body: unknown = null;
+    try {
+      body = JSON.parse(await r.text());
+    } catch {
+      body = null;
+    }
+    return { status: r.status, body };
+  };
+  try {
+    if (!branch) {
+      const repo = await get(api);
+      if (repo.status === 200) branch = (repo.body as { default_branch?: string } | null)?.default_branch ?? "";
+    }
+    if (branch) {
+      const name = encodeURIComponent(branch);
+      // the rules that apply to the branch (rulesets) are readable with a token that can read the repo; the classic endpoint needs more. Rules first, the classic one for what they do not say.
+      const rules = await get(`${api}/rules/branches/${name}`);
+      const list = rules.status === 200 && Array.isArray(rules.body) ? (rules.body as Record<string, unknown>[]) : null;
+      const bound = list?.some((r) => {
+        if (r["type"] === "update") return true;
+        const need = (r["parameters"] as { required_approving_review_count?: unknown } | undefined)
+          ?.required_approving_review_count;
+        return r["type"] === "pull_request" && typeof need === "number" && need >= 1;
+      });
+      if (bound) state = "protected";
+      else {
+        const classic = await get(`${api}/branches/${name}/protection`);
+        if (classic.status === 200) {
+          const b = (classic.body ?? {}) as Record<string, unknown>;
+          const enforced = (b["enforce_admins"] as { enabled?: unknown } | undefined)?.enabled === true;
+          // reviews or restricted pushes only count when they bind admins too: an admin who can push can use the keys
+          state = (b["required_pull_request_reviews"] || b["restrictions"]) && enforced ? "protected" : "open";
+        } else if (classic.status === 404) state = list ? "open" : "unknown";
+      }
+    }
+  } catch {
+    state = "unknown";
+  }
+  ctx.db.run(
+    "UPDATE sites_site SET protection = ? WHERE id = ?",
+    JSON.stringify({ state, branch, at: ctx.now() }),
+    siteId,
+  );
+  return state;
+}
+
 async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unknown }> {
   const o = rec(ctx, input);
   let site = mustSite(ctx, reqStr(ctx, o, "siteId"));
@@ -1030,6 +1157,26 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
   const siteId = str(site.id);
   const current = isNull(site.current_deployment) ? null : str(site.current_deployment);
   const token = source.tokenHandle ? await filled(ctx, source.tokenHandle, `${siteId}:token:${ctx.now()}`) : null;
+  // a deploy by anything but a person (an agent, or a push) on a site that holds a production Vault key is only as good as what the Gate approved: no reading of its own, and the build refuses without one
+  const strict =
+    (ctx.principal.kind !== "person" || ctx.origin === "sites-push") &&
+    !!many(
+      ctx,
+      "SELECT 1 FROM sites_env WHERE site_id = ? AND plain IS NULL AND vault_handle != '' AND scope != 'previews'",
+      siteId,
+    ).length;
+  // uploaded files: the files the Gate judged for this call when it read them, else (a person's call, or a site with no key) what they are now, read as the caller; the build checks what it fetches against it
+  const gateFp = takeGateFp(ctx.trace, siteId);
+  // the files the call names (the Gate checked a non-person's against what it reads, so a caller cannot name others); a card made over them carries it in the held input
+  const inputFp = ((f) => (typeof f === "string" && /^[0-9a-f]{32}$/.test(f) ? f : null))(o["fp"]);
+  // the commit the call names (a tick asks for the commit it saw, and a card made over it carries it in the held input, so it survives a restart): that commit is built, and a caller cannot name one that is not on the branch (the fetch refuses)
+  const pinned = ((c) => (typeof c === "string" && /^[0-9a-f]{40}$/.test(c) ? c : null))(o["commit"]);
+  const expectFp =
+    source.folderId || source.fileId
+      ? (inputFp ??
+        gateFp ??
+        (strict ? null : await uploadFingerprint(source, (cap, inp) => ctx.call(cap as never, inp))))
+      : null;
   if (optBool(ctx, o, "onlyIfChanged") === true && source.repo) {
     const last = one(
       ctx,
@@ -1039,15 +1186,31 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     );
     // a push redeploys a site that was deployed; the first deploy is someone's own press
     if (!last) fail(ctx, "validation.precondition_failed", "It has not been deployed yet.");
-    const head = await remoteHead(source.repo, source.branch, token);
+    const head = pinned ?? (await headReader(source.repo, source.branch, token));
     // a deploy of this commit that ended (also one a person canceled) is not started again by itself; one that is running is joined
     if (last && head && (last.commit_sha === head || last.state === "queued" || last.state === "building"))
       return { deployment: depRow(last, current) };
     if (!head) fail(ctx, "validation.precondition_failed", "The repo could not be read just now.");
   }
   if (newSource !== null) {
-    ctx.db.run("UPDATE sites_site SET source = ?, updated_at = ? WHERE id = ?", newSource, ctx.now(), siteId);
+    ctx.db.run(
+      "UPDATE sites_site SET source = ?, protection = NULL, updated_at = ? WHERE id = ?",
+      newSource,
+      ctx.now(),
+      siteId,
+    );
     site = mustSite(ctx, siteId);
+  }
+  // what the host says about the production branch, for the Gate (a person's deploy, or one a person approved, keeps it current)
+  if (source.repo) {
+    const seen = await refreshProtection(ctx, siteId, source, token);
+    // the Gate's own look is only a pre-filter: this one is fresh. A deploy by an agent or a push where the branch is not protected now (or cannot be told) goes on only when a person approved it
+    if (strict && githubRepo(source.repo) && seen !== "protected" && !wasApproved(ctx.trace, siteId))
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        `Anyone who can push to ${source.branch || "the production branch"} can use this site's keys, and it is not protected on GitHub right now. Protect the branch, or ask a person to deploy.`,
+      );
   }
   const busy = one(
     ctx,
@@ -1070,6 +1233,12 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
   const depId = nid(ctx, "dpl");
   const now = ctx.now();
   const by = ctx.actingFor ?? ctx.principal.id;
+  // a deploy that was waiting for a person is answered by this one
+  ctx.db.run(
+    "DELETE FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error LIKE ?",
+    siteId,
+    `${WAITING_PREFIX}%`,
+  );
   ctx.db.run(
     "INSERT INTO sites_deployment (id, site_id, env, state, url, branch, commit_sha, image, container_id, host, upstream, pr_number, log, created_by, at, updated_at, removed_at, merge_pending) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     depId,
@@ -1101,7 +1270,7 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     db: ctx.db,
     site,
     depId,
-    source,
+    source: pinned ? { ...source, commit: pinned } : source,
     env,
     token,
     limits: limitsOf(site),
@@ -1110,6 +1279,8 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     call: (cap, inp) => ctx.call(cap as never, inp),
     publicNeedsPromote: ctx.principal.kind !== "person",
     signal: ac.signal,
+    expectFp,
+    strict,
   };
   const p = enqueue(() => runJob(job)).finally(() => {
     done.delete(depId);
@@ -1508,7 +1679,7 @@ async function sitesPreviewRebuild(ctx: Ctx, input: unknown): Promise<{ deployme
     });
     throw e;
   }
-  const env = await envForNew(ctx, siteId, depId, "preview", ac);
+  const env = await envForNew(ctx, siteId, depId, "preview", ac, branch);
   if (env === null)
     return { deployment: depRow(one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", depId) as Row, null) };
   const job: Job = {
@@ -1638,6 +1809,11 @@ async function sitesPreviewPromote(ctx: Ctx, input: unknown): Promise<{ deployme
     prev.commit_sha ?? null,
     by,
     now,
+  );
+  ctx.db.run(
+    "UPDATE sites_deployment SET built_from = ? WHERE id = ?",
+    isNull(prev.built_from) ? null : str(prev.built_from),
+    depId,
   );
   const ac = new AbortController();
   const env = await envForNew(ctx, siteId, depId, "production", ac);
@@ -2252,12 +2428,75 @@ export function siteHostOf(site: Row): string | null {
 }
 
 /** For the host's push check: sites that deploy on a push, with whom to run the deploy as. */
-export function autoDeploySites(ctx: Pick<Ctx, "db">): { siteId: string; as: string }[] {
+export function autoDeploySites(ctx: Pick<Ctx, "db">): { siteId: string; as: string; branch: string }[] {
   return (
     ctx.db.all("SELECT * FROM sites_site WHERE auto_deploy = 1 AND deleted_at IS NULL AND source IS NOT NULL") as Row[]
   )
     .filter((r) => sourceOf(r)?.repo)
-    .map((r) => ({ siteId: str(r.id), as: isNull(r.deployed_by) ? str(r.owner) : str(r.deployed_by) }));
+    .map((r) => ({
+      siteId: str(r.id),
+      as: isNull(r.deployed_by) ? str(r.owner) : str(r.deployed_by),
+      branch: sourceOf(r)?.branch ?? "",
+    }));
+}
+
+/**
+ * The deploys a tick should ask for: a site that deploys on push, and only when its branch has a commit that was not deployed (the host reads the head with the site's own token, through sites.head_check, before it asks the Gate), and not a commit that already waits for a
+ * person or that a person denied: one card and one row per site and commit. A newer commit asks at once. When the head cannot be read the commit is unknown: the site is asked for once and then waits.
+ */
+export async function autoDeployTargets(
+  ctx: Pick<Ctx, "db">,
+  headOf: (a: {
+    siteId: string;
+    as: string;
+    repo: string;
+    branch: string;
+  }) => Promise<{ head: string | null; changed: boolean }> = async () => ({
+    head: null,
+    changed: true,
+  }),
+): Promise<{ siteId: string; as: string; branch: string; head: string | null }[]> {
+  const now = Date.now();
+  // a failure older than 30 days is forgotten, but a commit a person denied stays denied: only the newest 20 of those per site are kept
+  ctx.db.run(
+    "DELETE FROM sites_push WHERE action = 'deploy' AND error NOT LIKE ? AND failed_at < ?",
+    `${DENIED_PREFIX}%`,
+    now - 30 * 24 * 60 * 60 * 1000,
+  );
+  ctx.db.run(
+    "DELETE FROM sites_push WHERE action = 'deploy' AND error LIKE ? AND id NOT IN (SELECT id FROM sites_push p2 WHERE p2.site_id = sites_push.site_id AND p2.action = 'deploy' AND p2.error LIKE ? ORDER BY p2.failed_at DESC LIMIT 20)",
+    `${DENIED_PREFIX}%`,
+    `${DENIED_PREFIX}%`,
+  );
+  const out: { siteId: string; as: string; branch: string; head: string | null }[] = [];
+  for (const a of autoDeploySites(ctx)) {
+    const site = (ctx.db.all("SELECT * FROM sites_site WHERE id = ?", a.siteId) as Row[])[0];
+    const source = site ? sourceOf(site) : null;
+    if (!source?.repo) continue;
+    const seen = await headOf({ siteId: a.siteId, as: a.as, repo: source.repo, branch: source.branch ?? "" }).catch(
+      () => ({
+        head: null,
+        changed: true,
+      }),
+    );
+    if (!seen.changed) continue;
+    // a card that waits holds its commit for a day; a commit a person denied stays denied for good; a head that cannot be read blocks only a card that still waits, never a later commit
+    const waiting = ctx.db.all(
+      "SELECT sha FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error LIKE ? AND failed_at > ?",
+      a.siteId,
+      `${WAITING_PREFIX}%`,
+      now - WAITING_MS,
+    ) as Row[];
+    const denied = ctx.db.all(
+      "SELECT sha FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error LIKE ?",
+      a.siteId,
+      `${DENIED_PREFIX}%`,
+    ) as Row[];
+    if (waiting.length > 0 && (seen.head === null || waiting.some((w) => str(w.sha) === seen.head))) continue;
+    if (seen.head !== null && denied.some((w) => str(w.sha) === seen.head)) continue;
+    out.push({ ...a, head: seen.head });
+  }
+  return out;
 }
 
 /** Containers that should be serving, for the host to start again after a server restart (Docker restarts them itself; this catches one that was removed). */
@@ -2328,7 +2567,32 @@ export async function deployedLogs(
   }
 }
 
+/** The commit the site's branch is at (read with the site's own token, filled for this one call), and whether it differs from what was last deployed. A head that cannot be read is unknown and counts as changed. */
+async function sitesHeadCheck(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ head?: string; changed: boolean; repo?: boolean; branch?: string }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const source = sourceOf(site);
+  if (!source?.repo) return { changed: true };
+  const token = source.tokenHandle ? await filled(ctx, source.tokenHandle, `${str(site.id)}:head:${ctx.now()}`) : null;
+  const head = (await headReader(source.repo, source.branch, token).catch(() => null)) ?? undefined;
+  const last = one(
+    ctx,
+    "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
+    str(site.id),
+  );
+  return {
+    ...(head ? { head } : {}),
+    changed: !(head && last && str(last.commit_sha) === head),
+    repo: true,
+    ...(source.branch ? { branch: source.branch } : {}),
+  };
+}
+
 export const releaseHandlers = {
+  "sites.head_check": (ctx: Ctx, input: unknown) => sitesHeadCheck(ctx, input),
   "sites.deploy": (ctx: Ctx, input: unknown) => sitesDeploy(ctx, input),
   "sites.deploy_cancel": (ctx: Ctx, input: unknown) => sitesDeployCancel(ctx, input),
   "sites.ship": (ctx: Ctx, input: unknown) => sitesShip(ctx, input),
@@ -2361,6 +2625,10 @@ export const _test = {
   switching,
   cancelWait: (ms: number | null): void => {
     CANCEL_WAIT_MS = ms ?? 20_000;
+  },
+  githubRepo,
+  useHeadReader: (f: typeof remoteHead | null): void => {
+    headReader = f ?? remoteHead;
   },
   useFetcher: (f: typeof fetchSource | null): void => {
     fetcher = f ?? fetchSource;

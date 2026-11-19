@@ -2976,10 +2976,14 @@
     "messageId": "eml_a1b2c3",
     "attachmentId": "Quarterly planning"
   },
+  "mail_configure": {
+    "action": "status"
+  },
   "mail_connect": {
     "provider": "google",
     "address": "dana@acme.test"
   },
+  "mail_delivery_state": {},
   "mail_domain_add": {
     "name": "Quarterly planning",
     "provider": "resend"
@@ -3073,6 +3077,9 @@
   },
   "mail_sync_now": {
     "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_templates": {
+    "action": "list"
   },
   "mail_thread_get": {
     "threadId": "Quarterly planning"

@@ -319,6 +319,14 @@ export default defineManifest({
       label: "subject",
       trigger: { title: "A project is created", fields: ["/type"] },
     }),
+    ev(
+      "project.folder_unfollowed",
+      "A files folder could not follow its record; the host narrows it and tells the owner",
+      {
+        p: { folderId: id.folder, recordId: id.record, by: t.str(), why: t.str() },
+        subject: ["folder", "/folderId"],
+      },
+    ),
     ev("project.member_set", "A person or agent was given a project role", {
       p: { projectId: id.project, principal, role, previous: t.opt(role) },
       subject: ["project", "/projectId"],
@@ -499,6 +507,7 @@ export default defineManifest({
         out: { folderId: t.nullable(id.folder) },
         on: ["record", "/recordId"],
         level: "use",
+        emits: ["project.folder_unfollowed"],
         tool: "records",
       },
     ),
@@ -591,6 +600,7 @@ export default defineManifest({
         in: { projectId: id.project, principal, role },
         out: { member },
         on: ["project", "/projectId"],
+        gate: { act: "admit", when: "gate.by_actor(input)" },
         level: "manage",
         idem: "key",
         audit: "always",

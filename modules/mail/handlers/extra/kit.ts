@@ -131,7 +131,7 @@ export function seedSent(h: Harness, o: SentOpts): void {
 export interface DomainOpts {
   id: string;
   name: string;
-  provider?: "resend" | "mailgun";
+  provider?: "resend" | "mailgun" | "smtp";
   ref?: string;
   verified?: boolean;
   isDefault?: boolean;

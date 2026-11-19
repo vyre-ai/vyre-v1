@@ -44,6 +44,18 @@ async function lateJoiner() {
   return { hn, id };
 }
 
+test("an agent that asks for earlier messages for someone it adds gets the default: the newcomer reads from now on; a person's own ask still gives them", async () => {
+  const { hn, id } = await lateJoiner();
+  const said = await h["threads.members.add"]!(hn.agent(INTAKE, DANA), {
+    threadId: id,
+    personId: LEO,
+    fromStart: true,
+  });
+  assert.match(said.note, /Only a person can give earlier messages/, "the agent is told in one line");
+  assert.equal(await reads(hn.person(LEO), id, "OLDSECRET"), false, "an agent cannot give history");
+  assert.equal(await reads(hn.person(LEO), id, "NEWWORD"), true, "they read from now on");
+});
+
 test("a late joiner cannot raise their own floor: adding themselves with fromStart changes nothing", async () => {
   const { hn, id } = await lateJoiner();
   const maya = hn.person(MAYA);
@@ -153,23 +165,15 @@ test("a late joiner cannot pin, unpin or learn about a message from before their
   );
 });
 
-test("an agent acting for a person adds and widens only as that person: for Maya it grants from Maya's floor, and it cannot raise Maya's own", async () => {
+test("an agent acting for a person adds as that person but never gives earlier messages: Leo reads from now on, and Maya's own floor stays", async () => {
   const { hn, id } = await lateJoiner();
   hn.advance(1_000);
   const forMaya = hn.agent(INTAKE, MAYA);
   await h["threads.members.add"]!(forMaya, { threadId: id, personId: LEO, fromStart: true });
-  assert.equal(
-    await reads(hn.person(LEO), id, "OLDSECRET"),
-    false,
-    "an agent for Maya gives Leo nothing Maya cannot read",
-  );
-  assert.equal(await reads(hn.person(LEO), id, "NEWWORD"), true, "what the room read since Maya came in");
-  assert.equal(
-    await failure(h["threads.members.add"]!(forMaya, { threadId: id, personId: MAYA, fromStart: true })),
-    "permission.no_grant",
-    "and it cannot raise Maya's own floor",
-  );
-  assert.equal(await reads(hn.person(MAYA), id, "OLDSECRET"), false);
+  assert.equal(await reads(hn.person(LEO), id, "OLDSECRET"), false, "an agent gives Leo no history");
+  assert.equal(await reads(hn.person(LEO), id, "NEWWORD"), false, "Leo reads from the moment the agent added him");
+  await h["threads.members.add"]!(forMaya, { threadId: id, personId: MAYA, fromStart: true });
+  assert.equal(await reads(hn.person(MAYA), id, "OLDSECRET"), false, "an agent cannot raise Maya's own floor");
 });
 
 test("an agent acting for the owner grants only from where the whole room reads: what was said before the latest person came in is not handed on", async () => {

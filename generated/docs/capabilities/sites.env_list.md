@@ -1,6 +1,6 @@
 # sites.env_list
 
-A site's env var names and where each comes from (never secret values), and the names the app looks for that are not set
+A site's env var names and sources (never values), and names the app looks for that are not set
 
 | | |
 |---|---|

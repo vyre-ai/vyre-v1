@@ -1,6 +1,6 @@
 # sites.domain_add
 
-Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS
+Add a custom domain: returns the DNS records to set; TLS is automatic
 
 | | |
 |---|---|

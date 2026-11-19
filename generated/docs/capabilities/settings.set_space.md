@@ -11,7 +11,7 @@ Change a Space-wide setting (the permission of the row decides who may; policy.m
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when mail.is_provider_setting(input.key) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

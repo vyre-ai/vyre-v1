@@ -2,13 +2,14 @@
 // The production branch deploys on a push when the site deploys on push; nothing else builds. The secret is never read back: losing it means making a new one.
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapMap } from "../../../../../../../generated/types.ts";
 import { Row } from "../../../../../../../ui/src/Row/index.tsx";
 import { useAppsData } from "../data.tsx";
 import { Button, Card, s as ui, useRead } from "../editor-ui.tsx";
 import { errorMessage } from "../mutations.ts";
 import { ago } from "../model.ts";
+import { StepMark } from "./parts.tsx";
 import { parseFollow } from "./model.ts";
 import type { Site } from "./model.ts";
 
@@ -23,6 +24,7 @@ export function Webhook({ site, online, busy }: { site: Site; online: boolean; b
   const [say, setSay] = useState<string | null>(null);
   if (!site.source?.repo) return null;
   const cur = info.data;
+  const repoName = (site.source?.repo ?? "").replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "").replace(/\.git$/, "");
   const off = working || busy || !online;
   const set = async (input: Record<string, unknown>): Promise<Hook | null> => {
     setWorking(true);
@@ -48,10 +50,7 @@ export function Webhook({ site, online, busy }: { site: Site; online: boolean; b
   const list = parseFollow(typed);
   return (
     <Card title="GitHub webhook">
-      <Text style={ui.text}>
-        A push deploys at once instead of within a minute, and a branch can get its own preview. GitHub signs each
-        delivery with a secret only this site knows.
-      </Text>
+      <Text style={ui.text}>Deploys on push. Branches get previews.</Text>
       {cur === undefined || cur === null ? (
         <Text style={ui.text}>Reading</Text>
       ) : !cur.enabled ? (
@@ -77,18 +76,30 @@ export function Webhook({ site, online, busy }: { site: Site; online: boolean; b
               trailing={<Button title="Copy" onPress={() => copy(cur.url as string)} />}
             />
           ) : null}
-          <Text style={ui.text}>
-            In the repo on GitHub: Settings, Webhooks, Add webhook. Content type application/json, the secret above, and
-            the push and pull request events.
-          </Text>
-          <Text style={ui.text}>
-            {cur.lastDeliveryAt ? `Last delivery ${ago(cur.lastDeliveryAt, d.clock().now)}.` : "Nothing received yet."}
-          </Text>
-          {/* ui-rows-lint: not a list (the few pushes that could not run, as sentences) */}
+          <Row
+            id="hook-github"
+            title="1. Open the webhook page on GitHub"
+            trailing={
+              <Button
+                title="Open"
+                testID="site-hook-open"
+                onPress={() => d.nav.openUrl?.(`https://github.com/${repoName}/settings/hooks/new`)}
+              />
+            }
+          />
+          <Row id="hook-step-2" title="2. Paste the URL and the secret. Content type: application/json." />
+          <Row id="hook-step-3" title="3. Pick the push and pull request events." />
+          {cur.lastDeliveryAt ? (
+            <Text style={q.quiet}>{`Last delivery ${ago(cur.lastDeliveryAt, d.clock().now)}`}</Text>
+          ) : null}
           {cur.failed.map((f) => (
-            <Text key={`${f.branch}${f.at}`} style={ui.text} testID="site-hook-failed">
-              {`A push of ${f.branch} could not ${f.action === "remove" ? "remove its preview" : "build its preview"} ${ago(f.at, d.clock().now)}: ${f.error} GitHub's redelivery takes it again.`}
-            </Text>
+            <Row
+              key={`${f.branch}${f.at}`}
+              id={`hook-failed-${f.branch}`}
+              title={f.branch}
+              note={`Could not ${f.action === "remove" ? "remove its preview" : "build its preview"} · ${ago(f.at, d.clock().now)} · ${f.error}`}
+              leading={<StepMark state="failed" />}
+            />
           ))}
           <TextInput
             accessibilityLabel="Branches that get a preview"
@@ -100,6 +111,7 @@ export function Webhook({ site, online, busy }: { site: Site; online: boolean; b
             autoCapitalize="none"
             style={ui.input}
           />
+          <Text style={q.quiet}>Anyone who can push can get a preview.</Text>
           <View style={ui.actions}>
             <Button
               title="Save branches"
@@ -134,3 +146,5 @@ export function Webhook({ site, online, busy }: { site: Site; online: boolean; b
     </Card>
   );
 }
+
+const q = StyleSheet.create({ quiet: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string } });

@@ -7,160 +7,31 @@ import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { configureRoutes, routeByHost } from "../handlers/route.ts";
-import { _test, servingContainers } from "../handlers/release.ts";
-import { acceptWebhook, markPushDone, markPushFailed, pendingPushes, signed, follows } from "../handlers/hook.ts";
+import { _test, autoDeploySites, autoDeployTargets, servingContainers } from "../handlers/release.ts";
+import {
+  acceptWebhook,
+  markPushDone,
+  markPushFailed,
+  pendingPushes,
+  recordDeployFailure,
+  signed,
+  follows,
+} from "../handlers/hook.ts";
 import { createHmac } from "node:crypto";
-import { handlers } from "../impl.ts";
-import { harness as base } from "../fixtures/world.ts";
+import { consumers, handlers, siteFacts } from "../impl.ts";
+import { deployHandlers } from "../handlers/deploy.ts";
+import { FIXTURE, h, useDatabase, world, type Fake } from "./deploy-world.ts";
+import {
+  FP_DEPTH,
+  exposesKeys,
+  fileLine,
+  noteApproved,
+  noteGateFp,
+  uploadFingerprint,
+} from "../../../lib/key-target.ts";
+import { fetchSource } from "../handlers/source.ts";
 
-const FIXTURE = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "..",
-  "fixtures",
-  "sites",
-  "static",
-);
-const h = handlers as unknown as Record<string, (ctx: unknown, input: unknown) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-interface Fake {
-  /** how long the build takes; a cancel ends it at once */
-  buildMs?: number;
-  failBuild?: boolean;
-  /** a build that does not stop when it is canceled (a step the engine cannot cut off) */
-  uncuttable?: boolean;
-}
-
-function world(o: Fake = {}) {
-  const w = base();
-  const db = new DatabaseSync(":memory:");
-  for (const f of [
-    "0001_sites_core.sql",
-    "0002_promote_tables.sql",
-    "0003_routes.sql",
-    "0004_deploy.sql",
-    "0005_deploy_steps.sql",
-    "0006_env_plain.sql",
-    "0007_webhook.sql",
-    "0009_hook_failures.sql",
-    "0013_hook_order.sql",
-  ])
-    db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
-  const sdb = {
-    all: (sql: string, ...a: unknown[]) => db.prepare(sql).all(...(a as never[])),
-    run: (sql: string, ...a: unknown[]) => ({ changes: Number(db.prepare(sql).run(...(a as never[])).changes) }),
-  };
-  let clock = Date.now();
-  // a call from a handler to another capability goes to that handler (sites_ship composes the others); any other capability answers nothing
-  const ctx: any = {
-    ...w.ctx,
-    db: sdb,
-    now: () => ++clock,
-    // a sealed value that opens again (the harness's stub seals to nothing)
-    seal: {
-      seal: (v: Uint8Array) => ({ keyId: "k", nonce: "n", bytes: Buffer.from(v).toString("base64") }),
-      unseal: (s: { bytes: string }) => new Uint8Array(Buffer.from(s.bytes, "base64")),
-    },
-    call: async (cap: string, inp: unknown) => (h[cap] ? h[cap]!(ctx, inp) : {}),
-  }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const seen = {
-    builds: 0,
-    cut: 0,
-    removed: [] as string[],
-    running: [] as string[],
-    envs: {} as Record<string, Record<string, string>>,
-    images: [] as string[],
-    droppedImages: [] as string[],
-  };
-  const fake = { ...o };
-  const hooks = { hostRoute: (async () => undefined) as (...a: unknown[]) => Promise<void> };
-  const runner = {
-    ping: async () => true,
-    freeMb: async () => 50_000,
-    async build(a: { deploymentId: string; onLine(l: string): void; signal?: AbortSignal }) {
-      seen.builds++;
-      a.onLine("Step 1/2 : FROM caddy:2-alpine");
-      if (fake.uncuttable) await new Promise<void>((res) => setTimeout(res, fake.buildMs ?? 300));
-      else if (fake.buildMs)
-        await new Promise<void>((res) => {
-          const t = setTimeout(res, fake.buildMs);
-          a.signal?.addEventListener(
-            "abort",
-            () => {
-              seen.cut++;
-              clearTimeout(t);
-              res();
-            },
-            { once: true },
-          );
-        });
-      if (a.signal?.aborted && !fake.uncuttable) return { ok: false as const, reason: "The build was canceled." };
-      if (fake.failBuild) {
-        a.onLine('npm ERR! Missing script: "build"');
-        return { ok: false as const, reason: "The command returned a non-zero code: 1" };
-      }
-      a.onLine("Successfully built 4be1a09c77d2");
-      return { ok: true as const, image: `img-${a.deploymentId}` };
-    },
-    network: async () => ({ name: "vyre-site-test", subnet: "10.250.0.0/28" }),
-    removeNetwork: async () => undefined,
-    async run(a: { deploymentId: string; env?: Record<string, string> }) {
-      seen.running.push(`c-${a.deploymentId}`);
-      seen.envs[a.deploymentId] = a.env ?? {};
-      return { containerId: `c-${a.deploymentId}`, name: `vyre-site-${a.deploymentId}` };
-    },
-    address: async () => "10.250.0.2",
-    state: async () => ({ running: true }),
-    logs: async () => ["Serving on 3000"],
-    remove: async (id: string) => void seen.removed.push(id),
-    removeImage: async (i: string) => void seen.droppedImages.push(i),
-    imageExists: async () => true,
-    addon: async () => ({ containerId: "addon" }),
-    removeAddon: async () => undefined,
-    exec: async () => ({ code: 0, out: "PONG" }),
-    put: async () => undefined,
-  };
-  configureRoutes({
-    origin: () => ({ origin: "https://space.test", relay: false }),
-    probe: async () => ({ answering: true }),
-    runner,
-    contained: false,
-    tmp: os.tmpdir(),
-    sitesDomain: () => "sites.test",
-    domainOf: () => null,
-    hostRoute: (...a: unknown[]) => hooks.hostRoute(...a),
-    take: () => undefined,
-  } as never);
-  const make = async (name: string): Promise<string> =>
-    (await h["sites.create"]!(ctx, { name, source: { path: FIXTURE } })).site.siteId as string;
-  // a repo site: its source is fetched by a stand-in that returns the static fixture with a commit (a repo cannot be cloned here)
-  let n = 0;
-  _test.useFetcher((async (s: { branch?: string }) => ({
-    dir: FIXTURE,
-    commit: `c0ffee${(++n).toString(16).padStart(2, "0")}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
-    message: `Change ${n}`,
-    branch: s.branch ?? "main",
-    cleanup: () => undefined,
-  })) as never);
-  const makeRepo = async (name: string, o: Record<string, unknown> = {}): Promise<string> =>
-    (await h["sites.create"]!(ctx, { name, source: { repo: "https://github.com/acme/app.git", branch: "main" }, ...o }))
-      .site.siteId as string;
-  return {
-    ctx,
-    sdb,
-    seen,
-    fake,
-    hooks,
-    make,
-    makeRepo,
-    done: () => {
-      _test.useFetcher(null);
-      configureRoutes(null);
-    },
-  };
-}
-
+useDatabase(DatabaseSync);
 const states = (steps: Array<{ key: string; state: string }>): string =>
   steps.map((s) => `${s.key}:${s.state}`).join(" ");
 
@@ -1454,4 +1325,1354 @@ test("no migration rewrites the variables a site already has: an old everywhere 
       /UPDATE\s+sites_env/i,
       f,
     );
+});
+
+test("a captured delete or closed pull request cannot be sent again to take a preview away", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Replay removals");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const Z = "0".repeat(40);
+    const A = "a".repeat(40);
+    const B = "b".repeat(40);
+    const deleted = (branch: string, before: string) => ({
+      ref: `refs/heads/${branch}`,
+      before,
+      after: Z,
+      deleted: true,
+    });
+    const created = (branch: string, before: string, after: string) => ({ ref: `refs/heads/${branch}`, before, after });
+    const done = () =>
+      markPushDone({ db: w.sdb } as never, (pendingPushes({ db: w.sdb } as never)[0] as { id: string }).id);
+
+    // a delete is taken once, and the same delete under a new id is old news
+    await hook(w, secret, "push", created("feat/d", Z, A));
+    done();
+    await hook(w, secret, "push", deleted("feat/d", A));
+    assert.deepEqual(queued(w), ["remove:feat/d"]);
+    done();
+    await assert.rejects(
+      () => hook(w, secret, "push", deleted("feat/d", A), { delivery: "dup0001a-aaaa" }),
+      /older than/,
+    );
+    // the branch is made again; the captured delete cannot remove the new one
+    await hook(w, secret, "push", created("feat/d", Z, B));
+    done();
+    await assert.rejects(
+      () => hook(w, secret, "push", deleted("feat/d", A), { delivery: "dup0002a-aaaa" }),
+      /older than/,
+    );
+    assert.deepEqual(queued(w), []);
+    // a delete of the commit the branch is on now is taken
+    await hook(w, secret, "push", deleted("feat/d", B));
+    assert.deepEqual(queued(w), ["remove:feat/d"]);
+    done();
+
+    // a delete captured before the branch moved on is old news even if it was never seen here
+    await hook(w, secret, "push", created("feat/m", Z, A));
+    await hook(w, secret, "push", created("feat/m", A, B));
+    done();
+    await assert.rejects(
+      () => hook(w, secret, "push", deleted("feat/m", A), { delivery: "dup0003a-aaaa" }),
+      /older than/,
+    );
+
+    // a closed pull request: once per close; closed again after it was reopened is a new event
+    const closed = (n: number, at: string) => ({
+      action: "closed",
+      number: n,
+      pull_request: { number: n, closed_at: at, head: { ref: "feat/pr", sha: A, repo: { full_name: "acme/app" } } },
+    });
+    await hook(w, secret, "pull_request", closed(7, "2026-11-19T10:00:00Z"));
+    assert.deepEqual(queued(w), ["remove:feat/pr"]);
+    done();
+    await assert.rejects(
+      () => hook(w, secret, "pull_request", closed(7, "2026-11-19T10:00:00Z"), { delivery: "dup0004a-aaaa" }),
+      /older than/,
+    );
+    assert.equal(
+      (await hook(w, secret, "pull_request", closed(7, "2026-11-19T12:00:00Z"))).nudge,
+      true,
+      "closed again later",
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("a branch made again at the commit it was deleted at is a new branch: its push is taken, and an old push is still refused", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Same commit");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const Z = "0".repeat(40);
+    const A = "a".repeat(40);
+    const B = "b".repeat(40);
+    const mv = (before: string, after: string, extra: Record<string, unknown> = {}) => ({
+      ref: "refs/heads/feat/same",
+      before,
+      after,
+      ...extra,
+    });
+    await hook(w, secret, "push", mv(Z, A));
+    await hook(w, secret, "push", mv(A, Z, { deleted: true }));
+    // made again at A: not old news
+    assert.equal((await hook(w, secret, "push", mv(Z, A), { delivery: "again0aa-aaaa" })).nudge, true);
+    // and the chain goes on from there
+    assert.equal((await hook(w, secret, "push", mv(A, B))).nudge, true);
+    await assert.rejects(() => hook(w, secret, "push", mv(Z, A), { delivery: "again0bb-aaaa" }), /older than/);
+  } finally {
+    w.done();
+  }
+});
+
+test("rows handled in the same millisecond keep the order they were written in", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Same millisecond");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    // the clock stands still: every delivery below is handled at the same instant
+    w.ctx.now = () => 1_700_000_000_000;
+    const Z = "0".repeat(40);
+    const A = "a".repeat(40);
+    const B = "b".repeat(40);
+    const mv = (before: string, after: string, extra: Record<string, unknown> = {}) => ({
+      ref: "refs/heads/feat/ms",
+      before,
+      after,
+      ...extra,
+    });
+    await hook(w, secret, "push", mv(Z, A));
+    await hook(w, secret, "push", mv(A, B));
+    // a delete of the commit the branch had left (A) is old news, though it carries the same time as the push after it
+    await assert.rejects(
+      () => hook(w, secret, "push", mv(A, Z, { deleted: true }), { delivery: "ms0000aa-aaaa" }),
+      /older than/,
+    );
+    // a delete of the current head is taken
+    assert.equal((await hook(w, secret, "push", mv(B, Z, { deleted: true }))).nudge, true);
+  } finally {
+    w.done();
+  }
+});
+
+test("deleting a branch that was made again at the same commit is a new delete and removes the preview", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Second delete");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const Z = "0".repeat(40);
+    const A = "a".repeat(40);
+    const mv = (before: string, after: string, extra: Record<string, unknown> = {}) => ({
+      ref: "refs/heads/feat/twice",
+      before,
+      after,
+      ...extra,
+    });
+    const done = () =>
+      markPushDone({ db: w.sdb } as never, (pendingPushes({ db: w.sdb } as never)[0] as { id: string }).id);
+    await hook(w, secret, "push", mv(Z, A));
+    done();
+    await hook(w, secret, "push", mv(A, Z, { deleted: true }));
+    assert.deepEqual(queued(w), ["remove:feat/twice"]);
+    done();
+    // the same delete sent again while the branch is still gone is old news
+    await assert.rejects(
+      () => hook(w, secret, "push", mv(A, Z, { deleted: true }), { delivery: "twice0aa-aaaa" }),
+      /older than/,
+    );
+    // made again at the same commit, then deleted again: that is a new delete, and its preview goes
+    await hook(w, secret, "push", mv(Z, A), { delivery: "twice0bb-aaaa" });
+    done();
+    assert.equal(
+      (await hook(w, secret, "push", mv(A, Z, { deleted: true }), { delivery: "twice0cc-aaaa" })).nudge,
+      true,
+    );
+    assert.deepEqual(queued(w), ["remove:feat/twice"]);
+  } finally {
+    w.done();
+  }
+});
+
+test("handled pushes are ordered by an explicit counter that is never used again, even after a failed push gives its row back", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Counter");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const cols = w.sdb.all("PRAGMA table_info(sites_hook_head)") as { name: string; pk: number }[];
+    assert.equal(cols.find((c) => c.name === "seq")?.pk, 1, "seq is the primary key");
+    const Z = "0".repeat(40);
+    const mv = (before: string, after: string) => ({ ref: "refs/heads/feat/seq", before, after });
+    await hook(w, secret, "push", mv(Z, "a".repeat(40)));
+    await hook(w, secret, "push", mv("a".repeat(40), "b".repeat(40)));
+    const seqs = () =>
+      (w.sdb.all("SELECT seq FROM sites_hook_head ORDER BY seq") as { seq: number }[]).map((r) => r.seq);
+    assert.deepEqual(seqs(), [1, 2]);
+    // the newest push fails to run and gives its row back; the next handled push does not take its number
+    const jobs = pendingPushes({ db: w.sdb } as never) as { id: string }[];
+    markPushFailed({ db: w.sdb } as never, jobs[0]!.id, "no access");
+    await hook(w, secret, "push", mv("b".repeat(40), "c".repeat(40)));
+    assert.ok(Math.max(...seqs()) >= 3, `a new row never reuses a number: ${seqs()}`);
+    assert.equal(new Set(seqs()).size, seqs().length);
+  } finally {
+    w.done();
+  }
+});
+
+test("sites.env_set has one handler: the old copy in the dormant deploy table is gone", () => {
+  assert.equal("sites.env_set" in deployHandlers, false);
+  assert.equal(typeof handlers["sites.env_set"], "function");
+});
+
+test("promoting a preview fills the production variables only: never a previews-scope one", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Promote vars");
+    await h["sites.env_set"]!(w.ctx, {
+      siteId,
+      entries: [
+        { name: "PROD_ONLY", value: "p" },
+        { name: "PREVIEW_ONLY", value: "v", scope: "previews" },
+        { name: "BOTH", value: "b", scope: "all" },
+      ],
+    });
+    await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "feat/vars", wait: true });
+    const out = await h["sites.preview_promote"]!(w.ctx, { siteId, branch: "feat/vars", wait: true });
+    assert.equal(out.deployment.state, "ready", out.deployment.problem);
+    assert.deepEqual(Object.keys(w.seen.envs[out.deployment.deploymentId]!).sort(), ["BOTH", "PROD_ONLY"]);
+  } finally {
+    w.done();
+  }
+});
+
+test("a build keeps where its code came from (never the token), and the Gate reads it with the site's stored keys", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Built from");
+    await h["sites.env_set"]!(w.ctx, {
+      siteId,
+      entries: [
+        { name: "A", value: "plain" },
+        { name: "S", vaultHandle: "#Crm_Key" },
+        { name: "P", vaultHandle: "#Crm_Key.preview", scope: "previews" },
+      ],
+    }).catch(() => undefined);
+    await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "feat/b", wait: true });
+    const facts = siteFacts({ db: w.sdb } as never, siteId, "feat/b")!;
+    assert.match(facts.source!.repo!, /acme\/app/);
+    assert.match(facts.builtFrom!.repo!, /acme\/app/);
+    assert.equal(JSON.stringify(facts).includes("tokenHandle"), false);
+    assert.ok(
+      facts.env.every((e) => e.handle.startsWith("#")),
+      "only Vault keys, no plain value",
+    );
+    assert.equal(siteFacts({ db: w.sdb } as never, "sit_nope"), null);
+  } finally {
+    w.done();
+  }
+});
+
+test("the Gate's facts keep a stored site's branch and folder, and a deployment's own branch and fingerprint", async () => {
+  const rows = [{ fileId: "fil_a", name: "index.html", version: 1, size: 4 }];
+  const files = (cap: string, input: unknown): unknown =>
+    cap === "files.list" && (input as { folder: string }).folder === "fld_up" ? { files: rows, folders: [] } : null;
+  const w = world({ files, fetchFp: () => fpNow });
+  let fpNow: string | undefined;
+  try {
+    const repo = (
+      await h["sites.create"]!(w.ctx, {
+        name: "Repo",
+        source: { repo: "https://github.com/acme/app.git", branch: "main", root: "apps/web" },
+      })
+    ).site.siteId as string;
+    await h["sites.deploy"]!(w.ctx, { siteId: repo, wait: true });
+    await h["sites.preview_rebuild"]!(w.ctx, { siteId: repo, branch: "feat/x", wait: true });
+    const f = siteFacts({ db: w.sdb } as never, repo, "feat/x")!;
+    assert.equal(f.source!.branch, "main");
+    assert.equal(f.source!.root, "apps/web");
+    assert.equal(f.builtFrom!.branch, "feat/x", "the preview was built from its own branch");
+    assert.equal(f.builtFrom!.root, "apps/web");
+    const up = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site.siteId as string;
+    fpNow = (await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i))) ?? undefined;
+    await h["sites.deploy"]!(w.ctx, { siteId: up, wait: true });
+    const g = siteFacts({ db: w.sdb } as never, up)!;
+    assert.equal(g.deployedFp, fpNow, "what the live build read");
+    assert.equal(g.source!.fp, undefined, "the stored source holds no fingerprint (the Gate reads the files)");
+  } finally {
+    w.done();
+  }
+});
+
+test("a build refuses files other than the ones the deploy was asked for, in plain words, and records what it read", async () => {
+  const rows = [{ fileId: "fil_a", name: "index.html", version: 1, size: 4 }];
+  const files = (cap: string, input: unknown): unknown =>
+    cap === "files.list" && (input as { folder: string }).folder === "fld_up" ? { files: rows, folders: [] } : null;
+  let read: string | undefined;
+  const w = world({ files, fetchFp: () => read });
+  try {
+    const siteId = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site
+      .siteId as string;
+    const asked = await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i));
+    // the files change between the ask and the fetch: the build reads other versions
+    read = "00000000000000000000000000000000";
+    const bad = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(bad.deployment.state, "failed");
+    assert.match(bad.deployment.problem, /The files changed while this waited/);
+    assert.equal(bad.deployment.fix, "retry");
+    assert.equal(w.seen.builds, 0, "nothing was built from them");
+    assert.equal(siteFacts({ db: w.sdb } as never, siteId)!.deployedFp, null);
+    // the files it read are the ones asked for: it goes on, and the build keeps that fingerprint
+    read = asked!;
+    const ok = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
+    assert.equal(siteFacts({ db: w.sdb } as never, siteId)!.deployedFp, asked);
+    // the files changed again after the ask: the fetch reads other versions than the ones asked for, and refuses
+    rows[0]!.version = 2;
+    const again = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(again.deployment.state, "failed", "read now: a changed version, but the fetch says the old one");
+  } finally {
+    w.done();
+  }
+});
+
+test("the fetcher fingerprints the versions it read, the same way the Gate does", async () => {
+  const tree: Record<
+    string,
+    {
+      files: { fileId: string; name: string; version: number; size: number }[];
+      folders: { folderId: string; name: string }[];
+    }
+  > = {
+    fld: {
+      files: [{ fileId: "fil_1", name: "index.html", version: 3, size: 5 }],
+      folders: [
+        { folderId: "fld_s", name: "css" },
+        { folderId: "fld_nm", name: "node_modules" },
+      ],
+    },
+    fld_s: { files: [{ fileId: "fil_2", name: "a.css", version: 1, size: 2 }], folders: [] },
+    fld_nm: { files: [{ fileId: "fil_3", name: "x.js", version: 1, size: 1 }], folders: [] },
+  };
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    const q = input as { folder?: string; fileId?: string };
+    if (cap === "files.list") return tree[q.folder as string] ?? null;
+    if (cap === "files.read") {
+      const f = Object.values(tree)
+        .flatMap((t) => t.files)
+        .find((x) => x.fileId === q.fileId)!;
+      return { base64: Buffer.from("x".repeat(f.size)).toString("base64"), version: f.version, size: f.size };
+    }
+    return null;
+  };
+  const got = await fetchSource({ folderId: "fld" }, { call, token: async () => null, contained: true });
+  try {
+    assert.ok(got.fp, "the fetch says what it read");
+    assert.equal(got.fp, await uploadFingerprint({ folderId: "fld" }, call), "the Gate would read the same");
+    tree["fld"]!.files[0]!.version = 4;
+    assert.notEqual(
+      got.fp,
+      await uploadFingerprint({ folderId: "fld" }, call),
+      "a later version is another fingerprint",
+    );
+  } finally {
+    got.cleanup();
+  }
+});
+
+test("a Vault key scoped to everything reaches a preview only for a branch a person named in the follow list: a * follow or any other branch gets plain values and the keys made for previews", async () => {
+  const w = world({ values: { SECRET_ALL: "s-all", SECRET_PREVIEW: "s-prev", SECRET_PROD: "s-prod" } });
+  try {
+    const siteId = await w.makeRepo("Scoped");
+    const row = (name: string, handle: string | null, plain: string | null, scope: string): void =>
+      void w.sdb.run(
+        "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
+        siteId,
+        name,
+        handle ?? "",
+        0,
+        plain,
+        scope,
+      );
+    row("SECRET_ALL", "#Stripe.key", null, "all");
+    row("SECRET_PREVIEW", "#Stripe.key", null, "previews");
+    row("SECRET_PROD", "#Stripe.key", null, "production");
+    row("PLAIN_ALL", null, "calm", "all");
+    const preview = (branch: string) => _test.envOf(w.ctx, siteId, "d", "preview", branch);
+    // no follow list: no branch is named
+    assert.deepEqual(await preview("feat/x"), { PLAIN_ALL: "calm", SECRET_PREVIEW: "s-prev" });
+    // a * follow names nothing: an agent that pushes a branch gets no everywhere-key
+    await h["sites.webhook_set"]!(w.ctx, { siteId, follow: ["*"] });
+    assert.deepEqual(await preview("agent-branch"), { PLAIN_ALL: "calm", SECRET_PREVIEW: "s-prev" });
+    await h["sites.webhook_set"]!(w.ctx, { siteId, follow: ["feat/*"] });
+    assert.deepEqual(await preview("feat/y"), { PLAIN_ALL: "calm", SECRET_PREVIEW: "s-prev" }, "a prefix names none");
+    // a branch a person named gets it
+    await h["sites.webhook_set"]!(w.ctx, { siteId, follow: ["release", "feat/*"] });
+    assert.deepEqual(await preview("release"), { PLAIN_ALL: "calm", SECRET_ALL: "s-all", SECRET_PREVIEW: "s-prev" });
+    assert.deepEqual(await preview("feat/y"), { PLAIN_ALL: "calm", SECRET_PREVIEW: "s-prev" });
+    // production still takes the everywhere-key
+    assert.deepEqual(await _test.envOf(w.ctx, siteId, "d", "production"), {
+      PLAIN_ALL: "calm",
+      SECRET_ALL: "s-all",
+      SECRET_PROD: "s-prod",
+    });
+    // and a real preview build of an unnamed branch is built with no everywhere-key
+    await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "agent-branch", wait: true });
+    const dep = w.sdb.all(
+      "SELECT id FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ?",
+      siteId,
+      "agent-branch",
+    )[0] as { id: string };
+    assert.equal(w.seen.envs[dep.id]?.["SECRET_ALL"], undefined);
+    assert.equal(w.seen.envs[dep.id]?.["SECRET_PREVIEW"], "s-prev");
+  } finally {
+    w.done();
+  }
+});
+
+test("exposesKeys, read from a real site's facts: what reaches production on a site that stores a production Vault key is held; a site with no such key, an unreadable site, and a change that builds nothing are not", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Exposed");
+    const key = (scope: string): void =>
+      void w.sdb.run(
+        "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
+        siteId,
+        `K_${scope}`,
+        "#Stripe.key",
+        0,
+        null,
+        scope,
+      );
+    const facts = () => siteFacts({ db: w.sdb } as never, siteId) as never;
+    const changes: Record<string, unknown>[] = [
+      { follow: ["*"] },
+      { enabled: true },
+      { autoDeploy: true },
+      { settings: { defaultBranch: "x" } },
+    ];
+    for (const c of changes) assert.equal(exposesKeys({ siteId, ...c }, facts()), false, "no key stored");
+    key("previews");
+    for (const c of changes) assert.equal(exposesKeys({ siteId, ...c }, facts()), false, "a previews-only key");
+    key("all");
+    for (const c of changes)
+      assert.equal(exposesKeys({ siteId, ...c }, facts()), true, `a key for everything: ${JSON.stringify(c)}`);
+    for (const c of [{ rotate: true }, { enabled: false }, { name: "New" }, { autoDeploy: false }])
+      assert.equal(exposesKeys({ siteId, ...c }, facts()), false, `${JSON.stringify(c)} changes nothing that is built`);
+    assert.equal(
+      exposesKeys({ siteId: "sit_nope", follow: ["*"] }, siteFacts({ db: w.sdb } as never, "sit_nope")),
+      true,
+      "a site it cannot read",
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("a build checks the files it fetches against the fingerprint the Gate read for the call, not a fresh read at the deploy call", async () => {
+  const rows = [{ fileId: "fil_a", name: "index.html", version: 1, size: 4 }];
+  const files = (cap: string, input: unknown): unknown =>
+    cap === "files.list" && (input as { folder: string }).folder === "fld_up" ? { files: rows, folders: [] } : null;
+  let read: string | undefined;
+  const w = world({ files, fetchFp: () => read });
+  try {
+    const siteId = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site
+      .siteId as string;
+    const judged = (await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i)))!;
+    // between the Gate's read and the handler the files change; the build reads the new ones
+    rows[0]!.version = 2;
+    const now = (await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i)))!;
+    read = now;
+    noteGateFp(w.ctx.trace, siteId, judged);
+    const bad = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(bad.deployment.state, "failed", "the files are not the ones the Gate judged");
+    assert.match(bad.deployment.problem, /The files changed while this waited/);
+    // a call the Gate did not read (a person's): the handler reads for itself, and the build goes on
+    const ok = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
+    assert.equal(siteFacts({ db: w.sdb } as never, siteId)!.deployedFp, now);
+  } finally {
+    w.done();
+  }
+});
+
+test("a person's deploy finds out what the host says about the production branch and keeps it for the Gate: protected needs required reviews or restricted pushes, 404 is open, anything unreadable is unknown", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Guarded");
+    const answer = (protection: { status: number; body?: unknown }, repo = 200) => {
+      const asked: string[] = [];
+      (w.ctx as { http: unknown }).http = async (url: string) => {
+        asked.push(url);
+        const r = url.includes("/rules/branches/")
+          ? { status: 200, body: [] }
+          : url.endsWith("/protection")
+            ? protection
+            : { status: repo, body: { default_branch: "trunk" } };
+        return { status: r.status, text: async () => JSON.stringify(r.body ?? {}) };
+      };
+      return asked;
+    };
+    const state = async () => {
+      await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+      return siteFacts({ db: w.sdb } as never, siteId)!.protection;
+    };
+    const rev = {
+      required_pull_request_reviews: { required_approving_review_count: 1 },
+      enforce_admins: { enabled: true },
+    };
+    answer({ status: 200, body: rev });
+    assert.equal((await state())?.state, "protected");
+    answer({ status: 200, body: { ...rev, enforce_admins: { enabled: false } } });
+    assert.equal((await state())?.state, "open", "reviews an admin can walk past are not protection");
+    assert.equal((await state())?.branch, "main");
+    answer({ status: 200, body: { restrictions: { users: [] }, enforce_admins: { enabled: true } } });
+    assert.equal((await state())?.state, "protected", "pushes restricted");
+    answer({ status: 200, body: { enforce_admins: { enabled: true } } });
+    assert.equal((await state())?.state, "open", "protection with no review and no restriction stops nothing");
+    const asked = answer({ status: 404 });
+    assert.equal((await state())?.state, "open");
+    assert.ok(
+      asked.some((u) => /repos\/acme\/app\/branches\/main\/protection$/.test(u)),
+      asked.join(" "),
+    );
+    answer({ status: 403 });
+    assert.equal((await state())?.state, "unknown");
+    (w.ctx as { http: unknown }).http = async () => {
+      throw new Error("offline");
+    };
+    assert.equal((await state())?.state, "unknown", "a failure is unknown, never a failed deploy");
+    // a site on its repo's default branch: the host is asked which that is
+    const def = await h["sites.create"]!(w.ctx, {
+      name: "Default",
+      source: { repo: "https://github.com/acme/trunk.git" },
+    });
+    const asked2 = answer({
+      status: 200,
+      body: { required_pull_request_reviews: {}, enforce_admins: { enabled: true } },
+    });
+    await h["sites.deploy"]!(w.ctx, { siteId: def.site.siteId, wait: true });
+    assert.ok(
+      asked2.some((u) => u.endsWith("/branches/trunk/protection")),
+      asked2.join(" "),
+    );
+    assert.equal(siteFacts({ db: w.sdb } as never, def.site.siteId)!.protection?.branch, "trunk");
+  } finally {
+    w.done();
+  }
+});
+
+test("an agent's or a push's deploy of uploaded files on a site with a production key builds only what it can prove was approved: no fingerprint from the Gate, or none from the fetch, is a refusal, not a skip", async () => {
+  const rows = [{ fileId: "fil_a", name: "index.html", version: 1, size: 4 }];
+  const files = (cap: string, input: unknown): unknown =>
+    cap === "files.list" && (input as { folder: string }).folder === "fld_up" ? { files: rows, folders: [] } : null;
+  let read: string | undefined;
+  const w = world({ files, fetchFp: () => read, values: { K: "v" } });
+  try {
+    const siteId = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site
+      .siteId as string;
+    const fp = (await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i)))!;
+    w.sdb.run(
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
+      siteId,
+      "K",
+      "#Stripe.key",
+      0,
+      null,
+      "production",
+    );
+    const agent = { ...w.ctx, principal: { kind: "agent", id: "agt_x" } } as typeof w.ctx;
+    const push = { ...w.ctx, origin: "sites-push" } as typeof w.ctx;
+    read = fp;
+    // the Gate gave nothing for this call: the agent's own read is no stand-in
+    const none = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(none.deployment.state, "failed");
+    assert.match(none.deployment.problem, /could not be checked against the ones that were approved/);
+    // a push that runs as a person is held to the same
+    const pushed = await h["sites.deploy"]!(push, { siteId, wait: true });
+    assert.equal(pushed.deployment.state, "failed", "a push's deploy");
+    // the Gate's fingerprint, and a fetch that read the same files: it builds
+    noteGateFp(agent.trace, siteId, fp);
+    const ok = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
+    // the fetch says nothing about what it read: refused, not skipped
+    read = undefined;
+    noteGateFp(agent.trace, siteId, fp);
+    const blind = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(blind.deployment.state, "failed");
+    assert.match(blind.deployment.problem, /could not be checked/);
+    // a person's own deploy reads for itself
+    read = fp;
+    const person = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(person.deployment.state, "ready", person.deployment.problem);
+  } finally {
+    w.done();
+  }
+});
+
+test("the fetcher and the Gate stop at the same depth, and a name can never pass for another line of the fingerprint", async () => {
+  const chain = (n: number) => {
+    const tree: Record<string, { files: unknown[]; folders: unknown[] }> = {};
+    for (let d = 0; d <= n; d++)
+      tree[`fld_${d}`] = {
+        files: d === n ? [{ fileId: "fil_x", name: "x", version: 1, size: 1 }] : [],
+        folders: d < n ? [{ folderId: `fld_${d + 1}`, name: `d${d + 1}` }] : [],
+      };
+    return async (cap: string, input: unknown): Promise<unknown> =>
+      cap === "files.list"
+        ? (tree[(input as { folder: string }).folder] ?? null)
+        : { base64: Buffer.from("x").toString("base64"), version: 1, size: 1 };
+  };
+  // at the limit both read it; one deeper, neither does
+  for (const [n, ok] of [
+    [FP_DEPTH, true],
+    [FP_DEPTH + 1, false],
+  ] as const) {
+    const call = chain(n);
+    assert.equal((await uploadFingerprint({ folderId: "fld_0" }, call)) !== null, ok, `gate at ${n}`);
+    const got = await fetchSource({ folderId: "fld_0" }, { call, token: async () => null, contained: true }).then(
+      (g) => (g.cleanup(), true),
+      () => false,
+    );
+    assert.equal(got, ok, `fetch at ${n}`);
+  }
+  // one file named to look like two lines is not two files
+  const listing =
+    (rows: { fileId: string; name: string }[]) =>
+    async (cap: string): Promise<unknown> =>
+      cap === "files.list" ? { files: rows.map((r) => ({ ...r, version: 1, size: 1 })), folders: [] } : null;
+  const crafted = [{ fileId: "fil_1", name: `x\n${fileLine("fil_2", 1, 1, "y")}` }];
+  const real = [
+    { fileId: "fil_1", name: "x" },
+    { fileId: "fil_2", name: "y" },
+  ];
+  assert.notEqual(
+    await uploadFingerprint({ folderId: "f" }, listing(crafted)),
+    await uploadFingerprint({ folderId: "f" }, listing(real)),
+  );
+});
+
+test("a new webhook secret an agent makes goes into the Vault item made for that site alone, shared with its owner and the person the agent works for and nobody else; the agent is told only where; a person is shown it", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Hooked");
+    const calls: { cap: string; input: Record<string, unknown> }[] = [];
+    const vault = async (cap: string, input: unknown) => {
+      calls.push({ cap, input: input as Record<string, unknown> });
+      if (cap === "vault.folders.create") return { folder: { id: "vfd_site" } };
+      if (cap === "vault.item.put") return { item: { id: "vit_site", handle: "#Hooked_webhook_secret" } };
+      return {};
+    };
+    const base = w.ctx.call;
+    const agent = {
+      ...w.ctx,
+      principal: { kind: "agent", id: "agt_x" },
+      actingFor: "usr_boss",
+      call: async (cap: string, input: unknown) => (cap.startsWith("vault.") ? vault(cap, input) : base(cap, input)),
+    } as typeof w.ctx;
+    const on = await h["sites.webhook_set"]!(agent, { siteId, enabled: true });
+    assert.equal(on.secret, undefined, "the agent is not shown it");
+    assert.equal(on.vault, "#Hooked_webhook_secret");
+    // found by id, never by a name: no listing, a folder made for this site under a key of its own
+    assert.equal(
+      calls.some((c) => c.cap === "vault.folders.list"),
+      false,
+    );
+    const folder = calls.find((c) => c.cap === "vault.folders.create")!;
+    assert.match(String(folder.input["idempotencyKey"]), new RegExp(`site-hook-folder:${siteId}`));
+    assert.equal(folder.input["scope"], "shared");
+    // shared at View with the owner and the person the agent works for, never with Everyone
+    const shares = calls.filter((c) => c.cap === "vault.share").map((c) => c.input);
+    assert.deepEqual(
+      shares.map((x) => [(x["subject"] as { kind: string }).kind, x["level"]]),
+      shares.map((x) => ["person", "view"]),
+    );
+    assert.ok(
+      shares.some((x) => (x["subject"] as { id: string }).id === "usr_boss"),
+      "the person it acts for",
+    );
+    assert.equal(
+      shares.some((x) => (x["subject"] as { kind: string }).kind === "group"),
+      false,
+      "not Everyone",
+    );
+    const field = (calls.find((c) => c.cap === "vault.item.put")!.input["fields"] as { value: string }[])[0]!;
+    const sealed = JSON.parse(
+      String(
+        (w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId)[0] as { hook_secret: string })
+          .hook_secret,
+      ),
+    );
+    assert.equal(
+      new TextDecoder().decode(w.ctx.seal.unseal(sealed)),
+      field.value,
+      "the Vault holds the secret the site checks with",
+    );
+    // a rotation changes that same item, by id
+    calls.length = 0;
+    const rotated = await h["sites.webhook_set"]!(agent, { siteId, rotate: true });
+    assert.equal(rotated.secret, undefined);
+    assert.equal(rotated.vault, "#Hooked_webhook_secret");
+    assert.equal(calls[0]!.cap, "vault.item.update");
+    assert.ok(
+      calls.slice(1).every((c) => c.cap === "vault.share"),
+      "then the same shares again",
+    );
+    assert.equal(
+      calls.some((c) => c.cap === "vault.folders.create" || c.cap === "vault.item.put"),
+      false,
+    );
+    assert.equal(calls[0]!.input["itemId"], "vit_site");
+    // a person is shown it, and nothing goes to the Vault
+    calls.length = 0;
+    const seen = await h["sites.webhook_set"]!(w.ctx, { siteId, rotate: true });
+    assert.match(String(seen.secret), /^[0-9a-f]{64}$/);
+    assert.equal(seen.vault, undefined);
+    assert.equal(calls.length, 0);
+    // a Vault that cannot take it, or cannot share it, changes nothing: the old secret still stands
+    const before = w.sdb.all("SELECT hook_secret, hook_vault FROM sites_site WHERE id = ?", siteId);
+    agent.call = async () => {
+      throw new Error("vault locked");
+    };
+    await assert.rejects(
+      () => h["sites.webhook_set"]!(agent, { siteId, rotate: true }),
+      /could not be kept in the Vault/,
+    );
+    assert.deepEqual(w.sdb.all("SELECT hook_secret, hook_vault FROM sites_site WHERE id = ?", siteId), before);
+    const fresh = await w.makeRepo("Fresh");
+    agent.call = async (cap: string) => {
+      if (cap === "vault.share") throw new Error("held for a person");
+      return vault(cap, {});
+    };
+    await assert.rejects(
+      () => h["sites.webhook_set"]!(agent, { siteId: fresh, enabled: true }),
+      /Nothing was turned on/,
+    );
+    assert.equal(
+      (w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", fresh)[0] as { hook_secret: unknown }).hook_secret,
+      null,
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("a note that is gone (evicted) is a refusal for an agent on a site with a production key, never a read of its own", async () => {
+  const rows = [{ fileId: "fil_a", name: "index.html", version: 1, size: 4 }];
+  const files = (cap: string, input: unknown): unknown =>
+    cap === "files.list" && (input as { folder: string }).folder === "fld_up" ? { files: rows, folders: [] } : null;
+  const fp = await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i));
+  const w = world({ files, fetchFp: () => fp!, values: { K: "v" } });
+  try {
+    const siteId = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site
+      .siteId as string;
+    w.sdb.run(
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
+      siteId,
+      "K",
+      "#Stripe.key",
+      0,
+      null,
+      "production",
+    );
+    const agent = { ...w.ctx, principal: { kind: "agent", id: "agt_x" } } as typeof w.ctx;
+    noteGateFp(agent.trace, siteId, fp!, Date.now() - 11 * 60_000);
+    const gone = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(gone.deployment.state, "failed");
+    assert.match(gone.deployment.problem, /could not be checked/);
+    // two deploys of one trace take their notes in the order they were made, one each
+    noteGateFp(agent.trace, siteId, fp!);
+    const first = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(first.deployment.state, "ready", first.deployment.problem);
+    noteGateFp(agent.trace, siteId, fp!);
+    const second = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(second.deployment.state, "ready", second.deployment.problem);
+    // and with no note left, nothing builds
+    const none = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(none.deployment.state, "failed");
+  } finally {
+    w.done();
+  }
+});
+
+test("every agent's or push's production deploy looks at the branch again, fresh: what the Gate remembered is only a pre-filter; a person's approval, or a protected branch, lets it build", async () => {
+  const w = world({ values: { K: "v" } });
+  try {
+    const siteId = await w.makeRepo("Fresh");
+    w.sdb.run(
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
+      siteId,
+      "K",
+      "#Stripe.key",
+      0,
+      null,
+      "production",
+    );
+    const ctxs: { http: unknown }[] = [];
+    const look = (status: number, body: unknown = {}) => {
+      const http = async (url: string) => ({
+        status: url.includes("/rules/branches/") ? 200 : url.endsWith("/protection") ? status : 200,
+        text: async () =>
+          JSON.stringify(
+            url.includes("/rules/branches/") ? [] : url.endsWith("/protection") ? body : { default_branch: "main" },
+          ),
+      });
+      for (const c of ctxs) c.http = http;
+    };
+    const agent = { ...w.ctx, principal: { kind: "agent", id: "agt_x" } } as typeof w.ctx;
+    const push = { ...w.ctx, origin: "sites-push" } as typeof w.ctx;
+    ctxs.push(w.ctx as never, agent as never, push as never);
+    // the Gate remembered "protected", but the branch is open now
+    w.sdb.run(
+      "UPDATE sites_site SET protection = ? WHERE id = ?",
+      JSON.stringify({ state: "protected", branch: "main", at: Date.now() }),
+      siteId,
+    );
+    look(404);
+    for (const who of [agent, push])
+      await assert.rejects(
+        () => h["sites.deploy"]!(who, { siteId, wait: true }),
+        /not protected on GitHub right now/,
+        "an agent's and a push's deploy",
+      );
+    assert.equal(siteFacts({ db: w.sdb } as never, siteId)!.protection?.state, "open", "and the site now knows");
+    // a look that fails is unknown, which refuses
+    look(403);
+    await assert.rejects(() => h["sites.deploy"]!(agent, { siteId, wait: true }), /not protected on GitHub right now/);
+    // a person approved it: it builds, and a person's own deploy never asks
+    noteApproved(agent.trace, siteId);
+    const ok = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
+    const person = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(person.deployment.state, "ready", person.deployment.problem);
+    // protected, and binding admins: free for both
+    look(200, { required_pull_request_reviews: {}, enforce_admins: { enabled: true } });
+    for (const who of [agent, push]) {
+      const out = await h["sites.deploy"]!(who, { siteId, wait: true });
+      assert.equal(out.deployment.state, "ready", out.deployment.problem);
+    }
+  } finally {
+    w.done();
+  }
+});
+
+test("a repo named with dots only is no GitHub repo, so nothing is asked of GitHub for it", () => {
+  assert.equal(_test.githubRepo("acme/app")?.name, "app");
+  assert.equal(_test.githubRepo("https://github.com/acme/app.git")?.owner, "acme");
+  for (const bad of ["acme/..", "../app", "./x", "acme/.", "https://github.com/../x", "https://evil.example/acme/app"])
+    assert.equal(_test.githubRepo(bad), null, bad);
+});
+
+test("a deploy a push or the auto-deploy asked for that did not run shows on the site's card with its reason", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Pushed");
+    recordDeployFailure(
+      w.ctx,
+      siteId,
+      "main",
+      "Waiting for a person: the site holds keys and its branch is not protected on GitHub.",
+    );
+    const hook = await h["sites.webhook_get"]!(w.ctx, { siteId });
+    assert.equal(hook.failed.length, 1);
+    assert.equal(hook.failed[0].action, "deploy");
+    assert.equal(hook.failed[0].branch, "main");
+    assert.match(hook.failed[0].error, /Waiting for a person/);
+    assert.equal(autoDeploySites(w.ctx).find((a) => a.siteId === siteId)?.branch ?? "main", "main");
+  } finally {
+    w.done();
+  }
+});
+
+test("protection is read with the rulesets a read token can see first, the classic endpoint for what they do not say", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Rules");
+    const asked: string[] = [];
+    const host = (rules: { status: number; body?: unknown }, classic: { status: number; body?: unknown }) => {
+      asked.length = 0;
+      (w.ctx as { http: unknown }).http = async (url: string) => {
+        asked.push(url.replace("https://api.github.com/repos/acme/app", ""));
+        const r = url.includes("/rules/branches/") ? rules : classic;
+        return { status: r.status, text: async () => JSON.stringify(r.body ?? {}) };
+      };
+    };
+    const state = async () => {
+      await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+      return siteFacts({ db: w.sdb } as never, siteId)!.protection?.state;
+    };
+    const review = { type: "pull_request", parameters: { required_approving_review_count: 1 } };
+    // a read-only token: the rules say it, the classic endpoint is not readable
+    host({ status: 200, body: [review] }, { status: 403 });
+    assert.equal(await state(), "protected", "a read-only token on a ruleset-protected branch");
+    assert.deepEqual(asked, ["/rules/branches/main"], "the classic endpoint is not needed");
+    host({ status: 200, body: [{ type: "update" }] }, { status: 403 });
+    assert.equal(await state(), "protected", "updates restricted");
+    host(
+      { status: 200, body: [{ type: "pull_request", parameters: { required_approving_review_count: 0 } }] },
+      { status: 404 },
+    );
+    assert.equal(await state(), "open", "a pull request rule that needs nobody's approval stops nothing");
+    // the rules say nothing: the classic endpoint decides, and what cannot be read is unknown
+    host(
+      { status: 200, body: [] },
+      { status: 200, body: { required_pull_request_reviews: {}, enforce_admins: { enabled: true } } },
+    );
+    assert.equal(await state(), "protected");
+    host({ status: 200, body: [] }, { status: 404 });
+    assert.equal(await state(), "open", "the rules were readable and say nothing, and there is no classic protection");
+    host({ status: 200, body: [] }, { status: 403 });
+    assert.equal(await state(), "unknown", "classic protection that cannot be read may be there");
+    host({ status: 404 }, { status: 404 });
+    assert.equal(await state(), "unknown", "nothing could be read");
+  } finally {
+    w.done();
+  }
+});
+
+test("a push or auto deploy is asked for only for a commit that was not deployed, and a commit that waits for a person is asked for once: one row and one ask per site and commit", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Waiting");
+    w.sdb.run("UPDATE sites_site SET auto_deploy = 1 WHERE id = ?", siteId);
+    let head: string | null = "a".repeat(40);
+    // what sites.head_check answers: the branch's head, and whether it differs from what was last deployed
+    const headOf = async (): Promise<{ head: string | null; changed: boolean }> => {
+      const last = (
+        w.sdb.all(
+          "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
+          siteId,
+        )[0] as { commit_sha: string } | undefined
+      )?.commit_sha;
+      return { head, changed: !(head && last === head) };
+    };
+    const tick = async (): Promise<number> =>
+      (await autoDeployTargets(w.ctx, headOf)).filter((a) => a.siteId === siteId).length;
+    const why = "Waiting for a person: the site holds keys and its branch is not protected on GitHub.";
+    // the tick as the daemon makes it: ask, and when the Gate holds it, record it with the commit
+    const run = async (): Promise<void> => {
+      for (const a of await autoDeployTargets(w.ctx, headOf))
+        if (a.siteId === siteId) recordDeployFailure(w.ctx, siteId, a.branch, why, a.head);
+    };
+    assert.equal(await tick(), 1, "a commit nobody has handled");
+    for (let n = 0; n < 3; n++) await run();
+    const rows = () =>
+      (
+        w.sdb.all("SELECT COUNT(*) AS n FROM sites_push WHERE site_id = ? AND action = 'deploy'", siteId)[0] as {
+          n: number;
+        }
+      ).n;
+    assert.equal(rows(), 1, "three ticks, no new commit: one row");
+    assert.equal(await tick(), 0, "and no further ask");
+    // a new commit is exactly one new ask and one new row
+    head = "b".repeat(40);
+    assert.equal(await tick(), 1);
+    for (let n = 0; n < 3; n++) await run();
+    assert.equal(rows(), 2);
+    assert.equal(await tick(), 0);
+    // a commit that was deployed is not asked for at all
+    await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    const last = (
+      w.sdb.all(
+        "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
+        siteId,
+      )[0] as { commit_sha: string }
+    ).commit_sha;
+    head = last;
+    assert.equal(await tick(), 0, "the head is what was deployed");
+    // a head that cannot be read is unknown: asked once, then it waits
+    head = null;
+    assert.equal(await tick(), 1);
+    recordDeployFailure(w.ctx, siteId, "main", why, null);
+    assert.equal(await tick(), 0);
+  } finally {
+    w.done();
+  }
+});
+
+test("the tick reads a private repo's head with the site's own token, filled for that one call, before the Gate; what was deployed is not asked for", async () => {
+  const w = world({ values: { TOKEN: "ghp_private" } });
+  try {
+    const siteId = (
+      await h["sites.create"]!(w.ctx, {
+        name: "Private",
+        source: { repo: "https://github.com/acme/private.git", branch: "main", tokenHandle: "#Stripe.key" },
+      })
+    ).site.siteId as string;
+    const seenTokens: (string | null)[] = [];
+    let head: string | null = "d".repeat(40);
+    _test.useHeadReader(async (_repo, _branch, token) => (seenTokens.push(token), head));
+    const first = await h["sites.head_check"]!(w.ctx, { siteId });
+    assert.deepEqual([first.head, first.changed], ["d".repeat(40), true], "nothing deployed: changed");
+    assert.deepEqual(seenTokens, ["ghp_private"], "read with the site's own token, not without");
+    // a deploy of that head: the same head is no change
+    await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    const last = (
+      w.sdb.all(
+        "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
+        siteId,
+      )[0] as { commit_sha: string }
+    ).commit_sha;
+    head = last;
+    assert.equal((await h["sites.head_check"]!(w.ctx, { siteId })).changed, false);
+    head = null;
+    assert.equal(
+      (await h["sites.head_check"]!(w.ctx, { siteId })).changed,
+      true,
+      "a head that cannot be read is unknown",
+    );
+  } finally {
+    _test.useHeadReader(null);
+    w.done();
+  }
+});
+
+test("when the task of a waiting deploy is answered its row goes: a yes and an expiry delete it, a no keeps that commit denied and a newer commit asks at once", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Answered");
+    w.sdb.run("UPDATE sites_site SET auto_deploy = 1 WHERE id = ?", siteId);
+    const X = "e".repeat(40);
+    const Y = "f".repeat(40);
+    let head = X;
+    const headOf = async () => ({ head, changed: true });
+    const asked = async () => (await autoDeployTargets(w.ctx, headOf)).filter((a) => a.siteId === siteId).length;
+    const why = "Waiting for a person: the site holds keys and its branch is not protected on GitHub.";
+    const resolve = (name: string, taskId: string) =>
+      consumers["sites.hold_resolved"].run(w.ctx as never, { name, payload: { taskId } });
+    recordDeployFailure(w.ctx, siteId, "main", why, X, "tsk_x");
+    assert.equal(await asked(), 0, "waiting");
+    await resolve("gate.denied", "tsk_x");
+    assert.match(
+      String((w.sdb.all("SELECT error FROM sites_push WHERE delivery_id = ?", "tsk_x")[0] as { error: string }).error),
+      /^Denied by a person/,
+    );
+    assert.equal(await asked(), 0, "a denied commit stays denied");
+    head = Y;
+    assert.equal(await asked(), 1, "a newer commit asks at once");
+    recordDeployFailure(w.ctx, siteId, "main", why, Y, "tsk_y");
+    assert.equal(await asked(), 0);
+    await resolve("gate.approved", "tsk_y");
+    assert.equal(w.sdb.all("SELECT 1 FROM sites_push WHERE delivery_id = ?", "tsk_y").length, 0, "a yes clears it");
+    assert.equal(await asked(), 1, "and what was not deployed asks again");
+    recordDeployFailure(w.ctx, siteId, "main", why, Y, "tsk_z");
+    await resolve("gate.expired", "tsk_z");
+    assert.equal(w.sdb.all("SELECT 1 FROM sites_push WHERE delivery_id = ?", "tsk_z").length, 0, "an expiry clears it");
+    // a failure older than 30 days is forgotten; a commit a person denied stays denied for good
+    recordDeployFailure(
+      w.ctx,
+      siteId,
+      "main",
+      "The deploy could not run. The log says more.",
+      "1".repeat(40),
+      "tsk_old",
+    );
+    w.sdb.run(
+      "UPDATE sites_push SET failed_at = ? WHERE delivery_id IN (?, ?)",
+      Date.now() - 31 * 86_400_000,
+      "tsk_old",
+      "tsk_x",
+    );
+    head = X;
+    assert.equal(await asked(), 0, "the denied commit is still denied after a month");
+    assert.equal(
+      w.sdb.all("SELECT 1 FROM sites_push WHERE delivery_id = ?", "tsk_old").length,
+      0,
+      "an old failure is forgotten",
+    );
+    assert.equal(w.sdb.all("SELECT 1 FROM sites_push WHERE delivery_id = ?", "tsk_x").length, 1);
+    // a head that cannot be read blocks only a card that still waits, never a later commit
+    await resolve("gate.expired", "tsk_y");
+    head = Y;
+    recordDeployFailure(w.ctx, siteId, "main", why, Y, "tsk_u");
+    await resolve("gate.denied", "tsk_u");
+    const unreadable = async () => (await autoDeployTargets(w.ctx, async () => ({ head: null, changed: true }))).length;
+    assert.equal(await unreadable(), 1, "a denied card does not block a head nobody could read");
+    recordDeployFailure(w.ctx, siteId, `main${String.fromCodePoint(0x202e)}x\n`, why, X, "tsk_w");
+    assert.equal(
+      (w.sdb.all("SELECT branch FROM sites_push WHERE delivery_id = ?", "tsk_w")[0] as { branch: string }).branch,
+      "main\\u202ex\\u000a",
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("the webhook secret's Vault folder, item and shares are made by the host as part of the site's action, and the audit line names the agent and the person", async () => {
+  const hostCalls: { cap: string; input: Record<string, unknown> }[] = [];
+  const w = world({
+    asHost: async (cap, input) => {
+      hostCalls.push({ cap, input: input as Record<string, unknown> });
+      if (cap === "vault.folders.create") return { folder: { id: "vfd_site" } };
+      if (cap === "vault.item.put") return { item: { id: "vit_site", handle: "#Hooked_webhook_secret" } };
+      return {};
+    },
+  });
+  try {
+    const siteId = await w.makeRepo("Hooked");
+    const lines: { msg: string; attrs?: Record<string, unknown> }[] = [];
+    const agent = {
+      ...w.ctx,
+      principal: { kind: "agent", id: "agt_x" },
+      actingFor: "usr_boss",
+      // the agent's own calls to the Vault would be held: nothing goes through them
+      call: async (cap: string, input: unknown) => {
+        if (cap.startsWith("vault.")) throw new Error("held for a person");
+        return (w.ctx as { call: (c: string, i: unknown) => Promise<unknown> }).call(cap, input);
+      },
+      log: {
+        ...w.ctx.log,
+        info: (msg: string, attrs?: Record<string, unknown>) => void lines.push({ msg, ...(attrs ? { attrs } : {}) }),
+      },
+    } as typeof w.ctx;
+    const on = await h["sites.webhook_set"]!(agent, { siteId, enabled: true });
+    assert.equal(on.vault, "#Hooked_webhook_secret", "an agent's first enable is not stopped by its own share hold");
+    assert.deepEqual(
+      hostCalls.map((c) => c.cap).filter((c, i, all) => all.indexOf(c) === i),
+      ["vault.folders.create", "vault.item.put", "vault.share", "tasks.create"],
+    );
+    const task = hostCalls.find((c) => c.cap === "tasks.create")!.input;
+    assert.match(String(task["title"]), /^Paste the new webhook secret into GitHub for Hooked$/);
+    assert.deepEqual((task["assigned"] as { kind: string }).kind, "person");
+    const shared = hostCalls
+      .filter((c) => c.cap === "vault.share")
+      .map((c) => (c.input["subject"] as { id: string }).id);
+    assert.ok(shared.includes("usr_boss"));
+    const line = lines.find((l) => l.msg === "sites.hook_secret_kept");
+    assert.equal(line?.attrs?.["by"], "agt_x");
+    assert.equal(line?.attrs?.["forPerson"], "usr_boss");
+    assert.equal(line?.attrs?.["asHost"], true);
+  } finally {
+    w.done();
+  }
+});
+
+test("a branch with a slash in its name is read under its own encoded name in the rules and the classic paths", async () => {
+  const w = world();
+  try {
+    const siteId = (
+      await h["sites.create"]!(w.ctx, {
+        name: "Slashed",
+        source: { repo: "https://github.com/acme/app.git", branch: "release/2026-11" },
+      })
+    ).site.siteId as string;
+    const asked: string[] = [];
+    (w.ctx as { http: unknown }).http = async (url: string) => {
+      asked.push(url.replace("https://api.github.com/repos/acme/app", ""));
+      return { status: 200, text: async () => "[]" };
+    };
+    await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.ok(asked.includes("/rules/branches/release%2F2026-11"), asked.join(" "));
+    assert.ok(asked.includes("/branches/release%2F2026-11/protection"), asked.join(" "));
+  } finally {
+    w.done();
+  }
+});
+
+test("a failure at any step of keeping the webhook secret leaves the Vault item and the site agreeing once it is tried again", async () => {
+  const items: Record<string, string> = {};
+  let failAt: string | null = null;
+  let putKeys: string[] = [];
+  const sealedAtTask: boolean[] = [];
+  const w = world({
+    asHost: async (cap, input) => {
+      const i = input as Record<string, unknown>;
+      if (cap === "tasks.create")
+        sealedAtTask.push(
+          (
+            w.sdb.all(
+              "SELECT hook_secret FROM sites_site WHERE id = ?",
+              String((i["source"] as { id: string }).id),
+            )[0] as { hook_secret: unknown }
+          ).hook_secret !== null,
+        );
+      if (failAt === cap) {
+        failAt = null;
+        throw new Error(`${cap} failed`);
+      }
+      if (cap === "vault.folders.create") return { folder: { id: "vfd_site" } };
+      if (cap === "vault.item.put") {
+        putKeys.push(String(i["idempotencyKey"]));
+        const field = (i["fields"] as { value: string }[])[0]!;
+        items["vit_site"] = field.value;
+        return { item: { id: "vit_site", handle: "#Hooked_webhook_secret" } };
+      }
+      if (cap === "vault.item.update") {
+        items[String(i["itemId"])] = (i["fieldsSet"] as { value: string }[])[0]!.value;
+        return {};
+      }
+      return {};
+    },
+  });
+  try {
+    const agent = { ...w.ctx, principal: { kind: "agent", id: "agt_x" }, actingFor: "usr_boss" } as typeof w.ctx;
+    const agree = (siteId: string): void => {
+      const sealed = (
+        w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId)[0] as { hook_secret: string | null }
+      ).hook_secret;
+      assert.ok(sealed, "the site has a secret");
+      assert.equal(
+        items["vit_site"],
+        new TextDecoder().decode(w.ctx.seal.unseal(JSON.parse(sealed))),
+        "the item and the site hold one secret",
+      );
+    };
+    for (const step of ["vault.folders.create", "vault.item.put", "vault.share", "tasks.create"]) {
+      for (const k of Object.keys(items)) delete items[k];
+      putKeys = [];
+      const siteId = await w.makeRepo(`Hooked ${step}`);
+      failAt = step;
+      // the first try either fails (steps before the site is sealed) or goes through (the task is only a request)
+      const first = await h["sites.webhook_set"]!(agent, { siteId, enabled: true }).then(
+        () => "ok",
+        () => "failed",
+      );
+      assert.equal(first, step === "tasks.create" ? "ok" : "failed", step);
+      if (step === "tasks.create") {
+        // the secret is kept and the site is on; the task that did not get made is told, not swallowed
+        const failed = (
+          (await h["sites.webhook_get"]!(w.ctx, { siteId })) as { failed: { action: string; error: string }[] }
+        ).failed;
+        assert.ok(
+          failed.some((f) => f.action === "hook" && /could not be made/.test(f.error)),
+          JSON.stringify(failed),
+        );
+      }
+      if (first === "failed")
+        assert.equal(
+          (w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId)[0] as { hook_secret: unknown })
+            .hook_secret,
+          null,
+          "the site was not turned on with a secret the item does not hold",
+        );
+      // the retry
+      const again = await h["sites.webhook_set"]!(agent, { siteId, enabled: true });
+      assert.equal(again.enabled, true, step);
+      agree(siteId);
+      // and a rotation after it
+      await h["sites.webhook_set"]!(agent, { siteId, rotate: true });
+      agree(siteId);
+    }
+    assert.ok(
+      putKeys.every((k) => /^site-hook-secret:[^:]+:[0-9a-f]{16}$/.test(k)),
+      "the item's key carries a digest of its secret",
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("a named commit is built only when it is on the branch, against a real git remote: the commit the card named, not the branch's newest; a commit of another branch is refused", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-pin-"));
+  const bare = path.join(base, "remote.git");
+  const work = path.join(base, "work");
+  const git = (cwd: string, ...a: string[]): string =>
+    execFileSync("git", a, {
+      cwd,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "t",
+        GIT_AUTHOR_EMAIL: "t@e.x",
+        GIT_COMMITTER_NAME: "t",
+        GIT_COMMITTER_EMAIL: "t@e.x",
+      },
+    }).trim();
+  const saved = {
+    c: process.env["GIT_CONFIG_COUNT"],
+    k: process.env["GIT_CONFIG_KEY_0"],
+    v: process.env["GIT_CONFIG_VALUE_0"],
+  };
+  try {
+    fs.mkdirSync(bare);
+    git(bare, "init", "--bare", "-b", "main", ".");
+    fs.mkdirSync(work);
+    git(work, "init", "-b", "main", ".");
+    const commit = (name: string): string => {
+      fs.writeFileSync(path.join(work, "index.html"), `<p>${name}</p>`);
+      git(work, "add", ".");
+      git(work, "commit", "-m", name);
+      return git(work, "rev-parse", "HEAD");
+    };
+    const x = commit("x");
+    const y = commit("y");
+    const z = commit("z");
+    git(work, "checkout", "-b", "feature", x);
+    const other = commit("only on feature");
+    git(work, "push", bare, "main", "feature");
+    // the address the site names is served from this local remote
+    process.env["GIT_CONFIG_COUNT"] = "1";
+    process.env["GIT_CONFIG_KEY_0"] = `url.file://${bare}.insteadOf`;
+    process.env["GIT_CONFIG_VALUE_0"] = "https://github.com/acme/app.git";
+    const deps = { call: async () => ({}), token: async () => null, contained: true };
+    // the branch's newest is built when no commit is named
+    const newest = await fetchSource({ repo: "acme/app", branch: "main" }, deps);
+    assert.equal(newest.commit, z);
+    newest.cleanup();
+    // the commit the card named, though the branch has moved past it
+    const pinned = await fetchSource({ repo: "acme/app", branch: "main", commit: y }, deps);
+    assert.equal(pinned.commit, y, "the commit named, not the newest");
+    assert.equal(fs.readFileSync(path.join(pinned.dir, "index.html"), "utf8"), "<p>y</p>");
+    pinned.cleanup();
+    // a commit that is only on another branch is not this branch's reviewed code
+    await assert.rejects(
+      () => fetchSource({ repo: "acme/app", branch: "main", commit: other }, deps),
+      /not on the branch/,
+    );
+    // a commit that does not exist
+    await assert.rejects(
+      () => fetchSource({ repo: "acme/app", branch: "main", commit: "9".repeat(40) }, deps),
+      /not on the branch/,
+    );
+  } finally {
+    for (const [k, v] of [
+      ["GIT_CONFIG_COUNT", saved.c],
+      ["GIT_CONFIG_KEY_0", saved.k],
+      ["GIT_CONFIG_VALUE_0", saved.v],
+    ] as const)
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("a whole clone (the dumb-HTTP fallback takes the branch whole) is held to the same newest-200 rule: a commit from long before cannot be named", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { pinCommit } = await import("../handlers/source.ts");
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-pin-full-"));
+  const env = {
+    ...process.env,
+    GIT_AUTHOR_NAME: "t",
+    GIT_AUTHOR_EMAIL: "t@e.x",
+    GIT_COMMITTER_NAME: "t",
+    GIT_COMMITTER_EMAIL: "t@e.x",
+  };
+  const git = (cwd: string, ...a: string[]): string => execFileSync("git", a, { cwd, encoding: "utf8", env }).trim();
+  try {
+    const origin = path.join(base, "origin");
+    fs.mkdirSync(origin);
+    git(origin, "init", "-b", "main", ".");
+    for (let n = 0; n < 260; n++) git(origin, "commit", "--allow-empty", "-m", `c${n}`);
+    const shas = git(origin, "rev-list", "--reverse", "main").split("\n");
+    const whole = (name: string): string => {
+      const dir = path.join(base, name);
+      git(base, "clone", "-q", "--no-single-branch", origin, dir);
+      assert.equal(git(dir, "rev-parse", "--is-shallow-repository"), "false", "a whole clone");
+      return dir;
+    };
+    // 159 commits back: within the newest 200, built
+    const near = whole("near");
+    await pinCommit(near, shas[100]!, "main", null);
+    assert.equal(git(near, "rev-parse", "HEAD"), shas[100]);
+    // 249 commits back, from long before: refused
+    await assert.rejects(() => pinCommit(whole("far"), shas[10]!, "main", null), /too far back/);
+    // a commit of another branch
+    git(origin, "checkout", "-q", "-b", "side", shas[250]!);
+    git(origin, "commit", "--allow-empty", "-m", "side only");
+    const side = git(origin, "rev-parse", "HEAD");
+    git(origin, "checkout", "-q", "main");
+    await assert.rejects(() => pinCommit(whole("other"), side, "main", null), /not on the branch/);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
 });

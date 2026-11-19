@@ -31,6 +31,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.env_list": Handler<"sites.env_list", X>;
   "sites.env_set": Handler<"sites.env_set", X>;
   "sites.get": Handler<"sites.get", X>;
+  "sites.head_check": Handler<"sites.head_check", X>;
   "sites.host": Handler<"sites.host", X>;
   "sites.job_cancel": Handler<"sites.job_cancel", X>;
   "sites.job_create": Handler<"sites.job_create", X>;

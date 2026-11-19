@@ -43,7 +43,7 @@ import {
   storeOf,
   decisionSnapshot,
 } from "../projections.ts";
-import { isHostService, isSystemCall } from "../../../lib/trust.ts";
+import { isHostOwnService, isHostService, isSystemCall } from "../../../lib/trust.ts";
 import { canonical } from "../../../lib/canonical.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
@@ -1663,6 +1663,7 @@ function addGrant(ctx: ShareCtx, store: AccessStore, res: ResourceRec, subject: 
 export async function audienceSet(
   ctx: ShareCtx,
   input: { resource: ResourceRef; audience?: Audience; exporters?: Exporters; outside?: boolean; follows?: string },
+  opts?: { hostNarrow?: boolean },
 ) {
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
@@ -1673,9 +1674,8 @@ export async function audienceSet(
     if (res.type !== "folder") raise(trace, "validation.bad_input", "only a Files folder can follow a record");
     const rec = store.resources.get(input.follows);
     if (!rec || rec.type !== "record") raise(trace, "validation.not_found", "no such record");
-    // the host's own sweeps (kind svc) bring old folders in line; it only narrows who may open the folder
-    if (ctx.principal.kind !== "svc" && !ctx.principal.id.startsWith("svc_"))
-      must(ctx, store, res, "manage", "attaching the folder to its record");
+    // the host's own sweeps (svc_host and the host's other own services, by name) bring old folders in line; any other caller, a tenant's service included, needs Manage on the folder like everyone else
+    if (!isHostOwnService(ctx.principal)) must(ctx, store, res, "manage", "attaching the folder to its record");
     const wasFresh = isFresh(ctx, store, ss);
     res.parentId = rec.id;
     changed(ctx, store, "assignment");
@@ -1695,7 +1695,10 @@ export async function audienceSet(
   if (folder && isHostService(ctx.principal) && input.audience !== undefined && input.audience === audienceOf(res))
     return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
   // the host's own sweep brings a chat's own agents and their folders in line with their chats: without Manage only on those (hostMayCloseFolder), never on any other folder or agent
-  if (!(folder && isHostService(ctx.principal) && hostMayCloseFolder(store, res)))
+  if (
+    !(folder && isHostService(ctx.principal) && hostMayCloseFolder(store, res)) &&
+    !(opts?.hostNarrow === true && res.type === "folder")
+  )
     must(ctx, store, res, "manage", "changing who it is open to");
   // asking a folder or an agent to be what it already is changes nothing: answered quietly, but only after the rights check, so it tells an outsider nothing (an agent an open channel made:
   // its folder is open to the Space from the start, and the maker's own followHome asks for that)
@@ -2347,4 +2350,19 @@ export function accessRowsFull(ctx: AccessCtx): AccessRow[] {
   return [...computeRows(ss, store, snap, people, null, ctx.now()).values()].sort((a, b) =>
     ak(a.person, a.type, a.id) < ak(b.person, b.type, b.id) ? -1 : 1,
   );
+}
+
+/**
+ * The host's own safety step (a consumer of projects' project.folder_unfollowed): a Files folder that could not follow its record is closed to the people added. Only the host's own services call it; it
+ * only narrows (audience "added"), so it needs no Manage; every other folder rule stays as it was.
+ */
+export async function folderNarrow(ctx: ShareCtx, input: { folderId: string }) {
+  if (!isHostOwnService(ctx.principal))
+    raise(ctx.trace.traceId, "permission.no_grant", "Only the server narrows a folder this way.");
+  const r = await audienceSet(
+    ctx,
+    { resource: { type: "folder", id: input.folderId } as ResourceRef, audience: "added" },
+    { hostNarrow: true },
+  );
+  return { audience: r.audience };
 }

@@ -267,6 +267,7 @@ const NAMES = [
   "schema.diff",
   "schema.apply",
   "schema.set_label",
+  "schema.set_mergeable",
   "schema.infer",
   "schema.changes.list",
   "schema.trash.list",

@@ -7,7 +7,7 @@
 //   access    for a record with no projects row, the folder gets the record's own grants (who may see or edit the project may see or edit the folder), plus the lead (and the maker, with a source of its own) at Manage.
 //             The grants carry the source `projfolder:<recordId>` so they are replaced as a set. A project with a projects row already has its roles written on the folder (applyRole).
 //             In a Personal Space the owner sees everything and no grant is written.
-import { call, codeOf, ensure, projectByRecord, tolerant } from "../projections.ts";
+import { call, codeOf, ensure, followRecord, projectByRecord, tolerant } from "../projections.ts";
 import type { ProjectsCtx } from "../projections.ts";
 import { makeProject, projectsRoot } from "./project.ts";
 import type { Role } from "../projections.ts";
@@ -100,7 +100,7 @@ export async function ensureFolder(
   }
   if (!folderId) throw new Error("No free folder name for this project.");
   await call(ctx, "records.update", { type, recordId, patch: { folder: folderId } });
-  await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId }, {});
+  await followRecord(ctx, folderId, recordId);
   await syncAccess(ctx, type, recordId, folderId, by, fields);
   return folderId;
 }
@@ -318,8 +318,7 @@ export async function followRecords(ctx: ProjectsCtx): Promise<void> {
     `SELECT "recordId", "folderId" FROM projects_project WHERE "folderId" IS NOT NULL`,
   ) as Array<{ recordId: string; folderId: string }>)
     pairs.push({ folder: r.folderId, record: r.recordId });
-  for (const x of pairs)
-    await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: x.folder }, follows: x.record }, {});
+  for (const x of pairs) await followRecord(ctx, x.folder, x.record);
   FOLLOWED.add(ctx.db);
 }
 
@@ -509,7 +508,7 @@ export async function recordFilesFolder(
   ).folder.folderId;
   ctx.db.run("INSERT OR REPLACE INTO projects_record_files (record_id, folder_id) VALUES (?, ?)", input.recordId, made);
   // the folder follows the record's access, so a deal set apart takes its files with it
-  await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: made }, follows: input.recordId }, {});
+  await followRecord(ctx, made, input.recordId);
   await syncAccess(ctx, input.type, input.recordId, made, by, fields);
   return { folderId: made };
 }
@@ -528,4 +527,54 @@ export async function fileIntoRecord(
   const got = await call<{ file?: { folderId?: string } }>(ctx, "files.get", { fileId: input.fileId });
   if (got.file?.folderId !== folderId) await call(ctx, "files.move", { fileId: input.fileId, toFolderId: folderId });
   return folderId!;
+}
+
+/**
+ * Runs as the host's own service (a consumer of project.folder_unfollowed). The folder is narrowed to the people added: the host needs no Manage for this one narrowing and it never widens. The log line names
+ * the caller that was refused. The task says whether it was narrowed, and goes to the person who asked, else the record's owner, else the Space's admins.
+ */
+export async function onFolderUnfollowed(ctx: ProjectsCtx, payload: Record<string, unknown>): Promise<void> {
+  const folderId = String(payload["folderId"] ?? "");
+  const recordId = String(payload["recordId"] ?? "");
+  const by = String(payload["by"] ?? "");
+  if (!folderId || !recordId) return;
+  let narrowed = true;
+  try {
+    await call(ctx, "access.folder_narrow", { folderId });
+  } catch {
+    narrowed = false;
+  }
+  ctx.log.warn(
+    narrowed
+      ? "projects: a folder that could not follow its record was narrowed to the people added"
+      : "projects: a folder that could not follow its record could not be narrowed",
+    { folderId, recordId, refusedCaller: by, reason: String(payload["why"] ?? "") },
+  );
+  let who: { kind: "person" | "role"; id: string } = { kind: "role", id: "rol_admin" };
+  if (by.startsWith("usr_")) who = { kind: "person", id: by };
+  else {
+    const rec = (
+      await tolerant<{ record?: { fields?: Record<string, unknown> } }>(ctx, "records.get", { recordId }, {})
+    ).record;
+    for (const k of ["owner", "ownerId", "assigned", "createdBy"]) {
+      const v = rec?.fields?.[k];
+      if (typeof v === "string" && v.startsWith("usr_")) {
+        who = { kind: "person", id: v };
+        break;
+      }
+    }
+  }
+  await tolerant(
+    ctx,
+    "tasks.create",
+    {
+      title: narrowed
+        ? "A files folder could not follow its record, so it was limited to the people added"
+        : "A files folder could not follow its record and could not be limited: check who can open it",
+      assigned: who,
+      recordId,
+      idempotencyKey: `fld-follow:${folderId}`,
+    },
+    {},
+  );
 }

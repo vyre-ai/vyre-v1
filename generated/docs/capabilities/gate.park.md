@@ -29,7 +29,7 @@ type In = {
   capVersion: number;
   input: unknown;
   payloadHash: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   principal: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -44,6 +44,7 @@ type In = {
     defHash: string;
     ask?: boolean;
   };
+  origin?: string;
   ask?: {
     by: {
       kind: "person" | "agent" | "actor" | "service";
@@ -92,6 +93,7 @@ type Out = {
     "decisionId": "example",
     "idempotencyKey": "idem_1",
     "input": {},
+    "origin": "example",
     "payloadHash": "example",
     "principal": {
       "id": "usr_a1b2c3",

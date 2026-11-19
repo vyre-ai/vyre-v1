@@ -1869,7 +1869,7 @@
     {
       "deferred": false,
       "name": "comms_senders_list",
-      "summary": "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "summary": "Addresses and numbers the caller can send from; one that cannot send now says usable false and why",
       "toolset": "inbox"
     },
     {
@@ -2757,7 +2757,7 @@
     {
       "deferred": false,
       "name": "email_builder_snippets_list",
-      "summary": "List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space",
+      "summary": "List composer snippets (reusable reply text), mine and shared",
       "toolset": "inbox"
     },
     {
@@ -4791,13 +4791,13 @@
     {
       "deferred": false,
       "name": "inbox_counts",
-      "summary": "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
+      "summary": "Unread conversation counts per inbox and number, and how many need a match",
       "toolset": "inbox"
     },
     {
       "deferred": false,
       "name": "inbox_follow_set",
-      "summary": "Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)",
+      "summary": "Follow a contact or set Alert me on replies",
       "toolset": "inbox"
     },
     {
@@ -4869,13 +4869,13 @@
     {
       "deferred": false,
       "name": "inbox_thread_conversation",
-      "summary": "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
+      "summary": "The conversation of an email thread, from its provider thread id",
       "toolset": "inbox"
     },
     {
       "deferred": false,
       "name": "inbox_threads",
-      "summary": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
+      "summary": "A contact's email threads, newest first, each whole, with what is new and your role",
       "toolset": "inbox"
     },
     {
@@ -5222,14 +5222,26 @@
     },
     {
       "deferred": false,
+      "name": "mail_configure",
+      "summary": "Email setup: status|test|smtp_get|smtp_set|smtp_verify|address_list|address_add|address_move",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mail_connect",
-      "summary": "Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)",
+      "summary": "Connect the caller's own Gmail, Outlook or IMAP mailbox",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "mail_delivery_state",
+      "summary": "A message's delivery trail (messageId), else inbox health",
       "toolset": "inbox"
     },
     {
       "deferred": false,
       "name": "mail_domain_add",
-      "summary": "Add a sending domain at Resend or Mailgun and return the DNS records to publish",
+      "summary": "Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish",
       "toolset": "inbox"
     },
     {
@@ -5265,7 +5277,7 @@
     {
       "deferred": false,
       "name": "mail_draft",
-      "summary": "Create or update a draft (an agent draft waits for Send, Edit or Discard with a Gate line)",
+      "summary": "Create or update a draft (an agent's waits for a person)",
       "toolset": "inbox"
     },
     {
@@ -5325,7 +5337,7 @@
     {
       "deferred": false,
       "name": "mail_mailbox_set_sync_state",
-      "summary": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
+      "summary": "A connection reports its sign-in lost (error) or working again (syncing)",
       "toolset": "inbox"
     },
     {
@@ -5379,7 +5391,7 @@
     {
       "deferred": false,
       "name": "mail_send",
-      "summary": "Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked",
+      "summary": "Send an email (suppression, limits and the Gate apply)",
       "toolset": "inbox"
     },
     {
@@ -5396,8 +5408,14 @@
     },
     {
       "deferred": false,
+      "name": "mail_templates",
+      "summary": "Email templates: list|get|set|preview|reset; documentId = one document's",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mail_thread_get",
-      "summary": "Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)",
+      "summary": "Read one email thread whole, oldest first, with your role in it",
       "toolset": "inbox"
     },
     {
@@ -8337,7 +8355,7 @@
     {
       "deferred": false,
       "name": "sites_artifact_thumb_set",
-      "summary": "Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one",
+      "summary": "Keep a small picture of an artifact, sent by the Vyre for Chrome extension. Set only when there is none or the artifact changed",
       "toolset": "sites"
     },
     {
@@ -8349,19 +8367,19 @@
     {
       "deferred": false,
       "name": "sites_chat_viewing",
-      "summary": "The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds",
+      "summary": "The app says a chat is open for the person (every 30 s while open). An artifact an agent publishes for that person opens in their app only while this holds",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_create",
-      "summary": "Create a site: where it runs (a computer port, or a Files folder) or its source (repo, folder or zip) to build with sites_deploy. Nothing is served until published or deployed",
+      "summary": "Create a site: where it runs (a computer port or a Files folder) or its source (repo, folder or zip). Nothing is served until published or deployed",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_db_import",
-      "summary": "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
+      "summary": "Copy a Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
       "toolset": "sites"
     },
     {
@@ -8373,7 +8391,7 @@
     {
       "deferred": false,
       "name": "sites_deploy",
-      "summary": "Build the site from its source and run it here: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
+      "summary": "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers",
       "toolset": "sites"
     },
     {
@@ -8391,7 +8409,7 @@
     {
       "deferred": false,
       "name": "sites_domain_add",
-      "summary": "Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS",
+      "summary": "Add a custom domain: returns the DNS records to set; TLS is automatic",
       "toolset": "sites"
     },
     {
@@ -8415,7 +8433,7 @@
     {
       "deferred": false,
       "name": "sites_env_list",
-      "summary": "A site's env var names and where each comes from (never secret values), and the names the app looks for that are not set",
+      "summary": "A site's env var names and sources (never values), and names the app looks for that are not set",
       "toolset": "sites"
     },
     {
@@ -8433,7 +8451,7 @@
     {
       "deferred": false,
       "name": "sites_host",
-      "summary": "What this Space can host: its address, whether Vyre can build and run apps here, the address sites get, what a custom domain needs",
+      "summary": "What this Space can host: its address, whether Vyre can run apps here, the sites address, what a custom domain needs",
       "toolset": "sites"
     },
     {
@@ -8445,13 +8463,13 @@
     {
       "deferred": false,
       "name": "sites_logs",
-      "summary": "A site's log: its running app, or with build a deploy's build log (the latest by default). Text from the site, not Vyre content",
+      "summary": "A site's log: its app, or with build a deploy's build log. Text from the site",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_ops",
-      "summary": "Run a site: logs, metrics, jobs, workers, backups. Read the sites skill for actions and args",
+      "summary": "Site logs, metrics, jobs, workers, backups. Read the sites skill for actions and args",
       "toolset": "sites"
     },
     {
@@ -8487,7 +8505,7 @@
     {
       "deferred": false,
       "name": "sites_promote",
-      "summary": "Put a site on the public internet at its address. Held for approval unless the person asked for it this turn",
+      "summary": "Put a site on the public internet. Held for approval unless the person asked this turn",
       "toolset": "sites"
     },
     {
@@ -8511,7 +8529,7 @@
     {
       "deferred": false,
       "name": "sites_ship",
-      "summary": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix. Call again with the siteId to go on",
+      "summary": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix",
       "toolset": "sites"
     },
     {
@@ -8529,13 +8547,13 @@
     {
       "deferred": false,
       "name": "sites_stop",
-      "summary": "Stop serving a site. Its address answers nothing; the process on the computer keeps running",
+      "summary": "Stop serving a site. Its address answers nothing",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_table_create",
-      "summary": "Create a site table (a site-scoped record type); no schema permission needed for people who can edit the site",
+      "summary": "Create a site table (a site-scoped record type)",
       "toolset": "sites"
     },
     {
@@ -8553,7 +8571,7 @@
     {
       "deferred": false,
       "name": "sites_update",
-      "summary": "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it. Making it public takes it down until published again",
+      "summary": "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it",
       "toolset": "sites"
     },
     {
@@ -8565,7 +8583,7 @@
     {
       "deferred": false,
       "name": "sites_webhook_set",
-      "summary": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set which branches get a preview (names, prefix*, or *)",
+      "summary": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get previews",
       "toolset": "sites"
     },
     {

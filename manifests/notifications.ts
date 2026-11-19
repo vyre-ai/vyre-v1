@@ -511,6 +511,7 @@ export default defineManifest({
     write("notifications.delegate.set", "Set my standing approvals delegate chain; a delegate never gains access", {
       in: { chain: t.arr(delegateTo, { maxItems: 5 }) },
       out: { chain: t.arr(delegateTo) },
+      gate: { act: "send", when: "actor.kind != 'person'" },
       level: "use",
       emits: ["notification.delegate_changed"],
       tool: "meta",

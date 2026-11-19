@@ -31,6 +31,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "sites.env_list": async (ctx) => { throw new VyreErr(notImplemented("sites.env_list", ctx.trace)); },
   "sites.env_set": async (ctx) => { throw new VyreErr(notImplemented("sites.env_set", ctx.trace)); },
   "sites.get": async (ctx) => { throw new VyreErr(notImplemented("sites.get", ctx.trace)); },
+  "sites.head_check": async (ctx) => { throw new VyreErr(notImplemented("sites.head_check", ctx.trace)); },
   "sites.host": async (ctx) => { throw new VyreErr(notImplemented("sites.host", ctx.trace)); },
   "sites.job_cancel": async (ctx) => { throw new VyreErr(notImplemented("sites.job_cancel", ctx.trace)); },
   "sites.job_create": async (ctx) => { throw new VyreErr(notImplemented("sites.job_create", ctx.trace)); },
