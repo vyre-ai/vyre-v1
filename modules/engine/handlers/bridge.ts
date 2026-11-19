@@ -1535,9 +1535,11 @@ export function createBridge(o: BridgeOptions): Bridge {
     const speaksFor = a.kind === "agent" && str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : undefined;
     // a helper's or teammate's result while others of the crew still work: it is kept in the chat, and nobody is woken. The lead answers once, when the last one is back (owner, 4 Nov 2026).
     // a helper told to wait for others (chat.helper.start dependsOn) is not woken until each of them is done: its brief is kept, its node stands queued meanwhile
-    const waiting = (await helperWaiting(ctx, threadId, readAs)) === "waiting";
+    const waitState = await helperWaiting(ctx, threadId, readAs);
+    const waiting = waitState === "waiting";
+    // one whose dependency did not finish is kept too, and never woken
     const hold =
-      waiting ||
+      waitState !== "free" ||
       (a.kind === "agent"
         ? await othersStillWorking(
             ctx,
@@ -1564,6 +1566,8 @@ export function createBridge(o: BridgeOptions): Bridge {
     );
     // held: look again shortly, because the last two helpers can end together and each sees the other still working; the lead is woken once, for the latest held result, when nobody works any more
     if (waiting) scheduleWaitRelease(ctx, threadId, readAs, res.messageId);
+    else if (waitState === "dead")
+      heldNow.delete(threadId); // it waited for work that did not finish: kept in the chat, never woken
     else if (hold) scheduleRelease(ctx, threadId, readAs, res.messageId);
     else if (res.responders.length > 0) heldNow.delete(threadId); // this message wakes the lead itself, with the held results already in the chat
     // the person said go in the thread of a task assigned to them, and an agent answers: the task is theirs to do through it, so it moves to Doing and says who is on it for them
