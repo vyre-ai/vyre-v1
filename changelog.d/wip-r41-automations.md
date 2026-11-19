@@ -5,4 +5,4 @@
 - A signature request now waits for a yes unless its author turned "Ask before sending" off on that step; before, it went out like an email once the Automation was on.
 - "Ask before sending" on a chat post now really waits for approval; before, the switch did nothing for a post.
 - A Journey can be a pipeline on a record type: the records of the type move through its stage field themselves, with no separate Journey record, channel or folder per record. Every move still goes through the Journey, so its gates, tasks, Automations and time limits cannot be skipped. A Journey made the old way moves onto its subject type with `journeys.to_pipeline`; a stop halfway resumes, nothing is deleted, and the old records keep their channels and folders.
-- A record type has a card face: a preset (simple, detail or visual) and up to six fields, set with `type.update` (the same write for a person's editor, an agent and the API) and checked against the type's own fields. System types may choose their card.
+- A board card shows the type's card face (or a person's own): its fields in the order chosen, and a cover for the visual face.

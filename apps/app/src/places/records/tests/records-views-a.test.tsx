@@ -21,6 +21,8 @@ import {
   RecordViews,
   badgeFieldOf,
   cardFields,
+  cardFaceOf,
+  PLAIN_FACE,
   coverHue,
   coverOf,
   galleryLayout,
@@ -583,4 +585,37 @@ test("a board with no chosen field groups by a status or choice people set, neve
     "a person can still pick one",
   );
   assert.equal(isPersonField(choice("deliverability")), false);
+});
+
+test("a card face: the person's own view first, then the type's, then the plain one; a value that is not a face is passed over; named fields show in order and a missing one is left out", () => {
+  const d = projectsDef;
+  assert.deepEqual(cardFaceOf(d), PLAIN_FACE);
+  const withType = { ...d, card: { preset: "detail", fields: ["due", "lead"], mark: false } } as typeof d;
+  assert.deepEqual(cardFaceOf(withType), { preset: "detail", fields: ["due", "lead"], mark: false });
+  const mine = { config: { card: { preset: "visual", fields: ["budget"] } } };
+  assert.deepEqual(
+    cardFaceOf(withType, mine),
+    { preset: "visual", fields: ["budget"], mark: true },
+    "their own beats the type's",
+  );
+  assert.deepEqual(
+    cardFaceOf(withType, { config: { card: { preset: "huge" } } }),
+    cardFaceOf(withType),
+    "not a face: the type's",
+  );
+  assert.deepEqual(cardFaceOf(withType, { config: { card: "x" } }), cardFaceOf(withType));
+  assert.deepEqual(
+    cardFields(d, [], "status", 3, {
+      preset: "detail",
+      fields: ["due", "gone", "lead", "name", "status"],
+      mark: true,
+    }).map((f) => f.key),
+    ["due", "lead"],
+    "in the face's order; a field that is gone, the title and the lane field are left out",
+  );
+  assert.equal(
+    cardFields(d, ["due"], "status", 3, { preset: "simple", fields: ["due"], mark: true }).length,
+    1,
+    "a named field shows even when the view hid it",
+  );
 });
