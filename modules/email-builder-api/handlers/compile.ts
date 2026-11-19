@@ -291,7 +291,8 @@ export function cleanHtml(code: string): string {
   let s = capHtml(code, 500_000);
   s = cutBlocks(s, [], { comments: true });
   s = cutBlocks(s, ["script", "iframe", "object", "embed", "applet", "form", "base", "link"], {
-    accept: (name, tag) => name !== "link" || /^[^>]{0,512}rel\s{0,16}=\s{0,16}["']?import/i.test(tag),
+    accept: (name, tag) =>
+      name !== "link" || (tag.includes("import") && /^[^>]{0,512}rel\s{0,16}=\s{0,16}["']?import/i.test(tag)),
   });
   s = cutTags(
     s,
