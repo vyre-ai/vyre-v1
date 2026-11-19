@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { act } from "react";
 import { createRoot } from "test-renderer";
 import { renderToStaticMarkup } from "react-dom/server";
-import { find, flush, installDom, mount, press } from "../testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf } from "../testing/dom.ts";
 import { escapeLayers } from "../Overlay/escape.ts";
 import { useState } from "react";
 import { setReportProblemHandler } from "../Menu/index.tsx";
@@ -161,15 +161,15 @@ test("a slow action never fires twice: with a promise the strip arms again only 
   }
 });
 
-test("a caller promise that rejects re-arms the strip and goes to the problem report, never to the global error handler", async () => {
+test("a rejected confirm shows its own line, opens nothing by itself, re-arms, and Report is the person's choice with only a safe code in it", async () => {
   const restore = installDom();
   const reports: string[] = [];
   const off = setReportProblemHandler((c) => void reports.push(c.label ?? ""));
+  const thrown: unknown[] = [];
+  const onThrow = (e: unknown): void => void thrown.push(e);
+  process.on("uncaughtException", onThrow);
   try {
     const log: string[] = [];
-    const thrown: unknown[] = [];
-    const onThrow = (e: unknown): void => void thrown.push(e);
-    process.on("uncaughtException", onThrow);
     const root = await mount(
       createRoot,
       <InlineConfirm
@@ -179,7 +179,8 @@ test("a caller promise that rejects re-arms the strip and goes to the problem re
         armMs={30}
         onConfirm={() => {
           log.push("delete");
-          return Promise.reject(new Error("network down"));
+          // a gateway-shaped rejection: a plain object with a message that names a record
+          return Promise.reject({ error: { code: "access.denied", message: "Cannot delete Ada Lovelace (rec_123)" } });
         }}
         onCancel={() => undefined}
         confirmTestID="ic-go"
@@ -188,17 +189,44 @@ test("a caller promise that rejects re-arms the strip and goes to the problem re
     await wait(60);
     await press(find(root, "ic-go"));
     await wait(100);
-    assert.deepEqual(reports, ["Delete: network down"], "reported once");
-    assert.ok(find(root, "ic-failed"), "the strip says it did not work");
+    assert.deepEqual(reports, [], "nothing opens by itself");
+    const line = textOf(find(root, "ic-failed"));
+    assert.match(line, /That did not work: Cannot delete Ada Lovelace/, "the person reads what the gateway said");
+    assert.doesNotMatch(line, /object Object/);
     await press(find(root, "ic-go"));
     await wait(100);
-    await flush();
     assert.deepEqual(log, ["delete", "delete"], "armed again after the failure");
-    assert.equal(reports.length, 2, "one report per failure");
-    process.off("uncaughtException", onThrow);
+    await press(find(root, "ic-report"));
+    assert.deepEqual(reports, ["Delete failed (access.denied)"], "one report, by choice, with the code and no names or ids");
     assert.deepEqual(thrown, [], "nothing global is thrown");
   } finally {
+    process.off("uncaughtException", onThrow);
     off();
+    restore();
+  }
+});
+
+test("a compact strip shows the failure line too", async () => {
+  const restore = installDom();
+  try {
+    const root = await mount(
+      createRoot,
+      <InlineConfirm
+        compact
+        testID="ic"
+        question="Delete?"
+        confirmLabel="Delete"
+        armMs={20}
+        onConfirm={() => Promise.reject(new Error("x"))}
+        onCancel={() => undefined}
+        confirmTestID="ic-go"
+      />,
+    );
+    await wait(50);
+    await press(find(root, "ic-go"));
+    await wait(60);
+    assert.ok(find(root, "ic-failed"));
+  } finally {
     restore();
   }
 });

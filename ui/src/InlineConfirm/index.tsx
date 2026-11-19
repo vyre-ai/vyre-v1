@@ -48,6 +48,28 @@ export interface InlineConfirmProps {
   cancelTestID?: string;
 }
 
+/** What a rejection says, in words for the person: an Error's message, a string, or a gateway error object's message (`{ error: { code, message } }`); never "[object Object]". Cut short. */
+function textOf(e: unknown): string {
+  const o = e as { message?: unknown; error?: { message?: unknown } } | string | null | undefined;
+  const m =
+    typeof o === "string"
+      ? o
+      : typeof o?.error?.message === "string"
+        ? o.error.message
+        : typeof o?.message === "string"
+          ? o.message
+          : "";
+  const t = m.trim().replace(/\s+/g, " ");
+  return t.length > 140 ? `${t.slice(0, 137)}...` : t;
+}
+
+/** A short error code from a rejection ("access.denied"), or "": never a message, which can carry a name, an id or a link. */
+function codeOf(e: unknown): string {
+  const o = e as { code?: unknown; error?: { code?: unknown } } | null;
+  const c = typeof o?.error?.code === "string" ? o.error.code : typeof o?.code === "string" ? o.code : "";
+  return /^[a-z0-9_.-]{1,40}$/i.test(c) ? c : "";
+}
+
 const web = Platform.OS === "web";
 type Focusable = { focus?: () => void };
 interface FocusDoc {
@@ -84,7 +106,7 @@ export function InlineConfirm({
 }: InlineConfirmProps): ReactElement {
   const state = useRef<ConfirmState>("wary");
   const [armed, setArmed] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<{ code: string; text: string } | null>(null);
   const cancelRef = useRef<{ focus?: () => void } | null>(null);
   const calls = useRef({ onConfirm, onCancel });
   calls.current = { onConfirm, onCancel };
@@ -113,7 +135,7 @@ export function InlineConfirm({
     state.current = r.state;
     if (r.fire === "confirm") {
       setArmed(false);
-      setFailed(false);
+      setFailed(null);
       spent.current = { waited: armMs <= 0, pending: false };
       if (timer.current) clearTimeout(timer.current);
       if (armMs > 0)
@@ -124,11 +146,15 @@ export function InlineConfirm({
       const out = calls.current.onConfirm();
       if (out && typeof (out as Promise<unknown>).then === "function") {
         spent.current.pending = true;
+        let settled = false;
         const done = (): void => {
+          if (settled) return; // the cap and the real answer may both come
+          settled = true;
           spent.current.pending = false;
           tryArm();
         };
-        // a request that never answers does not hold Delete off for ever: after a long wait the strip arms again
+        // a request that never answers does not hold Delete off for ever: after a long wait the strip arms again. That is a deliberate trade: the request may still be running, so a person
+        // who presses again after that wait starts a second one.
         const cap = setTimeout(done, PENDING_MAX_MS);
         (cap as { unref?: () => void }).unref?.();
         void (out as Promise<unknown>).then(
@@ -138,10 +164,9 @@ export function InlineConfirm({
           },
           (e: unknown) => {
             clearTimeout(cap);
-            setFailed(true);
+            setFailed({ code: codeOf(e), text: textOf(e) });
             done();
-            // a rejection is the caller's to show; a caller that handles its own errors never rejects. An unexpected one goes to the problem report, not to the JS error handler.
-            reportProblem({ label: `${confirmLabel}: ${e instanceof Error ? e.message : String(e)}` });
+            // the strip says it did not work (inline); a person who wants to tell Vyre presses Report. Nothing opens by itself and nothing is thrown.
           },
         );
       } else tryArm();
@@ -182,6 +207,19 @@ export function InlineConfirm({
   }, []);
   useEscapeLayer(true, () => send("cancel"));
   const fill = danger ? "var(--danger)" : "var(--accent)";
+  const failureLine = failed ? (
+    <View accessibilityRole="alert" testID={testID ? `${testID}-failed` : undefined} style={s.failedRow}>
+      <Text style={s.failed}>{failed.text ? `That did not work: ${failed.text}` : "That did not work. You can try again."}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Report this"
+        testID={testID ? `${testID}-report` : undefined}
+        onPress={() => reportProblem({ label: `${confirmLabel} failed${failed.code ? ` (${failed.code})` : ""}` })}
+      >
+        <Text style={s.report}>Report</Text>
+      </Pressable>
+    </View>
+  ) : null;
   return (
     <View
       ref={root as never}
@@ -191,17 +229,16 @@ export function InlineConfirm({
       style={compact ? s.compact : s.strip}
     >
       {compact ? (
-        children
+        <>
+          {children}
+          {failureLine}
+        </>
       ) : (
         <View style={s.text}>
           <Text style={s.question}>{question}</Text>
           {note ? <Text style={s.note}>{note}</Text> : null}
           {children}
-          {failed ? (
-            <Text accessibilityRole="alert" testID={testID ? `${testID}-failed` : undefined} style={s.failed}>
-              That did not work. You can try again.
-            </Text>
-          ) : null}
+          {failureLine}
         </View>
       )}
       <View style={s.buttons}>
@@ -251,7 +288,9 @@ const s = StyleSheet.create({
   compact: { flexDirection: "row", alignItems: "center", gap: 6 },
   text: { flexGrow: 1, flexShrink: 1, minWidth: 160 },
   question: { fontSize: 13.5, lineHeight: 19, fontWeight: "600", color: "var(--ink)" as string },
-  failed: { fontSize: 12.5, lineHeight: 18, color: "var(--danger)" as string, marginTop: 4 },
+  failedRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  failed: { fontSize: 12.5, lineHeight: 18, color: "var(--danger)" as string },
+  report: { fontSize: 12.5, lineHeight: 18, fontWeight: "500", color: "var(--accent)" as string },
   note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: 2 },
   buttons: { flexDirection: "row", alignItems: "center", gap: 6 },
   btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center" },
