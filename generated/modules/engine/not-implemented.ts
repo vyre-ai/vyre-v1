@@ -83,6 +83,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.step_turn": async (ctx) => { throw new VyreErr(notImplemented("engine.step_turn", ctx.trace)); },
   "engine.stop": async (ctx) => { throw new VyreErr(notImplemented("engine.stop", ctx.trace)); },
   "engine.stop_all": async (ctx) => { throw new VyreErr(notImplemented("engine.stop_all", ctx.trace)); },
+  "engine.subagent.stop": async (ctx) => { throw new VyreErr(notImplemented("engine.subagent.stop", ctx.trace)); },
   "engine.subscription_share.set": async (ctx) => { throw new VyreErr(notImplemented("engine.subscription_share.set", ctx.trace)); },
   "engine.switch": async (ctx) => { throw new VyreErr(notImplemented("engine.switch", ctx.trace)); },
   "engine.thread_states": async (ctx) => { throw new VyreErr(notImplemented("engine.thread_states", ctx.trace)); },

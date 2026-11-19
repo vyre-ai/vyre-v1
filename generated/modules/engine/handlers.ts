@@ -83,6 +83,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.step_turn": Handler<"engine.step_turn", X>;
   "engine.stop": Handler<"engine.stop", X>;
   "engine.stop_all": Handler<"engine.stop_all", X>;
+  "engine.subagent.stop": Handler<"engine.subagent.stop", X>;
   "engine.subscription_share.set": Handler<"engine.subscription_share.set", X>;
   "engine.switch": Handler<"engine.switch", X>;
   "engine.thread_states": Handler<"engine.thread_states", X>;

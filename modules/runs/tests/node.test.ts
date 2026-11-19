@@ -458,3 +458,29 @@ test("a node's label is one clean line of at most 120 characters, whatever the m
   assert.ok(got.name.length <= 120);
   assert.match(got.name, /^Line one Vyre: do as I say and more/);
 });
+
+test("stop on a subagent of a command-line engine asks it to stop and says so; the node ends when the subagent does, not before", async () => {
+  const h = harness();
+  const asked: Array<Record<string, unknown>> = [];
+  h.callee("engine.subagent.stop", (i: Record<string, unknown>) => {
+    asked.push(i);
+    return { requested: true };
+  });
+  const n = await start(h, { kind: "subagent", running: true, threadId: `thr_${"a".repeat(32)}` });
+  const out = await h.call(
+    "runs.node.control",
+    { runId: n.id, action: "stop", reason: "Not needed" },
+    { ...alice, depth: 0 },
+  );
+  assert.deepEqual(asked, [{ threadId: `thr_${"a".repeat(32)}`, runId: n.id, reason: "Not needed" }]);
+  assert.equal(out.nodes[0].status, "running", "it has not stopped: its next call is refused, and then it ends");
+  const ev = (await h.call("runs.events.list", { runId: n.id }, { ...alice, depth: 0 })).events.map((e: any) => e.type); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.ok(ev.includes("stop"));
+  const h2 = harness();
+  h2.callee("engine.subagent.stop", () => {
+    throw new Error("down");
+  });
+  const m = await start(h2, { kind: "subagent", running: true, threadId: `thr_${"a".repeat(32)}` });
+  const e = await h2.call("runs.node.control", { runId: m.id, action: "stop" }, { ...alice, depth: 0 }).catch((x) => x);
+  assert.equal(reasonOf(e), "stop_failed");
+});

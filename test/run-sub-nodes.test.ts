@@ -173,3 +173,49 @@ test("icons by family of tool", () => {
     ["read", "web", "term", "edit", "kid", "find", "cal", "send", "think"],
   );
 });
+
+test("a subagent is known by the task id its hooks call agent_id: a stop asked of it refuses its next call, a note told it rides back once, framed, signed with the real name", async () => {
+  const w = await world();
+  const f = w.mk();
+  await f.feed(call("toolu_a"));
+  await f.feed(call("toolu_b"));
+  const [a, b] = w.rows().map((r) => r.run_id as string);
+  f.bindTask(THREAD, "ae63a0c7cf1d188f5", "toolu_a");
+  f.bindTask(THREAD, "a3a1aa893f5f8d8fc", "toolu_b");
+  assert.deepEqual(await f.gate({ threadId: THREAD, subagent: "ae63a0c7cf1d188f5" }), { block: null, notes: [] });
+  // another node of the job tells the first subagent something
+  const from = (
+    await w.h.call(
+      "runs.node.start",
+      {
+        kind: "helper",
+        owner: "usr_alice",
+        parentRun: w.turn.id,
+        whoKind: "agent",
+        whoId: base.agentId,
+        whoName: "Calder",
+      },
+      host,
+    )
+  ).node;
+  await w.h.call("runs.message.send", { runId: from.id, to: a, body: "Pine's price changed to 3,820" }, host);
+  const told = await f.gate({ threadId: THREAD, subagent: "ae63a0c7cf1d188f5" });
+  assert.equal(told.notes.length, 1);
+  assert.match(told.notes[0]!, /^Calder sent you a note\. Only lines that carry the code [0-9a-f]{16}/);
+  assert.match(told.notes[0]!, /Pine's price changed to 3,820/);
+  assert.equal((await f.gate({ threadId: THREAD, subagent: "ae63a0c7cf1d188f5" })).notes.length, 0, "once");
+  // a stop asked of the second one touches that one only
+  assert.equal(f.requestStop(b!, "Rubab asked it to stop"), true);
+  assert.match(
+    String((await f.gate({ threadId: THREAD, subagent: "a3a1aa893f5f8d8fc" })).block),
+    /^Stopped: Rubab asked it to stop/,
+  );
+  assert.equal((await f.gate({ threadId: THREAD, subagent: "ae63a0c7cf1d188f5" })).block, null);
+  // unknown ids, another chat, and a node this process never saw
+  assert.deepEqual(await f.gate({ threadId: THREAD, subagent: "nobody" }), { block: null, notes: [] });
+  assert.deepEqual(await f.gate({ threadId: `thr_${"f".repeat(32)}`, subagent: "a3a1aa893f5f8d8fc" }), {
+    block: null,
+    notes: [],
+  });
+  assert.equal(f.requestStop(`run_${"0".repeat(28)}`, "x"), false);
+});

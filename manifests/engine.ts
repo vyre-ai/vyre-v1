@@ -609,6 +609,19 @@ export default defineManifest({
       risk: "low",
     }),
     write(
+      "engine.subagent.stop",
+      "Ask one subagent of a command-line engine to stop: its next call is refused and it ends (the node that stands for it in the run tree)",
+      {
+        in: { ...threadT, runId: id.run, reason: t.opt(t.str({ maxLength: 120 })) },
+        out: { requested: t.bool() },
+        on: ["thread", "/threadId"],
+        level: "use",
+        offline: "online",
+        idem: "natural",
+        risk: "low",
+      },
+    ),
+    write(
       "engine.pause",
       "Pause one agent's turn in a thread at its next safe point, keeping everything it did (a limit was reached)",
       {

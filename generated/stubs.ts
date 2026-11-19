@@ -978,6 +978,9 @@ export function stubs(ctx: CallCtx) {
       step_turn: call("engine.step_turn"),
       stop: call("engine.stop"),
       stop_all: call("engine.stop_all"),
+      subagent: {
+        stop: call("engine.subagent.stop"),
+      },
       subscription_share: {
         set: call("engine.subscription_share.set"),
       },

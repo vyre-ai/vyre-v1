@@ -978,6 +978,9 @@ export function createClient(transport: Transport) {
       step_turn: call("engine.step_turn", 1),
       stop: call("engine.stop", 1),
       stop_all: call("engine.stop_all", 1),
+      subagent: {
+        stop: call("engine.subagent.stop", 1),
+      },
       subscription_share: {
         set: call("engine.subscription_share.set", 1),
       },

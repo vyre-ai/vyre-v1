@@ -16,6 +16,8 @@ export interface BackgroundOptions {
   /** Wake the agent in the chat for the person (the turn engine's wake). */
   wake: (threadId: string, agentId: string, asker: string) => void;
   log?: (msg: string, attrs: Record<string, unknown>) => void;
+  /** every task line of an engine in a chat, as it comes: a subagent started (the call that started it and its task id) is how a hook inside it is known */
+  onTask?: (threadId: string, t: Parameters<typeof noteTask>[2]) => void;
 }
 
 /** The `background` hook of the CLI driver (agent/src/drivers/cli/driver.ts). */
@@ -25,6 +27,11 @@ export function createBackground(o: BackgroundOptions) {
     (holds.get(spec.threadId) ?? holds.set(spec.threadId, new Set()).get(spec.threadId)!).add(session);
     return {
       task: (t: Parameters<typeof noteTask>[2]): void => {
+        try {
+          o.onTask?.(spec.threadId, t);
+        } catch {
+          /* the run tree never touches the rows */
+        }
         try {
           noteTask(o.db, where, t, o.now());
         } catch (e) {

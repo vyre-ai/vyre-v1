@@ -9,6 +9,7 @@ import { probePick } from "./extra/models.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, StoppedBy, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { isHostService } from "../../../lib/trust.ts";
+import { activeSubNodes } from "../sub-nodes.ts";
 import { noteHandoff } from "../context.ts";
 import { engineThreadOf } from "../thread-open.ts";
 import type { ThreadGet } from "../thread-open.ts";
@@ -749,4 +750,16 @@ export async function resumePaused(
   const { none, ...reach } = stopReach(ctx, input.agentId, false, input.agentId === undefined, own);
   if (none) return { resumed: 0, lost: 0 };
   return engine.resumePaused(input.threadId, reach.agentId === undefined ? undefined : { agentId: reach.agentId });
+}
+
+/**
+ * Ask one subagent of a command-line engine to stop (the node that stands for it): its next call is refused with a reason and it ends. Not a kill: a subagent that makes no more calls goes on to its end. The same reach as Stop
+ * for the thread it works in. Returns whether this server knew it.
+ */
+export async function subagentStop(
+  ctx: EngineCtx,
+  input: { threadId: string; runId: string; reason?: string },
+): Promise<{ requested: boolean }> {
+  await open(ctx, input.threadId); // the same check as every control: the chat is open to this person
+  return { requested: activeSubNodes()?.requestStop(input.runId, input.reason ?? "it was asked to stop") ?? false };
 }

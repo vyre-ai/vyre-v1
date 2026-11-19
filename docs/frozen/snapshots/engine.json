@@ -79,6 +79,7 @@
     "engine.step_turn@1": "e3924b66b2f67ea6b0a5e978fc5ba6c046cbff77416a1ee9f1ab4d938167c4c6",
     "engine.stop@1": "70ebc504d749f07eefdd6768a755bafd47a8e020e3d8112c8f8ce695539e6186",
     "engine.stop_all@1": "407738e06293c55739e73a985b25f880d368fa43d9f60bb502f4762d0eec7ae4",
+    "engine.subagent.stop@1": "bc4461fa784a3c1d8be96354e79edda252940aaf8786e025b92cf6b652c76405",
     "engine.subscription_share.set@1": "000bf7c7e54e1b4538cd88e0f964ead97c47df4be4d537a4e62fa3915438f3f3",
     "engine.switch@1": "78dc63c65e59175c810dbd731ebd9d58b045547ec63230e66b72194db8dd55fe",
     "engine.thread_states@1": "3ec330074cff0c89767a5f07be82e4e2edae6232bc03739a5b09d0b3e4966efb",

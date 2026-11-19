@@ -24,6 +24,8 @@ import { ANSWER_HELD } from "../../agent/src/turn-engine/engine.ts";
 import { clearReads } from "../../host/src/seams/answer-reads.ts";
 import { createCrewWatcher } from "./crew-watch.ts";
 import { createNodeMirror } from "./node-mirror.ts";
+import { activeSubNodes } from "./sub-nodes.ts";
+import { bindSubagentGate } from "../../agent/src/tools/hooks.ts";
 import { nameTag, nodeNoteBody } from "../../lib/helper-result.ts";
 import { UNNAMED_AGENT, agentDisplay } from "./agent-names.ts";
 import { createBackground } from "./background.ts";
@@ -829,8 +831,13 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     db: ctx.db,
     now: now0,
     wake: (threadId, agentId, asker) => wakeAgent?.(threadId, agentId, asker),
+    // a task line of the engine names the call that started a subagent and its task id: a hook inside that subagent says agent_id and means the task id (sub-nodes.ts)
+    onTask: (threadId, t) => {
+      if (t.state === "start" && t.taskId) activeSubNodes()?.bindTask(threadId, t.taskId, t.id);
+    },
     ...(h.log ? { log: h.log } : {}),
   });
+  bindSubagentGate((c) => activeSubNodes()?.gate(c) ?? Promise.resolve({ block: null, notes: [] }));
   const opener = host.openSession
     ? null
     : buildOpener({

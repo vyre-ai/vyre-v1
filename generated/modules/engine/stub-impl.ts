@@ -82,6 +82,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.step_turn": async () => ({"agentName":"example","keyUsed":"#Team_Anthropic_Key","modelUsed":"example","text":"example","tokensIn":1,"tokensOut":1} as unknown) as never,
   "engine.stop": async () => ({"stopped":1} as unknown) as never,
   "engine.stop_all": async () => ({"stopped":1} as unknown) as never,
+  "engine.subagent.stop": async () => ({"requested":true} as unknown) as never,
   "engine.subscription_share.set": async () => ({"enabled":true,"sandboxStopped":true} as unknown) as never,
   "engine.switch": async () => ({"engine":"example","handoffTurns":1,"model":"example","quietLine":"Switched to Codex, picked up from the summary and the last 20 turns"} as unknown) as never,
   "engine.thread_states": async () => ({"states":[{"failedLine":"example","state":"running","threadId":"thr_a1b2c3"}]} as unknown) as never,

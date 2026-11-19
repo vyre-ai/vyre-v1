@@ -161,6 +161,27 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
     else {
       // what really works behind a node is stopped first: an agent's turn through the engine's own Stop; only then does the node say stopped (a node that says stopped while its work goes on is worse than none)
       const scope = input.subtree === false ? [n] : subtreeOf(ctx.db, n.id);
+      // a subagent of a command-line engine is asked to stop, and its node ends when it does: it is not state-only and it is not instant
+      const subs = scope.filter((x) => x.kind === "subagent" && !isTerminal(x.status) && x.threadId !== undefined);
+      for (const x of subs) {
+        if (!ctx.call)
+          raise(ctx, "internal.unavailable", "That cannot be stopped from here right now.", { reason: "no_engine" });
+        try {
+          await ctx.call("engine.subagent.stop", {
+            threadId: x.threadId,
+            runId: x.id,
+            reason: reason ?? "it was asked to stop",
+          });
+        } catch {
+          raise(ctx, "internal.unavailable", "It could not be stopped just now. Try again.", {
+            reason: "stop_failed",
+            runId: x.id,
+          });
+        }
+        writeEvent(ctx, x.id, { type: "stop", key: `stop:${x.id}`, actor: by, payload: { requested: true } });
+      }
+      if (subs.length > 0 && subs.length === scope.filter((x) => !isTerminal(x.status)).length)
+        return { nodes: subs.map((x) => out(ctx, getNode(ctx, x.id))) };
       for (const x of scope) {
         if (isTerminal(x.status) || !ENGINE_KINDS.has(x.kind) || x.threadId === undefined || x.whoId === undefined)
           continue;

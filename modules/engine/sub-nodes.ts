@@ -3,6 +3,7 @@
 // DECISION: the node is made at the call, so a tile can say Starting at once; the task line (the first input of the call) names it; its result ends it. A subagent launched in the background has no answer yet: its node stays
 // running until its own end (not read here: that comes later and ends it through the Run engine's task path).
 import type { StreamEvent } from "./handlers/bridge.ts";
+import { nameTag, nodeNoteBody } from "../../lib/helper-result.ts";
 import { stepClass, stepWords } from "../../lib/plain-words.ts";
 
 type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
@@ -28,6 +29,15 @@ export function iconOf(
   return "think";
 }
 
+/** The one in use in this process: what the engine's control capabilities reach (a stop of one subagent). */
+export interface SubControl {
+  requestStop(nodeId: string, reason: string): boolean;
+  bindTask(threadId: string, taskId: string, callId: string): void;
+  gate(c: { threadId: string; subagent: string }): Promise<{ block: string | null; notes: string[] }>;
+}
+let active: SubControl | null = null;
+export const activeSubNodes = (): SubControl | null => active;
+
 export function createSubNodes(h: {
   call: Call;
   log?: ((msg: string, attrs?: Record<string, unknown>) => void) | undefined;
@@ -36,6 +46,8 @@ export function createSubNodes(h: {
   /** an agent's name in words, for the row */
   nameOf?: ((agentId: string) => Promise<string | undefined>) | undefined;
 }) {
+  const taskCall = new Map<string, string>(); // `${threadId}:${taskId}` -> the Agent call that started it (the agent_id of its hooks is the task id)
+  const stopAsked = new Map<string, string>(); // node id -> why its next call is refused
   const names = new Map<string, string>(); // `${threadId}:${callId}` -> the tool's name, to put a touched file in its step
   const agentNames = new Map<string, string | undefined>();
   const ids = new Map<string, string>(); // `${threadId}:${callId}` -> node id
@@ -156,7 +168,42 @@ export function createSubNodes(h: {
       });
   }
 
-  return {
+  /** The node of a subagent from the agent_id its hook carries (the task id of the task line), if this process has seen it start. */
+  const nodeOfTask = (threadId: string, taskId: string): string | undefined => {
+    const call = taskCall.get(`${threadId}:${taskId}`);
+    return call === undefined ? undefined : ids.get(key(threadId, call));
+  };
+
+  const api = {
+    /** A task line named the call that started a subagent and its task id: its hooks say agent_id and mean that. */
+    bindTask(threadId: string, taskId: string, callId: string): void {
+      taskCall.set(`${threadId}:${taskId}`, callId);
+      if (taskCall.size > 5000) taskCall.delete(taskCall.keys().next().value as string);
+    },
+    /** Ask a subagent to stop: its next call is refused with this reason. It has not stopped until it ends; the node ends then. Returns false when this process does not know it. */
+    requestStop(nodeId: string, reason: string): boolean {
+      for (const id of ids.values())
+        if (id === nodeId) {
+          stopAsked.set(nodeId, reason.slice(0, 200));
+          return true;
+        }
+      return false;
+    },
+    /** What a call inside a subagent is told: refused if it was asked to stop; else the notes other nodes sent it, once, framed and signed with the real name of whoever sent them. */
+    async gate(c: { threadId: string; subagent: string }): Promise<{ block: string | null; notes: string[] }> {
+      const id = nodeOfTask(c.threadId, c.subagent);
+      if (id === undefined) return { block: null, notes: [] };
+      const why = stopAsked.get(id);
+      if (why !== undefined)
+        return { block: `Stopped: ${why}. Finish what you are on and report in one line.`, notes: [] };
+      const r = (await h.call("runs.message.take", { runId: id })) as {
+        messages?: Array<{ body: string; fromName?: string }>;
+      };
+      return {
+        block: null,
+        notes: (r.messages ?? []).map((m) => nodeNoteBody(nameTag(m.fromName ?? "") || "A helper", m.body)),
+      };
+    },
     /** Feed one event of the turn's stream. Returns a promise that never rejects. */
     feed(e: StreamEvent & { asker?: string }): Promise<void> {
       if (e.kind !== "step" && e.kind !== "sub") return Promise.resolve();
@@ -176,5 +223,7 @@ export function createSubNodes(h: {
       return next;
     },
   };
+  active = api;
+  return api;
 }
 export type SubNodes = ReturnType<typeof createSubNodes>;

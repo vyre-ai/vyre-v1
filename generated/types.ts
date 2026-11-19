@@ -14645,6 +14645,14 @@ export type EngineStopAllIn = {
 export type EngineStopAllOut = {
   stopped: number;
 };
+export type EngineSubagentStopIn = {
+  threadId: string;
+  runId: string;
+  reason?: string;
+};
+export type EngineSubagentStopOut = {
+  requested: boolean;
+};
 export type EngineSubscriptionShareSetIn = {
   enabled: boolean;
 };
@@ -49789,6 +49797,7 @@ export interface CapMap {
   "engine.step_turn": { in: EngineStepTurnIn; out: EngineStepTurnOut };
   "engine.stop": { in: EngineStopIn; out: EngineStopOut };
   "engine.stop_all": { in: EngineStopAllIn; out: EngineStopAllOut };
+  "engine.subagent.stop": { in: EngineSubagentStopIn; out: EngineSubagentStopOut };
   "engine.subscription_share.set": { in: EngineSubscriptionShareSetIn; out: EngineSubscriptionShareSetOut };
   "engine.switch": { in: EngineSwitchIn; out: EngineSwitchOut };
   "engine.thread_states": { in: EngineThreadStatesIn; out: EngineThreadStatesOut };
