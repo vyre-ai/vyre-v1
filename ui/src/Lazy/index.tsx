@@ -4,7 +4,7 @@
 //   a failure is local   only that part shows a small "Couldn't load this part" with Retry; the rest of the app stays up. A crash of the page's own code is not this boundary's: it goes on to the next one.
 // It is a drop-in for `lazy`: the same argument, and it suspends to the Suspense above it exactly as `lazy` does (so each call site keeps its own fallback).
 import { Component } from "react";
-import type { ComponentType, ErrorInfo, ReactElement, ReactNode } from "react";
+import type { ComponentProps, ComponentType, ErrorInfo, ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 /** The one error the part's boundary answers: the code of the part could not be fetched. */
@@ -60,18 +60,23 @@ class Boundary extends Component<
   }
 }
 
-export type LazyPart<P extends object> = ((props: P) => ReactElement) & { preload: () => Promise<void> };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the same bound React.lazy has: any component
+type AnyComponent = ComponentType<any>;
+export type LazyPart<T extends AnyComponent> = ((props: ComponentProps<T>) => ReactElement) & {
+  preload: () => Promise<void>;
+};
 
 /**
  * `load` is what `lazy` takes. `peek` answers the component when something else already loaded it (the shell's module is fetched by the page's own warm-up): then the part draws on its first pass.
  */
-export function lazyPart<P extends object>(
-  load: () => Promise<{ default: ComponentType<P> }>,
-  peek?: () => ComponentType<P> | null | undefined,
-): LazyPart<P> {
-  let loaded: ComponentType<P> | null = null;
-  let pending: Promise<ComponentType<P>> | null = null;
-  const get = (): Promise<ComponentType<P>> =>
+export function lazyPart<T extends AnyComponent>(
+  load: () => Promise<{ default: T }>,
+  peek?: () => T | null | undefined,
+): LazyPart<T> {
+  type P = ComponentProps<T>;
+  let loaded: T | null = null;
+  let pending: Promise<T> | null = null;
+  const get = (): Promise<T> =>
     (pending ??= load().then(
       (m) => {
         loaded = m.default;
@@ -96,7 +101,8 @@ export function lazyPart<P extends object>(
       );
       throw attempt.wait;
     }
-    return <Ready {...props} />;
+    const Draw = Ready as ComponentType<P>;
+    return <Draw {...props} />;
   }
   const Part = ((props: P): ReactElement => (
     <Boundary
@@ -109,7 +115,7 @@ export function lazyPart<P extends object>(
     >
       <Inner {...props} />
     </Boundary>
-  )) as LazyPart<P>;
+  )) as LazyPart<T>;
   Part.preload = () => get().then(() => undefined);
   return Part;
 }
