@@ -43,7 +43,8 @@ export interface KeptSpace {
 /** Where the record is stored. The browser's is IndexedDB; a test hands in its own. */
 export interface KeptStore {
   get(key: string): Promise<KeptSpace | null>;
-  put(value: KeptSpace): Promise<void>;
+  /** `alive` is asked right before the copy is written (after it was sealed): false means the record was forgotten meanwhile and nothing is written. */
+  put(value: KeptSpace, alive?: () => boolean): Promise<void>;
   delete(key: string): Promise<void>;
   clear(): Promise<void>;
 }
@@ -297,8 +298,9 @@ export function browserKeptStore(): KeptStore | null {
         if (open === null) void run("readwrite", (s) => s.delete(key)).catch(() => undefined);
         return open;
       }),
-    put: async (value) => {
+    put: async (value, alive) => {
       const sealed = await seal(value);
+      if (alive && !alive()) return; // signed out while the copy was being sealed: it never lands
       await run("readwrite", (s) => s.put(sealed));
     },
     delete: (key) => run("readwrite", (s) => s.delete(key)).then(() => undefined),
@@ -358,6 +360,8 @@ export function createKept(o: KeptOptions = {}): Kept {
   const forgotten = new Map<string, number>();
   let forgotAll = 0;
   const era = (key: string): number => forgotAll * 1_000_000 + (forgotten.get(key) ?? 0);
+  /** Writes that were started and have not settled: a forget waits for them and wipes again, so a write in flight at sign-out never survives it. */
+  const puts = new Set<Promise<void>>();
 
   const usable = (rec: KeptSpace | null, key: string): KeptSpace | null => {
     if (!rec || rec.v !== 1 || rec.key !== key || typeof rec.reads !== "object" || rec.reads === null) return null;
@@ -386,13 +390,18 @@ export function createKept(o: KeptOptions = {}): Kept {
     }
     rec.reads = keep;
     const had = hints(ls)[key] !== undefined;
-    void store.put({ ...rec, reads: keep }).then(
-      () => {
-        // the mark is written once the record is in the store, and only for one a session can open from
-        if (rec.boot !== undefined && !had && mem.get(key) === rec) hint(ls, key, rec.at);
-      },
-      () => undefined,
-    );
+    const born = era(key);
+    const done: Promise<void> = store
+      .put({ ...rec, reads: keep }, () => era(key) === born)
+      .then(
+        () => {
+          // the mark is written once the record is in the store, and only for one a session can open from
+          if (era(key) === born && rec.boot !== undefined && !had && mem.get(key) === rec) hint(ls, key, rec.at);
+        },
+        () => undefined,
+      )
+      .finally(() => void puts.delete(done));
+    puts.add(done);
   };
   const touch = (key: string): void => {
     const rec = mem.get(key);
@@ -411,6 +420,12 @@ export function createKept(o: KeptOptions = {}): Kept {
       mem.set(key, rec);
     }
     return rec;
+  };
+
+  /** A write that was already past its check when the forget came lands after the delete: once every write in flight has settled, delete again. */
+  const wipeAgain = (wipe: () => Promise<void> | undefined): void => {
+    if (puts.size === 0) return;
+    void Promise.allSettled([...puts]).then(() => wipe()?.catch(() => undefined));
   };
 
   return {
@@ -504,12 +519,14 @@ export function createKept(o: KeptOptions = {}): Kept {
         mem.delete(key);
         loading.delete(key);
         void store?.delete(key).catch(() => undefined);
+        wipeAgain(() => store?.delete(key));
       } else {
         for (const cancel of dirty.values()) cancel();
         dirty.clear();
         mem.clear();
         loading.clear();
         void store?.clear().catch(() => undefined);
+        wipeAgain(() => store?.clear());
       }
     },
   };

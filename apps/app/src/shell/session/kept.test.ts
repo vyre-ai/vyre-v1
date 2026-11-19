@@ -223,3 +223,73 @@ test("the stored copy is encrypted: the text of an answer is not in it, another 
   assert.equal(await unsealWith(k1, changed), null, "a changed copy opens nothing");
   assert.equal(await unsealWith(k1, { v: 1 }), null);
 });
+
+/** A store whose copy takes a moment to seal (`sealing`) and whose write takes a moment to land (`landing`), as the browser's does. */
+function slowStore(): KeptStore & { rows: Map<string, KeptSpace>; open(): void; land(): void } {
+  const rows = new Map<string, KeptSpace>();
+  const sealing: (() => void)[] = [];
+  const landing: (() => void)[] = [];
+  return {
+    rows,
+    open: () => sealing.splice(0).forEach((f) => f()),
+    land: () => landing.splice(0).forEach((f) => f()),
+    get: async (key) => (rows.has(key) ? (JSON.parse(JSON.stringify(rows.get(key))) as KeptSpace) : null),
+    put: async (v, alive) => {
+      await new Promise<void>((r) => sealing.push(r));
+      if (alive && !alive()) return;
+      await new Promise<void>((r) => landing.push(r));
+      rows.set(v.key, JSON.parse(JSON.stringify(v)) as KeptSpace);
+    },
+    delete: async (key) => void rows.delete(key),
+    clear: async () => rows.clear(),
+  };
+}
+
+test("sign-out wins over a write still being sealed: it never lands", async () => {
+  const store = slowStore();
+  const { k, run } = keeper({ store });
+  const s = k.session(IMRAN);
+  s.saveBoot(BOOT);
+  s.wrote("tasks.list", {}, [{ title: "a" }], 10);
+  run(); // the flush starts the write; the copy is being sealed
+  await tick();
+  k.forget(IMRAN);
+  store.open(); // sealed after sign-out
+  await tick();
+  store.land();
+  await tick();
+  assert.equal(store.rows.size, 0);
+});
+
+test("sign-out wins over a write already writing: the keeper wipes again once it has settled", async () => {
+  const store = slowStore();
+  const { k, run } = keeper({ store });
+  const s = k.session(IMRAN);
+  s.saveBoot(BOOT);
+  s.wrote("tasks.list", {}, [{ title: "a" }], 10);
+  run();
+  store.open(); // sealed, checked alive, now landing
+  await tick();
+  k.forget(IMRAN); // the delete runs now; the write lands after it
+  await tick();
+  store.land();
+  await tick();
+  await tick();
+  assert.equal(store.rows.size, 0);
+});
+
+test("forgetting everything also wins over a write in flight", async () => {
+  const store = slowStore();
+  const { k, run } = keeper({ store });
+  const s = k.session(IMRAN);
+  s.saveBoot(BOOT);
+  run();
+  store.open();
+  await tick();
+  k.forget();
+  await tick();
+  store.land();
+  await tick();
+  await tick();
+  assert.equal(store.rows.size, 0);
+});
