@@ -174,6 +174,11 @@ export function AgentsRegister({ initialAgentId = null }: { initialAgentId?: str
     for (const agentId of picked) {
       const out = await action.run("agents.delete", { agentId }, "Agent moved to Trash");
       if (out === undefined) return;
+      setPicked((current) => {
+        const next = new Set(current);
+        next.delete(agentId);
+        return next;
+      }); // a retry after a failure starts from what is left
       setTrashed((current) => [
         ...current,
         { agentId, name: list.data!.agents.find((a) => a.agentId === agentId)?.name ?? "Agent" },
@@ -878,6 +883,11 @@ export function OutsideActors({ initialActorId = null }: { initialActorId?: stri
     for (const actorId of picked) {
       const out = await action.run("access.actors.revoke", { actorId }, "Outside agent revoked");
       if (out === undefined) return;
+      setPicked((current) => {
+        const next = new Set(current);
+        next.delete(actorId);
+        return next;
+      }); // a retry after a failure starts from what is left
     }
     setPicked(new Set());
     setBulkConfirm(false);
@@ -1271,6 +1281,11 @@ export function AgentComputers({ initialComputerId = null }: { initialComputerId
     for (const computerId of picked) {
       const out = await action.run("computers.remove", { computerId }, "Computer removed");
       if (out === undefined) return;
+      setPicked((current) => {
+        const next = new Set(current);
+        next.delete(computerId);
+        return next;
+      }); // a retry after a failure starts from what is left
     }
     setPicked(new Set());
     setBulkConfirm(false);

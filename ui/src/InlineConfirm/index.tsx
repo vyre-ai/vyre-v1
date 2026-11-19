@@ -122,7 +122,13 @@ export function InlineConfirm({
           spent.current.pending = false;
           tryArm();
         };
-        void (out as Promise<unknown>).then(done, done);
+        void (out as Promise<unknown>).then(done, (e: unknown) => {
+          done();
+          // a rejection is the caller's to show; do not swallow it (a caller that handles its own errors never rejects)
+          setTimeout(() => {
+            throw e;
+          }, 0);
+        });
       } else tryArm();
     } else if (r.fire === "cancel") {
       if (timer.current) clearTimeout(timer.current);
@@ -169,7 +175,9 @@ export function InlineConfirm({
       {...(compact && typeof question === "string" ? { accessibilityLabel: question } : {})}
       style={compact ? s.compact : s.strip}
     >
-      {compact ? null : (
+      {compact ? (
+        children
+      ) : (
         <View style={s.text}>
           <Text style={s.question}>{question}</Text>
           {note ? <Text style={s.note}>{note}</Text> : null}
