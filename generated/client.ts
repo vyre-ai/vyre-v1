@@ -2846,6 +2846,7 @@ export function createClient(transport: Transport) {
       assign: call("tasks.assign", 1),
       block: call("tasks.block", 1),
       by_key: call("tasks.by_key", 1),
+      changes: call("tasks.changes", 1),
       clock: call("tasks.clock", 1),
       count_needs_you: call("tasks.count_needs_you", 1),
       create: call("tasks.create", 1),
@@ -2857,6 +2858,7 @@ export function createClient(transport: Transport) {
         remove: call("tasks.dependencies.remove", 1),
       },
       digest: call("tasks.digest", 1),
+      done_when: call("tasks.done_when", 1),
       escalate: call("tasks.escalate", 1),
       followers: {
         add: call("tasks.followers.add", 1),

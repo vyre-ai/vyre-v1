@@ -10,6 +10,7 @@ import { syncPolicy, syncTz } from "./projections.ts";
 import { tick } from "./handlers/clock.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import { onChatGone, onParentFinished } from "./handlers/orphans.ts";
+import { onEvidence } from "./handlers/evidence.ts";
 import { onCrewMerged, onRunStopped, onTaskChanged } from "./handlers/schedule.ts";
 import type { TasksCtx } from "./projections.ts";
 export { findStuck, mintApprovalToken, readApprovalToken, ACT_KEYS } from "./handlers/act.ts";
@@ -119,6 +120,11 @@ export const consumers = {
       "vault.request_canceled",
     ],
     run: (ctx: TasksCtx, event: Parameters<typeof settleFromSource>[1]) => settleFromSource(ctx, event),
+  },
+  /** The event that proves a task done arrived: a Vault item, a sent message, a meeting that ended, a connection (handlers/evidence.ts). */
+  "tasks.evidence": {
+    on: ["vault.item_created", "message.sent", "meeting.ended", "connection.created"],
+    run: (ctx: TasksCtx, event: Parameters<typeof onEvidence>[1]) => onEvidence(ctx, event),
   },
   /** The ask's source is gone: its chat closed or erased, its parent finished (handlers/orphans.ts). */
   "tasks.orphans_chat": {

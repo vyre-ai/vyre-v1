@@ -44,6 +44,11 @@ const archived = t.obj({
   code: archiveCode,
   why: t.str({ description: "One sentence a person reads; empty when someone archived it by hand and gave no reason" }),
 });
+const doneWhenKind = t.enm("vault_item", "message_sent", "meeting_ended", "connection_on");
+const doneWhen = t.obj({
+  kind: doneWhenKind,
+  key: t.str({ minLength: 1 }),
+});
 const recur = t.obj({ every: t.enm("day", "week", "month"), n: t.opt(t.int({ minimum: 1, maximum: 365 })) });
 const fieldValues = t.rec();
 const taskRow = t.obj({
@@ -97,6 +102,7 @@ const taskRow = t.obj({
   fields: t.opt(fieldValues),
   recur: t.opt(recur),
   workerThread: t.opt(id.thread),
+  doneWhen: t.opt(doneWhen),
   archived: t.opt(archived), // put away: the task keeps its state and is left out of every list but Archived and a search
 });
 // One row of a long list: everything a row, a card or a bar draws, and nothing it does not.
@@ -887,6 +893,30 @@ export default defineManifest({
         emits: ["task.archived"],
         tool: "tasks",
         errors: ["validation.precondition_failed"],
+      },
+    ),
+    write("tasks.done_when", "What proves a task done; it closes itself. No kind clears", {
+      in: { ...target, kind: t.opt(doneWhenKind), key: t.opt(t.str({ minLength: 1 })) },
+      out: { task: taskRow },
+      on: ["task", "/taskId"],
+      level: "use",
+      emits: ["task.updated"],
+      tool: "tasks",
+      errors: ["validation.precondition_failed"],
+    }),
+    read(
+      "tasks.changes",
+      "What the Space did to my tasks since a time (put away because they passed, their chat closed, nobody answered), each with its reason; and how many new ones wait on me. Built from the log",
+      {
+        in: { since: t.ts() },
+        out: {
+          items: t.arr(
+            t.obj({ taskId: id.task, title: t.str(), code: archiveCode, why: t.str(), at: t.ts(), by: t.str() }),
+          ),
+          counts: t.rec(t.int()),
+          fresh: t.int(),
+          since: t.ts(),
+        },
       },
     ),
     read(

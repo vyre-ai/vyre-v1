@@ -66018,6 +66018,45 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.done_when",
+      "deferred": false,
+      "description": "What proves a task done; it closes itself. No kind clears",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "vault_item",
+              "message_sent",
+              "meeting_ended",
+              "connection_on"
+            ],
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_done_when",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.followers.add",
       "deferred": false,
       "description": "Add a follower; plain @mentions become followers, never tasks",

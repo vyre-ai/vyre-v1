@@ -2846,6 +2846,7 @@ export function stubs(ctx: CallCtx) {
       assign: call("tasks.assign"),
       block: call("tasks.block"),
       by_key: call("tasks.by_key"),
+      changes: call("tasks.changes"),
       clock: call("tasks.clock"),
       count_needs_you: call("tasks.count_needs_you"),
       create: call("tasks.create"),
@@ -2857,6 +2858,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("tasks.dependencies.remove"),
       },
       digest: call("tasks.digest"),
+      done_when: call("tasks.done_when"),
       escalate: call("tasks.escalate"),
       followers: {
         add: call("tasks.followers.add"),

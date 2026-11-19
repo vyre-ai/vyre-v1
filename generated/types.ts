@@ -41531,6 +41531,10 @@ export type TasksActOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -41608,6 +41612,10 @@ export type TasksAgentOnItOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -41684,6 +41692,10 @@ export type TasksArchiveOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -41764,6 +41776,10 @@ export type TasksAskOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -41845,6 +41861,10 @@ export type TasksAssignOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -41921,6 +41941,10 @@ export type TasksBlockOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -41935,6 +41959,22 @@ export type TasksByKeyIn = {
 };
 export type TasksByKeyOut = {
   taskId: string | null;
+};
+export type TasksChangesIn = {
+  since: number;
+};
+export type TasksChangesOut = {
+  items: Array<{
+      taskId: string;
+      title: string;
+      code: "hand" | "asked" | "passed" | "gone" | "quiet";
+      why: string;
+      at: number;
+      by: string;
+    }>;
+  counts: Record<string, number>;
+  fresh: number;
+  since: number;
 };
 export type TasksClockIn = Record<string, unknown>;
 export type TasksClockOut = {
@@ -42064,6 +42104,10 @@ export type TasksCreateOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -42141,6 +42185,10 @@ export type TasksDecideOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -42222,6 +42270,10 @@ export type TasksDelegateOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -42308,6 +42360,10 @@ export type TasksDependenciesAddOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -42384,6 +42440,10 @@ export type TasksDependenciesRemoveOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -42400,6 +42460,87 @@ export type TasksDigestOut = {
   text: string;
   hash: string;
   boundTaskId?: string;
+};
+export type TasksDoneWhenIn = {
+  taskId: string;
+  kind?: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+  key?: string;
+};
+export type TasksDoneWhenOut = {
+  task: {
+    id: string;
+    key?: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    expiresAt?: number;
+    relevantUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+    version?: number;
+    yourTurn?: boolean;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
+    archived?: {
+      at: number;
+      by: string;
+      code: "hand" | "asked" | "passed" | "gone" | "quiet";
+      why: string;
+    };
+  };
 };
 export type TasksEscalateIn = {
   taskId: string;
@@ -42469,6 +42610,10 @@ export type TasksEscalateOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -42545,6 +42690,10 @@ export type TasksFollowersAddOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -42621,6 +42770,10 @@ export type TasksFollowersRemoveOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -42696,6 +42849,10 @@ export type TasksGetOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -42868,6 +43025,10 @@ export type TasksLinksAddOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -42945,6 +43106,10 @@ export type TasksLinksRemoveOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -43031,6 +43196,10 @@ export type TasksListOut = {
         n?: number;
       };
       workerThread?: string;
+      doneWhen?: {
+        kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+        key: string;
+      };
       archived?: {
         at: number;
         by: string;
@@ -43110,6 +43279,10 @@ export type TasksMyWorkOut = {
         n?: number;
       };
       workerThread?: string;
+      doneWhen?: {
+        kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+        key: string;
+      };
       archived?: {
         at: number;
         by: string;
@@ -43193,6 +43366,10 @@ export type TasksNeedsYouOut = {
           n?: number;
         };
         workerThread?: string;
+        doneWhen?: {
+          kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+          key: string;
+        };
         archived?: {
           at: number;
           by: string;
@@ -43309,6 +43486,10 @@ export type TasksPlanOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -43390,6 +43571,10 @@ export type TasksReleaseOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -43465,6 +43650,10 @@ export type TasksRestoreOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -43547,6 +43736,10 @@ export type TasksReviewOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -43624,6 +43817,10 @@ export type TasksSnoozeOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -43706,6 +43903,10 @@ export type TasksStillNeededOut = {
           n?: number;
         };
         workerThread?: string;
+        doneWhen?: {
+          kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+          key: string;
+        };
         archived?: {
           at: number;
           by: string;
@@ -43787,6 +43988,10 @@ export type TasksSubmitOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -43863,6 +44068,10 @@ export type TasksTakeOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -43941,6 +44150,10 @@ export type TasksTransitionOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -44016,6 +44229,10 @@ export type TasksUnarchiveOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -44113,6 +44330,10 @@ export type TasksUpdateOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -44198,6 +44419,10 @@ export type TasksWorkingNotesDeleteOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -44276,6 +44501,10 @@ export type TasksWorkingNotesSetOut = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -50817,6 +51046,7 @@ export interface CapMap {
   "tasks.assign": { in: TasksAssignIn; out: TasksAssignOut };
   "tasks.block": { in: TasksBlockIn; out: TasksBlockOut };
   "tasks.by_key": { in: TasksByKeyIn; out: TasksByKeyOut };
+  "tasks.changes": { in: TasksChangesIn; out: TasksChangesOut };
   "tasks.clock": { in: TasksClockIn; out: TasksClockOut };
   "tasks.count_needs_you": { in: TasksCountNeedsYouIn; out: TasksCountNeedsYouOut };
   "tasks.create": { in: TasksCreateIn; out: TasksCreateOut };
@@ -50826,6 +51056,7 @@ export interface CapMap {
   "tasks.dependencies.add": { in: TasksDependenciesAddIn; out: TasksDependenciesAddOut };
   "tasks.dependencies.remove": { in: TasksDependenciesRemoveIn; out: TasksDependenciesRemoveOut };
   "tasks.digest": { in: TasksDigestIn; out: TasksDigestOut };
+  "tasks.done_when": { in: TasksDoneWhenIn; out: TasksDoneWhenOut };
   "tasks.escalate": { in: TasksEscalateIn; out: TasksEscalateOut };
   "tasks.followers.add": { in: TasksFollowersAddIn; out: TasksFollowersAddOut };
   "tasks.followers.remove": { in: TasksFollowersRemoveIn; out: TasksFollowersRemoveOut };

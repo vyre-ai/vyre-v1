@@ -9380,6 +9380,12 @@
     },
     {
       "deferred": false,
+      "name": "tasks_done_when",
+      "summary": "What proves a task done; it closes itself. No kind clears",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_followers_add",
       "summary": "Add a follower; plain @mentions become followers, never tasks",
       "toolset": "tasks"

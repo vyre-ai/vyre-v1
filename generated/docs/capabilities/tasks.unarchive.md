@@ -96,6 +96,10 @@ type Out = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
     archived?: {
       at: number;
       by: string;
@@ -159,6 +163,10 @@ type Out = {
       "dependsOn": [
         "tsk_a1b2c3"
       ],
+      "doneWhen": {
+        "key": "example",
+        "kind": "vault_item"
+      },
       "due": 1760000000000,
       "effort": 1,
       "expiresAt": 1760000000000,

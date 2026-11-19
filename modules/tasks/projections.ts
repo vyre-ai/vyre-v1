@@ -73,6 +73,8 @@ export interface Task {
   relevantUntil?: number;
   /** false when the Space guessed the moment (the default an agent gets): it asks, it never archives by itself */
   momentStated?: boolean;
+  /** What proves it is done (tasks_proof): the event that closes it with the proof as its note */
+  doneWhen?: { kind: DoneWhenKind; key: string };
   /** Gate holds: the decision and payload hash the approval token is bound to (set once, never edited). */
   decisionId?: string;
   payloadHash?: string;
@@ -102,6 +104,13 @@ export interface Task {
   archived?: Archived;
 }
 /** hand: someone archived it. asked: they answered Archive when asked. passed: its moment passed. gone: what it waited for is gone. quiet: nobody answered the ask. */
+export type DoneWhenKind = "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+export const DONE_WHEN_KINDS: readonly DoneWhenKind[] = [
+  "vault_item",
+  "message_sent",
+  "meeting_ended",
+  "connection_on",
+];
 export type ArchiveCode = "hand" | "asked" | "passed" | "gone" | "quiet";
 export const ARCHIVE_CODES: readonly ArchiveCode[] = ["hand", "asked", "passed", "gone", "quiet"];
 export interface Archived {
@@ -227,8 +236,8 @@ const SELECT = `SELECT c.id AS id, m.kind AS kind, c.title AS title, c.summary A
   m.payload_hash AS payload_hash, c.handled_by AS handled_by, c.handled_at AS handled_at, c.responsible AS responsible,
   c.created_by AS created_by, c.created_at AS created_at, c.updated_at AS updated_at, m.version AS version,
   c.key AS key, c.key_no AS key_no, c.priority AS priority, c.labels AS labels, c.start_at AS start_at, c.fields AS fields, c.recur AS recur, c.worker_thread AS worker_thread, c.created_for AS created_for,
-  a.at AS archived_at, a.by AS archived_by, a.code AS archived_code, a.why AS archived_why, mo.until AS moment_until, mo.stated AS moment_stated
-  FROM tasks_core c JOIN tasks_meta m ON m.id = c.id LEFT JOIN tasks_archive a ON a.task_id = c.id LEFT JOIN tasks_moment mo ON mo.task_id = c.id`;
+  a.at AS archived_at, a.by AS archived_by, a.code AS archived_code, a.why AS archived_why, mo.until AS moment_until, mo.stated AS moment_stated, pf.kind AS proof_kind, pf.key AS proof_key
+  FROM tasks_core c JOIN tasks_meta m ON m.id = c.id LEFT JOIN tasks_archive a ON a.task_id = c.id LEFT JOIN tasks_moment mo ON mo.task_id = c.id LEFT JOIN tasks_proof pf ON pf.task_id = c.id`;
 
 type Raw = Record<string, unknown>;
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
@@ -321,6 +330,8 @@ function rowToTask(r: Raw): Task {
     t.relevantUntil = until;
     t.momentStated = r.moment_stated !== 0;
   }
+  if (typeof r.proof_kind === "string" && typeof r.proof_key === "string")
+    t.doneWhen = { kind: r.proof_kind as DoneWhenKind, key: r.proof_key };
   const archivedAt = num(r.archived_at);
   if (archivedAt !== undefined)
     t.archived = {
@@ -338,6 +349,13 @@ const js = (v: unknown): string => JSON.stringify(v);
 /** Insert or replace both halves of the row. The caller sets updatedAt; version counts writes. */
 export function saveTask(db: Db, t: Task): void {
   if (t.keyNo === undefined) mintKey(db, t);
+  if (t.doneWhen !== undefined)
+    db.run(
+      "INSERT OR REPLACE INTO tasks_proof (task_id, kind, key) VALUES (?, ?, ?)",
+      t.id,
+      t.doneWhen.kind,
+      t.doneWhen.key.trim().toLowerCase(),
+    );
   if (t.relevantUntil !== undefined)
     db.run(
       "INSERT OR REPLACE INTO tasks_moment (task_id, until, stated) VALUES (?, ?, ?)",
@@ -594,6 +612,7 @@ export function toOut(t: Task, idx: OpenIndex): Record<string, unknown> {
     updatedAt: t.updatedAt,
     version: t.version,
     relevantUntil: t.relevantUntil,
+    doneWhen: t.doneWhen,
     archived: t.archived,
   });
 }

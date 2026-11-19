@@ -12,6 +12,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.assign": Handler<"tasks.assign", X>;
   "tasks.block": Handler<"tasks.block", X>;
   "tasks.by_key": Handler<"tasks.by_key", X>;
+  "tasks.changes": Handler<"tasks.changes", X>;
   "tasks.clock": Handler<"tasks.clock", X>;
   "tasks.count_needs_you": Handler<"tasks.count_needs_you", X>;
   "tasks.create": Handler<"tasks.create", X>;
@@ -21,6 +22,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.dependencies.add": Handler<"tasks.dependencies.add", X>;
   "tasks.dependencies.remove": Handler<"tasks.dependencies.remove", X>;
   "tasks.digest": Handler<"tasks.digest", X>;
+  "tasks.done_when": Handler<"tasks.done_when", X>;
   "tasks.escalate": Handler<"tasks.escalate", X>;
   "tasks.followers.add": Handler<"tasks.followers.add", X>;
   "tasks.followers.remove": Handler<"tasks.followers.remove", X>;

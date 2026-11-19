@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (44)
+## Capabilities (46)
 
 - [tasks.act](../capabilities/tasks.act.md): Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once
 - [tasks.agent_on_it](../capabilities/tasks.agent_on_it.md): Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads "<Agent> is on it for you". Only that person, or the host, may say so
@@ -13,6 +13,7 @@ Requires: nothing.
 - [tasks.assign](../capabilities/tasks.assign.md): Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)
 - [tasks.block](../capabilities/tasks.block.md): Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits
 - [tasks.by_key](../capabilities/tasks.by_key.md): Find a task by its short key, such as VY-123
+- [tasks.changes](../capabilities/tasks.changes.md): What the Space did to my tasks since a time (put away because they passed, their chat closed, nobody answered), each with its reason; and how many new ones wait on me. Built from the log
 - [tasks.clock](../capabilities/tasks.clock.md): What the clock moves, once a minute: the day a task is due begins for its holder, a due time passes, a snooze ends, a step sat with someone too long
 - [tasks.count_needs_you](../capabilities/tasks.count_needs_you.md): Count of Ready requests for the rail badge and the Space switcher dot
 - [tasks.create](../capabilities/tasks.create.md): Create a task (Work by default)
@@ -22,6 +23,7 @@ Requires: nothing.
 - [tasks.dependencies.add](../capabilities/tasks.dependencies.add.md): Make a task wait on another; Blocked is derived from unmet dependencies and open Unblock children
 - [tasks.dependencies.remove](../capabilities/tasks.dependencies.remove.md): Remove a dependency
 - [tasks.digest](../capabilities/tasks.digest.md): What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away. An agent asking for itself leaves out agentId
+- [tasks.done_when](../capabilities/tasks.done_when.md): What proves a task done; it closes itself. No kind clears
 - [tasks.escalate](../capabilities/tasks.escalate.md): Pass a task to the delegate or role after its timeout (called by the scheduler and the Gate)
 - [tasks.followers.add](../capabilities/tasks.followers.add.md): Add a follower; plain @mentions become followers, never tasks
 - [tasks.followers.remove](../capabilities/tasks.followers.remove.md): Remove a follower

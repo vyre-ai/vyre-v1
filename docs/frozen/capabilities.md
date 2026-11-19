@@ -753,3 +753,5 @@ Signed: lead, 17 Nov 2026
 Signed: lead, 19 Nov 2026
 
 Added after the signature above (lane r42-alive, 19 Nov 2026, second look): `tasks.clock` also returns `asked`, and a task nobody touched for 14 days (no stated moment, nothing waiting on it, no future due date) goes on the card and leaves Needs you. Optional output only. Signed: pending, lead.
+
+Added in the same lane (19 Nov 2026, third look): new `tasks.changes` (read: what the Space did to the reader's tasks since a time, with reasons, from the archive log) and `tasks.done_when` (write: say what proves a task done, or clear it); the task row gains the optional output `doneWhen`; new table `tasks_proof` (migration `0008_proof`); new consumer `tasks.evidence` closes a task Done with the proof as its note when the event arrives (`vault.item_created`, `message.sent`, `meeting.ended`, `connection.created`). All additive. Signed: pending, lead.
