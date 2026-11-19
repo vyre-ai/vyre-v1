@@ -24,7 +24,10 @@ test("every outward act the Gate marks high risk that a person does not do by ha
   const acts = registry.gateActs as unknown as { key: string; risk: string; appliesTo?: { humanToo?: boolean } }[];
   for (const a of acts) {
     if (!OUTWARD_ACTS.has(a.key) || a.risk !== "high" || a.appliesTo?.humanToo === true) continue;
-    assert.ok(ASK_FIRST_ACTS.has(a.key), `${a.key} is a high-risk outward act: add it to ASK_FIRST_ACTS (lib/ask-first.ts)`);
+    assert.ok(
+      ASK_FIRST_ACTS.has(a.key),
+      `${a.key} is a high-risk outward act: add it to ASK_FIRST_ACTS (lib/ask-first.ts)`,
+    );
   }
   assert.ok(ASK_FIRST_ACTS.has("signature_send"));
 });

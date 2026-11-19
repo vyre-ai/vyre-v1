@@ -113,7 +113,12 @@ const T: Readonly<Record<string, readonly string[]>> = {
   "calendar.list_events": ["from:From", "to:To", "query:Search", "~calendarIds:Calendars"],
   start_journey: ["journeyId:Journey", "subjectRecordId:Record", "startStage:First stage"],
   "journeys.move_stage": ["journeyId:Journey", "recordId:Record", "toStage:Stage", "~reason:Why it moves"],
-  "forms.link_create": ["formId:Form", "recordId:Record", "~singleUse:One use only", "~expiresInHours:Expires after (hours)"],
+  "forms.link_create": [
+    "formId:Form",
+    "recordId:Record",
+    "~singleUse:One use only",
+    "~expiresInHours:Expires after (hours)",
+  ],
   "sheet.add_rows": ["fileId:Spreadsheet", "sheet:Sheet", "rows:Rows"],
   "sheet.create": ["name:Name", "folderId:Folder", "columns:Columns", "~format:Format", "~sheet:Sheet"],
   "sheet.delete_rows": ["fileId:Spreadsheet", "sheet:Sheet", "rowId:Which row"],

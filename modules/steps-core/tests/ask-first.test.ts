@@ -10,7 +10,12 @@ const held = (taskId: string): never => {
   throw { error: { code: "permission.needs_approval", message: "held", retryable: false, details: { taskId } } };
 };
 const signNode = (over: Record<string, unknown> = {}) =>
-  node("sg", "sign", { fileId: "fil_agreement", signers: [{ name: "Andrea Lindahl", email: "andrea@northwind.example" }] }, over);
+  node(
+    "sg",
+    "sign",
+    { fileId: "fil_agreement", signers: [{ name: "Andrea Lindahl", email: "andrea@northwind.example" }] },
+    over,
+  );
 
 test("a signature request asks first when the step does not say: the Gate is told to ask, and never told to hold only on an admin rule", async () => {
   const h = harness({}, { run: RUN });
@@ -58,7 +63,8 @@ test("an email keeps its rule: it goes out on the standing yes unless the step s
 });
 
 test("a chat post set to ask really asks: the Gate is asked first, a hold parks the Run and nothing is posted", async () => {
-  const post = (over: Record<string, unknown> = {}) => node("p", "post_message", { channelId: "chn_ops", text: "Signed: Brightpath" }, over);
+  const post = (over: Record<string, unknown> = {}) =>
+    node("p", "post_message", { channelId: "chn_ops", text: "Signed: Brightpath" }, over);
   const h = harness({}, { run: RUN });
   h.callee("channels.get", () => ({ channel: { mainThreadId: "thr_ops" } }));
   h.callee("automations.step_ask", () => held("tsk_post"));
@@ -75,7 +81,8 @@ test("a chat post set to ask really asks: the Gate is asked first, a hold parks 
 });
 
 test("a chat post that was approved, and one that never asked, are posted", async () => {
-  const post = (over: Record<string, unknown> = {}) => node("p", "post_message", { channelId: "chn_ops", text: "Signed" }, over);
+  const post = (over: Record<string, unknown> = {}) =>
+    node("p", "post_message", { channelId: "chn_ops", text: "Signed" }, over);
   const yes = harness({}, { run: RUN });
   yes.callee("channels.get", () => ({ channel: { mainThreadId: "thr_ops" } }));
   yes.callee("automations.step_ask", () => ({ ok: true }));

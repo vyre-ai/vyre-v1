@@ -106,7 +106,9 @@ export default defineManifest({
       in: {
         formId: id.form,
         recordId: id.record,
-        singleUse: t.opt(t.bool({ description: "One use only (the default); false makes a signed link that works until it expires" })),
+        singleUse: t.opt(
+          t.bool({ description: "One use only (the default); false makes a signed link that works until it expires" }),
+        ),
         expiresInHours: t.opt(t.int({ minimum: 1 })),
       },
       out: { url: t.str(), expiresAt: t.opt(t.ts()) },

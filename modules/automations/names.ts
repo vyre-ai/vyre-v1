@@ -6,7 +6,11 @@ import type { AutoCtx } from "./projections.ts";
 
 const STEP_TITLES = new Map(registry.steps.map((s) => [s.key, s.title] as const));
 export const cap = (s: string): string => (s === "" ? s : s[0]!.toUpperCase() + s.slice(1));
-export const words = (key: string): string => key.replace(/[_\-.]+/g, " ").trim().toLowerCase();
+export const words = (key: string): string =>
+  key
+    .replace(/[_\-.]+/g, " ")
+    .trim()
+    .toLowerCase();
 
 interface FieldLite {
   key: string;

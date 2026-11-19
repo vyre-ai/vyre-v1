@@ -186,7 +186,8 @@ async function realPayload(
   type Row = { id: string; type: string; at: number; payload: Record<string, unknown> };
   let row: Row | undefined;
   if (typeof input.eventId === "string") {
-    row = ((await ctx.call("events.get", { eventId: input.eventId }).catch(() => null)) as { event?: Row } | null)?.event;
+    row = ((await ctx.call("events.get", { eventId: input.eventId }).catch(() => null)) as { event?: Row } | null)
+      ?.event;
     if (!row) gone();
   } else {
     const page = (await ctx
@@ -203,7 +204,9 @@ async function realPayload(
   }
   // nothing in the log for this record: it is read as it stands, as a change that touched nothing
   if (typeof input.recordType !== "string") gone();
-  const got = (await ctx.call("records.get", { type: input.recordType, recordId: input.recordId }).catch(() => null)) as {
+  const got = (await ctx
+    .call("records.get", { type: input.recordType, recordId: input.recordId })
+    .catch(() => null)) as {
     record?: { fields?: unknown; version?: number };
   } | null;
   if (!got?.record) gone();

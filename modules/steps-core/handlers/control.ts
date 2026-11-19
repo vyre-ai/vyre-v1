@@ -848,7 +848,13 @@ const asks = (node: StepNode): boolean =>
  * A step set to ask whose own capability declares no Gate (a chat post) would go out without anyone being asked: the switch said On and nothing waited. It asks here first, through a capability that
  * does nothing but pass the Gate, the way a code step that names hosts does. Null means go on.
  */
-async function askFirst(env: StepEnv, node: StepNode, cap: string, input: In, call: StepCall): Promise<StepResult | null> {
+async function askFirst(
+  env: StepEnv,
+  node: StepNode,
+  cap: string,
+  input: In,
+  call: StepCall,
+): Promise<StepResult | null> {
   const def = STEPS.get(node.key) as { effects?: string; gateAct?: string } | undefined;
   const own = (CAPS.get(cap) as { gate?: { act?: string } } | undefined)?.gate?.act;
   if (!env.ctx.call || def?.effects !== "outward" || def.gateAct !== "post" || !asks(node) || (own && own !== "none"))

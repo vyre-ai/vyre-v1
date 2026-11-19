@@ -40,7 +40,11 @@ export interface SentenceNames {
   ): string | undefined;
 }
 
-const words = (key: string): string => key.replace(/[_\-.]+/g, " ").trim().toLowerCase();
+const words = (key: string): string =>
+  key
+    .replace(/[_\-.]+/g, " ")
+    .trim()
+    .toLowerCase();
 const cap = (s: string): string => (s === "" ? s : s[0]!.toUpperCase() + s.slice(1));
 const lower = (s: string): string =>
   s.length > 1 && s[1] === s[1]!.toLowerCase() && !/^I\b/.test(s) ? s[0]!.toLowerCase() + s.slice(1) : s;
@@ -105,7 +109,10 @@ function whenOf(t: SentenceTrigger, names: SentenceNames): string {
       if (where.length > 0) {
         const said = where
           .slice(0, 2)
-          .map(([k, v]) => `${fieldName(names, f["type"], k)} ${op === "created" ? "is" : "becomes"} ${valueName(names, f["type"], k, v)}`);
+          .map(
+            ([k, v]) =>
+              `${fieldName(names, f["type"], k)} ${op === "created" ? "is" : "becomes"} ${valueName(names, f["type"], k, v)}`,
+          );
         return op === "created"
           ? `When ${an(type)} is added and its ${said.join(" and its ")}`
           : `When ${an(type)}’s ${said.join(" and its ")}`;
@@ -192,14 +199,19 @@ function doOf(n: SentenceNode, names: SentenceNames): string {
     case "google.gmail.send_message":
     case "ms.mail.send_message": {
       const to = literal(i["to"]);
-      return i["draftOnly"] === true ? `draft an email${to ? ` to ${to}` : ""}` : `send an email${to ? ` to ${to}` : ""}`;
+      return i["draftOnly"] === true
+        ? `draft an email${to ? ` to ${to}` : ""}`
+        : `send an email${to ? ` to ${to}` : ""}`;
     }
     case "send_sms": {
       const to = literal(i["to"]);
       return `send a text${to ? ` to ${to}` : ""}`;
     }
     case "create_task": {
-      const who = isRec(i["assigned"]) && typeof i["assigned"]["id"] === "string" ? names.thing?.(i["assigned"]["id"]) : undefined;
+      const who =
+        isRec(i["assigned"]) && typeof i["assigned"]["id"] === "string"
+          ? names.thing?.(i["assigned"]["id"])
+          : undefined;
       return `create a task${who ? ` for ${who}` : ""}`;
     }
     case "records.create":
@@ -277,7 +289,8 @@ export function flowSentence(def: SentenceDefinition, names: SentenceNames = {})
     if (d !== "" && !does.includes(d)) does.push(d);
   }
   if (def.nodes.length === 0) return `${when}, nothing happens yet.`;
-  if (does.length === 0) return `${when}, it works through ${def.nodes.length === 1 ? "one step" : `${def.nodes.length} steps`}.`;
+  if (does.length === 0)
+    return `${when}, it works through ${def.nodes.length === 1 ? "one step" : `${def.nodes.length} steps`}.`;
   const shown = does.length > 3 ? does.slice(0, 2) : does;
   const more = does.length - shown.length;
   const list =
