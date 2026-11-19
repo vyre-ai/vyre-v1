@@ -223,6 +223,8 @@ export function cleanLimits(ctx: Ctx, raw: unknown): Limits {
     fail(ctx, "validation.bad_input", "CPUs are between 0.1 and 16.", { field: "limits.cpus" });
   if (!(memoryMb >= 128 && memoryMb <= 65536))
     fail(ctx, "validation.bad_input", "Memory is between 128 MB and 64 GB.", { field: "limits.memoryMb" });
+  if (diskMb !== undefined && !(diskMb >= 256 && diskMb <= 1048576))
+    fail(ctx, "validation.bad_input", "Disk is between 256 MB and 1 TB.", { field: "limits.diskMb" });
   return { cpus, memoryMb, ...(diskMb !== undefined ? { diskMb } : {}) };
 }
 
@@ -1330,7 +1332,7 @@ async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unkno
       const site = (await ctx.call("sites.get", { siteId } as never)) as { site: { addons?: { kind: string }[] } };
       for (const kind of new Set(wanted))
         if (!site.site.addons?.some((a) => a.kind === kind))
-          await ctx.call("sites.addon_add", { siteId, kind } as never);
+          await ctx.call("sites.addon_add", { siteId, kind, idempotencyKey: `ship:${siteId}:${kind}` } as never);
     }
   } catch (e) {
     return stuck("the database", words(e));

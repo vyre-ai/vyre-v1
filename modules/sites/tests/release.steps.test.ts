@@ -44,6 +44,7 @@ function world(o: Fake = {}) {
     "0006_env_plain.sql",
     "0007_webhook.sql",
     "0009_hook_failures.sql",
+    "0013_hook_order.sql",
   ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const sdb = {
@@ -117,7 +118,7 @@ function world(o: Fake = {}) {
     imageExists: async () => true,
     addon: async () => ({ containerId: "addon" }),
     removeAddon: async () => undefined,
-    exec: async () => ({ code: 0, out: "" }),
+    exec: async () => ({ code: 0, out: "PONG" }),
     put: async () => undefined,
   };
   configureRoutes({
@@ -890,9 +891,9 @@ test("a push builds only the branches the site follows: production on a push onl
     const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["feat/*"] });
     // production: nothing to do while it does not deploy on push, a nudge once it does
     await h["sites.update"]!(w.ctx, { siteId, autoDeploy: false });
-    assert.equal((await hook(w, secret, "push", push("main"))).nudge, false);
+    assert.equal((await hook(w, secret, "push", push("main", "8".repeat(40)))).nudge, false);
     await h["sites.update"]!(w.ctx, { siteId, autoDeploy: true });
-    assert.equal((await hook(w, secret, "push", push("main"))).nudge, true);
+    assert.equal((await hook(w, secret, "push", push("main", "9".repeat(40)))).nudge, true);
     assert.deepEqual(queued(w), [], "production is the tick's deploy, not a queued preview");
     // a branch it does not follow is acknowledged and ignored
     assert.deepEqual(await hook(w, secret, "push", push("fix/x")), { accepted: true, nudge: false });
@@ -1225,34 +1226,89 @@ test("a delivery id is kept for good: an old captured delivery is refused howeve
   }
 });
 
-test("a delivery older than what the site already handled or deployed is refused, so old code cannot come back", async () => {
+test("the order of pushes comes from the commits they name: an old push is refused, and no commit date blocks anything", async () => {
   const w = world();
   try {
-    const siteId = await w.makeRepo("Stale");
+    const siteId = await w.makeRepo("Order");
     const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
     await h["sites.update"]!(w.ctx, { siteId, autoDeploy: true });
-    const at = (iso: string) => ({ head_commit: { timestamp: iso } });
-    // a preview branch: newer is taken, an older one (a different captured delivery) is not
-    await hook(w, secret, "push", { ...push("feat/s"), ...at("2026-11-19T10:00:00Z") });
+    const A = "a".repeat(40);
+    const B = "b".repeat(40);
+    const C = "c".repeat(40);
+    const Z = "0".repeat(40);
+    const move = (branch: string, before: string, after: string, extra: Record<string, unknown> = {}) => ({
+      ref: `refs/heads/${branch}`,
+      before,
+      after,
+      ...extra,
+    });
+    // a branch moves A, then B, then C
+    assert.equal((await hook(w, secret, "push", move("feat/o", Z, A))).nudge, true);
+    assert.equal((await hook(w, secret, "push", move("feat/o", A, B))).nudge, true);
+    // the first push sent again under a new id is old news: the branch moved past A
     await assert.rejects(
-      () => hook(w, secret, "push", { ...push("feat/s", "b".repeat(40)), ...at("2026-11-19T09:00:00Z") }),
+      () => hook(w, secret, "push", move("feat/o", Z, A), { delivery: "again001-aaaa" }),
       /older than what this site has already handled/,
     );
-    assert.equal(
-      (await hook(w, secret, "push", { ...push("feat/s", "c".repeat(40)), ...at("2026-11-19T11:00:00Z") })).nudge,
-      true,
+    // so is the very head it is on now, delivered twice under two ids
+    await assert.rejects(
+      () => hook(w, secret, "push", move("feat/o", A, B), { delivery: "again002-aaaa" }),
+      /older than what this site has already handled/,
     );
-    // production: the site deployed just now, so a push from before that is old code
+    assert.equal((await hook(w, secret, "push", move("feat/o", B, C))).nudge, true);
+    // another branch is its own chain
+    assert.equal((await hook(w, secret, "push", move("feat/p", Z, A))).nudge, true);
+    assert.equal(queued(w).length, 2, "one preview job per branch");
+
+    // production: a commit dated 10:00, a deploy by hand at 10:30, the push at 11:00: it deploys
     const dep = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
     assert.equal(dep.deployment.state, "ready");
-    await assert.rejects(
-      () => hook(w, secret, "push", { ...push("main"), ...at("2026-01-01T00:00:00Z") }),
-      /older than what this site has already handled/,
+    const old = { head_commit: { timestamp: "2000-01-01T10:00:00Z" } };
+    assert.equal((await hook(w, secret, "push", move("main", "1".repeat(40), "2".repeat(40), old))).nudge, true);
+    // a commit dated in the future blocks nothing: the next push on that branch goes through
+    const future = { head_commit: { timestamp: "2031-01-01T00:00:00Z" } };
+    assert.equal((await hook(w, secret, "push", move("main", "2".repeat(40), "3".repeat(40), future))).nudge, true);
+    assert.equal((await hook(w, secret, "push", move("main", "3".repeat(40), "4".repeat(40)))).nudge, true);
+    assert.equal((await hook(w, secret, "push", move("feat/q", Z, "5".repeat(40), future))).nudge, true);
+    assert.equal((await hook(w, secret, "push", move("feat/q", "5".repeat(40), "6".repeat(40)))).nudge, true);
+  } finally {
+    w.done();
+  }
+});
+
+test("a push that failed to run is not old news: its redelivery under a new id is taken", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Redo");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const push1 = { ref: "refs/heads/feat/r", before: "0".repeat(40), after: "7".repeat(40) };
+    await hook(w, secret, "push", push1, { delivery: "redo0001-aaaa" });
+    markPushFailed(
+      { db: w.sdb } as never,
+      (pendingPushes({ db: w.sdb } as never)[0] as { id: string }).id,
+      "no access",
     );
-    const future = new Date(Date.now() + 60_000).toISOString();
-    assert.equal((await hook(w, secret, "push", { ...push("main"), ...at(future) })).nudge, true);
-    // nothing was written by the refusals
-    assert.equal(queued(w).length, 1);
+    assert.equal((await hook(w, secret, "push", push1, { delivery: "redo0002-aaaa" })).nudge, true);
+    assert.deepEqual(queued(w), ["preview:feat/r"]);
+  } finally {
+    w.done();
+  }
+});
+
+test("ship adds each database once, however many times it is asked", async () => {
+  const w = world();
+  try {
+    const first = await h["sites.ship"]!(w.ctx, {
+      name: "Dbs",
+      source: { path: FIXTURE },
+      addons: ["postgres", "postgres", "redis"],
+    });
+    assert.equal(first.ok, true, first.say);
+    await h["sites.ship"]!(w.ctx, { siteId: first.siteId, addons: ["postgres", "redis"] });
+    const kinds = (w.sdb.all("SELECT kind FROM sites_addon WHERE site_id = ?", first.siteId) as { kind: string }[])
+      .map((r) => r.kind)
+      .sort();
+    assert.deepEqual(kinds, ["postgres", "redis"]);
   } finally {
     w.done();
   }

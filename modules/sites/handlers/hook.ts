@@ -2,14 +2,16 @@
 //   secret    one per site, made here, sealed with the Space's key, shown once. GitHub signs the raw body with it (x-hub-signature-256, HMAC SHA-256); the compare is constant time.
 //   who       the body names the repo, which finds the candidate sites; a delivery counts for the sites whose secret verifies it, and for no other. An unsigned one, one for an unknown repo and one with a
 //             wrong signature all get the same refusal (and the same work, so the time tells nothing).
-//   replay    a delivery id is remembered per site for good (a signature carries no clock); the same id again is refused. An event older than the newest one handled for that branch, or than what the site last deployed
-//             there, is refused too, so an old captured delivery can never put old code back. A push that could not run is recorded as failed and gives its id back, so GitHub's redelivery is taken again.
+//   replay    a delivery id is remembered per site for good (a signature carries no clock); the same id again is refused. The order of pushes comes from git, not from a clock: a push whose head
+//             commit is one the branch already moved past (a later handled push named it as its parent), or one already handled, is refused, so an old captured delivery can never put old code back, and
+//             a commit dated in the future blocks nothing. A push that could not run is recorded as failed and gives its id back, so GitHub's redelivery is taken again.
 //   forks     a closed pull request counts only when its head is a branch of the site's own repo.
 //   what      a push to the production branch deploys when the site deploys on push; a push to a branch the site follows builds its preview; a deleted branch, or a closed pull request, removes it. Any other
 //             branch, and any other event, is acknowledged and ignored.
 //   running   a verified push is not run here (this call has no person behind it, and the Vault is checked against a person): it leaves a row in sites_push, and the server's tick runs it as whoever deployed last.
 // @reads ../migrations/0007_webhook.sql
 // @reads ../migrations/0009_hook_failures.sql
+// @reads ../migrations/0013_hook_order.sql
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { hostOnly } from "../../../host/src/ctx/host-only.ts";
 import type { WebhookAccept } from "../../../host/src/routes/webhooks.ts";
@@ -18,7 +20,6 @@ import { sourceOf } from "./release.ts";
 import { routesHost } from "./route.ts";
 
 type Row = Record<string, unknown>;
-const KEEP_DELIVERIES_MS = 14 * 24 * 3_600_000;
 const FOLLOW = /^[A-Za-z0-9._/-]{1,100}\*?$|^\*$/;
 const MAX_FOLLOW = 20;
 
@@ -127,76 +128,58 @@ export async function acceptWebhook(ctx: Ctx, a: WebhookAccept): Promise<unknown
       !one(ctx, "SELECT delivery_id FROM sites_hook_delivery WHERE delivery_id = ? AND site_id = ?", delivery, site.id),
   );
   if (fresh.length === 0) fail(ctx, "validation.duplicate", "That delivery was already received.");
-  const at = eventTime(event, payload);
-  const current = fresh.filter((site) => !stale(ctx, site, event, payload, at));
+  const current = fresh.filter((site) => !stale(ctx, site, event, payload));
   if (current.length === 0)
-    fail(ctx, "validation.bad_input", "That delivery is older than what this site has already handled.");
+    fail(ctx, "validation.bad_input", "That push is older than what this site has already handled.");
   let work = false;
   for (const site of current) {
     if (act(ctx, site, event, payload, now, delivery)) work = true;
     // the id is spent only once what the delivery asked for is queued
     ctx.db.run("INSERT INTO sites_hook_delivery (delivery_id, site_id, at) VALUES (?, ?, ?)", delivery, site.id, now);
-    if (at !== null) remember(ctx, site, event, payload, at);
+    remember(ctx, site, event, payload, delivery, now);
   }
   return { accepted: true, nudge: work };
 }
 
-/** The time the event says it happened (ms): a push's head commit, a pull request's close. Null when the event carries none. */
-function eventTime(event: string, p: Record<string, unknown>): number | null {
-  const iso = (v: unknown): number | null => {
-    const n = typeof v === "string" ? Date.parse(v) : Number.NaN;
-    return Number.isFinite(n) ? n : null;
-  };
-  if (event === "push") return iso(((p["head_commit"] ?? {}) as Record<string, unknown>)["timestamp"]);
-  if (event === "pull_request") return iso(((p["pull_request"] ?? {}) as Record<string, unknown>)["closed_at"]);
-  return null;
+/** The branch and head commits a push names: where it came from (before) and where it went (after). Null for anything but a push of a branch. */
+function pushOf(event: string, p: Record<string, unknown>): { branch: string; before: string; after: string } | null {
+  if (event !== "push") return null;
+  const ref = typeof p["ref"] === "string" ? p["ref"] : "";
+  if (!ref.startsWith("refs/heads/")) return null;
+  const sha = (v: unknown): string =>
+    typeof v === "string" && /^[0-9a-f]{7,64}$/i.test(v) && !/^0+$/.test(v) ? v.toLowerCase() : "";
+  return { branch: ref.slice("refs/heads/".length), before: sha(p["before"]), after: sha(p["after"]) };
 }
 
-/** The branch an event is about, with the kind of deploy it would make: the production branch (env production) or a preview (env preview). */
-function branchOf(
-  site: Row,
-  event: string,
-  p: Record<string, unknown>,
-): { branch: string; env: "production" | "preview" } | null {
-  const repository = (p["repository"] ?? {}) as Record<string, unknown>;
-  const production =
-    sourceOf(site)?.branch ??
-    (typeof repository["default_branch"] === "string" ? repository["default_branch"] : "main");
-  let branch = "";
-  if (event === "push") {
-    const ref = typeof p["ref"] === "string" ? p["ref"] : "";
-    if (ref.startsWith("refs/heads/")) branch = ref.slice("refs/heads/".length);
-  } else if (event === "pull_request") {
-    const head = ((p["pull_request"] ?? {}) as Record<string, unknown>)["head"] as Record<string, unknown> | undefined;
-    if (typeof head?.["ref"] === "string") branch = head["ref"];
-  }
-  return branch ? { branch, env: branch === production ? "production" : "preview" } : null;
-}
-
-/** Older than what this site already handled for the branch, or deployed there since: an old delivery, captured and sent again. */
-function stale(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>, at: number | null): boolean {
-  const b = branchOf(site, event, p);
-  if (at === null || b === null) return false;
-  const seen = one(ctx, "SELECT at FROM sites_hook_seen WHERE site_id = ? AND branch = ?", site.id, b.branch);
-  if (seen && at < Number(seen.at)) return true;
-  const last = one(
+/**
+ * Old news: the push's head is a commit this branch already moved past (a handled push named it as its parent), or one already handled. It follows the chain of commits the pushes name, so no clock decides it:
+ * a commit dated 10:00, a manual deploy at 10:30 and a push at 11:00 deploys, and a commit dated in the future blocks nothing. A branch put back to an earlier commit by force is old news too; deploy it by hand.
+ */
+function stale(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>): boolean {
+  const push = pushOf(event, p);
+  if (push === null || push.after === "") return false;
+  const row = one(
     ctx,
-    b.env === "production"
-      ? "SELECT MAX(at) AS at FROM sites_deployment WHERE site_id = ? AND env = 'production'"
-      : "SELECT MAX(at) AS at FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ?",
-    ...(b.env === "production" ? [site.id] : [site.id, b.branch]),
+    "SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND (before_sha = ? OR after_sha = ?)",
+    site.id,
+    push.branch,
+    push.after,
+    push.after,
   );
-  return typeof last?.at === "number" && at < last.at;
+  return row !== undefined;
 }
 
-function remember(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>, at: number): void {
-  const b = branchOf(site, event, p);
-  if (!b) return;
+function remember(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>, delivery: string, now: number): void {
+  const push = pushOf(event, p);
+  if (push === null || push.after === "") return;
   ctx.db.run(
-    "INSERT INTO sites_hook_seen (site_id, branch, at) VALUES (?, ?, ?) ON CONFLICT (site_id, branch) DO UPDATE SET at = MAX(at, excluded.at)",
+    "INSERT OR IGNORE INTO sites_hook_head (site_id, branch, delivery_id, before_sha, after_sha, at) VALUES (?, ?, ?, ?, ?, ?)",
     site.id,
-    b.branch,
-    at,
+    push.branch,
+    delivery,
+    push.before,
+    push.after,
+    now,
   );
 }
 
@@ -302,8 +285,10 @@ export function markPushFailed(ctx: Pick<Ctx, "db">, id: string, why: string): v
     why.slice(0, 200),
     id,
   );
-  if (row && !isNull(row.delivery_id))
+  if (row && !isNull(row.delivery_id)) {
     ctx.db.run("DELETE FROM sites_hook_delivery WHERE delivery_id = ? AND site_id = ?", row.delivery_id, row.site_id);
+    ctx.db.run("DELETE FROM sites_hook_head WHERE delivery_id = ? AND site_id = ?", row.delivery_id, row.site_id);
+  }
 }
 
 // ---- the site's settings for it

@@ -1,6 +1,6 @@
 # sites.env_list
 
-List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet
+A site's env var names and where each comes from (never secret values), and the names the app looks for that are not set
 
 | | |
 |---|---|

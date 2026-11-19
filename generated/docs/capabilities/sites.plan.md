@@ -1,6 +1,6 @@
 # sites.plan
 
-What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)
+What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for
 
 | | |
 |---|---|
@@ -70,12 +70,12 @@ type Out = {
   "input": {
     "siteId": "sit_a1b2c3",
     "source": {
-      "branch": "main",
+      "branch": "example",
       "fileId": "fil_a1b2c3",
       "folderId": "fld_a1b2c3",
       "path": "example",
-      "repo": "https://github.com/acme/cx-dashboard",
-      "root": "apps/web",
+      "repo": "example",
+      "root": "example",
       "tokenHandle": "#Dana_Lawmatics"
     }
   },

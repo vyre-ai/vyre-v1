@@ -1,6 +1,6 @@
 # sites.env_set
 
-Set the env vars of a deployed site (replaces the list). A secret takes its value from a Vault key at deploy time. A plain value is kept as given; one that looks like a secret is refused unless confirmPlain. scope: production (default), previews or all
+Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews or all
 
 | | |
 |---|---|
