@@ -384,6 +384,89 @@ test("one Space saved at two addresses, the used-last one dead: the list shows i
   }
 });
 
+test("the person moves on to Your Spaces while the other address is being asked: when it answers, nothing opens and the list stays", async () => {
+  const realFetch = g.fetch;
+  const restore = setQuietWaitsForTests([1, 1]);
+  let stop: () => Promise<void> = async () => undefined;
+  try {
+    installDom();
+    const m = new Map<string, string>([
+      [
+        "vyre.spaces.v1",
+        JSON.stringify({
+          spaces: [
+            {
+              address: "https://old.example",
+              name: "Northwind",
+              spaceId: "spc_01NORTH",
+              kind: "team",
+              via: "app",
+              usedAt: 5000,
+            },
+          ],
+        }),
+      ],
+    ]);
+    g.localStorage = {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, v),
+      removeItem: (k: string) => void m.delete(k),
+    };
+    const kv = g.localStorage as Parameters<typeof writeStored>[1];
+    writeStored({ ...SAVED_SESSION, baseUrl: "https://old.example", token: "vds_old" }, kv);
+    writeStored({ ...SAVED_SESSION, baseUrl: "https://new.example", token: "vds_new" }, kv);
+    const before = JSON.stringify(readStoredSessions(kv));
+    const asked: string[] = [];
+    let release: () => void = () => undefined;
+    const slow = new Promise<void>((r) => (release = r));
+    g.fetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      asked.push(url.origin + url.pathname);
+      if (url.origin === "https://new.example" && url.pathname === "/healthz") {
+        await slow;
+        return json(200, HEALTH);
+      }
+      throw new TypeError("Failed to fetch");
+    }) as typeof fetch;
+    const gate = await mountGate();
+    stop = gate.stop;
+    const root = gate.root;
+    const until = async (id: string): Promise<Node> => {
+      const end = Date.now() + 10000;
+      for (;;) {
+        const n = find(root, id);
+        if (n) return n;
+        if (Date.now() > end) throw new Error(`${id} never showed; asked ${asked.join(" ")}`);
+        await flush();
+      }
+    };
+    await press(await until("your-space-0"));
+    // the shell of the dead address fails; the other address is being asked (its answer is held back)
+    await until("state-second");
+    const wait = Date.now() + 5000;
+    while (!asked.includes("https://new.example/healthz") && Date.now() < wait) await flush();
+    assert.ok(asked.includes("https://new.example/healthz"), "the other address is being asked");
+    // the person goes to Your Spaces instead; then the answer arrives
+    await press(find(root, "state-second"));
+    await until("your-spaces");
+    release();
+    for (let i = 0; i < 60; i++) await flush();
+    assert.ok(find(root, "your-spaces"), "the list is still what the person sees");
+    assert.deepEqual(
+      asked.filter((u) => u.startsWith("https://new.example") && !u.endsWith("/healthz")),
+      [],
+      "nothing was opened at the other address",
+    );
+    assert.equal(JSON.stringify(readStoredSessions(kv)), before, "both sign-ins are still saved, unchanged");
+  } finally {
+    await stop();
+    restore();
+    g.fetch = realFetch;
+    delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
+    delete g.localStorage;
+  }
+});
+
 test("the other address now answers as a different Space: its saved sign-in is not sent there, and the person gets the dead Space's own screen", async () => {
   const realFetch = g.fetch;
   const restore = setQuietWaitsForTests([1, 1]);
