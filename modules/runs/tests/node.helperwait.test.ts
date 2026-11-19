@@ -179,3 +179,68 @@ test("a node made for a helper that never ran is failed when what it waits for f
   await h.engineRun({ id: "svc_host", kind: "service" as const }, async (ctx) => settleDeps(ctx));
   assert.equal(statusOf(h, docs.id), "failed");
 });
+
+test("a helper made after the one it waits for had already failed is failed at once, naming it, and never left queued", async () => {
+  const { h } = await rig();
+  h.advance(1);
+  const numbers = (
+    await h.call(
+      "runs.node.start",
+      { kind: "helper", owner: alice.id, threadId: NUMBERS, parentThread: MAIN, name: "Numbers", running: true },
+      engine,
+    )
+  ).node as { id: string };
+  await h.call(
+    "runs.node.move",
+    { ...hold(h, numbers.id), runId: numbers.id, to: "failed", why: "failed", error: { code: "x", message: "no" } },
+    engine,
+  );
+  const docs = (
+    await h.call(
+      "runs.node.start",
+      {
+        kind: "helper",
+        owner: alice.id,
+        threadId: DOCS,
+        parentThread: MAIN,
+        dependsOnThreads: [NUMBERS],
+        idemKey: `helper:${DOCS}`,
+      },
+      engine,
+    )
+  ).node as { id: string; status: string };
+  const got = (await h.call("runs.node.get", { runId: docs.id }, owner)).node;
+  assert.equal(got.status, "failed", "failed straight away, with no sweep");
+  assert.equal(got.errorCode, "dependency_failed");
+  assert.equal(got.reason, "Didn't start because Numbers failed.");
+});
+
+test("several failed dependencies are named together in one short sentence", async () => {
+  const { h } = await rig();
+  h.advance(1);
+  const mk = async (thread: string, name: string) =>
+    (
+      await h.call(
+        "runs.node.start",
+        { kind: "helper", owner: alice.id, threadId: thread, parentThread: MAIN, name, running: true },
+        engine,
+      )
+    ).node as { id: string };
+  const a = await mk(NUMBERS, "Gamma");
+  const b = await mk(T("g"), "Alpha");
+  for (const n of [a, b])
+    await h.call(
+      "runs.node.move",
+      { ...hold(h, n.id), runId: n.id, to: "failed", why: "failed", error: { code: "x", message: "no" } },
+      engine,
+    );
+  const docs = (
+    await h.call(
+      "runs.node.start",
+      { kind: "helper", owner: alice.id, threadId: DOCS, parentThread: MAIN, dependsOnThreads: [NUMBERS, T("g")] },
+      engine,
+    )
+  ).node as { id: string };
+  const got = (await h.call("runs.node.get", { runId: docs.id }, owner)).node;
+  assert.match(got.reason, /^Didn't start because (Alpha and Gamma|Gamma and Alpha) failed\.$/);
+});

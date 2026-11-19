@@ -187,13 +187,13 @@ if ("updatedAt" in o236) lf(o236["updatedAt"], p + "/updatedAt", e, L17);
 
 function d_s_a6c1ebd30d(v: unknown, p: string, e: string[]): void {
 {
-const x859 = v;
-const g859 = typeOf(x859);
-const b859: string[] = []; lf(x859, p, b859, L4); if (b859.length) e.push(...b859);
-if (g859 === "array") {
-if (g859 === 'array') { const a859 = x859 as unknown[];
-for (let i859 = 0; i859 < a859.length; i859++) {
-d_s_2d1da53e35(a859[i859], p + '/' + i859, e);
+const x858 = v;
+const g858 = typeOf(x858);
+const b858: string[] = []; lf(x858, p, b858, L4); if (b858.length) e.push(...b858);
+if (g858 === "array") {
+if (g858 === 'array') { const a858 = x858 as unknown[];
+for (let i858 = 0; i858 < a858.length; i858++) {
+d_s_2d1da53e35(a858[i858], p + '/' + i858, e);
 }
 }
 }
@@ -202,24 +202,24 @@ d_s_2d1da53e35(a859[i859], p + '/' + i859, e);
 
 function d_s_d3f43ff5d3(v: unknown, p: string, e: string[]): void {
 {
-const x1048 = v;
+const x1047 = v;
+const g1047 = typeOf(x1047);
+const b1047: string[] = []; lf(x1047, p, b1047, L0); if (b1047.length) e.push(...b1047);
+if (g1047 === "object") {
+if (g1047 === 'object') { const o1047 = x1047 as Record<string, unknown>;
+if (!("hours" in o1047)) e.push(p + "/hours" + ': required');
+if ("hours" in o1047) lf(o1047["hours"], p + "/hours", e, L12);
+if ("escalateTo" in o1047) {
+{
+const x1048 = o1047["escalateTo"];
 const g1048 = typeOf(x1048);
-const b1048: string[] = []; lf(x1048, p, b1048, L0); if (b1048.length) e.push(...b1048);
+const b1048: string[] = []; lf(x1048, p + "/escalateTo", b1048, L0); if (b1048.length) e.push(...b1048);
 if (g1048 === "object") {
 if (g1048 === 'object') { const o1048 = x1048 as Record<string, unknown>;
-if (!("hours" in o1048)) e.push(p + "/hours" + ': required');
-if ("hours" in o1048) lf(o1048["hours"], p + "/hours", e, L12);
-if ("escalateTo" in o1048) {
-{
-const x1049 = o1048["escalateTo"];
-const g1049 = typeOf(x1049);
-const b1049: string[] = []; lf(x1049, p + "/escalateTo", b1049, L0); if (b1049.length) e.push(...b1049);
-if (g1049 === "object") {
-if (g1049 === 'object') { const o1049 = x1049 as Record<string, unknown>;
-if (!("kind" in o1049)) e.push(p + "/escalateTo" + "/kind" + ': required');
-if (!("id" in o1049)) e.push(p + "/escalateTo" + "/id" + ': required');
-if ("kind" in o1049) lf(o1049["kind"], p + "/escalateTo" + "/kind", e, L424);
-if ("id" in o1049) lf(o1049["id"], p + "/escalateTo" + "/id", e, L1);
+if (!("kind" in o1048)) e.push(p + "/escalateTo" + "/kind" + ': required');
+if (!("id" in o1048)) e.push(p + "/escalateTo" + "/id" + ': required');
+if ("kind" in o1048) lf(o1048["kind"], p + "/escalateTo" + "/kind", e, L424);
+if ("id" in o1048) lf(o1048["id"], p + "/escalateTo" + "/id", e, L1);
 }
 }
 }

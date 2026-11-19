@@ -5,7 +5,6 @@
 import { raise } from "../projections.ts";
 import type { RunsCtx } from "../projections.ts";
 import { canSee, mayManage } from "../projections.ts";
-import { createHash } from "node:crypto";
 import { findNode, getNode, isTerminal, nodesOfThread, startNode } from "../node.ts";
 import type { Node } from "../node.ts";
 
@@ -71,8 +70,14 @@ export async function saveAsAgent(ctx: RunsCtx, input: In): Promise<unknown> {
     raise(ctx, "validation.precondition_failed", "That work has no written brief to save.", { reason: "no_brief" });
   const name = String(input.name ?? "").trim() || (n.name ?? brief?.goal ?? "").slice(0, 60).trim();
   if (name === "") raise(ctx, "validation.bad_input", "Give the agent a name.");
+  // the limits the helper's tools had when it began (recorded by the engine at its start). Only someone who manages the agent it ran as may carry them over: its allowed list is what it was given, so it is copied only for them, and
+  // a person with fewer rights gets the default tools. What it was denied is always carried (it only narrows).
   const tools = (n.policy as { tools?: { allowed?: unknown; denied?: unknown } } | undefined)?.tools;
   const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  const mayCarry =
+    n.whoId !== undefined &&
+    ctx.authorize?.({ perm: null, level: "manage" }, { type: "agent", id: n.whoId }).effect === "allow";
+  const carried = tools ? { allowed: mayCarry ? strs(tools.allowed) : [], denied: strs(tools.denied) } : undefined;
   const role = (input.role ? String(input.role) : (brief?.goal ?? n.name ?? "").split("\n")[0]!).trim().slice(0, 200);
   const made = (await ctx.call?.("agents.create", {
     name,
@@ -81,11 +86,15 @@ export async function saveAsAgent(ctx: RunsCtx, input: In): Promise<unknown> {
     instructions: cut(edited !== "" ? edited : textOf(brief!)),
     // a second press names the same agent: the key is the work's, so the agents module answers with the one it made
     idempotencyKey: `save:${n.id}`,
-    ...(tools ? { tools: { allowed: strs(tools.allowed), denied: strs(tools.denied) } } : {}),
+    ...(carried ? { tools: carried } : {}),
     ...(input.sharing ? { sharing: input.sharing } : {}),
   })) as { agent?: unknown } | undefined;
   if (!made?.agent) raise(ctx, "internal.unexpected", "The agent was not made.");
-  return { agent: made.agent, runId: n.id };
+  return {
+    agent: made.agent,
+    runId: n.id,
+    toolsCarried: tools === undefined ? "default" : mayCarry ? "kept" : "narrowed",
+  };
 }
 
 /** Start a finished helper again beside the first with an edited brief; the first stays as it was. */
@@ -113,13 +122,15 @@ export async function rerun(ctx: RunsCtx, input: In): Promise<unknown> {
     raise(ctx, "validation.bad_input", "Change the brief or the model, or there is nothing to compare.", {
       reason: "nothing_changed",
     });
-  // the same press again (same brief and model from the same work) is the one already started, not another
-  const sig = createHash("sha256")
-    .update(JSON.stringify([next.goal ?? "", next.instructions ?? "", input.model ?? n.model ?? ""]))
-    .digest("hex")
-    .slice(0, 16);
-  const prior = ((n.origin as { reruns?: Array<{ threadId: string; sig?: string }> } | undefined)?.reruns ?? []).find(
-    (r) => r.sig === sig,
+  // the same press again (the same goal, instructions and model from the same work) is the one already started, not another: compared as they were kept, never by a mark of them
+  const model = input.model ?? n.model ?? "";
+  type Entry = { threadId: string; at: number; goal?: string; instructions?: string; model?: string };
+  const before = ((n.origin as { reruns?: Entry[] } | undefined)?.reruns ?? []) as Entry[];
+  const prior = before.find(
+    (r) =>
+      (r.goal ?? "") === (next.goal ?? "") &&
+      (r.instructions ?? "") === (next.instructions ?? "") &&
+      (r.model ?? "") === model,
   );
   if (prior) return { threadId: prior.threadId, rerunOf: n.id };
   const parent = n.parentRun === undefined ? undefined : findNode(ctx.db, n.parentRun);
@@ -134,20 +145,30 @@ export async function rerun(ctx: RunsCtx, input: In): Promise<unknown> {
     instruction: next.instructions ?? next.goal ?? "",
     ...(n.whoId ? { agentId: n.whoId } : {}),
     ...((input.model ?? n.model) ? { model: input.model ?? n.model } : {}),
-    idempotencyKey: `rerun:${n.id}:${sig}`,
+    idempotencyKey: `rerun:${n.id}:${before.length}`,
   })) as { helper?: { threadId?: string } } | undefined;
   const threadId = started?.helper?.threadId;
   if (!threadId) raise(ctx, "internal.unexpected", "The helper was not started.");
   // the link lives on the first node: the threads of what was started again from it, in order
-  const origin = (n.origin as { reruns?: Array<{ threadId: string; at: number; sig?: string }> } | undefined) ?? {};
-  const reruns = [...(origin.reruns ?? []), { threadId: threadId!, at: ctx.now(), sig }].slice(-20);
+  const origin = (n.origin as { reruns?: Entry[] } | undefined) ?? {};
+  const reruns = [
+    ...(origin.reruns ?? []),
+    {
+      threadId: threadId!,
+      at: ctx.now(),
+      ...(next.goal !== undefined ? { goal: next.goal } : {}),
+      ...(next.instructions !== undefined ? { instructions: next.instructions } : {}),
+      model,
+    },
+  ].slice(-20);
   ctx.db.run(
     "UPDATE runs_node SET origin_json = ?, updated_at = ? WHERE run_id = ?",
     JSON.stringify({ ...origin, reruns }),
     ctx.now(),
     n.id,
   );
-  // its node stands from now, with the first one's reach: its tool and approval policy is copied, never widened (this capability takes no tool input, and the agent, chat and account are the first one's), so a re-run has what the first had and no more
+  // its node stands from now. A re-run's tools are those of the first one's agent (chat.helper.start is given that agent and no tools of its own, and this capability takes no tool input), so it has what the first had and no more;
+  // the node also carries the first one's recorded policy (the limits its tools had), so a save from the re-run says the same
   const have = nodesOfThread(ctx.db, threadId!, false, 1)[0];
   const carried = { brief: next, policy: n.policy ?? null, origin: { rerunOf: n.id } };
   if (have) {

@@ -90,7 +90,7 @@ type Out = {
     whoName?: string;
     dependsOn?: Array<string>;
     errorCode?: string;
-    errorMessage?: string;
+    reason?: string;
     stopReason?: string;
     leaseHolder?: string;
     leaseUntil?: number;
@@ -132,7 +132,6 @@ type Out = {
       "endedAt": 1760000000000,
       "engine": "example",
       "errorCode": "example",
-      "errorMessage": "example",
       "evidence": {},
       "id": "run_a1b2c3",
       "kind": "turn",
@@ -148,6 +147,7 @@ type Out = {
       "origin": {},
       "owner": "example",
       "parentRun": "run_a1b2c3",
+      "reason": "example",
       "result": {},
       "rootRun": "run_a1b2c3",
       "spent": {

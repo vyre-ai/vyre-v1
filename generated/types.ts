@@ -35573,7 +35573,7 @@ export type RunsBudgetSetOut = {
     whoName?: string;
     dependsOn?: Array<string>;
     errorCode?: string;
-    errorMessage?: string;
+    reason?: string;
     stopReason?: string;
     leaseHolder?: string;
     leaseUntil?: number;
@@ -35898,7 +35898,7 @@ export type RunsNodeClaimOut = {
     whoName?: string;
     dependsOn?: Array<string>;
     errorCode?: string;
-    errorMessage?: string;
+    reason?: string;
     stopReason?: string;
     leaseHolder?: string;
     leaseUntil?: number;
@@ -35989,7 +35989,7 @@ export type RunsNodeControlOut = {
       whoName?: string;
       dependsOn?: Array<string>;
       errorCode?: string;
-      errorMessage?: string;
+      reason?: string;
       stopReason?: string;
       leaseHolder?: string;
       leaseUntil?: number;
@@ -36078,7 +36078,7 @@ export type RunsNodeGetOut = {
     whoName?: string;
     dependsOn?: Array<string>;
     errorCode?: string;
-    errorMessage?: string;
+    reason?: string;
     stopReason?: string;
     leaseHolder?: string;
     leaseUntil?: number;
@@ -36176,7 +36176,7 @@ export type RunsNodeMoveOut = {
     whoName?: string;
     dependsOn?: Array<string>;
     errorCode?: string;
-    errorMessage?: string;
+    reason?: string;
     stopReason?: string;
     leaseHolder?: string;
     leaseUntil?: number;
@@ -36210,6 +36210,7 @@ export type RunsNodeSaveAsAgentIn = {
 export type RunsNodeSaveAsAgentOut = {
   agent: unknown;
   runId: string;
+  toolsCarried: "kept" | "narrowed" | "default";
 };
 export type RunsNodeStartIn = {
   kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
@@ -36290,7 +36291,7 @@ export type RunsNodeStartOut = {
     whoName?: string;
     dependsOn?: Array<string>;
     errorCode?: string;
-    errorMessage?: string;
+    reason?: string;
     stopReason?: string;
     leaseHolder?: string;
     leaseUntil?: number;
@@ -36658,7 +36659,7 @@ export type RunsTreeGetOut = {
       whoName?: string;
       dependsOn?: Array<string>;
       errorCode?: string;
-      errorMessage?: string;
+      reason?: string;
       stopReason?: string;
       leaseHolder?: string;
       leaseUntil?: number;

@@ -216,6 +216,7 @@ const awake = createKeepAwake();
 let host: EngineHostSeam | null = null;
 let building: Promise<TurnEngine | null> | null = null;
 let closeOpener: (() => Promise<void>) | null = null;
+let detachBridge: (() => void) | null = null;
 let closeUnlockWatch: (() => void) | null = null;
 
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
@@ -228,6 +229,9 @@ export function setEngineHost(h: EngineHostSeam | null): void {
   } // plugin servers end with the daemon, and so does holding the computer awake
   // At shutdown the engine processes end and MCP tokens are revoked, and then the default sandbox's wall (its egress proxy) stops: the proxy outlives nothing it served, and nothing keeps the daemon's process alive.
   if (h === null) {
+    // the bridge's looks-again timers stop here, before the databases close
+    detachBridge?.();
+    detachBridge = null;
     const done = (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve())
       .then(() => closeDefaultSandbox())
       .catch(() => undefined);
@@ -1687,7 +1691,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         }),
       );
     });
-    bridge?.attach(engine);
+    detachBridge = bridge?.attach(engine) ?? null;
     h.extend?.(engine);
     completer = (i) => oneShot(openSession, i, now);
     dropWarm = opener ? (threadId: string) => opener.pool.drop(threadId) : null;

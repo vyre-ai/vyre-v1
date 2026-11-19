@@ -1608,12 +1608,14 @@ export function createBridge(o: BridgeOptions): Bridge {
     return { receivedAs: res.responders };
   }
 
+  let closed = false;
   const heldNow = new Map<string, string[]>();
   function scheduleRelease(ctx: EngineCtx, threadId: string, readAs: string, messageId: string, tries = 0): void {
     const list = heldNow.get(threadId) ?? [];
     if (tries === 0) heldNow.set(threadId, [...list, messageId]);
     const t = setTimeout(() => {
       void (async () => {
+        if (closed) return;
         const mine = heldNow.get(threadId) ?? [];
         if (!mine.includes(messageId) || mine[mine.length - 1] !== messageId) {
           return;
@@ -1702,6 +1704,7 @@ export function createBridge(o: BridgeOptions): Bridge {
   function scheduleWaitRelease(ctx: EngineCtx, threadId: string, readAs: string, messageId: string, tries = 0): void {
     const t = setTimeout(() => {
       void (async () => {
+        if (closed) return;
         const st = await helperWaiting(ctx, threadId, readAs);
         if (st === "waiting") {
           if (tries < 2000) scheduleWaitRelease(ctx, threadId, readAs, messageId, tries + 1);
@@ -1762,7 +1765,13 @@ export function createBridge(o: BridgeOptions): Bridge {
   return {
     attach(e) {
       engine = e;
-      return e.subscribe(onEngine);
+      closed = false;
+      const off = e.subscribe(onEngine);
+      // the engine is let go (the daemon is stopping): the looks-again timers of held results stop with it, so none reads a status after the database has closed
+      return () => {
+        closed = true;
+        return off();
+      };
     },
     tap: (openSession) => async (spec) => {
       const key = `${spec.threadId}|${spec.agent.id}`;

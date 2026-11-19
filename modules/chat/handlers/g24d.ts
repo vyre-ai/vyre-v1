@@ -974,6 +974,37 @@ export async function helperStart(
       });
     if (!waitsFor.includes(rows[0]!.id)) waitsFor.push(rows[0]!.id);
   }
+  // a helper can only wait for work of the same job (the live turn the parent works in): one of an earlier job is refused here, so the agent that asked knows, not started at once as if it had waited
+  if (waitsFor.length > 0 && ctx.call) {
+    let outside: string | undefined;
+    try {
+      const f = (await ctx.call("runs.node.find", { threadIds: [parent.id, ...waitsFor] })) as {
+        byThread?: Record<string, string>;
+      };
+      const rootOf = async (t: string): Promise<string | undefined> => {
+        const id = f.byThread?.[t];
+        return id
+          ? ((await ctx.call!("runs.node.get", { runId: id })) as { node?: { rootRun?: string } }).node?.rootRun
+          : undefined;
+      };
+      const mine = await rootOf(parent.id);
+      for (const dep of waitsFor) {
+        const r = await rootOf(dep);
+        if (mine !== undefined && r !== undefined && r !== mine) outside = dep;
+      }
+    } catch {
+      /* runs cannot be asked here: the engine checks again when the helper's node is made */
+    }
+    if (outside !== undefined)
+      raise(
+        ctx,
+        "validation.bad_input",
+        "A helper can only wait for helpers of this same job. That one belongs to earlier work.",
+        {
+          reason: "no_such_helper",
+        },
+      );
+  }
   // which model the helper runs on: the agent's pick, checked against the accounts the person may use and the agent's own rule (owner, 4 Nov 2026)
   const chosen = await chooseHelperModel(
     ctx,

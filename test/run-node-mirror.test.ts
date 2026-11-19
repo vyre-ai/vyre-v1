@@ -19,7 +19,7 @@ const turn = (id: string, threadId: string, over: Record<string, unknown> = {}) 
   tokensOut: 300,
   ...over,
 });
-function world(opts: { broken?: boolean } = {}) {
+function world(opts: { broken?: boolean; tools?: { allowed: string[]; denied: string[] } } = {}) {
   const h: Harness = harness();
   const logs: string[] = [];
   let threadCalls = 0;
@@ -34,6 +34,10 @@ function world(opts: { broken?: boolean } = {}) {
               ? { kind: "helper", title: "Supplier review", parentThreadId: CHAT, starter: ALICE }
               : { kind: "chat", starter: ALICE },
         };
+      }
+      if (cap === "agents.get") {
+        if (!opts.tools) throw new Error("not readable");
+        return { agent: { toolsAllowed: opts.tools.allowed, toolsDenied: opts.tools.denied } };
       }
       if (opts.broken) throw new Error("the runs module is away");
       if (cap === "runs.node.start") h.advance(1); // nodes started in one millisecond would sort by random id
@@ -212,4 +216,24 @@ test("the node is told whose money the turn spends, once: the Space's when its a
       1,
     );
   }
+});
+
+test("a helper node records the tools its agent was limited to when it began; a chat turn and a helper whose agent has no limits record none", async () => {
+  const limited = world({ tools: { allowed: ["web_search"], denied: ["mail_send"] } });
+  await limited.mirror.turn(turn("trn_1", HELP), "started");
+  await limited.mirror.turn(turn("trn_2", CHAT), "started");
+  const policy = (w: ReturnType<typeof world>, kind: string) =>
+    (w.h.sqlite.prepare("SELECT policy_json FROM runs_node WHERE kind = ?").get(kind) as { policy_json: string | null })
+      .policy_json;
+  assert.deepEqual(JSON.parse(policy(limited, "helper")!), {
+    tools: { allowed: ["web_search"], denied: ["mail_send"] },
+  });
+  assert.equal(policy(limited, "turn"), null, "a chat turn has no helper limits");
+  const free = world({ tools: { allowed: [], denied: [] } });
+  await free.mirror.turn(turn("trn_3", HELP), "started");
+  assert.equal(policy(free, "helper"), null, "no limits, nothing recorded");
+  const unreadable = world();
+  await unreadable.mirror.turn(turn("trn_4", HELP), "started");
+  assert.equal(policy(unreadable, "helper"), null);
+  assert.equal(unreadable.rows().length, 1, "and the node is made all the same");
 });

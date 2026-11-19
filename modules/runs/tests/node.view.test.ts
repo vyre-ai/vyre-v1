@@ -81,7 +81,8 @@ test("the owner sees everything", async () => {
   const tree = await h.call("runs.tree.get", { runId: root.id }, at0(alice));
   const got = tree.nodes.find((n: any) => n.id === a.id); // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal(got.name, "Calder bid");
-  assert.equal(got.errorMessage, "Numbers had no column for Pine");
+  assert.equal(got.reason, "It could not finish.", "a fixed phrase for the kind of failure, not the raw error");
+  assert.equal(got.errorMessage, undefined, "the raw error stays in the logs");
   assert.equal(got.spent.usdMicros, 4000);
   assert.equal(
     (await h.call("runs.events.list", { runId: root.id }, at0(alice))).events.some((e: any) => e.type === "said"),

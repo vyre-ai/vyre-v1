@@ -52,6 +52,18 @@ export const isTerminal = (s: NodeStatus): boolean => s === "succeeded" || s ===
 export const isLive = (s: NodeStatus): boolean => !isTerminal(s);
 
 /** The legal edges. Terminal states have none: a retry is a new attempt on a new node. waiting goes to queued, never straight to running: a woken node passes the scheduler again (budget, slots, dependencies). waiting may end succeeded: a parked turn is over when its wake starts a turn of its own. */
+/** The words a person reads for why a node failed. A dependency that failed already says it in plain words; every other failure is a short fixed phrase for its kind, never the raw error. */
+export function readableReason(code: string | undefined, message: string | undefined): string {
+  const c = (code ?? "").toLowerCase();
+  if (c === "dependency_failed" && message) return message;
+  if (c === "worker_lost") return "The server restarted while it was working.";
+  if (c === "result_invalid") return "Its answer did not fit what was asked for.";
+  if (/rate|quota|limit|spend/.test(c)) return "The AI account reached a limit.";
+  if (/auth|key|credential|sign_?in|token/.test(c)) return "The AI account could not be used.";
+  if (/timeout|timed_out/.test(c)) return "It took too long.";
+  return "It could not finish.";
+}
+
 export const EDGES: Readonly<Record<NodeStatus, readonly NodeStatus[]>> = {
   queued: ["running", "paused", "stopped", "failed"],
   running: ["waiting", "paused", "succeeded", "failed", "stopped", "queued"],
@@ -139,6 +151,8 @@ export interface Node {
   spendScope?: "space" | "own";
   errorCode?: string;
   errorMessage?: string;
+  /** why it failed, in words a person can read: never the raw error (which can name paths and hosts), which stays for the logs */
+  reason?: string;
   stopReason?: string;
   leaseHolder?: string;
   leaseUntil?: number;
@@ -198,6 +212,9 @@ export function nodeOf(r: Row): Node {
       r["spend_scope"] === "space" || r["spend_scope"] === "own" ? (r["spend_scope"] as "space" | "own") : undefined,
     errorCode: str(r["error_code"]),
     errorMessage: str(r["error_message"]),
+    ...(str(r["status"]) === "failed" || str(r["error_code"]) !== undefined
+      ? { reason: readableReason(str(r["error_code"]), str(r["error_message"])) }
+      : {}),
     stopReason: str(r["stop_reason"]),
     leaseHolder: str(r["lease_holder"]),
     leaseUntil: int(r["lease_until"]),
@@ -862,8 +879,16 @@ export function settleDeps(ctx: RunsCtx): Node[] {
   ) as Row[];
   for (const w of waiting) {
     const id = String(w["id"]);
-    const bad = unmetDeps(ctx.db, id).find((x) => x.status === "failed" || x.status === "stopped");
-    if (!bad) continue;
+    const bads = unmetDeps(ctx.db, id).filter((x) => x.status === "failed" || x.status === "stopped");
+    if (bads.length === 0) continue;
+    const names = bads.map((b) =>
+      (b.name ?? "other work")
+        .replace(/\s+/g, " ")
+        .replace(/["\u201c\u201d:]/g, "'")
+        .slice(0, 60),
+    );
+    const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]!;
+    const only = bads.length === 1 && bads[0]!.status === "stopped";
     try {
       out.push(
         moveNode(ctx, id, "failed", {
@@ -871,10 +896,7 @@ export function settleDeps(ctx: RunsCtx): Node[] {
           by: "svc_host",
           error: {
             code: "dependency_failed",
-            message: `It was to start after ${(bad.name ?? "other work")
-              .replace(/\s+/g, " ")
-              .replace(/["\u201c\u201d:]/g, "'")
-              .slice(0, 60)}, which ${bad.status === "stopped" ? "was stopped" : "did not finish"}.`,
+            message: `Didn't start because ${list} ${only ? "was stopped" : "failed"}.`,
           },
         }).node,
       );

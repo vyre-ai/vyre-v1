@@ -122,6 +122,21 @@ export function createNodeMirror(h: MirrorHost) {
     });
   }
 
+  async function toolLimits(agentId: string): Promise<{ tools: { allowed: string[]; denied: string[] } } | undefined> {
+    try {
+      const a = (await h.call("agents.get", { agentId })) as {
+        agent?: { toolsAllowed?: unknown; toolsDenied?: unknown };
+      } | null;
+      const list = (v: unknown): string[] =>
+        Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+      const allowed = list(a?.agent?.toolsAllowed);
+      const denied = list(a?.agent?.toolsDenied);
+      return allowed.length + denied.length > 0 ? { tools: { allowed, denied } } : undefined;
+    } catch {
+      return undefined; // not readable here: no limits recorded, the node is made all the same
+    }
+  }
+
   async function one(turn: TurnFacts, phase: Phase, extra: Extra): Promise<void> {
     const f = await threadFacts(turn.threadId, turn.asker ?? "");
     const asker = turn.asker ?? f?.starter;
@@ -130,6 +145,8 @@ export function createNodeMirror(h: MirrorHost) {
     if (!agentNames.has(turn.agentId))
       agentNames.set(turn.agentId, await h.nameOf?.(turn.agentId).catch(() => undefined));
     const who = agentNames.get(turn.agentId);
+    // what the helper's tools were limited to when it began, so what is made of the work later (saved as an agent, started again) has the same limits and says so truthfully; an agent with no limits has none to record
+    const policy = kind === "helper" && phase === "started" ? await toolLimits(turn.agentId) : undefined;
     const started = (await h.call("runs.node.start", {
       kind,
       owner: asker,
@@ -137,6 +154,7 @@ export function createNodeMirror(h: MirrorHost) {
       whoKind: "agent",
       whoId: turn.agentId,
       ...(turn.model ? { model: turn.model } : {}),
+      ...(policy ? { policy } : {}),
       ...(who ? { whoName: who } : {}),
       ...(f?.title && kind !== "turn" ? { name: f.title } : {}),
       ...(kind !== "turn" && f?.parentThreadId ? { parentThread: f.parentThreadId } : {}),
