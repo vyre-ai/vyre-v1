@@ -791,7 +791,7 @@ Signed: lead, 19 Nov 2026
 - Tests: host/tests/gate.web-read.test.ts, modules/computers/tests/web-tools.test.ts, modules/settings/tests/search-key.test.ts, lib/tests/web-read.test.ts.
 - Snapshots: docs/frozen/snapshots/computers.json.
 
-Signed: pending, lead
+Signed: lead, 19 Nov 2026
 
 ## 19 Nov 2026: decisions on review r-review for lane r42-chrome
 
@@ -800,4 +800,4 @@ Signed: pending, lead
 - Not a contract change, pinned by tests: a person's touch during an agent's call queues a pause that takes effect before the agent's next step (the bar says "Pausing after this step"); the extension's pages show page text as text only.
 - Tests: modules/settings/tests/search-key.test.ts, modules/vault/tests/g20.test.ts, apps/chrome/tests/ext-agent.test.ts, ext-text-only.test.ts.
 
-Signed: pending, lead
+Signed: lead, 19 Nov 2026
