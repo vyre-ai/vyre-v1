@@ -102,7 +102,7 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       thread: { threadId, kind: "chat", planMode: false, ...d.thread?.(threadId) },
       ...(rules ? { rules } : {}),
       ...(provider ? { provider } : {}),
-      ...(turnId ? { turnId } : {}),
+      ...(turnId ? { turnId, repeatSafe: true as const } : {}),
       ...(callId ? { callId } : {}),
       ...(startedAt !== undefined ? { turnStartedAt: startedAt } : {}),
     };

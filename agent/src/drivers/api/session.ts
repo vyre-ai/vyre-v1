@@ -5,6 +5,7 @@
 //   retries    429 with a short Retry-After, 5xx and network errors before the first byte, with backoff; after the first byte an error is surfaced, never replayed
 //   cancel     aborts the request in flight and releases any wait for a tool result; the generator ends without an error event
 //   caching    the stable system blocks and the sorted tool list are hashed and marked (prefix.ts); each call notes whether the prefix matched the one before
+import { invalidateReads } from "../../tools/reads-epoch.ts";
 import { slimTool } from "./slim.ts";
 import { FIRST_TOKEN_API_MS, NO_FIRST_TOKEN_CODE, NO_FIRST_TOKEN_LINE, logNoFirstToken } from "../first-token.ts";
 import type { NoFirstTokenLog } from "../first-token.ts";
@@ -374,6 +375,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         const c = await compact(fixed, messages, window, deps.summarize, input.keep);
         if (c.dropped > 0) {
           compactions += 1;
+          invalidateReads(input.turnId); // what the turn read earlier may be gone from the model's view (agent/src/tools/reads-epoch.ts)
           messages = c.messages;
         }
         const req: CallRequest = {

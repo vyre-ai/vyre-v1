@@ -5,6 +5,7 @@
 // An interrupt (stop and send) cancels every running turn now and runs the new message first. runTurn catches everything: a failed thread accepts the next message as a fresh turn.
 // A tool call held at the Gate parks the turn (turn.waiting { task }, state waiting); resume() queues the wake that continues it once the task is answered.
 // Messages and waits sit behind MessageStore and WaitStore, so a second host that takes the thread over (recover) replays the same bodies.
+import { invalidateReads } from "../tools/reads-epoch.ts";
 import { plainToolWords } from "../../../lib/plain-words.ts";
 import { nextDepth, route } from "../../../lib/route.ts";
 import { payLine } from "../accounts/paid.ts";
@@ -1098,6 +1099,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (resumePlan) {
       resumes.delete(rowKey(st.thread.id, item.qseq));
       const replayed: Array<{ entry: (typeof resumePlan.replay)[number]; ok: boolean; summary: string }> = [];
+      invalidateReads(resumePlan.turnId); // the resumed turn starts from a note, not from what it read before
       for (const e of resumePlan.replay) {
         const r = await runTool(
           opts.callTool,

@@ -1,7 +1,8 @@
 // A read an agent makes again in the same turn, and finds unchanged, is answered with one line instead of the same pages a second time (r42-runtime-tokens, DIRECTION-agent-runtime C: references, not content).
-// Only the SAME agent in the SAME turn: its own earlier result is still in its context (nothing prunes a turn's tool results), so the line is lossless. The call still reaches the server and passes the same access
+// Only the SAME agent in the SAME turn, and only where its earlier result is certain to be in view: the API driver (ToolCtx.repeatSafe), until it compacts the conversation or the turn is resumed (reads-epoch.ts forgets the turn's reads then). A CLI engine's own session can compact unseen, so it never gets the line. The call still reaches the server and passes the same access
 // check, so a thing that changed, or that the agent may no longer read, is answered as it would be. Nothing is shared between agents: another helper must see the content itself to use it.
 import { canonical, shortHash } from "./fill.ts";
+import { readsEpoch } from "./reads-epoch.ts";
 import type { ToolCtx } from "./types.ts";
 
 /** The reads of one thing by its own tool: a second read of the same thing in a turn is the repeat this catches. */
@@ -45,10 +46,10 @@ export class RepeatReads {
     input: unknown,
     output: unknown,
   ): { bytes: number; tool: string } | null {
-    if (!ONE_THING.has(cap) || ctx.turnId === undefined) return null;
+    if (!ONE_THING.has(cap) || ctx.turnId === undefined || ctx.repeatSafe !== true) return null;
     const text = canonical(output);
     if (text.length < REPEAT_MIN_BYTES) return null;
-    const turn = `${ctx.thread.threadId}|${ctx.agentId}|${ctx.turnId}`;
+    const turn = `${ctx.thread.threadId}|${ctx.agentId}|${ctx.turnId}|${readsEpoch(ctx.turnId)}`;
     let reads = this.turns.get(turn);
     if (!reads) {
       reads = new Map();
@@ -63,11 +64,6 @@ export class RepeatReads {
     reads.set(key, { fingerprint, bytes: text.length, tool });
     if (reads.size > MAX_READS) reads.delete(reads.keys().next().value as string);
     return null;
-  }
-
-  /** The turn ended: its reads are not kept. */
-  forgetTurn(ctx: ToolCtx): void {
-    if (ctx.turnId !== undefined) this.turns.delete(`${ctx.thread.threadId}|${ctx.agentId}|${ctx.turnId}`);
   }
 }
 

@@ -6,6 +6,7 @@ import { createToolSession } from "../src/tools/index.ts";
 import { ctx, fakeInvoke, loadGenerated } from "../src/tools/harness.ts";
 import type { CallDeps } from "../src/tools/call.ts";
 import { REPEAT_MIN_BYTES } from "../src/tools/repeat-read.ts";
+import { invalidateReads } from "../src/tools/reads-epoch.ts";
 
 const page = (rev: number, n = 6_000): { fileId: string; version: number; text: string } => ({
   fileId: "fil_1",
@@ -34,7 +35,7 @@ function setup(answer: () => unknown) {
   });
   const tool = loaded.catalog.all.find((x) => x.cap === "files.read")!.name;
   session.preload("T1", [tool]);
-  const read = async (c = ctx({ turnId: "trn_1" })): Promise<{ data: Record<string, unknown> }> => {
+  const read = async (c = ctx({ turnId: "trn_1", repeatSafe: true })): Promise<{ data: Record<string, unknown> }> => {
     const r = await session.call(c, tool, { fileId: "fil_1" });
     assert.equal(r.kind, "result");
     return (r.kind === "result" ? r.result.content : {}) as { data: Record<string, unknown> };
@@ -59,11 +60,37 @@ test("a changed answer, another turn, another agent, no turn id and a small answ
   await s.read();
   rev = 4;
   assert.equal((await s.read()).data["version"], 4, "it changed: whole");
-  assert.equal((await s.read(ctx({ turnId: "trn_2" }))).data["version"], 4, "another turn reads it whole");
-  assert.equal((await s.read(ctx({ turnId: "trn_1", agentId: "agt_drafter" }))).data["version"], 4, "another agent");
+  assert.equal(
+    (await s.read(ctx({ turnId: "trn_2", repeatSafe: true }))).data["version"],
+    4,
+    "another turn reads it whole",
+  );
+  assert.equal(
+    (await s.read(ctx({ turnId: "trn_1", agentId: "agt_drafter", repeatSafe: true }))).data["version"],
+    4,
+    "another agent",
+  );
   assert.equal((await s.read(ctx())).data["version"], 4, "no turn id: whole");
   assert.equal((await s.read(ctx())).data["version"], 4, "and again, still whole");
   const small = setup(() => page(1, REPEAT_MIN_BYTES - 400));
   await small.read();
   assert.equal((await small.read()).data["version"], 1, "a small answer is sent again as it is");
+});
+
+test("a compaction or a resumed turn forgets the turn's reads, and a path that is not the API driver never gets the line", async () => {
+  const s = setup(() => page(3));
+  const api = ctx({ turnId: "trn_c", repeatSafe: true });
+  await s.read(api);
+  assert.equal((await s.read(api)).data["unchanged"], true);
+  invalidateReads("trn_c"); // the driver compacted, or the turn was resumed
+  assert.equal((await s.read(api)).data["version"], 3, "after the invalidation the read is whole again");
+  assert.equal((await s.read(api)).data["unchanged"], true, "and is remembered afresh from there");
+  invalidateReads("trn_c");
+  invalidateReads("trn_c");
+  assert.equal((await s.read(api)).data["version"], 3);
+  // a CLI engine's call (MCP) has a turn id but is not repeatSafe: its own session can compact unseen
+  const cli = ctx({ turnId: "trn_cli" });
+  await s.read(cli);
+  assert.equal((await s.read(cli)).data["version"], 3, "never shortened on the CLI path");
+  assert.equal((await s.read(cli)).data["version"], 3);
 });
