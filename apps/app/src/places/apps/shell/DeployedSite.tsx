@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { Status, TONE_COLOR } from "../../../../../../ui/src/Status/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useAppsData } from "./data.tsx";
@@ -348,14 +349,14 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
   );
 
   const deploysTab = (
-    <View style={wide ? s.split : undefined}>
+    <>
       {!wide && opened ? (
         <View style={s.paneBack}>
           <Button title="Back to deploys" onPress={() => setOpenId(null)} />
           {detail}
         </View>
       ) : (
-        <View style={wide ? s.splitList : undefined}>
+        <View>
           <Card title="Deploys">
             {list.length === 0 ? (
               <Text style={ui.text}>None yet.</Text>
@@ -383,12 +384,25 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
           </Card>
         </View>
       )}
-      {wide ? (
-        <View style={s.splitPane}>
-          {detail ?? <Text style={ui.text}>Open a deploy to see its steps and log.</Text>}
-        </View>
+      {wide && opened ? (
+        // the app's shared right pane: it opens where the row was pressed, beside the page, and the person can drag its width
+        <ResizableColumn
+          paneKey="site-deploy-pane"
+          defaultWidth={400}
+          grow="left"
+          min={320}
+          style={s.pane as never}
+          testID="site-deploy-pane"
+          label="Deploy"
+        >
+          <View style={s.paneHead}>
+            <Text style={s.paneTitle}>Deploy</Text>
+            <Button title="Close" testID="site-deploy-pane-close" onPress={() => setOpenId(null)} />
+          </View>
+          {detail}
+        </ResizableColumn>
       ) : null}
-    </View>
+    </>
   );
 
   const logsTab = (
@@ -819,9 +833,15 @@ const s = StyleSheet.create({
   tabOn: { borderColor: "var(--accent)" as string },
   tabText: { fontSize: 13, color: "var(--ink-3)" as string },
   tabTextOn: { color: "var(--ink)" as string, fontWeight: "600" },
-  split: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
-  splitList: { flex: 1, minWidth: 0 },
-  splitPane: { width: 380, minWidth: 0 },
+  pane: { borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
+  paneHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    minHeight: 44,
+  },
+  paneTitle: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   paneBack: { gap: 12 },
   rowWord: { fontSize: 12, color: "var(--ink-3)" as string },
   state: { flexDirection: "row", alignItems: "center", gap: 8 },

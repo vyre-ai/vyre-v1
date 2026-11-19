@@ -37,6 +37,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.publish": Handler<"sites.publish", X>;
   "sites.rollback": Handler<"sites.rollback", X>;
   "sites.service_identity": Handler<"sites.service_identity", X>;
+  "sites.ship": Handler<"sites.ship", X>;
   "sites.signin_link": Handler<"sites.signin_link", X>;
   "sites.staging_password_set": Handler<"sites.staging_password_set", X>;
   "sites.status": Handler<"sites.status", X>;

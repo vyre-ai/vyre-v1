@@ -2598,6 +2598,7 @@ export function stubs(ctx: CallCtx) {
       publish: call("sites.publish"),
       rollback: call("sites.rollback"),
       service_identity: call("sites.service_identity"),
+      ship: call("sites.ship"),
       signin_link: call("sites.signin_link"),
       staging_password_set: call("sites.staging_password_set"),
       status: call("sites.status"),

@@ -372,6 +372,37 @@ export default defineManifest({
       },
     ),
     write(
+      "sites.ship",
+      "Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on",
+      {
+        in: {
+          siteId: t.opt(id.site),
+          name: t.opt(t.str({ description: "Needed when there is no siteId" })),
+          source: t.opt(source),
+          kind: t.opt(t.enm("site", "app", "api", "worker")),
+          access: t.opt(access),
+          limits: t.opt(limits),
+          env: t.opt(t.arr(t.obj({ name: t.str(), vaultHandle: id.handle }))),
+          addons: t.opt(t.arr(t.enm("postgres", "redis"))),
+          wait: t.opt(t.bool({ description: "Default true. False returns as soon as the deploy has started" })),
+        },
+        out: {
+          ok: t.bool({ description: "True when the site is live, or when the deploy was started with wait false" }),
+          siteId: id.site,
+          address: t.opt(t.str({ description: "Where it is live" })),
+          say: t.str({ description: "The answer in one or two sentences, to give the person" }),
+          failedStep: t.opt(t.enm("setup", "fetch", "build", "start", "check")),
+          problem: t.opt(t.str()),
+          fix: t.opt(fix),
+          deployment: t.opt(dep),
+        },
+        perm: "sites.deploy",
+        tool: "sites",
+        audit: "sensitive",
+        errors: ["validation.bad_input", "validation.precondition_failed", "permission.no_grant"],
+      },
+    ),
+    write(
       "sites.deploy_cancel",
       "Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live",
       {

@@ -976,6 +976,108 @@ async function sitesDeployCancel(ctx: Ctx, input: unknown): Promise<{ deployment
   };
 }
 
+/** One call for an agent: create the site (or take the one named), set its env, add its databases, deploy, and say how it ended in words to hand on. A step that fails after the site exists comes back with the siteId, so calling again goes on from there. */
+async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unknown>> {
+  const o = rec(ctx, input);
+  const wait = optBool(ctx, o, "wait") !== false;
+  const named = optStr(ctx, o, "siteId");
+  let siteId: string;
+  if (named === undefined) {
+    const name = reqStr(ctx, o, "name");
+    if (o["source"] === undefined)
+      fail(ctx, "validation.bad_input", "Say where the code is: a repo, a folder or zip in Files, or a path.", {
+        field: "source",
+      });
+    const made = (await ctx.call("sites.create", {
+      name,
+      kind: optStr(ctx, o, "kind") ?? "app",
+      source: o["source"],
+      ...(o["access"] === undefined ? {} : { access: o["access"] }),
+      ...(o["limits"] === undefined ? {} : { limits: o["limits"] }),
+    } as never)) as { site: { siteId: string } };
+    siteId = made.site.siteId;
+  } else siteId = str(mustSite(ctx, named).id);
+  const stuck = (step: string, problem: string, fixKey?: Fix): Record<string, unknown> => ({
+    ok: false,
+    siteId,
+    say: `It stopped before the build, at ${step}: ${problem} Call sites_ship again with this siteId once that is fixed.`,
+    failedStep: "setup",
+    problem,
+    ...(fixKey ? { fix: fixKey } : {}),
+  });
+  const words = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+  try {
+    const entries = Array.isArray(o["env"]) ? (o["env"] as { name: string; vaultHandle: string }[]) : [];
+    if (entries.length) {
+      const have = (await ctx.call("sites.env_list", { siteId } as never)) as {
+        entries: { name: string; vaultName: string }[];
+      };
+      const keep = have.entries
+        .filter((e) => !entries.some((n) => n.name === e.name))
+        .map((e) => ({ name: e.name, vaultHandle: e.vaultName }));
+      await ctx.call("sites.env_set", { siteId, entries: [...keep, ...entries] } as never);
+    }
+  } catch (e) {
+    return stuck("the env vars", words(e), "set_env");
+  }
+  try {
+    const wanted = Array.isArray(o["addons"]) ? (o["addons"] as string[]) : [];
+    if (wanted.length) {
+      const site = (await ctx.call("sites.get", { siteId } as never)) as { site: { addons?: { kind: string }[] } };
+      for (const kind of new Set(wanted))
+        if (!site.site.addons?.some((a) => a.kind === kind))
+          await ctx.call("sites.addon_add", { siteId, kind } as never);
+    }
+  } catch (e) {
+    return stuck("the database", words(e));
+  }
+  let deployment: Record<string, unknown>;
+  try {
+    const out = (await ctx.call("sites.deploy", {
+      siteId,
+      wait,
+      ...(named !== undefined && o["source"] !== undefined ? { source: o["source"] } : {}),
+    } as never)) as { deployment: Record<string, unknown> };
+    deployment = out.deployment;
+  } catch (e) {
+    return stuck("the deploy", words(e));
+  }
+  const site = (await ctx.call("sites.get", { siteId } as never)) as { site: { url?: string; live?: boolean } };
+  const state = str(deployment.state);
+  if (state === "ready") {
+    const address = site.site.live ? site.site.url : undefined;
+    return {
+      ok: true,
+      siteId,
+      ...(address ? { address } : {}),
+      say: address
+        ? `It is live at ${address}.`
+        : "It is built and running. It is not public yet: public access waits for the person's yes, so ask for sites_promote.",
+      deployment,
+    };
+  }
+  if (state === "queued" || state === "building")
+    return {
+      ok: true,
+      siteId,
+      say: "The deploy has started. Read sites_deployments or sites_logs with build to follow it.",
+      deployment,
+    };
+  const steps = (deployment.steps as { key: string; state: string }[] | undefined) ?? [];
+  const failedStep = steps.find((s) => s.state === "failed")?.key ?? "build";
+  const problem = typeof deployment.problem === "string" ? deployment.problem : "The deploy did not finish.";
+  const fixKey = typeof deployment.fix === "string" ? (deployment.fix as Fix) : undefined;
+  return {
+    ok: false,
+    siteId,
+    say: `It stopped at ${failedStep}: ${problem}${fixKey ? ` The fix is ${fixKey}.` : ""} The log is sites_logs with build; fix it and call sites_ship again with this siteId.`,
+    failedStep,
+    problem,
+    ...(fixKey ? { fix: fixKey } : {}),
+    deployment,
+  };
+}
+
 async function sitesDeployments(
   ctx: Ctx,
   input: unknown,
@@ -1503,6 +1605,7 @@ export async function deployedLogs(
 export const releaseHandlers = {
   "sites.deploy": (ctx: Ctx, input: unknown) => sitesDeploy(ctx, input),
   "sites.deploy_cancel": (ctx: Ctx, input: unknown) => sitesDeployCancel(ctx, input),
+  "sites.ship": (ctx: Ctx, input: unknown) => sitesShip(ctx, input),
   "sites.deployments": (ctx: Ctx, input: unknown) => sitesDeployments(ctx, input),
   "sites.rollback": (ctx: Ctx, input: unknown) => sitesRollback(ctx, input),
   "sites.env_set": (ctx: Ctx, input: unknown) => sitesEnvSet(ctx, input),

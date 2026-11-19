@@ -57967,6 +57967,161 @@
     },
     {
       "blocks": [],
+      "cap": "sites.ship",
+      "deferred": false,
+      "description": "Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "access": {
+            "enum": [
+              "public",
+              "password",
+              "space",
+              "private"
+            ],
+            "type": "string"
+          },
+          "addons": {
+            "items": {
+              "enum": [
+                "postgres",
+                "redis"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "env": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "vaultHandle": {
+                  "examples": [
+                    "#Dana_Lawmatics"
+                  ],
+                  "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "vaultHandle"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "site",
+              "app",
+              "api",
+              "worker"
+            ],
+            "type": "string"
+          },
+          "limits": {
+            "properties": {
+              "cpus": {
+                "maximum": 16,
+                "minimum": 0.1,
+                "type": "number"
+              },
+              "diskMb": {
+                "maximum": 1048576,
+                "minimum": 256,
+                "type": "integer"
+              },
+              "memoryMb": {
+                "maximum": 65536,
+                "minimum": 128,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "cpus",
+              "memoryMb"
+            ],
+            "type": "object"
+          },
+          "name": {
+            "description": "Needed when there is no siteId",
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "source": {
+            "properties": {
+              "branch": {
+                "examples": [
+                  "main"
+                ],
+                "type": "string"
+              },
+              "fileId": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "pattern": "^fil_[a-z0-9]+$",
+                "type": "string"
+              },
+              "folderId": {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              "path": {
+                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
+                "type": "string"
+              },
+              "repo": {
+                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
+                "examples": [
+                  "https://github.com/acme/cx-dashboard"
+                ],
+                "type": "string"
+              },
+              "root": {
+                "description": "The folder inside the repo or upload that holds the app",
+                "examples": [
+                  "apps/web"
+                ],
+                "type": "string"
+              },
+              "tokenHandle": {
+                "examples": [
+                  "#Dana_Lawmatics"
+                ],
+                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "wait": {
+            "description": "Default true. False returns as soon as the deploy has started",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "sites_ship",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.staging_password_set",
       "deferred": false,
       "description": "Choose the sealed Vault key that protects staging (shared across a site previews)",

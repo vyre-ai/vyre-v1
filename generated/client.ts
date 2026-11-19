@@ -2598,6 +2598,7 @@ export function createClient(transport: Transport) {
       publish: call("sites.publish", 1),
       rollback: call("sites.rollback", 1),
       service_identity: call("sites.service_identity", 1),
+      ship: call("sites.ship", 1),
       signin_link: call("sites.signin_link", 1),
       staging_password_set: call("sites.staging_password_set", 1),
       status: call("sites.status", 1),

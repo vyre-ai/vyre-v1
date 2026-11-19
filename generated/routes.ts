@@ -34311,6 +34311,24 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/sites/ship",
+    "cap": "sites.ship",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": "sites.deploy",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/sites/signin_link",
     "cap": "sites.signin_link",
     "v": 1,
@@ -38657,7 +38675,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/templates/project_starters",
@@ -38675,10 +38696,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/templates/save",

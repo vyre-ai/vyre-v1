@@ -37,6 +37,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "sites.publish": async (ctx) => { throw new VyreErr(notImplemented("sites.publish", ctx.trace)); },
   "sites.rollback": async (ctx) => { throw new VyreErr(notImplemented("sites.rollback", ctx.trace)); },
   "sites.service_identity": async (ctx) => { throw new VyreErr(notImplemented("sites.service_identity", ctx.trace)); },
+  "sites.ship": async (ctx) => { throw new VyreErr(notImplemented("sites.ship", ctx.trace)); },
   "sites.signin_link": async (ctx) => { throw new VyreErr(notImplemented("sites.signin_link", ctx.trace)); },
   "sites.staging_password_set": async (ctx) => { throw new VyreErr(notImplemented("sites.staging_password_set", ctx.trace)); },
   "sites.status": async (ctx) => { throw new VyreErr(notImplemented("sites.status", ctx.trace)); },

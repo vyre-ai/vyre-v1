@@ -38017,6 +38017,64 @@ export type SitesServiceIdentityOut = {
       level: string;
     }>;
 };
+export type SitesShipIn = {
+  siteId?: string;
+  name?: string;
+  source?: {
+    repo?: string;
+    branch?: string;
+    tokenHandle?: string;
+    folderId?: string;
+    fileId?: string;
+    path?: string;
+    root?: string;
+  };
+  kind?: "site" | "app" | "api" | "worker";
+  access?: "public" | "password" | "space" | "private";
+  limits?: {
+    cpus: number;
+    memoryMb: number;
+    diskMb?: number;
+  };
+  env?: Array<{
+      name: string;
+      vaultHandle: string;
+    }>;
+  addons?: Array<"postgres" | "redis">;
+  wait?: boolean;
+};
+export type SitesShipOut = {
+  ok: boolean;
+  siteId: string;
+  address?: string;
+  say: string;
+  failedStep?: "setup" | "fetch" | "build" | "start" | "check";
+  problem?: string;
+  fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+  deployment?: {
+    deploymentId: string;
+    siteId: string;
+    env: "staging" | "preview" | "production";
+    state: "queued" | "building" | "ready" | "failed" | "stopped";
+    url?: string;
+    branch?: string;
+    commit?: string;
+    message?: string;
+    at: number;
+    by?: string;
+    note?: string;
+    problem?: string;
+    fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+    current?: boolean;
+    finishedAt?: number;
+    steps?: Array<{
+        key: "fetch" | "build" | "start" | "check";
+        state: "waiting" | "running" | "ok" | "failed" | "skipped";
+        ms?: number;
+        startedAt?: number;
+      }>;
+  };
+};
 export type SitesSigninLinkIn = {
   siteId: string;
   next?: string;
@@ -50308,6 +50366,7 @@ export interface CapMap {
   "sites.publish": { in: SitesPublishIn; out: SitesPublishOut };
   "sites.rollback": { in: SitesRollbackIn; out: SitesRollbackOut };
   "sites.service_identity": { in: SitesServiceIdentityIn; out: SitesServiceIdentityOut };
+  "sites.ship": { in: SitesShipIn; out: SitesShipOut };
   "sites.signin_link": { in: SitesSigninLinkIn; out: SitesSigninLinkOut };
   "sites.staging_password_set": { in: SitesStagingPasswordSetIn; out: SitesStagingPasswordSetOut };
   "sites.status": { in: SitesStatusIn; out: SitesStatusOut };

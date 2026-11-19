@@ -8498,6 +8498,12 @@
     },
     {
       "deferred": false,
+      "name": "sites_ship",
+      "summary": "Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_staging_password_set",
       "summary": "Choose the sealed Vault key that protects staging (shared across a site previews)",
       "toolset": "sites"

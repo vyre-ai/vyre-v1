@@ -34,6 +34,7 @@ Area: sites. Risk: medium. Applies to: site.
 - sites.promote
 - sites.publish
 - sites.rollback
+- sites.ship
 - sites.staging_password_set
 - sites.stop
 - sites.update

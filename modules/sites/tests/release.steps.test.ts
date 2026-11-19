@@ -44,7 +44,13 @@ function world(o: Fake = {}) {
     run: (sql: string, ...a: unknown[]) => ({ changes: Number(db.prepare(sql).run(...(a as never[])).changes) }),
   };
   let clock = Date.now();
-  const ctx = { ...w.ctx, db: sdb, now: () => ++clock, call: async () => ({}) };
+  // a call from a handler to another capability goes to that handler (sites_ship composes the others); any other capability answers nothing
+  const ctx: any = {
+    ...w.ctx,
+    db: sdb,
+    now: () => ++clock,
+    call: async (cap: string, inp: unknown) => (h[cap] ? h[cap]!(ctx, inp) : {}),
+  }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const seen = { builds: 0, cut: 0, removed: [] as string[], running: [] as string[] };
   const fake = { ...o };
   const runner = {
@@ -259,4 +265,71 @@ test("the kept log: the count of lines left out adds up, and a step still points
   const next = JSON.parse((writes[writes.length - 1] as [string])[0]) as string[];
   assert.equal(next[0], "... 215 earlier lines left out");
   assert.equal(next[next.length - 1], "late 4");
+});
+
+test("sites_ship: one call creates, deploys and answers with the address", async () => {
+  const w = world();
+  try {
+    const out = await h["sites.ship"]!(w.ctx, { name: "Ship me", source: { path: FIXTURE } });
+    assert.equal(out.ok, true, out.say);
+    assert.match(out.siteId, /^sit_/);
+    assert.equal(out.deployment.state, "ready");
+    assert.equal(states(out.deployment.steps), "fetch:ok build:ok start:ok check:ok");
+    assert.match(out.say, /^It is live at https:\/\//);
+    assert.equal(out.address, (await h["sites.get"]!(w.ctx, { siteId: out.siteId })).site.url);
+  } finally {
+    w.done();
+  }
+});
+
+test("sites_ship: a failed build names the step, the reason and the fix, and the same call again goes on with the same site", async () => {
+  const w = world({ failBuild: true });
+  try {
+    const out = await h["sites.ship"]!(w.ctx, { name: "Ship broken", source: { path: FIXTURE } });
+    assert.equal(out.ok, false);
+    assert.equal(out.failedStep, "build");
+    assert.match(out.problem, /./);
+    assert.match(out.say, /^It stopped at build: /);
+    w.fake.failBuild = false;
+    const again = await h["sites.ship"]!(w.ctx, { siteId: out.siteId });
+    assert.equal(again.ok, true, again.say);
+    assert.equal(again.siteId, out.siteId, "no second site");
+    const all = await h["sites.list"]!(w.ctx, {});
+    assert.equal(all.sites.filter((s: { name: string }) => s.name === "Ship broken").length, 1);
+  } finally {
+    w.done();
+  }
+});
+
+test("sites_ship: no source and no siteId is said in one line; a step before the build that fails keeps the site and says so", async () => {
+  const w = world();
+  try {
+    await assert.rejects(() => h["sites.ship"]!(w.ctx, { name: "No source" }), /where the code is/);
+    const bad = await h["sites.ship"]!(w.ctx, {
+      name: "Bad env",
+      source: { path: FIXTURE },
+      env: [{ name: "PORT", vaultHandle: "#Nope" }],
+    });
+    assert.equal(bad.ok, false);
+    assert.equal(bad.failedStep, "setup");
+    assert.match(bad.say, /Call sites_ship again with this siteId/);
+    assert.match(bad.siteId, /^sit_/);
+    assert.equal(w.seen.builds, 0, "nothing was built");
+  } finally {
+    w.done();
+  }
+});
+
+test("sites_ship with wait false returns while the deploy runs", async () => {
+  const w = world();
+  w.fake.buildMs = 2000;
+  try {
+    const out = await h["sites.ship"]!(w.ctx, { name: "Ship soon", source: { path: FIXTURE }, wait: false });
+    assert.equal(out.ok, true);
+    assert.match(out.say, /^The deploy has started/);
+    assert.ok(["queued", "building"].includes(out.deployment.state));
+    await h["sites.deploy_cancel"]!(w.ctx, { siteId: out.siteId });
+  } finally {
+    w.done();
+  }
 });
