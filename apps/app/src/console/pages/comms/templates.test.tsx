@@ -93,3 +93,11 @@ test("the line under a sent email says only what matters", () => {
   assert.equal(trailHeadline({ ...base, state: "bounced", events: [ev("sent", 0), ev("bounced", 5, { detail: "No such user" })] } as never, 0), "Bounced: No such user");
   assert.match(trailHeadline({ ...base, state: "retrying", events: [], retry: { address: "a@b.test", attempt: 1, of: 3, nextAt: 3_600_000 } } as never, 0), /Trying again at 01:00 \(2 of 3\)/);
 });
+
+test("the Body box is tall enough for the words in it and grows with them", () => {
+  const short = draw(<TemplatesPage initialKey="signature.request" />, { "mail.template.get": { template: { ...request, text: "Hi" } } });
+  const long = draw(<TemplatesPage initialKey="signature.request" />, { "mail.template.get": { template: { ...request, text: Array.from({ length: 20 }, (_, i) => `line ${i}`).join("\n") } } });
+  const height = (html: string): number => Number(/data-testid="template-text"[^>]*min-height:(\d+)px/.exec(html)?.[1] ?? /min-height:(\d+)px[^>]*data-testid="template-text"/.exec(html)?.[1] ?? 0);
+  assert.ok(height(short) >= 8 * 21, `short body box is ${height(short)}px`);
+  assert.ok(height(long) > height(short));
+});

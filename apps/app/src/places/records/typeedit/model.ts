@@ -456,6 +456,27 @@ export const requiredOps = (type: string, field: string, required: boolean): Sch
   { op: "field.update", type, field, def: { required } },
 ];
 
+/** Field kinds whose value is never read into an email (kept in step with the schema module's list): secret, files, signatures, ids and computed kinds. */
+const NOT_IN_EMAILS = new Set(["sealed", "files", "signature", "button", "relation", "person", "created_by", "modified_by", "formula", "rollup", "lookup"]);
+
+/** Why a field cannot have "Can go in emails" switched on, or null. A private or secret field can never. */
+export function mergeableBlocked(f: FieldDef, typeLabel = "internal"): string | null {
+  const label = (f as { label?: string }).label ?? typeLabel;
+  if (NOT_IN_EMAILS.has(f.type) || (label !== "public" && label !== "internal") || ((f as { writeOnlyBy?: string[] }).writeOnlyBy ?? []).length > 0)
+    return "Private and secret fields can never go in emails";
+  return null;
+}
+
+export const isMergeable = (f: FieldDef): boolean => (f.options as { mergeable?: unknown } | undefined)?.mergeable === true;
+
+/** Switch "Can go in emails" for one field: its other options stay as they are. */
+export const mergeableOps = (type: string, f: FieldDef, on: boolean): SchemaOp[] => {
+  const options: Record<string, unknown> = { ...((f.options as Record<string, unknown> | undefined) ?? {}) };
+  if (on) options["mergeable"] = true;
+  else delete options["mergeable"];
+  return [{ op: "field.update", type, field: f.key, def: { options } }];
+};
+
 export function moveFieldOps(type: string, order: readonly string[], field: string, by: -1 | 1): SchemaOp[] | null {
   const at = order.indexOf(field),
     to = at + by;

@@ -107,7 +107,7 @@ function TemplateEditor({ template, onBack, refresh }: { template: Template; onB
       >
         <ObjectSection title="Words">
           <TextBox label="Subject" testID="template-subject" value={subject} onChange={setSubject} />
-          <TextBox label="Body" testID="template-text" value={text} onChange={setText} multiline />
+          <TextBox label="Body" testID="template-text" value={text} onChange={setText} multiline rows={Math.min(30, Math.max(8, text.split("\n").length + 2))} />
           {template.fields.length ? (
             <Actions>
               {template.fields.map((f) => (
