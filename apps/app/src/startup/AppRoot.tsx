@@ -2,7 +2,8 @@
 // Space's real data, and the address follows the shell through window.history (UrlSync). On the web index.web.tsx mounts this directly; the static export renders it through
 // expo-router (app/_layout.tsx), which only makes a page per route for deep links and the daemon.
 import { holdOpen, parseOpenPath } from "../shell/reach/open-link.ts";
-import { Component, Suspense, lazy, useEffect, useState } from "react";
+import { Component, Suspense, useEffect, useState } from "react";
+import { lazyPart } from "../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement, ReactNode } from "react";
 import { States } from "../../../../ui/src/States/index.tsx";
 import { claimToken } from "../claim/logic.ts";
@@ -20,9 +21,9 @@ import { WhatsNewOnce } from "./update/WhatsNewSheet.tsx";
 registerShellPlaces();
 
 /** /claim/<token>: the first screen on a fresh install (ruling 71). Loaded only when that address is opened. */
-const OAuthRoute = lazy(() => import("../oauth/OAuthRoute.tsx").then((m) => ({ default: m.OAuthRoute })));
-const AllowRoute = lazy(() => import("../oauth/AllowRoute.tsx").then((m) => ({ default: m.AllowRoute })));
-const ClaimRoute = lazy(() => import("../claim/ClaimRoute.tsx").then((m) => ({ default: m.ClaimRoute })));
+const OAuthRoute = lazyPart(() => import("../oauth/OAuthRoute.tsx").then((m) => ({ default: m.OAuthRoute })));
+const AllowRoute = lazyPart(() => import("../oauth/AllowRoute.tsx").then((m) => ({ default: m.AllowRoute })));
+const ClaimRoute = lazyPart(() => import("../claim/ClaimRoute.tsx").then((m) => ({ default: m.ClaimRoute })));
 
 const currentPath = (): string => (globalThis as { location?: { pathname?: string } }).location?.pathname ?? "/";
 
