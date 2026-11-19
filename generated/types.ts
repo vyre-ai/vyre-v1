@@ -43831,11 +43831,12 @@ export type TasksSnoozeOut = {
 };
 export type TasksStillAnswerIn = {
   taskIds: Array<string>;
-  answer: "keep" | "archive" | "seen";
+  answer: "keep" | "archive" | "seen" | "done";
 };
 export type TasksStillAnswerOut = {
   kept: number;
   archived: number;
+  done: number;
 };
 export type TasksStillNeededIn = Record<string, unknown>;
 export type TasksStillNeededOut = {

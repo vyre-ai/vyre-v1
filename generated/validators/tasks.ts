@@ -1716,8 +1716,10 @@ if (g6619 === "object") {
 if (g6619 === 'object') { const o6619 = x6619 as Record<string, unknown>;
 if (!("kept" in o6619)) e.push(p + "/kept" + ': required');
 if (!("archived" in o6619)) e.push(p + "/archived" + ': required');
+if (!("done" in o6619)) e.push(p + "/done" + ': required');
 if ("kept" in o6619) lf(o6619["kept"], p + "/kept", e, L2);
 if ("archived" in o6619) lf(o6619["archived"], p + "/archived", e, L2);
+if ("done" in o6619) lf(o6619["done"], p + "/done", e, L2);
 }
 }
 }

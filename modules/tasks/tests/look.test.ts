@@ -143,3 +143,19 @@ test("no model answer means nothing is logged as a run and nothing changes; fres
     /tsk_1 \| work \| T \| untouched 9 days/,
   );
 });
+
+test("Done on a looks-done row closes the task through the ordinary move; the card forgets it", async () => {
+  const h = harness();
+  h.callee("tasks.transition", (input) => h.call("tasks.transition", input, me));
+  const a = await mk(h, "Pay the hosting invoice", { source: { kind: "chat", id: "thr_1" } });
+  h.advance(8 * DAY);
+  await lookOnce(
+    ctxOf(h),
+    deps(() => JSON.stringify([{ id: a, say: "done", message: "msg_1", quote: "Payment received, $171.56" }])),
+  );
+  assert.equal((await card(h)).total, 1);
+  const r = (await h.call("tasks.still_answer", { taskIds: [a], answer: "done" }, me)) as { done: number };
+  assert.equal(r.done, 1);
+  assert.equal((await get(h, a)).state, "done");
+  assert.equal((await card(h)).total, 0);
+});

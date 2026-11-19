@@ -26,7 +26,7 @@ Answer the card for one or several tasks: keep (not asked again for 90 days) or 
 ```ts
 type In = {
   taskIds: Array<string>;
-  answer: "keep" | "archive" | "seen";
+  answer: "keep" | "archive" | "seen" | "done";
 };
 ```
 
@@ -36,6 +36,7 @@ type In = {
 type Out = {
   kept: number;
   archived: number;
+  done: number;
 };
 ```
 
@@ -60,6 +61,7 @@ type Out = {
   },
   "output": {
     "archived": 1,
+    "done": 1,
     "kept": 1
   }
 }

@@ -70,7 +70,7 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     const why = [
       "Nothing has happened for 14 days.",
       "Its expected date has passed.",
-      "Nothing has happened for 14 days.",
+      'Looks done: "Payment received, $171.56"',
       "Nothing has happened for 14 days.",
     ];
     const withDb = <T>(f: (db: DatabaseSync) => T): T => {
@@ -133,6 +133,11 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     await page.getByTestId("tasks-still").getByText("Reply to the vendor", { exact: true }).waitFor();
     await page.getByText(/Its expected date has passed/).waitFor();
     await shot("card-open-dark-desktop");
+    await page
+      .getByText(/Looks done: .Payment received/)
+      .first()
+      .waitFor();
+    await shot("card-look-dark-desktop");
     await page.emulateMedia({ colorScheme: "light" });
     await page.waitForTimeout(400);
     await shot("card-open-light-desktop");

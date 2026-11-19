@@ -68,7 +68,7 @@ export function StillCard({
     );
   }, [call]);
   useEffect(load, [load, rev]);
-  const answer = (ids: readonly string[], a: "keep" | "archive"): void => {
+  const answer = (ids: readonly string[], a: "keep" | "archive" | "done"): void => {
     if (busy || ids.length === 0) return;
     setBusy(true);
     void call("tasks.still_answer", { taskIds: [...ids], answer: a }).then(
@@ -138,21 +138,35 @@ export function StillCard({
           )}
         </View>
         {open
-          ? card.items.map((i) => (
-              <Row
-                key={i.task.id}
-                title={i.task.title}
-                note={i.why}
-                tall
-                onPress={() => openTask(i.task.id)}
-                trailing={
-                  <View style={st.btns}>
-                    <Btn label="Keep" testID="still-keep" onPress={() => answer([i.task.id], "keep")} />
-                    <Btn label="Archive" testID="still-archive" onPress={() => answer([i.task.id], "archive")} />
-                  </View>
-                }
-              />
-            ))
+          ? card.items.map((i) => {
+              // a row the daily look says looks done: the exact words are the proof, and Done closes it
+              const looks = i.why.startsWith("Looks done");
+              return (
+                <Row
+                  key={i.task.id}
+                  title={i.task.title}
+                  note={looks ? i.why.replace(/^Looks done:\s*/, "") : i.why}
+                  {...(looks ? { noteLead: "Looks done" } : {})}
+                  tall
+                  onPress={() => openTask(i.task.id)}
+                  trailing={
+                    <View style={st.btns}>
+                      {looks ? (
+                        <>
+                          <Btn label="Done" testID="still-done" onPress={() => answer([i.task.id], "done")} />
+                          <Btn label="Not yet" testID="still-keep" onPress={() => answer([i.task.id], "keep")} />
+                        </>
+                      ) : (
+                        <>
+                          <Btn label="Keep" testID="still-keep" onPress={() => answer([i.task.id], "keep")} />
+                          <Btn label="Archive" testID="still-archive" onPress={() => answer([i.task.id], "archive")} />
+                        </>
+                      )}
+                    </View>
+                  }
+                />
+              );
+            })
           : null}
       </View>
     </View>

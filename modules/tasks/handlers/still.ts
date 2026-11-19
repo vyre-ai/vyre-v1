@@ -168,13 +168,25 @@ export async function stillNeeded(ctx: TasksCtx, _input: In): Promise<unknown> {
 export async function stillAnswer(ctx: TasksCtx, input: In): Promise<unknown> {
   const server = isTrustedService(whoIs(ctx));
   let kept = 0,
-    archived = 0;
+    archived = 0,
+    done = 0;
   for (const id of [...new Set<string>(input.taskIds ?? [])].slice(0, 50)) {
     const t = findTask(ctx.db, id);
     if (!t || (!server && (!visibleTo(ctx, t) || !mayLetGo(ctx, t)))) continue;
     if (!isOpen(t.state) || t.archived !== undefined) continue;
     if (input.answer === "seen") {
       ctx.db.run("UPDATE tasks_ask SET seen_at = ? WHERE task_id = ? AND seen_at IS NULL", ctx.now(), t.id);
+      continue;
+    }
+    if (input.answer === "done" && ctx.call) {
+      // the person says "yes, it is done" on a card row: the task closes through the ordinary move, as them, with a plain note
+      try {
+        await ctx.call("tasks.transition", { taskId: t.id, to: "done", note: "Marked done from the card." });
+        ctx.db.run("DELETE FROM tasks_ask WHERE task_id = ?", t.id);
+        done += 1;
+      } catch {
+        /* it cannot close from here (a step it waits on): it stays on the card */
+      }
       continue;
     }
     if (input.answer === "archive" && cannotArchive(ctx, t) === null) {
@@ -194,5 +206,5 @@ export async function stillAnswer(ctx: TasksCtx, input: In): Promise<unknown> {
     if (t.momentStated === false) clearMoment(ctx.db, t);
     kept += 1;
   }
-  return { kept, archived };
+  return { kept, archived, done };
 }

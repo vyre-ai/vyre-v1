@@ -934,8 +934,8 @@ export default defineManifest({
       "tasks.still_answer",
       "Answer the card for one or several tasks: keep (not asked again for 90 days) or archive (put away, Put back undoes it)",
       {
-        in: { taskIds: t.arr(id.task), answer: t.enm("keep", "archive", "seen") },
-        out: { kept: t.int(), archived: t.int() },
+        in: { taskIds: t.arr(id.task), answer: t.enm("keep", "archive", "seen", "done") },
+        out: { kept: t.int(), archived: t.int(), done: t.int() },
         emits: ["task.archived"],
         errors: ["validation.precondition_failed"],
       },
