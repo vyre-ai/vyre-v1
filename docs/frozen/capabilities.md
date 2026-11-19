@@ -785,4 +785,4 @@ Signed: lead, 19 Nov 2026
 - The rules: what is kept is the text the run answered, scrubbed by the Vault's scrubber before it is stored (a Vault value never reaches disk) and scrubbed again on every read; at most 5 MB per command (the oldest output goes, the cut is marked in the text and in `cutBytes`) and 200 MB per agent (the oldest commands' logs go first); kept for 7 days after the command ended, then deleted (hourly); erased when the agent is deleted; stored in the Space's data (terminal_cmd_log), never in a cache. It keeps what the run answered (up to the host's 100,000 character answer); the full pane capture of a longer output is the next step.
 - Snapshots: docs/frozen/snapshots/terminal.json.
 
-Signed: pending, lead
+Signed: lead, 19 Nov 2026
