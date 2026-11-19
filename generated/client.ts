@@ -1636,6 +1636,10 @@ export function createClient(transport: Transport) {
       },
       auto_connect_members: call("mail.auto_connect_members", 1),
       connect: call("mail.connect", 1),
+      delivery: {
+        retry: call("mail.delivery.retry", 1),
+        trail: call("mail.delivery.trail", 1),
+      },
       domain: {
         add: call("mail.domain.add", 1),
         check: call("mail.domain.check", 1),

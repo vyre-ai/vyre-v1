@@ -4,11 +4,13 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (39)
+## Capabilities (41)
 
 - [mail.attachment.save](../capabilities/mail.attachment.save.md): Save an attachment into Files
 - [mail.auto_connect_members](../capabilities/mail.auto_connect_members.md): Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)
 - [mail.connect](../capabilities/mail.connect.md): Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)
+- [mail.delivery.retry](../capabilities/mail.delivery.retry.md): Scheduled by Vyre after a soft bounce: send the message again to the one address that bounced, once per attempt, never to a suppressed address
+- [mail.delivery.trail](../capabilities/mail.delivery.trail.md): What happened to a sent message: sent, delivered, opened, bounced and why, retries, and any address that is now blocked
 - [mail.domain.add](../capabilities/mail.domain.add.md): Add a sending domain at Resend or Mailgun and return the DNS records to publish
 - [mail.domain.check](../capabilities/mail.domain.check.md): Re-check SPF, DKIM and DMARC for a domain (mailauth) and ask the provider to verify
 - [mail.domain.get](../capabilities/mail.domain.get.md): Read one sending domain with the DNS records to publish

@@ -36554,6 +36554,32 @@
     },
     {
       "blocks": [],
+      "cap": "mail.delivery.trail",
+      "deferred": false,
+      "description": "What happened to a sent message: sent, delivered, opened, bounced and why, retries, and any address that is now blocked",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "name": "mail_delivery_trail",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.domain.add",
       "deferred": false,
       "description": "Add a sending domain at Resend or Mailgun and return the DNS records to publish",

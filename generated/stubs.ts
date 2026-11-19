@@ -1636,6 +1636,10 @@ export function stubs(ctx: CallCtx) {
       },
       auto_connect_members: call("mail.auto_connect_members"),
       connect: call("mail.connect"),
+      delivery: {
+        retry: call("mail.delivery.retry"),
+        trail: call("mail.delivery.trail"),
+      },
       domain: {
         add: call("mail.domain.add"),
         check: call("mail.domain.check"),

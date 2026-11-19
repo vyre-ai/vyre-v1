@@ -25133,6 +25133,39 @@ export type MailConnectOut = {
     lastSyncAt?: number;
   };
 };
+export type MailDeliveryRetryIn = {
+  messageId: string;
+  address: string;
+  attempt: number;
+};
+export type MailDeliveryRetryOut = {
+  outcome: "sent" | "skipped" | "gave_up" | "rescheduled";
+  messageId?: string;
+};
+export type MailDeliveryTrailIn = {
+  messageId: string;
+};
+export type MailDeliveryTrailOut = {
+  messageId: string;
+  state: "waiting" | "sent" | "delivered" | "retrying" | "bounced" | "complained" | "failed";
+  events: Array<{
+      kind: "queued" | "held" | "sent" | "delivered" | "opened" | "clicked" | "soft_bounced" | "bounced" | "complained" | "failed" | "retry_scheduled" | "retried" | "gave_up";
+      at: number;
+      label: string;
+      address?: string;
+      detail?: string;
+    }>;
+  blocked: Array<{
+      address: string;
+      reason: string;
+    }>;
+  retry?: {
+    address: string;
+    attempt: number;
+    of: number;
+    nextAt?: number;
+  };
+};
 export type MailDomainAddIn = {
   name: string;
   provider: "resend" | "mailgun";
@@ -49504,6 +49537,8 @@ export interface CapMap {
   "mail.attachment.save": { in: MailAttachmentSaveIn; out: MailAttachmentSaveOut };
   "mail.auto_connect_members": { in: MailAutoConnectMembersIn; out: MailAutoConnectMembersOut };
   "mail.connect": { in: MailConnectIn; out: MailConnectOut };
+  "mail.delivery.retry": { in: MailDeliveryRetryIn; out: MailDeliveryRetryOut };
+  "mail.delivery.trail": { in: MailDeliveryTrailIn; out: MailDeliveryTrailOut };
   "mail.domain.add": { in: MailDomainAddIn; out: MailDomainAddOut };
   "mail.domain.check": { in: MailDomainCheckIn; out: MailDomainCheckOut };
   "mail.domain.get": { in: MailDomainGetIn; out: MailDomainGetOut };
