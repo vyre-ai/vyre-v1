@@ -92,6 +92,7 @@ type Out = {
     parentTitle?: string;
     preview?: string;
   };
+  note?: string;
 };
 ```
 
@@ -115,6 +116,7 @@ type Out = {
     "threadId": "thr_a1b2c3"
   },
   "output": {
+    "note": "example",
     "thread": {
       "agentRepliesInThreads": true,
       "agents": [

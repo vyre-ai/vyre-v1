@@ -302,6 +302,7 @@ test("a way-in hold is never under an outward act, so a turn's grant to email or
     "chat.approve_plan",
   ])
     assert.equal(def(name).gate?.act, "access", `${name} always stops`);
-  for (const name of ["vault.share", "access.share"]) assert.equal(def(name).gate?.act, "admit", name);
+  for (const name of ["vault.share", "access.share"])
+    assert.equal(def(name).gate?.act, "access", `${name}: a Vault key always stops for an agent`);
   assert.equal(def("spaces.transfer_ownership").gate?.act, "transfer");
 });

@@ -11,7 +11,7 @@ Give a person, group, role, agent or automation a level on a resource (flows dow
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | admit when gate.vault_share_by_actor(input) |
+| Gate | access when gate.vault_share_by_actor(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

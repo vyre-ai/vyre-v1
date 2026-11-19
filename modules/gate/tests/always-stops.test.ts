@@ -19,8 +19,8 @@ for (const act of ACT_KEYS) {
       assert.equal(e.peopleOnly, true);
       assert.equal(
         e.approvers,
-        act === "github_approval" || act === "agent_erase" ? "asker" : "role:admin",
-        "GitHub is the asker's own: the person the session acts for decides, not an admin",
+        act === "github_approval" || act === "agent_erase" || act === "access" ? "asker" : "role:admin",
+        "GitHub, an agent's delete and a change of the rules of access are the asker's own: the person the agent acts for decides (a member's plan needs no admin), not an admin",
       );
     }
   });

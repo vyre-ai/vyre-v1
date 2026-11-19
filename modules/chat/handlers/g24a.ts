@@ -374,7 +374,20 @@ function isOwnerOf(ctx: ChatCtx, thread: string, person: string): boolean {
   return String(row?.["role"]) === "owner";
 }
 
+/** Adds a person to a chat. An agent that asks for "earlier messages" is told in one line that only a person gives them; the person added reads from now on. */
 export async function membersAdd(
+  ctx: ChatCtx,
+  input: { threadId: string; personId: string; fromStart?: boolean; mentionedIn?: string },
+) {
+  const r = await membersAddAs(ctx, input);
+  if (input.fromStart === true && ctx.principal.kind !== "person")
+    return {
+      ...(r as Record<string, unknown>),
+      note: "Only a person can give earlier messages; this person reads from now on.",
+    };
+  return r;
+}
+async function membersAddAs(
   ctx: ChatCtx,
   input: { threadId: string; personId: string; fromStart?: boolean; mentionedIn?: string },
 ) {

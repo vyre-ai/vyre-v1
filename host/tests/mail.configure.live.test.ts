@@ -18,16 +18,39 @@ import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
 import { createIdempotency } from "../../kernel/src/idempotency/index.ts";
 import { registry } from "../../generated/registry.ts";
-import { createGateHook, keySendOf, moduleWhens, payloadHash } from "../src/daemon/gate-hook.ts";
+import { createGateHook, keySendOf, markRefusal, moduleWhens, payloadHash } from "../src/daemon/gate-hook.ts";
 import { createInvoke, createRateLimiter, indexCapabilities } from "../src/invoke.ts";
 import type { CtxSeed, Handler, InvokeDeps } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
-import { CONFIGURE_ROUTE } from "../../modules/mail/handlers/setup.ts";
-import { allowKeyHost, keyHostApproved } from "../../modules/automations/key-hosts.ts";
+
+// what mail.configure routes to (modules/mail/handlers/setup.ts CONFIGURE_ROUTE, minus the test email): kept here by name so a host test imports no module; modules/mail/tests/configure.perm.test.ts fails when the two differ
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
 // the callees come from mail.configure's own routing table (minus the test email, which goes through mail.send and has its own tests), so a new action is checked the day it is added
-const CALLEES = Object.values(CONFIGURE_ROUTE).filter((n) => n !== "mail.setup.test_send");
+const CALLEES = [
+  "mail.setup.status",
+  "mail.smtp.get",
+  "mail.smtp.set",
+  "mail.smtp.verify",
+  "mail.address.list",
+  "mail.address.add",
+  "mail.address.move",
+];
+// the approved-host store as the key rule reads it (modules/automations/key-hosts.ts, tested there): a row per item and host
+type HostRows = { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): unknown };
+const keyHostApproved = (d: HostRows, itemId: string, host: string): boolean =>
+  (d.all("SELECT host FROM automations_key_hosts WHERE item_id = ?", itemId) as { host: string }[]).some(
+    (r) => r.host === host,
+  );
+const allowKeyHost = (d: HostRows, itemId: string, host: string, by: string, now: number): void => {
+  d.run(
+    "INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)",
+    itemId,
+    host,
+    by,
+    now,
+  );
+};
 // the reroutes an agent could use instead of the tool are held the same way: asked through the pipeline they are parked, not run
 const REROUTES = ["mail.route.set", "mail.route.remove", "mail.domain.add", "mail.domain.set_default"];
 // the provider-level writes an agent could reach around the mail capabilities, and the one setting that decides how the Space sends
@@ -1279,6 +1302,25 @@ test("a service a tenant can make (a form, a site, an Automation's own service) 
     assert.deepEqual(await at(id), { act: "admit" }, `${id} is held`);
   for (const id of ["svc_host", "svc_engine", "svc_sync"]) assert.equal(await at(id), null, `${id} is one step`);
   assert.deepEqual(await at("act_1", "actor"), { act: "admit" });
+  // every way-in capability shares the rule: a form's or a site's service is held, the host's own is not
+  for (const name of [
+    "members.invites.extend",
+    "members.join_link.create",
+    "members.join_link.rotate",
+    "threads.invite_guest",
+  ]) {
+    const def = registry.capabilities.find((c) => c.name === name) as unknown as CapabilityDef;
+    assert.deepEqual(
+      await r.gate.applies(def, {}, { principal: { kind: "service", id: "svc_form_x" } } as never),
+      { act: "admit" },
+      name,
+    );
+    assert.equal(
+      await r.gate.applies(def, {}, { principal: { kind: "service", id: "svc_host" } } as never),
+      null,
+      `${name}: svc_host is one step`,
+    );
+  }
   assert.equal(await at("usr_admin", "person"), null);
   // a changeset's approval: any agent is held with or without a push; a person only for a push
   const c = rig();
@@ -1335,8 +1377,8 @@ test("handing a Vault key to someone is held for an agent on vault.share and on 
   const at = async (n: string, input: unknown, principal: { kind: string; id: string }) =>
     await r.gate.applies(def(n), input, { principal } as never);
   const agent = { kind: "agent", id: "agt_bot" };
-  assert.deepEqual(await at("vault.share", share("vault_item"), agent), { act: "admit" });
-  assert.deepEqual(await at("access.share", share("vault_folder"), agent), { act: "admit" });
+  assert.deepEqual(await at("vault.share", share("vault_item"), agent), { act: "access" });
+  assert.deepEqual(await at("access.share", share("vault_folder"), agent), { act: "access" });
   assert.equal(
     await at("access.share", share("record"), agent),
     null,
@@ -1344,7 +1386,7 @@ test("handing a Vault key to someone is held for an agent on vault.share and on 
   );
   assert.equal(await at("vault.share", share("vault_item"), { kind: "person", id: "usr_admin" }), null);
   assert.deepEqual(await at("vault.share", share("vault_item"), { kind: "service", id: "svc_form_x" }), {
-    act: "admit",
+    act: "access",
   });
 });
 
@@ -1362,7 +1404,11 @@ test("a marked refusal passes through the Gate whatever class the error is; an u
       },
     } as never);
   const seedOf = { principal: { kind: "agent", id: "agt_bot" } } as never;
-  const marked = { error: { code: "permission.no_grant", message: "no", details: { refusal: true } } };
+  const marked = markRefusal({ error: { code: "permission.no_grant", message: "no" } });
+  // an inner error that echoes what the caller sent (a field named refusal included) is not a refusal the rule made
+  const echo = {
+    error: { code: "permission.no_grant", message: "no", details: { refusal: true } },
+  };
   await assert.rejects(
     async () => await gateWith(marked).applies(def, {}, seedOf),
     (e: unknown) => e === marked,
@@ -1371,6 +1417,7 @@ test("a marked refusal passes through the Gate whatever class the error is; an u
     act: "send",
   });
   assert.deepEqual(await gateWith(new Error("boom")).applies(def, {}, seedOf), { act: "send" });
+  assert.deepEqual(await gateWith(echo).applies(def, { refusal: true }, seedOf), { act: "send" });
 });
 
 test("an evaluator whose inner call fails with a refusal still holds: only a refusal the key rule marks is passed through", async () => {

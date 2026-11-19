@@ -122,10 +122,15 @@ export function whenHolds(when: string | undefined, input: unknown, seed: Pick<C
 /** `fn.name(input.field)`: a condition the module behind `fn.name` evaluates. */
 const MODULE_WHEN = /^\s*([a-z_]+\.[a-z_]+)\(\s*input(?:\.[A-Za-z_]+)*\s*\)\s*$/;
 
-/** A refusal the key rule chose to make: an error carrying a code and details.refusal === true. Read by shape, not by class, so a copy of the error class (another module graph, a serialised error) counts too. */
+/** The refusals an evaluator chose to make, by identity: nothing a caller sends, and no error an inner call builds from caller input (which could carry any field), can be on this list. */
+const REFUSALS = new WeakSet<object>();
+export function markRefusal<T extends object>(e: T): T {
+  REFUSALS.add(e);
+  return e;
+}
+/** A refusal the key rule chose to make: the very error it marked, whatever class it is. */
 export function isMarkedRefusal(e: unknown): boolean {
-  const err = (e as { error?: { code?: unknown; details?: { refusal?: unknown } } } | null)?.error;
-  return typeof err?.code === "string" && err.details?.refusal === true;
+  return typeof e === "object" && e !== null && REFUSALS.has(e);
 }
 
 async function appliesWhen(
@@ -579,10 +584,11 @@ export function moduleWhens(
     })) as { decision?: { effect?: unknown } } | typeof PERSONAL_SPACE | null;
     // any other check that could not be made (null) is not a no: the call goes on to the approved-host rule, which holds it; only an answer that is not "allow" refuses
     if (r !== null && r !== PERSONAL_SPACE && r.decision?.effect !== "allow")
-      throw fail("permission.no_grant", seed.trace?.traceId ?? "0".repeat(32), {
-        message: "This agent may not use that Vault item, so its key cannot be sent anywhere.",
-        details: { refusal: true },
-      });
+      throw markRefusal(
+        fail("permission.no_grant", seed.trace?.traceId ?? "0".repeat(32), {
+          message: "This agent may not use that Vault item, so its key cannot be sent anywhere.",
+        }),
+      );
   };
   /** What the Gate knows of the site a call names (its source, stored Vault env, and where a preview was built from), read through the sites module. */
   const siteFactsOf = (input: unknown): SiteFacts | null => {

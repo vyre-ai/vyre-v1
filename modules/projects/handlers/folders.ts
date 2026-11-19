@@ -7,7 +7,7 @@
 //   access    for a record with no projects row, the folder gets the record's own grants (who may see or edit the project may see or edit the folder), plus the lead (and the maker, with a source of its own) at Manage.
 //             The grants carry the source `projfolder:<recordId>` so they are replaced as a set. A project with a projects row already has its roles written on the folder (applyRole).
 //             In a Personal Space the owner sees everything and no grant is written.
-import { call, codeOf, ensure, projectByRecord, tolerant } from "../projections.ts";
+import { call, codeOf, ensure, followRecord, projectByRecord, tolerant } from "../projections.ts";
 import type { ProjectsCtx } from "../projections.ts";
 import { makeProject, projectsRoot } from "./project.ts";
 import type { Role } from "../projections.ts";
@@ -100,7 +100,7 @@ export async function ensureFolder(
   }
   if (!folderId) throw new Error("No free folder name for this project.");
   await call(ctx, "records.update", { type, recordId, patch: { folder: folderId } });
-  await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId }, {});
+  await followRecord(ctx, folderId, recordId);
   await syncAccess(ctx, type, recordId, folderId, by, fields);
   return folderId;
 }
@@ -318,8 +318,7 @@ export async function followRecords(ctx: ProjectsCtx): Promise<void> {
     `SELECT "recordId", "folderId" FROM projects_project WHERE "folderId" IS NOT NULL`,
   ) as Array<{ recordId: string; folderId: string }>)
     pairs.push({ folder: r.folderId, record: r.recordId });
-  for (const x of pairs)
-    await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: x.folder }, follows: x.record }, {});
+  for (const x of pairs) await followRecord(ctx, x.folder, x.record);
   FOLLOWED.add(ctx.db);
 }
 
@@ -509,7 +508,7 @@ export async function recordFilesFolder(
   ).folder.folderId;
   ctx.db.run("INSERT OR REPLACE INTO projects_record_files (record_id, folder_id) VALUES (?, ?)", input.recordId, made);
   // the folder follows the record's access, so a deal set apart takes its files with it
-  await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: made }, follows: input.recordId }, {});
+  await followRecord(ctx, made, input.recordId);
   await syncAccess(ctx, input.type, input.recordId, made, by, fields);
   return { folderId: made };
 }

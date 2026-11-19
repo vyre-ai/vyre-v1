@@ -344,20 +344,6 @@
       "until": "2027-01-31"
     },
     {
-      "rule": "layer",
-      "file": "host/tests/mail.configure.live.test.ts",
-      "spec": "../../modules/mail/handlers/setup.ts",
-      "reason": "test-only: the live test sends every call mail.configure routes to through the real Gate, and must read the route table the handler uses so a new route cannot go unchecked",
-      "until": "2027-01-31"
-    },
-    {
-      "rule": "layer",
-      "file": "host/tests/mail.configure.live.test.ts",
-      "spec": "../../modules/automations/key-hosts.ts",
-      "reason": "test-only: the key-host Gate test must use the real approved-host store (allow and check) so the person's yes and the agent's next call are proved on the one implementation",
-      "until": "2027-01-31"
-    },
-    {
       "rule": "B3",
       "file": "apps/chrome/tests/e2e/rig.ts",
       "spec": "node:crypto",

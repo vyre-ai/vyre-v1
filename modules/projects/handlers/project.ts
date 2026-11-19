@@ -48,6 +48,7 @@ import {
   isSpaceAdmin,
   stagesOf,
   tolerant,
+  followRecord,
   updateOf,
   visible,
   writeRecord,
@@ -541,7 +542,7 @@ export async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
     );
     await writeRecord(ctx, p, { channel: channelId, folder: folderId });
     // the project's folder follows its record: a project record set apart takes its files with it (the roles on the folder still add their people)
-    await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId }, {});
+    await followRecord(ctx, folderId, recordId);
     emitP(ctx, "project.created", projectId, { recordId, type: o.type, channelId, folderId, source: o.source });
     for (const [principal, role] of members) await applyRole(ctx, p, principal, role, false, true);
   } catch (e) {
