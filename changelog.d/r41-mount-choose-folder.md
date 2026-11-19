@@ -1,0 +1,1 @@
+Connecting a folder in Files works the same on a phone and on a computer: a tap on a folder goes into it, and a Choose this folder button picks the one you are in. A folder used to be picked by a tap and entered by a double press or a small arrow. GitHub repositories are still picked by the tap.
