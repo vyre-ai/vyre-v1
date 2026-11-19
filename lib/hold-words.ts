@@ -165,6 +165,13 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
     return url ? `open ${hostOfLink(url)}` : "open a link";
   }
   if (cap === "automations.read_docs") return "read the documentation";
+  // an agent read of a page it chose itself: the card names the host and the whole address, so a person sees exactly what would be opened (and what the path or query says)
+  if (cap === "computers.chrome.read") {
+    const url = str(obj(input)["url"]);
+    return url
+      ? `read a web page on ${hostOfLink(url)}: ${url.length > 300 ? `${url.slice(0, 300)}...` : url}`
+      : "read a web page it chose itself";
+  }
   // "Ada wants to change the Space time zone to Pacific Time": the zone is named in the person's words, not as an id
   if (cap === "spaces.timezone.set") {
     const zone = str(obj(input)["timezone"]);

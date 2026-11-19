@@ -113,6 +113,7 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "company.connect": "connect the whole company directory",
   "company.disconnect": "disconnect the company directory",
   "computers.chrome.api": "call a website as you",
+  "computers.chrome.read": "read a web page it chose itself",
   "computers.chrome.send": "send what is waiting in your browser",
   "computers.files.delete": "delete a file on its computer",
   "computers.remove": "remove a computer",

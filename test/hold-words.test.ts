@@ -73,3 +73,14 @@ test("a held change of the Space time zone says the zone in words: Pacific Time,
   );
   assert.equal(HOLD_PHRASES["spaces.timezone.set"], "change the Space time zone");
 });
+
+test("a held read of a web page names the host and the full address, so a person sees what would be opened", () => {
+  const url = "https://docs.vendor.example/guide/auth?topic=tokens&page=2";
+  assert.equal(wantsFromInput("computers.chrome.read", { url }), `read a web page on docs.vendor.example: ${url}`);
+  assert.equal(wantsFromInput("computers.chrome.read", {}), "read a web page it chose itself");
+  assert.ok(
+    wantsFromInput("computers.chrome.read", { url: `https://a.example/${"x".repeat(500)}` })!.length < 400,
+    "a very long address is cut",
+  );
+  assert.equal(HOLD_PHRASES["computers.chrome.read"], "read a web page it chose itself");
+});

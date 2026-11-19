@@ -854,7 +854,7 @@ export default defineManifest({
             t.obj({
               method: t.str(),
               url: t.str(),
-              shape: t.opt(t.json({ description: "Keys and the type of each in the JSON answer, never a value" })),
+              shape: t.opt(t.json()),
             }),
           ),
         },

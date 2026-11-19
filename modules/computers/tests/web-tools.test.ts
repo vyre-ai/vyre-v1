@@ -190,7 +190,7 @@ test("the default search being refused answers provider.unavailable with the pla
 test("an address or a search that carries a value the Vault handed out is never sent, approved or not", async () => {
   const w = await world();
   const asked = net({ "https://docs.example.com/a": page("<p>a</p>") });
-  rememberSecrets("cmp_any", [{ handle: "#Dana_Key.api_key", value: "sk-live-abcdef123456" }]);
+  rememberSecrets("cmp_any", [{ itemId: "vit_dana", handle: "#Dana_Key.api_key", value: "sk-live-abcdef123456" }]);
   try {
     const ctx = { ...w.agent().ctx, principal: { kind: "agent" as const, id: "agt_secretive" } };
     for (const url of [
