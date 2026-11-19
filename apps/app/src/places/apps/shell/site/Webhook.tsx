@@ -87,8 +87,8 @@ export function Webhook({ site, online, busy }: { site: Site; online: boolean; b
               />
             }
           />
-          <Text style={ui.text}>2. Paste the URL and the secret. Content type: application/json.</Text>
-          <Text style={ui.text}>3. Pick the push and pull request events.</Text>
+          <Row id="hook-step-2" title="2. Paste the URL and the secret. Content type: application/json." />
+          <Row id="hook-step-3" title="3. Pick the push and pull request events." />
           {cur.lastDeliveryAt ? (
             <Text style={q.quiet}>{`Last delivery ${ago(cur.lastDeliveryAt, d.clock().now)}`}</Text>
           ) : null}
