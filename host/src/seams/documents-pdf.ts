@@ -21,6 +21,8 @@ export interface DocumentsPdfDeps {
   tmp?: string;
   /** most the converter may take, in ms (default 60 000) */
   timeoutMs?: number;
+  /** a Team server: the sites runner's socket and its token (read again on each call), which alone holds the Docker socket; its policy lets only the converter image run (converter-policy.ts) */
+  runner?: { socket: string; token(): string };
   /** the Docker engine, for tests (default: the first socket that answers) */
   engine?: Engine;
   image?: string;
@@ -75,10 +77,15 @@ export function createDocumentsHost(deps: DocumentsPdfDeps = {}): DocumentsHostS
   const soffice = deps.soffice ?? findSoffice();
   if (!soffice) {
     // no LibreOffice on this machine: the converter image, through a Docker engine, when one answers (fetched on the first Word file)
-    const sock = deps.engine === undefined ? findDockerSocket() : { path: "", runtime: "test" };
+    const sock = deps.engine === undefined && !deps.runner ? findDockerSocket() : { path: "", runtime: "test" };
     if (!sock && deps.engine === undefined) return { state: () => "none" };
+    const runner = deps.runner;
     const conv = createDocConverter({
-      engine: deps.engine ?? socketEngine(sock!.path),
+      engine:
+        deps.engine ??
+        (runner
+          ? socketEngine(runner.socket, () => ({ authorization: `Bearer ${runner.token()}` }))
+          : socketEngine(sock!.path)),
       image: deps.image ?? converterImage(),
       ...(deps.onState ? { onState: deps.onState } : {}),
     });

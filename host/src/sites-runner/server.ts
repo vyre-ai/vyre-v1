@@ -30,6 +30,7 @@ import {
   sbrowserNetworkBody,
   sbrowserOf,
 } from "./computers-policy.ts";
+import { CONV_NAME, converterAllows, converterBody, converterOf } from "./converter-policy.ts";
 import {
   WS_AGENT,
   WS_INIT_NAME,
@@ -219,13 +220,15 @@ export function createSitesRunner(o: RunnerOptions): {
         ? helperBody(nm, parsed)
         : nm === SBROWSER_NAME
           ? sbrowserBody(nm, parsed)
-          : WS_INIT_NAME.test(nm)
-            ? workspaceInitBody(nm, parsed)
-            : nm.startsWith("vyre-ws-")
-              ? workspaceBody(nm, parsed, wsNetOk)
-              : nm.startsWith("vyre-comp-")
-                ? computerBody(nm, parsed)
-                : containerBody(nm, parsed);
+          : CONV_NAME.test(nm)
+            ? converterBody(nm, parsed)
+            : WS_INIT_NAME.test(nm)
+              ? workspaceInitBody(nm, parsed)
+              : nm.startsWith("vyre-ws-")
+                ? workspaceBody(nm, parsed, wsNetOk)
+                : nm.startsWith("vyre-comp-")
+                  ? computerBody(nm, parsed)
+                  : containerBody(nm, parsed);
       if ("why" in c) {
         say(`refused create ${v.path}: ${c.why}`);
         refuse(res, 403, `Refused by the sites runner: ${c.why}.`);
@@ -252,28 +255,31 @@ export function createSitesRunner(o: RunnerOptions): {
       const ws = workspaceOf(labels);
       const wsHelper = workspaceHelperOf(labels);
       const sbr = sbrowserOf(labels);
-      if (!isSite && !comp && !ws && !wsHelper && !sbr) {
-        say(`refused ${label}: not a site, computer, workspace or Space browser container`);
+      const conv = converterOf(labels);
+      if (!isSite && !comp && !ws && !wsHelper && !sbr && !conv) {
+        say(`refused ${label}: not a site, computer, workspace, Space browser or converter container`);
         refuse(
           res,
           403,
-          "Refused by the sites runner: that container is not a site's, an agent computer's, an agent workspace's or the Space browser's.",
+          "Refused by the sites runner: that container is not a site's, an agent computer's, an agent workspace's, the Space browser's or a converter's.",
         );
         return;
       }
       const allowed = isSite
         ? siteAllows(v.action, method, url.searchParams)
-        : sbr
-          ? sbrowserAllows(v.action, method, url.searchParams)
-          : ws || wsHelper
-            ? workspaceAllows(v.action, wsHelper !== null, method, url.searchParams)
-            : computerAllows(v.action, method, url.searchParams, labels["vyre.helper"] === "home-rm");
+        : conv
+          ? converterAllows(v.action, method, url.searchParams)
+          : sbr
+            ? sbrowserAllows(v.action, method, url.searchParams)
+            : ws || wsHelper
+              ? workspaceAllows(v.action, wsHelper !== null, method, url.searchParams)
+              : computerAllows(v.action, method, url.searchParams, labels["vyre.helper"] === "home-rm");
       if (!allowed) {
         say(`refused ${label}: ${v.action} not allowed here`);
         refuse(
           res,
           403,
-          `Refused by the sites runner: that is not something ${isSite ? "a site" : sbr ? "the Space browser" : ws || wsHelper ? "an agent workspace" : "an agent computer"} container may be asked.`,
+          `Refused by the sites runner: that is not something ${isSite ? "a site" : conv ? "a converter" : sbr ? "the Space browser" : ws || wsHelper ? "an agent workspace" : "an agent computer"} container may be asked.`,
         );
         return;
       }

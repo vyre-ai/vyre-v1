@@ -33,7 +33,7 @@ import { createTalkHost } from "./talk.ts";
 import type { TalkHostSeam } from "./talk.ts";
 import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
 
-export { createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
+export { createDocumentsHost, createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
 export type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, ZoomHostSeam, FillerPort };
 export {
   createComputersHost,

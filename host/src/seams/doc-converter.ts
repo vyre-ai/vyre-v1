@@ -8,6 +8,7 @@
 //   pulling   the image is being fetched (started by the first conversion, which answers "pulling" at once; the caller sets the words in its plain look and says the exact copy is being made ready)
 //   ready     the image is here: conversions run
 //   failed    the fetch or a conversion failed; the next conversion after RETRY_MS tries again (never a loop)
+import { randomBytes } from "node:crypto";
 import http from "node:http";
 import { releaseImage } from "./release-images.ts";
 
@@ -38,8 +39,8 @@ export interface DocConverterDeps {
   onState?: (s: ConverterState, why?: string) => void;
 }
 
-/** The Engine API over a unix socket (a named pipe on Windows is not covered: the plain copy is used there). */
-export function socketEngine(socketPath: string): Engine {
+/** The Engine API over a unix socket (a named pipe on Windows is not covered: the plain copy is used there). Behind a Team server's runner it is the runner's socket and the runner's token (`headers`).. */
+export function socketEngine(socketPath: string, headers?: () => Record<string, string>): Engine {
   return (req) =>
     new Promise((resolve, reject) => {
       const qs = req.query ? `?${new URLSearchParams(req.query).toString()}` : "";
@@ -50,6 +51,7 @@ export function socketEngine(socketPath: string): Engine {
           method: req.method,
           path: `${req.path}${qs}`,
           headers: {
+            ...(headers ? headers() : {}),
             ...(body ? { "content-length": String(body.length) } : {}),
             ...(req.json !== undefined ? { "content-type": "application/json" } : req.contentType ? { "content-type": req.contentType } : {}),
           },
@@ -159,7 +161,10 @@ export function createDocConverter(d: DocConverterDeps): DocConverter {
     const made = await d.engine({
       method: "POST",
       path: "/containers/create",
+      // the name and label are what the runner's policy knows a converter by (host/src/sites-runner/converter-policy.ts)
+      query: { name: `vyre-conv-${randomBytes(8).toString("hex")}` },
       json: {
+        Labels: { "vyre.conv": "1" },
         Image: d.image,
         User: "10002:10002",
         NetworkDisabled: true,
