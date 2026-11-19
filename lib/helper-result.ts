@@ -70,10 +70,37 @@ export function splitResult(text: string): Split {
  * The words the parent agent reads for a finished helper. What the helper wrote (summary and fields) sits between two marker lines and is its own words, never instructions: a helper that read untrusted content may
  * have written anything, including a line that looks like a reference. The real reference is built here from `ref` and comes after the closing marker.
  */
-/** A line of the helper's own that imitates one of Vyre's (its end marker, or a line that starts "Vyre:") is quoted, so only the lines Vyre writes carry those words. */
-const INVISIBLE = /[\u200B-\u200F\u2060\uFEFF\u202A-\u202E\u2066-\u2069\u00AD]/g;
-const IMITATION = /^[\s>*_#\-+•]*(?:vyre\s*:|\[\s*end\s+of\s+the\s+helper)/i;
-const imitates = (line: string): boolean => IMITATION.test(line.normalize("NFKC").replace(INVISIBLE, ""));
+/** A line of the helper's own that imitates one of Vyre's (its end marker, or a line with "Vyre:" in it) is quoted, so only the lines Vyre writes carry those words. */
+const INVISIBLE =
+  /[\u200B-\u200F\u2060\uFEFF\u202A-\u202E\u2066-\u2069\u00AD\u034F\uFE00-\uFE0F\u{E0000}-\u{E007F}\p{M}]/gu;
+/** Letters of "Vyre" that other alphabets and small capitals draw alike, folded to ASCII before the check. */
+const LOOKALIKE: Readonly<Record<string, string>> = {
+  "\u0443": "y",
+  "\u04AF": "y",
+  "\u03B3": "y",
+  "\u028F": "y",
+  "\u2C69": "y",
+  "\u0435": "e",
+  "\u0454": "e",
+  "\u0451": "e",
+  "\u03B5": "e",
+  "\u1D07": "e",
+  "\u0433": "r",
+  "\u0280": "r",
+  "\u1D3F": "r",
+  "\u03BD": "v",
+  "\u0475": "v",
+  "\u2174": "v",
+  "\u1D20": "v",
+};
+const skeleton = (line: string): string =>
+  line
+    .normalize("NFKD")
+    .replace(INVISIBLE, "")
+    .replace(/[^\x00-\x7f]/g, (c) => LOOKALIKE[c] ?? c)
+    .toLowerCase();
+const IMITATION = /\bvyre\s*:|\[\s*end\s+of\b/;
+const imitates = (line: string): boolean => IMITATION.test(skeleton(line));
 const quoted = (text: string): string =>
   text
     .split(/\r\n|[\n\r\u2028\u2029\u0085]/)
