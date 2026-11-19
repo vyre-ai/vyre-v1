@@ -94,3 +94,14 @@ test("a compaction or a resumed turn forgets the turn's reads, and a path that i
   assert.equal((await s.read(cli)).data["version"], 3, "never shortened on the CLI path");
   assert.equal((await s.read(cli)).data["version"], 3);
 });
+
+test("a turn whose counter was evicted never gets its old reads trusted again", async () => {
+  const { readsEpoch } = await import("../src/tools/reads-epoch.ts");
+  const s = setup(() => page(3));
+  const c = ctx({ turnId: "trn_evict", repeatSafe: true });
+  await s.read(c);
+  assert.equal((await s.read(c)).data["unchanged"], true);
+  for (let i = 0; i < 2_100; i++) invalidateReads(`trn_other_${i}`);
+  assert.equal(readsEpoch("trn_evict") > 0, true, "a counter that is gone reads as above every evicted count");
+  assert.equal((await s.read(c)).data["version"], 3, "so the earlier read is not pointed at");
+});

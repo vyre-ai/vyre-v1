@@ -314,7 +314,8 @@ export const RUN_MATCHES = 20;
 const FAILURE =
   /\berr(?:or|ors)?\b|[A-Za-z]Error\b|\bFAIL(?:ED|URES?|S)?\b|\bfailed\b|\bfatal\b|\bpanic\b|\bexception\b|\btraceback\b|\bdenied\b|\brefused\b|timed?\s*out|\bENOENT\b|\bEACCES\b|not found|no such file|\bkilled\b|segmentation fault|undefined reference|\bnot ok\b|^E\s{2,}|✖|✗/i;
 /** A line that says nothing went wrong ("0 errors", "failed: 0", "no errors"). */
-const CLEAN = /\b(?:0|no|zero)\s+(?:errors?|failed|failures?|failing)\b|\b(?:errors?|failed|failures?)\s*[:=]\s*0\b/gi;
+const CLEAN =
+  /\b(?:0|no|zero)\s+(?:errors?|failed|failures?|failing)\b|\b(?:errors?|failed|failures?)\s*[:=]\s*0\b(?!\s+(?:files?|matches|matched|found|results?|items?|rows?|lines?)\b)/gi;
 /** A line is a failure when it still looks like one after every "0 errors" phrase is taken out: "Tests run: 10, Failures: 2, Errors: 0" is one, "compiled with 0 errors" is not. */
 const failing = (line: string): boolean => FAILURE.test(line.replace(CLEAN, " "));
 /** Most characters of a line the model keeps; a longer line is cut and the cut is counted. */

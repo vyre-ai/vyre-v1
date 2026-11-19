@@ -148,9 +148,11 @@ test("a line with a real count of failures is kept even when it also says 0 erro
   lines[700] = "failed=2, errors=0";
   lines[800] = "Tests run: 10, Failures: 0, Errors: 0, Skipped: 0";
   lines[900] = "compiled with 0 errors";
+  lines[1000] = "error: 0 files matched the pattern";
+  lines[1100] = "Errors: 0x1f";
   assert.deepEqual(
     shape(lines.join("\n")).matches.map((m) => m.line),
-    [501, 601, 701],
+    [501, 601, 701, 1001, 1101],
   );
 });
 

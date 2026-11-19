@@ -1127,6 +1127,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (was && was.state === "waiting") {
         was.state = "completed";
         was.endedAt = now();
+        invalidateReads(was.id); // a wake may rebuild the model's view: nothing read before the hold is pointed at
         emit({ type: "turn.resumed", threadId: st.thread.id, turnId: was.id, agentId: was.agentId });
       }
     }
