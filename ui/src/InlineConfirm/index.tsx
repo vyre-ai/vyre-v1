@@ -164,7 +164,9 @@ export function InlineConfirm({
           },
           (e: unknown) => {
             clearTimeout(cap);
-            setFailed({ code: codeOf(e), text: textOf(e) });
+            const code = codeOf(e);
+            // the gateway's own words only for a user-facing family; anything else (a network error, a stack) gets the plain line
+            setFailed({ code, text: /^(access|validation|conflict)\./.test(code) ? textOf(e) : "" });
             done();
             // the strip says it did not work (inline); a person who wants to tell Vyre presses Report. Nothing opens by itself and nothing is thrown.
           },
@@ -287,11 +289,11 @@ const s = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: "var(--sunk)" as string,
   },
-  compact: { flexDirection: "row", alignItems: "center", gap: 6 },
+  compact: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
   text: { flexGrow: 1, flexShrink: 1, minWidth: 160 },
   question: { fontSize: 13.5, lineHeight: 19, fontWeight: "600", color: "var(--ink)" as string },
-  failedRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  failed: { fontSize: 12.5, lineHeight: 18, color: "var(--danger)" as string },
+  failedRow: { flexDirection: "row", flexShrink: 1, flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 4 },
+  failed: { flexShrink: 1, fontSize: 12.5, lineHeight: 18, color: "var(--danger)" as string },
   report: { fontSize: 12.5, lineHeight: 18, fontWeight: "500", color: "var(--accent)" as string },
   note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: 2 },
   buttons: { flexDirection: "row", alignItems: "center", gap: 6 },

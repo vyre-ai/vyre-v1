@@ -210,6 +210,39 @@ test("a rejected confirm shows its own line, opens nothing by itself, re-arms, a
   }
 });
 
+test("the gateway's words show only for a user-facing code family; anything else gets the plain line", async () => {
+  const restore = installDom();
+  try {
+    for (const [err, want] of [
+      [{ error: { code: "validation.name", message: "Name is too long" } }, /That did not work: Name is too long/],
+      [
+        { error: { code: "internal.sql", message: "select * from x at 10.0.0.4:5432" } },
+        /^That did not work\. You can try again\.\s*$/,
+      ],
+      [new Error("connect ECONNREFUSED 10.0.0.4:5432"), /^That did not work\. You can try again\.\s*$/],
+    ] as const) {
+      const root = await mount(
+        createRoot,
+        <InlineConfirm
+          testID="ic"
+          question="Delete?"
+          confirmLabel="Delete"
+          armMs={20}
+          onConfirm={() => Promise.reject(err)}
+          onCancel={() => undefined}
+          confirmTestID="ic-go"
+        />,
+      );
+      await wait(50);
+      await press(find(root, "ic-go"));
+      await wait(60);
+      assert.match(textOf(find(root, "ic-failed")).replace(/Report$/, ""), want);
+    }
+  } finally {
+    restore();
+  }
+});
+
 test("a compact strip shows the failure line too", async () => {
   const restore = installDom();
   try {
