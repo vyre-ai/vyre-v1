@@ -606,7 +606,7 @@ test("a document that cannot say where its signers sign (none known, stale, or t
     () => ({ signers: [], places: [] }),
     () => ({ signers: [], places: [], stale: true }),
     () => {
-      throw new Error("documents is not here");
+      throw Object.assign(new Error("not implemented"), { error: { code: "internal.not_implemented", message: "not implemented" } });
     },
   ]) {
     const h = await setup();
@@ -670,4 +670,36 @@ test("a PDF of a Word file set in the plain page look is held: no send until the
   const h3 = await setup();
   assert.match((await send(h3, [ANDREA])).envelopeId, /^env_/);
   assert.equal(h3.rows("esign_event").filter((r) => r.kind === "plain_copy_sent").length, 0);
+});
+
+test("the plain-copy check fails closed: a failure of documents.signing holds the send with a plain sentence, only a missing documents module counts as not plain", async () => {
+  const h = await setup();
+  h.callee("documents.signing", () => {
+    throw new Error("socket hang up");
+  });
+  const e = await send(h, [ANDREA]).catch((x) => x);
+  assert.equal(e.error.code, "provider.unavailable");
+  assert.match(e.error.message, /Try again in a minute/);
+  assert.equal(h.rows("esign_envelope").length, 0);
+  h.callee("documents.signing", () => {
+    throw Object.assign(new Error("no"), { error: { code: "permission.no_grant", message: "no" } });
+  });
+  assert.equal((await send(h, [ANDREA]).catch((x) => x)).error.code, "provider.unavailable");
+  // no documents module in this Space (the host's not_implemented): sent as before
+  const h2 = await setup();
+  assert.match((await send(h2, [ANDREA])).envelopeId, /^env_/);
+});
+
+test("telling that a request ran out does not stop at the first step that fails", async () => {
+  const h = await setup();
+  await send(h, [ANDREA], { recordId: RECORD });
+  h.callee("notifications.send", () => {
+    throw new Error("down");
+  });
+  const { expireDue } = await import("../handlers/vyre.ts");
+  h.advance(31 * 24 * 3600 * 1000);
+  assert.deepEqual(await expireDue(h.ctxFor(null, SYSTEM)), { ended: 1, told: 1 });
+  assert.ok(h.events.some((e) => e.name === "signature.expired"));
+  assert.ok(h.callsTo("tasks.transition").length > 0, "the task is still closed");
+  assert.ok(h.warnings.some((w) => /telling the sender failed/.test(w)));
 });

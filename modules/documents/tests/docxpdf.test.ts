@@ -241,3 +241,10 @@ test("a Word template is checked when it is marked: a file that is not a real .d
   assert.equal(w.marks().length, 1);
   assert.deepEqual(await handlers["documents.mark_template"](w.ctx, { fileId: good, isTemplate: false }), { ok: true });
 });
+
+test("a hostile Word file does not break the plain PDF: impossible character references are dropped and a self-closing text run does not swallow the next one", () => {
+  const xml = `<w:p><w:r><w:t>a&#x110000;b&#xD800;c&#7;d</w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve"/></w:r><w:r><w:t>kept</w:t></w:r></w:p>`;
+  const blocks = docxBlocks(docx(xml));
+  const text = blocks.map((b) => (b.t === "p" ? b.runs.map((r) => r.text).join("") : "")).join("|");
+  assert.equal(text, "abcd|kept");
+});

@@ -183,6 +183,11 @@ export function harness(o: HarnessOptions = {}) {
       async call(c, input) {
         calls.push({ cap: c, input: input as CallLog["input"] });
         const f = callees[c];
+        // a module that is not in this Space answers as the host does: not implemented, in the error's own shape
+        if (!f && c.startsWith("documents."))
+          throw Object.assign(new Error("not implemented"), {
+            error: { code: "internal.not_implemented", message: "not implemented" },
+          });
         if (!f) throw new Error(`unexpected call to ${c}`);
         return f(input);
       },

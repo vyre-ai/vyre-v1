@@ -314,3 +314,24 @@ test("a Vyre document that still holds suggested changes is refused until they a
     ).file.fileId,
   );
 });
+
+test("two asks for the same template with different values are two files, not one replayed; the same ask twice has one key", async () => {
+  const w = linked();
+  const id = w.add("Service agreement.md", enc(AGREEMENT));
+  await handlers["documents.mark_template"](w.ctx, { fileId: id, isTemplate: true });
+  const a = await handlers["documents.make"](w.ctx, {
+    template: "Service agreement",
+    recordId: "rec_imran",
+    values: VALUES,
+    signingDate: "2026-11-19",
+  });
+  const b = await handlers["documents.make"](w.ctx, {
+    template: "Service agreement",
+    recordId: "rec_imran",
+    values: { ...VALUES, matter: { fee: 2000 } },
+    signingDate: "2026-11-19",
+  });
+  const keys = w.calls.filter((c) => c.cap === "files.create").map((c) => String(c.input.idempotencyKey));
+  assert.equal(new Set(keys).size, keys.length, keys.join(" | "));
+  assert.notEqual(a.file.fileId, b.file.fileId);
+});

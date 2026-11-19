@@ -64,6 +64,14 @@ function isVyreError(e: unknown): e is { error: { code: string } } {
   );
 }
 
+/** A short stable word for what a call asks, so a retry of the same ask is one file and an ask with other values is another. Used when the caller gave no key of its own. */
+export function askKey(parts: unknown): string {
+  const text = JSON.stringify(parts);
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
 // ---- drivers ----
 
 export interface DocumentsDrivers {
@@ -1017,7 +1025,7 @@ export async function documentsFill(
     bytes: out,
     mime: format === "pdf" ? "application/pdf" : DOCX_MIME,
     kind: format === "pdf" ? "pdf" : "document",
-    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? templateFileId}`,
+    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${askKey([o.values, o.signingDate, o.recordId, o.mapping, o.name, format])}`}`,
   });
   const { fileId, versionId } = saved;
   // a PDF set in the plain page look is a preview of the Word file: signing asks before it goes out (documents.signing says plain)

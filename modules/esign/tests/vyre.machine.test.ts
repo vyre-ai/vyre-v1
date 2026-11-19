@@ -65,15 +65,29 @@ function snap(h: Harness): Snap {
     env: env.status as Status,
     signers: h
       .rows("esign_vsigner")
-      .map((s) => ({ idx: s.idx as number, order: s.order_no as number, status: s.status as Status, signedAt: s.signed_at }))
+      .map((s) => ({
+        idx: s.idx as number,
+        order: s.order_no as number,
+        status: s.status as Status,
+        signedAt: s.signed_at,
+      }))
       .sort((a, b) => a.idx - b.idx),
     final: doc.final !== null && (doc.final as Uint8Array).length > 0,
   };
 }
-const finished = (s: Snap): boolean => s.env === "declined" || s.env === "cancelled" || s.env === "expired" || (s.env === "signed" && s.final);
+const finished = (s: Snap): boolean =>
+  s.env === "declined" || s.env === "cancelled" || s.env === "expired" || (s.env === "signed" && s.final);
 
 /** what the sequences reached, so the test proves it walked every state and the failure path rather than only the happy one */
-const reached: Record<string, number> = { signed: 0, declined: 0, cancelled: 0, expired: 0, reverted: 0, refusedOldLink: 0, waiting: 0 };
+const reached: Record<string, number> = {
+  signed: 0,
+  declined: 0,
+  cancelled: 0,
+  expired: 0,
+  reverted: 0,
+  refusedOldLink: 0,
+  waiting: 0,
+};
 
 async function runSequence(seed: number): Promise<void> {
   const rnd = prng(seed);
@@ -110,7 +124,26 @@ async function runSequence(seed: number): Promise<void> {
   const steps = 6 + Math.floor(rnd() * 24);
   for (let n = 0; n < steps; n++) {
     const before = snap(h);
-    const move = pick(["view", "view", "doc", "sign", "sign", "sign", "decline", "remind", "remind", "cancel", "fetch", "status", "late", "tick", "break", "mend", "stale", "copy"]);
+    const move = pick([
+      "view",
+      "view",
+      "doc",
+      "sign",
+      "sign",
+      "sign",
+      "decline",
+      "remind",
+      "remind",
+      "cancel",
+      "fetch",
+      "status",
+      "late",
+      "tick",
+      "break",
+      "mend",
+      "stale",
+      "copy",
+    ]);
     const i = Math.floor(rnd() * count);
     const t = live[i] ?? null;
     log.push(`${move}${["view", "doc", "sign", "decline", "remind"].includes(move) ? i : ""}`);
@@ -221,9 +254,17 @@ async function runSequence(seed: number): Promise<void> {
     const ranOut = after.env === "expired" && before.env !== "expired";
     if (ranOut)
       for (const s of after.signers)
-        assert.equal(s.status, before.signers[s.idx]!.status === "signed" ? "signed" : "expired", `${where}: running out changed a signer wrongly`);
+        assert.equal(
+          s.status,
+          before.signers[s.idx]!.status === "signed" ? "signed" : "expired",
+          `${where}: running out changed a signer wrongly`,
+        );
     if (!err.ok && !ranOut && !(move === "sign" && err.code === "provider.unavailable")) {
-      assert.deepEqual(after.signers.map((s) => s.status), before.signers.map((s) => s.status), `${where}: a refused move changed a signer`);
+      assert.deepEqual(
+        after.signers.map((s) => s.status),
+        before.signers.map((s) => s.status),
+        `${where}: a refused move changed a signer`,
+      );
       assert.equal(after.env, before.env, `${where}: a refused move changed the envelope`);
     }
     // 4. order: a signer who has signed has every earlier signer behind them
@@ -232,7 +273,11 @@ async function runSequence(seed: number): Promise<void> {
         for (const p of after.signers.filter((x) => x.order < s.order))
           assert.equal(p.status, "signed", `${where}: signer ${s.idx} signed before ${p.idx}`);
     // the envelope is signed only when every signer is
-    if (after.env === "signed") assert.ok(after.signers.every((s) => s.status === "signed"), `${where}: signed with someone unsigned`);
+    if (after.env === "signed")
+      assert.ok(
+        after.signers.every((s) => s.status === "signed"),
+        `${where}: signed with someone unsigned`,
+      );
   }
 
   // a way through, from wherever it stands
@@ -250,7 +295,11 @@ async function runSequence(seed: number): Promise<void> {
         if (row.status === "signed") continue;
         const r = await h.call("esign.remind", { envelopeId, signer: i, idempotencyKey: `end${seed}-${i}` }, dana);
         const done = await act(tokenOf(r.link), "sign", typed(who[i]!.name));
-        assert.equal(done.result.state, "signed", `seed ${seed}: the way through failed at signer ${i} after ${log.join(", ")}`);
+        assert.equal(
+          done.result.state,
+          "signed",
+          `seed ${seed}: the way through failed at signer ${i} after ${log.join(", ")}`,
+        );
       }
     }
   }
@@ -277,5 +326,8 @@ async function runSequence(seed: number): Promise<void> {
 test("every move in any order keeps the signing rules, and from any open state there is a way through (200 random sequences)", async () => {
   for (let seed = 1; seed <= 200; seed++) await runSequence(seed);
   for (const k of ["signed", "declined", "cancelled", "expired", "reverted", "refusedOldLink"])
-    assert.ok((reached[k] ?? 0) >= 3, `the sequences reached ${k} only ${reached[k]} times: ${JSON.stringify(reached)}`);
+    assert.ok(
+      (reached[k] ?? 0) >= 3,
+      `the sequences reached ${k} only ${reached[k]} times: ${JSON.stringify(reached)}`,
+    );
 });

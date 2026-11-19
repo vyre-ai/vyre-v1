@@ -5,6 +5,7 @@
 // @reads ../migrations/0002_esign_vyre.sql
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
+import { vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import {
   PROVIDER_KEYS,
   assigneeOf,
@@ -295,8 +296,14 @@ function readPlaces(ctx: Ctx, raw: unknown): Place[] | undefined {
 export async function isPlainCopy(ctx: Ctx, fileId: string): Promise<boolean> {
   try {
     return ((await ctx.call("documents.signing", { fileId })) as { plain?: unknown }).plain === true;
-  } catch {
-    return false;
+  } catch (e) {
+    // only "there is no documents module" means not plain; any other failure (a timeout, a permission, a hiccup) holds the send rather than letting a preview go out
+    if (vyreErrorOf(e)?.code === "internal.not_implemented") return false;
+    return fail(
+      ctx,
+      "provider.unavailable",
+      "Could not check whether this copy is the exact one just now. Try again in a minute.",
+    );
   }
 }
 
@@ -648,10 +655,37 @@ export async function expireDue(ctx: Ctx): Promise<{ ended: number; told: number
     // marked first: a second run, or a restart in the middle, never tells twice
     ctx.db.run("UPDATE esign_envelope SET expired_told = 1 WHERE id = ?", envId);
     const env = mustEnvelope(ctx, envId);
-    ctx.emit("signature.expired", subject(envId), { envelopeId: envId, ...(env.recordId !== null ? { recordId: env.recordId } : {}) });
-    await notifySender(ctx, envId, "task.returned", env.fileId, env.title, { from: "no one", note: "the signing links ran out" });
-    await finishTask(ctx, env, "canceled", "The signing links ran out before everyone signed.");
-    await tellThread(ctx, env, `The signature request for ${plain(env.title)} ran out before everyone signed. Send it again to ask again.`, "sig-expired");
+    // each step on its own: one that throws is logged and the rest still run (the notice was marked first, so a step is tried once, not forever)
+    const step = async (what: string, run: () => unknown): Promise<void> => {
+      try {
+        await run();
+      } catch (e) {
+        ctx.log.warn(`esign: telling that a request ran out failed at ${what}`, {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+    await step("the event", () =>
+      ctx.emit("signature.expired", subject(envId), {
+        envelopeId: envId,
+        ...(env.recordId !== null ? { recordId: env.recordId } : {}),
+      }),
+    );
+    await step("the sender", () =>
+      notifySender(ctx, envId, "task.returned", env.fileId, env.title, {
+        from: "no one",
+        note: "the signing links ran out",
+      }),
+    );
+    await step("the task", () => finishTask(ctx, env, "canceled", "The signing links ran out before everyone signed."));
+    await step("the thread", () =>
+      tellThread(
+        ctx,
+        env,
+        `The signature request for ${plain(env.title)} ran out before everyone signed. Send it again to ask again.`,
+        "sig-expired",
+      ),
+    );
     told++;
   }
   return { ended, told };

@@ -7,6 +7,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import {
   FillError,
   addTemplateReader,
+  askKey,
   baseName,
   documentsFill,
   fail,
@@ -183,7 +184,7 @@ async function fill(ctx: Ctx, input: unknown): Promise<Filled> {
   const stem =
     wanted !== undefined ? wanted.replace(new RegExp(`\\.${format}$`, "i"), "") : `${baseName(templateName)} (filled)`;
   const recordId = optStr(ctx, o, "recordId");
-  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? templateFileId}`;
+  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${askKey([o.values, o.signingDate, o.recordId, o.name, format])}`}`;
   let saved: Saved;
   let signers: string[] = [];
   if (format === "pdf") {
@@ -254,7 +255,7 @@ async function makePdf(ctx: Ctx, input: unknown): Promise<{ file: Saved; pages: 
     bytes: set.pdf,
     mime: "application/pdf",
     kind: "pdf",
-    key: `docpdf:${optStr(ctx, o, "idempotencyKey") ?? fileId}`,
+    key: `docpdf:${optStr(ctx, o, "idempotencyKey") ?? `${fileId}:${askKey([o.name, text])}`}`,
   });
   remember(ctx, saved, set.roles, set.places, {});
   ctx.log.info("documents.make_pdf", { fileId: saved.fileId, from: fileId, pages: set.pages });
@@ -341,7 +342,7 @@ async function make(ctx: Ctx, input: unknown): Promise<Filled> {
   const pass: Record<string, unknown> = { templateFileId, intoFolderId: folder.folderId, recordId };
   for (const k of ["values", "signingDate", "name", "format"]) if (o[k] !== undefined) pass[k] = o[k];
   // a retry of the same ask makes the same file: the key is the ask itself
-  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${typeof o.idempotencyKey === "string" ? o.idempotencyKey : ""}`;
+  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${typeof o.idempotencyKey === "string" ? o.idempotencyKey : askKey([o.values, o.signingDate, o.name, o.format])}`;
   return (await ctx.call("documents.fill", pass)) as Filled;
 }
 

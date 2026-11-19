@@ -14,8 +14,13 @@ let pizzip: (new (data: Uint8Array) => Zip) | null = null;
 const UNESCAPE: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
 const unxml = (s: string): string =>
   s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_m, e: string) => {
-    if (e.startsWith("#x")) return String.fromCodePoint(parseInt(e.slice(2), 16));
-    if (e.startsWith("#")) return String.fromCodePoint(parseInt(e.slice(1), 10));
+    if (e.startsWith("#")) {
+      const n = e.startsWith("#x") ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      // a number that is not a letter (past U+10FFFF, a surrogate, a control) is left out, never an error
+      return Number.isInteger(n) && n >= 0x20 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff)
+        ? String.fromCodePoint(n)
+        : "";
+    }
     return UNESCAPE[e.toLowerCase()] ?? "";
   });
 
@@ -77,7 +82,7 @@ function readPara(xml: string): Para {
     const i = flag(rPr, "i");
     // text, tabs and breaks in the order they stand
     for (const t of body.matchAll(
-      /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\s*\/>|<w:br\b([^>]*)\/?>|<w:noBreakHyphen\s*\/>/g,
+      /<w:t(?:\s[^>]*)?(?<!\/)>([\s\S]*?)<\/w:t>|<w:tab\s*\/>|<w:br\b([^>]*)\/?>|<w:noBreakHyphen\s*\/>/g,
     )) {
       if (t[1] !== undefined) push(unxml(t[1]), b, i);
       else if (t[0].startsWith("<w:tab")) push("    ", b, i);

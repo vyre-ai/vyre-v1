@@ -20,7 +20,7 @@ import path from "node:path";
 import { deflateSync, inflateRawSync, inflateSync } from "node:zlib";
 import { MAX_PIXELS, ascii, decodePng, encodePng, scaleRaster, u32be } from "../../../lib/png.ts";
 import type { Raster } from "../../../lib/png.ts";
-import { ERROR_CODES, VyreErr , vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import type { StoredImage } from "./store.ts";

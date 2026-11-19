@@ -9,7 +9,9 @@ version="${1:?version}"
 dry="${2:-false}"
 repo="ghcr.io/vyre-ai/doc-converter"
 here="$(cd "$(dirname "$0")/../.." && pwd)"
-src="$(cd "$here/images/doc-converter" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)"
+# the key is the source AND the month: the image parses untrusted Word files, and its LibreOffice and Debian base only get security fixes when it is rebuilt, so it is rebuilt at least monthly even when nothing in the folder changed
+stamp="$(date -u +%Y-%m)"
+src="$( { cd "$here/images/doc-converter" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum; echo "$stamp"; } | sha256sum | cut -c1-16)"
 out() { if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "image=$1" >>"$GITHUB_OUTPUT"; fi; echo "image=$1"; }
 
 if [ "$dry" != true ]; then
