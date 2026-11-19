@@ -57,6 +57,7 @@ export function MetricCards({
         />
       </View>
       <View style={s.grid}>
+        {/* ui-rows-lint: not a list (the four cards of Right now) */}
         {list.map((c) => (
           <Pressable
             key={c.key}
@@ -117,6 +118,7 @@ export function MetricDetail({ card, window }: { card: Card; window: string }): 
               ["Highest", sum.high],
             ] as const
           ).map(([name, n]) => (
+            /* ui-rows-lint: not a list (lowest, average and highest of one chart) */
             <View key={name} style={s.stat}>
               <Text style={s.statName}>{name}</Text>
               <Text style={s.statValue}>{card.say(n)}</Text>

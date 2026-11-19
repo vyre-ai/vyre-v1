@@ -57,7 +57,8 @@ import {
 } from "../routes/site-host.ts";
 import { createArtifactHostRoute, HOST_CHECK_PATH } from "../routes/artifact-host.ts";
 import type { SiteHostDeps } from "../routes/site-host.ts";
-import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
+import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf, startAccessSink } from "../caddy/index.ts";
+import type { AccessSink } from "../caddy/index.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
@@ -5456,6 +5457,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           void checkWildcard().catch(() => undefined);
           sitesTick = async () => {
             await checkWildcard();
+            await ensureAccessLog().catch((e: unknown) =>
+              sink.log({
+                space: spaceId,
+                level: 40,
+                msg: "sites.access_log_pending",
+                place: "sites",
+                attrs: { why: e instanceof Error ? e.message.slice(0, 160) : "" },
+              }),
+            );
             if (sitesCaddy)
               for (const x of hostsOf()) {
                 try {
@@ -5495,6 +5505,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   attrs: { site: a.siteId },
                 });
             }
+          };
+          // Caddy writes a line for each finished request of a deployed site to a loopback port here; the sites module counts them (CPU is read from Docker, requests only from here)
+          let accessSink: AccessSink | null = null;
+          closers.push(() => accessSink?.close());
+          const ensureAccessLog = async (): Promise<void> => {
+            if (!sitesCaddy) return;
+            accessSink ??= await startAccessSink((line) =>
+              (sitesExports?.["accessLine"] as ((c: { db: unknown }, l: string) => void) | undefined)?.(
+                { db: db! },
+                line,
+              ),
+            );
+            await sitesCaddy.ensureAccessLog(accessSink.port);
           };
           sitesOps = async () => {
             await (sitesExports?.["opsTick"] as ((c: { db: unknown }) => Promise<void>) | undefined)?.({ db: db! });

@@ -28,7 +28,7 @@ const REFRESH_MS = 5000;
 function useCalls(siteId: string): {
   error: string | null;
   busy: boolean;
-  call(cap: string, input: Record<string, unknown>): Promise<unknown>;
+  act(cap: string, input: Record<string, unknown>): Promise<unknown>;
   clear(): void;
 } {
   const d = useAppsData();
@@ -38,7 +38,7 @@ function useCalls(siteId: string): {
     error,
     busy,
     clear: () => setError(null),
-    call: async (cap, input) => {
+    act: async (cap, input) => {
       setBusy(true);
       setError(null);
       try {
@@ -89,27 +89,28 @@ export function JobsAndWorkers({ siteId }: { siteId: string }): ReactElement {
               entries={[
                 {
                   label: "Restart",
-                  onSelect: () => void calls.call("sites.service_restart", { serviceId: v.serviceId }).then(done),
+                  onSelect: () => void calls.act("sites.service_restart", { serviceId: v.serviceId }).then(done),
                 },
                 ...(v.state === "stopped" || v.state === "failed"
                   ? []
                   : [
                       {
                         label: "Stop",
-                        onSelect: () => void calls.call("sites.service_stop", { serviceId: v.serviceId }).then(done),
+                        onSelect: () => void calls.act("sites.service_stop", { serviceId: v.serviceId }).then(done),
                       },
                     ]),
                 { separator: true as const },
                 {
                   label: "Remove",
                   danger: true,
-                  onSelect: () => void calls.call("sites.service_remove", { serviceId: v.serviceId }).then(done),
+                  onSelect: () => void calls.act("sites.service_remove", { serviceId: v.serviceId }).then(done),
                 },
               ]}
             />
           }
         />
       ))}
+      {/* ui-rows-lint: each item is a ui/Row with its detail opened under it */}
       {(jobs.data?.jobs ?? []).map((j) => (
         <View key={j.jobId}>
           <Row
@@ -200,14 +201,14 @@ function JobDetail({
           primary
           disabled={going || calls.busy}
           testID="site-job-run"
-          onPress={() => void calls.call("sites.job_run", { jobId: job.jobId }).then(after)}
+          onPress={() => void calls.act("sites.job_run", { jobId: job.jobId }).then(after)}
         />
         {going ? (
           <Button
             title="Stop"
             onPress={() => {
               const r = (runs.data?.runs ?? []).find((x) => x.state === "running" || x.state === "queued");
-              if (r) void calls.call("sites.job_cancel", { runId: r.runId }).then(after);
+              if (r) void calls.act("sites.job_cancel", { runId: r.runId }).then(after);
             }}
           />
         ) : null}
@@ -218,13 +219,13 @@ function JobDetail({
             {
               label: job.enabled ? "Pause" : "Resume",
               onSelect: () =>
-                void calls.call("sites.job_update", { jobId: job.jobId, enabled: !job.enabled }).then(after),
+                void calls.act("sites.job_update", { jobId: job.jobId, enabled: !job.enabled }).then(after),
             },
             { separator: true as const },
             {
               label: "Delete",
               danger: true,
-              onSelect: () => void calls.call("sites.job_delete", { jobId: job.jobId }).then(after),
+              onSelect: () => void calls.act("sites.job_delete", { jobId: job.jobId }).then(after),
             },
           ]}
         />
@@ -232,21 +233,22 @@ function JobDetail({
       {calls.error ? <Text style={s.error}>{calls.error}</Text> : null}
       <Text style={s.title}>Runs</Text>
       {(runs.data?.runs ?? []).length === 0 ? <Text style={s.hint}>None yet.</Text> : null}
+      {/* ui-rows-lint: each item is a ui/Row with its output opened under it */}
       {(runs.data?.runs ?? []).map((r) => (
         <View key={r.runId}>
-          <Pressable
-            accessibilityRole="button"
-            testID={`site-run-${r.runId}`}
+          <Row
+            id={r.runId}
+            title={r.note ?? RUN_WORD[r.state]}
+            note={took(r)}
+            selected={shown === r.runId}
+            leading={<StepMark state={runMark(r.state)} />}
             onPress={() => setShown(shown === r.runId ? null : r.runId)}
-            style={s.run}
-          >
-            <StepMark state={runMark(r.state)} />
-            <Text style={s.runText} numberOfLines={1}>
-              {r.note ?? RUN_WORD[r.state]}
-            </Text>
-            <Text style={s.runMeta}>{took(r)}</Text>
-            <Text style={s.runMeta}>{when(r.at, now)}</Text>
-          </Pressable>
+            trailing={
+              <Text style={s.runMeta} testID={`site-run-${r.runId}`}>
+                {when(r.at, now)}
+              </Text>
+            }
+          />
           {shown === r.runId ? <RunOutput siteId={siteId} runId={r.runId} /> : null}
         </View>
       ))}
@@ -321,7 +323,7 @@ function JobForm({
               zone: job?.zone ?? zone,
             };
             void (
-              job ? calls.call("sites.job_update", { jobId: job.jobId, ...body }) : calls.call("sites.job_create", body)
+              job ? calls.act("sites.job_update", { jobId: job.jobId, ...body }) : calls.act("sites.job_create", body)
             ).then((o) => {
               if (o) onSaved();
             });
@@ -359,7 +361,7 @@ function WorkerForm({ siteId, onClose, onSaved }: { siteId: string; onClose(): v
           onPress={() => {
             setShown(true);
             if (problem) return;
-            void calls.call("sites.service_add", { name: name.trim(), command: command.trim() }).then((o) => {
+            void calls.act("sites.service_add", { name: name.trim(), command: command.trim() }).then((o) => {
               if (o) onSaved();
             });
           }}

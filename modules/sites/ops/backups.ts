@@ -17,7 +17,7 @@ export interface Backup {
   fileId?: string;
   note?: string;
   /** a person kept it: retention never deletes it */
-  pinned?: boolean;
+  pinned?: boolean | undefined;
 }
 
 export type BackupEvent =

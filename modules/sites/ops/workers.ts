@@ -16,16 +16,16 @@ export interface Service {
   kind: ServiceKind;
   state: ServiceState;
   /** when the current container started */
-  startedAt?: number;
+  startedAt?: number | undefined;
   /** when the next start is due, in backoff */
-  restartAt?: number;
+  restartAt?: number | undefined;
   /** crashes in a row without once staying up for STABLE_MS */
   streak: number;
   /** the times of recent crashes, newest last, within LOOP_WINDOW_MS */
   crashes: number[];
   lastExit?: { at: number; code: number; oom?: boolean };
   /** one plain sentence, set for backoff and failed */
-  note?: string;
+  note?: string | undefined;
 }
 
 export const READY_AFTER_MS = 10_000;
