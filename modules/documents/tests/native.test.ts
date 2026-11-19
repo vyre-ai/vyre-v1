@@ -456,3 +456,27 @@ test("with no key of its own, the same ask by another person or into another fol
   assert.notEqual(await keyOf(FOLDER, "per_b"), a, "another person");
   assert.notEqual(await keyOf("fld_other", "per_a"), a, "another folder");
 });
+
+test("with no key of its own, fill for another record is another file even when the folder, template and person are the same and no values are typed", async () => {
+  const w = linked();
+  w.records.set("rec_other", { name: "Imran Ibarra" });
+  const id = w.add("Letter.docx", docx(para("Dear {name}")));
+  const keyOf = async (recordId: string) => {
+    const n = w.calls.filter((c) => c.cap === "files.create").length;
+    await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      recordId,
+      mapping: { name: "name" },
+    });
+    return String(w.calls.filter((c) => c.cap === "files.create")[n]!.input.idempotencyKey).replace(
+      /:[^:]*\.docx$/,
+      "",
+    );
+  };
+  const a = await keyOf("rec_imran");
+  assert.equal(await keyOf("rec_imran"), a, "the same record again is the same ask");
+  assert.notEqual(await keyOf("rec_other"), a, "another record, even with the same words in it");
+  w.records.set("rec_imran", { name: "Imran Ibarra (corrected)" });
+  assert.notEqual(await keyOf("rec_imran"), a, "the record was corrected: not the old document");
+});

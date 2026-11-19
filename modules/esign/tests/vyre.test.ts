@@ -919,6 +919,21 @@ test("an Automation's sign step runs as the person who built it but is not that 
     .catch((x: unknown) => x);
   assert.equal((e as { error: { code: string } }).error.code, "permission.needs_approval");
   assert.equal(h.rows("esign_envelope").length, 0);
+  // a person's own held send, resumed by the Gate after they pressed Allow, is their choice; an agent's held send resumed the same way is not
+  const resumed = await h.call(
+    "esign.send",
+    { fileId: FILE, signers: [ANDREA], plainOk: true, idempotencyKey: "resumed" },
+    { ...dana, depth: 1, callerCap: "gate.release" },
+  );
+  assert.match(resumed.envelopeId, /^env_/);
+  const agentResumed = await h
+    .call(
+      "esign.send",
+      { fileId: FILE, signers: [SAM], plainOk: true, idempotencyKey: "agent-resumed" },
+      { id: "agt_helper", kind: "agent", depth: 1, callerCap: "gate.release" },
+    )
+    .catch((x: unknown) => x);
+  assert.equal((agentResumed as { error: { code: string } }).error.code, "permission.needs_approval");
   // the same person at the top of the call is one step
   assert.match(
     (await h.call("esign.send", { fileId: FILE, signers: [ANDREA], plainOk: true, idempotencyKey: "top" }, dana))

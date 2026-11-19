@@ -57,6 +57,8 @@ export interface Caller {
   actingFor?: string;
   /** how deep in calls this one is: 0 at the top (a person's own call), 1 or more from inside another capability (an Automation's step) */
   depth?: number;
+  /** the capability that made this call, from inside another (gate.release when the Gate resumes a held call) */
+  callerCap?: string;
 }
 type Callee = (input: any) => unknown; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -172,6 +174,7 @@ export function harness(o: HarnessOptions = {}) {
       ...(who.thread ? { thread: who.thread } : {}),
       origin: "user",
       depth: who.depth ?? 0,
+      ...(who.callerCap ? { callerCap: who.callerCap } : {}),
       now: () => clock,
       db: scopedDb("esign", raw, TRACE),
       emit<T>(name: EventName, subj: string, payload: T): EventEnvelope<T> {

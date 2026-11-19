@@ -1,2 +1,3 @@
 A fill made with no key of its own, including documents.make, is keyed by the template and its version, the values, the date, the folder and the person, so a retry is the same document; after the template is edited the same ask is a new document, by design.
 A copy that is not the exact one can be sent anyway only by a person at the top of the call: an agent, someone's agent, or an Automation step is refused and asked to bring a person in.
+A fill with no key of its own is also keyed by the record, and by the record's values as read, so another record or a corrected record is a new document. A held send of a person's own that the Gate resumes after they press Allow keeps their choice to send a copy that is not the exact one.

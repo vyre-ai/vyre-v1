@@ -35,7 +35,9 @@ export const handlers = {
     const state = typeof o.fileId === "string" ? await copyState(ctx, o.fileId) : "exact";
     // the choice to send a copy that is not known to be exact is a person's: an agent or an Automation acting for someone cannot make it
     // a person at the top of the call: not an agent, not someone's agent acting for them, and not a call made from inside another capability (an Automation's step runs as its person but arrives at depth 1 or more)
-    const person = ctx.principal.kind === "person" && !ctx.actingFor && ctx.depth === 0;
+    // (a held send of a person's own, resumed by the Gate after approval, runs as that person one level down through gate.release: the person who pressed Allow chose)
+    const person =
+      ctx.principal.kind === "person" && !ctx.actingFor && (ctx.depth === 0 || ctx.callerCap === "gate.release");
     if (state !== "exact" && o.plainOk === true && !person)
       fail(
         ctx,

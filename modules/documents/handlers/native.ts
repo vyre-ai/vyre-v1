@@ -191,7 +191,7 @@ async function fill(ctx: Ctx, input: unknown): Promise<Filled> {
   const stem =
     wanted !== undefined ? wanted.replace(new RegExp(`\\.${format}$`, "i"), "") : `${baseName(templateName)} (filled)`;
   const recordId = optStr(ctx, o, "recordId");
-  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, await fileVersion(ctx, templateFileId), intoFolderId, ctx.actingFor ?? ctx.principal.id])}`}`;
+  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, await fileVersion(ctx, templateFileId), intoFolderId, ctx.actingFor ?? ctx.principal.id, o.recordId])}`}`;
   let saved: Saved;
   let signers: string[] = [];
   if (format === "pdf") {
