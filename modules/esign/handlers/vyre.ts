@@ -202,7 +202,15 @@ async function mailPlan(ctx: Ctx): Promise<MailPlan | null> {
 async function invite(
   ctx: Ctx,
   plan: MailPlan,
-  env: { id: string; title: string; message: string | null; expiresAt: number; senderName: string },
+  env: {
+    id: string;
+    title: string;
+    message: string | null;
+    expiresAt: number;
+    senderName: string;
+    fileId: string;
+    kind: "request" | "reminder";
+  },
   space: SpaceInfo,
   who: { name: string; email: string },
   link: Link,
@@ -223,6 +231,35 @@ async function invite(
     "",
     `This link is yours; please do not forward it. It stops working on ${until}.`,
   ].join("\n");
+  const route = plan.provider === "resend" || plan.provider === "mailgun" ? { route: "space_domain" } : {};
+  // the Space's own words first: the document's own email, else the Space template for this kind of mail (mail.send templateKey, owned by the email module). A refusal before anything is sent
+  // (the Space has no such template yet, a value it cannot fill, a mail module that does not take a template key) falls back to the plain text below; a failure after that is not tried twice.
+  try {
+    const sent = (await ctx.call("mail.send", {
+      mailboxId: plan.mailboxId,
+      senderId: plan.mailboxId,
+      ...route,
+      to: [{ address: who.email }],
+      templateKey: env.kind === "reminder" ? "signature.reminder" : "signature.request",
+      documentId: env.fileId,
+      vars: {
+        signer_name: who.name,
+        document_title: env.title,
+        sign_link: link.url,
+        expires_on: until,
+        sender_name: env.senderName,
+        ...(env.message ? { message: env.message } : {}),
+      },
+      idempotencyKey: `${key}-t`,
+    })) as { status?: string };
+    return sent.status === "queued" || sent.status === "sent";
+  } catch (e) {
+    const code = vyreErrorOf(e)?.code ?? "";
+    if (!code.startsWith("validation.") && code !== "internal.not_implemented") {
+      ctx.log.warn("esign: the invitation could not be sent", { error: e instanceof Error ? e.message : String(e) });
+      return false;
+    }
+  }
   try {
     const sent = (await ctx.call("mail.send", {
       mailboxId: plan.mailboxId,
@@ -460,7 +497,7 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
       const ok = await invite(
         ctx,
         plan,
-        { id: envelopeId, title, message, expiresAt, senderName: sender },
+        { id: envelopeId, title, message, expiresAt, senderName: sender, fileId, kind: "request" },
         space,
         { name: s.name, email: s.email as string },
         links[i]!,
@@ -585,6 +622,8 @@ export async function remind(ctx: Ctx, input: unknown): Promise<Row> {
         message: isNull(full.message) ? null : str(full.message),
         expiresAt: num(full.expires_at),
         senderName: str(full.sender_name) || "Someone",
+        fileId: str(full.file_id),
+        kind: "reminder",
       },
       space,
       { name: str(s.name), email },

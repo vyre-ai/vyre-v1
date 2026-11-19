@@ -409,6 +409,11 @@ test("with a sending mailbox the invitation goes through the one send pipeline, 
   }));
   h.callee("mail.send", (i: Record<string, any>) => {
     // eslint-disable-line @typescript-eslint/no-explicit-any
+    // a mail module with no template for this yet refuses the templated ask before sending: the plain text goes instead
+    if (i.templateKey)
+      throw Object.assign(new Error("no template"), {
+        error: { code: "validation.precondition_failed", message: "no template" },
+      });
     sent.push(i);
     return { status: "queued", suppressed: [] };
   });
@@ -598,7 +603,10 @@ test("places the send names win over the document's own, and a send with the wro
   const own = [{ signer: 0, kind: "signature", page: 1, x: 5, y: 5, w: 20, h: 4 }];
   const out = await send(h, [ANDREA], { places: own });
   const { session } = await view(h, tokenOf(out.links[0]));
-  assert.deepEqual(session.places.map((p: { page: number }) => p.page), [1]);
+  assert.deepEqual(
+    session.places.map((p: { page: number }) => p.page),
+    [1],
+  );
 });
 
 test("a document that cannot say where its signers sign (none known, stale, or the documents module not there) gets the signature page as before", async () => {
@@ -606,7 +614,9 @@ test("a document that cannot say where its signers sign (none known, stale, or t
     () => ({ signers: [], places: [] }),
     () => ({ signers: [], places: [], stale: true }),
     () => {
-      throw Object.assign(new Error("not implemented"), { error: { code: "internal.not_implemented", message: "not implemented" } });
+      throw Object.assign(new Error("not implemented"), {
+        error: { code: "internal.not_implemented", message: "not implemented" },
+      });
     },
   ]) {
     const h = await setup();
@@ -631,7 +641,9 @@ test("an envelope nobody touches again still ends when its time runs out: told o
   assert.equal(h.rows("esign_envelope")[0]!.status, "expired");
   assert.ok(h.rows("esign_vsigner").every((s) => s.status === "expired"));
   assert.deepEqual(
-    h.events.filter((e) => e.name === "signature.expired").map((e) => [e.name, e.payload.envelopeId, e.payload.recordId]),
+    h.events
+      .filter((e) => e.name === "signature.expired")
+      .map((e) => [e.name, e.payload.envelopeId, e.payload.recordId]),
     [["signature.expired", envelopeId, RECORD]],
   );
   const closed = h.callsTo("tasks.transition").at(-1)!.input;
@@ -702,4 +714,48 @@ test("telling that a request ran out does not stop at the first step that fails"
   assert.ok(h.events.some((e) => e.name === "signature.expired"));
   assert.ok(h.callsTo("tasks.transition").length > 0, "the task is still closed");
   assert.ok(h.warnings.some((w) => /telling the sender failed/.test(w)));
+});
+
+test("the invitation and the reminder ask the mail module for the Space's own words first (document version, Space template), with every variable; a failure after that is not tried twice", async () => {
+  const h = await setup();
+  const asks: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("comms.senders.list", () => ({
+    senders: [{ id: "mbx_space", scope: "space", usable: true, provider: "resend" }],
+  }));
+  h.callee("mail.send", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    asks.push(i);
+    return { status: "queued", suppressed: [] };
+  });
+  const out = await send(h, [ANDREA], { message: "Please sign by Friday." });
+  assert.deepEqual(out.emailed, ["andrea@northwind.example"]);
+  assert.equal(asks.length, 1, "one mail, no second try");
+  assert.equal(asks[0]!.templateKey, "signature.request");
+  assert.equal(asks[0]!.documentId, FILE);
+  assert.equal(asks[0]!.subject, undefined);
+  assert.deepEqual(Object.keys(asks[0]!.vars).sort(), [
+    "document_title",
+    "expires_on",
+    "message",
+    "sender_name",
+    "sign_link",
+    "signer_name",
+  ]);
+  assert.equal(asks[0]!.vars.sign_link, out.links[0].url);
+  assert.equal(asks[0]!.vars.signer_name, "Andrea Lindahl");
+  const r = await h.call("esign.remind", { envelopeId: out.envelopeId, signer: 0, idempotencyKey: "rr1" }, dana);
+  assert.equal(r.emailed, true);
+  assert.equal(asks[1]!.templateKey, "signature.reminder");
+  // a provider failure after the ask is a notice, and the plain text is not sent behind it
+  const f = await setup();
+  const fasks: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  f.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+  f.callee("mail.send", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    fasks.push(i);
+    throw Object.assign(new Error("down"), { error: { code: "provider.unavailable", message: "down" } });
+  });
+  const o = await send(f, [ANDREA]);
+  assert.deepEqual(o.emailed, []);
+  assert.equal(fasks.length, 1, "not tried a second time as plain text");
 });
