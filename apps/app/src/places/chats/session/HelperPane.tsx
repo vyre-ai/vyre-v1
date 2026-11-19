@@ -9,7 +9,7 @@ import { nameOf as memberName } from "../crew/model.ts";
 import type { CrewMember } from "../crew/model.ts";
 import type { Call } from "../crew/status.ts";
 import type { TerminalData } from "../terminal/data.ts";
-import { TerminalTab } from "../terminal/TerminalTab.tsx";
+import { TerminalTab } from "../mounts/lazy-pages.tsx";
 import { openHere, openOn } from "../rightpane/TerminalPaneTab.tsx";
 import { errorWords } from "../mounts/live.ts";
 

@@ -10,7 +10,7 @@ import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import type { TerminalData } from "../terminal/data.ts";
 import { useOnline } from "../mounts/live.ts";
-import { TerminalTab } from "../terminal/TerminalTab.tsx";
+import { TerminalTab } from "../mounts/lazy-pages.tsx";
 import { TmuxScreen } from "./TmuxScreen.tsx";
 import type { Seat } from "./TmuxScreen.tsx";
 import { Icon, TextButton } from "./parts.tsx";

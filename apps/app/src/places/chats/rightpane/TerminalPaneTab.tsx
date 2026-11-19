@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { TerminalData } from "../terminal/data.ts";
-import { TerminalTab } from "../terminal/TerminalTab.tsx";
+import { TerminalTab } from "../mounts/lazy-pages.tsx";
 import { loadHosts, openHostCall, thisDeviceId } from "../terminal/hosts.ts";
 import type { HostChoice } from "../terminal/hosts.ts";
 import { errorCode, errorWords } from "../mounts/live.ts";
