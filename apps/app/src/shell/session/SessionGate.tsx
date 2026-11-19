@@ -1613,7 +1613,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   }, [home]);
   /** A Space saved at two addresses whose used-last one is not answering: the person may press the other. Its own sign-in opens (the address named on the button; no username typed for them), never the saved token, and only when that address answers as a Space naming the same id. (A Space id is public, so this guards an accident, not an attack; the person decides and sees the address.) */
   const nearbyBusy = useRef(false);
-  const useNearby = async (from: StoredSession, other: StoredSession, on: Trouble): Promise<void> => {
+  const askNearby = async (from: StoredSession, other: StoredSession, on: Trouble): Promise<void> => {
     if (nearbyBusy.current || troubleBusy) return;
     nearbyBusy.current = true;
     giDo({ e: "busy", on: true });
@@ -1911,7 +1911,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
                   .map((other) => ({
                     key: other.baseUrl,
                     label: `Sign in at ${shortHost(spaceHost(other.baseUrl))}`,
-                    onPress: () => void useNearby(trouble.stored!, other, trouble),
+                    onPress: () => void askNearby(trouble.stored!, other, trouble),
                   })),
               }
             : {})}
