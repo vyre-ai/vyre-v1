@@ -38,7 +38,7 @@ type Out = {
       rootRun: string;
       parentRun?: string;
       depth: number;
-      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
       name?: string;
       owner: string;
       startedBy: string;

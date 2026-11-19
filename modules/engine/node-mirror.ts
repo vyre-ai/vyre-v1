@@ -5,6 +5,14 @@
 import type { TurnRow } from "../../agent/src/turn-engine/types.ts";
 
 export type Phase = "started" | "waiting" | "completed" | "failed" | "cancelled";
+interface Extra {
+  code?: string | undefined;
+  message?: string | undefined;
+  reason?: string | undefined;
+  /** a parked turn: the approval task it waits on, or the Run it waits for */
+  taskId?: string | undefined;
+  runId?: string | undefined;
+}
 type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 export interface MirrorHost {
   call: Call;
@@ -25,7 +33,8 @@ export function nodeKindOf(threadKind: string): "turn" | "helper" | "crew" {
 }
 
 /** What the mirror needs of a turn: a lost turn (a host that died under it) is not in the engine's rows, so it is known by these alone. */
-export type TurnFacts = Pick<TurnRow, "id" | "threadId" | "agentId"> & Partial<Pick<TurnRow, "asker" | "model" | "tokensIn" | "tokensOut">>;
+export type TurnFacts = Pick<TurnRow, "id" | "threadId" | "agentId"> &
+  Partial<Pick<TurnRow, "asker" | "model" | "tokensIn" | "tokensOut">>;
 
 export function createNodeMirror(h: MirrorHost) {
   const facts = new Map<string, ThreadFacts | null>();
@@ -35,7 +44,9 @@ export function createNodeMirror(h: MirrorHost) {
   async function threadFacts(threadId: string, asker: string): Promise<ThreadFacts | null> {
     if (facts.has(threadId)) return facts.get(threadId) ?? null;
     try {
-      const r = (await h.call("threads.get", { threadId }, asker === "" ? undefined : asker)) as { thread?: Record<string, unknown> } | undefined;
+      const r = (await h.call("threads.get", { threadId }, asker === "" ? undefined : asker)) as
+        | { thread?: Record<string, unknown> }
+        | undefined;
       const t = r?.thread ?? (r as Record<string, unknown> | undefined);
       const f: ThreadFacts | null = t
         ? {
@@ -53,7 +64,7 @@ export function createNodeMirror(h: MirrorHost) {
     }
   }
 
-  async function one(turn: TurnFacts, phase: Phase, extra: { code?: string | undefined; message?: string | undefined; reason?: string | undefined }): Promise<void> {
+  async function one(turn: TurnFacts, phase: Phase, extra: Extra): Promise<void> {
     const f = await threadFacts(turn.threadId, turn.asker ?? "");
     const asker = turn.asker ?? f?.starter;
     if (!asker) return; // no person to own it: nothing to show
@@ -74,7 +85,10 @@ export function createNodeMirror(h: MirrorHost) {
     nodeOf.set(turn.id, id);
     if (phase === "started") return;
     if (phase === "waiting") {
-      await h.call("runs.node.move", { runId: id, to: "waiting", why: "slept", wake: { kind: "person", label: "an answer" } });
+      const wake = extra.runId
+        ? { kind: "child", label: "what it is waiting for", on: { run: extra.runId } }
+        : { kind: "person", label: "your answer", ...(extra.taskId ? { on: { task: extra.taskId } } : {}) };
+      await h.call("runs.node.move", { runId: id, to: "waiting", why: "slept", wake });
       return;
     }
     if (phase === "completed") {
@@ -93,29 +107,40 @@ export function createNodeMirror(h: MirrorHost) {
         runId: id,
         to: "failed",
         why: "failed",
-        error: { code: extra.code ?? "turn_failed", message: (extra.message ?? "The turn did not finish.").slice(0, 500) },
+        error: {
+          code: extra.code ?? "turn_failed",
+          message: (extra.message ?? "The turn did not finish.").slice(0, 500),
+        },
       });
       return;
     }
-    await h.call("runs.node.move", { runId: id, to: "stopped", why: "stopped", ...(extra.reason ? { stopReason: extra.reason } : {}) });
+    await h.call("runs.node.move", {
+      runId: id,
+      to: "stopped",
+      why: "stopped",
+      ...(extra.reason ? { stopReason: extra.reason } : {}),
+    });
   }
 
   return {
     /** Mirror one phase of a turn. Phases of one turn run in order; a failure is logged, never thrown. */
-    turn(turn: TurnFacts, phase: Phase, extra: { code?: string | undefined; message?: string | undefined; reason?: string | undefined } = {}): Promise<void> {
+    turn(turn: TurnFacts, phase: Phase, extra: Extra = {}): Promise<void> {
       const prev = chain.get(turn.id) ?? Promise.resolve();
-      const next = prev.then(() => one(turn, phase, extra)).catch((err: unknown) => {
-        h.log?.("a turn could not be mirrored into the run tree", {
-          turnId: turn.id,
-          phase,
-          error: err instanceof Error ? err.message : String(err),
+      const next = prev
+        .then(() => one(turn, phase, extra))
+        .catch((err: unknown) => {
+          h.log?.("a turn could not be mirrored into the run tree", {
+            turnId: turn.id,
+            phase,
+            error: err instanceof Error ? err.message : String(err),
+          });
         });
-      });
       chain.set(turn.id, next);
-      if (phase !== "started" && phase !== "waiting") void next.then(() => {
-        if (chain.get(turn.id) === next) chain.delete(turn.id);
-        nodeOf.delete(turn.id);
-      });
+      if (phase !== "started" && phase !== "waiting")
+        void next.then(() => {
+          if (chain.get(turn.id) === next) chain.delete(turn.id);
+          nodeOf.delete(turn.id);
+        });
       return next;
     },
   };

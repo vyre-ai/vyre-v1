@@ -19,7 +19,7 @@ Move a node to another state; the one way a node changes state (a node already t
 | HTTP | POST /v1/runs/node/move |
 | MCP tool | none |
 | CLI | none |
-| Emits | run.node_state |
+| Emits | run.node_state, run.node_ended |
 
 ## Input
 
@@ -58,7 +58,7 @@ type Out = {
     rootRun: string;
     parentRun?: string;
     depth: number;
-    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
     name?: string;
     owner: string;
     startedBy: string;

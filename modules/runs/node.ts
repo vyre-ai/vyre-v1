@@ -4,6 +4,7 @@
 // A flow Run (automation, journey, routine) keeps its row there and gets a mirror node later; the tree is read from runs_node alone.
 // DECISION: every transition goes through moveNode, which compares the version it read (compare and set), checks the edge table, writes the state event and refuses anything else with a stable reason.
 // DECISION: events carry a key. The same key twice for one node is one event: a duplicate delivery, a replay after a restart and a retried call cannot count twice.
+import { appendEvent } from "./node-log.ts";
 import { clean, newRunId, nul, raise } from "./projections.ts";
 import type { Db, RunsCtx } from "./projections.ts";
 
@@ -15,6 +16,7 @@ export type NodeKind =
   | "handoff"
   | "ask"
   | "routine"
+  | "wait"
   | "watcher"
   | "terminal"
   | "job"
@@ -28,6 +30,7 @@ export const NODE_KINDS: readonly NodeKind[] = [
   "handoff",
   "ask",
   "routine",
+  "wait",
   "watcher",
   "terminal",
   "job",
@@ -201,9 +204,12 @@ export function getNode(ctx: RunsCtx, id: string): Node {
 }
 /** Every node of a tree, oldest first, parents before children. */
 export const treeNodes = (db: Db, rootRun: string): Node[] =>
-  (db.all("SELECT * FROM runs_node WHERE root_run = ? ORDER BY depth ASC, started_at ASC, run_id ASC", rootRun) as Row[]).map(
-    nodeOf,
-  );
+  (
+    db.all(
+      "SELECT * FROM runs_node WHERE root_run = ? ORDER BY depth ASC, started_at ASC, run_id ASC",
+      rootRun,
+    ) as Row[]
+  ).map(nodeOf);
 export const childrenOf = (db: Db, id: string): Node[] =>
   (db.all("SELECT * FROM runs_node WHERE parent_run = ? ORDER BY started_at ASC, run_id ASC", id) as Row[]).map(nodeOf);
 /** The node and everything under it (parents first). */
@@ -269,25 +275,18 @@ export function writeEvent(
 ): { seq: number; duplicate: boolean } {
   const n = findNode(ctx.db, runId);
   if (!n) raise(ctx, "permission.not_found", "That run is not available.");
-  if (e.key !== undefined) {
-    const have = (ctx.db.all("SELECT seq FROM runs_event WHERE run_id = ? AND event_key = ?", runId, e.key) as Row[])[0];
-    if (have) return { seq: int(have["seq"]) ?? 0, duplicate: true };
-  }
-  const next =
-    (int((ctx.db.all("SELECT COALESCE(MAX(seq), 0) AS m FROM runs_event WHERE root_run = ?", n.rootRun) as Row[])[0]?.["m"]) ?? 0) + 1;
-  ctx.db.run(
-    "INSERT INTO runs_event (root_run, seq, run_id, at, type, actor, event_key, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    n.rootRun,
-    next,
+  const w = appendEvent(ctx.db, {
+    rootRun: n.rootRun,
     runId,
-    e.at ?? ctx.now(),
-    e.type,
-    nul(e.actor),
-    nul(e.key),
-    js(e.payload ?? null),
-  );
+    at: e.at ?? ctx.now(),
+    type: e.type,
+    actor: e.actor,
+    key: e.key,
+    payload: e.payload,
+  });
+  if (w.duplicate) return w;
   if (e.type === "usage") addUsage(ctx, n, e.payload);
-  return { seq: next, duplicate: false };
+  return w;
 }
 
 function addUsage(ctx: RunsCtx, n: Node, p: unknown): void {
@@ -304,7 +303,12 @@ function addUsage(ctx: RunsCtx, n: Node, p: unknown): void {
     usdMicros: s.usdMicros + num("usdMicros"),
     calls: s.calls + 1,
   };
-  ctx.db.run("UPDATE runs_node SET spent_json = ?, updated_at = ? WHERE run_id = ?", JSON.stringify(next), ctx.now(), n.id);
+  ctx.db.run(
+    "UPDATE runs_node SET spent_json = ?, updated_at = ? WHERE run_id = ?",
+    JSON.stringify(next),
+    ctx.now(),
+    n.id,
+  );
 }
 
 export function eventsSince(db: Db, rootRun: string, since: number, limit: number, runId?: string): NodeEvent[] {
@@ -317,7 +321,12 @@ export function eventsSince(db: Db, rootRun: string, since: number, limit: numbe
           runId,
           limit,
         )
-      : db.all("SELECT * FROM runs_event WHERE root_run = ? AND seq > ? ORDER BY seq ASC LIMIT ?", rootRun, since, limit)
+      : db.all(
+          "SELECT * FROM runs_event WHERE root_run = ? AND seq > ? ORDER BY seq ASC LIMIT ?",
+          rootRun,
+          since,
+          limit,
+        )
   ) as Row[];
   return rows.map(eventOf);
 }
@@ -368,10 +377,12 @@ export function startNode(ctx: RunsCtx, i: StartInput): { node: Node; created: b
   let depth = 0;
   let parentRun = i.parentRun;
   if (parentRun === undefined && i.parentThread !== undefined) {
-    const live = (ctx.db.all(
-      "SELECT run_id FROM runs_node WHERE thread_id = ? AND kind = 'turn' AND status IN ('running','waiting') ORDER BY started_at DESC, run_id DESC LIMIT 1",
-      i.parentThread,
-    ) as Row[])[0];
+    const live = (
+      ctx.db.all(
+        "SELECT run_id FROM runs_node WHERE thread_id = ? AND kind = 'turn' AND status IN ('running','waiting') ORDER BY started_at DESC, run_id DESC LIMIT 1",
+        i.parentThread,
+      ) as Row[]
+    )[0];
     if (live) parentRun = String(live["run_id"]);
   }
   if (parentRun !== undefined) {
@@ -416,15 +427,35 @@ export function startNode(ctx: RunsCtx, i: StartInput): { node: Node; created: b
     now,
   );
   const node = getNode(ctx, id);
-  writeEvent(ctx, id, { type: "state", key: "state:0", actor: ctx.principal.id, payload: { from: null, to: status, why: "started" } });
+  writeEvent(ctx, id, {
+    type: "state",
+    key: "state:0",
+    actor: ctx.principal.id,
+    payload: { from: null, to: status, why: "started" },
+  });
   announce(ctx, node, null, status, "started");
   return { node, created: true };
 }
 
 function announce(ctx: RunsCtx, n: Node, from: NodeStatus | null, to: NodeStatus, why: Why): void {
-  ctx.emit("run.node_state", `run/${n.id}`, clean({ runId: n.id, rootRun: n.rootRun, kind: n.kind, from: from ?? undefined, to, why }), {
-    vis: "participants",
-  });
+  ctx.emit(
+    "run.node_state",
+    `run/${n.id}`,
+    clean({ runId: n.id, rootRun: n.rootRun, kind: n.kind, from: from ?? undefined, to, why }),
+    {
+      vis: "participants",
+    },
+  );
+  // one event that says "this node is over", whichever way: what a parent that sleeps until it ends waits on (a wait on event run.node_ended with the node's runId)
+  if (isTerminal(to))
+    ctx.emit(
+      "run.node_ended",
+      `run/${n.id}`,
+      clean({ runId: n.id, rootRun: n.rootRun, kind: n.kind, to, summary: n.summary?.slice(0, 300) }),
+      {
+        vis: "participants",
+      },
+    );
 }
 
 // ---- move ----
@@ -464,11 +495,16 @@ export function moveNode(ctx: RunsCtx, id: string, to: NodeStatus, o: MoveOpts):
       version: cur.version,
     });
   if (!legalEdge(cur.status, to))
-    raise(ctx, "validation.precondition_failed", isTerminal(cur.status) ? "That run has already finished." : "That run cannot do that now.", {
-      reason: isTerminal(cur.status) ? "run_finished" : "illegal_move",
-      from: cur.status,
-      to,
-    });
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      isTerminal(cur.status) ? "That run has already finished." : "That run cannot do that now.",
+      {
+        reason: isTerminal(cur.status) ? "run_finished" : "illegal_move",
+        from: cur.status,
+        to,
+      },
+    );
   const now = ctx.now();
   const ending = isTerminal(to);
   const leaving = to !== "running";
@@ -476,7 +512,8 @@ export function moveNode(ctx: RunsCtx, id: string, to: NodeStatus, o: MoveOpts):
   const wake: Wake | undefined = to === "waiting" ? o.wake : undefined;
   // a node that sleeps and wakes counts its wakes, so "Asleep until the build finishes, woke 3 times" is a fact
   const woke = cur.status === "waiting" && to === "queued" ? (cur.wake?.wokeCount ?? 0) + 1 : undefined;
-  const keepWake: Wake | undefined = to === "queued" && woke !== undefined ? { ...(cur.wake ?? { kind: "event" }), wokeCount: woke } : wake;
+  const keepWake: Wake | undefined =
+    to === "queued" && woke !== undefined ? { ...(cur.wake ?? { kind: "event" }), wokeCount: woke } : wake;
   const r = ctx.db.run(
     `UPDATE runs_node SET status = ?, version = version + 1, attempt = ?, updated_at = ?,
        ended_at = CASE WHEN ? THEN ? ELSE ended_at END,
@@ -557,7 +594,8 @@ export function pauseSubtree(ctx: RunsCtx, id: string, by?: string): Node[] {
 /** Resume a paused node (and the paused nodes under it that were paused with it). They go to queued: the scheduler decides when they run. */
 export function resumeSubtree(ctx: RunsCtx, id: string, by?: string): Node[] {
   const out: Node[] = [];
-  for (const n of subtreeOf(ctx.db, id)) if (n.status === "paused") out.push(moveNode(ctx, n.id, "queued", { why: "resumed", by }).node);
+  for (const n of subtreeOf(ctx.db, id))
+    if (n.status === "paused") out.push(moveNode(ctx, n.id, "queued", { why: "resumed", by }).node);
   return out;
 }
 

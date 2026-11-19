@@ -12,11 +12,14 @@
 import { estimateTokens } from "../../lib/reply-format.ts";
 import { readFileSync } from "node:fs";
 
-const F = new Set((process.env["FEATURES"] ?? "").split(",").map((s) => s.trim()).filter(Boolean));
-const prices = JSON.parse(readFileSync(new URL("../../modules/engine/prices.json", import.meta.url), "utf8")).providers.anthropic as Record<
-  string,
-  { in: number; out: number; cacheRead?: number }
->;
+const F = new Set(
+  (process.env["FEATURES"] ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+const prices = JSON.parse(readFileSync(new URL("../../modules/engine/prices.json", import.meta.url), "utf8")).providers
+  .anthropic as Record<string, { in: number; out: number; cacheRead?: number }>;
 
 /** What every session carries before the first word: identity, rules, the person, skills (SYSTEM) and the listed tools (TOOLS). Same constants as tool-discovery/measure.ts. */
 const SYSTEM = 8000;
@@ -110,8 +113,8 @@ function sleepJob(): { t: Tally; note: string } {
   const startConvo = 3000;
   if (F.has("sleep")) {
     call(t, model, SYSTEM + TOOLS + startConvo, SYSTEM + TOOLS, 0, 200); // starts the job and sleeps: zero tokens while asleep
-    // wake: resumes from a compact checkpoint (state summary + references), not the transcript
-    call(t, model, SYSTEM + TOOLS + 600, SYSTEM + TOOLS, 0, 200);
+    // wake: a new turn in the same chat (the park is the existing wait_for; an exit or a log line is an event it waits on)
+    call(t, model, SYSTEM + TOOLS + startConvo + 400, SYSTEM + TOOLS, 0, 200); // the wake turn reads the chat as it stood, not less
   } else {
     // today: the agent polls every 30 s with a status call and a log read; the conversation grows by the poll each time
     let convo = startConvo;

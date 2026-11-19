@@ -19,7 +19,7 @@ Put nodes whose worker stopped beating back in the queue with the next attempt (
 | HTTP | POST /v1/runs/node/reclaim |
 | MCP tool | none |
 | CLI | none |
-| Emits | run.node_state |
+| Emits | run.node_state, run.node_ended |
 
 ## Input
 

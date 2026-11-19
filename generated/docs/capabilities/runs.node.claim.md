@@ -19,7 +19,7 @@ Take a queued node for a worker: queued to running with a lease; returns the nod
 | HTTP | POST /v1/runs/node/claim |
 | MCP tool | none |
 | CLI | none |
-| Emits | run.node_state |
+| Emits | run.node_state, run.node_ended |
 
 ## Input
 
@@ -39,7 +39,7 @@ type Out = {
     rootRun: string;
     parentRun?: string;
     depth: number;
-    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
     name?: string;
     owner: string;
     startedBy: string;

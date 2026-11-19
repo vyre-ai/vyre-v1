@@ -5,15 +5,15 @@ import type { Check } from './core.ts';
 
 function d_s_44b3e62fc2(v: unknown, p: string, e: string[]): void {
 {
-const x347 = v;
-const g347 = typeOf(x347);
-const b347: string[] = []; lf(x347, p, b347, L0); if (b347.length) e.push(...b347);
-if (g347 === "object") {
-if (g347 === 'object') { const o347 = x347 as Record<string, unknown>;
-if (!("fileId" in o347)) e.push(p + "/fileId" + ': required');
-if (!("isTemplate" in o347)) e.push(p + "/isTemplate" + ': required');
-if ("fileId" in o347) lf(o347["fileId"], p + "/fileId", e, L35);
-if ("isTemplate" in o347) lf(o347["isTemplate"], p + "/isTemplate", e, L3);
+const x346 = v;
+const g346 = typeOf(x346);
+const b346: string[] = []; lf(x346, p, b346, L0); if (b346.length) e.push(...b346);
+if (g346 === "object") {
+if (g346 === 'object') { const o346 = x346 as Record<string, unknown>;
+if (!("fileId" in o346)) e.push(p + "/fileId" + ': required');
+if (!("isTemplate" in o346)) e.push(p + "/isTemplate" + ': required');
+if ("fileId" in o346) lf(o346["fileId"], p + "/fileId", e, L35);
+if ("isTemplate" in o346) lf(o346["isTemplate"], p + "/isTemplate", e, L3);
 }
 }
 }

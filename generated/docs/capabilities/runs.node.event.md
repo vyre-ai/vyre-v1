@@ -1,6 +1,6 @@
 # runs.node.event
 
-Add one event to a node's log (idempotent by key; a usage event adds to the node's own spend once)
+Add one event to the record of a node, idempotent by key; a usage event adds to the spend of that node once
 
 | | |
 |---|---|

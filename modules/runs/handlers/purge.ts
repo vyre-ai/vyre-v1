@@ -18,6 +18,40 @@ function removeRun(ctx: RunsCtx, id: string): void {
   ctx.db.run(`DELETE FROM runs_idem WHERE "run_id" = ?`, id);
   ctx.db.run(`DELETE FROM runs_items__fm WHERE "id" = ?`, id);
   ctx.db.run(`DELETE FROM runs_items WHERE "id" = ?`, id);
+  removeNodes(ctx, [id]);
+}
+
+/** The mirror node of an erased Run and its log; a tree is removed whole by removeTrees. */
+function removeNodes(ctx: RunsCtx, ids: readonly string[]): void {
+  for (const id of ids) {
+    try {
+      ctx.db.run(`DELETE FROM runs_event WHERE "run_id" = ?`, id);
+      ctx.db.run(`DELETE FROM runs_node WHERE "run_id" = ?`, id);
+    } catch (e) {
+      if (!/no such table/i.test(e instanceof Error ? e.message : String(e))) throw e;
+    }
+  }
+}
+
+/** Trees of agent work that ended before the cutoff and have no live node: events and nodes go together, oldest first, one batch. */
+function removeTrees(ctx: RunsCtx, before: number, limit: number): void {
+  try {
+    const roots = (
+      ctx.db.all(
+        `SELECT "run_id" FROM runs_node r WHERE "parent_run" IS NULL AND "ended_at" IS NOT NULL AND "ended_at" < ?
+           AND NOT EXISTS (SELECT 1 FROM runs_node c WHERE c."root_run" = r."run_id" AND c."status" IN ('queued','running','waiting','paused'))
+         ORDER BY "ended_at" ASC LIMIT ?`,
+        before,
+        limit,
+      ) as { run_id: string }[]
+    ).map((r) => String(r.run_id));
+    for (const root of roots) {
+      ctx.db.run(`DELETE FROM runs_event WHERE "root_run" = ?`, root);
+      ctx.db.run(`DELETE FROM runs_node WHERE "root_run" = ?`, root);
+    }
+  } catch (e) {
+    if (!/no such table/i.test(e instanceof Error ? e.message : String(e))) throw e;
+  }
 }
 
 export async function erase(ctx: RunsCtx, input: { runId: string; idempotencyKey: string }) {
@@ -39,6 +73,7 @@ export async function purge(ctx: RunsCtx, input: { before: number; limit?: numbe
   ).map((r) => String(r.id));
   const batch = ids.slice(0, limit);
   for (const id of batch) removeRun(ctx, id);
+  removeTrees(ctx, input.before, limit);
   ctx.emit("runs.purged", `entity/${batch.length}`, { removed: batch.length });
   return { removed: batch.length, more: ids.length > limit };
 }

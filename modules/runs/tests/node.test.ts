@@ -10,7 +10,8 @@ import type { NodeStatus } from "../node.ts";
 const host = { id: "svc_host", kind: "service" as const };
 const outside = { ...alice, depth: 0 }; // a person typing a URL: depth 0, the gateway
 const start = async (h: Harness, over: Record<string, unknown> = {}) =>
-  (await h.call("runs.node.start", { kind: "helper", name: "Supplier review", owner: alice.id, ...over }, engine)).node as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  (await h.call("runs.node.start", { kind: "helper", name: "Supplier review", owner: alice.id, ...over }, engine))
+    .node as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const move = (h: Harness, runId: string, to: string, why: string, over: Record<string, unknown> = {}) =>
   h.call("runs.node.move", { runId, to, why, ...over }, engine);
 const statusOf = (h: Harness, id: string): string =>
@@ -61,7 +62,11 @@ test("a node starts queued; a child shares its parent's root and sits one level 
   const grand = await start(h, { parentRun: kid.id, kind: "subagent" });
   assert.equal(grand.depth, 2);
   assert.equal(grand.rootRun, root.id);
-  const again = await h.call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: root.id, idemKey: "call_1" }, engine);
+  const again = await h.call(
+    "runs.node.start",
+    { kind: "helper", owner: alice.id, parentRun: root.id, idemKey: "call_1" },
+    engine,
+  );
   assert.equal(again.created, false);
   assert.equal(again.node.id, kid.id);
   const tree = await h.call("runs.tree.get", { runId: root.id }, alice);
@@ -72,9 +77,13 @@ test("a finished node takes no new children, and a child of nothing is refused",
   const h = harness();
   const root = await start(h);
   await move(h, root.id, "stopped", "stopped");
-  const e = await h.call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: root.id }, engine).catch((x) => x);
+  const e = await h
+    .call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: root.id }, engine)
+    .catch((x) => x);
   assert.equal(reasonOf(e), "parent_finished");
-  const none = await h.call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: `run_${"0".repeat(32)}` }, engine).catch((x) => x);
+  const none = await h
+    .call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: `run_${"0".repeat(32)}` }, engine)
+    .catch((x) => x);
   assert.equal(reasonOf(none), "no_parent");
 });
 
@@ -89,11 +98,24 @@ test("every transition writes one state event, in order, with a cursor a reader 
   const all = await h.call("runs.events.list", { runId: n.id }, alice);
   assert.deepEqual(
     all.events.map((e: any) => `${e.payload.from ?? "-"}>${e.payload.to}:${e.payload.why}`), // eslint-disable-line @typescript-eslint/no-explicit-any
-    ["->queued:started", "queued>running:claimed", "running>waiting:slept", "waiting>queued:woke", "queued>running:claimed", "running>succeeded:done"],
+    [
+      "->queued:started",
+      "queued>running:claimed",
+      "running>waiting:slept",
+      "waiting>queued:woke",
+      "queued>running:claimed",
+      "running>succeeded:done",
+    ],
   );
-  assert.deepEqual(all.events.map((e: any) => e.seq), [1, 2, 3, 4, 5, 6]); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    all.events.map((e: any) => e.seq),
+    [1, 2, 3, 4, 5, 6],
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
   const since = await h.call("runs.events.list", { runId: n.id, since: 4 }, alice);
-  assert.deepEqual(since.events.map((e: any) => e.seq), [5, 6]); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    since.events.map((e: any) => e.seq),
+    [5, 6],
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal(since.lastSeq, 6);
   const got = (await h.call("runs.node.get", { runId: n.id }, alice)).node;
   assert.equal(got.summary, "Five prices updated");
@@ -104,12 +126,34 @@ test("every transition writes one state event, in order, with a cursor a reader 
 test("a duplicate event with the same key is the first event, and a usage line counts once", async () => {
   const h = harness();
   const n = await start(h);
-  const a = await h.call("runs.node.event", { runId: n.id, type: "usage", key: "call_7", payload: { tokensIn: 1000, tokensOut: 200, cacheRead: 600, usdMicros: 4000 } }, engine);
-  const b = await h.call("runs.node.event", { runId: n.id, type: "usage", key: "call_7", payload: { tokensIn: 1000, tokensOut: 200, cacheRead: 600, usdMicros: 4000 } }, engine);
+  const a = await h.call(
+    "runs.node.event",
+    {
+      runId: n.id,
+      type: "usage",
+      key: "call_7",
+      payload: { tokensIn: 1000, tokensOut: 200, cacheRead: 600, usdMicros: 4000 },
+    },
+    engine,
+  );
+  const b = await h.call(
+    "runs.node.event",
+    {
+      runId: n.id,
+      type: "usage",
+      key: "call_7",
+      payload: { tokensIn: 1000, tokensOut: 200, cacheRead: 600, usdMicros: 4000 },
+    },
+    engine,
+  );
   assert.equal(a.duplicate, false);
   assert.equal(b.duplicate, true);
   assert.equal(b.seq, a.seq);
-  await h.call("runs.node.event", { runId: n.id, type: "usage", key: "call_8", payload: { tokensIn: 500, tokensOut: 50, usdMicros: 1000 } }, engine);
+  await h.call(
+    "runs.node.event",
+    { runId: n.id, type: "usage", key: "call_8", payload: { tokensIn: 500, tokensOut: 50, usdMicros: 1000 } },
+    engine,
+  );
   const got = (await h.call("runs.node.get", { runId: n.id }, alice)).node;
   assert.deepEqual(got.spent, { tokensIn: 1500, tokensOut: 250, cacheRead: 600, usdMicros: 5000, calls: 2 });
 });
@@ -119,8 +163,16 @@ test("a late usage line for a finished node still counts, and the tree total add
   const root = await start(h, { kind: "turn" });
   const kid = await start(h, { parentRun: root.id });
   await move(h, kid.id, "stopped", "stopped");
-  await h.call("runs.node.event", { runId: kid.id, type: "usage", key: "late", payload: { tokensIn: 300, tokensOut: 30, usdMicros: 900 } }, engine);
-  await h.call("runs.node.event", { runId: root.id, type: "usage", key: "own", payload: { tokensIn: 100, tokensOut: 10, usdMicros: 100 } }, engine);
+  await h.call(
+    "runs.node.event",
+    { runId: kid.id, type: "usage", key: "late", payload: { tokensIn: 300, tokensOut: 30, usdMicros: 900 } },
+    engine,
+  );
+  await h.call(
+    "runs.node.event",
+    { runId: root.id, type: "usage", key: "own", payload: { tokensIn: 100, tokensOut: 10, usdMicros: 100 } },
+    engine,
+  );
   const tree = await h.call("runs.tree.get", { runId: root.id }, alice);
   assert.equal(tree.spent.tokensIn, 400);
   assert.equal(tree.spent.usdMicros, 1000);
@@ -151,7 +203,11 @@ test("worker dies: its lease runs out, the node goes back in the queue as attemp
   assert.equal(back.status, "queued");
   assert.equal(back.attempt, 2);
   assert.equal(back.leaseHolder, undefined);
-  assert.equal((await h.call("runs.node.beat", { runId: n.id, holder: "host:a" }, host)).held, false, "the dead worker must stop");
+  assert.equal(
+    (await h.call("runs.node.beat", { runId: n.id, holder: "host:a" }, host)).held,
+    false,
+    "the dead worker must stop",
+  );
   const taken = await h.call("runs.node.claim", { runId: n.id, holder: "host:b" }, host);
   assert.equal(taken.node.status, "running");
   assert.equal(taken.node.attempt, 2);
@@ -166,13 +222,19 @@ test("server restart mid-run: nothing is held in memory, so a new process reads 
   const lone = await start(h, { name: "rides its parent", running: true });
   await h.call("runs.node.claim", { runId: running.id, holder: "host:old" }, host);
   await h.call("runs.node.claim", { runId: asleep.id, holder: "host:old" }, host);
-  await move(h, asleep.id, "waiting", "slept", { wake: { kind: "time", dueAt: h.now() + 3_600_000, label: "9:00 tomorrow" } });
+  await move(h, asleep.id, "waiting", "slept", {
+    wake: { kind: "time", dueAt: h.now() + 3_600_000, label: "9:00 tomorrow" },
+  });
   // the server goes down for a minute and comes back: a fresh ctx over the same database, the old holder never beats again
   h.advance(60_000);
   const reclaimed = (await h.call("runs.node.reclaim", {}, host)).reclaimed;
   assert.deepEqual(reclaimed, [running.id]);
   assert.equal(statusOf(h, asleep.id), "waiting", "a sleeping node keeps its wait");
-  assert.equal(statusOf(h, lone.id), "running", "a node with no lease of its own rides its parent's and is not touched here");
+  assert.equal(
+    statusOf(h, lone.id),
+    "running",
+    "a node with no lease of its own rides its parent's and is not touched here",
+  );
   const woke = (await h.call("runs.node.get", { runId: asleep.id }, alice)).node;
   assert.equal(woke.wake.kind, "time");
 });
@@ -188,7 +250,9 @@ test("two writers at once: a stale version is refused, and the one that lands on
   assert.equal(reasonOf(e2), "run_moved");
   const [one, two] = await Promise.all([move(h, n.id, "stopped", "stopped"), move(h, n.id, "stopped", "stopped")]);
   assert.deepEqual([one.changed, two.changed].sort(), [false, true]);
-  const stops = (await h.call("runs.events.list", { runId: n.id }, alice)).events.filter((x: any) => x.payload.to === "stopped"); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const stops = (await h.call("runs.events.list", { runId: n.id }, alice)).events.filter(
+    (x: any) => x.payload.to === "stopped",
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal(stops.length, 1, "one state event for one move");
 });
 
@@ -201,10 +265,15 @@ test("stop takes the whole subtree, parents first, and leaves a finished child a
   await h.call("runs.node.claim", { runId: b.id, holder: "host:a" }, host);
   await move(h, b.id, "succeeded", "done", { summary: "Done early" });
   const out = await h.call("runs.node.control", { runId: root.id, action: "stop", reason: "Not needed" }, alice);
-  assert.deepEqual(out.nodes.map((n: any) => n.id), [root.id, a.id, deep.id]); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    out.nodes.map((n: any) => n.id),
+    [root.id, a.id, deep.id],
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal(statusOf(h, b.id), "succeeded");
   for (const id of [root.id, a.id, deep.id]) assert.equal(statusOf(h, id), "stopped");
-  const why = (await h.call("runs.events.list", { runId: root.id }, alice)).events.filter((e: any) => e.payload.to === "stopped").map((e: any) => `${e.runId === root.id ? "root" : "child"}:${e.payload.why}`); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const why = (await h.call("runs.events.list", { runId: root.id }, alice)).events
+    .filter((e: any) => e.payload.to === "stopped")
+    .map((e: any) => `${e.runId === root.id ? "root" : "child"}:${e.payload.why}`); // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.deepEqual(why, ["root:stopped", "child:parent_stopped", "child:parent_stopped"]);
   const again = await h.call("runs.node.control", { runId: root.id, action: "stop" }, alice);
   assert.equal(again.nodes.length, 1, "a second stop of the same node is a no-op");
@@ -237,8 +306,14 @@ test("who may do what: a person at the gateway cannot move or claim; the owner c
     ["runs.node.start", { kind: "helper", owner: alice.id }],
   ] as const)
     assert.equal(codeOf(await h.call(cap, input, outside).catch((x) => x)), "permission.no_grant", cap);
-  assert.equal(codeOf(await h.call("runs.node.get", { runId: n.id }, { ...bob, depth: 0 }).catch((x) => x)), "permission.not_found");
-  assert.equal(codeOf(await h.call("runs.node.control", { runId: n.id, action: "stop" }, { ...bob, depth: 0 }).catch((x) => x)), "permission.not_found");
+  assert.equal(
+    codeOf(await h.call("runs.node.get", { runId: n.id }, { ...bob, depth: 0 }).catch((x) => x)),
+    "permission.not_found",
+  );
+  assert.equal(
+    codeOf(await h.call("runs.node.control", { runId: n.id, action: "stop" }, { ...bob, depth: 0 }).catch((x) => x)),
+    "permission.not_found",
+  );
   await h.call("runs.node.control", { runId: n.id, action: "pause" }, { ...alice, depth: 0 });
   await h.call("runs.node.control", { runId: n.id, action: "stop" }, { id: "usr_admin", kind: "person", depth: 0 });
   assert.equal(statusOf(h, n.id), "stopped");

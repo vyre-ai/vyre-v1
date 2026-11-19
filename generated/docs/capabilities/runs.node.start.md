@@ -19,13 +19,13 @@ Make a node in the agent work tree: a turn, helper, subagent, handoff, ask, watc
 | HTTP | POST /v1/runs/node/start |
 | MCP tool | none |
 | CLI | none |
-| Emits | run.node_state |
+| Emits | run.node_state, run.node_ended |
 
 ## Input
 
 ```ts
 type In = {
-  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
   name?: string;
   owner: string;
   parentRun?: string;
@@ -53,7 +53,7 @@ type Out = {
     rootRun: string;
     parentRun?: string;
     depth: number;
-    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
     name?: string;
     owner: string;
     startedBy: string;

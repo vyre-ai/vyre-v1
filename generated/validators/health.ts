@@ -5,31 +5,31 @@ import type { Check } from './core.ts';
 
 function d_s_43f71a957b(v: unknown, p: string, e: string[]): void {
 {
-const x338 = v;
-const g338 = typeOf(x338);
-const b338: string[] = []; lf(x338, p, b338, L4); if (b338.length) e.push(...b338);
-if (g338 === "array") {
-if (g338 === 'array') { const a338 = x338 as unknown[];
-for (let i338 = 0; i338 < a338.length; i338++) {
+const x337 = v;
+const g337 = typeOf(x337);
+const b337: string[] = []; lf(x337, p, b337, L4); if (b337.length) e.push(...b337);
+if (g337 === "array") {
+if (g337 === 'array') { const a337 = x337 as unknown[];
+for (let i337 = 0; i337 < a337.length; i337++) {
 {
-const x339 = a338[i338];
-const g339 = typeOf(x339);
-const b339: string[] = []; lf(x339, p + '/' + i338, b339, L0); if (b339.length) e.push(...b339);
-if (g339 === "object") {
-if (g339 === 'object') { const o339 = x339 as Record<string, unknown>;
-if (!("key" in o339)) e.push(p + '/' + i338 + "/key" + ': required');
-if (!("title" in o339)) e.push(p + '/' + i338 + "/title" + ': required');
-if (!("state" in o339)) e.push(p + '/' + i338 + "/state" + ': required');
-if (!("checkedAt" in o339)) e.push(p + '/' + i338 + "/checkedAt" + ': required');
-if (!("module" in o339)) e.push(p + '/' + i338 + "/module" + ': required');
-if (!("next" in o339)) e.push(p + '/' + i338 + "/next" + ': required');
-if ("key" in o339) lf(o339["key"], p + '/' + i338 + "/key", e, L1);
-if ("title" in o339) lf(o339["title"], p + '/' + i338 + "/title", e, L1);
-if ("state" in o339) lf(o339["state"], p + '/' + i338 + "/state", e, L45);
-if ("detail" in o339) lf(o339["detail"], p + '/' + i338 + "/detail", e, L1);
-if ("checkedAt" in o339) lf(o339["checkedAt"], p + '/' + i338 + "/checkedAt", e, L17);
-if ("module" in o339) lf(o339["module"], p + '/' + i338 + "/module", e, L1);
-if ("next" in o339) lf(o339["next"], p + '/' + i338 + "/next", e, L1);
+const x338 = a337[i337];
+const g338 = typeOf(x338);
+const b338: string[] = []; lf(x338, p + '/' + i337, b338, L0); if (b338.length) e.push(...b338);
+if (g338 === "object") {
+if (g338 === 'object') { const o338 = x338 as Record<string, unknown>;
+if (!("key" in o338)) e.push(p + '/' + i337 + "/key" + ': required');
+if (!("title" in o338)) e.push(p + '/' + i337 + "/title" + ': required');
+if (!("state" in o338)) e.push(p + '/' + i337 + "/state" + ': required');
+if (!("checkedAt" in o338)) e.push(p + '/' + i337 + "/checkedAt" + ': required');
+if (!("module" in o338)) e.push(p + '/' + i337 + "/module" + ': required');
+if (!("next" in o338)) e.push(p + '/' + i337 + "/next" + ': required');
+if ("key" in o338) lf(o338["key"], p + '/' + i337 + "/key", e, L1);
+if ("title" in o338) lf(o338["title"], p + '/' + i337 + "/title", e, L1);
+if ("state" in o338) lf(o338["state"], p + '/' + i337 + "/state", e, L45);
+if ("detail" in o338) lf(o338["detail"], p + '/' + i337 + "/detail", e, L1);
+if ("checkedAt" in o338) lf(o338["checkedAt"], p + '/' + i337 + "/checkedAt", e, L17);
+if ("module" in o338) lf(o338["module"], p + '/' + i337 + "/module", e, L1);
+if ("next" in o338) lf(o338["next"], p + '/' + i337 + "/next", e, L1);
 }
 }
 }
@@ -582,31 +582,31 @@ if ("key" in o7329) lf(o7329["key"], p + "/key", e, L1);
 }
 }
 
-function e567_payload(v: unknown, p: string, e: string[]): void {
+function e568_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7583 = v;
-const g7583 = typeOf(x7583);
-const b7583: string[] = []; lf(x7583, p, b7583, L0); if (b7583.length) e.push(...b7583);
-if (g7583 === "object") {
-if (g7583 === 'object') { const o7583 = x7583 as Record<string, unknown>;
-if (!("service" in o7583)) e.push(p + "/service" + ': required');
-if ("service" in o7583) lf(o7583["service"], p + "/service", e, L1);
+const x7584 = v;
+const g7584 = typeOf(x7584);
+const b7584: string[] = []; lf(x7584, p, b7584, L0); if (b7584.length) e.push(...b7584);
+if (g7584 === "object") {
+if (g7584 === 'object') { const o7584 = x7584 as Record<string, unknown>;
+if (!("service" in o7584)) e.push(p + "/service" + ': required');
+if ("service" in o7584) lf(o7584["service"], p + "/service", e, L1);
 }
 }
 }
 }
 
-function e643_payload(v: unknown, p: string, e: string[]): void {
+function e644_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7657 = v;
-const g7657 = typeOf(x7657);
-const b7657: string[] = []; lf(x7657, p, b7657, L0); if (b7657.length) e.push(...b7657);
-if (g7657 === "object") {
-if (g7657 === 'object') { const o7657 = x7657 as Record<string, unknown>;
-if (!("bundleId" in o7657)) e.push(p + "/bundleId" + ': required');
-if (!("sizeBytes" in o7657)) e.push(p + "/sizeBytes" + ': required');
-if ("bundleId" in o7657) lf(o7657["bundleId"], p + "/bundleId", e, L776);
-if ("sizeBytes" in o7657) lf(o7657["sizeBytes"], p + "/sizeBytes", e, L2);
+const x7658 = v;
+const g7658 = typeOf(x7658);
+const b7658: string[] = []; lf(x7658, p, b7658, L0); if (b7658.length) e.push(...b7658);
+if (g7658 === "object") {
+if (g7658 === 'object') { const o7658 = x7658 as Record<string, unknown>;
+if (!("bundleId" in o7658)) e.push(p + "/bundleId" + ': required');
+if (!("sizeBytes" in o7658)) e.push(p + "/sizeBytes" + ': required');
+if ("bundleId" in o7658) lf(o7658["bundleId"], p + "/bundleId", e, L776);
+if ("sizeBytes" in o7658) lf(o7658["sizeBytes"], p + "/sizeBytes", e, L2);
 }
 }
 }
@@ -636,8 +636,8 @@ export const eventValidators: Record<string, Check> = {
   "health.changed": e285_payload,
   "health.paused": e286_payload,
   "health.resumed": e287_payload,
-  "service.restarted": e567_payload,
-  "support_bundle.created": e643_payload,
+  "service.restarted": e568_payload,
+  "support_bundle.created": e644_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

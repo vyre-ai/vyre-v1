@@ -16,7 +16,7 @@ Requires: nothing.
 - [runs.node.beat](../capabilities/runs.node.beat.md): A worker's heartbeat on a node it holds; false means the lease is gone and the worker must stop
 - [runs.node.claim](../capabilities/runs.node.claim.md): Take a queued node for a worker: queued to running with a lease; returns the node, or none when it was not free
 - [runs.node.control](../capabilities/runs.node.control.md): Pause, resume or stop a node and, with subtree, everything under it (the owner or someone who manages runs)
-- [runs.node.event](../capabilities/runs.node.event.md): Add one event to a node's log (idempotent by key; a usage event adds to the node's own spend once)
+- [runs.node.event](../capabilities/runs.node.event.md): Add one event to the record of a node, idempotent by key; a usage event adds to the spend of that node once
 - [runs.node.get](../capabilities/runs.node.get.md): Read one node of the agent work tree
 - [runs.node.move](../capabilities/runs.node.move.md): Move a node to another state; the one way a node changes state (a node already there answers as a no-op, a finished one refuses)
 - [runs.node.reclaim](../capabilities/runs.node.reclaim.md): Put nodes whose worker stopped beating back in the queue with the next attempt (the host's sweep)
@@ -40,11 +40,12 @@ Requires: nothing.
 - [runs.undo](../capabilities/runs.undo.md): Undo this run: replay the inverse of its writes for events still at the Run version and report the rest
 - [runs.wait_for](../capabilities/runs.wait_for.md): Wait in the background for an event, another Run or a time; ends the turn and wakes the thread on a match (default timeout 30 days)
 
-## Events (12)
+## Events (13)
 
 - [run.erased](../events/run.erased.md): A Run was erased for good with its steps (ids only)
 - [run.failed](../events/run.failed.md): A Run failed; it lands in the owner Needs you
 - [run.key_fallback](../events/run.key_fallback.md): A lost key fell back to the backup key (the Run chat records it)
+- [run.node_ended](../events/run.node_ended.md): A node of the agent work tree is over (done, failed or stopped); a Run that sleeps until it waits on this event
 - [run.node_state](../events/run.node_state.md): A node of the agent work tree changed state
 - [run.resumed](../events/run.resumed.md): A waiting Run continued
 - [run.retried](../events/run.retried.md): A Run was retried; the new Run points at the old one

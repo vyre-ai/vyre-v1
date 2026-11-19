@@ -35561,7 +35561,7 @@ export type RunsNodeClaimOut = {
     rootRun: string;
     parentRun?: string;
     depth: number;
-    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
     name?: string;
     owner: string;
     startedBy: string;
@@ -35615,7 +35615,7 @@ export type RunsNodeControlOut = {
       rootRun: string;
       parentRun?: string;
       depth: number;
-      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
       name?: string;
       owner: string;
       startedBy: string;
@@ -35678,7 +35678,7 @@ export type RunsNodeGetOut = {
     rootRun: string;
     parentRun?: string;
     depth: number;
-    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
     name?: string;
     owner: string;
     startedBy: string;
@@ -35749,7 +35749,7 @@ export type RunsNodeMoveOut = {
     rootRun: string;
     parentRun?: string;
     depth: number;
-    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
     name?: string;
     owner: string;
     startedBy: string;
@@ -35797,7 +35797,7 @@ export type RunsNodeReclaimOut = {
   reclaimed: Array<string>;
 };
 export type RunsNodeStartIn = {
-  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
   name?: string;
   owner: string;
   parentRun?: string;
@@ -35820,7 +35820,7 @@ export type RunsNodeStartOut = {
     rootRun: string;
     parentRun?: string;
     depth: number;
-    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
     name?: string;
     owner: string;
     startedBy: string;
@@ -36154,7 +36154,7 @@ export type RunsTreeGetOut = {
       rootRun: string;
       parentRun?: string;
       depth: number;
-      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
       name?: string;
       owner: string;
       startedBy: string;
@@ -54004,10 +54004,17 @@ export type RunKeyFallbackPayload = {
   toKey?: string;
   reason: string;
 };
+export type RunNodeEndedPayload = {
+  runId: string;
+  rootRun: string;
+  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+  to: "succeeded" | "failed" | "stopped";
+  summary?: string;
+};
 export type RunNodeStatePayload = {
   runId: string;
   rootRun: string;
-  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
   from?: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
   to: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
   why: "started" | "claimed" | "slept" | "woke" | "paused" | "resumed" | "done" | "failed" | "stopped" | "worker_lost" | "budget" | "stuck" | "parent_stopped" | "parent_paused" | "retry" | "lease_lost";
@@ -55906,6 +55913,7 @@ export interface EventMap {
   "run.erased": RunErasedPayload;
   "run.failed": RunFailedPayload;
   "run.key_fallback": RunKeyFallbackPayload;
+  "run.node_ended": RunNodeEndedPayload;
   "run.node_state": RunNodeStatePayload;
   "run.resumed": RunResumedPayload;
   "run.retried": RunRetriedPayload;

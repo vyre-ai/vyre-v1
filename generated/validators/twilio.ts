@@ -5,34 +5,34 @@ import type { Check } from './core.ts';
 
 function d_s_5430c2af6e(v: unknown, p: string, e: string[]): void {
 {
-const x421 = v;
-const g421 = typeOf(x421);
-const b421: string[] = []; lf(x421, p, b421, L0); if (b421.length) e.push(...b421);
-if (g421 === "object") {
-if (g421 === 'object') { const o421 = x421 as Record<string, unknown>;
-if (!("sid" in o421)) e.push(p + "/sid" + ': required');
-if (!("e164" in o421)) e.push(p + "/e164" + ': required');
-if (!("capabilities" in o421)) e.push(p + "/capabilities" + ': required');
-if ("sid" in o421) lf(o421["sid"], p + "/sid", e, L1);
-if ("e164" in o421) lf(o421["e164"], p + "/e164", e, L213);
-if ("friendlyName" in o421) lf(o421["friendlyName"], p + "/friendlyName", e, L1);
-if ("capabilities" in o421) {
+const x420 = v;
+const g420 = typeOf(x420);
+const b420: string[] = []; lf(x420, p, b420, L0); if (b420.length) e.push(...b420);
+if (g420 === "object") {
+if (g420 === 'object') { const o420 = x420 as Record<string, unknown>;
+if (!("sid" in o420)) e.push(p + "/sid" + ': required');
+if (!("e164" in o420)) e.push(p + "/e164" + ': required');
+if (!("capabilities" in o420)) e.push(p + "/capabilities" + ': required');
+if ("sid" in o420) lf(o420["sid"], p + "/sid", e, L1);
+if ("e164" in o420) lf(o420["e164"], p + "/e164", e, L213);
+if ("friendlyName" in o420) lf(o420["friendlyName"], p + "/friendlyName", e, L1);
+if ("capabilities" in o420) {
 {
-const x422 = o421["capabilities"];
-const g422 = typeOf(x422);
-const b422: string[] = []; lf(x422, p + "/capabilities", b422, L4); if (b422.length) e.push(...b422);
-if (g422 === "array") {
-if (g422 === 'array') { const a422 = x422 as unknown[];
-for (let i422 = 0; i422 < a422.length; i422++) {
-lf(a422[i422], p + "/capabilities" + '/' + i422, e, L1);
+const x421 = o420["capabilities"];
+const g421 = typeOf(x421);
+const b421: string[] = []; lf(x421, p + "/capabilities", b421, L4); if (b421.length) e.push(...b421);
+if (g421 === "array") {
+if (g421 === 'array') { const a421 = x421 as unknown[];
+for (let i421 = 0; i421 < a421.length; i421++) {
+lf(a421[i421], p + "/capabilities" + '/' + i421, e, L1);
 }
 }
 }
 }
 }
-if ("voiceUrl" in o421) lf(o421["voiceUrl"], p + "/voiceUrl", e, L1);
-if ("smsUrl" in o421) lf(o421["smsUrl"], p + "/smsUrl", e, L1);
-if ("statusUrl" in o421) lf(o421["statusUrl"], p + "/statusUrl", e, L1);
+if ("voiceUrl" in o420) lf(o420["voiceUrl"], p + "/voiceUrl", e, L1);
+if ("smsUrl" in o420) lf(o420["smsUrl"], p + "/smsUrl", e, L1);
+if ("statusUrl" in o420) lf(o420["statusUrl"], p + "/statusUrl", e, L1);
 }
 }
 }
@@ -707,22 +707,6 @@ if ("appSid" in o6872) lf(o6872["appSid"], p + "/appSid", e, L1);
 }
 }
 
-function e728_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7731 = v;
-const g7731 = typeOf(x7731);
-const b7731: string[] = []; lf(x7731, p, b7731, L0); if (b7731.length) e.push(...b7731);
-if (g7731 === "object") {
-if (g7731 === 'object') { const o7731 = x7731 as Record<string, unknown>;
-if (!("dedupeKey" in o7731)) e.push(p + "/dedupeKey" + ': required');
-if (!("sid" in o7731)) e.push(p + "/sid" + ': required');
-if ("dedupeKey" in o7731) lf(o7731["dedupeKey"], p + "/dedupeKey", e, L1);
-if ("sid" in o7731) lf(o7731["sid"], p + "/sid", e, L1);
-}
-}
-}
-}
-
 function e729_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7732 = v;
@@ -771,6 +755,22 @@ if ("sid" in o7734) lf(o7734["sid"], p + "/sid", e, L1);
 }
 }
 
+function e732_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7735 = v;
+const g7735 = typeOf(x7735);
+const b7735: string[] = []; lf(x7735, p, b7735, L0); if (b7735.length) e.push(...b7735);
+if (g7735 === "object") {
+if (g7735 === 'object') { const o7735 = x7735 as Record<string, unknown>;
+if (!("dedupeKey" in o7735)) e.push(p + "/dedupeKey" + ': required');
+if (!("sid" in o7735)) e.push(p + "/sid" + ': required');
+if ("dedupeKey" in o7735) lf(o7735["dedupeKey"], p + "/dedupeKey", e, L1);
+if ("sid" in o7735) lf(o7735["sid"], p + "/sid", e, L1);
+}
+}
+}
+}
+
 export const validators: Record<string, { in: Check; out: Check }> = {
   "twilio.a2p.attach_number@1": { in: c2165_in, out: c2165_out },
   "twilio.a2p.create_brand@1": { in: c2166_in, out: c2166_out },
@@ -796,10 +796,10 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "twilio.recording_received": e728_payload,
-  "twilio.sms_received": e729_payload,
-  "twilio.status_received": e730_payload,
-  "twilio.voice_received": e731_payload,
+  "twilio.recording_received": e729_payload,
+  "twilio.sms_received": e730_payload,
+  "twilio.status_received": e731_payload,
+  "twilio.voice_received": e732_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);
