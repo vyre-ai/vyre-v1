@@ -25,6 +25,7 @@ import { useRecordRights } from "../sharing/useRecordAccess.ts";
 import { tabsOf, visibleSections, withStages } from "./groups.ts";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
+import { recordNameHint } from "./name-hint.ts";
 import {
   PANE_TABS,
   RING_R,
@@ -768,8 +769,8 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
     return (
       <View style={p.main} testID="record-page-loading" accessibilityLabel="Loading">
         <View style={p.head}>
-          <Text accessibilityRole="header" style={p.h1}>
-            Record
+          <Text accessibilityRole="header" style={p.h1} testID="record-title-loading">
+            {recordNameHint(recordId)}
           </Text>
         </View>
       </View>
@@ -1268,8 +1269,8 @@ export function RecordPage(props: RecordPageProps): ReactElement {
     return (
       <View style={p.main} testID="record-page-loading" accessibilityLabel="Loading">
         <View style={p.head}>
-          <Text accessibilityRole="header" style={p.h1}>
-            Record
+          <Text accessibilityRole="header" style={p.h1} testID="record-title-loading">
+            {recordNameHint(props.recordId)}
           </Text>
         </View>
       </View>
