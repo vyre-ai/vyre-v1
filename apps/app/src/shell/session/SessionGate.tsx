@@ -1895,10 +1895,13 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           reconnecting={troubleBusy}
           onRetry={() => void retryTrouble()}
           {...(oldData ? { onClear: () => void clearOld() } : {})}
-          {...(trouble.stored && siblingSessions(trouble.stored)[0]
+          {...(trouble.stored && siblingSessions(trouble.stored).length > 0
             ? {
-                onOther: () => void useNearby(trouble.stored!, siblingSessions(trouble.stored!)[0]!, trouble),
-                otherLabel: `Sign in at ${shortHost(spaceHost(siblingSessions(trouble.stored)[0]!.baseUrl))}`,
+                others: siblingSessions(trouble.stored).map((other) => ({
+                  key: other.baseUrl,
+                  label: `Sign in at ${shortHost(spaceHost(other.baseUrl))}`,
+                  onPress: () => void useNearby(trouble.stored!, other, trouble),
+                })),
               }
             : {})}
           {...(bridge && !isLoopbackUrl(trouble.target.address)

@@ -144,7 +144,7 @@ test("one Space saved at two addresses, the used-last one dead: the list shows i
       }
     };
     await press(await until("your-space-0"));
-    const other = await until("not-answering-other");
+    const other = await until("not-answering-other-0");
     assert.match(textOf(other), /new\.example/, "the button names the address");
     assert.equal(
       asked.filter((u) => u.startsWith("https://new.example")).length,
@@ -240,7 +240,7 @@ test("the person moves on while the other address is being asked: when it answer
       }
     };
     await press(await until("your-space-0"));
-    const other = await until("not-answering-other");
+    const other = await until("not-answering-other-0");
     await press(other);
     const wait = Date.now() + 5000;
     while (!asked.includes("https://new.example/healthz") && Date.now() < wait) await flush();
@@ -316,7 +316,7 @@ test("the other address now answers as a different Space: its saved sign-in is n
       }
     };
     await press(await until("your-space-0"));
-    await press(await until("not-answering-other"));
+    await press(await until("not-answering-other-0"));
     for (let i = 0; i < 40; i++) await flush();
     assert.equal(find(root, "si-user"), null, "an address that names another Space gets no sign-in");
     assert.ok(find(root, "step-not-answering"), "the person stays on a screen with a way on");
@@ -326,6 +326,95 @@ test("the other address now answers as a different Space: its saved sign-in is n
       "only the identity question went to the other address",
     );
     assert.equal(JSON.stringify(readStoredSessions(kv)), before, "both sign-ins are still saved, unchanged");
+  } finally {
+    await stop();
+    restore();
+    g.fetch = realFetch;
+    delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
+    delete g.localStorage;
+  }
+});
+
+test("one Space saved at three addresses, the first two not answering: each other address is offered, and the person still gets in at the third", async () => {
+  const realFetch = g.fetch;
+  const restore = setQuietWaitsForTests([1, 1]);
+  let stop: () => Promise<void> = async () => undefined;
+  try {
+    installDom();
+    const m = new Map<string, string>([
+      [
+        "vyre.spaces.v1",
+        JSON.stringify({
+          spaces: [
+            {
+              address: "https://a.example",
+              name: "Northwind",
+              spaceId: "spc_01NORTH",
+              kind: "team",
+              via: "app",
+              usedAt: 5000,
+            },
+          ],
+        }),
+      ],
+    ]);
+    g.localStorage = {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, v),
+      removeItem: (k: string) => void m.delete(k),
+    };
+    const kv = g.localStorage as Parameters<typeof writeStored>[1];
+    for (const host of ["a", "b", "c"])
+      writeStored({ ...SAVED_SESSION, baseUrl: `https://${host}.example`, token: `vds_${host}` }, kv);
+    const before = JSON.stringify(readStoredSessions(kv));
+    const authed: string[] = [];
+    g.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (
+        JSON.stringify(init?.headers ?? {})
+          .toLowerCase()
+          .includes("authorization")
+      )
+        authed.push(url.origin + url.pathname);
+      if (url.origin === "https://c.example" && url.pathname === "/healthz") return json(200, HEALTH);
+      if (url.origin === "https://c.example" && url.pathname.endsWith("sign_in_options")) return json(200, OPTIONS);
+      throw new TypeError("Failed to fetch");
+    }) as typeof fetch;
+    const gate = await mountGate();
+    stop = gate.stop;
+    const root = gate.root;
+    const until = async (id: string): Promise<Node> => {
+      const end = Date.now() + 10000;
+      for (;;) {
+        const n = find(root, id);
+        if (n) return n;
+        if (Date.now() > end) throw new Error(`${id} never showed`);
+        await flush();
+      }
+    };
+    const pressHost = async (host: string): Promise<void> => {
+      for (let i = 0; i < 3; i++) {
+        const n = find(root, `not-answering-other-${i}`);
+        if (n && textOf(n).includes(`${host}.example`)) return press(n);
+      }
+      throw new Error(`no button for ${host}.example`);
+    };
+    await press(await until("your-space-0"));
+    await until("not-answering-other-0");
+    // the first address does not answer: the other two are offered, one row each
+    assert.ok(find(root, "not-answering-other-1"), "both other addresses are offered");
+    await pressHost("b");
+    // b does not answer either: its own screen offers the others again
+    for (let i = 0; i < 40; i++) await flush();
+    await until("not-answering-other-1");
+    await pressHost("c");
+    await until("si-user");
+    assert.deepEqual(
+      authed.filter((u) => !u.startsWith("https://a.example")),
+      [],
+      "no saved sign-in went to any other address (only the first address, where the sign-in was made, saw one)",
+    );
+    assert.equal(JSON.stringify(readStoredSessions(kv)), before, "all three sign-ins are still saved, unchanged");
   } finally {
     await stop();
     restore();

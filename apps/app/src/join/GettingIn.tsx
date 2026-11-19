@@ -108,8 +108,7 @@ export function NotAnswering({
   onRetry,
   onClear,
   onBrowser,
-  onOther,
-  otherLabel,
+  others,
   onBack,
 }: {
   space: string;
@@ -122,10 +121,26 @@ export function NotAnswering({
     | (() => void)
     | undefined;
   onBrowser?: (() => void) | undefined;
-  /** One more way on, in the words given (Use a different account). */ onOther?: (() => void) | undefined;
-  otherLabel?: string;
+  /** More ways on, one row each, in the words given (another saved address of the Space). */
+  others?: readonly { key: string; label: string; onPress(): void }[] | undefined;
   onBack?: (() => void) | undefined;
 }): ReactElement {
+  // one button per other saved address: built in a loop, not a list of rows
+  const otherButtons: ReactElement[] = [];
+  for (let i = 0; i < (others ?? []).length; i++) {
+    const o = others![i]!;
+    otherButtons.push(
+      <Button
+        key={o.key}
+        quiet
+        icon="person"
+        testID={`not-answering-other-${i}`}
+        label={o.label}
+        disabled={!!reconnecting}
+        onPress={o.onPress}
+      />,
+    );
+  }
   return (
     <JoinFrame>
       <Panel
@@ -166,16 +181,7 @@ export function NotAnswering({
                 onPress={onBrowser}
               />
             ) : null}
-            {onOther && otherLabel ? (
-              <Button
-                quiet
-                icon="person"
-                testID="not-answering-other"
-                label={otherLabel}
-                disabled={!!reconnecting}
-                onPress={onOther}
-              />
-            ) : null}
+            {otherButtons}
           </Fixes>
         }
       >
