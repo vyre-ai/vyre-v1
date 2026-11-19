@@ -549,7 +549,7 @@ test("an agent edits a note through the tool layer's version check: only these n
     .sort();
   assert.deepEqual(
     tools,
-    ["notes_create", "notes_get", "notes_image", "notes_label", "notes_list", "notes_pin", "notes_search", "notes_update"],
+    ["notes_create", "notes_get", "notes_list", "notes_pin", "notes_search", "notes_update"],
     "a new note tool must be added to the kinds in agent/src/tools/versions.ts",
   );
   const { kindOfWrite } = await import("../src/tools/versions.ts");

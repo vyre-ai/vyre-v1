@@ -83,15 +83,18 @@ function shortTimes(v: unknown): unknown {
   return Object.fromEntries(Object.entries(o).map(([k, x]) => [k, shortTimes(x)]));
 }
 
+/** Inputs a model is not shown though the server takes them (not version inputs: those are HIDDEN_FROM_MODEL). An agent edits a note's words, colour and link; a picture is put in by the person, and its schema is 350 characters on every call. */
+const NOT_SHOWN: Readonly<Record<string, readonly string[]>> = { "notes.update": ["image"] };
+
 export function modelSchema(schema: unknown, cap?: string): { schema: unknown; keyed: boolean; thread: boolean } {
   const raw = statesLimits(shortTimes(withoutPlaceholderExamples(schema))) as Obj | null;
   if (raw === null || typeof raw !== "object" || raw.properties === undefined)
     return { schema: raw, keyed: false, thread: false };
   // version inputs the tool layer fills for the model are not shown to it (agent/src/tools/versions.ts)
-  const hide = cap === undefined ? undefined : HIDDEN_FROM_MODEL[cap];
+  const hide = cap === undefined ? undefined : [...(HIDDEN_FROM_MODEL[cap] ?? []), ...(NOT_SHOWN[cap] ?? [])];
   let props: Record<string, unknown> = { ...raw.properties };
   let required = [...(raw.required ?? [])];
-  if (hide !== undefined) {
+  if (hide !== undefined && hide.length > 0) {
     props = Object.fromEntries(Object.entries(props).filter(([k]) => !hide.includes(k)));
     required = required.filter((r) => !hide.includes(r));
   }

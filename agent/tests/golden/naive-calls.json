@@ -687,10 +687,6 @@
     "runId": "run_a1b2c3"
   },
   "backup_list": {},
-  "backup_restore": {
-    "backupId": "bkp_a1b2c3",
-    "confirm": true
-  },
   "backup_restore_preview": {
     "backupId": "bkp_a1b2c3"
   },
@@ -715,6 +711,16 @@
   "browser_sites_list": {},
   "browser_sites_remove": {
     "siteId": "bsi_a1b2c3"
+  },
+  "browser_sites_set": {
+    "host": "app.gohighlevel.com",
+    "runsIn": "chrome",
+    "rights": [
+      {
+        "agentId": "agt_a1b2c3",
+        "right": "read"
+      }
+    ]
   },
   "calendar_availability": {
     "people": [
@@ -894,9 +900,6 @@
   "channels_update": {
     "channelId": "chn_a1b2c3"
   },
-  "chat_agent_dm_mute": {
-    "personId": "usr_a1b2c3"
-  },
   "chat_answer_block": {
     "threadId": "thr_a1b2c3",
     "blockId": "blk_a1b2c3",
@@ -1015,9 +1018,6 @@
     "threadId": "thr_a1b2c3",
     "body": "Here is the summary you asked for."
   },
-  "chat_question_withdraw": {
-    "blockId": "blk_a1b2c3"
-  },
   "chat_react": {
     "messageId": "msg_a1b2c3",
     "threadId": "thr_a1b2c3",
@@ -1043,9 +1043,6 @@
     "messageId": "msg_a1b2c3",
     "agentId": "agt_a1b2c3"
   },
-  "chat_round_discuss": {
-    "messageId": "msg_a1b2c3"
-  },
   "chat_screen_get": {
     "threadId": "thr_a1b2c3"
   },
@@ -1066,6 +1063,9 @@
   "chat_thread": {
     "threadId": "thr_a1b2c3",
     "messageId": "msg_a1b2c3"
+  },
+  "chat_transcript_purge": {
+    "before": 1
   },
   "chat_unpin": {
     "messageId": "msg_a1b2c3",
@@ -1258,9 +1258,6 @@
   "computers_wake": {
     "computerId": "cmt_a1b2c3"
   },
-  "conflicts_assist": {
-    "conflictId": "cfl_a1b2c3"
-  },
   "conflicts_confirm": {
     "conflictId": "cfl_a1b2c3"
   },
@@ -1319,10 +1316,6 @@
   },
   "connectors_build": {
     "key": "Plan_Key"
-  },
-  "connectors_check_key": {
-    "connector": "hubspot",
-    "secrets": {}
   },
   "connectors_define": {
     "key": "Plan_Key",
@@ -2011,6 +2004,9 @@
   "files_versions": {
     "fileId": "fil_a1b2c3"
   },
+  "files_versions_purge": {
+    "before": 1
+  },
   "files_viewer_data": {
     "fileId": "fil_a1b2c3"
   },
@@ -2364,10 +2360,6 @@
       "Quarterly planning",
       "Quarterly planning"
     ]
-  },
-  "goals_number_set": {
-    "goalId": "gol_a1b2c3",
-    "value": 1
   },
   "goals_pause": {
     "goalId": "gol_a1b2c3"
@@ -3140,6 +3132,15 @@
     ],
     "subject": "Quarterly planning"
   },
+  "mail_send_as": {
+    "mailboxId": "mbx_a1b2c3",
+    "to": [
+      {
+        "address": "dana@acme.test"
+      }
+    ],
+    "subject": "Quarterly planning"
+  },
   "mail_send_preview": {
     "mailboxId": "mbx_a1b2c3",
     "to": [
@@ -3343,7 +3344,6 @@
   "memory_backlinks": {
     "pageId": "Quarterly planning"
   },
-  "memory_chat_learning_get": {},
   "memory_chat_learning_set": {
     "remember": false
   },
@@ -3397,7 +3397,6 @@
     "positions": {}
   },
   "memory_learned": {},
-  "memory_learning_today": {},
   "memory_map_get": {
     "agentId": "agt_a1b2c3"
   },
@@ -3856,9 +3855,6 @@
   "notes_get": {
     "noteId": "nte_a1b2c3"
   },
-  "notes_image": {
-    "noteId": "nte_a1b2c3"
-  },
   "notes_list": {},
   "notes_pin": {
     "noteId": "nte_a1b2c3",
@@ -3990,12 +3986,9 @@
   },
   "plugins_connections": {},
   "plugins_connections_home": {},
-  "plugins_connections_policy": {},
-  "plugins_connections_policy_set": {},
   "plugins_get": {
     "pluginId": "plg_a1b2c3"
   },
-  "plugins_hooks_list": {},
   "plugins_install": {
     "plugin": "Quarterly planning",
     "scope": "space"
@@ -4513,9 +4506,6 @@
   "runs_preview_undo": {
     "runId": "run_a1b2c3"
   },
-  "runs_purge": {
-    "before": 1
-  },
   "runs_replay": {
     "runId": "run_a1b2c3"
   },
@@ -4754,9 +4744,6 @@
   },
   "settings_list": {},
   "settings_pages": {},
-  "settings_public_of": {
-    "personId": "usr_a1b2c3"
-  },
   "settings_reset": {
     "key": "Plan_Key"
   },
