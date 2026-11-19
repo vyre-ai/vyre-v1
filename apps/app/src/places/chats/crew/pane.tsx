@@ -13,6 +13,7 @@ import { HelperHooksSection } from "../helper/HelperHooks.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { FolderMovePicker } from "../../files/tree/FolderMovePicker.tsx";
 import { ActivitySection } from "./run/ActivitySection.tsx";
+import { RunSection } from "./run/RunSection.tsx";
 import { RecordPicker } from "../../records/RecordPicker.tsx";
 import type { PickedRecord } from "../../records/RecordPicker.tsx";
 import { HelperChip, MemberRing, timeOf, useNow } from "./strip.tsx";
@@ -273,6 +274,7 @@ export function CrewOverview({
           </Text>
         </View>
       ) : null}
+      <RunSection call={call} threadId={threadId} />
       <ActivitySection call={call} {...(onOpenThread ? { onOpenThread } : {})} />
       <Text testID="crew-keys" style={st.keys}>
         ⌘ . stops all · ⌥ 1 to ⌥ 9 jump to a helper
@@ -482,15 +484,7 @@ interface PeekProps {
   meId?: string;
 }
 
-function CrewPeekFor({
-  member,
-  call,
-  nameOfId,
-  onBack,
-  onOpenChat,
-  onRefresh,
-  meId,
-}: PeekProps): ReactElement {
+function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, meId }: PeekProps): ReactElement {
   const [notes, setNotes] = useState<Note[]>([]);
   const [steps, setSteps] = useState<HelperStep[]>([]);
   const [text, setText] = useState("");

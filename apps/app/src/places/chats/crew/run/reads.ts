@@ -1,6 +1,6 @@
 // The reads behind the run views, in one file (lane r42-subagents): what the runtime serves (manifests/runs.ts on wip/r42-runtime: runs.activity.list, runs.board.list, runs.message.list, runs.node.get) turned into the
 // shapes run/model.ts draws. A server that does not have a read yet answers with an error; every function here then says "nothing", never throws at a screen. When the runtime renames a field, this is the one file to change.
-import type { ActivityRow, BoardEntry, NodeMessage } from "./model.ts";
+import type { ActivityRow, BoardEntry, NodeMessage, RunNode } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 type Obj = Record<string, unknown>;
@@ -129,6 +129,73 @@ export async function readBoard(call: Call, runId: string): Promise<BoardEntry[]
 export async function readMessages(call: Call, runId: string): Promise<NodeMessage[] | null> {
   try {
     return messagesOf(await call("runs.message.list", { runId, tree: true }));
+  } catch {
+    return null;
+  }
+}
+
+/** The newest tree of work that ran in a thread (a chat, or a helper's own chat), and whether this person may read its board and messages (`full`: false means they only watch). */
+export async function findRoot(
+  call: Call,
+  threadId: string,
+): Promise<{ rootRun: string; runId: string; full: boolean } | null> {
+  try {
+    const out = (await call("runs.tree.find", { threadId, limit: 1 })) as { roots?: Obj[] } | null;
+    const r = out?.roots?.[0];
+    const rootRun = str(r?.["rootRun"]);
+    const runId = str(r?.["runId"]) ?? rootRun;
+    return rootRun === undefined || runId === undefined ? null : { rootRun, runId, full: r?.["full"] !== false };
+  } catch {
+    return null;
+  }
+}
+
+/** runs.tree.get nodes as RunNodes (the names the views read); a node with no id or an unknown status is dropped. */
+export function nodesOf(out: unknown): RunNode[] {
+  const nodes = (out as { nodes?: unknown } | null)?.nodes;
+  if (!Array.isArray(nodes)) return [];
+  return nodes.flatMap((n: Obj) => {
+    const id = str(n["id"]);
+    const status = str(n["status"]);
+    if (id === undefined || status === undefined || !STATUS.has(status)) return [];
+    const sp = (n["spent"] ?? {}) as Obj;
+    const wake = n["wake"] as Obj | undefined;
+    return [
+      {
+        id,
+        kind: str(n["kind"]) ?? "helper",
+        status: status as RunNode["status"],
+        spent: {
+          tokensIn: num(sp["tokensIn"]) ?? 0,
+          tokensOut: num(sp["tokensOut"]) ?? 0,
+          cacheRead: num(sp["cacheRead"]) ?? 0,
+          usdMicros: num(sp["usdMicros"]) ?? 0,
+        },
+        startedAt: num(n["startedAt"]) ?? 0,
+        ...(str(n["parentRun"]) !== undefined ? { parentRun: str(n["parentRun"])! } : {}),
+        ...(str(n["rootRun"]) !== undefined ? { rootRun: str(n["rootRun"])! } : {}),
+        ...(str(n["name"]) !== undefined ? { name: str(n["name"])! } : {}),
+        ...(str(n["model"]) !== undefined ? { model: str(n["model"])! } : {}),
+        ...(str(n["summary"]) !== undefined ? { summary: str(n["summary"])! } : {}),
+        ...(num(n["endedAt"]) !== undefined ? { endedAt: num(n["endedAt"])! } : {}),
+        ...(wake
+          ? {
+              wake: {
+                kind: str(wake["kind"]) ?? "event",
+                ...(str(wake["label"]) !== undefined ? { label: str(wake["label"])! } : {}),
+                ...(num(wake["dueAt"]) !== undefined ? { dueAt: num(wake["dueAt"])! } : {}),
+                ...(num(wake["wokeCount"]) !== undefined ? { wokeCount: num(wake["wokeCount"])! } : {}),
+              },
+            }
+          : {}),
+      },
+    ];
+  });
+}
+
+export async function readTree(call: Call, runId: string): Promise<RunNode[] | null> {
+  try {
+    return nodesOf(await call("runs.tree.get", { runId }));
   } catch {
     return null;
   }
