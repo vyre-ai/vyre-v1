@@ -2,7 +2,8 @@
 // right rail. A place never draws this frame: its sidebar and its panes land in the sheets through ui/SidePane's host. One Space is open at a time:
 // a switch shows the skeleton as its first frame, unmounts every place, and keys the next place by the new Space, so two Spaces' rows never meet on screen.
 // Places are drawn by `renderPlace`; the shell owns the frame, the tabs, the keys and the Space.
-import { lazy, startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazyPart } from "../../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { reportProblem } from "../../../../../ui/src/Menu/index.tsx";
@@ -65,8 +66,8 @@ import { requestAddServer } from "../computers-available.ts";
 import { SpaceTile } from "./SpaceSwitcher.tsx";
 import type { SpaceAction, SpaceMenuInput } from "./SpaceSwitcher.tsx";
 
-const InboxPhoneShell = lazy(() => import("../providers/inbox.tsx").then((m) => ({ default: m.InboxPhoneShell })));
-const InboxCallTitlePill = lazy(() =>
+const InboxPhoneShell = lazyPart(() => import("../providers/inbox.tsx").then((m) => ({ default: m.InboxPhoneShell })));
+const InboxCallTitlePill = lazyPart(() =>
   import("../providers/inbox.tsx").then((m) => ({ default: m.InboxCallTitlePill })),
 );
 

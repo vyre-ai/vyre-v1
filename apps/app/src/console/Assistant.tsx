@@ -1,11 +1,12 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazyPart } from "../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement } from "react";
 import { conversationData } from "../shell/providers/chats-data.ts";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
 import { addScreen, noteThreadKind } from "../shell/ask/screen.ts";
 import { Note } from "./pages/shared.tsx";
 
-const ChatsConversation = lazy(() =>
+const ChatsConversation = lazyPart(() =>
   import("../shell/providers/chats.tsx").then((m) => ({ default: m.ChatsConversation })),
 );
 

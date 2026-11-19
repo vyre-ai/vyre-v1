@@ -13,7 +13,8 @@ import { subscribeUpdates, updateState, updateWaiting } from "../../startup/upda
 import { ConsoleAlone, onConsoleHost } from "../console-host.ts";
 import { speed } from "../../speed/recorder.ts";
 import { PressProbe } from "../../../../../ui/src/theme/pending.ts";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { lazyPart } from "../../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
@@ -62,7 +63,7 @@ import { isMacShell } from "./entry.ts";
 import { anyUnread } from "../../places/chats/sidebar/model.ts";
 import type { RecentOut } from "../../places/chats/sidebar/model.ts";
 
-const PhoneHost = lazy(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
+const PhoneHost = lazyPart(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
 
 const tabsStorage = () => {
   const ls = (

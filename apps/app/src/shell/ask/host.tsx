@@ -1,12 +1,13 @@
 // The shell draws a place with its Ask pane beside it (ASK_SIDE). The place keeps its own tree whether the pane is open or not, so opening Ask never remounts what the person was looking at.
 // The pane itself loads the first time it opens, so a place that is never asked about carries none of the chat code.
-import { lazy, Suspense, useSyncExternalStore } from "react";
+import { Suspense, useSyncExternalStore } from "react";
+import { lazyPart } from "../../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import type { ShellRuntime } from "../providers/runtime.tsx";
 import { ASK_SIDE, askPaneOf, subscribeAskPane } from "./pane.ts";
 
-const AskPane = lazy(() => import("./AskPane.tsx").then((m) => ({ default: m.AskPane })));
+const AskPane = lazyPart(() => import("./AskPane.tsx").then((m) => ({ default: m.AskPane })));
 
 export function AskPaneHost({
   place,
