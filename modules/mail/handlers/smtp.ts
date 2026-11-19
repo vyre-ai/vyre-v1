@@ -15,6 +15,7 @@ import { fail } from "../../../host/src/routes/errors.ts";
 import { blockedAddress } from "../../../lib/net-guard.ts";
 import { bad, ensure, first, num, statements, str, strOrNull } from "../projections.ts";
 import type { MailCtx, Row } from "../projections.ts";
+import { clearSmtpStrikes, strikeSmtpDomains } from "./watch.ts";
 
 export type Security = "starttls" | "tls";
 export type SmtpReason = "blocked" | "refused" | "unknown_host" | "address" | "auth" | "tls" | "failed";
@@ -466,7 +467,8 @@ export function explain(
   };
 }
 
-export async function smtpVerify(ctx: MailCtx, input: SmtpIn): Promise<VerifyOut> {
+/** `strike: false` is for the daily re-check, which counts the failure once itself, per domain. */
+export async function smtpVerify(ctx: MailCtx, input: SmtpIn, opts: { strike?: boolean } = {}): Promise<VerifyOut> {
   ensureSmtp(ctx);
   const base = saved(ctx);
   const overrides = ["host", "port", "security", "username", "passwordHandle"].some(
@@ -505,7 +507,10 @@ export async function smtpVerify(ctx: MailCtx, input: SmtpIn): Promise<VerifyOut
     });
   }
   // only a test of the saved server changes what the page shows about it; trying other values leaves the saved state alone
-  if (base && !overrides && !result.ok) stopVerified(ctx);
+  if (base && !overrides && opts.strike !== false) {
+    if (result.ok) clearSmtpStrikes(ctx);
+    else strikeSmtpDomains(ctx, result.message);
+  }
   if (base && !overrides)
     ctx.db.run(
       `UPDATE mail_smtp SET state = ?, detail = ?, "checkedAt" = ?, updated_at = ? WHERE id = ?`,
@@ -529,7 +534,7 @@ function stopVerified(ctx: MailCtx): void {
   );
 }
 function recordServerFailure(ctx: MailCtx, message: string): void {
-  stopVerified(ctx);
+  strikeSmtpDomains(ctx, message);
   ctx.db.run(
     `UPDATE mail_smtp SET state = ?, detail = ?, "checkedAt" = ?, updated_at = ? WHERE id = ?`,
     "failed",

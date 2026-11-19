@@ -25943,6 +25943,12 @@ export type MailSetupStatusOut = {
       isDefault: boolean;
       checkedAt?: number;
     }>;
+  rechecks: Array<{
+      domainId: string;
+      failures: number;
+      why?: string;
+      checkedAt?: number;
+    }>;
   done: Array<"choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready">;
   step: "choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready";
   next: string;

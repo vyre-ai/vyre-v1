@@ -5,6 +5,8 @@ import { ensureAll, preconditionFailed } from "./extra/common.ts";
 import { domainList } from "./extra/domains.ts";
 import type { DomainOut } from "./extra/domains.ts";
 import { smtpGet } from "./smtp.ts";
+import { allWatches } from "./watch.ts";
+import type { Watch } from "./watch.ts";
 import type { SmtpOut } from "./smtp.ts";
 import { bad, can, first, rowsOf, str } from "../projections.ts";
 import type { MailCtx } from "../projections.ts";
@@ -16,6 +18,8 @@ export interface SetupOut {
   provider: SetupProvider;
   smtp: SmtpOut;
   domains: DomainOut[];
+  /** domains whose last daily check failed: how many times in a row and why; the second stops the domain */
+  rechecks: Watch[];
   /** every step that is done, in order, so the page can tick them */
   done: SetupStep[];
   step: SetupStep;
@@ -77,7 +81,7 @@ export async function setupStatus(ctx: MailCtx): Promise<SetupOut> {
   const provider = await providerOf(ctx);
   const smtp = await smtpGet(ctx);
   const { domains } = await domainList(ctx, {});
-  return { provider, smtp, domains, ...planSetup(provider, smtp, domains) };
+  return { provider, smtp, domains, rechecks: allWatches(ctx), ...planSetup(provider, smtp, domains) };
 }
 
 // ---- mail.setup.test_send

@@ -121,6 +121,7 @@ test("Email setup shows the next step, ticks the finished ones and shows the mai
       detail: "Port 587 is blocked.",
     },
     domains: [],
+    rechecks: [],
     done: ["choose_provider"],
     step: "connect_server",
     next: "The mail server test failed: Port 587 is blocked.",
@@ -167,6 +168,7 @@ test("Email setup lists the addresses with where each goes, offers New address a
         dmarc: "pass",
       },
     ],
+    rechecks: [],
     done: ["choose_provider", "add_domain", "publish_dns", "set_default"],
     step: "ready",
     next: "Email is ready to send.",
@@ -240,6 +242,7 @@ test("Email setup offers a test send only when the setup is ready", async () => 
         dmarc: "pass",
       },
     ],
+    rechecks: [],
     done: ["choose_provider", "add_domain", "publish_dns", "set_default"],
     step: "ready",
     next: "Email is ready to send.",
@@ -253,5 +256,18 @@ test("Email setup offers a test send only when the setup is ready", async () => 
       "mail.setup.status": { ...base, ready: false, step: "publish_dns", next: "Publish the DNS records." },
     }),
     /test-send/,
+  );
+});
+
+test("the daily re-check is shown on the domain: a first failure as a warning, the second as stopped, with the reason", async () => {
+  const { recheckNote } = await import("./Email.tsx");
+  assert.equal(recheckNote(undefined, true), "");
+  assert.match(
+    recheckNote({ domainId: "d", failures: 1, why: "DKIM no longer passes in DNS." }, true),
+    /Last daily check failed\. DKIM no longer passes in DNS\. It stops sending if the next one fails too\./,
+  );
+  assert.match(
+    recheckNote({ domainId: "d", failures: 2, why: "SPF no longer passes in DNS." }, false),
+    /Stopped after two failed daily checks\. SPF no longer passes in DNS\. It starts again when a check passes\./,
   );
 });

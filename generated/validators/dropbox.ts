@@ -542,23 +542,23 @@ if ("accepted" in o2792) lf(o2792["accepted"], p + "/accepted", e, L3);
 
 function e183_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7221 = v;
-const g7221 = typeOf(x7221);
-const b7221: string[] = []; lf(x7221, p, b7221, L0); if (b7221.length) e.push(...b7221);
-if (g7221 === "object") {
-if (g7221 === 'object') { const o7221 = x7221 as Record<string, unknown>;
-if (!("eventId" in o7221)) e.push(p + "/eventId" + ': required');
-if (!("accounts" in o7221)) e.push(p + "/accounts" + ': required');
-if ("eventId" in o7221) lf(o7221["eventId"], p + "/eventId", e, L1);
-if ("accounts" in o7221) {
+const x7223 = v;
+const g7223 = typeOf(x7223);
+const b7223: string[] = []; lf(x7223, p, b7223, L0); if (b7223.length) e.push(...b7223);
+if (g7223 === "object") {
+if (g7223 === 'object') { const o7223 = x7223 as Record<string, unknown>;
+if (!("eventId" in o7223)) e.push(p + "/eventId" + ': required');
+if (!("accounts" in o7223)) e.push(p + "/accounts" + ': required');
+if ("eventId" in o7223) lf(o7223["eventId"], p + "/eventId", e, L1);
+if ("accounts" in o7223) {
 {
-const x7222 = o7221["accounts"];
-const g7222 = typeOf(x7222);
-const b7222: string[] = []; lf(x7222, p + "/accounts", b7222, L4); if (b7222.length) e.push(...b7222);
-if (g7222 === "array") {
-if (g7222 === 'array') { const a7222 = x7222 as unknown[];
-for (let i7222 = 0; i7222 < a7222.length; i7222++) {
-lf(a7222[i7222], p + "/accounts" + '/' + i7222, e, L1);
+const x7224 = o7223["accounts"];
+const g7224 = typeOf(x7224);
+const b7224: string[] = []; lf(x7224, p + "/accounts", b7224, L4); if (b7224.length) e.push(...b7224);
+if (g7224 === "array") {
+if (g7224 === 'array') { const a7224 = x7224 as unknown[];
+for (let i7224 = 0; i7224 < a7224.length; i7224++) {
+lf(a7224[i7224], p + "/accounts" + '/' + i7224, e, L1);
 }
 }
 }
@@ -571,18 +571,18 @@ lf(a7222[i7222], p + "/accounts" + '/' + i7222, e, L1);
 
 function e184_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7223 = v;
-const g7223 = typeOf(x7223);
-const b7223: string[] = []; lf(x7223, p, b7223, L0); if (b7223.length) e.push(...b7223);
-if (g7223 === "object") {
-if (g7223 === 'object') { const o7223 = x7223 as Record<string, unknown>;
-if (!("connectionId" in o7223)) e.push(p + "/connectionId" + ': required');
-if (!("accountId" in o7223)) e.push(p + "/accountId" + ': required');
-if (!("ownerKind" in o7223)) e.push(p + "/ownerKind" + ': required');
-if ("connectionId" in o7223) lf(o7223["connectionId"], p + "/connectionId", e, L43);
-if ("accountId" in o7223) lf(o7223["accountId"], p + "/accountId", e, L1);
-if ("ownerKind" in o7223) lf(o7223["ownerKind"], p + "/ownerKind", e, L242);
-if ("email" in o7223) lf(o7223["email"], p + "/email", e, L1);
+const x7225 = v;
+const g7225 = typeOf(x7225);
+const b7225: string[] = []; lf(x7225, p, b7225, L0); if (b7225.length) e.push(...b7225);
+if (g7225 === "object") {
+if (g7225 === 'object') { const o7225 = x7225 as Record<string, unknown>;
+if (!("connectionId" in o7225)) e.push(p + "/connectionId" + ': required');
+if (!("accountId" in o7225)) e.push(p + "/accountId" + ': required');
+if (!("ownerKind" in o7225)) e.push(p + "/ownerKind" + ': required');
+if ("connectionId" in o7225) lf(o7225["connectionId"], p + "/connectionId", e, L43);
+if ("accountId" in o7225) lf(o7225["accountId"], p + "/accountId", e, L1);
+if ("ownerKind" in o7225) lf(o7225["ownerKind"], p + "/ownerKind", e, L242);
+if ("email" in o7225) lf(o7225["email"], p + "/email", e, L1);
 }
 }
 }

@@ -53,6 +53,12 @@ type Out = {
       isDefault: boolean;
       checkedAt?: number;
     }>;
+  rechecks: Array<{
+      domainId: string;
+      failures: number;
+      why?: string;
+      checkedAt?: number;
+    }>;
   done: Array<"choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready">;
   step: "choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready";
   next: string;
@@ -94,6 +100,14 @@ type Out = {
     "next": "example",
     "provider": "resend",
     "ready": true,
+    "rechecks": [
+      {
+        "checkedAt": 1760000000000,
+        "domainId": "dom_a1b2c3",
+        "failures": 1,
+        "why": "example"
+      }
+    ],
     "smtp": {
       "checkedAt": 1760000000000,
       "configured": true,

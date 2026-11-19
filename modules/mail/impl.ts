@@ -30,6 +30,7 @@ import {
   smtpVerify,
 } from "./handlers/smtp.ts";
 import { setupStatus, testSend } from "./handlers/setup.ts";
+import { recheckDomains } from "./handlers/recheck.ts";
 import { addressAdd, addressList, addressMove } from "./handlers/address.ts";
 import { setMailLinksHost, unsubscribe } from "./handlers/unsubscribe.ts";
 import type { ImapConfig, ImapMessage, ImapSession, ImapSessionFactory } from "./handlers/ingest.ts";
@@ -103,6 +104,13 @@ const consumersAll = {
   },
 };
 
+/** Once a day: each sending domain's DNS and mail server are looked at again; two failures in a row stop a domain. */
+export const periodic = {
+  "mail.recheck_domains": {
+    everyMs: 24 * 60 * 60_000,
+    run: (ctx: MailCtx) => recheckDomains(ctx),
+  },
+};
 export const projections = { inline, consumers: consumersAll };
 export { codecs, inline, consumersAll as consumers };
 

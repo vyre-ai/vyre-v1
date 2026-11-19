@@ -81,7 +81,10 @@ export function EmailPage(): ReactElement {
               <Row
                 key={d.id}
                 title={d.name}
-                note={`${providerName(d.provider)} · ${d.verified ? "Verified" : `SPF ${dnsWord(d.spf)}, DKIM ${dnsWord(d.dkim)}`}${d.isDefault ? " · Default sender" : ""}`}
+                note={`${providerName(d.provider)} · ${d.verified ? "Verified" : `SPF ${dnsWord(d.spf)}, DKIM ${dnsWord(d.dkim)}`}${d.isDefault ? " · Default sender" : ""}${recheckNote(
+                  setup.rechecks.find((r) => r.domainId === d.id),
+                  d.verified,
+                )}`}
                 onPress={() => data.nav.openPage("domains", { domainId: d.id })}
               />
             ))}
@@ -398,4 +401,13 @@ function TestSend(): ReactElement {
       {result === "" ? null : <View testID="test-result" />}
     </ObjectSection>
   );
+}
+
+/** What the daily check found, in a sentence: one failure is a warning, the second has stopped the domain. */
+export function recheckNote(r: Setup["rechecks"][number] | undefined, verified: boolean): string {
+  if (!r) return "";
+  const why = r.why ? ` ${r.why}` : "";
+  return verified
+    ? ` · Last daily check failed.${why} It stops sending if the next one fails too.`
+    : ` · Stopped after two failed daily checks.${why} It starts again when a check passes.`;
 }

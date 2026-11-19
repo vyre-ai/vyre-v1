@@ -836,6 +836,14 @@ const manifest = defineManifest({
         provider: sendProvider,
         smtp: t.obj(smtpState),
         domains: t.arr(domainRow),
+        rechecks: t.arr(
+          t.obj({
+            domainId: id.domain,
+            failures: t.int({ minimum: 1 }),
+            why: t.opt(t.str()),
+            checkedAt: t.opt(t.ts()),
+          }),
+        ),
         done: t.arr(setupStep),
         step: setupStep,
         next: t.str({ description: "The next thing to do, one sentence" }),

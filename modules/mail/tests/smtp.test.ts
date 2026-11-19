@@ -19,6 +19,7 @@ import {
   smtpVerify,
 } from "../handlers/smtp.ts";
 import type { SmtpConn, SmtpMail, SmtpTransport } from "../handlers/smtp.ts";
+import { ensureWatch } from "../handlers/watch.ts";
 import { codeOf, contractErrors, harness, NOW, seedMailbox } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { rig, row, sendIn } from "./send.rig.test.ts";
@@ -539,8 +540,7 @@ test("mail.send over smtp: a server that says try later is a retry, a wrong pass
       (e as { error: { message: string } }).error.message ===
         "The mail server did not accept that username and password.",
   );
-  // a refused sign-in takes the domain's "verified" away until the server is checked again
-  r.h.ctx.db.run(`UPDATE mail_domain SET verified = ? WHERE id = ?`, 1, "dom_vyretest");
+  // one refused sign-in does not stop the domain (it takes two in a row): the next send is allowed to try
 
   w.rejected = [{ address: "pat@acme.test" }];
   await assert.rejects(
@@ -765,25 +765,34 @@ test("what people and agents read of the username is its first two letters and t
   assert.equal(mask("sam"), "sa…");
 });
 
-test("a domain whose mail server fails stops saying verified, after a failed test, a changed server and a refused sign-in on send", async () => {
+test("a domain whose mail server fails stops saying verified on the second failure in a row, a pass clears the count, and a moved server stops it at once", async () => {
   const { r, w } = await smtpSpace();
+  ensureWatch(r.ctx);
   const verified = (): number =>
     Number(r.h.rows(`SELECT verified FROM mail_domain WHERE id = ?`, "dom_vyretest")[0]?.verified);
+  const strikes = (): number =>
+    Number(r.h.rows(`SELECT strikes FROM mail_domain_watch WHERE "domainId" = ?`, "dom_vyretest")[0]?.strikes ?? 0);
   assert.equal(verified(), 1);
-  // a busy server is not a failed one
+  // a busy server is not a failed one: a timeout before the message went out counts for nothing
   w.fail = err("ETIMEDOUT", { command: "CONN" });
   await assert.rejects(() => send(r.ctx, sendIn()));
-  assert.equal(verified(), 1);
-  // a refused sign-in is
+  assert.equal(strikes(), 0);
+  // one refused sign-in is a warning, not a stop
   w.fail = err("EAUTH", { responseCode: 535 });
   await assert.rejects(() => send(r.ctx, sendIn()));
-  assert.equal(verified(), 0);
+  assert.deepEqual([verified(), strikes()], [1, 1]);
   assert.equal((await smtpGet(r.ctx)).state, "failed");
-  // the same for a failed test of the saved server, and for moving the server
-  r.h.ctx.db.run(`UPDATE mail_domain SET verified = ? WHERE id = ?`, 1, "dom_vyretest");
+  // a pass clears it
+  assert.equal((await smtpVerify(r.ctx, {})).ok, true);
+  assert.deepEqual([verified(), strikes()], [1, 0]);
+  // the second failure in a row stops the domain
   w.fail = err("ECONNREFUSED");
   assert.equal((await smtpVerify(r.ctx, {})).ok, false);
-  assert.equal(verified(), 0);
+  assert.deepEqual([verified(), strikes()], [1, 1]);
+  w.fail = err("ECONNREFUSED");
+  assert.equal((await smtpVerify(r.ctx, {})).ok, false);
+  assert.deepEqual([verified(), strikes()], [0, 2]);
+  // moving the server is a new place: it stops a verified domain at once
   r.h.ctx.db.run(`UPDATE mail_domain SET verified = ? WHERE id = ?`, 1, "dom_vyretest");
   await smtpSet(r.ctx, { host: "smtp.moved.example", passwordHandle: "#Smtp_Password" });
   assert.equal(verified(), 0);

@@ -1,0 +1,1 @@
+The Email page in Console, Messaging can now make a new address, move an alias to another inbox, and send a test email to an address you type. Every day each sending domain's DNS and mail server are checked again: one failure is shown as a warning, and two in a row stop the domain from sending until a check passes.
