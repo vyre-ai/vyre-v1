@@ -27,8 +27,10 @@ const VENDOR: readonly Rule[] = [
 /** Rules found by a secret's NAME or place rather than its prefix. A rule with a group replaces only that group, so the name in front of the value survives. */
 const GENERIC: readonly Rule[] = [
   [
+    // Found by the flag, then the command is looked for in the 130 characters before it on the same line: scanning forward from every
+    // "mysql" with a lazy gap cost 120 steps per start (0.7 s on 5 MB of "mysql ").
     "db-flag-password",
-    /\b(?:mysql|mysqldump|mariadb|psql|mongosh?|redis-cli)\b[^\n]{0,120}?\s-p([^\s]{8,})/g,
+    /\s-p([^\s]{8,})/g,
     "password",
     1,
   ],
@@ -82,7 +84,7 @@ const NEEDS: Readonly<Record<string, readonly string[]>> = {
   npm: ["npm_"],
   jwt: ["eyj"],
   bearer: ["bearer"],
-  "db-flag-password": ["mysql", "psql", "mongo", "mariadb", "redis-cli"],
+  "db-flag-password": ["-p"],
   "curl-userpass": ["-u"],
   pem: ["-----begin"],
   "conn-url": ["://"],
@@ -112,6 +114,13 @@ export function redact(input: unknown): Redacted {
     const before = out;
     out = out.replace(re, (m: string, ...rest: unknown[]) => {
       // For a name/value rule the first group is the NAME, and some names contain a secret word without meaning one.
+      if (name === "db-flag-password") {
+        const off = rest[rest.length - 2] as number;
+        if (
+          !/\b(?:mysql|mysqldump|mariadb|psql|mongosh?|redis-cli)\b[^\n]*$/.test(out.slice(Math.max(0, off - 130), off))
+        )
+          return m;
+      }
       if (group === 2 && NOT_SECRET_NAME.test(String(rest[0] ?? ""))) return m;
       const secret = group ? String(rest[group - 1] ?? m) : m;
       if (!secret || secret.length < 8) return m;

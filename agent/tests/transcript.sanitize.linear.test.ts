@@ -353,6 +353,8 @@ const SHAPES: Array<[string, string]> = [
   ["aws secret: space run", "aws_secret_access_key" + " ".repeat(M)],
   ["a space run", "x" + " ".repeat(M) + "!"],
   ["clipped keys", `${BEG("")}\n`.repeat(M / 28)],
+  ["mysql run", "mysql ".repeat(M / 6)],
+  ["db flag run", " -pabcdefgh".repeat(M / 11)],
   ["token= run", "token=".repeat(M / 6)],
   ["a name run", "a".repeat(M)],
 ];

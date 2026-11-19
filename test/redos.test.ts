@@ -3,7 +3,17 @@
 // ordinary outputs the code gave before.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { capText, isPipeRow, isPipeRule, replaceTokens, stripTags, tagsNamed } from "../lib/html-text.ts";
+import {
+  lc,
+  replaceAnchors,
+  stripEventAttrs,
+  capText,
+  isPipeRow,
+  isPipeRule,
+  replaceTokens,
+  stripTags,
+  tagsNamed,
+} from "../lib/html-text.ts";
 import { htmlToText as mailText, sanitizeHtml } from "../lib/mail-parse.ts";
 import { parseAddresses } from "../modules/google/handlers/gmail.ts";
 import { cleanHtml, fillTokens, htmlToText, safeUrl } from "../modules/email-builder-api/handlers/compile.ts";
@@ -215,10 +225,93 @@ test("cutBlocks and quotes: nested same-name tags, a refused open before a real 
   assert.equal(cleanHtml("<form><form>x</form>y</form>z"), "y</form>z");
   assert.equal(cleanHtml('<link href=a><link rel="import" href=b></link>t'), "<link href=a>t");
   assert.equal(cleanHtml('<link rel="import" href=b>x</link><script>alert(1)</script>'), "");
-  // an open quote runs to the end of the text in a browser, so the handler after it is text, not an attribute
-  assert.equal(cleanHtml(`<a title="unclosed onclick=alert(1)>k</a>`), `<a title="unclosed onclick=alert(1)>k</a>`);
+  // an open quote runs to the end of the text in a browser: the tag is dropped, never kept with its open quote
+  assert.equal(cleanHtml(`<a title="unclosed onclick=alert(1)>k</a>`), "");
   assert.ok(redact("k".repeat(300) + "_password=hunter2hunter2").hits.length >= 1);
   assert.ok(redact('{"my.password": "hunter2hunter2"}').hits.length >= 1);
+});
+
+test("expanding characters before a blocked tag cannot shift the scan past it (ASCII-only lowercase)", () => {
+  assert.equal(lc("AbC\u0130"), "abc\u0130");
+  for (const pad of ["\u0130", "\u1e9e", "\u212a", "\u0130\u212a\u1e9e"]) {
+    const p = pad.repeat(40);
+    for (const bad of [
+      "<script>alert(1)</script>",
+      "<form action=x></form>",
+      "<iframe src=x></iframe>",
+      "<object data=x></object>",
+      "<embed src=x>",
+      "<base href=x>",
+      "<input name=a>",
+      '<meta http-equiv="refresh" content="0;url=x">',
+      '<link rel="import" href=x></link>',
+    ]) {
+      const out = cleanHtml(p + bad);
+      assert.equal(out, p, bad);
+    }
+    assert.equal(
+      htmlToText(p + '<a href="https://northwind.example">go</a>').endsWith("go (https://northwind.example)"),
+      true,
+    );
+    assert.deepEqual(tagsNamed(p + "<meta a=1>", "meta"), ["<meta a=1>"]);
+    assert.equal(
+      replaceAnchors(
+        p + '<a href="x">k</a>',
+        () => true,
+        (_t, label) => `[${label}]`,
+      ),
+      p + "[k]",
+    );
+    assert.equal(
+      pageMeta(p + '<meta property="og:title" content="Hello"><title>T</title>', new URL("https://northwind.example/"))
+        .title,
+      "Hello",
+    );
+    assert.equal(stripEventAttrs(p + "<img onerror=x>"), p + "<img>");
+  }
+});
+
+test("raw-text elements, comments and unterminated tags are read as a browser reads them (stripEventAttrs)", () => {
+  const live = /onerror\s*=/i;
+  for (const html of [
+    '<style><a b="</style><img src=x onerror=alert(1)>',
+    '<textarea><a b="</textarea><img src=x onerror=alert(1)>',
+    '<title><a b="</title><img src=x onerror=alert(1)>',
+    '<noscript><a b="</noscript><img src=x onerror=alert(1)>',
+    '<xmp><a b="</xmp><img src=x onerror=alert(1)>',
+    '<STYLE><a b="</STYLE ><img src=x onerror=alert(1)>',
+    '<!-- <a title="--> <img src=x onerror=alert(1)> "-->',
+    "<!-- x --!> <img src=x onerror=alert(1)>",
+    "<!--> <img src=x onerror=alert(1)>",
+    "<svg><style><img src=x onerror=alert(1)></style></svg>",
+    '<style></style><a b="x><img src=x onerror=alert(1)>',
+  ]) {
+    assert.doesNotMatch(stripEventAttrs(html), live, html);
+    assert.doesNotMatch(cleanHtml(html), live, html);
+  }
+  // text inside a raw-text element or a comment is kept as it was
+  assert.equal(
+    stripEventAttrs('<style>a[href="x"]{color:red}</style><p>t</p>'),
+    '<style>a[href="x"]{color:red}</style><p>t</p>',
+  );
+  // a handler written inside a comment is removed too (the second reading does not know about comments); the comment's words stay
+  assert.equal(stripEventAttrs("<!-- <b onclick=x> --><p>t</p>"), "<!-- <b> --><p>t</p>");
+  // an unterminated tag is dropped with the rest, never kept with its open quote
+  assert.equal(cleanHtml('<p>a</p><a title="open'), "<p>a</p>");
+  assert.equal(cleanHtml("<p>a</p><img src='x onerror=y>more"), "<p>a</p>");
+  assert.equal(stripEventAttrs("<p>a</p>"), "<p>a</p>");
+  fast('<style><a b=" N', () => stripEventAttrs('<style><a b="'.repeat(N / 13)));
+  fast("<!-- N", () => stripEventAttrs("<!--".repeat(N / 4)));
+  fast("<textarea N", () => stripEventAttrs("<textarea>".repeat(N / 10)));
+  fast("<title <a N", () => stripEventAttrs('<title><a b="</title>'.repeat(N / 22)));
+});
+
+test("only HTML whitespace separates a tag's parts (space, tab, LF, FF, CR)", () => {
+  for (const ws of ["\u00a0", "\u000b", "\ufeff", "\u2028", "\u2029"]) {
+    const html = `<a href=x${ws}y="><img src=x onerror=alert(1)>">`;
+    assert.doesNotMatch(cleanHtml(html), /onerror\s*=/i, JSON.stringify(ws));
+  }
+  assert.equal(cleanHtml("<img\tsrc=x\nonerror=1\fonclick=2\ralt=a>"), "<img\tsrc=x\ralt=a>");
 });
 
 test("asked: an address pattern reads a long word once (lib/asked.ts)", () => {
