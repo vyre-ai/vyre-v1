@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { createMcpRoute, visitorOf } from "./mcp.ts";
-import { PROOF_HEADER, relayProof } from "../seams/visitor-proof.ts";
+import { PROOF_HEADER, proofFor } from "../seams/visitor-proof.ts";
 
 type Runtime = ReturnType<Parameters<typeof createMcpRoute>[0]["runtime"]>;
 const SIGN_IN_NOTHING = { oauth: async () => null };
@@ -80,12 +80,20 @@ test("a request to the sign-in addresses reaches the module with the address thi
     assert.equal(
       (
         await fetch(`${base}/.well-known/oauth-protected-resource/mcp`, {
-          headers: { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: relayProof() },
+          headers: { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: proofFor("203.0.113.9") },
         })
       ).status,
       200,
     );
     assert.equal((await fetch(`${base}/oauth/authorize?client_id=x`)).status, 200);
+    // a loopback request that passes a forged visitor header through, as Caddy or any local proxy would, with no valid MAC: keyed by the connection's address
+    assert.equal((await fetch(`${base}/oauth/authorize?client_id=y`, { headers: { "x-vyre-visitor": "203.0.113.77" } })).status, 200);
+    assert.equal((await fetch(`${base}/oauth/authorize?client_id=z`, { headers: { "x-vyre-visitor": "203.0.113.77", [PROOF_HEADER]: proofFor("203.0.113.9") } })).status, 200, "a MAC for another value");
+    const forged = seen.filter((r) => r.search.endsWith("=y") || r.search.endsWith("=z"));
+    assert.equal(forged.length, 2);
+    assert.ok(forged.every((r) => r.visitor !== "203.0.113.77"), "the forged value never became the visitor");
+    seen.splice(seen.indexOf(forged[0]!), 1);
+    seen.splice(seen.indexOf(forged[1]!), 1);
     assert.deepEqual(
       seen.map((r) => [r.path, r.search, r.origin]),
       [
@@ -137,7 +145,7 @@ test("an app that goes away while the runtime is still answering does not hold i
 });
 
 test("the visitor header is believed only with the relay's proof on a loopback connection; from anywhere else the connection's own address stands", () => {
-  const proof = { [PROOF_HEADER]: relayProof() };
+  const proof = { [PROOF_HEADER]: proofFor("203.0.113.9") };
   assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", ...proof }, "127.0.0.1"), "203.0.113.9");
   assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", ...proof }, "::1"), "203.0.113.9");
   assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", ...proof }, "198.51.100.7"), "198.51.100.7", "a proof from outside the loopback is not believed");
@@ -145,7 +153,9 @@ test("the visitor header is believed only with the relay's proof on a loopback c
   assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: "x".repeat(64) }, "127.0.0.1"), "127.0.0.1", "a wrong proof");
   assert.equal(visitorOf({}, "198.51.100.7"), "198.51.100.7");
   assert.equal(visitorOf({ "x-vyre-visitor": "", ...proof }, "127.0.0.1"), "127.0.0.1");
-  assert.equal(visitorOf({ "x-vyre-visitor": "x".repeat(300), ...proof }, "127.0.0.1").length, 64);
+  assert.equal(visitorOf({ "x-vyre-visitor": "198.18.0.1", ...proof }, "127.0.0.1"), "127.0.0.1", "a MAC made for another value does not carry this one: a captured proof cannot be reused with a different visitor");
+  const long = "x".repeat(300);
+  assert.equal(visitorOf({ "x-vyre-visitor": long, [PROOF_HEADER]: proofFor(long) }, "127.0.0.1").length, 64);
 });
 
 test("a forged visitor header does not reset a count: every forged value from one outside address is the same visitor", () => {
