@@ -5,6 +5,7 @@
 // DECISION: every transition goes through moveNode, which compares the version it read (compare and set), checks the edge table, writes the state event and refuses anything else with a stable reason.
 // DECISION: events carry a key. The same key twice for one node is one event: a duplicate delivery, a replay after a restart and a retried call cannot count twice.
 import { appendEvent } from "./node-log.ts";
+import { acceptResult, checkBrief } from "./brief.ts";
 import { clean, newRunId, nul, raise } from "./projections.ts";
 import type { Db, RunsCtx } from "./projections.ts";
 
@@ -469,7 +470,7 @@ export function startNode(ctx: RunsCtx, i: StartInput): { node: Node; created: b
     nul(i.model),
     nul(i.threadId),
     status,
-    js(i.brief),
+    js(checkBrief(ctx, i.brief)),
     js(i.budget),
     JSON.stringify(NO_SPEND),
     js(i.origin),
@@ -544,6 +545,7 @@ export function moveNode(ctx: RunsCtx, id: string, to: NodeStatus, o: MoveOpts):
       reason: "stale_version",
       version: cur.version,
     });
+  if (to === "succeeded" && o.result !== undefined) acceptResult(ctx, cur.brief, o.result);
   if (cur.status === "queued" && to === "running" && unmetDeps(ctx.db, id).length > 0)
     raise(ctx, "validation.precondition_failed", "It starts after other work that is not done yet.", {
       reason: "dependency_unmet",

@@ -765,3 +765,5 @@ Signed: lead, 19 Nov 2026
 
 19 Nov 2026, lane r42-runtime, stop of one subagent: new capability `engine.subagent.stop` (ask one subagent of a command-line engine to stop: the vyre-hook of its next call carries its agent_id, which is the task id of the task line that started it, and is refused with a reason; the node that stands for it ends when it does). `runs.node.control` stop on a subagent node uses it and answers with the node as it stands (still running); a note sent to that node with runs.message.send rides back on its next call. Not yet signed by the lead.
 
+19 Nov 2026, lane r42-runtime, typed briefs and results: `runs.node.start` brief may carry `expects: { schema, doneWhen }` (a small shape: object with required keys, types string, number, integer, boolean, array, enum, items, maxLength); a node moved to succeeded with a result that does not fit is refused with `result_invalid` and the reasons in plain words, and stays what it was. A node with no shape accepts any result, as before. `doneWhen` is kept for the reader and is not evaluated. Not yet signed by the lead.
+
