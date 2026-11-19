@@ -48,6 +48,8 @@ class Boundary extends Component<
 
 export function lazyPage<P extends object>(
   load: () => Promise<ComponentType<P>>,
+  /** What stands in while the code is out: a part is never an empty frame. Leave out where nothing should show (a part drawn on a press, over something already there). */
+  placeholder?: (props: P) => ReactNode,
 ): {
   Draw: (props: P) => ReactElement;
   preload: () => Promise<void>;
@@ -85,7 +87,7 @@ export function lazyPage<P extends object>(
     const retry = useCallback(() => setAttempt({ wait: null, error: undefined }), []);
     return (
       <Boundary onRetry={retry}>
-        <Suspense fallback={null}>
+        <Suspense fallback={placeholder ? placeholder(props) : null}>
           <Inner {...(props as P)} attempt={attempt} />
         </Suspense>
       </Boundary>
