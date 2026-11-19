@@ -1,7 +1,7 @@
 // A read an agent makes again in the same turn, and finds unchanged, is answered with one line instead of the same pages a second time (r42-runtime-tokens, DIRECTION-agent-runtime C: references, not content).
 // Only the SAME agent in the SAME turn, and only where its earlier result is certain to be in view: the API driver (ToolCtx.repeatSafe), until it compacts the conversation or the turn is resumed (reads-epoch.ts forgets the turn's reads then). A CLI engine's own session can compact unseen, so it never gets the line. The call still reaches the server and passes the same access
 // check, so a thing that changed, or that the agent may no longer read, is answered as it would be. Nothing is shared between agents: another helper must see the content itself to use it.
-import { createHash } from "node:crypto";
+import { sha256b64 } from "../../../kernel/src/seal/wire.ts";
 import { canonical } from "./fill.ts";
 import { readsEpoch } from "./reads-epoch.ts";
 import type { ToolCtx } from "./types.ts";
@@ -57,8 +57,8 @@ export class RepeatReads {
       this.turns.set(turn, reads);
       if (this.turns.size > MAX_TURNS) this.turns.delete(this.turns.keys().next().value as string);
     }
-    const key = `${cap}:${createHash("sha256").update(canonical(input)).digest("hex")}`;
-    const fingerprint = createHash("sha256").update(text).digest("hex");
+    const key = `${cap}:${sha256b64(canonical(input))}`;
+    const fingerprint = sha256b64(text);
     const was = reads.get(key);
     if (was && was.fingerprint === fingerprint) return { bytes: was.bytes, tool: was.tool };
     reads.delete(key);
