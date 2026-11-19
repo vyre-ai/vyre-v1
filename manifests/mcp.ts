@@ -70,6 +70,8 @@ const connectedRow = t.obj({
   connectedAt: t.ts(),
   lastSeenAt: t.opt(t.ts()),
   calls: t.int({ minimum: 0 }),
+  /** The newest thing it did, in plain words ("Added a task", "Read 3 files"): never a title or a value. */
+  lastDid: t.opt(t.str()),
   // setup: acts for its person including setup, without a card (owner ruling 3 Nov)
   setup: t.opt(t.bool()),
   person: t.opt(t.str()),
@@ -79,6 +81,8 @@ const activityRow = t.obj({
   tool: t.str({ examples: ["records_query"] }),
   cap: t.opt(t.str()),
   outcome: t.enm("ok", "error", "held"),
+  /** What it did in plain words ("Added a task"): never a title or a value. */
+  did: t.str(),
   threadId: t.opt(id.thread),
   taskId: t.opt(id.task),
   at: t.ts(),

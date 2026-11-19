@@ -40,6 +40,7 @@ type Out = {
       connectedAt: number;
       lastSeenAt?: number;
       calls: number;
+      lastDid?: string;
       setup?: boolean;
       person?: string;
     }>;
@@ -68,6 +69,7 @@ type Out = {
         "calls": 1,
         "clientName": "example",
         "connectedAt": 1760000000000,
+        "lastDid": "example",
         "lastSeenAt": 1760000000000,
         "person": "example",
         "redirectHost": "example",

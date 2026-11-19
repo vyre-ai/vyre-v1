@@ -26130,6 +26130,7 @@ export type McpActivityListOut = {
       tool: string;
       cap?: string;
       outcome: "ok" | "error" | "held";
+      did: string;
       threadId?: string;
       taskId?: string;
       at: number;
@@ -26153,6 +26154,7 @@ export type McpConnectedListOut = {
       connectedAt: number;
       lastSeenAt?: number;
       calls: number;
+      lastDid?: string;
       setup?: boolean;
       person?: string;
     }>;
