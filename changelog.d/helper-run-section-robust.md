@@ -1,0 +1,1 @@
+- The Crew pane's Board and Running and asleep sections keep what they showed when one refresh fails and say so quietly, never open the wrong chat on two quick presses, and use a short Board heading instead of a sentence.

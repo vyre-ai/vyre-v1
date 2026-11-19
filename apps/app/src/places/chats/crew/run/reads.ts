@@ -13,6 +13,7 @@ export function activityRowsOf(out: unknown): ActivityRow[] {
   const rows = (out as { rows?: unknown } | null)?.rows;
   if (!Array.isArray(rows)) return [];
   return rows.flatMap((r: Obj) => {
+    if (r === null || typeof r !== "object") return [];
     const runId = str(r["runId"]);
     const status = str(r["status"]);
     if (runId === undefined || status === undefined || !STATUS.has(status)) return [];
@@ -45,12 +46,18 @@ export function activityRowsOf(out: unknown): ActivityRow[] {
   });
 }
 
-/** Everything of the Space that runs or sleeps, or null when this server cannot say. */
-export async function readActivity(call: Call): Promise<ActivityRow[] | null> {
+/** A server that does not have a read answers with an error that says so; any other error is a request that failed this once. */
+export const isAbsent = (e: unknown): boolean =>
+  /unknown (capability|cap)|no such (capability|cap)|not_found|not found|unsupported|not implemented/i.test(
+    String((e as { message?: unknown } | null)?.message ?? e),
+  );
+
+/** Everything of the Space that runs or sleeps: the rows, "absent" when this server has no such read, "failed" when this one request failed (the caller keeps what it had). */
+export async function readActivity(call: Call): Promise<ActivityRow[] | "absent" | "failed"> {
   try {
     return activityRowsOf(await call("runs.activity.list", { scope: "mine", limit: 100 }));
-  } catch {
-    return null;
+  } catch (e) {
+    return isAbsent(e) ? "absent" : "failed";
   }
 }
 
@@ -69,6 +76,7 @@ export function boardOf(out: unknown): BoardEntry[] {
   const e = (out as { entries?: unknown } | null)?.entries;
   if (!Array.isArray(e)) return [];
   return e.flatMap((r: Obj) => {
+    if (r === null || typeof r !== "object") return [];
     const id = str(r["id"]);
     const kind = str(r["kind"]);
     const text = str(r["text"]);
@@ -99,6 +107,7 @@ export function messagesOf(out: unknown): NodeMessage[] {
   const m = (out as { messages?: unknown } | null)?.messages;
   if (!Array.isArray(m)) return [];
   return m.flatMap((r: Obj) => {
+    if (r === null || typeof r !== "object") return [];
     const id = str(r["id"]);
     const fromRun = str(r["fromRun"]);
     const toRun = str(r["toRun"]);
@@ -134,19 +143,22 @@ export async function readMessages(call: Call, runId: string): Promise<NodeMessa
   }
 }
 
-/** The newest tree of work that ran in a thread (a chat, or a helper's own chat), and whether this person may read its board and messages (`full`: false means they only watch). */
+/**
+ * The newest tree of work that ran in a thread (a chat, or a helper's own chat), and whether this person may read its board and messages (`full`: false means they only watch). "none": no tree there, or this server has no
+ * such read; "failed": this one request failed, so the caller keeps what it showed.
+ */
 export async function findRoot(
   call: Call,
   threadId: string,
-): Promise<{ rootRun: string; runId: string; full: boolean } | null> {
+): Promise<{ rootRun: string; runId: string; full: boolean } | "none" | "failed"> {
   try {
     const out = (await call("runs.tree.find", { threadId, limit: 1 })) as { roots?: Obj[] } | null;
     const r = out?.roots?.[0];
     const rootRun = str(r?.["rootRun"]);
     const runId = str(r?.["runId"]) ?? rootRun;
-    return rootRun === undefined || runId === undefined ? null : { rootRun, runId, full: r?.["full"] !== false };
-  } catch {
-    return null;
+    return rootRun === undefined || runId === undefined ? "none" : { rootRun, runId, full: r?.["full"] !== false };
+  } catch (e) {
+    return isAbsent(e) ? "none" : "failed";
   }
 }
 
@@ -155,6 +167,7 @@ export function nodesOf(out: unknown): RunNode[] {
   const nodes = (out as { nodes?: unknown } | null)?.nodes;
   if (!Array.isArray(nodes)) return [];
   return nodes.flatMap((n: Obj) => {
+    if (n === null || typeof n !== "object") return [];
     const id = str(n["id"]);
     const status = str(n["status"]);
     if (id === undefined || status === undefined || !STATUS.has(status)) return [];

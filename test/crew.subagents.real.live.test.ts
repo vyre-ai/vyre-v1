@@ -215,11 +215,19 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
       if (asTiles) {
         await page.waitForSelector(`${T("subagents-live")} [data-testid$="-window"]`, { timeout: 5_000 });
         assert.ok(
-          ((await page.locator(`${T("subagents-live")} [data-testid$="-window"]`).first().innerText()) ?? "").trim() !== "",
+          (
+            (await page
+              .locator(`${T("subagents-live")} [data-testid$="-window"]`)
+              .first()
+              .innerText()) ?? ""
+          ).trim() !== "",
           "a tile says what it is on",
         );
       } else {
-        await page.locator(`${T("subagents-live")} [data-testid$="-toggle"]`).first().click();
+        await page
+          .locator(`${T("subagents-live")} [data-testid$="-toggle"]`)
+          .first()
+          .click();
         await page.waitForSelector(`${T("subagents-live")} [data-testid$="-steps"]`, { timeout: 5_000 });
       }
       await shot("2-row-open");
@@ -241,8 +249,10 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
       await shot("3-peek-working");
       if (asTiles) {
         // the pane is open beside the chat now, so the live block is rows again: a row still opens to what it is on, which the wide path used to check before the peek
-        await page.locator(T("crew-strip-view")).first().waitFor({ state: "detached", timeout: 5_000 }).catch(() => undefined);
-        await page.locator(`${T("subagents-live")} [data-testid$="-toggle"]`).first().click({ timeout: 8_000 });
+        await page
+          .locator(`${T("subagents-live")} [data-testid$="-toggle"]`)
+          .first()
+          .click({ timeout: 8_000 });
         await page.waitForSelector(`${T("subagents-live")} [data-testid$="-steps"]`, { timeout: 5_000 });
         await shot("3b-row-open-after-tiles");
       }

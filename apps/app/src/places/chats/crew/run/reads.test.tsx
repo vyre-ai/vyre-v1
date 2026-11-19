@@ -106,7 +106,14 @@ test("a server without these reads answers nothing, never throws; a run's chat i
   const down = async (): Promise<unknown> => {
     throw new Error("unknown capability");
   };
-  assert.equal(await readActivity(down), null);
+  assert.equal(await readActivity(down), "absent");
+  assert.equal(
+    await readActivity(async () => {
+      throw new Error("network down");
+    }),
+    "failed",
+    "one failed request is not a server without the read",
+  );
   assert.equal(await readBoard(down, "run_a"), null);
   assert.equal(await readMessages(down, "run_a"), null);
   assert.equal(await threadOfRun(down, "run_a"), null);
@@ -219,13 +226,20 @@ test("the root of a chat's work and its nodes: a tree with no root, an unknown s
     await findRoot(async () => ({ roots: [{ rootRun: "run_r", runId: "run_n", full: true }] }), "thr_0"),
     { rootRun: "run_r", runId: "run_n", full: true },
   );
-  assert.equal((await findRoot(async () => ({ roots: [{ rootRun: "run_r", full: false }] }), "thr_0"))?.full, false);
-  assert.equal(await findRoot(async () => ({ roots: [] }), "thr_0"), null);
+  const watching = await findRoot(async () => ({ roots: [{ rootRun: "run_r", full: false }] }), "thr_0");
+  assert.equal(typeof watching === "object" ? watching.full : null, false);
+  assert.equal(await findRoot(async () => ({ roots: [] }), "thr_0"), "none");
   assert.equal(
     await findRoot(async () => {
-      throw new Error("no");
+      throw new Error("unknown capability");
     }, "thr_0"),
-    null,
+    "none",
+  );
+  assert.equal(
+    await findRoot(async () => {
+      throw new Error("timeout");
+    }, "thr_0"),
+    "failed",
   );
 });
 
@@ -288,4 +302,77 @@ test("What they know together reads the newest tree of this chat only when opene
   await press(find(down, "crew-run-toggle"));
   await flush();
   assert.equal(find(down, "crew-run"), null, "a server without the reads shows nothing");
+});
+
+test("one failed refresh keeps what was shown and says so quietly; a non-object row never throws", async () => {
+  let n = 0;
+  const call = async (cap: string): Promise<unknown> => {
+    if (cap !== "runs.activity.list") return {};
+    n++;
+    if (n === 1) return ROWS;
+    throw new Error("network down");
+  };
+  const root = await mount(createRoot, <ActivitySection call={call} />);
+  await press(find(root, "crew-activity-toggle"));
+  await flush();
+  assert.ok(find(root, "activity-asleep"));
+  await press(find(root, "crew-activity-toggle"));
+  await press(find(root, "crew-activity-toggle"));
+  await flush();
+  assert.ok(find(root, "activity-asleep"), "the rows stay");
+  assert.match(textOf(find(root, "crew-activity-stale")), /Could not refresh/);
+  assert.ok(find(root, "crew-activity-toggle"), "and the person can still close it");
+  assert.deepEqual(
+    activityRowsOf({ rows: [null, 3, "x", ROWS.rows[0]] }).map((r) => r.runId),
+    ["run_a"],
+  );
+  assert.deepEqual(
+    [boardOf({ entries: [null, 5] }), messagesOf({ messages: [null] }), nodesOf({ nodes: [null] })],
+    [[], [], []],
+  );
+});
+
+test("two quick presses open only the later one, however the answers arrive", async () => {
+  const opened: string[] = [];
+  const waits: Record<string, (v: unknown) => void> = {};
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    if (cap === "runs.activity.list") return ROWS;
+    if (cap === "runs.node.get") return new Promise((r) => (waits[(input as { runId: string }).runId] = r));
+    return {};
+  };
+  const root = await mount(createRoot, <ActivitySection call={call} onOpenThread={(t) => opened.push(t)} />);
+  await press(find(root, "crew-activity-toggle"));
+  await flush();
+  await press(find(root, "activity-row-run_a"));
+  await press(find(root, "activity-row-run_b"));
+  waits["run_b"]!({ node: { threadId: "thr_b" } });
+  await flush();
+  waits["run_a"]!({ node: { threadId: "thr_a" } });
+  await flush();
+  assert.deepEqual(opened, ["thr_b"], "the earlier answer that arrives last does not take over");
+});
+
+test("a failed refresh of the board keeps the board; only no tree, a server without the read, or a person who only watches makes it go", async () => {
+  let n = 0;
+  const call = async (cap: string): Promise<unknown> => {
+    if (cap === "runs.tree.find") {
+      n++;
+      if (n > 1) throw new Error("network down");
+      return { roots: [{ rootRun: "run_r", runId: "run_r", full: true }] };
+    }
+    if (cap === "runs.board.list")
+      return { entries: [{ id: "b1", kind: "fact", text: "Harbor is $4,180", byRun: "run_r", at: 5 }] };
+    if (cap === "runs.message.list") return { messages: [] };
+    if (cap === "runs.tree.get") return TREE;
+    return {};
+  };
+  const root = await mount(createRoot, <RunSection call={call} threadId="thr_0" />);
+  await press(find(root, "crew-run-toggle"));
+  await flush();
+  assert.ok(find(root, "board-entry-b1"));
+  await press(find(root, "crew-run-toggle"));
+  await press(find(root, "crew-run-toggle"));
+  await flush();
+  assert.ok(find(root, "board-entry-b1"), "the board stays");
+  assert.match(textOf(find(root, "crew-run-stale")), /Could not refresh/);
 });

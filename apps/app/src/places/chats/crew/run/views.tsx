@@ -33,7 +33,7 @@ export function BoardView({
   if (entries.length === 0)
     return (
       <Text testID="board-empty" style={st.note}>
-        Nothing on the board yet. Helpers write what they find here, so they do not have to ask each other.
+        Nothing on the board yet.
       </Text>
     );
   const section = (key: string, title: string, list: BoardEntry[]): ReactElement | null =>
@@ -81,7 +81,6 @@ export function BoardView({
       {section("answered", "Answered", g.answered)}
       {section("decisions", "Decisions", g.decisions)}
       {section("facts", "Facts", g.facts)}
-      <Text style={st.note}>Every entry says who wrote it and where it came from.</Text>
     </View>
   );
 }
@@ -209,7 +208,7 @@ export function ActivityList({
   return (
     <View testID="activity">
       <Text style={st.actHead}>
-        Running and asleep <Text style={st.count}>{rows.length} in this Space · asleep costs nothing</Text>
+        Running and asleep <Text style={st.count}>{rows.length}</Text>
       </Text>
       {groups.length === 0 ? (
         <Text testID="activity-empty" style={st.note}>

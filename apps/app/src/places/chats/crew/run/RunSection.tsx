@@ -15,14 +15,29 @@ export function RunSection({ call, threadId }: { call: Call; threadId: string })
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Loaded | undefined>(undefined);
   const [gone, setGone] = useState(false);
+  const [stale, setStale] = useState(false);
   const [report, setReport] = useState(false);
   useEffect(() => {
     if (!open) return undefined;
     let dead = false;
+    let busy = false;
     const read = async (): Promise<void> => {
+      if (busy) return;
+      busy = true;
+      try {
+        await readOnce();
+      } finally {
+        busy = false;
+      }
+    };
+    const readOnce = async (): Promise<void> => {
       const root = await findRoot(call, threadId);
       if (dead) return;
-      if (root === null || !root.full) {
+      if (root === "failed") {
+        setStale(true);
+        return;
+      }
+      if (root === "none" || !root.full) {
         setGone(true);
         setData(null);
         return;
@@ -34,11 +49,11 @@ export function RunSection({ call, threadId }: { call: Call; threadId: string })
       ]);
       if (dead) return;
       if (board === null && messages === null && nodes === null) {
-        setGone(true);
-        setData(null);
+        setStale(true);
         return;
       }
       setGone(false);
+      setStale(false);
       setData({ board: board ?? [], messages: messages ?? [], nodes: nodes ?? [] });
     };
     void read();
@@ -60,7 +75,7 @@ export function RunSection({ call, threadId }: { call: Call; threadId: string })
         onPress={() => setOpen((o) => !o)}
         style={st.toggle}
       >
-        <Text style={st.toggleText}>{open ? "Hide what they know together" : "What they know together"}</Text>
+        <Text style={st.toggleText}>{open ? "Hide board" : "Board"}</Text>
       </Pressable>
       {open && data ? (
         <View testID="crew-run-body" style={st.body}>
@@ -69,7 +84,12 @@ export function RunSection({ call, threadId }: { call: Call; threadId: string })
           <TokenReport nodes={data.nodes} open={report} onToggle={() => setReport((r) => !r)} />
         </View>
       ) : null}
-      {open && data === undefined ? (
+      {open && stale ? (
+        <Text testID="crew-run-stale" style={st.note}>
+          Could not refresh.
+        </Text>
+      ) : null}
+      {open && data === undefined && !stale ? (
         <Text testID="crew-run-reading" style={st.note}>
           Reading…
         </Text>
