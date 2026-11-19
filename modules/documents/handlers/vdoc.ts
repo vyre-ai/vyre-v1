@@ -413,12 +413,20 @@ const cells = (line: string): string[] =>
 /** The blocks of a document. A line break inside a paragraph is kept when the line ends with two spaces or a backslash; otherwise lines of one paragraph join with a space. */
 /** The line under a table's head: `| --- | :---: |`, each cell two or more dashes with an optional colon at either end. Cells are cut by hand, so a long line of spaces or dashes is read once. */
 function isTableRule(line: string): boolean {
-  let t = line.trim();
+  // spaces and tabs only, as the pattern this replaced: not every character String.trim calls whitespace
+  const cut = (x: string): string => {
+    let a = 0;
+    let b = x.length;
+    while (a < b && (x[a] === " " || x[a] === "\t")) a++;
+    while (b > a && (x[b - 1] === " " || x[b - 1] === "\t")) b--;
+    return x.slice(a, b);
+  };
+  let t = cut(line);
   if (t.startsWith("|")) t = t.slice(1);
   if (t.endsWith("|")) t = t.slice(0, -1);
   if (t === "") return false;
   for (const cell of t.split("|")) {
-    const c = cell.trim();
+    const c = cut(cell);
     let a = 0;
     let b = c.length;
     if (c[a] === ":") a++;

@@ -384,8 +384,23 @@ async function make(ctx: Ctx, input: unknown): Promise<Filled> {
   const pass: Record<string, unknown> = { templateFileId, intoFolderId: folder.folderId, recordId };
   for (const k of ["values", "signingDate", "name", "format"]) if (o[k] !== undefined) pass[k] = o[k];
   // a retry of the same ask makes the same file: the key is the ask itself
-  // with the caller's key a retry is the same file; with none, every call is its own ask (the trace id is new for each), so an old file is never replayed for a new one
-  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${typeof o.idempotencyKey === "string" ? o.idempotencyKey : ctx.trace.traceId}`;
+  // the key of the ask: the caller's own when it gave one (a retry with it is the same document), else made from what is asked, as fill does: template and its version, the values, the date, the name,
+  // the format, the record, the folder and the person. A retry of the same ask is the same document; another person, folder, template version or value is another.
+  const given = typeof o.idempotencyKey === "string" ? o.idempotencyKey : "";
+  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${
+    given !== ""
+      ? given
+      : await askKey([
+          o.values,
+          o.signingDate,
+          o.name,
+          o.format,
+          recordId,
+          folder.folderId,
+          ctx.actingFor ?? ctx.principal.id,
+          await fileVersion(ctx, templateFileId),
+        ])
+  }`;
   return (await ctx.call("documents.fill", pass)) as Filled;
 }
 

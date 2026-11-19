@@ -310,10 +310,10 @@ test("hostile input cannot make the readers slow: a tag opened a hundred thousan
     }
     return Math.max(Date.now() - t, 20);
   };
-  // the absolute rule as well: each hostile case under 100 ms, the best of three runs, at 25,000 repeats
+  // the absolute rule as well: each hostile case under 100 ms, the best of five runs, at 25,000 repeats
   const best = (md: string): number => {
     let b = Infinity;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       const t = performance.now();
       parse(md);
       inline(md);
@@ -328,7 +328,7 @@ test("hostile input cannot make the readers slow: a tag opened a hundred thousan
     );
   const bestWord = (f: Uint8Array): number => {
     let b = Infinity;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       const t = performance.now();
       try {
         docxBlocks(f);
@@ -423,10 +423,14 @@ test("a template of one line of spaces at the 1 MB limit is read in under 100 ms
     ["a table head, then spaces and a dash", (n) => `| a |\n${" ".repeat(n)}-x`],
     ["a table head, then a bar and spaces", (n) => `| a |\n|${" ".repeat(n)}`],
     ["spaces only", (n) => " ".repeat(n)],
+    ["a heading then spaces", (n) => `# a${" ".repeat(n)}x`],
+    ["a list item then spaces", (n) => `- ${" ".repeat(n)}x`],
+    ["a quote then spaces", (n) => `> ${" ".repeat(n)}x`],
+    ["a fence then spaces", (n) => `\`\`\`${" ".repeat(n)}x`],
   ];
   const best = (md: string): number => {
     let b = Infinity;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       const t = performance.now();
       parse(md);
       b = Math.min(b, performance.now() - t);

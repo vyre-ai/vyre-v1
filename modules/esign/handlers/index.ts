@@ -34,7 +34,8 @@ export const handlers = {
     // a copy set in the plain page look has no letterhead or pictures: it goes out only when the sender says so, and that choice is kept. A copy that could not be checked is held the same way.
     const state = typeof o.fileId === "string" ? await copyState(ctx, o.fileId) : "exact";
     // the choice to send a copy that is not known to be exact is a person's: an agent or an Automation acting for someone cannot make it
-    const person = ctx.principal.kind === "person" && !ctx.actingFor;
+    // a person at the top of the call: not an agent, not someone's agent acting for them, and not a call made from inside another capability (an Automation's step runs as its person but arrives at depth 1 or more)
+    const person = ctx.principal.kind === "person" && !ctx.actingFor && ctx.depth === 0;
     if (state !== "exact" && o.plainOk === true && !person)
       fail(
         ctx,

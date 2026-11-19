@@ -342,27 +342,37 @@ test("with no key of its own, fill derives it from what is asked: another value,
   assert.notEqual(await keyOf(), base, "an edited template");
 });
 
-test("documents.make with no key makes a new ask every call, so an old file is never replayed for a new one; with the caller's key a retry is the same key", async () => {
+test("documents.make: a retry gives the same document, with the caller's key or without one; another value, person, folder or template version is another document", async () => {
   const w = linked();
   const id = w.add("Service agreement.md", enc(AGREEMENT));
   await handlers["documents.mark_template"](w.ctx, { fileId: id, isTemplate: true });
   const ask = { template: "Service agreement", recordId: "rec_imran", values: VALUES, signingDate: "2026-11-19" };
-  const keys = async (extra: Record<string, unknown>, calls: number) => {
+  const key = async (extra: Record<string, unknown> = {}, who = "per_a") => {
     const before = w.calls.filter((c) => c.cap === "files.create").length;
-    for (let i = 0; i < calls; i++)
-      await handlers["documents.make"](
-        { ...w.ctx, trace: { ...w.ctx.trace, traceId: `${i}`.padStart(32, "a") } },
-        { ...ask, ...extra },
-      );
-    return w.calls
-      .filter((c) => c.cap === "files.create")
-      .slice(before)
-      .map((c) => String(c.input.idempotencyKey).replace(/:[^:]*\.pdf$/, ""));
+    await handlers["documents.make"](
+      {
+        ...w.ctx,
+        principal: { kind: "person", id: who },
+        trace: { ...w.ctx.trace, traceId: `${Math.random()}`.padEnd(32, "0").slice(0, 32) },
+      },
+      { ...ask, ...extra },
+    );
+    return String(w.calls.filter((c) => c.cap === "files.create")[before]!.input.idempotencyKey).replace(
+      /:[^:]*\.pdf$/,
+      "",
+    );
   };
-  const none = await keys({}, 2);
-  assert.notEqual(none[0], none[1], "no caller key: every call is its own ask");
-  const kept = await keys({ idempotencyKey: "retry-1" }, 2);
-  assert.equal(kept[0], kept[1], "the caller's key: a retry is the same ask");
+  // no key: the same ask is the same key even though every call has its own trace id
+  const base = await key();
+  assert.equal(await key(), base, "a retry without a key is the same document");
+  assert.notEqual(await key({ values: { ...VALUES, matter: { fee: 7 } } }), base, "another value");
+  assert.notEqual(await key({}, "per_b"), base, "another person");
+  w.files.get(id)!.versions = 2;
+  assert.notEqual(await key(), base, "an edited template");
+  // the caller's key: a retry is the same, another key is another
+  const k1 = await key({ idempotencyKey: "retry-1" });
+  assert.equal(await key({ idempotencyKey: "retry-1" }), k1);
+  assert.notEqual(await key({ idempotencyKey: "retry-2" }), k1);
 });
 
 test("the plain check answers unchecked for a file it cannot read or that is too big, never 'not plain', and a file found plain is not read again", async () => {
