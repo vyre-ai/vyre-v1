@@ -24,7 +24,7 @@ const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => /^(TILES_01|PEEKTABS_01)/.test(t.id));
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => /^(TILES_01|PEEKTABS_01|RUNVIEWS_01)/.test(t.id));
 const report = [];
 for (const t of targets)
   for (const skin of ["paper", "graphite"])
@@ -48,7 +48,7 @@ for (const t of targets)
       const tiles = await page.locator("[data-testid='crew-tiles']").count();
       const sw = await page.locator("[data-testid='crew-strip-view']").count();
       const over = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
-      const file = path.join(out, `${t.id.replace(/^(TILES_01|PEEKTABS_01)-/, "")}-${skin}-${size}.png`);
+      const file = path.join(out, `${t.id.replace(/^(TILES_01|PEEKTABS_01|RUNVIEWS_01)-/, "")}-${skin}-${size}.png`);
       await page.screenshot({ path: file });
       report.push({
         file: path.basename(file),

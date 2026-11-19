@@ -1,0 +1,1 @@
+- The pieces that let a person follow a run of many helpers are built and tested against sample data: the shared board, the quiet lines between helpers, who waits for whom, the calm sleeping line, the token report, the list of everything running or asleep, and the @name menu.
