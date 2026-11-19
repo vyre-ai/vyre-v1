@@ -426,6 +426,13 @@
       "spec": "../../sites/tests/deploy-world.ts",
       "reason": "test-only: the same Gate tests create, deploy and preview a site with the real sites handlers over a real SQLite (the runner faked) before an agent calls, under the real invoke and the real Gate rule",
       "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
+      "file": "host/tests/sites.privacy.kit.ts",
+      "spec": "../../fixtures/seed/core/index.ts",
+      "reason": "test-only: the shared pieces of the site-privacy live tests (split out of one test file, which the scanner lets reach the seed fixtures) boot the same seeded Space the tests ask about; no product code imports it",
+      "until": "2027-01-31"
     }
   ]
 }
