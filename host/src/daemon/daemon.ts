@@ -7619,9 +7619,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const httpLog = sink.logger({ space: space ?? "-", place: "http" });
     const onHttpError: OnError = (where, error) =>
       httpLog.error("http.handler_threw", { where, ...errorLine(error) });
-    installRejectionBackstop((error) =>
+    const detachBackstop = installRejectionBackstop((error) =>
       httpLog.error("process.unhandled_rejection", errorLine(error)),
     );
+    server.once("close", detachBackstop);
     server.on("request", guardRequest((req, res) => {
       // the visitor the relay vouched for is read once, here, and the two headers that carried it are removed: they exist only on the relay-to-daemon hop (seams/visitor-proof.ts)
       takeVisitor(req);

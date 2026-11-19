@@ -61,15 +61,57 @@ export function guardUpgrade(
   };
 }
 
+const SECRET_WORDS = /^([A-Za-z_.-]{0,40}(?:password|passwd|secret|token|key|authorization|cookie|pw|sid|session)[A-Za-z_.-]{0,20})([=:])(.+)$/i;
+const MAX_SCRUBBED = 4000;
+
 /**
- * What may be written to a log from an error: the stack and the message with every address cut to its origin and path (a query can carry a token) and every long token-like run replaced. An upstream error can echo a URL
- * or a key in its message, so nothing from an error goes to a log unscrubbed.
+ * What may be written to a log from an error. The text is cut to 4000 characters first, so nothing below can take longer than a few thousand steps, and then read one word at a time (no pattern runs over the
+ * whole text): an address keeps its scheme, host and path only (no user name or password, no query, no fragment); the word after "Bearer", "Authorization" or "Cookie" is removed; a word like password=..., token=...
+ * or key:... keeps its name and loses its value; and any run of 32 or more token-like characters is removed. An upstream error can echo a URL or a key in its message, so nothing from an error goes to a log unscrubbed.
  */
 export function scrub(text: string): string {
-  return text
-    .replace(/(\b[a-z][a-z0-9+.-]*:\/\/[^\s/?#]+[^\s?#]*)[^\s]*/gi, "$1")
-    .replace(/[A-Za-z0-9_\-+/=]{32,}/g, "[removed]")
-    .slice(0, 4000);
+  const parts = text.slice(0, MAX_SCRUBBED).split(/(\s+)/);
+  let hideNext = false;
+  const out: string[] = [];
+  for (const part of parts) {
+    if (part === "" || /^\s+$/.test(part)) {
+      out.push(part);
+      continue;
+    }
+    if (hideNext) {
+      // "Authorization: Bearer <token>": the scheme word stays, what follows it goes
+      if (/^(bearer|basic)$/i.test(part)) {
+        out.push(part);
+        continue;
+      }
+      hideNext = false;
+      out.push("[removed]");
+      continue;
+    }
+    if (/^(bearer|basic|authorization:?|cookie:?|set-cookie:?)$/i.test(part)) {
+      hideNext = true;
+      out.push(part);
+      continue;
+    }
+    let w = part;
+    const at = w.indexOf("://");
+    if (at > 0 && at <= 40) {
+      const scheme = w.slice(0, at + 3);
+      let rest = w.slice(at + 3);
+      const cut = rest.search(/[?#]/);
+      if (cut >= 0) rest = rest.slice(0, cut);
+      const slash = rest.indexOf("/");
+      const authority = slash >= 0 ? rest.slice(0, slash) : rest;
+      const atSign = authority.lastIndexOf("@");
+      if (atSign >= 0) rest = rest.slice(atSign + 1);
+      w = scheme + rest;
+    } else {
+      const m = SECRET_WORDS.exec(w.slice(0, 200));
+      if (m) w = `${m[1]}${m[2]}[removed]`;
+    }
+    out.push(w.replace(/[A-Za-z0-9_\-+/=]{32,}/g, "[removed]"));
+  }
+  return out.join("");
 }
 /** An error as a log line carries it: the scrubbed message and the scrubbed stack. */
 export function errorLine(e: unknown): { error: string; stack?: string } {
@@ -89,9 +131,12 @@ const strict = (): boolean =>
  * and calls the newest logger given, so a second daemon in one process logs and a stopped one is not called. In a test process (NODE_ENV=test, the node test runner, or VYRE_STRICT_REJECTIONS=1) it throws again, so a stray
  * rejection still fails the test as it always did.
  */
-export function installRejectionBackstop(onError: (error: unknown) => void): void {
+export function installRejectionBackstop(onError: (error: unknown) => void): () => void {
   sink = onError;
-  if (backstop) return;
+  const detach = (): void => {
+    if (sink === onError) sink = () => undefined; // a stopped daemon's logger is not called any more
+  };
+  if (backstop) return detach;
   backstop = true;
   process.on("unhandledRejection", (reason) => {
     rejected += 1;
@@ -100,6 +145,8 @@ export function installRejectionBackstop(onError: (error: unknown) => void): voi
     } catch {
       /* logging never decides whether the daemon lives */
     }
+    // strict mode is for tests: it is Node's own default (the process ends). NODE_ENV=test must never be set on a real daemon, or an unhandled rejection ends it, as it would without this backstop.
     if (strict()) throw reason instanceof Error ? reason : new Error(String(reason));
   });
+  return detach;
 }

@@ -164,3 +164,47 @@ test("an upgrade that throws closes its socket and does not take the process dow
   assert.equal(destroyed, true);
   assert.equal(errors.length, 1);
 });
+
+test("scrub takes time proportional to its input: a hostile run of word boundaries cannot freeze the daemon while it logs", () => {
+  for (const text of ["a.".repeat(100_000), "a-".repeat(100_000), "http://".repeat(50_000), "a:/".repeat(100_000), ("x ".repeat(2000) + "password=").repeat(500)]) {
+    const t = performance.now();
+    const out = scrub(text);
+    const ms = performance.now() - t;
+    assert.ok(ms < 100, `${ms.toFixed(0)} ms for ${text.slice(0, 12)}`);
+    assert.ok(out.length <= 4000 + 100);
+  }
+});
+
+test("scrub removes short secrets too: a value after password= or token=, a Bearer or Authorization word, a cookie, and the user name and password in an address", () => {
+  const cases: Array<[string, string]> = [
+    ["token=abc123&pw=hunter2", "abc123"],
+    ["Authorization: Bearer sk_short123", "sk_short123"],
+    ["cookie=sid=abcdef12345", "abcdef12345"],
+    ["password=hunter2", "hunter2"],
+    ["connect postgres://u:pass@h:5432/db failed", "u:pass"],
+    ["Set-Cookie: session=zzz999", "zzz999"],
+    ["https://api.example.com/v1/x?token=abc#frag", "token=abc"],
+  ];
+  for (const [text, secret] of cases) assert.ok(!scrub(text).includes(secret), `${text} -> ${scrub(text)}`);
+  assert.match(scrub("fetch failed https://api.example.com/v1/x?token=abc"), /https:\/\/api\.example\.com\/v1\/x/, "the origin and path stay, they are what makes a log useful");
+  assert.match(scrub("password=hunter2"), /^password=/, "the name stays");
+});
+
+test("a logger given to the backstop is not called after its daemon stops", () => {
+  const url = new URL("./safe-request.ts", import.meta.url).href;
+  const r = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import { installRejectionBackstop } from ${JSON.stringify(url)};
+       const seen = [];
+       const detach = installRejectionBackstop((e) => seen.push(e.message));
+       detach();
+       Promise.reject(new Error("after stop"));
+       setTimeout(() => console.log("LOGGED " + seen.length), 100);`,
+    ],
+    { encoding: "utf8", env: childEnv() },
+  );
+  assert.match(r.stdout, /LOGGED 0/);
+});
