@@ -11,7 +11,7 @@ A connection reports its sign-in lost (error) or working again (syncing)
 | Grant level | use |
 | Risk | medium |
 | Resource | mailbox (/mailboxId) |
-| Gate | send when actor.kind == 'agent' |
+| Gate | send when mail.non_sync_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

@@ -168,14 +168,15 @@ const HANDLE_OK: Record<string, string> = {
     "routes to mail.smtp.verify, mail.smtp.set and mail.connect, each held for an agent that names a server",
 };
 
-/** Found by the same sweep, checked, and NOT fixed here: they live in other lanes and changing who may call them changes those lanes' flows. Reported to the lead on 19 Nov. The test fails the day one is held, so the line is removed with the fix. */
-const OPEN: Record<string, string> = {
-  "sites.create": "a Vault token goes to the git host of the repo address the caller types (any https host)",
-  "sync_specs.apply": "a spec's Vault handle is used with the app address the spec names",
-  "sync_specs.preview": "a spec's Vault handle is used with the app address the spec names",
-  "sync_specs.sample": "a Vault handle is sent to the url the caller types",
-  "sync_specs.validate": "a spec's Vault handle is used with the app address the spec names",
-};
+/** Held unless the host is approved for that Vault item (the same rule and store as a test read): a handle plus an address a caller names. */
+const KEY_HOST_HELD = [
+  "sites.create",
+  "sync_specs.apply",
+  "sync_specs.preview",
+  "sync_specs.sample",
+  "sync_specs.survey",
+  "sync_specs.validate",
+];
 
 test("every capability that takes a Vault handle together with a host or address (nested objects included) is held for an agent, or is named with why the secret cannot be sent where a caller chooses", () => {
   const found = all
@@ -193,9 +194,14 @@ test("every capability that takes a Vault handle together with a host or address
   for (const must of ["mail.smtp.set", "mail.smtp.verify", "mail.connect", "import.parse_airtable"])
     assert.ok(names.includes(must), `${must} is seen by the sweep (a handle and a place)`);
   const loose = found
-    .filter((x) => !held(x.gate) && !(x.name in HANDLE_OK) && !(x.name in OPEN))
+    .filter((x) => !held(x.gate) && !(x.name in HANDLE_OK))
     .map((x) => `${x.name} ${JSON.stringify(x.handles)} with ${JSON.stringify(x.places)}`);
   assert.deepEqual(loose, [], "these send a Vault secret to a place the caller names with no hold and no reason");
   for (const name of Object.keys(HANDLE_OK)) assert.ok(def(name), `${name} on the list is a real capability`);
-  for (const name of Object.keys(OPEN)) assert.ok(!held(def(name)?.gate), `${name} is now held: remove it from OPEN`);
+  for (const name of KEY_HOST_HELD)
+    assert.equal(
+      def(name).gate?.when,
+      "vault.key_host_unapproved(input)",
+      `${name} is held unless the host is approved for the key`,
+    );
 });

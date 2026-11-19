@@ -11,6 +11,8 @@ export const HOLD_WHENS: ReadonlySet<string> = new Set([
   "actor.kind != 'person' and (input.action == 'set' or input.action == 'reset')",
   "mail.smtp_override(input)",
   "mail.is_provider_setting(input.key)",
+  "mail.non_sync_actor(input)",
+  "vault.key_host_unapproved(input)",
 ]);
 /** A gate with a known holding condition, or a Gate on every call (any act but "none"). */
 export const held = (g: GateDef | undefined): boolean =>

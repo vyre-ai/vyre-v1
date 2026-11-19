@@ -224,6 +224,7 @@ export default defineManifest({
         },
         out: { site: siteRow },
         make: ["site", "/folderId"],
+        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
         perm: "sites.deploy",
         emits: ["site.created"],
         tool: "sites",

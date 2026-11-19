@@ -275,18 +275,18 @@ const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
 const MAIL_KINDS = ["login", "api_key"] as const;
 
 /** The handle names a Vault item of a mail kind that this person can see. The Vault lists only what the asker may open, so this is also the read check. */
-async function ensureMailCredential(ctx: MailCtx, handle: string): Promise<void> {
-  const want = handle.replace(/^#/, "");
-  const name = want.split(".")[0] ?? "";
+/** The Vault item a handle names, whatever its spelling (case, a field after the dot), or null when this person cannot see one of a mail kind. The Vault lists only what the asker may open. */
+async function findMailCredential(ctx: MailCtx, handle: string): Promise<string | null> {
+  const want = (handle.replace(/^#/, "").split(".")[0] ?? "").toLowerCase();
   for (const kind of MAIL_KINDS) {
     let cursor: string | undefined;
     // the list searches by part of a name, so a short name can match many items: read every page (up to 20) before saying there is no such item
     for (let page = 0; page < 20; page++) {
-      let got: { items?: { handle?: unknown }[]; next?: unknown } | null;
+      let got: { items?: { id?: unknown; handle?: unknown }[]; next?: unknown } | null;
       try {
         got = (await ctx.call("vault.items.list", {
           kind,
-          q: name,
+          q: want,
           limit: 50,
           ...(cursor ? { cursor } : {}),
         })) as typeof got;
@@ -295,15 +295,39 @@ async function ensureMailCredential(ctx: MailCtx, handle: string): Promise<void>
           message: "The Vault could not be read just now. Try again.",
         });
       }
-      if ((got?.items ?? []).some((i) => typeof i.handle === "string" && i.handle.replace(/^#/, "") === want)) return;
+      const hit = (got?.items ?? []).find(
+        (i) => typeof i.handle === "string" && (i.handle.replace(/^#/, "").split(".")[0] ?? "").toLowerCase() === want,
+      );
+      if (hit) return typeof hit.id === "string" ? hit.id : `handle:${want}`;
       cursor = typeof got?.next === "string" && got.next !== "" ? got.next : undefined;
       if (!cursor) break;
     }
   }
-  bad(
-    ctx,
-    "The password must be a Vault item of the kind Login or API key that you can open. Save it there, then give its handle.",
-  );
+  return null;
+}
+
+/** The item id of a password the person may use for mail, or a refusal in words. */
+async function ensureMailCredential(ctx: MailCtx, handle: string): Promise<string> {
+  const id = await findMailCredential(ctx, handle);
+  if (id === null)
+    bad(
+      ctx,
+      "The password must be a Vault item of the kind Login or API key that you can open. Save it there, then give its handle.",
+    );
+  return id;
+}
+
+/** The saved password is for the saved server only: for another host, port or username it is refused whatever the handle is spelled like, because both handles are resolved to the Vault item before they are compared. */
+async function refuseSavedItemElsewhere(ctx: MailCtx, base: Row | null, c: Clean, itemId: string): Promise<void> {
+  if (!base) return;
+  const moved = c.host !== str(base, "host") || c.port !== num(base, "port") || c.username !== str(base, "username");
+  if (!moved) return;
+  const saved = await findMailCredential(ctx, str(base, "passwordHandle")).catch(() => null);
+  if (saved !== null && saved === itemId)
+    bad(
+      ctx,
+      "That Vault item is the saved server's password. Give a different Vault item for a different server, port or username.",
+    );
 }
 
 export interface SmtpIn {
@@ -377,7 +401,8 @@ export async function smtpSet(ctx: MailCtx, input: SmtpIn): Promise<SmtpOut> {
     if (e instanceof Refused) bad(ctx, e.message);
     throw e;
   });
-  await ensureMailCredential(ctx, c.passwordHandle);
+  const itemId = await ensureMailCredential(ctx, c.passwordHandle);
+  await refuseSavedItemElsewhere(ctx, base, c, itemId);
   ctx.vault.use(c.passwordHandle); // the person saving it must be able to use that Vault item now: sends log in later as the server
   await secret(ctx, c.passwordHandle); // and to read it: the Vault answers as this person, so an item they cannot open cannot be given to a mail server
   const now = ctx.now();
@@ -482,7 +507,8 @@ export async function smtpVerify(ctx: MailCtx, input: SmtpIn, opts: { strike?: b
   );
   if (!base && !overrides) bad(ctx, "No mail server is saved yet. Enter one to test it.");
   const c = clean(ctx, input, base);
-  await ensureMailCredential(ctx, c.passwordHandle);
+  const itemId = await ensureMailCredential(ctx, c.passwordHandle);
+  await refuseSavedItemElsewhere(ctx, base, c, itemId);
   ctx.vault.use(c.passwordHandle);
   const started = ctx.now();
   let result: VerifyOut;

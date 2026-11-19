@@ -5,11 +5,12 @@ import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
 import { createIdempotency } from "../../kernel/src/idempotency/index.ts";
 import { registry } from "../../generated/registry.ts";
-import { createGateHook, moduleWhens } from "../src/daemon/gate-hook.ts";
+import { createGateHook, keySendOf, moduleWhens } from "../src/daemon/gate-hook.ts";
 import { createInvoke, createRateLimiter, indexCapabilities } from "../src/invoke.ts";
 import type { CtxSeed, Handler, InvokeDeps } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
 import { CONFIGURE_ROUTE } from "../../modules/mail/handlers/setup.ts";
+import { allowKeyHost, keyHostApproved } from "../../modules/automations/key-hosts.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
 // the callees come from mail.configure's own routing table (minus the test email, which goes through mail.send and has its own tests), so a new action is checked the day it is added
@@ -46,7 +47,9 @@ const COMMS = [
   "webhooks.update",
   "twilio.number.configure",
 ];
-const defs = [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE, ...COMMS].map(
+// a Vault key sent to a host the call names
+const KEYED = ["sync_specs.sample", "sync_specs.survey", "sync_specs.validate", "sites.create"];
+const defs = [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE, ...COMMS, ...KEYED].map(
   (n) => registry.capabilities.find((c) => c.name === n) as unknown as CapabilityDef,
 );
 
@@ -110,12 +113,22 @@ function world(): AccessSnapshot {
   return s;
 }
 
-function rig() {
+interface RigOptions {
+  /** the Gate's own reads and the reads it makes as a person (the Vault's approved hosts, an agent's right to use an item) */
+  exports?: ReadonlyMap<string, Record<string, unknown>>;
+  db?: () => {
+    all(sql: string, ...a: unknown[]): unknown[];
+    run(sql: string, ...a: unknown[]): { changes: number };
+  } | null;
+  call?: (cap: string, input: unknown) => Promise<unknown>;
+  callAs?: (cap: string, input: unknown, person: string) => Promise<unknown>;
+}
+function rig(o: RigOptions = {}) {
   const snap = world();
   const ran: string[] = [];
   const parked: { cap: string; act: string }[] = [];
   const handlers: Record<string, Handler> = Object.fromEntries(
-    [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE, ...COMMS].map((n) => [
+    [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE, ...COMMS, ...KEYED].map((n) => [
       n,
       (async () => (ran.push(n), {})) as Handler,
     ]),
@@ -133,14 +146,16 @@ function rig() {
     )) as unknown as Handler;
   const store = new Map<string, { hash: string; result: unknown }>();
   const gate = createGateHook({
-    call: async (cap) => (cap === "gate.effective_rule" ? { hold: true } : null),
+    call: async (cap, input) =>
+      cap === "gate.effective_rule" ? { hold: true } : ((await o.call?.(cap, input)) ?? null),
     unseal: () => new Uint8Array(),
     now: () => 0,
     hold: () => null,
     evaluators: moduleWhens(
-      new Map(),
-      () => null,
-      async () => null,
+      o.exports ?? new Map(),
+      (o.db ?? (() => null)) as never,
+      async (cap, input) => (await o.call?.(cap, input)) ?? null,
+      o.callAs,
     ),
   });
   const park = gate.park;
@@ -170,7 +185,13 @@ function rig() {
     now: () => 1_000,
     gate,
   } as unknown as InvokeDeps;
-  return { invoke: createInvoke(deps), ran, parked };
+  return {
+    invoke: createInvoke(deps),
+    ran,
+    parked,
+    gate,
+    defOf: (name: string) => defs.find((d) => d.name === name) as CapabilityDef,
+  };
 }
 const seed = (id: string, kind: "person" | "agent" = "person", extra: Partial<CtxSeed> = {}): CtxSeed =>
   ({ space: "spc_1", principal: { kind, id }, ...extra }) as CtxSeed;
@@ -418,5 +439,145 @@ test("through the real Gate: an agent changing where calls, texts, voicemail or 
       `${name}: a person's own change is one step`,
     );
     assert.deepEqual(asPerson.parked, []);
+  }
+});
+
+// ---- a Vault key sent to a host a call names: the key-host rule (approved hosts), for sync specs, sample reads and a site's git repo
+
+const SAMPLE = (domain: string, handle = "#Crm_Key") => ({
+  auth: { vaultHandle: handle, style: "bearer" },
+  domain,
+  path: "/contacts",
+});
+function keyWorld(access: "allow" | "deny" = "allow") {
+  const hosts: { item_id: string; host: string; by: string; at: number }[] = [];
+  const db = {
+    all: (sql: string, ...a: unknown[]): unknown[] => {
+      if (sql.includes("vault_meta"))
+        return [{ id: "vit_crm", handle: "#Crm_Key", name: "Crm", scope: "shared", owner: "usr_admin" }];
+      if (sql.includes("automations_key_hosts")) return hosts.filter((h) => h.item_id === a[0] && h.host !== "");
+      return [];
+    },
+    run: (_sql: string, ...a: unknown[]) => (
+      hosts.push({ item_id: String(a[0]), host: String(a[1]), by: String(a[2]), at: Number(a[3]) }),
+      { changes: 1 }
+    ),
+  };
+  return {
+    hosts,
+    opts: {
+      exports: new Map([["automations", { keyHostApproved }]]),
+      db: () => db,
+      call: async (cap: string) => (cap === "access.check" ? { decision: { effect: access } } : null),
+      callAs: async (cap: string, input: unknown, person: string) => {
+        if (cap === "automations.key_hosts.allow") {
+          const i = input as { vaultItemId: string; host: string };
+          allowKeyHost(db, i.vaultItemId, i.host, person, 1);
+          return {};
+        }
+        return { items: [] };
+      },
+    } satisfies RigOptions,
+  };
+}
+const asAgent = (id = "agt_bot") => seed(id, "agent", { actingFor: "usr_admin" });
+
+test("through the real Gate: an agent sending a Vault key to a new host is held, a person's approval makes that host flow next time, a different host is held again, and a person is one step", async () => {
+  const w = keyWorld();
+  // a person is one step, to any host
+  const person = rig(w.opts);
+  assert.equal((await person.invoke("sync_specs.sample", SAMPLE("api.crm.example"), seed("usr_admin"))).status, "ok");
+  assert.deepEqual(person.parked, []);
+  // an agent with a host nobody approved: held, nothing runs
+  const first = rig(w.opts);
+  assert.equal((await first.invoke("sync_specs.sample", SAMPLE("api.crm.example"), asAgent())).status, "held");
+  assert.deepEqual(first.parked, [{ cap: "sync_specs.sample", act: "send" }]);
+  assert.deepEqual(first.ran, []);
+  // the person says yes: the call runs on their approval and the host is approved for that item from now on
+  const approved = rig(w.opts);
+  await approved.gate.seen?.(
+    approved.defOf("sync_specs.sample"),
+    SAMPLE("api.crm.example"),
+    {},
+    { ...asAgent(), approval: "apv_yes" },
+    0,
+  );
+  assert.deepEqual(
+    w.hosts.filter((h) => h.host !== "").map((h) => [h.item_id, h.host, h.by]),
+    [["vit_crm", "api.crm.example", "usr_admin"]],
+    "the approving person's host is recorded for that item",
+  );
+  const next = rig(w.opts);
+  assert.equal(
+    (await next.invoke("sync_specs.sample", SAMPLE("api.crm.example"), asAgent())).status,
+    "ok",
+    "the same host now flows",
+  );
+  assert.deepEqual(next.parked, []);
+  // a different host is held again, and so are survey, a spec and a site's repo
+  const other = rig(w.opts);
+  assert.equal((await other.invoke("sync_specs.sample", SAMPLE("api.elsewhere.example"), asAgent())).status, "held");
+  const spec = {
+    spec: { app: { name: "Crm", domain: "api.elsewhere.example" }, auth: { vaultHandle: "#Crm_Key", style: "bearer" } },
+  };
+  assert.equal((await rig(w.opts).invoke("sync_specs.validate", spec, asAgent())).status, "held");
+  assert.equal(
+    (await rig(w.opts).invoke("sync_specs.survey", { ...SAMPLE("api.elsewhere.example"), paths: ["/a"] }, asAgent()))
+      .status,
+    "held",
+  );
+  const site = rig(w.opts);
+  assert.deepEqual(
+    await site.gate.applies(
+      site.defOf("sites.create"),
+      { name: "s", source: { repo: "https://git.elsewhere.example/a/b", tokenHandle: "#Crm_Key" } },
+      { space: "spc_1", ...asAgent() } as never,
+    ),
+    { act: "send" },
+    "a site's git repo on a new host is held for an agent",
+  );
+  assert.equal(
+    await site.gate.applies(
+      site.defOf("sites.create"),
+      { name: "s", source: { repo: "https://git.elsewhere.example/a/b", tokenHandle: "#Crm_Key" } },
+      { space: "spc_1", ...seed("usr_admin") } as never,
+    ),
+    null,
+    "and a person is one step",
+  );
+  // a call that names no key is not touched by the rule
+  assert.equal(keySendOf({ name: "s" }), undefined);
+  assert.equal(keySendOf({ name: "s", source: { repo: "acme/app", tokenHandle: "#T" } })?.host, "github.com");
+});
+
+test("through the real Gate: an agent that may not itself use the Vault item is refused, not held, even when the person it works for may", async () => {
+  const w = keyWorld("deny");
+  const r = rig(w.opts);
+  assert.equal(
+    await codeOf(r.invoke("sync_specs.sample", SAMPLE("api.crm.example"), asAgent())),
+    "permission.no_grant",
+  );
+  assert.deepEqual([r.parked, r.ran], [[], []], "nothing was parked and nothing ran");
+});
+
+test("through the real Gate: an Automation's step is held on a pause, resume or sync-state switch, an agent is held, a person and the sync's own service are not", async () => {
+  const r = rig();
+  const input = { mailboxId: "mbx_a" };
+  for (const name of ["mail.mailbox.pause", "mail.mailbox.resume", "mail.mailbox.set_sync_state"]) {
+    const d = r.defOf(name);
+    const at = (principal: { kind: string; id: string }, extra: object = {}) =>
+      r.gate.applies(d, input, { space: "spc_1", principal, ...extra } as never);
+    assert.deepEqual(await at({ kind: "agent", id: "agt_bot" }), { act: "send" }, `${name}: an agent is held`);
+    assert.deepEqual(
+      await at({ kind: "person", id: "usr_admin" }, { step: { automationId: "aut_9" } }),
+      { act: "send" },
+      `${name}: an Automation's step is held`,
+    );
+    assert.equal(await at({ kind: "person", id: "usr_admin" }), null, `${name}: a person is one step`);
+    assert.equal(
+      await at({ kind: "service", id: "svc_google_sync" }),
+      null,
+      `${name}: the Google sync's own service is one step`,
+    );
   }
 });

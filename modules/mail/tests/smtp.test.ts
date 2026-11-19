@@ -910,3 +910,24 @@ test("the saved password is for the saved server only: a different server, port 
   assert.equal((await smtpVerify(h.ctx, {})).ok, true);
   assert.equal(w.verified.at(-1)?.host, "smtp.northwind.example");
 });
+
+test("the saved password is recognised by the Vault item, not by how its handle is spelled: another spelling of the same item is refused for a different server, a different item works", async () => {
+  const h = harness();
+  const v = vault();
+  const w = wire(h.ctx);
+  await smtpSet(h.ctx, SERVER);
+  v.read.length = 0;
+  for (const spelling of ["#smtp_password", "#SMTP_PASSWORD", "#Smtp_Password.password"])
+    for (const run of [
+      () => smtpVerify(h.ctx, { host: "attacker.example.com", passwordHandle: spelling }),
+      () => smtpSet(h.ctx, { ...SERVER, port: 2525, passwordHandle: spelling }),
+    ])
+      assert.match(
+        await moveRefused(run),
+        /^validation\.bad_input: That Vault item is the saved server's password/,
+        spelling,
+      );
+  assert.deepEqual(v.read, [], "the saved password was never read for another place");
+  assert.equal(w.verified.length, 0);
+  assert.equal((await smtpVerify(h.ctx, { host: "smtp.other.example", passwordHandle: "#Smtp_Other" })).ok, true);
+});
