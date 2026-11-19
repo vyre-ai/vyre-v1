@@ -769,4 +769,4 @@ Signed: lead, 19 Nov 2026
 - Tests: lib/tests/web-read.test.ts, modules/computers/tests/web-tools.test.ts (read, hostile page, every refusal, search, the limit), tools.contract.test.ts, apps/chrome/tests/ext-shape.test.ts and ext-agent.test.ts.
 - Snapshots: docs/frozen/snapshots/computers.json.
 
-Signed: pending, lead
+Signed: lead, 19 Nov 2026
