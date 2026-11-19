@@ -760,4 +760,4 @@ Changed contracts, in `manifests/gate.ts` and `manifests/sites.ts`; no capabilit
 - `sites.deploy` takes two optional inputs, `commit` (a 40-hex commit sha: the commit a held card was made over, which the deploy builds, only if it is on the branch) and `fp` (a 32-hex fingerprint of the uploaded files the caller means; a non-person's that is not what the Gate reads is held). The tick sets `commit`; a card made over it carries it in the held input, so each commit is its own hold. A held deploy with no commit is pinned to the head at hold time. `sites.head_check` also answers `repo` and `branch`; for a deploy that is not a person's own on a repo site, a head that cannot be read within five seconds refuses the hold ("Couldn't read <branch> to show what would deploy. Try again.") and is never parked unpinned.
 - The gate on `sites.deploy` names `sites.deploy_gate(input)` (the key rule and the host's branch protection); `sites.webhook_set` rotating or switching on a live secret is held for an agent.
 
-Signed: pending, lead
+Signed: lead, 20 Nov 2026
