@@ -35,6 +35,8 @@ export interface AuthDef {
   clientSecret?: string;
   /** Where a token is revoked when a connection is deleted; optional, best effort. */
   revokeUrl?: string;
+  /** api_key only: the header value is this template, filled with `{secret.Name}` (several secrets, any form the app wants: `sso-key {secret.Key}:{secret.Secret}`); it replaces prefix and the single secret. */
+  template?: string;
   /** api_key or bearer only: send HTTP Basic (user:password) instead of a header. Both are templates (`{secret.Name}` or plain words, "api"); the password may be empty. The joined value is scrubbed like a secret. */
   basic?: { user: string; pass?: string };
   /** client_credentials (a server-to-server token): the action that trades the connection's own secrets for a short-lived token, which is sent as a Bearer on every other action. The token is held in memory for the call and never kept. */
@@ -299,8 +301,9 @@ export function checkEgress(raw: string, domains: readonly string[]): EgressResu
 
 // ---- templates ----
 
-const PLACEHOLDER = /\{(input|secret|connection)\.([A-Za-z0-9_.]+)\}/g;
-const WHOLE = /^\{(input|secret|connection)\.([A-Za-z0-9_.]+)\}$/;
+// `{input.x?}` is optional: with no value the query key, header, form field or body key it sits in is left out instead of the call failing. Never in an address, never for a secret (connectors/handlers/source.ts says so at define).
+const PLACEHOLDER = /\{(input|secret|connection)\.([A-Za-z0-9_.]+)(\?)?\}/g;
+const WHOLE = /^\{(input|secret|connection)\.([A-Za-z0-9_.]+)(\?)?\}$/;
 
 export interface Scope3 {
   input: unknown;
@@ -357,20 +360,54 @@ export function fillString(s: string, scope: Scope3, encode = false): string {
   });
 }
 
+/**
+ * Like fillString, for a place where leaving the thing out is meaningful (a query key, a header, a form field): when an optional `{input.x?}` has no value the answer is undefined and the caller drops the whole
+ * entry. A required placeholder with no value still throws, so a call that forgot its input still stops.
+ */
+export function fillOptional(s: string, scope: Scope3, encode = false): string | undefined {
+  let absent = false;
+  const out = s.replace(PLACEHOLDER, (m, kind: string, path: string, optional: string | undefined) => {
+    const v = lookup(scope, kind, path);
+    if ((v === undefined || v === null) && optional) {
+      absent = true;
+      return "";
+    }
+    return fillString(m.replace("?}", "}"), scope, encode);
+  });
+  return absent ? undefined : out;
+}
+
+/** What fillValue leaves where an optional value had none: the entry (or array item) holding it is dropped. */
+const ABSENT = Symbol("absent");
+
 /** A body template: a string that is one placeholder keeps the value's type, any other string is interpolated, objects and arrays recurse. */
 export function fillValue(t: unknown, scope: Scope3): unknown {
+  const v = fill(t, scope);
+  return v === ABSENT ? undefined : v;
+}
+function fill(t: unknown, scope: Scope3): unknown {
   if (typeof t === "string") {
     const whole = WHOLE.exec(t);
     if (whole) {
       const v = lookup(scope, whole[1]!, whole[2]!);
-      if (v === undefined) throw new Error(`${whole[1]}.${whole[2]} has no value`);
+      if (v === undefined || v === null) {
+        if (whole[3]) return ABSENT;
+        if (v === undefined) throw new Error(`${whole[1]}.${whole[2]} has no value`);
+      }
       return v;
     }
-    return fillString(t, scope);
+    const text = fillOptional(t, scope);
+    return text === undefined ? ABSENT : text;
   }
-  if (Array.isArray(t)) return t.map((x) => fillValue(x, scope));
-  if (t && typeof t === "object")
-    return Object.fromEntries(Object.entries(t as Record<string, unknown>).map(([k, v]) => [k, fillValue(v, scope)]));
+  if (Array.isArray(t)) return t.map((x) => fill(x, scope)).filter((x) => x !== ABSENT);
+  if (t && typeof t === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(t as Record<string, unknown>)) {
+      const f = fill(v, scope);
+      if (f !== ABSENT) out[k] = f;
+    }
+    return out;
+  }
   return t;
 }
 

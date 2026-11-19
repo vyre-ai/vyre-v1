@@ -1,0 +1,1 @@
+A connector defined in one call can now carry a JSON or form body, leave out a query key, header or body key when an optional {input.x?} has no value, page its lists (page, cursor, offset or link) and name a health action, and sign in with HTTP Basic or a header template over several secrets. connectors.init no longer asks for an idempotency key.

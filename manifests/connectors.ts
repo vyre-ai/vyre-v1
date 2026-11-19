@@ -468,6 +468,8 @@ export default defineManifest({
     ),
     create("connectors.init", "Scaffold a connector folder: connector.toml, transforms.js, tests, README", {
       in: { key: id.connector, title: t.str(), mode, docsUrl: t.opt(t.str()), source: t.opt(t.bool()) },
+      // the key names the new connector, so a repeat names the same thing: it asks for no idempotency key (a repeat is refused as a duplicate, which is what the key was for)
+      idem: "natural",
       out: { key: id.connector, folderId: t.opt(id.folder) },
       // The key names the new connector, never an existing parent. Authorize its Space; connector.created registers the new resource there.
       perm: "connectors.manage",
@@ -478,19 +480,24 @@ export default defineManifest({
     }),
     write(
       "connectors.define",
-      "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
+      "Say what a draft connector is in one call: hosts, sign-in (key, bearer, basic, or a header template over secret slots) and actions (paginate and health too). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?} (optional). Replaces the draft.",
       {
         in: {
           key: id.connector,
           title: t.opt(t.str()),
           domains: t.arr(t.str(), { minItems: 1 }),
           auth: t.obj({
-            type: t.enm("none", "api_key", "bearer"),
+            // basic: HTTP Basic from declared secrets (user and password); header: one header whose value is a template over declared secrets, such as Token token="{secret.Key}" or sso-key {secret.Key}:{secret.Secret}
+            type: t.enm("none", "api_key", "bearer", "basic", "header"),
             secret: t.opt(t.str()),
             header: t.opt(t.str()),
             prefix: t.opt(t.str()),
+            user: t.opt(t.str()),
+            password: t.opt(t.str()),
+            template: t.opt(t.str()),
           }),
           secrets: t.opt(t.arr(t.obj({ name: t.str(), description: t.str() }))),
+          health: t.opt(t.str()),
           actions: t.arr(
             t.obj({
               name: t.str(),
@@ -498,6 +505,20 @@ export default defineManifest({
               url: t.str(),
               headers: t.opt(t.rec(t.str())),
               query: t.opt(t.rec(t.str())),
+              body: t.opt(t.json()),
+              form: t.opt(t.rec(t.str())),
+              basic: t.opt(t.obj({ user: t.str(), pass: t.opt(t.str()) })),
+              paginate: t.opt(
+                t.obj({
+                  kind: t.enm("page", "cursor", "offset", "link"),
+                  param: t.opt(t.str()),
+                  next: t.opt(t.str()),
+                  items: t.str(),
+                  id: t.str(),
+                  size: t.opt(t.int({ minimum: 1 })),
+                  start: t.opt(t.int({ minimum: 0 })),
+                }),
+              ),
               output: t.opt(t.str()),
               write: t.opt(t.bool()),
             }),

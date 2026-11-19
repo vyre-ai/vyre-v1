@@ -9084,7 +9084,7 @@ const routes1: Route[] = [
     "resource": {
       "type": "space"
     },
-    "idempotency": "key",
+    "idempotency": "natural",
     "risk": "medium",
     "offline": null,
     "teamOnly": false,

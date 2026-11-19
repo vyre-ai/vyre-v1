@@ -2229,7 +2229,7 @@
     {
       "deferred": false,
       "name": "connectors_define",
-      "summary": "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
+      "summary": "Say what a draft connector is in one call: hosts, sign-in (key, bearer, basic, or a header template over secret slots) and actions (paginate and health too). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?} (optional). Replaces the draft.",
       "toolset": "automations"
     },
     {

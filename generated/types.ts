@@ -11856,21 +11856,40 @@ export type ConnectorsDefineIn = {
   title?: string;
   domains: Array<string>;
   auth: {
-    type: "none" | "api_key" | "bearer";
+    type: "none" | "api_key" | "bearer" | "basic" | "header";
     secret?: string;
     header?: string;
     prefix?: string;
+    user?: string;
+    password?: string;
+    template?: string;
   };
   secrets?: Array<{
       name: string;
       description: string;
     }>;
+  health?: string;
   actions: Array<{
       name: string;
       method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
       url: string;
       headers?: Record<string, string>;
       query?: Record<string, string>;
+      body?: unknown;
+      form?: Record<string, string>;
+      basic?: {
+        user: string;
+        pass?: string;
+      };
+      paginate?: {
+        kind: "page" | "cursor" | "offset" | "link";
+        param?: string;
+        next?: string;
+        items: string;
+        id: string;
+        size?: number;
+        start?: number;
+      };
       output?: string;
       write?: boolean;
     }>;
@@ -11984,7 +12003,6 @@ export type ConnectorsInitIn = {
   mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
   docsUrl?: string;
   source?: boolean;
-  idempotencyKey: string;
 };
 export type ConnectorsInitOut = {
   key: string;
