@@ -783,6 +783,58 @@ const manifest = defineManifest({
         idem: "natural",
       },
     ),
+    // ---- delivery trail and soft-bounce retries (lane r42-email-in)
+    read(
+      "mail.delivery.trail",
+      "What happened to a sent message: sent, delivered, opened, bounced and why, retries, and any address that is now blocked",
+      {
+        in: { messageId: emlId },
+        out: {
+          messageId: emlId,
+          state: t.enm("waiting", "sent", "delivered", "retrying", "bounced", "complained", "failed"),
+          events: t.arr(
+            t.obj({
+              kind: t.enm(
+                "queued",
+                "held",
+                "sent",
+                "delivered",
+                "opened",
+                "clicked",
+                "soft_bounced",
+                "bounced",
+                "complained",
+                "failed",
+                "retry_scheduled",
+                "retried",
+                "gave_up",
+              ),
+              at: t.ts(),
+              label: t.str(),
+              address: t.opt(t.str()),
+              detail: t.opt(t.str()),
+            }),
+          ),
+          blocked: t.arr(t.obj({ address: t.str(), reason: t.str() })),
+          retry: t.opt(
+            t.obj({ address: t.str(), attempt: t.int({ minimum: 0 }), of: t.int({ minimum: 1 }), nextAt: t.opt(t.ts()) }),
+          ),
+        },
+        tool: "inbox",
+        label: "check",
+        errors: ["validation.bad_input", "validation.not_found"],
+      },
+    ),
+    write(
+      "mail.delivery.retry",
+      "Scheduled by Vyre after a soft bounce: send the message again to the one address that bounced, once per attempt, never to a suppressed address",
+      {
+        in: { messageId: emlId, address: t.str(), attempt: t.int({ minimum: 1, maximum: 3 }) },
+        out: { outcome: t.enm("sent", "skipped", "gave_up", "rescheduled"), messageId: t.opt(emlId) },
+        emits: ["message.bounced", "message.delivered"],
+        idem: "natural",
+      },
+    ),
     write(
       "mail.unsubscribe",
       "Inbound: a person pressed the unsubscribe link in an email; writes the Suppression list",
