@@ -59,6 +59,7 @@ import { createArtifactHostRoute, HOST_CHECK_PATH } from "../routes/artifact-hos
 import type { SiteHostDeps } from "../routes/site-host.ts";
 import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf, startAccessSink } from "../caddy/index.ts";
 import type { AccessSink } from "../caddy/index.ts";
+import { blobReadCheck } from "../routes/blobs.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
@@ -5583,15 +5584,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 "sites.backup_create",
                 { siteId: o2.siteId, scheduled: true },
                 { space: spaceId, principal: { kind: "person", id: o2.as }, origin: "sites-backup" },
-              ).catch(() =>
+              ).catch((e: unknown) => {
+                (
+                  sitesExports?.["recordSkippedBackup"] as
+                    | ((c: { db: unknown }, id: string, now: number, why: string) => void)
+                    | undefined
+                )?.({ db: db! }, o2.siteId, Date.now(), e instanceof Error ? e.message : "the site's owner can no longer make backups");
                 sink.log({
                   space: spaceId,
                   level: 30,
                   msg: "sites.backup_skipped",
                   place: "sites",
                   attrs: { site: o2.siteId },
-                }),
-              );
+                });
+              });
           };
           // Caddy writes a line for each finished request of a deployed site to a loopback port here; the sites module counts them (CPU is read from Docker, requests only from here)
           let accessSink: AccessSink | null = null;
@@ -6964,8 +6970,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           authorize(access.snap, {
             principal: c.principal.id,
             ...(c.actingFor ? { actingFor: c.actingFor } : {}),
-            action: { perm: null, level: "view" },
-            resource: { type: r.type, id: r.id },
+            ...blobReadCheck(r),
           }).effect === "allow",
         // the bytes of an upload slot (files.upload_url): the Files module seals them; the slot's one-time token is the authority
         put: async (a) =>

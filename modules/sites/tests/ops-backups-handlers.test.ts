@@ -12,7 +12,7 @@ import fs from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { _test, backupHandlers, dueBackupSites, runBackup } from "../handlers/ops-backups.ts";
+import { _test, backupHandlers, dueBackupSites, recordSkippedBackup, runBackup } from "../handlers/ops-backups.ts";
 import { TooBig } from "../ops/tarread.ts";
 import { configureRoutes } from "../handlers/route.ts";
 import * as st from "../ops/store.ts";
@@ -24,6 +24,7 @@ function world(
   o: { dumpCode?: number; dumpOut?: string; dump?: Uint8Array; restoreCode?: number; noPostgres?: boolean } = {},
 ) {
   _test.clearSizes();
+  _test.setRetryMs(0);
   const raw = new DatabaseSync(":memory:");
   for (const f of [
     "0001_sites_core.sql",
@@ -41,6 +42,7 @@ function world(
   };
   const execs: string[][] = [];
   const drops: string[] = [];
+  let renames = 0;
   const put: { dir: string; name: string; n: number }[] = [];
   const runner = {
     exec: async (_c: string, cmd: string[]) => {
@@ -61,10 +63,13 @@ function world(
           code: o.dumpFails?.() ? 1 : (o.dumpCode ?? 0),
           out: o.dumpFails?.() ? "pg_dump: error: connection to server failed" : (o.dumpOut ?? ""),
         };
-      if (text.includes("gunzip"))
+      if (text.includes("app_restore -v"))
         return { code: o.restoreCode ?? 0, out: o.restoreCode ? "psql: error: syntax error at line 4" : "" };
-      if (text.includes("ALLOW_CONNECTIONS false"))
-        return { code: o.swapCode ?? 0, out: o.swapCode ? "ERROR: database is being accessed by other users" : "" };
+      if (text.includes("RENAME TO app_old")) {
+        renames++;
+        const bad = o.swapCode ? (o.swapFailsFor ?? 99) >= renames : false;
+        return { code: bad ? 1 : 0, out: bad ? "ERROR: database is being accessed by other users" : "" };
+      }
       return { code: 0, out: "" };
     },
     getFileParts: async (
@@ -91,7 +96,7 @@ function world(
       store.set(id, bytes);
       assert.deepEqual(
         opts?.resource,
-        { type: "site", id: "sit_a" },
+        { type: "site_backup", id: "sit_a" },
         "a backup is readable by whoever can see the site",
       );
       return { id, contentType: "application/gzip", size: bytes.length, sha256: "x", createdAt: NOW };
@@ -192,7 +197,7 @@ test("the list shows the database size, and a backup left running by a restart i
 test("after a good backup the old ones past the rule go with their files, and a pinned one stays", async () => {
   const w = world();
   for (let i = 0; i < 9; i++) {
-    const blob = await w.ctx.blobs!.put(new Uint8Array(1), "x", { resource: { type: "site", id: "sit_a" } });
+    const blob = await w.ctx.blobs!.put(new Uint8Array(1), "x", { resource: { type: "site_backup", id: "sit_a" } });
     add(w, {
       id: `bkp_${i}`,
       at: NOW - (20 + i) * DAY,
@@ -215,7 +220,7 @@ test("after a good backup the old ones past the rule go with their files, and a 
 
 test("delete removes the file; one still being made cannot be deleted; pin and unpin", async () => {
   const w = world();
-  const blob = await w.ctx.blobs!.put(new Uint8Array(1), "x", { resource: { type: "site", id: "sit_a" } });
+  const blob = await w.ctx.blobs!.put(new Uint8Array(1), "x", { resource: { type: "site_backup", id: "sit_a" } });
   add(w, { id: "bkp_a", fileId: blob.id });
   add(w, { id: "bkp_run", state: "running" });
   assert.equal(
@@ -237,7 +242,7 @@ test("delete removes the file; one still being made cannot be deleted; pin and u
 
 const has = (w: ReturnType<typeof world>, frag: string): boolean => w.execs.some((c) => c.join(" ").includes(frag));
 async function ready(w: ReturnType<typeof world>, id = "bkp_a"): Promise<void> {
-  const blob = await w.ctx.blobs!.put(new Uint8Array(77), "x", { resource: { type: "site", id: "sit_a" } });
+  const blob = await w.ctx.blobs!.put(new Uint8Array(77), "x", { resource: { type: "site_backup", id: "sit_a" } });
   add(w, { id, fileId: blob.id, bytes: 77, at: NOW - 5 * DAY });
 }
 
@@ -290,8 +295,9 @@ test("a swap that fails puts the names back and says the database was left as it
   const r = await call(w.ctx, "sites.backup_restore", { siteId: "sit_a", backupId: "bkp_a" });
   assert.equal(r.ok, false);
   assert.match(r.detail, /left as it was/);
-  assert.ok(has(w, "ALTER DATABASE app_old RENAME TO app"));
-  assert.ok(has(w, "ALTER DATABASE app ALLOW_CONNECTIONS true"));
+  assert.ok(has(w, "ALTER DATABASE app ALLOW_CONNECTIONS true"), "new connections are allowed again");
+  assert.equal(has(w, "ALTER DATABASE app_old RENAME TO app"), false, "app was never renamed, so nothing is renamed back");
+  assert.equal(has(w, "ALTER DATABASE app_restore RENAME TO app"), false);
 });
 
 test("backup and restore are exclusive per site: the second is refused with the reason, and the lock is let go afterwards", async () => {
@@ -467,8 +473,8 @@ test("the replaced database is listed with its size while the safety backup is k
 
 test("download gives one address per part, for a backup of this site only", async () => {
   const w = world();
-  const a = await w.ctx.blobs!.put(new Uint8Array(10), "x", { resource: { type: "site", id: "sit_a" } });
-  const b2 = await w.ctx.blobs!.put(new Uint8Array(5), "x", { resource: { type: "site", id: "sit_a" } });
+  const a = await w.ctx.blobs!.put(new Uint8Array(10), "x", { resource: { type: "site_backup", id: "sit_a" } });
+  const b2 = await w.ctx.blobs!.put(new Uint8Array(5), "x", { resource: { type: "site_backup", id: "sit_a" } });
   add(w, { id: "bkp_one", fileId: a.id, at: Date.parse("2026-11-18T10:00:00Z") });
   add(w, { id: "bkp_two", fileId: `${a.id},${b2.id}`, at: Date.parse("2026-11-18T10:00:00Z") });
   const one = await call(w.ctx, "sites.backup_download", { siteId: "sit_a", backupId: "bkp_one" });
@@ -506,4 +512,63 @@ test("a scheduled backup is marked as the schedule's, and sites with a ready dat
   add(w, { id: "bkp_fail", state: "failed", at: NOW - 60_000 });
   w.db.run("DELETE FROM sites_backup WHERE id = 'bkp_new'");
   assert.deepEqual(dueBackupSites(w.ctx, NOW), [], "a failure waits an hour before it is tried again");
+});
+
+test("the first rename is retried while the ended connections let go, and the switch then goes through", async () => {
+  const w = world({ swapCode: 1, swapFailsFor: 2 });
+  await ready(w);
+  const r = await call(w.ctx, "sites.backup_restore", { siteId: "sit_a", backupId: "bkp_a" });
+  assert.equal(r.ok, true, r.detail);
+  assert.equal(w.execs.map((c) => c.join(" ")).filter((c) => c.includes("RENAME TO app_old")).length, 3, "two refusals, then it went");
+});
+
+test("a failure after the first rename puts the live database back under its name and opens it", async () => {
+  const w = world();
+  await ready(w);
+  const orig = w.runner.exec;
+  w.runner.exec = async (c: string, cmd: string[]) => (cmd.join(" ").includes("app_restore RENAME TO app") ? { code: 1, out: "ERROR: nope" } : orig(c, cmd));
+  const r = await call(w.ctx, "sites.backup_restore", { siteId: "sit_a", backupId: "bkp_a" });
+  assert.equal(r.ok, false);
+  assert.ok(has(w, "ALTER DATABASE app_old RENAME TO app"));
+  assert.ok(has(w, "ALTER DATABASE app ALLOW_CONNECTIONS true"));
+});
+
+test("the safety backup is not marked lost by the page's own list call while it is being made", async () => {
+  let w!: ReturnType<typeof world>;
+  let listed: { backups: { state: string; keepUntil?: number }[] } | null = null;
+  w = world({
+    onGetFile: () => {
+      void call(w.ctx, "sites.backups_list", { siteId: "sit_a" }).then((x) => (listed = x));
+    },
+  });
+  await ready(w);
+  await call(w.ctx, "sites.backup_restore", { siteId: "sit_a", backupId: "bkp_a" });
+  await settle();
+  const safety = st.listBackups(w.db, "sit_a").find((b) => b.keepUntil !== undefined)!;
+  assert.equal(safety.state, "ready", "still ready, with its file");
+  assert.ok(safety.fileId);
+  assert.ok(listed);
+  assert.notEqual(listed!.backups.find((b) => b.keepUntil !== undefined)?.state, "failed");
+});
+
+test("parts left in the container by an earlier restore that was cut off are cleared before the new ones go in", async () => {
+  const w = world();
+  await ready(w);
+  await call(w.ctx, "sites.backup_restore", { siteId: "sit_a", backupId: "bkp_a" });
+  const order = w.execs.map((c) => c.join(" "));
+  const rm = order.findIndex((c) => c.includes("rm -f /tmp/vyre-restore.*.gz"));
+  const load = order.findIndex((c) => c.includes("app_restore -v"));
+  assert.ok(rm >= 0 && rm < load);
+  assert.ok(order.filter((c) => c.includes("rm -f /tmp/vyre-restore.*.gz")).length >= 2, "and again at the end");
+});
+
+test("a daily backup that could not start leaves a failed row that says why and holds the next try off", async () => {
+  const w = world();
+  recordSkippedBackup(w.ctx, "sit_a", NOW, "You do not have access to this.");
+  const b = st.listBackups(w.db, "sit_a")[0]!;
+  assert.equal(b.state, "failed");
+  assert.equal(b.by, "schedule");
+  assert.match(b.note ?? "", /daily backup could not run: You do not have access/);
+  assert.deepEqual(dueBackupSites(w.ctx, NOW + 60_000), []);
+  assert.equal(dueBackupSites(w.ctx, NOW + 2 * 3_600_000).length, 1, "tried again after the hour");
 });

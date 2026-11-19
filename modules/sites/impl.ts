@@ -32,7 +32,7 @@ import { backupHandlers } from "./handlers/ops-backups.ts";
 import { toolHandlers } from "./handlers/ops-tools.ts";
 import { acceptWebhook, hookHandlers, markPushDone, markPushFailed, pendingPushes } from "./handlers/hook.ts";
 export { refreshDomainRoutes } from "./handlers/route-domains.ts";
-export { dueBackupSites } from "./handlers/ops-backups.ts";
+export { dueBackupSites, recordSkippedBackup } from "./handlers/ops-backups.ts";
 export { opsTickOf as opsTick, accessLineOf as accessLine } from "./handlers/ops-host.ts";
 
 // A site is a route (owner, 2 Nov): handlers/route.ts is what ships. The build pipeline below it (deploy, previews, staging, promote, site tables) is dormant and deferred: each of its capabilities stays registered and

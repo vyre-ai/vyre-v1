@@ -18,7 +18,7 @@ const DUMP_CMD = ["sh", "-c", `pg_dump -U app -d app --no-owner -Z gzip -f ${DUM
 export const PART_BYTES = 32 * 1024 * 1024;
 let partBytes = PART_BYTES;
 /** for tests: a small part size so a short dump is several parts */
-export const _test = { setPartBytes: (n: number): void => void (partBytes = n), clearSizes: (): void => sizes.clear() };
+export const _test = { setRetryMs: (n: number): void => void (retryMs = n), setPartBytes: (n: number): void => void (partBytes = n), clearSizes: (): void => sizes.clear() };
 export const MAX_PINNED = 3;
 const RESTORE_GLOB = "/tmp/vyre-restore.*.gz";
 const SQL = (...c: string[]): string[] => [
@@ -43,15 +43,15 @@ const LOAD = [
 const OLD_SIZE = ["psql", "-U", "app", "-d", "postgres", "-tAc", "select pg_database_size('app_old')"];
 const DROP_OLD = SQL("DROP DATABASE IF EXISTS app_old WITH (FORCE)");
 const DROP_NEW = SQL("DROP DATABASE IF EXISTS app_restore WITH (FORCE)");
-const SWAP = SQL(
-  "ALTER DATABASE app ALLOW_CONNECTIONS false",
-  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'app'",
-  "DROP DATABASE IF EXISTS app_old WITH (FORCE)",
-  "ALTER DATABASE app RENAME TO app_old",
-  "ALTER DATABASE app_restore RENAME TO app",
-  "ALTER DATABASE app ALLOW_CONNECTIONS true",
-);
-const UNDO_SWAP = [SQL("ALTER DATABASE app_old RENAME TO app"), SQL("ALTER DATABASE app ALLOW_CONNECTIONS true")];
+/** The switch in separate steps: the old copy is dropped, new connections are refused and the live ones ended, then the names are swapped. Ending connections is asynchronous, so the first rename is retried briefly before it counts as failed. */
+const DROP_OLD_FIRST = SQL("DROP DATABASE IF EXISTS app_old WITH (FORCE)");
+const CUT = SQL("ALTER DATABASE app ALLOW_CONNECTIONS false", "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'app'");
+const RENAME_LIVE = SQL("ALTER DATABASE app RENAME TO app_old");
+const RENAME_NEW = SQL("ALTER DATABASE app_restore RENAME TO app");
+const REOPEN = SQL("ALTER DATABASE app ALLOW_CONNECTIONS true");
+const RENAME_BACK = SQL("ALTER DATABASE app_old RENAME TO app");
+let retryMs = 1000;
+const RENAME_TRIES = 6;
 /** A dump bigger than this is not kept here; the sentence says to dump it by hand. */
 export const MAX_BACKUP_BYTES = 512 * 1024 * 1024;
 const running = new Set<string>();
@@ -135,7 +135,7 @@ export async function dump(
     let total = 0;
     try {
       total = await r.getFileParts(container, DUMP, MAX_BACKUP_BYTES, partBytes, async (part) => {
-        const blob = await ctx.blobs!.put(part, "application/gzip", { resource: { type: "site", id: b.siteId } });
+        const blob = await ctx.blobs!.put(part, "application/gzip", { resource: { type: "site_backup", id: b.siteId } });
         ids.push(blob.id);
       });
     } catch (e) {
@@ -145,6 +145,11 @@ export async function dump(
     }
     await r.exec(container, ["rm", "-f", DUMP], {}).catch(() => undefined);
     const done = move(db, b, { t: "done", at: ctx.now(), bytes: total, fileId: ids.join(",") });
+    // the row must really be ready (something else may have ended it): else the parts are not kept
+    if (st.getBackup(db, b.id)?.state !== "ready") {
+      for (const id of ids) await ctx.blobs.delete(id).catch(() => false);
+      return { ok: false, note: "The backup was cut short." };
+    }
     return { ok: true, backup: done };
   } catch (e) {
     return stop(`The backup stopped: ${(e instanceof Error ? e.message : String(e)).slice(0, 160)}`);
@@ -282,6 +287,40 @@ async function backupPin(ctx: Ctx, input: unknown): Promise<{ backup: BackupOut 
 }
 
 /** Put a backup back without ever losing what is there: a backup of the live database is made first (kept seven days, and the restore is refused if it cannot be made), the dump is loaded into a new database, and only when that worked are the names swapped. */
+/** The switch. Returns null when it worked, or the reason when it did not (the live database is then back under its own name and open). */
+async function swap(r: NonNullable<ReturnType<typeof siteRunner>>, container: string): Promise<string | null> {
+  const fail1 = (out: string): string => lastLine(out) || "the database refused it";
+  const dropped = await r.exec(container, DROP_OLD_FIRST, {});
+  if (dropped.code !== 0) return fail1(dropped.out);
+  const cut = await r.exec(container, CUT, {});
+  if (cut.code !== 0) {
+    await r.exec(container, REOPEN, {}).catch(() => undefined);
+    return fail1(cut.out);
+  }
+  let renamed = false;
+  let why = "";
+  for (let i = 0; i < RENAME_TRIES && !renamed; i++) {
+    const t = await r.exec(container, RENAME_LIVE, {});
+    renamed = t.code === 0;
+    if (!renamed) {
+      why = fail1(t.out);
+      if (retryMs > 0) await new Promise((x) => setTimeout(x, retryMs));
+    }
+  }
+  if (!renamed) {
+    await r.exec(container, REOPEN, {}).catch(() => undefined);
+    return why;
+  }
+  const second = await r.exec(container, RENAME_NEW, {});
+  if (second.code !== 0) {
+    await r.exec(container, RENAME_BACK, {}).catch(() => undefined);
+    await r.exec(container, REOPEN, {}).catch(() => undefined);
+    return fail1(second.out);
+  }
+  await r.exec(container, REOPEN, {}).catch(() => undefined);
+  return null;
+}
+
 async function backupRestore(ctx: Ctx, input: unknown): Promise<{ ok: boolean; detail: string }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
@@ -310,12 +349,21 @@ async function backupRestore(ctx: Ctx, input: unknown): Promise<{ ok: boolean; d
       keepUntil: ctx.now() + SAFETY_DAYS * 86_400_000,
     };
     st.insertBackup(ctx.db, safety);
-    const first = await dump(ctx, safety, container);
+    // the list marks a backup that this process is not making as lost; this one is being made
+    running.add(safety.id);
+    let first: Awaited<ReturnType<typeof dump>>;
+    try {
+      first = await dump(ctx, safety, container);
+    } finally {
+      running.delete(safety.id);
+    }
     if (!first.ok)
       return {
         ok: false,
         detail: `It was not put back: what is in the database now could not be backed up first (${first.note.replace(/\.$/, "")}). Nothing changed.`,
       };
+    // a part left by an earlier restore that was cut off would be loaded after this dump: the folder is cleared first
+    await r.exec(container, ["sh", "-c", `rm -f ${RESTORE_GLOB}`], {}).catch(() => undefined);
     // the dump goes in part by part: one part is in memory at a time
     for (const [i, f] of files.entries()) {
       const part = await ctx.blobs?.get(f);
@@ -341,18 +389,17 @@ async function backupRestore(ctx: Ctx, input: unknown): Promise<{ ok: boolean; d
           detail: `It was not put back: the dump stopped part way (${lastLine(load.out) || "the database refused it"}). The database was not touched.`,
         };
       }
-      const swap = await r.exec(container, SWAP, {});
-      if (swap.code !== 0) {
-        for (const c of UNDO_SWAP) await r.exec(container, c, {}).catch(() => undefined);
+      const swapped = await swap(r, container);
+      if (swapped) {
         await r.exec(container, DROP_NEW, {}).catch(() => undefined);
         return {
           ok: false,
-          detail: `It was not put back: the switch to the new database failed (${lastLine(swap.out) || "the database refused it"}). The database was left as it was.`,
+          detail: `It was not put back: the switch to the new database failed (${swapped}). The database was left as it was.`,
         };
       }
       return {
         ok: true,
-        detail: `The database is back as it was. What was there before is kept for ${SAFETY_DAYS} days as a backup in the list.`,
+        detail: `The database is back as that backup had it. What was there before is kept for ${SAFETY_DAYS} days, as a backup in the list and as the replaced database.`,
       };
     } finally {
       await r.exec(container, ["sh", "-c", `rm -f ${RESTORE_GLOB}`], {}).catch(() => undefined);
@@ -386,6 +433,20 @@ async function backupDownload(
     });
   }
   return { files, ...(ids.length > 1 ? { note: "Join the parts in order: cat *.part* > backup.sql.gz" } : {}) };
+}
+
+/** A daily backup that could not even start (its owner can no longer act): a failed row says why, shows on the page, and holds the next try off for an hour. */
+export function recordSkippedBackup(ctx: Pick<Ctx, "db">, siteId: string, now: number, why: string): void {
+  st.insertBackup(ctx.db, {
+    id: `bkp_${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+    siteId,
+    kind: "postgres",
+    state: "failed",
+    by: "schedule",
+    at: now,
+    endedAt: now,
+    note: `The daily backup could not run: ${why.slice(0, 120)}.`,
+  });
 }
 
 /** Sites whose database has had no backup for a day: the host runs sites.backup_create for each as the site's owner. */
