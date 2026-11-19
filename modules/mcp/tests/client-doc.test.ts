@@ -1,7 +1,7 @@
 // Client metadata documents (lane r42-mcp): an app names itself by an https address; what its page says is checked, read once with every failure a refusal, and kept as an ordinary client.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fetchDoc, isDocId, keepDoc, readDoc, registeredDomain, MAX_DOC_BYTES, MAX_DOCS_PER_HOST } from "../client-doc.ts";
+import { EVICT_GRACE_MS, fetchDoc, isDocId, keepDoc, readDoc, registeredDomain, MAX_DOC_BYTES, MAX_DOCS_PER_HOST } from "../client-doc.ts";
 import { clientBy, serverMetadata, MAX_CLIENTS, UNUSED_CLIENT_MS } from "../oauth.ts";
 import { ensure } from "../projections.ts";
 import { harness } from "../fixtures/harness.ts";
@@ -87,6 +87,9 @@ test("a full table makes room by dropping the oldest page nobody has used, never
   assert.equal(keepDoc(h.db, fresh, now), false, "every place is an app in use");
   assert.equal(clientBy(h.db, fresh.clientId), null);
   fill(false);
+  h.db.run("UPDATE mcp_oauth_clients SET created_at = ?", now - 1000); // all just made: inside the grace
+  assert.equal(keepDoc(h.db, fresh, now), false, "an app between its Allow page and its token exchange is never the one given up");
+  h.db.run("UPDATE mcp_oauth_clients SET created_at = ? + rowid", now - 2 * EVICT_GRACE_MS);
   assert.equal(keepDoc(h.db, fresh, now), true, "a table full of unused pages gives the oldest up");
   assert.ok(clientBy(h.db, fresh.clientId));
   assert.equal(clientBy(h.db, "https://a.d0.com/c.json"), null, "the oldest was dropped");

@@ -32,6 +32,16 @@ const MAX_BODY = 1024 * 1024;
 const MAX_BUFFERED = 256 * 1024;
 const SIGN_IN = /^\/(oauth\/|\.well-known\/oauth-)/;
 
+/**
+ * Who is asking, for the per-visitor limits. The relay forwards over the loopback and puts the address it saw in x-vyre-visitor, overwriting any the visitor sent; so that header is believed only on a loopback
+ * connection. On any other connection (the daemon reached directly) a header the client wrote is ignored, so no one picks the identity the limits count.
+ */
+export function visitorOf(headers: Record<string, string | undefined>, remote: string): string {
+  const loop = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1";
+  const said = headers["x-vyre-visitor"];
+  return loop && typeof said === "string" && said !== "" ? said.slice(0, 64) : remote;
+}
+
 export interface McpRouteDeps {
   runtime(): McpRuntime | null;
   /** The address this request reached, or null when this Space has none it can name. */
@@ -71,10 +81,7 @@ export function createMcpRoute(deps: McpRouteDeps): {
         const body = Buffer.concat(chunks).toString("utf8");
         const origin = deps.origin(req);
         if (signIn) {
-          const visitor =
-            typeof headers["x-vyre-visitor"] === "string" && headers["x-vyre-visitor"] !== ""
-              ? headers["x-vyre-visitor"]
-              : (req.socket.remoteAddress ?? "");
+          const visitor = visitorOf(headers, req.socket.remoteAddress ?? "");
           const out = await live.oauth({
             method: req.method ?? "GET",
             path: url.pathname,

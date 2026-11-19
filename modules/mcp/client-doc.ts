@@ -7,6 +7,8 @@ import { cleanClientName, redirectKind, MAX_CLIENTS, MAX_REDIRECTS, UNUSED_CLIEN
 
 export const MAX_DOC_BYTES = 5 * 1024;
 export const DOC_TIMEOUT_MS = 3000;
+/** A page that has not been used yet is not given up for a newer one until it is this old: the time between the Allow page and the token exchange is always inside it. */
+export const EVICT_GRACE_MS = 10 * 60_000;
 /** The most pages one registered domain may have kept as clients. */
 export const MAX_DOCS_PER_HOST = 10;
 
@@ -86,8 +88,8 @@ export async function fetchDoc(
 }
 
 /**
- * Keep what the page said as a registered client (or refresh it: the page is the source of truth for an app that names itself this way). Unused clients older than a day go first; a full table drops the oldest unused page
- * to make room, and refuses only when every place is an app in use. Answers whether it was kept.
+ * Keep what the page said as a registered client (or refresh it: the page is the source of truth for an app that names itself this way). Unused clients older than a day go first; a full table drops the oldest unused page that is past a short grace
+ * to make room, and refuses (for a few minutes at most) when every place is in use or younger than that. Answers whether it was kept.
  */
 export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectUris: string[] }, now: number): boolean {
   const known = (db.all("SELECT 1 AS x FROM mcp_oauth_clients WHERE client_id = ?", doc.clientId) as unknown[]).length > 0;
@@ -110,7 +112,8 @@ export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectU
     // a full table makes room: the oldest page that nobody has ever used goes (never an app in use), so no actor can lock the others out by filling it; how fast one actor can add pages is the per-source limit in impl.ts
     if (n >= MAX_CLIENTS) {
       const gone = db.all(
-        "SELECT client_id FROM mcp_oauth_clients WHERE used_at IS NULL AND client_id LIKE 'https://%' ORDER BY created_at ASC LIMIT 1",
+        "SELECT client_id FROM mcp_oauth_clients WHERE used_at IS NULL AND client_id LIKE 'https://%' AND created_at < ? ORDER BY created_at ASC LIMIT 1",
+        now - EVICT_GRACE_MS,
       ) as Array<Record<string, unknown>>;
       if (gone.length === 0) return false;
       db.run("DELETE FROM mcp_oauth_clients WHERE client_id = ?", String(gone[0]!["client_id"]));
