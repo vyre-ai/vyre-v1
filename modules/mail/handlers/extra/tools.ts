@@ -14,7 +14,6 @@ interface TemplatesIn {
   documentId?: string;
   subject?: string;
   text?: string;
-  html?: string;
   recordType?: string;
   recordId?: string;
   vars?: Record<string, unknown>;
@@ -41,9 +40,9 @@ export async function templates(ctx: MailCtx, input: TemplatesIn): Promise<{ res
     case "set": {
       // a document's own wording takes the same two rights as the capability (edit on the file and comms.templates), checked inside; the Space's takes comms.templates
       if (input.documentId)
-        return { result: await forDocumentSet(ctx, { documentId: input.documentId, key: need("key"), subject: need("subject"), text: need("text"), ...(input.html ? { html: input.html } : {}) }) };
+        return { result: await forDocumentSet(ctx, { documentId: input.documentId, key: need("key"), subject: need("subject"), text: need("text") }) };
       mayEdit(ctx);
-      return { result: await save(ctx, { key: need("key"), subject: need("subject"), text: need("text"), ...(input.html ? { html: input.html } : {}), ...(input.recordType ? { recordType: input.recordType } : {}) }) };
+      return { result: await save(ctx, { key: need("key"), subject: need("subject"), text: need("text"), ...(input.recordType ? { recordType: input.recordType } : {}) }) };
     }
     case "reset":
       if (input.documentId) return { result: await forDocumentClear(ctx, { documentId: input.documentId, key: need("key") }) };

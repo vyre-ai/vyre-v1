@@ -303,7 +303,7 @@ export default defineManifest({
       perm: "schema.manage",
       audit: "always",
       emits: ["schema.changed"],
-      tool: "engineer",
+      // (no MCP tool of its own: schema_apply takes the same change as a field.update op with options.mergeable)
       idem: "natural",
       errors: ["validation.bad_input", "validation.not_found", "validation.precondition_failed"],
     }),

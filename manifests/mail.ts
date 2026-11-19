@@ -643,7 +643,7 @@ const manifest = defineManifest({
     }),
     outward(
       "mail.send",
-      "Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked",
+      "Send an email (suppression, consent, limits and the Gate apply)",
       {
         in: {
           mailboxId: id.mailbox,
@@ -1002,7 +1002,7 @@ const manifest = defineManifest({
     // the one tool for templates and the one for delivery: models are shown these two, not eleven (the capabilities above stay for screens and the API)
     write(
       "mail.templates",
-      "Email templates. action: list, get, set (subject and text), preview (on a record or vars), reset. documentId scopes get, set and reset to one document's own wording",
+      "Email templates. action: list|get|set|preview|reset; documentId = one document's own wording",
       {
         in: {
           action: t.enm("list", "get", "set", "preview", "reset"),
@@ -1010,7 +1010,6 @@ const manifest = defineManifest({
           documentId: t.opt(id.file),
           subject: t.opt(t.str()),
           text: t.opt(t.str()),
-          html: t.opt(t.str()),
           recordType: t.opt(id.recordType),
           recordId: t.opt(id.record),
           vars: t.opt(t.rec()),
@@ -1021,7 +1020,7 @@ const manifest = defineManifest({
         errors: ["validation.bad_input", "validation.not_found", "permission.no_grant"],
       },
     ),
-    read("mail.delivery_state", "With messageId: that sent message's delivery trail. Without: inbox health, optionally for one mailboxId", {
+    read("mail.delivery_state", "messageId: its delivery trail; none: inbox health (mailboxId optional)", {
       in: { messageId: t.opt(emlId), mailboxId: t.opt(id.mailbox) },
       out: { result: t.json() },
       tool: "inbox",
