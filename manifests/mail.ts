@@ -34,6 +34,21 @@ const msgStatus = t.enm("draft", "queued", "sent", "delivered", "bounced", "comp
 const dnsState = t.enm("pass", "fail", "pending");
 const sendProvider = t.enm("resend", "mailgun");
 
+const tplField = t.obj({ key: t.str(), fallback: t.opt(t.str()) });
+const tplOut = t.obj({
+  key: t.str(),
+  title: t.str(),
+  subject: t.str(),
+  text: t.str(),
+  html: t.opt(t.str()),
+  source: t.enm("document", "space", "builtin"),
+  recordType: t.opt(id.recordType),
+  version: t.int({ minimum: 1 }),
+  updatedAt: t.opt(t.ts()),
+  fields: t.arr(tplField),
+});
+const tplKey = t.str({ pattern: "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$", maxLength: 60, examples: ["signature.request"] });
+
 const mailboxRow = t.obj({
   id: id.mailbox,
   kind: mailboxKind,
@@ -835,6 +850,104 @@ const manifest = defineManifest({
         idem: "natural",
       },
     ),
+    // ---- named email templates (lane r42-email-in)
+    read("mail.template.list", "List email templates: the ones that ship with Vyre and the Space's own, with which are changed", {
+      out: {
+        templates: t.arr(
+          t.obj({
+            key: t.str(),
+            title: t.str(),
+            subject: t.str(),
+            source: t.enm("space", "builtin"),
+            customised: t.bool(),
+            updatedAt: t.opt(t.ts()),
+          }),
+        ),
+      },
+      tool: "inbox",
+    }),
+    read("mail.template.get", "Read one email template; with a document, the text that document's emails use", {
+      in: { key: tplKey, documentId: t.opt(id.file) },
+      out: { template: tplOut },
+      tool: "inbox",
+      errors: ["validation.bad_input", "validation.not_found"],
+    }),
+    write(
+      "mail.template.save",
+      "Create or change the Space's email template for a key. Text carries {{field}} or {{field|fallback}} merge fields",
+      {
+        in: {
+          key: tplKey,
+          title: t.opt(t.str()),
+          subject: t.str(),
+          text: t.str(),
+          html: t.opt(t.str()),
+          recordType: t.opt(id.recordType),
+        },
+        out: { template: tplOut },
+        perm: "comms.templates",
+        tool: "inbox",
+        idem: "natural",
+        errors: ["validation.bad_input"],
+      },
+    ),
+    write("mail.template.reset", "Remove the Space's version of a template; the one that ships with Vyre comes back", {
+      in: { key: tplKey },
+      out: { reset: t.bool() },
+      perm: "comms.templates",
+      tool: "inbox",
+      idem: "natural",
+    }),
+    read(
+      "mail.template.preview",
+      "Fill a template (a saved key, or a draft subject and text) from a real record and values you pass; says which fields would go out blank",
+      {
+        in: {
+          key: t.opt(tplKey),
+          documentId: t.opt(id.file),
+          subject: t.opt(t.str()),
+          text: t.opt(t.str()),
+          html: t.opt(t.str()),
+          recordId: t.opt(id.record),
+          vars: t.opt(t.rec()),
+        },
+        out: {
+          subject: t.str(),
+          text: t.str(),
+          html: t.opt(t.str()),
+          source: t.enm("document", "space", "builtin", "draft"),
+          blanks: t.arr(t.str()),
+          fallbacks: t.arr(t.str()),
+        },
+        tool: "inbox",
+        label: "check",
+        errors: ["validation.bad_input", "validation.not_found"],
+      },
+    ),
+    read("mail.template.for_document.get", "The email template a document uses for a key, and whether it keeps its own version", {
+      in: { documentId: id.file, key: tplKey },
+      out: { override: t.bool(), template: tplOut },
+      on: ["file", "/documentId"],
+      tool: "inbox",
+      errors: ["validation.bad_input", "validation.not_found"],
+    }),
+    write("mail.template.for_document.set", "Give a document its own version of an email template", {
+      in: { documentId: id.file, key: tplKey, subject: t.str(), text: t.str(), html: t.opt(t.str()) },
+      out: { template: tplOut },
+      on: ["file", "/documentId"],
+      level: "edit",
+      tool: "inbox",
+      idem: "natural",
+      errors: ["validation.bad_input", "validation.not_found"],
+    }),
+    write("mail.template.for_document.clear", "Take a document back to the Space's version of an email template", {
+      in: { documentId: id.file, key: tplKey },
+      out: { cleared: t.bool() },
+      on: ["file", "/documentId"],
+      level: "edit",
+      tool: "inbox",
+      idem: "natural",
+    }),
     write(
       "mail.unsubscribe",
       "Inbound: a person pressed the unsubscribe link in an email; writes the Suppression list",
