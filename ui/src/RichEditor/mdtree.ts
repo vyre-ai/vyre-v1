@@ -945,6 +945,16 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
       out.push(raw("ref", body.join("\n"), tight));
       continue;
     }
+    if (nest >= MAX_NEST && (BULLET.test(line) || ORDERED.test(line) || QUOTE.test(line))) {
+      // lists and quotes nested this deep are kept as the text they are, byte for byte, rather than read a level at a time
+      const kept: string[] = [];
+      while (i < lines.length && !isBlank(lines[i])) {
+        kept.push(lines[i] ?? "");
+        i += 1;
+      }
+      out.push(raw("nested", kept.join("\n"), tightNow()));
+      continue;
+    }
     if (nest < MAX_NEST && (BULLET.test(line) || ORDERED.test(line))) {
       const r = parseList(lines, i, tight);
       out.push(...r.node);

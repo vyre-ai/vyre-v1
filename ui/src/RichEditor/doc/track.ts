@@ -58,7 +58,8 @@ export function trackTransaction(
   for (let i = 0; i < tr.steps.length; i += 1) {
     const step = tr.steps[i];
     if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) continue;
-    if (!(step instanceof ReplaceStep)) return null;
+    // a lift or a wrap moves blocks and is left alone; any text deleted in the same transaction is still put back
+    if (!(step instanceof ReplaceStep)) continue;
     const rest = tr.mapping.slice(i + 1);
     const s = rest.map(step.from, -1);
     const e = rest.map(step.from + step.slice.size, 1);

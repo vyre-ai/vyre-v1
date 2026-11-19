@@ -327,11 +327,12 @@ test("the file giving back the page's own save is recognised and not merged agai
   const sent: string[] = [];
   noteSent(sent, "X\n");
   noteSent(sent, "X more\n");
-  assert.equal(isOwnEcho(sent, "X\n"), true);
+  assert.equal(isOwnEcho(sent, "X more\n"), true);
+  assert.equal(isOwnEcho(sent, "X\n"), false, "an older text coming back is news (a revert), not an echo");
   assert.equal(isOwnEcho(sent, "agent text\n"), false);
   for (let i = 0; i < 20; i += 1) noteSent(sent, `t${i}\n`);
   assert.equal(sent.length, 8);
-  assert.equal(isOwnEcho(sent, "X\n"), false);
+  assert.equal(isOwnEcho([], "x"), false);
 });
 
 test("suggesting: text deleted across two paragraphs is struck in each, and the paragraphs stay", () => {
@@ -391,13 +392,13 @@ test("a large document: 4,000 blocks with chips and suggestions load, come back 
   const back = docToMarkdown(d, D);
   const load = performance.now() - t0;
   assert.equal(back, text);
-  assert.ok(load < 8000, `load and save took ${Math.round(load)} ms`);
+  assert.ok(load < 3000, `load and save took ${Math.round(load)} ms`);
   const s = stateOf(text, false);
   t0 = performance.now();
   const r = merged(s, text, `${text}\nOne more paragraph with {client.name}.\n`);
   const mergeMs = performance.now() - t0;
   assert.ok(mdOf(r.state).endsWith("One more paragraph with {client.name}.\n"));
-  assert.ok(mergeMs < 8000, `a merge took ${Math.round(mergeMs)} ms`);
+  assert.ok(mergeMs < 3000, `a merge took ${Math.round(mergeMs)} ms`);
   t0 = performance.now();
   const list = listChanges(s.doc);
   assert.equal(list.length, 3900);
@@ -450,6 +451,19 @@ for (const [label, text] of Object.entries(HOSTILE)) {
       }
       assert.ok(best < 100, `${what} took ${Math.round(best)} ms`);
     };
+    // what is valid Markdown comes back exactly as it went in
+    // (the ones left out begin or end with a space, or nest lists, which the writer has always normalised)
+    const normalised = [
+      "unclosed bold",
+      "unclosed underscore bold",
+      "unclosed strike",
+      "unclosed italic",
+      "unclosed underscore italic",
+      "links ending in a space",
+      "a long fence line",
+      "a rule",
+    ];
+    if (!normalised.includes(label)) assert.equal(roundtrip(body), body, "round trip");
     let d = markdownToDoc("x\n", D);
     bound("reading", () => {
       d = markdownToDoc(body, D);
@@ -531,4 +545,72 @@ test("links and images still read the way they did", () => {
   assert.equal(nodes[1]?.marks?.[0]?.attrs?.["href"], "https://example.com");
   assert.equal(nodes[1]?.marks?.[0]?.attrs?.["title"], "Home");
   assert.equal(nodes.map((n) => n.text).join(""), "See the site and ![pic](a.png) and [broken](x y) and [a](b");
+});
+
+test("the person typed a block right after the block the agent rewrites or deletes: their block survives", () => {
+  const base = "one\n\ntwo\n\nthree\n";
+  // the person adds a paragraph after "two"
+  const withNew = (): EditorState => {
+    const s = stateOf(base, false);
+    const end = s.doc.child(0).nodeSize + s.doc.child(1).nodeSize;
+    return s.apply(s.tr.insert(end, schema.nodes["paragraph"]!.create(null, schema.text("mine"))));
+  };
+  const rewritten = merged(withNew(), base, "one\n\nTWO\n\nthree\n");
+  assert.equal(mdOf(rewritten.state), "one\n\nTWO\n\nmine\n\nthree\n");
+  assert.equal(rewritten.clashed, false);
+  const deleted = merged(withNew(), base, "one\n\nthree\n");
+  assert.equal(mdOf(deleted.state), "one\n\nmine\n\nthree\n");
+});
+
+test("a clash that brings a code block in: the block arrives, no error", () => {
+  const base = "one\n\ntwo\n";
+  let s = stateOf(base, false);
+  s = s.apply(s.tr.insertText("X", 1));
+  const r = merged(s, base, "ONE\n\n```js\nlet a = 1;\n```\n\ntwo\n");
+  assert.equal(r.clashed, true);
+  assert.ok(mdOf(r.state).includes("```js\nlet a = 1;\n```"));
+  assert.ok(mdOf(r.state).includes("{--Xone--}"));
+});
+
+test("many scattered clashes are settled in a pass, not in cubed time", () => {
+  const n = 1500;
+  const base = Array.from({ length: n }, (_v, i) => `block ${i}`).join("\n\n") + "\n";
+  const local = Array.from({ length: n }, (_v, i) => (i % 2 === 0 ? `mine ${i}` : `block ${i}`)).join("\n\n") + "\n";
+  const remote = Array.from({ length: n }, (_v, i) => (i % 2 === 0 ? `theirs ${i}` : `block ${i}`)).join("\n\n") + "\n";
+  const s = EditorState.create({ schema, doc: schema.nodeFromJSON(markdownToDoc(local, D)) });
+  const t0 = performance.now();
+  const m = mergeRemote(s, base, remote, { author: "Agent", now });
+  const ms = performance.now() - t0;
+  assert.ok(m && m.clashed);
+  assert.ok(ms < 1500, `a merge of ${n} clashes took ${Math.round(ms)} ms`);
+});
+
+test("lists and quotes nested past the reading depth lose nothing and settle after one save", () => {
+  for (const t of [
+    `${"- ".repeat(60)}x\n`,
+    `${"> ".repeat(60)}x\n`,
+    `${"1. ".repeat(40)}x\n`,
+    `a\n\n${"- ".repeat(30)}x\n\nb\n`,
+  ]) {
+    const once = roundtrip(t);
+    assert.equal(roundtrip(once), once, "saving twice changes nothing");
+    assert.ok(once.includes("x"));
+  }
+  // the deepest levels are kept as written, not escaped into text
+  const deep = `${"> ".repeat(60)}x\n`;
+  assert.equal(roundtrip(deep), deep);
+  assert.ok(!roundtrip(`${"- ".repeat(60)}x\n`).includes("\\-"));
+});
+
+test("a change does not reach across a blank line: the text readers see what the editor sees", () => {
+  assert.equal(countCritic("{++a\n\nb++}"), 0);
+  assert.equal(countCritic("{++a\nb++}"), 1);
+  assert.equal(resolveCritic("{++a\n\nb++}", true), "{++a\n\nb++}");
+});
+
+test("a transaction that restructures and also deletes text still keeps the text", () => {
+  let s = stateOf("ab\n");
+  const tr = s.tr.delete(2, 3).setNodeMarkup(0, schema.nodes["heading"], { level: 1 });
+  s = s.apply(tr);
+  assert.equal(mdOf(s), `# a{--b--}${meta()}\n`);
 });

@@ -1058,6 +1058,7 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
     if (cb.current.doc && ed) {
       // the file giving back what this page just saved is not news; and a person's words are never replaced by setContent
       if (isOwnEcho(sent.current, props.value)) return;
+      sent.current = [];
       const m = mergeRemote(ed.state, was, props.value, {
         author: cb.current.doc.remoteAuthor ?? "Agent",
         now: cb.current.doc.now ?? (() => new Date().toISOString().replace(/\.\d{3}Z$/, "Z")),

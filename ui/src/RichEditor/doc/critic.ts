@@ -16,19 +16,35 @@ export interface CriticChange {
 }
 
 // The markup is read by scanning for its closing marker with indexOf, never with a pattern that can backtrack: a document is shared text, and a hostile one ("{~~a~>" repeated) must cost a pass, not a freeze.
-// The place a closing marker was last found missing is remembered per text, so a thousand unclosed openers cost one search between them.
+// Each search remembers its last answer: the text between two searches for the same marker holds none, so asking again from a later start costs nothing.
+// A change never reaches past a blank line (the editor reads one paragraph at a time, and the text readers must agree with it).
 let seenSrc = "";
-const gone = new Map<string, number>();
-function find(src: string, closer: string, from: number): number {
+const seen = new Map<string, { from: number; at: number }>();
+function cached(src: string, key: string, from: number, search: () => number): number {
   if (seenSrc !== src) {
     seenSrc = src;
-    gone.clear();
+    seen.clear();
   }
-  const g = gone.get(closer);
-  if (g !== undefined && from >= g) return -1;
-  const at = src.indexOf(closer, from);
-  if (at < 0) gone.set(closer, g === undefined ? from : Math.min(g, from));
+  const c = seen.get(key);
+  if (c && from >= c.from && (c.at === -1 || from <= c.at)) return c.at;
+  const at = search();
+  seen.set(key, { from, at });
   return at;
+}
+const BLANK = /\n[ \t]*\n/g;
+/** The end of the paragraph that holds `from`: where the next blank line starts, or the end of the text. */
+function paragraphEnd(src: string, from: number): number {
+  const at = cached(src, "\n\n", from, () => {
+    BLANK.lastIndex = from;
+    const m = BLANK.exec(src);
+    return m ? m.index : -1;
+  });
+  return at < 0 ? src.length : at;
+}
+/** The marker at or after `from`, when it is inside the paragraph; otherwise -1. */
+function find(src: string, closer: string, from: number): number {
+  const at = cached(src, closer, from, () => src.indexOf(closer, from));
+  return at >= 0 && at < paragraphEnd(src, from) ? at : -1;
 }
 const WHO = /^([^|<>{}\n]*)\|([^<>{}\n]*)$/;
 /** The `{>>author|time<<}` after a change, when there is one right at `p`. */

@@ -104,8 +104,14 @@ function asSuggestion(nodes: readonly PMNode[], schema: Schema, who: MergeWho): 
   const add = schema.marks["suggestAdd"];
   if (!add) return [];
   const mark = add.create({ author: cleanAuthor(who.author), at: who.now() });
-  const walk = (n: PMNode): PMNode =>
-    n.isInline ? n.mark(mark.addToSet(n.marks)) : n.copy(Fragment.fromArray(n.content.content.map(walk)));
+  // a block that does not take marks (a code block) is brought in as it is: its text is not struck or underlined, but it is not lost either
+  const walk = (n: PMNode): PMNode => {
+    if (n.isTextblock)
+      return n.type.allowsMarkType(add)
+        ? n.copy(Fragment.fromArray(n.content.content.map((c) => c.mark(mark.addToSet(c.marks)))))
+        : n;
+    return n.isInline ? n : n.copy(Fragment.fromArray(n.content.content.map(walk)));
+  };
   return nodes.map(walk);
 }
 
@@ -135,32 +141,61 @@ export function mergeRemote(state: EditorState, base: string, remote: string, wh
   if (rh.length === 0) return null;
   const lh = hunks(kB, L.map(key));
   const localEdited = lh.length > 0;
-  const shift = (x: number): number =>
-    x + lh.filter((h) => h.b <= x).reduce((s, h) => s + (h.d - h.c) - (h.b - h.a), 0);
+  // where a block boundary of the old text sits in the page now. The start of a change counts every local change that ends at or before it; the end of a change counts only those that end strictly
+  // before it, so a block the person typed right after a rewritten block is not swallowed with it (unless the change is a pure insertion, which has no end of its own).
+  const delta = (h: Hunk): number => h.d - h.c - (h.b - h.a);
+  const shiftStart = (x: number): number => x + lh.filter((h) => h.b <= x).reduce((n, h) => n + delta(h), 0);
+  const shiftEnd = (x: number, pure: boolean): number =>
+    x + lh.filter((h) => h.b < x || (pure && h.b === x)).reduce((n, h) => n + delta(h), 0);
 
-  // which hunks of the new text touch the person's edits; a clash swallows every local hunk it touches and every other new hunk inside that stretch
+  // which hunks of the new text touch the person's edits. A clash is the stretch of old blocks from the new hunk and every local hunk it touches; stretches that meet are one; a new hunk that
+  // falls inside a stretch joins it. Sorted sweeps, repeated until nothing joins.
   const clashing = new Array<boolean>(rh.length).fill(false);
   const reach: Array<{ a: number; b: number }> = rh.map((h) => ({ a: h.a, b: h.b }));
   const as = (r: { a: number; b: number }): Hunk => ({ a: r.a, b: r.b, c: 0, d: 0 });
+  rh.forEach((h, i) => {
+    for (const g of lh) if (touches(h, g)) clashing[i] = true;
+  });
   for (let again = true; again;) {
     again = false;
-    const grow = (i: number, a: number, b: number): void => {
-      const r = reach[i] as { a: number; b: number };
-      if (!clashing[i] || a < r.a || b > r.b) again = true;
-      clashing[i] = true;
-      reach[i] = { a: Math.min(a, r.a), b: Math.max(b, r.b) };
-    };
-    for (let i = 0; i < rh.length; i += 1)
-      for (const g of lh) if (touches(as(reach[i] as { a: number; b: number }), g)) grow(i, g.a, g.b);
-    for (let i = 0; i < rh.length; i += 1)
-      for (let k = i + 1; k < rh.length; k += 1) {
+    // 1. widen each clashing hunk over the local hunks it touches
+    for (let i = 0; i < rh.length; i += 1) {
+      if (!clashing[i]) continue;
+      for (const g of lh) {
         const r = reach[i] as { a: number; b: number };
-        const s2 = reach[k] as { a: number; b: number };
-        if ((clashing[i] || clashing[k]) && touches(as(r), as(s2))) {
-          grow(i, s2.a, s2.b);
-          grow(k, r.a, r.b);
-        }
+        if (touches(as(r), g) && (g.a < r.a || g.b > r.b)) reach[i] = { a: Math.min(r.a, g.a), b: Math.max(r.b, g.b) };
       }
+    }
+    // 2. join stretches that meet, in order
+    const order = rh
+      .map((_h, i) => i)
+      .filter((i) => clashing[i])
+      .sort((x, y) => (reach[x] as { a: number }).a - (reach[y] as { a: number }).a);
+    let cur: number | null = null;
+    for (const i of order) {
+      if (
+        cur !== null &&
+        touches(as(reach[cur] as { a: number; b: number }), as(reach[i] as { a: number; b: number }))
+      ) {
+        const r = reach[cur] as { a: number; b: number };
+        const t = reach[i] as { a: number; b: number };
+        const u = { a: Math.min(r.a, t.a), b: Math.max(r.b, t.b) };
+        if (u.a !== r.a || u.b !== r.b || u.a !== t.a || u.b !== t.b) again = true;
+        reach[cur] = u;
+        reach[i] = u;
+      } else cur = i;
+    }
+    // 3. a new hunk inside a stretch is part of it
+    for (let i = 0; i < rh.length; i += 1) {
+      if (clashing[i]) continue;
+      for (const k of order)
+        if (touches(as(reach[i] as { a: number; b: number }), as(reach[k] as { a: number; b: number }))) {
+          clashing[i] = true;
+          reach[i] = { ...(reach[k] as { a: number; b: number }) };
+          again = true;
+          break;
+        }
+    }
   }
 
   const ops: Op[] = [];
@@ -168,12 +203,12 @@ export function mergeRemote(state: EditorState, base: string, remote: string, wh
   rh.forEach((h, i) => {
     const incoming = R.slice(h.c, h.d);
     if (!clashing[i]) {
-      ops.push({ from: shift(h.a), to: shift(h.b), nodes: incoming, clash: false, strike: false });
+      ops.push({ from: shiftStart(h.a), to: shiftEnd(h.b, h.a === h.b), nodes: incoming, clash: false, strike: false });
       return;
     }
     const r = reach[i] as { a: number; b: number };
-    const from = shift(r.a);
-    const to = shift(r.b);
+    const from = shiftStart(r.a);
+    const to = shiftEnd(r.b, false);
     const k = `${from}:${to}`;
     const have = regions.get(k);
     const sug = asSuggestion(incoming, schema, who);
@@ -235,4 +270,6 @@ export function noteSent(sent: string[], text: string): void {
   sent.push(text);
   if (sent.length > SENT_KEEP) sent.shift();
 }
-export const isOwnEcho = (sent: readonly string[], value: string): boolean => sent.includes(value);
+/** Only the latest text sent counts: the file giving back an older one (a revert, another person's save) is news and is merged. */
+export const isOwnEcho = (sent: readonly string[], value: string): boolean =>
+  sent.length > 0 && sent[sent.length - 1] === value;
