@@ -173,12 +173,12 @@ export async function readWeb(ctx: CompCtx, input: { url: string }) {
       "validation.bad_input",
       "That address carries a value from the Vault. Secrets are never sent in an address.",
     );
-  const shaped = secretShape(String(input.url ?? ""));
-  if (shaped)
+  const found = scan(String(input.url ?? "").slice(0, 4000));
+  if (found.length > 0)
     raise(
       ctx,
       "validation.bad_input",
-      `That address looks like it carries ${shaped}. Secrets are never sent in an address.`,
+      `That address looks like it carries a secret (${found[0]}). Secrets are never sent in an address.`,
     );
   const r = await readPage(String(input.url ?? ""), await webNet(ctx));
   if (!r.ok) raise(ctx, "validation.bad_input", r.reason);
@@ -225,12 +225,12 @@ export async function searchWebTool(ctx: CompCtx, input: { query: string; site?:
       "That search carries a value from the Vault. Secrets are never sent to a search service.",
     );
   // a query goes to the search service: nothing that looks like a secret leaves in it, and the reason says what it looked like
-  const shaped = secretShape(String(input.query ?? ""), { free: true });
-  if (shaped)
+  const found = scan(String(input.query ?? "").slice(0, 4000));
+  if (found.length > 0)
     raise(
       ctx,
       "validation.bad_input",
-      `That search looks like it contains ${shaped}. Secrets are never sent to a search service.`,
+      `That search looks like it contains a secret (${found[0]}). Secrets are never sent to a search service.`,
     );
   const r = await searchWeb(String(input.query ?? ""), input.site, await webNet(ctx), await searchProvider(ctx));
   if (!r.ok) raise(ctx, r.kind ? "provider.unavailable" : "validation.bad_input", r.reason);

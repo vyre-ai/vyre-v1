@@ -21,15 +21,15 @@ if ("owner" in o92) lf(o92["owner"], p + "/owner", e, L16);
 
 function d_s_bc82ea4792(v: unknown, p: string, e: string[]): void {
 {
-const x930 = v;
-const g930 = typeOf(x930);
-const b930: string[] = []; lf(x930, p, b930, L0); if (b930.length) e.push(...b930);
-if (g930 === "object") {
-if (g930 === 'object') { const o930 = x930 as Record<string, unknown>;
-if (!("data" in o930)) e.push(p + "/data" + ': required');
-if (!("contentType" in o930)) e.push(p + "/contentType" + ': required');
-if ("data" in o930) lf(o930["data"], p + "/data", e, L388);
-if ("contentType" in o930) lf(o930["contentType"], p + "/contentType", e, L389);
+const x931 = v;
+const g931 = typeOf(x931);
+const b931: string[] = []; lf(x931, p, b931, L0); if (b931.length) e.push(...b931);
+if (g931 === "object") {
+if (g931 === 'object') { const o931 = x931 as Record<string, unknown>;
+if (!("data" in o931)) e.push(p + "/data" + ': required');
+if (!("contentType" in o931)) e.push(p + "/contentType" + ': required');
+if ("data" in o931) lf(o931["data"], p + "/data", e, L388);
+if ("contentType" in o931) lf(o931["contentType"], p + "/contentType", e, L389);
 }
 }
 }

@@ -38,13 +38,13 @@ if ("why" in o76) lf(o76["why"], p + '/' + i75 + "/why", e, L1);
 
 function d_s_7da9a4dfc3(v: unknown, p: string, e: string[]): void {
 {
-const x655 = v;
-const g655 = typeOf(x655);
-const b655: string[] = []; lf(x655, p, b655, L4); if (b655.length) e.push(...b655);
-if (g655 === "array") {
-if (g655 === 'array') { const a655 = x655 as unknown[];
-for (let i655 = 0; i655 < a655.length; i655++) {
-d_s_acdf9f65cd(a655[i655], p + '/' + i655, e);
+const x656 = v;
+const g656 = typeOf(x656);
+const b656: string[] = []; lf(x656, p, b656, L4); if (b656.length) e.push(...b656);
+if (g656 === "array") {
+if (g656 === 'array') { const a656 = x656 as unknown[];
+for (let i656 = 0; i656 < a656.length; i656++) {
+d_s_acdf9f65cd(a656[i656], p + '/' + i656, e);
 }
 }
 }
@@ -53,54 +53,54 @@ d_s_acdf9f65cd(a655[i655], p + '/' + i655, e);
 
 function d_s_acdf9f65cd(v: unknown, p: string, e: string[]): void {
 {
-const x870 = v;
-const g870 = typeOf(x870);
-const b870: string[] = []; lf(x870, p, b870, L0); if (b870.length) e.push(...b870);
-if (g870 === "object") {
-if (g870 === 'object') { const o870 = x870 as Record<string, unknown>;
-if (!("id" in o870)) e.push(p + "/id" + ': required');
-if (!("address" in o870)) e.push(p + "/address" + ': required');
-if (!("displayName" in o870)) e.push(p + "/displayName" + ': required');
-if (!("lastMessageAt" in o870)) e.push(p + "/lastMessageAt" + ': required');
-if (!("lastChannel" in o870)) e.push(p + "/lastChannel" + ': required');
-if (!("lastPreview" in o870)) e.push(p + "/lastPreview" + ': required');
-if (!("unreadCount" in o870)) e.push(p + "/unreadCount" + ': required');
-if (!("needsMatch" in o870)) e.push(p + "/needsMatch" + ': required');
-if (!("mailboxIds" in o870)) e.push(p + "/mailboxIds" + ': required');
-if (!("followed" in o870)) e.push(p + "/followed" + ': required');
-if (!("alertOnReplies" in o870)) e.push(p + "/alertOnReplies" + ': required');
-if ("id" in o870) lf(o870["id"], p + "/id", e, L360);
-if ("contactId" in o870) lf(o870["contactId"], p + "/contactId", e, L28);
-if ("address" in o870) lf(o870["address"], p + "/address", e, L1);
-if ("displayName" in o870) lf(o870["displayName"], p + "/displayName", e, L1);
-if ("lastMessageAt" in o870) lf(o870["lastMessageAt"], p + "/lastMessageAt", e, L17);
-if ("lastChannel" in o870) lf(o870["lastChannel"], p + "/lastChannel", e, L361);
-if ("lastPreview" in o870) lf(o870["lastPreview"], p + "/lastPreview", e, L1);
-if ("unreadCount" in o870) lf(o870["unreadCount"], p + "/unreadCount", e, L17);
-if ("needsMatch" in o870) lf(o870["needsMatch"], p + "/needsMatch", e, L3);
-if ("ownerId" in o870) lf(o870["ownerId"], p + "/ownerId", e, L16);
-if ("mailboxIds" in o870) {
-{
-const x871 = o870["mailboxIds"];
+const x871 = v;
 const g871 = typeOf(x871);
-const b871: string[] = []; lf(x871, p + "/mailboxIds", b871, L4); if (b871.length) e.push(...b871);
-if (g871 === "array") {
-if (g871 === 'array') { const a871 = x871 as unknown[];
-for (let i871 = 0; i871 < a871.length; i871++) {
-lf(a871[i871], p + "/mailboxIds" + '/' + i871, e, L25);
+const b871: string[] = []; lf(x871, p, b871, L0); if (b871.length) e.push(...b871);
+if (g871 === "object") {
+if (g871 === 'object') { const o871 = x871 as Record<string, unknown>;
+if (!("id" in o871)) e.push(p + "/id" + ': required');
+if (!("address" in o871)) e.push(p + "/address" + ': required');
+if (!("displayName" in o871)) e.push(p + "/displayName" + ': required');
+if (!("lastMessageAt" in o871)) e.push(p + "/lastMessageAt" + ': required');
+if (!("lastChannel" in o871)) e.push(p + "/lastChannel" + ': required');
+if (!("lastPreview" in o871)) e.push(p + "/lastPreview" + ': required');
+if (!("unreadCount" in o871)) e.push(p + "/unreadCount" + ': required');
+if (!("needsMatch" in o871)) e.push(p + "/needsMatch" + ': required');
+if (!("mailboxIds" in o871)) e.push(p + "/mailboxIds" + ': required');
+if (!("followed" in o871)) e.push(p + "/followed" + ': required');
+if (!("alertOnReplies" in o871)) e.push(p + "/alertOnReplies" + ': required');
+if ("id" in o871) lf(o871["id"], p + "/id", e, L360);
+if ("contactId" in o871) lf(o871["contactId"], p + "/contactId", e, L28);
+if ("address" in o871) lf(o871["address"], p + "/address", e, L1);
+if ("displayName" in o871) lf(o871["displayName"], p + "/displayName", e, L1);
+if ("lastMessageAt" in o871) lf(o871["lastMessageAt"], p + "/lastMessageAt", e, L17);
+if ("lastChannel" in o871) lf(o871["lastChannel"], p + "/lastChannel", e, L361);
+if ("lastPreview" in o871) lf(o871["lastPreview"], p + "/lastPreview", e, L1);
+if ("unreadCount" in o871) lf(o871["unreadCount"], p + "/unreadCount", e, L17);
+if ("needsMatch" in o871) lf(o871["needsMatch"], p + "/needsMatch", e, L3);
+if ("ownerId" in o871) lf(o871["ownerId"], p + "/ownerId", e, L16);
+if ("mailboxIds" in o871) {
+{
+const x872 = o871["mailboxIds"];
+const g872 = typeOf(x872);
+const b872: string[] = []; lf(x872, p + "/mailboxIds", b872, L4); if (b872.length) e.push(...b872);
+if (g872 === "array") {
+if (g872 === 'array') { const a872 = x872 as unknown[];
+for (let i872 = 0; i872 < a872.length; i872++) {
+lf(a872[i872], p + "/mailboxIds" + '/' + i872, e, L25);
 }
 }
 }
 }
 }
-if ("followed" in o870) lf(o870["followed"], p + "/followed", e, L3);
-if ("alertOnReplies" in o870) lf(o870["alertOnReplies"], p + "/alertOnReplies", e, L3);
-if ("starred" in o870) lf(o870["starred"], p + "/starred", e, L3);
-if ("organisation" in o870) lf(o870["organisation"], p + "/organisation", e, L1);
-if ("dnd" in o870) lf(o870["dnd"], p + "/dnd", e, L3);
-if ("bounced" in o870) lf(o870["bounced"], p + "/bounced", e, L3);
-if ("unmatched" in o870) lf(o870["unmatched"], p + "/unmatched", e, L3);
-if ("draftReady" in o870) lf(o870["draftReady"], p + "/draftReady", e, L3);
+if ("followed" in o871) lf(o871["followed"], p + "/followed", e, L3);
+if ("alertOnReplies" in o871) lf(o871["alertOnReplies"], p + "/alertOnReplies", e, L3);
+if ("starred" in o871) lf(o871["starred"], p + "/starred", e, L3);
+if ("organisation" in o871) lf(o871["organisation"], p + "/organisation", e, L1);
+if ("dnd" in o871) lf(o871["dnd"], p + "/dnd", e, L3);
+if ("bounced" in o871) lf(o871["bounced"], p + "/bounced", e, L3);
+if ("unmatched" in o871) lf(o871["unmatched"], p + "/unmatched", e, L3);
+if ("draftReady" in o871) lf(o871["draftReady"], p + "/draftReady", e, L3);
 }
 }
 }
@@ -108,18 +108,18 @@ if ("draftReady" in o870) lf(o870["draftReady"], p + "/draftReady", e, L3);
 
 function d_s_b89ff390fa(v: unknown, p: string, e: string[]): void {
 {
-const x910 = v;
-const g910 = typeOf(x910);
-const b910: string[] = []; lf(x910, p, b910, L0); if (b910.length) e.push(...b910);
-if (g910 === "object") {
-if (g910 === 'object') { const o910 = x910 as Record<string, unknown>;
-if ("mailboxId" in o910) lf(o910["mailboxId"], p + "/mailboxId", e, L25);
-if ("numberId" in o910) lf(o910["numberId"], p + "/numberId", e, L170);
-if ("channel" in o910) lf(o910["channel"], p + "/channel", e, L197);
-if ("needsMatch" in o910) lf(o910["needsMatch"], p + "/needsMatch", e, L3);
-if ("query" in o910) lf(o910["query"], p + "/query", e, L1);
-if ("cursor" in o910) lf(o910["cursor"], p + "/cursor", e, L1);
-if ("limit" in o910) lf(o910["limit"], p + "/limit", e, L122);
+const x911 = v;
+const g911 = typeOf(x911);
+const b911: string[] = []; lf(x911, p, b911, L0); if (b911.length) e.push(...b911);
+if (g911 === "object") {
+if (g911 === 'object') { const o911 = x911 as Record<string, unknown>;
+if ("mailboxId" in o911) lf(o911["mailboxId"], p + "/mailboxId", e, L25);
+if ("numberId" in o911) lf(o911["numberId"], p + "/numberId", e, L170);
+if ("channel" in o911) lf(o911["channel"], p + "/channel", e, L197);
+if ("needsMatch" in o911) lf(o911["needsMatch"], p + "/needsMatch", e, L3);
+if ("query" in o911) lf(o911["query"], p + "/query", e, L1);
+if ("cursor" in o911) lf(o911["cursor"], p + "/cursor", e, L1);
+if ("limit" in o911) lf(o911["limit"], p + "/limit", e, L122);
 }
 }
 }

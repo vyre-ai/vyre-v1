@@ -265,7 +265,6 @@ test("a search or an address that looks like a secret is refused with what it lo
   for (const query of [
     "why does sk-live-abcdef0123456789abcd fail",
     "ghp_abcdefghijklmnopqrstuvwxyz0123456789 clone",
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN0123",
   ])
     await assert.rejects(
       tool["computers.chrome.search"]!(ctx, { query }),

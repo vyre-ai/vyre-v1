@@ -85,13 +85,13 @@ if ("status" in o72) lf(o72["status"], p + '/' + i71 + "/status", e, L1);
 
 function d_s_3bf726dac3(v: unknown, p: string, e: string[]): void {
 {
-const x273 = v;
-const g273 = typeOf(x273);
-const b273: string[] = []; lf(x273, p, b273, L0); if (b273.length) e.push(...b273);
-if (g273 === "object") {
-if (g273 === 'object') { const o273 = x273 as Record<string, unknown>;
-if (!("meeting" in o273)) e.push(p + "/meeting" + ': required');
-if ("meeting" in o273) d_s_0a656f2423(o273["meeting"], p + "/meeting", e);
+const x274 = v;
+const g274 = typeOf(x274);
+const b274: string[] = []; lf(x274, p, b274, L0); if (b274.length) e.push(...b274);
+if (g274 === "object") {
+if (g274 === 'object') { const o274 = x274 as Record<string, unknown>;
+if (!("meeting" in o274)) e.push(p + "/meeting" + ': required');
+if ("meeting" in o274) d_s_0a656f2423(o274["meeting"], p + "/meeting", e);
 }
 }
 }

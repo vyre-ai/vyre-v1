@@ -5,13 +5,13 @@ import type { Check } from './core.ts';
 
 function d_s_4378c74ec9(v: unknown, p: string, e: string[]): void {
 {
-const x335 = v;
-const g335 = typeOf(x335);
-const b335: string[] = []; lf(x335, p, b335, L0); if (b335.length) e.push(...b335);
-if (g335 === "object") {
-if (g335 === 'object') { const o335 = x335 as Record<string, unknown>;
-if (!("tools" in o335)) e.push(p + "/tools" + ': required');
-if ("tools" in o335) d_s_fcd2dfbd95(o335["tools"], p + "/tools", e);
+const x336 = v;
+const g336 = typeOf(x336);
+const b336: string[] = []; lf(x336, p, b336, L0); if (b336.length) e.push(...b336);
+if (g336 === "object") {
+if (g336 === 'object') { const o336 = x336 as Record<string, unknown>;
+if (!("tools" in o336)) e.push(p + "/tools" + ': required');
+if ("tools" in o336) d_s_fcd2dfbd95(o336["tools"], p + "/tools", e);
 }
 }
 }
@@ -19,17 +19,17 @@ if ("tools" in o335) d_s_fcd2dfbd95(o335["tools"], p + "/tools", e);
 
 function d_s_c282f10646(v: unknown, p: string, e: string[]): void {
 {
-const x955 = v;
-const g955 = typeOf(x955);
-const b955: string[] = []; lf(x955, p, b955, L0); if (b955.length) e.push(...b955);
-if (g955 === "object") {
-if (g955 === 'object') { const o955 = x955 as Record<string, unknown>;
-if (!("agentId" in o955)) e.push(p + "/agentId" + ': required');
-if (!("person" in o955)) e.push(p + "/person" + ': required');
-if (!("why" in o955)) e.push(p + "/why" + ': required');
-if ("agentId" in o955) lf(o955["agentId"], p + "/agentId", e, L10);
-if ("person" in o955) lf(o955["person"], p + "/person", e, L1);
-if ("why" in o955) lf(o955["why"], p + "/why", e, L1);
+const x956 = v;
+const g956 = typeOf(x956);
+const b956: string[] = []; lf(x956, p, b956, L0); if (b956.length) e.push(...b956);
+if (g956 === "object") {
+if (g956 === 'object') { const o956 = x956 as Record<string, unknown>;
+if (!("agentId" in o956)) e.push(p + "/agentId" + ': required');
+if (!("person" in o956)) e.push(p + "/person" + ': required');
+if (!("why" in o956)) e.push(p + "/why" + ': required');
+if ("agentId" in o956) lf(o956["agentId"], p + "/agentId", e, L10);
+if ("person" in o956) lf(o956["person"], p + "/person", e, L1);
+if ("why" in o956) lf(o956["why"], p + "/why", e, L1);
 }
 }
 }
@@ -107,11 +107,13 @@ if (g4466 === 'object') { const o4466 = x4466 as Record<string, unknown>;
 if (!("id" in o4466)) e.push(p + "/rows" + '/' + i4465 + "/id" + ': required');
 if (!("tool" in o4466)) e.push(p + "/rows" + '/' + i4465 + "/tool" + ': required');
 if (!("outcome" in o4466)) e.push(p + "/rows" + '/' + i4465 + "/outcome" + ': required');
+if (!("did" in o4466)) e.push(p + "/rows" + '/' + i4465 + "/did" + ': required');
 if (!("at" in o4466)) e.push(p + "/rows" + '/' + i4465 + "/at" + ': required');
 if ("id" in o4466) lf(o4466["id"], p + "/rows" + '/' + i4465 + "/id", e, L826);
 if ("tool" in o4466) lf(o4466["tool"], p + "/rows" + '/' + i4465 + "/tool", e, L1);
 if ("cap" in o4466) lf(o4466["cap"], p + "/rows" + '/' + i4465 + "/cap", e, L1);
 if ("outcome" in o4466) lf(o4466["outcome"], p + "/rows" + '/' + i4465 + "/outcome", e, L827);
+if ("did" in o4466) lf(o4466["did"], p + "/rows" + '/' + i4465 + "/did", e, L1);
 if ("threadId" in o4466) lf(o4466["threadId"], p + "/rows" + '/' + i4465 + "/threadId", e, L13);
 if ("taskId" in o4466) lf(o4466["taskId"], p + "/rows" + '/' + i4465 + "/taskId", e, L59);
 if ("at" in o4466) lf(o4466["at"], p + "/rows" + '/' + i4465 + "/at", e, L17);
@@ -201,6 +203,7 @@ if ("redirectHost" in o4472) lf(o4472["redirectHost"], p + "/agents" + '/' + i44
 if ("connectedAt" in o4472) lf(o4472["connectedAt"], p + "/agents" + '/' + i4471 + "/connectedAt", e, L17);
 if ("lastSeenAt" in o4472) lf(o4472["lastSeenAt"], p + "/agents" + '/' + i4471 + "/lastSeenAt", e, L17);
 if ("calls" in o4472) lf(o4472["calls"], p + "/agents" + '/' + i4471 + "/calls", e, L17);
+if ("lastDid" in o4472) lf(o4472["lastDid"], p + "/agents" + '/' + i4471 + "/lastDid", e, L1);
 if ("setup" in o4472) lf(o4472["setup"], p + "/agents" + '/' + i4471 + "/setup", e, L3);
 if ("person" in o4472) lf(o4472["person"], p + "/agents" + '/' + i4471 + "/person", e, L1);
 }
