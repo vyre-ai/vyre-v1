@@ -327,9 +327,9 @@ test("what the agent waits on is said", async () => {
     now: () => at,
     waiting: () => ["an answer to task tsk_1 (a held call needs approval)"],
   }).build(input());
-  assert.equal(
-    ctx.sections.find((s) => s.id === "waiting")?.text,
-    "- an answer to task tsk_1 (a held call needs approval)",
+  assert.match(
+    ctx.sections.find((s) => s.id === "waiting")!.text,
+    /^You are waiting on these\..*\n\[waiting words ([0-9a-f]{16}) begin\]\n- an answer to task tsk_1 \(a held call needs approval\)\n\[waiting words \1 end\]$/s,
   );
 });
 
