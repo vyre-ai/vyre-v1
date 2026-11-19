@@ -1,0 +1,1 @@
+- An email can be sent from a named template: name the template, the document and the record it is about, and any values, and Vyre fills the subject and body once. A field with no value stops the send and says which one, so nobody receives an email that says "sign link" where a link should be.

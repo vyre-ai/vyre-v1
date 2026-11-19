@@ -37679,6 +37679,13 @@
             "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
           },
+          "documentId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
           "draftId": {
             "examples": [
               "eml_a1b2c3"
@@ -37701,6 +37708,13 @@
               "mbx_a1b2c3"
             ],
             "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
           },
           "replyToMessageId": {
@@ -37733,6 +37747,14 @@
             "type": "string"
           },
           "subject": {
+            "type": "string"
+          },
+          "templateKey": {
+            "examples": [
+              "signature.request"
+            ],
+            "maxLength": 60,
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
             "type": "string"
           },
           "text": {
@@ -37769,12 +37791,15 @@
           },
           "unsubscribe": {
             "type": "boolean"
+          },
+          "vars": {
+            "additionalProperties": true,
+            "type": "object"
           }
         },
         "required": [
           "mailboxId",
           "to",
-          "subject",
           "idempotencyKey"
         ],
         "type": "object"

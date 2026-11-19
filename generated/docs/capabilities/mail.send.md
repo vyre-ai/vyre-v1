@@ -43,13 +43,17 @@ type In = {
       name?: string;
       contactId?: string;
     }>;
-  subject: string;
+  subject?: string;
   text?: string;
   html?: string;
   attachments?: Array<string>;
   replyToMessageId?: string;
   contactId?: string;
   draftId?: string;
+  templateKey?: string;
+  documentId?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
   sendAt?: number;
   unsubscribe?: boolean;
   idempotencyKey: string;
