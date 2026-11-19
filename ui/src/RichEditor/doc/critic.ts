@@ -3,11 +3,6 @@
 // These functions work on the Markdown text with no editor, so a Flow, the fill engine or an agent can read, count and resolve a document's suggestions the same way a person's Accept all does.
 // Fenced code is left alone: a page that explains CriticMarkup keeps its examples.
 
-const META = String.raw`(?:\{>>([^|<>{}\n]*)\|([^<>{}\n]*)<<\})?`;
-const ADD = () => new RegExp(String.raw`\{\+\+([\s\S]+?)\+\+\}` + META, "g");
-const DEL = () => new RegExp(String.raw`\{--([\s\S]+?)--\}` + META, "g");
-const SUB = () => new RegExp(String.raw`\{~~([\s\S]+?)~>([\s\S]*?)~~\}` + META, "g");
-
 export interface CriticChange {
   kind: "add" | "del" | "sub";
   /** What was removed (del, sub) and what was added (add, sub). */
@@ -18,6 +13,65 @@ export interface CriticChange {
   /** Where the markup starts and ends in the text. */
   from: number;
   to: number;
+}
+
+// The markup is read by scanning for its closing marker with indexOf, never with a pattern that can backtrack: a document is shared text, and a hostile one ("{~~a~>" repeated) must cost a pass, not a freeze.
+// The place a closing marker was last found missing is remembered per text, so a thousand unclosed openers cost one search between them.
+let seenSrc = "";
+const gone = new Map<string, number>();
+function find(src: string, closer: string, from: number): number {
+  if (seenSrc !== src) {
+    seenSrc = src;
+    gone.clear();
+  }
+  const g = gone.get(closer);
+  if (g !== undefined && from >= g) return -1;
+  const at = src.indexOf(closer, from);
+  if (at < 0) gone.set(closer, g === undefined ? from : Math.min(g, from));
+  return at;
+}
+const WHO = /^([^|<>{}\n]*)\|([^<>{}\n]*)$/;
+/** The `{>>author|time<<}` after a change, when there is one right at `p`. */
+function metaAt(src: string, p: number): { author: string; at: string; end: number } | null {
+  if (!src.startsWith("{>>", p)) return null;
+  const close = find(src, "<<}", p + 3);
+  if (close < 0 || close - p > 400) return null;
+  const m = WHO.exec(src.slice(p + 3, close));
+  return m ? { author: m[1] ?? "", at: m[2] ?? "", end: close + 3 } : null;
+}
+
+/** The change that starts exactly at `i` in `src`, or null. */
+export function criticAt(src: string, i: number): CriticChange | null {
+  const kind = src.startsWith("{++", i)
+    ? "add"
+    : src.startsWith("{--", i)
+      ? "del"
+      : src.startsWith("{~~", i)
+        ? "sub"
+        : null;
+  if (kind === null) return null;
+  const open = i + 3;
+  let old = "";
+  let added = "";
+  let end: number;
+  if (kind === "sub") {
+    const arrow = find(src, "~>", open);
+    if (arrow <= open) return null;
+    const close = find(src, "~~}", arrow + 2);
+    if (close < 0) return null;
+    old = src.slice(open, arrow);
+    added = src.slice(arrow + 2, close);
+    end = close + 3;
+  } else {
+    const closer = kind === "add" ? "++}" : "--}";
+    const close = find(src, closer, open);
+    if (close <= open) return null;
+    if (kind === "add") added = src.slice(open, close);
+    else old = src.slice(open, close);
+    end = close + 3;
+  }
+  const who = metaAt(src, end);
+  return { kind, old, added, author: who?.author ?? "", at: who?.at ?? "", from: i, to: who?.end ?? end };
 }
 
 /** The parts of a text outside fenced code, as [from, to) offsets. */
@@ -49,60 +103,31 @@ function openRanges(md: string): Array<[number, number]> {
 export function listCritic(md: string): CriticChange[] {
   const out: CriticChange[] = [];
   for (const [a, b] of openRanges(md)) {
-    const part = md.slice(a, b);
-    const found: CriticChange[] = [];
-    // a replacement first, so its halves are not read as a removal and an addition
-    for (const m of part.matchAll(SUB()))
-      found.push({
-        kind: "sub",
-        old: m[1] ?? "",
-        added: m[2] ?? "",
-        author: m[3] ?? "",
-        at: m[4] ?? "",
-        from: a + (m.index ?? 0),
-        to: a + (m.index ?? 0) + m[0].length,
-      });
-    for (const m of part.matchAll(ADD()))
-      found.push({
-        kind: "add",
-        old: "",
-        added: m[1] ?? "",
-        author: m[2] ?? "",
-        at: m[3] ?? "",
-        from: a + (m.index ?? 0),
-        to: a + (m.index ?? 0) + m[0].length,
-      });
-    for (const m of part.matchAll(DEL()))
-      found.push({
-        kind: "del",
-        old: m[1] ?? "",
-        added: "",
-        author: m[2] ?? "",
-        at: m[3] ?? "",
-        from: a + (m.index ?? 0),
-        to: a + (m.index ?? 0) + m[0].length,
-      });
-    out.push(...found);
+    let i = md.indexOf("{", a);
+    while (i >= 0 && i < b) {
+      const c = criticAt(md, i);
+      if (c && c.to <= b) {
+        out.push(c);
+        i = md.indexOf("{", c.to);
+      } else i = md.indexOf("{", i + 1);
+    }
   }
-  return out.sort((x, y) => x.from - y.from);
+  return out;
 }
 
 /** How many suggestions wait in a text. */
 export const countCritic = (md: string): number => listCritic(md).length;
 
+const settled = (c: CriticChange, accept: boolean): string =>
+  c.kind === "sub" ? (accept ? c.added : c.old) : c.kind === "add" ? (accept ? c.added : "") : accept ? "" : c.old;
+
 /** The text with every suggestion accepted (the change is made) or rejected (the text stays as it was). */
 export function resolveCritic(md: string, accept: boolean): string {
-  const ranges = openRanges(md);
   let out = "";
   let at = 0;
-  for (const [a, b] of ranges) {
-    out += md.slice(at, a);
-    out += md
-      .slice(a, b)
-      .replace(SUB(), (_m, o: string, n: string) => (accept ? n : o))
-      .replace(ADD(), (_m, t: string) => (accept ? t : ""))
-      .replace(DEL(), (_m, t: string) => (accept ? "" : t));
-    at = b;
+  for (const c of listCritic(md)) {
+    out += md.slice(at, c.from) + settled(c, accept);
+    at = c.to;
   }
   return out + md.slice(at);
 }

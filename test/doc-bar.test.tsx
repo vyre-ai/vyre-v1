@@ -52,7 +52,16 @@ test("nothing to show draws nothing", () => {
 test("the card on a suggestion says who, when and what, and offers Accept and Reject", () => {
   const html = renderToStaticMarkup(
     <ChangeCard
-      change={{ kind: "sub", from: 1, to: 9, mid: 5, author: "Agent", at: "2026-11-19T10:00:00Z", old: "world", added: "planet" }}
+      change={{
+        kind: "sub",
+        from: 1,
+        to: 9,
+        mid: 5,
+        author: "Agent",
+        at: "2026-11-19T10:00:00Z",
+        old: "world",
+        added: "planet",
+      }}
       left={10}
       top={20}
       canResolve
@@ -67,7 +76,9 @@ test("the card on a suggestion says who, when and what, and offers Accept and Re
 });
 
 test("a document page in read mode is the page, not the plain text renderer", () => {
-  const html = renderToStaticMarkup(<MarkdownEditor value={"Hi {client.name}\n"} label="Document" mode="read" doc={{}} />);
+  const html = renderToStaticMarkup(
+    <MarkdownEditor value={"Hi {client.name}\n"} label="Document" mode="read" doc={{}} />,
+  );
   assert.match(html, /markdown-editor/);
   assert.doesNotMatch(html, /md-bar/);
 });

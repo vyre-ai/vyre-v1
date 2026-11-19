@@ -351,3 +351,60 @@ test("a large document: 4,000 blocks with chips and suggestions load, come back 
   assert.equal(list.length, 3900);
   assert.ok(performance.now() - t0 < 1000);
 });
+
+/* ---------- hostile text and the fill engine's grammar ---------- */
+
+test("hostile text costs a pass, not a freeze: unclosed openers, a million spaces, deep nesting", () => {
+  const cases = [
+    "{~~a~>".repeat(20000),
+    "{++".repeat(60000),
+    "{--x".repeat(40000),
+    `a${" ".repeat(200000)}b`,
+    "{{{{".repeat(50000),
+    "{>>".repeat(50000),
+  ];
+  const gap = " ".repeat(40000);
+  cases.push(
+    `# a${gap}b`,
+    `- a${gap}b`,
+    `> a${gap}b`,
+    `1. a${gap}b`,
+    `\`\`\`${gap}x`,
+    `| a |\n| --- |\n| ${gap}x |`,
+    "| " + "- |".repeat(20000),
+  );
+  for (const text of cases) {
+    const t0 = performance.now();
+    const d = markdownToDoc(`${text}\n`, D);
+    docToMarkdown(d, D);
+    countCritic(text);
+    resolveCritic(text, true);
+    const ms = performance.now() - t0;
+    assert.ok(ms < 3000, `${text.slice(0, 8)} took ${Math.round(ms)} ms`);
+  }
+});
+
+test("a change with a long or broken who-and-when still reads, and a broken one is plain text", () => {
+  assert.equal(countCritic(`{++a++}{>>${"x".repeat(900)}|t<<}`), 1);
+  assert.equal(listCritic(`{++a++}{>>${"x".repeat(900)}|t<<}`)[0]?.author, "");
+  assert.equal(countCritic("{++a+}"), 0);
+  assert.equal(countCritic("{~~a~~}"), 0);
+});
+
+test("front matter and a page break come back unchanged", () => {
+  const t = "---\ntitle: Service agreement\n---\n\nHi {client.name}\n\n{page:break}\n\nEnd\n";
+  assert.equal(roundtrip(t), t);
+});
+
+test("the chip grammar is the fill engine's: the tag shapes here are the ones modules/documents/handlers/vdoc.ts reads", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../modules/documents/handlers/vdoc.ts", import.meta.url), "utf8");
+  assert.ok(
+    src.includes("const TAG = /\\{([#^/]?)\\s*([A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)*|\\.)\\s*\\}/g;"),
+    "vdoc.ts changed its tag grammar: update CHIP in mdtree.ts",
+  );
+  assert.ok(
+    src.includes("const MARK = /\\{(sign|date):([A-Za-z0-9_]+)\\}/g;"),
+    "vdoc.ts changed its signing marks: update CHIP in mdtree.ts",
+  );
+});

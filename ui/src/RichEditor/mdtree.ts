@@ -4,6 +4,8 @@
 // whether its items were spaced, text is escaped only where it would otherwise read as markup, and anything the editor has no block for (a table, HTML, front matter, a link
 // reference) is kept as a raw block, byte for byte. A file written the way this serializer writes it comes back identical.
 
+import { criticAt } from "./doc/critic.ts";
+
 export interface PMMark {
   type: string;
   attrs?: Record<string, unknown>;
@@ -54,12 +56,8 @@ type Piece = Span | Chip | "br";
 const MARK_ORDER: readonly string[] = ["suggestAdd", "suggestDel", "link", "bold", "italic", "strike"];
 
 // a field chip: a value tag the fill engine reads ({client.name}, spaces inside the braces kept) or a signing mark ({sign:client}, {date:client})
-const CHIP = /^\{(\s*[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*\s*|(?:sign|date):[A-Za-z0-9_]+)\}/;
-// a tracked change; the part after it, {>>author|time<<}, says who and when (left out, both are empty)
-const META = String.raw`(?:\{>>([^|<>{}\n]*)\|([^<>{}\n]*)<<\})?`;
-const SG_ADD = new RegExp(String.raw`^\{\+\+([\s\S]+?)\+\+\}` + META);
-const SG_DEL = new RegExp(String.raw`^\{--([\s\S]+?)--\}` + META);
-const SG_SUB = new RegExp(String.raw`^\{~~([\s\S]+?)~>([\s\S]*?)~~\}` + META);
+const PLAIN_STOP = new Set(["\n", "\\", "`", "*", "_", "~", "!", "["]);
+const CHIP = /\{(\s*[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*\s*|(?:sign|date):[A-Za-z0-9_]+)\}/y;
 const sgMark = (
   type: "suggestAdd" | "suggestDel",
   author: string | undefined,
@@ -86,8 +84,42 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
     buf = "";
   };
   while (i < src.length) {
+    const ch = src.charAt(i);
+    if (ch === "{") {
+      let hit: RegExpExecArray | null = null;
+      if (DOC) {
+        CHIP.lastIndex = i;
+        hit = CHIP.exec(src);
+        if (hit) {
+          flush();
+          out.push({ chip: hit[1] ?? "", marks: [...marks] });
+          i += hit[0].length;
+          continue;
+        }
+        const c = criticAt(src, i);
+        if (c) {
+          flush();
+          if (c.kind === "add") scan(c.added, [...marks, sgMark("suggestAdd", c.author, c.at, false)], out, "");
+          else if (c.kind === "del") scan(c.old, [...marks, sgMark("suggestDel", c.author, c.at, false)], out, "");
+          else {
+            scan(c.old, [...marks, sgMark("suggestDel", c.author, c.at, true)], out, "");
+            scan(c.added, [...marks, sgMark("suggestAdd", c.author, c.at, true)], out, "");
+          }
+          i = c.to;
+          continue;
+        }
+      }
+      buf += ch;
+      i += 1;
+      continue;
+    }
+    // an ordinary letter starts nothing: it is added without cutting the rest of the text off (that copy made a long paragraph cost its length squared)
+    if (!PLAIN_STOP.has(ch)) {
+      buf += ch;
+      i += 1;
+      continue;
+    }
     const rest = src.slice(i);
-    const ch = rest.charAt(0);
     if (ch === "\n") {
       flush();
       out.push("br");
@@ -100,33 +132,6 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       continue;
     }
     let m: RegExpExecArray | null = null;
-    if (DOC && ch === "{") {
-      if ((m = CHIP.exec(rest))) {
-        flush();
-        out.push({ chip: m[1] ?? "", marks: [...marks] });
-        i += m[0].length;
-        continue;
-      }
-      if ((m = SG_ADD.exec(rest))) {
-        flush();
-        scan(m[1] ?? "", [...marks, sgMark("suggestAdd", m[2], m[3], false)], out, "");
-        i += m[0].length;
-        continue;
-      }
-      if ((m = SG_DEL.exec(rest))) {
-        flush();
-        scan(m[1] ?? "", [...marks, sgMark("suggestDel", m[2], m[3], false)], out, "");
-        i += m[0].length;
-        continue;
-      }
-      if ((m = SG_SUB.exec(rest))) {
-        flush();
-        scan(m[1] ?? "", [...marks, sgMark("suggestDel", m[3], m[4], true)], out, "");
-        scan(m[2] ?? "", [...marks, sgMark("suggestAdd", m[3], m[4], true)], out, "");
-        i += m[0].length;
-        continue;
-      }
-    }
     if (ch === "`" && (m = /^(`+)(?!`)([\s\S]*?[^`])\1(?!`)/.exec(rest))) {
       flush();
       const body = (m[2] ?? "").replace(/^ (.*[^ ].*) $/s, "$1");
@@ -354,7 +359,7 @@ function inlineText(raw: readonly PMNode[] | undefined): string {
     // a chip, and anything inside a tracked change, keeps its own spaces: moving one across a mark would change what was removed or added
     const whole = chip || ms.some((m) => m.type === "suggestAdd" || m.type === "suggestDel");
     const lead = whole ? "" : (/^\s*/.exec(body)?.[0] ?? "");
-    const trail = whole ? "" : (/\s*$/.exec(body.slice(lead.length))?.[0] ?? "");
+    const trail = whole ? "" : body.slice(lead.length + body.slice(lead.length).trimEnd().length);
     const core = body.slice(lead.length, body.length - trail.length);
     if (core === "") {
       pend += body;
@@ -388,17 +393,29 @@ function inlineText(raw: readonly PMNode[] | undefined): string {
 
 /* ---------- blocks: markdown to document ---------- */
 
-const FENCE = /^(\s{0,3})(`{3,}|~{3,})\s*([^`\s]*)[^`]*$/;
-const HEADING = /^\s{0,3}(#{1,6})(?:\s+(.*?))?\s*(?:\s#+)?\s*$/;
-const RULE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
-const BULLET = /^(\s{0,3})([-*+])\s+(.*)$/;
-const ORDERED = /^(\s{0,3})(\d{1,9})([.)])\s+(.*)$/;
-const QUOTE = /^\s{0,3}>\s?(.*)$/;
-const TASK = /^\[([ xX])\]\s+(.*)$/;
-const TABLE_SEP = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
-const HTML_START = /^\s{0,3}<(\/?[A-Za-z][\w-]*[\s>/]|\/?[A-Za-z][\w-]*$|!--|\?)/;
-const REF_DEF = /^\s{0,3}\[[^\]]+\]:\s+\S+/;
-const INDENTED = /^( {4}|\t)\S/;
+/**
+ * A block pattern that only looks at a line short enough to be a block start. Several of these patterns can backtrack on a long run of spaces, and a shared document is text anyone may have written:
+ * a line past this length is a paragraph's text, whatever it starts with, and costs one pass.
+ */
+const LINE_CAP = 3000;
+function capped(re: RegExp): { test(s: string): boolean; exec(s: string): RegExpExecArray | null } {
+  return {
+    test: (s) => s.length <= LINE_CAP && re.test(s),
+    exec: (s) => (s.length <= LINE_CAP ? re.exec(s) : null),
+  };
+}
+
+const FENCE = capped(/^(\s{0,3})(`{3,}|~{3,})\s*([^`\s]*)[^`]*$/);
+const HEADING = capped(/^\s{0,3}(#{1,6})(?:\s+(.*?))?\s*(?:\s#+)?\s*$/);
+const RULE = capped(/^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/);
+const BULLET = capped(/^(\s{0,3})([-*+])\s+(.*)$/);
+const ORDERED = capped(/^(\s{0,3})(\d{1,9})([.)])\s+(.*)$/);
+const QUOTE = capped(/^\s{0,3}>\s?(.*)$/);
+const TASK = capped(/^\[([ xX])\]\s+(.*)$/);
+const TABLE_SEP = capped(/^\s*(?:\|\s*)?:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/);
+const HTML_START = capped(/^\s{0,3}<(\/?[A-Za-z][\w-]*[\s>/]|\/?[A-Za-z][\w-]*$|!--|\?)/);
+const REF_DEF = capped(/^\s{0,3}\[[^\]]+\]:\s+\S+/);
+const INDENTED = capped(/^( {4}|\t)\S/);
 
 const isBlank = (l: string | undefined): boolean => (l ?? "").trim() === "";
 
@@ -859,10 +876,8 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
       (para.length === 0 || !startsBlock(lines[i] ?? "", lines[i + 1]))
     ) {
       para.push(
-        (lines[i] ?? "")
-          .replace(/^\s+/, "")
-          .replace(/(\s{2,}|\\)$/, (m) => (m === "\\" ? "\\" : ""))
-          .replace(/\s+$/, ""),
+        // leading spaces go; trailing spaces go (a closing backslash stays). Written without a pattern: a long run of spaces made the old one cost its length squared
+        (lines[i] ?? "").trim(),
       );
       i += 1;
     }
