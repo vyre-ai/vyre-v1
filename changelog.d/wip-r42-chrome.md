@@ -1,0 +1,2 @@
+- Vyre for Chrome can connect straight to a Space, with no Vyre app on the computer: the Space answers the extension on a socket of its own (`/chrome/v1/socket`) for a device session, and every call runs as that person through the gateway. The admin token, a web page and a signed-out session are turned away.
+- Filling a login from the Vault into a page now works on a real Space: the Vault has a place to deliver a value to a field in your Chrome, it goes only to the extension that asked and only for its own person, and a fill nobody is waiting for is refused in plain words.

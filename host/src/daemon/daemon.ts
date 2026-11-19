@@ -261,6 +261,7 @@ import { relayVersionWatch, storeInfo } from "./relay-version.ts";
 import { runDoctor } from "./doctor.ts";
 import { createLocalWork, createLocalWorkRoute } from "../routes/local-work.ts";
 import { createChromeAgentsRoute } from "../routes/chrome-agents.ts";
+import { createChromeDirectRoute } from "../routes/chrome-direct.ts";
 import { bindPersonalChrome } from "../../../lib/personal-chrome.ts";
 import { createBridgePort } from "../../../lib/personal-chrome-bridge.ts";
 import { composePorts, createRemotePort } from "../../../lib/personal-chrome-remote.ts";
@@ -1457,6 +1458,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const composedChrome = composePorts(chromePort.port, remoteChrome.port);
   bindPersonalChrome(composedChrome);
   closers.push(() => bindPersonalChrome(null));
+  // Vyre for Chrome connected straight to this Space, with no Vyre app on the person's computer (routes/chrome-direct.ts): a socket per signed-in extension, every call made as
+  // that person through this daemon's own gateway. The admin token is never a session here.
+  let chromeSession: (t: string) => import("../../../lib/chrome-socket.ts").DirectSession | null = () => null;
+  let chromeSpaceName: () => Promise<string> = () => Promise.resolve(cfg.spaceName ?? "Space");
+  const chromeDirect = createChromeDirectRoute({
+    resolve: (t) => chromeSession(t),
+    spaceName: () => chromeSpaceName(),
+    address: () => spaceBase(),
+    gateway: () => `http://${/^(0\.0\.0\.0|::|\[::\])$/.test(cfg.host) ? "127.0.0.1" : cfg.host}:${boundPort}`,
+    appVersion: cfg.version,
+    onEvent: (s, e) =>
+      sink.log({
+        space: s.space,
+        level: 20,
+        msg: "chrome.agent_event",
+        place: "chrome-direct",
+        attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" },
+      }),
+  });
+  closers.push(() => chromeDirect.close());
   const chromeAgentsRoute = createChromeAgentsRoute({
     token,
     optIn: (spaces) => chromeBridge.optIn(spaces, "personal"),
@@ -6288,6 +6309,24 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             container_env: (f: { value: string; ref: string }) => {
               siteSecrets.set(f.ref, { value: f.value, at: Date.now() });
             },
+            // a field of a page in the person's own Chrome, connected straight to this Space: the value goes down that person's socket to the ref their extension minted for this
+            // call, and to nobody else (lib/chrome-socket.ts fill). A fill nobody waits for is an error, never a silent success.
+            browser: (
+              f: { value: string; ref: string },
+              execution?: { principal: { kind: string; id: string }; actingFor?: string; traceId: string },
+            ) => {
+              if (
+                !execution ||
+                !chromeDirect.socket.fill(f.ref, f.value, {
+                  kind: execution.principal.kind,
+                  id: execution.principal.id,
+                  actingFor: execution.actingFor,
+                })
+              )
+                throw fail("internal.unavailable", execution?.traceId ?? ZERO_TRACE, {
+                  message: "No page in your Chrome is waiting for that login. Open Vyre for Chrome and try again.",
+                });
+            },
             ...o.seams?.vaultSinks,
             http_header: (
               filled: Parameters<typeof connectorPort.sink>[0],
@@ -6705,6 +6744,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         };
       };
       knownToken = (t) => identify(t) !== null;
+      // the extension's own device session and nothing else: the admin token would act as the owner, which Vyre for Chrome never does
+      chromeSession = (t) => {
+        if (sameToken(t, token)) return null;
+        const s = sessions.resolve(t);
+        return s && access.snap.principal(s.person)?.status === "active" ? s : null;
+      };
+      chromeSpaceName = async () =>
+        ((await dispatchSystem?.("spaces.get", {})) as { space?: { name?: string } } | undefined)?.space?.name ??
+        cfg.spaceName ??
+        "Space";
       const session: GatewayDeps["session"] =
         o.session ??
         ((headers) => {
@@ -7053,7 +7102,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       const mkHub = (): LiveHub =>
         createLiveHub({
-          claims: (req) => computeStream.claims(req) || browserStream.claims(req),
+          claims: (req) => computeStream.claims(req) || browserStream.claims(req) || chromeDirect.claims(req),
           // a socket shows its address to the browser console and to logs: a device with no header presents a one-time ticket, never its session token
           session: (h, url) => {
             const ticket = url.searchParams.get("ticket");
@@ -7571,6 +7620,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       server.on("upgrade", (req, socket, head) => {
         if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
         else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
+        else if (chromeDirect.claims(req)) chromeDirect.upgrade(req, socket, head);
       });
     server.removeAllListeners("request");
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once

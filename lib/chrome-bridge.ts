@@ -229,6 +229,20 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
       return push({ type: "agent.held.drop", id: heldId });
     },
 
+    /**
+     * Another way onto the events stream, for a transport that is not the HTTP stream (the Space's own socket for an extension with no Vyre app beside it, lib/chrome-socket.ts):
+     * every push goes to `write` as one JSON line until the returned function is called. `end` is called when the streams are closed.
+     */
+    attach(write: (line: string) => void, end?: () => void): () => void {
+      streams.add(write);
+      if (end) ends.add(end);
+      if (lastOptIn) write(line({ type: "agent.optin", ...lastOptIn }));
+      return () => {
+        streams.delete(write);
+        if (end) ends.delete(end);
+      };
+    },
+
     /** End every events stream (the daemon is stopping); the native host sees the end and exits. */
     closeStreams(): void {
       for (const end of ends) end();
