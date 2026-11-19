@@ -415,14 +415,14 @@ const HOSTILE: Record<string, string> = {
   "who-and-when never closed": "{++a++}{>>".repeat(10000),
   braces: "{{{{".repeat(25000),
   "a long run of spaces": `a${" ".repeat(100000)}b`,
-  "unclosed bold": "**a ".repeat(25000),
-  "unclosed underscore bold": " __a ".repeat(20000),
-  "unclosed strike": "~~a ".repeat(25000),
-  "unclosed italic": "*a ".repeat(33000),
-  "unclosed underscore italic": " _a ".repeat(25000),
+  "unclosed bold": `${"**a ".repeat(25000)}b`,
+  "unclosed underscore bold": `x${" __a ".repeat(20000)}y`,
+  "unclosed strike": `${"~~a ".repeat(25000)}b`,
+  "unclosed italic": `${"*a ".repeat(33000)}b`,
+  "unclosed underscore italic": `x${" _a ".repeat(25000)}y`,
   "unclosed links": "[a".repeat(50000),
   "links with no end": "[a](x".repeat(20000),
-  "links ending in a space": `${"[a](x".repeat(15000)} `,
+  "links ending in a space": `${"[a](x".repeat(15000)} y`,
   "images with no end": "![a](x".repeat(15000),
   "titles never closed": '[a](x "'.repeat(12000),
   backticks: "`a".repeat(50000),
@@ -430,7 +430,7 @@ const HOSTILE: Record<string, string> = {
   "a long list item": `- a${" ".repeat(100000)}b`,
   "a long quote": `> a${" ".repeat(100000)}b`,
   "a long numbered item": `1. a${" ".repeat(100000)}b`,
-  "a long fence line": `\`\`\`${" ".repeat(100000)}x`,
+  "a long fence line": `\`\`\`${"a".repeat(100000)}\nx\n\`\`\``,
   "a table cell": `| a |\n| --- |\n| ${" ".repeat(100000)}x |`,
   "table separators": `| ${"- |".repeat(30000)}`,
   "openers before a fence, closer after": `${"{++a".repeat(25000)}\n\`\`\`\nx\n\`\`\`\n++}`,
@@ -452,18 +452,8 @@ for (const [label, text] of Object.entries(HOSTILE)) {
       assert.ok(best < 100, `${what} took ${Math.round(best)} ms`);
     };
     // what is valid Markdown comes back exactly as it went in
-    // (the ones left out begin or end with a space, or nest lists, which the writer has always normalised)
-    const normalised = [
-      "unclosed bold",
-      "unclosed underscore bold",
-      "unclosed strike",
-      "unclosed italic",
-      "unclosed underscore italic",
-      "links ending in a space",
-      "a long fence line",
-      "a rule",
-    ];
-    if (!normalised.includes(label)) assert.equal(roundtrip(body), body, "round trip");
+    // nested lists written on one line ("- - - x") are the one shape the writer has always laid out differently (each level on its own line); everything else comes back exactly
+    if (label !== "a rule") assert.equal(roundtrip(body), body, "round trip");
     let d = markdownToDoc("x\n", D);
     bound("reading", () => {
       d = markdownToDoc(body, D);
@@ -613,4 +603,14 @@ test("a transaction that restructures and also deletes text still keeps the text
   const tr = s.tr.delete(2, 3).setNodeMarkup(0, schema.nodes["heading"], { level: 1 });
   s = s.apply(tr);
   assert.equal(mdOf(s), `# a{--b--}${meta()}\n`);
+});
+
+test("a list nested 300 levels deep, and a quote 5,000 deep, come back exactly and read in time", () => {
+  const deep = Array.from({ length: 300 }, (_v, i) => `${"  ".repeat(i)}- level ${i}`).join("\n") + "\n";
+  const quotes = `${"> ".repeat(5000)}x\n`;
+  for (const t of [deep, quotes]) {
+    const t0 = performance.now();
+    assert.equal(roundtrip(t), t);
+    assert.ok(performance.now() - t0 < 1000, "read and save in under a second");
+  }
 });
