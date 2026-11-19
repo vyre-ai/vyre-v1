@@ -3,7 +3,7 @@
 import { HOLD_PHRASES } from "./hold-phrases.ts";
 import { validZone, zoneName } from "./zones.ts";
 import { outwardOf } from "./outward.ts";
-import { KEY_HOST_CAPS, keyReadHost, keySendOf } from "./key-target.ts";
+import { KEY_HOST_CAPS, envHandles, keyReadHost, keySendOf } from "./key-target.ts";
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -159,6 +159,17 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
   if (cap === "automations.try_read") {
     const host = keyReadHost(input);
     return host ? `send a key to ${host}` : "send a key to an app";
+  }
+  // a Vault key given to a site as env: the card names the key, the site and where its code comes from (never a value)
+  if (cap.startsWith("sites.") && envHandles(input).length > 0) {
+    const keys = envHandles(input).map((h) => h.replace(/^#/, "").replace(/\..*$/, ""));
+    const o = obj(input);
+    const src = obj(o["source"]);
+    const repo = str(src["repo"])
+      .replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "")
+      .replace(/\.git$/, "");
+    const key = keys.length > 1 ? `${keys[0]} and ${keys.length - 1} more` : (keys[0] ?? "a key");
+    return `give the key ${key} to the site ${str(o["name"]) || "this site"}, built from ${repo || (src["folderId"] || src["fileId"] || src["path"] ? "uploaded files" : "its source")}`;
   }
   // a call that sends a Vault key to a place it names: the card says which key goes to which host (the key's name, never its value)
   if (KEY_HOST_CAPS.has(cap)) {

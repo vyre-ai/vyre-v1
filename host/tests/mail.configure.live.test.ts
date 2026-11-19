@@ -1,5 +1,6 @@
 // The email setup capabilities through the real invoke pipeline: the real definitions from the registry, the real kernel authorize over a real access snapshot, and the real Gate hook.
 // mail.configure routes to these, so they are its whole door: a member without comms.domains is refused, an admin is let in, and when an agent changes the Space's mail server or moves an address the call is held for a person's ok.
+import { wantsFromInput } from "../../lib/hold-words.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
@@ -90,6 +91,7 @@ function world(): AccessSnapshot {
   s.putResource({ id: "thr_1", type: "thread", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "chg_1", type: "changeset", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "mbx_a", type: "mailbox", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
+  s.putResource({ id: "sit_1", type: "site", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putRole({ id: "member", clearance: 2, perms: [], name: "Member" });
   s.putRole({
     id: "admin",
@@ -777,6 +779,114 @@ test("through a full invoke: sites.ship with a repo on a new host is parked; aft
   assert.equal((await next.invoke("sites.ship", { ...ship }, asAgent())).status, "ok");
   assert.deepEqual([next.parked, next.ran], [[], ["sites.ship"]]);
   assert.equal((await rig(w.opts).invoke("sites.ship", { ...ship }, seed("usr_admin"))).status, "ok");
+});
+
+const SRC = (repo: string) => `${repo.split("/").reverse().join(".")}.github.com.repo.invalid`;
+test("a Vault key given to a site as env: held for an agent unless a person approved that key for that source; after a yes the same source flows, another source is held again, a person is one step", async () => {
+  const w = keyWorld();
+  const env = [{ name: "K", vaultHandle: "#Crm_Key" }];
+  const ship = (repo: string) => ({ name: "site", source: { repo }, env });
+  const first = rig(w.opts);
+  assert.equal(
+    (await first.invoke("sites.ship", ship("acme/app"), asAgent())).status,
+    "held",
+    "a public repo, no token: held",
+  );
+  assert.deepEqual([first.parked, first.ran], [[{ cap: "sites.ship", act: "send" }], []]);
+  // the person says yes: the key is approved for that source
+  const approved = rig(w.opts);
+  await approved.gate.seen?.(
+    approved.defOf("sites.ship"),
+    ship("acme/app"),
+    {},
+    { ...asAgent(), approval: "apv_env_yes", approvedBy: "usr_member" } as never,
+    0,
+  );
+  assert.deepEqual(
+    w.hosts.filter((h) => h.host !== "").map((h) => [h.item_id, h.host, h.by]),
+    [["vit_crm", SRC("acme/app"), "usr_member"]],
+    "the pair (key, source) is recorded, by the person who pressed yes",
+  );
+  const next = rig(w.opts);
+  assert.equal(
+    (await next.invoke("sites.ship", ship("acme/app"), asAgent())).status,
+    "ok",
+    "the same source and key go through",
+  );
+  assert.equal(
+    (await next.invoke("sites.ship", ship("https://github.com/Acme/App.git"), asAgent())).status,
+    "ok",
+    "however the repo is written",
+  );
+  const other = rig(w.opts);
+  assert.equal(
+    (await other.invoke("sites.ship", ship("acme/other"), asAgent())).status,
+    "held",
+    "another repo is held again",
+  );
+  assert.equal((await other.invoke("sites.ship", ship("evil/app"), asAgent())).status, "held", "and another owner");
+  const person = rig(w.opts);
+  assert.equal(
+    (await person.invoke("sites.ship", ship("evil/app"), seed("usr_admin"))).status,
+    "ok",
+    "a person is one step",
+  );
+});
+
+test("sites_env_set puts a Vault key into a site that exists: the pair is the key and the site's stored source, and the card says so", async () => {
+  const w = keyWorld();
+  let stored: { repo?: string; folderId?: string } = { repo: "acme/app" };
+  const opts = {
+    ...w.opts,
+    exports: new Map<string, Record<string, unknown>>([...w.opts.exports, ["sites", { siteSource: () => stored }]]),
+  };
+  const entries = [{ name: "K", vaultHandle: "#Crm_Key" }];
+  const input = { siteId: "sit_1", entries };
+  const first = rig(opts);
+  assert.equal((await first.invoke("sites.env_set", input, asAgent())).status, "held");
+  const approved = rig(opts);
+  await approved.gate.seen?.(
+    approved.defOf("sites.env_set"),
+    input,
+    {},
+    { ...asAgent(), approval: "apv_env2", approvedBy: "usr_member" } as never,
+    0,
+  );
+  assert.deepEqual(
+    w.hosts.filter((h) => h.host !== "").map((h) => h.host),
+    [SRC("acme/app")],
+  );
+  assert.equal((await rig(opts).invoke("sites.env_set", input, asAgent())).status, "ok");
+  // the site's source changes to files an agent uploaded: that is another place, held again; its id names the pair
+  stored = { folderId: "fld_up" };
+  assert.equal((await rig(opts).invoke("sites.env_set", input, asAgent())).status, "held");
+  const upload = rig(opts);
+  await upload.gate.seen?.(
+    upload.defOf("sites.env_set"),
+    input,
+    {},
+    { ...asAgent(), approval: "apv_env3", approvedBy: "usr_member" } as never,
+    0,
+  );
+  assert.ok(
+    w.hosts.some((h) => h.host === "sit_1.uploaded.invalid"),
+    "uploaded files are named by the site id",
+  );
+  assert.equal((await rig(opts).invoke("sites.env_set", input, asAgent())).status, "ok");
+  // a site with no source this can read holds; plain values and a person are open
+  stored = {};
+  assert.equal((await rig(opts).invoke("sites.env_set", input, asAgent())).status, "held");
+  assert.equal(
+    (await rig(opts).invoke("sites.env_set", { siteId: "sit_1", entries: [{ name: "M", value: "calm" }] }, asAgent()))
+      .status,
+    "ok",
+  );
+  assert.equal((await rig(opts).invoke("sites.env_set", input, seed("usr_admin"))).status, "ok");
+  // the card names the key, the site and where its code comes from, never a value
+  assert.equal(
+    wantsFromInput("sites.ship", { name: "Dash", source: { repo: "https://github.com/acme/app.git" }, env: entries }),
+    "give the key Crm_Key to the site Dash, built from acme/app",
+  );
 });
 
 test("a service a tenant can make (a form, a site, an Automation's own service) is held like an agent; the host's own services are not", async () => {

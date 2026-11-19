@@ -37,6 +37,25 @@ const dormant = registry.capabilities.filter((c) => c.module === "sites" && !(c.
 export const handlers = { ...deferredHandlers(dormant), ...live };
 export const consumers = {};
 export { markPushDone, markPushFailed, pendingPushes };
+/** A site's stored source (repo, folder, file or path), for the Gate: the place a Vault key given to the site would go. Null when there is none. */
+export function siteSource(
+  ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } },
+  siteId: string,
+): { repo?: string; folderId?: string; fileId?: string; path?: string } | null {
+  const row = ctx.db.all("SELECT source FROM sites_site WHERE id = ? AND deleted_at IS NULL", siteId)[0] as
+    | { source?: unknown }
+    | undefined;
+  if (!row || typeof row.source !== "string") return null;
+  try {
+    const s = JSON.parse(row.source) as Record<string, unknown>;
+    const out: { repo?: string; folderId?: string; fileId?: string; path?: string } = {};
+    for (const k of ["repo", "folderId", "fileId", "path"] as const)
+      if (typeof s[k] === "string") out[k] = s[k] as string;
+    return out;
+  } catch {
+    return null;
+  }
+}
 /** /hooks/sites: GitHub's webhook for a site, checked with the site's own secret (handlers/hook.ts). */
 export const hostCalls = { "sites.accept_webhook": acceptWebhook };
 export const hostSeams = { configureRoutes, configureDomainEdge };

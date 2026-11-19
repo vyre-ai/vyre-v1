@@ -14,10 +14,11 @@ import { isTenantService } from "../../../lib/trust.ts";
 import {
   KEY_HOST_CAPS,
   carriesHandle,
-  envHandles,
+  envKeyUse,
   hostOfUrl,
   keyReadHost,
   keySendOf,
+  sourceHost,
 } from "../../../lib/key-target.ts";
 import { resolveKeyRef } from "../seams/key-ref.ts";
 import { HostError, fail } from "../routes/errors.ts";
@@ -131,7 +132,7 @@ async function appliesWhen(
   }
 }
 
-export { KEY_HOST_CAPS, carriesHandle, envHandles, keySendOf };
+export { KEY_HOST_CAPS, carriesHandle, envKeyUse, keySendOf, sourceHost };
 
 interface Claims {
   v?: unknown;
@@ -526,36 +527,67 @@ export function moduleWhens(
   const approved = exports.get("automations")?.["keyHostApproved"];
   // A Vault key sent to a place the call names (a sync spec's app, a sample read, a site's git repo) goes, without a person, only to a host approved for that item, by the same rule and store as a test read.
   // An agent that may not use the item itself is refused (not held): its person's access does not stand in for its own. Anything this cannot read holds.
+  // An agent that may not use the item itself is refused (not held): its person's access does not stand in for its own.
+  const mayUse = async (
+    ref: { id: string },
+    seed: Parameters<NonNullable<(typeof out)[string]>>[1],
+    asker: string | undefined,
+  ): Promise<void> => {
+    if (seed.principal.kind !== "agent") return;
+    const r = (await call("access.check", {
+      principal: { kind: "agent", id: seed.principal.id },
+      ...(asker ? { actingFor: { kind: "person", id: asker } } : {}),
+      action: { level: "use" },
+      resource: { type: "vault_item", id: ref.id },
+    }).catch((e: unknown) => {
+      // the checker is a Team capability: a Personal Space answers permission.needs_team, and there the person's own agents use their own items (nothing is shared), so there is nothing to refuse on
+      if (e instanceof HostError && e.error.code === "permission.needs_team") return PERSONAL_SPACE;
+      return null;
+    })) as { decision?: { effect?: unknown } } | typeof PERSONAL_SPACE | null;
+    // any other check that could not be made (null) is not a no: the call goes on to the approved-host rule, which holds it; only an answer that is not "allow" refuses
+    if (r !== null && r !== PERSONAL_SPACE && r.decision?.effect !== "allow")
+      throw fail("permission.no_grant", seed.trace?.traceId ?? "0".repeat(32), {
+        message: "This agent may not use that Vault item, so its key cannot be sent anywhere.",
+        details: { refusal: true },
+      });
+  };
+  /** The place a Vault key given to a site as env goes: the site's source, read from the call, or from the site it names. */
+  const envTarget = (input: unknown): string | null => {
+    const use = envKeyUse(input);
+    let source = use.source;
+    if (!source && use.siteId) {
+      const fn = exports.get("sites")?.["siteSource"];
+      const h = db();
+      if (typeof fn === "function" && h)
+        source = (fn as (c: { db: ScopedDb }, id: string) => typeof source)({ db: h }, use.siteId);
+    }
+    return sourceHost(source, use.siteId ?? undefined);
+  };
   out["vault.key_host_unapproved"] = async (input, seed) => {
     if (seed.principal.kind === "person") return false;
-    // a key given to a site as env goes into the process the site runs, which an agent may have chosen the code of: it waits for a person, whatever host the source is on
-    if (envHandles(input).length > 0) return true;
+    // a key given to a site as env goes into the process the site runs, which an agent may have chosen the code of: it goes only where a person approved that key for that source, and anything unreadable holds
+    const env = envKeyUse(input);
+    if (env.handles.length > 0) {
+      const target = envTarget(input);
+      const h = db();
+      if (target === null || !h || typeof approved !== "function") return true;
+      const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+      for (const handle of env.handles) {
+        const ref = resolveKeyRef(h, handle, asker);
+        if (ref === null) return true;
+        await mayUse(ref, seed, asker);
+        if (!(approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, target)) return true;
+      }
+    }
     const use = keySendOf(input);
     // a Vault handle anywhere in the input that no known shape reads holds: the rule cannot tell where it goes
-    if (use === undefined) return carriesHandle(input);
+    if (use === undefined) return env.handles.length > 0 ? false : carriesHandle(input);
     const h = db();
     if (use.host === null || !h || typeof approved !== "function") return true;
     const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
     const ref = resolveKeyRef(h, use.handle, asker);
     if (ref === null) return true;
-    if (seed.principal.kind === "agent") {
-      const r = (await call("access.check", {
-        principal: { kind: "agent", id: seed.principal.id },
-        ...(asker ? { actingFor: { kind: "person", id: asker } } : {}),
-        action: { level: "use" },
-        resource: { type: "vault_item", id: ref.id },
-      }).catch((e: unknown) => {
-        // the checker is a Team capability: a Personal Space answers permission.needs_team, and there the person's own agents use their own items (nothing is shared), so there is nothing to refuse on
-        if (e instanceof HostError && e.error.code === "permission.needs_team") return PERSONAL_SPACE;
-        return null;
-      })) as { decision?: { effect?: unknown } } | typeof PERSONAL_SPACE | null;
-      // any other check that could not be made (null) is not a no: the call goes on to the approved-host rule, which holds it; only an answer that is not "allow" refuses
-      if (r !== null && r !== PERSONAL_SPACE && r.decision?.effect !== "allow")
-        throw fail("permission.no_grant", seed.trace?.traceId ?? "0".repeat(32), {
-          message: "This agent may not use that Vault item, so its key cannot be sent anywhere.",
-          details: { refusal: true },
-        });
-    }
+    await mayUse(ref, seed, asker);
     if ((approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, use.host)) return false;
     return !asker || !callAs ? true : !(await ownAddress(callAs, asker, ref.id, use.host));
   };
@@ -563,7 +595,21 @@ export function moduleWhens(
     const use = keySendOf(input);
     const h = db();
     const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
-    if (use === undefined || use.host === null || !h || !asker || !callAs) return false;
+    // the keys given to a site as env: each is approved for that source, by the person who pressed yes
+    const envUse = envKeyUse(input);
+    if (envUse.handles.length > 0 && h && asker && callAs) {
+      const target = envTarget(input);
+      const approver = seed.approvedBy?.startsWith("usr_") ? seed.approvedBy : asker;
+      if (target !== null)
+        for (const handle of envUse.handles) {
+          const ref = resolveKeyRef(h, handle, asker);
+          if (ref !== null)
+            await callAs("automations.key_hosts.allow", { vaultItemId: ref.id, host: target }, approver).catch(
+              () => undefined,
+            );
+        }
+    }
+    if (use === undefined || use.host === null || !h || !asker || !callAs) return envUse.handles.length > 0;
     const ref = resolveKeyRef(h, use.handle, asker);
     if (ref === null) return false;
     // through the capability the key's own page uses: it checks that the approving person may use the item. The host is recorded as approved by the person who pressed yes, not the one the agent works for

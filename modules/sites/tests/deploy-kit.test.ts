@@ -43,6 +43,7 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
     "0007_webhook.sql",
     "0009_hook_failures.sql",
     "0013_hook_order.sql",
+    "0014_hook_seq.sql",
   ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const sdb = {

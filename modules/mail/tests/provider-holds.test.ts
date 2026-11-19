@@ -1,5 +1,6 @@
 // The mail module is not the only place mail can be rerouted or a sender changed: the provider capabilities behind it, the setting that picks the provider, and a person's default sender are reachable too.
 // Every such write is held at the Gate for an agent, or is on a short list with the reason it is not. A new one in any module cannot slip in without one or the other.
+import { KEY_HOST_CAPS } from "../../../lib/key-target.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registry } from "../../../generated/registry.ts";
@@ -221,6 +222,7 @@ const HANDLE_OK: Record<string, string> = {
 const KEY_HOST_HELD = [
   "sites.create",
   "sites.deploy",
+  "sites.env_set",
   "sites.plan",
   "sites.ship",
   "sites.update",
@@ -257,4 +259,21 @@ test("every capability that takes a Vault handle together with a host or address
       "vault.key_host_unapproved(input)",
       `${name} is held unless the host is approved for the key`,
     );
+});
+
+test("the Gate's key-host list, the held list and the manifest agree in both directions", () => {
+  for (const name of KEY_HOST_CAPS) {
+    assert.ok(KEY_HOST_HELD.includes(name), `${name} is in KEY_HOST_CAPS but not in the held list`);
+    assert.equal(
+      def(name).gate?.when,
+      "vault.key_host_unapproved(input)",
+      `${name} is in KEY_HOST_CAPS but not held in the manifest`,
+    );
+  }
+  for (const name of KEY_HOST_HELD)
+    assert.ok(KEY_HOST_CAPS.has(name), `${name} is held but not in KEY_HOST_CAPS: its approved host is never recorded`);
+  // and a capability held by that rule in the manifest is on the list: a gate nobody records approvals for
+  for (const c of all as unknown as { name: string; gate?: { when?: string } }[])
+    if (c.gate?.when === "vault.key_host_unapproved(input)")
+      assert.ok(KEY_HOST_CAPS.has(c.name), `${c.name} is held by the key-host rule but missing from KEY_HOST_CAPS`);
 });

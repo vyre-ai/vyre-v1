@@ -45,6 +45,7 @@ function world(o: Fake = {}) {
     "0007_webhook.sql",
     "0009_hook_failures.sql",
     "0013_hook_order.sql",
+    "0014_hook_seq.sql",
   ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const sdb = {
@@ -1580,6 +1581,69 @@ test("rows handled in the same millisecond keep the order they were written in",
     );
     // a delete of the current head is taken
     assert.equal((await hook(w, secret, "push", mv(B, Z, { deleted: true }))).nudge, true);
+  } finally {
+    w.done();
+  }
+});
+
+test("deleting a branch that was made again at the same commit is a new delete and removes the preview", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Second delete");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const Z = "0".repeat(40);
+    const A = "a".repeat(40);
+    const mv = (before: string, after: string, extra: Record<string, unknown> = {}) => ({
+      ref: "refs/heads/feat/twice",
+      before,
+      after,
+      ...extra,
+    });
+    const done = () =>
+      markPushDone({ db: w.sdb } as never, (pendingPushes({ db: w.sdb } as never)[0] as { id: string }).id);
+    await hook(w, secret, "push", mv(Z, A));
+    done();
+    await hook(w, secret, "push", mv(A, Z, { deleted: true }));
+    assert.deepEqual(queued(w), ["remove:feat/twice"]);
+    done();
+    // the same delete sent again while the branch is still gone is old news
+    await assert.rejects(
+      () => hook(w, secret, "push", mv(A, Z, { deleted: true }), { delivery: "twice0aa-aaaa" }),
+      /older than/,
+    );
+    // made again at the same commit, then deleted again: that is a new delete, and its preview goes
+    await hook(w, secret, "push", mv(Z, A), { delivery: "twice0bb-aaaa" });
+    done();
+    assert.equal(
+      (await hook(w, secret, "push", mv(A, Z, { deleted: true }), { delivery: "twice0cc-aaaa" })).nudge,
+      true,
+    );
+    assert.deepEqual(queued(w), ["remove:feat/twice"]);
+  } finally {
+    w.done();
+  }
+});
+
+test("handled pushes are ordered by an explicit counter that is never used again, even after a failed push gives its row back", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Counter");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const cols = w.sdb.all("PRAGMA table_info(sites_hook_head)") as { name: string; pk: number }[];
+    assert.equal(cols.find((c) => c.name === "seq")?.pk, 1, "seq is the primary key");
+    const Z = "0".repeat(40);
+    const mv = (before: string, after: string) => ({ ref: "refs/heads/feat/seq", before, after });
+    await hook(w, secret, "push", mv(Z, "a".repeat(40)));
+    await hook(w, secret, "push", mv("a".repeat(40), "b".repeat(40)));
+    const seqs = () =>
+      (w.sdb.all("SELECT seq FROM sites_hook_head ORDER BY seq") as { seq: number }[]).map((r) => r.seq);
+    assert.deepEqual(seqs(), [1, 2]);
+    // the newest push fails to run and gives its row back; the next handled push does not take its number
+    const jobs = pendingPushes({ db: w.sdb } as never) as { id: string }[];
+    markPushFailed({ db: w.sdb } as never, jobs[0]!.id, "no access");
+    await hook(w, secret, "push", mv("b".repeat(40), "c".repeat(40)));
+    assert.ok(Math.max(...seqs()) >= 3, `a new row never reuses a number: ${seqs()}`);
+    assert.equal(new Set(seqs()).size, seqs().length);
   } finally {
     w.done();
   }

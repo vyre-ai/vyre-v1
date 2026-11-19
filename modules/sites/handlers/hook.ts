@@ -12,6 +12,7 @@
 // @reads ../migrations/0007_webhook.sql
 // @reads ../migrations/0009_hook_failures.sql
 // @reads ../migrations/0013_hook_order.sql
+// @reads ../migrations/0014_hook_seq.sql
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { hostOnly } from "../../../host/src/ctx/host-only.ts";
 import type { WebhookAccept } from "../../../host/src/routes/webhooks.ts";
@@ -182,40 +183,49 @@ const ENDED = "after_sha NOT LIKE 'deleted:%' AND after_sha NOT LIKE 'closed:%'"
 function stale(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>): boolean {
   const rm = removalOf(event, p);
   if (rm !== null) {
-    if (
-      one(
+    // the same event handled before: a close is one event for good; a delete is old news unless the branch was pushed to since (a branch made again at that commit is a new branch, and deleting it is a new delete)
+    const dup = one(
+      ctx,
+      "SELECT MAX(seq) AS id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND after_sha = ?",
+      site.id,
+      rm.branch,
+      rm.key,
+    );
+    if (typeof dup?.id === "number") {
+      if (!rm.key.startsWith("deleted:")) return true;
+      const pushedSince = one(
         ctx,
-        "SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND after_sha = ?",
+        `SELECT seq FROM sites_hook_head WHERE site_id = ? AND branch = ? AND seq > ? AND ${ENDED}`,
         site.id,
         rm.branch,
-        rm.key,
-      )
-    )
-      return true;
+        dup.id,
+      );
+      if (pushedSince === undefined) return true;
+    }
     if (rm.tip === "") return false;
-    // rows are ordered by when they were written (their row id), not by their time: two handled in the same millisecond keep their order
+    // rows are ordered by seq (an id never reused), not by their time: two handled in the same millisecond keep their order
     const tip = one(
       ctx,
-      "SELECT MAX(rowid) AS id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND after_sha = ?",
+      "SELECT MAX(seq) AS id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND after_sha = ?",
       site.id,
       rm.branch,
       rm.tip,
     );
-    if (
-      typeof tip?.id === "number" &&
-      one(
-        ctx,
-        `SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND rowid > ? AND ${ENDED}`,
-        site.id,
-        rm.branch,
-        tip.id,
-      )
-    )
-      return true;
+    if (typeof tip?.id === "number")
+      return (
+        one(
+          ctx,
+          `SELECT seq FROM sites_hook_head WHERE site_id = ? AND branch = ? AND seq > ? AND ${ENDED}`,
+          site.id,
+          rm.branch,
+          tip.id,
+        ) !== undefined
+      );
+    // a commit never seen here: a handled push that names it as its parent has already moved the branch on
     return (
       one(
         ctx,
-        `SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND before_sha = ? AND ${ENDED}`,
+        `SELECT seq FROM sites_hook_head WHERE site_id = ? AND branch = ? AND before_sha = ? AND ${ENDED}`,
         site.id,
         rm.branch,
         rm.tip,
@@ -226,7 +236,7 @@ function stale(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>): 
   if (push === null || push.after === "") return false;
   const seen = one(
     ctx,
-    `SELECT MAX(rowid) AS id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND (before_sha = ? OR after_sha = ?) AND ${ENDED}`,
+    `SELECT MAX(seq) AS id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND (before_sha = ? OR after_sha = ?) AND ${ENDED}`,
     site.id,
     push.branch,
     push.after,
@@ -237,7 +247,7 @@ function stale(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>): 
   return (
     one(
       ctx,
-      "SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND rowid > ? AND after_sha LIKE 'deleted:%'",
+      "SELECT seq FROM sites_hook_head WHERE site_id = ? AND branch = ? AND seq > ? AND after_sha LIKE 'deleted:%'",
       site.id,
       push.branch,
       seen.id,

@@ -61,6 +61,63 @@ export function carriesHandle(v: unknown, depth = 0): boolean {
   return Object.values(v as Record<string, unknown>).some((x) => carriesHandle(x, depth + 1));
 }
 
+export interface SiteSource {
+  repo?: string;
+  folderId?: string;
+  fileId?: string;
+  path?: string;
+}
+
+/**
+ * Where a site's code comes from, as one DNS-shaped name the approved-host store can keep for a Vault key (the name never resolves: it ends in .invalid). A git repo is name.owner.host.repo.invalid (GitHub when only
+ * owner/name is given, lowercase as GitHub reads it); files an agent uploaded are <site id>.uploaded.invalid, or <folder or file id>.uploaded.invalid before the site exists. Null when no source can be named (it holds).
+ */
+export function sourceHost(s: SiteSource | null | undefined, siteId?: string): string | null {
+  if (!s) return null;
+  if (typeof s.repo === "string" && s.repo.trim() !== "") {
+    const raw = s.repo.trim();
+    let host = "github.com";
+    let path = raw.replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "");
+    if (/^https:\/\//i.test(raw) && !/^https:\/\/(www\.)?github\.com\//i.test(raw)) {
+      const h = hostOfUrl(raw);
+      if (h === null) return null;
+      host = h;
+      try {
+        path = new URL(raw).pathname;
+      } catch {
+        return null;
+      }
+    }
+    const segs = path
+      .replace(/\.git$/, "")
+      .split("/")
+      .filter(Boolean)
+      .map((x) => x.toLowerCase());
+    if (segs.length < 2 || segs.some((x) => !/^[a-z0-9._-]+$/.test(x))) return null;
+    return approvableHost(`${[...segs].reverse().join(".")}.${host}.repo.invalid`);
+  }
+  const id = siteId ?? s.folderId ?? s.fileId;
+  if ((s.folderId || s.fileId || s.path) && id && /^[A-Za-z0-9_]+$/.test(id))
+    return approvableHost(`${id.toLowerCase()}.uploaded.invalid`);
+  return null;
+}
+
+/** What a call that gives a site Vault keys as env names: the handles, and the site's source when the call carries one (a site that exists is read by its id). */
+export function envKeyUse(input: unknown): { handles: string[]; source: SiteSource | null; siteId: string | null } {
+  const i = (input ?? {}) as Record<string, unknown>;
+  const src = i["source"];
+  const source =
+    src !== null && typeof src === "object"
+      ? (Object.fromEntries(
+          ["repo", "folderId", "fileId", "path"].flatMap((k) => {
+            const v = (src as Record<string, unknown>)[k];
+            return typeof v === "string" ? [[k, v]] : [];
+          }),
+        ) as SiteSource)
+      : null;
+  return { handles: envHandles(input), source, siteId: typeof i["siteId"] === "string" ? i["siteId"] : null };
+}
+
 /** A Vault handle given as a site's env (sites_env_set entries, sites_ship env): the key goes into the process the site runs, so code a caller chose can send it anywhere. */
 export function envHandles(input: unknown): string[] {
   const i = (input ?? {}) as Record<string, unknown>;
@@ -86,6 +143,7 @@ export const KEY_HOST_CAPS: ReadonlySet<string> = new Set([
   "sites.plan",
   "sites.deploy",
   "sites.ship",
+  "sites.env_set",
 ]);
 
 /**
