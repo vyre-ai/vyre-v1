@@ -25,7 +25,7 @@ const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) =>
-  /^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01)/.test(t.id),
+  /^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01|RUNSECTION_01)/.test(t.id),
 );
 const report = [];
 for (const t of targets)
@@ -52,7 +52,7 @@ for (const t of targets)
       const over = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
       const file = path.join(
         out,
-        `${t.id.replace(/^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01)-/, "")}-${skin}-${size}.png`,
+        `${t.id.replace(/^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01|RUNSECTION_01)-/, "")}-${skin}-${size}.png`,
       );
       await page.screenshot({ path: file });
       report.push({
@@ -63,6 +63,19 @@ for (const t of targets)
         overflowX: over,
         errs: errs.slice(0, 2),
       });
+      // the runtime sections: open both and shoot
+      if (t.id.startsWith("RUNSECTION_01")) {
+        await page.click("[data-testid='crew-run-toggle']");
+        await page.click("[data-testid='crew-activity-toggle']");
+        await page.waitForTimeout(700);
+        await page.screenshot({ path: file.replace(".png", "-open.png") });
+        report.push({
+          file: path.basename(file) + " open",
+          board: await page.locator("[data-testid='board']").count(),
+          messages: await page.locator("[data-testid='message-lines']").count(),
+          activity: await page.locator("[data-testid='activity']").count(),
+        });
+      }
       // a finished result: press each action, shoot the sheet it opens, close it
       if (t.id.startsWith("PEEKRESULT_01")) {
         for (const [act, close] of [

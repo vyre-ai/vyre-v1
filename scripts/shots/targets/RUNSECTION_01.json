@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "RUNSECTION_01-pane",
+      "route": "/m/RUNSECTION_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='runsection-mount']",
+      "note": "The Crew pane's runtime sections opened: the board, the lines between helpers and the token report; everything running or asleep."
+    }
+  ]
+}
