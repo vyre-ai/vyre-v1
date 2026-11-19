@@ -1,0 +1,1 @@
+- Pressing F, T or Esc over the desk now works with the Chats list showing: the list in the sidebar was counted as an open menu and blocked the keys. Only menus and lists in the overlay layer, or another modal, count.
