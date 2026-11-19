@@ -53,6 +53,13 @@ const dep = t.obj({
   steps: t.opt(t.arr(step, { description: "Fetch, build, start and check, each with its state and time" })),
 });
 const access = t.enm("public", "password", "space", "private");
+const hookOut = {
+  enabled: t.bool(),
+  url: t.opt(t.str({ description: "The payload URL to give GitHub" })),
+  follow: t.arr(t.str(), { description: "Branch patterns that get a preview on a push" }),
+  secret: t.opt(t.str({ description: "Shown once, when it is made. Paste it into GitHub's webhook as the secret" })),
+  lastDeliveryAt: t.opt(t.ts()),
+};
 const envScope = t.enm("all", "production", "previews");
 const envEntry = t.obj({
   name: t.str(),
@@ -407,6 +414,34 @@ export default defineManifest({
         tool: "sites",
         audit: "sensitive",
         errors: ["validation.bad_input", "validation.precondition_failed", "permission.no_grant"],
+      },
+    ),
+    read(
+      "sites.webhook_get",
+      "Whether GitHub's webhook is on for a site, the address to give GitHub, and the branches that get a preview on a push. The secret is never shown again after it was made",
+      {
+        in: deployTarget,
+        out: hookOut,
+        on: ["site", "/siteId"],
+        tool: "sites",
+      },
+    ),
+    write(
+      "sites.webhook_set",
+      "Turn GitHub's webhook on or off for a site that comes from a repo, make a new secret (rotate; the answer shows it once), or set which branches get a preview on a push (names, prefixes ending in *, or *). The production branch deploys on a push when the site deploys on push",
+      {
+        in: {
+          siteId: id.site,
+          enabled: t.opt(t.bool()),
+          rotate: t.opt(t.bool()),
+          follow: t.opt(t.arr(t.str())),
+        },
+        out: hookOut,
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        tool: "sites",
+        audit: "sensitive",
+        errors: ["validation.precondition_failed", "validation.bad_input"],
       },
     ),
     write(

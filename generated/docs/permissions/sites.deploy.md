@@ -39,3 +39,4 @@ Area: sites. Risk: medium. Applies to: site.
 - sites.staging_password_set
 - sites.stop
 - sites.update
+- sites.webhook_set

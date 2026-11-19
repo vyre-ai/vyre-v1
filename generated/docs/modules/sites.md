@@ -4,7 +4,7 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (42)
+## Capabilities (44)
 
 - [sites.addon_add](../capabilities/sites.addon_add.md): Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys
 - [sites.addon_remove](../capabilities/sites.addon_remove.md): Remove a site's Postgres or Redis and its data
@@ -48,6 +48,8 @@ Requires: nothing.
 - [sites.table_promote](../capabilities/sites.table_promote.md): Promote a site table to a Space record type
 - [sites.tables](../capabilities/sites.tables.md): List site tables of a site
 - [sites.update](../capabilities/sites.update.md): Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again
+- [sites.webhook_get](../capabilities/sites.webhook_get.md): Whether GitHub's webhook is on for a site, the address to give GitHub, and the branches that get a preview on a push. The secret is never shown again after it was made
+- [sites.webhook_set](../capabilities/sites.webhook_set.md): Turn GitHub's webhook on or off for a site that comes from a repo, make a new secret (rotate; the answer shows it once), or set which branches get a preview on a push (names, prefixes ending in *, or *). The production branch deploys on a push when the site deploys on push
 
 ## Events (13)
 

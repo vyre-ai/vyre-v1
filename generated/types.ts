@@ -38339,6 +38339,29 @@ export type SitesUpdateOut = {
     passwordSet?: boolean;
   };
 };
+export type SitesWebhookGetIn = {
+  siteId: string;
+};
+export type SitesWebhookGetOut = {
+  enabled: boolean;
+  url?: string;
+  follow: Array<string>;
+  secret?: string;
+  lastDeliveryAt?: number;
+};
+export type SitesWebhookSetIn = {
+  siteId: string;
+  enabled?: boolean;
+  rotate?: boolean;
+  follow?: Array<string>;
+};
+export type SitesWebhookSetOut = {
+  enabled: boolean;
+  url?: string;
+  follow: Array<string>;
+  secret?: string;
+  lastDeliveryAt?: number;
+};
 export type SkillsAddIn = {
   text: string;
   name?: string;
@@ -50414,6 +50437,8 @@ export interface CapMap {
   "sites.table_promote": { in: SitesTablePromoteIn; out: SitesTablePromoteOut };
   "sites.tables": { in: SitesTablesIn; out: SitesTablesOut };
   "sites.update": { in: SitesUpdateIn; out: SitesUpdateOut };
+  "sites.webhook_get": { in: SitesWebhookGetIn; out: SitesWebhookGetOut };
+  "sites.webhook_set": { in: SitesWebhookSetIn; out: SitesWebhookSetOut };
   "skills.add": { in: SkillsAddIn; out: SkillsAddOut };
   "skills.grant": { in: SkillsGrantIn; out: SkillsGrantOut };
   "skills.grants": { in: SkillsGrantsIn; out: SkillsGrantsOut };

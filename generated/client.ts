@@ -2608,6 +2608,8 @@ export function createClient(transport: Transport) {
       table_promote: call("sites.table_promote", 1),
       tables: call("sites.tables", 1),
       update: call("sites.update", 1),
+      webhook_get: call("sites.webhook_get", 1),
+      webhook_set: call("sites.webhook_set", 1),
     },
     skills: {
       add: call("skills.add", 1),

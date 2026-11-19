@@ -261,3 +261,8 @@ export function foundLines(p: Pick<Plan, "note" | "needs" | "env">): string[] {
   if (needs.length) out.push(`It looks for ${needs.join(" and ")}. You set them after it is created.`);
   return out;
 }
+
+/** The branches typed in the Settings field: split on commas and spaces, empty ones dropped, each once. */
+export function parseFollow(typed: string): string[] {
+  return [...new Set(typed.split(/[\s,]+/).filter((s) => s !== ""))];
+}

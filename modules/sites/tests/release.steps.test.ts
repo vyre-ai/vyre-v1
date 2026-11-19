@@ -8,6 +8,8 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { configureRoutes, routeByHost } from "../handlers/route.ts";
 import { _test } from "../handlers/release.ts";
+import { acceptWebhook, markPushDone, pendingPushes, signed, follows } from "../handlers/hook.ts";
+import { createHmac } from "node:crypto";
 import { handlers } from "../impl.ts";
 import { harness as base } from "../fixtures/world.ts";
 
@@ -40,6 +42,7 @@ function world(o: Fake = {}) {
     "0004_deploy.sql",
     "0005_deploy_steps.sql",
     "0006_env_plain.sql",
+    "0007_webhook.sql",
   ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const sdb = {
@@ -52,6 +55,11 @@ function world(o: Fake = {}) {
     ...w.ctx,
     db: sdb,
     now: () => ++clock,
+    // a sealed value that opens again (the harness's stub seals to nothing)
+    seal: {
+      seal: (v: Uint8Array) => ({ keyId: "k", nonce: "n", bytes: Buffer.from(v).toString("base64") }),
+      unseal: (s: { bytes: string }) => new Uint8Array(Buffer.from(s.bytes, "base64")),
+    },
     call: async (cap: string, inp: unknown) => (h[cap] ? h[cap]!(ctx, inp) : {}),
   }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const seen = {
@@ -699,6 +707,229 @@ test("a failure before the address changes hands, with a cancel arriving, still 
     const site = (await h["sites.get"]!(w.ctx, { siteId })).site;
     assert.equal(site.lastDeploy.deploymentId === started.deployment.deploymentId, true);
     assert.equal(w.seen.removed.includes(`c-${first.deployment.deploymentId}`), false, "the serving container stays");
+  } finally {
+    w.done();
+  }
+});
+
+// ---- GitHub's webhook
+
+const sign = (secret: string, body: string): string =>
+  `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
+let hookN = 0;
+const hook = (
+  w: ReturnType<typeof world>,
+  secret: string,
+  event: string,
+  payload: Record<string, unknown>,
+  o: { delivery?: string; signature?: string; repo?: string } = {},
+) => {
+  const body = JSON.stringify({ repository: { full_name: o.repo ?? "acme/app", default_branch: "main" }, ...payload });
+  return acceptWebhook({ ...w.ctx, origin: "hook", depth: 0 } as never, {
+    headers: {
+      "x-hub-signature-256": o.signature ?? sign(secret, body),
+      "x-github-event": event,
+      "x-github-delivery": o.delivery ?? `0000000${++hookN}-aaaa`,
+    },
+    body,
+    url: "https://space.test/hooks/sites",
+  }) as Promise<{ accepted: boolean; nudge: boolean }>;
+};
+const push = (branch: string, after = "a".repeat(40)) => ({ ref: `refs/heads/${branch}`, after });
+const queued = (w: ReturnType<typeof world>) =>
+  pendingPushes({ db: w.sdb } as never).map((p) => `${p.action}:${p.branch}`);
+
+test("a signature is the HMAC of the raw body, compared whole: a wrong digest, a short one and none are refused", () => {
+  const good = sign("s3cret", "{}");
+  assert.equal(signed("s3cret", good, "{}"), true);
+  assert.equal(signed("s3cret", sign("other", "{}"), "{}"), false);
+  assert.equal(signed("s3cret", good, "{} "), false, "the body is part of it");
+  assert.equal(signed("s3cret", good.slice(0, -2), "{}"), false);
+  assert.equal(signed("s3cret", undefined, "{}"), false);
+  assert.equal(signed("s3cret", good.toUpperCase(), "{}"), false);
+});
+
+test("branch patterns: a name, a prefix ending in *, or *", () => {
+  assert.equal(follows(["feat/*"], "feat/login"), true);
+  assert.equal(follows(["feat/*"], "fix/login"), false);
+  assert.equal(follows(["next"], "next"), true);
+  assert.equal(follows(["next"], "next2"), false);
+  assert.equal(follows(["*"], "anything"), true);
+  assert.equal(follows([], "main"), false);
+});
+
+test("the webhook: turned on it shows its secret once, rotating makes the old one useless, off refuses everything", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Hooked");
+    const off = await h["sites.webhook_get"]!(w.ctx, { siteId });
+    assert.equal(off.enabled, false);
+    assert.equal(off.url, undefined);
+    const on = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true });
+    assert.equal(on.enabled, true);
+    assert.match(on.secret, /^[0-9a-f]{64}$/);
+    assert.equal(on.url, "https://space.test/hooks/sites");
+    const again = await h["sites.webhook_get"]!(w.ctx, { siteId });
+    assert.equal(again.enabled, true);
+    assert.equal(again.secret, undefined, "never shown again");
+    assert.equal(
+      (await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true })).secret,
+      undefined,
+      "turning on twice keeps it",
+    );
+    await h["sites.webhook_set"]!(w.ctx, { siteId, follow: ["*"] });
+    assert.deepEqual(await hook(w, on.secret, "ping", {}), { accepted: true, nudge: false });
+    const rot = await h["sites.webhook_set"]!(w.ctx, { siteId, rotate: true });
+    assert.notEqual(rot.secret, on.secret);
+    await assert.rejects(() => hook(w, on.secret, "ping", {}), /not signed/);
+    assert.equal((await hook(w, rot.secret, "ping", {})).accepted, true);
+    await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: false });
+    await assert.rejects(() => hook(w, rot.secret, "ping", {}), /not signed/);
+    // the secret is sealed at rest
+    const row = w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId)[0] as {
+      hook_secret: string | null;
+    };
+    assert.equal(row.hook_secret, null);
+  } finally {
+    w.done();
+  }
+});
+
+test("the webhook is refused where it cannot work: no repo, bad branch patterns", async () => {
+  const w = world();
+  try {
+    const plain = await w.make("No repo hook");
+    await assert.rejects(
+      () => h["sites.webhook_set"]!(w.ctx, { siteId: plain, enabled: true }),
+      /comes from a GitHub repo/,
+    );
+    const siteId = await w.makeRepo("Patterns");
+    for (const bad of ["", "a b", "../x", "x**", "feat/*/y"])
+      await assert.rejects(
+        () => h["sites.webhook_set"]!(w.ctx, { siteId, follow: [bad] }),
+        /branch pattern/,
+        JSON.stringify(bad),
+      );
+    await assert.rejects(
+      () => h["sites.webhook_set"]!(w.ctx, { siteId, follow: Array.from({ length: 21 }, (_, i) => `b${i}`) }),
+      /at most/,
+    );
+    const ok = await h["sites.webhook_set"]!(w.ctx, { siteId, follow: ["feat/*", "next", "next"] });
+    assert.deepEqual(ok.follow, ["feat/*", "next"]);
+  } finally {
+    w.done();
+  }
+});
+
+test("a delivery with no good signature is refused the same way whatever is wrong with it", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Refused");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true });
+    const words: string[] = [];
+    for (const attempt of [
+      () => hook(w, secret, "push", push("main"), { signature: "" }),
+      () => hook(w, "wrong", "push", push("main")),
+      () => hook(w, secret, "push", push("main"), { repo: "someone/else" }),
+      () => hook(w, secret, "push", push("main"), { signature: "sha256=" + "0".repeat(64) }),
+    ]) {
+      await attempt().then(
+        () => assert.fail("accepted"),
+        (e: { error?: { code?: string; message?: string } }) => words.push(`${e.error?.code}|${e.error?.message}`),
+      );
+    }
+    assert.equal(new Set(words).size, 1, words.join("\n"));
+    assert.match(words[0]!, /^auth\.bad_credentials\|/);
+    assert.deepEqual(queued(w), []);
+    // only the server may run it
+    await assert.rejects(
+      () => acceptWebhook({ ...w.ctx, origin: "gateway", depth: 0 } as never, { headers: {}, body: "{}", url: "" }),
+      /Only the server/,
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("a delivery id is acted on once: the same id again is refused, and does nothing", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Replay");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    await hook(w, secret, "push", push("feat/a"), { delivery: "11111111-aaaa" });
+    assert.deepEqual(queued(w), ["preview:feat/a"]);
+    markPushDone({ db: w.sdb } as never, (pendingPushes({ db: w.sdb } as never)[0] as { id: string }).id);
+    await assert.rejects(
+      () => hook(w, secret, "push", push("feat/a"), { delivery: "11111111-aaaa" }),
+      /already received/,
+    );
+    assert.deepEqual(queued(w), [], "the replay queued nothing");
+    // a delivery id that is not one is refused before anything is recorded
+    await assert.rejects(
+      () => hook(w, secret, "push", push("feat/b"), { delivery: "x" }),
+      /names its event and its id/,
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("a push builds only the branches the site follows: production on a push only when it deploys on push, previews by pattern, removal on a deleted branch or a closed pull request", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Follow");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["feat/*"] });
+    // production: nothing to do while it does not deploy on push, a nudge once it does
+    await h["sites.update"]!(w.ctx, { siteId, autoDeploy: false });
+    assert.equal((await hook(w, secret, "push", push("main"))).nudge, false);
+    await h["sites.update"]!(w.ctx, { siteId, autoDeploy: true });
+    assert.equal((await hook(w, secret, "push", push("main"))).nudge, true);
+    assert.deepEqual(queued(w), [], "production is the tick's deploy, not a queued preview");
+    // a branch it does not follow is acknowledged and ignored
+    assert.deepEqual(await hook(w, secret, "push", push("fix/x")), { accepted: true, nudge: false });
+    assert.deepEqual(queued(w), []);
+    // a followed branch: one job, and a second push to it replaces its sha
+    await hook(w, secret, "push", push("feat/login", "1".repeat(40)));
+    await hook(w, secret, "push", push("feat/login", "2".repeat(40)));
+    assert.deepEqual(queued(w), ["preview:feat/login"]);
+    assert.equal(
+      (w.sdb.all("SELECT sha FROM sites_push WHERE done_at IS NULL")[0] as { sha: string }).sha,
+      "2".repeat(40),
+    );
+    // a delete before the preview ran cancels it and asks for the removal
+    await hook(w, secret, "push", { ref: "refs/heads/feat/login", after: "0".repeat(40), deleted: true });
+    assert.deepEqual(queued(w), ["remove:feat/login"]);
+    // a closed pull request removes the preview of its branch; an opened one does nothing
+    await hook(w, secret, "pull_request", { action: "opened", pull_request: { head: { ref: "feat/pr" } } });
+    assert.deepEqual(queued(w), ["remove:feat/login"]);
+    await hook(w, secret, "pull_request", { action: "closed", pull_request: { head: { ref: "feat/pr" } } });
+    assert.deepEqual(queued(w).sort(), ["remove:feat/login", "remove:feat/pr"]);
+    // the production branch is never removed by a closed pull request
+    await hook(w, secret, "pull_request", { action: "closed", pull_request: { head: { ref: "main" } } });
+    assert.equal(queued(w).length, 2);
+    // other events are acknowledged and ignored
+    assert.deepEqual(await hook(w, secret, "issues", { action: "opened" }), { accepted: true, nudge: false });
+    // each job names who to run as: whoever deployed last, else the owner
+    const jobs = pendingPushes({ db: w.sdb } as never);
+    assert.ok(jobs.every((j) => typeof j.as === "string" && j.as.length > 0));
+  } finally {
+    w.done();
+  }
+});
+
+test("a delivery counts for the site whose secret signed it, not for another site of the same repo", async () => {
+  const w = world();
+  try {
+    const a = await w.makeRepo("Site A");
+    const b = await w.makeRepo("Site B");
+    const sa = await h["sites.webhook_set"]!(w.ctx, { siteId: a, enabled: true, follow: ["*"] });
+    await h["sites.webhook_set"]!(w.ctx, { siteId: b, enabled: true, follow: ["*"] });
+    await hook(w, sa.secret, "push", push("feat/only-a"));
+    const rows = w.sdb.all("SELECT site_id FROM sites_push WHERE done_at IS NULL") as { site_id: string }[];
+    assert.deepEqual(
+      rows.map((r) => r.site_id),
+      [a],
+    );
   } finally {
     w.done();
   }

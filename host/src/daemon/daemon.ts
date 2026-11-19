@@ -1100,6 +1100,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const ingressContainer = (): string | undefined =>
     process.env["VYRE_INGRESS_CONTAINER"] ?? (fs.existsSync("/.dockerenv") ? process.env["HOSTNAME"] : undefined);
   let sitesTick: () => Promise<void> = () => Promise.resolve();
+  let sitesTickRunning = false;
+  let sitesTickAgain = false;
+  /** Run the sites tick now. One at a time: a call while one runs asks for one more run after it, however many calls came. */
+  const nudgeSites = (): void => {
+    if (sitesTickRunning) {
+      sitesTickAgain = true;
+      return;
+    }
+    sitesTickRunning = true;
+    void (async () => {
+      try {
+        do {
+          sitesTickAgain = false;
+          await sitesTick().catch(() => undefined);
+        } while (sitesTickAgain);
+      } finally {
+        sitesTickRunning = false;
+      }
+    })();
+  };
   const siteHostRoute = createSiteHostRoute({
     own: (h) => siteHosts?.own(h) ?? true,
     site: (h) => siteHosts?.site(h) ?? null,
@@ -2497,7 +2517,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       );
       webhooks = {
         has: (c) => acceptors.has(c),
-        accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a),
+        accept: async (c, a) => {
+          const out = await hookRunner.call(`${c}.accept_webhook`, a);
+          // a delivery that asks for work is run now, not at the next minute (one tick at a time: one that is running is not stacked)
+          if (c === "sites" && (out as { accepted?: boolean } | null)?.accepted === true) nudgeSites();
+          return out;
+        },
         automation: (a) => hookRunner.call("automations.accept_hook", a),
       };
       computePoll = (credential, report) =>
@@ -5467,6 +5492,38 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   });
                 }
               }
+            // what a verified GitHub delivery left (a preview to build or remove), run as whoever deployed the site last so the Vault checks their access
+            const pushes =
+              (
+                sitesExports?.["pendingPushes"] as
+                  | ((c: {
+                      db: unknown;
+                    }) => { id: string; siteId: string; branch: string; action: string; as: string }[])
+                  | undefined
+              )?.({ db: db! }) ?? [];
+            for (const a of pushes) {
+              const r = await invoke(
+                a.action === "remove" ? "sites.preview_remove" : "sites.preview_rebuild",
+                { siteId: a.siteId, branch: a.branch },
+                {
+                  space: spaceId,
+                  principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as },
+                  origin: "sites-push",
+                },
+              ).catch((e: unknown) => ({ status: "error", e }));
+              (sitesExports?.["markPushDone"] as ((c: { db: unknown }, id: string) => void) | undefined)?.(
+                { db: db! },
+                a.id,
+              );
+              if ((r as { status?: string }).status !== "ok")
+                sink.log({
+                  space: spaceId,
+                  level: 30,
+                  msg: "sites.push_preview_skipped",
+                  place: "sites",
+                  attrs: { site: a.siteId, branch: a.branch },
+                });
+            }
             const autos =
               (
                 sitesExports?.["autoDeploySites"] as

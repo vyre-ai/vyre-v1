@@ -8552,6 +8552,18 @@
     },
     {
       "deferred": false,
+      "name": "sites_webhook_get",
+      "summary": "Whether GitHub's webhook is on for a site, the address to give GitHub, and the branches that get a preview on a push. The secret is never shown again after it was made",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_webhook_set",
+      "summary": "Turn GitHub's webhook on or off for a site that comes from a repo, make a new secret (rotate; the answer shows it once), or set which branches get a preview on a push (names, prefixes ending in *, or *). The production branch deploys on a push when the site deploys on push",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "skill_grant",
       "summary": "Give an agent use, edit or manage of a skill, or take it back (level null). Use puts it in the agent's list; edit lets it save versions; manage lets it share the skill on",
       "toolset": "agents"

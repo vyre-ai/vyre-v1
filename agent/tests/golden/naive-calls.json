@@ -4823,6 +4823,12 @@
   "sites_update": {
     "siteId": "sit_a1b2c3"
   },
+  "sites_webhook_get": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_webhook_set": {
+    "siteId": "sit_a1b2c3"
+  },
   "skill_grant": {
     "skillId": "sko_a1b2c3",
     "agentId": "agt_a1b2c3",

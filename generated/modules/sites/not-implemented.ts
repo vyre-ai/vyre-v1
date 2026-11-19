@@ -47,4 +47,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "sites.table_promote": async (ctx) => { throw new VyreErr(notImplemented("sites.table_promote", ctx.trace)); },
   "sites.tables": async (ctx) => { throw new VyreErr(notImplemented("sites.tables", ctx.trace)); },
   "sites.update": async (ctx) => { throw new VyreErr(notImplemented("sites.update", ctx.trace)); },
+  "sites.webhook_get": async (ctx) => { throw new VyreErr(notImplemented("sites.webhook_get", ctx.trace)); },
+  "sites.webhook_set": async (ctx) => { throw new VyreErr(notImplemented("sites.webhook_set", ctx.trace)); },
 };

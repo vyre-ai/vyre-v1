@@ -47,4 +47,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.table_promote": Handler<"sites.table_promote", X>;
   "sites.tables": Handler<"sites.tables", X>;
   "sites.update": Handler<"sites.update", X>;
+  "sites.webhook_get": Handler<"sites.webhook_get", X>;
+  "sites.webhook_set": Handler<"sites.webhook_set", X>;
 }

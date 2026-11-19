@@ -2608,6 +2608,8 @@ export function stubs(ctx: CallCtx) {
       table_promote: call("sites.table_promote"),
       tables: call("sites.tables"),
       update: call("sites.update"),
+      webhook_get: call("sites.webhook_get"),
+      webhook_set: call("sites.webhook_set"),
     },
     skills: {
       add: call("skills.add"),

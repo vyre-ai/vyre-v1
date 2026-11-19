@@ -258,3 +258,10 @@ test("what was found is one line for what it is, and one for what it needs", () 
   assert.equal(two.length, 2);
   assert.match(two[1]!, /^It looks for a Postgres database and Redis and 5 variables \(A, B, C, D, \.\.\.\)\./);
 });
+
+import { parseFollow } from "./model.ts";
+
+test("the preview branches typed are split on commas and spaces, each once", () => {
+  assert.deepEqual(parseFollow("feat/*, next  next,\n*"), ["feat/*", "next", "*"]);
+  assert.deepEqual(parseFollow("  "), []);
+});
