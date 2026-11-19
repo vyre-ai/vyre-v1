@@ -1,7 +1,7 @@
 // The Run node (r42-runtime slice 1): the state machine, its events, leases, and the failure paths: a worker that dies, a restart mid-run, a duplicate event, two writers at once, a stop of a whole tree.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { codeOf, harness, reasonOf } from "../fixtures/db.ts";
+import { codeOf, harness, hold, reasonOf } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, bob, engine } from "../fixtures/seed.ts";
 import { EDGES, NODE_KINDS, NODE_STATUSES, LEASE_TTL_MS, legalEdge } from "../node.ts";
@@ -13,7 +13,7 @@ const start = async (h: Harness, over: Record<string, unknown> = {}) =>
   (await h.call("runs.node.start", { kind: "helper", name: "Supplier review", owner: alice.id, ...over }, engine))
     .node as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const move = (h: Harness, runId: string, to: string, why: string, over: Record<string, unknown> = {}) =>
-  h.call("runs.node.move", { runId, to, why, ...over }, engine);
+  h.call("runs.node.move", { runId, to, why, ...hold(h, runId), ...over }, engine);
 const statusOf = (h: Harness, id: string): string =>
   String((h.sqlite.prepare("SELECT status FROM runs_node WHERE run_id = ?").get(id) as { status: string }).status);
 const force = (h: Harness, id: string, status: NodeStatus): void => {
@@ -367,4 +367,51 @@ test("who may do what: a person at the gateway cannot move or claim; the owner c
 test("every kind the contract names can be started", async () => {
   const h = harness();
   for (const kind of NODE_KINDS) assert.equal((await start(h, { kind })).kind, kind);
+});
+
+test("a worker that lost its lease cannot close the node the next worker holds: a move names its lease and its attempt", async () => {
+  const h = harness();
+  const n = await start(h);
+  await h.call("runs.node.claim", { runId: n.id, holder: "host:a" }, host);
+  h.advance(LEASE_TTL_MS + 1);
+  await h.call("runs.node.reclaim", {}, host);
+  const b = (await h.call("runs.node.claim", { runId: n.id, holder: "host:b" }, host)).node;
+  assert.equal(b.attempt, 2);
+  const late = await move(h, n.id, "succeeded", "done", { holder: "host:a", attempt: 1 }).catch((x) => x);
+  assert.equal(reasonOf(late), "not_holder");
+  assert.equal(statusOf(h, n.id), "running", "the live node is untouched");
+  const noName = await h.call("runs.node.move", { runId: n.id, to: "succeeded", why: "done" }, engine).catch((x) => x);
+  assert.equal(reasonOf(noName), "not_holder", "a move that names no lease is refused while one is held");
+  const stale = await move(h, n.id, "succeeded", "done", { holder: "host:b", attempt: 1 }).catch((x) => x);
+  assert.equal(reasonOf(stale), "stale_attempt");
+  assert.equal((await move(h, n.id, "succeeded", "done", { holder: "host:b", attempt: 2 })).changed, true);
+});
+
+test("pausing a tree leaves a sleeping node asleep with its wait, and it is paused when it wakes into a paused parent, never run", async () => {
+  const h = harness();
+  const root = await start(h, { kind: "turn" });
+  const sleeper = await start(h, { parentRun: root.id });
+  await h.call("runs.node.claim", { runId: sleeper.id, holder: "host:a" }, host);
+  await move(h, sleeper.id, "waiting", "slept", { wake: { kind: "event", label: "the build finishes" } });
+  await h.call("runs.node.claim", { runId: root.id, holder: "host:a" }, host);
+  // a rule pauses the root (the engine's own move); the sleeper is not part of it
+  await move(h, root.id, "paused", "budget");
+  assert.equal(statusOf(h, sleeper.id), "waiting");
+  await move(h, sleeper.id, "queued", "woke");
+  assert.equal(statusOf(h, sleeper.id), "paused", "woke into a paused parent");
+  const got = (await h.call("runs.node.get", { runId: sleeper.id }, { ...alice, depth: 0 })).node;
+  assert.equal(got.wake?.label, "the build finishes", "it still knows what it waited for");
+  await h.call("runs.node.control", { runId: root.id, action: "resume" }, { ...alice, depth: 0 });
+  assert.equal(statusOf(h, sleeper.id), "queued");
+});
+
+test("node_ended says only that a node is over, never what it found: its words stay with the people who may read the node", async () => {
+  const h = harness();
+  const n = await start(h);
+  await h.call("runs.node.claim", { runId: n.id, holder: "host:a" }, host);
+  await move(h, n.id, "succeeded", "done", { holder: "host:a", summary: "Pine's price is 3,820" });
+  const ended = h.allEvents.filter((e) => e.name === "run.node_ended");
+  assert.equal(ended.length, 1);
+  assert.deepEqual(Object.keys(ended[0]!.payload).sort(), ["kind", "rootRun", "runId", "to"]);
+  assert.equal(JSON.stringify(h.allEvents).includes("3,820"), false);
 });

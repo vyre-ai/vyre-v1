@@ -80,3 +80,18 @@ test("a command held for approval ends its node as stopped (it has not started),
   assert.equal(w.row(a.runId)?.status, "stopped");
   assert.equal(w.row(a.runId)?.error_code, null);
 });
+
+test("when the claim does not come back the node is not left queued for ever: it is stopped (not started) and the call is simply waited for", async () => {
+  const h = harness();
+  const port = createBackgroundPort(
+    { call: (cap, input) => (cap === "runs.node.claim" ? Promise.resolve({}) : h.call(cap, input, host)) },
+    "host:spc",
+    20,
+  );
+  assert.equal(await port.begin(tctx, tool), null);
+  const rows = h.sqlite.prepare("SELECT status, stop_reason FROM runs_node").all() as Array<Record<string, any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    rows.map((r) => [r.status, r.stop_reason]),
+    [["stopped", "not_started"]],
+  );
+});

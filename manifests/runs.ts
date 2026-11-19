@@ -254,7 +254,7 @@ export default defineManifest({
     }),
     ev(
       "run.node_ended",
-      "A node of the agent work tree is over (done, failed or stopped); a Run that sleeps until it waits on this event",
+      "A node of the agent work tree is over (done, failed or stopped); it carries no words, so everyone who may hear of it learns state only: read the node for what it found. Native nodes only: a routine, wait or terminal Run mirrored into the tree is waited for as a Run",
       {
         p: {
           runId: id.run,

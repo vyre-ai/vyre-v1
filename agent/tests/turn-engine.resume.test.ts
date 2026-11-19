@@ -202,3 +202,42 @@ test("what another node of the work told this turn is handed to the model at the
   assert.deepEqual(injected, [["Pine", "Pine's price changed to 3,820"]], "once, though two calls asked");
   assert.equal(asked.length, 2);
 });
+
+test("journal first, then act: when a call cannot be written down as started, a call that may change something is not made, and a read still is", async () => {
+  const ran: string[] = [];
+  const bad = {
+    put: () => {
+      throw new Error("disk full");
+    },
+    list: () => [],
+    drop: () => undefined,
+  };
+  const p = scriptedProvider({
+    script: [
+      { type: "tool_call", id: "c1", name: "send_email", input: {} },
+      { type: "tool_call", id: "c2", name: "read_prices", input: {} },
+      { type: "done" },
+    ],
+  });
+  const results: Array<{ id: string; ok: boolean; code?: string }> = [];
+  const engine = createTurnEngine({
+    holder: "host:a",
+    openSession: p.openSession,
+    journal: bad,
+    toolSafety: SAFETY,
+    callTool: async (c) => {
+      ran.push(c.id);
+      return { ok: true, content: {} };
+    },
+  });
+  engine.openThread(thread("T"));
+  engine.receive({ threadId: "T", author: person("dana"), body: "Send it" });
+  await engine.idle("T");
+  assert.deepEqual(ran, ["c2"], "the email was not sent; the read was");
+  for (const r of p.sessions[0]!.toolResults)
+    results.push({ id: r.id, ok: r.result.ok, code: (r.result.content as { code?: string }).code });
+  assert.deepEqual(
+    results.find((r) => r.id === "c1"),
+    { id: "c1", ok: false, code: "journal_failed" },
+  );
+});

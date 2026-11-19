@@ -1939,8 +1939,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     const entry = (
       state: "started" | "done" | "failed" | "held",
       more: { summary?: string; endedAt?: number } = {},
-    ) => {
-      if (!opts.toolSafety) return;
+    ): boolean => {
+      if (!opts.toolSafety) return true;
       try {
         toolLog.put({
           threadId: ctx.threadId,
@@ -1954,8 +1954,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           at: begun,
           ...more,
         });
-      } catch {
-        /* a journal that cannot be written never fails a tool call */
+        return true;
+      } catch (e) {
+        opts.log?.("a tool call could not be written to the journal", {
+          turnId: ctx.turnId,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return false;
       }
     };
     const begun = now();
@@ -1964,7 +1969,15 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (callKey !== undefined && ctx.callKey === undefined) keySeq.set(ctx.turnId, (keySeq.get(ctx.turnId) ?? 0) + 1);
     if (keySeq.size > 500) keySeq.delete(keySeq.keys().next().value as string);
     ctx = callKey === undefined ? ctx : { ...ctx, callKey };
-    entry("started");
+    // journal first, then act: a call that may change something is not made unless it is on record as started, or a resumed turn could not know it went out and might send it again
+    if (!entry("started") && opts.toolSafety!(call.name) !== "read")
+      return {
+        ok: false,
+        content: {
+          code: "journal_failed",
+          message: "That could not be started just now: nothing was done. Try it again.",
+        },
+      };
     try {
       const r = await fn(call, ctx);
       entry(r.held ? "held" : r.ok ? "done" : "failed", { summary: summaryOf(r.content), endedAt: now() });

@@ -53,7 +53,7 @@ Requires: nothing.
 - [run.erased](../events/run.erased.md): A Run was erased for good with its steps (ids only)
 - [run.failed](../events/run.failed.md): A Run failed; it lands in the owner Needs you
 - [run.key_fallback](../events/run.key_fallback.md): A lost key fell back to the backup key (the Run chat records it)
-- [run.node_ended](../events/run.node_ended.md): A node of the agent work tree is over (done, failed or stopped); a Run that sleeps until it waits on this event
+- [run.node_ended](../events/run.node_ended.md): A node of the agent work tree is over (done, failed or stopped); it carries no words, so everyone who may hear of it learns state only: read the node for what it found. Native nodes only: a routine, wait or terminal Run mirrored into the tree is waited for as a Run
 - [run.node_state](../events/run.node_state.md): A node of the agent work tree changed state
 - [run.resumed](../events/run.resumed.md): A waiting Run continued
 - [run.retried](../events/run.retried.md): A Run was retried; the new Run points at the old one

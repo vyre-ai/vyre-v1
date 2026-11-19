@@ -76,6 +76,15 @@ export async function nodeStart(ctx: RunsCtx, input: In): Promise<unknown> {
 }
 export async function nodeMove(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
+  // a worker's move is fenced by its lease: once the node was taken from it (its lease ran out and another worker claimed it, or it was queued again as the next attempt) a late move of the old worker is refused
+  const cur = getNode(ctx, input.runId);
+  if (cur.leaseHolder !== undefined && input.holder !== cur.leaseHolder)
+    raise(ctx, "validation.precondition_failed", "That run belongs to another worker now.", { reason: "not_holder" });
+  if (input.attempt !== undefined && input.attempt !== cur.attempt)
+    raise(ctx, "validation.precondition_failed", "That run has started again since.", {
+      reason: "stale_attempt",
+      attempt: cur.attempt,
+    });
   const { node, changed } = moveNode(ctx, input.runId, input.to as NodeStatus, {
     why: input.why as Why,
     expectedVersion: input.expectedVersion,
@@ -255,8 +264,13 @@ export async function treeGet(ctx: RunsCtx, input: In): Promise<unknown> {
   const last = lastSeq(ctx, n.rootRun);
   if (full) return { nodes: nodes.map(nodeOut), spent: subtreeSpent(ctx.db, n.id), lastSeq: last };
   const labels = labelsOf(all);
+  // work in another chat (a handoff, a helper's own thread) that this person cannot open is not shown to them at all
+  const mayOpen = (x: Node): boolean =>
+    x.threadId === undefined ||
+    x.threadId === (findNode(ctx.db, n.rootRun)?.threadId ?? n.threadId) ||
+    ctx.authorize?.({ perm: null, level: "view" }, { type: "thread", id: x.threadId }).effect === "allow";
   return {
-    nodes: nodes.map((x) => redactedOut(x, labels.get(x.id) ?? "Work")),
+    nodes: nodes.filter(mayOpen).map((x) => redactedOut(x, labels.get(x.id) ?? "Work")),
     spent: { tokensIn: 0, tokensOut: 0, cacheRead: 0, usdMicros: 0, calls: 0 },
     lastSeq: last,
   };
