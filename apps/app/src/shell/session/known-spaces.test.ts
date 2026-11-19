@@ -128,3 +128,19 @@ test("broken or foreign stored data reads as nothing, and forgetting one Space l
     ["Harbor"],
   );
 });
+
+test("two tabs share one store: signing out in one makes the row sign-in-with-username in the other; cleared storage leaves an empty list; a revoked device is the same as signing out", () => {
+  const store = memory(); // both tabs read and write the same browser storage
+  const s = session();
+  writeStored(s, store);
+  rememberSession(s, store, 1000);
+  const tabA = () => yourSpaces(store),
+    tabB = () => yourSpaces(store);
+  assert.equal(tabA()[0]!.state, "in");
+  clearStored(store, s.baseUrl); // tab B signs out, or the Space revoked this device and the gate cleared the session
+  const row = tabA()[0]!;
+  assert.deepEqual([row.state, row.username, row.session], ["out", "imran", null]);
+  assert.equal(tabB()[0]!.state, "out");
+  for (const k of Object.keys(store.dump())) store.removeItem(k); // storage cleared
+  assert.deepEqual(yourSpaces(store), []);
+});
