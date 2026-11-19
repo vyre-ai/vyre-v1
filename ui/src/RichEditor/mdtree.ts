@@ -496,11 +496,20 @@ function marksKey(marks: readonly PMMark[] | undefined): string {
     .join(";");
 }
 /** A fingerprint of inline content: the same for what the reader produced and what the editor holds after the same words were typed. */
-const PAGE_SALT: [number, number] = [(Math.random() * 0xffffffff) >>> 0, (Math.random() * 0xffffffff) >>> 0];
-export function contentKey(nodes: readonly PMNode[] | undefined): string {
+const PAGE_SALT: [number, number] = ((): [number, number] => {
+  const c = (globalThis as { crypto?: { getRandomValues?: (a: Uint32Array) => Uint32Array } }).crypto;
+  if (c?.getRandomValues) {
+    const v = c.getRandomValues(new Uint32Array(2));
+    return [v[0] ?? 0, v[1] ?? 0];
+  }
+  return [(Math.random() * 0xffffffff) >>> 0, (Math.random() * 0xffffffff) >>> 0];
+})();
+export const contentKey = (nodes: readonly PMNode[] | undefined): string => contentKeyWith(nodes, PAGE_SALT);
+/** The fingerprint under a given salt (the page's own salt is used everywhere but in a test that shows a fingerprint made without it does not match). */
+export function contentKeyWith(nodes: readonly PMNode[] | undefined, salt: readonly [number, number]): string {
   // salted with a value made when this page loaded and never written anywhere: only a fingerprint this page's reader made can match, so JSON from elsewhere cannot carry a forged one
-  let h1 = (0x811c9dc5 ^ PAGE_SALT[0]) >>> 0;
-  let h2 = (0x01000193 ^ PAGE_SALT[1]) >>> 0;
+  let h1 = (0x811c9dc5 ^ salt[0]) >>> 0;
+  let h2 = (0x01000193 ^ salt[1]) >>> 0;
   const add = (str: string): void => {
     for (let i = 0; i < str.length; i += 1) {
       const c = str.charCodeAt(i);

@@ -228,6 +228,23 @@ export function isOwnEcho(
   return sent.length > 0 && sent[sent.length - 1] === value;
 }
 
+/**
+ * What the page does with a `value` that arrives: nothing (it is what the page already holds, or its own save coming home), merge it into the open document, or replace the page's content (a plain
+ * Markdown editor). One decision, used by the editor and tested as a sequence: type, an agent writes, the file is reverted.
+ */
+export function decideIncoming(a: {
+  value: string;
+  last: string;
+  hasDoc: boolean;
+  valueId: string | null | undefined;
+  ids: ReadonlySet<string>;
+  sent: readonly string[];
+}): "skip" | "merge" | "set" {
+  if (a.value === a.last) return "skip";
+  if (!a.hasDoc) return "set";
+  return isOwnEcho(a.value, a.valueId, a.ids, a.sent) ? "skip" : "merge";
+}
+
 /** The ids the page gave its saves (a few dozen of them are small), and the last two texts sent: whole documents are not kept in numbers. */
 export const IDS_KEEP = 64;
 /** Only the latest text is kept, whole: it is the very string the page already holds as its last text, so it costs nothing, and a long document is never compared by a hash. */

@@ -25,7 +25,7 @@ import type { PMNode } from "./mdtree.ts";
 import { ChangeCard, DocBar } from "./doc/DocBar.tsx";
 import { chipNode, matchFields } from "./doc/fields.ts";
 import type { FieldDef, FieldResolver } from "./doc/fields.ts";
-import { isOwnEcho, mergeRemote, noteSent } from "./doc/merge.ts";
+import { decideIncoming, mergeRemote, noteSent } from "./doc/merge.ts";
 import { changeAt, freshChange, listChanges, resolveChanges } from "./doc/track.ts";
 import type { Change } from "./doc/track.ts";
 import type { DocController } from "./doc/controller.ts";
@@ -1078,15 +1078,22 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
     flushPending();
     const was = base.current;
     base.current = props.value;
-    if (props.value === last.current) return;
+    const decision = decideIncoming({
+      value: props.value,
+      last: last.current,
+      hasDoc: cb.current.doc !== undefined,
+      valueId: cb.current.doc?.valueId,
+      ids: saveIds.current,
+      sent: sent.current,
+    });
+    if (decision === "skip") return;
     fileStyle.current = textStyle(props.value);
     const ed = editorRef.current as unknown as {
       state: Parameters<typeof mergeRemote>[0];
       view: { dispatch(tr: unknown): void };
     } | null;
     if (cb.current.doc && ed) {
-      // the file giving back what this page just saved is not news; and a person's words are never replaced by setContent
-      if (isOwnEcho(props.value, cb.current.doc.valueId, saveIds.current, sent.current)) return;
+      // a person's words are never replaced by setContent; a text that is not the page's own save is merged in
       sent.current = [];
       const m = mergeRemote(ed.state, was, props.value, {
         author: cb.current.doc.remoteAuthor ?? "Agent",

@@ -12,6 +12,8 @@ import {
   inlineToNodes,
   textStyle,
   withStyle,
+  contentKey,
+  contentKeyWith,
 } from "../ui/src/RichEditor/mdtree.ts";
 import { markdownExtensions } from "../ui/src/RichEditor/extensions.ts";
 import { chipLook, fieldLabel, missingTags, matchFields, tagsIn } from "../ui/src/RichEditor/doc/fields.ts";
@@ -24,7 +26,7 @@ import {
   writeCritic,
 } from "../ui/src/RichEditor/doc/critic.ts";
 import { listChanges, resolveChanges, trackTransaction } from "../ui/src/RichEditor/doc/track.ts";
-import { isOwnEcho, mergeRemote, noteSent, ownValueId } from "../ui/src/RichEditor/doc/merge.ts";
+import { decideIncoming, isOwnEcho, mergeRemote, noteSent, ownValueId } from "../ui/src/RichEditor/doc/merge.ts";
 
 const D = { doc: true } as const;
 const schema = getSchema(markdownExtensions({ doc: {} }));
@@ -816,11 +818,18 @@ test("an unclosed fence that ends a list item or a quote, followed by a sibling,
     const dd = markdownToDoc(md, D);
     assert.equal(JSON.stringify(d.content?.map((b) => b.type)), JSON.stringify(dd.content?.map((b) => b.type)), md);
   }
-  const forged = schema.nodeFromJSON({
-    type: "doc",
-    content: [{ type: "paragraph", attrs: { src: "{++x++}", ck: "abc" }, content: [{ type: "text", text: "plain" }] }],
-  });
-  assert.equal(docToMarkdown(forged.toJSON(), D), "plain\n");
+  // a fingerprint that is right for the words but made without this page's salt does not unlock the text it carries; one this page made does
+  const words = [{ type: "text", text: "plain" }];
+  const make = (ck: string): string =>
+    docToMarkdown(
+      schema
+        .nodeFromJSON({ type: "doc", content: [{ type: "paragraph", attrs: { src: "{++x++}", ck }, content: words }] })
+        .toJSON(),
+      D,
+    );
+  assert.notEqual(contentKey(words), contentKeyWith(words, [0, 0]), "the salt changes the fingerprint");
+  assert.equal(make(contentKeyWith(words, [0, 0])), "plain\n");
+  assert.equal(make(contentKey(words)), "{++x++}\n");
 });
 
 test("a file that mixes CRLF and LF endings keeps each line's own ending, and an edit keeps the others", () => {
@@ -891,4 +900,38 @@ test("a 1 MB document: a keystroke and the write-out after it cost less than a f
   const med = (a: number[]): number => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] as number;
   assert.ok(med(keys) < 8, `a keystroke took ${med(keys).toFixed(2)} ms`);
   assert.ok(med(outs) < 16, `the write-out took ${med(outs).toFixed(2)} ms`);
+});
+
+test("type, an agent writes, the file is reverted: the page keeps its own save, merges the agent, then merges the revert", () => {
+  const ids = new Set<string>();
+  const sent: string[] = [];
+  const T1 = "one\n";
+  const T2 = "one\n\ntwo\n";
+  // the page saved T1 as s1
+  noteSent(sent, ids, T1, "s1");
+  let own = { text: T1, id: "s1" as string | undefined };
+  let last = T1;
+  const incoming = (value: string, draft: string): "skip" | "merge" | "set" => {
+    const r = ownValueId(own, draft);
+    own = r.own;
+    return decideIncoming({ value, last, hasDoc: true, valueId: r.valueId, ids, sent });
+  };
+  // 1. the host hands back the page's own draft: nothing to do
+  assert.equal(incoming(T1, T1), "skip");
+  // 2. an agent writes T2 into the file: merged (the page then holds T2)
+  assert.equal(incoming(T2, T2), "merge");
+  last = T2;
+  // 3. someone reverts the file to T1 while the page's s1 is still remembered: merged, not taken for an echo
+  assert.equal(incoming(T1, T1), "merge");
+  // control: the host echoing the page's own later save by id is skipped; a page with no document is replaced
+  noteSent(sent, ids, T2, "s2");
+  own = { text: T2, id: "s2" };
+  last = "something else\n";
+  assert.equal(incoming(T2, T2), "skip");
+  assert.equal(decideIncoming({ value: "x", last: "y", hasDoc: false, valueId: undefined, ids, sent }), "set");
+  // and the merge itself brings the revert in
+  const s = stateOf(T2, false);
+  const m = mergeRemote(s, T2, T1, { author: "Agent", now });
+  assert.ok(m);
+  assert.equal(mdOf(s.apply(m.tr)), T1);
 });
