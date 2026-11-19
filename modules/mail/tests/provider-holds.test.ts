@@ -215,6 +215,9 @@ const HANDLE_OK: Record<string, string> = {
     "routes to mail.smtp.verify, mail.smtp.set and mail.connect, each held for an agent that names a server",
 };
 
+/** The Gate rules that hold a key's use: the key-host rule, and a production deploy (the same rule plus the host's branch protection). */
+const KEY_WHEN = new Set(["vault.key_host_unapproved(input)", "sites.deploy_gate(input)"]);
+
 /** Held unless the host is approved for that Vault item (the same rule and store as a test read): a handle plus an address a caller names. */
 const KEY_HOST_HELD = [
   "sites.create",
@@ -253,34 +256,26 @@ test("every capability that takes a Vault handle together with a host or address
   assert.deepEqual(loose, [], "these send a Vault secret to a place the caller names with no hold and no reason");
   for (const name of Object.keys(HANDLE_OK)) assert.ok(def(name), `${name} on the list is a real capability`);
   for (const name of KEY_HOST_HELD)
-    assert.equal(
-      def(name).gate?.when,
-      "vault.key_host_unapproved(input)",
-      `${name} is held unless the host is approved for the key`,
-    );
+    assert.ok(KEY_WHEN.has(def(name).gate?.when ?? ""), `${name} is held unless the host is approved for the key`);
 });
 
 test("the Gate's key-host list, the held list and the manifest agree in both directions", () => {
   for (const name of KEY_HOST_CAPS) {
     assert.ok(KEY_HOST_HELD.includes(name), `${name} is in KEY_HOST_CAPS but not in the held list`);
-    assert.equal(
-      def(name).gate?.when,
-      "vault.key_host_unapproved(input)",
-      `${name} is in KEY_HOST_CAPS but not held in the manifest`,
-    );
+    assert.ok(KEY_WHEN.has(def(name).gate?.when ?? ""), `${name} is in KEY_HOST_CAPS but not held in the manifest`);
   }
   for (const name of KEY_HOST_HELD)
     assert.ok(KEY_HOST_CAPS.has(name), `${name} is held but not in KEY_HOST_CAPS: its approved host is never recorded`);
   // and a capability held by that rule in the manifest is on the list: a gate nobody records approvals for
   for (const c of all as unknown as { name: string; gate?: { when?: string } }[])
-    if (c.gate?.when === "vault.key_host_unapproved(input)")
+    if (KEY_WHEN.has(c.gate?.when ?? ""))
       assert.ok(KEY_HOST_CAPS.has(c.name), `${c.name} is held by the key-host rule but missing from KEY_HOST_CAPS`);
 });
 
 /** What the key-host rule leaves free on purpose, each with why. A gap that is not here is a hole. */
 const SAME_SOURCE_BY_DESIGN: Record<string, string> = {
   "an agent's commit on the site's own production branch (or its redeploy of the files a person deployed)":
-    "it is the same source: whoever can write to that branch already controls production, so a Vault key reaching it adds no reach. The rule holds a change of repo, branch or folder, a preview of another branch, and replaced, renamed or moved uploaded files, not new commits on the approved branch",
+    "an agent that can use a key it cannot read gains reach by pushing code that sends the key out, and no Vyre gate sees a push made with git credentials in a computer session. So the protection is at the deploy: for a site whose production env holds Vault keys, a deploy by an agent or a push (sites.deploy_gate, host/src/daemon/gate-hook.ts) waits for a person unless the production branch is protected on the host (required reviews or restricted pushes, read from GitHub by modules/sites/handlers/release.ts refreshProtection and kept for six hours); an open or unknown branch holds; a person's own deploy is one step",
   "an agent's call that names the site's own source again":
     "naming the same repo, branch and folder (however it is written) is no change; the key was approved for it",
 };
@@ -288,7 +283,7 @@ const SAME_SOURCE_BY_DESIGN: Record<string, string> = {
 test("what the key-host rule leaves free on purpose has a stated reason, and the calls that decide it are held by the rule", () => {
   for (const [what, why] of Object.entries(SAME_SOURCE_BY_DESIGN)) assert.ok(why.length > 40, `${what} has a reason`);
   for (const name of ["sites.deploy", "sites.update", "sites.plan", "sites.ship", "sites.preview_promote"])
-    assert.equal(def(name).gate?.when, "vault.key_host_unapproved(input)", `${name} is where a source change is held`);
+    assert.ok(KEY_WHEN.has(def(name).gate?.when ?? ""), `${name} is where a source change is held`);
 });
 
 test("a way-in hold is never under an outward act, so a turn's grant to email or post can never lift it; the rules of access always stop for an agent", () => {

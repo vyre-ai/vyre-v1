@@ -882,7 +882,7 @@ function siteWorld() {
     }
     return null;
   };
-  const sw = sitesWorld({ files: filesAnswer, fetchFp: () => state.fetchFp });
+  const sw = sitesWorld({ files: filesAnswer, fetchFp: () => state.fetchFp, values: { K: "calm", P: "p" } });
   const kdb = (
     w.opts.db as () => {
       all(s: string, ...a: unknown[]): unknown[];
@@ -927,6 +927,19 @@ function siteWorld() {
       scope,
     );
   };
+  /** What a person's deploy found out about the production branch on the host, as the site keeps it. */
+  const protect = (siteId: string, state = "protected", branch = "main", at = Date.now()): void =>
+    void sw.sdb.run("UPDATE sites_site SET protection = ? WHERE id = ?", JSON.stringify({ state, branch, at }), siteId);
+  /** What GitHub answers about the branch (a person's deploy asks it). */
+  const github = (state: "protected" | "open" | "unknown"): void => {
+    sw.ctx.http = async (url: string) => ({
+      status: state === "unknown" ? 403 : url.endsWith("/protection") ? (state === "open" ? 404 : 200) : 200,
+      text: async () =>
+        JSON.stringify(
+          url.endsWith("/protection") ? { required_pull_request_reviews: {} } : { default_branch: "main" },
+        ),
+    });
+  };
   const keysOff = (siteId: string): void => void sw.sdb.run("DELETE FROM sites_env WHERE site_id = ?", siteId);
   const fp = async (folder = "fld_up"): Promise<string> =>
     (await uploadFingerprint({ folderId: folder }, (cap, i) => filesAnswer(cap, i) as Promise<unknown>)) as string;
@@ -947,7 +960,25 @@ function siteWorld() {
     (await rig(opts).invoke(cap, input, asAgent())).status as string;
   const person = async (cap: string, input: unknown): Promise<string> =>
     (await rig(opts).invoke(cap, input, seed("usr_admin"))).status as string;
-  return { w, sw, tree, state, known, opts, yes, call, site, store, keysOff, fp, deployUpload, agent, person };
+  return {
+    w,
+    sw,
+    tree,
+    state,
+    known,
+    opts,
+    yes,
+    protect,
+    github,
+    call,
+    site,
+    store,
+    keysOff,
+    fp,
+    deployUpload,
+    agent,
+    person,
+  };
 }
 const hostsOf = (s: ReturnType<typeof siteWorld>): string[] =>
   s.w.hosts.filter((h) => h.host !== "").map((h) => h.host);
@@ -999,6 +1030,7 @@ test("a real site with keys stored moved to another source (update, deploy, plan
   const s = siteWorld();
   const siteId = await s.site("App", { repo: "https://github.com/acme/app.git" });
   s.store(siteId, STORED.name, STORED.handle);
+  s.protect(siteId, "protected", "");
   for (const cap of ["sites.update", "sites.deploy", "sites.plan", "sites.ship"])
     assert.equal(
       await s.agent(cap, { siteId, source: { repo: "https://attacker.example/x.git" } }),
@@ -1014,6 +1046,7 @@ test("a real site with keys stored moved to another source (update, deploy, plan
   assert.equal(await s.agent("sites.update", { siteId, source: { repo: "other/app" } }), "held", "another repo again");
   // the move itself (a real update) makes evil/app the site's source; a redeploy with no source, or the same one, never waits
   await s.call("sites.update", { siteId, source: { repo: "evil/app" } });
+  s.protect(siteId, "protected", "");
   assert.equal(await s.agent("sites.deploy", { siteId }), "ok");
   assert.equal(await s.agent("sites.deploy", { siteId, source: { repo: "https://github.com/Evil/App.git" } }), "ok");
   // a site with no keys stored is nothing to protect
@@ -1028,6 +1061,7 @@ test("a branch or folder of the same repo is another source, read from the store
   const s = siteWorld();
   const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
   s.store(siteId, STORED.name, STORED.handle);
+  s.protect(siteId);
   for (const cap of ["sites.deploy", "sites.update", "sites.plan", "sites.ship"])
     assert.equal(
       await s.agent(cap, { siteId, source: { repo: "acme/app", branch: "agent-x" } }),
@@ -1391,4 +1425,55 @@ test("the Gate keeps the fingerprint it read for an agent's call, so the build c
     "ok",
   );
   assert.equal(takeGateFp(t2.traceId, siteId), null);
+});
+
+test("a production deploy by an agent or a push on a site that holds a Vault key waits for a person unless the host says the branch is protected; a person's own deploy is one step", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
+  s.store(siteId, STORED.name, STORED.handle);
+  const push = { ...seed("usr_admin"), origin: "sites-push" } as never;
+  const asPush = async () => (await rig(s.opts).invoke("sites.deploy", { siteId, onlyIfChanged: true }, push)).status;
+  // a person's deploy asked what the host says: GitHub has no protection on main
+  s.github("open");
+  await s.call("sites.deploy", { siteId, wait: true });
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "open branch: anyone who can push can use the key");
+  assert.equal(await asPush(), "held", "a push's deploy is held too, though it runs as the person");
+  assert.equal(await s.person("sites.deploy", { siteId }), "ok", "a person's own deploy is one step");
+  // not known (GitHub could not be asked)
+  s.github("unknown");
+  await s.call("sites.deploy", { siteId, wait: true });
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "unknown holds");
+  // protected: free for an agent and for a push
+  s.github("protected");
+  await s.call("sites.deploy", { siteId, wait: true });
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok");
+  assert.equal(await asPush(), "ok");
+  // the look is old, or it was of another branch, or the site moved: held again
+  s.protect(siteId, "protected", "main", Date.now() - 7 * 3600_000);
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "a look more than six hours old");
+  s.protect(siteId, "protected", "release");
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "another branch than the site's");
+  s.protect(siteId);
+  s.sw.sdb.run("UPDATE sites_site SET protection = NULL WHERE id = ?", siteId);
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "never looked at");
+  // a site with no production key has nothing to protect; a previews-only key is none
+  s.keysOff(siteId);
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok");
+  s.store(siteId, "P", "#Crm_Key.p", "previews");
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok");
+  // the card says why, in words
+  assert.match(
+    String(wantsFromInput("sites.deploy", { siteId })),
+    /anyone who can push to its branch can use; protect the branch/,
+  );
+});
+
+test("the protection state is read through the site's real stored row: moving the site to another source forgets it", async () => {
+  const s = siteWorld();
+  s.github("protected");
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
+  s.store(siteId, STORED.name, STORED.handle);
+  assert.equal(await s.agent("sites.deploy", { siteId }), "ok", "protected as a person's deploy found");
+  await s.call("sites.update", { siteId, source: { repo: "https://github.com/acme/other.git", branch: "main" } });
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "a new source is not known to be protected");
 });

@@ -49,6 +49,7 @@ export function world(o: Fake = {}) {
     "0013_hook_order.sql",
     "0014_hook_seq.sql",
     "0015_built_from.sql",
+    "0016_branch_protection.sql",
   ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const sdb = {

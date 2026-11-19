@@ -13,7 +13,7 @@ import { createHmac } from "node:crypto";
 import { handlers, siteFacts } from "../impl.ts";
 import { deployHandlers } from "../handlers/deploy.ts";
 import { FIXTURE, h, world, type Fake } from "./deploy-world.ts";
-import { exposesKeys, noteGateFp, uploadFingerprint } from "../../../lib/key-target.ts";
+import { FP_DEPTH, exposesKeys, fileLine, noteGateFp, uploadFingerprint } from "../../../lib/key-target.ts";
 import { fetchSource } from "../handlers/source.ts";
 
 const states = (steps: Array<{ key: string; state: string }>): string =>
@@ -1777,4 +1777,144 @@ test("a build checks the files it fetches against the fingerprint the Gate read 
   } finally {
     w.done();
   }
+});
+
+test("a person's deploy finds out what the host says about the production branch and keeps it for the Gate: protected needs required reviews or restricted pushes, 404 is open, anything unreadable is unknown", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Guarded");
+    const answer = (protection: { status: number; body?: unknown }, repo = 200) => {
+      const asked: string[] = [];
+      (w.ctx as { http: unknown }).http = async (url: string) => {
+        asked.push(url);
+        const r = url.endsWith("/protection") ? protection : { status: repo, body: { default_branch: "trunk" } };
+        return { status: r.status, text: async () => JSON.stringify(r.body ?? {}) };
+      };
+      return asked;
+    };
+    const state = async () => {
+      await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+      return siteFacts({ db: w.sdb } as never, siteId)!.protection;
+    };
+    answer({ status: 200, body: { required_pull_request_reviews: { required_approving_review_count: 1 } } });
+    assert.equal((await state())?.state, "protected");
+    assert.equal((await state())?.branch, "main");
+    answer({ status: 200, body: { restrictions: { users: [] } } });
+    assert.equal((await state())?.state, "protected", "pushes restricted");
+    answer({ status: 200, body: { enforce_admins: { enabled: true } } });
+    assert.equal((await state())?.state, "open", "protection with no review and no restriction stops nothing");
+    const asked = answer({ status: 404 });
+    assert.equal((await state())?.state, "open");
+    assert.match(asked[0]!, /repos\/acme\/app\/branches\/main\/protection$/);
+    answer({ status: 403 });
+    assert.equal((await state())?.state, "unknown");
+    (w.ctx as { http: unknown }).http = async () => {
+      throw new Error("offline");
+    };
+    assert.equal((await state())?.state, "unknown", "a failure is unknown, never a failed deploy");
+    // a site on its repo's default branch: the host is asked which that is
+    const def = await h["sites.create"]!(w.ctx, {
+      name: "Default",
+      source: { repo: "https://github.com/acme/trunk.git" },
+    });
+    const asked2 = answer({ status: 200, body: { required_pull_request_reviews: {} } });
+    await h["sites.deploy"]!(w.ctx, { siteId: def.site.siteId, wait: true });
+    assert.ok(
+      asked2.some((u) => u.endsWith("/branches/trunk/protection")),
+      asked2.join(" "),
+    );
+    assert.equal(siteFacts({ db: w.sdb } as never, def.site.siteId)!.protection?.branch, "trunk");
+  } finally {
+    w.done();
+  }
+});
+
+test("an agent's or a push's deploy of uploaded files on a site with a production key builds only what it can prove was approved: no fingerprint from the Gate, or none from the fetch, is a refusal, not a skip", async () => {
+  const rows = [{ fileId: "fil_a", name: "index.html", version: 1, size: 4 }];
+  const files = (cap: string, input: unknown): unknown =>
+    cap === "files.list" && (input as { folder: string }).folder === "fld_up" ? { files: rows, folders: [] } : null;
+  let read: string | undefined;
+  const w = world({ files, fetchFp: () => read, values: { K: "v" } });
+  try {
+    const siteId = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site
+      .siteId as string;
+    const fp = (await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i)))!;
+    w.sdb.run(
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
+      siteId,
+      "K",
+      "#Stripe.key",
+      0,
+      null,
+      "production",
+    );
+    const agent = { ...w.ctx, principal: { kind: "agent", id: "agt_x" } } as typeof w.ctx;
+    const push = { ...w.ctx, origin: "sites-push" } as typeof w.ctx;
+    read = fp;
+    // the Gate gave nothing for this call: the agent's own read is no stand-in
+    const none = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(none.deployment.state, "failed");
+    assert.match(none.deployment.problem, /could not be checked against the ones that were approved/);
+    // a push that runs as a person is held to the same
+    const pushed = await h["sites.deploy"]!(push, { siteId, wait: true });
+    assert.equal(pushed.deployment.state, "failed", "a push's deploy");
+    // the Gate's fingerprint, and a fetch that read the same files: it builds
+    noteGateFp(agent.trace.traceId, siteId, fp);
+    const ok = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
+    // the fetch says nothing about what it read: refused, not skipped
+    read = undefined;
+    noteGateFp(agent.trace.traceId, siteId, fp);
+    const blind = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(blind.deployment.state, "failed");
+    assert.match(blind.deployment.problem, /could not be checked/);
+    // a person's own deploy reads for itself
+    read = fp;
+    const person = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(person.deployment.state, "ready", person.deployment.problem);
+  } finally {
+    w.done();
+  }
+});
+
+test("the fetcher and the Gate stop at the same depth, and a name can never pass for another line of the fingerprint", async () => {
+  const chain = (n: number) => {
+    const tree: Record<string, { files: unknown[]; folders: unknown[] }> = {};
+    for (let d = 0; d <= n; d++)
+      tree[`fld_${d}`] = {
+        files: d === n ? [{ fileId: "fil_x", name: "x", version: 1, size: 1 }] : [],
+        folders: d < n ? [{ folderId: `fld_${d + 1}`, name: `d${d + 1}` }] : [],
+      };
+    return async (cap: string, input: unknown): Promise<unknown> =>
+      cap === "files.list"
+        ? (tree[(input as { folder: string }).folder] ?? null)
+        : { base64: Buffer.from("x").toString("base64"), version: 1, size: 1 };
+  };
+  // at the limit both read it; one deeper, neither does
+  for (const [n, ok] of [
+    [FP_DEPTH, true],
+    [FP_DEPTH + 1, false],
+  ] as const) {
+    const call = chain(n);
+    assert.equal((await uploadFingerprint({ folderId: "fld_0" }, call)) !== null, ok, `gate at ${n}`);
+    const got = await fetchSource({ folderId: "fld_0" }, { call, token: async () => null, contained: true }).then(
+      (g) => (g.cleanup(), true),
+      () => false,
+    );
+    assert.equal(got, ok, `fetch at ${n}`);
+  }
+  // one file named to look like two lines is not two files
+  const listing =
+    (rows: { fileId: string; name: string }[]) =>
+    async (cap: string): Promise<unknown> =>
+      cap === "files.list" ? { files: rows.map((r) => ({ ...r, version: 1, size: 1 })), folders: [] } : null;
+  const crafted = [{ fileId: "fil_1", name: `x\n${fileLine("fil_2", 1, 1, "y")}` }];
+  const real = [
+    { fileId: "fil_1", name: "x" },
+    { fileId: "fil_2", name: "y" },
+  ];
+  assert.notEqual(
+    await uploadFingerprint({ folderId: "f" }, listing(crafted)),
+    await uploadFingerprint({ folderId: "f" }, listing(real)),
+  );
 });

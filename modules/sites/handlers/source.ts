@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
-import { fileLine, fingerprintOf, folderLine, SKIP_DIRS } from "../../../lib/key-target.ts";
+import { FP_DEPTH, fileLine, fingerprintOf, folderLine, SKIP_DIRS } from "../../../lib/key-target.ts";
 import { untar } from "./tar.ts";
 
 export interface SourceSpec {
@@ -263,7 +263,8 @@ async function fromFolder(dir: string, folderId: string, d: SourceDeps): Promise
   // what was actually read: each file's version and size as the read answered, where it sits, and the folders walked
   const lines: string[] = [];
   let complete = true;
-  const walk = async (folder: string, prefix: string): Promise<void> => {
+  const walk = async (folder: string, prefix: string, depth: number): Promise<void> => {
+    if (depth > FP_DEPTH) throw new SourceError(`Folders go at most ${FP_DEPTH} deep to deploy.`);
     let cursor: string | undefined;
     do {
       const page = (await d.call("files.list", { folder, limit: 500, ...(cursor ? { cursor } : {}) })) as {
@@ -290,12 +291,12 @@ async function fromFolder(dir: string, folderId: string, d: SourceDeps): Promise
       for (const sub of page.folders ?? [])
         if (!SKIP.has(sub.name)) {
           lines.push(folderLine(sub.folderId, `${prefix}${sub.name}/`));
-          await walk(sub.folderId, `${prefix}${sub.name}/`);
+          await walk(sub.folderId, `${prefix}${sub.name}/`, depth + 1);
         }
       cursor = page.next;
     } while (cursor);
   };
-  await walk(folderId, "");
+  await walk(folderId, "", 0);
   if (entries.length === 0) throw new SourceError("That folder is empty.");
   writeAll(dir, entries);
   return complete ? fingerprintOf(lines) : undefined;

@@ -188,6 +188,9 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
     return `give the site's keys to code from ${str(obj(obj(input)["source"])["repo"])
       .replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "")
       .replace(/\.git$/, "")}`;
+  // a production deploy of a site that holds keys, with no new source: the branch is not protected, so anyone who can push to it can use the keys
+  if (cap === "sites.deploy")
+    return "deploy a site that holds keys, which anyone who can push to its branch can use; protect the branch to deploy without asking";
   // a call that sends a Vault key to a place it names: the card says which key goes to which host (the key's name, never its value)
   if (KEY_HOST_CAPS.has(cap)) {
     const use = keySendOf(input);

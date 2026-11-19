@@ -494,7 +494,9 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   mustFolder(ctx, folderId);
   const cleanedName = name === undefined ? site.name : cleanName(ctx, name);
   unchangedSince(ctx, mustSite(ctx, str(site.id)), o); // the awaits above let another change land: check again in the same step as the first write
-  if (source !== null) ctx.db.run("UPDATE sites_site SET source = ? WHERE id = ?", source, site.id);
+  if (source !== null)
+    // another source is another branch on another host: what was found out about the old one is no longer known
+    ctx.db.run("UPDATE sites_site SET source = ?, protection = NULL WHERE id = ?", source, site.id);
   if (limits !== null) ctx.db.run("UPDATE sites_site SET limits = ? WHERE id = ?", limits, site.id);
   if (auto !== undefined) ctx.db.run("UPDATE sites_site SET auto_deploy = ? WHERE id = ?", auto ? 1 : 0, site.id);
   // becoming public is an outward act: it comes down here and goes back up through sites.promote and the Gate

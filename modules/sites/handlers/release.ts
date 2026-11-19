@@ -11,6 +11,7 @@
 // @reads ../migrations/0005_deploy_steps.sql
 // @reads ../migrations/0006_env_plain.sql
 // @reads ../migrations/0015_built_from.sql
+// @reads ../migrations/0016_branch_protection.sql
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
 import {
@@ -588,6 +589,8 @@ interface Job {
   preview?: { branch: string; host: string };
   /** For uploaded files: what the files were when the deploy was asked for. The build refuses to go on if the files it fetches are other ones. */
   expectFp?: string | null;
+  /** The deploy is by anything but a person on a site with a production Vault key: it builds only files it can prove are the ones that were approved. */
+  strict?: boolean;
 }
 
 /** The deploys this process is running, by id, with the switch that cancels each. */
@@ -732,6 +735,13 @@ async function runJob(j: Job): Promise<void> {
     }
     live();
     // the files this build read are the ones the deploy was asked for (and the Gate looked at), or nothing is built from them
+    if (j.strict && (j.source.folderId || j.source.fileId) && (!j.expectFp || !fetched.fp)) {
+      const why =
+        "The files could not be checked against the ones that were approved, so nothing was built from them. A person can deploy them.";
+      log.add(why);
+      end("failed", { problem: why, fix: "retry" });
+      return;
+    }
     if (j.expectFp && fetched.fp && j.expectFp !== fetched.fp) {
       const why =
         "The files in Files changed after this deploy was asked for, so nothing was built from them. Deploy again to build the new files.";
@@ -1046,6 +1056,50 @@ export function siteSubnets(ctx: Pick<Ctx, "db">): string[] {
 
 // ---- capabilities
 
+/** owner/name of a GitHub repo, as the source writes it; null for any other host. */
+function githubRepo(raw: string): { owner: string; name: string } | null {
+  const m = /^(?:(?:https?:\/\/)?(?:www\.)?github\.com\/)?([A-Za-z0-9_-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/i.exec(
+    raw.trim(),
+  );
+  return m ? { owner: m[1]!, name: m[2]! } : null;
+}
+
+/**
+ * What the host says about the production branch: protected (required reviews or restricted pushes), open, or unknown (anything that could not be read, a repo that is not on GitHub). Recorded on the site for the Gate, which holds a deploy by
+ * anything but a person while the branch is not protected: anyone who can push to it can use the site's keys. Never throws.
+ */
+async function refreshProtection(ctx: Ctx, siteId: string, source: SourceSpec, token: string | null): Promise<void> {
+  const gh = source.repo ? githubRepo(source.repo) : null;
+  if (!gh) return;
+  const api = `https://api.github.com/repos/${gh.owner}/${gh.name}`;
+  const headers: Record<string, string> = { accept: "application/vnd.github+json", "user-agent": "vyre-sites" };
+  if (token) headers["authorization"] = `Bearer ${token}`;
+  let state = "unknown";
+  let branch = source.branch ?? "";
+  try {
+    if (!branch) {
+      const repo = await ctx.http(api, { headers });
+      if (repo.status === 200)
+        branch = (JSON.parse(await repo.text()) as { default_branch?: string }).default_branch ?? "";
+    }
+    if (branch) {
+      const r = await ctx.http(`${api}/branches/${encodeURIComponent(branch)}/protection`, { headers });
+      if (r.status === 404) state = "open";
+      else if (r.status === 200) {
+        const b = JSON.parse(await r.text()) as Record<string, unknown>;
+        state = b["required_pull_request_reviews"] || b["restrictions"] ? "protected" : "open";
+      }
+    }
+  } catch {
+    state = "unknown";
+  }
+  ctx.db.run(
+    "UPDATE sites_site SET protection = ? WHERE id = ?",
+    JSON.stringify({ state, branch, at: ctx.now() }),
+    siteId,
+  );
+}
+
 async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unknown }> {
   const o = rec(ctx, input);
   let site = mustSite(ctx, reqStr(ctx, o, "siteId"));
@@ -1066,11 +1120,19 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
   const siteId = str(site.id);
   const current = isNull(site.current_deployment) ? null : str(site.current_deployment);
   const token = source.tokenHandle ? await filled(ctx, source.tokenHandle, `${siteId}:token:${ctx.now()}`) : null;
-  // uploaded files: the files the Gate judged for this call when it read them, else what they are now (read as the caller); the build checks what it fetches against it
+  // a deploy by anything but a person (an agent, or a push) on a site that holds a production Vault key is only as good as what the Gate approved: no reading of its own, and the build refuses without one
+  const strict =
+    (ctx.principal.kind !== "person" || ctx.origin === "sites-push") &&
+    !!many(
+      ctx,
+      "SELECT 1 FROM sites_env WHERE site_id = ? AND plain IS NULL AND vault_handle != '' AND scope != 'previews'",
+      siteId,
+    ).length;
+  // uploaded files: the files the Gate judged for this call when it read them, else (a person's call, or a site with no key) what they are now, read as the caller; the build checks what it fetches against it
+  const gateFp = takeGateFp(ctx.trace?.traceId, siteId);
   const expectFp =
     source.folderId || source.fileId
-      ? (takeGateFp(ctx.trace?.traceId, siteId) ??
-        (await uploadFingerprint(source, (cap, inp) => ctx.call(cap as never, inp))))
+      ? (gateFp ?? (strict ? null : await uploadFingerprint(source, (cap, inp) => ctx.call(cap as never, inp))))
       : null;
   if (optBool(ctx, o, "onlyIfChanged") === true && source.repo) {
     const last = one(
@@ -1088,9 +1150,16 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     if (!head) fail(ctx, "validation.precondition_failed", "The repo could not be read just now.");
   }
   if (newSource !== null) {
-    ctx.db.run("UPDATE sites_site SET source = ?, updated_at = ? WHERE id = ?", newSource, ctx.now(), siteId);
+    ctx.db.run(
+      "UPDATE sites_site SET source = ?, protection = NULL, updated_at = ? WHERE id = ?",
+      newSource,
+      ctx.now(),
+      siteId,
+    );
     site = mustSite(ctx, siteId);
   }
+  // what the host says about the production branch, for the Gate (a person's deploy, or one a person approved, keeps it current)
+  if (source.repo) await refreshProtection(ctx, siteId, source, token);
   const busy = one(
     ctx,
     "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND state IN ('queued', 'building')",
@@ -1153,6 +1222,7 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     publicNeedsPromote: ctx.principal.kind !== "person",
     signal: ac.signal,
     expectFp,
+    strict,
   };
   const p = enqueue(() => runJob(job)).finally(() => {
     done.delete(depId);

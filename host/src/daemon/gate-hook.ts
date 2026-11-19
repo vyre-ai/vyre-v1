@@ -20,6 +20,7 @@ import {
   keyReadHost,
   keySendOf,
   noteGateFp,
+  protectionHolds,
   siteKeyPairs,
   sourceKeyHost,
   sourceOfInput,
@@ -51,6 +52,7 @@ export interface GateHookDeps {
         setupGrant?: boolean | undefined;
         trace?: CtxSeed["trace"];
         approvedBy?: string | undefined;
+        origin?: string | undefined;
       },
     ) => boolean | Promise<boolean>
   >;
@@ -130,6 +132,7 @@ async function appliesWhen(
     actingFor?: string | undefined;
     setupGrant?: boolean | undefined;
     trace?: CtxSeed["trace"];
+    origin?: string | undefined;
   },
 ): Promise<boolean> {
   const fn = when === undefined ? undefined : MODULE_WHEN.exec(when)?.[1];
@@ -634,6 +637,14 @@ export function moduleWhens(
     await mayUse(ref, seed, asker);
     if ((approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, use.host)) return false;
     return !asker || !callAs ? true : !(await ownAddress(callAs, asker, ref.id, use.host));
+  };
+  // A production deploy: the key rule, and the host's branch protection. A person's own deploy is one step; a deploy that only runs as a person because a push asked for it (origin sites-push) is not.
+  out["sites.deploy_gate"] = async (input, seed) => {
+    const push = seed.origin === "sites-push";
+    if (seed.principal.kind === "person" && !push) return false;
+    if (protectionHolds(siteFactsOf(input))) return true;
+    if (seed.principal.kind === "person") return false;
+    return out["vault.key_host_unapproved"]!(input, seed);
   };
   out["vault.after_approved_key_use"] = async (input, seed) => {
     const use = keySendOf(input);

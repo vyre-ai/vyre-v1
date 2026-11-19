@@ -373,7 +373,7 @@ export default defineManifest({
         in: { siteId: id.site, source: t.opt(source), wait: t.opt(t.bool()), onlyIfChanged: t.opt(t.bool()) },
         out: { deployment: dep },
         on: ["site", "/siteId"],
-        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
+        gate: { act: "send", when: "sites.deploy_gate(input)" },
         perm: "sites.deploy",
         emits: ["site.deployed", "site.build_failed", "site.preview_removed"],
         tool: "sites",

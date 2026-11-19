@@ -81,6 +81,7 @@ test("the site's webhook, deploy on push and settings have their own words, and 
     wantsFromInput("sites.webhook_set", { siteId: "sit_1", enabled: true }),
     wantsFromInput("sites.update", { siteId: "sit_1", autoDeploy: true }),
     wantsFromInput("sites.update", { siteId: "sit_1", settings: { a: 1 } }),
+    wantsFromInput("sites.deploy", { siteId: "sit_1" }),
   ];
   assert.deepEqual(said, [
     "build previews of pushes to release, feat/*, with the site's keys",
@@ -88,6 +89,7 @@ test("the site's webhook, deploy on push and settings have their own words, and 
     "switch on builds from GitHub pushes for a site with keys",
     "deploy this site on every push, with its keys",
     "change the settings of a site that holds keys",
+    "deploy a site that holds keys, which anyone who can push to its branch can use; protect the branch to deploy without asking",
   ]);
   for (const w of said) assert.doesNotMatch(String(w), /sites?\.|webhook_set|hook_follow|autoDeploy/);
   assert.doesNotMatch(

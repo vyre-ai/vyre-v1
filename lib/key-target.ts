@@ -125,13 +125,13 @@ export async function sourceKeyHost(key: string): Promise<string> {
 export const SKIP_DIRS: readonly string[] = [".git", "node_modules", ".next", ".venv", "venv", "__pycache__"];
 /** The most files and folders a fingerprint reads, and how deep it goes; a folder past either cannot be fingerprinted, which holds (a deploy refuses more than 5000 files anyway). */
 const FP_MAX = 20_000;
-const FP_DEPTH = 64;
+export const FP_DEPTH = 64;
 
 /** One file as the fingerprint counts it: which file, which version and size, and where it sits and what it is called (renaming or moving a file is a change). */
 export const fileLine = (id: string, version: number, size: number, where: string): string =>
-  `f:${id}:${version}:${size}:${where}`;
-/** One folder as the fingerprint counts it: its place in the tree. */
-export const folderLine = (id: string, where: string): string => `d:${id}:${where}`;
+  JSON.stringify(["f", id, version, size, where]);
+/** One folder as the fingerprint counts it: its place in the tree. (JSON, so a newline or a colon in a name can never pass for another line.) */
+export const folderLine = (id: string, where: string): string => JSON.stringify(["d", id, where]);
 /** The fingerprint of a list of file and folder lines: their hash, in an order that does not depend on how the listing was paged. */
 export async function fingerprintOf(lines: string[]): Promise<string> {
   const d = new Uint8Array(
@@ -162,6 +162,8 @@ export async function uploadFingerprint(
       lines.push(fileLine(s.fileId, f.version, f.size ?? 0, f.name ?? ""));
     } else if (s.folderId) {
       const walk = async (folder: string, where: string, depth: number): Promise<boolean> => {
+        // the same depth the fetcher reads to: deeper cannot be fingerprinted, so it cannot be built
+        if (depth > FP_DEPTH) return false;
         let cursor: string | undefined;
         do {
           const page = (await call("files.list", { folder, limit: 500, ...(cursor ? { cursor } : {}) })) as {
@@ -174,7 +176,7 @@ export async function uploadFingerprint(
             if (typeof f.version !== "number") return false;
             lines.push(fileLine(f.fileId, f.version, f.size ?? 0, `${where}${f.name ?? ""}`));
           }
-          if (lines.length > FP_MAX || depth > FP_DEPTH) return false;
+          if (lines.length > FP_MAX) return false;
           for (const sub of page.folders ?? []) {
             if (SKIP_DIRS.includes(sub.name ?? "")) continue;
             const at = `${where}${sub.name ?? ""}/`;
@@ -219,6 +221,8 @@ export interface SiteFacts {
   builtFrom: SiteSource | null;
   /** The fingerprint of the uploaded files the live deploy was built from. */
   deployedFp?: string | null;
+  /** What a person last found out about the production branch on the host (GitHub): protected, open or unknown, which branch and when (ms). */
+  protection?: { state: string; branch?: string; at?: number } | null;
 }
 
 const envEntries = (input: unknown): { name: string; handle: string }[] => {
@@ -312,6 +316,22 @@ export function siteKeyPairs(
     }
   }
   return pairs;
+}
+
+/** How long a look at the production branch's protection is believed. */
+export const PROTECTION_TTL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * A deploy to production by anything but a person, on a site whose production env holds Vault keys and whose code is a git repo: anyone who can push to that branch can use the keys, so the deploy waits for a person unless the branch is protected on the host
+ * (required reviews or restricted pushes), as last seen by a person's own deploy, an approved one, or a check within the last six hours. A branch that is open, unknown, another than the one that was checked, or a look that is old holds.
+ */
+export function protectionHolds(facts: SiteFacts | null, now: number = Date.now()): boolean {
+  if (facts === null) return true;
+  const keyed = facts.env.some((e) => e.handle !== "" && e.scope !== "previews");
+  if (!keyed || !facts.source?.repo) return false;
+  const p = facts.protection;
+  if (!p || p.state !== "protected" || typeof p.at !== "number" || now - p.at > PROTECTION_TTL_MS) return true;
+  return !!facts.source.branch && p.branch !== facts.source.branch;
 }
 
 /**

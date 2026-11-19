@@ -13,6 +13,7 @@ export const HOLD_WHENS: ReadonlySet<string> = new Set([
   "mail.is_provider_setting(input.key)",
   "mail.non_sync_actor(input)",
   "vault.key_host_unapproved(input)",
+  "sites.deploy_gate(input)",
   "gate.by_actor(input)",
   "gate.vault_share_by_actor(input)",
   "changesets.agent_or_push(input)",

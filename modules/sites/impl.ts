@@ -72,11 +72,12 @@ export function siteFacts(
   env: { name: string; handle: string; scope: string }[];
   builtFrom: Src | null;
   deployedFp: string | null;
+  protection: { state: string; branch?: string; at?: number } | null;
 } | null {
   const site = ctx.db.all(
-    "SELECT source, current_deployment FROM sites_site WHERE id = ? AND deleted_at IS NULL",
+    "SELECT source, current_deployment, protection FROM sites_site WHERE id = ? AND deleted_at IS NULL",
     siteId,
-  )[0] as { source?: unknown; current_deployment?: unknown } | undefined;
+  )[0] as { source?: unknown; current_deployment?: unknown; protection?: unknown } | undefined;
   if (!site) return null;
   // what the uploaded files were when the live deploy was built
   const live =
@@ -104,7 +105,19 @@ export function siteFacts(
     )[0] as { built_from?: unknown } | undefined;
     builtFrom = parseSource(d?.built_from);
   }
-  return { source: parseSource(site.source), env, builtFrom, deployedFp };
+  let protection: { state: string; branch?: string; at?: number } | null = null;
+  try {
+    const p = typeof site.protection === "string" ? (JSON.parse(site.protection) as Record<string, unknown>) : null;
+    if (p && typeof p["state"] === "string")
+      protection = {
+        state: p["state"],
+        ...(typeof p["branch"] === "string" ? { branch: p["branch"] } : {}),
+        ...(typeof p["at"] === "number" ? { at: p["at"] } : {}),
+      };
+  } catch {
+    /* unreadable is unknown */
+  }
+  return { source: parseSource(site.source), env, builtFrom, deployedFp, protection };
 }
 /** /hooks/sites: GitHub's webhook for a site, checked with the site's own secret (handlers/hook.ts). */
 export const hostCalls = { "sites.accept_webhook": acceptWebhook };
