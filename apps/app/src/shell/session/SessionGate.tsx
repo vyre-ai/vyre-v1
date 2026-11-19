@@ -1932,6 +1932,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           onSwitchSpace={(id) => void switchSpace(id)}
           onYourSpaces={() => {
             setUnderShell(phase.stored.baseUrl);
+            nearbyTried.current.clear();
             giDo({ e: "list" });
           }}
           onAddSpace={() => {
@@ -1943,20 +1944,21 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       </Suspense>
     </KeyGate>
   );
-  // Your Spaces over a shell that is open (from the screen for a Space that would not load): the shell stays mounted underneath, so Back returns to the same tabs, drafts and place
+  // Your Spaces from the screen for a Space that would not load: the failed shell is not kept running behind the list (nothing of it can see a key typed here); Back opens that Space again, and
+  // the shell asks for its pages afresh. A Space that was open and fine is never put here.
   if (home && rows.length > 0) {
     if (phase.kind === "shell" && !forgot && underShell === phase.stored.baseUrl)
       return (
-        <>
-          <View style={{ display: "none" }}>{renderShell(phase)}</View>
-          <YourSpaces
-            rows={rows}
-            reconnecting={reaching}
-            onOpen={(row) => void openRow(row)}
-            onAdd={addSpace}
-            onBack={() => giDo({ e: "leave-list" })}
-          />
-        </>
+        <YourSpaces
+          rows={rows}
+          reconnecting={reaching}
+          onOpen={(row) => void openRow(row)}
+          onAdd={addSpace}
+          onBack={() => {
+            setShellTry((n) => n + 1);
+            giDo({ e: "leave-list" });
+          }}
+        />
       );
     return spacesScreen;
   }

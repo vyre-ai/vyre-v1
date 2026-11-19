@@ -265,7 +265,7 @@ test("the real gate, 6 walks of 8 random steps: never a dead end, every Space st
   }
 });
 
-test("a saved Space that answers its health check but fails its calls: Your Spaces opens over it and Back returns to the same failed screen; the saved sign-in is never touched", async () => {
+test("a saved Space that answers its health check but fails its calls: Your Spaces opens with nothing of the failed shell mounted behind it, and Back asks for the Space afresh and returns to its failed screen; the saved sign-in is never touched", async () => {
   const realFetch = g.fetch;
   const restore = setQuietWaitsForTests([1, 1]);
   let stopSecond: () => Promise<void> = async () => undefined;
@@ -302,6 +302,8 @@ test("a saved Space that answers its health check but fails its calls: Your Spac
     assert.ok(find(root, "state-retry"), "Try again is beside it");
     await press(find(root, "state-second"));
     await until("your-spaces");
+    assert.equal(find(root, "state-second"), null, "nothing of the failed shell is mounted behind the list");
+    assert.equal(find(root, "state-retry"), null);
     await press(await until("back"));
     await until("state-second");
     assert.equal(find(root, "your-spaces"), null, "Back leaves the list");
