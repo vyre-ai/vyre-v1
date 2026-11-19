@@ -1,5 +1,5 @@
 // mail (lane L5): mailboxes, Gmail/Graph/IMAP sync, the single send API (mail.send), drafts, inbound routes,
-// sending domains with SPF/DKIM/DMARC checks, shared inboxes. Spec 2.18 (Sending, Message status), 2.19, 2.10 (mail sync).
+// sending domains with SPF/DKIM/DMARC checks (at Resend, at Mailgun, or over SMTP on any mail server), shared inboxes. Spec 2.18 (Sending, Message status), 2.19, 2.10 (mail sync).
 // DECISION: events for email are `mail.received` plus the spec names message.sent/delivered/bounced/complained.
 // Spec 2.18 calls the inbound event `message.received`, but the chat module already declares `message.received`
 // (ARCHITECTURE 6.1), so email uses `mail.received` and SMS uses `sms.received` (telephony).
@@ -32,7 +32,21 @@ const privacy = t.enm("private", "space", "people");
 const mboxState = t.enm("pending", "syncing", "paused", "error", "disconnected");
 const msgStatus = t.enm("draft", "queued", "sent", "delivered", "bounced", "complained", "failed", "received");
 const dnsState = t.enm("pass", "fail", "pending");
-const sendProvider = t.enm("resend", "mailgun");
+const sendProvider = t.enm("resend", "mailgun", "smtp");
+const smtpSecurity = t.enm("starttls", "tls");
+const smtpServer = {
+  host: t.opt(t.str({ examples: ["smtp.example.com"] })),
+  port: t.opt(t.int({ minimum: 1, maximum: 65535 })),
+  security: t.opt(smtpSecurity),
+  username: t.opt(t.str()),
+};
+const smtpState = {
+  configured: t.bool(),
+  ...smtpServer,
+  state: t.enm("none", "unchecked", "ok", "failed"),
+  detail: t.opt(t.str({ description: "Why the last test failed, in a sentence a person can act on" })),
+  checkedAt: t.opt(t.ts()),
+};
 
 const tplField = t.obj({ key: t.str(), fallback: t.opt(t.str()) });
 const tplOut = t.obj({
@@ -611,7 +625,7 @@ const manifest = defineManifest({
         senderId: t.opt(
           t.str({
             description:
-              "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+              "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
             examples: ["mbx_a1b2c3"],
           }),
         ),
@@ -636,7 +650,7 @@ const manifest = defineManifest({
           senderId: t.opt(
             t.str({
               description:
-                "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+                "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
               examples: ["mbx_a1b2c3"],
             }),
           ),
@@ -699,7 +713,7 @@ const manifest = defineManifest({
           senderId: t.opt(
             t.str({
               description:
-                "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+                "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
               examples: ["mbx_a1b2c3"],
             }),
           ),
@@ -1011,14 +1025,58 @@ const manifest = defineManifest({
       on: ["domain", "/domainId"],
       tool: "inbox",
     }),
-    write("mail.domain.add", "Add a sending domain at Resend or Mailgun and return the DNS records to publish", {
+    // ---- the Space's own mail server (SMTP)
+    read("mail.smtp.get", "The Space's mail server (SMTP) and its last test", {
+      in: {},
+      out: smtpState,
+      perm: "comms.domains",
+      tool: "inbox",
+      label: "check",
+    }),
+    write("mail.smtp.set", "Save the Space's mail server (SMTP); the password stays in the Vault", {
+      in: {
+        host: t.str({ examples: ["smtp.example.com"] }),
+        port: t.int({ minimum: 1, maximum: 65535 }),
+        security: t.opt(smtpSecurity),
+        username: t.str(),
+        passwordHandle: id.handle,
+      },
+      out: smtpState,
+      perm: "comms.domains",
+      audit: "always",
+      tool: "inbox",
+      idem: "natural",
+      errors: ["validation.bad_input"],
+    }),
+    outward(
+      "mail.smtp.verify",
+      "Test a mail server: connect and sign in, nothing is sent. No input tests the saved one",
+      {
+        in: { ...smtpServer, passwordHandle: t.opt(id.handle) },
+        out: {
+          ok: t.bool(),
+          reason: t.opt(t.enm("blocked", "refused", "unknown_host", "auth", "tls", "failed")),
+          message: t.str(),
+          ms: t.int(),
+        },
+        perm: "comms.domains",
+        gate: {
+          act: "none",
+          reason: "Opens a connection to the Space's own mail server and signs in; nothing is sent to anyone",
+        },
+        tool: "inbox",
+        offline: "online",
+        errors: ["validation.bad_input"],
+      },
+    ),
+    write("mail.domain.add", "Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish", {
       in: { name: t.str({ examples: ["mail.example.com"] }), provider: sendProvider },
       out: { domain: domainRow, records: t.arr(dnsRecord) },
       perm: "comms.domains",
       emits: ["sending_domain.added"],
       idem: "key",
       tool: "inbox",
-      errors: ["validation.duplicate", "provider.auth_failed"],
+      errors: ["validation.duplicate", "provider.auth_failed", "validation.precondition_failed"],
     }),
     write("mail.domain.check", "Re-check SPF, DKIM and DMARC for a domain (mailauth) and ask the provider to verify", {
       in: { domainId: id.domain },
@@ -1140,7 +1198,7 @@ const manifest = defineManifest({
     }),
   ],
   settings: [
-    setting("mail.provider", "space", "comms", "Space sending provider", t.enm("resend", "mailgun"), "resend"),
+    setting("mail.provider", "space", "comms", "Space sending provider", t.enm("resend", "mailgun", "smtp"), "resend"),
     // Console > Messaging > Rules, sending limits. mail.send and telephony.send_sms read them (lib/send-limits.ts): over the daily limit a send is refused (send_cap_reached), outside the window or over the speed it is queued
     setting(
       "send.cap",

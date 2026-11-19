@@ -5,7 +5,7 @@
 import { fail } from "../../../../host/src/routes/errors.ts";
 import { bad, first, isId, missing, newId, num, rowsOf, str } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
-import { ensureAll, idemRef, liveMailbox, pageOf, parsePage, rememberIdem } from "./common.ts";
+import { ensureAll, idemRef, liveMailbox, pageOf, parsePage, preconditionFailed, rememberIdem } from "./common.ts";
 import type { PageIn } from "./common.ts";
 
 type Provider = "resend" | "mailgun";
@@ -83,6 +83,12 @@ export async function routeSet(
     bad(ctx, "The address part must be letters, digits, dots, plus or dashes, or * for the catch-all.");
   if (!isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
   if (!liveMailbox(ctx, input.mailboxId)) missing(ctx, "Mailbox does not exist.");
+  // an SMTP domain's mail arrives at the person's own mail server, not at a provider that can forward it here
+  if (str(domain, "provider") === "smtp")
+    preconditionFailed(
+      ctx,
+      "Mail for this domain arrives at your own mail server. Connect that mailbox in Settings, Email and calendar, to bring it into Vyre.",
+    );
   const provider = providerOf(domain);
   const existing = first(
     ctx.db.all(

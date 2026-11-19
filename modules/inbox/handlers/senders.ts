@@ -29,7 +29,7 @@ export const DEFAULT_KEY: Readonly<Record<SenderChannel, string>> = {
   text: "comms.default_sender_text",
 };
 const PAGES = 20;
-const SPACE_DOMAIN_VIA: Readonly<Record<string, string>> = { resend: "Resend", mailgun: "Mailgun" };
+const SPACE_DOMAIN_VIA: Readonly<Record<string, string>> = { resend: "Resend", mailgun: "Mailgun", smtp: "SMTP" };
 const MEMBER_VIA: Readonly<Record<string, { via: string; provider: string }>> = {
   google: { via: "Gmail", provider: "google" },
   microsoft: { via: "Outlook", provider: "microsoft" },
@@ -78,7 +78,7 @@ async function emailSenders(ctx: InboxCtx): Promise<Sender[]> {
     allPages(ctx, "mail.domain.list", {}, "domains"),
   );
   const chosen = await readSetting(ctx, "mail.provider");
-  const spaceProvider = chosen === "mailgun" ? "mailgun" : "resend";
+  const spaceProvider = chosen === "mailgun" || chosen === "smtp" ? chosen : "resend";
   const spaceVia = SPACE_DOMAIN_VIA[spaceProvider] ?? "Resend";
   const hasDomain = domains.some((d) => d.verified === true && text(d.provider) === spaceProvider);
   const person = ctx.principal.kind === "person";
