@@ -7,8 +7,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { find, flush, installDom, mount, press, textOf } from "../testing/dom.ts";
 import { escapeLayers } from "../Overlay/escape.ts";
 import { useState } from "react";
+import { Text } from "react-native";
 import { setReportProblemHandler } from "../Menu/index.tsx";
-import { InlineConfirm, step } from "./index.tsx";
+import { LAYOUT, InlineConfirm, step, verbOf } from "./index.tsx";
 import type { ConfirmEvent, ConfirmState } from "./logic.ts";
 
 test("the machine: confirm does nothing while wary or spent, fires when armed, then waits to arm again; cancel works in every live state and ends it", () => {
@@ -210,51 +211,60 @@ test("a rejected confirm shows its own line, opens nothing by itself, re-arms, a
   }
 });
 
-test("the failure line is plain words chosen from the code, never the server's message", async () => {
+const failWith = async (err: unknown, o: { confirmLabel?: string; withField?: boolean } = {}): Promise<string> => {
+  const root = await mount(
+    createRoot,
+    <InlineConfirm
+      testID="ic"
+      question="Do it?"
+      confirmLabel={o.confirmLabel ?? "Delete"}
+      armMs={20}
+      onConfirm={() => Promise.reject(err)}
+      onCancel={() => undefined}
+      confirmTestID="ic-go"
+    >
+      {o.withField ? <Text>a field</Text> : undefined}
+    </InlineConfirm>,
+  );
+  await wait(50);
+  await press(find(root, "ic-go"));
+  await wait(60);
+  return textOf(find(root, "ic-failed"))
+    .replace(/Report\s*$/, "")
+    .trim();
+};
+
+test("the failure line is fixed words chosen from the code, and never the server's message", async () => {
   const restore = installDom();
   try {
-    for (const [err, want] of [
+    const ugly = "10.0.0.4:5432 rec_123 name_9 select * Ada Lovelace";
+    const g = (code: string): unknown => ({ error: { code, message: ugly } });
+    const cases: Array<[unknown, RegExp, string?]> = [
+      [g("access.denied"), /^You don't have access to delete this\.$/],
+      [g("conflict.stale"), /^It changed first\. Try again\.$/],
+      [g("validation.version_conflict"), /^It changed first\. Try again\.$/],
+      [g("validation.not_found"), /^It's already gone\.$/],
+      [g("validation.duplicate"), /^That name is taken\.$/],
+      [g("validation.precondition_failed"), /^Something it depends on changed\. Refresh and try again\.$/],
+      [g("validation.too_large"), /^That can't be done as it is\.$/],
+      [g("internal.sql"), /^That did not work\. You can try again\.$/],
+      [g("network.down"), /^Couldn't reach the Space\.$/],
+      [new TypeError("Failed to fetch"), /^Couldn't reach the Space\.$/],
+      ["boom for Ada Lovelace", /^That did not work\. You can try again\.$/],
+      // a look-alike code or a server-side "timed out" is not a lost connection
+      [g("network_config.invalid"), /^That did not work\. You can try again\.$/],
       [
-        { error: { code: "access.denied", message: "no grant for rec_9 on 10.0.0.4:5432" } },
-        /^You don't have access to delete this\.\s*$/,
+        { error: { code: "internal.timeout", message: "canceling statement due to statement timeout" } },
+        /^That did not work\. You can try again\.$/,
       ],
-      [
-        { error: { code: "conflict.stale", message: "version 4 != 5 (select * from t)" } },
-        /^It changed first\. Try again\.\s*$/,
-      ],
-      [new Error("connect ECONNREFUSED 10.0.0.4:5432"), /^Couldn't reach the Space\.\s*$/],
-      [new TypeError("Failed to fetch"), /^Couldn't reach the Space\.\s*$/],
-      [{ error: { code: "validation.not_found", message: "No record rec_123" } }, /^It's already gone\.\s*$/],
-      [
-        { error: { code: "validation.shape", message: "field name_9 must not be empty" } },
-        /^That can't be deleted as it is\.\s*$/,
-      ],
-      [
-        { error: { code: "internal.sql", message: "syntax error at or near" } },
-        /^That did not work\. You can try again\.\s*$/,
-      ],
-      ["boom for Ada Lovelace", /^That did not work\. You can try again\.\s*$/],
-    ] as const) {
-      const root = await mount(
-        createRoot,
-        <InlineConfirm
-          testID="ic"
-          question="Delete?"
-          confirmLabel="Delete"
-          armMs={20}
-          onConfirm={() => Promise.reject(err)}
-          onCancel={() => undefined}
-          confirmTestID="ic-go"
-        />,
-      );
-      await wait(50);
-      await press(find(root, "ic-go"));
-      await wait(60);
-      const line = textOf(find(root, "ic-failed")).replace(/Report\s*$/, "");
-      assert.match(line, want);
+      [new Error("request timed out on the server"), /^That did not work\. You can try again\.$/],
+    ];
+    for (const [err, want] of cases) {
+      const line = await failWith(err);
+      assert.match(line, want, JSON.stringify(err).slice(0, 60));
       assert.doesNotMatch(
         line,
-        /10\.0\.0\.4|rec_9|rec_123|name_9|select|Lovelace|object Object/,
+        /10\.0\.0\.4|rec_123|name_9|select|Lovelace|object Object|timed out/,
         "no server text reaches the screen",
       );
     }
@@ -263,17 +273,57 @@ test("the failure line is plain words chosen from the code, never the server's m
   }
 });
 
-test("in the compact row the failure line is one line that gives way (ellipsis), so Delete and Cancel stay on the strip", async () => {
+test("the words use the strip's own verb, and a type-the-name strip says what to fix", async () => {
+  const restore = installDom();
+  try {
+    assert.match(
+      await failWith({ error: { code: "access.denied" } }, { confirmLabel: "Remove" }),
+      /access to remove this\./,
+    );
+    assert.match(
+      await failWith({ error: { code: "access.denied" } }, { confirmLabel: "Disconnect GitHub" }),
+      /access to disconnect this\./,
+    );
+    assert.match(
+      await failWith({ error: { code: "access.denied" } }, { confirmLabel: "Confirm change" }),
+      /access to do this\./,
+    );
+    assert.equal(verbOf("Move to Trash"), "move");
+    assert.match(
+      await failWith({ error: { code: "validation.bad_input" } }, { withField: true }),
+      /^Type the name exactly to confirm\.$/,
+    );
+    assert.match(
+      await failWith({ error: { code: "validation.bad_input" } }),
+      /^That can't be done as it is\.$/,
+      "no field: no guess about it",
+    );
+  } finally {
+    restore();
+  }
+});
+
+test("layout: the compact row never wraps and its failure line is one line; the full strip wraps", async () => {
+  assert.equal(LAYOUT.compact.flexWrap, "nowrap");
+  assert.equal(LAYOUT.failedRowCompact.flexShrink, 1);
+  assert.equal(LAYOUT.failedRowCompact.minWidth, 0);
+  assert.equal(
+    (LAYOUT.failedRowCompact as Record<string, unknown>)["flexWrap"],
+    undefined,
+    "the compact failure row does not wrap",
+  );
+  assert.equal(
+    LAYOUT.failedRowFull.flexWrap,
+    "wrap",
+    "the full strip lets the line and Report wrap on a narrow screen",
+  );
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
   assert.match(
     src,
-    /compact: \{ flexDirection: "row", flexWrap: "nowrap"/,
-    "the compact row does not wrap its buttons off",
+    /\{\.\.\.\(compact \? \{ numberOfLines: 1 \} : \{\}\)\}/,
+    "only compact ellipsises (a source check: the fake DOM has no layout)",
   );
-  assert.match(src, /<Text numberOfLines=\{1\} style=\{s\.failed\}>/, "one line, ellipsised");
-  assert.match(src, /failedRow: \{[^}]*flexShrink: 1[^}]*minWidth: 0/, "the line shrinks");
-  assert.match(src, /failed: \{ flexShrink: 1, minWidth: 0/);
 });
 
 test("a compact strip shows the failure line too", async () => {

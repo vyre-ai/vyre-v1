@@ -48,27 +48,66 @@ export interface InlineConfirmProps {
   cancelTestID?: string;
 }
 
-/** Plain words for a failed confirm, chosen from the error's code: never the server's own message, which can carry hosts, SQL, names or ids. */
-export function wordsFor(code: string, e: unknown): string {
-  if (/^access\./.test(code)) return "You don't have access to delete this.";
-  if (/^conflict\./.test(code)) return "It changed first. Try again.";
+/** The verb of a strip, for "You don't have access to <verb> this.": the first word of its confirm label when that is an action word, else "do". */
+export function verbOf(confirmLabel: string): string {
+  const w = confirmLabel.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+  const known = [
+    "delete",
+    "remove",
+    "revoke",
+    "discard",
+    "disconnect",
+    "leave",
+    "release",
+    "erase",
+    "drain",
+    "unmount",
+    "stop",
+    "archive",
+    "restore",
+    "suspend",
+    "move",
+    "turn",
+    "switch",
+    "apply",
+    "end",
+    "close",
+    "start",
+    "create",
+  ];
+  return known.includes(w) ? w : "do";
+}
+
+/** What a rejection is, read once from either shape (an Error, or the gateway's `{ error: { code, message } }`): a short safe code, and whether it is a real transport failure (no code: a fetch TypeError, or the browser is offline). */
+export function readFailure(e: unknown): { code: string; transport: boolean } {
+  const o = e as { code?: unknown; error?: { code?: unknown } } | null;
+  const raw = typeof o?.error?.code === "string" ? o.error.code : typeof o?.code === "string" ? o.code : "";
+  const code = /^[a-z0-9_.-]{1,40}$/i.test(raw) ? raw : "";
+  const nav = (globalThis as { navigator?: { onLine?: boolean } }).navigator;
+  const transport = code === "" && (e instanceof TypeError || nav?.onLine === false);
+  return { code, transport };
+}
+
+/** Plain words for a failed confirm, chosen from the error's code and never from the server's own message, which can carry hosts, SQL, names or ids. `field`: the strip holds a "type the name" box. */
+export function wordsFor(f: { code: string; transport: boolean }, verb: string, field = false): string {
+  const { code } = f;
+  if (f.transport || /^(net|network|offline)\./i.test(code)) return "Couldn't reach the Space.";
+  if (/^access\./.test(code)) return `You don't have access to ${verb} this.`;
+  if (/^conflict\./.test(code) || code === "validation.version_conflict") return "It changed first. Try again.";
   if (code === "validation.not_found") return "It's already gone.";
-  if (/^validation\./.test(code)) return "That can't be deleted as it is.";
-  const m = (typeof e === "string" ? e : ((e as { message?: unknown } | null)?.message ?? "")) as unknown;
-  if (
-    /^(net|network|offline|unreachable)[._-]?/i.test(code) ||
-    (typeof m === "string" && /failed to fetch|network|econnrefused|timed out|offline/i.test(m))
-  )
-    return "Couldn't reach the Space.";
+  if (code === "validation.duplicate") return "That name is taken.";
+  if (code === "validation.precondition_failed") return "Something it depends on changed. Refresh and try again.";
+  if (code === "validation.bad_input" && field) return "Type the name exactly to confirm.";
+  if (/^validation\./.test(code)) return "That can't be done as it is.";
   return "That did not work. You can try again.";
 }
 
-/** A short error code from a rejection ("access.denied"), or "": never a message, which can carry a name, an id or a link. */
-function codeOf(e: unknown): string {
-  const o = e as { code?: unknown; error?: { code?: unknown } } | null;
-  const c = typeof o?.error?.code === "string" ? o.error.code : typeof o?.code === "string" ? o.code : "";
-  return /^[a-z0-9_.-]{1,40}$/i.test(c) ? c : "";
-}
+/** The three layout rules of the failure line, plain objects so a test can read them: the compact row never wraps and its line is one ellipsised line; the full strip wraps. */
+export const LAYOUT = {
+  compact: { flexDirection: "row", flexWrap: "nowrap", flexShrink: 1, minWidth: 0, alignItems: "center", gap: 6 },
+  failedRowCompact: { flexDirection: "row", flexShrink: 1, minWidth: 0, alignItems: "center", gap: 8, marginTop: 4 },
+  failedRowFull: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 4 },
+} as const;
 
 const web = Platform.OS === "web";
 type Focusable = { focus?: () => void };
@@ -164,9 +203,10 @@ export function InlineConfirm({
           },
           (e: unknown) => {
             clearTimeout(cap);
-            const code = codeOf(e);
+            const f = readFailure(e);
+            const code = f.code;
             // the gateway's own words only for a user-facing family; anything else (a network error, a stack) gets the plain line
-            setFailed({ code, text: wordsFor(code, e) });
+            setFailed({ code, text: wordsFor(f, verbOf(confirmLabel), children !== undefined) });
             done();
             // the strip says it did not work (inline); a person who wants to tell Vyre presses Report. Nothing opens by itself and nothing is thrown.
           },
@@ -210,8 +250,12 @@ export function InlineConfirm({
   useEscapeLayer(true, () => send("cancel"));
   const fill = danger ? "var(--danger)" : "var(--accent)";
   const failureLine = failed ? (
-    <View accessibilityRole="alert" testID={testID ? `${testID}-failed` : undefined} style={s.failedRow}>
-      <Text numberOfLines={1} style={s.failed}>
+    <View
+      accessibilityRole="alert"
+      testID={testID ? `${testID}-failed` : undefined}
+      style={compact ? LAYOUT.failedRowCompact : LAYOUT.failedRowFull}
+    >
+      <Text {...(compact ? { numberOfLines: 1 } : {})} style={s.failed}>
         {failed.text}
       </Text>
       <Pressable
@@ -289,14 +333,13 @@ const s = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: "var(--sunk)" as string,
   },
-  compact: { flexDirection: "row", flexWrap: "nowrap", alignItems: "center", gap: 6 },
+  compact: LAYOUT.compact,
   text: { flexGrow: 1, flexShrink: 1, minWidth: 160 },
   question: { fontSize: 13.5, lineHeight: 19, fontWeight: "600", color: "var(--ink)" as string },
-  failedRow: { flexDirection: "row", flexShrink: 1, minWidth: 0, alignItems: "center", gap: 8, marginTop: 4 },
   failed: { flexShrink: 1, minWidth: 0, fontSize: 12.5, lineHeight: 18, color: "var(--danger)" as string },
   report: { fontSize: 12.5, lineHeight: 18, fontWeight: "500", color: "var(--accent)" as string },
   note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: 2 },
-  buttons: { flexDirection: "row", alignItems: "center", gap: 6 },
+  buttons: { flexDirection: "row", flexShrink: 0, alignItems: "center", gap: 6 },
   btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   btnText: { fontSize: 13, fontWeight: "500", color: "var(--ink-2)" as string },
   btnFill: { color: "#FFFFFF", fontWeight: "600" },
