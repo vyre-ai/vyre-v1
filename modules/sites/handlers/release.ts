@@ -35,6 +35,7 @@ import type { AddonKind, Limits, Runner } from "./runner.ts";
 import { cleanBranch, fetchSource, remoteHead, repoUrl, SourceError } from "./source.ts";
 import type { SourceSpec } from "./source.ts";
 import { routesHost, siteRunner } from "./route.ts";
+import { cleanupOps } from "./ops-cleanup.ts";
 
 type Row = Record<string, unknown>;
 type Db = Ctx["db"];
@@ -2005,6 +2006,7 @@ export async function stopDeployed(ctx: Ctx, site: Row, removeAll: boolean): Pro
   if (!r) return;
   if (!isNull(site.container_id) && removeAll) await r.remove(str(site.container_id)).catch(() => undefined);
   if (removeAll) {
+    await cleanupOps(ctx, str(site.id));
     for (const d of many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND container_id IS NOT NULL", site.id))
       await r.remove(str(d.container_id)).catch(() => undefined);
     for (const d of many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND image IS NOT NULL", site.id))
