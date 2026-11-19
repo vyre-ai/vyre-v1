@@ -163,14 +163,19 @@ export function deviceFor(
   return { deviceName: named === "This device" ? "Web browser" : named, deviceClass };
 }
 
+/** A bare name (northwind) is that name under vyre.run: the host it means, or null when what was typed is not a bare name. The one rule every address box shares. */
+export function bareSpaceName(raw: string): string | null {
+  const typed = raw.trim();
+  return /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/i.test(typed) && typed.toLowerCase() !== "localhost"
+    ? `${typed.toLowerCase()}.${SPACE_ZONE}`
+    : null;
+}
+
 /** A Space is always reached through an explicit HTTP(S) address, never through the Tauri device daemon. A bare name is that name under vyre.run. */
 export function normalizeSpaceAddress(raw: string): string | null {
   const typed = raw.trim();
   if (!typed) return null;
-  const value =
-    /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/i.test(typed) && typed.toLowerCase() !== "localhost"
-      ? `${typed.toLowerCase()}.${SPACE_ZONE}`
-      : typed;
+  const value = bareSpaceName(typed) ?? typed;
   if (/^[a-z][a-z\d+.-]*:/i.test(value) && !/^https?:\/\//i.test(value)) return null;
   const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(value) ? value : `https://${value}`;
   try {
