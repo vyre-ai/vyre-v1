@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS mail_status_log (
 );
 `;
 
+const ROUTE_UNIQUE = `CREATE UNIQUE INDEX IF NOT EXISTS mail_route__address ON mail_route ("domainId", "localPart") WHERE deleted_at IS NULL`;
 const ready = new WeakSet<object>();
 
 /** Make sure the core mail tables and this packet's extra tables exist. One cheap probe per call after the first. */
@@ -30,6 +31,13 @@ export function ensureAll(ctx: Pick<MailCtx, "db">): void {
     ctx.db.all(`SELECT "routeId" FROM mail_route_ext WHERE "routeId" = ?`, "probe");
   } catch {
     for (const statement of statements(EXTRA_SQL)) ctx.db.run(statement);
+  }
+  // One live route per address. The database refuses a second, so two people adding the same name at once cannot both write it: the loser is told, and nothing is repointed.
+  // An old database that already holds a duplicate keeps working without the index (the handlers still check).
+  try {
+    ctx.db.run(ROUTE_UNIQUE);
+  } catch {
+    /* a duplicate from before: left as it is */
   }
   ready.add(ctx.db);
 }

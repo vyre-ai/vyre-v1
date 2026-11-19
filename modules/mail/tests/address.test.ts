@@ -154,7 +154,7 @@ test("adding a name that is taken is refused and says where its mail goes; nothi
   );
 });
 
-test("a retry of the same add with the same key answers the same address, and a taken name's inbox title is never shown to someone who cannot open it", async () => {
+test("a retry of the same add with the same key answers the same address, and an inbox the caller cannot open is left out of the list", async () => {
   const h = setup();
   const k = key();
   const a = await addressAdd(h.ctx, { domainId: "dom_northwind", localPart: "sales", idempotencyKey: k });
@@ -166,8 +166,12 @@ test("a retry of the same add with the same key answers the same address, and a 
     /already goes to a private inbox\./,
   );
   const list = await addressList(h.ctx, {});
-  assert.equal(list.addresses.find((x) => x.address === "sales@northwind.example")?.mailboxTitle, "A private inbox");
-  assert.ok(list.addresses.find((x) => x.address === "hello@northwind.example")?.mailboxTitle !== "A private inbox");
+  assert.equal(
+    list.addresses.some((x) => x.address === "sales@northwind.example"),
+    false,
+    "an inbox the caller cannot view is not listed, so its address does not leak",
+  );
+  assert.ok(list.addresses.some((x) => x.address === "hello@northwind.example"));
 });
 
 test("an inbox the person cannot use, or someone else's personal inbox, cannot receive a new address", async () => {
@@ -324,4 +328,80 @@ test("finishing an inbox left without a route needs the right to use it; moving 
       .map((r) => r.mailboxId),
     ["mbx_closed"],
   );
+});
+
+test("two people adding the same name at once: exactly one wins, the other is told it is taken, and mail never moves", async () => {
+  const h = setup();
+  seedMailbox(h, "mbx_accounts", "accounts@northwind.example", { kind: "shared", privacy: "space" });
+  const results = await Promise.allSettled([
+    addressAdd(h.ctx, {
+      domainId: "dom_northwind",
+      localPart: "billing",
+      mailboxId: "mbx_hello",
+      idempotencyKey: key(),
+    }),
+    addressAdd(h.ctx, {
+      domainId: "dom_northwind",
+      localPart: "billing",
+      mailboxId: "mbx_accounts",
+      idempotencyKey: key(),
+    }),
+  ]);
+  const won = results.filter((r) => r.status === "fulfilled");
+  const lost = results.filter((r) => r.status === "rejected");
+  assert.equal(won.length, 1);
+  assert.equal(lost.length, 1);
+  assert.equal(codeOf((lost[0] as PromiseRejectedResult).reason), "validation.duplicate");
+  const routes = h.rows(`SELECT "mailboxId" FROM mail_route WHERE "localPart" = ? AND deleted_at IS NULL`, "billing");
+  assert.deepEqual(
+    routes.map((r) => r.mailboxId),
+    [(won[0] as PromiseFulfilledResult<{ address: { mailboxId: string } }>).value.address.mailboxId],
+  );
+});
+
+test("with a slow provider in between, the loser takes its provider route back and the winner's route stays", async () => {
+  const h = harness();
+  seedDomain(h, { id: "dom_mg", name: "mg.example", provider: "mailgun", verified: true, ref: "mg.example" });
+  seedMailbox(h, "mbx_a", "a@mg.example", { kind: "shared", privacy: "space" });
+  seedMailbox(h, "mbx_b", "b@mg.example", { kind: "shared", privacy: "space" });
+  let n = 0;
+  script(h, {
+    "mailgun.routes.create": async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      return { route: { routeId: `mgr_${++n}` } };
+    },
+    "mailgun.routes.delete": () => ({}),
+  });
+  const results = await Promise.allSettled([
+    addressAdd(h.ctx, { domainId: "dom_mg", localPart: "sales", mailboxId: "mbx_a", idempotencyKey: key() }),
+    addressAdd(h.ctx, { domainId: "dom_mg", localPart: "sales", mailboxId: "mbx_b", idempotencyKey: key() }),
+  ]);
+  assert.deepEqual(results.map((r) => r.status).sort(), ["fulfilled", "rejected"]);
+  assert.equal(h.rows(`SELECT * FROM mail_route WHERE deleted_at IS NULL`).length, 1);
+  assert.equal(
+    h.called.filter((c) => c.cap === "mailgun.routes.delete").length,
+    1,
+    "the loser's provider route was removed",
+  );
+});
+
+test("when the database itself refuses a second live route for a name, the add says it is taken, leaves no inbox and no route, and removes the provider route", async () => {
+  const h = harness();
+  seedDomain(h, { id: "dom_mg", name: "mg.example", provider: "mailgun", verified: true, ref: "mg.example" });
+  script(h, { "mailgun.routes.create": () => ({ route: { routeId: "mgr_1" } }), "mailgun.routes.delete": () => ({}) });
+  const run = h.ctx.db.run.bind(h.ctx.db);
+  h.ctx.db.run = (sql: string, ...args: unknown[]) => {
+    if (/^\s*INSERT INTO mail_route\b/i.test(sql))
+      throw new Error("UNIQUE constraint failed: mail_route.domainId, mail_route.localPart");
+    return run(sql, ...args);
+  };
+  assert.match(
+    await msg(addressAdd(h.ctx, { domainId: "dom_mg", localPart: "team", idempotencyKey: key() })),
+    /^validation\.duplicate: .*just taken/,
+  );
+  assert.equal(
+    h.rows(`SELECT * FROM mail_mailbox WHERE address = ? AND deleted_at IS NULL`, "team@mg.example").length,
+    0,
+  );
+  assert.equal(h.called.filter((c) => c.cap === "mailgun.routes.delete").length, 1);
 });

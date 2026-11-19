@@ -5,7 +5,16 @@
 import { fail } from "../../../../host/src/routes/errors.ts";
 import { bad, first, isId, missing, newId, num, rowsOf, str } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
-import { ensureAll, idemRef, liveMailbox, pageOf, parsePage, preconditionFailed, rememberIdem } from "./common.ts";
+import {
+  duplicate,
+  ensureAll,
+  idemRef,
+  liveMailbox,
+  pageOf,
+  parsePage,
+  preconditionFailed,
+  rememberIdem,
+} from "./common.ts";
 import type { PageIn } from "./common.ts";
 
 type Provider = "resend" | "mailgun";
@@ -69,7 +78,7 @@ export function mailgunExpression(localPart: string, domain: string): string {
 
 export async function routeSet(
   ctx: MailCtx,
-  input: { domainId: string; localPart: string; mailboxId: string; idempotencyKey: string },
+  input: { domainId: string; localPart: string; mailboxId: string; idempotencyKey: string; create?: boolean },
 ): Promise<{ route: RouteOut }> {
   ensureAll(ctx);
   const prior = idemRef(ctx, input.idempotencyKey, "routeset");
@@ -99,6 +108,9 @@ export async function routeSet(
   );
   const now = ctx.now();
   let routeId: string;
+  // `create` is an add, never a move: a name that is taken is refused, and nothing is repointed (mail.address.move does that on purpose)
+  if (existing && input.create === true)
+    duplicate(ctx, `${localPart}@${str(domain, "name")} is already in use. Moving it is a separate step.`);
   if (existing) {
     routeId = str(existing, "id");
     if (str(existing, "mailboxId") !== input.mailboxId) {
@@ -123,17 +135,40 @@ export async function routeSet(
         throw fail("provider.bad_response", ctx.trace.traceId, { message: "Mailgun did not return the route." });
     }
     routeId = newId("rte", now);
-    ctx.db.run(
-      `INSERT INTO mail_route (id, "domainId", "localPart", "mailboxId", provider, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      routeId,
-      input.domainId,
-      localPart,
-      input.mailboxId,
-      provider,
-      1,
-      now,
-      null,
-    );
+    // The provider call above took time. Look again, then write: the unique index on the live address is the last word, and the loser takes its provider route back and says so.
+    const lost = (): never => {
+      if (providerRouteId)
+        void ctx
+          .call("mailgun.routes.delete", { idempotencyKey: `mail.routes.lost:${routeId}`, routeId: providerRouteId })
+          .catch(() => undefined);
+      return duplicate(ctx, `${localPart}@${str(domain, "name")} was just taken by someone else.`);
+    };
+    if (
+      first(
+        ctx.db.all(
+          `SELECT id FROM mail_route WHERE "domainId" = ? AND "localPart" = ? AND deleted_at IS NULL`,
+          input.domainId,
+          localPart,
+        ),
+      )
+    )
+      lost();
+    try {
+      ctx.db.run(
+        `INSERT INTO mail_route (id, "domainId", "localPart", "mailboxId", provider, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        routeId,
+        input.domainId,
+        localPart,
+        input.mailboxId,
+        provider,
+        1,
+        now,
+        null,
+      );
+    } catch (e) {
+      if (/unique|constraint/i.test(e instanceof Error ? e.message : String(e))) lost();
+      throw e;
+    }
     if (providerRouteId)
       ctx.db.run(
         `INSERT OR IGNORE INTO mail_route_ext ("routeId", "providerRouteId") VALUES (?, ?)`,

@@ -47,13 +47,13 @@ export async function addressList(
   for (const m of rowsOf(ctx.db.all(`SELECT * FROM mail_mailbox WHERE deleted_at IS NULL`))) {
     const address = str(m, "address");
     const dom = byName.get(address.slice(address.lastIndexOf("@") + 1));
-    if (!dom) continue;
+    if (!dom || !seen(ctx, str(m, "id"))) continue; // an inbox the caller cannot view is not listed at all: its address would tell
     rows.push({
       address,
       domainId: str(dom, "id"),
       kind: "mailbox",
       mailboxId: str(m, "id"),
-      mailboxTitle: seen(ctx, str(m, "id")) ? str(m, "title") : PRIVATE_TITLE,
+      mailboxTitle: str(m, "title"),
       receives: str(dom, "provider") !== "smtp",
     });
   }
@@ -63,7 +63,7 @@ export async function addressList(
   for (const r of rowsOf(ctx.db.all(`SELECT * FROM mail_route WHERE deleted_at IS NULL`))) {
     const dom = domains.find((d) => str(d, "id") === str(r, "domainId"));
     const box = boxes.get(str(r, "mailboxId"));
-    if (!dom || !box) continue;
+    if (!dom || !box || !seen(ctx, str(box, "id"))) continue;
     const address = `${str(r, "localPart")}@${str(dom, "name")}`;
     if (address === str(box, "address")) continue; // the inbox's own address is already listed once
     rows.push({
@@ -71,7 +71,7 @@ export async function addressList(
       domainId: str(dom, "id"),
       kind: "alias",
       mailboxId: str(box, "id"),
-      mailboxTitle: seen(ctx, str(box, "id")) ? str(box, "title") : PRIVATE_TITLE,
+      mailboxTitle: str(box, "title"),
       routeId: str(r, "id"),
       receives: true,
     });
@@ -188,6 +188,7 @@ export async function addressAdd(ctx: MailCtx, input: AddressAddIn): Promise<{ a
           localPart,
           mailboxId,
           idempotencyKey: `${input.idempotencyKey}:route`,
+          create: true,
         })
       ).route.id;
     } catch (e) {
