@@ -44,6 +44,7 @@ type In = {
     defHash: string;
     ask?: boolean;
   };
+  origin?: string;
   ask?: {
     by: {
       kind: "person" | "agent" | "actor" | "service";
@@ -92,6 +93,7 @@ type Out = {
     "decisionId": "example",
     "idempotencyKey": "idem_1",
     "input": {},
+    "origin": "example",
     "payloadHash": "example",
     "principal": {
       "id": "usr_a1b2c3",

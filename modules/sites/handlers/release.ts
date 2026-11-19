@@ -12,6 +12,7 @@
 // @reads ../migrations/0006_env_plain.sql
 // @reads ../migrations/0015_built_from.sql
 // @reads ../migrations/0016_branch_protection.sql
+// @reads ../migrations/0017_hook_vault.sql
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
 import {
@@ -2409,30 +2410,48 @@ export function siteHostOf(site: Row): string | null {
 
 /** For the host's push check: sites that deploy on a push, with whom to run the deploy as. */
 export function autoDeploySites(ctx: Pick<Ctx, "db">): { siteId: string; as: string; branch: string }[] {
-  const waiting = new Set(
-    (
-      ctx.db.all(
-        "SELECT DISTINCT site_id FROM sites_push WHERE action = 'deploy' AND error LIKE ? AND failed_at > ?",
-        "Waiting for a person%",
-        Date.now() - 24 * 60 * 60 * 1000,
-      ) as Row[]
-    ).map((r) => str(r.site_id)),
-  );
   return (
-    (
+    ctx.db.all("SELECT * FROM sites_site WHERE auto_deploy = 1 AND deleted_at IS NULL AND source IS NOT NULL") as Row[]
+  )
+    .filter((r) => sourceOf(r)?.repo)
+    .map((r) => ({
+      siteId: str(r.id),
+      as: isNull(r.deployed_by) ? str(r.owner) : str(r.deployed_by),
+      branch: sourceOf(r)?.branch ?? "",
+    }));
+}
+
+/**
+ * The deploys a tick should ask for: a site that deploys on push, and only when its branch has a commit that was not deployed (the same check onlyIfChanged makes in the handler, made here, before the Gate, so a commit that was already
+ * handled never reaches it). A commit that already waits for a person is not asked for again: one card and one row per site and commit. When the head cannot be read the commit is unknown: the site is asked for once and then waits.
+ */
+export async function autoDeployTargets(
+  ctx: Pick<Ctx, "db">,
+  headOf: (repo: string, branch: string | undefined) => Promise<string | null> = (repo, branch) =>
+    remoteHead(repo, branch, null).catch(() => null),
+): Promise<{ siteId: string; as: string; branch: string; head: string | null }[]> {
+  const out: { siteId: string; as: string; branch: string; head: string | null }[] = [];
+  for (const a of autoDeploySites(ctx)) {
+    const site = (ctx.db.all("SELECT * FROM sites_site WHERE id = ?", a.siteId) as Row[])[0];
+    const source = site ? sourceOf(site) : null;
+    if (!source?.repo) continue;
+    const head = await headOf(source.repo, source.branch).catch(() => null);
+    const last = (
       ctx.db.all(
-        "SELECT * FROM sites_site WHERE auto_deploy = 1 AND deleted_at IS NULL AND source IS NOT NULL",
+        "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
+        a.siteId,
       ) as Row[]
-    )
-      // a deploy that already waits for a person is not asked for again every tick: its card is there
-      .filter((r) => !waiting.has(str(r.id)))
-      .filter((r) => sourceOf(r)?.repo)
-      .map((r) => ({
-        siteId: str(r.id),
-        as: isNull(r.deployed_by) ? str(r.owner) : str(r.deployed_by),
-        branch: sourceOf(r)?.branch ?? "",
-      }))
-  );
+    )[0];
+    if (head && last && str(last.commit_sha) === head) continue;
+    const waiting = ctx.db.all(
+      "SELECT sha FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error LIKE 'Waiting for a person%' AND failed_at > ?",
+      a.siteId,
+      Date.now() - 24 * 60 * 60 * 1000,
+    ) as Row[];
+    if (waiting.length > 0 && (head === null || waiting.some((w) => str(w.sha) === head))) continue;
+    out.push({ ...a, head });
+  }
+  return out;
 }
 
 /** Containers that should be serving, for the host to start again after a server restart (Docker restarts them itself; this catches one that was removed). */

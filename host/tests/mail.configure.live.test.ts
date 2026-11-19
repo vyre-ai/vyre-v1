@@ -1729,3 +1729,23 @@ test("a top-level call with no trace of its own (a push the daemon makes, an age
   const again = await resumed.invoke("sites.deploy", call, { ...seed("usr_admin"), origin: "sites-push" } as never);
   assert.equal(again.status, "held", "no approval, held again");
 });
+
+test("an agent's rotate or enable of a webhook secret that is live is held for a person (GitHub must be given the new one); with no secret yet it is free; a person is one step", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" }, false);
+  assert.equal(
+    await s.agent("sites.webhook_set", { siteId, rotate: true }),
+    "ok",
+    "no secret yet, nothing that works to break",
+  );
+  // a person turns the webhook on: it is live now
+  await s.call("sites.webhook_set", { siteId, enabled: true });
+  assert.equal(await s.agent("sites.webhook_set", { siteId, rotate: true }), "held", "rotating a live secret");
+  assert.equal(await s.agent("sites.webhook_set", { siteId, enabled: true }), "held", "turning it on again");
+  assert.equal(await s.agent("sites.webhook_set", { siteId, enabled: false }), "ok", "turning it off");
+  assert.equal(await s.person("sites.webhook_set", { siteId, rotate: true }), "ok", "a person is one step");
+  assert.equal(
+    wantsFromInput("sites.webhook_set", { siteId, rotate: true }),
+    "rotate the webhook secret; GitHub must be given the new one",
+  );
+});

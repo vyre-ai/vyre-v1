@@ -608,3 +608,12 @@ test("a hold an agent parked for Alice is Alice's through that agent: Bob asking
   assert.deepEqual(await ids(via(alice.id)), [mine.holdId], "Alice through the agent");
   assert.deepEqual(await ids(via()), [mine.holdId], "the agent's own turn for nobody");
 });
+
+test("a deploy a push asked for, which runs as a person, is judged as anything that is not a person: it is held and says why in those words", async () => {
+  const h = harness();
+  const mine = await park(h, { principal: alice, actingFor: undefined, origin: "sites-push" }, svc);
+  const held = findHold(h.db, mine.holdId)!;
+  assert.equal(held.rule.hold, true, "the rule holds it");
+  assert.equal(held.rule.reason, "Acts of this kind wait for approval.");
+  assert.doesNotMatch(held.rule.reason, /A person's own act/);
+});

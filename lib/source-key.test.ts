@@ -180,3 +180,41 @@ test("a yes is spent when it is used: the build it was for takes it, a second bu
   assert.equal(wasApproved(call, "sit_1"), true);
   assert.equal(wasApproved(call, "sit_1"), false);
 });
+
+test("visible text writes out every character that hides itself, and cuts by whole graphemes", async () => {
+  const { visibleText } = await import("./visible-text.ts");
+  assert.equal(visibleText("ab", 40), "ab");
+  // each of these, built by number so the file holds no invisible character
+  const hidden: [number, string][] = [
+    [0x202e, "202e"],
+    [0x2066, "2066"],
+    [0x2028, "2028"],
+    [0x2029, "2029"],
+    [0x2060, "2060"],
+    [0x2064, "2064"],
+    [0xfeff, "feff"],
+    [0x061c, "061c"],
+    [0x180e, "180e"],
+    [0x00ad, "00ad"],
+    [0x034f, "034f"],
+    [0x200b, "200b"],
+    [0x000a, "000a"],
+    [0x3164, "3164"],
+    [0x2800, "2800"],
+    [0xfe0f, "fe0f"],
+  ];
+  for (const [n, hex] of hidden) assert.equal(visibleText(`a${String.fromCodePoint(n)}b`, 40), `a\\u${hex}b`, hex);
+  assert.equal(visibleText(`a${String.fromCodePoint(0xe0041)}b`, 40), "a\\u{e0041}b", "a tag character");
+  // a family (one grapheme of several code points) is cut whole, never in the middle; its joiners are written out
+  const family = [0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467].map((n) => String.fromCodePoint(n)).join("");
+  assert.equal(
+    visibleText(`${family}x`, 1),
+    `${String.fromCodePoint(0x1f468)}\\u200d${String.fromCodePoint(0x1f469)}\\u200d${String.fromCodePoint(0x1f467)}`,
+  );
+  assert.equal(Array.from(visibleText("x".repeat(100), 40)).length, 40);
+  assert.equal(
+    visibleText(`e${String.fromCodePoint(0x0301)}x`, 1),
+    `e${String.fromCodePoint(0x0301)}`,
+    "a combined letter is one",
+  );
+});

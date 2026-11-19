@@ -16,6 +16,7 @@ export {
 } from "./handlers/route.ts";
 export {
   autoDeploySites,
+  autoDeployTargets,
   checkPassword,
   newTicket,
   servingContainers,
@@ -80,11 +81,12 @@ export function siteFacts(
   builtFrom: Src | null;
   deployedFp: string | null;
   protection: { state: string; branch?: string; at?: number } | null;
+  hookLive: boolean;
 } | null {
   const site = ctx.db.all(
-    "SELECT source, current_deployment, protection FROM sites_site WHERE id = ? AND deleted_at IS NULL",
+    "SELECT source, current_deployment, protection, hook_secret FROM sites_site WHERE id = ? AND deleted_at IS NULL",
     siteId,
-  )[0] as { source?: unknown; current_deployment?: unknown; protection?: unknown } | undefined;
+  )[0] as { source?: unknown; current_deployment?: unknown; protection?: unknown; hook_secret?: unknown } | undefined;
   if (!site) return null;
   // what the uploaded files were when the live deploy was built
   const live =
@@ -124,7 +126,14 @@ export function siteFacts(
   } catch {
     /* unreadable is unknown */
   }
-  return { source: parseSource(site.source), env, builtFrom, deployedFp, protection };
+  return {
+    source: parseSource(site.source),
+    env,
+    builtFrom,
+    deployedFp,
+    protection,
+    hookLive: typeof site.hook_secret === "string" && site.hook_secret !== "",
+  };
 }
 /** /hooks/sites: GitHub's webhook for a site, checked with the site's own secret (handlers/hook.ts). */
 export const hostCalls = { "sites.accept_webhook": acceptWebhook };

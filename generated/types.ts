@@ -17676,6 +17676,7 @@ export type GateParkIn = {
     defHash: string;
     ask?: boolean;
   };
+  origin?: string;
   ask?: {
     by: {
       kind: "person" | "agent" | "actor" | "service";

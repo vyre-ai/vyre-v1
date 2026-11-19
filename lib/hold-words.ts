@@ -186,6 +186,7 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
       const more = follow.length - shown.length;
       return `build previews of pushes to ${shown.join(", ") || "no branches"}${more > 0 ? ` and ${more} more` : ""}, with the site's keys`;
     }
+    if (obj(input)["rotate"] === true) return "rotate the webhook secret; GitHub must be given the new one";
     if (obj(input)["enabled"] === true) return "switch on builds from GitHub pushes for a site with keys";
   }
   if (cap === "sites.update" && obj(input)["autoDeploy"] === true)
@@ -290,6 +291,8 @@ export function holdShort(cap: string, input: unknown, n: HoldNames = {}): strin
       ? `deploy the files now in ${n.site.name}, which holds ${keys}`
       : `deploy ${n.site.name}: anyone who can push to ${n.site.branch || "its branch"} can use ${keys}. Protect the branch to deploy without asking`;
   }
+  if (cap === "sites.webhook_set" && n.site && obj(input)["rotate"] === true)
+    return `rotate the webhook secret for ${n.site.name}; GitHub must be given the new one`;
   if (cap === "files.share_external") return `share ${n.file ?? "a file"} with a link for someone outside the Space`;
   const w =
     wantsFromInput(cap, obj(input)) ?? HOLD_PHRASES[cap] ?? WANTS[cap] ?? (cap === "" ? "do a step" : capPhrase(cap));

@@ -259,6 +259,8 @@ export default defineManifest({
           runId: t.opt(id.run),
           threadId: t.opt(id.thread),
           step: t.opt(stepRef),
+          // what started the call, when it was not a person's own press (a push): the rule is judged as for anything that is not a person
+          origin: t.opt(t.str()),
           // Ask the person (docs/ask-the-person.md): an agent asked the person this runs as (principal); only that person approves it, and the card names the agent and what happens.
           ask: t.opt(t.obj({ by: principalRef, what: t.str() })),
         },

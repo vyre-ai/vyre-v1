@@ -282,6 +282,8 @@ export interface SiteFacts {
   deployedFp?: string | null;
   /** What a person last found out about the production branch on the host (GitHub): protected, open or unknown, which branch and when (ms). */
   protection?: { state: string; branch?: string; at?: number } | null;
+  /** The site has a webhook secret now (GitHub is using it). */
+  hookLive?: boolean;
 }
 
 const envEntries = (input: unknown): { name: string; handle: string }[] => {
@@ -405,6 +407,15 @@ export function exposesKeys(input: unknown, facts: SiteFacts | null): boolean {
   if (!changes || typeof i["siteId"] !== "string") return false;
   if (facts === null) return true;
   return facts.env.some((e) => e.handle !== "" && e.scope !== "previews");
+}
+
+/**
+ * Rotating the webhook secret (or switching it on again) while one is live breaks the webhook GitHub is using until someone gives GitHub the new one: an agent's such call waits for a person. With no secret yet it changes nothing that works, so it is free.
+ */
+export function rotatesLiveSecret(input: unknown, facts: SiteFacts | null): boolean {
+  const i = (input ?? {}) as Record<string, unknown>;
+  if (typeof i["siteId"] !== "string" || !(i["rotate"] === true || i["enabled"] === true)) return false;
+  return facts === null ? true : facts.hookLive === true;
 }
 
 /** A Vault handle given as a site's env (sites_env_set entries, sites_ship env): the key goes into the process the site runs, so code a caller chose can send it anywhere. */

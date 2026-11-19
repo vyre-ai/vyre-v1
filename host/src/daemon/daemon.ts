@@ -5535,12 +5535,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   attrs: { site: a.siteId, branch: a.branch },
                 });
             }
+            // only a commit that was not deployed, and not already waiting for a person, is asked for (checked here, before the Gate)
             const autos =
-              (
-                sitesExports?.["autoDeploySites"] as
-                  | ((c: { db: unknown }) => { siteId: string; as: string; branch: string }[])
+              (await (
+                sitesExports?.["autoDeployTargets"] as
+                  | ((c: {
+                      db: unknown;
+                    }) => Promise<{ siteId: string; as: string; branch: string; head: string | null }[]>)
                   | undefined
-              )?.({ db: db! }) ?? [];
+              )?.({ db: db! })) ?? [];
             for (const a of autos) {
               const r = await invoke(
                 "sites.deploy",
@@ -5573,9 +5576,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                       : "The deploy could not run. The log says more.";
                 (
                   sitesExports?.["recordDeployFailure"] as
-                    | ((c: { db: unknown }, siteId: string, branch: string, why: string) => void)
+                    | ((c: { db: unknown }, siteId: string, branch: string, why: string, sha: string | null) => void)
                     | undefined
-                )?.({ db: db! }, a.siteId, a.branch, reason);
+                )?.({ db: db! }, a.siteId, a.branch, reason, a.head);
                 sink.log({
                   space: spaceId,
                   level: 30,

@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { configureRoutes, routeByHost } from "../handlers/route.ts";
-import { _test, autoDeploySites, servingContainers } from "../handlers/release.ts";
+import { _test, autoDeploySites, autoDeployTargets, servingContainers } from "../handlers/release.ts";
 import {
   acceptWebhook,
   markPushDone,
@@ -1951,53 +1951,98 @@ test("the fetcher and the Gate stop at the same depth, and a name can never pass
   );
 });
 
-test("a new webhook secret an agent makes goes into the Vault and the agent is told only where; a person is shown it; turning it on by an agent is the same", async () => {
+test("a new webhook secret an agent makes goes into the Vault item made for that site alone, shared with its owner and the person the agent works for and nobody else; the agent is told only where; a person is shown it", async () => {
   const w = world();
   try {
     const siteId = await w.makeRepo("Hooked");
-    const put: unknown[] = [];
-    const base = w.ctx.call;
-    w.ctx.call = async (cap: string, input: unknown) => {
-      if (cap === "vault.folders.list") return { folders: [] };
-      if (cap === "vault.folders.create") return { folder: { id: "vfd_1" } };
-      if (cap === "vault.item.put")
-        return (put.push(input), { item: { id: "vit_1", handle: "#Hooked_webhook_secret" } });
-      return base(cap, input);
+    const calls: { cap: string; input: Record<string, unknown> }[] = [];
+    const vault = async (cap: string, input: unknown) => {
+      calls.push({ cap, input: input as Record<string, unknown> });
+      if (cap === "vault.folders.create") return { folder: { id: "vfd_site" } };
+      if (cap === "vault.item.put") return { item: { id: "vit_site", handle: "#Hooked_webhook_secret" } };
+      return {};
     };
-    const agent = { ...w.ctx, principal: { kind: "agent", id: "agt_x" } } as typeof w.ctx;
+    const base = w.ctx.call;
+    const agent = {
+      ...w.ctx,
+      principal: { kind: "agent", id: "agt_x" },
+      actingFor: "usr_boss",
+      call: async (cap: string, input: unknown) => (cap.startsWith("vault.") ? vault(cap, input) : base(cap, input)),
+    } as typeof w.ctx;
     const on = await h["sites.webhook_set"]!(agent, { siteId, enabled: true });
     assert.equal(on.secret, undefined, "the agent is not shown it");
     assert.equal(on.vault, "#Hooked_webhook_secret");
-    assert.equal(on.enabled, true);
-    const field = (put[0] as { fields: { key: string; value: string }[] }).fields[0]!;
-    // the secret the Vault holds is the one the site checks deliveries with
+    // found by id, never by a name: no listing, a folder made for this site under a key of its own
+    assert.equal(
+      calls.some((c) => c.cap === "vault.folders.list"),
+      false,
+    );
+    const folder = calls.find((c) => c.cap === "vault.folders.create")!;
+    assert.match(String(folder.input["idempotencyKey"]), new RegExp(`site-hook-folder:${siteId}`));
+    assert.equal(folder.input["scope"], "shared");
+    // shared at View with the owner and the person the agent works for, never with Everyone
+    const shares = calls.filter((c) => c.cap === "vault.share").map((c) => c.input);
+    assert.deepEqual(
+      shares.map((x) => [(x["subject"] as { kind: string }).kind, x["level"]]),
+      shares.map((x) => ["person", "view"]),
+    );
+    assert.ok(
+      shares.some((x) => (x["subject"] as { id: string }).id === "usr_boss"),
+      "the person it acts for",
+    );
+    assert.equal(
+      shares.some((x) => (x["subject"] as { kind: string }).kind === "group"),
+      false,
+      "not Everyone",
+    );
+    const field = (calls.find((c) => c.cap === "vault.item.put")!.input["fields"] as { value: string }[])[0]!;
     const sealed = JSON.parse(
       String(
-        w.sdb
-          .all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId)
-          .map((r) => (r as { hook_secret: string }).hook_secret)[0],
+        (w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId)[0] as { hook_secret: string })
+          .hook_secret,
       ),
     );
-    assert.equal(new TextDecoder().decode(w.ctx.seal.unseal(sealed)), field.value);
+    assert.equal(
+      new TextDecoder().decode(w.ctx.seal.unseal(sealed)),
+      field.value,
+      "the Vault holds the secret the site checks with",
+    );
+    // a rotation changes that same item, by id
+    calls.length = 0;
     const rotated = await h["sites.webhook_set"]!(agent, { siteId, rotate: true });
     assert.equal(rotated.secret, undefined);
     assert.equal(rotated.vault, "#Hooked_webhook_secret");
-    assert.equal(put.length, 2);
+    assert.deepEqual(
+      calls.map((c) => c.cap),
+      ["vault.item.update"],
+    );
+    assert.equal(calls[0]!.input["itemId"], "vit_site");
     // a person is shown it, and nothing goes to the Vault
+    calls.length = 0;
     const seen = await h["sites.webhook_set"]!(w.ctx, { siteId, rotate: true });
     assert.match(String(seen.secret), /^[0-9a-f]{64}$/);
     assert.equal(seen.vault, undefined);
-    assert.equal(put.length, 2);
-    // a Vault that cannot take it changes nothing: the old secret still stands
-    const before = w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId);
+    assert.equal(calls.length, 0);
+    // a Vault that cannot take it, or cannot share it, changes nothing: the old secret still stands
+    const before = w.sdb.all("SELECT hook_secret, hook_vault FROM sites_site WHERE id = ?", siteId);
     agent.call = async () => {
       throw new Error("vault locked");
     };
     await assert.rejects(
       () => h["sites.webhook_set"]!(agent, { siteId, rotate: true }),
-      /could not be put in the Vault/,
+      /could not be kept in the Vault/,
     );
-    assert.deepEqual(w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId), before);
+    assert.deepEqual(w.sdb.all("SELECT hook_secret, hook_vault FROM sites_site WHERE id = ?", siteId), before);
+    const fresh = await w.makeRepo("Fresh");
+    agent.call = async (cap: string) => {
+      if (cap === "vault.share") throw new Error("held for a person");
+      return vault(cap, {});
+    };
+    await assert.rejects(() => h["sites.webhook_set"]!(agent, { siteId: fresh, enabled: true }), /nothing was changed/);
+    assert.equal(
+      (w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", fresh)[0] as { hook_secret: unknown }).hook_secret,
+      null,
+    );
   } finally {
     w.done();
   }
@@ -2176,37 +2221,51 @@ test("protection is read with the rulesets a read token can see first, the class
   }
 });
 
-test("a deploy that waits for a person is asked for once, not every tick: one row per site and reason, and the tick skips the site until it is answered", async () => {
+test("a push or auto deploy is asked for only for a commit that was not deployed, and a commit that waits for a person is asked for once: one row and one ask per site and commit", async () => {
   const w = world();
   try {
     const siteId = await w.makeRepo("Waiting");
     w.sdb.run("UPDATE sites_site SET auto_deploy = 1 WHERE id = ?", siteId);
-    const asked = () => autoDeploySites(w.ctx).filter((a) => a.siteId === siteId).length;
-    assert.equal(asked(), 1, "a site that deploys on push is asked for");
+    let head: string | null = "a".repeat(40);
+    const tick = async (): Promise<number> =>
+      (await autoDeployTargets(w.ctx, async () => head)).filter((a) => a.siteId === siteId).length;
     const why = "Waiting for a person: the site holds keys and its branch is not protected on GitHub.";
-    for (let tick = 0; tick < 10; tick++) {
-      if (asked() > 0) recordDeployFailure(w.ctx, siteId, "main", why);
-    }
-    assert.equal(
+    // the tick as the daemon makes it: ask, and when the Gate holds it, record it with the commit
+    const run = async (): Promise<void> => {
+      for (const a of await autoDeployTargets(w.ctx, async () => head))
+        if (a.siteId === siteId) recordDeployFailure(w.ctx, siteId, a.branch, why, a.head);
+    };
+    assert.equal(await tick(), 1, "a commit nobody has handled");
+    for (let n = 0; n < 3; n++) await run();
+    const rows = () =>
       (
         w.sdb.all("SELECT COUNT(*) AS n FROM sites_push WHERE site_id = ? AND action = 'deploy'", siteId)[0] as {
           n: number;
         }
-      ).n,
-      1,
-      "ten ticks, one row and one ask",
-    );
-    assert.equal(asked(), 0, "the tick does not ask again while the card waits");
-    // a person's own deploy answers it
+      ).n;
+    assert.equal(rows(), 1, "three ticks, no new commit: one row");
+    assert.equal(await tick(), 0, "and no further ask");
+    // a new commit is exactly one new ask and one new row
+    head = "b".repeat(40);
+    assert.equal(await tick(), 1);
+    for (let n = 0; n < 3; n++) await run();
+    assert.equal(rows(), 2);
+    assert.equal(await tick(), 0);
+    // a commit that was deployed is not asked for at all
     await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
-    assert.equal(asked(), 1);
-    // another reason is another row
-    recordDeployFailure(w.ctx, siteId, "main", "The deploy could not run. The log says more.");
-    recordDeployFailure(w.ctx, siteId, "main", "The deploy could not run. The log says more.");
-    assert.equal(
-      (w.sdb.all("SELECT COUNT(*) AS n FROM sites_push WHERE site_id = ?", siteId)[0] as { n: number }).n,
-      1,
-    );
+    const last = (
+      w.sdb.all(
+        "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
+        siteId,
+      )[0] as { commit_sha: string }
+    ).commit_sha;
+    head = last;
+    assert.equal(await tick(), 0, "the head is what was deployed");
+    // a head that cannot be read is unknown: asked once, then it waits
+    head = null;
+    assert.equal(await tick(), 1);
+    recordDeployFailure(w.ctx, siteId, "main", why, null);
+    assert.equal(await tick(), 0);
   } finally {
     w.done();
   }

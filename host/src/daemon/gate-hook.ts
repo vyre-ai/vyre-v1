@@ -25,6 +25,7 @@ import {
   noteGateFp,
   peekGateFp,
   protectionHolds,
+  rotatesLiveSecret,
   siteKeyPairs,
   sourceKeyHost,
   sourceOfInput,
@@ -393,6 +394,7 @@ export function createGateHook(d: GateHookDeps): GateHook {
           what: a.cap.summary.split(";")[0]!.trim() || a.cap.name,
         };
       else if (a.seed.actingFor) input["actingFor"] = a.seed.actingFor;
+      if (a.seed.origin === "sites-push") input["origin"] = a.seed.origin;
       if (a.seed.run) input["runId"] = a.seed.run;
       if (a.seed.thread) input["threadId"] = a.seed.thread;
       if (a.seed.step) input["step"] = a.seed.step;
@@ -643,6 +645,8 @@ export function moduleWhens(
     const asker0 = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
     // what gets built for production on a site that stores Vault keys is a person's to change
     if (exposesKeys(input, siteFactsOf(input))) return true;
+    // a new secret while one is live breaks the webhook GitHub uses until it is given the new one
+    if (rotatesLiveSecret(input, siteFactsOf(input))) return true;
     const pairs = await pairsOf(input, asker0, seed.trace);
     if (pairs.length > 0) {
       const h = db();

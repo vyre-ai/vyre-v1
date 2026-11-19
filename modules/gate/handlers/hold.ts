@@ -167,7 +167,7 @@ export async function holdNamesOf(ctx: GateCtx, cap: string, input: unknown): Pr
   }
   // a production deploy: the site's name, the branch it builds and the names of the keys it holds (never values)
   const siteId = (input as { siteId?: unknown } | null)?.siteId;
-  if (cap === "sites.deploy" && typeof siteId === "string") {
+  if ((cap === "sites.deploy" || cap === "sites.webhook_set") && typeof siteId === "string") {
     try {
       const g = (await ctx.call?.("sites.get", { siteId })) as {
         site?: { name?: string; source?: { branch?: string; folderId?: string; fileId?: string } };
@@ -250,7 +250,10 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
       );
     }
   }
-  const effective = effectiveRule(ctx.db, principal, a.key, policy);
+  // a deploy a push asked for runs as a person but is not their act: its rule, and the reason on its card, are those of anything that is not a person
+  const ruleFor: PrincipalRef =
+    input.origin === "sites-push" && principal.kind === "person" ? { kind: "service", id: principal.id } : principal;
+  const effective = effectiveRule(ctx.db, ruleFor, a.key, policy);
   const rule = ask ? { ...effective, approvers: "asker", peopleOnly: true, onTimeout: "drop" as const } : effective;
   const now = ctx.now();
   const asker = await askerOf(ctx, principal, input.actingFor);
@@ -261,7 +264,10 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   const agentName = ask ? await nameOf(ctx, ask.by) : "";
   // an agent's own hold says who wants what, from the real input; an automation's keeps the act's own words
   const agentSays = !ask && principal.kind === "agent" ? await nameOf(ctx, principal, "") : "";
-  const names = agentSays || input.capName === "sites.deploy" ? await holdNamesOf(ctx, input.capName, input.input) : {};
+  const names =
+    agentSays || input.capName === "sites.deploy" || input.capName === "sites.webhook_set"
+      ? await holdNamesOf(ctx, input.capName, input.input)
+      : {};
   const sentence = agentSays
     ? cut(holdSentence(agentSays, input.capName, input.input, names), 120)
     : names.site

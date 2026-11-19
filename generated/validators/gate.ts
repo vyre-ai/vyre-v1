@@ -998,6 +998,7 @@ if ("decisionId" in o3460) lf(o3460["decisionId"], p + "/decisionId", e, L1);
 if ("runId" in o3460) lf(o3460["runId"], p + "/runId", e, L39);
 if ("threadId" in o3460) lf(o3460["threadId"], p + "/threadId", e, L19);
 if ("step" in o3460) d_s_48ce858bab(o3460["step"], p + "/step", e);
+if ("origin" in o3460) lf(o3460["origin"], p + "/origin", e, L1);
 if ("ask" in o3460) {
 {
 const x3461 = o3460["ask"];

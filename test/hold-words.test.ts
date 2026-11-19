@@ -164,3 +164,10 @@ test("a held deploy's card writes out a branch, site or key name that hides its 
   );
   assert.deepEqual(names.site, { name: "Da\\u202eSH", branch: "main\\u000aok", keys: ["Key\\u2066x"], upload: false });
 });
+
+test("a held rotation says which site and that GitHub must be given the new secret", () => {
+  assert.equal(
+    holdShort("sites.webhook_set", { siteId: "s", rotate: true }, { site: { name: "Dash", keys: [] } }),
+    "rotate the webhook secret for Dash; GitHub must be given the new one",
+  );
+});

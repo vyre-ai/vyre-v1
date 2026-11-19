@@ -14,7 +14,6 @@
 // @reads ../migrations/0013_hook_order.sql
 // @reads ../migrations/0014_hook_seq.sql
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { ensureSpaceFolder } from "../../../lib/space-folder.ts";
 import { hostOnly } from "../../../host/src/ctx/host-only.ts";
 import type { WebhookAccept } from "../../../host/src/routes/webhooks.ts";
 import { fail, isNull, many, mustSite, nid, one, optBool, rec, reqStr, str } from "./deploy.ts";
@@ -386,15 +385,22 @@ export function markPushFailed(ctx: Pick<Ctx, "db">, id: string, why: string): v
 }
 
 /** A deploy a push or the auto-deploy asked for that did not run (held for a person, refused, or failed): kept beside the pushes that could not run, so the site's card shows it with its reason, not only the log. */
-export function recordDeployFailure(ctx: Pick<Ctx, "db">, siteId: string, branch: string, why: string): void {
+export function recordDeployFailure(
+  ctx: Pick<Ctx, "db">,
+  siteId: string,
+  branch: string,
+  why: string,
+  sha: string | null = null,
+): void {
   const now = Date.now();
   const reason = why.slice(0, 200);
-  // the same reason for the same site is one row, kept up to date: a tick that finds the same thing again adds nothing
+  // the same reason for the same site and commit is one row, kept up to date: a tick that finds the same thing again adds nothing
   const same = (
     ctx.db.all(
-      "SELECT id FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error = ? AND failed_at > ? LIMIT 1",
+      "SELECT id FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error = ? AND COALESCE(sha, '') = ? AND failed_at > ? LIMIT 1",
       siteId,
       reason,
+      sha ?? "",
       now - WAITING_MS,
     ) as Row[]
   )[0];
@@ -403,10 +409,11 @@ export function recordDeployFailure(ctx: Pick<Ctx, "db">, siteId: string, branch
     return;
   }
   ctx.db.run(
-    "INSERT INTO sites_push (id, site_id, branch, sha, action, at, done_at, failed_at, error) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)",
+    "INSERT INTO sites_push (id, site_id, branch, sha, action, at, done_at, failed_at, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     `psh_${randomHex(8)}`,
     siteId,
     branch,
+    sha,
     "deploy",
     now,
     now,
@@ -471,28 +478,61 @@ function cleanFollow(ctx: Ctx, raw: unknown): string[] {
 }
 
 /**
- * Put a webhook secret in the Vault, in the Space's "Site webhooks" folder (shared with Everyone at Use: a member's call can fill it, nobody can read it out; an agent's own "Mine" folder would be the agent's alone, which the person it works for could not reach); the handle comes back.
- * Nothing is changed when the Vault cannot take it.
+ * Put a webhook secret in the Vault for this site alone: a folder and an item made for it, found by their ids (kept on the site) and never by a name another member could have taken first. They are shared at View with the site's owner and the person
+ * the call works for, and with nobody else (not Everyone): those two can read it to give GitHub, and an agent of theirs can use it by its handle; another member's agent has no grant on it. The handle comes back.
+ * Nothing is changed when the Vault cannot take it, or when it cannot be shared with them.
  */
 async function keepSecret(ctx: Ctx, site: Row, secret: string, now: number): Promise<string> {
+  const siteId = str(site.id);
+  const call = (cap: string, input: unknown): Promise<unknown> => ctx.call(cap as never, input);
   try {
-    const folderId = await ensureSpaceFolder((cap, input) => ctx.call(cap as never, input) as Promise<unknown>, {
-      name: "Site webhooks",
-      idem: "site-webhooks-folder",
-    });
-    const made = (await ctx.call("vault.item.put", {
-      folderId,
-      name: `${str(site.name)} webhook secret`,
-      kind: "other",
-      fields: [{ key: "secret", value: secret, secret: true }],
-      idempotencyKey: `site-hook-secret:${str(site.id)}:${now}`,
-    })) as { item: { handle: string } };
-    return made.item.handle;
+    let kept: { folderId?: string; itemId?: string; handle?: string } = {};
+    try {
+      kept = JSON.parse(isNull(site.hook_vault) ? "{}" : str(site.hook_vault)) as typeof kept;
+    } catch {
+      kept = {};
+    }
+    if (kept.itemId && kept.handle) {
+      await call("vault.item.update", {
+        itemId: kept.itemId,
+        fieldsSet: [{ key: "secret", value: secret, secret: true }],
+      });
+      return kept.handle;
+    }
+    const folder = (
+      (await call("vault.folders.create", {
+        name: `Webhook secret ${siteId}`,
+        scope: "shared",
+        idempotencyKey: `site-hook-folder:${siteId}`,
+      })) as { folder: { id: string } }
+    ).folder.id;
+    const made = (
+      (await call("vault.item.put", {
+        folderId: folder,
+        name: `${str(site.name)} webhook secret`,
+        kind: "other",
+        fields: [{ key: "secret", value: secret, secret: true }],
+        idempotencyKey: `site-hook-secret:${siteId}`,
+      })) as { item: { id: string; handle: string } }
+    ).item;
+    for (const person of new Set([str(site.owner), ctx.actingFor ?? ""].filter((x) => x.startsWith("usr_"))))
+      await call("vault.share", {
+        resource: { type: "vault_folder", id: folder },
+        subject: { kind: "person", id: person },
+        level: "view",
+        idempotencyKey: `site-hook-share:${siteId}:${person}`,
+      });
+    ctx.db.run(
+      "UPDATE sites_site SET hook_vault = ? WHERE id = ?",
+      JSON.stringify({ folderId: folder, itemId: made.id, handle: made.handle }),
+      siteId,
+    );
+    return made.handle;
   } catch {
     return fail(
       ctx,
       "validation.precondition_failed",
-      "The new secret could not be put in the Vault, so nothing was changed.",
+      "The new secret could not be kept in the Vault for this site, so nothing was changed. A person can make it.",
     );
   }
 }
