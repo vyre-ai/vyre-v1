@@ -70,7 +70,10 @@ const Keeps = Extension.create({
         attributes: { tight: quiet(false), blockId: { default: null, rendered: false, keepOnSplit: false } },
       },
       { types: ["bulletList", "orderedList", "taskList"], attributes: { marker: quiet("-"), delim: quiet(".") } },
-      { types: ["listItem", "taskItem"], attributes: { gap: quiet(false), inline: quiet(false) } },
+      {
+        types: ["listItem", "taskItem"],
+        attributes: { gap: quiet(false), inline: { default: false, rendered: false, keepOnSplit: false } },
+      },
       { types: ["codeBlock"], attributes: { fence: quiet("```") } },
       { types: ["horizontalRule"], attributes: { mark: quiet("---") } },
     ];

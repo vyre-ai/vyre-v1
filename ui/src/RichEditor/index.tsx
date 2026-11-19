@@ -75,6 +75,8 @@ export type {
 export { chipLook, fieldLabel, matchFields, missingTags, tagsIn } from "./doc/fields.ts";
 export type { ChipLook, FieldDef, FieldResolver } from "./doc/fields.ts";
 export { DocController } from "./doc/controller.ts";
+export { ownValueId } from "./doc/merge.ts";
+export type { OwnSave } from "./doc/merge.ts";
 export { SuggestionsPane } from "./doc/SuggestionsPane.tsx";
 export { countCritic, criticAuthors, listCritic, resolveCritic, resolveOneCritic, writeCritic } from "./doc/critic.ts";
 export { Autosaver } from "./autosave.ts";

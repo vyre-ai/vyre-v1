@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MarkdownEditor, ViewSwitch } from "../../../../../../ui/src/RichEditor/index.tsx";
-import type { DocEditing, MarkdownView } from "../../../../../../ui/src/RichEditor/index.tsx";
+import { ownValueId } from "../../../../../../ui/src/RichEditor/index.tsx";
+import type { DocEditing, MarkdownView, OwnSave } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { useFileAutosave } from "../review/useFileAutosave.ts";
 import { statusWords } from "../review/AgentFileEditor.tsx";
 
@@ -37,7 +38,7 @@ export function FileMarkdownEditor({
   const [suggesting, setSuggesting] = useState(false);
   const on = doc?.suggesting ?? suggesting;
   // the save the editor last asked for: the draft that is that text came from the editor, any other draft came from outside (an agent, another person, a restore)
-  const own = useRef<{ text: string; id: string | undefined }>({ text: text, id: undefined });
+  const own = useRef<OwnSave>({ text: text, id: undefined });
   const fa = useFileAutosave({
     call,
     fileId,
@@ -45,6 +46,8 @@ export function FileMarkdownEditor({
     version,
     reason: doc === undefined ? "Edited in the viewer" : on ? "Suggested changes" : "Edited in the document",
   });
+  const shown = ownValueId(own.current, fa.draft);
+  own.current = shown.own;
   const [view, setView] = useState<MarkdownView>(startView);
   useEffect(() => {
     onText?.(fa.base.text);
@@ -97,7 +100,7 @@ export function FileMarkdownEditor({
           ? {
               doc: {
                 ...doc,
-                valueId: fa.draft === own.current.text ? (own.current.id ?? null) : null,
+                valueId: shown.valueId,
                 suggesting: on,
                 onSuggesting: (v: boolean) => {
                   setSuggesting(v);

@@ -82,12 +82,19 @@ export function trackTransaction(
     let size = 0;
     let fresh = false;
     if (op.gone && op.gone.size > 0) {
+      let put = op.gone.size;
       try {
         nt.replace(op.s, op.s, op.gone);
       } catch {
-        return null;
+        // the slice does not fit back as it was cut: put its content back, so nothing deleted is lost
+        try {
+          nt.insert(op.s, op.gone.content);
+          put = op.gone.content.size;
+        } catch {
+          return null;
+        }
       }
-      size = op.gone.size;
+      size = put;
       changed = true;
       const after1 = nt.steps.length;
       const spans: Array<{ pos: number; node: PMNode }> = [];

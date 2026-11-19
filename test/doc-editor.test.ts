@@ -16,7 +16,7 @@ import {
   writeCritic,
 } from "../ui/src/RichEditor/doc/critic.ts";
 import { listChanges, resolveChanges, trackTransaction } from "../ui/src/RichEditor/doc/track.ts";
-import { isOwnEcho, mergeRemote, noteSent } from "../ui/src/RichEditor/doc/merge.ts";
+import { isOwnEcho, mergeRemote, noteSent, ownValueId } from "../ui/src/RichEditor/doc/merge.ts";
 
 const D = { doc: true } as const;
 const schema = getSchema(markdownExtensions({ doc: {} }));
@@ -687,4 +687,60 @@ test("the person deletes a block and the agent rewrites the same one: the rewrit
   const r = merged(s, base, "A\n\nB2\n\nC\n");
   assert.equal(r.clashed, true);
   assert.equal(mdOf(r.state), `A\n\n{++B2++}${meta("Agent")}\n\nC\n`);
+});
+
+test("the host's record of the editor's own save is dropped when the draft moves on, so a revert is never taken for an echo", () => {
+  let own = { text: "md2\n", id: "s2" as string | undefined };
+  let r = ownValueId(own, "md2\n");
+  assert.equal(r.valueId, "s2");
+  // an agent changes the file: the draft is no longer the editor's text
+  r = ownValueId(own, "md3\n");
+  own = r.own;
+  assert.equal(r.valueId, null);
+  // someone reverts the file to md2: not the editor's own save any more
+  r = ownValueId(own, "md2\n");
+  assert.equal(r.valueId, null);
+  assert.equal(isOwnEcho("md2\n", r.valueId, new Set(["s2"]), ["md2\n"]), false);
+  // a new save by the editor is its own again
+  own = { text: "md4\n", id: "s4" };
+  assert.equal(ownValueId(own, "md4\n").valueId, "s4");
+  // a host that never saw an id keeps passing null
+  assert.equal(ownValueId({ text: "a", id: undefined }, "a").valueId, null);
+});
+
+test("what the writer keeps exactly, and what it has always normalised, in ordinary Markdown", () => {
+  const same = [
+    "***\n",
+    "+ x\n",
+    "1) x\n",
+    "Title\n=====\n\nSub\n---\n",
+    "<div>\nhi\n</div>\n",
+    "[a][1]\n\n[1]: https://x.y\n",
+    "a[^1]\n\n[^1]: note\n",
+    "| a | b |\n|:--|--:|\n| 1 | 2 |\n",
+    "a\\\nb\n",
+    "---\ntitle: x\n---\n\nbody\n",
+    "```js\nx\n```\n\n    indented\n",
+    "- a\n  - b\n    - c\n\n1. x\n2. y\n",
+    "- [x] a\n- [ ] b\n",
+    "> a\n>\n> b\n",
+    "![a](b.png)\n",
+    "<https://x.y>\n",
+    "a &amp; b\n",
+    "",
+  ];
+  for (const t of same) assert.equal(roundtrip(t), t, JSON.stringify(t));
+  // these have always been written in one form: spaces at the ends of a line, CRLF, a tab before indented code, a missing last newline, underscore emphasis
+  const normalised: Array<[string, string]> = [
+    ["a  \nb\n", "a\nb\n"],
+    [" lead\n", "lead\n"],
+    ["trail \n", "trail\n"],
+    ["a\r\nb\r\n", "a\nb\n"],
+    ["last line", "last line\n"],
+    ["*a* **b** _c_ __d__\n", "*a* **b** *c* **d**\n"],
+  ];
+  for (const [from, to] of normalised) {
+    assert.equal(roundtrip(from), to, JSON.stringify(from));
+    assert.equal(docToMarkdown(markdownToDoc(from)), to, `plain ${JSON.stringify(from)}`);
+  }
 });

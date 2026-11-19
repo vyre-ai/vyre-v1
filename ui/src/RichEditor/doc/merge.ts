@@ -282,11 +282,26 @@ export function isOwnEcho(
   return sent.length > 0 && sent[sent.length - 1] === value;
 }
 
-/** The last few texts the page handed to its host to save, and the ids it gave those saves. */
-export const SENT_KEEP = 64;
+/** The ids the page gave its saves (a few dozen of them are small), and the last two texts sent: whole documents are not kept in numbers. */
+export const IDS_KEEP = 64;
+export const TEXTS_KEEP = 2;
 export function noteSent(sent: string[], ids: Set<string>, text: string, id: string): void {
   sent.push(text);
   ids.add(id);
-  if (sent.length > SENT_KEEP) sent.shift();
-  if (ids.size > SENT_KEEP) ids.delete(ids.values().next().value as string);
+  if (sent.length > TEXTS_KEEP) sent.shift();
+  if (ids.size > IDS_KEEP) ids.delete(ids.values().next().value as string);
+}
+
+/** The editor's last save as a host remembers it: the text and the id the editor gave it. */
+export interface OwnSave {
+  text: string;
+  id: string | undefined;
+}
+/**
+ * What to pass the editor as `valueId` for a draft: the id of the editor's own save when the draft is that text, otherwise null (the draft came from outside). When the draft has moved on to
+ * something that is not the editor's, the remembered save is dropped, so the same text arriving later (a revert) is not taken for the editor's own.
+ */
+export function ownValueId(own: OwnSave, draft: string): { valueId: string | null; own: OwnSave } {
+  if (draft === own.text) return { valueId: own.id ?? null, own };
+  return { valueId: null, own: own.id === undefined ? own : { text: "\u0000", id: undefined } };
 }
