@@ -254,3 +254,35 @@ test("the default search being refused, or answering with a challenge, is said a
   assert.equal(r2.ok, false);
   assert.match(NOT_ANSWERING, /admin can choose a search service/);
 });
+
+// ---- a page built to stall the reader
+
+test("a page built to stall a pattern costs time in proportion to its length: a megabyte of unclosed tags, of '<', of hidden tags and of result links", () => {
+  const MB = 1_000_000;
+  const cases: [string, string][] = [
+    ["unclosed script", "<script ".repeat(MB / 8)],
+    ["unclosed hidden", "<a hidden>".repeat(MB / 10)],
+    ["lone <", "<".repeat(MB)],
+    ["unclosed style with text", "<style>" + "x".repeat(MB)],
+    ["hidden without a close", "<div hidden>" + "y ".repeat(MB / 2)],
+    ["result links", '<a class="result__a" '.repeat(MB / 22)],
+  ];
+  for (const [name, body] of cases) {
+    const t0 = performance.now();
+    pageText(body);
+    parseResults(body);
+    const ms = performance.now() - t0;
+    assert.ok(ms < 1500, `${name}: ${Math.round(ms)} ms`);
+  }
+});
+
+test("the reader's one-pass reading still gives a page its words, in order", () => {
+  const p = pageText(
+    "<html><head><title>T</title><script>x()</script></head><body><h2>Head</h2><p>One<br>two</p><div hidden>no</div><ul><li>a</li><li>b</li></ul><!-- c --><script>y()</script>tail</body></html>",
+  );
+  assert.equal(p.title, "T");
+  assert.match(p.text, /## Head\nOne\ntwo/);
+  assert.match(p.text, /- a\n- b/);
+  assert.ok(p.text.endsWith("tail"));
+  for (const gone of ["x()", "y()", "no\n", "<"]) assert.ok(!p.text.includes(gone), gone);
+});

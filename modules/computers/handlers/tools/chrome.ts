@@ -4,7 +4,6 @@
 // Held items: agentd holds a send, a post or a payment instead of doing it and answers `heldId`. Only chrome_send releases it, and that capability is behind the Gate (the person approves).
 // chrome_batch therefore refuses every tool the Gate or the risk class would treat differently from a plain step (send, api, eval, batch itself, stop, resume): a batch can never do what its parts
 // could not do alone. #Handle.field references go to agentd untouched; it substitutes them on the computer and reports the values it used, which are scrubbed from every answer (common.ts).
-import { lookup } from "node:dns/promises";
 import { documentNetwork } from "../../../../lib/document-network.ts";
 import { LIMIT, PROVIDERS, createLimiter, readPage, searchWeb } from "../../../../lib/web-read.ts";
 import type { Provider } from "../../../../lib/web-read.ts";
@@ -147,10 +146,14 @@ async function ownHosts(ctx: CompCtx): Promise<Set<string>> {
 }
 async function webNet(ctx: CompCtx): Promise<FetchDeps> {
   const own = await ownHosts(ctx);
-  const base: FetchDeps = documentNetwork() ?? {
-    fetch: globalThis.fetch,
-    lookup: async (h) => (await lookup(h, { all: true, verbatim: true })).map((r) => r.address),
-  };
+  const base = documentNetwork();
+  // a read dials the addresses that were checked (a pinned connection); a plain fetch would look the name up again and could be sent somewhere else (DNS rebinding), so without one nothing is read
+  if (!base || typeof base.connect !== "function")
+    raise(
+      ctx,
+      "provider.unavailable",
+      "This Space cannot read the web safely here: its network for public pages is not set up.",
+    );
   return { ...base, refuseHost: (h) => own.has(h) || [...own].some((o) => h.endsWith(`.${o}`)) };
 }
 function webGate(ctx: CompCtx): void {

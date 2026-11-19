@@ -7,12 +7,20 @@ import { codeOf } from "../fixtures/harness.ts";
 import { setSearchHost } from "../search-host.ts";
 import { tool, world } from "./tools.fixture.ts";
 
+/** The Space's public-page network always dials checked addresses (a pinned connect); the tests' scripted fetch stands behind one. */
+function setNet(d: import("../../../lib/public-fetch.ts").FetchDeps): void {
+  setDocumentNetwork({
+    ...d,
+    connect: d.connect ?? (async (r) => d.fetch(r.url.href, r.headers ? { headers: { ...r.headers } } : {})),
+  });
+}
+
 afterEach(() => setDocumentNetwork(null));
 
 const page = (body: string) => `<!doctype html><title>Docs</title><body>${body}</body>`;
 function net(pages: Record<string, string>, ips: Record<string, string[]> = {}) {
   const asked: string[] = [];
-  setDocumentNetwork({
+  setNet({
     lookup: async (h) => ips[h] ?? ["93.184.216.34"],
     fetch: (async (u: string) => {
       asked.push(u);
@@ -120,7 +128,7 @@ test("an agent that loops is stopped after twenty in a minute, and another agent
 test("a Space that chose Brave Search uses the key its Vault handle names, for this call only; without a usable key it says so and asks nothing of the web", async () => {
   const w = await world();
   const seen: { url: string; headers: any }[] = [];
-  setDocumentNetwork({
+  setNet({
     lookup: async () => ["93.184.216.34"],
     fetch: (async (u: string, i: RequestInit) => {
       seen.push({ url: u, headers: i.headers });
@@ -167,7 +175,7 @@ test("a Space that chose Brave Search uses the key its Vault handle names, for t
 
 test("the default search being refused answers provider.unavailable with the plain line, not a bad input", async () => {
   const w = await world();
-  setDocumentNetwork({
+  setNet({
     lookup: async () => ["93.184.216.34"],
     fetch: (async () => new Response("no", { status: 403 })) as typeof fetch,
   });

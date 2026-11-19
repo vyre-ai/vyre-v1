@@ -357,9 +357,15 @@ export function createTools(kit) {
 
   /** The tools that read network calls need them on; a site the person did not allow stays closed. @param {Call} call @param {number} tabId */
   async function needNet(call, tabId) {
-    if (cdp.isNetworkOn(tabId)) return;
-    if (!(await netAllowed(call, tabId))) fail("net_not_allowed");
-    await cdp.enableNetwork(tabId);
+    // asked on every use, not only when it was switched on: a tab that was on a listed site and has since gone to another (a redirect, a navigation) is not read
+    if (!(await netAllowed(call, tabId))) {
+      if (cdp.isNetworkOn(tabId)) {
+        await cdp.disableNetwork(tabId);
+        traffic.forget(tabId);
+      }
+      fail("net_not_allowed");
+    }
+    if (!cdp.isNetworkOn(tabId)) await cdp.enableNetwork(tabId);
   }
 
   /** Resolve the tab, put the agent's frame on it, attach, run, and keep the idle clock honest. @template T @param {Call} call @param {Record<string, any>} input @param {(tabId: number) => Promise<T>} fn */

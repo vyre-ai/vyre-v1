@@ -90,6 +90,8 @@ export function createSessions({
   /** @type {Map<string, string>} what each agent said it is doing (chrome_plan) */
   const goals = new Map();
 
+  /** Tabs being put into their agent's group right now: Chrome's group-changed event for these is our own doing, not the person's. @type {Set<number>} */
+  const grouping_ = new Set();
   /** @type {Map<string, number>} the Chrome tab group of each agent in this window set */
   const groupIds = new Map();
 
@@ -110,6 +112,15 @@ export function createSessions({
 
   /** Put a tab in its agent's group, "Vyre · <agent>", made on first use and found again by id. The group is the person's view of which tabs an agent has. @param {AgentRef} agent @param {number} tabId */
   async function group(agent, tabId) {
+    grouping_.add(tabId);
+    try {
+      await groupInner(agent, tabId);
+    } finally {
+      grouping_.delete(tabId);
+    }
+  }
+  /** @param {AgentRef} agent @param {number} tabId */
+  async function groupInner(agent, tabId) {
     if (!grouping() || !ext.tabs || typeof ext.tabs.group !== "function" || !ext.tabGroups) return;
     await quiet(async () => {
       let gid = groupIds.get(agent.id);
@@ -287,6 +298,7 @@ export function createSessions({
      * (begin puts it there), so a tab outside it is never debugged. An agent computer's browser has no groups and no person's tabs. @param {string} agentId @param {number} tabId
      */
     async inGroup(agentId, tabId) {
+      if (grouping_.has(tabId)) return true;
       if (!grouping() || !ext.tabs || typeof ext.tabs.group !== "function") return true;
       const gid = groupIds.get(agentId);
       if (gid === undefined) return false;

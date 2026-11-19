@@ -9,8 +9,16 @@ import { assertEventsConform, contractErrors } from "../fixtures/harness.ts";
 import { setDocumentNetwork } from "../../../lib/document-network.ts";
 import { tool, world } from "./tools.fixture.ts";
 
+/** The Space's public-page network always dials checked addresses (a pinned connect); the tests' scripted fetch stands behind one. */
+function setNet(d: import("../../../lib/public-fetch.ts").FetchDeps): void {
+  setDocumentNetwork({
+    ...d,
+    connect: d.connect ?? (async (r) => d.fetch(r.url.href, r.headers ? { headers: { ...r.headers } } : {})),
+  });
+}
+
 // the two web tools read through the public reader: a scripted network answers them, so this file asks no real site
-setDocumentNetwork({
+setNet({
   lookup: async () => ["93.184.216.34"],
   fetch: (async (u: string) =>
     new Response(

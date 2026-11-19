@@ -2262,3 +2262,15 @@ test("chrome_sources gives the shape of each JSON answer the page's calls got: k
   assert.ok(!JSON.stringify(src).includes('"p"'), "no value of the answer is in the output");
   assert.ok(!JSON.stringify(src).includes("secret=1"), "the query string is not kept");
 });
+
+test("the network gate is asked on every read: a tab that went from a listed site to another is not read, and its capture is switched off and dropped", async () => {
+  const w = await personal([SITE]);
+  await w.call("chrome_snapshot");
+  assert.ok(w.control.cdp.isNetworkOn(7));
+  await w.call("chrome_sources");
+  // the page redirects (or the agent navigates) to a site the person did not list
+  w.tabs.get(7).url = "https://bank.example/account";
+  await w.fails("chrome_net", {}, "net_not_allowed");
+  assert.equal(w.control.cdp.isNetworkOn(7), false, "no longer reading");
+  await w.fails("chrome_sources", {}, "net_not_allowed");
+});

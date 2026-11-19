@@ -84,6 +84,15 @@ export function createCdp(dbg) {
       await dbg.sendCommand({ tabId }, "Network.enable", {});
       netOn.add(tabId);
     },
+    /** Stop reading a tab's network calls (the tab went to a site the person did not allow). @param {number} tabId */
+    async disableNetwork(tabId) {
+      if (!netOn.delete(tabId)) return;
+      try {
+        await dbg.sendCommand({ tabId }, "Network.disable", {});
+      } catch {
+        /* the tab closed first */
+      }
+    },
     /** @param {(tabId: number) => boolean} f */
     allowOnly(f) {
       mayAttach = f;

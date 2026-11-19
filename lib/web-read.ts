@@ -43,26 +43,95 @@ const decode = (s: string): string =>
     })
     .replace(/ /g, " ");
 
-/** The words of an HTML page: what a person would read, in order. Scripts, styles, comments and hidden or template parts are dropped; tags never survive. */
-export function pageText(html: string): { title: string; text: string } {
-  const title = decode((/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "").replace(/<[^>]*>/g, ""))
-    .replace(/\s+/g, " ")
-    .trim();
-  let body = html
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<(script|style|noscript|template|svg|iframe|object|embed|head)\b[\s\S]*?<\/\1\s*>/gi, " ")
-    .replace(/<[^>]*\bhidden\b[^>]*>[\s\S]*?<\/[a-z0-9]+>/gi, " ")
-    .replace(/<\/(p|div|section|article|tr|h[1-6]|pre|blockquote|table|ul|ol|header|footer|main|nav)\s*>/gi, "\n")
-    .replace(/<(br|hr)\s*\/?>/gi, "\n")
-    .replace(/<li\b[^>]*>/gi, "\n- ")
-    .replace(/<h([1-6])\b[^>]*>/gi, (_m, n: string) => `\n${"#".repeat(Number(n))} `)
-    .replace(/<[^>]*>/g, "");
-  body = decode(body)
+const SKIP = new Set(["script", "style", "noscript", "template", "svg", "iframe", "object", "embed", "head"]);
+const BLOCK = new Set([
+  "p",
+  "div",
+  "section",
+  "article",
+  "tr",
+  "pre",
+  "blockquote",
+  "table",
+  "ul",
+  "ol",
+  "header",
+  "footer",
+  "main",
+  "nav",
+  "br",
+  "hr",
+]);
+/** The most HTML that is looked through: a page is words, and a hostile one cannot make this slow by being long. */
+const HTML_CAP = 1_000_000;
+
+/**
+ * The words of an HTML page: what a person would read, in order. Scripts, styles, comments and hidden or template parts are dropped; tags never survive.
+ * One pass over the text with `indexOf` jumps and no backtracking pattern, so a page built to stall a regular expression (thousands of unclosed tags) costs time in proportion to its length only.
+ */
+export function pageText(input: string): { title: string; text: string } {
+  const html = input.length > HTML_CAP ? input.slice(0, HTML_CAP) : input;
+  const low = html.toLowerCase();
+  const same = low.length === html.length; // a few characters change length when lower-cased: then positions are not trusted and the page is read as plain text
+  const ti = same ? low.indexOf("<title") : -1;
+  let title = "";
+  if (ti >= 0) {
+    const open = low.indexOf(">", ti);
+    const close = open >= 0 ? low.indexOf("</title", open) : -1;
+    if (open >= 0 && close >= 0)
+      title = decode(html.slice(open + 1, Math.min(close, open + 400)).replace(/<[^>]*>/g, ""))
+        .replace(/\s+/g, " ")
+        .trim();
+  }
+  if (!same) return { title, text: decode(html.replace(/[<>]/g, " ")).replace(/\s+/g, " ").trim() };
+  const out: string[] = [];
+  const unclosed = new Set<string>();
+  let i = 0;
+  while (i < html.length) {
+    const lt = html.indexOf("<", i);
+    if (lt < 0) {
+      out.push(html.slice(i));
+      break;
+    }
+    if (lt > i) out.push(html.slice(i, lt));
+    if (low.startsWith("<!--", lt)) {
+      const end = html.indexOf("-->", lt + 4);
+      if (end < 0) break;
+      i = end + 3;
+      continue;
+    }
+    const gt = html.indexOf(">", lt + 1);
+    if (gt < 0) break; // an unclosed tag at the end: nothing after it is a page
+    const tag = low.slice(lt + 1, gt);
+    const m = /^(\/?)([a-z][a-z0-9]*)/.exec(tag);
+    i = gt + 1;
+    if (!m) continue;
+    const closing = m[1] === "/";
+    const name = m[2] as string;
+    if (!closing && (SKIP.has(name) || /\shidden(\s|=|\/|$)/.test(tag))) {
+      // drop the whole element: to its closing tag, or, with none, only the tag itself (never the rest of the page, never a rescan)
+      // a name whose closing tag was not found once is not found later either: remember it, so a page of thousands of the same unclosed tag is not searched thousands of times
+      const end = unclosed.has(name) ? -1 : low.indexOf(`</${name}`, i);
+      if (end < 0) {
+        unclosed.add(name);
+        if (SKIP.has(name)) break; // an unclosed script or style: the rest of the page is inside it
+      } else {
+        const endGt = html.indexOf(">", end);
+        i = endGt < 0 ? html.length : endGt + 1;
+      }
+      continue;
+    }
+    if (!closing && name === "li") out.push("\n- ");
+    else if (!closing && /^h[1-6]$/.test(name)) out.push(`\n${"#".repeat(Number(name[1]))} `);
+    else if ((closing && (BLOCK.has(name) || /^h[1-6]$/.test(name))) || (!closing && (name === "br" || name === "hr")))
+      out.push("\n");
+  }
+  const text = decode(out.join(""))
     .replace(/[ \t\f\v]+/g, " ")
     .replace(/ ?\n ?/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  return { title, text: body };
+  return { title, text };
 }
 
 /** Is this text a page of words (an HTML or plain document), not bytes of something else? */
@@ -83,7 +152,15 @@ export async function readPage(url: string, deps: FetchDeps): Promise<ReadResult
   const isHtml = /<\s*(html|body|head|div|p|h1|title)\b/i.test(got.text.slice(0, 4000));
   const { title, text } = isHtml ? pageText(got.text) : { title: "", text: got.text.trim() };
   const truncated = text.length > TEXT_CAP;
-  return { ok: true, url: got.finalUrl, title, text: text.slice(0, TEXT_CAP), truncated, source: WEB_LABEL };
+  // the label is in the text itself, not only beside it: whatever shows the text shows what it is. The title, snippets and addresses are the page's words too.
+  return {
+    ok: true,
+    url: got.finalUrl,
+    title,
+    text: `[${WEB_LABEL}]\n${text.slice(0, TEXT_CAP - WEB_LABEL.length - 4)}`,
+    truncated,
+    source: WEB_LABEL,
+  };
 }
 
 /** DuckDuckGo's HTML results point through a redirect that holds the real address in `uddg`. */
@@ -99,20 +176,38 @@ function realUrl(href: string): string | null {
   }
 }
 
-export function parseResults(html: string): { title: string; url: string; snippet: string }[] {
+export function parseResults(input: string): { title: string; url: string; snippet: string }[] {
+  const html = input.length > 600_000 ? input.slice(0, 600_000) : input;
   const out: { title: string; url: string; snippet: string }[] = [];
-  const re = /<a\b[^>]*class="[^"]*\bresult__a\b[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) && out.length < RESULTS_MAX) {
-    const url = realUrl(m[1] ?? "");
-    if (!url) continue;
-    const after = html.slice(re.lastIndex, re.lastIndex + 2500);
-    const sn = /class="[^"]*\bresult__snippet\b[^"]*"[^>]*>([\s\S]*?)<\/(?:a|div|td)>/i.exec(after)?.[1] ?? "";
-    const strip = (s: string): string =>
-      decode(s.replace(/<[^>]*>/g, ""))
-        .replace(/\s+/g, " ")
-        .trim();
-    out.push({ title: strip(m[2] ?? "").slice(0, 200), url, snippet: strip(sn).slice(0, 300) });
+  const strip = (x: string): string =>
+    decode(x.replace(/<[^>]*>/g, ""))
+      .replace(/\s+/g, " ")
+      .trim();
+  let at = 0;
+  while (out.length < RESULTS_MAX) {
+    const mark = html.indexOf("result__a", at);
+    if (mark < 0) break;
+    at = mark + 9;
+    const start = html.lastIndexOf("<a", mark);
+    const tagEndAt = html.slice(mark, mark + 800).indexOf(">");
+    const tagEnd = tagEndAt < 0 ? -1 : mark + tagEndAt;
+    if (start < 0 || tagEnd < 0 || mark - start > 600) continue;
+    const href = /\bhref="([^"]+)"/.exec(html.slice(start, tagEnd))?.[1];
+    const url = href ? realUrl(href) : null;
+    const closeAt = html.slice(tagEnd, tagEnd + 2200).indexOf("</a>");
+    const close = closeAt < 0 ? -1 : tagEnd + closeAt;
+    if (!url || close < 0) continue;
+    const title = strip(html.slice(tagEnd + 1, Math.min(close, tagEnd + 1 + 2000))).slice(0, 200);
+    const sm = html.indexOf("result__snippet", close);
+    const next = html.indexOf("result__a", close);
+    let snippet = "";
+    if (sm >= 0 && (next < 0 || sm < next)) {
+      const region = html.slice(sm, sm + 3000);
+      const sGt = region.indexOf(">");
+      const ends = ["</a>", "</div>", "</td>"].map((t) => region.indexOf(t, sGt)).filter((n) => n >= 0);
+      if (sGt >= 0 && ends.length) snippet = strip(region.slice(sGt + 1, Math.min(...ends))).slice(0, 300);
+    }
+    out.push({ title, url, snippet });
   }
   return out;
 }

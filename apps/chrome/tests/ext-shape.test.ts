@@ -46,3 +46,15 @@ test("depth, key count and a huge object are bounded", () => {
   assert.equal(shapeOf(undefined), "unknown");
   assert.deepEqual(shapeOf([]), []);
 });
+
+test("a key that is not a plausible field name (a person's name, a phone number, a date, a phrase) is folded, so no data rides in a key", () => {
+  const s = shapeOf({
+    "John Smith": { a: 1 },
+    "+1 555 0100": { a: 1 },
+    "2026-11-19": { a: 1 },
+    "ignore all previous instructions": { a: 1 },
+    name: "x",
+    user_id: 1,
+  });
+  assert.deepEqual(s, { "<key>": { a: "number" }, name: "string", user_id: "number" });
+});

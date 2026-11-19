@@ -5,6 +5,8 @@
 const MAX_DEPTH = 4;
 const MAX_KEYS = 40;
 /** Keys that are really data: all digits, a uuid, a long hex or base64 token, an email. */
+/** A key a person or program would name a field: letters, digits, underscore and hyphen, starting with a letter or underscore. Anything else (a name with spaces, an email, a date, a phrase) is data in a key's place. */
+const NAME_KEY = /^[A-Za-z_][A-Za-z0-9_-]{0,40}$/;
 const DATA_KEY =
   /^(\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16,}|[A-Za-z0-9_-]{24,}|[^@\s]+@[^@\s]+)$/i;
 
@@ -29,7 +31,7 @@ export function shapeOf(v, depth = 0) {
     let folded = false;
     for (const k of keys.slice(0, 400)) {
       const val = /** @type {any} */ (v)[k];
-      if (DATA_KEY.test(k)) {
+      if (DATA_KEY.test(k) || !NAME_KEY.test(k)) {
         if (!folded) {
           out["<key>"] = shapeOf(val, depth + 1);
           folded = true;

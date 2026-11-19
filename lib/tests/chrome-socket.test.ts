@@ -325,3 +325,35 @@ test("frames that are not JSON objects, and binary frames, are ignored", async (
   assert.equal(p.sent.length, n);
   assert.equal(p.open, true);
 });
+
+test("a second extension cannot take over a ref the first is waiting on", async () => {
+  const r = rig();
+  const imran = await signedIn(r, "tok-imran");
+  const andrea = await signedIn(r, "tok-andrea");
+  const REF = "w9-0123456789abcdef01234567";
+  let release: (v: unknown) => void = () => {};
+  const waitingOn = new Promise((res) => (release = res));
+  let andreaAnswer: Record<string, unknown> | undefined;
+  r.gateway = async (_t, cap) => {
+    if (cap !== "vault.fill") return {};
+    await waitingOn;
+    return { filled: true };
+  };
+  imran.say({
+    id: "a1",
+    type: "invoke",
+    capability: "vault.fill",
+    input: { handle: "#X.password", target: { kind: "browser", ref: REF } },
+  });
+  await new Promise((x) => setTimeout(x, 20));
+  andrea.say({
+    id: "b1",
+    type: "invoke",
+    capability: "vault.fill",
+    input: { handle: "#X.password", target: { kind: "browser", ref: REF } },
+  });
+  await until("the second is answered", () => (andreaAnswer = andrea.sent.find((m) => m["id"] === "b1")) !== undefined);
+  assert.equal(andreaAnswer?.["ok"], false, "refused: the ref is the first extension's");
+  assert.equal(r.socket.fill(REF, "v", { kind: "person", id: "usr_imran" }), true, "and the first can still be filled");
+  release(true);
+});

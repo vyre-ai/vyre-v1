@@ -114,6 +114,10 @@ export function createChromeSocket(deps: ChromeSocketDeps) {
         if (ref.length < 16 || ref.length > 120)
           throw Object.assign(new Error("Not a field."), { code: "bad_request" });
         for (const [k, r] of refs) if (r.expires < now()) refs.delete(k);
+        // a ref another socket is waiting on is not taken over: the first extension's fill stays its own
+        const held = refs.get(ref);
+        if (held && held.conn !== c && held.expires >= now())
+          throw Object.assign(new Error("Not a field."), { code: "bad_request" });
         refs.set(ref, { conn: c, expires: now() + FILL_REF_MS });
         try {
           return await app.invoke(cap, input);
