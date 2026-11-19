@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import { CrewPeek } from "./pane.tsx";
 import type { CrewMember } from "./model.ts";
 
@@ -209,4 +209,91 @@ test("Save to Files opens the folder picker, saves the result as a markdown file
   assert.equal((made[0]!.input.content as { text: string }).text, "74 tests pass");
   assert.match(textOf(find(root, "crew-result-saved")), /Saved:\s+Tess result\.md/);
   assert.equal(find(root, "folder-move"), null, "the picker closes");
+});
+
+test("Add to a record searches records the way Cmd-K does, and the chosen one gets the result as a note with a link back to the chat, once", async () => {
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const rec = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    if (cap === "search.recent.list")
+      return {
+        hits: [
+          {
+            kind: "record",
+            id: "rec_harbor",
+            title: "Harbor Supply",
+            recordType: "supplier",
+            link: "vyre://record/supplier/rec_harbor",
+          },
+        ],
+      };
+    if (cap === "records.comments.add") return { comment: { commentId: "c1" } };
+    return cap === "chat.helper.notes" ? { notes: [] } : {};
+  };
+  const root = await mount(
+    createRoot,
+    <CrewPeek
+      member={M()}
+      call={rec}
+      meId="usr_me"
+      onBack={() => undefined}
+      onOpenChat={() => undefined}
+      onRefresh={() => undefined}
+    />,
+  );
+  await press(find(root, "crew-result-record"));
+  await flush();
+  assert.ok(find(root, "record-picker"));
+  assert.deepEqual(calls.find((c) => c.cap === "search.recent.list")?.input, { types: ["record"], limit: 12 });
+  assert.equal(calls.filter((c) => c.cap === "records.comments.add").length, 0, "opening the picker writes nothing");
+  await press(find(root, "record-pick-rec_harbor"));
+  await flush();
+  const added = calls.filter((c) => c.cap === "records.comments.add");
+  assert.equal(added.length, 1);
+  assert.deepEqual(
+    [added[0]!.input.type, added[0]!.input.recordId, added[0]!.input.idempotencyKey],
+    ["supplier", "rec_harbor", "helper-record-thr_a-rec_harbor"],
+  );
+  assert.match(String(added[0]!.input.text), /^74 tests pass\n\nFrom Tess in vyre:\/\/chat\/thr_0$/);
+  assert.match(textOf(find(root, "crew-result-added")), /Added to\s+Harbor Supply/);
+  assert.equal(find(root, "record-picker"), null);
+  assert.equal(find(root, "crew-result-record"), null, "once added, the button is gone");
+});
+
+test("a record that cannot take the note says so and the button stays; searching asks search.query for records only", async () => {
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const rec = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    if (cap === "search.recent.list" || cap === "search.query")
+      return {
+        hits: [
+          { kind: "record", id: "rec_a", title: "Pine Works", recordType: "supplier", link: "x" },
+          { kind: "record", id: "x", title: "no type", link: "y" },
+        ],
+      };
+    if (cap === "records.comments.add") throw new Error("no");
+    return cap === "chat.helper.notes" ? { notes: [] } : {};
+  };
+  const root = await mount(
+    createRoot,
+    <CrewPeek
+      member={M()}
+      call={rec}
+      meId="usr_me"
+      onBack={() => undefined}
+      onOpenChat={() => undefined}
+      onRefresh={() => undefined}
+    />,
+  );
+  await press(find(root, "crew-result-record"));
+  await flush();
+  assert.equal(find(root, "record-pick-x"), null, "a hit that is not a record is never offered");
+  await typeInto(find(root, "record-picker-search"), "pine");
+  await flush();
+  assert.deepEqual(calls.find((c) => c.cap === "search.query")?.input, { q: "pine", types: ["record"], limit: 20 });
+  await press(find(root, "record-pick-rec_a"));
+  await flush();
+  assert.match(textOf(find(root, "crew-peek-error")), /could not be added/);
+  assert.ok(find(root, "crew-result-record"));
+  assert.equal(find(root, "crew-result-added"), null);
 });

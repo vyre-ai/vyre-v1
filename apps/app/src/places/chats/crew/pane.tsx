@@ -12,6 +12,8 @@ import { blockLine } from "../helper/model.ts";
 import { HelperHooksSection } from "../helper/HelperHooks.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { FolderMovePicker } from "../../files/tree/FolderMovePicker.tsx";
+import { RecordPicker } from "../../records/RecordPicker.tsx";
+import type { PickedRecord } from "../../records/RecordPicker.tsx";
 import { HelperChip, MemberRing, timeOf, useNow } from "./strip.tsx";
 import {
   clock,
@@ -487,6 +489,8 @@ export function CrewPeek({
   const [made, setMade] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
+  const [pickRecord, setPickRecord] = useState(false);
+  const [addedTo, setAddedTo] = useState<string | null>(null);
   // a different helper opens on its transcript, never on the tab the last one was left on
   useEffect(() => setTab("transcript"), [member.id]);
   const live = member.state === "working" || member.state === "needs_you";
@@ -600,6 +604,28 @@ export function CrewPeek({
         setSaving(false);
         setErr("It could not be saved. Try again.");
       },
+    );
+  };
+  // the result as a note on a record the person picks: what it found, who found it and where (a link back to this chat), and the file it was saved as when it was; one key per helper and record
+  const addTo = (r: PickedRecord): void => {
+    setPickRecord(false);
+    setErr(null);
+    const text = [
+      member.answer ?? member.found ?? "",
+      "",
+      `From ${nameOf(member)} in vyre://chat/${member.parentThreadId}`,
+      ...(saved !== null ? [`Saved as ${saved}`] : []),
+    ].join("\n");
+    void Promise.resolve(
+      call("records.comments.add", {
+        type: r.type,
+        recordId: r.id,
+        text,
+        idempotencyKey: `helper-record-${member.id}-${r.id}`,
+      }),
+    ).then(
+      () => setAddedTo(r.title),
+      () => setErr("It could not be added. Try again."),
     );
   };
   const send = (): void => {
@@ -789,8 +815,23 @@ export function CrewPeek({
                     <Text style={st.pillText}>Save to Files</Text>
                   </Pressable>
                 )}
+                {addedTo !== null ? (
+                  <Text testID="crew-result-added" style={st.hint}>
+                    Added to {addedTo}
+                  </Text>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    testID="crew-result-record"
+                    onPress={() => setPickRecord(true)}
+                    style={st.pill}
+                  >
+                    <Text style={st.pillText}>Add to a record</Text>
+                  </Pressable>
+                )}
               </View>
             ) : null}
+            {pickRecord ? <RecordPicker call={call} onClose={() => setPickRecord(false)} onPick={addTo} /> : null}
             {saving ? (
               <FolderMovePicker
                 moving={{ id: "", name: "" }}
