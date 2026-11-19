@@ -50,6 +50,10 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
   const vaultFolders: { id: string; name: string; scope: string }[] = [];
   const items: Record<string, { handle: string; name: string; value: string; folderId: string }> = {};
   const vaultFault: { next: unknown } = { next: null };
+  /** people a task cannot be given to (they left the Space), as "person:usr_x" */
+  const tasksGone = new Set<string>();
+  /** people who left the Space (the directory says not found) and people who are suspended */
+  const people = { left: new Set<string>(), suspended: new Set<string>() };
   const mk = (actor: string): ConnectorsCtx => ({
     trace: { traceId: "0123456789abcdef0123456789abcdef" },
     actor,
@@ -61,6 +65,17 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
     call: async (cap, input) => {
       calls.push({ cap, input });
       if (cap === "runs.start") return { runId: "run_abc123" };
+      if (cap === "access.principals.get") {
+        const pid = (input as { principal: { id: string } }).principal.id;
+        if (people.left.has(pid))
+          throw Object.assign(new Error("no such person"), { error: { code: "validation.not_found" } });
+        return { principal: { id: pid, status: people.suspended.has(pid) ? "suspended" : "active" } };
+      }
+      if (cap === "tasks.create") {
+        const to = (input as { assigned: { kind: string; id: string } }).assigned;
+        if (tasksGone.has(`${to.kind}:${to.id}`)) throw new Error("that person is not in this Space");
+        return { task: { id: `tsk_${calls.length}` } };
+      }
       // a small Vault: the folders and items a connection's OAuth tokens are kept in, as the vault capabilities answer them
       const i = input as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
       if (vaultFault.next) {
@@ -154,6 +169,8 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
     vaultFolders,
     items,
     vaultFault,
+    tasksGone,
+    people,
     folders,
     bound,
     sent,
