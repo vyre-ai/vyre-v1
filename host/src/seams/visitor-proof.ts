@@ -15,8 +15,13 @@ export const proofFor = (visitor: string): string => mac(visitor);
 
 /** Does this MAC belong to exactly this visitor value? */
 export function provesVisitor(visitor: unknown, proof: unknown): boolean {
-  if (typeof visitor !== "string" || typeof proof !== "string" || proof.length !== 64) return false;
-  return timingSafeEqual(Buffer.from(mac(visitor)), Buffer.from(proof));
+  // a MAC is 64 lower-case hex digits and nothing else: any other header value (non-ASCII, wrong length) is refused before a byte is compared, so no header a client sends can make the comparison throw
+  if (typeof visitor !== "string" || typeof proof !== "string" || !/^[0-9a-f]{64}$/.test(proof)) return false;
+  try {
+    return timingSafeEqual(Buffer.from(mac(visitor), "hex"), Buffer.from(proof, "hex"));
+  } catch {
+    return false;
+  }
 }
 
 const VISITOR_HEADER = "x-vyre-visitor";
@@ -28,10 +33,14 @@ const isLoopback = (a: string | undefined): boolean => a === "127.0.0.1" || a ==
  * ever sees or forwards them. The visitor is kept for this request only when it came over the loopback with a MAC that checks out for that exact value; a client-written header, with no MAC or a wrong one, is dropped.
  */
 export function takeVisitor(req: { headers: Record<string, string | string[] | undefined>; socket: { remoteAddress?: string | undefined } }): void {
-  const said = req.headers[VISITOR_HEADER];
-  const proof = req.headers[PROOF_HEADER];
-  if (isLoopback(req.socket.remoteAddress) && typeof said === "string" && said !== "" && provesVisitor(said, proof))
-    verified.set(req, said.slice(0, 64));
+  try {
+    const said = req.headers[VISITOR_HEADER];
+    const proof = req.headers[PROOF_HEADER];
+    if (isLoopback(req.socket.remoteAddress) && typeof said === "string" && said !== "" && provesVisitor(said, proof))
+      verified.set(req, said.slice(0, 64));
+  } catch {
+    /* whatever a client sent, the request goes on keyed by its address and never takes the daemon down */
+  }
   delete req.headers[VISITOR_HEADER];
   delete req.headers[PROOF_HEADER];
 }

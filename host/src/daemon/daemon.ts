@@ -7570,6 +7570,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const server = h.server;
     if (hubFactory)
       server.on("upgrade", (req, socket, head) => {
+        takeVisitor(req); // the relay's visitor headers are read and removed here too (seams/visitor-proof.ts)
         if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
         else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
       });

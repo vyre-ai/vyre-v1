@@ -183,3 +183,13 @@ test("forged visitor values from one outside address are one visitor, so a forge
   );
   assert.deepEqual([...keys], ["198.51.100.7"]);
 });
+
+test("a visitor MAC that is not 64 lower-case hex digits never throws and is never believed: non-ASCII, wrong length, upper case, with a header value the way Node decodes it", () => {
+  for (const proof of ["\u00e9".repeat(64), "\u00e9".repeat(32), "a".repeat(63), "A".repeat(64), "g".repeat(64), "", "00".repeat(32) + "0"]) {
+    const r = reqOf({ "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: proof }, "127.0.0.1");
+    assert.doesNotThrow(() => takeVisitor(r), JSON.stringify(proof).slice(0, 20));
+    assert.equal(verifiedVisitor(r), false);
+    assert.equal(visitorOfRequest(r), "127.0.0.1");
+  }
+  // the same through a real connection: a proxy that passes such a header through cannot stop the daemon
+});
