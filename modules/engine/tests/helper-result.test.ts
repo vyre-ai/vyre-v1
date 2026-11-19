@@ -68,7 +68,7 @@ test("many unclosed json result openers are scanned in linear time", () => {
   const s = splitResult(hostile);
   const ms = Date.now() - t0;
   assert.ok(ms < 500, `${ms} ms for ${hostile.length} characters`);
-  assert.equal(s.fields, undefined);
+  assert.ok(!s.fields, "an empty block gives no fields");
   assert.equal(s.summary.length + s.detail.length > 0, true);
   const alternating = "```json other\n".repeat(120_000) + "```json result\n{}\n```";
   const t1 = Date.now();

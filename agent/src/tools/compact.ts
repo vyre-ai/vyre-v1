@@ -346,8 +346,9 @@ function shapeRun(o: Obj): Shaped | null {
     hits.length <= RUN_MATCHES ? hits : [...hits.slice(0, 5), ...hits.slice(hits.length - (RUN_MATCHES - 5))];
   const matches = picked.map((i) => ({ line: i + 1, fromEnd: lines.length - i, text: cutLine(lines[i]!) }));
   const tail = lines.slice(from).map(cutLine);
-  const reach =
-    matches.length > 0 ? matches.reduce((n, m) => Math.max(n, m.fromEnd), 0) + 3 : Math.min(lines.length, 200);
+  // a margin, because later output (a prompt, other commands in the shared scrollback) and wrapped rows push a line further back than its count
+  const far = matches.reduce((n, m) => Math.max(n, m.fromEnd), 0);
+  const reach = matches.length > 0 ? far + Math.ceil(far / 10) + 10 : Math.min(lines.length, 200);
   const data = {
     terminalId: str(o["terminalId"]),
     exitCode: typeof o["exitCode"] === "number" ? o["exitCode"] : null,
