@@ -218,7 +218,7 @@ function rig(o: RigOptions = {}) {
     defOf: (name: string) => defs.find((d) => d.name === name) as CapabilityDef,
   };
 }
-const seed = (id: string, kind: "person" | "agent" = "person", extra: Partial<CtxSeed> = {}): CtxSeed =>
+const seed = (id: string, kind: "person" | "agent" | "service" = "person", extra: Partial<CtxSeed> = {}): CtxSeed =>
   ({ space: "spc_1", principal: { kind, id }, ...extra }) as CtxSeed;
 const INPUT: Record<string, Record<string, unknown>> = {
   "mail.setup.status": {},
@@ -477,6 +477,15 @@ test("through the real Gate: an invitation by an agent is held unless the person
     (await r.invoke("members.invites.create", input, seed("agt_bot", "agent", { actingFor: "usr_admin" }))).status,
     "held",
   );
+  const at = async (principal: { kind: string; id: string }): Promise<unknown> =>
+    await r.gate.applies(r.defOf("members.invites.create"), input, { space: "spc_1", principal } as never);
+  assert.equal(
+    await at({ kind: "service", id: "svc_seed" }),
+    null,
+    "the host's own service (the seed, the join flow) is not an actor",
+  );
+  assert.deepEqual(await at({ kind: "service", id: "aut_1" }), { act: "send" }, "an Automation step is held");
+  assert.deepEqual(await at({ kind: "actor", id: "act_1" }), { act: "send" }, "an outside actor is held");
   const granted = rig();
   assert.equal(
     (

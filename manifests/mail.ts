@@ -1090,7 +1090,7 @@ const manifest = defineManifest({
         perm: "comms.domains",
         gate: { act: "send", when: "actor.kind != 'person'" },
         audit: "always",
-        emits: ["inbound_route.saved", "mailbox.created"],
+        emits: ["inbound_route.saved", "mailbox.created", "mailbox.disconnected"],
         idem: "key",
         errors: ["validation.duplicate"],
       },

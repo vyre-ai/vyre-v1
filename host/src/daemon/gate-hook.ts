@@ -31,7 +31,10 @@ export interface GateHookDeps {
     string,
     (
       input: unknown,
-      seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined },
+      seed: Pick<CtxSeed, "principal" | "thread"> & {
+        actingFor?: string | undefined;
+        setupGrant?: boolean | undefined;
+      },
     ) => boolean | Promise<boolean>
   >;
   /** The uncleared mark from an Automation's outside-started Run ("automation:...") on any of these threads, as opposed to a page an agent read on a person's ask; null when none. */
@@ -485,8 +488,12 @@ export function moduleWhens(
     seed.principal.kind === "agent" ||
     seed.principal.kind === "actor" ||
     (seed.principal.kind === "service" && String(seed.principal.id).startsWith("aut_"));
-  // an invitation made by an agent or other actor is an access grant: held, unless the person gave this outside agent the setup grant ("Act for me, including setup", owner ruling 3 Nov), which names invites
-  out["members.invite_by_actor"] = (_input, seed) => seed.principal.kind !== "person" && seed.setupGrant !== true;
+  // an invitation made by an agent, an outside actor or an Automation step is an access grant: held (the host's own services, the seed and the join flow, are not an actor here), unless the person gave this outside agent the setup grant ("Act for me, including setup", owner ruling 3 Nov), which names invites
+  out["members.invite_by_actor"] = (_input, seed) =>
+    (seed.principal.kind === "agent" ||
+      seed.principal.kind === "actor" ||
+      (seed.principal.kind === "service" && String(seed.principal.id).startsWith("aut_"))) &&
+    seed.setupGrant !== true;
   out["mail.is_provider_setting"] = (input, seed) =>
     seed.principal.kind !== "person" && (input as { key?: unknown } | null)?.key === "mail.provider";
   // an agent's delete inside work/ on its own computer is its own change; anywhere else asks
@@ -549,7 +556,8 @@ export function moduleWhens(
         action: { level: "use" },
         resource: { type: "vault_item", id: ref.id },
       }).catch(() => null)) as { decision?: { effect?: unknown } } | null;
-      if (r?.decision?.effect !== "allow")
+      // a check that could not be made (null) is not a no: the call goes on to the approved-host rule, which holds it; only an answer that is not "allow" refuses
+      if (r !== null && r.decision?.effect !== "allow")
         throw fail("permission.no_grant", "0".repeat(32), {
           message: "This agent may not use that Vault item, so its key cannot be sent anywhere.",
         });
