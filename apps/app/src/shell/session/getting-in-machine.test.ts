@@ -356,4 +356,5 @@ test("moving on from a screen clears the busy mark, so the next screen is not le
   assert.equal(overlayStep(busy, { e: "browser", browser: 2 }).busy, false);
   assert.equal(overlayStep(busy, { e: "trouble", trouble: 3 }).busy, false);
   assert.equal(overlayStep(busy, { e: "enter" }).busy, false);
+  assert.equal(overlayStep(busy, { e: "trouble-clear" }).busy, false);
 });

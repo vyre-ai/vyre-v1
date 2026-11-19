@@ -179,5 +179,10 @@ export function siblingSessions(
 ): StoredSession[] {
   const id = of.def.spaceId;
   if (!id) return [];
-  return readStoredSessions(store).filter((s) => s.def.spaceId === id && s.baseUrl !== of.baseUrl);
+  const seen = new Set<string>();
+  return readStoredSessions(store).filter((s) => {
+    if (s.def.spaceId !== id || s.baseUrl === of.baseUrl || seen.has(s.baseUrl)) return false;
+    seen.add(s.baseUrl);
+    return true;
+  });
 }
