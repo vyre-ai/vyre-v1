@@ -68,11 +68,19 @@ function ensureCss(): void {
   );
 }
 
-function ActionButton({ a }: { a: DialogAction }): ReactElement {
+/** The action that takes focus when the dialog opens: the one marked `initial`; else, when the dialog destroys something (an action is `danger`) and has no `initial`, its first quiet action (Cancel), so a stray Enter or Space never confirms it. */
+export function focusedAction(actions: readonly DialogAction[]): DialogAction | undefined {
+  const marked = actions.find((a) => a.initial === true);
+  if (marked) return marked;
+  if (!actions.some((a) => a.danger === true)) return undefined;
+  return actions.find((a) => a.primary !== true && a.danger !== true && a.disabled !== true);
+}
+
+function ActionButton({ a, focus }: { a: DialogAction; focus: boolean }): ReactElement {
   const fill = a.primary || a.danger;
   const self = useRef<unknown>(null);
   useEffect(() => {
-    if (web && a.initial === true) (self.current as { focus?: () => void } | null)?.focus?.();
+    if (web && focus) (self.current as { focus?: () => void } | null)?.focus?.();
   }, []);
   return (
     <Tip help={a.disabled === true ? a.why : undefined}>
@@ -211,8 +219,11 @@ export function Dialog({
     );
   // quiet buttons first, then the primary or danger one, each built in a loop (not a list of rows)
   const buttons: ReactElement[] = [];
-  for (const a of actions) if (!a.primary && !a.danger) buttons.push(<ActionButton key={a.label} a={a} />);
-  for (const a of actions) if (a.primary || a.danger) buttons.push(<ActionButton key={a.label} a={a} />);
+  const first = focusedAction(actions);
+  for (const a of actions)
+    if (!a.primary && !a.danger) buttons.push(<ActionButton key={a.label} a={a} focus={a === first} />);
+  for (const a of actions)
+    if (a.primary || a.danger) buttons.push(<ActionButton key={a.label} a={a} focus={a === first} />);
   return (
     <Overlay>
       <View

@@ -1,0 +1,1 @@
+- Every ask that destroys something opens with focus on its Cancel button, in every dialog (it was set by hand in two). A stray Enter or Space never confirms a delete.

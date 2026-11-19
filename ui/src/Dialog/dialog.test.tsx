@@ -3,7 +3,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Text } from "react-native";
-import { Dialog } from "./index.tsx";
+import { Dialog, focusedAction } from "./index.tsx";
+import type { DialogAction } from "./index.tsx";
 
 const noop = (): void => {};
 
@@ -158,4 +159,28 @@ test("an anchored dialog closes itself when a sheet or menu opens above it, and 
   } finally {
     restore();
   }
+});
+
+const act = (label: string, o: Partial<DialogAction> = {}): DialogAction => ({ label, onPress: () => undefined, ...o });
+
+test("a dialog that destroys something opens with focus on its quiet action, never on the destructive one (a stray Enter cancels)", () => {
+  const cancel = act("Cancel");
+  const del = act("Delete", { danger: true });
+  assert.equal(focusedAction([del, cancel]), cancel, "whatever the order the caller wrote them in");
+  assert.equal(focusedAction([cancel, del]), cancel);
+  const later = act("Later");
+  assert.equal(focusedAction([later, cancel, del]), later, "the first quiet action");
+  const marked = act("Keep", { initial: true });
+  assert.equal(focusedAction([cancel, marked, del]), marked, "an explicit initial wins");
+  assert.equal(
+    focusedAction([act("Close"), act("Save", { primary: true })]),
+    undefined,
+    "a dialog that destroys nothing keeps its field focus",
+  );
+  assert.equal(focusedAction([act("Delete", { danger: true })]), undefined, "no quiet action: nothing to put focus on");
+  assert.equal(
+    focusedAction([act("Cancel", { disabled: true }), del]),
+    undefined,
+    "a disabled Cancel cannot hold focus",
+  );
 });
