@@ -315,23 +315,35 @@ test("a Vyre document that still holds suggested changes is refused until they a
   );
 });
 
-test("two asks for the same template with different values are two files, not one replayed; the same ask twice has one key", async () => {
+test("with no key of its own, fill derives it from what is asked: another value, another record value, an edited template or another format is another file key; the same ask is one key", async () => {
+  const w = linked();
+  const id = w.add("Service agreement.md", enc(AGREEMENT));
+  const keyOf = async (extra: Record<string, unknown> = {}) => {
+    const before = w.calls.filter((c) => c.cap === "files.create").length;
+    await handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: FOLDER, values: VALUES, signingDate: "2026-11-19", ...extra });
+    return String(w.calls.filter((c) => c.cap === "files.create")[before]!.input.idempotencyKey).replace(/:[^:]*\.pdf$|:[^:]*\.md$/, "");
+  };
+  const base = await keyOf();
+  assert.equal(await keyOf(), base, "the same ask is the same key");
+  assert.notEqual(await keyOf({ values: { ...VALUES, matter: { fee: 9 } } }), base, "another value");
+  assert.notEqual(await keyOf({ signingDate: "2026-11-20" }), base, "another date");
+  assert.notEqual(await keyOf({ format: "md" }), base, "another format");
+  w.files.get(id)!.versions = 2; // the template was edited
+  assert.notEqual(await keyOf(), base, "an edited template");
+});
+
+test("documents.make with no key makes a new ask every call, so an old file is never replayed for a new one; with the caller's key a retry is the same key", async () => {
   const w = linked();
   const id = w.add("Service agreement.md", enc(AGREEMENT));
   await handlers["documents.mark_template"](w.ctx, { fileId: id, isTemplate: true });
-  const a = await handlers["documents.make"](w.ctx, {
-    template: "Service agreement",
-    recordId: "rec_imran",
-    values: VALUES,
-    signingDate: "2026-11-19",
-  });
-  const b = await handlers["documents.make"](w.ctx, {
-    template: "Service agreement",
-    recordId: "rec_imran",
-    values: { ...VALUES, matter: { fee: 2000 } },
-    signingDate: "2026-11-19",
-  });
-  const keys = w.calls.filter((c) => c.cap === "files.create").map((c) => String(c.input.idempotencyKey));
-  assert.equal(new Set(keys).size, keys.length, keys.join(" | "));
-  assert.notEqual(a.file.fileId, b.file.fileId);
+  const ask = { template: "Service agreement", recordId: "rec_imran", values: VALUES, signingDate: "2026-11-19" };
+  const keys = async (extra: Record<string, unknown>, calls: number) => {
+    const before = w.calls.filter((c) => c.cap === "files.create").length;
+    for (let i = 0; i < calls; i++) await handlers["documents.make"]({ ...w.ctx, trace: { ...w.ctx.trace, traceId: `${i}`.padStart(32, "a") } }, { ...ask, ...extra });
+    return w.calls.filter((c) => c.cap === "files.create").slice(before).map((c) => String(c.input.idempotencyKey).replace(/:[^:]*\.pdf$/, ""));
+  };
+  const none = await keys({}, 2);
+  assert.notEqual(none[0], none[1], "no caller key: every call is its own ask");
+  const kept = await keys({ idempotencyKey: "retry-1" }, 2);
+  assert.equal(kept[0], kept[1], "the caller's key: a retry is the same ask");
 });

@@ -63,6 +63,12 @@ export const isVyreDoc = (name: string): boolean => /\.(md|markdown)$/i.test(nam
 
 addTemplateReader({ test: isVyreDoc, asked: (bytes) => mdPlaceholders(textOf(bytes)) });
 
+/** The version of a file now, so a template edited since the last ask is a different ask. */
+async function fileVersion(ctx: Ctx, fileId: string): Promise<unknown> {
+  const got = (await ctx.call("files.get", { fileId })) as { file?: { version?: unknown } };
+  return got.file?.version;
+}
+
 async function fileName(ctx: Ctx, fileId: string): Promise<string> {
   const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown } };
   return typeof got.file?.name === "string" ? got.file.name : "";
@@ -184,7 +190,7 @@ async function fill(ctx: Ctx, input: unknown): Promise<Filled> {
   const stem =
     wanted !== undefined ? wanted.replace(new RegExp(`\\.${format}$`, "i"), "") : `${baseName(templateName)} (filled)`;
   const recordId = optStr(ctx, o, "recordId");
-  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${askKey([o.values, o.signingDate, o.recordId, o.name, format])}`}`;
+  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${askKey([values, o.signingDate, o.name, format, await fileVersion(ctx, templateFileId)])}`}`;
   let saved: Saved;
   let signers: string[] = [];
   if (format === "pdf") {
@@ -342,7 +348,8 @@ async function make(ctx: Ctx, input: unknown): Promise<Filled> {
   const pass: Record<string, unknown> = { templateFileId, intoFolderId: folder.folderId, recordId };
   for (const k of ["values", "signingDate", "name", "format"]) if (o[k] !== undefined) pass[k] = o[k];
   // a retry of the same ask makes the same file: the key is the ask itself
-  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${typeof o.idempotencyKey === "string" ? o.idempotencyKey : askKey([o.values, o.signingDate, o.name, o.format])}`;
+  // with the caller's key a retry is the same file; with none, every call is its own ask (the trace id is new for each), so an old file is never replayed for a new one
+  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${typeof o.idempotencyKey === "string" ? o.idempotencyKey : ctx.trace.traceId}`;
   return (await ctx.call("documents.fill", pass)) as Filled;
 }
 

@@ -993,7 +993,9 @@ export async function documentsFill(
   const format = optStr(ctx, o, "format") ?? "docx";
   if (format !== "docx" && format !== "pdf")
     fail(ctx, "validation.bad_input", "The format is docx or pdf.", { field: "format" });
-  const template = (await ctx.call("files.get", { fileId: templateFileId })) as { file?: { name?: unknown } };
+  const template = (await ctx.call("files.get", { fileId: templateFileId })) as {
+    file?: { name?: unknown; version?: unknown };
+  };
   const templateName = typeof template.file?.name === "string" ? template.file.name : "document.docx";
   const bytes = await templateBytes(ctx, templateFileId);
   const { values, given } = await valuesOf(ctx, o, asked(bytes));
