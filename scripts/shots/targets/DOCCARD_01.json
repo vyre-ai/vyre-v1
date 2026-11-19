@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "DOCCARD_01-plain",
+      "route": "/m/DOCCARD_01?part=plain",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='approval-note-tsk_9']",
+      "note": "A held send of a preview copy: the server's sentence under the title and the names apart."
+    },
+    {
+      "id": "DOCCARD_01-ordinary",
+      "route": "/m/DOCCARD_01?part=ordinary",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='approval-tsk_9']",
+      "note": "The same hold for an exact copy: no note."
+    }
+  ]
+}

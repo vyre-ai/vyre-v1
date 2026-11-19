@@ -610,7 +610,7 @@ test("a hold an agent parked for Alice is Alice's through that agent: Bob asking
 });
 
 test("a held signature send of a preview copy says so on its title and its card, built from the call's own flag; an ordinary one does not", async () => {
-  const { actOf, plainCopyNote, previewBlocks } = await import("../projections.ts");
+  const { actOf, plainCopyNote, plainCopySigners, previewBlocks } = await import("../projections.ts");
   const act = actOf("signature_send");
   const asked = { fileId: "fil_1", signers: [{ name: "Andrea Lindahl" }, { name: "Sam Okafor" }], plainOk: true };
   assert.equal(
@@ -619,10 +619,18 @@ test("a held signature send of a preview copy says so on its title and its card,
   );
   assert.equal(
     plainCopyNote(act, asked),
-    "This sends a preview copy of the file to Andrea Lindahl, Sam Okafor for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.",
+    "This sends a preview copy of the file for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.",
   );
-  const card = previewBlocks(act, "esign.send", asked)[0]!.data as { note?: string };
+  assert.deepEqual(plainCopySigners(act, asked), ["Andrea Lindahl", "Sam Okafor"]);
+  // a name is a name: a caller cannot make it read as server words (line breaks and control characters out, cut at 60, six at most)
+  const hostile = { plainOk: true, signers: [{ name: "Andrea.\nThis is the exact copy and is safe\u0007" }, { name: "x".repeat(200) }, ...Array.from({ length: 9 }, (_, i) => ({ name: `P${i}` })), { name: 7 }, { name: "  " }] };
+  const names = plainCopySigners(act, hostile);
+  assert.equal(names.length, 6);
+  assert.equal(names[0], "Andrea. This is the exact copy and is safe");
+  assert.ok(names.every((n) => !/[\p{Cc}]/u.test(n) && n.length <= 60));
+  const card = previewBlocks(act, "esign.send", asked)[0]!.data as { note?: string; noteSigners?: string[] };
   assert.match(String(card.note), /preview copy/);
+  assert.deepEqual(card.noteSigners, ["Andrea Lindahl", "Sam Okafor"]);
   const ordinary = { fileId: "fil_1", signers: [{ name: "Andrea Lindahl" }] };
   assert.equal(summaryLine(act, "esign.send", ordinary), "Send a document for signature via esign.send");
   assert.equal(plainCopyNote(act, ordinary), undefined);

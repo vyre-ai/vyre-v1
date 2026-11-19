@@ -61,3 +61,24 @@ test("a sign step never carries plainOk: even when the step's settings name it, 
   assert.equal("plainOk" in sent, false);
   assert.equal(sent.fileId, "fil_agreement");
 });
+
+test("a sign step on a file that is not the exact copy stops in the step's own words, not the person's \"send this one anyway\"", async () => {
+  const h = harness();
+  h.callee("esign.send", () => {
+    throw Object.assign(new Error("held"), {
+      error: {
+        code: "validation.precondition_failed",
+        message: "Letterhead and pictures are missing in this copy. Wait for the exact copy, or send this one anyway.",
+        details: { plain: true, checked: false, field: "plainOk" },
+      },
+    });
+  });
+  const run = await new MiniRun(
+    h,
+    [node("sg", "sign", { fileId: "fil_agreement", signers: [{ name: "Andrea Lindahl", email: "a@northwind.example" }] }), node("after", "stop", {})],
+    {},
+  ).run();
+  assert.equal(run.state, "failed");
+  assert.equal(run.error?.message, "This file isn't the exact Word copy, so the step stopped. Send it by hand or fix the template.");
+  assert.doesNotMatch(String(run.error?.message), /send this one anyway/);
+});

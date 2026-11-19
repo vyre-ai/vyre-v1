@@ -425,7 +425,10 @@ export function ApprovalCard({
     );
   };
   // an outside agent asking its person: what happens, that it runs as them, and every input
-  const rows = held.plain ? plainRows(held) : held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap);
+  // the sentence above says it is a preview copy: the raw flag is not also listed as a row
+  const rows = (
+    held.plain ? plainRows(held) : held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap)
+  ).filter((r) => !(held.note && r.label === "Plain ok"));
   // a key's test read names the key the server resolved, with its name, and the host: "Scout wants to send #Notely (Notely API key) to api.notely.com"
   const both = (xs: readonly string[]): string =>
     xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : (xs[0] ?? "");
@@ -486,6 +489,16 @@ export function ApprovalCard({
         title={headline}
         lead={<Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />}
       />
+      {held.note ? (
+        <View testID={`approval-note-${taskId}`} style={st.note}>
+          <Text style={st.noteText}>{held.note}</Text>
+          {held.noteSigners && held.noteSigners.length > 0 ? (
+            <Text testID={`approval-note-signers-${taskId}`} style={st.noteNames}>
+              {`To: ${held.noteSigners.join(", ")}`}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {diff && diff.lines.length > 0 ? (
         <View testID={`approval-diff-${taskId}`} style={st.excerpt}>
           {collect(
@@ -552,6 +565,9 @@ export function ApprovalCard({
 }
 
 const st = StyleSheet.create({
+  note: { gap: 2, paddingHorizontal: CARD_INSET, paddingBottom: 6 },
+  noteText: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
+  noteNames: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
   quiet: { gap: 4, paddingVertical: 4 },
   quietText: { fontSize: 13.5, lineHeight: 19, color: "var(--ink-2)" as string },
   quietDetail: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },

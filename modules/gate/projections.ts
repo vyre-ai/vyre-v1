@@ -648,15 +648,19 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
   return cut(parts.join(" "), 120);
 }
 
-/** The sentence the card of a held signature send carries when the sender chose a preview copy: built by the server from the call's own input, so the person pressing Allow is told what it is. */
+/** The sentence the card of a held signature send carries when the sender chose a preview copy: built by the server, with no word from the caller in it, so the person pressing Allow is told what it is. */
 export function plainCopyNote(a: ActDef, input: unknown): string | undefined {
   if (a.key !== "signature_send" || !isObj(input) || input.plainOk !== true) return undefined;
-  const who = Array.isArray(input.signers)
-    ? input.signers
-        .flatMap((x) => (isObj(x) && typeof x.name === "string" && x.name !== "" ? [cut(x.name, 60)] : []))
-        .slice(0, 6)
-    : [];
-  return `This sends a preview copy of the file${who.length > 0 ? ` to ${who.join(", ")}` : ""} for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.`;
+  return "This sends a preview copy of the file for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.";
+}
+
+/** The names the preview copy goes to, as names and nothing else: control characters and line breaks removed, runs of spaces made one, each cut at 60 letters, six at most. The card shows them apart from the sentence. */
+export function plainCopySigners(a: ActDef, input: unknown): string[] {
+  if (a.key !== "signature_send" || !isObj(input) || input.plainOk !== true || !Array.isArray(input.signers)) return [];
+  return input.signers
+    .flatMap((x) => (isObj(x) && typeof x.name === "string" ? [cut(x.name.replace(/[\p{Cc}\p{Cf}\u2028\u2029]+/gu, " ").replace(/\s+/g, " ").trim(), 60)] : []))
+    .filter((n) => n !== "")
+    .slice(0, 6);
 }
 
 /** The exact preview (spec 2.14): the whole input, as the act kind's block, so the approver sees what will go out. */
@@ -684,7 +688,7 @@ export function previewBlocks(
         cap: capName,
         input,
         ...(holdId ? { holdId } : {}),
-        ...(plainCopyNote(a, input) ? { note: plainCopyNote(a, input) } : {}),
+        ...(plainCopyNote(a, input) ? { note: plainCopyNote(a, input), noteSigners: plainCopySigners(a, input) } : {}),
         ...(outward ? { outward: { ...outward, ...(edited ? { edited } : {}) } } : {}),
       },
     },

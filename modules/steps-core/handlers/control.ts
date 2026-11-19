@@ -874,6 +874,13 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
   } catch (e) {
     const held = gateHold(e);
     if (held) return held;
+    // a copy that is not the exact one is held by esign for a person's choice; a step cannot make it, so it stops in the step's own words (not "send this one anyway", which a step cannot do)
+    if (cap === "esign.send" && (e as { error?: { details?: { field?: string } } } | null)?.error?.details?.field === "plainOk")
+      throw stepError(
+        "validation.precondition_failed",
+        "This file isn't the exact Word copy, so the step stopped. Send it by hand or fix the template.",
+        false,
+      );
     throw accountRefusal(e, def.title, input) ?? e;
   }
 }
