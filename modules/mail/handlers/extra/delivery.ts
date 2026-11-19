@@ -375,7 +375,12 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
     return { outcome: "skipped" };
   }
   const status = str(msg, "status");
-  if (status === "delivered" || status === "complained") {
+  // this address already got it (a delivered event for it, or it was the only one written to), or the person it went to complained
+  const everyone = new Set([...readParties(str(msg, "toAddresses")), ...readParties(str(msg, "ccAddresses"))].map((p) => p.address.toLowerCase()));
+  const got = rowsOf(ctx.db.all(`SELECT * FROM mail_delivery_event WHERE "messageId" = ?`, input.messageId)).some(
+    (e) => str(e, "kind") === "delivered" && ((strOrNull(e, "address") ?? "").toLowerCase() === address || (!strOrNull(e, "address") && everyone.size <= 1)),
+  );
+  if (got || (status === "delivered" && everyone.size <= 1) || status === "complained") {
     finish(ctx, input.messageId, address, "done");
     return { outcome: "skipped" };
   }

@@ -213,8 +213,9 @@ test("a template cannot merge a private field, and a record's value under such a
   const h = setup({ signer_name: "Sam", ssn: "123-45-6789", card_number: "4111" });
   await assert.rejects(save(h.ctx, { key: "a.b", subject: "x", text: "Your {{ssn}}" }), (e) => codeOf(e) === "validation.bad_input");
   await assert.rejects(save(h.ctx, { key: "a.b", subject: "x {{password|}}", text: "y" }), (e) => codeOf(e) === "validation.bad_input");
-  const out = await preview(h.ctx, { subject: "x", text: "{{signer_name}} {{ssn_x|none}}", recordId: REC });
-  assert.equal(out.text, "Sam none");
+  const out = await preview(h.ctx, { subject: "x", text: "{{signer_name}} {{company|none}}", recordId: REC });
+  assert.equal(out.text, "Sam none"); // the record also holds ssn and card_number; neither is ever read into the values
+  assert.ok(!JSON.stringify(out).includes("123-45"));
   // a field that only looks private is not blocked
   await save(h.ctx, { key: "a.b", subject: "Your {{cardinal_direction|north}}", text: "y" });
 });
