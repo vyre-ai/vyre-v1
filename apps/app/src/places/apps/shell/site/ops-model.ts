@@ -245,7 +245,8 @@ export function paths(
 ): { line: string; area: string } {
   const v = series.filter((x): x is number => x !== null);
   if (v.length === 0 || series.length < 2) return { line: "", area: "" };
-  const lo = Math.min(...v, 0);
+  // the scale starts at the lowest value, so a small swing around a steady number is seen as one (CPU at 4% still moves on its chart)
+  const lo = Math.min(...v);
   const hi = Math.max(...v);
   const span = hi - lo || 1;
   const step = w / (series.length - 1);

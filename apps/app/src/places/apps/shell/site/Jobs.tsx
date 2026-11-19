@@ -267,12 +267,7 @@ function RunOutput({ siteId, runId }: { siteId: string; runId: string }): ReactE
     return () => clearInterval(t);
   }, [out.refresh]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <LogLines
-      lines={(out.data?.lines ?? []).map((l) => l.text)}
-      empty="It printed nothing."
-      height={160}
-      testID="site-run-output"
-    />
+    <LogLines lines={(out.data?.lines ?? []).map((l) => l.text)} empty="It printed nothing." testID="site-run-output" />
   );
 }
 

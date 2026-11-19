@@ -306,3 +306,8 @@ test("the Backups header says the size, whether there are backups, and the repla
     /before the last restore \(8 MB\) is kept until its backup expires/,
   );
 });
+
+test("a chart scales to its own range, so a small swing is visible", () => {
+  const p = paths([200, 210, 200], 100, 20);
+  assert.equal(p.line, "M0 18L50 2L100 18");
+});

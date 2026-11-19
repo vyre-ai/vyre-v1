@@ -3,7 +3,7 @@
 // much was left out. Times are in the Space's time.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { MenuIcon } from "../../../../../../../ui/src/Menu/index.tsx";
 import { useSpaceZone } from "../../../../../../../ui/src/Time/index.tsx";
 import { deviceZone } from "../../../../../../../lib/zones.ts";
@@ -45,6 +45,8 @@ interface Read {
 export function SiteLogs({ siteId, height = 520 }: { siteId: string; height?: number }): ReactElement {
   const d = useAppsData();
   const zone = useSpaceZone() ?? deviceZone();
+  // on a phone the line is the time, the words and the status; the source and the milliseconds are left out so a path is not broken over four lines
+  const narrow = useWindowDimensions().width < 600;
   const [f, setF] = useState<Filters>(NO_FILTER);
   const [typed, setTyped] = useState("");
   const [paused, setPaused] = useState(false);
@@ -239,7 +241,7 @@ export function SiteLogs({ siteId, height = 520 }: { siteId: string; height?: nu
           {shown.map((r) => (
             <View key={r.seq} style={[s.row, r.tone === "error" && s.rowError]} testID="site-log-row">
               <Text style={[s.cell, s.time]}>{r.more ? "" : r.time}</Text>
-              <Text style={[s.cell, s.tag]}>{r.more ? "" : r.tag}</Text>
+              {narrow ? null : <Text style={[s.cell, s.tag]}>{r.more ? "" : r.tag}</Text>}
               <Text selectable style={[s.cell, s.text, r.tone === "error" && s.err, r.tone === "warn" && s.warn]}>
                 {r.text}
               </Text>
@@ -248,7 +250,7 @@ export function SiteLogs({ siteId, height = 520 }: { siteId: string; height?: nu
                   {r.status}
                 </Text>
               ) : null}
-              {r.ms !== undefined ? <Text style={[s.cell, s.ms]}>{r.ms}</Text> : null}
+              {r.ms !== undefined && !narrow ? <Text style={[s.cell, s.ms]}>{r.ms}</Text> : null}
             </View>
           ))}
         </ScrollView>
