@@ -107,7 +107,8 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     const value = typeof next === "function" ? next(overlayNow) : next;
     setOverlayRaw(value);
     // closing the view of a hash-named Journey or run keeps it closed while the hash still names it
-    if (value === null || value.kind === "failed" || value.kind === "journeyNew") setLeftHashed(hashedJourney ?? hashedRun);
+    if (value === null || value.kind === "failed" || value.kind === "journeyNew")
+      setLeftHashed(hashedJourney ?? hashedRun);
   };
   const [step, setStep] = useState<string | null>(null);
   const [sideRun, setSideRun] = useState<string | null>(null);
@@ -444,12 +445,14 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       <RunsDataProvider value={runs}>
         <ConfigExtrasProvider value={extras}>
           <View style={s.page} testID="automations-place">
-            {phone ? null : <AutomationsSidebarSlot
+            {phone ? null : (
+              <AutomationsSidebarSlot
                 selectedId={openId}
                 // choosing a row must not close the view the row just opened (a Journey is a view over the body); only the head's Home and the other views close it
                 onView={(next) => (next === "automations" ? setViewRaw(next) : setView(next))}
                 onHome={goHome}
-              />}
+              />
+            )}
             <View style={s.main}>
               {phone && view !== "automations" && !openId ? (
                 <Pressable

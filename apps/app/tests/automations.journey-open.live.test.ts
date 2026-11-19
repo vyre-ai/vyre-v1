@@ -80,11 +80,18 @@ test("production Automations: a Journey made through the API opens from the list
     const row = page.getByTestId(`row-auto-${j.id}`).first();
     await row.waitFor({ timeout: 20_000 });
     await row.click();
-    await page.getByTestId("journey-designer").waitFor({ timeout: 15_000 }).catch(async (e: Error) => {
-      if (SHOTS) await page.screenshot({ path: `${SHOTS}/journey-open-fail.png` });
-      const ids = await page.locator("[data-testid]").evaluateAll((els) => els.map((x) => x.getAttribute("data-testid")).slice(0, 80));
-      throw new Error(`the Journey did not open: ${e.message}; page errors ${JSON.stringify(errors)}; ids ${JSON.stringify(ids)}; text ${(await page.locator("body").innerText()).slice(0, 600)}`);
-    });
+    await page
+      .getByTestId("journey-designer")
+      .waitFor({ timeout: 15_000 })
+      .catch(async (e: Error) => {
+        if (SHOTS) await page.screenshot({ path: `${SHOTS}/journey-open-fail.png` });
+        const ids = await page
+          .locator("[data-testid]")
+          .evaluateAll((els) => els.map((x) => x.getAttribute("data-testid")).slice(0, 80));
+        throw new Error(
+          `the Journey did not open: ${e.message}; page errors ${JSON.stringify(errors)}; ids ${JSON.stringify(ids)}; text ${(await page.locator("body").innerText()).slice(0, 600)}`,
+        );
+      });
     for (const k of KEYS) await page.getByTestId(`stage-${k}`).waitFor({ timeout: 10_000 });
     await page.getByTestId("funnel").waitFor({ timeout: 10_000 });
     assert.equal(await page.getByTestId("journey-gone").count(), 0, "the Journey is found");
