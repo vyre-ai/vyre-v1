@@ -130,3 +130,14 @@ test("a form link made in one step is usable in the email after it, and a mistyp
   assert.deepEqual(say(flow("Finish here: {{steps.link.out.url}}")), []);
   assert.match(say(flow("{{steps.link.out.link}}"))[0]!, /After steps\.link\.out you can use expiresAt, url/);
 });
+
+test("a text of nothing but `{{` is read in linear time (no backtracking on hostile input)", () => {
+  const hostile = "{{".repeat(50_000);
+  const t0 = Date.now();
+  assert.deepEqual(readsOf(hostile), []);
+  assert.ok(Date.now() - t0 < 100, `took ${Date.now() - t0} ms`);
+  assert.deepEqual(readsOf("a {{ trigger.x }} b {{ steps.s.out.y }} {{ open"), [
+    { text: "trigger.x", root: "trigger", segs: ["x"], fallback: false },
+    { text: "steps.s.out.y", root: "steps", segs: ["s", "out", "y"], fallback: false },
+  ]);
+});
