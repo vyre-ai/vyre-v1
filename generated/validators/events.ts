@@ -142,13 +142,13 @@ d_s_39569058c9(a842[i842], p + '/' + i842, e);
 
 function d_s_d2fbc5babb(v: unknown, p: string, e: string[]): void {
 {
-const x1038 = v;
-const g1038 = typeOf(x1038);
-const b1038: string[] = []; lf(x1038, p, b1038, L0); if (b1038.length) e.push(...b1038);
-if (g1038 === "object") {
-if (g1038 === 'object') { const o1038 = x1038 as Record<string, unknown>;
-if (!("delivery" in o1038)) e.push(p + "/delivery" + ': required');
-if ("delivery" in o1038) d_s_20def9ae8f(o1038["delivery"], p + "/delivery", e);
+const x1040 = v;
+const g1040 = typeOf(x1040);
+const b1040: string[] = []; lf(x1040, p, b1040, L0); if (b1040.length) e.push(...b1040);
+if (g1040 === "object") {
+if (g1040 === 'object') { const o1040 = x1040 as Record<string, unknown>;
+if (!("delivery" in o1040)) e.push(p + "/delivery" + ': required');
+if ("delivery" in o1040) d_s_20def9ae8f(o1040["delivery"], p + "/delivery", e);
 }
 }
 }

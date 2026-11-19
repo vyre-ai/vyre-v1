@@ -43,6 +43,7 @@ type Out = {
       at: number;
       deliveredAt?: number;
       seenAt?: number;
+      fromName?: string;
     }>;
 };
 ```
@@ -70,6 +71,7 @@ type Out = {
         "at": 1760000000000,
         "body": "example",
         "deliveredAt": 1760000000000,
+        "fromName": "example",
         "fromRun": "run_a1b2c3",
         "id": "example",
         "rootRun": "run_a1b2c3",

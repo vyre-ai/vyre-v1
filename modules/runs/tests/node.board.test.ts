@@ -123,6 +123,11 @@ test("a message goes to a sibling or the parent, once, in order, and is told whe
     first.messages.map((m: any) => m.body),
     ["Pine's price changed to 3,820", "And delivery is included"],
   ); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    first.messages.map((m: any) => m.fromName),
+    ["Calder", "Calder"],
+    "each says who it is from, in words",
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal((await h.call("runs.message.take", { runId: b.id }, engine)).messages.length, 0, "delivered once");
   assert.equal((await h.call("runs.message.seen", { messageIds: [m1.message.id] }, engine)).marked, 1);
   const list = (await h.call("runs.message.list", { runId: a.id }, owner)).messages;

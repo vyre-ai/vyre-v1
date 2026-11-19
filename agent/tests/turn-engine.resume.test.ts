@@ -174,3 +174,31 @@ test("a resumed turn that finishes leaves nothing in the journal, and the resume
   assert.equal(r.pb.sessions.length, 1, "no second resume");
   await r.release();
 });
+
+test("what another node of the work told this turn is handed to the model at the next step boundary, once, with who it is from", async () => {
+  const told: Array<{ from: string; body: string }> = [{ from: "Pine", body: "Pine's price changed to 3,820" }];
+  const p = scriptedProvider({
+    script: [
+      { type: "tool_call", id: "c1", name: "read_prices", input: {} },
+      { type: "tool_call", id: "c2", name: "read_policy", input: {} },
+      { type: "done" },
+    ],
+  });
+  const asked: string[] = [];
+  const engine = createTurnEngine({
+    holder: "host:a",
+    openSession: p.openSession,
+    callTool: async () => ({ ok: true, content: {} }),
+    takeNotes: async (c) => {
+      asked.push(c.turnId);
+      return told.splice(0, told.length);
+    },
+    toolSafety: SAFETY,
+  });
+  engine.openThread(thread("T"));
+  engine.receive({ threadId: "T", author: person("dana"), body: "Compare the bids" });
+  await engine.idle("T");
+  const injected = p.sessions[0]!.injected.map((m) => [m.author.id, m.body]);
+  assert.deepEqual(injected, [["Pine", "Pine's price changed to 3,820"]], "once, though two calls asked");
+  assert.equal(asked.length, 2);
+});

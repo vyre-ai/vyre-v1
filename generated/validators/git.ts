@@ -164,28 +164,28 @@ lf(a829[i829], p + "/parents" + '/' + i829, e, L350);
 
 function d_s_d5e112d024(v: unknown, p: string, e: string[]): void {
 {
-const x1047 = v;
-const g1047 = typeOf(x1047);
-const b1047: string[] = []; lf(x1047, p, b1047, L4); if (b1047.length) e.push(...b1047);
-if (g1047 === "array") {
-if (g1047 === 'array') { const a1047 = x1047 as unknown[];
-for (let i1047 = 0; i1047 < a1047.length; i1047++) {
+const x1049 = v;
+const g1049 = typeOf(x1049);
+const b1049: string[] = []; lf(x1049, p, b1049, L4); if (b1049.length) e.push(...b1049);
+if (g1049 === "array") {
+if (g1049 === 'array') { const a1049 = x1049 as unknown[];
+for (let i1049 = 0; i1049 < a1049.length; i1049++) {
 {
-const x1048 = a1047[i1047];
-const g1048 = typeOf(x1048);
-const b1048: string[] = []; lf(x1048, p + '/' + i1047, b1048, L0); if (b1048.length) e.push(...b1048);
-if (g1048 === "object") {
-if (g1048 === 'object') { const o1048 = x1048 as Record<string, unknown>;
-if (!("path" in o1048)) e.push(p + '/' + i1047 + "/path" + ': required');
-if (!("status" in o1048)) e.push(p + '/' + i1047 + "/status" + ': required');
-if (!("added" in o1048)) e.push(p + '/' + i1047 + "/added" + ': required');
-if (!("removed" in o1048)) e.push(p + '/' + i1047 + "/removed" + ': required');
-if (!("staged" in o1048)) e.push(p + '/' + i1047 + "/staged" + ': required');
-if ("path" in o1048) lf(o1048["path"], p + '/' + i1047 + "/path", e, L1);
-if ("status" in o1048) lf(o1048["status"], p + '/' + i1047 + "/status", e, L432);
-if ("added" in o1048) lf(o1048["added"], p + '/' + i1047 + "/added", e, L2);
-if ("removed" in o1048) lf(o1048["removed"], p + '/' + i1047 + "/removed", e, L2);
-if ("staged" in o1048) lf(o1048["staged"], p + '/' + i1047 + "/staged", e, L3);
+const x1050 = a1049[i1049];
+const g1050 = typeOf(x1050);
+const b1050: string[] = []; lf(x1050, p + '/' + i1049, b1050, L0); if (b1050.length) e.push(...b1050);
+if (g1050 === "object") {
+if (g1050 === 'object') { const o1050 = x1050 as Record<string, unknown>;
+if (!("path" in o1050)) e.push(p + '/' + i1049 + "/path" + ': required');
+if (!("status" in o1050)) e.push(p + '/' + i1049 + "/status" + ': required');
+if (!("added" in o1050)) e.push(p + '/' + i1049 + "/added" + ': required');
+if (!("removed" in o1050)) e.push(p + '/' + i1049 + "/removed" + ': required');
+if (!("staged" in o1050)) e.push(p + '/' + i1049 + "/staged" + ': required');
+if ("path" in o1050) lf(o1050["path"], p + '/' + i1049 + "/path", e, L1);
+if ("status" in o1050) lf(o1050["status"], p + '/' + i1049 + "/status", e, L432);
+if ("added" in o1050) lf(o1050["added"], p + '/' + i1049 + "/added", e, L2);
+if ("removed" in o1050) lf(o1050["removed"], p + '/' + i1049 + "/removed", e, L2);
+if ("staged" in o1050) lf(o1050["staged"], p + '/' + i1049 + "/staged", e, L3);
 }
 }
 }

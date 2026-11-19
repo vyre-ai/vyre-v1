@@ -188,6 +188,7 @@ const nodeMessage = t.obj({
   at: t.ts(),
   deliveredAt: t.opt(t.ts()),
   seenAt: t.opt(t.ts()),
+  fromName: t.opt(t.str()),
 });
 const nodeTarget = { runId: id.run };
 

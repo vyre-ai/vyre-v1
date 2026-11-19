@@ -123,6 +123,8 @@ export function createNodeMirror(h: MirrorHost) {
   }
 
   return {
+    /** The node of a turn this process has seen, if any. */
+    nodeFor: (turnId: string): string | undefined => nodeOf.get(turnId),
     /** Mirror one phase of a turn. Phases of one turn run in order; a failure is logged, never thrown. */
     turn(turn: TurnFacts, phase: Phase, extra: Extra = {}): Promise<void> {
       const prev = chain.get(turn.id) ?? Promise.resolve();

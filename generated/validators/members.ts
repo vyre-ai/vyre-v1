@@ -306,15 +306,15 @@ if ("lastSweep" in o816) lf(o816["lastSweep"], p + "/lastSweep", e, L1);
 
 function d_s_b48a8a5011(v: unknown, p: string, e: string[]): void {
 {
-const x902 = v;
-const g902 = typeOf(x902);
-const b902: string[] = []; lf(x902, p, b902, L0); if (b902.length) e.push(...b902);
-if (g902 === "object") {
-if (g902 === 'object') { const o902 = x902 as Record<string, unknown>;
-if (!("invite" in o902)) e.push(p + "/invite" + ': required');
-if (!("link" in o902)) e.push(p + "/link" + ': required');
-if ("invite" in o902) d_s_6407714530(o902["invite"], p + "/invite", e);
-if ("link" in o902) lf(o902["link"], p + "/link", e, L1);
+const x904 = v;
+const g904 = typeOf(x904);
+const b904: string[] = []; lf(x904, p, b904, L0); if (b904.length) e.push(...b904);
+if (g904 === "object") {
+if (g904 === 'object') { const o904 = x904 as Record<string, unknown>;
+if (!("invite" in o904)) e.push(p + "/invite" + ': required');
+if (!("link" in o904)) e.push(p + "/link" + ': required');
+if ("invite" in o904) d_s_6407714530(o904["invite"], p + "/invite", e);
+if ("link" in o904) lf(o904["link"], p + "/link", e, L1);
 }
 }
 }
@@ -322,13 +322,13 @@ if ("link" in o902) lf(o902["link"], p + "/link", e, L1);
 
 function d_s_bef5b01c7a(v: unknown, p: string, e: string[]): void {
 {
-const x940 = v;
-const g940 = typeOf(x940);
-const b940: string[] = []; lf(x940, p, b940, L0); if (b940.length) e.push(...b940);
-if (g940 === "object") {
-if (g940 === 'object') { const o940 = x940 as Record<string, unknown>;
-if (!("provider" in o940)) e.push(p + "/provider" + ': required');
-if ("provider" in o940) d_s_fc5a39b381(o940["provider"], p + "/provider", e);
+const x942 = v;
+const g942 = typeOf(x942);
+const b942: string[] = []; lf(x942, p, b942, L0); if (b942.length) e.push(...b942);
+if (g942 === "object") {
+if (g942 === 'object') { const o942 = x942 as Record<string, unknown>;
+if (!("provider" in o942)) e.push(p + "/provider" + ': required');
+if ("provider" in o942) d_s_fc5a39b381(o942["provider"], p + "/provider", e);
 }
 }
 }
@@ -336,26 +336,26 @@ if ("provider" in o940) d_s_fc5a39b381(o940["provider"], p + "/provider", e);
 
 function d_s_c6734b0baf(v: unknown, p: string, e: string[]): void {
 {
-const x980 = v;
-const g980 = typeOf(x980);
-const b980: string[] = []; lf(x980, p, b980, L4); if (b980.length) e.push(...b980);
-if (g980 === "array") {
-if (g980 === 'array') { const a980 = x980 as unknown[];
-for (let i980 = 0; i980 < a980.length; i980++) {
+const x982 = v;
+const g982 = typeOf(x982);
+const b982: string[] = []; lf(x982, p, b982, L4); if (b982.length) e.push(...b982);
+if (g982 === "array") {
+if (g982 === 'array') { const a982 = x982 as unknown[];
+for (let i982 = 0; i982 < a982.length; i982++) {
 {
-const x981 = a980[i980];
-const g981 = typeOf(x981);
-const b981: string[] = []; lf(x981, p + '/' + i980, b981, L0); if (b981.length) e.push(...b981);
-if (g981 === "object") {
-if (g981 === 'object') { const o981 = x981 as Record<string, unknown>;
-if (!("key" in o981)) e.push(p + '/' + i980 + "/key" + ': required');
-if (!("title" in o981)) e.push(p + '/' + i980 + "/title" + ': required');
-if (!("error" in o981)) e.push(p + '/' + i980 + "/error" + ': required');
-if (!("tries" in o981)) e.push(p + '/' + i980 + "/tries" + ': required');
-if ("key" in o981) lf(o981["key"], p + '/' + i980 + "/key", e, L1);
-if ("title" in o981) lf(o981["title"], p + '/' + i980 + "/title", e, L1);
-if ("error" in o981) lf(o981["error"], p + '/' + i980 + "/error", e, L1);
-if ("tries" in o981) lf(o981["tries"], p + '/' + i980 + "/tries", e, L17);
+const x983 = a982[i982];
+const g983 = typeOf(x983);
+const b983: string[] = []; lf(x983, p + '/' + i982, b983, L0); if (b983.length) e.push(...b983);
+if (g983 === "object") {
+if (g983 === 'object') { const o983 = x983 as Record<string, unknown>;
+if (!("key" in o983)) e.push(p + '/' + i982 + "/key" + ': required');
+if (!("title" in o983)) e.push(p + '/' + i982 + "/title" + ': required');
+if (!("error" in o983)) e.push(p + '/' + i982 + "/error" + ': required');
+if (!("tries" in o983)) e.push(p + '/' + i982 + "/tries" + ': required');
+if ("key" in o983) lf(o983["key"], p + '/' + i982 + "/key", e, L1);
+if ("title" in o983) lf(o983["title"], p + '/' + i982 + "/title", e, L1);
+if ("error" in o983) lf(o983["error"], p + '/' + i982 + "/error", e, L1);
+if ("tries" in o983) lf(o983["tries"], p + '/' + i982 + "/tries", e, L17);
 }
 }
 }

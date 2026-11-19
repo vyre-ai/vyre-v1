@@ -35669,6 +35669,7 @@ export type RunsMessageListOut = {
       at: number;
       deliveredAt?: number;
       seenAt?: number;
+      fromName?: string;
     }>;
 };
 export type RunsMessageSeenIn = {
@@ -35693,6 +35694,7 @@ export type RunsMessageSendOut = {
     at: number;
     deliveredAt?: number;
     seenAt?: number;
+    fromName?: string;
   };
   duplicate: boolean;
 };
@@ -35709,6 +35711,7 @@ export type RunsMessageTakeOut = {
       at: number;
       deliveredAt?: number;
       seenAt?: number;
+      fromName?: string;
     }>;
 };
 export type RunsNodeBeatIn = {

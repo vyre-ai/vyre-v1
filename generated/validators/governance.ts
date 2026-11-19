@@ -5,13 +5,13 @@ import type { Check } from './core.ts';
 
 function d_s_5db203819b(v: unknown, p: string, e: string[]): void {
 {
-const x481 = v;
-const g481 = typeOf(x481);
-const b481: string[] = []; lf(x481, p, b481, L0); if (b481.length) e.push(...b481);
-if (g481 === "object") {
-if (g481 === 'object') { const o481 = x481 as Record<string, unknown>;
-if (!("row" in o481)) e.push(p + "/row" + ': required');
-if ("row" in o481) d_s_faee104388(o481["row"], p + "/row", e);
+const x482 = v;
+const g482 = typeOf(x482);
+const b482: string[] = []; lf(x482, p, b482, L0); if (b482.length) e.push(...b482);
+if (g482 === "object") {
+if (g482 === 'object') { const o482 = x482 as Record<string, unknown>;
+if (!("row" in o482)) e.push(p + "/row" + ': required');
+if ("row" in o482) d_s_faee104388(o482["row"], p + "/row", e);
 }
 }
 }

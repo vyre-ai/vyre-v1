@@ -376,7 +376,13 @@ export async function messageTakeCap(ctx: RunsCtx, input: In): Promise<unknown> 
   if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
     raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
   getNode(ctx, input.runId);
-  return { messages: takeMessages(ctx, input.runId) };
+  // each carries who it is from, in words, so the receiver reads "Pine: the price changed", not an id
+  return {
+    messages: takeMessages(ctx, input.runId).map((m) => {
+      const from = findNode(ctx.db, m.fromRun);
+      return { ...m, fromName: from?.name ?? from?.kind ?? "A helper" };
+    }),
+  };
 }
 export async function messageSeenCap(ctx: RunsCtx, input: In): Promise<unknown> {
   if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))

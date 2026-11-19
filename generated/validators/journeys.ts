@@ -187,13 +187,13 @@ if ("updatedAt" in o236) lf(o236["updatedAt"], p + "/updatedAt", e, L17);
 
 function d_s_a6c1ebd30d(v: unknown, p: string, e: string[]): void {
 {
-const x856 = v;
-const g856 = typeOf(x856);
-const b856: string[] = []; lf(x856, p, b856, L4); if (b856.length) e.push(...b856);
-if (g856 === "array") {
-if (g856 === 'array') { const a856 = x856 as unknown[];
-for (let i856 = 0; i856 < a856.length; i856++) {
-d_s_2d1da53e35(a856[i856], p + '/' + i856, e);
+const x858 = v;
+const g858 = typeOf(x858);
+const b858: string[] = []; lf(x858, p, b858, L4); if (b858.length) e.push(...b858);
+if (g858 === "array") {
+if (g858 === 'array') { const a858 = x858 as unknown[];
+for (let i858 = 0; i858 < a858.length; i858++) {
+d_s_2d1da53e35(a858[i858], p + '/' + i858, e);
 }
 }
 }
@@ -202,24 +202,24 @@ d_s_2d1da53e35(a856[i856], p + '/' + i856, e);
 
 function d_s_d3f43ff5d3(v: unknown, p: string, e: string[]): void {
 {
-const x1041 = v;
-const g1041 = typeOf(x1041);
-const b1041: string[] = []; lf(x1041, p, b1041, L0); if (b1041.length) e.push(...b1041);
-if (g1041 === "object") {
-if (g1041 === 'object') { const o1041 = x1041 as Record<string, unknown>;
-if (!("hours" in o1041)) e.push(p + "/hours" + ': required');
-if ("hours" in o1041) lf(o1041["hours"], p + "/hours", e, L12);
-if ("escalateTo" in o1041) {
+const x1043 = v;
+const g1043 = typeOf(x1043);
+const b1043: string[] = []; lf(x1043, p, b1043, L0); if (b1043.length) e.push(...b1043);
+if (g1043 === "object") {
+if (g1043 === 'object') { const o1043 = x1043 as Record<string, unknown>;
+if (!("hours" in o1043)) e.push(p + "/hours" + ': required');
+if ("hours" in o1043) lf(o1043["hours"], p + "/hours", e, L12);
+if ("escalateTo" in o1043) {
 {
-const x1042 = o1041["escalateTo"];
-const g1042 = typeOf(x1042);
-const b1042: string[] = []; lf(x1042, p + "/escalateTo", b1042, L0); if (b1042.length) e.push(...b1042);
-if (g1042 === "object") {
-if (g1042 === 'object') { const o1042 = x1042 as Record<string, unknown>;
-if (!("kind" in o1042)) e.push(p + "/escalateTo" + "/kind" + ': required');
-if (!("id" in o1042)) e.push(p + "/escalateTo" + "/id" + ': required');
-if ("kind" in o1042) lf(o1042["kind"], p + "/escalateTo" + "/kind", e, L423);
-if ("id" in o1042) lf(o1042["id"], p + "/escalateTo" + "/id", e, L1);
+const x1044 = o1043["escalateTo"];
+const g1044 = typeOf(x1044);
+const b1044: string[] = []; lf(x1044, p + "/escalateTo", b1044, L0); if (b1044.length) e.push(...b1044);
+if (g1044 === "object") {
+if (g1044 === 'object') { const o1044 = x1044 as Record<string, unknown>;
+if (!("kind" in o1044)) e.push(p + "/escalateTo" + "/kind" + ': required');
+if (!("id" in o1044)) e.push(p + "/escalateTo" + "/id" + ': required');
+if ("kind" in o1044) lf(o1044["kind"], p + "/escalateTo" + "/kind", e, L423);
+if ("id" in o1044) lf(o1044["id"], p + "/escalateTo" + "/id", e, L1);
 }
 }
 }
