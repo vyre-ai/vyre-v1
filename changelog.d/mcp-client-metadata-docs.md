@@ -1,1 +1,1 @@
-An app can now join Vyre by naming itself with an address: Vyre reads the app's page once, only over a public https address, and keeps what it says as a normal registered app. A person still presses Allow.
+An app can now join Vyre by naming itself with an address: Vyre reads the app's page once, only over a public https address, and keeps what it says as a normal registered app. A person still presses Allow, and the Allow page shows the address the app named itself by. The page is read again after a day, so an app that changes where it sends people back changes it here too.
