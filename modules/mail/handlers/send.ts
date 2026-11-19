@@ -375,8 +375,9 @@ function authorizeSender(ctx: SendCtx, box: Row): void {
   const decision = ctx.authorize({ perm, level: "use" }, resource);
   if (decision.effect === "allow") return;
   // Per-address control (owner, 19 Nov 2026): a share of this one inbox at use level (access.share) is enough to send as it. comms.shared_send stays the blanket for people who run every shared inbox.
-  // The check is on this inbox's own resource, so a share to one address never lets anyone send as another.
-  if (ctx.authorize({ perm: null, level: "use" }, resource).effect === "allow") return;
+  // `direct` counts only a grant on this inbox itself (or owning it): the Space role a Member holds reaches every inbox under the Space, and type-wide grants reach all of them, so without it
+  // every Member could send as every shared inbox. A share to one address therefore never lets anyone send as another.
+  if (ctx.authorize({ perm: null, level: "use", direct: true }, resource).effect === "allow") return;
   throw fail("permission.no_grant", ctx.trace.traceId, { details: { perm } });
 }
 

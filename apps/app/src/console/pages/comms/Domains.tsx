@@ -208,6 +208,13 @@ function DomainObject({ id, onBack }: { id: string; onBack(): void }): ReactElem
           <Help>
             SPF and DKIM must pass before this domain can become the default. Your DMARC policy is shown separately.
           </Help>
+          {domain.provider === "smtp" ? (
+            <Help>
+              Publish the SPF record below as one TXT record at your DNS host. A domain can have only one SPF record: if
+              yours already has one, add the a: part of this record to it instead of adding a second record. Vyre can
+              see that an SPF record exists, not that it lets your mail server send.
+            </Help>
+          ) : null}
           {!domain.verified ? (
             <Button label="Check DNS" disabled={action.busy} onPress={() => void change("check")} />
           ) : null}

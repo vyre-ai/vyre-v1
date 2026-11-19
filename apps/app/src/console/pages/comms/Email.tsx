@@ -101,23 +101,28 @@ export function EmailPage(): ReactElement {
 function SmtpForm({ smtp, onSaved }: { smtp: Setup["smtp"]; onSaved(): void }): ReactElement {
   const [host, setHost] = useState(smtp.host ?? "");
   const [port, setPort] = useState(smtp.port ? String(smtp.port) : "587");
-  const [username, setUsername] = useState(smtp.username ?? "");
+  const [username, setUsername] = useState(""); // never filled in: the saved one is shown only as a hint, and left out of the save it stays
   const [handle, setHandle] = useState("");
   const [result, setResult] = useState("");
   const action = useAction(onSaved);
   useEffect(() => {
     setHost(smtp.host ?? "");
     if (smtp.port) setPort(String(smtp.port));
-    setUsername(smtp.username ?? "");
-  }, [smtp.host, smtp.port, smtp.username]);
+  }, [smtp.host, smtp.port]);
   const portNumber = Number(port);
   const validPort = Number.isSafeInteger(portNumber) && portNumber >= 1 && portNumber <= 65535;
-  const canSave = host.trim() !== "" && validPort && username.trim() !== "" && handle.trim() !== "";
+  const canSave =
+    host.trim() !== "" && validPort && (smtp.configured || username.trim() !== "") && handle.trim() !== "";
   const save = async (): Promise<void> => {
     setResult("");
     const out = await action.run(
       "mail.smtp.set",
-      { host: host.trim(), port: portNumber, username: username.trim(), passwordHandle: handle.trim() },
+      {
+        host: host.trim(),
+        port: portNumber,
+        ...(username.trim() ? { username: username.trim() } : {}),
+        passwordHandle: handle.trim(),
+      },
       "Mail server saved",
     );
     if (out) setHandle("");
@@ -132,13 +137,19 @@ function SmtpForm({ smtp, onSaved }: { smtp: Setup["smtp"]; onSaved(): void }): 
     <ObjectSection title="Mail server">
       <TextBox label="Server" testID="smtp-host" value={host} onChange={setHost} />
       <TextBox label="Port" testID="smtp-port" value={port} onChange={setPort} />
-      <TextBox label="Username" testID="smtp-username" value={username} onChange={setUsername} />
+      <TextBox
+        label="Username"
+        testID="smtp-username"
+        value={username}
+        onChange={setUsername}
+        {...(smtp.username ? { hint: `Saved: ${smtp.username}. Leave this empty to keep it.` } : {})}
+      />
       <TextBox
         label="Password handle in the Vault"
         testID="smtp-handle"
         value={handle}
         onChange={setHandle}
-        hint="Keep the password in the Vault in an item whose name starts with Smtp, like #Smtp_Password, and give that handle. Give it again whenever you change the server, port or username."
+        hint="Keep the password in the Vault as a Login or API key item and give its handle, like #Smtp_Password. Give it again whenever you change the server, port or username."
       />
       <Button
         label="Save"

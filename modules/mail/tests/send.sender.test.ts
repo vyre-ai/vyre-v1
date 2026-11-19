@@ -126,15 +126,35 @@ test("send_as and the preview take a senderId the same way", async () => {
   assert.match(down.message, /needs to be reconnected/);
 });
 
-test("a share of one shared inbox is enough to send as it, without the blanket comms.shared_send, and lets nobody send as another inbox", async () => {
-  // the caller lacks comms.shared_send; hello@ is shared with them, support@ is not
-  const r = rig({ deniedPerms: ["comms.shared_send"], denied: new Set(["mbx_support"]) });
+/** The kernel's rules for the part these tests need: a grant on the inbox itself counts when it is use or more and has not expired; without `direct` a Member's Space role reaches every inbox under the Space. */
+function kernel(r: ReturnType<typeof rig>, grants: Record<string, { level: "view" | "use" | "edit"; expired?: boolean }>): void {
+  r.ctx.authorize = (action, resource) => {
+    const ok = { effect: "allow", reason: "ok", decisionId: "dec_mailtest01" } as const;
+    const no = { effect: "deny", reason: "no_grant", decisionId: "dec_mailtest01" } as const;
+    if (action.perm === "comms.shared_send") return no; // the caller lacks the blanket
+    if (action.direct !== true) return ok; // the Space role reaches the inbox through its parent
+    const g = resource.id ? grants[resource.id] : undefined;
+    return g && !g.expired && ["use", "edit"].includes(g.level) ? ok : no;
+  };
+}
+
+test("a use share of one shared inbox is enough to send as it, and only as it", async () => {
+  const r = rig();
   seedMailbox(r.h, "mbx_support", "support@vyre.test", { kind: "shared", provider: "inbound_only" });
+  kernel(r, { mbx_hello: { level: "use" } });
   assert.equal((await send(r.ctx, sendIn({ mailboxId: "mbx_hello", senderId: "mbx_hello" }))).status, "sent");
-  assert.equal(r.sent().length, 1);
   const other = await refusal(send(r.ctx, sendIn({ mailboxId: "mbx_support", senderId: "mbx_support" })));
   assert.equal(other.code, "permission.no_grant");
   assert.equal(r.sent().length, 1, "nothing went out as support@");
+});
+
+test("a Member with no share of the inbox, a view-only share, and an expired share are all refused, though their Space role reaches the inbox", async () => {
+  for (const grants of [{}, { mbx_hello: { level: "view" as const } }, { mbx_hello: { level: "use" as const, expired: true } }]) {
+    const r = rig();
+    kernel(r, grants);
+    assert.equal((await refusal(send(r.ctx, sendIn({ mailboxId: "mbx_hello", senderId: "mbx_hello" })))).code, "permission.no_grant");
+    assert.equal(r.sent().length, 0);
+  }
 });
 
 test("comms.shared_send alone still sends as any shared inbox", async () => {

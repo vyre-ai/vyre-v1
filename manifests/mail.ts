@@ -39,7 +39,7 @@ const smtpServer = {
   host: t.opt(t.str({ examples: ["smtp.example.com"] })),
   port: t.opt(t.int({ minimum: 1, maximum: 65535 })),
   security: t.opt(smtpSecurity),
-  username: t.opt(t.str()),
+  username: t.opt(t.str({ description: "On reads only the first two letters and the domain are returned" })),
 };
 const smtpState = {
   configured: t.bool(),

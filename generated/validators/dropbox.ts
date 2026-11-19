@@ -5,28 +5,28 @@ import type { Check } from './core.ts';
 
 function d_s_9b30b1af72(v: unknown, p: string, e: string[]): void {
 {
-const x801 = v;
-const g801 = typeOf(x801);
-const b801: string[] = []; lf(x801, p, b801, L0); if (b801.length) e.push(...b801);
-if (g801 === "object") {
-if (g801 === 'object') { const o801 = x801 as Record<string, unknown>;
-if (!("id" in o801)) e.push(p + "/id" + ': required');
-if (!("name" in o801)) e.push(p + "/name" + ': required');
-if (!("path" in o801)) e.push(p + "/path" + ': required');
-if (!("pathLower" in o801)) e.push(p + "/pathLower" + ': required');
-if (!("isFolder" in o801)) e.push(p + "/isFolder" + ': required');
-if (!("webUrl" in o801)) e.push(p + "/webUrl" + ': required');
-if ("id" in o801) lf(o801["id"], p + "/id", e, L1);
-if ("name" in o801) lf(o801["name"], p + "/name", e, L1);
-if ("path" in o801) lf(o801["path"], p + "/path", e, L1);
-if ("pathLower" in o801) lf(o801["pathLower"], p + "/pathLower", e, L1);
-if ("isFolder" in o801) lf(o801["isFolder"], p + "/isFolder", e, L3);
-if ("deleted" in o801) lf(o801["deleted"], p + "/deleted", e, L3);
-if ("size" in o801) lf(o801["size"], p + "/size", e, L13);
-if ("rev" in o801) lf(o801["rev"], p + "/rev", e, L1);
-if ("modified" in o801) lf(o801["modified"], p + "/modified", e, L1);
-if ("contentHash" in o801) lf(o801["contentHash"], p + "/contentHash", e, L1);
-if ("webUrl" in o801) lf(o801["webUrl"], p + "/webUrl", e, L1);
+const x802 = v;
+const g802 = typeOf(x802);
+const b802: string[] = []; lf(x802, p, b802, L0); if (b802.length) e.push(...b802);
+if (g802 === "object") {
+if (g802 === 'object') { const o802 = x802 as Record<string, unknown>;
+if (!("id" in o802)) e.push(p + "/id" + ': required');
+if (!("name" in o802)) e.push(p + "/name" + ': required');
+if (!("path" in o802)) e.push(p + "/path" + ': required');
+if (!("pathLower" in o802)) e.push(p + "/pathLower" + ': required');
+if (!("isFolder" in o802)) e.push(p + "/isFolder" + ': required');
+if (!("webUrl" in o802)) e.push(p + "/webUrl" + ': required');
+if ("id" in o802) lf(o802["id"], p + "/id", e, L1);
+if ("name" in o802) lf(o802["name"], p + "/name", e, L1);
+if ("path" in o802) lf(o802["path"], p + "/path", e, L1);
+if ("pathLower" in o802) lf(o802["pathLower"], p + "/pathLower", e, L1);
+if ("isFolder" in o802) lf(o802["isFolder"], p + "/isFolder", e, L3);
+if ("deleted" in o802) lf(o802["deleted"], p + "/deleted", e, L3);
+if ("size" in o802) lf(o802["size"], p + "/size", e, L13);
+if ("rev" in o802) lf(o802["rev"], p + "/rev", e, L1);
+if ("modified" in o802) lf(o802["modified"], p + "/modified", e, L1);
+if ("contentHash" in o802) lf(o802["contentHash"], p + "/contentHash", e, L1);
+if ("webUrl" in o802) lf(o802["webUrl"], p + "/webUrl", e, L1);
 }
 }
 }
@@ -34,13 +34,13 @@ if ("webUrl" in o801) lf(o801["webUrl"], p + "/webUrl", e, L1);
 
 function d_s_a12a98d618(v: unknown, p: string, e: string[]): void {
 {
-const x836 = v;
-const g836 = typeOf(x836);
-const b836: string[] = []; lf(x836, p, b836, L4); if (b836.length) e.push(...b836);
-if (g836 === "array") {
-if (g836 === 'array') { const a836 = x836 as unknown[];
-for (let i836 = 0; i836 < a836.length; i836++) {
-d_s_9b30b1af72(a836[i836], p + '/' + i836, e);
+const x837 = v;
+const g837 = typeOf(x837);
+const b837: string[] = []; lf(x837, p, b837, L4); if (b837.length) e.push(...b837);
+if (g837 === "array") {
+if (g837 === 'array') { const a837 = x837 as unknown[];
+for (let i837 = 0; i837 < a837.length; i837++) {
+d_s_9b30b1af72(a837[i837], p + '/' + i837, e);
 }
 }
 }

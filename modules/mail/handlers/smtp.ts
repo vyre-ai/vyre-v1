@@ -241,6 +241,14 @@ export function ensureSmtp(ctx: Pick<MailCtx, "db">): void {
 
 const saved = (ctx: MailCtx): Row | null => first(ctx.db.all(`SELECT * FROM mail_smtp WHERE id = ?`, ROW));
 
+/** What people and agents read of the username: its first two letters and the domain. It is often a whole mailbox or an API key id. */
+export function mask(username: string): string {
+  const at = username.lastIndexOf("@");
+  const local = at > 0 ? username.slice(0, at) : username;
+  const head = local.slice(0, 2);
+  return `${head}…${at > 0 ? username.slice(at) : ""}`;
+}
+
 function out(row: Row | null): SmtpOut {
   if (!row) return { configured: false, state: "none" };
   const state = str(row, "state");
@@ -249,7 +257,7 @@ function out(row: Row | null): SmtpOut {
     host: str(row, "host"),
     port: num(row, "port"),
     security: str(row, "security") === "tls" ? "tls" : "starttls",
-    username: str(row, "username"),
+    username: mask(str(row, "username")),
     state: state === "ok" || state === "failed" ? state : "unchecked",
   };
   const detail = strOrNull(row, "detail");
@@ -261,8 +269,31 @@ function out(row: Row | null): SmtpOut {
 // ---- what a person may enter
 
 const HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
-/** A mail password lives in a Vault item whose name starts with Smtp (#Smtp_Password). A mail server can then only ever be given a password saved for mail, never another secret the person can read. */
-const HANDLE = /^#Smtp[A-Za-z0-9_]*(\.[A-Za-z0-9_]+)?$/i;
+const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
+/** The Vault kinds a mail password may have: a Login (username and password) or an API key. Any other secret the person can read (an env file, a card, an SSH key) is never given to a mail server. */
+const MAIL_KINDS = ["login", "api_key"] as const;
+
+/** The handle names a Vault item of a mail kind that this person can see. The Vault lists only what the asker may open, so this is also the read check. */
+async function ensureMailCredential(ctx: MailCtx, handle: string): Promise<void> {
+  const name = handle.replace(/^#/, "").split(".")[0] ?? "";
+  for (const kind of MAIL_KINDS) {
+    let items: unknown;
+    try {
+      items = (await ctx.call("vault.items.list", { kind, q: name, limit: 50 })) as { items?: unknown };
+    } catch {
+      throw fail("provider.auth_failed", ctx.trace.traceId, {
+        message: "The Vault could not be read just now. Try again.",
+      });
+    }
+    const list = ((items as { items?: unknown } | null)?.items ?? []) as { handle?: unknown }[];
+    if (list.some((i) => typeof i.handle === "string" && i.handle.replace(/^#/, "") === handle.replace(/^#/, "")))
+      return;
+  }
+  bad(
+    ctx,
+    "The password must be a Vault item of the kind Login or API key that you can open. Save it there, then give its handle.",
+  );
+}
 
 export interface SmtpIn {
   host?: unknown;
@@ -310,7 +341,7 @@ function clean(ctx: MailCtx, input: SmtpIn, base: Row | null): Clean {
   const passwordHandle =
     typeof input.passwordHandle === "string" ? input.passwordHandle : base ? str(base, "passwordHandle") : "";
   if (!HANDLE.test(passwordHandle))
-    bad(ctx, "Save the password in the Vault in an item named like #Smtp_Password and give that handle.");
+    bad(ctx, "Save the password in the Vault and give its handle, like #Smtp_Password.");
   return { host: hostName, port: port as number, security, username, passwordHandle };
 }
 
@@ -329,9 +360,12 @@ export async function smtpSet(ctx: MailCtx, input: SmtpIn): Promise<SmtpOut> {
     if (e instanceof Refused) bad(ctx, e.message);
     throw e;
   });
+  await ensureMailCredential(ctx, c.passwordHandle);
   ctx.vault.use(c.passwordHandle); // the person saving it must be able to use that Vault item now: sends log in later as the server
   await secret(ctx, c.passwordHandle); // and to read it: the Vault answers as this person, so an item they cannot open cannot be given to a mail server
   const now = ctx.now();
+  if (base && (c.host !== str(base, "host") || c.port !== num(base, "port") || c.username !== str(base, "username")))
+    stopVerified(ctx);
   if (base)
     ctx.db.run(
       `UPDATE mail_smtp SET host = ?, port = ?, security = ?, username = ?, "passwordHandle" = ?, state = ?, detail = ?, "checkedAt" = ?, updated_at = ? WHERE id = ?`,
@@ -430,6 +464,7 @@ export async function smtpVerify(ctx: MailCtx, input: SmtpIn): Promise<VerifyOut
   );
   if (!base && !overrides) bad(ctx, "No mail server is saved yet. Enter one to test it.");
   const c = clean(ctx, input, base);
+  await ensureMailCredential(ctx, c.passwordHandle);
   ctx.vault.use(c.passwordHandle);
   const started = ctx.now();
   let result: VerifyOut;
@@ -460,6 +495,7 @@ export async function smtpVerify(ctx: MailCtx, input: SmtpIn): Promise<VerifyOut
     });
   }
   // only a test of the saved server changes what the page shows about it; trying other values leaves the saved state alone
+  if (base && !overrides && !result.ok) stopVerified(ctx);
   if (base && !overrides)
     ctx.db.run(
       `UPDATE mail_smtp SET state = ?, detail = ?, "checkedAt" = ?, updated_at = ? WHERE id = ?`,
@@ -470,6 +506,28 @@ export async function smtpVerify(ctx: MailCtx, input: SmtpIn): Promise<VerifyOut
       ROW,
     );
   return result;
+}
+
+/** A domain whose mail server no longer works stops saying "verified": mail.send refuses it until the next domain check finds the server well again. */
+function stopVerified(ctx: MailCtx): void {
+  ctx.db.run(
+    `UPDATE mail_domain SET verified = ?, updated_at = ? WHERE provider = ? AND verified = ? AND deleted_at IS NULL`,
+    0,
+    ctx.now(),
+    "smtp",
+    1,
+  );
+}
+function recordServerFailure(ctx: MailCtx, message: string): void {
+  stopVerified(ctx);
+  ctx.db.run(
+    `UPDATE mail_smtp SET state = ?, detail = ?, "checkedAt" = ?, updated_at = ? WHERE id = ?`,
+    "failed",
+    message,
+    ctx.now(),
+    ctx.now(),
+    ROW,
+  );
 }
 
 // ---- the send behind mail.send (provider smtp)
@@ -555,6 +613,8 @@ export async function smtpDeliver(ctx: MailCtx, m: DeliverIn): Promise<string> {
     // a 4xx from the server is "try again later": it did not take the message, so the step retries, as with a provider that pushes back
     if (typeof status === "number" && status >= 400 && status < 500)
       throw fail("provider.rate_limited", ctx.trace.traceId, { message: why.message });
+    // a server that cannot be reached by name, refuses the sign-in or fails TLS is not a place mail can go: the domain stops saying verified until it is checked again (a busy or slow server is not that)
+    if (["auth", "unknown_host", "tls"].includes(why.reason)) recordServerFailure(ctx, why.message);
     throw fail(why.reason === "auth" ? "provider.auth_failed" : "provider.bad_response", ctx.trace.traceId, {
       message: why.message,
     });

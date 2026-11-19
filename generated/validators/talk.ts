@@ -23,34 +23,34 @@ if ("by" in o49) lf(o49["by"], p + "/by", e, L1);
 
 function d_s_915e39e66e(v: unknown, p: string, e: string[]): void {
 {
-const x749 = v;
-const g749 = typeOf(x749);
-const b749: string[] = []; lf(x749, p, b749, L0); if (b749.length) e.push(...b749);
-if (g749 === "object") {
-if (g749 === 'object') { const o749 = x749 as Record<string, unknown>;
-if (!("provider" in o749)) e.push(p + "/provider" + ': required');
-if (!("fields" in o749)) e.push(p + "/fields" + ': required');
-if (!("idempotencyKey" in o749)) e.push(p + "/idempotencyKey" + ': required');
-if ("provider" in o749) lf(o749["provider"], p + "/provider", e, L1);
-if ("fields" in o749) {
-{
-const x750 = o749["fields"];
+const x750 = v;
 const g750 = typeOf(x750);
-const b750: string[] = []; lf(x750, p + "/fields", b750, L4); if (b750.length) e.push(...b750);
-if (g750 === "array") {
-if (g750 === 'array') { const a750 = x750 as unknown[];
-for (let i750 = 0; i750 < a750.length; i750++) {
+const b750: string[] = []; lf(x750, p, b750, L0); if (b750.length) e.push(...b750);
+if (g750 === "object") {
+if (g750 === 'object') { const o750 = x750 as Record<string, unknown>;
+if (!("provider" in o750)) e.push(p + "/provider" + ': required');
+if (!("fields" in o750)) e.push(p + "/fields" + ': required');
+if (!("idempotencyKey" in o750)) e.push(p + "/idempotencyKey" + ': required');
+if ("provider" in o750) lf(o750["provider"], p + "/provider", e, L1);
+if ("fields" in o750) {
 {
-const x751 = a750[i750];
+const x751 = o750["fields"];
 const g751 = typeOf(x751);
-const b751: string[] = []; lf(x751, p + "/fields" + '/' + i750, b751, L0); if (b751.length) e.push(...b751);
-if (g751 === "object") {
-if (g751 === 'object') { const o751 = x751 as Record<string, unknown>;
-if (!("key" in o751)) e.push(p + "/fields" + '/' + i750 + "/key" + ': required');
-if (!("value" in o751)) e.push(p + "/fields" + '/' + i750 + "/value" + ': required');
-if ("key" in o751) lf(o751["key"], p + "/fields" + '/' + i750 + "/key", e, L1);
-if ("value" in o751) lf(o751["value"], p + "/fields" + '/' + i750 + "/value", e, L1);
-if ("secret" in o751) lf(o751["secret"], p + "/fields" + '/' + i750 + "/secret", e, L3);
+const b751: string[] = []; lf(x751, p + "/fields", b751, L4); if (b751.length) e.push(...b751);
+if (g751 === "array") {
+if (g751 === 'array') { const a751 = x751 as unknown[];
+for (let i751 = 0; i751 < a751.length; i751++) {
+{
+const x752 = a751[i751];
+const g752 = typeOf(x752);
+const b752: string[] = []; lf(x752, p + "/fields" + '/' + i751, b752, L0); if (b752.length) e.push(...b752);
+if (g752 === "object") {
+if (g752 === 'object') { const o752 = x752 as Record<string, unknown>;
+if (!("key" in o752)) e.push(p + "/fields" + '/' + i751 + "/key" + ': required');
+if (!("value" in o752)) e.push(p + "/fields" + '/' + i751 + "/value" + ': required');
+if ("key" in o752) lf(o752["key"], p + "/fields" + '/' + i751 + "/key", e, L1);
+if ("value" in o752) lf(o752["value"], p + "/fields" + '/' + i751 + "/value", e, L1);
+if ("secret" in o752) lf(o752["secret"], p + "/fields" + '/' + i751 + "/secret", e, L3);
 }
 }
 }
@@ -59,7 +59,7 @@ if ("secret" in o751) lf(o751["secret"], p + "/fields" + '/' + i750 + "/secret",
 }
 }
 }
-if ("idempotencyKey" in o749) lf(o749["idempotencyKey"], p + "/idempotencyKey", e, L58);
+if ("idempotencyKey" in o750) lf(o750["idempotencyKey"], p + "/idempotencyKey", e, L58);
 }
 }
 }

@@ -8,7 +8,16 @@ import { bindDns } from "../handlers/extra/dns.ts";
 import { routeSet } from "../handlers/extra/routes.ts";
 import { script, zone } from "../handlers/extra/kit.ts";
 import { send } from "../handlers/send.ts";
-import { bindSmtp, explain, setMailFileBytes, setSmtpSecret, smtpGet, smtpSet, smtpVerify } from "../handlers/smtp.ts";
+import {
+  bindSmtp,
+  explain,
+  mask,
+  setMailFileBytes,
+  setSmtpSecret,
+  smtpGet,
+  smtpSet,
+  smtpVerify,
+} from "../handlers/smtp.ts";
 import type { SmtpConn, SmtpMail, SmtpTransport } from "../handlers/smtp.ts";
 import { codeOf, contractErrors, harness, NOW, seedMailbox } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -50,7 +59,28 @@ function wire(ctx: Harness["ctx"]): Wire {
     },
   };
   bindSmtp(ctx, t);
+  kinds(ctx);
   return w;
+}
+/** The Vault's item list as the module sees it: handle to kind. A handle not here is not an item this person can open. */
+export const KINDS: Record<string, string> = {
+  "#Smtp_Password": "login",
+  "#Smtp_Other": "login",
+  "#Smtp_Dkim_vyre_test": "login",
+  "#Aws_Root_Key": "env",
+};
+function kinds(ctx: Harness["ctx"]): void {
+  const base = ctx.call.bind(ctx);
+  ctx.call = async (cap, input) => {
+    if (cap !== "vault.items.list") return base(cap, input);
+    const want = (input as { kind?: string }).kind;
+    return {
+      items: Object.entries(KINDS)
+        .filter(([, k]) => k === want)
+        .map(([handle]) => ({ handle })),
+      counts: {},
+    };
+  };
 }
 const err = (code: string, extra: Record<string, unknown> = {}): Error =>
   Object.assign(new Error((extra.message as string) ?? code), { code, ...extra });
@@ -87,7 +117,7 @@ test("smtp.set saves the server and answers what a person entered, never the pas
     host: "smtp.northwind.example",
     port: 587,
     security: "starttls",
-    username: "hello@northwind.example",
+    username: "he…@northwind.example",
     state: "unchecked",
   });
   assert.deepEqual(await smtpGet(h.ctx), saved);
@@ -509,6 +539,8 @@ test("mail.send over smtp: a server that says try later is a retry, a wrong pass
       (e as { error: { message: string } }).error.message ===
         "The mail server did not accept that username and password.",
   );
+  // a refused sign-in takes the domain's "verified" away until the server is checked again
+  r.h.ctx.db.run(`UPDATE mail_domain SET verified = ? WHERE id = ?`, 1, "dom_vyretest");
 
   w.rejected = [{ address: "pat@acme.test" }];
   await assert.rejects(
@@ -566,13 +598,13 @@ test("changing the server, port or username never reuses the saved password: the
   assert.equal((await smtpVerify(h.ctx, { security: "starttls" })).ok, true);
 });
 
-test("a password handle must name a mail password, and one the person cannot read is refused when the server is saved", async () => {
+test("a password handle must be a Vault item of the kind Login or API key that the person can open, checked from the Vault and not from its name", async () => {
   const h = harness();
   const v = vault({ "#Smtp_Password": PASSWORD, "#Aws_Root_Key": "other secret" });
   wire(h.ctx);
   assert.match(
     await moveRefused(() => smtpSet(h.ctx, { ...SERVER, passwordHandle: "#Aws_Root_Key" })),
-    /^validation\.bad_input: .*#Smtp_Password/,
+    /^validation\.bad_input: .*kind Login or API key/,
   );
   assert.match(
     await moveRefused(() => smtpVerify(h.ctx, { ...SERVER, passwordHandle: "#Aws_Root_Key" })),
@@ -581,7 +613,7 @@ test("a password handle must name a mail password, and one the person cannot rea
   assert.ok(!v.read.includes("#Aws_Root_Key"), "that item was never read");
   assert.match(
     await moveRefused(() => smtpSet(h.ctx, { ...SERVER, passwordHandle: "#Smtp_Missing" })),
-    /Vault has no item/,
+    /^validation\.bad_input: .*you can open/,
   );
   assert.equal(h.rows(`SELECT * FROM mail_smtp`).length, 0);
 });
@@ -714,4 +746,45 @@ test("when the server refuses some recipients the message is sent and each refus
     ["lee@acme.test", "hard", out.messageId],
   ]);
   assert.ok(bounced.every((e) => e.payload.reason === "The mail server refused this address."));
+});
+
+test("what people and agents read of the username is its first two letters and the domain, and saving without retyping it keeps the saved one", async () => {
+  const h = harness();
+  vault();
+  wire(h.ctx);
+  const saved = await smtpSet(h.ctx, SERVER);
+  assert.equal(saved.username, "he…@northwind.example");
+  assert.ok(!JSON.stringify(await smtpGet(h.ctx)).includes("hello@northwind"));
+  const again = await smtpSet(h.ctx, { host: SERVER.host, port: 2525, passwordHandle: "#Smtp_Password" });
+  assert.equal(again.port, 2525);
+  assert.equal(
+    h.rows(`SELECT username FROM mail_smtp`)[0]?.username,
+    "hello@northwind.example",
+    "the real username was kept",
+  );
+  assert.equal(mask("sam"), "sa…");
+});
+
+test("a domain whose mail server fails stops saying verified, after a failed test, a changed server and a refused sign-in on send", async () => {
+  const { r, w } = await smtpSpace();
+  const verified = (): number =>
+    Number(r.h.rows(`SELECT verified FROM mail_domain WHERE id = ?`, "dom_vyretest")[0]?.verified);
+  assert.equal(verified(), 1);
+  // a busy server is not a failed one
+  w.fail = err("ETIMEDOUT", { command: "CONN" });
+  await assert.rejects(() => send(r.ctx, sendIn()));
+  assert.equal(verified(), 1);
+  // a refused sign-in is
+  w.fail = err("EAUTH", { responseCode: 535 });
+  await assert.rejects(() => send(r.ctx, sendIn()));
+  assert.equal(verified(), 0);
+  assert.equal((await smtpGet(r.ctx)).state, "failed");
+  // the same for a failed test of the saved server, and for moving the server
+  r.h.ctx.db.run(`UPDATE mail_domain SET verified = ? WHERE id = ?`, 1, "dom_vyretest");
+  w.fail = err("ECONNREFUSED");
+  assert.equal((await smtpVerify(r.ctx, {})).ok, false);
+  assert.equal(verified(), 0);
+  r.h.ctx.db.run(`UPDATE mail_domain SET verified = ? WHERE id = ?`, 1, "dom_vyretest");
+  await smtpSet(r.ctx, { host: "smtp.moved.example", passwordHandle: "#Smtp_Password" });
+  assert.equal(verified(), 0);
 });
