@@ -3,16 +3,18 @@
 // (test/outside-agents.cli.live.test.ts); what this sheet says about other apps stays honest about what has not been tried.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { Icon, TextButton } from "../rightpane/parts.tsx";
 import { LayerHead, Sheet } from "./Layers.tsx";
 import { errorWords } from "./live.ts";
+import { APPS, howTo } from "./connect-apps.ts";
+import type { AppId } from "./connect-apps.ts";
 
 export const CONNECT_SCREEN = "chats.connect-outside-agent";
 type Link = CapMap["mcp.connected.link"]["out"];
 
-export const CONNECT_SUB = "Paste this link into Claude Code, Cursor or any MCP app. Sign-in takes one press.";
+export const CONNECT_SUB = "It signs in as you. You press Allow once.";
 export const LOGIN_LINE = "claude mcp login vyre";
 export const UNPROVEN = "Tested with Claude Code. Codex and Cursor take the same link and have not been tested yet.";
 
@@ -58,6 +60,7 @@ export function ConnectOutsideAgent({ call, onClose, say }: ConnectProps): React
   const [link, setLink] = useState<Link | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [line, setLine] = useState<string | null>(null);
+  const [app, setApp] = useState<AppId | null>(null);
   useEffect(() => {
     let live = true;
     void call("mcp.connected.link", {}).then(
@@ -83,9 +86,9 @@ export function ConnectOutsideAgent({ call, onClose, say }: ConnectProps): React
     say?.(words);
   };
   return (
-    <Sheet label="Connect an outside agent" testID="connect-outside-agent" width={480} onClose={onClose}>
+    <Sheet label="Connect an app" testID="connect-outside-agent" width={480} onClose={onClose}>
       <LayerHead
-        title="Connect an outside agent"
+        title="Connect an app"
         sub={CONNECT_SUB}
         lead={
           <View style={st.tile}>
@@ -95,21 +98,54 @@ export function ConnectOutsideAgent({ call, onClose, say }: ConnectProps): React
         onClose={onClose}
       />
       <View style={st.body}>
-        {link ? (
+        {link && app === null ? (
+          <View testID="connect-pick" style={st.grid}>
+            {APPS.map((a) => (
+              <Pressable
+                key={a.id}
+                accessibilityRole="button"
+                accessibilityLabel={a.name}
+                testID={`connect-app-${a.id}`}
+                onPress={() => setApp(a.id)}
+                style={st.appTile}
+              >
+                <View style={st.tile}>
+                  <Icon name={a.icon} size={16} color="var(--ink-2)" />
+                </View>
+                <Text style={st.appName}>{a.name}</Text>
+              </Pressable>
+            ))}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Another app"
+              testID="connect-app-other"
+              onPress={() => setApp("other")}
+              style={st.otherRow}
+            >
+              <Text style={st.appName}>Another app</Text>
+            </Pressable>
+          </View>
+        ) : link && app !== null ? (
           <>
-            <Copyable label="Link" text={link.url} testID="connect-link" onCopy={() => copy("link", link.url)} />
-            <Copyable
-              label="Claude Code"
-              text={link.claudeCode}
-              testID="connect-claude"
-              onCopy={() => copy("command", link.claudeCode)}
-            />
-            <Copyable
-              label="Then, to sign in"
-              text={LOGIN_LINE}
-              testID="connect-login"
-              onCopy={() => copy("command", LOGIN_LINE)}
-            />
+            {howTo(app, link).steps.map((t, i) => (
+              <Text key={t} testID={`connect-step-${i + 1}`} style={st.help}>
+                {`${i + 1}. ${t}`}
+              </Text>
+            ))}
+            {howTo(app, link).copy.map((c) => (
+              <Copyable key={c.testID} label={c.label} text={c.text} testID={c.testID} onCopy={() => copy(c.label.toLowerCase(), c.text)} />
+            ))}
+            {howTo(app, link).open ? (
+              <TextButton
+                label={howTo(app, link).open!.label}
+                testID="connect-open-app"
+                onPress={() => {
+                  const w = globalThis as { location?: { href: string } };
+                  if (w.location) w.location.href = howTo(app, link).open!.href;
+                }}
+              />
+            ) : null}
+            <TextButton label="Back" onPress={() => setApp(null)} testID="connect-back" />
             <Text testID="connect-proven" style={st.help}>
               {UNPROVEN}
             </Text>
@@ -134,6 +170,18 @@ export function ConnectOutsideAgent({ call, onClose, say }: ConnectProps): React
 }
 
 const st = StyleSheet.create({
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  appTile: {
+    width: "48%",
+    minHeight: 84,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "var(--sunk)" as string,
+  },
+  appName: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
+  otherRow: { width: "100%", minHeight: 40, justifyContent: "center", paddingHorizontal: 10 },
   tile: {
     width: 34,
     height: 34,
