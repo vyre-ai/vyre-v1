@@ -69,18 +69,15 @@ export function StillCard({
     <View testID="tasks-still" style={st.wrap}>
       <View style={st.box}>
         <View style={st.head}>
-          <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={{ flex: 1, minWidth: 170 }}>
             <Text style={st.title}>Still need these?</Text>
-            <Text
-              numberOfLines={1}
-              style={st.sub}
-            >{`${card.total} ${card.total === 1 ? "task" : "tasks"} may be finished`}</Text>
+            <Text style={st.sub}>{`${card.total} ${card.total === 1 ? "task" : "tasks"} may be finished`}</Text>
           </View>
           {open ? (
-            <>
+            <View style={st.btns}>
               <Btn label="Keep all" testID="still-keep-all" onPress={() => answer(ids, "keep")} />
               <Btn label="Archive all" testID="still-archive-all" onPress={() => answer(ids, "archive")} />
-            </>
+            </View>
           ) : (
             <Btn label="Go through them" testID="still-open" onPress={() => setOpen(true)} />
           )}
@@ -91,6 +88,7 @@ export function StillCard({
                 key={i.task.id}
                 title={i.task.title}
                 note={i.why}
+                tall
                 onPress={() => openTask(i.task.id)}
                 trailing={
                   <View style={st.btns}>
@@ -217,7 +215,7 @@ const st = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: "var(--sunk)" as string,
   },
-  head: { flexDirection: "row", alignItems: "center", gap: 8 },
+  head: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, rowGap: 4 },
   title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 13, color: "var(--ink-3)" as string },
   btns: { flexDirection: "row", gap: 4 },
