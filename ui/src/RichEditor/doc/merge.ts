@@ -279,9 +279,21 @@ export function isOwnEcho(
   sent: readonly string[],
 ): boolean {
   if (valueId !== undefined) return valueId !== null && ids.has(valueId);
-  return sent.length > 0 && sent[sent.length - 1] === value;
+  return sent.length > 0 && sent[sent.length - 1] === fingerprint(value);
 }
 
+/** A text as it is remembered: itself when short, otherwise its length and a hash, so a long document is recognised without being held. */
+export function fingerprint(text: string): string {
+  if (text.length <= TEXTS_CHARS / 4) return text;
+  let h1 = 0x811c9dc5;
+  let h2 = 5381;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+    h2 = (Math.imul(h2, 33) + c) >>> 0;
+  }
+  return `\u0000${text.length}:${h1.toString(36)}:${h2.toString(36)}`;
+}
 /** The ids the page gave its saves (a few dozen of them are small), and the last two texts sent: whole documents are not kept in numbers. */
 export const IDS_KEEP = 64;
 export const TEXTS_KEEP = 2;
@@ -290,11 +302,7 @@ export const TEXTS_CHARS = 200_000;
 export function noteSent(sent: string[], ids: Set<string>, text: string, id: string): void {
   ids.add(id);
   if (ids.size > IDS_KEEP) ids.delete(ids.values().next().value as string);
-  if (text.length > TEXTS_CHARS / 2) {
-    sent.length = 0;
-    return;
-  }
-  sent.push(text);
+  sent.push(fingerprint(text));
   let total = sent.reduce((n, t) => n + t.length, 0);
   while (sent.length > TEXTS_KEEP || (total > TEXTS_CHARS && sent.length > 1)) total -= (sent.shift() as string).length;
 }

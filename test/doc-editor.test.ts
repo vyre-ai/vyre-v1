@@ -4,7 +4,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getSchema } from "@tiptap/core";
 import { Plugin, EditorState, TextSelection } from "@tiptap/pm/state";
-import { docToMarkdown, markdownToDoc, nodesToInline, inlineToNodes, textStyle, withStyle } from "../ui/src/RichEditor/mdtree.ts";
+import {
+  docToMarkdown,
+  markdownToDoc,
+  nodesToInline,
+  inlineToNodes,
+  textStyle,
+  withStyle,
+} from "../ui/src/RichEditor/mdtree.ts";
 import { markdownExtensions } from "../ui/src/RichEditor/extensions.ts";
 import { chipLook, fieldLabel, missingTags, matchFields, tagsIn } from "../ui/src/RichEditor/doc/fields.ts";
 import {
@@ -734,7 +741,19 @@ test("what the writer keeps exactly, and what it has always normalised, in ordin
   ];
   for (const t of same) assert.equal(roundtrip(t), t, JSON.stringify(t));
   // a file is written back as it was found, in these ways too
-  const kept = ["a  \nb\n", " lead\n", "trail \n", "a\r\nb\r\n", "a\tb\n\n\tindented\n", "last line", "*a* **b** _c_ __d__\n", "## Title ##\n", "#  Title\n", "- [ ] a\r\n- [x] b\r\n", "a\n\n\nb\n"];
+  const kept = [
+    "a  \nb\n",
+    " lead\n",
+    "trail \n",
+    "a\r\nb\r\n",
+    "a\tb\n\n\tindented\n",
+    "last line",
+    "*a* **b** _c_ __d__\n",
+    "## Title ##\n",
+    "#  Title\n",
+    "- [ ] a\r\n- [x] b\r\n",
+    "a\n\n\nb\n",
+  ];
   for (const t of kept) assert.equal(styled(t), t, JSON.stringify(t));
   const normalised: Array<[string, string]> = [];
   for (const [from, to] of normalised) {
@@ -743,15 +762,46 @@ test("what the writer keeps exactly, and what it has always normalised, in ordin
   }
 });
 
-test("sent texts are kept by size: a long document is not held, the ids still are", () => {
+test("sent texts are kept by size: a long document is held as a fingerprint, and its echo is still recognised", () => {
   const sent: string[] = [];
   const ids = new Set<string>();
-  noteSent(sent, ids, "x".repeat(150_000), "s1");
-  assert.equal(sent.length, 0);
-  assert.equal(ids.has("s1"), true);
+  const big = "x".repeat(150_000);
+  noteSent(sent, ids, big, "s1");
+  assert.ok(sent[0] && sent[0].length < 100);
+  assert.equal(isOwnEcho(big, undefined, ids, sent), true);
+  assert.equal(isOwnEcho(`${big}y`, undefined, ids, sent), false);
   noteSent(sent, ids, "a".repeat(90_000), "s2");
   noteSent(sent, ids, "b".repeat(90_000), "s3");
-  noteSent(sent, ids, "c".repeat(90_000), "s4");
-  assert.ok(sent.reduce((n, t) => n + t.length, 0) <= 200_000);
-  assert.equal(sent[sent.length - 1]?.startsWith("c"), true);
+  assert.ok(sent.length <= 2);
+  assert.equal(ids.has("s1"), true);
+});
+
+test("an unclosed fence followed by a new block is written closed, and reads back as code then paragraph", () => {
+  const md = "```js\nlet a = 1;";
+  const d = markdownToDoc(md, D);
+  assert.equal(docToMarkdown(d, D), `${md}\n`);
+  const s0 = EditorState.create({ schema, doc: schema.nodeFromJSON(d) });
+  const s1 = s0.apply(s0.tr.insert(s0.doc.content.size, schema.nodes["paragraph"]!.create(null, schema.text("after"))));
+  const out = mdOf(s1);
+  assert.ok(out.includes("```\n\nafter"), out);
+  const back = markdownToDoc(out, D).content ?? [];
+  assert.deepEqual(
+    back.map((b) => b.type),
+    ["codeBlock", "paragraph"],
+  );
+});
+
+test("the text a block was read from is never taken from pasted or dropped HTML", () => {
+  const rule = (
+    schema.nodes["paragraph"]!.spec as {
+      parseDOM?: Array<{ getAttrs?: (el: unknown) => Record<string, unknown> | false }>;
+    }
+  ).parseDOM?.[0];
+  const el = {
+    getAttribute: (k: string) => (k === "src" || k === "ck" ? "x\n\n<script>" : null),
+    hasAttribute: () => true,
+  };
+  const got = (rule?.getAttrs?.(el) ?? {}) as Record<string, unknown>;
+  assert.ok(got["src"] === undefined || got["src"] === null, `src read from HTML: ${String(got["src"])}`);
+  assert.ok(got["ck"] === undefined || got["ck"] === null);
 });

@@ -539,6 +539,7 @@ export function textStyle(md: string): TextStyle {
   }
   return { crlf: crlfCount > total - crlfCount, finalNewline: md === "" || md.endsWith("\n") };
 }
+/** A file with mostly CRLF endings is written with CRLF throughout (a few LF-only lines in it are made CRLF on the first save), and one without a last newline stays without. */
 export function withStyle(md: string, st: TextStyle): string {
   let out = md;
   if (!st.finalNewline && out.endsWith("\n")) out = out.slice(0, -1);
@@ -1212,7 +1213,11 @@ function blocksToMarkdownBody(blocks: readonly PMNode[]): string {
       out += b.attrs?.["tight"] === true ? "\n" : "\n".repeat(Math.max(2, Number(b.attrs?.["blanks"] ?? 0) + 1));
     const id = b.attrs?.["blockId"];
     if (typeof id === "string" && id !== "") out += `<!--b:${id}-->\n`;
-    out += blockText(b);
+    // a fence that was never closed is written open only as the last block of its container; with anything after it, the fence is closed, or the next block would read as code
+    const last = i === blocks.length - 1;
+    out += blockText(
+      !last && b.type === "codeBlock" && b.attrs?.["open"] === true ? { ...b, attrs: { ...b.attrs, open: false } } : b,
+    );
   }
   return out;
 }

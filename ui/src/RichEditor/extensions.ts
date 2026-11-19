@@ -52,6 +52,7 @@ const Keeps = Extension.create({
   name: "mdKeeps",
   addGlobalAttributes() {
     const quiet = (v: unknown) => ({ default: v, rendered: false });
+    const hidden = (v: unknown) => ({ default: v, rendered: false, keepOnSplit: false, parseHTML: () => null });
     return [
       {
         types: [
@@ -75,8 +76,12 @@ const Keeps = Extension.create({
       },
       { types: ["bulletList", "orderedList", "taskList"], attributes: { marker: quiet("-"), delim: quiet(".") } },
       // the text a paragraph or heading was read from, and a fingerprint of its words (mdtree.ts keeps it while the words are unchanged)
-      { types: ["paragraph", "heading"], attributes: { src: quiet(null), ck: quiet(null) } },
-      { types: ["codeBlock"], attributes: { line: quiet(null), lang0: quiet(null), open: quiet(false) } },
+      {
+        types: ["paragraph", "heading"],
+        // never read from pasted or dropped HTML: only the reader of a Markdown file sets them
+        attributes: { src: hidden(null), ck: hidden(null) },
+      },
+      { types: ["codeBlock"], attributes: { line: hidden(null), lang0: hidden(null), open: hidden(false) } },
       {
         types: ["listItem", "taskItem"],
         attributes: { gap: quiet(false), inline: { default: false, rendered: false, keepOnSplit: false } },
