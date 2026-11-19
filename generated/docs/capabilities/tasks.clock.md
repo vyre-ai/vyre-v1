@@ -35,6 +35,7 @@ type Out = {
   woke: number;
   nudged: number;
   passed: number;
+  asked: number;
 };
 ```
 
@@ -52,6 +53,7 @@ type Out = {
   "name": "example",
   "input": {},
   "output": {
+    "asked": 1,
     "due": 1,
     "nudged": 1,
     "passed": 1,

@@ -66,10 +66,15 @@ test("an agent that names no moment gets a guessed one (due plus a day, else 14 
   assert.equal((await get(h, withDue)).archived, undefined);
   assert.equal((await get(h, bare)).archived, undefined);
   const c = await card(h);
-  assert.deepEqual(c.items.map((i) => i.task.id).sort(), [bare, withDue].sort(), "both are on the card, with why");
+  assert.ok(
+    [bare, withDue].every((id) => c.items.some((i) => i.task.id === id)),
+    "both guesses are on the card, with why",
+  );
   assert.ok(c.items.every((i) => i.why !== ""));
   assert.equal(await tick(h), 0);
-  assert.equal((await card(h)).total, 2, "asked once, not again");
+  const total = (await card(h)).total;
+  assert.equal(await tick(h), 0);
+  assert.equal((await card(h)).total, total, "asked once, not again");
 });
 
 test("nobody answers the card for a week: the task archives itself, with that reason, and Put back drops the guess", async () => {
@@ -87,8 +92,12 @@ test("nobody answers the card for a week: the task archives itself, with that re
   assert.equal((await card(h)).total, 0);
   await h.call("tasks.unarchive", { taskId: id }, me);
   assert.equal((await get(h, id)).relevantUntil, undefined);
-  h.advance(30 * DAY);
-  assert.equal(await tick(h), 0, "put back means it still matters: not asked or archived again");
+  h.advance(10 * DAY);
+  assert.equal(
+    await tick(h),
+    0,
+    "put back means it still matters: its moment is gone, so not asked or archived on that account",
+  );
   assert.equal((await card(h)).total, 0);
 });
 

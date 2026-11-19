@@ -1030,7 +1030,7 @@ export default defineManifest({
       "What the clock moves, once a minute: the day a task is due begins for its holder, a due time passes, a snooze ends, a step sat with someone too long",
       {
         in: {},
-        out: { due: t.int(), woke: t.int(), nudged: t.int(), passed: t.int() },
+        out: { due: t.int(), woke: t.int(), nudged: t.int(), passed: t.int(), asked: t.int() },
         emits: ["task.due", "task.snoozed", "task.nudged", "task.archived"],
       },
     ),

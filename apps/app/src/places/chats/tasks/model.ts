@@ -280,6 +280,7 @@ export type Entry =
   | { kind: "quiet"; key: string; rows: readonly TaskRow[] }
   | { kind: "add"; key: string }
   | { kind: "done"; key: string; count: number; open: boolean }
+  | { kind: "more"; key: string; count: number; open: boolean }
   | { kind: "empty"; key: string; text: string };
 
 /** Children in the order they were made: a plan reads top to bottom. */
@@ -326,6 +327,7 @@ export const HEIGHT: Record<Entry["kind"], number> = {
   quiet: 76,
   add: 44,
   done: 40,
+  more: 40,
   empty: 80,
 };
 export const heightOf = (e: Entry): number => HEIGHT[e.kind];
@@ -344,7 +346,12 @@ export interface BuildIn {
   doneCount: number;
   names: Names;
   quietOff: boolean;
+  /** Needs you shows five rows; the rest wait under "N more" until this is true */
+  needsOpen?: boolean;
 }
+
+/** Needs you is small and true: this many rows, the rest under "N more". */
+export const NEEDS_SHOWN = 5;
 
 /** The list the page draws, flat, so one virtual list holds it all. */
 export function buildEntries(b: BuildIn): Entry[] {
@@ -363,7 +370,10 @@ export function buildEntries(b: BuildIn): Entry[] {
     const needs = b.needs.filter((n) => n.handledBy === undefined && n.yourTurn === true);
     if (needs.length > 0 && !isFiltered(b.filter)) {
       out.push({ kind: "head", key: "h:needs", title: "Needs you", count: needs.length });
-      for (const n of needs) out.push({ kind: "need", key: `n:${n.task.id}`, item: n });
+      const shown = b.needsOpen === true ? needs : needs.slice(0, NEEDS_SHOWN);
+      for (const n of shown) out.push({ kind: "need", key: `n:${n.task.id}`, item: n });
+      if (needs.length > NEEDS_SHOWN)
+        out.push({ kind: "more", key: "more", count: needs.length - NEEDS_SHOWN, open: b.needsOpen === true });
     }
     const s = sectionsOf(rows, b.me, b.now, b.offsetMin, new Set(needs.map((n) => n.task.id)));
     push("now", "Now", s.now);

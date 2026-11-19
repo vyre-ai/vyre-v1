@@ -609,10 +609,12 @@ if (!("due" in o6550)) e.push(p + "/due" + ': required');
 if (!("woke" in o6550)) e.push(p + "/woke" + ': required');
 if (!("nudged" in o6550)) e.push(p + "/nudged" + ': required');
 if (!("passed" in o6550)) e.push(p + "/passed" + ': required');
+if (!("asked" in o6550)) e.push(p + "/asked" + ': required');
 if ("due" in o6550) lf(o6550["due"], p + "/due", e, L2);
 if ("woke" in o6550) lf(o6550["woke"], p + "/woke", e, L2);
 if ("nudged" in o6550) lf(o6550["nudged"], p + "/nudged", e, L2);
 if ("passed" in o6550) lf(o6550["passed"], p + "/passed", e, L2);
+if ("asked" in o6550) lf(o6550["asked"], p + "/asked", e, L2);
 }
 }
 }

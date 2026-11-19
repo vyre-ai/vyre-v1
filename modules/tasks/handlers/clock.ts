@@ -20,7 +20,7 @@ import {
 import type { Assignee, Task, TasksCtx } from "../projections.ts";
 import { findStuck } from "./act.ts";
 import { cannotArchive, putAway } from "./archive.ts";
-import { archiveUnanswered, putOnCard } from "./still.ts";
+import { archiveUnanswered, askUntouched, putOnCard } from "./still.ts";
 
 type In = Record<string, unknown>;
 const DAY = 86_400_000;
@@ -180,9 +180,9 @@ export function archivePassed(ctx: TasksCtx): number {
   return n + archiveUnanswered(ctx);
 }
 
-export function tick(ctx: TasksCtx): { due: number; woke: number; nudged: number; passed: number } {
+export function tick(ctx: TasksCtx): { due: number; woke: number; nudged: number; passed: number; asked: number } {
   const woke = wakeSnoozed(ctx);
-  return { due: sayDue(ctx), woke, nudged: nudgeStuck(ctx), passed: archivePassed(ctx) };
+  return { due: sayDue(ctx), woke, nudged: nudgeStuck(ctx), passed: archivePassed(ctx), asked: askUntouched(ctx) };
 }
 
 /** tasks.clock: the same pass, for the server only (the periodic job runs it every minute). */

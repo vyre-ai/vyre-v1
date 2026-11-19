@@ -33,3 +33,28 @@ test("work due two weeks ago ranks below a fresh request and below work one day 
   assert.equal(ids.at(-1), old, "the stale one is last");
   assert.ok(ids.indexOf(late) < ids.indexOf(fresh), "a day late still comes first");
 });
+
+test("a task nobody touched for 14 days goes on the card and leaves Needs you; Keep and Put back never bring it back to the top", async () => {
+  const h = harness();
+  const stale = await mk(h, { title: "Review from two weeks ago", kind: "review" });
+  h.advance(15 * DAY);
+  const fresh = await mk(h, { title: "Review from today", kind: "review" });
+  assert.deepEqual((await order(h)).sort(), [stale, fresh].sort());
+  const r = (await h.call("tasks.clock", {}, { id: "svc_host", kind: "service" })) as { asked: number };
+  assert.equal(r.asked, 1);
+  assert.deepEqual(await order(h), [fresh], "the stale one left Needs you");
+  assert.equal((await h.call("tasks.count_needs_you", {}, { id: alice.id })).count, 1);
+  const card = (await h.call("tasks.still_needed", {}, { id: alice.id })) as {
+    items: { task: { id: string }; why: string }[];
+  };
+  assert.deepEqual(
+    card.items.map((i) => [i.task.id, i.why]),
+    [[stale, "Nothing has happened here for 14 days."]],
+  );
+  await h.call("tasks.still_answer", { taskIds: [stale], answer: "keep" }, { id: alice.id });
+  assert.equal(
+    ((await h.call("tasks.clock", {}, { id: "svc_host", kind: "service" })) as { asked: number }).asked,
+    0,
+    "kept: not asked again",
+  );
+});

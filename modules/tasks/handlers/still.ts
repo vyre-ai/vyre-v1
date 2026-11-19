@@ -1,7 +1,18 @@
 // "Still need these?" (lane r42-alive, living tasks). One calm card, never a notification: the tasks the Space cannot tell about, each with why it is asked, up to seven, Keep or Archive per row.
 // A task lands here when a moment the Space only guessed passed (clock.ts). Keep stops the question for 90 days; Archive puts it away (code asked, by the person); a row nobody answers for a week archives
 // itself (code quiet). Nothing is deleted and Put back undoes any of it.
-import { clearMoment, findTask, isOpen, outFor, openIndex, raise, visibleTo, whoIs } from "../projections.ts";
+import {
+  NOT_ARCHIVED,
+  allTasks,
+  clearMoment,
+  findTask,
+  isOpen,
+  outFor,
+  openIndex,
+  raise,
+  visibleTo,
+  whoIs,
+} from "../projections.ts";
 import type { Task, TasksCtx } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import { cannotArchive, putAway } from "./archive.ts";
@@ -12,6 +23,26 @@ const DAY = 86_400_000;
 export const CARD_MAX = 7;
 export const UNANSWERED_MS = 7 * DAY;
 export const KEEP_MS = 90 * DAY;
+/** Days a task may sit untouched before the Space asks (the Space setting "days before asking" will move this). */
+export const UNTOUCHED_DAYS = 14;
+
+/** What nobody has touched for two weeks goes on the card, once: the Space cannot tell if it still matters, and the person is asked (never told) instead of finding it on top of Needs you forever. Returns how many were added. */
+export function askUntouched(ctx: TasksCtx): number {
+  const now = ctx.now();
+  let n = 0;
+  for (const t of allTasks(
+    ctx.db,
+    `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND c.updated_at <= ?`,
+    now - UNTOUCHED_DAYS * DAY,
+  ).slice(0, 200)) {
+    if (t.snoozedUntil !== undefined && t.snoozedUntil > now) continue;
+    if (t.due !== undefined && t.due > now) continue; // something is still coming
+    if (t.relevantUntil !== undefined && t.momentStated !== false) continue; // its stated moment decides
+    if (cannotArchive(ctx, t) !== null) continue; // a held act, a Run or other work waits on it
+    if (putOnCard(ctx, t, `Nothing has happened here for ${UNTOUCHED_DAYS} days.`)) n += 1;
+  }
+  return n;
+}
 
 /** Put a task on the card, once: a task already asked, or kept and not yet due to be asked again, is left alone. */
 export function putOnCard(ctx: TasksCtx, t: Task, why: string): boolean {

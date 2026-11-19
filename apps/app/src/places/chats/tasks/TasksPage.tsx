@@ -119,6 +119,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   const [line, setLine] = useState<{ text: string; undo?: () => void } | null>(null);
   const [doneRows, setDoneRows] = useState<readonly TaskRow[] | null>(null);
   const [quietOpen, setQuietOpen] = useState(false);
+  const [needsOpen, setNeedsOpen] = useState(false);
   const [quick, setQuick] = useState("");
   // files dropped or pasted on quick add: held beside the field, stored the way a chat stores its uploads, and made the new task's attachments
   const [quickFiles, setQuickFiles] = useState<readonly DroppedFile[]>([]);
@@ -533,12 +534,14 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
         doneRows,
         doneCount: snap.doneThisWeek,
         quietOff: false,
+        needsOpen,
         names: { name: nameOf, project: (id) => projectName.get(id) },
       }),
     [
       shownRows,
       snap.doneThisWeek,
       needs,
+      needsOpen,
       rt.me.id,
       now,
       clock.offsetMin,
@@ -935,6 +938,21 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
                 style={st.done}
               >
                 <Text style={st.doneText}>{e.open ? "Hide what is done" : `${e.count} done this week`}</Text>
+              </Pressable>
+            </View>
+          );
+        case "more":
+          return (
+            <View style={st.wrap}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={e.open ? "Show fewer" : `${e.count} more`}
+                accessibilityState={{ expanded: e.open }}
+                testID="needs-more"
+                onPress={() => setNeedsOpen((o) => !o)}
+                style={st.done}
+              >
+                <Text style={st.doneText}>{e.open ? "Show fewer" : `${e.count} more`}</Text>
               </Pressable>
             </View>
           );

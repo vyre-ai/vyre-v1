@@ -343,3 +343,18 @@ test("an Approve that was sent back is not under way: it never sits in Now, and 
     ["back"],
   );
 });
+
+test("Needs you shows five rows and the rest wait under N more, until opened", () => {
+  const needs = Array.from(
+    { length: 8 },
+    (_, i) => ({ task: row({ id: `n${i}` }), reason: "ready", yourTurn: true }) as unknown as NeedItem,
+  );
+  const keys = (open: boolean): string[] =>
+    buildEntries({ ...base, scope: "mine", rows: [], needs, needsOpen: open })
+      .map((e) => e.key)
+      .filter((k) => k.startsWith("n:") || k === "more");
+  assert.deepEqual(keys(false), ["n:n0", "n:n1", "n:n2", "n:n3", "n:n4", "more"]);
+  assert.equal(keys(true).length, 9, "all eight and the Show fewer line");
+  const few = buildEntries({ ...base, scope: "mine", rows: [], needs: needs.slice(0, 5) });
+  assert.ok(!few.some((e) => e.kind === "more"), "five rows need no more line");
+});

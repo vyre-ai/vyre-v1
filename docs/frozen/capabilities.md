@@ -751,3 +751,5 @@ Signed: lead, 17 Nov 2026
 - Tables (migrations `0005_archive`, `0006_moment`, `0007_ask`): `tasks_archive`, `tasks_moment`, `tasks_ask`.
 
 Signed: lead, 19 Nov 2026
+
+Added after the signature above (lane r42-alive, 19 Nov 2026, second look): `tasks.clock` also returns `asked`, and a task nobody touched for 14 days (no stated moment, nothing waiting on it, no future due date) goes on the card and leaves Needs you. Optional output only. Signed: pending, lead.

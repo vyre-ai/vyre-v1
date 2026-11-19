@@ -822,7 +822,14 @@ export function needsYou(ctx: TasksCtx): NeedsItem[] {
   const sod = startOfDayIn(now, ctx.principal.kind === "person" ? tzOf(ctx.db, who.actingFor ?? who.id) : undefined);
   const eod = sod + DAY;
   const items: NeedsItem[] = [];
+  // what is on the card "Still need these?" is asked about, not shown on top of Needs you
+  const asked = new Set(
+    (ctx.db.all("SELECT task_id FROM tasks_ask WHERE kept_until IS NULL") as { task_id: string }[]).map(
+      (r) => r.task_id,
+    ),
+  );
   for (const t of allTasks(ctx.db, `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED}`)) {
+    if (asked.has(t.id)) continue;
     const mine =
       actionableByMe(ctx, t) ||
       (t.assigned.kind !== "group" && t.assigned.kind !== "role" && involved(t, whoOn(ctx, t)));

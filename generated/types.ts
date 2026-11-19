@@ -41942,6 +41942,7 @@ export type TasksClockOut = {
   woke: number;
   nudged: number;
   passed: number;
+  asked: number;
 };
 export type TasksCountNeedsYouIn = Record<string, unknown>;
 export type TasksCountNeedsYouOut = {
