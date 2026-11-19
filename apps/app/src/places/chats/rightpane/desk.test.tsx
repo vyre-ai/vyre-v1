@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
-import { DeskHost, MINI, edgesOf } from "./Desk.tsx";
+import { AgentCursor, DeskHost, MINI, StepRing, edgesOf } from "./Desk.tsx";
 import { deskDispatch, deskOpen, deskReset, deskSnapshot } from "./desk-store.ts";
 import type { BrowserData, BrowserView } from "./work-model.ts";
 
@@ -433,6 +433,87 @@ test("keys: F toggles the full view, Space pauses then resumes, S stops, T takes
   } finally {
     unmountAll();
     deskReset();
+    off();
+  }
+});
+
+test("the cursor and the steps are asked for only while the full view shows a live page: not in the small picture, not before the page is open, not while you hold the controls", async () => {
+  const off = installDom();
+  deskReset();
+  try {
+    const r = rig(open);
+    let pointerAsks = 0;
+    let stepAsks = 0;
+    r.data.pointer = async () => {
+      pointerAsks += 1;
+      return null;
+    };
+    r.data.steps = async () => {
+      stepAsks += 1;
+      return [];
+    };
+    deskOpen(r.session);
+    await mount(cr, <DeskHost />);
+    await flush();
+    assert.ok(pointerAsks >= 1 && stepAsks >= 1, "asked while full and live");
+    deskDispatch({ type: "minimise" });
+    await flush();
+    const p0 = pointerAsks;
+    await flush();
+    await flush();
+    assert.equal(pointerAsks, p0, "not asked from the small picture");
+    deskDispatch({ type: "full" });
+    await flush();
+    r.push(hold(true));
+    await flush();
+    const p1 = pointerAsks;
+    await flush();
+    await flush();
+    assert.equal(pointerAsks, p1, "not asked while you hold the controls: your cursor is the page's own");
+    r.push({ state: "closed", canTakeOver: true, sites: [] });
+    await flush();
+    const p2 = pointerAsks;
+    await flush();
+    assert.equal(pointerAsks, p2, "not asked of a browser that sleeps");
+  } finally {
+    unmountAll();
+    deskReset();
+    off();
+  }
+});
+
+test("the cursor draws with the agent's name, and a ring only when it chose an element; it takes no press", async () => {
+  const off = installDom();
+  try {
+    const bare = await mount(cr, <AgentCursor name="Dex" drawn={{ x: 10, y: 20 }} />);
+    assert.ok(find(bare, "agent-cursor"));
+    assert.match(textOf(find(bare, "agent-cursor")), /Dex/);
+    assert.equal(find(bare, "agent-ring"), null);
+    const ringed = await mount(cr, <AgentCursor name="Dex" drawn={{ x: 10, y: 20, ring: { left: 5, top: 6, width: 100, height: 30 } }} />);
+    assert.ok(find(ringed, "agent-ring"));
+  } finally {
+    unmountAll();
+    off();
+  }
+});
+
+test("the step ring counts what the agent did; a press opens the list of the last eight, newest last, and a second press closes it", async () => {
+  const off = installDom();
+  try {
+    const steps = Array.from({ length: 10 }, (_, i) => ({ idx: i, at: i, caption: `Step ${i + 1}`, tool: "chrome_click", by: "agent" as const }));
+    const root = await mount(cr, <StepRing steps={steps} />);
+    assert.match(textOf(find(root, "step-ring-button")), /10/);
+    assert.equal(find(root, "step-list"), null);
+    await press(find(root, "step-ring-button"));
+    await flush();
+    const list = textOf(find(root, "step-list"));
+    assert.ok(list.includes("Step 10") && list.includes("Step 3") && !list.includes("Step 2Step 3"), list);
+    assert.ok(!/Step 1(?!0)/.test(list.replace("Step 10", "")), "only the last eight");
+    await press(find(root, "step-ring-button"));
+    await flush();
+    assert.equal(find(root, "step-list"), null);
+  } finally {
+    unmountAll();
     off();
   }
 });

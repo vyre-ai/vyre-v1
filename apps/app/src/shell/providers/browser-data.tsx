@@ -145,6 +145,30 @@ export function browserData(d: {
     },
     takeOver: (agentId) => act("computers.browser.take_over", agentId),
     giveBack: (agentId) => act("computers.browser.give_back", agentId),
+    async pointer(agentId) {
+      try {
+        const r = (await d.call("computers.browser.pointer", { agentId })) as {
+          state?: string;
+          pointer?: import("../../places/chats/rightpane/desk-pointer.ts").PointerView;
+        };
+        return r.state === "live" && r.pointer ? r.pointer : null;
+      } catch {
+        return null;
+      }
+    },
+    async steps(agentId) {
+      try {
+        const r = (await d.call("computers.browser.timeline", { agentId })) as {
+          steps?: Array<{ idx: number; at: number; caption: string; tool: string; by: "agent" | "person" }>;
+        };
+        return [...(r.steps ?? [])]
+          .sort((a, b) => a.idx - b.idx)
+          .slice(-30)
+          .map((x) => ({ idx: x.idx, at: x.at, caption: x.caption, tool: x.tool, by: x.by }));
+      } catch {
+        return [];
+      }
+    },
     pause: (agentId) => act("computers.browser.pause", agentId),
     async resume(agentId, o) {
       try {

@@ -90,6 +90,14 @@ export interface BrowserView {
   /** The logins its profile keeps. */
   sites: readonly BrowserSite[];
 }
+/** One step the agent took in its browser, for the desk's step list. */
+export interface DeskStep {
+  idx: number;
+  at: number;
+  caption: string;
+  tool: string;
+  by: "agent" | "person";
+}
 export interface BrowserData {
   watch(agentId: string, on: (v: BrowserView) => void): () => void;
   /** Open its profile (it also opens by itself when the agent browses). */
@@ -101,6 +109,10 @@ export interface BrowserData {
   /** `stopped`: the agent was stopped while paused, so the step that waits does not run at all. */
   resume?(agentId: string, o?: { stopped?: boolean }): Promise<void>;
   signOut(agentId: string, site: string): Promise<void>;
+  /** Where the agent last acted on its page, for the desk's cursor; null when it has not, or the browser sleeps or is held. A look that starts nothing. */
+  pointer?(agentId: string): Promise<import("./desk-pointer.ts").PointerView | null>;
+  /** What the agent did in its browser, newest last: one line each, for the desk's steps. */
+  steps?(agentId: string): Promise<DeskStep[]>;
   /** The live view, drawn by the Space browser (Chrome's screencast and input). Absent: a picture of a browser window stands in. */
   renderLive?(agentId: string, o: { state: BrowserState; control: boolean }): ReactElement;
 }

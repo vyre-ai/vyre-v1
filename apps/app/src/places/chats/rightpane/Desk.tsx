@@ -14,9 +14,12 @@ import type { IconName } from "./parts.tsx";
 import { PreviewImage } from "./PreviewImage.tsx";
 import { barOf } from "./BrowserSheet.tsx";
 import { browserHead } from "./work-model.ts";
+import type { DeskStep } from "./work-model.ts";
 import type { BrowserView } from "./work-model.ts";
 import { Dot } from "./WorkParts.tsx";
 import { keyAction } from "./desk-model.ts";
+import { drawnAt, showsCursor } from "./desk-pointer.ts";
+import type { Drawn, PointerView } from "./desk-pointer.ts";
 import type { DeskKey, DeskMode } from "./desk-model.ts";
 import { deskDispatch, useDesk } from "./desk-store.ts";
 import type { DeskSession } from "./desk-store.ts";
@@ -51,6 +54,31 @@ function useView(session: DeskSession): { view: BrowserView; known: boolean } {
   const [got, setGot] = useState<BrowserView | null>(null);
   useEffect(() => session.data.watch(session.agentId, setGot), [session.data, session.agentId]);
   return { view: got ?? UNKNOWN_VIEW, known: got !== null };
+}
+
+/** Ask now and then while `on`: the last answer stays until a newer one comes; a failed ask keeps it. */
+function usePolled<T>(ask: () => Promise<T> | undefined, every: number, on: boolean, first: T): T {
+  const [v, setV] = useState<T>(first);
+  const askRef = useRef(ask);
+  askRef.current = ask;
+  useEffect(() => {
+    if (!on) return undefined;
+    let live = true;
+    const go = (): void => {
+      void Promise.resolve(askRef.current())
+        .then((x) => {
+          if (live && x !== undefined) setV(x);
+        })
+        .catch(() => undefined);
+    };
+    go();
+    const t = setInterval(go, every);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, [every, on]);
+  return v;
 }
 
 const typingIn = (t: unknown): boolean => {
@@ -169,6 +197,19 @@ export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "
     return () => doc.removeEventListener("keydown", on);
   }, [data, agentId, run, togglePause, stop]);
 
+  // the agent's cursor, the highlight on its field, and its steps: only while the full view shows a live page
+  const watching = full && view.state === "open";
+  const ptr = usePolled<PointerView | null>(() => data.pointer?.(agentId), 400, watching && data.pointer !== undefined, null);
+  const steps = usePolled<DeskStep[]>(() => data.steps?.(agentId), 2500, watching && data.steps !== undefined, []);
+  const [stage, setStage] = useState({ width: 0, height: 0 });
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    if (!watching) return undefined;
+    const t = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [watching]);
+  const drawn = watching && showsCursor(ptr, clock) && ptr ? drawnAt(ptr, stage) : null;
+
   const e = edgesOf(mode, win);
   const head = browserHead(view);
   const bar = barOf(view, name, mine, Date.now() - t0.current);
@@ -219,7 +260,11 @@ export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "
               />
               <Tip icon="x" tip="Close" testID="desk-close" onPress={close} />
             </View>
-            <View testID="browser-live" style={[st.stage, mine && st.stageMine]}>
+            <View
+              testID="browser-live"
+              style={[st.stage, mine && st.stageMine]}
+              onLayout={(ev) => setStage({ width: ev.nativeEvent.layout.width, height: ev.nativeEvent.layout.height })}
+            >
               {live ? (
                 data.renderLive?.(agentId, { state: view.state, control: mine })
               ) : (
@@ -229,6 +274,8 @@ export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "
                   <View style={[st.sk, { width: "58%" }]} />
                 </View>
               )}
+              {drawn ? <AgentCursor drawn={drawn} name={name} /> : null}
+              {watching && steps.length > 0 ? <StepRing steps={steps} /> : null}
             </View>
             <View
               testID="desk-bar"
@@ -320,6 +367,66 @@ export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "
         ) : null}
       </View>
     </>
+  );
+}
+
+/** The agent's cursor with its name, gliding to where it acts, and a soft ring on the field it works in. It never takes a press: the page under it is the page. */
+export function AgentCursor({ drawn, name }: { drawn: Drawn; name: string }): ReactElement {
+  return (
+    <View testID="agent-cursor" pointerEvents="none" style={st.cursorLayer}>
+      {drawn.ring ? (
+        <View
+          testID="agent-ring"
+          style={[st.ring, { left: drawn.ring.left, top: drawn.ring.top, width: drawn.ring.width, height: drawn.ring.height } as never]}
+        />
+      ) : null}
+      <View style={[st.cursor, { left: drawn.x, top: drawn.y } as never]}>
+        <Icon name="point" size={20} color="#fff" fill="var(--accent)" width={1.2} />
+        <View style={st.cursorTag}>
+          <Text style={st.cursorName} numberOfLines={1}>
+            {name}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/** The steps, small: a ring with how many the agent has taken, opening on hover or a press into the list of what it did, newest last. */
+export function StepRing({ steps }: { steps: readonly DeskStep[] }): ReactElement {
+  const [hover, setHover] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const open = hover || pinned;
+  const shown = steps.slice(-8);
+  return (
+    <View testID="step-ring" style={st.ringBox} {...({ onMouseEnter: () => setHover(true), onMouseLeave: () => setHover(false) } as object)}>
+      {open ? (
+        <View testID="step-list" style={st.stepList}>
+          {shown.map((x, i) => (
+            <View key={x.idx} style={[st.stepRow, i === shown.length - 1 && st.stepNow]}>
+              <View style={[st.stepDot, i === shown.length - 1 && st.stepDotNow]} />
+              <Text style={st.stepText} numberOfLines={1}>
+                {x.caption || x.tool}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+      <Pressable
+        testID="step-ring-button"
+        accessibilityRole="button"
+        accessibilityLabel={`${steps.length} steps`}
+        accessibilityState={{ expanded: open }}
+        onPress={() => setPinned((v) => !v)}
+        style={st.stepButton}
+        {...({ title: "Steps" } as object)}
+      >
+        <View style={st.stepCount}>
+          <Text style={st.stepCountText}>{String(Math.min(steps.length, 99))}</Text>
+        </View>
+        <Icon name="check" size={13} color="#fff" />
+      </Pressable>
+    </View>
   );
 }
 
@@ -472,6 +579,35 @@ const st = StyleSheet.create({
     borderRadius: 5,
     paddingHorizontal: 4,
   },
+  cursorLayer: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden" },
+  ring: {
+    position: "absolute",
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "var(--accent)" as string,
+    boxShadow: "0 0 0 6px var(--accent-wash), 0 0 22px 4px var(--accent-wash)",
+    transitionProperty: "left, top, width, height",
+    transitionDuration: "420ms",
+  } as never,
+  cursor: {
+    position: "absolute",
+    transitionProperty: "left, top",
+    transitionDuration: "650ms",
+    transitionTimingFunction: "cubic-bezier(.3,.75,.2,1)",
+    filter: "drop-shadow(0 3px 6px rgba(20,16,50,.35))",
+  } as never,
+  cursorTag: { position: "absolute", left: 14, top: 16, backgroundColor: "var(--accent)" as string, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1 },
+  cursorName: { color: "var(--accent-ink)" as string, fontSize: 11.5, fontWeight: "600" },
+  ringBox: { position: "absolute", left: 14, bottom: 14, alignItems: "flex-start", gap: 6 },
+  stepButton: { height: 40, paddingLeft: 5, paddingRight: 14, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(24,22,36,.86)" },
+  stepCount: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "var(--accent)" as string },
+  stepCountText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  stepList: { width: 288, padding: 8, borderRadius: 16, backgroundColor: "rgba(24,22,36,.92)", gap: 1 },
+  stepRow: { minHeight: 32, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, borderRadius: 10 },
+  stepNow: { backgroundColor: "rgba(255,255,255,.14)" },
+  stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,.35)" },
+  stepDotNow: { backgroundColor: "#fff" },
+  stepText: { flex: 1, color: "rgba(255,255,255,.9)", fontSize: 13 },
   mini: { flex: 1 },
   miniPic: { flex: 1, minHeight: 0, backgroundColor: "#f5f6f8" as string, overflow: "hidden" },
   miniFoot: {
