@@ -102,6 +102,7 @@ import {
   sqlMessages,
   sqlQueue,
   sqlWaits,
+  sqlJournal,
 } from "./projections.ts";
 import type { Db, EngineCtx } from "./projections.ts";
 
@@ -1238,6 +1239,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       leases: sqlLeases(ctx.db),
       messages: sqlMessages(ctx.db, now),
       waits: sqlWaits(ctx.db),
+      journal: sqlJournal(ctx.db, now),
       newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
@@ -1328,7 +1330,11 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           }
         : {}),
       ...(apiTools
-        ? { callTool: apiTools.runner, ...(apiTools.toolClass ? { toolClass: apiTools.toolClass } : {}) }
+        ? {
+            callTool: apiTools.runner,
+            ...(apiTools.toolClass ? { toolClass: apiTools.toolClass } : {}),
+            ...(apiTools.toolSafety ? { toolSafety: apiTools.toolSafety } : {}),
+          }
         : {}),
       // a chat pinned to a computer that is not linked waits in the queue for it: the turn does not start (nothing reads "Working"), the chat says so once, and it starts when the computer links
       ...(h.nodes?.devices

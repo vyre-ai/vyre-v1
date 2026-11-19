@@ -11,6 +11,8 @@ import { payLine } from "../accounts/paid.ts";
 import { createMemoryQueue } from "./queue.ts";
 import type { QueueStore } from "./queue.ts";
 import { HEARTBEAT_MS, createMemoryLeases } from "./lease.ts";
+import { createMemoryJournal, planResume, resumeNote, summaryOf } from "./journal.ts";
+import type { JournalStore, ResumePlan, Safety } from "./journal.ts";
 import type { LeaseStore } from "./lease.ts";
 import { createMemoryMessages, createMemoryWaits } from "./stores.ts";
 import type { MessageStore, WaitStore } from "./stores.ts";
@@ -176,6 +178,13 @@ export interface EngineOptions {
    * asks the person). Without it every call runs alone, as before. Only used for a session that says parallelTools.
    */
   toolClass?: (name: string) => "read" | "other";
+  /**
+   * How safe a tool call is to ask again after a restart: a read (harmless), a call that carries an idempotency key (the server answers it once), or unsafe (it may have changed the world). With it, a turn
+   * that had called tools when its host died is resumed from its journal instead of ending host_lost; without it every such turn ends host_lost, as before.
+   */
+  toolSafety?: (name: string) => Safety;
+  /** Where the tool calls of a turn are written as they happen. Memory by default; the engine module keeps them in SQL. */
+  journal?: JournalStore;
   /** Most reads run at the same time. Default 6. */
   maxParallel?: number;
   /** Repeating timer, returns its canceller. Default setInterval (unref'd). */
@@ -409,6 +418,10 @@ export interface TurnEngine {
 
 export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const queue = opts.queue ?? createMemoryQueue();
+  // the tool calls of each turn as they happen, and the plan of a turn a dead host left that is to be resumed, by queue row (journal.ts)
+  const toolLog = opts.journal ?? createMemoryJournal();
+  const resumes = new Map<string, ResumePlan & { turnId: string }>();
+  const rowKey = (threadId: string, qseq: number): string => `${threadId}:${qseq}`;
   const leases = opts.leases ?? createMemoryLeases();
   const messages = opts.messages ?? createMemoryMessages();
   const waits = opts.waits ?? createMemoryWaits();
@@ -457,6 +470,18 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   // what is kept here is for reads of recent turns; a server that runs for months must not hold every event it ever saw
   const emit = (e: EngineEvent): void => {
+    // a turn that ended for good has no more use for its calls; one a dead host left (host_lost) keeps them until its resume has read them
+    if (
+      (e.type === "turn.completed" ||
+        e.type === "turn.cancelled" ||
+        (e.type === "turn.failed" && e.code !== "host_lost")) &&
+      "turnId" in e
+    )
+      try {
+        toolLog.drop(e.turnId);
+      } catch {
+        /* the journal never fails an event */
+      }
     journal.push(e);
     if (journal.length > KEEP_EVENTS) journal.splice(0, journal.length - KEEP_EVENTS);
     for (const l of listeners) l(e);
@@ -1060,6 +1085,28 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // who the turn is for (whose folder and user it works in) is the person the engine found, never the account that pays: the account the Space or another person provides may be anyone's (F75)
     const asker = orphan ? "" : (wait?.asker ?? payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
+    // a turn a dead host left that had called tools (journal.ts): what it did is told to this one, and the calls that were in flight, if safe to ask again, are asked again under their old key (a read, or a call that
+    // carries an idempotency key, which the server answers once), so nothing goes out twice
+    let resumeText: string | undefined;
+    const resumePlan = resumes.get(rowKey(st.thread.id, item.qseq));
+    if (resumePlan) {
+      resumes.delete(rowKey(st.thread.id, item.qseq));
+      const replayed: Array<{ entry: (typeof resumePlan.replay)[number]; ok: boolean; summary: string }> = [];
+      for (const e of resumePlan.replay) {
+        const r = await runTool(
+          opts.callTool,
+          { id: e.callId, name: e.name, input: e.input },
+          { threadId: st.thread.id, turnId: resumePlan.turnId, agentId: item.agentId, asker },
+        );
+        replayed.push({ entry: e, ok: r.ok, summary: summaryOf(r.content) });
+      }
+      resumeText = resumeNote(resumePlan.done, replayed);
+      try {
+        toolLog.drop(resumePlan.turnId);
+      } catch {
+        /* nothing to keep */
+      }
+    }
     // the wake continues a parked turn: that turn is over now, with the usage it had at the hold (the wake is its own row with its own)
     if (wait) {
       const was = turnRows.find((t) => t.id === wait.turnId);
@@ -1313,6 +1360,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             const notes = [
               ...(stopped ? [stopNote(stopped.why, stopped.ask)] : []),
               ...(inRound ? [ROUND_NOTE] : []),
+              ...(resumeText ? [resumeText] : []),
               ...hookNotes,
             ];
             return notes.length > 0 ? { notice: notes.join("\n") } : {};
@@ -1480,6 +1528,25 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
               // an engine that runs its own tools reports them as blocks: the same line is crossed
               noteBlock(info, ev.kind, ev.payload, now());
               queue.touch(st.thread.id, item.qseq);
+              if (opts.toolSafety && ev.kind === "tool_call") {
+                // an engine that runs its own tools: the call is on record, and it can never be asked again by us, so a turn that made one is not resumed
+                const p = (ev.payload ?? {}) as { id?: unknown; name?: unknown };
+                try {
+                  toolLog.put({
+                    threadId: st.thread.id,
+                    turnId: turn.id,
+                    callId: typeof p.id === "string" ? p.id : `own:${turn.id}:${now()}`,
+                    name: typeof p.name === "string" ? p.name : "a tool",
+                    input: null,
+                    safety: "unsafe",
+                    state: "started",
+                    own: true,
+                    at: now(),
+                  });
+                } catch {
+                  /* never fails the turn */
+                }
+              }
               flush("text");
               flush(ev.kind);
               steerBoundary(st, run, turn);
@@ -1832,9 +1899,35 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     ctx: ToolContext,
   ): Promise<ToolRunResult> {
     if (!fn) return { ok: false, content: { code: "no_tools", message: "this engine has no tool runner" } };
+    const entry = (
+      state: "started" | "done" | "failed" | "held",
+      more: { summary?: string; endedAt?: number } = {},
+    ) => {
+      if (!opts.toolSafety) return;
+      try {
+        toolLog.put({
+          threadId: ctx.threadId,
+          turnId: ctx.turnId,
+          callId: call.id,
+          name: call.name,
+          input: call.input,
+          safety: opts.toolSafety(call.name),
+          state,
+          at: begun,
+          ...more,
+        });
+      } catch {
+        /* a journal that cannot be written never fails a tool call */
+      }
+    };
+    const begun = now();
+    entry("started");
     try {
-      return await fn(call, ctx);
+      const r = await fn(call, ctx);
+      entry(r.held ? "held" : r.ok ? "done" : "failed", { summary: summaryOf(r.content), endedAt: now() });
+      return r;
     } catch (e) {
+      entry("failed", { summary: "the tool failed", endedAt: now() });
       return {
         ok: false,
         content: { code: "tool_error", message: e instanceof Error ? e.message : "the tool failed" },
@@ -2123,11 +2216,18 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           queue.setState(threadId, row.qseq, "queued");
           continue;
         }
-        queue.setState(threadId, row.qseq, "done");
+        // It had called tools. Its journal says whether every call is accounted for (finished, or safe to ask again): then it is resumed as a turn of its own, told what was done. Otherwise a call may have gone out and
+        // nobody can say, and the turn ends host_lost for a person to decide.
+        const lostId = opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`;
+        const plan = opts.toolSafety && row.kind === "message" ? planResume(toolLog.list(lostId)) : undefined;
+        if (plan?.resumable) {
+          resumes.set(rowKey(threadId, row.qseq), { ...plan, turnId: lostId });
+          queue.setState(threadId, row.qseq, "queued");
+        } else queue.setState(threadId, row.qseq, "done");
         emit({
           type: "turn.failed",
           threadId,
-          turnId: opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`,
+          turnId: lostId,
           agentId: row.agentId,
           code: "host_lost",
           qseq: row.qseq,

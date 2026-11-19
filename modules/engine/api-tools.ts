@@ -211,6 +211,13 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
       ? "read"
       : "other";
   };
+  // how safe a call is to ask again after a restart (agent/src/turn-engine/journal.ts): a plain read, or a call that carries an idempotency key the server answers once; the rest may have changed something
+  const toolSafety = (name: string): "read" | "keyed" | "unsafe" => {
+    const t = catalog!.byName(name);
+    if (t === undefined || t.local !== "none") return "unsafe";
+    if (t.effects === "read" && !t.gated) return "read";
+    return t.keyed === true ? "keyed" : "unsafe";
+  };
   const tools = createApiTools({
     session,
     space: d.space,
@@ -228,5 +235,5 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
       : {}),
     ...(d.plugins ? { extra: d.plugins.extra } : {}),
   });
-  return { ...tools, toolClass };
+  return { ...tools, toolClass, toolSafety };
 }

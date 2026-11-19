@@ -15,6 +15,7 @@ import { LEASE_TTL_MS } from "../../agent/src/turn-engine/lease.ts";
 import type { LeaseRow, LeaseStore } from "../../agent/src/turn-engine/lease.ts";
 import type { NewItem, QueueStore } from "../../agent/src/turn-engine/queue.ts";
 import type { MessageStore, WaitRow, WaitStore } from "../../agent/src/turn-engine/stores.ts";
+import type { JournalEntry, JournalStore } from "../../agent/src/turn-engine/journal.ts";
 import type {
   Author,
   EngineSession,
@@ -183,6 +184,7 @@ export function ensure(db: Db): void {
     db.all("SELECT key FROM engine_step_turns WHERE key = ?", "probe");
     db.all("SELECT task_id FROM engine_task_baton WHERE task_id = ?", "probe");
     db.all("SELECT job_id FROM engine_crew_job WHERE job_id = ?", "probe");
+    db.all("SELECT call_id FROM engine_turn_journal WHERE turn_id = ?", "probe");
     db.all("SELECT wait_id FROM engine_crew_wait WHERE wait_id = ?", "probe");
     db.all("SELECT touched FROM engine_thread_queue WHERE thread_id = ?", "probe");
     db.all("SELECT ref FROM engine_paid_ok WHERE thread_id = ?", "probe");
@@ -553,5 +555,61 @@ export function sqlWaits(db: Db): WaitStore {
     },
     open: (threadId) =>
       rows(db, "SELECT * FROM engine_waits WHERE thread_id = ? ORDER BY at ASC", threadId).map(waitOf),
+  };
+}
+
+/** The journal of a turn's tool calls in SQL (agent/src/turn-engine/journal.ts). A call is written twice, at its start and at its end, under one key; a week-old row is swept as one is written. */
+export function sqlJournal(db: Db, now: () => number): JournalStore {
+  ensure(db);
+  const WEEK = 7 * 86_400_000;
+  return {
+    put(e) {
+      db.run(
+        `INSERT OR REPLACE INTO engine_turn_journal (turn_id, call_id, thread_id, name, input_json, safety, state, summary, own, at, ended_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        e.turnId,
+        e.callId,
+        e.threadId,
+        e.name,
+        e.input === undefined ? null : JSON.stringify(e.input),
+        e.safety,
+        e.state,
+        e.summary ?? null,
+        e.own ? 1 : 0,
+        e.at,
+        e.endedAt ?? null,
+      );
+      if (e.state === "started") db.run("DELETE FROM engine_turn_journal WHERE at < ?", now() - WEEK);
+    },
+    list(turnId) {
+      return (
+        db.all("SELECT * FROM engine_turn_journal WHERE turn_id = ? ORDER BY at ASC, call_id ASC", turnId) as Array<
+          Record<string, unknown>
+        >
+      ).map((r) => {
+        let input: unknown = null;
+        try {
+          input = r["input_json"] ? JSON.parse(String(r["input_json"])) : null;
+        } catch {
+          input = null;
+        }
+        return {
+          threadId: String(r["thread_id"]),
+          turnId: String(r["turn_id"]),
+          callId: String(r["call_id"]),
+          name: String(r["name"]),
+          input,
+          safety: String(r["safety"]) as JournalEntry["safety"],
+          state: String(r["state"]) as JournalEntry["state"],
+          ...(r["summary"] ? { summary: String(r["summary"]) } : {}),
+          ...(Number(r["own"]) === 1 ? { own: true } : {}),
+          at: Number(r["at"]),
+          ...(r["ended_at"] === null ? {} : { endedAt: Number(r["ended_at"]) }),
+        } as JournalEntry;
+      });
+    },
+    drop(turnId) {
+      db.run("DELETE FROM engine_turn_journal WHERE turn_id = ?", turnId);
+    },
   };
 }
