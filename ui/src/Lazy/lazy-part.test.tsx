@@ -202,3 +202,31 @@ test("a loader that throws before it returns a promise shows Retry; it is not a 
     undo();
   }
 });
+
+test("the loader is asked in the first render, not a turn later (a screen that waits a few turns for a part sees it, as with React.lazy)", async () => {
+  const undo = installDom();
+  try {
+    let asked = 0;
+    let settle: (m: { default: typeof Page }) => void = () => undefined;
+    const Part = lazyPart<typeof Page>(() => {
+      asked += 1;
+      return new Promise((r) => (settle = r));
+    });
+    const r = createRoot();
+    act(() => {
+      r.render(
+        <Shell>
+          <Part label="t" />
+        </Shell>,
+      );
+    });
+    assert.equal(asked, 1, "asked in the first render");
+    await act(async () => {
+      settle({ default: Page });
+    });
+    await flush();
+    assert.ok(find(r.container as never, "box"));
+  } finally {
+    undo();
+  }
+});

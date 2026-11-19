@@ -17,7 +17,7 @@ export class LoadFailure extends Error {
 
 /** One try at loading a part, shared by every draw of it that is waiting: a new one is made at every Retry and when the boundary that showed a failure goes, so a failure is never remembered past the draw that met it. (It is not component state: a part that suspends on its first draw has no state to keep.) */
 interface Attempt {
-  wait: Promise<void> | null;
+  wait: Promise<unknown> | null;
   error: unknown;
 }
 const fresh = (): Attempt => ({ wait: null, error: undefined });
@@ -86,30 +86,30 @@ export function lazyPart<T extends AnyComponent>(
   let loaded: T | null = null;
   let pending: Promise<T> | null = null;
   const get = (): Promise<T> =>
-    (pending ??= Promise.resolve()
-      .then(load)
-      .then(
-        (m) => {
-          loaded = m.default;
-          return m.default;
-        },
-        (e: unknown) => {
-          pending = null; // a failed load is not kept: the next use asks again
-          throw e;
-        },
-      ));
+    (pending ??= startLoad(load).then(
+      (m) => {
+        loaded = m.default;
+        return m.default;
+      },
+      (e: unknown) => {
+        pending = null; // a failed load is not kept: the next use asks again
+        throw e;
+      },
+    ));
   let current = fresh();
   function Inner(props: P): ReactElement {
     const attempt = current;
     const Ready = loaded ?? peek?.() ?? null;
     if (!Ready) {
       if (attempt.error !== undefined) throw attempt.error;
-      attempt.wait ??= get().then(
-        () => undefined,
-        (e: unknown) => {
+      if (attempt.wait === null) {
+        // React waits on the load itself (one turn after it settles, as for React.lazy); the failure is noted first, on the same promise, so the next render finds it
+        const p = get();
+        p.catch((e: unknown) => {
           attempt.error = new LoadFailure(e);
-        },
-      );
+        });
+        attempt.wait = p;
+      }
       throw attempt.wait;
     }
     const Draw = Ready as ComponentType<P>;
