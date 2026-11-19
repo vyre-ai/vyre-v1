@@ -104,11 +104,21 @@ test("the signed-in shell is not parsed before the session gate finds a stored s
   const gate = fs.readFileSync(path.join(root, "apps/app/src/shell/session/SessionGate.tsx"), "utf8");
   for (const eager of ["../spaces/Shell.tsx", "../cmdk/CmdK.tsx", "./PlaceHost.tsx"])
     assert.doesNotMatch(gate, new RegExp(`from ["']${eager.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`));
+  // the one boundary: the gate draws the shell through a lazyPart. Its loader is either the dynamic import itself or startup/shell-load.ts (loadShellHost), which then holds the one dynamic import of the shell.
   assert.match(
     gate,
-    /lazy\(\(\) => import\("\.\/ShellHost\.tsx"\)/,
-    "the authenticated shell has one explicit lazy boundary",
+    /lazyPart\(\s*\(\) => (loadShellHost\(\)|import\("\.\/ShellHost\.tsx"\))/,
+    "the authenticated shell has one explicit lazy boundary (a lazyPart)",
   );
+  assert.doesNotMatch(
+    gate,
+    /import \{[^}]*\bShellHost\b[^}]*\} from ["']\.\/ShellHost\.tsx["']/,
+    "the gate imports the shell as a type at most",
+  );
+  if (/loadShellHost\(\)/.test(gate)) {
+    const load = fs.readFileSync(path.join(root, "apps/app/src/startup/shell-load.ts"), "utf8");
+    assert.match(load, /import\("\.\.\/shell\/session\/ShellHost\.tsx"\)/, "the shell's one dynamic import");
+  }
 });
 
 test("the web virtual-list boundary excludes the native FlashList runtime", () => {

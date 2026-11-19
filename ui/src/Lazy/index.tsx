@@ -62,6 +62,15 @@ class Boundary extends Component<
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the same bound React.lazy has: any component
 type AnyComponent = ComponentType<any>;
+/** `load()` as a promise, with no turn added when it returns one (a test that waits a fixed number of turns for a part sees it as it would a React.lazy); a loader that throws before it returns is a rejected load. */
+function startLoad<T>(load: () => Promise<T>): Promise<T> {
+  try {
+    return load();
+  } catch (e) {
+    return Promise.reject(e);
+  }
+}
+
 export type LazyPart<T extends AnyComponent> = ((props: ComponentProps<T>) => ReactElement) & {
   preload: () => Promise<void>;
 };
