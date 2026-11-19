@@ -164,7 +164,9 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
   if (KEY_HOST_CAPS.has(cap)) {
     const use = keySendOf(input);
     const name = use ? use.handle.replace(/^#/, "").replace(/\..*$/, "") : "";
-    return use && name ? `send the key ${name} to ${use.host ?? "an address it could not read"}` : "send a key to an app";
+    return use && name
+      ? `send the key ${name} to ${use.host ?? "an address it could not read"}`
+      : "send a key to an app";
   }
   if (cap === "automations.read_link") {
     const url = str(obj(input)["url"]);

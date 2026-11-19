@@ -11,7 +11,7 @@ Add people to a channel. With mentionedIn (the line under a message that mention
 | Grant level | manage |
 | Risk | medium |
 | Resource | channel (/channelId) |
-| Gate | send when gate.by_actor(input) |
+| Gate | none |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

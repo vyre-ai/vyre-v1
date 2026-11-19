@@ -98,4 +98,3 @@ export function keySendOf(input: unknown): { handle: string; host: string | null
   }
   return undefined;
 }
-

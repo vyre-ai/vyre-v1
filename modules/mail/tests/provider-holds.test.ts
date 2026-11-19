@@ -32,6 +32,10 @@ const NOT_HELD: [RegExp, string][] = [
     "a grant inside the Space: an agent acts for a person and is never wider than that person (kernel/tests/authorize.agent.test.ts, the property over 200 worlds), it needs Manage on the thing (modules/access/handlers/share.ts:904), a guest or an agent for a guest never shares with Everyone (share.ts:1001), and in a thread an outside-started Run marked, these are held for a yes (lib/automation-content.ts:42). Sharing outside the Space is held separately",
   ],
   [
+    /^(threads|channels)\.members\.add$/,
+    "the product's own flows add people to a chat as the agent or the Automation step that makes it (a goal's helpers, a task's assignee: test/goals.helpers.live.test.ts, test/automations.rc28.live.test.ts), and what the newcomer reads is set by the adder's own floor (modules/chat/tests/chat-acts.live.test.ts); an agent that adds someone to a chat the person can see is the person's own chat work",
+  ],
+  [
     /^changesets\.approve$/,
     "the reviewer's own yes on a changeset, with its own Gate for a push to a protected branch; it gives nobody access (an open question for the lead: should an agent approve its own changeset?)",
   ],
