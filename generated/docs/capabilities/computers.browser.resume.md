@@ -45,6 +45,15 @@ type Out = {
     line?: string;
     takeoverBy?: string;
     pausedBy?: string;
+    held?: {
+      count: number;
+      first?: {
+        holdId: string;
+        taskId: string;
+        what: string;
+        mayAnswer: boolean;
+      };
+    };
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
@@ -75,6 +84,15 @@ type Out = {
       "access": "owner",
       "agentId": "agt_a1b2c3",
       "busy": true,
+      "held": {
+        "count": 1,
+        "first": {
+          "holdId": "hld_a1b2c3",
+          "mayAnswer": true,
+          "taskId": "tsk_a1b2c3",
+          "what": "example"
+        }
+      },
       "lastActiveAt": 1760000000000,
       "line": "example",
       "paired": true,

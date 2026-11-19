@@ -84,6 +84,8 @@ export interface BrowserView {
   /** Open and paused by a person: the agent's next browser step waits for Resume. `pausedBy`: who, by name. */
   paused?: boolean;
   pausedBy?: string;
+  /** Sends, posts or payments of the agent that wait for approval (the Gate): how many, the oldest in a line, its task, and whether this person may answer it. */
+  held?: { count: number; what: string; taskId: string; mayAnswer: boolean };
   /** May this person see its live view and take over? Owner and admin for a team agent; the owner alone for a personal agent. */
   canTakeOver: boolean;
   cannotTakeOver?: string;

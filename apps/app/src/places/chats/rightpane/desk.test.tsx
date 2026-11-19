@@ -788,3 +788,56 @@ test("two people: when someone else paused the browser, Resume that they may not
     off();
   }
 });
+
+test("a send waiting for approval: the bar says so with what it is, offers Allow and Not now only to someone who may answer, answers with the Approve task's own decision, and says a refusal", async () => {
+  const off = installDom();
+  deskReset();
+  try {
+    const held = (mayAnswer: boolean, count = 1): BrowserView => ({
+      state: "open",
+      canTakeOver: true,
+      sites: [],
+      held: { count, what: "Send the report to Northwind", taskId: "tsk_1", mayAnswer },
+    });
+    const r = rig(held(true, 3));
+    deskOpen(r.session);
+    const root = await mount(cr, <DeskHost />);
+    await flush();
+    assert.match(textOf(find(root, "desk-bar")), /Send asks you first/);
+    assert.match(textOf(find(root, "desk-bar")), /Send the report to Northwind and 2 more/);
+    await press(find(root, "browser-allow"));
+    await flush();
+    assert.deepEqual(
+      r.asked.filter((a) => a.startsWith("tasks.decide")),
+      ['tasks.decide {"taskId":"tsk_1","verdict":"approve"}'],
+    );
+    await press(find(root, "browser-deny"));
+    await flush();
+    assert.ok(r.asked.includes('tasks.decide {"taskId":"tsk_1","verdict":"reject"}'));
+    // someone who may not answer sees what waits and is offered nothing
+    r.push(held(false));
+    await flush();
+    assert.match(textOf(find(root, "desk-bar")), /Send asks you first/);
+    assert.equal(find(root, "browser-allow"), null);
+    assert.equal(find(root, "browser-deny"), null);
+    // a refusal is said in words and the choice stays
+    r.push(held(true));
+    r.session.call = async () => {
+      throw new Error("This was already decided.");
+    };
+    await flush();
+    await press(find(root, "browser-allow"));
+    await flush();
+    assert.deepEqual(r.notes, ["This was already decided."]);
+    assert.ok(find(root, "browser-allow"));
+    // while you hold the browser the send still waits, and Give back stays
+    r.push({ ...held(true), state: "takeover", mine: true, takenBy: "You" });
+    await flush();
+    assert.ok(find(root, "browser-give"));
+    assert.ok(find(root, "browser-allow"));
+  } finally {
+    unmountAll();
+    deskReset();
+    off();
+  }
+});

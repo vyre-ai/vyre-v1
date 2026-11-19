@@ -130,7 +130,20 @@ function rig() {
   bindSpaceBrowser(sb);
   return { seen, rows };
 }
+/** What the fake Gate and tasks answer (tests set them): the holds waiting, each task's title and what the caller may do on it. */
+let heldHolds: Array<{ id: string; capName: string; taskId: string; principal: { kind: string; id: string }; createdAt: number }> = [];
+let heldTasks: Record<string, { title: string; actions: Array<{ key: string }> }> = {};
+let gateDown = false;
 const respond = {
+  "gate.holds.list": () => {
+    if (gateDown) throw new Error("gate down");
+    return { holds: heldHolds };
+  },
+  "tasks.get": (i: Record<string, unknown>) => {
+    const t = heldTasks[String(i["taskId"])];
+    if (!t) throw new Error("no such task");
+    return { task: t };
+  },
   "agents.share_class": (i: Record<string, unknown>) => {
     const a = AGENTS[String(i["agentId"])];
     if (!a) throw new Error("no such agent");
@@ -744,6 +757,39 @@ test("the pointer is a look at where the agent last acted: for whoever may watch
     );
   } finally {
     ptr = null;
+    off();
+  }
+});
+
+test("the row says what the agent's browser has waiting for approval: how many, the oldest in one line, and whether this caller may answer; only sends count, and a Gate that does not answer says nothing waits", async () => {
+  rig();
+  try {
+    const dana = as(DANA, false);
+    const row = async () => (await tool["computers.browser.profiles"]!(dana.ctx, {})).profiles.find((p: { agentId: string }) => p.agentId === "agt_dex");
+    assert.equal((await row()).held, undefined, "nothing waits");
+    heldTasks = {
+      tsk_1: { title: "  Send the report\n to Northwind  ", actions: [{ key: "approve" }, { key: "reject" }] },
+      tsk_2: { title: "Send the second", actions: [] },
+    };
+    heldHolds = [
+      { id: "hld_2", capName: "computers.chrome.send", taskId: "tsk_2", principal: { kind: "agent", id: "agt_dex" }, createdAt: 20 },
+      { id: "hld_1", capName: "computers.chrome.send", taskId: "tsk_1", principal: { kind: "agent", id: "agt_dex" }, createdAt: 10 },
+      { id: "hld_x", capName: "mail.send", taskId: "tsk_9", principal: { kind: "agent", id: "agt_dex" }, createdAt: 5 },
+      { id: "hld_y", capName: "computers.chrome.send", taskId: "tsk_1", principal: { kind: "agent", id: "agt_mine" }, createdAt: 1 },
+    ];
+    assert.deepEqual((await row()).held, { count: 2, first: { holdId: "hld_1", taskId: "tsk_1", what: "Send the report to Northwind", mayAnswer: true } });
+    // a caller the Approve task does not offer Allow to is told so, and is not offered the choice
+    heldTasks["tsk_1"] = { title: "Send the report", actions: [] };
+    assert.equal((await row()).held.first.mayAnswer, false);
+    // the oldest task cannot be read: the line stays general and nobody is offered the choice
+    delete heldTasks["tsk_1"];
+    assert.deepEqual((await row()).held.first, { holdId: "hld_1", taskId: "tsk_1", what: "A send waits for approval", mayAnswer: false });
+    gateDown = true;
+    assert.equal((await row()).held, undefined, "a Gate that does not answer says nothing waits");
+  } finally {
+    heldHolds = [];
+    heldTasks = {};
+    gateDown = false;
     off();
   }
 });

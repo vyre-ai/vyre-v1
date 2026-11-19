@@ -16,11 +16,27 @@ export interface BrowserRowLike {
   lastActiveAt?: number | undefined;
   takeoverBy?: string | undefined;
   pausedBy?: string | undefined;
+  held?:
+    | { count: number; first?: { holdId: string; taskId: string; what: string; mayAnswer: boolean } | undefined }
+    | undefined;
   paired: boolean;
   access: "owner" | "admin" | "viewer";
 }
 
 /** The profile as the pane draws it. A profile that is not listed has not started: closed, and the person's own say over it comes from the server when they ask. */
+function heldOf(r: BrowserRowLike): Pick<BrowserView, "held"> {
+  return r.held && r.held.count > 0
+    ? {
+        held: {
+          count: r.held.count,
+          what: r.held.first?.what ?? "A send waits for approval",
+          taskId: r.held.first?.taskId ?? "",
+          mayAnswer: r.held.first?.mayAnswer === true,
+        },
+      }
+    : {};
+}
+
 export function browserView(
   agentId: string,
   rows: readonly BrowserRowLike[],
@@ -31,6 +47,7 @@ export function browserView(
   if (!r) return { state: "closed", canTakeOver: true, sites: [] };
   const may = r.access === "owner" || r.access === "admin";
   const base = {
+    ...heldOf(r),
     canTakeOver: may,
     ...(may ? {} : { cannotTakeOver: "You can watch this browser but not take it over." }),
     sites: may ? sites : [],

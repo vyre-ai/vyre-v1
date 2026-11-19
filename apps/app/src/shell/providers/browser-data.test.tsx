@@ -266,3 +266,31 @@ test("Tab and Escape are never sent to the page: they are how a person leaves th
   assert.deepEqual(keyMessages({ key: "Escape" }), []);
   assert.equal(keyMessages({ key: "Enter" }).length, 2, "other named keys still go");
 });
+
+test("the view carries what waits for approval, pausing and who paused; a row with nothing waiting carries no held", () => {
+  const d = { me: "usr_me", nameOf: (id: string) => id.toUpperCase() };
+  assert.equal(browserView("agt_dex", [row({ held: { count: 0 } })], d).held, undefined);
+  assert.deepEqual(
+    browserView(
+      "agt_dex",
+      [
+        row({
+          held: { count: 2, first: { holdId: "hld_1", taskId: "tsk_1", what: "Send the report", mayAnswer: true } },
+        }),
+      ],
+      d,
+    ).held,
+    { count: 2, what: "Send the report", taskId: "tsk_1", mayAnswer: true },
+  );
+  assert.deepEqual(browserView("agt_dex", [row({ held: { count: 1 } })], d).held, {
+    count: 1,
+    what: "A send waits for approval",
+    taskId: "",
+    mayAnswer: false,
+  });
+  const p = browserView("agt_dex", [row({ pausedBy: "usr_me" })], d);
+  assert.deepEqual([p.paused, p.pausedBy], [true, "You"]);
+  assert.equal(browserView("agt_dex", [row({ pausedBy: "usr_om" })], d).pausedBy, "USR_OM");
+  // a held send shows while someone has the controls too
+  assert.equal(browserView("agt_dex", [row({ takeoverBy: "usr_me", held: { count: 1 } })], d).held?.count, 1);
+});

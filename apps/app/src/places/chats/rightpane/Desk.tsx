@@ -164,6 +164,17 @@ export function Desk({
     },
     [data, agentId, run],
   );
+  // a send, post or payment of the agent waits for approval: Allow or Not now is the Approve task's own decision (tasks.decide); whoever may not answer it is offered nothing and the server would refuse
+  const answer = useCallback(
+    (verdict: "approve" | "reject"): void => {
+      const h = view.held;
+      if (!h || !h.taskId) return;
+      run(async () => {
+        await session.call("tasks.decide", { taskId: h.taskId, verdict });
+      });
+    },
+    [view.held, session, run],
+  );
   const close = useCallback((): void => {
     if (mine) void data.giveBack(agentId).catch(() => undefined);
     deskDispatch({ type: "close" });
@@ -348,15 +359,41 @@ export function Desk({
                     mine && st.barMine,
                   ]}
                 >
-                  <Text style={st.barBold} numberOfLines={1}>
-                    {bar.title}
-                  </Text>
-                  {bar.note ? (
-                    <Text style={st.barNote} numberOfLines={1}>
-                      {bar.note}
-                    </Text>
-                  ) : null}
+                  {view.held ? (
+                    <>
+                      <Icon name="shield" size={16} color="var(--warn)" />
+                      <Text style={st.barBold} numberOfLines={1}>
+                        Send asks you first
+                      </Text>
+                      <Text style={st.barNote} numberOfLines={1}>
+                        {view.held.count > 1 ? `${view.held.what} and ${view.held.count - 1} more` : view.held.what}
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={st.barBold} numberOfLines={1}>
+                        {bar.title}
+                      </Text>
+                      {bar.note ? (
+                        <Text style={st.barNote} numberOfLines={1}>
+                          {bar.note}
+                        </Text>
+                      ) : null}
+                    </>
+                  )}
                   <View style={{ flex: 1 }} />
+                  {view.held?.mayAnswer ? (
+                    <>
+                      <Pill
+                        label="Not now"
+                        quiet
+                        disabled={busy}
+                        onPress={() => answer("reject")}
+                        testID="browser-deny"
+                      />
+                      <Pill label="Allow" disabled={busy} onPress={() => answer("approve")} testID="browser-allow" />
+                    </>
+                  ) : null}
                   {live && view.state === "open" && view.canTakeOver && data.pause ? (
                     isPaused ? null : (
                       <Tip

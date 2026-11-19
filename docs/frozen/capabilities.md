@@ -768,3 +768,11 @@ Signed: lead, 19 Nov 2026
 - Snapshots: docs/frozen/snapshots/computers.json.
 
 Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: what an agent's browser has waiting for approval (lane r42-computer, owner-approved desk, lead ruling of 19 Nov)
+
+- The browser row (`browserRow`, in `computers.browser.profiles`) gains `held`, present only when something waits: `count` (the agent's sends, posts and payments waiting at the Gate, that is its holds on `computers.chrome.send`), and `first`, the oldest one: `holdId`, `taskId`, `what` (the Approve task's title, one line, at most 120 characters) and `mayAnswer` (the Approve task offers the caller Allow). It is read through `gate.holds.list` and `tasks.get`, which the caller already may read; a read that fails answers no `held` (nothing is guessed), and an unreadable task leaves `what` general and `mayAnswer` false.
+- The desk answers with the existing decision, `tasks.decide` (`approve` for Allow, `reject` for Not now); the Gate and the task refuse anyone who may not. No new capability.
+- Snapshots: docs/frozen/snapshots/computers.json.
+
+Signed: pending, lead

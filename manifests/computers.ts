@@ -86,6 +86,22 @@ const browserRow = t.obj({
   line: t.opt(t.str({ description: "Why it waits (no room on the host) or what went wrong, in a plain line" })),
   takeoverBy: t.opt(id.user),
   pausedBy: t.opt(id.user),
+  held: t.opt(
+    t.obj(
+      {
+        count: t.int({ description: "Sends, posts and payments of this agent waiting for approval (the Gate)" }),
+        first: t.opt(
+          t.obj({
+            holdId: t.id("hld"),
+            taskId: id.task,
+            what: t.str({ description: "The oldest one, in one line" }),
+            mayAnswer: t.bool({ description: "The caller may Allow or Deny it (the Approve task offers them the choice)" }),
+          }),
+        ),
+      },
+      { description: "What the agent's browser has waiting for approval; absent when nothing waits" },
+    ),
+  ),
   paired: t.bool({
     description: "Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill",
   }),

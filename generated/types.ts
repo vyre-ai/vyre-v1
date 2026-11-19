@@ -10520,6 +10520,15 @@ export type ComputersBrowserGiveBackOut = {
     line?: string;
     takeoverBy?: string;
     pausedBy?: string;
+    held?: {
+      count: number;
+      first?: {
+        holdId: string;
+        taskId: string;
+        what: string;
+        mayAnswer: boolean;
+      };
+    };
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
@@ -10552,6 +10561,15 @@ export type ComputersBrowserPauseOut = {
     line?: string;
     takeoverBy?: string;
     pausedBy?: string;
+    held?: {
+      count: number;
+      first?: {
+        holdId: string;
+        taskId: string;
+        what: string;
+        mayAnswer: boolean;
+      };
+    };
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
@@ -10601,6 +10619,15 @@ export type ComputersBrowserProfilesOut = {
       line?: string;
       takeoverBy?: string;
       pausedBy?: string;
+      held?: {
+        count: number;
+        first?: {
+          holdId: string;
+          taskId: string;
+          what: string;
+          mayAnswer: boolean;
+        };
+      };
       paired: boolean;
       access: "owner" | "admin" | "viewer";
     }>;
@@ -10627,6 +10654,15 @@ export type ComputersBrowserResumeOut = {
     line?: string;
     takeoverBy?: string;
     pausedBy?: string;
+    held?: {
+      count: number;
+      first?: {
+        holdId: string;
+        taskId: string;
+        what: string;
+        mayAnswer: boolean;
+      };
+    };
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
@@ -10675,6 +10711,15 @@ export type ComputersBrowserTakeOverOut = {
     line?: string;
     takeoverBy?: string;
     pausedBy?: string;
+    held?: {
+      count: number;
+      first?: {
+        holdId: string;
+        taskId: string;
+        what: string;
+        mayAnswer: boolean;
+      };
+    };
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };

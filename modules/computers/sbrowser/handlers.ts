@@ -157,6 +157,48 @@ const withPause = <T extends object>(ctx: CompCtx, pid: string, row: T): T & { p
   return by ? { ...row, pausedBy: by } : row;
 };
 
+interface HeldView {
+  count: number;
+  first?: { holdId: string; taskId: string; what: string; mayAnswer: boolean };
+}
+/**
+ * The sends, posts and payments of each agent that wait for approval (the Gate holds on computers.chrome.send), for the desk's bar: how many, and the oldest in one line with whether this caller may answer it
+ * (the Approve task offers them Allow). Read through the Gate and the tasks the caller already may read; a read that fails says nothing is waiting, never a guess. One Gate read for all agents, one task read for each agent that has one waiting.
+ */
+async function heldSends(ctx: CompCtx): Promise<Map<string, HeldView>> {
+  const out = new Map<string, HeldView>();
+  let holds: Array<{ id: string; capName: string; taskId: string; principal: { id: string }; createdAt: number }> = [];
+  try {
+    holds = ((await ctx.call("gate.holds.list", { states: ["held"] })) as { holds?: typeof holds }).holds ?? [];
+  } catch {
+    return out;
+  }
+  const mine = holds
+    .filter((h) => h.capName === "computers.chrome.send")
+    .sort((a, b) => a.createdAt - b.createdAt);
+  for (const h of mine) {
+    const agent = h.principal.id;
+    const had = out.get(agent);
+    if (had) {
+      had.count += 1;
+      continue;
+    }
+    let what = "A send waits for approval";
+    let mayAnswer = false;
+    try {
+      const t = ((await ctx.call("tasks.get", { taskId: h.taskId })) as {
+        task?: { title?: string; actions?: Array<{ key: string }> };
+      }).task;
+      if (t?.title) what = t.title.replace(/\s+/g, " ").trim().slice(0, 120);
+      mayAnswer = t?.actions?.some((a) => a.key === "approve") === true;
+    } catch {
+      /* the line stays general and nobody is offered the choice */
+    }
+    out.set(agent, { count: 1, first: { holdId: h.id, taskId: h.taskId, what, mayAnswer } });
+  }
+  return out;
+}
+
 export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
   const sb = browserOrRaise(ctx);
   const person = personOf(ctx);
@@ -231,6 +273,12 @@ export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
           waitingNote(ctx.db, id) ?? roomWaitLine(id),
         ),
       );
+  }
+  // what each agent's browser has waiting for approval, on its row (the desk's bar asks the caller to Allow or Deny it)
+  const heldMap = await heldSends(ctx);
+  for (let i = 0; i < out.length; i++) {
+    const h = heldMap.get(out[i]!.agentId);
+    if (h) out[i] = { ...out[i]!, held: h };
   }
   // the browser slots of this server, for one quiet line in Console > Computers: how many run now (every Space's on this server), how many it holds at once, how many calls wait for one
   const slots = {
