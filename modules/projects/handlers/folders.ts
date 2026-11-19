@@ -538,6 +538,20 @@ export async function onFolderUnfollowed(ctx: ProjectsCtx, payload: Record<strin
   const recordId = String(payload["recordId"] ?? "");
   const by = String(payload["by"] ?? "");
   if (!folderId || !recordId) return;
+  // the host's own service may attach any folder to its record: if that works the folder follows after all and nothing is narrowed; only a refusal of rights narrows it
+  try {
+    await call(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId });
+    return;
+  } catch (e) {
+    if (!codeOf(e).startsWith("permission.")) {
+      ctx.log.warn("projects: a folder that could not follow its record was left as it is (not a refusal of rights)", {
+        folderId,
+        recordId,
+        refusedCaller: by,
+      });
+      return;
+    }
+  }
   let narrowed = true;
   try {
     await call(ctx, "access.folder_narrow", { folderId });

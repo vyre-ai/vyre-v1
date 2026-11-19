@@ -150,6 +150,8 @@ export async function followRecord(ctx: ProjectsCtx, folderId: string, recordId:
   } catch (e) {
     const why = e instanceof Error ? e.message.slice(0, 200) : codeOf(e);
     ctx.log.warn("projects: a folder could not follow its record", { folderId, recordId, error: why });
+    // only a refusal of rights is a reason to close the folder: a neighbour that was down, a busy database or a record that is gone is tried again later and narrows nothing
+    if (!codeOf(e).startsWith("permission.")) return false;
     ctx.emit("project.folder_unfollowed", `folder/${folderId}`, {
       folderId,
       recordId,

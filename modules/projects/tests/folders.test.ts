@@ -479,11 +479,13 @@ test("a folder that cannot follow its record says so as an event, and the host's
 
 test("a refused caller that is a service goes to the record's owner, else the Space's admins; a folder the host could not narrow says so", async () => {
   const h = harness();
+  h.world.refuse.follows = true; // the host's own attempt is refused too
   const id = mkRecord(h, { title: "Owned deal", assigned: "usr_owner1" });
   await onFolderUnfollowed(h.ctx, { folderId: "fld_x", recordId: id, by: "svc_form_x", why: "no_grant" });
   const t1 = h.only("tasks.create").map((c) => c.input as { assigned: { kind: string; id: string } });
   assert.deepEqual(t1[0]!.assigned, { kind: "person", id: "usr_owner1" });
   const h2 = harness();
+  h2.world.refuse.follows = true;
   const id2 = mkRecord(h2, { title: "Nobody's deal" });
   h2.world.down.add("access.folder_narrow");
   await onFolderUnfollowed(h2.ctx, { folderId: "fld_y", recordId: id2, by: `svc_${"a1".repeat(16)}`, why: "no_grant" });
@@ -498,4 +500,29 @@ test("a folder that follows its record makes no task and is not narrowed", async
   await created(h, id);
   assert.equal(h.only("tasks.create").length, 0);
   assert.equal(h.only("access.folder_narrow").length, 0);
+});
+
+test("only a refusal of rights narrows a folder: a neighbour that is down or a record that is gone emits nothing and closes nothing; and a folder the host can attach after all is not narrowed", async () => {
+  for (const code of ["internal.unavailable", "validation.not_found"]) {
+    const h = harness();
+    h.world.refuse.follows = true;
+    h.world.refuse.code = code;
+    const id = mkRecord(h, { title: `Deal ${code}` });
+    await created(h, id);
+    assert.ok(!h.emitted.some((e) => e.name === "project.folder_unfollowed"), `${code}: no event`);
+    assert.equal(h.only("access.folder_narrow").length, 0, `${code}: nothing narrowed`);
+    assert.equal(h.only("tasks.create").length, 0);
+    // even a forged event with such a refusal changes nothing when the host's own follows attempt fails for a non-rights reason
+    await onFolderUnfollowed(h.ctx, { folderId: "fld_z", recordId: id, by: "svc_form_x", why: "x" });
+    assert.equal(h.only("access.folder_narrow").length, 0, `${code}: the consumer narrows nothing either`);
+  }
+  const h = harness();
+  h.world.refuse.follows = true;
+  const id = mkRecord(h, { title: "Late fix" });
+  await created(h, id);
+  const ev = h.emitted.find((e) => e.name === "project.folder_unfollowed")!;
+  h.world.refuse.follows = false; // the host's own attempt now succeeds: the folder follows, so it is not narrowed
+  await onFolderUnfollowed(h.ctx, ev.payload);
+  assert.equal(h.only("access.folder_narrow").length, 0);
+  assert.equal(h.only("tasks.create").length, 0);
 });
