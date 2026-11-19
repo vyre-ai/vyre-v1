@@ -291,6 +291,30 @@ function readPlaces(ctx: Ctx, raw: unknown): Place[] | undefined {
   });
 }
 
+/**
+ * A PDF made from a Vyre document knows where each of its signers signs ({sign:role} in the text; documents.signing). When the send names no places, those are used, so nobody places a signature
+ * by hand. The roles stand in signing order and the signers of the send must be the same number in the same order; a mismatch is refused in words naming the roles, never guessed at.
+ * A file with none, a newer version of the file, or no documents module leaves the places empty, and signing adds its own signature page as before.
+ */
+async function placesFromDocument(ctx: Ctx, fileId: string, signerCount: number): Promise<Place[] | undefined> {
+  let known: { signers?: unknown; places?: unknown } | undefined;
+  try {
+    known = (await ctx.call("documents.signing", { fileId })) as { signers?: unknown; places?: unknown };
+  } catch {
+    return undefined;
+  }
+  const roles = Array.isArray(known?.signers) ? known.signers.filter((r): r is string => typeof r === "string") : [];
+  if (roles.length === 0 || !Array.isArray(known?.places) || known.places.length === 0) return undefined;
+  if (roles.length !== signerCount)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      `This document has ${roles.length === 1 ? "one place" : `${roles.length} places`} to sign, for ${roles.join(", ")}, and the send names ${signerCount} ${signerCount === 1 ? "signer" : "signers"}. Name one signer for each, in that order.`,
+      { field: "signers", roles },
+    );
+  return readPlaces(ctx, known.places);
+}
+
 // ---- esign.send ---------------------------------------------------------------------------------------------
 
 export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
@@ -298,7 +322,7 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
   const fileId = reqStr(ctx, o, "fileId");
   const recordId = optStr(ctx, o, "recordId");
   const signers = readSigners(ctx, o.signers);
-  const places = readPlaces(ctx, o.places);
+  let places = readPlaces(ctx, o.places);
   const message = optStr(ctx, o, "message")?.trim() || null;
   if (message && message.length > 1000)
     fail(ctx, "validation.too_large", "The message can be at most 1000 characters.", { field: "message" });
@@ -335,6 +359,7 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
   if (typeof body.base64 !== "string" || body.truncated === true)
     fail(ctx, "validation.too_large", "The whole file could not be read for sending.", { field: "fileId" });
   const original = fromBase64(body.base64);
+  if (places === undefined) places = await placesFromDocument(ctx, fileId, signers.length);
   if (original.length === 0 || original.length > MAX_VYRE_BYTES)
     fail(ctx, "validation.too_large", "Built-in signing takes a PDF up to 20 MB.", { field: "fileId" });
 

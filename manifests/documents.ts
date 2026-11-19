@@ -146,6 +146,7 @@ export default defineManifest({
         out: {
           signers: t.arr(t.str()),
           places: t.arr(t.json()),
+          stale: t.opt(t.bool()),
           templateFileId: t.opt(id.file),
           recordId: t.opt(id.record),
         },

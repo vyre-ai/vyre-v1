@@ -51,6 +51,19 @@ export function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Reco
   throw new VyreErr(error);
 }
 
+/**
+ * An error a call into another module threw. Matched by its shape, not by class: across the host the error that arrives is not always an instance of this file's VyreErr (a duplicate name
+ * made saving a second fill fail on a booted Space while the unit tests, which share the class, passed).
+ */
+function isVyreError(e: unknown): e is { error: { code: string } } {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    typeof (e as { error?: { code?: unknown } }).error === "object" &&
+    typeof (e as { error: { code?: unknown } }).error.code === "string"
+  );
+}
+
 // ---- drivers ----
 
 export interface DocumentsDrivers {
@@ -752,7 +765,7 @@ async function nameIds(ctx: Ctx, value: unknown, seen: Map<string, string | unde
         if (typeof pick === "string") name = pick;
       }
     } catch (e) {
-      if (!(e instanceof VyreErr)) throw e;
+      if (!isVyreError(e)) throw e;
     }
     seen.set(id, name);
   }
@@ -797,7 +810,7 @@ async function withLinks(
         try {
           found = await findRecord(call, id);
         } catch (e) {
-          if (!(e instanceof VyreErr)) throw e;
+          if (!isVyreError(e)) throw e;
         }
         seen.set(id, found && isPlain(found.record.fields) ? found.record.fields : undefined);
       }
@@ -924,7 +937,7 @@ export async function saveNamed(
         idempotencyKey: `${f.key}:${name}`,
       })) as { file?: { fileId?: unknown; name?: unknown } };
     } catch (e) {
-      if (e instanceof VyreErr && e.error.code === "validation.duplicate") continue;
+      if (isVyreError(e) && e.error.code === "validation.duplicate") continue;
       throw e;
     }
   }
@@ -1093,7 +1106,7 @@ async function templatesList(
       });
     } catch (e) {
       // not visible to the caller or gone: not in their list
-      if (!(e instanceof VyreErr)) throw e;
+      if (!isVyreError(e)) throw e;
     }
   }
   rows.sort((a, b) => a.name.localeCompare(b.name) || a.fileId.localeCompare(b.fileId));

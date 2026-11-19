@@ -129,17 +129,18 @@ async function setPages(ctx: Ctx, blocks: ReturnType<typeof parse>, title: strin
 
 function remember(
   ctx: Ctx,
-  fileId: string,
+  saved: Saved,
   roles: string[],
   places: Place[],
   from: { templateFileId?: string | undefined; recordId?: string | undefined },
 ): void {
   if (roles.length === 0) return;
   ctx.db.run(
-    "INSERT OR REPLACE INTO documents_signing (file_id, roles, places, template_file_id, record_id, made_at) VALUES (?, ?, ?, ?, ?, ?)",
-    fileId,
+    "INSERT OR REPLACE INTO documents_signing (file_id, roles, places, version_id, template_file_id, record_id, made_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    saved.fileId,
     JSON.stringify(roles),
     JSON.stringify(places),
+    saved.versionId,
     from.templateFileId ?? null,
     from.recordId ?? null,
     ctx.now(),
@@ -195,7 +196,7 @@ async function fill(ctx: Ctx, input: unknown): Promise<Filled> {
       kind: "pdf",
       key,
     });
-    remember(ctx, saved.fileId, set.roles, set.places, { templateFileId, recordId });
+    remember(ctx, saved, set.roles, set.places, { templateFileId, recordId });
     signers = set.roles;
   } else {
     saved = await saveNamed(ctx, {
@@ -254,7 +255,7 @@ async function makePdf(ctx: Ctx, input: unknown): Promise<{ file: Saved; pages: 
     kind: "pdf",
     key: `docpdf:${optStr(ctx, o, "idempotencyKey") ?? fileId}`,
   });
-  remember(ctx, saved.fileId, set.roles, set.places, {});
+  remember(ctx, saved, set.roles, set.places, {});
   ctx.log.info("documents.make_pdf", { fileId: saved.fileId, from: fileId, pages: set.pages });
   return { file: saved, pages: set.pages, ...(set.roles.length > 0 ? { signers: set.roles } : {}) };
 }
@@ -263,11 +264,17 @@ async function makePdf(ctx: Ctx, input: unknown): Promise<{ file: Saved; pages: 
 async function signing(
   ctx: Ctx,
   input: unknown,
-): Promise<{ signers: string[]; places: unknown[]; templateFileId?: string; recordId?: string }> {
+): Promise<{ signers: string[]; places: unknown[]; stale?: true; templateFileId?: string; recordId?: string }> {
   const fileId = reqStr(ctx, rec(ctx, input), "fileId");
   mayView(ctx, fileId);
   const row = (ctx.db.all("SELECT * FROM documents_signing WHERE file_id = ?", fileId) as Row[])[0];
   if (!row) return { signers: [], places: [] };
+  // a newer version of the file is a different page: the places belong to the version they were set on
+  if (typeof row.version_id === "string") {
+    const got = (await ctx.call("files.versions", { fileId })) as { versions?: { versionId?: unknown; n?: unknown }[] };
+    const newest = [...(got.versions ?? [])].sort((a, b) => Number(b.n) - Number(a.n))[0];
+    if (newest !== undefined && newest.versionId !== row.version_id) return { signers: [], places: [], stale: true };
+  }
   const list = (v: unknown): unknown[] => {
     try {
       const got: unknown = JSON.parse(String(v));

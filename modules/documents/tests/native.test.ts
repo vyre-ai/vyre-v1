@@ -196,3 +196,21 @@ test("a file the caller may not open is refused, and nothing is made", async () 
   );
   await expectCode("permission.no_grant", () => handlers["documents.signing"](w.ctx, { fileId: id }));
 });
+
+test("places belong to the version they were set on: a newer version of the file has none, and the answer says it is stale", async () => {
+  const w = world();
+  const id = w.add("Agreement.md", enc(AGREEMENT));
+  const out = await handlers["documents.fill"](w.ctx, {
+    templateFileId: id,
+    intoFolderId: FOLDER,
+    values: VALUES,
+    signingDate: "2026-11-19",
+  });
+  const fresh = await handlers["documents.signing"](w.ctx, { fileId: out.file.fileId });
+  assert.equal(fresh.stale, undefined);
+  assert.equal(fresh.signers.length, 2);
+  w.files.get(out.file.fileId)!.versions = 2; // someone saved a newer version of the PDF
+  const stale = await handlers["documents.signing"](w.ctx, { fileId: out.file.fileId });
+  assert.equal(stale.stale, true);
+  assert.deepEqual(stale.places, []);
+});

@@ -561,3 +561,57 @@ test("an agent that sends or reminds never holds a signer link; a person does", 
   const mine = await h.call("esign.send", { fileId: FILE, signers: [ANDREA], idempotencyKey: "pe1" }, dana);
   assert.match(mine.links[0].path, /^\/p\/sign\//);
 });
+
+test("a PDF made from a Vyre document brings its own signing places: no signature page is added, and each role signs where the text said", async () => {
+  const h = await setup();
+  const roleOf = [
+    { signer: 0, kind: "signature", page: 1, x: 10, y: 80, w: 30, h: 5 },
+    { signer: 0, kind: "date", page: 1, x: 10, y: 86, w: 30, h: 3 },
+    { signer: 1, kind: "signature", page: 2, x: 55, y: 80, w: 30, h: 5 },
+    { signer: 1, kind: "date", page: 2, x: 55, y: 86, w: 30, h: 3 },
+  ];
+  h.callee("documents.signing", () => ({ signers: ["client", "firm"], places: roleOf }));
+  const out = await send(h, [ANDREA, SAM]);
+  const sent = h.rows("esign_doc")[0]!.sent as Uint8Array;
+  assert.doesNotMatch(textOf(sent), /Signature page/);
+  const { session } = await view(h, tokenOf(out.links[0]));
+  assert.deepEqual(
+    session.places.map((p: { kind: string; page: number }) => [p.kind, p.page]),
+    [
+      ["signature", 1],
+      ["date", 1],
+    ],
+  );
+});
+
+test("places the send names win over the document's own, and a send with the wrong number of signers is refused naming the roles", async () => {
+  const h = await setup();
+  h.callee("documents.signing", () => ({
+    signers: ["client", "firm"],
+    places: [
+      { signer: 0, kind: "signature", page: 1, x: 10, y: 80, w: 30, h: 5 },
+      { signer: 1, kind: "signature", page: 2, x: 55, y: 80, w: 30, h: 5 },
+    ],
+  }));
+  await assert.rejects(send(h, [ANDREA]), /client, firm/);
+  assert.equal(h.rows("esign_envelope").length, 0, "a refused send leaves nothing behind");
+  const own = [{ signer: 0, kind: "signature", page: 1, x: 5, y: 5, w: 20, h: 4 }];
+  const out = await send(h, [ANDREA], { places: own });
+  const { session } = await view(h, tokenOf(out.links[0]));
+  assert.deepEqual(session.places.map((p: { page: number }) => p.page), [1]);
+});
+
+test("a document that cannot say where its signers sign (none known, stale, or the documents module not there) gets the signature page as before", async () => {
+  for (const answer of [
+    () => ({ signers: [], places: [] }),
+    () => ({ signers: [], places: [], stale: true }),
+    () => {
+      throw new Error("documents is not here");
+    },
+  ]) {
+    const h = await setup();
+    h.callee("documents.signing", answer);
+    await send(h, [ANDREA]);
+    assert.match(textOf(h.rows("esign_doc")[0]!.sent as Uint8Array), /Signature page/);
+  }
+});
