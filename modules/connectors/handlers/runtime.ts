@@ -294,6 +294,8 @@ export const forgetKept = (connectionId: string): void => {
   for (const k of KEPT.keys()) if (k.split("|")[1] === connectionId) KEPT.delete(k);
 };
 export const resetKept = (): void => KEPT.clear();
+/** What may have changed who can use a key, or the key itself: nothing kept is used after it. */
+export const forgetAllKept = (): void => KEPT.clear();
 async function secretOf(
   deps: ConnectorsDeps,
   actor: string,

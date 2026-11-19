@@ -17,6 +17,7 @@ import { readSource } from "./handlers/source.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
+import { forgetAllKept } from "./handlers/runtime.ts";
 import { refuse, scrubber } from "./projections.ts";
 import type { BuiltinRow, ConnectorsCtx, ConnectionDb, ConnectorDef } from "./projections.ts";
 import type { SyncDeps, SyncEngine } from "./handlers/sync.ts";
@@ -471,3 +472,33 @@ export const periodic = {
 };
 
 export { SYNC_PASS_TOKEN, SEALED_HELD } from "./projections.ts";
+
+/**
+ * What the module reads from the event log (the host runs each after commit, at least once). A sync pass keeps the keys it read from the Vault for the pass (handlers/runtime.ts); a key that was
+ * changed, moved, rotated, deleted or shared away, a grant that was revoked or changed, a person who was suspended or removed, or a connection that was paused, deleted or reconnected ends that
+ * at once: the next request of the pass asks the Vault again, and the Vault says what it says now.
+ */
+export const consumers = {
+  "connectors.forget_pass_keys": {
+    on: [
+      "vault.item_updated",
+      "vault.item_moved",
+      "vault.item_rotated",
+      "vault.item_deleted",
+      "vault.item_restored",
+      "vault.folder_updated",
+      "vault.folder_deleted",
+      "vault.export_revoked",
+      "grant.revoked",
+      "grant.updated",
+      "access.changed",
+      "principal.suspended",
+      "member.removed",
+      "connection.paused",
+      "connection.resumed",
+      "connection.deleted",
+      "connection.reconnected",
+    ],
+    run: (): void => forgetAllKept(),
+  },
+};

@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { ledgerSpec } from "../fixtures/crm.ts";
 import { world } from "../fixtures/crm-world.ts";
 import { SYNC_PASS_TOKEN } from "../projections.ts";
+import { consumers } from "../impl.ts";
 import { remoteStore } from "../../../host/src/daemon/syncengine.ts";
 import { compileSpec, parseSpec, rateOf } from "../syncspec.ts";
 import type { SyncSpec } from "../syncspec.ts";
@@ -325,4 +326,47 @@ test("a pass reads the connection's key from the Vault once, not once per reques
   a.w.k.state.reply = () => (rejected-- > 0 ? { status: 401, body: {} } : { status: 200, body: { data: [] } });
   await a.store("organizations").page();
   assert.ok(reads > before, "after a rejection the key was read from the Vault again");
+});
+
+test("a Vault or access change ends what a pass kept at once: the next request asks the Vault again, and a key used now is not the old one", async () => {
+  const a = await applied();
+  let reads = 0;
+  const deps = a.w.k.deps as { resolveSecret?: (h: string, b?: unknown) => Promise<string | undefined> };
+  const real = deps.resolveSecret!;
+  deps.resolveSecret = async (h, b) => {
+    reads++;
+    return real(h, b);
+  };
+  standIn(a.w, () => undefined);
+  const o = a.store("organizations");
+  await o.page();
+  const warm = reads;
+  await o.page("2");
+  assert.equal(reads, warm, "kept: the second page asked the Vault for nothing");
+  for (const event of consumers["connectors.forget_pass_keys"].on) {
+    await o.page();
+    const before = reads;
+    consumers["connectors.forget_pass_keys"].run();
+    await o.page("2");
+    assert.ok(reads > before, `after ${event}-class change the Vault was asked again`);
+    await o.page("3");
+  }
+  // the key is rotated in the Vault: the request after the event sends the new one
+  const sent: string[] = [];
+  const reply = a.w.k.state.reply;
+  a.w.k.state.reply = (req) => {
+    sent.push(JSON.stringify(req.headers));
+    return reply(req);
+  };
+  const vault = a.w.k.vault as Record<string, string>;
+  const handle = "#Ledger_Key";
+  const old = vault[handle];
+  vault[handle] = "rotated-value-777";
+  consumers["connectors.forget_pass_keys"].run();
+  await o.page("4");
+  assert.ok(
+    sent.some((h) => h.includes("rotated-value-777")),
+    "the rotated key went out, not the kept one",
+  );
+  vault[handle] = old!;
 });
