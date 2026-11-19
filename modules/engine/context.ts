@@ -501,7 +501,8 @@ export function createContextBuilder(d: ContextDeps) {
     for (const p of arr(out?.["principals"])) {
       const id = str(p["id"]),
         n = str(p["name"]);
-      if (id && n) map[id] = n;
+      // a chosen name is one short plain line wherever Vyre's own sentences use it (lib/helper-result.ts nameTag): "where" is stable and cannot carry a code
+      if (id && n) map[id] = nameTag(n) || "a teammate";
     }
     map["svc_host"] = "Vyre"; // the server's own lines in a thread (a nudge, an escalation) read as Vyre
     return map;
@@ -1137,7 +1138,7 @@ export function createContextBuilder(d: ContextDeps) {
     {
       const shown = screenText(screen);
       // page titles, object names, filters and row text come from the client and from whoever wrote the records: labels, framed
-      if (shown !== "") add("screen", false, labelFrame("screen", "What is on the person's screen follows.", shown));
+      if (shown !== "") add("screen", false, labelFrame("screen", "", shown));
     }
     add(
       "now",
@@ -1147,12 +1148,7 @@ export function createContextBuilder(d: ContextDeps) {
         : timeLine(now(), str((zone?.["row"] as Obj | undefined)?.["value"])),
     );
     const w = (waits ?? []).filter((x) => x !== "");
-    if (w.length > 0)
-      add(
-        "waiting",
-        false,
-        labelFrame("waiting", "You are waiting on these.", w.map((x) => `- ${one(x, 240)}`).join("\n")),
-      );
+    if (w.length > 0) add("waiting", false, labelFrame("waiting", "", w.map((x) => `- ${one(x, 240)}`).join("\n")));
 
     const ordered = SECTION_ORDER.flatMap((id) => sections.filter((s) => s.id === id));
     return {
