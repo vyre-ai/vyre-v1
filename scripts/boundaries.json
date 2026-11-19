@@ -405,6 +405,13 @@
       "spec": "../../../host/src/daemon/desktop-cors.ts",
       "reason": "test-only: it checks the daemon's real CORS rule against the packaged app's origin. This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
       "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
+      "file": "host/tests/sites.privacy.kit.ts",
+      "spec": "../../fixtures/seed/core/index.ts",
+      "reason": "test-only: the shared pieces of the site-privacy live tests (split out of one test file, which the scanner lets reach the seed fixtures) boot the same seeded Space the tests ask about; no product code imports it",
+      "until": "2027-01-31"
     }
   ]
 }
