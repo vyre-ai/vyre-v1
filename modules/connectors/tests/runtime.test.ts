@@ -95,7 +95,8 @@ test("templates, pointers and scrubbing", () => {
     assert.throws(() => fillString("https://h/{input.id}", { ...scope, input: { id: bad } }, true), /cannot be/, bad);
   assert.equal(fillString("Bearer {secret.K}", scope), "Bearer kkkk-1234");
   assert.throws(() => fillString("{input.missing}", scope), /input\.missing has no value/);
-  assert.deepEqual(fillValue({ a: "{input.n}", b: "n={input.n}", c: ["{input.deep.x}"] }, scope), {
+  // a filled body is a table with no prototype (a template key such as __proto__ is only a key), so it is compared by its JSON
+  assert.deepEqual(JSON.parse(JSON.stringify(fillValue({ a: "{input.n}", b: "n={input.n}", c: ["{input.deep.x}"] }, scope))), {
     a: 3,
     b: "n=3",
     c: [true],

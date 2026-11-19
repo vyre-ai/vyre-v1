@@ -154,6 +154,25 @@ export function buildDef(
 
   // placeholders: a secret is declared and never optional; an optional {input.x?} is for a query key, header, form field or body key, never the address
   const declared = new Set(slots.map((s) => s.name));
+  const FORBIDDEN_HEADERS = new Set(["host", "content-length", "transfer-encoding", "connection", "cookie"]);
+  const checkHeaderName = (at: string, what: string, name: unknown): void => {
+    if (typeof name !== "string" || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name))
+      bad(ctx, at, `${what} is a header name: letters, digits and - _ . only.`);
+    else if (FORBIDDEN_HEADERS.has(name.toLowerCase()))
+      bad(ctx, at, `${what} cannot be ${name}: a connector does not set that header.`);
+  };
+  const BLOCKED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+  const SAFETY_KEY = /dry[_-]?run|confirm|force|preview/i;
+  /** A key of a template table or body: never a prototype key, and a safety flag (dry_run, confirm, force, preview) is never left out when its value is absent. */
+  const checkKeys = (at: string, value: unknown): void => {
+    if (Array.isArray(value)) value.forEach((x) => checkKeys(at, x));
+    else if (value !== null && typeof value === "object")
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (BLOCKED_KEYS.has(k)) bad(ctx, at, `${k} cannot be a key in a template.`);
+        if (SAFETY_KEY.test(k) && JSON.stringify(v).includes("?}")) bad(ctx, at, `${k} cannot be optional: a safety flag that goes missing silently changes what the call does.`);
+        checkKeys(at, v);
+      }
+  };
   const checkTemplate = (at: string, value: unknown, inAddress = false): void => {
     if (typeof value === "string") {
       for (const m of value.matchAll(/\{(input|secret|connection)\.([A-Za-z0-9_.]+)(\?)?\}/g)) {
@@ -165,6 +184,11 @@ export function buildDef(
     else if (value !== null && typeof value === "object") Object.values(value).forEach((x) => checkTemplate(at, x, inAddress));
   };
   for (const k of ["template"] as const) if (typeof a[k] === "string") checkTemplate(where, a[k]);
+  // the sign-in header is a header name, and not one that changes how the request is framed or who it is for
+  if (a["header"] !== undefined) checkHeaderName(where, "auth.header", a["header"]);
+  // a header template reads secrets only: an input would let whoever calls the connector choose what the sign-in says
+  if (typeof a["template"] === "string" && /\{(?:input|connection)\./.test(a["template"]))
+    bad(ctx, where, "auth.template reads secrets only: {input.x} and {connection.id} are not allowed in it.");
   if (isObj(a["basic"])) checkTemplate(where, a["basic"]);
   if (typeof a["template"] === "string" && !/\{secret\.[A-Za-z0-9_.]+\}/.test(a["template"]))
     bad(ctx, where, "auth.template reads at least one secret: put {secret.Name} in it.");
@@ -200,7 +224,11 @@ export function buildDef(
     if (doc["basic"] !== undefined && !(isObj(doc["basic"]) && typeof doc["basic"]["user"] === "string" && (doc["basic"]["pass"] === undefined || typeof doc["basic"]["pass"] === "string")))
       bad(ctx, path, "basic is a user and an optional password.");
     checkTemplate(path, doc["url"], true);
-    for (const k of ["headers", "query", "form", "body", "basic"] as const) checkTemplate(path, doc[k]);
+    for (const k of ["headers", "query", "form", "body", "basic"] as const) {
+      checkTemplate(path, doc[k]);
+      checkKeys(path, doc[k]);
+    }
+    if (isObj(doc["headers"])) for (const h of Object.keys(doc["headers"] as Json)) checkHeaderName(path, `header ${h}`, h);
     return doc as unknown as ActionDef;
   });
   if (new Set(actions.map((x) => x.name)).size !== actions.length) bad(ctx, "actions", "two actions share a name.");

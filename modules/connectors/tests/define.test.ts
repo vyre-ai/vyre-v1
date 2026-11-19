@@ -75,7 +75,7 @@ test("an optional {input.x?} that has no value drops its query key, header or bo
   assert.equal(fillOptional("{input.a?}", { input: {}, secret: {}, connection: { id: "c" } }), undefined);
   assert.equal(fillOptional("p-{input.a?}", { input: { a: 1 }, secret: {}, connection: { id: "c" } }), "p-1");
   assert.throws(() => fillString("{input.a?}", { input: {}, secret: {}, connection: { id: "c" } }), /no value/, "never in an address");
-  assert.deepEqual(fillValue({ a: "{input.a?}", b: ["{input.b?}", "x"], c: { d: "{input.d?}" } }, { input: {}, secret: {}, connection: { id: "c" } }), { b: ["x"], c: {} });
+  assert.deepEqual(JSON.parse(JSON.stringify(fillValue({ a: "{input.a?}", b: ["{input.b?}", "x"], c: { d: "{input.d?}" } }, { input: {}, secret: {}, connection: { id: "c" } }))), { b: ["x"], c: {} });
   const k = kit();
   const c = await made(k, "optional", {
     actions: [
@@ -224,4 +224,60 @@ test("define refuses an auth that names a secret it does not declare, and a head
   await assert.rejects(def({ type: "basic", user: "{secret.Nope}", password: "{secret.Shop_Key}" }), (e) => /Nope/.test(msg(e)));
   await assert.rejects(def({ type: "header", header: "X-A", template: "plain words" }), (e) => /secret/.test(msg(e)));
   await assert.rejects(def({ type: "header", template: "{secret.Shop_Key}" }), (e) => /header/.test(msg(e)));
+});
+
+// ---- r-review lows on 30bedfadd
+
+test("a template key that would reach a prototype is refused at define, and a filled body has no prototype to change", async () => {
+  const k = kit();
+  await k.hs["connectors.init"](k.ctx, { key: "proto", title: "Proto", mode: "api", source: false } as never);
+  const def = (a: Record<string, unknown>) =>
+    k.hs["connectors.define"](k.ctx, { key: "proto", ...BASE, actions: [{ name: "x", method: "POST", write: true, url: "https://api.shop.test/x", ...a }] } as never);
+  for (const bodyText of ['{"__proto__":{"admin":true}}', '{"a":{"constructor":{"x":1}}}', '{"prototype":1}'])
+    await assert.rejects(def({ body: JSON.parse(bodyText) }), (e) => /cannot be a key/.test(msg(e)), bodyText);
+  await assert.rejects(def({ headers: JSON.parse('{"__proto__":"x"}') }), (e) => /cannot be a key|header name|__proto__/.test(msg(e)));
+  const filled = fillValue(JSON.parse('{"__proto__":"x","a":"{input.a}"}'), { input: { a: 1 }, secret: {}, connection: { id: "c" } }) as object;
+  assert.equal(Object.getPrototypeOf(filled), null, "a filled body is a plain table with no prototype");
+  assert.equal(({} as { admin?: boolean }).admin, undefined);
+});
+
+test("a path through {input.__proto__} finds no value, so it can reach nothing inherited", () => {
+  assert.throws(() => fillString("{input.__proto__.polluted}", { input: {}, secret: {}, connection: { id: "c" } }), /no value/);
+  assert.throws(() => fillString("{input.constructor.name}", { input: {}, secret: {}, connection: { id: "c" } }), /no value/);
+});
+
+test("auth.header is a header name, and Host, Content-Length, Transfer-Encoding, Connection and Cookie are refused", async () => {
+  const k = kit();
+  await k.hs["connectors.init"](k.ctx, { key: "hdrs", title: "Hdrs", mode: "api", source: false } as never);
+  const def = (auth: Record<string, unknown>, headers?: Record<string, string>) =>
+    k.hs["connectors.define"](k.ctx, { key: "hdrs", ...BASE, auth, actions: [{ name: "x", url: "https://api.shop.test/x", ...(headers ? { headers } : {}) }] } as never);
+  for (const h of ["Host", "content-length", "Transfer-Encoding", "CONNECTION", "Cookie"])
+    await assert.rejects(def({ type: "api_key", secret: "Shop_Key", header: h }), (e) => /cannot be/.test(msg(e)), h);
+  for (const h of ["X Bad", "X:Bad", "a\r\nb", "X-Ünï"])
+    await assert.rejects(def({ type: "api_key", secret: "Shop_Key", header: h }), (e) => /header name/.test(msg(e)), JSON.stringify(h));
+  await assert.rejects(def({ type: "bearer", secret: "Shop_Key" }, { Host: "evil.example" }), (e) => /cannot be/.test(msg(e)), "an action header too");
+  await def({ type: "api_key", secret: "Shop_Key", header: "X-Api-Key" }, { "X-Trace": "{input.t?}" });
+});
+
+test("a header template reads secrets only: an input or the connection id in it is refused", async () => {
+  const k = kit();
+  await k.hs["connectors.init"](k.ctx, { key: "tplbad", title: "Tplbad", mode: "api", source: false } as never);
+  const def = (template: string) =>
+    k.hs["connectors.define"](k.ctx, { key: "tplbad", ...BASE, auth: { type: "header", header: "Authorization", template }, actions: [{ name: "x", url: "https://api.shop.test/x" }] } as never);
+  await assert.rejects(def("Token {secret.Shop_Key}-{input.who}"), (e) => /secrets only/.test(msg(e)));
+  await assert.rejects(def("Token {secret.Shop_Key} {connection.id}"), (e) => /secrets only/.test(msg(e)));
+  await def("Token {secret.Shop_Key}");
+});
+
+test("a safety flag cannot be optional: dry_run, dryRun, confirm, force and preview keys in a query, form or body are refused when their value may be absent", async () => {
+  const k = kit();
+  await k.hs["connectors.init"](k.ctx, { key: "flags", title: "Flags", mode: "api", source: false } as never);
+  const def = (a: Record<string, unknown>) =>
+    k.hs["connectors.define"](k.ctx, { key: "flags", ...BASE, actions: [{ name: "x", method: "POST", write: true, url: "https://api.shop.test/x", ...a }] } as never);
+  for (const key of ["dry_run", "dryRun", "dry-run", "confirm", "confirmed", "force", "forceDelete", "preview", "is_preview"]) {
+    await assert.rejects(def({ query: { [key]: "{input.v?}" } }), (e) => /cannot be optional/.test(msg(e)), `query ${key}`);
+    await assert.rejects(def({ body: { nested: { [key]: "{input.v?}" } } }), (e) => /cannot be optional/.test(msg(e)), `body ${key}`);
+    await assert.rejects(def({ form: { [key]: "x{input.v?}" } }), (e) => /cannot be optional/.test(msg(e)), `form ${key}`);
+  }
+  await def({ query: { dry_run: "{input.dry}" }, body: { confirm: true, note: "{input.note?}" } });
 });

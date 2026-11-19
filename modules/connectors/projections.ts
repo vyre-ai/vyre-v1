@@ -331,6 +331,7 @@ function lookup(scope: Scope3, kind: string, path: string): unknown {
   let cur: unknown = scope.input;
   for (const k of path.split(".")) {
     if (cur === null || typeof cur !== "object") return undefined;
+    if (k === "__proto__" || k === "constructor" || k === "prototype") return undefined;
     cur = (cur as Record<string, unknown>)[k];
   }
   return cur;
@@ -401,10 +402,11 @@ function fill(t: unknown, scope: Scope3): unknown {
   }
   if (Array.isArray(t)) return t.map((x) => fill(x, scope)).filter((x) => x !== ABSENT);
   if (t && typeof t === "object") {
-    const out: Record<string, unknown> = {};
+    // no prototype: a template key such as __proto__ is an ordinary key, never a way to change what every object inherits
+    const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
     for (const [k, v] of Object.entries(t as Record<string, unknown>)) {
       const f = fill(v, scope);
-      if (f !== ABSENT) out[k] = f;
+      if (f !== ABSENT) Object.defineProperty(out, k, { value: f, enumerable: true, writable: true, configurable: true });
     }
     return out;
   }
