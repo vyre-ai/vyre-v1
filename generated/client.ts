@@ -1631,6 +1631,10 @@ export function createClient(transport: Transport) {
       set: call("machines.set", 1),
     },
     mail: {
+      address: {
+        add: call("mail.address.add", 1),
+        list: call("mail.address.list", 1),
+      },
       attachment: {
         save: call("mail.attachment.save", 1),
       },

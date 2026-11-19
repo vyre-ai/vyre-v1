@@ -36419,6 +36419,89 @@
     },
     {
       "blocks": [],
+      "cap": "mail.address.add",
+      "deferred": false,
+      "description": "Make an address on a Space domain. With an inbox it is an alias that delivers there; without one a shared inbox is made for it. Who may send as it is a share on the inbox (access.share)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "domainId": {
+            "examples": [
+              "dom_a1b2c3"
+            ],
+            "pattern": "^dom_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "localPart": {
+            "description": "billing, support, hello",
+            "examples": [
+              "billing"
+            ],
+            "type": "string"
+          },
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "domainId",
+          "localPart",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mail_address_add",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mail.address.list",
+      "deferred": false,
+      "description": "Every address on the Space's domains: inbox addresses and aliases, with the inbox each lands in",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "domainId": {
+            "examples": [
+              "dom_a1b2c3"
+            ],
+            "pattern": "^dom_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "mail_address_list",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.attachment.save",
       "deferred": false,
       "description": "Save an attachment into Files",

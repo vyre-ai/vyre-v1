@@ -5,6 +5,8 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "mail.address.add": async (ctx) => { throw new VyreErr(notImplemented("mail.address.add", ctx.trace)); },
+  "mail.address.list": async (ctx) => { throw new VyreErr(notImplemented("mail.address.list", ctx.trace)); },
   "mail.attachment.save": async (ctx) => { throw new VyreErr(notImplemented("mail.attachment.save", ctx.trace)); },
   "mail.auto_connect_members": async (ctx) => { throw new VyreErr(notImplemented("mail.auto_connect_members", ctx.trace)); },
   "mail.connect": async (ctx) => { throw new VyreErr(notImplemented("mail.connect", ctx.trace)); },

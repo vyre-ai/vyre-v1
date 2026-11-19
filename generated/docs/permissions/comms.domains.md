@@ -14,6 +14,8 @@ Area: comms. Risk: medium. Applies to: domain.
 
 ## Capabilities that need it
 
+- mail.address.add
+- mail.address.list
 - mail.domain.add
 - mail.domain.check
 - mail.domain.remove

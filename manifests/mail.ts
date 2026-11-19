@@ -125,6 +125,17 @@ const routeRow = t.obj({
   mailboxId: id.mailbox,
   provider: sendProvider,
 });
+const addressRow = t.obj({
+  address: email,
+  domainId: id.domain,
+  kind: t.enm("mailbox", "alias"),
+  mailboxId: id.mailbox,
+  mailboxTitle: t.str(),
+  routeId: t.opt(rteId),
+  receives: t.bool({
+    description: "false on a domain at your own mail server: the address can send, mail to it arrives there",
+  }),
+});
 const composed = {
   to: t.arr(recipient, { minItems: 1 }),
   cc: t.opt(t.arr(recipient)),
@@ -834,6 +845,36 @@ const manifest = defineManifest({
       tool: "inbox",
       label: "check",
     }),
+    read(
+      "mail.address.list",
+      "Every address on the Space's domains: inbox addresses and aliases, with the inbox each lands in",
+      {
+        in: { ...pageIn, domainId: t.opt(id.domain) },
+        out: { addresses: t.arr(addressRow), ...pageOut },
+        perm: "comms.domains",
+        tool: "inbox",
+      },
+    ),
+    write(
+      "mail.address.add",
+      "Make an address on a Space domain. With an inbox it is an alias that delivers there; without one a shared inbox is made for it. Who may send as it is a share on the inbox (access.share)",
+      {
+        in: {
+          domainId: id.domain,
+          localPart: t.str({ description: "billing, support, hello", examples: ["billing"] }),
+          mailboxId: t.opt(id.mailbox),
+          title: t.opt(t.str()),
+        },
+        out: { address: addressRow },
+        on: ["domain", "/domainId"],
+        perm: "comms.domains",
+        audit: "always",
+        emits: ["inbound_route.saved", "mailbox.created"],
+        idem: "key",
+        tool: "inbox",
+        errors: ["validation.duplicate"],
+      },
+    ),
     // ---- the Space's own mail server (SMTP)
     read("mail.smtp.get", "The Space's mail server (SMTP) and its last test", {
       in: {},

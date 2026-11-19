@@ -1631,6 +1631,10 @@ export function stubs(ctx: CallCtx) {
       set: call("machines.set"),
     },
     mail: {
+      address: {
+        add: call("mail.address.add"),
+        list: call("mail.address.list"),
+      },
       attachment: {
         save: call("mail.attachment.save"),
       },

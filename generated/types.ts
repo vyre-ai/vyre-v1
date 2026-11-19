@@ -25083,6 +25083,42 @@ export type MachinesSetOut = {
       }>;
   };
 };
+export type MailAddressAddIn = {
+  domainId: string;
+  localPart: string;
+  mailboxId?: string;
+  title?: string;
+  idempotencyKey: string;
+};
+export type MailAddressAddOut = {
+  address: {
+    address: string;
+    domainId: string;
+    kind: "mailbox" | "alias";
+    mailboxId: string;
+    mailboxTitle: string;
+    routeId?: string;
+    receives: boolean;
+  };
+};
+export type MailAddressListIn = {
+  cursor?: string;
+  limit?: number;
+  domainId?: string;
+};
+export type MailAddressListOut = {
+  addresses: Array<{
+      address: string;
+      domainId: string;
+      kind: "mailbox" | "alias";
+      mailboxId: string;
+      mailboxTitle: string;
+      routeId?: string;
+      receives: boolean;
+    }>;
+  next?: string;
+  total?: number;
+};
 export type MailAttachmentSaveIn = {
   messageId: string;
   attachmentId: string;
@@ -49572,6 +49608,8 @@ export interface CapMap {
   "machines.moves": { in: MachinesMovesIn; out: MachinesMovesOut };
   "machines.rooms": { in: MachinesRoomsIn; out: MachinesRoomsOut };
   "machines.set": { in: MachinesSetIn; out: MachinesSetOut };
+  "mail.address.add": { in: MailAddressAddIn; out: MailAddressAddOut };
+  "mail.address.list": { in: MailAddressListIn; out: MailAddressListOut };
   "mail.attachment.save": { in: MailAttachmentSaveIn; out: MailAttachmentSaveOut };
   "mail.auto_connect_members": { in: MailAutoConnectMembersIn; out: MailAutoConnectMembersOut };
   "mail.connect": { in: MailConnectIn; out: MailConnectOut };

@@ -5,6 +5,8 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "mail.address.add": Handler<"mail.address.add", X>;
+  "mail.address.list": Handler<"mail.address.list", X>;
   "mail.attachment.save": Handler<"mail.attachment.save", X>;
   "mail.auto_connect_members": Handler<"mail.auto_connect_members", X>;
   "mail.connect": Handler<"mail.connect", X>;

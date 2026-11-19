@@ -5216,6 +5216,18 @@
     },
     {
       "deferred": false,
+      "name": "mail_address_add",
+      "summary": "Make an address on a Space domain. With an inbox it is an alias that delivers there; without one a shared inbox is made for it. Who may send as it is a share on the inbox (access.share)",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "mail_address_list",
+      "summary": "Every address on the Space's domains: inbox addresses and aliases, with the inbox each lands in",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mail_attachment_save",
       "summary": "Save an attachment into Files",
       "toolset": "inbox"
