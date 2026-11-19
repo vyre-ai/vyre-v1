@@ -294,7 +294,7 @@ const space: SampleSpace = {
   rows: { [JOURNEY.key]: [jrow(1, "stage1"), jrow(2, "stage1", { invoice: "INV-1" })] as never },
 };
 
-test("the board: dropping a card on a stage that wants fields opens the sheet; filling them moves the card", async () => {
+test("the board: dropping a card on a stage that wants fields opens the form on the card; filling them moves the card", async () => {
   const restore = installDom();
   const base = createSampleRecords(space);
   const log: { cap: string; input: Record<string, unknown> }[] = [];
@@ -365,14 +365,14 @@ test("the board: dropping a card on a stage that wants fields opens the sheet; f
       (find(root, "drop-stage2")!.props.onDrop as (e: unknown) => void)({ preventDefault() {} });
     });
     await flush();
-    assert.ok(find(root, "gate-sheet"), "the sheet opens in place of an error");
+    assert.ok(find(root, "card-fields-jr_1"), "the form opens on the card in place of an error");
     assert.equal(find(root, "board-error"), null);
     assert.equal(find(root, "lane-count-stage1")?.children?.map(String).join(""), "2", "the card has not moved");
     await typeInto(find(root, "gate-input-invoice"), "INV-5");
-    await press(find(root, "gate-save"));
+    await press(find(root, "card-fields-save-jr_1"));
     await flush();
     await flush();
-    assert.equal(find(root, "gate-sheet"), null);
+    assert.equal(find(root, "card-fields-jr_1"), null);
     assert.equal(find(root, "lane-count-stage2")?.children?.map(String).join(""), "1", "the card is in the new stage");
     assert.deepEqual(
       log.filter((c) => c.cap === "records.update").map((c) => c.input["patch"]),
@@ -388,7 +388,7 @@ test("the board: dropping a card on a stage that wants fields opens the sheet; f
       (find(root, "drop-stage2")!.props.onDrop as (e: unknown) => void)({ preventDefault() {} });
     });
     await flush();
-    assert.equal(find(root, "gate-sheet"), null);
+    assert.equal(find(root, "card-fields-jr_2"), null);
     assert.equal(find(root, "lane-count-stage2")?.children?.map(String).join(""), "2");
   } finally {
     await act(async () => {

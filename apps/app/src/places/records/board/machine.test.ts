@@ -44,7 +44,12 @@ test("a lane known to refuse says why before the drop and calls nothing", () => 
 });
 
 test("a refusal that arrives after the drop (a gate that changed mid-drag) puts the reason on the card", () => {
-  const r = run([lift(), { t: "over", lane: "sign" }, { t: "drop" }, { t: "refuse", reason: "Needs a signed agreement." }]);
+  const r = run([
+    lift(),
+    { t: "over", lane: "sign" },
+    { t: "drop" },
+    { t: "refuse", reason: "Needs a signed agreement." },
+  ]);
   assert.equal(r.state.kind, "refused");
   assert.equal(r.state.kind === "refused" && r.state.from, "lead");
   assert.equal(drawnIn(r.state, "c1", "lead"), "lead");
@@ -76,6 +81,10 @@ test("an Automation moves the card during the drag: same rule, said with the Aut
   assert.equal(r.state.kind, "conflict");
   assert.equal(r.state.kind === "conflict" && r.state.by.kind, "automation");
   assert.match(movedWords(AUTO, "Signing"), /^The Automation Send the agreement moved it to Signing first/);
+  assert.equal(
+    movedWords({ kind: "automation", name: "" }, "Signing"),
+    "An Automation moved it to Signing first. It stays there.",
+  );
 });
 
 test("a remote move of another card, or when idle, changes nothing", () => {
@@ -86,7 +95,10 @@ test("a remote move of another card, or when idle, changes nothing", () => {
 
 test("a stage that wants fields: the card is drawn in the new lane with its form; saving moves it, cancelling leaves it", () => {
   const need = [{ key: "amount", title: "Amount", stage: "prop", when: "enter" as const }];
-  const g = run([{ t: "start", id: "c4", from: "qual", to: "prop", via: "key" }, { t: "gate", missing: need }]);
+  const g = run([
+    { t: "start", id: "c4", from: "qual", to: "prop", via: "key" },
+    { t: "gate", missing: need },
+  ]);
   assert.equal(g.state.kind, "needs");
   assert.equal(drawnIn(g.state, "c4", "qual"), "prop");
   const saved = run([{ t: "fields-saved" }], g.state);
@@ -137,4 +149,23 @@ test("undo keeps the last 20 and gives them back newest first", () => {
   assert.equal(p.top?.moves[0]?.id, `c${UNDO_DEPTH + 4}`);
   assert.equal(p.rest.length, UNDO_DEPTH - 1);
   assert.equal(popUndo([]).top, null);
+});
+
+test("the end of a drag puts a held card down, and leaves a move that is out, or a reason on a card, alone", () => {
+  assert.equal(run([lift(), { t: "release" }]).state.kind, "idle");
+  const out = run([lift(), { t: "over", lane: "prop" }, { t: "drop" }, { t: "release" }]).state;
+  assert.equal(out.kind, "committing");
+  const refused = run([lift(), { t: "over", lane: "sign", blocked: "No." }, { t: "drop" }, { t: "release" }]).state;
+  assert.equal(refused.kind, "refused");
+});
+
+test("the mover's name that arrives after the conflict was drawn fills it in", () => {
+  const r = run([
+    lift(),
+    { t: "over", lane: "prop" },
+    { t: "remote", id: "c1", to: "qual", by: { kind: "person", name: "Someone" } },
+    { t: "drop" },
+    { t: "remote", id: "c1", to: "qual", by: MAYA },
+  ]);
+  assert.equal(r.state.kind === "conflict" && r.state.by.name, "Maya");
 });

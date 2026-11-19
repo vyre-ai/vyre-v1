@@ -45,6 +45,8 @@ export type MoveEvent =
   | { t: "over"; lane: string | null; blocked?: string | null }
   | { t: "drop" }
   | { t: "cancel" }
+  /** The pointer let go of the card (a drag ended, wherever): a held card that was not dropped is put down; a move already out is left alone. */
+  | { t: "release" }
   /** A move that never lifts: a key, a menu entry, the bar or an undo. `blocked` is what the stage is known to refuse. */
   | { t: "start"; id: string; from: string; to: string; via: MoveVia; blocked?: string | null }
   | { t: "ok" }
@@ -70,9 +72,8 @@ export const IDLE: MoveState = { kind: "idle" };
 
 /** The words for a card someone else moved while it was held or in flight. */
 export function movedWords(by: Mover, toTitle: string): string {
-  return by.kind === "automation"
-    ? `The Automation ${by.name} moved it to ${toTitle} first. It stays there.`
-    : `${by.name} moved it to ${toTitle} first. It stays there.`;
+  const who = by.kind === "automation" ? (by.name ? `The Automation ${by.name}` : "An Automation") : by.name;
+  return `${who} moved it to ${toTitle} first. It stays there.`;
 }
 
 /** Whether a state holds this card (so the board draws it lifted, committing, with a form or with a reason). */
@@ -93,12 +94,16 @@ export function step(s: MoveState, e: MoveEvent): Step {
     case "lift":
       // a lift while another move is out is ignored: one move at a time per board
       if (s.kind === "committing" || s.kind === "needs") return { state: s };
-      return { state: { kind: "lifted", id: e.id, from: e.from, version: e.version, over: null, blocked: null, moved: null } };
+      return {
+        state: { kind: "lifted", id: e.id, from: e.from, version: e.version, over: null, blocked: null, moved: null },
+      };
     case "over":
       if (s.kind !== "lifted") return { state: s };
       return { state: { ...s, over: e.lane, blocked: e.lane ? (e.blocked ?? null) : null } };
     case "cancel":
       return s.kind === "lifted" || s.kind === "refused" || s.kind === "conflict" ? { state: IDLE } : { state: s };
+    case "release":
+      return s.kind === "lifted" ? { state: IDLE } : { state: s };
     case "dismiss":
       return s.kind === "refused" || s.kind === "conflict" ? { state: IDLE } : { state: s };
     case "drop": {
@@ -137,6 +142,8 @@ export function step(s: MoveState, e: MoveEvent): Step {
       if (s.kind === "lifted" && s.id === e.id) return { state: { ...s, moved: { to: e.to, by: e.by } } };
       if (s.kind === "committing" && s.id === e.id && e.to !== s.to)
         return { state: { ...s, remote: { to: e.to, by: e.by } } };
+      // the name of whoever moved it arrives after the refusal was drawn: the same conflict, now with their name
+      if (s.kind === "conflict" && s.id === e.id) return { state: { ...s, by: e.by, at: e.to } };
       // a card waiting on fields that someone moved elsewhere: the form is moot
       if (s.kind === "needs" && s.id === e.id && e.to !== s.to)
         return { state: { kind: "conflict", id: s.id, by: e.by, at: e.to } };

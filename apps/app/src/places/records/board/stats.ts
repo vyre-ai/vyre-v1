@@ -2,6 +2,16 @@
 // (days in its stage, late or not, the progress of the fields its next stage needs). No React and no clock: the caller passes `now`.
 import type { FieldDef, RecordRow } from "../views-a/model.ts";
 
+/** A money or number value as a plain number: a number, or the amount of a money value. */
+export function numberOf(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (v && typeof v === "object" && typeof (v as { amount?: unknown }).amount === "number") {
+    const a = (v as { amount: number }).amount;
+    return Number.isFinite(a) ? a : null;
+  }
+  return null;
+}
+
 export const DAY_MS = 86_400_000;
 export const HOUR_MS = 3_600_000;
 
@@ -28,7 +38,7 @@ export function daysIn(enteredAt: number, now: number): number {
 export function daysLate(enteredAt: number, now: number, limitHours: number | undefined): number {
   if (limitHours === undefined) return 0;
   const over = now - enteredAt - limitHours * HOUR_MS;
-  return over <= 0 ? 0 : Math.max(1, Math.ceil(over / DAY_MS));
+  return over <= 0 ? 0 : Math.max(1, Math.floor(over / DAY_MS));
 }
 
 export const isLate = (enteredAt: number, now: number, limitHours: number | undefined): boolean =>
@@ -70,8 +80,8 @@ export function columnStats(
     const at = enteredAt(r);
     if (at !== undefined && isLate(at, now, stage.limitHours)) late++;
     if (value) {
-      const v = r.fields[value.key];
-      if (typeof v === "number" && Number.isFinite(v)) {
+      const v = numberOf(r.fields[value.key]);
+      if (v !== null) {
         total += v;
         any = true;
       }

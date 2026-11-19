@@ -175,7 +175,7 @@ test("a Journey type opens on a board of its stages, with the cards in their col
     assert.ok(find(b.root, "records-board"), "the board is the default view");
     assert.equal(find(b.root, "records-table"), null);
     for (const id of ["lane-stage1", "lane-stage2", "lane-stage3"]) assert.ok(find(b.root, id), id);
-    assert.match(textOf(find(b.root, "lane-stage1")), /Intake/);
+    assert.match(textOf(find(b.root, "col-head-stage1")), /Intake/, "a column's head names its stage");
     assert.ok(find(b.root, "card-jr_1") && find(b.root, "card-jr_2") && find(b.root, "card-jr_3"));
     assert.equal(find(b.root, "lane-count-stage1")?.children?.map(String).join(""), "2");
     for (const k of ["stage1", "stage2", "stage3"]) assert.ok(find(b.root, `add-${k}`), `a plus in ${k}`);
@@ -241,7 +241,11 @@ test("a refused move says why in plain words and the card stays", async () => {
       (find(b.root, "drop-stage2")!.props.onDrop as (e: unknown) => void)({ preventDefault() {} });
     });
     await flush();
-    assert.equal(textOf(find(b.root, "board-error")), "Finish the required tasks in this stage first.");
+    assert.match(
+      textOf(find(b.root, "card-refused-jr_1")),
+      /Finish the required tasks in this stage first\./,
+      "the reason sits on the card",
+    );
     assert.equal(find(b.root, "lane-count-stage1")?.children?.map(String).join(""), "2");
   } finally {
     await b.stop();

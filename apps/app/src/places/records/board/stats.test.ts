@@ -1,7 +1,18 @@
 // The Kanban's numbers: a column header's count against its limit, value total, late cards; a card's days and its required-field ring; the rows a long lane draws.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DAY_MS, HOUR_MS, columnStats, daysIn, daysLate, fieldsNeeded, limitWords, requiredProgress, swimKeys, windowOf } from "./stats.ts";
+import {
+  DAY_MS,
+  HOUR_MS,
+  columnStats,
+  daysIn,
+  daysLate,
+  fieldsNeeded,
+  limitWords,
+  requiredProgress,
+  swimKeys,
+  windowOf,
+} from "./stats.ts";
 import type { FieldDef, RecordRow } from "../views-a/model.ts";
 
 const NOW = Date.UTC(2026, 10, 19, 10, 0, 0);
@@ -26,7 +37,14 @@ test("a limit in words", () => {
 test("a column header: count against its WIP limit, late cards, a value total that says when it is partial", () => {
   const rows = [row("a", { value: 1000 }), row("b", { value: 500 }), row("c", {})];
   const at: Record<string, number> = { a: NOW - 6 * DAY_MS, b: NOW - DAY_MS, c: NOW - 9 * DAY_MS };
-  const s = columnStats({ key: "prop", title: "Proposal", limitHours: 120, wip: 2 }, rows, 3, VALUE, (r) => at[r.id], NOW);
+  const s = columnStats(
+    { key: "prop", title: "Proposal", limitHours: 120, wip: 2 },
+    rows,
+    3,
+    VALUE,
+    (r) => at[r.id],
+    NOW,
+  );
   assert.equal(s.countText, "3 of 2");
   assert.equal(s.overWip, true);
   assert.equal(s.late, 2);
@@ -42,8 +60,16 @@ test("a column header: count against its WIP limit, late cards, a value total th
 
 test("the required-fields ring and what a move needs", () => {
   assert.equal(requiredProgress(row("a", {}), []), null);
-  assert.deepEqual(requiredProgress(row("a", { amount: 5 }), ["amount", "owner"]), { filled: 1, of: 2, missing: ["owner"] });
-  const n = fieldsNeeded(row("a", { amount: "" }), { key: "qual", title: "Q", needToLeave: ["owner"] }, { key: "prop", title: "P", needToEnter: ["amount"] });
+  assert.deepEqual(requiredProgress(row("a", { amount: 5 }), ["amount", "owner"]), {
+    filled: 1,
+    of: 2,
+    missing: ["owner"],
+  });
+  const n = fieldsNeeded(
+    row("a", { amount: "" }),
+    { key: "qual", title: "Q", needToLeave: ["owner"] },
+    { key: "prop", title: "P", needToEnter: ["amount"] },
+  );
   assert.deepEqual(n, [
     { key: "owner", stage: "qual", when: "leave" },
     { key: "amount", stage: "prop", when: "enter" },
@@ -52,7 +78,10 @@ test("the required-fields ring and what a move needs", () => {
 
 test("swimlane keys in first-seen order, the empty value last", () => {
   const f = { key: "owner", type: "person", title: "Owner" } as FieldDef;
-  assert.deepEqual(swimKeys([row("a", { owner: "u2" }), row("b", {}), row("c", { owner: "u1" }), row("d", { owner: "u2" })], f), ["u2", "u1", ""]);
+  assert.deepEqual(
+    swimKeys([row("a", { owner: "u2" }), row("b", {}), row("c", { owner: "u1" }), row("d", { owner: "u2" })], f),
+    ["u2", "u1", ""],
+  );
 });
 
 test("a long lane draws only the rows near the screen and keeps the scroll length", () => {
@@ -62,4 +91,12 @@ test("a long lane draws only the rows near the screen and keeps the scroll lengt
   assert.equal(w.before, 4_400);
   assert.equal(w.after, (10_000 - 64) * 100);
   assert.deepEqual(windowOf(3, 100, 0, 800), { from: 0, to: 3, before: 0, after: 0 });
+});
+
+test("a money value sums by its amount", async () => {
+  const { numberOf } = await import("./stats.ts");
+  assert.equal(numberOf({ amount: 1200, currency: "USD" }), 1200);
+  assert.equal(numberOf(5), 5);
+  assert.equal(numberOf("5"), null);
+  assert.equal(numberOf(null), null);
 });
