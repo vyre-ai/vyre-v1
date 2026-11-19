@@ -84,6 +84,7 @@ export function InlineConfirm({
 }: InlineConfirmProps): ReactElement {
   const state = useRef<ConfirmState>("wary");
   const [armed, setArmed] = useState(false);
+  const [failed, setFailed] = useState(false);
   const cancelRef = useRef<{ focus?: () => void } | null>(null);
   const calls = useRef({ onConfirm, onCancel });
   calls.current = { onConfirm, onCancel };
@@ -112,6 +113,7 @@ export function InlineConfirm({
     state.current = r.state;
     if (r.fire === "confirm") {
       setArmed(false);
+      setFailed(false);
       spent.current = { waited: armMs <= 0, pending: false };
       if (timer.current) clearTimeout(timer.current);
       if (armMs > 0)
@@ -136,6 +138,7 @@ export function InlineConfirm({
           },
           (e: unknown) => {
             clearTimeout(cap);
+            setFailed(true);
             done();
             // a rejection is the caller's to show; a caller that handles its own errors never rejects. An unexpected one goes to the problem report, not to the JS error handler.
             reportProblem({ label: `${confirmLabel}: ${e instanceof Error ? e.message : String(e)}` });
@@ -194,6 +197,11 @@ export function InlineConfirm({
           <Text style={s.question}>{question}</Text>
           {note ? <Text style={s.note}>{note}</Text> : null}
           {children}
+          {failed ? (
+            <Text accessibilityRole="alert" testID={testID ? `${testID}-failed` : undefined} style={s.failed}>
+              That did not work. You can try again.
+            </Text>
+          ) : null}
         </View>
       )}
       <View style={s.buttons}>
@@ -243,6 +251,7 @@ const s = StyleSheet.create({
   compact: { flexDirection: "row", alignItems: "center", gap: 6 },
   text: { flexGrow: 1, flexShrink: 1, minWidth: 160 },
   question: { fontSize: 13.5, lineHeight: 19, fontWeight: "600", color: "var(--ink)" as string },
+  failed: { fontSize: 12.5, lineHeight: 18, color: "var(--danger)" as string, marginTop: 4 },
   note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: 2 },
   buttons: { flexDirection: "row", alignItems: "center", gap: 6 },
   btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center" },

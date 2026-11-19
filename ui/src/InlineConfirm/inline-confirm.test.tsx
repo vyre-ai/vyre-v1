@@ -167,9 +167,13 @@ test("a caller promise that rejects re-arms the strip and goes to the problem re
   const off = setReportProblemHandler((c) => void reports.push(c.label ?? ""));
   try {
     const log: string[] = [];
+    const thrown: unknown[] = [];
+    const onThrow = (e: unknown): void => void thrown.push(e);
+    process.on("uncaughtException", onThrow);
     const root = await mount(
       createRoot,
       <InlineConfirm
+        testID="ic"
         question="Delete?"
         confirmLabel="Delete"
         armMs={30}
@@ -184,10 +188,15 @@ test("a caller promise that rejects re-arms the strip and goes to the problem re
     await wait(60);
     await press(find(root, "ic-go"));
     await wait(100);
-    assert.deepEqual(reports, ["Delete: network down"]);
+    assert.deepEqual(reports, ["Delete: network down"], "reported once");
+    assert.ok(find(root, "ic-failed"), "the strip says it did not work");
     await press(find(root, "ic-go"));
+    await wait(100);
     await flush();
     assert.deepEqual(log, ["delete", "delete"], "armed again after the failure");
+    assert.equal(reports.length, 2, "one report per failure");
+    process.off("uncaughtException", onThrow);
+    assert.deepEqual(thrown, [], "nothing global is thrown");
   } finally {
     off();
     restore();
