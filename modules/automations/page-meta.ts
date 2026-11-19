@@ -1,4 +1,4 @@
-import { tagsNamed } from "../../lib/html-text.ts";
+import { lc, tagsNamed } from "../../lib/html-text.ts";
 // The meta of a fetched HTML page, for a link card: title, image address, site name and description, from Open Graph tags, then Twitter tags, then <title> and the description meta.
 // The page is never run or rendered: this reads the first 64 KB of the head as text with patterns. Entities are decoded for the few that appear in titles.
 export interface PageMeta {
@@ -31,7 +31,7 @@ function attrs(tag: string): Record<string, string> {
 
 /** The text of the first <title>, found with indexOf (the old regex took quadratic time on a run of "<title"). */
 function titleOf(head: string): string | undefined {
-  const low = head.toLowerCase();
+  const low = lc(head);
   // The first "<title" opens it; if its ">" or the "</title>" after it is missing, no later "<title" has them either (they would start later),
   // so one look is the same answer the old regex gave after trying every start.
   const at = low.indexOf("<title");

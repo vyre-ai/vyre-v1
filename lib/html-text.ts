@@ -37,8 +37,8 @@ export function stripTags(html: string, repl = ""): string {
 /** The whole `<name ...>` opening tags of one element name (case-insensitive), each up to its next ">". Linear; `max` cuts a runaway tag. */
 export function tagsNamed(html: string, name: string, max = 4096): string[] {
   const out: string[] = [];
-  const low = html.toLowerCase();
-  const key = `<${name.toLowerCase()}`;
+  const low = lc(html);
+  const key = `<${lc(name)}`;
   let i = 0;
   for (;;) {
     const at = low.indexOf(key, i);
@@ -132,8 +132,16 @@ export interface MailScan {
 }
 export const newMailScan = (html: string): MailScan => ({ work: 0, limit: html.length * 2 + 50_000 });
 
-const isWs = (c: number): boolean =>
-  c === 32 || (c >= 9 && c <= 13) || c === 160 || c === 0xfeff || c === 0x2028 || c === 0x2029;
+// HTML's own whitespace and nothing wider: a browser keeps NBSP, VT, U+FEFF and U+2028/9 inside a tag name or an unquoted value.
+const isWs = (c: number): boolean => c === 32 || c === 9 || c === 10 || c === 12 || c === 13;
+
+/**
+ * Lowercase for ASCII letters only, so the result has the same length as the input and an index into it is an index into the original.
+ * (toLowerCase turns "İ" into two code units; indices taken from it point past the text and let a <script> through.)
+ */
+export function lc(s: string): string {
+  return /[A-Z]/.test(s) ? s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32)) : s;
+}
 const isNameStart = (c: number): boolean => (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
 const isNameChar = (c: number): boolean => isNameStart(c) || (c >= 48 && c <= 57) || c === 58 || c === 45;
 // an attribute name: anything but whitespace and " ' > / =
@@ -250,7 +258,7 @@ export function cutBlocks(
   names: string[],
   opts: { comments?: boolean; repl?: string; accept?: (name: string, openTag: string) => boolean } = {},
 ): string {
-  const low = s.toLowerCase();
+  const low = lc(s);
   const noClose = new Set<string>();
   const closes = new Map<string, { start: number; end: number }>();
   let out = "";
@@ -373,7 +381,7 @@ export function replaceAnchors(
   accept: (openTag: string) => boolean,
   fn: (openTag: string, label: string) => string,
 ): string {
-  const low = s.toLowerCase();
+  const low = lc(s);
   let out = "";
   let i = 0;
   let from = 0;
@@ -404,7 +412,7 @@ export function replaceAnchors(
 
 /** An open tag of one of `names` ("<input ...>"), removed up to its next ">". `accept` can refuse one by its text. Each missing ">" is looked up once. Linear. */
 export function cutTags(s: string, names: string[], accept?: (name: string, tag: string) => boolean): string {
-  const low = s.toLowerCase();
+  const low = lc(s);
   let out = "";
   let i = 0;
   let from = 0;
@@ -489,22 +497,94 @@ export function replaceMdLinks(s: string, fn: (m: MdLink) => string): string {
   return i === 0 ? s : out + s.slice(i);
 }
 
-/** Removes every on* attribute (with a value) from every tag, wherever it sits in the tag and whatever quotes come before it. Linear. */
-export function stripEventAttrs(s: string): string {
-  let out = "";
-  let i = 0;
+const RAW_TEXT = new Set(["style", "script", "textarea", "title", "xmp", "iframe", "noembed", "noframes"]);
+
+/** The index just past the end of the raw-text element named `name` whose content starts at `from` (its close tag, or the end of the text). */
+function rawTextEnd(low: string, name: string, from: number): number {
+  let q = low.indexOf("</" + name, from);
+  while (q >= 0) {
+    const c = low.charCodeAt(q + 2 + name.length);
+    if (isWs(c) || c === 47 || c === 62 || Number.isNaN(c)) {
+      const gt = low.indexOf(">", q);
+      return gt < 0 ? low.length : gt + 1;
+    }
+    q = low.indexOf("</" + name, q + 2);
+  }
+  return low.length;
+}
+
+/** Ranges [start, end) of on* attributes in `s`; a tag that never ends is a range to the end of the text. `browser` reads comments and raw-text elements as a browser does. */
+function eventRanges(s: string, low: string, browser: boolean): Array<[number, number]> {
+  const n = s.length;
+  const out: Array<[number, number]> = [];
   let from = 0;
   for (;;) {
-    let at = s.indexOf("<", from);
-    while (at >= 0 && !isNameStart(s.charCodeAt(at + 1))) at = s.indexOf("<", at + 1);
+    const at = s.indexOf("<", from);
     if (at < 0) break;
-    const tag = scanTag(s, at);
-    for (const a of tag.attrs) {
-      if (!a.hasValue || !/^on[a-z]+$/i.test(a.name)) continue;
-      out += s.slice(i, a.start);
-      i = a.end;
+    const c1 = s.charCodeAt(at + 1);
+    if (browser && c1 === 33) {
+      // <!-- comment -->, otherwise a bogus comment up to the first ">"
+      if (s.startsWith("<!--", at)) {
+        let end: number;
+        if (s.startsWith("<!-->", at)) end = at + 5;
+        else if (s.startsWith("<!--->", at)) end = at + 6;
+        else {
+          // a comment ends at "-->" or "--!>"
+          const e1 = s.indexOf("-->", at + 4);
+          const e2 = s.indexOf("--!>", at + 4);
+          end = e1 < 0 && e2 < 0 ? n : e1 < 0 ? e2 + 4 : e2 < 0 || e1 < e2 ? e1 + 3 : e2 + 4;
+        }
+        from = end;
+        continue;
+      }
+      const g = s.indexOf(">", at + 2);
+      from = g < 0 ? n : g + 1;
+      continue;
     }
-    from = tag.end < 0 ? s.length : tag.end + 1;
+    if (browser && c1 === 63) {
+      const g = s.indexOf(">", at + 2);
+      from = g < 0 ? n : g + 1;
+      continue;
+    }
+    if (!isNameStart(c1)) {
+      from = at + 1;
+      continue;
+    }
+    const tag = scanTag(s, at);
+    for (const a of tag.attrs) if (a.hasValue && /^on[a-z]+$/i.test(a.name)) out.push([a.start, a.end]);
+    if (tag.end < 0) {
+      out.push([at, n]); // a tag that never ends: dropped with everything after it, never kept with an open quote
+      break;
+    }
+    from = tag.end + 1;
+    if (browser) {
+      let p = at + 1;
+      while (p < n && !isWs(s.charCodeAt(p)) && s.charCodeAt(p) !== 47 && s.charCodeAt(p) !== 62) p += 1;
+      const name = low.slice(at + 1, p);
+      if (name === "plaintext") break;
+      if (RAW_TEXT.has(name) && s.charCodeAt(tag.end - 1) !== 47) from = rawTextEnd(low, name, tag.end + 1);
+    }
+  }
+  return out;
+}
+
+/**
+ * Removes every on* attribute (with a value) from every tag, wherever it sits in the tag and whatever quotes come before it. Linear.
+ * The text is read twice and the removals of both readings are joined: once as a browser does (comments and raw-text elements such as
+ * style and textarea hold no tags), once with every "<" a tag opener (the way svg and mathml content, and a browser that runs scripts
+ * inside noscript, read it). A tag that never ends is dropped with the rest of the text.
+ */
+export function stripEventAttrs(s: string): string {
+  const low = lc(s);
+  const ranges = [...eventRanges(s, low, true), ...eventRanges(s, low, false)].sort(
+    (a, b) => a[0] - b[0] || b[1] - a[1],
+  );
+  let out = "";
+  let i = 0;
+  for (const [a, b] of ranges) {
+    if (b <= i) continue;
+    out += s.slice(i, Math.max(a, i));
+    i = b;
   }
   return out + s.slice(i);
 }
