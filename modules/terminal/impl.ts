@@ -196,14 +196,18 @@ export async function shellAtPrompt(exec: Exec, target: string): Promise<boolean
   if (pid === undefined || !/^\d+$/.test(pid) || dead === "1" || mode === "1") return false;
   // the foreground program must be a shell as well: `exec python` keeps the shell's pid and process group (third look, F2)
   if (cmd === undefined || !SHELLS.has(cmd) || cmd === "tmux") return false;
-  const p = await exec(["ps", "-o", "tpgid=", "-p", pid]).catch(() => null);
+  // the process group and the cursor's line depend only on what the first look said: asked together, one round trip instead of two (every check still has to pass)
+  const cursorOk = cursor !== undefined && /^\d+$/.test(cursor);
+  const [p, line] = await Promise.all([
+    exec(["ps", "-o", "tpgid=", "-p", pid]).catch(() => null),
+    cursorOk ? exec(["tmux", "capture-pane", "-p", "-t", target, "-S", cursor, "-E", cursor]).catch(() => null) : Promise.resolve(undefined),
+  ]);
   if (p === null || p.code !== 0 || p.stdout.trim() !== pid) return false;
   // a construct a person left open (an open bracket or quote, a here-document) has the shell on its continuation prompt: the line the cursor is on starts with PS2, by default "> ".
   // A prompt of one's own that starts with "> " reads as one too, which is the safe side. A `read` a person typed shows no prompt and cannot be seen from here.
-  if (cursor !== undefined && /^\d+$/.test(cursor)) {
-    const line = await exec(["tmux", "capture-pane", "-p", "-t", target, "-S", cursor, "-E", cursor]).catch(() => null);
+  if (cursorOk) {
     // tmux trims a line's trailing spaces, so an empty continuation line reads as ">"
-    if (line === null || line.code !== 0 || /^>( |\n|$)/.test(line.stdout)) return false;
+    if (line === undefined || line === null || line.code !== 0 || /^>( |\n|$)/.test(line.stdout)) return false;
   }
   return true;
 }
@@ -444,6 +448,7 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       }
       return { exitCode: code, output, truncated, durationMs: now() - t0 };
     };
+    let polls = 0;
     const forget = (): Promise<unknown> =>
       o.exec(["tmux", "set-option", "-u", "-q", "-t", session, rcOption]).catch(() => undefined);
     for (;;) {
@@ -470,6 +475,7 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       const screen = tidy(at >= 0 ? both.slice(0, at) : both);
       const m = endRe.exec(screen);
       if (m && m.index !== undefined) {
+        // the option's name is this run's own (its nonce), so clearing it is housekeeping no later command waits for
         await forget();
         return cut(screen.slice(0, m.index).split("\n"), Number(m[1]));
       }
@@ -487,7 +493,10 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
         await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
         throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
       }
-      await sleep(pollMs);
+      // the first looks come quickly (most commands end at once), then at the poll interval
+      // the first looks come quickly (most commands end at once), then at the poll interval
+      polls += 1;
+      await sleep(polls <= 2 ? Math.min(10, pollMs) : pollMs);
     }
   }
 

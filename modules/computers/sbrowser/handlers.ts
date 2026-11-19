@@ -187,32 +187,33 @@ async function heldSends(ctx: CompCtx): Promise<Map<string, HeldView>> {
     .filter((h) => h.capName === "computers.chrome.send")
     .filter((h) => h.askedBy === undefined || h.askedBy.id === me || admin)
     .sort((a, b) => a.createdAt - b.createdAt);
-  for (const h of mine) {
-    const agent = h.principal.id;
-    const had = out.get(agent);
-    if (had) {
-      had.count += 1;
-      continue;
-    }
+  // the count is every hold; the one-line is the oldest hold this caller may answer, found among the first few (a task that cannot be read, or that offers the caller no Allow, is passed over, never shown)
+  const byAgent = new Map<string, typeof mine>();
+  for (const h of mine) byAgent.set(h.principal.id, [...(byAgent.get(h.principal.id) ?? []), h]);
+  for (const [agent, list] of byAgent) {
     // a send can carry a client's words: the one-line of it goes only to a caller the Approve task lets answer it; anyone else who may watch gets the count and nothing of what it says
     let first: HeldView["first"];
-    try {
-      const t = (
-        (await ctx.call("tasks.get", { taskId: h.taskId })) as {
-          task?: { title?: string; actions?: Array<{ key: string }> };
+    for (const h of list.slice(0, 5)) {
+      try {
+        const t = (
+          (await ctx.call("tasks.get", { taskId: h.taskId })) as {
+            task?: { title?: string; actions?: Array<{ key: string }> };
+          }
+        ).task;
+        if (t?.actions?.some((a) => a.key === "approve") === true) {
+          first = {
+            holdId: h.id,
+            taskId: h.taskId,
+            what: (t.title ?? "A send waits for approval").replace(/\s+/g, " ").trim().slice(0, 120),
+            mayAnswer: true,
+          };
+          break;
         }
-      ).task;
-      if (t?.actions?.some((a) => a.key === "approve") === true)
-        first = {
-          holdId: h.id,
-          taskId: h.taskId,
-          what: (t.title ?? "A send waits for approval").replace(/\s+/g, " ").trim().slice(0, 120),
-          mayAnswer: true,
-        };
-    } catch {
-      /* nothing about it is shown */
+      } catch {
+        /* passed over: nothing about it is shown */
+      }
     }
-    out.set(agent, { count: 1, ...(first ? { first } : {}) });
+    out.set(agent, { count: list.length, ...(first ? { first } : {}) });
   }
   return out;
 }

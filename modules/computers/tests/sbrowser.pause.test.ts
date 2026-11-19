@@ -397,3 +397,23 @@ test("only this agent's profiles are matched when a stop ends pauses, even when 
     clean();
   }
 });
+
+test("reading a profile after a pause ran out removes the pause and lets a waiting call go: a read is also the expiry, and it is the same for the list and a single row", async () => {
+  const r = rig();
+  try {
+    const ctx = r.dana.ctx;
+    await tool["computers.browser.pause"]!(ctx, { agentId: "agt_dex" });
+    const waiting = call(r);
+    await tick();
+    assert.equal(waitingOn("agt_dex"), 1);
+    r.dana.advance(PAUSE_MAX_MS + 1);
+    const list = await tool["computers.browser.profiles"]!(ctx, {});
+    assert.equal(list.profiles.find((p: { agentId: string }) => p.agentId === "agt_dex")?.pausedBy, undefined, "the list shows no pause");
+    assert.equal(r.dana.rows("SELECT COUNT(*) AS n FROM computers_browser_pause")[0]?.["n"], 0, "and the row is gone");
+    assert.equal((await waiting).url, "https://x.test/", "the call that waited went on");
+    // resuming what already ran out changes nothing and does not fail
+    await tool["computers.browser.resume"]!(ctx, { agentId: "agt_dex" });
+  } finally {
+    clean();
+  }
+});
