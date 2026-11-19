@@ -2520,7 +2520,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         accept: async (c, a) => {
           const out = await hookRunner.call(`${c}.accept_webhook`, a);
           // a delivery that asks for work is run now, not at the next minute (one tick at a time: one that is running is not stacked)
-          if (c === "sites" && (out as { accepted?: boolean } | null)?.accepted === true) nudgeSites();
+          if (c === "sites" && (out as { nudge?: boolean } | null)?.nudge === true) nudgeSites();
           return out;
         },
         automation: (a) => hookRunner.call("automations.accept_hook", a),
@@ -5511,11 +5511,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   origin: "sites-push",
                 },
               ).catch((e: unknown) => ({ status: "error", e }));
-              (sitesExports?.["markPushDone"] as ((c: { db: unknown }, id: string) => void) | undefined)?.(
-                { db: db! },
-                a.id,
-              );
-              if ((r as { status?: string }).status !== "ok")
+              const ok = (r as { status?: string }).status === "ok";
+              // a push that ran is done; one that could not is recorded as failed, which gives its delivery id back so GitHub's redelivery takes it again
+              if (ok)
+                (sitesExports?.["markPushDone"] as ((c: { db: unknown }, id: string) => void) | undefined)?.(
+                  { db: db! },
+                  a.id,
+                );
+              else
+                (
+                  sitesExports?.["markPushFailed"] as
+                    | ((c: { db: unknown }, id: string, why: string) => void)
+                    | undefined
+                )?.({ db: db! }, a.id, String((r as { e?: { message?: string } }).e?.message ?? "It could not run."));
+              if (!ok)
                 sink.log({
                   space: spaceId,
                   level: 30,

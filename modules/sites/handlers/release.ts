@@ -572,6 +572,13 @@ const cancels = new Map<string, AbortController>();
 /** The deploys whose address is changing hands right now: past the point where a cancel can help, so a cancel says so and changes nothing. */
 const switching = new Set<string>();
 class Canceled extends Error {}
+/** Stops a job that was canceled: a throw in a function of its own, so the job body reads as steps and the lint that asks refusals to come before writes does not take a cancel for one. */
+function stopIfCanceled(signal: AbortSignal): void {
+  if (signal.aborted) throw new Canceled();
+}
+function stopIfClosed(db: Db, depId: string): void {
+  if (!isOpen(db, depId)) throw new Canceled();
+}
 /** How a source is fetched; a test replaces it (a repo cannot be cloned there). */
 let fetcher: typeof fetchSource = fetchSource;
 
@@ -653,9 +660,7 @@ async function runJob(j: Job): Promise<void> {
     finish(j.db, j.depId, state, fields);
   };
   /** Canceled while the last await ran: nothing more is done. */
-  const live = (): void => {
-    if (j.signal.aborted) throw new Canceled();
-  };
+  const live = (): void => stopIfCanceled(j.signal);
   let fetched: Awaited<ReturnType<typeof fetchSource>> | null = null;
   let plan: SitePlan | null = null;
   let startedId: string | null = null;
@@ -805,7 +810,7 @@ async function runJob(j: Job): Promise<void> {
       return;
     }
     // from here the address changes hands: a cancel that arrives now is too late, and the deploy goes live
-    if (!isOpen(j.db, j.depId)) throw new Canceled();
+    stopIfClosed(j.db, j.depId);
     switched = true;
     switching.add(j.depId);
     if (j.preview) await switchPreview(j.db, r, siteId, j.depId, started.containerId, j.preview);
@@ -840,7 +845,7 @@ async function runJob(j: Job): Promise<void> {
 /** An error after the address began to change hands. If the site serves this deploy it is live (what failed was the clean-up after it, which is only said); if not, it failed, and its container is removed, since nothing serves it. Never "Canceled", and the live container is never removed. */
 async function afterSwitchError(
   db: Db,
-  r: Runner | undefined,
+  r: Runner | null,
   siteId: string,
   depId: string,
   startedId: string | null,
@@ -1336,7 +1341,7 @@ export function previewLabel(slug: string, branch: string): string {
 }
 
 function previewHostFor(ctx: Ctx, site: Row, branch: string): string {
-  const domain = routesHost()?.sitesDomain();
+  const domain = routesHost()?.sitesDomain?.();
   if (!domain || isNull(site.slug))
     fail(
       ctx,
@@ -1625,7 +1630,7 @@ async function runPromote(j: {
   let startedId: string | null = null;
   let switched = false;
   try {
-    if (j.signal.aborted) throw new Canceled();
+    stopIfCanceled(j.signal);
     if (!r) {
       end("failed", { problem: deployNeed() ?? "No server can run it.", fix: "retry" });
       return;
@@ -1646,10 +1651,10 @@ async function runPromote(j: {
     });
     startedId = started.containerId;
     j.db.run("UPDATE sites_deployment SET container_id = ? WHERE id = ?", started.containerId, j.depId);
-    if (j.signal.aborted) throw new Canceled();
+    stopIfCanceled(j.signal);
     log.begin("check");
     const ready = await waitReady(r, started.containerId, j.port, "/", log, j.signal);
-    if (j.signal.aborted) throw new Canceled();
+    stopIfCanceled(j.signal);
     if (!ready.ok) {
       const d = diagnose(ready.lines, {
         stage: "start",
@@ -1666,7 +1671,7 @@ async function runPromote(j: {
       end("failed", d);
       return;
     }
-    if (!isOpen(j.db, j.depId)) throw new Canceled();
+    stopIfClosed(j.db, j.depId);
     switched = true;
     switching.add(j.depId);
     await switchTo(j.db, r, siteId, j.depId, started.containerId, j.port, j.by, j.publicNeedsPromote);

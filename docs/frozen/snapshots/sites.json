@@ -43,8 +43,8 @@
     "sites.table_promote@1": "878188ca945164c9c33bb15edfef6d96ec944ec359498f0a605c75cf70071fc3",
     "sites.tables@1": "43d9e2957b96c059719b154c1db2955de01555563f7a509bc2edeb09606f3052",
     "sites.update@1": "887ff8a0b8b0d65951710c399a65d5c87fcea70e90dc777f2516049b08cbb10a",
-    "sites.webhook_get@1": "107fe0ef2ed8952ca60cb0c1257734434107fad0c9f78dfc099c413a315f977c",
-    "sites.webhook_set@1": "2976cbe7c20586ca8824bc1c683f8bed662bb98f512cf87fd22f627f45dc84f3"
+    "sites.webhook_get@1": "b5526b19bd60127b6070c2833e46c4e26b9b1b2d425025b8ecca4fb2557fd65f",
+    "sites.webhook_set@1": "8a8d518b954b54c8590ac2a6406ee57f32fe87a9a7a02002f8644ad9470f56a3"
   },
   "events": {
     "site.access_changed": "20aa17b535006c4a9c5d54bec6b9f72df7bc93dd5567e62167778e0d05c5ef57",

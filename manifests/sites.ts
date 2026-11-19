@@ -59,6 +59,9 @@ const hookOut = {
   follow: t.arr(t.str(), { description: "Branch patterns that get a preview on a push" }),
   secret: t.opt(t.str({ description: "Shown once, when it is made. Paste it into GitHub's webhook as the secret" })),
   lastDeliveryAt: t.opt(t.ts()),
+  failed: t.arr(t.obj({ branch: t.str(), action: t.str(), error: t.str(), at: t.ts() }), {
+    description: "Pushes that could not run, newest first. GitHub's redelivery takes them again",
+  }),
 };
 const envScope = t.enm("all", "production", "previews");
 const envEntry = t.obj({

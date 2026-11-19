@@ -38,6 +38,12 @@ type Out = {
   follow: Array<string>;
   secret?: string;
   lastDeliveryAt?: number;
+  failed: Array<{
+      branch: string;
+      action: string;
+      error: string;
+      at: number;
+    }>;
 };
 ```
 
@@ -59,6 +65,14 @@ type Out = {
   },
   "output": {
     "enabled": true,
+    "failed": [
+      {
+        "action": "example",
+        "at": 1760000000000,
+        "branch": "example",
+        "error": "example"
+      }
+    ],
     "follow": [
       "example"
     ],

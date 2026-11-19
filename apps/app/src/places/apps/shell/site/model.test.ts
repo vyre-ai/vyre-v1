@@ -79,7 +79,7 @@ test("the line under a deploy: who and when and how long; the step and its clock
     ),
     "main · you · Build 0:23",
   );
-  assert.equal(depNote(dep({ state: "queued" }), null, "just now", NOW), "Waiting for its turn");
+  assert.equal(depNote(dep({ state: "queued" }), null, "just now", NOW), "Waiting to start");
   assert.equal(
     depNote(dep({ state: "failed", problem: "It stopped because STRIPE_KEY is not set." }), "you", "2 min ago", NOW),
     "you · 2 min ago · It stopped because STRIPE_KEY is not set.",

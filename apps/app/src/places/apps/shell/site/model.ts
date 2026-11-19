@@ -60,7 +60,7 @@ export function depNote(d: Dep, who: string | null, when: string, now: number, w
   if (who) parts.push(who);
   if (isRunning(d)) {
     const st = runningStep(d);
-    parts.push(st ? `${STEP_TITLE[st.key]} ${clock(now - (st.startedAt ?? d.at))}` : "Waiting for its turn");
+    parts.push(st ? `${STEP_TITLE[st.key]} ${clock(now - (st.startedAt ?? d.at))}` : "Waiting to start");
     return parts.join(" · ");
   }
   parts.push(when);
@@ -145,7 +145,7 @@ export function attention(
       note: st
         ? `${STEP_TITLE[st.key]} · ${clock(now - (st.startedAt ?? d.at))}`
         : d.state === "queued"
-          ? "Waiting for its turn"
+          ? "Waiting to start"
           : "Starting",
     };
   }

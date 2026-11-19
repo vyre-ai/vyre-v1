@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { configureRoutes, routeByHost } from "../handlers/route.ts";
 import { _test, servingContainers } from "../handlers/release.ts";
-import { acceptWebhook, markPushDone, pendingPushes, signed, follows } from "../handlers/hook.ts";
+import { acceptWebhook, markPushDone, markPushFailed, pendingPushes, signed, follows } from "../handlers/hook.ts";
 import { createHmac } from "node:crypto";
 import { handlers } from "../impl.ts";
 import { harness as base } from "../fixtures/world.ts";
@@ -44,6 +44,7 @@ function world(o: Fake = {}) {
     "0006_env_plain.sql",
     "0007_webhook.sql",
     "0008_env_scope.sql",
+    "0009_hook_failures.sql",
   ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const sdb = {
@@ -909,12 +910,21 @@ test("a push builds only the branches the site follows: production on a push onl
     await hook(w, secret, "push", { ref: "refs/heads/feat/login", after: "0".repeat(40), deleted: true });
     assert.deepEqual(queued(w), ["remove:feat/login"]);
     // a closed pull request removes the preview of its branch; an opened one does nothing
-    await hook(w, secret, "pull_request", { action: "opened", pull_request: { head: { ref: "feat/pr" } } });
+    await hook(w, secret, "pull_request", {
+      action: "opened",
+      pull_request: { head: { ref: "feat/pr", repo: { full_name: "acme/app" } } },
+    });
     assert.deepEqual(queued(w), ["remove:feat/login"]);
-    await hook(w, secret, "pull_request", { action: "closed", pull_request: { head: { ref: "feat/pr" } } });
+    await hook(w, secret, "pull_request", {
+      action: "closed",
+      pull_request: { head: { ref: "feat/pr", repo: { full_name: "acme/app" } } },
+    });
     assert.deepEqual(queued(w).sort(), ["remove:feat/login", "remove:feat/pr"]);
     // the production branch is never removed by a closed pull request
-    await hook(w, secret, "pull_request", { action: "closed", pull_request: { head: { ref: "main" } } });
+    await hook(w, secret, "pull_request", {
+      action: "closed",
+      pull_request: { head: { ref: "main", repo: { full_name: "acme/app" } } },
+    });
     assert.equal(queued(w).length, 2);
     // other events are acknowledged and ignored
     assert.deepEqual(await hook(w, secret, "issues", { action: "opened" }), { accepted: true, nudge: false });
@@ -1145,6 +1155,180 @@ test("removing a preview that is still building closes its row with the removal:
     assert.equal((await h["sites.previews"]!(w.ctx, { siteId })).previews.length, 0);
   } finally {
     _test.cancelWait(null);
+    w.done();
+  }
+});
+
+test("a closed pull request from a fork never removes the site's own preview", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Forks");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const closed = (repo: string | null) => ({
+      action: "closed",
+      pull_request: { head: { ref: "feature-x", ...(repo ? { repo: { full_name: repo } } : { repo: null }) } },
+    });
+    assert.deepEqual(await hook(w, secret, "pull_request", closed("stranger/app")), { accepted: true, nudge: false });
+    assert.deepEqual(
+      await hook(w, secret, "pull_request", closed(null)),
+      { accepted: true, nudge: false },
+      "a deleted fork",
+    );
+    assert.deepEqual(queued(w), []);
+    assert.equal(
+      (await hook(w, secret, "pull_request", closed("ACME/app"))).nudge,
+      true,
+      "its own repo, whatever the case",
+    );
+    assert.deepEqual(queued(w), ["remove:feature-x"]);
+  } finally {
+    w.done();
+  }
+});
+
+test("a push that could not run is recorded as failed and gives its delivery id back: the redelivery is taken, and the site says it failed", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Failing");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const first = await hook(w, secret, "push", push("feat/f"), { delivery: "fail0001-aaaa" });
+    assert.equal(first.nudge, true, "a queued preview asks the server to run it now");
+    const job = pendingPushes({ db: w.sdb } as never)[0] as { id: string };
+    markPushFailed({ db: w.sdb } as never, job.id, "the person no longer has access");
+    assert.deepEqual(queued(w), [], "a failed push is not offered again by itself");
+    const info = await h["sites.webhook_get"]!(w.ctx, { siteId });
+    assert.equal(info.failed.length, 1);
+    assert.equal(info.failed[0].branch, "feat/f");
+    assert.match(info.failed[0].error, /no longer has access/);
+    // GitHub's redelivery of the same delivery is taken, and queues it again
+    assert.equal((await hook(w, secret, "push", push("feat/f"), { delivery: "fail0001-aaaa" })).nudge, true);
+    assert.deepEqual(queued(w), ["preview:feat/f"]);
+    // one that ran stays spent
+    markPushDone({ db: w.sdb } as never, (pendingPushes({ db: w.sdb } as never)[0] as { id: string }).id);
+    await assert.rejects(
+      () => hook(w, secret, "push", push("feat/f"), { delivery: "fail0001-aaaa" }),
+      /already received/,
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("a delivery id is kept for good: an old captured delivery is refused however long ago it was", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Forever");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    await hook(w, secret, "push", push("feat/a"), { delivery: "old00001-aaaa" });
+    w.sdb.run("UPDATE sites_hook_delivery SET at = 1");
+    await hook(w, secret, "ping", {}, { delivery: "new00001-aaaa" });
+    await assert.rejects(
+      () => hook(w, secret, "push", push("feat/a"), { delivery: "old00001-aaaa" }),
+      /already received/,
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("a delivery older than what the site already handled or deployed is refused, so old code cannot come back", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Stale");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    await h["sites.update"]!(w.ctx, { siteId, autoDeploy: true });
+    const at = (iso: string) => ({ head_commit: { timestamp: iso } });
+    // a preview branch: newer is taken, an older one (a different captured delivery) is not
+    await hook(w, secret, "push", { ...push("feat/s"), ...at("2026-11-19T10:00:00Z") });
+    await assert.rejects(
+      () => hook(w, secret, "push", { ...push("feat/s", "b".repeat(40)), ...at("2026-11-19T09:00:00Z") }),
+      /older than what this site has already handled/,
+    );
+    assert.equal(
+      (await hook(w, secret, "push", { ...push("feat/s", "c".repeat(40)), ...at("2026-11-19T11:00:00Z") })).nudge,
+      true,
+    );
+    // production: the site deployed just now, so a push from before that is old code
+    const dep = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(dep.deployment.state, "ready");
+    await assert.rejects(
+      () => hook(w, secret, "push", { ...push("main"), ...at("2026-01-01T00:00:00Z") }),
+      /older than what this site has already handled/,
+    );
+    const future = new Date(Date.now() + 60_000).toISOString();
+    assert.equal((await hook(w, secret, "push", { ...push("main"), ...at(future) })).nudge, true);
+    // nothing was written by the refusals
+    assert.equal(queued(w).length, 1);
+  } finally {
+    w.done();
+  }
+});
+
+test("the sealed secret is never in anything the site, the list or the webhook answers", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("No leak");
+    const on = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const sealed = (w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId)[0] as { hook_secret: string })
+      .hook_secret;
+    assert.ok(sealed.length > 10);
+    const answers = JSON.stringify([
+      await h["sites.get"]!(w.ctx, { siteId }),
+      await h["sites.list"]!(w.ctx, {}),
+      await h["sites.webhook_get"]!(w.ctx, { siteId }),
+      await h["sites.deployments"]!(w.ctx, { siteId }),
+      await h["sites.status"]!(w.ctx, { siteId }).catch(() => null),
+      await h["sites.webhook_set"]!(w.ctx, { siteId, follow: ["main"] }),
+    ]);
+    assert.equal(answers.includes(on.secret), false, "the secret itself");
+    assert.equal(answers.includes(Buffer.from(on.secret).toString("base64")), false, "its sealed form");
+    assert.equal(answers.includes("hook_secret"), false);
+    assert.equal(answers.includes("hookSecret"), false);
+  } finally {
+    w.done();
+  }
+});
+
+test("turning the webhook off, or making a new secret, drops what was waiting to run; a bad branch pattern changes nothing", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Off drops");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    await hook(w, secret, "push", push("feat/one"));
+    assert.deepEqual(queued(w), ["preview:feat/one"]);
+    const rot = await h["sites.webhook_set"]!(w.ctx, { siteId, rotate: true });
+    assert.deepEqual(queued(w), [], "a new secret drops it");
+    await hook(w, rot.secret, "push", push("feat/two"));
+    await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: false });
+    assert.deepEqual(queued(w), [], "off drops it");
+    // refused before anything is written: the secret is not made when the patterns are bad
+    await assert.rejects(
+      () => h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["bad pattern"] }),
+      /branch pattern/,
+    );
+    assert.equal((await h["sites.webhook_get"]!(w.ctx, { siteId })).enabled, false);
+  } finally {
+    w.done();
+  }
+});
+
+test("an event that asks for nothing does not wake the server", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Quiet");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["feat/*"] });
+    for (const [event, payload] of [
+      ["ping", {}],
+      ["star", { action: "created" }],
+      ["issue_comment", { action: "created" }],
+      ["push", push("not-followed")],
+      [
+        "pull_request",
+        { action: "opened", pull_request: { head: { ref: "feat/x", repo: { full_name: "acme/app" } } } },
+      ],
+    ] as const)
+      assert.equal((await hook(w, secret, event, payload as never)).nudge, false, event);
+  } finally {
     w.done();
   }
 });

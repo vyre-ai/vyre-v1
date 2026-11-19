@@ -38350,6 +38350,12 @@ export type SitesWebhookGetOut = {
   follow: Array<string>;
   secret?: string;
   lastDeliveryAt?: number;
+  failed: Array<{
+      branch: string;
+      action: string;
+      error: string;
+      at: number;
+    }>;
 };
 export type SitesWebhookSetIn = {
   siteId: string;
@@ -38363,6 +38369,12 @@ export type SitesWebhookSetOut = {
   follow: Array<string>;
   secret?: string;
   lastDeliveryAt?: number;
+  failed: Array<{
+      branch: string;
+      action: string;
+      error: string;
+      at: number;
+    }>;
 };
 export type SkillsAddIn = {
   text: string;
