@@ -196,7 +196,11 @@ test("optional Plan views share one on-demand renderer instead of the startup co
     assert.match(src, /Plan\/DeferredPlan\.tsx/, `${file} uses the shared deferred Plan boundary`);
   }
   const deferred = fs.readFileSync(path.join(root, "ui/src/Plan/DeferredPlan.tsx"), "utf8");
-  assert.match(deferred, /lazy\(\(\) => import\(["']\.\/index\.tsx["']\)/, "the full Plan remains available on demand");
+  assert.match(
+    deferred,
+    /lazyPart\(\(\) => import\(["']\.\/index\.tsx["']\)/,
+    "the full Plan remains available on demand (a lazyPart)",
+  );
 });
 
 test("the optional phone dock reuses the lazy Inbox place chunk", () => {
