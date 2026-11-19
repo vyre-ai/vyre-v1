@@ -11,13 +11,13 @@ Let a hook that stopped something go by, once, in this chat: the next time it wo
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when actor.kind == 'agent' |
+| Gate | none |
 | Idempotency | none |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/hooks/allow_once |
-| MCP tool | hooks_allow_once (engineer, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | hook.changed |
 

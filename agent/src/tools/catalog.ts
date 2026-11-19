@@ -4,6 +4,8 @@ import { probeIn } from "../../../lib/probe.ts";
 import { fillsThread, forAskerField } from "./fill.ts";
 import { placeField } from "./place.ts";
 import { HIDDEN_FROM_MODEL } from "./versions.ts";
+import { shareFragments } from "./share-fragments.ts";
+import { MCP_TOOLS } from "../../../packages/contracts/src/mcp-coverage.ts";
 import type { AgentToolRow, Catalog, Effects, LocalKind, McpToolRow, RegistryCapRow, ToolDef } from "./types.ts";
 
 const EFFECT_RANK: Readonly<Record<Effects, number>> = { read: 0, write: 1, outward: 2 };
@@ -61,8 +63,28 @@ export function statesLimits(v: unknown): unknown {
   return out;
 }
 
+/** The tools added for the full set (mcp-coverage.ts) show one plain line: the first sentence, cut at 100 characters. What a model is shown of its tools may only go down (scripts/tool-tokens.test.ts). */
+export function oneLine(cap: string, text: string): string {
+  if (!(cap in MCP_TOOLS)) return text;
+  const first = (text.split(/\.(?:\s|$)|; /)[0] ?? text).replace(/^(Console|System|Space admins): /, "");
+  const cut = first.length <= 100 ? first : `${first.slice(0, 97).replace(/\s+\S*$/, "")}...`;
+  return cut.charAt(0).toUpperCase() + cut.slice(1);
+}
+
+/** Timestamps are written as epoch milliseconds in nearly every tool: one short word for it, and no floor (a time before 1970 is refused by the server all the same). */
+function shortTimes(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(shortTimes);
+  if (v === null || typeof v !== "object") return v;
+  const o = v as Record<string, unknown>;
+  if (o["description"] === "Milliseconds since the Unix epoch" && o["type"] === "integer") {
+    const { minimum: _m, ...rest } = o;
+    return { ...rest, description: "Epoch ms" };
+  }
+  return Object.fromEntries(Object.entries(o).map(([k, x]) => [k, shortTimes(x)]));
+}
+
 export function modelSchema(schema: unknown, cap?: string): { schema: unknown; keyed: boolean; thread: boolean } {
-  const raw = statesLimits(withoutPlaceholderExamples(schema)) as Obj | null;
+  const raw = statesLimits(shortTimes(withoutPlaceholderExamples(schema))) as Obj | null;
   if (raw === null || typeof raw !== "object" || raw.properties === undefined)
     return { schema: raw, keyed: false, thread: false };
   // version inputs the tool layer fills for the model are not shown to it (agent/src/tools/versions.ts)
@@ -129,7 +151,7 @@ export function buildCatalog(
       cap: cap.name,
       v: cap.v,
       toolset: t.toolset,
-      summary: t.description,
+      summary: oneLine(cap.name, t.description),
       inputSchema: shown.schema,
       ...(shown.keyed ? { keyed: true } : {}),
       ...(shown.thread ? { thread: true } : {}),
@@ -143,8 +165,9 @@ export function buildCatalog(
       ...(cap.resource?.id ? { resource: { type: cap.resource.type, id: cap.resource.id } } : {}),
     });
   }
-  const byName = new Map(defs.map((d) => [d.name, d] as const));
-  return { all: defs, byName: (n) => byName.get(n) };
+  const all = shareFragments(defs);
+  const byName = new Map(all.map((d) => [d.name, d] as const));
+  return { all, byName: (n) => byName.get(n) };
 }
 
 /** What a plain key request says once the connect card is on (rc.29): a service the person names goes to the card, not to a request. Added at read time, so the frozen description is the rc.27 one and a switch at 0 shows none. */

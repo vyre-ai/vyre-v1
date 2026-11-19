@@ -11,13 +11,13 @@ Always allow: a rule the Gate reads, for one agent or one chat, one act and one 
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when actor.kind == 'agent' |
+| Gate | none |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/gate/allow/set |
-| MCP tool | gate_allow_set (engineer, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

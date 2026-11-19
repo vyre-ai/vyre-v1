@@ -510,6 +510,7 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
         proof: begun.proof,
         origin,
         ...(begun.redirectHost ? { redirectHost: begun.redirectHost } : {}),
+        ...(isDocId(begun.client.clientId) ? { clientHost: new URL(begun.client.clientId).host } : {}),
         ...(o.webApp ? { webApp: o.webApp } : {}),
       });
       return { status: 200, headers: { ...page.headers }, body: page.body };

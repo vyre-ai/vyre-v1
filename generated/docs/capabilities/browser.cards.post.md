@@ -17,7 +17,7 @@ Leave a card in a chat for work in the person's own Chrome: a held send with the
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/browser/cards/post |
-| MCP tool | browser_cards_post (agents, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

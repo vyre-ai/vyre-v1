@@ -242,3 +242,34 @@ test("one change that shows as several events is announced once to the same app 
   s.drop();
   await s.finished;
 });
+
+test("a burst of requests cannot all pass the stream check: exactly the cap open, the rest refused at once; places come back when streams end", async () => {
+  const r = rig();
+  const ask = (i: number) =>
+    r.server.handle({
+      method: "POST",
+      headers: { authorization: "Bearer out", "mcp-protocol-version": V, "mcp-method": "subscriptions/listen" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: i + 1, method: "subscriptions/listen", params: { notifications: {}, _meta: META } }),
+    });
+  const burst = await Promise.all(Array.from({ length: 20 }, (_, i) => ask(i)));
+  const opened = burst.filter((x) => x.status === 200);
+  assert.equal(opened.length, 8, "eight places, however many asked at once");
+  assert.equal(burst.filter((x) => x.status === 429).length, 12);
+  const started = opened.map((x) => r.open(x));
+  assert.equal(r.server.listeners(), 8);
+  started[0]!.drop();
+  await started[0]!.finished;
+  assert.equal((await ask(99)).status, 200, "a place freed by a stream that ended is free again");
+  r.server.end(imran.sessionId);
+  await Promise.all(started.map((x) => x.finished));
+});
+
+test("a proof read that failed is not repeated for every event: a watcher of a hot address it may not read costs a read, not one per event", async () => {
+  const r = rig({ refuseReads: true });
+  const s = await r.listen({ notifications: { resourceSubscriptions: ["vyre://task/tsk_9"] } });
+  const before = r.reads.length;
+  for (let i = 0; i < 10; i++) await r.server.changed(changeOf("task.updated", { taskId: "tsk_9" })!);
+  assert.equal(r.reads.length - before, 1, "one read, then it is remembered for a few seconds");
+  s.drop();
+  await s.finished;
+});

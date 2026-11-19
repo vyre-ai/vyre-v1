@@ -128,7 +128,7 @@ const chromeWhere = {
   inMyChrome: t.opt(
     t.bool({
       description:
-        'Work in the asking person\'s own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn ("in my Chrome", "on my computer", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing',
+        "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
     }),
   ),
 };

@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fetchDoc, isDocId, keepDoc, readDoc, MAX_DOC_BYTES } from "../client-doc.ts";
-import { clientBy, serverMetadata } from "../oauth.ts";
+import { clientBy, serverMetadata, MAX_CLIENTS, UNUSED_CLIENT_MS } from "../oauth.ts";
 import { ensure } from "../projections.ts";
 import { harness } from "../fixtures/harness.ts";
 
@@ -64,4 +64,27 @@ test("what the page said is kept as an ordinary client, and read again replaces 
   keepDoc(h.db, { clientId: ID, name: "Renamed", redirectUris: ["https://app.example.com/cb2"] }, 2000);
   assert.equal(clientBy(h.db, ID)?.name, "Renamed");
   assert.equal(serverMetadata("https://x.example")["client_id_metadata_document_supported"], true);
+});
+
+test("pages that name themselves count against the same cap as registration: past it a new address is refused, a known one still refreshes, and unused old ones make room", () => {
+  const h = harness();
+  ensure(h.db);
+  const now = 10 * UNUSED_CLIENT_MS;
+  for (let i = 0; i < MAX_CLIENTS; i++)
+    h.db.run(
+      "INSERT INTO mcp_oauth_clients (client_id, name, redirect_uris, created_at, used_at) VALUES (?, ?, ?, ?, ?)",
+      `https://a${i}.example.com/c.json`,
+      "x",
+      "[]",
+      now - 1000,
+      now - 500,
+    );
+  const fresh = { clientId: "https://new.example.com/c.json", name: "New", redirectUris: ["https://new.example.com/cb"] };
+  assert.equal(keepDoc(h.db, fresh, now), false, "the table is full of clients in use");
+  assert.equal(clientBy(h.db, fresh.clientId), null);
+  assert.equal(keepDoc(h.db, { ...fresh, clientId: "https://a1.example.com/c.json" }, now), true, "a known one refreshes");
+  // unused and old: room is made
+  h.db.run("UPDATE mcp_oauth_clients SET used_at = NULL, created_at = ? WHERE client_id LIKE 'https://a1%'", now - 2 * UNUSED_CLIENT_MS);
+  assert.equal(keepDoc(h.db, fresh, now), true, "unused clients older than a day go first");
+  assert.ok(clientBy(h.db, fresh.clientId));
 });

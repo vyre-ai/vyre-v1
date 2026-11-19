@@ -18,7 +18,7 @@ Capabilities:
 - access.agents_can_call.get (read, grant only, level member)
 - access.agents_can_call.set (write, grant only, level view)
 - access.audience_set (write, grant only, level view)
-- access.automation_senders (write, grant only, level view, gate signin_change)
+- access.automation_senders (write, grant only, level view)
 - access.check (read, access.manage, level view)
 - access.clears (read, grant only, level view)
 - access.connector_builder.grant (write, access.manage, level view)

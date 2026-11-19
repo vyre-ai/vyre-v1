@@ -3,8 +3,8 @@
   "capabilities": {
     "gate.acts.list@1": "0316cf94ae79d12744fc18988055b13feae2bda5ed76a4cf6d14c67ef4f78476",
     "gate.allow.list@1": "1d5ed4216fab2711a687ec024b2d1eb6a116cc48c1f8b002a11336c1f54f35ef",
-    "gate.allow.remove@1": "f71aa2793c568ca532384c1baaa6e2eb29171a4ba54e8d21539a3bd163aa18ba",
-    "gate.allow.set@1": "00fcb66474d1fca7e8a19b45abcde28e9c46325712fbd232f5c1236c8921d3c2",
+    "gate.allow.remove@1": "dd3ff73999f0b00bcd69b66c14af028bb7bbe35c6d43206dbaa3417c7f79ee8d",
+    "gate.allow.set@1": "47e5950ad6ff88404ccf8a11f0cec352340645b3fff0b60708940b070307b79e",
     "gate.deny@1": "14d821130834a364dc8f803e87b7cf4e1d146c64d74ca6eb1b86a51a3e088492",
     "gate.effective_rule@1": "289b674b917b3750bf2585f3102cb6ec36a019c85c9e67bac83ec097f27fbc90",
     "gate.expire@1": "91f689719d3f782a1ae65243ee89a36225f5f89ce95db1a3d4f8728b88ee36db",

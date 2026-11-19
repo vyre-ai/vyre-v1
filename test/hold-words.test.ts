@@ -73,3 +73,11 @@ test("a held change of the Space time zone says the zone in words: Pacific Time,
   );
   assert.equal(HOLD_PHRASES["spaces.timezone.set"], "change the Space time zone");
 });
+
+test("a held approval of where a key may be sent always names the host", () => {
+  assert.equal(holdTitle("automations.key_hosts.allow", { itemId: "vit_1", host: "api.fathom.video" }), "Let a key be sent to api.fathom.video");
+  assert.equal(holdTitle("automations.key_hosts.allow", { itemId: "vit_1", host: "https://www.Example.com/x" }).includes("example.com"), true);
+  assert.equal(holdTitle("automations.key_hosts.remove", { itemId: "vit_1", host: "api.fathom.video" }), "Stop a key being sent to api.fathom.video");
+  assert.match(holdTitle("automations.key_hosts.allow", {}), /another host/);
+  assert.ok(holdTitle("automations.key_hosts.allow", { host: "h".repeat(300) + ".com" }).length < 120, "a long host is cut");
+});

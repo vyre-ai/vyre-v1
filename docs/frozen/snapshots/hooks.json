@@ -1,11 +1,11 @@
 {
   "module": "hooks",
   "capabilities": {
-    "hooks.allow_always@1": "643ab40dfd9f766caf9d6dd2d380ed312420b7f145732cf669470e38a56a5e7c",
-    "hooks.allow_once@1": "61d165281c1ed12a919ccbb0b2fc12c4562298ba3cc8aaa965fb4a5d5f39da7e",
-    "hooks.allow_remove@1": "2d60334296d808a20f33012f2ecab027a83f61b27de8a396e0a542a43d0d7e08",
-    "hooks.ask_admin@1": "1bd1365b6bacc2b6ad3a7c3259acc616b20e7e6db61c35ac4fd7514e797198f4",
-    "hooks.deny@1": "fd08d4a11095d8a39d58d6135316987c17e86f5e4b8542a19957e880d822e354",
+    "hooks.allow_always@1": "e0ff439cfdde814f8dcfa185a07592ce233cb1b5f690a1d59e78484436dff913",
+    "hooks.allow_once@1": "13b6727b9d845e9ab6753281ea16d3bffe19d78d7322e74e9db8a2a09646326c",
+    "hooks.allow_remove@1": "ffb3e9f434d3d432a8b9efafe7c676ec6d243466a5e476e7197f4208c5ab617e",
+    "hooks.ask_admin@1": "48311cdf6c127983a9dff91e29ec5f178bc3afaa2bddd47d041ea1f1e3f5aed4",
+    "hooks.deny@1": "3d1b63a350eb70b1a53a75a98fc360560d17beee96e42c1d55ad5ea7b3d7c081",
     "hooks.fire@1": "c17b6c155750dc24e9e8b32aeae0baa282d2353c873cd05881048878a3477cec",
     "hooks.list@1": "3d65ca63f8fdd7d3de83ef2c544d1148ebb2d928e7091d8191e9e65fd3d789bc",
     "hooks.pause@1": "b2e2a7d566ff71fc13792286e5dc71b774c9b23d58df6ffecae9a8c1b227d8b6",

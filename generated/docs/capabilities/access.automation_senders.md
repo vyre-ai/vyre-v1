@@ -11,13 +11,13 @@ A person's press gives a Space Automation use of the mailboxes and numbers its s
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | signin_change when actor.kind == 'agent' |
+| Gate | none |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/access/automation_senders |
-| MCP tool | access_automation_senders (engineer, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | grant.created, grant.revoked, access.changed |
 

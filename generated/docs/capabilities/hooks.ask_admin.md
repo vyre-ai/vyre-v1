@@ -17,7 +17,7 @@ Ask the Space admins about a hook that stopped something: one Inbox line for eac
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/hooks/ask_admin |
-| MCP tool | hooks_ask_admin (engineer, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | hook.admin_asked |
 

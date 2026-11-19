@@ -59,6 +59,8 @@ export interface AllowTab {
   origin: string;
   /** Set when the code would leave this computer. */
   redirectHost?: string;
+  /** The address an app named itself by (a client metadata document): its host is shown, since its name is the app's own word. */
+  clientHost?: string;
   /** Where a person with no Vyre app can sign in. */
   webApp?: string;
 }
@@ -76,6 +78,9 @@ export function allowTab(t: AllowTab): { headers: PageHeaders; body: string } {
   const name = esc(t.clientName);
   const body =
     `<h1 id="title">${name} wants to join ${esc(t.spaceName)}</h1><p class="tag">That name is what the app calls itself. Vyre has not checked it.</p>` +
+    (t.clientHost
+      ? `<p class="warn">This app names itself by <b>${esc(t.clientHost)}</b>. Its name is its own word: allow it only if you started this.</p>`
+      : "") +
     (t.redirectHost
       ? `<p class="warn">When you allow this, it goes to <b>${esc(t.redirectHost)}</b>, not an app on this computer.</p>`
       : "") +

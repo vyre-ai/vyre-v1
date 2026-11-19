@@ -21,33 +21,33 @@ if ("version" in o94) lf(o94["version"], p + "/version", e, L1);
 
 function d_s_21a2f633a7(v: unknown, p: string, e: string[]): void {
 {
-const x162 = v;
-const g162 = typeOf(x162);
-const b162: string[] = []; lf(x162, p, b162, L0); if (b162.length) e.push(...b162);
-if (g162 === "object") {
-if (g162 === 'object') { const o162 = x162 as Record<string, unknown>;
-if (!("kitId" in o162)) e.push(p + "/kitId" + ': required');
-if (!("key" in o162)) e.push(p + "/key" + ': required');
-if (!("title" in o162)) e.push(p + "/title" + ': required');
-if (!("version" in o162)) e.push(p + "/version" + ': required');
-if (!("channel" in o162)) e.push(p + "/channel" + ': required');
-if (!("installed" in o162)) e.push(p + "/installed" + ': required');
-if (!("contents" in o162)) e.push(p + "/contents" + ': required');
-if ("kitId" in o162) lf(o162["kitId"], p + "/kitId", e, L68);
-if ("key" in o162) lf(o162["key"], p + "/key", e, L1);
-if ("title" in o162) lf(o162["title"], p + "/title", e, L1);
-if ("version" in o162) lf(o162["version"], p + "/version", e, L1);
-if ("channel" in o162) lf(o162["channel"], p + "/channel", e, L104);
-if ("installed" in o162) lf(o162["installed"], p + "/installed", e, L3);
-if ("contents" in o162) {
-{
-const x163 = o162["contents"];
+const x163 = v;
 const g163 = typeOf(x163);
-const b163: string[] = []; lf(x163, p + "/contents", b163, L4); if (b163.length) e.push(...b163);
-if (g163 === "array") {
-if (g163 === 'array') { const a163 = x163 as unknown[];
-for (let i163 = 0; i163 < a163.length; i163++) {
-lf(a163[i163], p + "/contents" + '/' + i163, e, L105);
+const b163: string[] = []; lf(x163, p, b163, L0); if (b163.length) e.push(...b163);
+if (g163 === "object") {
+if (g163 === 'object') { const o163 = x163 as Record<string, unknown>;
+if (!("kitId" in o163)) e.push(p + "/kitId" + ': required');
+if (!("key" in o163)) e.push(p + "/key" + ': required');
+if (!("title" in o163)) e.push(p + "/title" + ': required');
+if (!("version" in o163)) e.push(p + "/version" + ': required');
+if (!("channel" in o163)) e.push(p + "/channel" + ': required');
+if (!("installed" in o163)) e.push(p + "/installed" + ': required');
+if (!("contents" in o163)) e.push(p + "/contents" + ': required');
+if ("kitId" in o163) lf(o163["kitId"], p + "/kitId", e, L68);
+if ("key" in o163) lf(o163["key"], p + "/key", e, L1);
+if ("title" in o163) lf(o163["title"], p + "/title", e, L1);
+if ("version" in o163) lf(o163["version"], p + "/version", e, L1);
+if ("channel" in o163) lf(o163["channel"], p + "/channel", e, L104);
+if ("installed" in o163) lf(o163["installed"], p + "/installed", e, L3);
+if ("contents" in o163) {
+{
+const x164 = o163["contents"];
+const g164 = typeOf(x164);
+const b164: string[] = []; lf(x164, p + "/contents", b164, L4); if (b164.length) e.push(...b164);
+if (g164 === "array") {
+if (g164 === 'array') { const a164 = x164 as unknown[];
+for (let i164 = 0; i164 < a164.length; i164++) {
+lf(a164[i164], p + "/contents" + '/' + i164, e, L105);
 }
 }
 }

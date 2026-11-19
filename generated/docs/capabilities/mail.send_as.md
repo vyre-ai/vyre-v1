@@ -17,7 +17,7 @@ Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from th
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/mail/send_as |
-| MCP tool | mail_send_as (inbox, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | message.sent, message.failed |
 

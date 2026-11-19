@@ -11,13 +11,13 @@ Take an always-allow rule away: the hook guards that kind of act again
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when actor.kind == 'agent' |
+| Gate | none |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/hooks/allow_remove |
-| MCP tool | hooks_allow_remove (engineer, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | hook.changed |
 

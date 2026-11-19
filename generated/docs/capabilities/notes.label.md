@@ -17,7 +17,7 @@ Add or remove labels on a note
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/notes/label |
-| MCP tool | notes_label (memory, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | notes.updated |
 

@@ -1,12 +1,13 @@
 // What an outside app did, in plain words (lane r42-mcp, 19 Nov 2026): "Added a task", "Read 3 files". Built from the capability name alone, so a title, a field or a value never leaves a record: this is what Connected
 // apps and the activity list show. Pure: no clock, no I/O.
-type Kind = "add" | "read" | "change" | "remove" | "send";
+type Kind = "add" | "read" | "change" | "remove" | "send" | "export";
 const KIND: ReadonlyArray<readonly [RegExp, Kind]> = [
-  [/(^|[._])(delete|remove|trash|purge|cancel|withdraw|archive|revoke|clear)($|[._])/, "remove"],
+  [/(^|[._])(delete|remove|trash|purge|purge_trashed|erase|cancel|withdraw|archive|revoke|clear)($|[._])/, "remove"],
+  [/(^|[._])(export|export_start|download)($|[._])/, "export"],
   [/(^|[._])(send|remind|reply|forward|launch|invite|share|publish|deploy)($|[._])/, "send"],
   [/(^|[._])(create|add|put|make|post|save|upload|start|new|append|import|capture|request)($|[._])/, "add"],
-  [/(^|[._])(update|set|edit|rename|move|label|pin|assign|transition|complete|tick|change|merge|restore|resume|decide|apply)($|[._])/, "change"],
-  [/(^|[._])(get|read|list|query|search|find|recent|history|count|counts|view|describe|types|changes|brief|context|status|check|verify|today)($|[._])/, "read"],
+  [/(^|[._])(update|set|edit|rename|move|label|pin|pause|mute|assign|transition|complete|tick|change|merge|restore|resume|decide|apply|allow|deny|discuss|assist|adopt|setup)($|[._])/, "change"],
+  [/(^|[._])(get|read|list|query|search|find|recent|history|count|counts|view|describe|types|changes|brief|context|status|check|verify|today|image|policy|for_service|public_of)($|[._])/, "read"],
 ];
 const NOUN: Readonly<Record<string, readonly [string, string]>> = {
   records: ["a record", "records"],
@@ -23,6 +24,12 @@ const NOUN: Readonly<Record<string, readonly [string, string]>> = {
   memory: ["a memory", "memories"],
   automations: ["an Automation", "Automations"],
   runs: ["a run", "runs"],
+  backup: ["everything in this Space", "everything in this Space"],
+  hooks: ["a hook", "hooks"],
+  telephony: ["a call or text", "calls and texts"],
+  plugins: ["a plugin setting", "plugin settings"],
+  gate: ["a Gate rule", "Gate rules"],
+  settings: ["a setting", "settings"],
   esign: ["a document for signing", "documents for signing"],
   documents: ["a document", "documents"],
   mail: ["an email", "emails"],
@@ -35,8 +42,8 @@ const NOUN: Readonly<Record<string, readonly [string, string]>> = {
   search: ["the Space", "the Space"],
   vault: ["a key", "keys"],
 };
-const PAST: Record<Kind, string> = { add: "Added", read: "Read", change: "Changed", remove: "Removed", send: "Sent" };
-const WANTS: Record<Kind, string> = { add: "add", read: "read", change: "change", remove: "remove", send: "send" };
+const PAST: Record<Kind, string> = { add: "Added", read: "Read", change: "Changed", remove: "Removed", send: "Sent", export: "Exported" };
+const WANTS: Record<Kind, string> = { add: "add", read: "read", change: "change", remove: "remove", send: "send", export: "export" };
 
 /** The kind of act a capability is, and the thing it is about; null when neither is known. */
 export function actOf(cap: string | undefined): { kind: Kind; noun: readonly [string, string] | null } | null {
@@ -55,7 +62,7 @@ export function doneWords(cap: string | undefined, outcome: "ok" | "error" | "he
   if (!act) return outcome === "held" ? "Wants to do something" : outcome === "error" ? "Tried something" : "Looked around";
   const n = Math.max(1, Math.floor(count));
   // a list, a search or a count reads many of them; a get reads one
-  const many = act.kind === "read" && !/\.get$/.test(cap as string);
+  const many = (act.kind === "read" && !/\.get$/.test(cap as string)) || /purge/.test(cap as string);
   const noun = act.noun === null ? "something" : n > 1 ? `${n} ${act.noun[1]}` : many ? act.noun[1] : act.noun[0];
   if (outcome === "held") return `Wants to ${WANTS[act.kind]} ${noun}`;
   if (outcome === "error") return `Could not ${WANTS[act.kind]} ${noun}`;

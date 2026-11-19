@@ -17,7 +17,7 @@ What a held test read would send: the Vault item (as the server reads the refere
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/automations/key_hosts/pending |
-| MCP tool | automations_key_hosts_pending (automations, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

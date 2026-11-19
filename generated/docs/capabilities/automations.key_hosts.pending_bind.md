@@ -17,7 +17,7 @@ What a held key binding would do: the Vault keys (as the server reads them, for 
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/automations/key_hosts/pending_bind |
-| MCP tool | automations_key_hosts_pending_bind (automations, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

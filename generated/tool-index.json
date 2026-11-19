@@ -43,12 +43,6 @@
       "toolset": "meta"
     },
     {
-      "deferred": true,
-      "name": "access_automation_senders",
-      "summary": "A person's press gives a Space Automation use of the mailboxes and numbers its send steps name, inside that person's own access, and takes back what no step names any more",
-      "toolset": "engineer"
-    },
-    {
       "deferred": false,
       "name": "access_check",
       "summary": "Access checker: can principal P do action A on resource R, with each step in plain words",
@@ -830,18 +824,6 @@
     },
     {
       "deferred": true,
-      "name": "automations_key_hosts_pending",
-      "summary": "What a held test read would send: the Vault item (as the server reads the reference, for the person looking) and the host. The card names the key from this. Names only, never a value.",
-      "toolset": "automations"
-    },
-    {
-      "deferred": true,
-      "name": "automations_key_hosts_pending_bind",
-      "summary": "What a held key binding would do: the Vault keys (as the server reads them, for the person looking) and every domain of the connector. Names only, never a value.",
-      "toolset": "automations"
-    },
-    {
-      "deferred": true,
       "name": "automations_key_hosts_remove",
       "summary": "A person who may use a Vault key removes a host it was approved for. The next use of the key there waits for a person again.",
       "toolset": "automations"
@@ -1177,12 +1159,6 @@
       "toolset": "automations"
     },
     {
-      "deferred": true,
-      "name": "browser_cards_post",
-      "summary": "Leave a card in a chat for work in the person's own Chrome: a held send with the page's To, From, Subject and Message, or the \"Using your Chrome\" step with a masked picture. Never routes to an agent",
-      "toolset": "agents"
-    },
-    {
       "deferred": false,
       "name": "browser_sites_list",
       "summary": "The Browser connections: sites agents may use, where each runs, and each agent's right (Read only or Act). A person sees their own; an agent sees the sites that name it",
@@ -1192,12 +1168,6 @@
       "deferred": true,
       "name": "browser_sites_remove",
       "summary": "Remove a Browser connection",
-      "toolset": "agents"
-    },
-    {
-      "deferred": true,
-      "name": "browser_sites_set",
-      "summary": "Add a Browser connection, or change one: where it runs and which agents may Read only or Act. Sends, posts, payments and deletes are always held for you",
       "toolset": "agents"
     },
     {
@@ -1762,12 +1732,6 @@
       "deferred": false,
       "name": "chat_thread",
       "summary": "Open or create the inline thread under a message; an @mentioned agent works inside it",
-      "toolset": "chats"
-    },
-    {
-      "deferred": true,
-      "name": "chat_transcript_purge",
-      "summary": "Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)",
       "toolset": "chats"
     },
     {
@@ -3613,12 +3577,6 @@
       "toolset": "files"
     },
     {
-      "deferred": true,
-      "name": "files_versions_purge",
-      "summary": "Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)",
-      "toolset": "files"
-    },
-    {
       "deferred": false,
       "name": "files_viewer_data",
       "summary": "Everything the one viewer needs for any file type: text projection, pages, preview address, sheet info, export snapshot for Google-native files, and what the caller may do",
@@ -3802,18 +3760,6 @@
       "deferred": true,
       "name": "gate_allow_list",
       "summary": "What may go without asking: your Always allow rules and the automations your press gave permission to",
-      "toolset": "engineer"
-    },
-    {
-      "deferred": true,
-      "name": "gate_allow_remove",
-      "summary": "Take an Always allow rule or an automation's permission back. It stops at the next act",
-      "toolset": "engineer"
-    },
-    {
-      "deferred": true,
-      "name": "gate_allow_set",
-      "summary": "Always allow: a rule the Gate reads, for one agent or one chat, one act and one target, with an expiry. Local changes are a person's to allow; an outward act needs an admin; money is never allowed this way",
       "toolset": "engineer"
     },
     {
@@ -4771,36 +4717,6 @@
       "toolset": "meta"
     },
     {
-      "deferred": true,
-      "name": "hooks_allow_always",
-      "summary": "Always allow: from now on this hook lets the same kind of act (the one its newest stop in this chat was about) go by, in its own scope, and keeps guarding the rest. A person presses it, where they may change the hook",
-      "toolset": "engineer"
-    },
-    {
-      "deferred": true,
-      "name": "hooks_allow_once",
-      "summary": "Let a hook that stopped something go by, once, in this chat: the next time it would stop the same kind of call it lets it through. A person presses it, never an agent; a Space hook only an admin may let through. The pass ends after one use or ten minutes",
-      "toolset": "engineer"
-    },
-    {
-      "deferred": true,
-      "name": "hooks_allow_remove",
-      "summary": "Take an always-allow rule away: the hook guards that kind of act again",
-      "toolset": "engineer"
-    },
-    {
-      "deferred": true,
-      "name": "hooks_ask_admin",
-      "summary": "Ask the Space admins about a hook that stopped something: one Inbox line for each admin, and a quiet line in the chat saying you asked",
-      "toolset": "engineer"
-    },
-    {
-      "deferred": true,
-      "name": "hooks_deny",
-      "summary": "Deny: the stop stands. The stop line is marked for everyone in the chat and the agent is told on its next turn. A person presses it, where they may change the hook",
-      "toolset": "engineer"
-    },
-    {
       "deferred": false,
       "name": "hooks_list",
       "summary": "List hooks: the Space's, yours, and an agent's or one chat's. Each has a plain line, when it runs, what it does and who made it. Use this before you add one",
@@ -5614,12 +5530,6 @@
       "deferred": false,
       "name": "mail_send",
       "summary": "Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": true,
-      "name": "mail_send_as",
-      "summary": "Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from the inbox the thread came in on)",
       "toolset": "inbox"
     },
     {
@@ -7018,12 +6928,6 @@
       "deferred": true,
       "name": "notes_image",
       "summary": "The image of a note (or a clip screenshot), or with part link its link card picture, for someone who may read it",
-      "toolset": "memory"
-    },
-    {
-      "deferred": true,
-      "name": "notes_label",
-      "summary": "Add or remove labels on a note",
       "toolset": "memory"
     },
     {

@@ -20,7 +20,6 @@ export const MCP_TOOLS: Readonly<Record<string, Toolset>> = {
   "records.counts": "records",
   "esign.remind": "files",
   "esign.verify": "files",
-  "mail.send_as": "inbox",
   "settings.public_of": "meta",
   "plugins.hooks.list": "agents",
   "plugins.connections.policy": "agents",
@@ -29,11 +28,7 @@ export const MCP_TOOLS: Readonly<Record<string, Toolset>> = {
   // Console set-up: admins' tools. What changes access, a connection or a key waits for a person's yes (MCP_HELD).
   "automations.key_hosts.allow": "automations",
   "automations.key_hosts.remove": "automations",
-  "automations.key_hosts.pending": "automations",
-  "automations.key_hosts.pending_bind": "automations",
-  "browser.sites.set": "agents",
   "browser.sites.remove": "agents",
-  "browser.cards.post": "agents",
   "chat.agent_dm.mute": "chats",
   "connectors.check_key": "engineer",
   "connectors.for_service": "engineer",
@@ -45,16 +40,9 @@ export const MCP_TOOLS: Readonly<Record<string, Toolset>> = {
   "hooks.policy.get": "engineer",
   "hooks.policy.set": "engineer",
   "hooks.pause": "engineer",
-  "hooks.allow_always": "engineer",
-  "hooks.allow_once": "engineer",
-  "hooks.allow_remove": "engineer",
-  "hooks.deny": "engineer",
-  "hooks.ask_admin": "engineer",
   // erase and purge: always held for a person's explicit yes
   "channels.erase": "chats",
   "threads.erase": "chats",
-  "chat.transcript.purge": "chats",
-  "files.versions_purge": "files",
   "inbox.item.erase": "inbox",
   "mail.message.erase": "inbox",
   "telephony.call.erase": "inbox",
@@ -66,16 +54,12 @@ export const MCP_TOOLS: Readonly<Record<string, Toolset>> = {
   "runs.purge": "automations",
   // a person's things that an agent may do for them
   "notes.list": "memory",
-  "notes.label": "memory",
   "notes.pin": "memory",
   "notes.update": "memory",
   "notes.image": "memory",
-  "access.automation_senders": "engineer",
   "backup.export_start": "engineer",
   "backup.restore": "engineer",
   "gate.allow.list": "engineer",
-  "gate.allow.set": "engineer",
-  "gate.allow.remove": "engineer",
   "mcp.connected.list": "meta",
   "sites.password_set": "sites",
 };
@@ -84,7 +68,6 @@ export const MCP_TOOLS: Readonly<Record<string, Toolset>> = {
 export const MCP_HELD: Readonly<Record<string, string>> = {
   "automations.key_hosts.allow": "connection_change",
   "automations.key_hosts.remove": "connection_change",
-  "browser.sites.set": "connection_change",
   "browser.sites.remove": "connection_change",
   "plugins.connections.policy_set": "connection_change",
   "skills.policy.set": "connection_change",
@@ -93,14 +76,8 @@ export const MCP_HELD: Readonly<Record<string, string>> = {
   "skills.space.update": "connection_change",
   "hooks.policy.set": "approve",
   "hooks.pause": "approve",
-  "hooks.allow_always": "approve",
-  "hooks.allow_once": "approve",
-  "hooks.allow_remove": "approve",
-  "hooks.deny": "approve",
   "channels.erase": "delete",
   "threads.erase": "delete",
-  "chat.transcript.purge": "delete",
-  "files.versions_purge": "delete",
   "inbox.item.erase": "delete",
   "mail.message.erase": "delete",
   "telephony.call.erase": "delete",
@@ -110,10 +87,7 @@ export const MCP_HELD: Readonly<Record<string, string>> = {
   "records.purge_trashed": "delete",
   "runs.erase": "delete",
   "runs.purge": "delete",
-  "access.automation_senders": "signin_change",
   "backup.export_start": "approve",
-  "gate.allow.set": "approve",
-  "gate.allow.remove": "approve",
   "sites.password_set": "signin_change",
 };
 
@@ -125,6 +99,8 @@ const PROVIDER =
 const PUBLIC = "Public page for a visitor, no sign-in: the visitor's own act.";
 const SEALED = "A sealed value is revealed to a person, one at a time; it never reaches an agent.";
 const PRESS = "Answering a held card, or a card's own button, is the person's press.";
+const NOTES = "A note's labels are the person's own filing; an agent edits the note (notes_update).";
+const CONSOLE = "Retention clean-up of old messages and file versions is a Console job for a person with Manage.";
 const COMPUTER = "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
 /** First match wins; a rule names why a capability has no MCP tool. A capability in MCP_TOOLS has none. */
@@ -134,7 +110,11 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   [/^(access\.(exceptions\.lapse|projection_health|join_share)|members\.invites\.guest$|hooks\.fire|scheduler|steps|webhooks|audit|engine|scheduler-api|sync|governance|state|steps-core|search|previews|logs|sources|mounts|events|updates|network|git|home|notifications|telephony\.ingest_|calendar\.|meetings|contacts\.|inbox\.link_message|mail\.(auto_connect|ingest|member_pause|status_update|unsubscribe)|runs\.(finish|mark_waiting|pin_version|record_|start|states|status)|tasks\.(clock|escalate|held_revise|withdraw)|journeys\.|goals\.(go|wake_claim)|automations\.(fire|code_reach)|chat\.(chapters_write|hook_|title_make|transcript\.(append|summar))|memory\.(archive_sweep|capture|index_graph|key\.resolve|maintain|pointer|recall\.|find_by_subject|profile\.context)|agents\.(assistant_of|config\.|memory_key|outside\.|routine|share_class|snapshot)|connections\.mark_working|connectors\.(push|read|sync_poll|sync_run|complete_auth)|channels\.home_join|console\.assistant_context_set|notifications\.|projects\.shared_view|threads\.open_state|spaces\.image|plugins\.files|esign\.(health|hook)|files\.health|computers\.health|vault\.(report_scrub_miss|service_health|text_check|mark_signin_needed))/, SYSTEM],
   [/^(identity|devices)\.|^connections\.complete_auth$|^mcp\.(oauth\.|session\.mint|setup\.set|connected\.remove)|^portal\.|^sites\.signin_link$|^access\.actors\.redeem$|^members\.|^vault\./, CREDENTIAL],
   [/^gate\.links\.known$/, SYSTEM],
-  [/^gate\./, GATE],
+  [/^gate\.|^hooks\.(allow_|deny|ask_admin)/, GATE],
+  [/^automations\.key_hosts\.pending|^browser\.cards\.post$|^access\.automation_senders$|^browser\.sites\.set$/, PRESS],
+  [/^mail\.send_as$/, PROVIDER],
+  [/^notes\.label$/, NOTES],
+  [/^(chat\.transcript\.purge|files\.versions_purge)$/, CONSOLE],
   [/^(twilio|mailgun|resend|google|microsoft|ms|dropbox|dropbox-sign|dropbox_sign|providers|documenso|docusign|github|stripe|zoom|hubspot)\./, PROVIDER],
   [/^(forms|bookings|esign\.signer_)/, PUBLIC],
   [/^records\.reveal$/, SEALED],

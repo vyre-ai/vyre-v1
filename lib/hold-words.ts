@@ -164,6 +164,13 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
     const url = str(obj(input)["url"]);
     return url ? `open ${hostOfLink(url)}` : "open a link";
   }
+  // approving where a Vault key may be sent: the card always names the host, so nobody approves a destination blind (r-review, 19 Nov)
+  if (cap === "automations.key_hosts.allow" || cap === "automations.key_hosts.remove") {
+    const raw = str(obj(input)["host"]).trim();
+    const host = raw === "" ? "" : hostOfLink(/^[a-z]+:\/\//i.test(raw) ? raw : `https://${raw}`).slice(0, 80);
+    if (cap === "automations.key_hosts.allow") return host ? `let a key be sent to ${host}` : "let a key be sent to another host";
+    return host ? `stop a key being sent to ${host}` : "stop a key being sent to a host";
+  }
   if (cap === "automations.read_docs") return "read the documentation";
   // "Ada wants to change the Space time zone to Pacific Time": the zone is named in the person's words, not as an id
   if (cap === "spaces.timezone.set") {

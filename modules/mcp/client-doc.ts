@@ -2,7 +2,7 @@
 // the way a browser would from a stranger: only a public https address, never a private one (lib/net-guard.ts), small, quick, one try, and the page must name the address it was read from. What it says is kept as
 // an ordinary registered client, trusted no more than a registered one: nothing happens until a person presses Allow. Dynamic registration stays.
 import type { Db } from "./projections.ts";
-import { cleanClientName, redirectKind, MAX_REDIRECTS } from "./oauth.ts";
+import { cleanClientName, redirectKind, MAX_CLIENTS, MAX_REDIRECTS, UNUSED_CLIENT_MS } from "./oauth.ts";
 
 export const MAX_DOC_BYTES = 5 * 1024;
 export const DOC_TIMEOUT_MS = 3000;
@@ -76,8 +76,17 @@ export async function fetchDoc(
   }
 }
 
-/** Keep what the page said as a registered client (or refresh it: the page is the source of truth for an app that names itself this way). */
-export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectUris: string[] }, now: number): void {
+/**
+ * Keep what the page said as a registered client (or refresh it: the page is the source of truth for an app that names itself this way). The same cap as registration applies: unused clients older than a day
+ * go first, and past MAX_CLIENTS a new address is refused, so no number of made-up addresses fills the table. Answers whether it was kept.
+ */
+export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectUris: string[] }, now: number): boolean {
+  const known = (db.all("SELECT 1 AS x FROM mcp_oauth_clients WHERE client_id = ?", doc.clientId) as unknown[]).length > 0;
+  if (!known) {
+    db.run("DELETE FROM mcp_oauth_clients WHERE used_at IS NULL AND created_at < ?", now - UNUSED_CLIENT_MS);
+    const n = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
+    if (n >= MAX_CLIENTS) return false;
+  }
   db.run(
     "INSERT INTO mcp_oauth_clients (client_id, name, redirect_uris, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET name = excluded.name, redirect_uris = excluded.redirect_uris, created_at = excluded.created_at",
     doc.clientId,
@@ -85,4 +94,5 @@ export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectU
     JSON.stringify(doc.redirectUris),
     now,
   );
+  return true;
 }

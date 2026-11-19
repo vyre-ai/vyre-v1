@@ -287,136 +287,6 @@
     },
     {
       "blocks": [],
-      "cap": "access.automation_senders",
-      "deferred": true,
-      "description": "A person's press gives a Space Automation use of the mailboxes and numbers its send steps name, inside that person's own access, and takes back what no step names any more",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "automationId": {
-            "examples": [
-              "aut_a1b2c3"
-            ],
-            "pattern": "^aut_[a-z0-9]+$",
-            "type": "string"
-          },
-          "give": {
-            "items": {
-              "properties": {
-                "id": {
-                  "examples": [
-                    "rec_a1b2c3"
-                  ],
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "space",
-                    "record_type",
-                    "record",
-                    "project",
-                    "folder",
-                    "file",
-                    "channel",
-                    "thread",
-                    "inbox",
-                    "mailbox",
-                    "vault_folder",
-                    "vault_item",
-                    "automation_group",
-                    "automation",
-                    "agent",
-                    "connector",
-                    "connection",
-                    "site",
-                    "form",
-                    "kit",
-                    "terminal",
-                    "computer",
-                    "task",
-                    "run",
-                    "number",
-                    "domain",
-                    "calendar",
-                    "skill"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "id"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "keep": {
-            "items": {
-              "properties": {
-                "id": {
-                  "examples": [
-                    "rec_a1b2c3"
-                  ],
-                  "type": "string"
-                },
-                "type": {
-                  "enum": [
-                    "space",
-                    "record_type",
-                    "record",
-                    "project",
-                    "folder",
-                    "file",
-                    "channel",
-                    "thread",
-                    "inbox",
-                    "mailbox",
-                    "vault_folder",
-                    "vault_item",
-                    "automation_group",
-                    "automation",
-                    "agent",
-                    "connector",
-                    "connection",
-                    "site",
-                    "form",
-                    "kit",
-                    "terminal",
-                    "computer",
-                    "task",
-                    "run",
-                    "number",
-                    "domain",
-                    "calendar",
-                    "skill"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "id"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "automationId",
-          "give",
-          "keep"
-        ],
-        "type": "object"
-      },
-      "name": "access_automation_senders",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "access.check",
       "deferred": false,
       "description": "Access checker: can principal P do action A on resource R, with each step in plain words",
@@ -6931,100 +6801,6 @@
     },
     {
       "blocks": [],
-      "cap": "automations.key_hosts.pending",
-      "deferred": true,
-      "description": "What a held test read would send: the Vault item (as the server reads the reference, for the person looking) and the host. The card names the key from this. Names only, never a value.",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "actionKey": {
-            "type": "string"
-          },
-          "domains": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "header": {
-            "type": "string"
-          },
-          "markedSafe": {
-            "type": "boolean"
-          },
-          "method": {
-            "type": "string"
-          },
-          "path": {
-            "type": "string"
-          },
-          "prefix": {
-            "type": "string"
-          },
-          "vaultItemId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "path",
-          "domains",
-          "vaultItemId"
-        ],
-        "type": "object"
-      },
-      "name": "automations_key_hosts_pending",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "automations.key_hosts.pending_bind",
-      "deferred": true,
-      "description": "What a held key binding would do: the Vault keys (as the server reads them, for the person looking) and every domain of the connector. Names only, never a value.",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "connectionId": {
-            "type": "string"
-          },
-          "connector": {
-            "type": "string"
-          },
-          "handle": {
-            "type": "string"
-          },
-          "ownerKind": {
-            "type": "string"
-          },
-          "scopes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "secrets": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          },
-          "slot": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "name": "automations_key_hosts_pending_bind",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "automations.key_hosts.remove",
       "deferred": true,
       "description": "A person who may use a Vault key removes a host it was approved for. The next use of the key there waits for a person again.",
@@ -9468,60 +9244,6 @@
     },
     {
       "blocks": [],
-      "cap": "browser.cards.post",
-      "deferred": true,
-      "description": "Leave a card in a chat for work in the person's own Chrome: a held send with the page's To, From, Subject and Message, or the \"Using your Chrome\" step with a masked picture. Never routes to an agent",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "block": {
-            "properties": {
-              "data": {
-                "description": "Any JSON value"
-              },
-              "type": {
-                "enum": [
-                  "chrome_held",
-                  "chrome_step"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "data"
-            ],
-            "type": "object"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "threadId",
-          "block",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "browser_cards_post",
-      "planMode": "blocked",
-      "toolset": "agents",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "browser.sites.list",
       "deferred": false,
       "description": "The Browser connections: sites agents may use, where each runs, and each agent's right (Read only or Act). A person sees their own; an agent sees the sites that name it",
@@ -9557,75 +9279,6 @@
         "type": "object"
       },
       "name": "browser_sites_remove",
-      "planMode": "blocked",
-      "toolset": "agents",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "browser.sites.set",
-      "deferred": true,
-      "description": "Add a Browser connection, or change one: where it runs and which agents may Read only or Act. Sends, posts, payments and deletes are always held for you",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "host": {
-            "examples": [
-              "app.gohighlevel.com"
-            ],
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "rights": {
-            "items": {
-              "properties": {
-                "agentId": {
-                  "examples": [
-                    "agt_a1b2c3"
-                  ],
-                  "pattern": "^agt_[a-z0-9]+$",
-                  "type": "string"
-                },
-                "right": {
-                  "enum": [
-                    "read",
-                    "act"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "agentId",
-                "right"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "runsIn": {
-            "enum": [
-              "chrome",
-              "computers",
-              "both"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "host",
-          "runsIn",
-          "rights",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "browser_sites_set",
       "planMode": "blocked",
       "toolset": "agents",
       "v": 1
@@ -13670,56 +13323,6 @@
     },
     {
       "blocks": [],
-      "cap": "chat.transcript.purge",
-      "deferred": true,
-      "description": "Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "before": {
-            "description": "Milliseconds since the Unix epoch",
-            "examples": [
-              1760000000000
-            ],
-            "minimum": 0,
-            "type": "integer"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 5000,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "skipThreadIds": {
-            "items": {
-              "examples": [
-                "thr_a1b2c3"
-              ],
-              "pattern": "^thr_[a-z0-9]+$",
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "before",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "chat_transcript_purge",
-      "planMode": "blocked",
-      "toolset": "chats",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "chat.unpin",
       "deferred": false,
       "description": "Remove the pinned marker from a message",
@@ -13845,7 +13448,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "ref": {
@@ -13905,7 +13508,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "method": {
@@ -13954,7 +13557,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "steps": {
@@ -14017,7 +13620,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "ref": {
@@ -14061,7 +13664,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "level": {
@@ -14108,7 +13711,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "tabId": {
@@ -14165,7 +13768,7 @@
             "type": "array"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "tabId": {
@@ -14199,7 +13802,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "ref": {
@@ -14246,7 +13849,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "limit": {
@@ -14282,7 +13885,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "newTab": {
@@ -14325,7 +13928,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "steps": {
@@ -14361,7 +13964,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           }
         },
@@ -14393,7 +13996,7 @@
             "type": "boolean"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "ref": {
@@ -14441,7 +14044,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           }
         },
@@ -14479,7 +14082,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "selector": {
@@ -14513,7 +14116,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "tabId": {
@@ -14544,7 +14147,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "tabId": {
@@ -14575,7 +14178,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           }
         },
@@ -14602,7 +14205,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "reason": {
@@ -14642,7 +14245,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "site": {
@@ -14686,7 +14289,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "ref": {
@@ -14733,7 +14336,7 @@
             "type": "string"
           },
           "inMyChrome": {
-            "description": "Work in the asking person's own Chrome (Vyre for Chrome on their computer) instead of the Space browser. Set it ONLY when the person asked for it in this turn (\"in my Chrome\", \"on my computer\", or the Use my Chrome choice); it is refused otherwise. Leave it out for all other browsing",
+            "description": "Use the person's own Chrome, only when they asked for it this turn; refused otherwise",
             "type": "boolean"
           },
           "tabId": {
@@ -24594,56 +24197,6 @@
     },
     {
       "blocks": [],
-      "cap": "files.versions_purge",
-      "deferred": true,
-      "description": "Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "before": {
-            "description": "Milliseconds since the Unix epoch",
-            "examples": [
-              1760000000000
-            ],
-            "minimum": 0,
-            "type": "integer"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 5000,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "skipFileIds": {
-            "items": {
-              "examples": [
-                "fil_a1b2c3"
-              ],
-              "pattern": "^fil_[a-z0-9]+$",
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "before",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "files_versions_purge",
-      "planMode": "blocked",
-      "toolset": "files",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "files.viewer_data",
       "deferred": false,
       "description": "Everything the one viewer needs for any file type: text projection, pages, preview address, sheet info, export snapshot for Google-native files, and what the caller may do",
@@ -25906,96 +25459,6 @@
       },
       "name": "gate_allow_list",
       "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "gate.allow.remove",
-      "deferred": true,
-      "description": "Take an Always allow rule or an automation's permission back. It stops at the next act",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
-      },
-      "name": "gate_allow_remove",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "gate.allow.set",
-      "deferred": true,
-      "description": "Always allow: a rule the Gate reads, for one agent or one chat, one act and one target, with an expiry. Local changes are a person's to allow; an outward act needs an admin; money is never allowed this way",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "act": {
-            "enum": [
-              "send",
-              "post",
-              "pay",
-              "delete",
-              "transfer",
-              "enroll_node",
-              "connection_change",
-              "push_protected",
-              "secret_export",
-              "site_promote",
-              "signature_send",
-              "spend_raise",
-              "signin_change",
-              "install",
-              "approve",
-              "github_approval",
-              "agent_erase"
-            ],
-            "type": "string"
-          },
-          "agentId": {
-            "examples": [
-              "agt_a1b2c3"
-            ],
-            "pattern": "^agt_[a-z0-9]+$",
-            "type": "string"
-          },
-          "days": {
-            "maximum": 90,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "recipient": {
-            "type": "boolean"
-          },
-          "target": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "act",
-          "target"
-        ],
-        "type": "object"
-      },
-      "name": "gate_allow_set",
-      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
@@ -33448,173 +32911,6 @@
     },
     {
       "blocks": [],
-      "cap": "hooks.allow_always",
-      "deferred": true,
-      "description": "Always allow: from now on this hook lets the same kind of act (the one its newest stop in this chat was about) go by, in its own scope, and keeps guarding the rest. A person presses it, where they may change the hook",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "messageId": {
-            "examples": [
-              "msg_a1b2c3"
-            ],
-            "pattern": "^msg_[a-z0-9]+$",
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "threadId"
-        ],
-        "type": "object"
-      },
-      "name": "hooks_allow_always",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "hooks.allow_once",
-      "deferred": true,
-      "description": "Let a hook that stopped something go by, once, in this chat: the next time it would stop the same kind of call it lets it through. A person presses it, never an agent; a Space hook only an admin may let through. The pass ends after one use or ten minutes",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "messageId": {
-            "examples": [
-              "msg_a1b2c3"
-            ],
-            "pattern": "^msg_[a-z0-9]+$",
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "threadId"
-        ],
-        "type": "object"
-      },
-      "name": "hooks_allow_once",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "hooks.allow_remove",
-      "deferred": true,
-      "description": "Take an always-allow rule away: the hook guards that kind of act again",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
-      },
-      "name": "hooks_allow_remove",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "hooks.ask_admin",
-      "deferred": true,
-      "description": "Ask the Space admins about a hook that stopped something: one Inbox line for each admin, and a quiet line in the chat saying you asked",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "note": {
-            "maxLength": 300,
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "threadId"
-        ],
-        "type": "object"
-      },
-      "name": "hooks_ask_admin",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "hooks.deny",
-      "deferred": true,
-      "description": "Deny: the stop stands. The stop line is marked for everyone in the chat and the agent is told on its next turn. A person presses it, where they may change the hook",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "messageId": {
-            "examples": [
-              "msg_a1b2c3"
-            ],
-            "pattern": "^msg_[a-z0-9]+$",
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "threadId"
-        ],
-        "type": "object"
-      },
-      "name": "hooks_deny",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "hooks.list",
       "deferred": false,
       "description": "List hooks: the Space's, yours, and an agent's or one chat's. Each has a plain line, when it runs, what it does and who made it. Use this before you add one",
@@ -39204,174 +38500,6 @@
         "type": "object"
       },
       "name": "mail_send",
-      "planMode": "blocked",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.send_as",
-      "deferred": true,
-      "description": "Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from the inbox the thread came in on)",
-      "effects": "outward",
-      "inputSchema": {
-        "properties": {
-          "attachments": {
-            "items": {
-              "examples": [
-                "fil_a1b2c3"
-              ],
-              "pattern": "^fil_[a-z0-9]+$",
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "bcc": {
-            "items": {
-              "properties": {
-                "address": {
-                  "examples": [
-                    "maya@example.com"
-                  ],
-                  "pattern": "^[^@\\s]+@[^@\\s]+$",
-                  "type": "string"
-                },
-                "contactId": {
-                  "examples": [
-                    "rec_a1b2c3"
-                  ],
-                  "pattern": "^rec_[a-z0-9]+$",
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "address"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "cc": {
-            "items": {
-              "properties": {
-                "address": {
-                  "examples": [
-                    "maya@example.com"
-                  ],
-                  "pattern": "^[^@\\s]+@[^@\\s]+$",
-                  "type": "string"
-                },
-                "contactId": {
-                  "examples": [
-                    "rec_a1b2c3"
-                  ],
-                  "pattern": "^rec_[a-z0-9]+$",
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "address"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "contactId": {
-            "examples": [
-              "rec_a1b2c3"
-            ],
-            "pattern": "^rec_[a-z0-9]+$",
-            "type": "string"
-          },
-          "draftId": {
-            "examples": [
-              "eml_a1b2c3"
-            ],
-            "pattern": "^eml_[a-z0-9]+$",
-            "type": "string"
-          },
-          "html": {
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "mailboxId": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          },
-          "replyToMessageId": {
-            "examples": [
-              "eml_a1b2c3"
-            ],
-            "pattern": "^eml_[a-z0-9]+$",
-            "type": "string"
-          },
-          "senderId": {
-            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "type": "string"
-          },
-          "subject": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          },
-          "to": {
-            "items": {
-              "properties": {
-                "address": {
-                  "examples": [
-                    "maya@example.com"
-                  ],
-                  "pattern": "^[^@\\s]+@[^@\\s]+$",
-                  "type": "string"
-                },
-                "contactId": {
-                  "examples": [
-                    "rec_a1b2c3"
-                  ],
-                  "pattern": "^rec_[a-z0-9]+$",
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "address"
-              ],
-              "type": "object"
-            },
-            "minItems": 1,
-            "type": "array"
-          }
-        },
-        "required": [
-          "mailboxId",
-          "to",
-          "subject",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "mail_send_as",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
@@ -48165,54 +47293,6 @@
       },
       "name": "notes_image",
       "planMode": "allowed",
-      "toolset": "memory",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "notes.label",
-      "deferred": true,
-      "description": "Add or remove labels on a note",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "add": {
-            "items": {
-              "examples": [
-                "Lab 8"
-              ],
-              "maxLength": 40,
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "noteId": {
-            "examples": [
-              "nte_a1b2c3"
-            ],
-            "pattern": "^nte_[a-z0-9]+$",
-            "type": "string"
-          },
-          "remove": {
-            "items": {
-              "examples": [
-                "Lab 8"
-              ],
-              "maxLength": 40,
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "noteId"
-        ],
-        "type": "object"
-      },
-      "name": "notes_label",
-      "planMode": "blocked",
       "toolset": "memory",
       "v": 1
     },

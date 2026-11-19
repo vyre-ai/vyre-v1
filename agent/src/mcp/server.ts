@@ -69,6 +69,12 @@ const META_SUBSCRIPTION = "io.modelcontextprotocol/subscriptionId";
 /** The most addresses one app watches, and the most streams one sign-in holds open. */
 const MAX_WATCHED = 100;
 const MAX_STREAMS = 8;
+/** The most streams the whole Space holds open, whoever asks: each costs a timer and a sign-in check every keep-alive. */
+const MAX_TOTAL_STREAMS = 200;
+/** A reserved stream whose response never started (the client went away between the answer and the first write) frees its place after this. */
+const UNSTARTED_MS = 10_000;
+/** A proof read that failed is not tried again for the same address and app for this long. */
+const DENIED_MS = 5_000;
 const KEEP_ALIVE_MS = 20_000;
 const SSE_HEADERS = { "content-type": "text/event-stream", "cache-control": "no-store", "x-accel-buffering": "no" };
 const sse = (message: unknown): string => `event: message\ndata: ${JSON.stringify(message)}\n\n`;
@@ -1025,9 +1031,30 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   /** An address that was just announced to a listener is not announced again within this time: one change often shows as several events (a task created and assigned). */
   const QUIET_MS = 300;
   const told = new WeakMap<Listener, Map<string, number>>();
+  /** Per listener: until when a failed proof read for a change is not made again, so a watcher of a hot address it may not read costs a read now and then, not one per event. */
+  const refused = new WeakMap<Listener, Map<string, number>>();
   const listeners = new Set<Listener>();
   const keepAliveMs = deps.keepAliveMs ?? KEEP_ALIVE_MS;
-  const streamsOf = (s: Session): number => [...listeners].filter((l) => l.s === s).length;
+  /** Places taken before a stream starts, so a burst of requests cannot all pass the check and then all open: the check and the taking are one step, with no wait between them. */
+  const taken = new WeakMap<Session, number>();
+  let takenTotal = 0;
+  function reserve(s: Session): { release(): void } | null {
+    if ((taken.get(s) ?? 0) >= MAX_STREAMS || takenTotal >= MAX_TOTAL_STREAMS) return null;
+    taken.set(s, (taken.get(s) ?? 0) + 1);
+    takenTotal += 1;
+    let done = false;
+    const release = (): void => {
+      if (done) return;
+      done = true;
+      taken.set(s, Math.max(0, (taken.get(s) ?? 1) - 1));
+      takenTotal = Math.max(0, takenTotal - 1);
+      clearTimeout(timer);
+    };
+    const timer = setTimeout(release, UNSTARTED_MS);
+    (timer as { unref?: () => void }).unref?.();
+    return { release };
+  }
+
 
   /**
    * A stream that stays open for one app. It is told only what it asked for, only while its sign-in stands (checked at every keep-alive, and before each notification), and it ends at once when the
@@ -1040,6 +1067,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     subId: Id,
     watch: { uris(): ReadonlySet<string>; prompts: boolean },
     ack: Record<string, unknown> | null,
+    slot: { release(): void },
   ): McpHttpResponse {
     const tag = subId === null ? {} : { _meta: { [META_SUBSCRIPTION]: subId } };
     return {
@@ -1047,6 +1075,15 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       headers: { ...SSE_HEADERS },
       body: "",
       stream: async ({ write, closed }) => {
+        try {
+          await run({ write, closed });
+        } finally {
+          slot.release();
+        }
+      },
+    };
+    async function run({ write, closed }: { write(chunk: string): void; closed: Promise<void> }): Promise<void> {
+      {
         let over: (why: "ended") => void = () => undefined;
         const ended = new Promise<"ended">((resolve) => {
           over = resolve;
@@ -1079,8 +1116,8 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         // an ending of our own doing says so, so the client knows it was not a dropped line; a client that went away is told nothing
         if (why !== "client" && subId !== null)
           write(sse(ok(subId, { resultType: "complete", _meta: { [META_SUBSCRIPTION]: subId, [META_SERVER]: info } })));
-      },
-    };
+      }
+    }
   }
 
   /** subscriptions/listen (2026-07-28): the one long request an app keeps open to be told what changed. It names what it wants; the acknowledgment names what it gets. */
@@ -1091,8 +1128,9 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const asked = (req.params as { notifications?: unknown } | null | undefined)?.notifications;
     if (id === null || asked === null || typeof asked !== "object" || Array.isArray(asked))
       return json(200, err(id, INVALID_PARAMS, "subscriptions/listen needs an id and a notifications object."));
-    if (streamsOf(s) >= MAX_STREAMS)
-      return json(429, err(id, INVALID_REQUEST, `One app holds at most ${MAX_STREAMS} streams open. Close one first.`));
+    const slot = reserve(s);
+    if (!slot)
+      return json(429, err(id, INVALID_REQUEST, `One app holds at most ${MAX_STREAMS} streams open, and this Space ${MAX_TOTAL_STREAMS}. Close one first.`));
     const want = asked as { promptsListChanged?: unknown; resourceSubscriptions?: unknown };
     // an address that is not one of this server's is left out of the acknowledgment, which is how the client learns it is not watched
     const uris = new Set(
@@ -1104,7 +1142,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     return openStream(s, token, origin, id, { uris: () => uris, prompts }, {
       ...(prompts ? { promptsListChanged: true } : {}),
       ...(Array.isArray(want.resourceSubscriptions) ? { resourceSubscriptions: [...uris] } : {}),
-    });
+    }, slot);
   }
 
   /** Tell the apps that are watching. Each is told only after the proof read passes as that app, so what an app may not see it does not hear of. */
@@ -1127,7 +1165,16 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
           sent += 1;
         }
         if (hits.length === 0) continue;
-        if (change.proof && !(await readFor(l.s, change.proof.tool, change.proof.args, false))) continue;
+        if (change.proof) {
+          const key = `${change.proof.tool} ${JSON.stringify(change.proof.args)}`;
+          const memo = refused.get(l) ?? new Map<string, number>();
+          refused.set(l, memo);
+          if (now() < (memo.get(key) ?? 0)) continue;
+          if (!(await readFor(l.s, change.proof.tool, change.proof.args, false))) {
+            memo.set(key, now() + DENIED_MS);
+            continue;
+          }
+        }
         if (!listeners.has(l)) continue;
         const recent = told.get(l) ?? new Map<string, number>();
         told.set(l, recent);
@@ -1170,8 +1217,9 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       if (known.caller.kind !== "outside") return empty(405, { allow: "POST, DELETE" });
       const s = await sessionFor(token, known.tokenKey, undefined, req.origin);
       if (!s) return unauthorized(req.origin, "invalid_token");
-      if (streamsOf(s) >= MAX_STREAMS) return empty(429);
-      return openStream(s, token, req.origin, null, { uris: () => s.subs, prompts: true }, null);
+      const slot = reserve(s);
+      if (!slot) return empty(429);
+      return openStream(s, token, req.origin, null, { uris: () => s.subs, prompts: true }, null, slot);
     }
     if (req.method !== "POST") return empty(405, { allow: "POST, DELETE" });
     const token = bearer(req.headers["authorization"]);

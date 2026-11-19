@@ -11,13 +11,13 @@ Always allow: from now on this hook lets the same kind of act (the one its newes
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when actor.kind == 'agent' |
+| Gate | none |
 | Idempotency | none |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/hooks/allow_always |
-| MCP tool | hooks_allow_always (engineer, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | hook.changed |
 

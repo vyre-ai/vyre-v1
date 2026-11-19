@@ -11,13 +11,13 @@ Remove messages and blocks older than a time from chats and channels, a batch at
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | delete when actor.kind == 'agent' |
+| Gate | none |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/chat/transcript/purge |
-| MCP tool | chat_transcript_purge (chats, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | transcripts.purged, thread.erased |
 

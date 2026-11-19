@@ -5,13 +5,13 @@ import type { Check } from './core.ts';
 
 function d_s_4208c52814(v: unknown, p: string, e: string[]): void {
 {
-const x333 = v;
-const g333 = typeOf(x333);
-const b333: string[] = []; lf(x333, p, b333, L4); if (b333.length) e.push(...b333);
-if (g333 === "array") {
-if (g333 === 'array') { const a333 = x333 as unknown[];
-for (let i333 = 0; i333 < a333.length; i333++) {
-d_s_f06b085bb9(a333[i333], p + '/' + i333, e);
+const x334 = v;
+const g334 = typeOf(x334);
+const b334: string[] = []; lf(x334, p, b334, L4); if (b334.length) e.push(...b334);
+if (g334 === "array") {
+if (g334 === 'array') { const a334 = x334 as unknown[];
+for (let i334 = 0; i334 < a334.length; i334++) {
+d_s_f06b085bb9(a334[i334], p + '/' + i334, e);
 }
 }
 }
@@ -20,15 +20,15 @@ d_s_f06b085bb9(a333[i333], p + '/' + i333, e);
 
 function d_s_65ae3d1fbc(v: unknown, p: string, e: string[]): void {
 {
-const x526 = v;
-const g526 = typeOf(x526);
-const b526: string[] = []; lf(x526, p, b526, L0); if (b526.length) e.push(...b526);
-if (g526 === "object") {
-if (g526 === 'object') { const o526 = x526 as Record<string, unknown>;
-if (!("templateId" in o526)) e.push(p + "/templateId" + ': required');
-if (!("kind" in o526)) e.push(p + "/kind" + ': required');
-if ("templateId" in o526) lf(o526["templateId"], p + "/templateId", e, L263);
-if ("kind" in o526) lf(o526["kind"], p + "/kind", e, L1);
+const x528 = v;
+const g528 = typeOf(x528);
+const b528: string[] = []; lf(x528, p, b528, L0); if (b528.length) e.push(...b528);
+if (g528 === "object") {
+if (g528 === 'object') { const o528 = x528 as Record<string, unknown>;
+if (!("templateId" in o528)) e.push(p + "/templateId" + ': required');
+if (!("kind" in o528)) e.push(p + "/kind" + ': required');
+if ("templateId" in o528) lf(o528["templateId"], p + "/templateId", e, L263);
+if ("kind" in o528) lf(o528["kind"], p + "/kind", e, L1);
 }
 }
 }

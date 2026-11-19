@@ -197,6 +197,7 @@ test("authorize with a client_id that is an address: its page is read once and k
   const first = await authorize(good, ID);
   assert.equal(first?.status, 200, "the Allow tab is drawn for the app that named itself");
   assert.match(first?.body ?? "", /Example app/);
+  assert.match(first?.body ?? "", /names itself by <b>app\.example\.com<\/b>/, "the page shows whose address named it, since its name is its own word");
   assert.equal(reads, 1);
   await authorize(good, ID);
   assert.equal(reads, 1, "the second request does not read the page again");

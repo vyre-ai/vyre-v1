@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { MCP_HELD, MCP_TOOLS } from "../../../packages/contracts/src/mcp-coverage.ts";
 // Plain words for what an app did: from the capability name only, so no title or value can leak (lane r42-mcp).
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -30,4 +32,22 @@ test("calls of the same kind on the same thing group; a different kind does not"
   assert.notEqual(groupKey("files.read"), groupKey("files.delete"));
   assert.notEqual(groupKey("files.read"), groupKey("tasks.get"));
   assert.equal(groupKey(undefined), "other");
+});
+
+test("a permanent erase is recorded as an erase, an export as an export, a pause as a change", () => {
+  assert.equal(doneWords("runs.erase", "ok"), "Removed a run");
+  assert.equal(doneWords("threads.erase", "held"), "Wants to remove a chat");
+  assert.equal(doneWords("records.purge_trashed", "ok"), "Removed records");
+  assert.equal(doneWords("backup.export_start", "ok"), "Exported everything in this Space");
+  assert.equal(doneWords("hooks.pause", "ok"), "Changed a hook");
+});
+
+test("every tool added for the full set, and every held one, reads as a kind of act: none is 'Looked around'", () => {
+  const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as {
+    capabilities: Array<{ name: string; effects: string }>;
+  };
+  const lost = reg.capabilities
+    .filter((c) => (c.name in MCP_TOOLS || c.name in MCP_HELD) && doneWords(c.name, "ok") === "Looked around")
+    .map((c) => c.name);
+  assert.deepEqual(lost, [], "these have no plain words in modules/mcp/words.ts");
 });

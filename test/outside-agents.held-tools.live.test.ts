@@ -64,6 +64,28 @@ withSpace(
       assert.equal(h.askedBy?.id ?? h.principal?.id, agentId, `${k.cap} is held as the agent: ${JSON.stringify(h).slice(0, 500)}`);
       taskOf[k.cap] = h.taskId;
     }
+    // the class (r-review, 19 Nov): no tool of the task family lets an agent decide, move, take, hand on or delete the task a Gate hold lives in
+    const held = taskOf["hooks.pause"]!;
+    const tryAll: Array<[string, Record<string, unknown>]> = [
+      ["tasks_act", { taskId: held, action: "approve" }],
+      ["tasks_decide", { taskId: held, verdict: "approve" }],
+      ["tasks_review", { taskId: held, verdict: "approve" }],
+      ["tasks_transition", { taskId: held, to: "done" }],
+      ["tasks_submit", { taskId: held, summary: "done" }],
+      ["tasks_take", { taskId: held }],
+      ["tasks_release", { taskId: held }],
+      ["tasks_delegate", { taskId: held, to: { kind: "agent", id: agentId } }],
+      ["tasks_assign", { taskId: held, slot: "approver", to: { kind: "agent", id: agentId } }],
+      ["tasks_block", { taskId: held, reason: "x" }],
+      ["tasks_delete", { taskId: held }],
+      ["runs_resume", { runId: "run_walk1", reason: "approval" }],
+    ];
+    for (const [tool, args] of tryAll) {
+      const r = await c.tool("use_tool", { name: tool, arguments: { ...args, idempotencyKey: `sweep-${tool}` } });
+      assert.ok(r.json.error || r.json.result.isError === true, `${tool} did not stop an agent on a held act: ${JSON.stringify(r.json).slice(0, 300)}`);
+    }
+    const after = expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list").holds as Json[];
+    assert.ok(after.some((x) => x.taskId === held && x.state === "held"), "the held act is still waiting after every attempt");
     // it cannot answer its own holds
     const own = await c.tool("use_tool", { name: "tasks_act", arguments: { taskId: taskOf["skills.policy.set"], action: "approve" } });
     assert.equal(own.json.result.isError, true, "an agent cannot approve its own held act");
@@ -90,5 +112,35 @@ withSpace(
     // the same capability pressed by a person is never held
     const mine = await s.call("skills.policy.set", owner, { scriptsAdminOnly: false, idempotencyKey: "h-person" });
     assert.notEqual(mine.status, 202, "a person's own press runs at once");
+  },
+);
+
+withSpace(
+  "an app with the setup grant is held the same way: one hold for a delete and one for a connection change, never two cards for one act and never none",
+  async (s, owner, mcp) => {
+    const admin = s.d.token;
+    const c = new Client(mcp);
+    await signIn(s, c, owner, { setup: true });
+    await c.rpc("initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "claude-code", version: "2.1" },
+    });
+    const run = async (tool: string, args: Record<string, unknown>): Promise<Json> => {
+      await c.tool("tool_search", { query: tool.replace(/_/g, " ") });
+      return (await c.tool("use_tool", { name: tool, arguments: args })).json.result;
+    };
+    const a = await run("records_purge_trashed", { before: 1760000000000, idempotencyKey: "g-del" });
+    const b = await run("skills_policy_set", { scriptsAdminOnly: true, idempotencyKey: "g-conn" });
+    const holds = expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list")
+      .holds as Json[];
+    const held = (r: Json): boolean => r.structuredContent?.held === true || r.structuredContent?.asksPerson === true;
+    assert.ok(held(a) && held(b), `both are stopped: ${JSON.stringify([a, b]).slice(0, 500)}`);
+    const caps = holds.map((x) => x.capName).sort();
+    assert.deepEqual(
+      caps.filter((x) => x === "records.purge_trashed" || x === "skills.policy.set"),
+      ["records.purge_trashed", "skills.policy.set"],
+      "exactly one hold for each act",
+    );
   },
 );

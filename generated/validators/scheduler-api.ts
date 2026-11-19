@@ -38,13 +38,13 @@ if (![t38_0, t38_1, t38_2].some((x) => x.length === 0)) e.push(p + ': matches no
 
 function d_s_251ce31fe7(v: unknown, p: string, e: string[]): void {
 {
-const x173 = v;
-const g173 = typeOf(x173);
-const b173: string[] = []; lf(x173, p, b173, L0); if (b173.length) e.push(...b173);
-if (g173 === "object") {
-if (g173 === 'object') { const o173 = x173 as Record<string, unknown>;
-if (!("schedule" in o173)) e.push(p + "/schedule" + ': required');
-if ("schedule" in o173) d_s_c1a71211e0(o173["schedule"], p + "/schedule", e);
+const x174 = v;
+const g174 = typeOf(x174);
+const b174: string[] = []; lf(x174, p, b174, L0); if (b174.length) e.push(...b174);
+if (g174 === "object") {
+if (g174 === 'object') { const o174 = x174 as Record<string, unknown>;
+if (!("schedule" in o174)) e.push(p + "/schedule" + ': required');
+if ("schedule" in o174) d_s_c1a71211e0(o174["schedule"], p + "/schedule", e);
 }
 }
 }
@@ -52,33 +52,33 @@ if ("schedule" in o173) d_s_c1a71211e0(o173["schedule"], p + "/schedule", e);
 
 function d_s_c1a71211e0(v: unknown, p: string, e: string[]): void {
 {
-const x949 = v;
-const g949 = typeOf(x949);
-const b949: string[] = []; lf(x949, p, b949, L0); if (b949.length) e.push(...b949);
-if (g949 === "object") {
-if (g949 === 'object') { const o949 = x949 as Record<string, unknown>;
-if (!("id" in o949)) e.push(p + "/id" + ': required');
-if (!("owner" in o949)) e.push(p + "/owner" + ': required');
-if (!("principal" in o949)) e.push(p + "/principal" + ': required');
-if (!("cap" in o949)) e.push(p + "/cap" + ': required');
-if (!("when" in o949)) e.push(p + "/when" + ': required');
-if (!("ifMissed" in o949)) e.push(p + "/ifMissed" + ': required');
-if (!("active" in o949)) e.push(p + "/active" + ': required');
-if (!("createdAt" in o949)) e.push(p + "/createdAt" + ': required');
-if ("id" in o949) lf(o949["id"], p + "/id", e, L396);
-if ("owner" in o949) d_s_f72d5add1f(o949["owner"], p + "/owner", e);
-if ("principal" in o949) lf(o949["principal"], p + "/principal", e, L1);
-if ("cap" in o949) lf(o949["cap"], p + "/cap", e, L1);
-if ("when" in o949) d_s_e1e34dbed5(o949["when"], p + "/when", e);
-if ("ifMissed" in o949) lf(o949["ifMissed"], p + "/ifMissed", e, L397);
-if ("active" in o949) lf(o949["active"], p + "/active", e, L3);
-if ("pausedReason" in o949) lf(o949["pausedReason"], p + "/pausedReason", e, L1);
-if ("nextAt" in o949) lf(o949["nextAt"], p + "/nextAt", e, L17);
-if ("lastFiredAt" in o949) lf(o949["lastFiredAt"], p + "/lastFiredAt", e, L17);
-if ("createdAt" in o949) lf(o949["createdAt"], p + "/createdAt", e, L17);
-if ("zone" in o949) lf(o949["zone"], p + "/zone", e, L1);
-if ("scope" in o949) lf(o949["scope"], p + "/scope", e, L398);
-if ("person" in o949) lf(o949["person"], p + "/person", e, L16);
+const x950 = v;
+const g950 = typeOf(x950);
+const b950: string[] = []; lf(x950, p, b950, L0); if (b950.length) e.push(...b950);
+if (g950 === "object") {
+if (g950 === 'object') { const o950 = x950 as Record<string, unknown>;
+if (!("id" in o950)) e.push(p + "/id" + ': required');
+if (!("owner" in o950)) e.push(p + "/owner" + ': required');
+if (!("principal" in o950)) e.push(p + "/principal" + ': required');
+if (!("cap" in o950)) e.push(p + "/cap" + ': required');
+if (!("when" in o950)) e.push(p + "/when" + ': required');
+if (!("ifMissed" in o950)) e.push(p + "/ifMissed" + ': required');
+if (!("active" in o950)) e.push(p + "/active" + ': required');
+if (!("createdAt" in o950)) e.push(p + "/createdAt" + ': required');
+if ("id" in o950) lf(o950["id"], p + "/id", e, L396);
+if ("owner" in o950) d_s_f72d5add1f(o950["owner"], p + "/owner", e);
+if ("principal" in o950) lf(o950["principal"], p + "/principal", e, L1);
+if ("cap" in o950) lf(o950["cap"], p + "/cap", e, L1);
+if ("when" in o950) d_s_e1e34dbed5(o950["when"], p + "/when", e);
+if ("ifMissed" in o950) lf(o950["ifMissed"], p + "/ifMissed", e, L397);
+if ("active" in o950) lf(o950["active"], p + "/active", e, L3);
+if ("pausedReason" in o950) lf(o950["pausedReason"], p + "/pausedReason", e, L1);
+if ("nextAt" in o950) lf(o950["nextAt"], p + "/nextAt", e, L17);
+if ("lastFiredAt" in o950) lf(o950["lastFiredAt"], p + "/lastFiredAt", e, L17);
+if ("createdAt" in o950) lf(o950["createdAt"], p + "/createdAt", e, L17);
+if ("zone" in o950) lf(o950["zone"], p + "/zone", e, L1);
+if ("scope" in o950) lf(o950["scope"], p + "/scope", e, L398);
+if ("person" in o950) lf(o950["person"], p + "/person", e, L16);
 }
 }
 }
