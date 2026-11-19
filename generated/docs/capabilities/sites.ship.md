@@ -11,7 +11,7 @@ Put an app online in one call: create the site (or use siteId), set env, add dat
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

@@ -405,6 +405,7 @@ export default defineManifest({
         },
         perm: "sites.deploy",
         tool: "sites",
+        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
         audit: "sensitive",
         errors: ["validation.bad_input", "validation.precondition_failed", "permission.no_grant"],
       },
