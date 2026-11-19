@@ -1,0 +1,1 @@
+- Typing @ in a chat's own box now also offers the helpers that are at work; a message that starts with a helper's name goes to that helper alone and is not posted to the chat.

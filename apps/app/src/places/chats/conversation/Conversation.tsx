@@ -12,6 +12,7 @@ import { RewindCard, RewindWatch } from "../rewind/RewindCard.tsx";
 import type { ActiveRewind } from "../rewind/model.ts";
 import { SessionPublisher } from "../session/Publisher.tsx";
 import { useCrew } from "../crew/context.tsx";
+import { parseAtSend } from "../crew/run/model.ts";
 import { LiveSubagents } from "../crew/live.tsx";
 import {
   counts as crewCounts,
@@ -855,6 +856,16 @@ function ConversationView(): ReactElement {
   also.current = alsoOn;
   // the crew of this chat: read again when the chat gets a new message (a helper started or reported)
   const crew = useCrew();
+  // the helpers a person can tell something to by @name while they work (a helper or a coder with a chat of its own): offered in the @ menu, and a message that starts with one goes to that helper alone
+  const atHelpers = (crew?.status?.members ?? [])
+    .filter((m) => (m.kind === "helper" || m.kind === "teammate") && (m.state === "working" || m.state === "needs_you"))
+    .map((m) => ({
+      id: m.id,
+      name: m.name ?? m.title,
+      title: m.title,
+      kind: "helper" as const,
+      status: "running" as const,
+    }));
   // a long session: where the person last read to, and when the chat opened (what folds into "While you were away")
   const [readTo, setReadTo] = useState<number | null>(null);
   const openedAt = useRef(Date.now());
@@ -1034,6 +1045,27 @@ function ConversationView(): ReactElement {
     // a slash command is not a message: it runs, and nothing is posted (a name that is not a command is an ordinary message)
     setCard(null); // the next send closes the card; a new command opens its own
     closeAsides();
+    const toHelper = payload.files.length === 0 ? parseAtSend(payload.text, atHelpers) : null;
+    if (toHelper !== null) {
+      unsay();
+      setTyped("");
+      typedRef.current = "";
+      setSeed((x) => (x.value === "" ? x : { value: "", n: x.n }));
+      void Promise.resolve(
+        data.call("chat.helper.steer", {
+          threadId: toHelper.node.id,
+          body: toHelper.body,
+          idempotencyKey: data.newKey(),
+        }),
+      ).then(
+        () => {
+          say(`Sent to ${toHelper.node.name}. It reads it after the step it is on`);
+          crew?.refresh();
+        },
+        () => say(`${toHelper.node.name} could not take that. Ask in its chat`),
+      );
+      return;
+    }
     if (payload.files.length === 0 && parseSlash(payload.text, pluginNames(data.pluginCommands?.())) !== null) {
       unsay();
       setTyped("");
@@ -1862,7 +1894,8 @@ function ConversationView(): ReactElement {
     ...data.lists,
     agents: (data.lists.agents ?? [])
       .map((x) => noteFor(x, "agent"))
-      .filter((x) => mentionable(x, data.me.guest === true, inThread)),
+      .filter((x) => mentionable(x, data.me.guest === true, inThread))
+      .concat(atHelpers.map((h) => ({ t: h.name, kind: "Helper", s: h.title, ref: h.id }))),
     people: (data.lists.people ?? []).map((x) => noteFor(x, "person")),
     commands: commandItems(data.pluginCommands?.(), thread.kind === "chat" && thread.agents.length > 0),
   };
