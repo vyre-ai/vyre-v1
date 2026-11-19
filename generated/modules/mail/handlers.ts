@@ -40,6 +40,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mail.send": Handler<"mail.send", X>;
   "mail.send_as": Handler<"mail.send_as", X>;
   "mail.send_preview": Handler<"mail.send_preview", X>;
+  "mail.smtp.get": Handler<"mail.smtp.get", X>;
+  "mail.smtp.set": Handler<"mail.smtp.set", X>;
+  "mail.smtp.verify": Handler<"mail.smtp.verify", X>;
   "mail.status_update": Handler<"mail.status_update", X>;
   "mail.sync_now": Handler<"mail.sync_now", X>;
   "mail.thread.get": Handler<"mail.thread.get", X>;

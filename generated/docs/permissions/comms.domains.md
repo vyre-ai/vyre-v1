@@ -20,6 +20,9 @@ Area: comms. Risk: medium. Applies to: domain.
 - mail.domain.set_default
 - mail.route.remove
 - mail.route.set
+- mail.smtp.get
+- mail.smtp.set
+- mail.smtp.verify
 - mailgun.domains.create
 - mailgun.domains.delete
 - mailgun.domains.get

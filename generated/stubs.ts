@@ -1678,6 +1678,11 @@ export function stubs(ctx: CallCtx) {
       send: call("mail.send"),
       send_as: call("mail.send_as"),
       send_preview: call("mail.send_preview"),
+      smtp: {
+        get: call("mail.smtp.get"),
+        set: call("mail.smtp.set"),
+        verify: call("mail.smtp.verify"),
+      },
       status_update: call("mail.status_update"),
       sync_now: call("mail.sync_now"),
       thread: {

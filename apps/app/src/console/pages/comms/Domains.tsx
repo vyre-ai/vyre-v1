@@ -9,7 +9,7 @@ import { domainRowActions } from "../../objects/row-menus.ts";
 import { createMenuApiB } from "../../../places/chats/menus/actions-b.ts";
 import { Group, Section } from "../../shell/ui.tsx";
 import { Help, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
-import { useCommsRows, CommsList, CommsObject, CopyValue } from "./common.tsx";
+import { useCommsRows, CommsList, CommsObject, CopyValue, providerName } from "./common.tsx";
 type Domain = CapMap["mail.domain.get"]["out"]["domain"];
 export function DomainsPage({
   initialId,
@@ -50,7 +50,7 @@ export function DomainsPage({
           rows={query.rows.map((domain) => ({
             id: domain.id,
             title: domain.name,
-            note: `${domain.provider === "resend" ? "Resend" : "Mailgun"} · ${domain.verified ? "Verified" : "DNS pending"}${domain.isDefault ? " · Default sender" : ""}`,
+            note: `${providerName(domain.provider)} · ${domain.verified ? "Verified" : "DNS pending"}${domain.isDefault ? " · Default sender" : ""}`,
           }))}
           onOpen={open}
           actions={(id) => {
@@ -187,7 +187,7 @@ function DomainObject({ id, onBack }: { id: string; onBack(): void }): ReactElem
       >
         <ObjectSection title="Sending">
           <Group>
-            <Row title="Provider" note={domain.provider === "resend" ? "Resend" : "Mailgun"} />
+            <Row title="Provider" note={providerName(domain.provider)} />
             <Row title="Default sender" note={domain.isDefault ? "Yes" : "No"} />
             <Row
               title="Last DNS check"

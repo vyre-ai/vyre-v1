@@ -4,12 +4,12 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (39)
+## Capabilities (42)
 
 - [mail.attachment.save](../capabilities/mail.attachment.save.md): Save an attachment into Files
 - [mail.auto_connect_members](../capabilities/mail.auto_connect_members.md): Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)
 - [mail.connect](../capabilities/mail.connect.md): Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)
-- [mail.domain.add](../capabilities/mail.domain.add.md): Add a sending domain at Resend or Mailgun and return the DNS records to publish
+- [mail.domain.add](../capabilities/mail.domain.add.md): Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish
 - [mail.domain.check](../capabilities/mail.domain.check.md): Re-check SPF, DKIM and DMARC for a domain (mailauth) and ask the provider to verify
 - [mail.domain.get](../capabilities/mail.domain.get.md): Read one sending domain with the DNS records to publish
 - [mail.domain.list](../capabilities/mail.domain.list.md): List sending domains with SPF, DKIM and DMARC state
@@ -41,6 +41,9 @@ Requires: nothing.
 - [mail.send](../capabilities/mail.send.md): Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked
 - [mail.send_as](../capabilities/mail.send_as.md): Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from the inbox the thread came in on)
 - [mail.send_preview](../capabilities/mail.send_preview.md): Dry run of a send: who would be reached and who is suppressed, without sending
+- [mail.smtp.get](../capabilities/mail.smtp.get.md): The Space's mail server (SMTP) and its last test
+- [mail.smtp.set](../capabilities/mail.smtp.set.md): Save the Space's mail server (SMTP); the password stays in the Vault
+- [mail.smtp.verify](../capabilities/mail.smtp.verify.md): Test a mail server: connect and sign in, nothing is sent. No input tests the saved one
 - [mail.status_update](../capabilities/mail.status_update.md): Apply a provider status (delivered, bounced, complained, opened, clicked, failed); hard bounces and complaints write the suppression list
 - [mail.sync_now](../capabilities/mail.sync_now.md): Sync a mailbox now
 - [mail.thread.get](../capabilities/mail.thread.get.md): Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)

@@ -1,6 +1,6 @@
 # mail.domain.add
 
-Add a sending domain at Resend or Mailgun and return the DNS records to publish
+Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish
 
 | | |
 |---|---|
@@ -26,7 +26,7 @@ Add a sending domain at Resend or Mailgun and return the DNS records to publish
 ```ts
 type In = {
   name: string;
-  provider: "resend" | "mailgun";
+  provider: "resend" | "mailgun" | "smtp";
   idempotencyKey: string;
 };
 ```
@@ -38,7 +38,7 @@ type Out = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -65,6 +65,7 @@ type Out = {
 - provider.auth_failed
 - validation.bad_input
 - validation.duplicate
+- validation.precondition_failed
 
 ## Example
 

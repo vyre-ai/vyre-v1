@@ -3,7 +3,7 @@
 // One door for every outgoing email. Automations, agents and people all arrive here, and every send is checked the same way:
 //   suppression list, consent flags, then the provider. Regular email (a welcome, a nurture step, an appointment confirmation, a newsletter) is an Automation, so it must leave when
 //   the flow says, inside the Space's own sending limits (Console > Messaging > Rules: send.cap, send.window, send.throttle; lib/send-limits.ts). There are no per-mailbox caps. A provider that pushes back answers provider.rate_limited, and the step retries.
-// Space sending goes out through the Space's Resend or Mailgun domain; a member's reply goes out through the member's own Gmail or
+// Space sending goes out through the Space's own domain at Resend, at Mailgun or over SMTP on any mail server (handlers/smtp.ts); a member's reply goes out through the member's own Gmail or
 // Graph mailbox. The "Drafted by an agent" line is added to every message an agent sent or drafted. Every send carries the trace id
 // in an X-Vyre-Trace header and on the message row.
 //
@@ -52,6 +52,8 @@ import {
   readParties,
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
+import { dkimOf } from "./extra/domains.ts";
+import { smtpDeliver } from "./smtp.ts";
 import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
 
 // ---- shapes
@@ -247,7 +249,9 @@ async function reserveSlot(
   return { at: plan.at, note: plan.held ? heldText(plan.held, plan.at, zone) : null };
 }
 
-const providerOk = (v: unknown): v is "resend" | "mailgun" => v === "resend" || v === "mailgun";
+type SpaceProvider = "resend" | "mailgun" | "smtp";
+const providerOk = (v: unknown): v is SpaceProvider => v === "resend" || v === "mailgun" || v === "smtp";
+const PROVIDER_NAME: Readonly<Record<SpaceProvider, string>> = { resend: "Resend", mailgun: "Mailgun", smtp: "SMTP" };
 const boolOk = (v: unknown): v is boolean => typeof v === "boolean";
 // ---- recipients
 
@@ -442,7 +446,7 @@ interface Plan {
   suppressed: { address: string; reason: string }[];
   /** the Space sending domain row and provider, when the route is space_domain */
   domain: Row | null;
-  provider: "resend" | "mailgun";
+  provider: SpaceProvider;
   now: number;
 }
 
@@ -489,7 +493,7 @@ async function makePlan(
       refuse(ctx, "This mailbox is not connected. Resume or reconnect it first.");
     if (!strOrNull(box, "connectionId")) refuse(ctx, "This mailbox has no connection to send through.");
   }
-  const provider = await setting<"resend" | "mailgun">(ctx, "mail.provider", "resend", providerOk);
+  const provider = await setting<SpaceProvider>(ctx, "mail.provider", "resend", providerOk);
   const domain = route === "space_domain" ? pickDomain(ctx, provider, str(box, "address")) : null;
   const suppressed = await screen(ctx, flat(composed));
   const refusedSet = new Set(suppressed.map((s) => s.address));
@@ -569,7 +573,7 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
 
   const sendable: Composed = narrow(composed, p.allowed);
   if (p.route === "space_domain" && !p.domain)
-    refuse(ctx, `No verified ${p.provider} sending domain. Add and verify one in Console, Comms.`);
+    refuse(ctx, `No verified ${PROVIDER_NAME[p.provider]} sending domain. Add and verify one in Console, Comms.`);
 
   // a link is one person's, so a message that carries links goes out once per recipient
   if (input.unsubscribe === true && p.allowed.length > 1 && !pending) {
@@ -909,6 +913,15 @@ async function viaSpaceDomain(
   if (c.text !== undefined) body.text = c.text;
   if (c.html !== undefined) body.html = c.html;
   if (c.files.length) body.attachments = await attachmentsOf(ctx, c.files);
+  if (p.provider === "smtp") {
+    const { mailboxId: _box, idempotencyKey: _key, ...mail } = body;
+    const dkim = p.domain ? dkimOf(p.domain) : null;
+    return smtpDeliver(ctx, {
+      ...(mail as Omit<Parameters<typeof smtpDeliver>[1], "messageId" | "dkim">),
+      messageId: rfcId ?? `<${id}@${domain}>`,
+      ...(dkim ? { dkim: { domain, ...dkim } } : {}),
+    });
+  }
   const tags = [{ name: "message_id", value: id }];
   if (p.provider === "resend") {
     body.tags = tags;

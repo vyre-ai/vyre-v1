@@ -1678,6 +1678,11 @@ export function createClient(transport: Transport) {
       send: call("mail.send", 1),
       send_as: call("mail.send_as", 1),
       send_preview: call("mail.send_preview", 1),
+      smtp: {
+        get: call("mail.smtp.get", 1),
+        set: call("mail.smtp.set", 1),
+        verify: call("mail.smtp.verify", 1),
+      },
       status_update: call("mail.status_update", 1),
       sync_now: call("mail.sync_now", 1),
       thread: {

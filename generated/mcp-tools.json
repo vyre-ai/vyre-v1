@@ -36556,7 +36556,7 @@
       "blocks": [],
       "cap": "mail.domain.add",
       "deferred": false,
-      "description": "Add a sending domain at Resend or Mailgun and return the DNS records to publish",
+      "description": "Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -36576,7 +36576,8 @@
           "provider": {
             "enum": [
               "resend",
-              "mailgun"
+              "mailgun",
+              "smtp"
             ],
             "type": "string"
           }
@@ -37677,7 +37678,7 @@
             "type": "integer"
           },
           "senderId": {
-            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "description": "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
             "examples": [
               "mbx_a1b2c3"
             ],
@@ -37757,7 +37758,7 @@
             "type": "string"
           },
           "senderId": {
-            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "description": "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
             "examples": [
               "mbx_a1b2c3"
             ],
@@ -37801,6 +37802,125 @@
       },
       "name": "mail_send_preview",
       "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mail.smtp.get",
+      "deferred": false,
+      "description": "The Space's mail server (SMTP) and its last test",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "mail_smtp_get",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mail.smtp.set",
+      "deferred": false,
+      "description": "Save the Space's mail server (SMTP); the password stays in the Vault",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "host": {
+            "examples": [
+              "smtp.example.com"
+            ],
+            "type": "string"
+          },
+          "passwordHandle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "security": {
+            "enum": [
+              "starttls",
+              "tls"
+            ],
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "port",
+          "username",
+          "passwordHandle"
+        ],
+        "type": "object"
+      },
+      "name": "mail_smtp_set",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mail.smtp.verify",
+      "deferred": false,
+      "description": "Test a mail server: connect and sign in, nothing is sent. No input tests the saved one",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "host": {
+            "examples": [
+              "smtp.example.com"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "passwordHandle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "security": {
+            "enum": [
+              "starttls",
+              "tls"
+            ],
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mail_smtp_verify",
+      "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
     },
