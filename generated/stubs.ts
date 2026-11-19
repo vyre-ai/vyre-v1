@@ -1574,6 +1574,7 @@ export function stubs(ctx: CallCtx) {
       accept_create_account: call("invites.accept_create_account"),
     },
     journeys: {
+      adopt: call("journeys.adopt"),
       advance: call("journeys.advance"),
       check_limits: call("journeys.check_limits"),
       create: call("journeys.create"),

@@ -19,6 +19,7 @@ import {
   refileLinks,
   saveJourney,
   saveMigration,
+  saveRecord,
   countInFlight,
 } from "../projections.ts";
 import type { Journey, JourneysCtx, MigrationRow } from "../projections.ts";
@@ -169,4 +170,48 @@ export async function migrationState(ctx: JourneysCtx, input: In): Promise<unkno
     states: counts,
     pending: j.mode === "migrating" ? inFlight(ctx.db, j.id).length : 0,
   };
+}
+
+/**
+ * The records a type already had when it became a pipeline: each one whose stage field holds one of the Journey's stages takes its place in the Journey where it stands, a page at a time.
+ * Nothing is run for them (no tasks, no Automations, no events): they were already there. A record that is enrolled is skipped, so a page can be run again and a stop loses nothing.
+ */
+export async function adopt(ctx: JourneysCtx, input: In): Promise<unknown> {
+  const j = getJourney(ctx, input.journeyId);
+  if (j.mode !== "pipeline")
+    raise(ctx, "validation.precondition_failed", `${j.name} is not a pipeline yet.`, { reason: "not_a_pipeline" });
+  if (!ctx.call) raise(ctx, "internal.unavailable", "Records are not available right now.");
+  const page = (await ctx.call("records.query", {
+    type: j.recordType,
+    ...(typeof input.cursor === "string" ? { cursor: input.cursor } : {}),
+    limit: typeof input.limit === "number" ? input.limit : 200,
+  })) as { rows?: { id: string; fields?: Record<string, unknown> }[]; next?: string };
+  const keys = new Map(j.stages.map((s) => [s.key, s]));
+  const field = stageFieldOf(j);
+  const now = ctx.now();
+  let adopted = 0;
+  let skipped = 0;
+  for (const row of page.rows ?? []) {
+    const v = row.fields?.[field];
+    const stage = typeof v === "string" ? keys.get(v) : undefined;
+    if (!stage || findRecord(ctx.db, row.id)) {
+      skipped += 1;
+      continue;
+    }
+    saveRecord(ctx.db, {
+      recordId: row.id,
+      journeyId: j.id,
+      subjectRecordId: row.id,
+      version: j.version,
+      stage: stage.key,
+      startStage: stage.key,
+      enteredAt: now,
+      ...(stage.final ? { completedAt: now } : {}),
+      ownerId: me(ctx),
+      startKey: `adopt:${j.id}:${row.id}`,
+      startedAt: now,
+    });
+    adopted += 1;
+  }
+  return { adopted, skipped, ...(page.next ? { next: page.next } : {}) };
 }

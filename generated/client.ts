@@ -1574,6 +1574,7 @@ export function createClient(transport: Transport) {
       accept_create_account: call("invites.accept_create_account", 1),
     },
     journeys: {
+      adopt: call("journeys.adopt", 1),
       advance: call("journeys.advance", 1),
       check_limits: call("journeys.check_limits", 1),
       create: call("journeys.create", 1),

@@ -218,3 +218,41 @@ test("finished again is a no-op", async () => {
   assert.equal(r.finished, true);
   assert.equal(h.only("records.update").length, 0);
 });
+
+test("records a type already had are adopted where their stage field says, a page at a time, and nothing runs for them", async () => {
+  const h = harness();
+  const j = await pipe(h);
+  const rows = [
+    { id: "rec_a", fields: { stage: "lead" } },
+    { id: "rec_b", fields: { stage: "won" } },
+    { id: "rec_c", fields: { stage: "gone" } },
+    { id: "rec_d", fields: {} },
+  ];
+  h.callee("records.query", (i) => (i.cursor ? { rows: [rows[2], rows[3]] } : { rows: rows.slice(0, 2), next: "2" }));
+  const a = await h.call("journeys.adopt", { journeyId: j.id }, alice);
+  assert.deepEqual([a.adopted, a.skipped, a.next], [2, 0, "2"]);
+  const b = await h.call("journeys.adopt", { journeyId: j.id, cursor: "2" }, alice);
+  assert.deepEqual([b.adopted, b.skipped], [0, 2], "a value that is not a stage, and no value, are left alone");
+  const again = await h.call("journeys.adopt", { journeyId: j.id }, alice);
+  assert.deepEqual([again.adopted, again.skipped], [0, 2], "running a page again adopts nothing twice");
+  assert.equal(h.events.length, 0);
+  assert.equal(h.only("tasks.create").length + h.only("automations.fire").length, 0);
+  const done = h.db.all("SELECT record_id, stage, completed_at FROM journeys_records ORDER BY record_id") as any[];
+  assert.deepEqual(
+    done.map((r) => [r.record_id, r.stage, r.completed_at !== null]),
+    [
+      ["rec_a", "lead", false],
+      ["rec_b", "won", true],
+    ],
+  );
+});
+
+test("a Journey that is not a pipeline adopts nothing", async () => {
+  const h = harness();
+  const { j } = await old(h, 1);
+  await refused(
+    h.call("journeys.adopt", { journeyId: j.id }, alice),
+    "validation.precondition_failed",
+    "not_a_pipeline",
+  );
+});

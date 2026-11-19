@@ -1,6 +1,7 @@
 {
   "module": "journeys",
   "capabilities": {
+    "journeys.adopt@1": "90b98a36e6c5c3cecbcb5d0c54ba7c114a065b6f7ccd217c7dcc407d85b13794",
     "journeys.advance@1": "8201c029f96b0dace31ceaf3cd653c994ad0a509597330824d8927184f3349a5",
     "journeys.check_limits@1": "86be8e2a9d40e74e2b22f3d94bdc191299969c504dc563739a4212a181fbdbeb",
     "journeys.create@1": "75e07ef2536ebd4f85833c3833c0182e6199fde468aa4c6eba085ff12baa5b88",

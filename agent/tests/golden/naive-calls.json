@@ -2818,6 +2818,9 @@
   "install_remove": {
     "installId": "ins_a1b2c3"
   },
+  "journeys_adopt": {
+    "journeyId": "jrn_a1b2c3"
+  },
   "journeys_create": {
     "name": "Quarterly planning",
     "subjectType": "contact"

@@ -365,6 +365,19 @@ export default defineManifest({
         errors: ["validation.precondition_failed", "validation.duplicate"],
       },
     ),
+    write(
+      "journeys.adopt",
+      "Bring the records a pipeline's type already had into the Journey where their stage field says they are, a page at a time; runs nothing for them and skips records that are in already",
+      {
+        in: { ...target, ...pageIn },
+        out: { adopted: t.int(), skipped: t.int(), next: t.opt(t.str()) },
+        perm: "journeys.manage",
+        level: "manage",
+        tool: "automations",
+        idem: "natural",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
     read(
       "journeys.migration_state",
       "Where a move onto the pipeline stands: records done, failed (with why) and the Journey's mode",

@@ -4946,6 +4946,12 @@
     },
     {
       "deferred": false,
+      "name": "journeys_adopt",
+      "summary": "Bring the records a pipeline's type already had into the Journey where their stage field says they are, a page at a time; runs nothing for them and skips records that are in already",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "journeys_create",
       "summary": "Create a Journey and its record type (cloned from the Projects template) on a subject record type",
       "toolset": "automations"

@@ -4,8 +4,9 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (18)
+## Capabilities (19)
 
+- [journeys.adopt](../capabilities/journeys.adopt.md): Bring the records a pipeline's type already had into the Journey where their stage field says they are, a page at a time; runs nothing for them and skips records that are in already
 - [journeys.advance](../capabilities/journeys.advance.md): Check the exit rule of the current stage and advance when its required tasks are done (called on task.completed)
 - [journeys.check_limits](../capabilities/journeys.check_limits.md): Find stages over their time limit, raise Needs you for the owner then the escalation role (called by the scheduler)
 - [journeys.create](../capabilities/journeys.create.md): Create a Journey and its record type (cloned from the Projects template) on a subject record type

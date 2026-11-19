@@ -4,6 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "journeys.adopt": async () => ({"adopted":1,"next":"example","skipped":1} as unknown) as never,
   "journeys.advance": async () => ({"advanced":true,"stage":"intake"} as unknown) as never,
   "journeys.check_limits": async () => ({"breached":1} as unknown) as never,
   "journeys.create": async () => ({"journey":{"createdAt":1760000000000,"id":"jrn_a1b2c3","inFlight":1,"legacyType":"contact","mode":"subject","name":"example","recordType":"contact","stageField":"example","stages":[{"automations":["aut_a1b2c3"],"exit":{"manualOnly":true,"requireTasks":true},"final":true,"key":"intake","makesProject":true,"onLeaving":["aut_a1b2c3"],"order":1,"tasks":[{"approver":{"id":"usr_a1b2c3","kind":"person"},"assigned":{"id":"usr_a1b2c3","kind":"person"},"backupKeyId":"example","description":"example","doneByAutomation":"aut_a1b2c3","dueAfterHours":1,"key":"collect_documents","keyId":"example","kind":"work","required":true,"reviewer":{"id":"usr_a1b2c3","kind":"person"},"title":"example"}],"timeLimit":{"escalateTo":{"id":"example","kind":"role"},"hours":1},"title":"example"}],"startAutomationId":"aut_a1b2c3","startRule":{"enabled":true,"event":"record.created","filter":{}},"subjectType":"contact","updatedAt":1760000000000,"variables":[{"key":"example","title":"example"}],"version":1}} as unknown) as never,

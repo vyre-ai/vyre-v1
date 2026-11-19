@@ -23883,6 +23883,16 @@ export type InvitesAcceptCreateAccountOut = {
     formerKey?: string;
   };
 };
+export type JourneysAdoptIn = {
+  journeyId: string;
+  cursor?: string;
+  limit?: number;
+};
+export type JourneysAdoptOut = {
+  adopted: number;
+  skipped: number;
+  next?: string;
+};
 export type JourneysAdvanceIn = {
   recordId: string;
 };
@@ -49679,6 +49689,7 @@ export interface CapMap {
   "install.list": { in: InstallListIn; out: InstallListOut };
   "install.remove": { in: InstallRemoveIn; out: InstallRemoveOut };
   "invites.accept_create_account": { in: InvitesAcceptCreateAccountIn; out: InvitesAcceptCreateAccountOut };
+  "journeys.adopt": { in: JourneysAdoptIn; out: JourneysAdoptOut };
   "journeys.advance": { in: JourneysAdvanceIn; out: JourneysAdvanceOut };
   "journeys.check_limits": { in: JourneysCheckLimitsIn; out: JourneysCheckLimitsOut };
   "journeys.create": { in: JourneysCreateIn; out: JourneysCreateOut };
