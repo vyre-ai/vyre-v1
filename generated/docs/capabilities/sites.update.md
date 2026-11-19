@@ -1,6 +1,6 @@
 # sites.update
 
-Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it. Making it public takes it down until published again
+Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Change a site: name, source, CPU and memory, deploy on push, where it runs, who 
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

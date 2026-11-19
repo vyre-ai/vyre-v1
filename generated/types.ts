@@ -25083,6 +25083,62 @@ export type MachinesSetOut = {
       }>;
   };
 };
+export type MailAddressAddIn = {
+  domainId: string;
+  localPart: string;
+  mailboxId?: string;
+  title?: string;
+  idempotencyKey: string;
+};
+export type MailAddressAddOut = {
+  address: {
+    address: string;
+    domainId: string;
+    kind: "mailbox" | "alias";
+    mailboxId: string;
+    mailboxTitle: string;
+    routeId?: string;
+    receives: boolean;
+  };
+};
+export type MailAddressListIn = {
+  cursor?: string;
+  limit?: number;
+  domainId?: string;
+};
+export type MailAddressListOut = {
+  addresses: Array<{
+      address: string;
+      domainId: string;
+      kind: "mailbox" | "alias";
+      mailboxId: string;
+      mailboxTitle: string;
+      routeId?: string;
+      receives: boolean;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type MailAddressMoveIn = {
+  domainId: string;
+  localPart: string;
+  fromMailboxId: string;
+  mailboxId: string;
+  idempotencyKey: string;
+};
+export type MailAddressMoveOut = {
+  address: {
+    address: string;
+    domainId: string;
+    kind: "mailbox" | "alias";
+    mailboxId: string;
+    mailboxTitle: string;
+    routeId?: string;
+    receives: boolean;
+  };
+  from: string;
+  to: string;
+};
 export type MailAttachmentSaveIn = {
   messageId: string;
   attachmentId: string;
@@ -25104,6 +25160,24 @@ export type MailAutoConnectMembersOut = {
   created: number;
   notified: number;
   skipped: number;
+};
+export type MailConfigureIn = {
+  action: "status" | "test" | "smtp_get" | "smtp_set" | "smtp_verify" | "address_list" | "address_add" | "address_move";
+  to?: string;
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  passwordHandle?: string;
+  domainId?: string;
+  localPart?: string;
+  mailboxId?: string;
+  fromMailboxId?: string;
+  title?: string;
+  nonce?: string;
+};
+export type MailConfigureOut = {
+  result: unknown;
 };
 export type MailConnectIn = {
   provider: "google" | "microsoft" | "imap";
@@ -25133,16 +25207,60 @@ export type MailConnectOut = {
     lastSyncAt?: number;
   };
 };
+export type MailDeliveryRetryIn = {
+  messageId: string;
+  address: string;
+  attempt: number;
+};
+export type MailDeliveryRetryOut = {
+  outcome: "sent" | "skipped" | "gave_up" | "rescheduled" | "held";
+  messageId?: string;
+};
+export type MailDeliveryTrailIn = {
+  messageId: string;
+};
+export type MailDeliveryTrailOut = {
+  messageId: string;
+  state: "waiting" | "sent" | "delivered" | "retrying" | "held" | "bounced" | "complained" | "failed";
+  sentBy?: {
+    kind: string;
+    id: string;
+  };
+  events: Array<{
+      kind: "queued" | "held" | "sent" | "delivered" | "opened" | "clicked" | "soft_bounced" | "bounced" | "complained" | "failed" | "retry_scheduled" | "retried" | "gave_up";
+      at: number;
+      label: string;
+      address?: string;
+      detail?: string;
+    }>;
+  blocked: Array<{
+      address: string;
+      reason: string;
+    }>;
+  retry?: {
+    address: string;
+    attempt: number;
+    of: number;
+    nextAt?: number;
+  };
+};
+export type MailDeliveryStateIn = {
+  messageId?: string;
+  mailboxId?: string;
+};
+export type MailDeliveryStateOut = {
+  result: unknown;
+};
 export type MailDomainAddIn = {
   name: string;
-  provider: "resend" | "mailgun";
+  provider: "resend" | "mailgun" | "smtp";
   idempotencyKey: string;
 };
 export type MailDomainAddOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25165,7 +25283,7 @@ export type MailDomainCheckOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25188,7 +25306,7 @@ export type MailDomainGetOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25212,7 +25330,7 @@ export type MailDomainListOut = {
   domains: Array<{
       id: string;
       name: string;
-      provider: "resend" | "mailgun";
+      provider: "resend" | "mailgun" | "smtp";
       spf: "pass" | "fail" | "pending";
       dkim: "pass" | "fail" | "pending";
       dmarc: "pass" | "fail" | "pending";
@@ -25236,7 +25354,7 @@ export type MailDomainSetDefaultOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25333,6 +25451,32 @@ export type MailHealthOut = {
   state: "healthy" | "degraded" | "down";
   detail?: string;
   latencyMs?: number;
+};
+export type MailInboxMonitorIn = {
+  mailboxId?: string;
+};
+export type MailInboxMonitorOut = {
+  inboxes: Array<{
+      mailboxId: string;
+      address: string;
+      kind: "personal" | "shared" | "agent" | "service";
+      how: "imap" | "google" | "microsoft" | "provider_webhook";
+      state: "ok" | "late" | "failing" | "paused";
+      lastReceivedAt?: number;
+      lastSyncAt?: number;
+      receivedToday: number;
+      problem?: {
+        reason: string;
+        fix: string;
+        at: number;
+      };
+    }>;
+  unrouted: Array<{
+      address: string;
+      reason: string;
+      fix: string;
+      at: number;
+    }>;
 };
 export type MailIngestIn = {
   source: "google" | "microsoft" | "imap" | "resend" | "mailgun";
@@ -25750,7 +25894,7 @@ export type MailRouteListOut = {
       domainId: string;
       localPart: string;
       mailboxId: string;
-      provider: "resend" | "mailgun";
+      provider: "resend" | "mailgun" | "smtp";
     }>;
   next?: string;
   total?: number;
@@ -25774,7 +25918,7 @@ export type MailRouteSetOut = {
     domainId: string;
     localPart: string;
     mailboxId: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
   };
 };
 export type MailSendIn = {
@@ -25796,13 +25940,17 @@ export type MailSendIn = {
       name?: string;
       contactId?: string;
     }>;
-  subject: string;
+  subject?: string;
   text?: string;
   html?: string;
   attachments?: Array<string>;
   replyToMessageId?: string;
   contactId?: string;
   draftId?: string;
+  templateKey?: string;
+  documentId?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
   sendAt?: number;
   unsubscribe?: boolean;
   idempotencyKey: string;
@@ -25863,6 +26011,101 @@ export type MailSendPreviewOut = {
     }>;
   providerRoute: "mailbox" | "space_domain";
 };
+export type MailSetupStatusIn = Record<string, unknown>;
+export type MailSetupStatusOut = {
+  provider: "resend" | "mailgun" | "smtp";
+  smtp: {
+    configured: boolean;
+    host?: string;
+    port?: number;
+    security?: "starttls" | "tls";
+    username?: string;
+    state: "none" | "unchecked" | "ok" | "failed";
+    detail?: string;
+    checkedAt?: number;
+  };
+  domains: Array<{
+      id: string;
+      name: string;
+      provider: "resend" | "mailgun" | "smtp";
+      spf: "pass" | "fail" | "pending";
+      dkim: "pass" | "fail" | "pending";
+      dmarc: "pass" | "fail" | "pending";
+      verified: boolean;
+      isDefault: boolean;
+      checkedAt?: number;
+    }>;
+  rechecks: Array<{
+      domainId: string;
+      failures: number;
+      why?: string;
+      checkedAt?: number;
+    }>;
+  cleanups: Array<{
+      id: string;
+      kind: "provider_route" | "duplicate_route";
+      note: string;
+      attempts: number;
+      lastError?: string;
+      createdAt: number;
+    }>;
+  done: Array<"choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready">;
+  step: "choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready";
+  next: string;
+  ready: boolean;
+};
+export type MailSetupTestSendIn = {
+  to: string;
+  idempotencyKey: string;
+};
+export type MailSetupTestSendOut = {
+  messageId?: string;
+  status: "queued" | "sent" | "held" | "suppressed";
+  from: string;
+  note?: string;
+};
+export type MailSmtpGetIn = Record<string, unknown>;
+export type MailSmtpGetOut = {
+  configured: boolean;
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  state: "none" | "unchecked" | "ok" | "failed";
+  detail?: string;
+  checkedAt?: number;
+};
+export type MailSmtpSetIn = {
+  host: string;
+  port: number;
+  security?: "starttls" | "tls";
+  username: string;
+  passwordHandle: string;
+};
+export type MailSmtpSetOut = {
+  configured: boolean;
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  state: "none" | "unchecked" | "ok" | "failed";
+  detail?: string;
+  checkedAt?: number;
+};
+export type MailSmtpVerifyIn = {
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  passwordHandle?: string;
+  idempotencyKey: string;
+};
+export type MailSmtpVerifyOut = {
+  ok: boolean;
+  reason?: "blocked" | "refused" | "unknown_host" | "address" | "auth" | "tls" | "failed";
+  message: string;
+  ms: number;
+};
 export type MailStatusUpdateIn = {
   providerId: string;
   status: "delivered" | "bounced" | "complained" | "opened" | "clicked" | "failed";
@@ -25881,6 +26124,152 @@ export type MailSyncNowIn = {
 };
 export type MailSyncNowOut = {
   runId: string;
+};
+export type MailTemplateForDocumentClearIn = {
+  documentId: string;
+  key: string;
+};
+export type MailTemplateForDocumentClearOut = {
+  cleared: boolean;
+};
+export type MailTemplateForDocumentGetIn = {
+  documentId: string;
+  key: string;
+};
+export type MailTemplateForDocumentGetOut = {
+  override: boolean;
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateForDocumentSetIn = {
+  documentId: string;
+  key: string;
+  subject: string;
+  text: string;
+  html?: string;
+};
+export type MailTemplateForDocumentSetOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateGetIn = {
+  key: string;
+  documentId?: string;
+};
+export type MailTemplateGetOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateListIn = Record<string, unknown>;
+export type MailTemplateListOut = {
+  templates: Array<{
+      key: string;
+      title: string;
+      subject: string;
+      source: "space" | "builtin";
+      customised: boolean;
+      updatedAt?: number;
+    }>;
+};
+export type MailTemplatePreviewIn = {
+  key?: string;
+  documentId?: string;
+  subject?: string;
+  text?: string;
+  html?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
+};
+export type MailTemplatePreviewOut = {
+  subject: string;
+  text: string;
+  html?: string;
+  source: "document" | "space" | "builtin" | "draft";
+  blanks: Array<string>;
+  fallbacks: Array<string>;
+};
+export type MailTemplateResetIn = {
+  key: string;
+};
+export type MailTemplateResetOut = {
+  reset: boolean;
+};
+export type MailTemplateSaveIn = {
+  key: string;
+  title?: string;
+  subject: string;
+  text: string;
+  html?: string;
+  recordType?: string;
+};
+export type MailTemplateSaveOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplatesIn = {
+  action: "list" | "get" | "set" | "preview" | "reset";
+  key?: string;
+  documentId?: string;
+  subject?: string;
+  text?: string;
+  recordType?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
+};
+export type MailTemplatesOut = {
+  result: unknown;
 };
 export type MailThreadGetIn = {
   threadId: string;
@@ -36466,6 +36855,14 @@ export type SchemaSetLabelIn = {
 export type SchemaSetLabelOut = {
   ok: boolean;
 };
+export type SchemaSetMergeableIn = {
+  type: string;
+  field: string;
+  mergeable: boolean;
+};
+export type SchemaSetMergeableOut = {
+  ok: boolean;
+};
 export type SchemaTrashListIn = Record<string, unknown>;
 export type SchemaTrashListOut = {
   items: Array<{
@@ -38066,19 +38463,10 @@ export type SitesShipIn = {
     path?: string;
     root?: string;
   };
-  kind?: "site" | "app" | "api" | "worker";
-  access?: "public" | "password" | "space" | "private";
-  limits?: {
-    cpus: number;
-    memoryMb: number;
-    diskMb?: number;
-  };
   env?: Array<{
       name: string;
       vaultHandle?: string;
       value?: string;
-      scope?: "all" | "production" | "previews";
-      confirmPlain?: boolean;
     }>;
   addons?: Array<"postgres" | "redis">;
   wait?: boolean;
@@ -49754,9 +50142,16 @@ export interface CapMap {
   "machines.moves": { in: MachinesMovesIn; out: MachinesMovesOut };
   "machines.rooms": { in: MachinesRoomsIn; out: MachinesRoomsOut };
   "machines.set": { in: MachinesSetIn; out: MachinesSetOut };
+  "mail.address.add": { in: MailAddressAddIn; out: MailAddressAddOut };
+  "mail.address.list": { in: MailAddressListIn; out: MailAddressListOut };
+  "mail.address.move": { in: MailAddressMoveIn; out: MailAddressMoveOut };
   "mail.attachment.save": { in: MailAttachmentSaveIn; out: MailAttachmentSaveOut };
   "mail.auto_connect_members": { in: MailAutoConnectMembersIn; out: MailAutoConnectMembersOut };
+  "mail.configure": { in: MailConfigureIn; out: MailConfigureOut };
   "mail.connect": { in: MailConnectIn; out: MailConnectOut };
+  "mail.delivery.retry": { in: MailDeliveryRetryIn; out: MailDeliveryRetryOut };
+  "mail.delivery.trail": { in: MailDeliveryTrailIn; out: MailDeliveryTrailOut };
+  "mail.delivery_state": { in: MailDeliveryStateIn; out: MailDeliveryStateOut };
   "mail.domain.add": { in: MailDomainAddIn; out: MailDomainAddOut };
   "mail.domain.check": { in: MailDomainCheckIn; out: MailDomainCheckOut };
   "mail.domain.get": { in: MailDomainGetIn; out: MailDomainGetOut };
@@ -49767,6 +50162,7 @@ export interface CapMap {
   "mail.drafts.discard": { in: MailDraftsDiscardIn; out: MailDraftsDiscardOut };
   "mail.drafts.list": { in: MailDraftsListIn; out: MailDraftsListOut };
   "mail.health": { in: MailHealthIn; out: MailHealthOut };
+  "mail.inbox.monitor": { in: MailInboxMonitorIn; out: MailInboxMonitorOut };
   "mail.ingest": { in: MailIngestIn; out: MailIngestOut };
   "mail.mailbox.create": { in: MailMailboxCreateIn; out: MailMailboxCreateOut };
   "mail.mailbox.disconnect": { in: MailMailboxDisconnectIn; out: MailMailboxDisconnectOut };
@@ -49789,8 +50185,22 @@ export interface CapMap {
   "mail.send": { in: MailSendIn; out: MailSendOut };
   "mail.send_as": { in: MailSendAsIn; out: MailSendAsOut };
   "mail.send_preview": { in: MailSendPreviewIn; out: MailSendPreviewOut };
+  "mail.setup.status": { in: MailSetupStatusIn; out: MailSetupStatusOut };
+  "mail.setup.test_send": { in: MailSetupTestSendIn; out: MailSetupTestSendOut };
+  "mail.smtp.get": { in: MailSmtpGetIn; out: MailSmtpGetOut };
+  "mail.smtp.set": { in: MailSmtpSetIn; out: MailSmtpSetOut };
+  "mail.smtp.verify": { in: MailSmtpVerifyIn; out: MailSmtpVerifyOut };
   "mail.status_update": { in: MailStatusUpdateIn; out: MailStatusUpdateOut };
   "mail.sync_now": { in: MailSyncNowIn; out: MailSyncNowOut };
+  "mail.template.for_document.clear": { in: MailTemplateForDocumentClearIn; out: MailTemplateForDocumentClearOut };
+  "mail.template.for_document.get": { in: MailTemplateForDocumentGetIn; out: MailTemplateForDocumentGetOut };
+  "mail.template.for_document.set": { in: MailTemplateForDocumentSetIn; out: MailTemplateForDocumentSetOut };
+  "mail.template.get": { in: MailTemplateGetIn; out: MailTemplateGetOut };
+  "mail.template.list": { in: MailTemplateListIn; out: MailTemplateListOut };
+  "mail.template.preview": { in: MailTemplatePreviewIn; out: MailTemplatePreviewOut };
+  "mail.template.reset": { in: MailTemplateResetIn; out: MailTemplateResetOut };
+  "mail.template.save": { in: MailTemplateSaveIn; out: MailTemplateSaveOut };
+  "mail.templates": { in: MailTemplatesIn; out: MailTemplatesOut };
   "mail.thread.get": { in: MailThreadGetIn; out: MailThreadGetOut };
   "mail.unsubscribe": { in: MailUnsubscribeIn; out: MailUnsubscribeOut };
   "mailgun.domains.create": { in: MailgunDomainsCreateIn; out: MailgunDomainsCreateOut };
@@ -50360,6 +50770,7 @@ export interface CapMap {
   "schema.restore_field": { in: SchemaRestoreFieldIn; out: SchemaRestoreFieldOut };
   "schema.sensitivity.scan": { in: SchemaSensitivityScanIn; out: SchemaSensitivityScanOut };
   "schema.set_label": { in: SchemaSetLabelIn; out: SchemaSetLabelOut };
+  "schema.set_mergeable": { in: SchemaSetMergeableIn; out: SchemaSetMergeableOut };
   "schema.trash.list": { in: SchemaTrashListIn; out: SchemaTrashListOut };
   "schema.types.get": { in: SchemaTypesGetIn; out: SchemaTypesGetOut };
   "schema.types.list": { in: SchemaTypesListIn; out: SchemaTypesListOut };
@@ -52738,6 +53149,7 @@ export type MailReceivedPayload = {
   from: string;
   subject: string;
   contactId?: string;
+  auto?: boolean;
 };
 export type MailDraftDiscardedPayload = {
   draftId: string;
@@ -54023,7 +54435,7 @@ export type SearchReindexedPayload = {
 export type SendingDomainAddedPayload = {
   domainId: string;
   name: string;
-  provider: "resend" | "mailgun";
+  provider: "resend" | "mailgun" | "smtp";
 };
 export type SendingDomainCheckedPayload = {
   domainId: string;

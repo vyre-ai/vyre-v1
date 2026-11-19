@@ -231,7 +231,7 @@ export default defineManifest({
   capabilities: [
     create(
       "sites.create",
-      "Create a site: where it runs (a computer port, or a Files folder) or its source (repo, folder or zip) to build with sites_deploy. Nothing is served until published or deployed",
+      "Create a site: where it runs (a computer port or a Files folder) or its source (repo, folder or zip). Nothing is served until published or deployed",
       {
         in: {
           name: t.str(),
@@ -275,7 +275,7 @@ export default defineManifest({
     ),
     write(
       "sites.update",
-      "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it. Making it public takes it down until published again",
+      "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it",
       {
         in: {
           siteId: id.site,
@@ -309,7 +309,7 @@ export default defineManifest({
         tool: "sites",
       },
     ),
-    write("sites.stop", "Stop serving a site. Its address answers nothing; the process on the computer keeps running", {
+    write("sites.stop", "Stop serving a site. Its address answers nothing", {
       in: deployTarget,
       out: { site: siteRow },
       on: ["site", "/siteId"],
@@ -325,7 +325,7 @@ export default defineManifest({
     }),
     read(
       "sites.host",
-      "What this Space can host: its address, whether Vyre can build and run apps here, the address sites get, what a custom domain needs",
+      "What this Space can host: its address, whether Vyre can run apps here, the sites address, what a custom domain needs",
       {
         in: {},
         out: {
@@ -368,7 +368,7 @@ export default defineManifest({
     }),
     write(
       "sites.deploy",
-      "Build the site from its source and run it here: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
+      "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers. wait returns when it ends",
       {
         in: { siteId: id.site, source: t.opt(source), wait: t.opt(t.bool()), onlyIfChanged: t.opt(t.bool()) },
         out: { deployment: dep },
@@ -421,7 +421,7 @@ export default defineManifest({
     ),
     write(
       "sites.webhook_set",
-      "Turn the GitHub webhook on or off, rotate its secret (shown once), or set which branches get a preview (names, prefix*, or *)",
+      "Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get a preview",
       {
         in: {
           siteId: id.site,
@@ -492,21 +492,17 @@ export default defineManifest({
       emits: ["site.preview_removed"],
       tool: "sites",
     }),
-    outward(
-      "sites.promote",
-      "Put a site on the public internet at its address. Held for approval unless the person asked for it this turn",
-      {
-        in: { siteId: id.site },
-        out: { site: siteRow },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        level: "edit",
-        gate: { act: "site_promote", when: "actor.kind != 'person'" },
-        emits: ["site.published", "site.promoted"],
-        tool: "sites",
-        errors: ["validation.precondition_failed"],
-      },
-    ),
+    outward("sites.promote", "Put a site on the public internet. Held for approval unless the person asked this turn", {
+      in: { siteId: id.site },
+      out: { site: siteRow },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+      gate: { act: "site_promote", when: "actor.kind != 'person'" },
+      emits: ["site.published", "site.promoted"],
+      tool: "sites",
+      errors: ["validation.precondition_failed"],
+    }),
     outward("sites.rollback", "Serve an earlier build again (the previous, or the one named). Nothing is built", {
       in: { siteId: id.site, toDeploymentId: t.opt(t.id("dpl")) },
       out: { deployment: dep },
@@ -518,18 +514,14 @@ export default defineManifest({
       tool: "sites",
       errors: ["validation.precondition_failed"],
     }),
-    create(
-      "sites.table_create",
-      "Create a site table (a site-scoped record type); no schema permission needed for people who can edit the site",
-      {
-        in: { siteId: id.site, key: t.str(), fields: t.arr(t.obj({ key: t.str(), type: t.str(), title: t.str() })) },
-        out: { type: t.str() },
-        on: ["site", "/siteId"],
-        emits: ["site.table_created"],
-        tool: "sites",
-        level: "edit",
-      },
-    ),
+    create("sites.table_create", "Create a site table (a site-scoped record type)", {
+      in: { siteId: id.site, key: t.str(), fields: t.arr(t.obj({ key: t.str(), type: t.str(), title: t.str() })) },
+      out: { type: t.str() },
+      on: ["site", "/siteId"],
+      emits: ["site.table_created"],
+      tool: "sites",
+      level: "edit",
+    }),
     read("sites.tables", "List site tables of a site", {
       in: deployTarget,
       out: { tables: t.arr(t.obj({ type: t.str(), rows: t.int() })) },
@@ -561,7 +553,7 @@ export default defineManifest({
     ),
     read(
       "sites.env_list",
-      "A site's env var names and where each comes from (never secret values), and the names the app looks for that are not set",
+      "A site's env var names and sources (never values), and names the app looks for that are not set",
       {
         in: deployTarget,
         out: {
@@ -598,19 +590,15 @@ export default defineManifest({
       tool: "sites",
       team: true,
     }),
-    create(
-      "sites.domain_add",
-      "Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS",
-      {
-        in: { siteId: id.site, domain: t.str() },
-        out: { domain: t.str(), records: t.arr(dnsRecord), state: t.enm("waiting_dns", "issuing", "live") },
-        on: ["site", "/siteId"],
-        perm: "sites.domains",
-        emits: ["site.domain_changed"],
-        tool: "sites",
-        level: "edit",
-      },
-    ),
+    create("sites.domain_add", "Add a custom domain: returns the DNS records to set; TLS is automatic", {
+      in: { siteId: id.site, domain: t.str() },
+      out: { domain: t.str(), records: t.arr(dnsRecord), state: t.enm("waiting_dns", "issuing", "live") },
+      on: ["site", "/siteId"],
+      perm: "sites.domains",
+      emits: ["site.domain_changed"],
+      tool: "sites",
+      level: "edit",
+    }),
     read("sites.domain_check", "The state of a custom domain: waiting for DNS, issuing the certificate, or live", {
       in: { siteId: id.site, domain: t.str() },
       out: { domain: t.str(), records: t.arr(dnsRecord), state: t.enm("waiting_dns", "issuing", "live") },
@@ -680,7 +668,7 @@ export default defineManifest({
     ),
     write(
       "sites.artifact_thumb_set",
-      "Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one",
+      "Keep a small picture of an artifact, sent by the Vyre for Chrome extension. Set only when there is none or the artifact changed",
       {
         in: { artifactId: id.site, thumb: t.str() },
         out: { set: t.bool() },
@@ -692,7 +680,7 @@ export default defineManifest({
     ),
     write(
       "sites.chat_viewing",
-      "The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds",
+      "The app says a chat is open for the person (every 30 s while open). An artifact an agent publishes for that person opens in their app only while this holds",
       {
         in: { threadId: id.thread },
         out: { ok: t.bool() },
@@ -719,32 +707,28 @@ export default defineManifest({
       on: ["site", "/siteId"],
       tool: "sites",
     }),
-    read(
-      "sites.logs",
-      "A site's log: its running app, or with build a deploy's build log (the latest by default). Text from the site, not Vyre content",
-      {
-        in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")), tail: t.opt(t.int()), build: t.opt(t.bool()) },
-        out: {
-          lines: t.arr(t.str()),
-          state: t.opt(state),
-          steps: t.opt(
-            t.arr(
-              t.obj({
-                key: stepKey,
-                state: stepState,
-                ms: t.opt(t.int()),
-                startedAt: t.opt(t.ts()),
-                from: t.opt(t.int({ description: "The index in lines where this step's lines begin" })),
-              }),
-              { description: "With a build log: its steps" },
-            ),
+    read("sites.logs", "A site's log: its app, or with build a deploy's build log. Text from the site", {
+      in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")), tail: t.opt(t.int()), build: t.opt(t.bool()) },
+      out: {
+        lines: t.arr(t.str()),
+        state: t.opt(state),
+        steps: t.opt(
+          t.arr(
+            t.obj({
+              key: stepKey,
+              state: stepState,
+              ms: t.opt(t.int()),
+              startedAt: t.opt(t.ts()),
+              from: t.opt(t.int({ description: "The index in lines where this step's lines begin" })),
+            }),
+            { description: "With a build log: its steps" },
           ),
-        },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        tool: "sites",
+        ),
       },
-    ),
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      tool: "sites",
+    }),
     read(
       "sites.plan",
       "What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for",
@@ -792,7 +776,7 @@ export default defineManifest({
     }),
     write(
       "sites.db_import",
-      "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
+      "Copy a Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
       {
         in: { siteId: id.site, fileId: t.opt(id.file), fromHandle: t.opt(id.handle) },
         out: { ok: t.bool(), detail: t.str() },
@@ -804,17 +788,13 @@ export default defineManifest({
         errors: ["validation.precondition_failed"],
       },
     ),
-    write(
-      "sites.password_set",
-      "Set the password visitors type to open a site whose access is password. Kept only as a hash",
-      {
-        in: { siteId: id.site, password: t.str({ minLength: 8, maxLength: 200 }) },
-        out: { ok: t.bool() },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        audit: "sensitive",
-      },
-    ),
+    write("sites.password_set", "Set the password for a site whose access is password (kept as a hash)", {
+      in: { siteId: id.site, password: t.str({ minLength: 8, maxLength: 200 }) },
+      out: { ok: t.bool() },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      audit: "sensitive",
+    }),
     write(
       "sites.signin_link",
       "A short-lived link that signs the person asking in to a Space-only site at its own address",

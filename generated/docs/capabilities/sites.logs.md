@@ -1,6 +1,6 @@
 # sites.logs
 
-A site's log: its running app, or with build a deploy's build log (the latest by default). Text from the site, not Vyre content
+A site's log: its app, or with build a deploy's build log. Text from the site
 
 | | |
 |---|---|

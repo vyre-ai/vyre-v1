@@ -1,6 +1,6 @@
 # sites.webhook_set
 
-Turn the GitHub webhook on or off, rotate its secret (shown once), or set which branches get a preview (names, prefix*, or *)
+Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get a preview
 
 | | |
 |---|---|

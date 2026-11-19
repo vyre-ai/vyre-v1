@@ -1631,11 +1631,22 @@ export function createClient(transport: Transport) {
       set: call("machines.set", 1),
     },
     mail: {
+      address: {
+        add: call("mail.address.add", 1),
+        list: call("mail.address.list", 1),
+        move: call("mail.address.move", 1),
+      },
       attachment: {
         save: call("mail.attachment.save", 1),
       },
       auto_connect_members: call("mail.auto_connect_members", 1),
+      configure: call("mail.configure", 1),
       connect: call("mail.connect", 1),
+      delivery: {
+        retry: call("mail.delivery.retry", 1),
+        trail: call("mail.delivery.trail", 1),
+      },
+      delivery_state: call("mail.delivery_state", 1),
       domain: {
         add: call("mail.domain.add", 1),
         check: call("mail.domain.check", 1),
@@ -1650,6 +1661,9 @@ export function createClient(transport: Transport) {
         list: call("mail.drafts.list", 1),
       },
       health: call("mail.health", 1),
+      inbox: {
+        monitor: call("mail.inbox.monitor", 1),
+      },
       ingest: call("mail.ingest", 1),
       mailbox: {
         create: call("mail.mailbox.create", 1),
@@ -1678,8 +1692,30 @@ export function createClient(transport: Transport) {
       send: call("mail.send", 1),
       send_as: call("mail.send_as", 1),
       send_preview: call("mail.send_preview", 1),
+      setup: {
+        status: call("mail.setup.status", 1),
+        test_send: call("mail.setup.test_send", 1),
+      },
+      smtp: {
+        get: call("mail.smtp.get", 1),
+        set: call("mail.smtp.set", 1),
+        verify: call("mail.smtp.verify", 1),
+      },
       status_update: call("mail.status_update", 1),
       sync_now: call("mail.sync_now", 1),
+      template: {
+        for_document: {
+          clear: call("mail.template.for_document.clear", 1),
+          get: call("mail.template.for_document.get", 1),
+          set: call("mail.template.for_document.set", 1),
+        },
+        get: call("mail.template.get", 1),
+        list: call("mail.template.list", 1),
+        preview: call("mail.template.preview", 1),
+        reset: call("mail.template.reset", 1),
+        save: call("mail.template.save", 1),
+      },
+      templates: call("mail.templates", 1),
       thread: {
         get: call("mail.thread.get", 1),
       },
@@ -2491,6 +2527,7 @@ export function createClient(transport: Transport) {
         scan: call("schema.sensitivity.scan", 1),
       },
       set_label: call("schema.set_label", 1),
+      set_mergeable: call("schema.set_mergeable", 1),
       trash: {
         list: call("schema.trash.list", 1),
       },

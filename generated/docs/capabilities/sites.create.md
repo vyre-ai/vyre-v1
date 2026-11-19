@@ -1,6 +1,6 @@
 # sites.create
 
-Create a site: where it runs (a computer port, or a Files folder) or its source (repo, folder or zip) to build with sites_deploy. Nothing is served until published or deployed
+Create a site: where it runs (a computer port or a Files folder) or its source (repo, folder or zip). Nothing is served until published or deployed
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Create a site: where it runs (a computer port, or a Files folder) or its source 
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (create under /folderId) |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | none |
