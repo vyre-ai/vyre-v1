@@ -945,6 +945,9 @@ test("Can go in emails: a switch per field, for fields that are fine to read out
   await assert.rejects(k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "email", mergeable: true }), code("validation.precondition_failed"));
   await k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "age", mergeable: true });
   await assert.rejects(k.h["schema.set_label"](k.ctx, { type: "acme_person", field: "age", label: "confidential" }), code("validation.precondition_failed"));
+  // a person field holds an id, so it is not a thing to read out either
+  await k.h["schema.apply"](k.ctx, { ops: [{ op: "field.add", type: "acme_person", def: { key: "boss", type: "person", title: "Boss" } }] });
+  await assert.rejects(k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "boss", mergeable: true }), code("validation.precondition_failed"));
   // a sealed (secret) field kind can never be switched on
   await k.h["schema.apply"](k.ctx, { ops: [{ op: "field.add", type: "acme_person", def: { key: "secret_note", type: "text", title: "Secret note" } }] });
   await k.h["schema.apply"](k.ctx, { ops: [{ op: "field.retype", type: "acme_person", field: "secret_note", toType: "sealed" }], confirm: ["field.retype:acme_person.secret_note"] }).catch(() => undefined);

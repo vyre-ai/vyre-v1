@@ -68,3 +68,45 @@ test("a retry handed back for lack of a right is tried again, then held with the
   assert.equal(r.h.rows(`SELECT state FROM mail_delivery_retry`)[0]!.state, "held");
   bindRetrySend(null);
 });
+
+test("a throw after the provider accepted the retry sends nothing new: the attempt counts as gone out, and every attempt shares one provider key", async () => {
+  bindRetrySend(null);
+  const r = rig({ principal: system });
+  seedSent(r.h, { id: "eml_m1", mailboxId: "mbx_hello", providerId: "re_1" });
+  recordSentBy(r.ctx, "eml_m1", { kind: "person", principal: "usr_ask01" });
+  await soft(r, "re_1", r.ctx.now() + 1);
+  const emit = r.ctx.emit.bind(r.ctx);
+  let boom = true;
+  r.ctx.emit = (name, subject, payload, o) => {
+    if (boom && name === "message.sent") throw new Error("the event log is down");
+    return emit(name, subject, payload, o);
+  };
+  r.h.advance(DAY);
+  const out = await retry(r.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 });
+  assert.equal(out.outcome, "sent"); // the provider had it: not a failed try
+  assert.equal(r.calls("resend.send_email").length, 1);
+  const child = r.h.rows(`SELECT "childId" FROM mail_delivery_child`)[0]!.childId as string;
+  assert.equal(out.messageId, child);
+  assert.equal(r.h.rows(`SELECT state FROM mail_delivery_retry`)[0]!.state, "waiting");
+  assert.equal(r.h.rows(`SELECT status, "providerId" FROM mail_message WHERE id = ?`, child)[0]!.status, "sent"); // acceptance was written first
+  // the next tick, and a repeat of the same attempt, send nothing
+  boom = false;
+  r.h.advance(DAY);
+  assert.equal((await retry(r.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 })).outcome, "skipped");
+  assert.equal(r.calls("resend.send_email").length, 1);
+  // the provider reports the retry delivered: the message ends delivered
+  await statusUpdate(r.ctx, { providerId: String(r.h.rows(`SELECT "providerId" FROM mail_message WHERE id = ?`, child)[0]!.providerId), status: "delivered", address: "pat@acme.test", at: r.ctx.now() + 1 });
+  assert.equal(r.h.rows(`SELECT status FROM mail_message WHERE id = ?`, "eml_m1")[0]!.status, "delivered");
+  // credit stays with the person who asked
+  assert.deepEqual((await trail(r.ctx, { messageId: child })).sentBy, { kind: "person", id: "usr_ask01" });
+  // the provider key is the same whatever the attempt: the retried message and the address
+  assert.equal(r.calls("resend.send_email")[0]!.input.idempotencyKey, "retry:eml_m1:pat@acme.test");
+});
+
+test("the first record of who asked stands; a later send of the same message by the system does not replace it", async () => {
+  const r = rig({ principal: { kind: "person", id: "usr_maya01" } });
+  recordSentBy(r.ctx, "eml_x1");
+  (r.ctx as unknown as { principal: { kind: string; id: string } }).principal = system;
+  recordSentBy(r.ctx, "eml_x1");
+  assert.deepEqual(r.h.rows(`SELECT kind, principal FROM mail_sent_by WHERE "messageId" = ?`, "eml_x1"), [{ kind: "person", principal: "usr_maya01" }]);
+});

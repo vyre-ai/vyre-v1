@@ -7,6 +7,7 @@
 // into the Gate hook's answer. Everything else is the real hook's: a top-level call to a provider backend (no ancestor cleared the act) is still held, verify is untouched, and a call that
 // reaches the provider with a different act (delete, spend) is still asked.
 import type { GateHook } from "../invoke.ts";
+import { fail } from "../routes/errors.ts";
 import { isHostService } from "../../../lib/trust.ts";
 
 /**
@@ -19,6 +20,9 @@ const SYSTEM_FOLLOW_UPS: ReadonlySet<string> = new Set(["mail.delivery.retry"]);
 export function withGateNesting(inner: GateHook): GateHook {
   return {
     applies(cap, input, seed) {
+      // a follow-up that only the host runs is refused for anyone else before the Gate is asked, so no approval task is ever made for it
+      if (SYSTEM_FOLLOW_UPS.has(cap.name) && !isHostService(seed.principal))
+        throw fail("permission.no_grant", "0".repeat(32), { message: "Only Vyre itself runs this." });
       const act = cap.gate?.act;
       if (act && act !== "none" && seed.clearedActs?.includes(act)) return null;
       if (seed.preAuth && seed.origin === "schedule" && isHostService(seed.principal) && SYSTEM_FOLLOW_UPS.has(cap.name)) return null;

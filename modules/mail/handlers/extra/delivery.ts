@@ -409,6 +409,12 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
     return { outcome: "skipped" };
   }
 
+  // the mailbox must still be there and connected: a retry does not send from one that was removed or disconnected
+  const box = first(ctx.db.all(`SELECT state, paused, deleted_at FROM mail_mailbox WHERE id = ?`, str(msg, "mailboxId")));
+  if (!box || box.deleted_at != null || str(box, "state") === "disconnected") {
+    await giveUp(ctx, msg, address, "The mailbox it was sent from is no longer connected.");
+    return { outcome: "gave_up" };
+  }
   // an address suppressed while the retry waited is never sent to
   const checked = (await ctx.call("contacts.suppression.check", { channel: "email", addresses: [address] })) as {
     suppressed?: unknown[];
@@ -471,21 +477,28 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
       );
       throw e;
     }
-    ctx.log.warn("mail.delivery.retry failed", { messageId: input.messageId, attempt: input.attempt });
-    // the attempt counted; the next one waits longer, or the tries are used up and the message is bounced
-    ctx.db.run(
-      `UPDATE mail_delivery_retry SET state = ?, "lastReason" = ? WHERE "messageId" = ? AND address = ?`,
-      "failed_try",
-      e instanceof Error ? e.message : "send failed",
-      input.messageId,
-      address,
-    );
-    const again = await planRetry(ctx, input.messageId, address, "The server could not send the retry.", ctx.now());
-    if (!again) {
-      await giveUp(ctx, msg, address, "The server could not send the retry.");
-      return { outcome: "gave_up" };
+    // the provider may already have the mail even though something after it failed: then the attempt went out, and nothing is sent again
+    const accepted = acceptedChild(ctx, input.messageId, address, now);
+    if (accepted) {
+      childId = accepted;
+      ctx.log.warn("mail.delivery.retry: accepted, a later step failed", { messageId: input.messageId, attempt: input.attempt });
+    } else {
+      ctx.log.warn("mail.delivery.retry failed", { messageId: input.messageId, attempt: input.attempt });
+      // the attempt counted; the next one waits longer, or the tries are used up and the message is bounced
+      ctx.db.run(
+        `UPDATE mail_delivery_retry SET state = ?, "lastReason" = ? WHERE "messageId" = ? AND address = ?`,
+        "failed_try",
+        e instanceof Error ? e.message : "send failed",
+        input.messageId,
+        address,
+      );
+      const again = await planRetry(ctx, input.messageId, address, "The server could not send the retry.", ctx.now());
+      if (!again) {
+        await giveUp(ctx, msg, address, "The server could not send the retry.");
+        return { outcome: "gave_up" };
+      }
+      return { outcome: "rescheduled" };
     }
-    return { outcome: "rescheduled" };
   }
   if (childId) {
     const origin = first(ctx.db.all(`SELECT * FROM mail_sent_by WHERE "messageId" = ?`, input.messageId));
@@ -635,14 +648,50 @@ export function isOwnRetry(ctx: MailCtx, key: string | undefined): boolean {
   return !!row && str(row, "state") === "sending" && num(row, "attempts") === Number(m[3]);
 }
 
-/** Remember who asked for a message to be sent (the person an agent acts for, else the caller). A retry copies the original's, so whoever runs it, the credit stays. */
+/**
+ * Remember who asked for a message to be sent (the person an agent acts for, else the caller). The first record stands: a queued message coming back at its time, run by someone else,
+ * never replaces it. Only an explicit `by` (a retry passing the original's) writes over it.
+ */
 export function recordSentBy(ctx: MailCtx, messageId: string, by?: { kind: string; principal: string; actingFor?: string | null }): void {
   ensureDelivery(ctx);
+  const have = first(ctx.db.all(`SELECT "messageId" FROM mail_sent_by WHERE "messageId" = ?`, messageId));
+  if (have && !by) return;
   const who = by ?? { kind: ctx.principal.kind, principal: ctx.principal.id, actingFor: ctx.actingFor ?? null };
-  if (first(ctx.db.all(`SELECT "messageId" FROM mail_sent_by WHERE "messageId" = ?`, messageId)))
-    ctx.db.run(`UPDATE mail_sent_by SET kind = ?, principal = ?, "actingFor" = ? WHERE "messageId" = ?`, who.kind, who.principal, who.actingFor ?? null, messageId);
-  else
-    ctx.db.run(`INSERT INTO mail_sent_by ("messageId", kind, principal, "actingFor", at) VALUES (?, ?, ?, ?, ?)`, messageId, who.kind, who.principal, who.actingFor ?? null, ctx.now());
+  if (have) ctx.db.run(`UPDATE mail_sent_by SET kind = ?, principal = ?, "actingFor" = ? WHERE "messageId" = ?`, who.kind, who.principal, who.actingFor ?? null, messageId);
+  else ctx.db.run(`INSERT INTO mail_sent_by ("messageId", kind, principal, "actingFor", at) VALUES (?, ?, ?, ?, ?)`, messageId, who.kind, who.principal, who.actingFor ?? null, ctx.now());
+}
+
+const RETRY_KEY = /^retry:(eml_[a-z0-9]+):(.+):([1-9])$/;
+
+/** Is this send one of our own retries, in flight, and run by the host service? Nobody else gets the retry's exemptions, whatever key they pass. */
+export function ownRetry(ctx: MailCtx, key: string | undefined): boolean {
+  return isHostService(ctx.principal) && isOwnRetry(ctx, key);
+}
+
+/** One provider key for every attempt of the same retry: the message and the address, never the attempt, so a provider that dedupes never sends twice. */
+export function providerKeyOf(key: string): string | undefined {
+  const m = RETRY_KEY.exec(key);
+  return m ? `retry:${m[1]}:${m[2]}` : undefined;
+}
+
+/** A retry's message is written: tie it to the message it retries and to the person who asked for that one, before the provider is called. */
+export function adoptChild(ctx: MailCtx, childId: string, key: string): void {
+  const m = RETRY_KEY.exec(key);
+  if (!m) return;
+  ensureDelivery(ctx);
+  ctx.db.run(`INSERT OR IGNORE INTO mail_delivery_child ("childId", "rootId", address) VALUES (?, ?, ?)`, childId, m[1], m[2]);
+  const origin = first(ctx.db.all(`SELECT * FROM mail_sent_by WHERE "messageId" = ?`, m[1]));
+  if (origin) recordSentBy(ctx, childId, { kind: str(origin, "kind"), principal: str(origin, "principal"), actingFor: strOrNull(origin, "actingFor") });
+}
+
+/** The child of a retry that the provider has already accepted since `since`, if any: the attempt went out even if something after it failed. */
+function acceptedChild(ctx: MailCtx, rootId: string, address: string, since: number): string | undefined {
+  for (const c of rowsOf(ctx.db.all(`SELECT * FROM mail_delivery_child WHERE "rootId" = ?`, rootId))) {
+    if (str(c, "address") !== address) continue;
+    const m = first(ctx.db.all(`SELECT "providerId", updated_at FROM mail_message WHERE id = ?`, str(c, "childId")));
+    if (m && strOrNull(m, "providerId") && num(m, "updated_at") >= since) return str(c, "childId");
+  }
+  return undefined;
 }
 
 /** A retry handed back this many times for lack of a right is held for a person, with the reason, and stops. */

@@ -175,8 +175,8 @@ test("an Automation may send one address only so many automatic replies an hour;
   assert.equal(person.sent().length, AUTO_PER_HOUR + 2);
 });
 
-test("our own retry in flight is never held by the guard; a forged retry key is", async () => {
-  const r = rig({ origin: "automation" });
+test("our own retry in flight is never held by the guard; a forged retry key, or a retry key passed by anyone but the host, is", async () => {
+  const r = rig({ origin: "automation", principal: { kind: "service", id: "svc_host" } });
   const auto = await ingest(r.ctx, letter("pat@acme.test", "<n5@acme.test>", "gm_n5", { mailboxId: "mbx_maya", headers: { "Auto-Submitted": "auto-replied" } }));
   const { ensureDelivery } = await import("../handlers/extra/delivery.ts");
   ensureDelivery(r.ctx);
@@ -186,6 +186,14 @@ test("our own retry in flight is never held by the guard; a forged retry key is"
   assert.equal((await send(r.ctx, mk())).status, "held"); // a forged key
   r.h.ctx.db.run(`INSERT INTO mail_delivery_retry ("messageId", address, attempts, "nextAt", state) VALUES (?, ?, ?, ?, ?)`, "eml_orig0001", "pat@acme.test", 1, r.ctx.now(), "sending");
   assert.equal(isOwnRetry(r.ctx, key), true);
+  // an agent or an Automation that knows the key and the ids is still guarded
+  const agent = r.ctx as unknown as { principal: { kind: string; id: string } };
+  agent.principal = { kind: "agent", id: "agt_scout01" };
+  assert.equal((await send(r.ctx, { ...mk(), idempotencyKey: `${key}x` })).status, "held");
+  agent.principal = { kind: "service", id: "svc_flow" };
+  r.h.ctx.db.run(`DELETE FROM mail_idem WHERE "idemKey" = ?`, key);
+  assert.equal((await send(r.ctx, mk())).status, "held");
+  agent.principal = { kind: "service", id: "svc_host" };
   r.h.ctx.db.run(`DELETE FROM mail_idem WHERE "idemKey" = ?`, key);
   assert.equal((await send(r.ctx, mk())).status, "sent");
 });

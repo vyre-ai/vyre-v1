@@ -273,14 +273,14 @@ export function recordHeld(ctx: MailCtx, messageId: string, mailboxId: string, a
   ctx.db.run(`INSERT INTO mail_held ("messageId", "mailboxId", actor, reason, at) VALUES (?, ?, ?, ?, ?)`, messageId, mailboxId, actor, reason.slice(0, 400), ctx.now());
 }
 
-/** A sender's held drafts in a mailbox that are still drafts (not yet sent or deleted), oldest first. */
+/** A sender's held drafts in a mailbox that are still drafts (not yet sent or deleted), oldest first. Rows whose draft is gone are forgotten here, so the table stays the size of what is open. */
 export function openHeld(ctx: MailCtx, mailboxId: string, actor: string): { id: string; subject: string; at: number }[] {
   ensureHeld(ctx);
   const out: { id: string; subject: string; at: number }[] = [];
-  for (const h of rowsOf(ctx.db.all(`SELECT * FROM mail_held WHERE "mailboxId" = ?`, mailboxId))) {
-    if (str(h, "actor") !== actor) continue;
+  for (const h of rowsOf(ctx.db.all(`SELECT * FROM mail_held WHERE "mailboxId" = ? AND actor = ?`, mailboxId, actor))) {
     const m = first(ctx.db.all(`SELECT subject, status, deleted_at FROM mail_message WHERE id = ?`, str(h, "messageId")));
     if (m && str(m, "status") === "draft" && m.deleted_at == null) out.push({ id: str(h, "messageId"), subject: str(m, "subject"), at: num(h, "at") });
+    else ctx.db.run(`DELETE FROM mail_held WHERE "messageId" = ?`, str(h, "messageId"));
   }
   return out.sort((a, b) => a.at - b.at);
 }

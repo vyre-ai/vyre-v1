@@ -353,7 +353,8 @@ function onlyMergeableDiffers(was: unknown, next: unknown): boolean {
 }
 
 /** Field kinds whose values must never go into an email: sealed (secret), files, signatures, buttons, and relations (they hold ids). */
-const NEVER_IN_EMAILS = new Set(["sealed", "files", "signature", "button", "relation"]);
+const NEVER_IN_EMAILS = new Set(["sealed", "files", "signature", "button", "relation", "person", "created_by", "modified_by"]);
+// (computed kinds, formula, rollup and lookup, are refused too: they can read a private field and still carry a public label)
 
 function manifestField(deps: SchemaDeps, d: TypeDefT, field: string): boolean {
   return (
@@ -410,7 +411,7 @@ function checkField(deps: SchemaDeps, st: Map<string, TypeDefT>, t: TypeDefT, f:
   if (mergeable !== undefined && typeof mergeable !== "boolean") no(`field ${f.key}: mergeable is yes or no`);
   if (mergeable === true) {
     const label = f.label ?? t.label;
-    if (NEVER_IN_EMAILS.has(f.type) || (label !== "public" && label !== "internal") || (Array.isArray(f.writeOnlyBy) && f.writeOnlyBy.length > 0))
+    if (NEVER_IN_EMAILS.has(f.type) || isDerived(deps.registry, f.type) || (label !== "public" && label !== "internal") || (Array.isArray(f.writeOnlyBy) && f.writeOnlyBy.length > 0))
       no(`field ${f.key} cannot go in emails: it is private or secret, or its kind cannot be read into text`);
   }
   const o = f.options ?? {};

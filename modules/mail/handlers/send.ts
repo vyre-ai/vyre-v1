@@ -17,7 +17,7 @@
 // DECISION: consent 'unknown' sends (opt-out regime: STOP, UNSUBSCRIBE and bounces write the suppression list). Only an explicit
 // 'denied', Do-not-contact or an email opt-out refuses.
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
-import { isHostService, isTenantService } from "../../../lib/trust.ts";
+import { isTenantService } from "../../../lib/trust.ts";
 import {
   DAY,
   DEFAULT_LIMITS,
@@ -56,7 +56,7 @@ import { dkimOf } from "./extra/domains.ts";
 import { smtpDeliver } from "./smtp.ts";
 import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
 import { MAX_HELD, autoReplyGuard, noteAutoSend, openHeld, recordHeld } from "./extra/inbound.ts";
-import { isOwnRetry, recordSentBy, recordTrail } from "./extra/delivery.ts";
+import { adoptChild, ownRetry, providerKeyOf, recordSentBy, recordTrail } from "./extra/delivery.ts";
 import { fillSend } from "./extra/template.ts";
 
 // ---- shapes
@@ -497,7 +497,7 @@ async function makePlan(
   )
     refuse(ctx, "Agent sending is off in this Space. An admin can turn it on in Console.");
   // our own retry, run by the host: the send was authorized when the person or Automation made it; the host service holds no grant on any mailbox
-  if (!(isHostService(ctx.principal) && isOwnRetry(ctx, (input as { idempotencyKey?: string }).idempotencyKey))) authorizeSender(ctx, box);
+  if (!ownRetry(ctx, (input as { idempotencyKey?: string }).idempotencyKey)) authorizeSender(ctx, box);
   if (input.senderId !== undefined && enforce) checkChosenSender(ctx, box);
   const actor = actorOf(ctx.principal.kind, ctx.origin);
   const route = resolveRoute(ctx, box, actor, requested);
@@ -570,7 +570,7 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
   const actor = actorOf(ctx.principal.kind, ctx.origin);
   const comingBack = pending !== null && str(pending, "status") === "queued";
   let stop: string | null = null;
-  if (!comingBack && !isOwnRetry(ctx, input.idempotencyKey)) {
+  if (!comingBack && !ownRetry(ctx, input.idempotencyKey)) {
     stop = autoReplyGuard(ctx, input.replyToMessageId, actor, addressesOf(input));
   }
   const composed = compose(ctx, input, pending);
@@ -630,13 +630,13 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     });
   }
 
-  if (!comingBack && !isOwnRetry(ctx, input.idempotencyKey)) noteAutoSend(ctx, actor, input.replyToMessageId, p.allowed.map((a) => a.address));
+  if (!comingBack && !ownRetry(ctx, input.idempotencyKey)) noteAutoSend(ctx, actor, input.replyToMessageId, p.allowed.map((a) => a.address));
   let when = Math.max(now, input.sendAt ?? now);
   const row = pending ? str(pending, "id") : newId("eml", now);
   // the Space's sending limits; a queued message coming back at its time already holds its slot
   let note: string | null = null;
   if (!(pending && str(pending, "status") === "queued")) {
-    const slot = await reserveSlot(ctx, p, when, row, true, isHostService(ctx.principal) && isOwnRetry(ctx, input.idempotencyKey));
+    const slot = await reserveSlot(ctx, p, when, row, true, ownRetry(ctx, input.idempotencyKey));
     when = slot.at;
     note = slot.note;
   }
@@ -664,7 +664,7 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     });
   }
 
-  const sent = await deliver(ctx, p, sendable, parent, pending, row, input.unsubscribe === true);
+  const sent = await deliver(ctx, p, sendable, parent, pending, row, input.unsubscribe === true, ownRetry(ctx, input.idempotencyKey) ? input.idempotencyKey : undefined);
   return remember(ctx, input.idempotencyKey, { messageId: sent.messageId, status: "sent", suppressed: refused });
 }
 
@@ -725,6 +725,7 @@ async function deliver(
   pending: Row | null,
   id: string,
   unsubscribe = false,
+  retryKey?: string,
 ): Promise<Delivered> {
   const agentLine = (await agentLabelOn(ctx)) && (p.actor === "agent" || strOrNull(pending, "draftedByAgent") !== null);
   const signed: Composed = agentLine
@@ -751,12 +752,14 @@ async function deliver(
   const rfcId = p.route === "space_domain" ? `<${id}@${domain}>` : null;
   const now = ctx.now();
   writeRow(ctx, p, final, parent, pending, id, "queued", now, rfcId);
-  recordSentBy(ctx, id); // who asked, kept as data: a retry later credits them whoever runs it
+  recordSentBy(ctx, id); // who asked, kept as data: the first record stands
+  // our own retry: tied to what it retries and credited to the original sender before the provider is called, so a failure after the provider accepts it can be told from one before
+  if (retryKey) adoptChild(ctx, id, retryKey);
   let providerId: string | null;
   try {
     providerId =
       p.route === "space_domain"
-        ? await viaSpaceDomain(ctx, p, final, parent, id, rfcId)
+        ? await viaSpaceDomain(ctx, p, final, parent, id, rfcId, retryKey ? providerKeyOf(retryKey) : undefined)
         : await viaMailbox(ctx, p.box, final, id, parent);
   } catch (e) {
     ctx.db.run(
@@ -929,6 +932,7 @@ async function viaSpaceDomain(
   parent: Row | null,
   id: string,
   rfcId: string | null,
+  providerKey?: string,
 ): Promise<string> {
   const domain = p.domain ? str(p.domain, "name") : "";
   const own = str(p.box, "address");
@@ -945,7 +949,8 @@ async function viaSpaceDomain(
         ? { "List-Unsubscribe": `<${c.listUnsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
         : {}),
     },
-    idempotencyKey: id, // the provider capabilities need a key; the message id is stable across the one delivery of this message
+    // the provider capabilities need a key. A retry uses one key for every attempt (the message it retries and the address), so a provider that dedupes on it never sends twice; any other send uses its message id
+    idempotencyKey: providerKey ?? id,
   };
   if (title && title !== own) body.fromName = title;
   if (c.cc.length) body.cc = c.cc.map((x) => x.address);
