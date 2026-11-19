@@ -143,6 +143,12 @@ export function pathKey(d: Draft): string {
   return key;
 }
 export const pick = (d: Draft, item: BrowseItem | null): Draft => ({ ...d, picked: item });
+/** "Choose this folder": the folder walked into is the one to connect, and the sheet goes on to its options. Nothing while at the root of the source. */
+export function chooseHere(d: Draft): Draft {
+  const here = d.path[d.path.length - 1];
+  if (d.step !== 2 || d.source === null || d.source === "github" || !here) return d;
+  return { ...d, picked: { ref: here.ref, name: here.name, isFolder: true, kind: here.kind }, step: 3 };
+}
 export const setQuery = (d: Draft, q: string): Draft => ({ ...d, q, picked: null });
 
 export function canNext(d: Draft): boolean {
