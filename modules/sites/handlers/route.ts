@@ -97,6 +97,8 @@ export interface SitesHost {
   runner?: Runner;
   /** a value the Vault filled for a deploy (kind container_env), taken once */
   take?(ref: string): string | undefined;
+  /** a call the host makes as itself (svc_host), for what a site's own action needs and the caller's hold would only stop: the Vault folder, item and shares of a webhook secret. The caller and the person it works for are named in the audit line. */
+  asHost?(cap: string, input: unknown): Promise<unknown>;
   /** true when this daemon runs in a container: a path on its disk is not an agent's */
   contained?: boolean;
   /** where a source is fetched and built from */

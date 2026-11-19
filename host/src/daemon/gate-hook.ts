@@ -22,6 +22,10 @@ import {
   holdGateFp,
   keySendOf,
   noteApproved,
+  noteGateCommit,
+  peekGateCommit,
+  holdGateCommit,
+  heldGateCommit,
   noteGateFp,
   peekGateFp,
   protectionHolds,
@@ -387,6 +391,8 @@ export function createGateHook(d: GateHookDeps): GateHook {
       const heldSite = (a.input as { siteId?: unknown } | null)?.siteId;
       const readFp = typeof heldSite === "string" ? peekGateFp(a.seed.trace, heldSite) : null;
       if (readFp) holdGateFp(input["payloadHash"] as string, readFp);
+      const readCommit = typeof heldSite === "string" ? peekGateCommit(a.seed.trace, heldSite) : null;
+      if (readCommit) holdGateCommit(input["payloadHash"] as string, readCommit);
       // what happens, in the capability's own words: its summary up to the first ";" (the rest is for developers)
       if (person)
         input["ask"] = {
@@ -438,6 +444,9 @@ export function createGateHook(d: GateHookDeps): GateHook {
       const site = (a.input as { siteId?: unknown } | null)?.siteId;
       const held = ok && typeof claims?.hash === "string" && typeof site === "string" ? heldGateFp(claims.hash) : null;
       if (held && typeof site === "string") noteGateFp(a.seed.trace, site, held);
+      const heldCommit =
+        ok && typeof claims?.hash === "string" && typeof site === "string" ? heldGateCommit(claims.hash) : null;
+      if (heldCommit && typeof site === "string") noteGateCommit(a.seed.trace, site, heldCommit);
       if (ok && typeof site === "string") noteApproved(a.seed.trace, site);
       return ok;
     },
@@ -676,9 +685,24 @@ export function moduleWhens(
   out["sites.deploy_gate"] = async (input, seed) => {
     const push = seed.origin === "sites-push";
     if (seed.principal.kind === "person" && !push) return false;
-    if (protectionHolds(siteFactsOf(input))) return true;
-    if (seed.principal.kind === "person") return false;
-    return out["vault.key_host_unapproved"]!(input, seed);
+    const held = protectionHolds(siteFactsOf(input))
+      ? true
+      : seed.principal.kind === "person"
+        ? false
+        : await out["vault.key_host_unapproved"]!(input, seed);
+    // a hold is made over the commit the branch is at now: the card pins it, and a yes deploys that commit, not a later one
+    const siteId = (input as { siteId?: unknown } | null)?.siteId;
+    const asker = seed.actingFor?.startsWith("usr_")
+      ? seed.actingFor
+      : seed.principal.kind === "person"
+        ? seed.principal.id
+        : undefined;
+    if (held && typeof siteId === "string" && callAs && asker && siteFactsOf(input)?.source?.repo) {
+      const head = (await callAs("sites.head_check", { siteId }, asker).catch(() => null)) as { head?: unknown } | null;
+      if (typeof head?.head === "string" && /^[0-9a-f]{40}$/.test(head.head))
+        noteGateCommit(seed.trace, siteId, head.head);
+    }
+    return held;
   };
   out["vault.after_approved_key_use"] = async (input, seed) => {
     const use = keySendOf(input);

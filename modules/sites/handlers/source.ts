@@ -20,6 +20,8 @@ export interface SourceSpec {
   fileId?: string;
   path?: string;
   root?: string;
+  /** Only the host sets this (a held deploy a person approved is of the commit the card was made over): the build is of exactly that commit. */
+  commit?: string;
 }
 export interface Fetched {
   dir: string;
@@ -143,6 +145,15 @@ async function fromRepo(
     r = await git(["clone", "--single-branch", ...(branch ? ["--branch", branch] : []), "--", url, "."], dir, token);
   }
   if (r.code !== 0) throw new SourceError(gitWhy(r.out));
+  // a commit a person approved: the branch may have moved on since, and what they saw is what is built
+  if (s.commit) {
+    const have = (await git(["rev-parse", "HEAD"], dir, null, 10_000)).out.trim();
+    if (have !== s.commit) {
+      const f = await git(["fetch", "--depth", "1", "origin", s.commit], dir, token);
+      const c = f.code === 0 ? await git(["checkout", "--detach", "FETCH_HEAD"], dir, null, 30_000) : f;
+      if (c.code !== 0) throw new SourceError("The commit that was approved can no longer be fetched. Ask again.");
+    }
+  }
   const head = await git(["log", "-1", "--format=%H%n%s"], dir, null, 10_000);
   const [commit, ...msg] = head.out.trim().split("\n");
   const cur = branch ?? (await git(["rev-parse", "--abbrev-ref", "HEAD"], dir, null, 10_000)).out.trim();

@@ -40,6 +40,7 @@ export function createClient(transport: Transport) {
         remove: call("access.exceptions.remove", 1),
         set: call("access.exceptions.set", 1),
       },
+      folder_narrow: call("access.folder_narrow", 1),
       grants: {
         list: call("access.grants.list", 1),
         update: call("access.grants.update", 1),
@@ -2623,6 +2624,7 @@ export function createClient(transport: Transport) {
       env_list: call("sites.env_list", 1),
       env_set: call("sites.env_set", 1),
       get: call("sites.get", 1),
+      head_check: call("sites.head_check", 1),
       host: call("sites.host", 1),
       list: call("sites.list", 1),
       logs: call("sites.logs", 1),

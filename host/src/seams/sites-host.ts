@@ -38,6 +38,7 @@ export interface SitesHostDeps {
   deploy?: {
     runnerLink?: { socketPath: string; token(): string };
     take(ref: string): string | undefined;
+    asHost?(cap: string, input: unknown): Promise<unknown>;
     tmp?: string;
     sitesDomain(): string | null;
     domainOf(siteId: string): string | null;

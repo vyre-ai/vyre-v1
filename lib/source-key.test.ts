@@ -218,3 +218,10 @@ test("visible text writes out every character that hides itself, and cuts by who
     "a combined letter is one",
   );
 });
+
+test("the approval notes are bounded: past the cap the oldest go, not all of them", async () => {
+  const { noteApproved, wasApproved } = await import("./key-target.ts");
+  for (let n = 0; n < 1200; n++) noteApproved({ traceId: `t${n}` }, "sit_cap");
+  assert.equal(wasApproved({ traceId: "t1199" }, "sit_cap"), true, "the newest is kept");
+  assert.equal(wasApproved({ traceId: "t0" }, "sit_cap"), false, "the oldest went first");
+});

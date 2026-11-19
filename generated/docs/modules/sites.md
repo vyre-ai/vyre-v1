@@ -4,7 +4,7 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (44)
+## Capabilities (45)
 
 - [sites.addon_add](../capabilities/sites.addon_add.md): Give a site its own Postgres or Redis (DATABASE_URL or REDIS_URL). Its data survives redeploys
 - [sites.addon_remove](../capabilities/sites.addon_remove.md): Remove a site's Postgres or Redis and its data
@@ -26,6 +26,7 @@ Requires: nothing.
 - [sites.env_list](../capabilities/sites.env_list.md): A site's env var names and sources (never values), and names the app looks for that are not set
 - [sites.env_set](../capabilities/sites.env_set.md): Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews or all
 - [sites.get](../capabilities/sites.get.md): Read one site
+- [sites.head_check](../capabilities/sites.head_check.md): The commit a site's branch is at, and whether it was already deployed
 - [sites.host](../capabilities/sites.host.md): What this Space can host: its address, whether Vyre can run apps here, the sites address, what a custom domain needs
 - [sites.list](../capabilities/sites.list.md): List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder
 - [sites.logs](../capabilities/sites.logs.md): A site's log: its app, or with build a deploy's build log. Text from the site

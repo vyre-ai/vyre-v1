@@ -18,7 +18,7 @@ import {
   follows,
 } from "../handlers/hook.ts";
 import { createHmac } from "node:crypto";
-import { handlers, siteFacts } from "../impl.ts";
+import { consumers, handlers, siteFacts } from "../impl.ts";
 import { deployHandlers } from "../handlers/deploy.ts";
 import { FIXTURE, h, useDatabase, world, type Fake } from "./deploy-world.ts";
 import {
@@ -2227,12 +2227,22 @@ test("a push or auto deploy is asked for only for a commit that was not deployed
     const siteId = await w.makeRepo("Waiting");
     w.sdb.run("UPDATE sites_site SET auto_deploy = 1 WHERE id = ?", siteId);
     let head: string | null = "a".repeat(40);
+    // what sites.head_check answers: the branch's head, and whether it differs from what was last deployed
+    const headOf = async (): Promise<{ head: string | null; changed: boolean }> => {
+      const last = (
+        w.sdb.all(
+          "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
+          siteId,
+        )[0] as { commit_sha: string } | undefined
+      )?.commit_sha;
+      return { head, changed: !(head && last === head) };
+    };
     const tick = async (): Promise<number> =>
-      (await autoDeployTargets(w.ctx, async () => head)).filter((a) => a.siteId === siteId).length;
+      (await autoDeployTargets(w.ctx, headOf)).filter((a) => a.siteId === siteId).length;
     const why = "Waiting for a person: the site holds keys and its branch is not protected on GitHub.";
     // the tick as the daemon makes it: ask, and when the Gate holds it, record it with the commit
     const run = async (): Promise<void> => {
-      for (const a of await autoDeployTargets(w.ctx, async () => head))
+      for (const a of await autoDeployTargets(w.ctx, headOf))
         if (a.siteId === siteId) recordDeployFailure(w.ctx, siteId, a.branch, why, a.head);
     };
     assert.equal(await tick(), 1, "a commit nobody has handled");
@@ -2266,6 +2276,156 @@ test("a push or auto deploy is asked for only for a commit that was not deployed
     assert.equal(await tick(), 1);
     recordDeployFailure(w.ctx, siteId, "main", why, null);
     assert.equal(await tick(), 0);
+  } finally {
+    w.done();
+  }
+});
+
+test("the tick reads a private repo's head with the site's own token, filled for that one call, before the Gate; what was deployed is not asked for", async () => {
+  const w = world({ values: { TOKEN: "ghp_private" } });
+  try {
+    const siteId = (
+      await h["sites.create"]!(w.ctx, {
+        name: "Private",
+        source: { repo: "https://github.com/acme/private.git", branch: "main", tokenHandle: "#Stripe.key" },
+      })
+    ).site.siteId as string;
+    const seenTokens: (string | null)[] = [];
+    let head: string | null = "d".repeat(40);
+    _test.useHeadReader(async (_repo, _branch, token) => (seenTokens.push(token), head));
+    const first = await h["sites.head_check"]!(w.ctx, { siteId });
+    assert.deepEqual([first.head, first.changed], ["d".repeat(40), true], "nothing deployed: changed");
+    assert.deepEqual(seenTokens, ["ghp_private"], "read with the site's own token, not without");
+    // a deploy of that head: the same head is no change
+    await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    const last = (
+      w.sdb.all(
+        "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
+        siteId,
+      )[0] as { commit_sha: string }
+    ).commit_sha;
+    head = last;
+    assert.equal((await h["sites.head_check"]!(w.ctx, { siteId })).changed, false);
+    head = null;
+    assert.equal(
+      (await h["sites.head_check"]!(w.ctx, { siteId })).changed,
+      true,
+      "a head that cannot be read is unknown",
+    );
+  } finally {
+    _test.useHeadReader(null);
+    w.done();
+  }
+});
+
+test("when the task of a waiting deploy is answered its row goes: a yes and an expiry delete it, a no keeps that commit denied and a newer commit asks at once", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Answered");
+    w.sdb.run("UPDATE sites_site SET auto_deploy = 1 WHERE id = ?", siteId);
+    const X = "e".repeat(40);
+    const Y = "f".repeat(40);
+    let head = X;
+    const headOf = async () => ({ head, changed: true });
+    const asked = async () => (await autoDeployTargets(w.ctx, headOf)).filter((a) => a.siteId === siteId).length;
+    const why = "Waiting for a person: the site holds keys and its branch is not protected on GitHub.";
+    const resolve = (name: string, taskId: string) =>
+      consumers["sites.hold_resolved"].run(w.ctx as never, { name, payload: { taskId } });
+    recordDeployFailure(w.ctx, siteId, "main", why, X, "tsk_x");
+    assert.equal(await asked(), 0, "waiting");
+    await resolve("gate.denied", "tsk_x");
+    assert.match(
+      String((w.sdb.all("SELECT error FROM sites_push WHERE delivery_id = ?", "tsk_x")[0] as { error: string }).error),
+      /^Denied by a person/,
+    );
+    assert.equal(await asked(), 0, "a denied commit stays denied");
+    head = Y;
+    assert.equal(await asked(), 1, "a newer commit asks at once");
+    recordDeployFailure(w.ctx, siteId, "main", why, Y, "tsk_y");
+    assert.equal(await asked(), 0);
+    await resolve("gate.approved", "tsk_y");
+    assert.equal(w.sdb.all("SELECT 1 FROM sites_push WHERE delivery_id = ?", "tsk_y").length, 0, "a yes clears it");
+    assert.equal(await asked(), 1, "and what was not deployed asks again");
+    recordDeployFailure(w.ctx, siteId, "main", why, Y, "tsk_z");
+    await resolve("gate.expired", "tsk_z");
+    assert.equal(w.sdb.all("SELECT 1 FROM sites_push WHERE delivery_id = ?", "tsk_z").length, 0, "an expiry clears it");
+    // what is older than 30 days is forgotten, and a branch written with hiding characters is shown escaped
+    w.sdb.run("UPDATE sites_push SET failed_at = ? WHERE delivery_id = ?", Date.now() - 31 * 86_400_000, "tsk_x");
+    await autoDeployTargets(w.ctx, headOf);
+    assert.equal(w.sdb.all("SELECT 1 FROM sites_push WHERE delivery_id = ?", "tsk_x").length, 0);
+    recordDeployFailure(w.ctx, siteId, `main${String.fromCodePoint(0x202e)}x\n`, why, X, "tsk_w");
+    assert.equal(
+      (w.sdb.all("SELECT branch FROM sites_push WHERE delivery_id = ?", "tsk_w")[0] as { branch: string }).branch,
+      "main\\u202ex\\u000a",
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("the webhook secret's Vault folder, item and shares are made by the host as part of the site's action, and the audit line names the agent and the person", async () => {
+  const hostCalls: { cap: string; input: Record<string, unknown> }[] = [];
+  const w = world({
+    asHost: async (cap, input) => {
+      hostCalls.push({ cap, input: input as Record<string, unknown> });
+      if (cap === "vault.folders.create") return { folder: { id: "vfd_site" } };
+      if (cap === "vault.item.put") return { item: { id: "vit_site", handle: "#Hooked_webhook_secret" } };
+      return {};
+    },
+  });
+  try {
+    const siteId = await w.makeRepo("Hooked");
+    const lines: { msg: string; attrs?: Record<string, unknown> }[] = [];
+    const agent = {
+      ...w.ctx,
+      principal: { kind: "agent", id: "agt_x" },
+      actingFor: "usr_boss",
+      // the agent's own calls to the Vault would be held: nothing goes through them
+      call: async (cap: string, input: unknown) => {
+        if (cap.startsWith("vault.")) throw new Error("held for a person");
+        return (w.ctx as { call: (c: string, i: unknown) => Promise<unknown> }).call(cap, input);
+      },
+      log: {
+        ...w.ctx.log,
+        info: (msg: string, attrs?: Record<string, unknown>) => void lines.push({ msg, ...(attrs ? { attrs } : {}) }),
+      },
+    } as typeof w.ctx;
+    const on = await h["sites.webhook_set"]!(agent, { siteId, enabled: true });
+    assert.equal(on.vault, "#Hooked_webhook_secret", "an agent's first enable is not stopped by its own share hold");
+    assert.deepEqual(
+      hostCalls.map((c) => c.cap),
+      ["vault.folders.create", "vault.item.put", "vault.share", "vault.share"].slice(0, hostCalls.length),
+    );
+    const shared = hostCalls
+      .filter((c) => c.cap === "vault.share")
+      .map((c) => (c.input["subject"] as { id: string }).id);
+    assert.ok(shared.includes("usr_boss"));
+    const line = lines.find((l) => l.msg === "sites.hook_secret_kept");
+    assert.equal(line?.attrs?.["by"], "agt_x");
+    assert.equal(line?.attrs?.["forPerson"], "usr_boss");
+    assert.equal(line?.attrs?.["asHost"], true);
+  } finally {
+    w.done();
+  }
+});
+
+test("a branch with a slash in its name is read under its own encoded name in the rules and the classic paths", async () => {
+  const w = world();
+  try {
+    const siteId = (
+      await h["sites.create"]!(w.ctx, {
+        name: "Slashed",
+        source: { repo: "https://github.com/acme/app.git", branch: "release/2026-11" },
+      })
+    ).site.siteId as string;
+    const asked: string[] = [];
+    (w.ctx as { http: unknown }).http = async (url: string) => {
+      asked.push(url.replace("https://api.github.com/repos/acme/app", ""));
+      return { status: 200, text: async () => "[]" };
+    };
+    await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.ok(asked.includes("/rules/branches/release%2F2026-11"), asked.join(" "));
+    assert.ok(asked.includes("/branches/release%2F2026-11/protection"), asked.join(" "));
   } finally {
     w.done();
   }

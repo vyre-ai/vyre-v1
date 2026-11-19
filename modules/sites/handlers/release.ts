@@ -31,13 +31,14 @@ import {
   reqStr,
   str,
 } from "./deploy.ts";
-import { takeGateFp, uploadFingerprint, wasApproved } from "../../../lib/key-target.ts";
+import { takeGateCommit, takeGateFp, uploadFingerprint, wasApproved } from "../../../lib/key-target.ts";
 import { looksSecret } from "./secrets.ts";
 import { sitePlan } from "./plan.ts";
 import type { SitePlan } from "./plan.ts";
 import { addonHost, DEFAULT_LIMITS, MIN_FREE_MB } from "./runner.ts";
 import type { AddonKind, Limits, Runner } from "./runner.ts";
 import { cleanBranch, fetchSource, remoteHead, repoUrl, SourceError } from "./source.ts";
+import { DENIED_PREFIX, WAITING_MS, WAITING_PREFIX } from "./waiting.ts";
 import type { SourceSpec } from "./source.ts";
 import { routesHost, siteRunner } from "./route.ts";
 
@@ -606,6 +607,9 @@ function stopIfCanceled(signal: AbortSignal): void {
 function stopIfClosed(db: Db, depId: string): void {
   if (!isOpen(db, depId)) throw new Canceled();
 }
+/** How a branch's head is read; a test replaces it (no network here). */
+let headReader: typeof remoteHead = remoteHead;
+
 /** How a source is fetched; a test replaces it (a repo cannot be cloned there). */
 let fetcher: typeof fetchSource = fetchSource;
 
@@ -735,6 +739,13 @@ async function runJob(j: Job): Promise<void> {
       return;
     }
     live();
+    // the commit a person approved is the commit built
+    if (j.source.commit && fetched.commit && fetched.commit !== j.source.commit) {
+      const why = "The branch moved while this waited, and the commit that was approved could not be built. Ask again.";
+      log.add(why);
+      end("failed", { problem: why, fix: "retry" });
+      return;
+    }
     // the files this build read are the ones the deploy was asked for (and the Gate looked at), or nothing is built from them
     if (j.strict && (j.source.folderId || j.source.fileId) && (!j.expectFp || !fetched.fp)) {
       const why =
@@ -1155,6 +1166,8 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     ).length;
   // uploaded files: the files the Gate judged for this call when it read them, else (a person's call, or a site with no key) what they are now, read as the caller; the build checks what it fetches against it
   const gateFp = takeGateFp(ctx.trace, siteId);
+  // the commit the card was made over, when a person approved a held deploy: that is what is built, not whatever the branch has become
+  const pinned = takeGateCommit(ctx.trace, siteId);
   const expectFp =
     source.folderId || source.fileId
       ? (gateFp ?? (strict ? null : await uploadFingerprint(source, (cap, inp) => ctx.call(cap as never, inp))))
@@ -1168,7 +1181,7 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     );
     // a push redeploys a site that was deployed; the first deploy is someone's own press
     if (!last) fail(ctx, "validation.precondition_failed", "It has not been deployed yet.");
-    const head = await remoteHead(source.repo, source.branch, token);
+    const head = pinned ?? (await headReader(source.repo, source.branch, token));
     // a deploy of this commit that ended (also one a person canceled) is not started again by itself; one that is running is joined
     if (last && head && (last.commit_sha === head || last.state === "queued" || last.state === "building"))
       return { deployment: depRow(last, current) };
@@ -1217,8 +1230,9 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
   const by = ctx.actingFor ?? ctx.principal.id;
   // a deploy that was waiting for a person is answered by this one
   ctx.db.run(
-    "DELETE FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error LIKE 'Waiting for a person%'",
+    "DELETE FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error LIKE ?",
     siteId,
+    `${WAITING_PREFIX}%`,
   );
   ctx.db.run(
     "INSERT INTO sites_deployment (id, site_id, env, state, url, branch, commit_sha, image, container_id, host, upstream, pr_number, log, created_by, at, updated_at, removed_at, merge_pending) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -1251,7 +1265,7 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     db: ctx.db,
     site,
     depId,
-    source,
+    source: pinned ? { ...source, commit: pinned } : source,
     env,
     token,
     limits: limitsOf(site),
@@ -2422,34 +2436,45 @@ export function autoDeploySites(ctx: Pick<Ctx, "db">): { siteId: string; as: str
 }
 
 /**
- * The deploys a tick should ask for: a site that deploys on push, and only when its branch has a commit that was not deployed (the same check onlyIfChanged makes in the handler, made here, before the Gate, so a commit that was already
- * handled never reaches it). A commit that already waits for a person is not asked for again: one card and one row per site and commit. When the head cannot be read the commit is unknown: the site is asked for once and then waits.
+ * The deploys a tick should ask for: a site that deploys on push, and only when its branch has a commit that was not deployed (the host reads the head with the site's own token, through sites.head_check, before it asks the Gate), and not a commit that already waits for a
+ * person or that a person denied: one card and one row per site and commit. A newer commit asks at once. When the head cannot be read the commit is unknown: the site is asked for once and then waits.
  */
 export async function autoDeployTargets(
   ctx: Pick<Ctx, "db">,
-  headOf: (repo: string, branch: string | undefined) => Promise<string | null> = (repo, branch) =>
-    remoteHead(repo, branch, null).catch(() => null),
+  headOf: (a: {
+    siteId: string;
+    as: string;
+    repo: string;
+    branch: string;
+  }) => Promise<{ head: string | null; changed: boolean }> = async () => ({
+    head: null,
+    changed: true,
+  }),
 ): Promise<{ siteId: string; as: string; branch: string; head: string | null }[]> {
+  const now = Date.now();
+  // what is older than 30 days is forgotten
+  ctx.db.run("DELETE FROM sites_push WHERE action = 'deploy' AND failed_at < ?", now - 30 * 24 * 60 * 60 * 1000);
   const out: { siteId: string; as: string; branch: string; head: string | null }[] = [];
   for (const a of autoDeploySites(ctx)) {
     const site = (ctx.db.all("SELECT * FROM sites_site WHERE id = ?", a.siteId) as Row[])[0];
     const source = site ? sourceOf(site) : null;
     if (!source?.repo) continue;
-    const head = await headOf(source.repo, source.branch).catch(() => null);
-    const last = (
-      ctx.db.all(
-        "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
-        a.siteId,
-      ) as Row[]
-    )[0];
-    if (head && last && str(last.commit_sha) === head) continue;
-    const waiting = ctx.db.all(
-      "SELECT sha FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error LIKE 'Waiting for a person%' AND failed_at > ?",
+    const seen = await headOf({ siteId: a.siteId, as: a.as, repo: source.repo, branch: source.branch ?? "" }).catch(
+      () => ({
+        head: null,
+        changed: true,
+      }),
+    );
+    if (!seen.changed) continue;
+    const rows = ctx.db.all(
+      "SELECT sha FROM sites_push WHERE site_id = ? AND action = 'deploy' AND (error LIKE ? OR error LIKE ?) AND failed_at > ?",
       a.siteId,
-      Date.now() - 24 * 60 * 60 * 1000,
+      `${WAITING_PREFIX}%`,
+      `${DENIED_PREFIX}%`,
+      now - WAITING_MS,
     ) as Row[];
-    if (waiting.length > 0 && (head === null || waiting.some((w) => str(w.sha) === head))) continue;
-    out.push({ ...a, head });
+    if (rows.length > 0 && (seen.head === null || rows.some((w) => str(w.sha) === seen.head))) continue;
+    out.push({ ...a, head: seen.head });
   }
   return out;
 }
@@ -2521,7 +2546,24 @@ export async function deployedLogs(
   }
 }
 
+/** The commit the site's branch is at (read with the site's own token, filled for this one call), and whether it differs from what was last deployed. A head that cannot be read is unknown and counts as changed. */
+async function sitesHeadCheck(ctx: Ctx, input: unknown): Promise<{ head?: string; changed: boolean }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const source = sourceOf(site);
+  if (!source?.repo) return { changed: true };
+  const token = source.tokenHandle ? await filled(ctx, source.tokenHandle, `${str(site.id)}:head:${ctx.now()}`) : null;
+  const head = (await headReader(source.repo, source.branch, token).catch(() => null)) ?? undefined;
+  const last = one(
+    ctx,
+    "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
+    str(site.id),
+  );
+  return { ...(head ? { head } : {}), changed: !(head && last && str(last.commit_sha) === head) };
+}
+
 export const releaseHandlers = {
+  "sites.head_check": (ctx: Ctx, input: unknown) => sitesHeadCheck(ctx, input),
   "sites.deploy": (ctx: Ctx, input: unknown) => sitesDeploy(ctx, input),
   "sites.deploy_cancel": (ctx: Ctx, input: unknown) => sitesDeployCancel(ctx, input),
   "sites.ship": (ctx: Ctx, input: unknown) => sitesShip(ctx, input),
@@ -2556,6 +2598,9 @@ export const _test = {
     CANCEL_WAIT_MS = ms ?? 20_000;
   },
   githubRepo,
+  useHeadReader: (f: typeof remoteHead | null): void => {
+    headReader = f ?? remoteHead;
+  },
   useFetcher: (f: typeof fetchSource | null): void => {
     fetcher = f ?? fetchSource;
   },

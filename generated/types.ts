@@ -328,6 +328,12 @@ export type AccessExceptionsSetOut = {
     at: number;
   };
 };
+export type AccessFolderNarrowIn = {
+  folderId: string;
+};
+export type AccessFolderNarrowOut = {
+  audience: "space" | "added" | "me";
+};
 export type AccessGrantsListIn = {
   resource?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
@@ -38028,6 +38034,13 @@ export type SitesGetOut = {
     passwordSet?: boolean;
   };
 };
+export type SitesHeadCheckIn = {
+  siteId: string;
+};
+export type SitesHeadCheckOut = {
+  head?: string;
+  changed: boolean;
+};
 export type SitesHostIn = Record<string, unknown>;
 export type SitesHostOut = {
   origin?: string;
@@ -48997,6 +49010,7 @@ export interface CapMap {
   "access.exceptions.list": { in: AccessExceptionsListIn; out: AccessExceptionsListOut };
   "access.exceptions.remove": { in: AccessExceptionsRemoveIn; out: AccessExceptionsRemoveOut };
   "access.exceptions.set": { in: AccessExceptionsSetIn; out: AccessExceptionsSetOut };
+  "access.folder_narrow": { in: AccessFolderNarrowIn; out: AccessFolderNarrowOut };
   "access.grants.list": { in: AccessGrantsListIn; out: AccessGrantsListOut };
   "access.grants.update": { in: AccessGrantsUpdateIn; out: AccessGrantsUpdateOut };
   "access.groups.add_member": { in: AccessGroupsAddMemberIn; out: AccessGroupsAddMemberOut };
@@ -50844,6 +50858,7 @@ export interface CapMap {
   "sites.env_list": { in: SitesEnvListIn; out: SitesEnvListOut };
   "sites.env_set": { in: SitesEnvSetIn; out: SitesEnvSetOut };
   "sites.get": { in: SitesGetIn; out: SitesGetOut };
+  "sites.head_check": { in: SitesHeadCheckIn; out: SitesHeadCheckOut };
   "sites.host": { in: SitesHostIn; out: SitesHostOut };
   "sites.list": { in: SitesListIn; out: SitesListOut };
   "sites.logs": { in: SitesLogsIn; out: SitesLogsOut };
@@ -53970,6 +53985,12 @@ export type ProjectFileUnpinnedPayload = {
   projectId: string;
   fileId: string;
 };
+export type ProjectFolderUnfollowedPayload = {
+  folderId: string;
+  recordId: string;
+  by: string;
+  why: string;
+};
 export type ProjectHealthSetPayload = {
   projectId: string;
   health?: "on" | "risk" | "off" | "hold" | "done";
@@ -56109,6 +56130,7 @@ export interface EventMap {
   "project.dates_kept": ProjectDatesKeptPayload;
   "project.file_pinned": ProjectFilePinnedPayload;
   "project.file_unpinned": ProjectFileUnpinnedPayload;
+  "project.folder_unfollowed": ProjectFolderUnfollowedPayload;
   "project.health_set": ProjectHealthSetPayload;
   "project.item_linked": ProjectItemLinkedPayload;
   "project.item_unlinked": ProjectItemUnlinkedPayload;

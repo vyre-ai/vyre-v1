@@ -40,6 +40,8 @@ export interface Fake {
   fetchFp?: () => string | undefined;
   /** What the Vault answers for a variable, by its name (the value a stored key fills in). */
   values?: Record<string, string>;
+  /** What the host does as itself for a site's own action (the webhook secret's Vault folder, item and shares). */
+  asHost?: (cap: string, input: unknown) => Promise<unknown>;
 }
 
 export function world(o: Fake = {}) {
@@ -146,15 +148,19 @@ export function world(o: Fake = {}) {
     sitesDomain: () => "sites.test",
     domainOf: () => null,
     hostRoute: (...a: unknown[]) => hooks.hostRoute(...a),
-    take: (ref: string) => fake.values?.[ref.slice(ref.indexOf(":") + 1)],
+    take: (ref: string) =>
+      fake.values?.[ref.slice(ref.indexOf(":") + 1)] ??
+      (/:(token|head):/.test(ref) ? fake.values?.["TOKEN"] : undefined),
+    ...(fake.asHost ? { asHost: (cap: string, input: unknown) => fake.asHost!(cap, input) } : {}),
   } as never);
   const make = async (name: string): Promise<string> =>
     (await h["sites.create"]!(ctx, { name, source: { path: FIXTURE } })).site.siteId as string;
   // a repo site: its source is fetched by a stand-in that returns the static fixture with a commit (a repo cannot be cloned here)
   let n = 0;
-  _test.useFetcher((async (s: { branch?: string }) => ({
+  _test.useFetcher((async (s: { branch?: string; commit?: string }) => ({
     dir: FIXTURE,
-    commit: `c0ffee${(++n).toString(16).padStart(2, "0")}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
+    // a pinned commit is the one built; any other build is the branch's newest
+    commit: s.commit ?? `c0ffee${(++n).toString(16).padStart(2, "0")}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
     message: `Change ${n}`,
     branch: s.branch ?? "main",
     ...(fake.fetchFp?.() ? { fp: fake.fetchFp() } : {}),

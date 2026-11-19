@@ -1,16 +1,18 @@
 // The email setup capabilities through the real invoke pipeline: the real definitions from the registry, the real kernel authorize over a real access snapshot, and the real Gate hook.
 // mail.configure routes to these, so they are its whole door: a member without comms.domains is refused, an admin is let in, and when an agent changes the Space's mail server or moves an address the call is held for a person's ok.
-import { wantsFromInput } from "../../lib/hold-words.ts";
+import { wantsFromInput } from "../../../lib/hold-words.ts";
 import {
+  heldGateCommit,
   heldGateFp,
+  peekGateCommit,
   noteGateFp,
   peekGateFp,
   sourceKeyHost,
   takeGateFp,
   uploadFingerprint,
   usedGateFp,
-} from "../../lib/key-target.ts";
-import { siteFacts } from "../../modules/sites/impl.ts";
+} from "../../../lib/key-target.ts";
+import { siteFacts } from "../../sites/impl.ts";
 import { world as sitesWorld, h as siteH, useDatabase } from "../../sites/tests/deploy-world.ts";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
@@ -18,7 +20,13 @@ import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../../kernel/src/authorize/index.ts";
 import { createIdempotency } from "../../../kernel/src/idempotency/index.ts";
 import { registry } from "../../../generated/registry.ts";
-import { createGateHook, keySendOf, markRefusal, moduleWhens, payloadHash } from "../../../host/src/daemon/gate-hook.ts";
+import {
+  createGateHook,
+  keySendOf,
+  markRefusal,
+  moduleWhens,
+  payloadHash,
+} from "../../../host/src/daemon/gate-hook.ts";
 import { createInvoke, createRateLimiter, indexCapabilities } from "../../../host/src/invoke.ts";
 import type { CtxSeed, Handler, InvokeDeps } from "../../../host/src/invoke.ts";
 import { harness as gateHarness } from "../fixtures/db.ts";
@@ -902,7 +910,7 @@ function siteWorld() {
     files: { fld_up: [{ fileId: "fil_a", name: "index.html", version: 1, size: 10 }] },
     folders: {},
   };
-  const state = { fetchFp: undefined as string | undefined, readable: true };
+  const state = { fetchFp: undefined as string | undefined, readable: true, head: "a".repeat(40) };
   const filesAnswer = (cap: string, input: unknown): unknown => {
     if (!state.readable) return null;
     const i = input as { folder?: string; fileId?: string; cursor?: string; limit?: number };
@@ -944,7 +952,11 @@ function siteWorld() {
     siteIds: known,
     db: () => db,
     callAs: async (cap: string, input: unknown, person: string) =>
-      cap.startsWith("files.") ? filesAnswer(cap, input) : w.opts.callAs(cap, input, person),
+      cap.startsWith("files.")
+        ? filesAnswer(cap, input)
+        : cap === "sites.head_check"
+          ? { head: state.head, changed: true }
+          : w.opts.callAs(cap, input, person),
     exports: new Map<string, Record<string, unknown>>([...w.opts.exports, ["sites", { siteFacts }]]),
     // the real sites.deploy runs under the real invoke: the call's own principal, trace and origin reach it as they do in the daemon
     handlers: {
@@ -1743,4 +1755,46 @@ test("an agent's rotate or enable of a webhook secret that is live is held for a
     wantsFromInput("sites.webhook_set", { siteId, rotate: true }),
     "rotate the webhook secret; GitHub must be given the new one",
   );
+});
+
+test("a card pins the commit the hold was made over: hold on X, push Y, the yes deploys X, and Y then gets a card of its own", async () => {
+  const s = siteWorld();
+  const X = "b".repeat(40);
+  const Y = "c".repeat(40);
+  s.github("open");
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
+  s.store(siteId, STORED.name, STORED.handle);
+  const call = { siteId, wait: true };
+  const t1 = { traceId: "f1".repeat(16), spanId: "01".repeat(8) };
+  s.state.head = X;
+  assert.equal((await rig(s.opts).invoke("sites.deploy", call, { ...asAgent(), trace: t1 } as never)).status, "held");
+  assert.equal(peekGateCommit(t1, siteId), X, "the card pins the head it was made over");
+  // the branch moves while the card waits
+  s.state.head = Y;
+  const who = [asAgent(), seed("usr_admin")];
+  const def = rig(s.opts).defOf("sites.deploy");
+  const hash = who.map((x) => payloadHash(def, call, x)).find((x) => heldGateCommit(x) !== null);
+  assert.ok(hash, "the hold kept the commit");
+  assert.equal(heldGateCommit(hash!), X);
+  const runner = who.find((x) => payloadHash(def, call, x) === hash)!;
+  const token = `apv_${Buffer.from(JSON.stringify({ keyId: "k", nonce: "n", bytes: "b" })).toString("base64url")}`;
+  const resumed = rig({
+    ...s.opts,
+    unseal: () => new TextEncoder().encode(JSON.stringify({ v: 1, exp: Date.now() + 60_000, hash })),
+  });
+  const t2 = { traceId: "f2".repeat(16), spanId: "02".repeat(8) };
+  const yes = await resumed.invoke("sites.deploy", call, { ...runner, trace: t2, approval: token } as never);
+  assert.equal(yes.status, "ok");
+  const lastCommit = () =>
+    (
+      s.sw.sdb.all(
+        "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
+        siteId,
+      )[0] as { commit_sha: string }
+    ).commit_sha;
+  assert.equal(lastCommit(), X, "the commit the card was made over is the one deployed");
+  // Y is a commit nobody saw: it holds again, with a card pinned to Y
+  const t3 = { traceId: "f3".repeat(16), spanId: "03".repeat(8) };
+  assert.equal((await rig(s.opts).invoke("sites.deploy", call, { ...asAgent(), trace: t3 } as never)).status, "held");
+  assert.equal(peekGateCommit(t3, siteId), Y);
 });

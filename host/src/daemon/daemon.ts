@@ -5539,11 +5539,29 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             const autos =
               (await (
                 sitesExports?.["autoDeployTargets"] as
-                  | ((c: {
-                      db: unknown;
-                    }) => Promise<{ siteId: string; as: string; branch: string; head: string | null }[]>)
+                  | ((
+                      c: { db: unknown },
+                      headOf: (x: { siteId: string; as: string; repo: string; branch: string }) => Promise<{
+                        head: string | null;
+                        changed: boolean;
+                      }>,
+                    ) => Promise<{ siteId: string; as: string; branch: string; head: string | null }[]>)
                   | undefined
-              )?.({ db: db! })) ?? [];
+              )?.({ db: db! }, async (x) => {
+                // the branch head, read with the site's own token as the person who deployed it last
+                const r = (await invoke(
+                  "sites.head_check",
+                  { siteId: x.siteId },
+                  {
+                    space: spaceId,
+                    principal: { kind: x.as.startsWith("agt_") ? "agent" : "person", id: x.as },
+                    origin: "sites-push",
+                  },
+                ).catch(() => null)) as { status?: string; output?: { head?: string; changed?: boolean } } | null;
+                return r?.status === "ok"
+                  ? { head: r.output?.head ?? null, changed: r.output?.changed !== false }
+                  : { head: null, changed: true };
+              })) ?? [];
             for (const a of autos) {
               const r = await invoke(
                 "sites.deploy",
@@ -5576,9 +5594,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                       : "The deploy could not run. The log says more.";
                 (
                   sitesExports?.["recordDeployFailure"] as
-                    | ((c: { db: unknown }, siteId: string, branch: string, why: string, sha: string | null) => void)
+                    | ((
+                        c: { db: unknown },
+                        siteId: string,
+                        branch: string,
+                        why: string,
+                        sha: string | null,
+                        taskId: string | null,
+                      ) => void)
                     | undefined
-                )?.({ db: db! }, a.siteId, a.branch, reason, a.head);
+                )?.({ db: db! }, a.siteId, a.branch, reason, a.head, (r as { taskId?: string }).taskId ?? null);
                 sink.log({
                   space: spaceId,
                   level: 30,
@@ -5596,6 +5621,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             deploy: {
               ...(runnerLink ? { runnerLink } : {}),
               take: takeSiteSecret,
+              // what a site's own action needs and the caller's hold would only stop (the webhook secret's Vault folder, item and shares) is done as the host
+              asHost: async (cap, input) => {
+                const r = (await invoke(cap, input, {
+                  space: spaceId,
+                  principal: { ...SYSTEM_PRINCIPAL },
+                  preAuth: true,
+                  origin: "seam",
+                })) as { status?: string; output?: unknown };
+                if (r.status !== "ok") throw new Error(`${cap}: ${r.status ?? "failed"}`);
+                return r.output;
+              },
               tmp: path.join(paths.root, "site-builds"),
               sitesDomain,
               domainOf: (id) =>

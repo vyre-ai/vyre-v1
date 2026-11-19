@@ -27,6 +27,7 @@ import { registry } from "../../generated/registry.ts";
 import { configureDomainEdge, configureRoutes, routeHandlers } from "./handlers/route.ts";
 import { domainRouteHandlers } from "./handlers/route-domains.ts";
 import { releaseHandlers } from "./handlers/release.ts";
+import { DENIED_PREFIX } from "./handlers/waiting.ts";
 import {
   acceptWebhook,
   hookHandlers,
@@ -43,7 +44,31 @@ export { refreshDomainRoutes } from "./handlers/route-domains.ts";
 const live = { ...routeHandlers, ...domainRouteHandlers, ...releaseHandlers, ...hookHandlers };
 const dormant = registry.capabilities.filter((c) => c.module === "sites" && !(c.name in live)).map((c) => c.name);
 export const handlers = { ...deferredHandlers(dormant), ...live };
-export const consumers = {};
+/**
+ * A deploy a push asked for that waits for a person is kept in the site's failed list with its task: when the task is answered the row goes with it. A yes deletes it (the deploy answers it); an expiry deletes it (the next tick may ask again);
+ * a no keeps the commit as denied, so it is not asked for again, and a newer commit asks at once.
+ */
+export const consumers = {
+  "sites.hold_resolved": {
+    on: ["gate.approved", "gate.denied", "gate.expired"],
+    async run(
+      ctx: { db: { run(sql: string, ...a: unknown[]): unknown } },
+      event: { name: string; payload: Record<string, unknown> },
+    ): Promise<string[]> {
+      const task = event.payload["taskId"];
+      if (typeof task !== "string") return [];
+      if (event.name === "gate.denied")
+        ctx.db.run(
+          "UPDATE sites_push SET error = ?, done_at = ? WHERE delivery_id = ? AND action = 'deploy'",
+          `${DENIED_PREFIX}: this commit is not deployed.`,
+          Date.now(),
+          task,
+        );
+      else ctx.db.run("DELETE FROM sites_push WHERE delivery_id = ? AND action = 'deploy'", task);
+      return [task];
+    },
+  },
+};
 export { markPushDone, markPushFailed, pendingPushes, recordDeployFailure };
 type Src = {
   repo?: string;

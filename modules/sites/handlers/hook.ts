@@ -14,10 +14,12 @@
 // @reads ../migrations/0013_hook_order.sql
 // @reads ../migrations/0014_hook_seq.sql
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
+import { visibleText } from "../../../lib/visible-text.ts";
 import { hostOnly } from "../../../host/src/ctx/host-only.ts";
 import type { WebhookAccept } from "../../../host/src/routes/webhooks.ts";
 import { fail, isNull, many, mustSite, nid, one, optBool, rec, reqStr, str } from "./deploy.ts";
 import { sourceOf } from "./release.ts";
+import { DENIED_PREFIX, WAITING_MS, WAITING_PREFIX } from "./waiting.ts";
 import { routesHost } from "./route.ts";
 
 type Row = Record<string, unknown>;
@@ -391,6 +393,7 @@ export function recordDeployFailure(
   branch: string,
   why: string,
   sha: string | null = null,
+  taskId: string | null = null,
 ): void {
   const now = Date.now();
   const reason = why.slice(0, 200);
@@ -408,24 +411,24 @@ export function recordDeployFailure(
     ctx.db.run("UPDATE sites_push SET at = ?, failed_at = ?, done_at = ? WHERE id = ?", now, now, now, same.id);
     return;
   }
+  // the branch is written by whoever pushed it: what the card shows is escaped
+  const shown = visibleText(branch, 100);
   ctx.db.run(
-    "INSERT INTO sites_push (id, site_id, branch, sha, action, at, done_at, failed_at, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO sites_push (id, site_id, branch, sha, action, at, done_at, failed_at, error, delivery_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     `psh_${randomHex(8)}`,
     siteId,
-    branch,
+    shown,
     sha,
     "deploy",
     now,
     now,
     now,
     reason,
+    taskId,
   );
 }
 
-/** How long a deploy that waits for a person is not asked for again: the card is still there. */
-export const WAITING_MS = 24 * 60 * 60 * 1000;
-/** The words of a deploy that waits for a person (the site's card, and what the tick looks for before asking again). */
-export const WAITING_PREFIX = "Waiting for a person";
+export { DENIED_PREFIX, WAITING_MS, WAITING_PREFIX };
 
 // ---- the site's settings for it
 
@@ -484,7 +487,16 @@ function cleanFollow(ctx: Ctx, raw: unknown): string[] {
  */
 async function keepSecret(ctx: Ctx, site: Row, secret: string, now: number): Promise<string> {
   const siteId = str(site.id);
-  const call = (cap: string, input: unknown): Promise<unknown> => ctx.call(cap as never, input);
+  // the folder, the item and the shares are part of the site's action, made by the host (an agent's own vault.share would wait for a person); the audit line names who asked
+  const host = routesHost()?.asHost;
+  const call = (cap: string, input: unknown): Promise<unknown> =>
+    host ? host(cap, input) : (ctx.call(cap as never, input) as Promise<unknown>);
+  ctx.log.info("sites.hook_secret_kept", {
+    site: siteId,
+    by: ctx.principal.id,
+    forPerson: ctx.actingFor ?? null,
+    asHost: host !== undefined,
+  });
   try {
     let kept: { folderId?: string; itemId?: string; handle?: string } = {};
     try {

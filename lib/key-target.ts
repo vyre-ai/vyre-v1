@@ -242,13 +242,49 @@ export function usedGateFp(call: CallId, siteId: string, now: number = Date.now(
   return used && used.length > 0 ? used[used.length - 1]!.fp : null;
 }
 
+/**
+ * The commit a hold was made over: what the card pins. The Gate reads the branch head when it holds a deploy and notes it for the call; when the hold is parked it is kept by the held call's hash; the resumed call is handed it, and the build
+ * is of exactly that commit, not of whatever the branch has become. Keyed and kept like the fingerprint note.
+ */
+const gateCommits = new Map<string, { sha: string; at: number }>();
+const heldCommits = new Map<string, { sha: string; at: number }>();
+export function noteGateCommit(call: CallId, siteId: string, sha: string, now: number = Date.now()): void {
+  const k = callKey(call, siteId);
+  if (!k) return;
+  for (const [key, v] of gateCommits) if (now - v.at > GATE_FP_TTL_MS) gateCommits.delete(key);
+  while (gateCommits.size >= 1000) gateCommits.delete(gateCommits.keys().next().value as string);
+  gateCommits.set(k, { sha, at: now });
+}
+export function peekGateCommit(call: CallId, siteId: string, now: number = Date.now()): string | null {
+  const k = callKey(call, siteId);
+  const v = k ? gateCommits.get(k) : undefined;
+  return v && now - v.at <= GATE_FP_TTL_MS ? v.sha : null;
+}
+/** Take the commit noted for this call, once. */
+export function takeGateCommit(call: CallId, siteId: string, now: number = Date.now()): string | null {
+  const k = callKey(call, siteId);
+  const v = k ? gateCommits.get(k) : undefined;
+  if (k) gateCommits.delete(k);
+  return v && now - v.at <= GATE_FP_TTL_MS ? v.sha : null;
+}
+export function holdGateCommit(hash: string, sha: string, now: number = Date.now()): void {
+  for (const [k, v] of heldCommits) if (now - v.at > 24 * 60 * 60 * 1000) heldCommits.delete(k);
+  while (heldCommits.size >= 1000) heldCommits.delete(heldCommits.keys().next().value as string);
+  heldCommits.set(hash, { sha, at: now });
+}
+export function heldGateCommit(hash: string, now: number = Date.now()): string | null {
+  const v = heldCommits.get(hash);
+  return v && now - v.at <= 24 * 60 * 60 * 1000 ? v.sha : null;
+}
+
 /** Calls a person approved (the Gate verified the token on the resume): the build of such a call may go on where an agent's own would refuse. Keyed like the fingerprint note. */
 const approvedCalls = new Map<string, number>();
 export function noteApproved(call: CallId, siteId: string, now: number = Date.now()): void {
   const k = callKey(call, siteId);
   if (!k) return;
-  for (const [key, at] of approvedCalls)
-    if (now - at > GATE_FP_TTL_MS || approvedCalls.size > 1000) approvedCalls.delete(key);
+  for (const [key, at] of approvedCalls) if (now - at > GATE_FP_TTL_MS) approvedCalls.delete(key);
+  // a bounded map: past the cap the oldest go first
+  while (approvedCalls.size >= 1000) approvedCalls.delete(approvedCalls.keys().next().value as string);
   approvedCalls.set(k, now);
 }
 export function wasApproved(call: CallId, siteId: string, now: number = Date.now()): boolean {
@@ -265,7 +301,8 @@ export function wasApproved(call: CallId, siteId: string, now: number = Date.now
 const heldFps = new Map<string, { fp: string; at: number }>();
 const HELD_FP_TTL_MS = 24 * 60 * 60 * 1000;
 export function holdGateFp(hash: string, fp: string, now: number = Date.now()): void {
-  for (const [k, v] of heldFps) if (now - v.at > HELD_FP_TTL_MS || heldFps.size > 1000) heldFps.delete(k);
+  for (const [k, v] of heldFps) if (now - v.at > HELD_FP_TTL_MS) heldFps.delete(k);
+  while (heldFps.size >= 1000) heldFps.delete(heldFps.keys().next().value as string);
   heldFps.set(hash, { fp, at: now });
 }
 export function heldGateFp(hash: string, now: number = Date.now()): string | null {
