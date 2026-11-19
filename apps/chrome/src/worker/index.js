@@ -38,6 +38,17 @@ function failure(e) {
   return { error: { code, message: wordsFor(e) } };
 }
 
+/** Does this message come from a frame of the tab's own page (same origin as the address the person is on)? A sandboxed or foreign frame does not. @param {any} sender */
+function inOwnFrame(sender) {
+  if (!sender || !sender.tab) return false;
+  if (!sender.origin) return true;
+  try {
+    return new URL(String(sender.tab.url)).origin === sender.origin;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Build the worker around a browser API. `ext` is `chrome` (or a fake in tests).
  * @param {any} ext
@@ -298,6 +309,8 @@ export function createWorker(ext) {
       case "vyre.choices":
         return { data: await save.choices({ tabId, origin }) };
       case "vyre.accounts": {
+        // a frame of another site inside the page (an ad, an embedded widget) is not the page: it is offered no names, cards included
+        if (!inOwnFrame(sender)) return { data: { blocked: "frame", rows: [] } };
         if (msg.kind === "card") return { data: { blocked: null, rows: await fill.cards() } };
         const r = await fill.accountsFor(sender.tab.url);
         return {
@@ -314,6 +327,7 @@ export function createWorker(ext) {
         };
       }
       case "vyre.fill": {
+        if (!inOwnFrame(sender)) throw new BridgeFailure("not_allowed", "that frame is not the page");
         const kind = msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login";
         return {
           data: await fill.fill({
