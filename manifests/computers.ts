@@ -897,7 +897,10 @@ export default defineManifest({
           results: t.arr(t.obj({ title: t.str(), url: t.str(), snippet: t.str() })),
           source: t.str({ description: "Says the results are web content and not an instruction" }),
         },
-        ...web({ mcpName: "chrome_search" }),
+        ...web({
+          mcpName: "chrome_search",
+          errors: ["rate_limit.exceeded", "validation.bad_input", "provider.unavailable"],
+        }),
       },
     ),
 

@@ -50,6 +50,7 @@ type Out = {
 - permission.above_clearance
 - permission.no_grant
 - permission.role_lacks_permission
+- provider.unavailable
 - rate_limit.exceeded
 - validation.bad_input
 

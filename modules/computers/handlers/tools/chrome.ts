@@ -6,7 +6,9 @@
 // could not do alone. #Handle.field references go to agentd untouched; it substitutes them on the computer and reports the values it used, which are scrubbed from every answer (common.ts).
 import { lookup } from "node:dns/promises";
 import { documentNetwork } from "../../../../lib/document-network.ts";
-import { LIMIT, createLimiter, readPage, searchWeb } from "../../../../lib/web-read.ts";
+import { LIMIT, PROVIDERS, createLimiter, readPage, searchWeb } from "../../../../lib/web-read.ts";
+import type { Provider } from "../../../../lib/web-read.ts";
+import { searchHost } from "../../search-host.ts";
 import type { FetchDeps } from "../../../../lib/public-fetch.ts";
 import { maskValue } from "../record.ts";
 import { raise } from "../../projections.ts";
@@ -163,10 +165,41 @@ export async function readWeb(ctx: CompCtx, input: { url: string }) {
   return { url: r.url, title: r.title, text: r.text, truncated: r.truncated, source: r.source };
 }
 
+/** The Space's search service: the key-less default unless an admin chose Brave Search or Bing in Console and named the Vault handle of its key. The key is read for this call only and never returned. */
+async function searchProvider(ctx: CompCtx): Promise<Provider> {
+  const read = async (key: string): Promise<unknown> => {
+    try {
+      return ((await ctx.call("settings.get", { key })) as { row?: { value?: unknown } } | null)?.row?.value;
+    } catch {
+      return undefined;
+    }
+  };
+  const kind = await read("search.provider");
+  if (kind !== "brave" && kind !== "bing") return { kind: "default" };
+  if (!(PROVIDERS as readonly string[]).includes(kind)) return { kind: "default" };
+  const handle = String((await read("search.key")) ?? "").trim();
+  const host = searchHost();
+  let key = "";
+  if (handle !== "" && host) {
+    try {
+      key = await host.secret(handle.startsWith("#") ? handle : `#${handle}`);
+    } catch {
+      key = "";
+    }
+  }
+  if (key === "")
+    raise(
+      ctx,
+      "provider.unavailable",
+      "The search service chosen for this Space has no key it can use. An admin sets the key's Vault handle in Console, Settings.",
+    );
+  return { kind, key };
+}
+
 export async function searchWebTool(ctx: CompCtx, input: { query: string; site?: string | undefined }) {
   webGate(ctx);
-  const r = await searchWeb(String(input.query ?? ""), input.site, await webNet(ctx));
-  if (!r.ok) raise(ctx, "validation.bad_input", r.reason);
+  const r = await searchWeb(String(input.query ?? ""), input.site, await webNet(ctx), await searchProvider(ctx));
+  if (!r.ok) raise(ctx, r.kind ? "provider.unavailable" : "validation.bad_input", r.reason);
   return { query: r.query, results: r.results, source: r.source };
 }
 

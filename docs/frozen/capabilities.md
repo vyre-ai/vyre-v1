@@ -770,3 +770,13 @@ Signed: lead, 19 Nov 2026
 - Snapshots: docs/frozen/snapshots/computers.json.
 
 Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: the search service of a Space, for `chrome_search` (lane r42-chrome)
+
+- Two Space settings rows (`settings.set_space`, `policy.manage`, shown in Console, Settings): `search.provider` (`default`, `brave` or `bing`; default `default`) and `search.key` (the Vault handle of the service's key, such as `#Brave_Search.api_key`; empty by default). The setting holds a handle, never a key. Snapshot: docs/frozen/snapshots/settings.json.
+- `default` is DuckDuckGo's key-less HTML page and needs nothing. `brave` (Brave Search API) and `bing` (Bing Web Search API) send the Space's key in the service's own header, to that service's host only: a redirect to any other host carries no header (tested). The key is read from the Vault by the host for this one call (`setSearchHost` seam, the same kind as the import module's) and is in no answer or error.
+- When the default is refused or answers with a challenge, `chrome_search` answers `provider.unavailable`: "Search is not answering. The default search was refused. An admin can choose a search service with its own key in Console, Settings." A chosen service with no usable key answers `provider.unavailable` too, without asking the web. `computers.chrome.search` declares `provider.unavailable`.
+- The admin who sets the handle chooses which Vault secret is sent to the service's fixed host; nothing else can name a destination.
+- Tests: lib/tests/web-read.test.ts (both services, header and redirect, refusals), modules/computers/tests/web-tools.test.ts.
+
+Signed: pending, lead

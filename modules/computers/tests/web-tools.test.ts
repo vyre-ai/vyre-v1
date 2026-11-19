@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { setDocumentNetwork } from "../../../lib/document-network.ts";
 import { WEB_LABEL } from "../../../lib/web-read.ts";
 import { codeOf } from "../fixtures/harness.ts";
+import { setSearchHost } from "../search-host.ts";
 import { tool, world } from "./tools.fixture.ts";
 
 afterEach(() => setDocumentNetwork(null));
@@ -114,4 +115,65 @@ test("an agent that loops is stopped after twenty in a minute, and another agent
   );
   const other = { ...w.agent().ctx, principal: { kind: "agent" as const, id: "agt_other" } };
   assert.equal((await tool["computers.chrome.read"]!(other, { url: "https://docs.example.com/a" })).title, "Docs");
+});
+
+test("a Space that chose Brave Search uses the key its Vault handle names, for this call only; without a usable key it says so and asks nothing of the web", async () => {
+  const w = await world();
+  const seen: { url: string; headers: any }[] = [];
+  setDocumentNetwork({
+    lookup: async () => ["93.184.216.34"],
+    fetch: (async (u: string, i: RequestInit) => {
+      seen.push({ url: u, headers: i.headers });
+      return new Response(
+        JSON.stringify({ web: { results: [{ title: "T", url: "https://d.example.com/", description: "D" }] } }),
+        { status: 200 },
+      );
+    }) as typeof fetch,
+  });
+  const settings = (provider: string, key = "#Brave_Search.api_key") => ({
+    ...w.agent().ctx,
+    principal: { kind: "agent" as const, id: `agt_s_${Math.random()}` },
+    call: async (cap: string, input: any) =>
+      cap === "settings.get" ? { row: { value: input.key === "search.provider" ? provider : key } } : {},
+  });
+  const handles: string[] = [];
+  setSearchHost({ secret: async (h) => (handles.push(h), "BSA-live") });
+  try {
+    const out = await tool["computers.chrome.search"]!(settings("brave"), { query: "auth" });
+    assert.equal(out.results[0].url, "https://d.example.com/");
+    assert.deepEqual(handles, ["#Brave_Search.api_key"]);
+    assert.equal(seen[0]!.headers["x-subscription-token"], "BSA-live");
+    assert.ok(!JSON.stringify(out).includes("BSA-live"), "the key is never in the answer");
+    // a handle with no key behind it
+    setSearchHost({
+      secret: async () => {
+        throw new Error("no such item");
+      },
+    });
+    seen.length = 0;
+    await assert.rejects(
+      tool["computers.chrome.search"]!(settings("brave"), { query: "auth" }),
+      (e) => codeOf(e) === "provider.unavailable",
+    );
+    await assert.rejects(
+      tool["computers.chrome.search"]!(settings("bing", ""), { query: "auth" }),
+      (e) => codeOf(e) === "provider.unavailable",
+    );
+    assert.deepEqual(seen, [], "nothing was sent without a key");
+  } finally {
+    setSearchHost(null);
+  }
+});
+
+test("the default search being refused answers provider.unavailable with the plain line, not a bad input", async () => {
+  const w = await world();
+  setDocumentNetwork({
+    lookup: async () => ["93.184.216.34"],
+    fetch: (async () => new Response("no", { status: 403 })) as typeof fetch,
+  });
+  const ctx = { ...w.agent().ctx, principal: { kind: "agent" as const, id: "agt_refused" } };
+  await assert.rejects(
+    tool["computers.chrome.search"]!(ctx, { query: "auth" }),
+    (e: any) => codeOf(e) === "provider.unavailable" && /Search is not answering/.test(e?.error?.message ?? ""),
+  );
 });

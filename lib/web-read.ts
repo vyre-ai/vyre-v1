@@ -22,7 +22,15 @@ export type ReadResult =
   | { ok: false; reason: string };
 export type SearchResult =
   | { ok: true; query: string; results: { title: string; url: string; snippet: string }[]; source: string }
-  | { ok: false; reason: string };
+  | { ok: false; reason: string; kind?: "not_answering" | "no_key" };
+
+/** The search service a Space uses: the key-less default, or an API (Brave Search or Bing) with the Space's own key, which comes from the Vault and is held only for the one call. */
+export type Provider = { kind: "default" } | { kind: "brave"; key: string } | { kind: "bing"; key: string };
+export const PROVIDERS = ["default", "brave", "bing"] as const;
+export const NOT_ANSWERING =
+  "Search is not answering. The default search was refused. An admin can choose a search service with its own key in Console, Settings.";
+export const BRAVE_URL = "https://api.search.brave.com/res/v1/web/search?count=8&q=";
+export const BING_URL = "https://api.bing.microsoft.com/v7.0/search?count=8&q=";
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'" };
 const decode = (s: string): string =>
@@ -37,7 +45,9 @@ const decode = (s: string): string =>
 
 /** The words of an HTML page: what a person would read, in order. Scripts, styles, comments and hidden or template parts are dropped; tags never survive. */
 export function pageText(html: string): { title: string; text: string } {
-  const title = decode((/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "").replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim();
+  const title = decode((/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "").replace(/<[^>]*>/g, ""))
+    .replace(/\s+/g, " ")
+    .trim();
   let body = html
     .replace(/<!--[\s\S]*?-->/g, " ")
     .replace(/<(script|style|noscript|template|svg|iframe|object|embed|head)\b[\s\S]*?<\/\1\s*>/gi, " ")
@@ -98,13 +108,58 @@ export function parseResults(html: string): { title: string; url: string; snippe
     if (!url) continue;
     const after = html.slice(re.lastIndex, re.lastIndex + 2500);
     const sn = /class="[^"]*\bresult__snippet\b[^"]*"[^>]*>([\s\S]*?)<\/(?:a|div|td)>/i.exec(after)?.[1] ?? "";
-    const strip = (s: string): string => decode(s.replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim();
+    const strip = (s: string): string =>
+      decode(s.replace(/<[^>]*>/g, ""))
+        .replace(/\s+/g, " ")
+        .trim();
     out.push({ title: strip(m[2] ?? "").slice(0, 200), url, snippet: strip(sn).slice(0, 300) });
   }
   return out;
 }
 
-export async function searchWeb(query: string, site: string | undefined, deps: FetchDeps): Promise<SearchResult> {
+function parseBrave(text: string): { title: string; url: string; snippet: string }[] {
+  try {
+    const rows = (JSON.parse(text) as { web?: { results?: unknown } }).web?.results;
+    return clean(Array.isArray(rows) ? rows.map((r: any) => [r?.title, r?.url, r?.description]) : []);
+  } catch {
+    return [];
+  }
+}
+function parseBing(text: string): { title: string; url: string; snippet: string }[] {
+  try {
+    const rows = (JSON.parse(text) as { webPages?: { value?: unknown } }).webPages?.value;
+    return clean(Array.isArray(rows) ? rows.map((r: any) => [r?.name, r?.url, r?.snippet]) : []);
+  } catch {
+    return [];
+  }
+}
+/** Title, address and snippet as plain text: an address must be http or https, and no markup is kept. */
+function clean(rows: unknown[][]): { title: string; url: string; snippet: string }[] {
+  const out: { title: string; url: string; snippet: string }[] = [];
+  const text = (v: unknown, n: number): string =>
+    decode(String(v ?? "").replace(/<[^>]*>/g, ""))
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, n);
+  for (const [t, u, d] of rows) {
+    let url = "";
+    try {
+      const x = new URL(String(u));
+      if (x.protocol === "https:" || x.protocol === "http:") url = x.href;
+    } catch {
+      url = "";
+    }
+    if (url && out.length < RESULTS_MAX) out.push({ title: text(t, 200), url, snippet: text(d, 300) });
+  }
+  return out;
+}
+
+export async function searchWeb(
+  query: string,
+  site: string | undefined,
+  deps: FetchDeps,
+  provider: Provider = { kind: "default" },
+): Promise<SearchResult> {
   const q = query.replace(/\s+/g, " ").trim().slice(0, QUERY_MAX);
   if (q === "") return { ok: false, reason: "Say what to look for." };
   // a site names a host, never an address with a path or a scheme: it narrows the search to that site's pages
@@ -112,9 +167,30 @@ export async function searchWeb(query: string, site: string | undefined, deps: F
   if (host !== "" && !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(host))
     return { ok: false, reason: "The site is a host name such as docs.example.com." };
   const phrase = host ? `site:${host} ${q}` : q;
+  if (provider.kind === "brave" || provider.kind === "bing") {
+    if (provider.key.trim() === "") return { ok: false, reason: "No key for the search service.", kind: "no_key" };
+    const url = `${provider.kind === "brave" ? BRAVE_URL : BING_URL}${encodeURIComponent(phrase)}`;
+    const headers =
+      provider.kind === "brave"
+        ? { "x-subscription-token": provider.key, accept: "application/json" }
+        : { "ocp-apim-subscription-key": provider.key, accept: "application/json" };
+    const got = await fetchPublicDocument(url, deps, headers);
+    // a service that refuses the key or the plan says so in plain words; the key is never in them
+    if (!got.ok)
+      return {
+        ok: false,
+        reason: "The search service did not answer. Check its key and plan in Console, Settings.",
+        kind: "not_answering",
+      };
+    const results = provider.kind === "brave" ? parseBrave(got.text) : parseBing(got.text);
+    return { ok: true, query: q, results, source: WEB_LABEL };
+  }
   const got = await fetchPublicDocument(`${SEARCH_URL}${encodeURIComponent(phrase)}`, deps);
-  if (!got.ok) return got;
+  if (!got.ok) return { ok: false, reason: NOT_ANSWERING, kind: "not_answering" };
   const results = parseResults(got.text);
+  // the default page answers a robot with a challenge instead of results: that is a refusal, said as one
+  if (results.length === 0 && /anomaly|challenge|captcha|unusual traffic/i.test(got.text))
+    return { ok: false, reason: NOT_ANSWERING, kind: "not_answering" };
   return { ok: true, query: q, results, source: WEB_LABEL };
 }
 
@@ -132,7 +208,9 @@ export function createLimiter(n: number, windowMs: number, now: () => number = D
       }
       recent.push(t);
       seen.set(key, recent);
-      if (seen.size > 500) for (const k of seen.keys()) if (k !== key && (seen.get(k) ?? []).every((x) => t - x >= windowMs)) seen.delete(k);
+      if (seen.size > 500)
+        for (const k of seen.keys())
+          if (k !== key && (seen.get(k) ?? []).every((x) => t - x >= windowMs)) seen.delete(k);
       return true;
     },
   };

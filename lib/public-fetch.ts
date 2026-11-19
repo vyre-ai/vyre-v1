@@ -148,24 +148,35 @@ function nextLocation(location: string | null, base: URL): { ok: true; href: str
 type Opened = { ok: true; response: Response; finalUrl: string } | { ok: false; reason: string };
 
 /** Open one public https address: every hop vetted (scheme, credentials, host, resolved addresses), redirects followed by hand, at most three, and a 2xx at the end. */
-async function openPublic(url: string, deps: FetchDeps): Promise<Opened> {
+async function openPublic(url: string, deps: FetchDeps, headers?: Readonly<Record<string, string>>): Promise<Opened> {
   let current = url;
+  const firstHost = (() => {
+    try {
+      return normalizedHost(new URL(url).hostname);
+    } catch {
+      return "";
+    }
+  })();
   for (let followed = 0; followed <= MAX_REDIRECTS; followed++) {
     const vetted = await vet(current, deps.lookup, deps.refuseHost);
     if (!vetted.ok) return vetted;
     let response: Response;
     try {
+      // request headers (a search service's key) go only to the host first asked, never to a host a redirect leads to
+      const send = headers && normalizedHost(vetted.url.hostname) === firstHost ? headers : undefined;
       if (deps.connect) {
         response = await deps.connect({
           url: vetted.url,
           addresses: vetted.addresses,
           signal: AbortSignal.timeout(TIMEOUT_MS),
+          ...(send ? { headers: send } : {}),
         });
       } else {
         response = await deps.fetch(vetted.url.href, {
           redirect: "manual",
           credentials: "omit",
           signal: AbortSignal.timeout(TIMEOUT_MS),
+          ...(send ? { headers: { ...send } } : {}),
         });
       }
     } catch {
@@ -199,8 +210,12 @@ async function openPublic(url: string, deps: FetchDeps): Promise<Opened> {
 }
 
 /** Fetch one public https document. Redirects are followed by hand, at most three. Passing connect binds the request to the vetted addresses. Omitting connect still checks DNS first but does not bind the socket. */
-export async function fetchPublicDocument(url: string, deps: FetchDeps): Promise<FetchResult> {
-  const opened = await openPublic(url, deps);
+export async function fetchPublicDocument(
+  url: string,
+  deps: FetchDeps,
+  headers?: Readonly<Record<string, string>>,
+): Promise<FetchResult> {
+  const opened = await openPublic(url, deps, headers);
   if (!opened.ok) return opened;
   const body = await readCapped(opened.response);
   if (!body.ok) return body;

@@ -6123,6 +6123,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           }),
         }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
+        // the computers module reads the key of the search service an admin chose, from the Vault by handle, for one call
+        setSearchHost: (d) => ({ secret: (handle: string) => d.vault.secret(handle, d.space) }),
         setImportHost: (d) => ({
           secret: (_ctx: unknown, handle: string) =>
             d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space),

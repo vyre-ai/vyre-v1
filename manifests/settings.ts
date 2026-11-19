@@ -379,5 +379,21 @@ export default defineManifest({
     setting("reports.send", "person", "privacy", "Send problem reports to Vyre", t.bool(), true),
     setting("kit.person_choice", "person", "appearance", "My Kit", t.nullable(id.kit), null),
     setting("kit.space_choice", "space", "spaces", "Space Kit", t.nullable(id.kit), null),
+    setting(
+      "search.provider",
+      "space",
+      "spaces",
+      "Web search for agents (the default needs no key; Brave Search or Bing use the Space's own key)",
+      t.enm("default", "brave", "bing"),
+      "default",
+    ),
+    setting(
+      "search.key",
+      "space",
+      "spaces",
+      "Web search key: the Vault handle of the key, never the key itself",
+      t.str({ maxLength: 120, examples: ["#Brave_Search.api_key"] }),
+      "",
+    ),
   ],
 });
