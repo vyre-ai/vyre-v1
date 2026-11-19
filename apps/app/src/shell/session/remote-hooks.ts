@@ -6,6 +6,8 @@ import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../client/s
 import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
 import { resolveInput as resolvePointers } from "../../../../../client/src/fake/live-query.ts";
 export { resolvePointers };
+import { stableJson } from "./stable-json.ts";
+export { stableJson };
 
 /**
  * A screen query's input pointers against the screen state. `/state/k` is `state.k`; any other namespace a screen declares (`/route/k`, `/draft/k`, `/filter/k`, `/query/k`, `/scope/k`,
@@ -27,6 +29,21 @@ export interface RemoteHooksOptions {
   quietMs?: Readonly<Record<string, number>>;
   /** The clock, for tests. */
   now?: () => number;
+  /**
+   * What this device kept of the Space's answers (session/kept.ts). A read that was kept starts `ready` with the kept answer and is read again the moment something watches it: the screen draws at once
+   * and changes in place. Each answer from the server is handed back to be kept; one the server refuses is dropped and shown as the failure it is.
+   */
+  kept?: {
+    read(cap: string, input: Record<string, unknown>): { data: unknown } | undefined;
+    wrote(cap: string, input: Record<string, unknown>, data: unknown, size: number): void;
+    drop(cap: string, input: Record<string, unknown>): void;
+  };
+  /** Did the server answer and refuse (as opposed to not being reached)? A kept answer the server refuses goes; one it could not be asked about stays, marked as not refreshed. */
+  refused?(error: unknown): boolean;
+  /** The most reads warmed ahead of a press that may be on their way at once; the rest wait in a short line (default 4, and 12 waiting). */
+  warmAtOnce?: number;
+  /** A warmed answer newer than this is not asked for again (default 15 s). */
+  warmFreshMs?: number;
 }
 
 export interface RemoteHooks extends ScreenHooks {
@@ -40,6 +57,22 @@ export interface RemoteHooks extends ScreenHooks {
   onInvalidate(listener: () => void): () => void;
   /** Warm a screen query: read it now with nobody watching, so the first draw of the place finds the answer. */
   prefetch(screenId: string, name: string, state?: Record<string, unknown>): void;
+  /** The last answer held for a read, without reading: this session's own, else what the device kept. Undefined when there is none. */
+  peek(cap: string, input?: Record<string, unknown>): unknown;
+  /** Warm one capability read the same way. */
+  prefetchCap(cap: string, input?: Record<string, unknown>): void;
+  /**
+   * Which part of the app is on screen (a place): every read watched from now on is remembered as one of that part's reads. `warmScope` reads again, with nobody watching, the ones of a part that
+   * have gone stale: what pointing at a place in the rail does, so the place opens on answers that are already new.
+   */
+  scope(name: string | null): void;
+  warmScope(name: string): void;
+  /**
+   * A thing of `kind` with this id is being opened: the reads first made in the next moments that name the id are remembered as what opening such a thing reads. `warmLike` makes those reads for
+   * another id of the same kind, with nobody watching: what resting the pointer on a row does.
+   */
+  learn(kind: string, id: string): void;
+  warmLike(kind: string, id: string): void;
   /** How many queries are being watched right now. */
   watching(): number;
   close(): void;
@@ -64,6 +97,10 @@ interface Entry {
   /** When the last read began, and the wait for the one a change asked for inside the quiet time. */
   lastAt: number;
   held: ReturnType<typeof setTimeout> | null;
+  /** The answer on show came from this device's kept copy and the server has not confirmed it yet. */
+  kept: boolean;
+  /** When the server last answered. */
+  answeredAt: number;
 }
 
 function failureOf(err: unknown): { message: string; code?: string; traceId?: string } {
@@ -77,18 +114,6 @@ function failureOf(err: unknown): { message: string; code?: string; traceId?: st
     ...(typeof o.code === "string" ? { code: o.code } : {}),
     ...(typeof o.traceId === "string" && o.traceId !== "" ? { traceId: o.traceId } : {}),
   };
-}
-
-/** Key order does not change a query's identity. */
-export function stableJson(v: unknown): string {
-  if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
-  if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
-  const o = v as Record<string, unknown>;
-  return `{${Object.keys(o)
-    .filter((k) => o[k] !== undefined)
-    .sort()
-    .map((k) => `${JSON.stringify(k)}:${stableJson(o[k])}`)
-    .join(",")}}`;
 }
 
 export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
@@ -120,6 +145,9 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     opts.read(e.cap, e.input).then(
       (data) => {
         const json = stableJson(data);
+        e.kept = false;
+        e.answeredAt = now();
+        if (!closed) opts.kept?.wrote(e.cap, e.input, data, json.length);
         // a real answer ends every optimistic change
         const had = e.patches.length > 0;
         e.patches.length = 0;
@@ -138,6 +166,16 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       (err: unknown) => {
         opts.onError?.(e.cap, err);
         if (opts.ignoreError?.(err)) {
+          done();
+          return;
+        }
+        // An answer this device kept from an earlier launch, and the server now refuses the read (access was taken away, the thing is gone): the kept answer is not shown a moment longer.
+        if (e.kept && e.snap.status === "ready" && opts.refused?.(err) === true) {
+          e.kept = false;
+          opts.kept?.drop(e.cap, e.input);
+          e.json = "";
+          e.snap = { status: "loading", error: failureOf(err) };
+          notify(e);
           done();
           return;
         }
@@ -165,18 +203,24 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
   };
 
   const entryFor = (cap: string, input: Record<string, unknown>): Entry => {
-    const key = `${cap}\u0000${stableJson(input)}`;
+    const inputJson = stableJson(input);
+    const key = `${cap}\u0000${inputJson}`;
     let e = entries.get(key);
     if (e) return e;
+    noteMade(cap, inputJson);
+    // what this device kept of this read: shown at once, and read again as soon as something watches it (`stale`)
+    const was = opts.kept?.read(cap, input);
     const made: Entry = {
       cap,
       input,
       listeners: new Set(),
-      snap: { status: "loading" },
-      json: "",
+      snap: was ? { status: "ready", data: was.data } : { status: "loading" },
+      json: was ? stableJson(was.data) : "",
       inflight: false,
       dirty: false,
-      stale: false,
+      stale: was !== undefined,
+      kept: was !== undefined,
+      answeredAt: -Infinity,
       staleFail: null,
       staleListeners: new Set(),
       patches: [],
@@ -186,6 +230,7 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       live: {
         subscribe(l) {
           made.listeners.add(l);
+          noteWatched(made);
           if (made.snap.status === "loading" || made.stale) fetchEntry(made);
           return () => {
             made.listeners.delete(l);
@@ -207,6 +252,102 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     entries.set(key, made);
     e = made;
     return e;
+  };
+
+  // What each part of the app (a place) watches, newest last, so pointing at the place can bring those answers up to date before it opens.
+  const SCOPE_MAX = 24;
+  const scopes = new Map<string, Set<Entry>>();
+  let scopeNow: string | null = null;
+  const noteWatched = (e: Entry): void => {
+    if (scopeNow === null) return;
+    let set = scopes.get(scopeNow);
+    if (!set) scopes.set(scopeNow, (set = new Set()));
+    set.delete(e);
+    set.add(e);
+    if (set.size > SCOPE_MAX) set.delete(set.values().next().value as Entry);
+  };
+  // What opening a thing of a kind reads, learnt from the last one opened: each read with the thing's id replaced by a mark. A few per kind.
+  const LEARN_MS = 2_500;
+  const LEARN_MAX = 8;
+  const ID_MARK = "\u0001id\u0001";
+  const learned = new Map<string, { cap: string; input: string }[]>();
+  let learning: { kind: string; id: string; until: number } | null = null;
+  const noteMade = (cap: string, inputJson: string): void => {
+    if (learning === null || now() > learning.until) return;
+    const needle = JSON.stringify(learning.id).slice(1, -1);
+    if (needle === "" || !inputJson.includes(`"${needle}"`)) return;
+    const input = inputJson.split(`"${needle}"`).join(`"${ID_MARK}"`);
+    const list = learned.get(learning.kind) ?? [];
+    if (list.some((t) => t.cap === cap && t.input === input)) return;
+    list.push({ cap, input });
+    if (list.length > LEARN_MAX) list.shift();
+    learned.set(learning.kind, list);
+  };
+  /** Nothing of the Vault, of keys or of sign-in is ever read ahead of the person asking for it. */
+  const mayWarm = (cap: string): boolean =>
+    !/^(vault|vault_requests|identity|providers|devices|members|console|oauth)\./.test(cap);
+
+  // Reads warmed ahead of a press (a pointer resting on a row, a place being focused) never flood the Space: a few at once, a short line behind them (the newest wish wins a full line),
+  // and nothing that is already watched, on its way, or was answered a moment ago.
+  const warmAtOnce = opts.warmAtOnce ?? 4;
+  const warmFreshMs = opts.warmFreshMs ?? 15_000;
+  const WARM_LINE = 12;
+  const warmLine: Entry[] = [];
+  let warming = 0;
+  const pump = (): void => {
+    while (!closed && warming < warmAtOnce && warmLine.length > 0) {
+      const e = warmLine.shift()!;
+      if (e.inflight || e.listeners.size > 0 || now() - e.answeredAt < warmFreshMs) continue;
+      warming += 1;
+      e.inflight = true;
+      e.lastAt = now();
+      e.stale = false;
+      const end = (): void => {
+        e.inflight = false;
+        warming -= 1;
+        if (e.dirty && !closed) {
+          e.dirty = false;
+          fetchEntry(e);
+        }
+        pump();
+      };
+      opts.read(e.cap, e.input).then(
+        (data) => {
+          const json = stableJson(data);
+          e.kept = false;
+          e.answeredAt = now();
+          if (!closed) opts.kept?.wrote(e.cap, e.input, data, json.length);
+          if (e.patches.length === 0 && (e.snap.status !== "ready" || json !== e.json)) {
+            e.json = json;
+            e.snap = { status: "ready", data };
+            notify(e);
+          }
+          end();
+        },
+        (err: unknown) => {
+          // a warm-up that fails says nothing: the page asks again itself when it is opened, and reports what it finds
+          if (e.snap.status === "ready") e.stale = true;
+          if (e.kept && opts.refused?.(err) === true) {
+            e.kept = false;
+            opts.kept?.drop(e.cap, e.input);
+            e.json = "";
+            e.snap = { status: "loading" };
+            notify(e);
+          }
+          end();
+        },
+      );
+    }
+  };
+  const warm = (e: Entry): void => {
+    if (closed || e.inflight || e.listeners.size > 0) return;
+    // an answer nothing has changed since is as good as a new one (a change in the Space marks every unwatched read stale); one that is stale but a moment old is not asked for again yet
+    if (e.snap.status === "ready" && (!e.stale || now() - e.answeredAt < warmFreshMs)) return;
+    const at = warmLine.indexOf(e);
+    if (at >= 0) warmLine.splice(at, 1);
+    warmLine.push(e);
+    if (warmLine.length > WARM_LINE) warmLine.shift();
+    pump();
   };
 
   return {
@@ -284,8 +425,38 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       const screen = opts.screens.get(screenId);
       const q = screen?.queries[name];
       if (!q || !q.live) return;
-      const e = entryFor(q.cap, resolvePointers(q.input, state));
-      if (e.snap.status === "loading" && !e.inflight) fetchEntry(e);
+      warm(entryFor(q.cap, resolvePointers(q.input, state)));
+    },
+    peek(cap, input = {}) {
+      const e = entries.get(`${cap}\u0000${stableJson(input)}`);
+      if (e && e.snap.status === "ready") return e.snap.data;
+      return opts.kept?.read(cap, input)?.data;
+    },
+    prefetchCap(cap, input = {}) {
+      if (mayWarm(cap)) warm(entryFor(cap, input));
+    },
+    scope(name) {
+      scopeNow = name;
+    },
+    warmScope(name) {
+      for (const e of scopes.get(name) ?? []) if (mayWarm(e.cap)) warm(e);
+    },
+    learn(kind, id) {
+      if (id === "") return;
+      learning = { kind, id, until: now() + LEARN_MS };
+    },
+    warmLike(kind, id) {
+      if (id === "") return;
+      for (const t of learned.get(kind) ?? []) {
+        if (!mayWarm(t.cap)) continue;
+        let input: Record<string, unknown>;
+        try {
+          input = JSON.parse(t.input.split(ID_MARK).join(JSON.stringify(id).slice(1, -1))) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
+        warm(entryFor(t.cap, input));
+      }
     },
     watching() {
       let n = 0;

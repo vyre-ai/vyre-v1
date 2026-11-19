@@ -9,6 +9,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { RowProps } from "./props.ts";
 import { injectCss } from "../theme/css.ts";
+import { keepEvent, pressTransition, useArmed, useNavRows } from "../theme/pending.ts";
 
 export type { RowProps } from "./props.ts";
 
@@ -146,30 +147,43 @@ export function useCutTip(full: string): {
   return { title: cut ? full : undefined, onMouseEnter: check, onFocus: check };
 }
 
-function WebRow({
-  inert = false,
-  hint,
-  locked = false,
-  id,
-  title,
-  titleSuffix,
-  titleMarks,
-  noteLead,
-  noteLeadTone = "accent",
-  noteAction,
-  tall = false,
-  emphasis = false,
-  quiet = false,
-  note,
-  selected = false,
-  hovered = false,
-  accentLit = false,
-  leading,
-  trailing,
-  onPress,
-  domProps,
-}: RowProps): ReactElement {
+function WebRow(props: RowProps): ReactElement {
+  const {
+    inert = false,
+    hint,
+    locked = false,
+    id,
+    title,
+    titleSuffix,
+    titleMarks,
+    noteLead,
+    noteLeadTone = "accent",
+    noteAction,
+    tall = false,
+    emphasis = false,
+    quiet = false,
+    note,
+    hovered = false,
+    accentLit = false,
+    leading,
+    trailing,
+    onPress: pressed,
+    domProps,
+  } = props;
   ensureRowCss();
+  // A row that leads somewhere (a list inside ui NavRows: a place's sidebar, a list of files) answers its press at once (r41, ui/theme/pending.ts): it is lit as selected in the frame of the
+  // press, the row that was selected gives way, and what the press opens is made after that frame. Any other row (a toggle, a menu line, a picker) is pressed as it always was.
+  const nav = useNavRows();
+  const selectable = nav && props.selected !== undefined && id !== undefined;
+  const arm = useArmed(selectable ? id : undefined, props.selected === true);
+  const selected = arm === 1 || (props.selected === true && arm !== -1);
+  const onPress =
+    pressed && selectable
+      ? (e?: unknown): void => {
+          const ev = keepEvent(e);
+          pressTransition(() => pressed(ev), id);
+        }
+      : pressed;
   const filled = accentLit && hovered && !selected;
   const inkOn = filled ? { color: "var(--accent-ink)" } : null;
   const inkQuiet = quiet && !emphasis && !filled ? { color: "var(--ink-2)" } : null;

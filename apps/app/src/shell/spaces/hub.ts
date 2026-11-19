@@ -131,7 +131,11 @@ export interface ShellHub {
    * `to` names the tab being shown, when the change is a switch to a tab: the frame can then show that tab's own last view at once. When it does, it answers true and
    * runs `then` itself once that view has been painted: the change of place waits one frame, so the press is answered before the place is made again.
    */
-  setHolder(fn: ((to?: string, then?: () => void) => boolean | void) | null): void;
+  /**
+   * `soon`: the change is one the shell draws after the next painted frame (a place from the rail, Back, a closed tab: Shell.tsx), so the still copy can be taken after that frame too, and the
+   * frame that answers the press has nothing to copy or repaint.
+   */
+  setHolder(fn: ((to?: string, then?: () => void, soon?: boolean) => boolean | void) | null): void;
   /** Name a tab for the item it holds (its title arrives after the tab opens). */
   retitle(key: string, title: string, empty?: boolean): void;
   /** The count on a place of the open Space, from what it counts live (the rail reads it, and only redraws when it changes). */
@@ -235,7 +239,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   let refusals = 0;
   const probeLog: SwitchProbe[] = [];
   const listeners = new Set<() => void>();
-  let holder: ((to?: string, then?: () => void) => boolean | void) | null = null;
+  let holder: ((to?: string, then?: () => void, soon?: boolean) => boolean | void) | null = null;
   /** counts presses on a tab (showTab): a press that waited a frame gives way to any press after it */
   let shows = 0;
   const waiters: (() => void)[] = [];
@@ -257,7 +261,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   /** Back or Forward in the tab on screen; the page shows what the tab shows afterwards. */
   function step(run: (tabs: TabsController) => boolean): boolean {
     const s = open();
-    holder?.();
+    holder?.(undefined, undefined, true);
     if (!run(s.tabs)) return false;
     const now = s.tabs.state();
     const t = now.tabs.find((x) => x.key === now.active);
@@ -443,7 +447,7 @@ export function createShellHub(options: HubOptions): ShellHub {
         hub.move(place, hash);
         return;
       }
-      if (!background && (place !== s.place || (hash ?? "") !== s.hash)) holder?.();
+      if (!background && (place !== s.place || (hash ?? "") !== s.hash)) holder?.(undefined, undefined, true);
       // an address with no item (hash "") asks for the place's landing: its own tab shows it. A place asked for with no hash at all (the rail) goes to the tab the place has.
       if (plan.do === "land") s.tabs.land(place);
       else s.tabs.openPlace(place, hash, screenTitle(hash), plan.do === "open" && plan.background, link);
@@ -477,7 +481,7 @@ export function createShellHub(options: HubOptions): ShellHub {
     },
     fill(place, hash, title, from) {
       const s = open();
-      holder?.();
+      holder?.(undefined, undefined, true);
       s.tabs.fill(livePlace(place), hash, title, from);
       const now = s.tabs.state();
       const t = now.tabs.find((x) => x.key === now.active);
@@ -518,7 +522,7 @@ export function createShellHub(options: HubOptions): ShellHub {
     },
     closeTab(key) {
       const s = open();
-      holder?.();
+      holder?.(undefined, undefined, true);
       s.tabs.close(key ?? s.tabs.state().active);
       const now = s.tabs.state();
       const t = now.tabs.find((x) => x.key === now.active);
@@ -531,7 +535,7 @@ export function createShellHub(options: HubOptions): ShellHub {
     reopenTab() {
       const s = open();
       if (!s.tabs.canReopen()) return;
-      holder?.();
+      holder?.(undefined, undefined, true);
       s.tabs.reopen();
       const now = s.tabs.state();
       const t = now.tabs.find((x) => x.key === now.active);

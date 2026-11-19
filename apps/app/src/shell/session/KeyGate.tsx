@@ -82,6 +82,7 @@ export function KeyGate({
   baseUrl,
   token,
   onSignOut,
+  drawnBefore,
   children,
 }: {
   baseUrl: string;
@@ -89,12 +90,17 @@ export function KeyGate({
   name?: string;
   onSignOut?: () => void;
   /** kept for callers; there is no unlock sheet any more */ onForgot?: () => void;
+  /**
+   * This device has drawn this session's first screen before and kept it (session/kept.ts): the shell is drawn at once from that, and the key is looked at and handed over behind it, as it is
+   * while the app runs. Nothing is waited for (r41: the look alone was a round trip before anything could be drawn).
+   */
+  drawnBefore?: boolean;
   children: ReactNode;
 }): ReactElement | null {
   const own = isLoopbackUrl(baseUrl);
   // a Space server reached over https holds the key while a signed-in device hands it over, so the app hands it over at launch
   const remote = !own && keyDoor(baseUrl) !== null;
-  const [state, setState] = useState<GateState>(own || remote ? "checking" : "open");
+  const [state, setState] = useState<GateState>((own || remote) && drawnBefore !== true ? "checking" : "open");
   useEffect(() => {
     if (!own && !remote) return undefined;
     let live = true;
@@ -116,7 +122,8 @@ export function KeyGate({
         });
         if (!live) return;
         if (next !== "wait") {
-          setState(next);
+          // a shell that is already drawn stays: the note about an account with no password belongs to the first time in, and that was before this device kept anything
+          setState((was) => (was === "open" ? was : next));
           return;
         }
         await new Promise<void>((r) => setTimeout(r, WAIT_MS));

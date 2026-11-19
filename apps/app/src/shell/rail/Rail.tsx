@@ -359,6 +359,8 @@ function RailButton({
         }}
         onHoverOut={() => setOver(false)}
         onFocus={() => onPrefetch?.()}
+        // a finger has no hover: pressing down is the first sign, and the press is let go about 100 ms later
+        onPressIn={() => onPrefetch?.()}
         style={[
           styles.button,
           flat ? styles.flat : styles.labelled,
