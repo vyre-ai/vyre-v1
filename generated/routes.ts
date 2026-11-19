@@ -31744,6 +31744,24 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/runs/activity/list",
+    "cap": "runs.activity.list",
+    "v": 1,
+    "module": "runs",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/runs/count",
     "cap": "runs.count",
     "v": 1,
@@ -33153,7 +33171,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/search/index/rebuild",
@@ -33171,10 +33192,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/search/index/stats",
@@ -38659,7 +38677,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/registration/submit",
@@ -38677,10 +38698,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/send_sms",

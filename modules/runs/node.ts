@@ -688,3 +688,20 @@ export function liveCounts(db: Db, owner: string): Record<string, number> {
     out[String(r["status"])] = int(r["n"]) ?? 0;
   return out;
 }
+
+/** Nodes that are running, asleep, paused or waiting their turn, newest first; one owner's, or everyone's when owner is left out. */
+export function liveNodes(db: Db, owner: string | undefined, limit: number): Node[] {
+  const rows = (
+    owner === undefined
+      ? db.all(
+          "SELECT * FROM runs_node WHERE status IN ('queued','running','waiting','paused') ORDER BY updated_at DESC, run_id DESC LIMIT ?",
+          limit,
+        )
+      : db.all(
+          "SELECT * FROM runs_node WHERE owner = ? AND status IN ('queued','running','waiting','paused') ORDER BY updated_at DESC, run_id DESC LIMIT ?",
+          owner,
+          limit,
+        )
+  ) as Row[];
+  return rows.map(nodeOf);
+}

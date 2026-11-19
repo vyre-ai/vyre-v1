@@ -432,6 +432,30 @@ export default defineManifest({
         on: ["run", "/runId"],
       },
     ),
+    read(
+      "runs.activity.list",
+      "Everything of the agent work tree that is running, asleep or paused for the person (or for everyone, for someone who manages runs), newest first",
+      {
+        in: { scope: t.opt(t.enm("mine", "all")), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) },
+        out: {
+          rows: t.arr(
+            t.obj({
+              runId: id.run,
+              rootRun: id.run,
+              kind: nodeKind,
+              name: t.opt(t.str()),
+              whoKind: t.str(),
+              whoId: t.opt(t.str()),
+              status: nodeStatus,
+              wake: t.opt(nodeWake),
+              startedAt: t.ts(),
+              updatedAt: t.ts(),
+              usdMicros: t.int({ minimum: 0 }),
+            }),
+          ),
+        },
+      },
+    ),
     read("runs.events.list", "A tree's events since a cursor, in order (one node's with runId)", {
       in: {
         ...nodeTarget,

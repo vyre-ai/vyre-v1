@@ -2419,6 +2419,9 @@ export function stubs(ctx: CallCtx) {
       targets: call("runbooks.targets"),
     },
     runs: {
+      activity: {
+        list: call("runs.activity.list"),
+      },
       count: call("runs.count"),
       erase: call("runs.erase"),
       events: {

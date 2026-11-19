@@ -5,6 +5,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "runs.activity.list": Handler<"runs.activity.list", X>;
   "runs.count": Handler<"runs.count", X>;
   "runs.erase": Handler<"runs.erase", X>;
   "runs.events.list": Handler<"runs.events.list", X>;

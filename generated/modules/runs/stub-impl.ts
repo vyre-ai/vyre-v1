@@ -4,6 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "runs.activity.list": async () => ({"rows":[{"kind":"turn","name":"example","rootRun":"run_a1b2c3","runId":"run_a1b2c3","startedAt":1760000000000,"status":"queued","updatedAt":1760000000000,"usdMicros":1,"wake":{"dueAt":1760000000000,"kind":"event","label":"example","on":{},"wokeCount":1},"whoId":"example","whoKind":"example"}]} as unknown) as never,
   "runs.count": async () => ({"count":1} as unknown) as never,
   "runs.erase": async () => ({"erased":true} as unknown) as never,
   "runs.events.list": async () => ({"events":[{"actor":"example","at":1760000000000,"key":"example","payload":{},"rootRun":"run_a1b2c3","runId":"run_a1b2c3","seq":1,"type":"state"}],"lastSeq":1} as unknown) as never,

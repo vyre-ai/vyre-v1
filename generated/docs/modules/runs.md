@@ -4,8 +4,9 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (33)
+## Capabilities (34)
 
+- [runs.activity.list](../capabilities/runs.activity.list.md): Everything of the agent work tree that is running, asleep or paused for the person (or for everyone, for someone who manages runs), newest first
 - [runs.count](../capabilities/runs.count.md): Count Runs by status for badges (failed runs in Needs you, running now)
 - [runs.erase](../capabilities/runs.erase.md): Erase one Run for good with its steps, waits and alerts (governance erase)
 - [runs.events.list](../capabilities/runs.events.list.md): A tree's events since a cursor, in order (one node's with runId)

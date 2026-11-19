@@ -10,6 +10,7 @@ import {
   eventsSince,
   findNode,
   getNode,
+  liveNodes,
   moveNode,
   pauseSubtree,
   reclaimExpired,
@@ -152,14 +153,83 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
   return { nodes: moved.map(nodeOut) };
 }
 
+/**
+ * Who sees what of a tree. The owner, the starter and anyone who manages runs see all of it. Another person in the chat the tree works in (they may view that chat) sees that work is going on and how far, and nothing of
+ * what it was asked or found: no brief, words, result, evidence, names of who works, model or cost, and the helpers are "Helper 1", "Helper 2" (the F51 rule). Anyone else sees nothing. The server cuts it; no client does.
+ */
+function look(ctx: RunsCtx, id: string): { node: Node; full: boolean } {
+  const n = getNode(ctx, id);
+  const root = n.id === n.rootRun ? n : (findNode(ctx.db, n.rootRun) ?? n);
+  if (canSee(ctx, { id: root.id, owner: root.owner, startedBy: root.startedBy })) return { node: n, full: true };
+  const thread = root.threadId ?? n.threadId;
+  if (
+    thread !== undefined &&
+    ctx.authorize?.({ perm: null, level: "view" }, { type: "thread", id: thread }).effect === "allow"
+  )
+    return { node: n, full: false };
+  return raise(ctx, "permission.not_found", "That run is not available.");
+}
+
+const WORKERS = new Set(["helper", "crew", "subagent"]);
+/** "Helper 3": the order a kind of worker was started in its tree. */
+function labelsOf(nodes: readonly Node[]): Map<string, string> {
+  const out = new Map<string, string>();
+  let helpers = 0;
+  for (const n of nodes) {
+    if (WORKERS.has(n.kind)) out.set(n.id, `Helper ${++helpers}`);
+    else if (n.kind === "turn") out.set(n.id, "A reply");
+    else out.set(n.id, n.kind === "terminal" ? "A command" : n.kind === "wait" ? "Waiting" : "Work");
+  }
+  return out;
+}
+export function redactedOut(n: Node, label: string): Record<string, unknown> {
+  return {
+    id: n.id,
+    rootRun: n.rootRun,
+    ...(n.parentRun === undefined ? {} : { parentRun: n.parentRun }),
+    depth: n.depth,
+    kind: n.kind,
+    name: label,
+    owner: n.owner,
+    startedBy: n.startedBy,
+    whoKind: n.whoKind,
+    status: n.status,
+    version: n.version,
+    attempt: n.attempt,
+    spent: { tokensIn: 0, tokensOut: 0, cacheRead: 0, usdMicros: 0, calls: 0 },
+    ...(n.wake
+      ? {
+          wake: {
+            kind: n.wake.kind,
+            ...(n.wake.dueAt === undefined ? {} : { dueAt: n.wake.dueAt }),
+            ...(n.wake.wokeCount === undefined ? {} : { wokeCount: n.wake.wokeCount }),
+          },
+        }
+      : {}),
+    startedAt: n.startedAt,
+    ...(n.endedAt === undefined ? {} : { endedAt: n.endedAt }),
+    updatedAt: n.updatedAt,
+  };
+}
+
 export async function nodeGet(ctx: RunsCtx, input: In): Promise<unknown> {
-  return { node: nodeOut(seeNode(ctx, input.runId)) };
+  const { node, full } = look(ctx, input.runId);
+  if (full) return { node: nodeOut(node) };
+  const labels = labelsOf(treeNodes(ctx.db, node.rootRun));
+  return { node: redactedOut(node, labels.get(node.id) ?? "Work") };
 }
 export async function treeGet(ctx: RunsCtx, input: In): Promise<unknown> {
-  const n = seeNode(ctx, input.runId);
-  const nodes = n.id === n.rootRun ? treeNodes(ctx.db, n.rootRun) : subtreeOf(ctx.db, n.id);
-  const last = eventsSince(ctx.db, n.rootRun, 0, 1).length === 0 ? 0 : lastSeq(ctx, n.rootRun);
-  return { nodes: nodes.map(nodeOut), spent: subtreeSpent(ctx.db, n.id), lastSeq: last };
+  const { node: n, full } = look(ctx, input.runId);
+  const all = treeNodes(ctx.db, n.rootRun);
+  const nodes = n.id === n.rootRun ? all : subtreeOf(ctx.db, n.id);
+  const last = lastSeq(ctx, n.rootRun);
+  if (full) return { nodes: nodes.map(nodeOut), spent: subtreeSpent(ctx.db, n.id), lastSeq: last };
+  const labels = labelsOf(all);
+  return {
+    nodes: nodes.map((x) => redactedOut(x, labels.get(x.id) ?? "Work")),
+    spent: { tokensIn: 0, tokensOut: 0, cacheRead: 0, usdMicros: 0, calls: 0 },
+    lastSeq: last,
+  };
 }
 const lastSeq = (ctx: RunsCtx, root: string): number =>
   Number(
@@ -167,9 +237,54 @@ const lastSeq = (ctx: RunsCtx, root: string): number =>
       ?.m ?? 0,
   );
 export async function eventsList(ctx: RunsCtx, input: In): Promise<unknown> {
-  const n = seeNode(ctx, input.runId);
-  const events = eventsSince(ctx.db, n.rootRun, input.since ?? 0, input.limit ?? 200, input.only);
-  return { events, lastSeq: events.length > 0 ? events[events.length - 1]!.seq : (input.since ?? 0) };
+  const { node: n, full } = look(ctx, input.runId);
+  const raw = eventsSince(ctx.db, n.rootRun, input.since ?? 0, input.limit ?? 200, input.only);
+  const cursor = raw.length > 0 ? raw[raw.length - 1]!.seq : (input.since ?? 0);
+  if (full) return { events: raw, lastSeq: cursor };
+  // a person who may only see that work goes on gets the state changes and when, nothing a node said, used or found
+  const events = raw
+    .filter((e) => e.type === "state")
+    .map((e) => {
+      const p = (e.payload ?? {}) as { from?: unknown; to?: unknown; why?: unknown };
+      return {
+        rootRun: e.rootRun,
+        seq: e.seq,
+        runId: e.runId,
+        at: e.at,
+        type: "state",
+        payload: { from: p.from ?? null, to: p.to, why: p.why },
+      };
+    });
+  return { events, lastSeq: cursor };
+}
+
+/** Everything running or asleep in the Space that the viewer may see in full, newest first: what the "Running and asleep" list reads. Managers may ask for all of it. */
+export async function activityList(ctx: RunsCtx, input: In): Promise<unknown> {
+  const all = input.scope === "all";
+  if (all && !isSystemCall(ctx as Parameters<typeof isSystemCall>[0]) && !mayManage(ctx, { id: "runs", owner: "" }))
+    raise(ctx, "permission.role_lacks_permission", "Only someone who manages runs can see everyone's.", {
+      reason: "manage_required",
+    });
+  const rows = liveNodes(
+    ctx.db,
+    all ? undefined : (ctx.actingFor ?? ctx.principal.id),
+    Math.min(200, input.limit ?? 100),
+  );
+  return {
+    rows: rows.map((n) => ({
+      runId: n.id,
+      rootRun: n.rootRun,
+      kind: n.kind,
+      ...(n.name === undefined ? {} : { name: n.name }),
+      whoKind: n.whoKind,
+      ...(n.whoId === undefined ? {} : { whoId: n.whoId }),
+      status: n.status,
+      ...(n.wake === undefined ? {} : { wake: n.wake }),
+      startedAt: n.startedAt,
+      updatedAt: n.updatedAt,
+      usdMicros: n.spent.usdMicros,
+    })),
+  };
 }
 
 /** The host's sweep, every few seconds: nodes whose worker stopped beating go back to the queue with the next attempt. */

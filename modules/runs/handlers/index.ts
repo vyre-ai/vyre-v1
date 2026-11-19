@@ -21,6 +21,7 @@ import {
 } from "./engine.ts";
 import { stepIo } from "./step-io.ts";
 import {
+  activityList,
   eventsList,
   nodeBeat,
   nodeClaim,
@@ -37,6 +38,7 @@ import { erase, purge } from "./purge.ts";
 import { agentsOfRun, withReversals } from "../../../lib/reversal.ts";
 
 const base = {
+  "runs.activity.list": activityList,
   "runs.events.list": eventsList,
   "runs.node.beat": nodeBeat,
   "runs.node.claim": nodeClaim,

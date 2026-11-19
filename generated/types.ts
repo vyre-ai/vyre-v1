@@ -35356,6 +35356,31 @@ export type RunbooksTargetsOut = {
       online: boolean;
     }>;
 };
+export type RunsActivityListIn = {
+  scope?: "mine" | "all";
+  limit?: number;
+};
+export type RunsActivityListOut = {
+  rows: Array<{
+      runId: string;
+      rootRun: string;
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      name?: string;
+      whoKind: string;
+      whoId?: string;
+      status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+      wake?: {
+        kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+        label?: string;
+        dueAt?: number;
+        on?: unknown;
+        wokeCount?: number;
+      };
+      startedAt: number;
+      updatedAt: number;
+      usdMicros: number;
+    }>;
+};
 export type RunsCountIn = {
   scope: "mine" | "all";
   statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
@@ -50447,6 +50472,7 @@ export interface CapMap {
   "runbooks.runs.list": { in: RunbooksRunsListIn; out: RunbooksRunsListOut };
   "runbooks.set_target": { in: RunbooksSetTargetIn; out: RunbooksSetTargetOut };
   "runbooks.targets": { in: RunbooksTargetsIn; out: RunbooksTargetsOut };
+  "runs.activity.list": { in: RunsActivityListIn; out: RunsActivityListOut };
   "runs.count": { in: RunsCountIn; out: RunsCountOut };
   "runs.erase": { in: RunsEraseIn; out: RunsEraseOut };
   "runs.events.list": { in: RunsEventsListIn; out: RunsEventsListOut };

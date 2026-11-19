@@ -2419,6 +2419,9 @@ export function createClient(transport: Transport) {
       targets: call("runbooks.targets", 1),
     },
     runs: {
+      activity: {
+        list: call("runs.activity.list", 1),
+      },
       count: call("runs.count", 1),
       erase: call("runs.erase", 1),
       events: {
