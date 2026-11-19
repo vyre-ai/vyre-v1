@@ -1698,8 +1698,7 @@ async function workspaceRead(ctx: TermCtx, input: { agentId: string }) {
     const got = await lookup(ctx, input.agentId);
     if (hasOwnPlace(got.agent, input.agentId, me)) {
       const cls = (await ctx.call("agents.share_class", { agentId: input.agentId }).catch(() => undefined)) as
-        | { class?: string; people?: string[] }
-        | undefined;
+        { class?: string; people?: string[] } | undefined;
       may = cls !== undefined && (cls.class === "space" || (cls.people ?? []).includes(me));
     }
   }
@@ -2137,7 +2136,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
   // the output is kept for later reads (tail, grep, a range): the text this call answers, already scrubbed, for this command alone (cmdlog.ts); a failure to keep it never fails the command
   if (begun !== null && s.agentId !== undefined) {
     try {
-      keepCmdLog(ctx.db, {
+      await keepCmdLog(ctx.db, {
         seq: begun.rowId,
         terminalId: s.terminalId,
         agentId: s.agentId,
@@ -2523,8 +2522,7 @@ export async function reconcileAccess(ctx: TermCtx, d: AccessDeps): Promise<stri
     const lostAt = Number(
       (
         ctx.db.all("SELECT lost_at FROM terminal_use_lost WHERE agent_id = ? AND person = ?", agentId, person)[0] as
-          | Row
-          | undefined
+          Row | undefined
       )?.["lost_at"] ?? at,
     );
     if (uid !== null && d.run && at - lostAt >= USE_LOST_KEEP_MS) {
@@ -2677,8 +2675,7 @@ export function retentionMs(v: string): number | null | undefined {
 export async function trashKeepMs(ctx: TermCtx): Promise<number | null> {
   try {
     const out = (await ctx.call?.("governance.retention.get", {})) as
-      | { kinds?: Array<{ key?: string; value?: string }> }
-      | undefined;
+      { kinds?: Array<{ key?: string; value?: string }> } | undefined;
     const v = out?.kinds?.find((k) => k.key === "trash")?.value;
     const ms = typeof v === "string" ? retentionMs(v) : undefined;
     // under a day ("0d") would remove at the next hourly pass: governance's default instead (third look nit)

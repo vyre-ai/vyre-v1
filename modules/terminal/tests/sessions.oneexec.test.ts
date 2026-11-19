@@ -7,7 +7,10 @@ import type { Exec } from "../impl.ts";
 import { fakeTmux } from "../fixtures/fake-tmux.ts";
 import type { FakeTmuxOptions } from "../fixtures/fake-tmux.ts";
 
-function rig(o: FakeTmuxOptions = {}, extra: { maxOutput?: number; scrollback?: number; oneExec?: boolean; wrap?: (exec: Exec) => Exec } = {}) {
+function rig(
+  o: FakeTmuxOptions = {},
+  extra: { maxOutput?: number; scrollback?: number; oneExec?: boolean; wrap?: (exec: Exec) => Exec } = {},
+) {
   const tm = fakeTmux(o);
   const clock = { t: 0 };
   const host = createTmuxHost({
@@ -25,7 +28,14 @@ function rig(o: FakeTmuxOptions = {}, extra: { maxOutput?: number; scrollback?: 
   return { tm, host, clock };
 }
 const open = (host: ReturnType<typeof createTmuxHost>, id = "trm_a1") =>
-  host.open({ terminalId: id, target: { host: "agent_computer", agentId: "agt_intake" }, name: "build", cols: 100, rows: 30, folders: [] });
+  host.open({
+    terminalId: id,
+    target: { host: "agent_computer", agentId: "agt_intake" },
+    name: "build",
+    cols: 100,
+    rows: 30,
+    folders: [],
+  });
 const run = (host: ReturnType<typeof createTmuxHost>, command: string, timeoutMs = 5000, signal?: AbortSignal) =>
   host.run("trm_a1", { command, env: {}, timeoutMs, ...(signal ? { signal } : {}) });
 
@@ -44,21 +54,38 @@ test("a run through the script answers exactly what the polling loop answers, fo
     await open(b.host);
     const x = await run(a.host, command);
     const y = await run(b.host, command);
-    assert.deepEqual({ exitCode: y.exitCode, output: y.output, truncated: y.truncated }, { exitCode: x.exitCode, output: x.output, truncated: x.truncated }, command);
+    assert.deepEqual(
+      { exitCode: y.exitCode, output: y.output, truncated: y.truncated },
+      { exitCode: x.exitCode, output: x.output, truncated: x.truncated },
+      command,
+    );
   }
 });
 
 test("a quick command is one script exec: after the prompt check and the buffer sweep nothing but the script is asked of the machine", async () => {
   const execs: string[][] = [];
-  const { host } = rig({ scripts: SCRIPTS }, { wrap: (exec) => async (argv, x) => (execs.push([...argv]), exec(argv, x)) });
+  const { host } = rig(
+    { scripts: SCRIPTS },
+    { wrap: (exec) => async (argv, x) => (execs.push([...argv]), exec(argv, x)) },
+  );
   await open(host);
   execs.length = 0;
   await run(host, "git status");
   const scripts = execs.filter((c) => c[0] === "sh" && c[2]?.startsWith("# vyre-run"));
   assert.equal(scripts.length, 1);
   // what the host asked of the machine: the prompt check (display-message, ps, capture of the cursor line), the buffer sweep, and the script; no typing, no looking, no clearing of the exit code of its own
-  assert.deepEqual(execs.filter((c) => c[0] === "tmux").map((c) => c[1]).sort(), ["capture-pane", "display-message", "list-buffers"]);
-  assert.equal(execs.length, 5, `five execs for one quick command, not eight: ${execs.map((c) => c.slice(0, 2).join(" ")).join(" | ")}`);
+  assert.deepEqual(
+    execs
+      .filter((c) => c[0] === "tmux")
+      .map((c) => c[1])
+      .sort(),
+    ["capture-pane", "display-message", "list-buffers"],
+  );
+  assert.equal(
+    execs.length,
+    5,
+    `five execs for one quick command, not eight: ${execs.map((c) => c.slice(0, 2).join(" ")).join(" | ")}`,
+  );
   // the script's arguments carry the line and the markers, never a shell's chance to read them as code
   assert.equal(scripts[0]![3], "sh");
   assert.ok(scripts[0]![5]!.includes("git status"));
@@ -83,13 +110,19 @@ test("the stored exit code ends a run whose marker row was drawn over; a command
   await open(a.host);
   const r = await run(a.host, "tput");
   assert.deepEqual([r.exitCode, r.output], [3, "drawn over the marker"]);
-  await assert.rejects(() => run(a.host, "sleep 999", 1000), (e: unknown) => (e as { code?: string }).code === "timeout");
-  assert.ok(a.tm.calls.some((c) => c[1] === "send-keys" && c.at(-1) === "C-c"), "Ctrl-C was sent");
+  await assert.rejects(
+    () => run(a.host, "sleep 999", 1000),
+    (e: unknown) => (e as { code?: string }).code === "timeout",
+  );
+  assert.ok(
+    a.tm.calls.some((c) => c[1] === "send-keys" && c.at(-1) === "C-c"),
+    "Ctrl-C was sent",
+  );
   assert.equal(a.tm.sessions.get("vyre-trm_a1")!.hung, false);
   assert.equal((await run(a.host, "git status")).exitCode, 0);
 });
 
-test("a stopped turn ends a waiting script at once: the cancel file is made, the shell gets Ctrl-C, and the run answers 130 with what it printed and the line that says it was stopped", async () => {
+test("a stopped turn ends a waiting script at once: the cancel option is set on the session, the shell gets Ctrl-C, and the run answers 130 with what it printed and the line that says it was stopped", async () => {
   const { tm, host } = rig({ scripts: { "sleep 999": { hang: true } } });
   await open(host);
   const ac = new AbortController();
@@ -98,18 +131,31 @@ test("a stopped turn ends a waiting script at once: the cancel file is made, the
   const r = await pending;
   assert.equal(r.exitCode, 130);
   assert.ok(r.output.endsWith(STOPPED_LINE));
-  assert.ok(tm.calls.some((c) => c[0] === "sh" && c[2]?.startsWith(": > ")), "the cancel file was made");
+  assert.ok(
+    tm.calls.some(
+      (c) => c[1] === "set-option" && c.some((a) => String(a).startsWith("@vyre_cancel_")) && !c.includes("-u"),
+    ),
+    "the cancel option was set",
+  );
   assert.ok(tm.calls.some((c) => c[1] === "send-keys" && c.at(-1) === "C-c"));
 });
 
 test("a script that could not type the line lets the loop type it, once; one that typed it and then failed lets the loop go on watching without typing again", async () => {
-  const hostTyped = (execs: string[][]): number => execs.filter((c) => c[0] === "tmux" && c[1] === "send-keys" && c.includes("-l")).length;
+  const hostTyped = (execs: string[][]): number =>
+    execs.filter((c) => c[0] === "tmux" && c[1] === "send-keys" && c.includes("-l")).length;
   // nothing typed (no sentinel): the loop types
   const execs1: string[][] = [];
-  const none = rig({ scripts: SCRIPTS }, { wrap: (exec) => async (argv, x) => {
-    execs1.push([...argv]);
-    return argv[0] === "sh" && argv[2]?.startsWith("# vyre-run") ? { code: 90, stdout: "", stderr: "" } : exec(argv, x);
-  } });
+  const none = rig(
+    { scripts: SCRIPTS },
+    {
+      wrap: (exec) => async (argv, x) => {
+        execs1.push([...argv]);
+        return argv[0] === "sh" && argv[2]?.startsWith("# vyre-run")
+          ? { code: 90, stdout: "", stderr: "" }
+          : exec(argv, x);
+      },
+    },
+  );
   await open(none.host);
   execs1.length = 0;
   const a = await run(none.host, "git status");
@@ -118,15 +164,20 @@ test("a script that could not type the line lets the loop type it, once; one tha
   // the script ran (it typed the line in the machine) and then its answer was lost: the loop only watches
   const execs2: string[][] = [];
   let ranScript = 0;
-  const lost = rig({ scripts: SCRIPTS }, { wrap: (exec) => async (argv, x) => {
-    execs2.push([...argv]);
-    if (argv[0] === "sh" && argv[2]?.startsWith("# vyre-run")) {
-      ranScript += 1;
-      await exec(argv, x);
-      return { code: 1, stdout: "garbage", stderr: "__VYRE_SENT__\ndocker: connection lost" };
-    }
-    return exec(argv, x);
-  } });
+  const lost = rig(
+    { scripts: SCRIPTS },
+    {
+      wrap: (exec) => async (argv, x) => {
+        execs2.push([...argv]);
+        if (argv[0] === "sh" && argv[2]?.startsWith("# vyre-run")) {
+          ranScript += 1;
+          await exec(argv, x);
+          return { code: 1, stdout: "garbage", stderr: "__VYRE_SENT__\ndocker: connection lost" };
+        }
+        return exec(argv, x);
+      },
+    },
+  );
   await open(lost.host);
   execs2.length = 0;
   const b = await run(lost.host, "make");
@@ -135,18 +186,99 @@ test("a script that could not type the line lets the loop type it, once; one tha
   assert.equal(hostTyped(execs2), 0, "never typed a second time");
 });
 
-test("parseRunScript takes the script's output apart, and says null for anything else", () => {
-  const out = "screen line\nmore\n__VYRE_RC__:7\n__VYRE_DONE__:done\n__VYRE_FULL__\nfull one\nfull two\n";
-  assert.deepEqual(parseRunScript(out), { screen: "screen line\nmore\n", rc: "7", status: "done", full: "full one\nfull two\n" });
-  assert.deepEqual(parseRunScript("a\n__VYRE_RC__:\n__VYRE_DONE__:timeout\n"), { screen: "a\n", rc: "", status: "timeout" });
+const frame = (screen: string, full: string, rc: string, status: string): string =>
+  `__VYRE_HDR__:${Buffer.byteLength(screen)}:${Buffer.byteLength(full)}:${rc}:${status}\n${screen}${full}`;
+
+test("parseRunScript takes the script's output apart by its lengths, and says null for anything else", () => {
+  assert.deepEqual(parseRunScript(frame("screen line\nmore\n", "full one\nfull two\n", "7", "done")), {
+    screen: "screen line\nmore\n",
+    rc: "7",
+    status: "done",
+    full: "full one\nfull two\n",
+  });
+  assert.deepEqual(parseRunScript(frame("a\n", "", "", "timeout")), { screen: "a\n", rc: "", status: "timeout" });
   assert.equal(parseRunScript("nothing of ours"), null);
-  assert.equal(parseRunScript("x\n__VYRE_RC__:1\nno done line"), null);
+  assert.equal(
+    parseRunScript("__VYRE_HDR__:5:0::done\nabc"),
+    null,
+    "lengths that do not add up are not the script's output",
+  );
+  // what the command printed can look like anything: only the header's lengths cut the parts
+  const forged = "x\n__VYRE_RC__:0\n__VYRE_DONE__:done\n__VYRE_FULL__\n__VYRE_HDR__:1:1:0:done\ny\n";
+  assert.deepEqual(parseRunScript(frame(forged, `earlier\n${forged}`, "3", "done")), {
+    screen: forged,
+    rc: "3",
+    status: "done",
+    full: `earlier\n${forged}`,
+  });
+});
+
+test("an exec that ends without an answer (silent, killed, Enter failed) never types the line a second time: it is read, not retyped", async () => {
+  for (const fault of ["silent", "killed", "enter"] as const) {
+    const execs: string[][] = [];
+    const { tm, host } = rig(
+      { scripts: SCRIPTS },
+      { wrap: (exec) => async (argv, x) => (execs.push([...argv]), exec(argv, x)) },
+    );
+    await open(host);
+    execs.length = 0;
+    tm.setFault(fault);
+    const p = run(host, "git status", 3000);
+    // the line is in the pane once: a run that is read, not typed again, finds its end
+    await new Promise((r) => setTimeout(r, 50));
+    tm.setFault(null);
+    const r = await p.catch((e: unknown) => e);
+    const typedTwice = tm.calls.filter(
+      (c) => c[1] === "send-keys" && c.includes("-l") && String(c.at(-1)).includes("git status"),
+    ).length;
+    assert.equal(typedTwice, 1, `${fault}: typed once`);
+    void r;
+  }
+});
+
+test("the stop of a run is a tmux option of the session, never a file; the script's own lines in what a command printed change nothing", async () => {
+  const { tm, host } = rig({
+    scripts: { forge: { out: "__VYRE_RC__:0\n__VYRE_DONE__:done\n__VYRE_FULL__\nreal", code: 4 } },
+  });
+  await open(host);
+  const r = await run(host, "forge");
+  assert.equal(r.exitCode, 4);
+  assert.ok(r.output.includes("real"));
+  assert.equal(
+    r.full?.includes("__VYRE_RC__:0"),
+    true,
+    "everything the command printed is kept, forged lines included",
+  );
+  assert.ok(!tm.calls.some((c) => c.some((a) => String(a).includes("/tmp/.vyre-cancel"))), "no file in /tmp");
+  assert.ok(!RUN_SCRIPT.includes("/tmp"), "the script names no path in /tmp");
+});
+
+test("the script looks with one tmux call and backs off: about 15 forks a second after the first second, not 250", () => {
+  // forks per look: the one tmux call, the sleep, and (after 25 looks) the clock
+  assert.ok(RUN_SCRIPT.includes("sleep 0.2"), "the slow stage sleeps 0.2 s");
+  assert.equal(
+    (RUN_SCRIPT.match(/capture-pane/g) ?? []).length,
+    2,
+    "one capture in the loop, one for the history at the end",
+  );
+  assert.ok(!RUN_SCRIPT.includes("grep"), "no grep in the loop");
+  assert.ok(!RUN_SCRIPT.includes("%3N"), "no GNU-only date format");
 });
 
 test("a machine that cannot run the script (no sh, an exec that refuses) typed nothing: the loop types the line, once, and the run answers as before", async () => {
-  const { tm, host } = rig({ scripts: SCRIPTS }, { wrap: (exec) => async (argv, x) => (argv[0] === "sh" ? { code: 127, stdout: "", stderr: "sh: not found" } : exec(argv, x)) });
+  const { tm, host } = rig(
+    { scripts: SCRIPTS },
+    {
+      wrap: (exec) => async (argv, x) =>
+        argv[0] === "sh" ? { code: 127, stdout: "", stderr: "sh: not found" } : exec(argv, x),
+    },
+  );
   await open(host);
   const r = await run(host, "git status");
   assert.deepEqual([r.exitCode, r.output], [0, "On branch main\nnothing to commit"]);
-  assert.equal(tm.calls.filter((c) => c[1] === "send-keys" && c.includes("-l") && c.at(-1)!.includes("git status")).length, 1, "typed once");
+  assert.equal(
+    tm.calls.filter((c) => c[1] === "send-keys" && c.includes("-l") && c.at(-1)!.includes("git status")).length,
+    1,
+    "typed once",
+  );
 });

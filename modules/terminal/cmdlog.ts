@@ -25,27 +25,75 @@ export const CUT_MARK = (n: number): string => `[earlier output cut: ${n} bytes]
 type Row = Record<string, unknown>;
 const bytesOf = (s: string): number => Buffer.byteLength(s, "utf8");
 
-/** Keep one command's output: cut to the per-command cap (the oldest goes), stored, and the agent's total brought under its cap by dropping its oldest logs. Returns what was kept. */
-export function keepCmdLog(
+const BLOCK_BYTES = 64 * 1024;
+const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
+
+/** The last `cap` bytes of a text, from the start of a line and never inside a character. Returns the text and how many bytes were dropped. */
+export function capTail(text: string, cap: number): { text: string; cut: number } {
+  const buf = Buffer.from(text, "utf8");
+  if (buf.length <= cap) return { text, cut: 0 };
+  let from = buf.length - cap;
+  const nl = buf.indexOf(0x0a, from);
+  from = nl >= 0 ? nl + 1 : from;
+  // never in the middle of a character: a UTF-8 continuation byte belongs to the one before it
+  while (from < buf.length && ((buf[from] as number) & 0xc0) === 0x80) from += 1;
+  return { text: buf.subarray(from).toString("utf8"), cut: from };
+}
+
+/** Where the block that starts at `at` ends: about BLOCK_BYTES on, at a line end; a private key block is never split (it goes on to its END line); a line longer than a block is split at a space. */
+function blockEnd(text: string, at: number): number {
+  if (text.length - at <= BLOCK_BYTES) return text.length;
+  let end = at + BLOCK_BYTES;
+  const nl = text.indexOf("\n", end);
+  const lastNl = text.lastIndexOf("\n", end);
+  if (lastNl > at) end = lastNl + 1;
+  else if (nl >= 0 && nl - at <= 2 * BLOCK_BYTES) end = nl + 1;
+  else {
+    // one very long line: cut at a space near the window's end, else hard
+    const sp = text.lastIndexOf(" ", end);
+    end = sp > at + BLOCK_BYTES / 2 ? sp + 1 : end;
+  }
+  // a private key that begins in this block and ends after it keeps its end in the same block (no END anywhere: nothing to match, nothing to extend)
+  const begin = text.lastIndexOf("-----BEGIN", end - 1);
+  if (begin >= at) {
+    const mark = text.indexOf("-----END", begin);
+    if (mark >= end) {
+      const eol = text.indexOf("\n", mark);
+      end = eol >= 0 ? eol + 1 : text.length;
+    }
+  }
+  return end;
+}
+
+/** The text through the transcript's secret shapes in blocks, the loop given back between blocks, so a big log never holds the daemon. */
+export async function redactBlocks(text: string): Promise<string> {
+  if (text.length <= BLOCK_BYTES) return redact(text).text;
+  const out: string[] = [];
+  let at = 0;
+  while (at < text.length) {
+    const end = blockEnd(text, at);
+    out.push(redact(text.slice(at, end)).text);
+    at = end;
+    if (at < text.length) await yieldLoop();
+  }
+  return out.join("");
+}
+
+/** Keep one command's output: cut to the per-command cap FIRST (the oldest goes), then scrubbed in blocks off the main loop, stored, and the agent's total brought under its cap by dropping its oldest logs. Returns what was kept. */
+export async function keepCmdLog(
   db: Db,
   a: { seq: number; terminalId: string; agentId: string; personId: string; endedAt: number; output: string },
-): { bytes: number; cutBytes: number } {
-  // secret shapes first: a key the Vault never knew is not kept, and the cap below counts what is kept
-  let body = redact(a.output).text;
-  let cutBytes = 0;
-  let bytes = bytesOf(body);
-  if (bytes > CMD_CAP_BYTES) {
-    // drop whole lines from the start until it fits, so a line is never half of itself
-    const buf = Buffer.from(body, "utf8");
-    let from = buf.length - CMD_CAP_BYTES;
-    const nl = buf.indexOf(0x0a, from);
-    from = nl >= 0 ? nl + 1 : from;
-    // never in the middle of a character: a UTF-8 continuation byte belongs to the one before it
-    while (from < buf.length && ((buf[from] as number) & 0xc0) === 0x80) from += 1;
-    cutBytes = from;
-    body = CUT_MARK(cutBytes) + buf.subarray(from).toString("utf8");
-    bytes = bytesOf(body);
-  }
+): Promise<{ bytes: number; cutBytes: number }> {
+  // the cap first: the work below is bounded by what is kept, never by what a program printed
+  const capped = capTail(a.output, CMD_CAP_BYTES);
+  // secret shapes: a key the Vault never knew is not kept, and the size counted is what is kept
+  const scrubbed = await redactBlocks(capped.text);
+  // a scrubbed shape can be longer than what it replaced: the cap holds for what is kept
+  const again = capTail(scrubbed, CMD_CAP_BYTES);
+  let body = again.text;
+  const cutBytes = capped.cut + again.cut;
+  if (cutBytes > 0) body = CUT_MARK(cutBytes) + body;
+  const bytes = bytesOf(body);
   db.run("DELETE FROM terminal_cmd_log WHERE seq = ?", a.seq);
   db.run(
     "INSERT INTO terminal_cmd_log (seq, terminal_id, agent_id, person_id, ended_at, bytes, cut_bytes, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",

@@ -153,8 +153,6 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     return i >= 0 ? argv[i + 1] : undefined;
   };
 
-  /** Cancel files the stand-in's host has made (the run script looks for one). */
-  const cancelFiles = new Set<string>();
   /** The pane as `capture-pane -p -J -S -n` prints it (n lines of history above the screen, then every row of the screen), or all of it when `n` is null. */
   const captureOf = (s: Sess, n: number | null): string => {
     const g = grid(s);
@@ -162,39 +160,59 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     while (screen.length < s.rows) screen.push("");
     return `${[...g.all.slice(n === null ? 0 : Math.max(0, g.h - n), g.h), ...screen].join("\n")}\n`;
   };
+  /** How the next run scripts misbehave (tests): "silent" typed the line and printed nothing, code 0; "killed" typed it and was killed (137); "enter" typed it and Enter failed (91); "gone" typed nothing (90). Null: as it should. */
+  let fault: null | "silent" | "killed" | "enter" | "gone" = null;
   /**
-   * The run script of createTmuxHost (impl.ts RUN_SCRIPT, `sh -c SCRIPT sh session line end rcOption scroll deadlineMs cancelFile poll`): types the line, looks at the pane until the end marker shows, the exit code is
-   * stored, the cancel file appears or the deadline passes, and prints what the real script prints. A command that never ends waits for the cancel file, or ends as a timeout after 150 ms of real time (the
-   * clock of these tests is virtual, so the deadline itself cannot pass).
+   * The run script of createTmuxHost (impl.ts RUN_SCRIPT, `sh -c SCRIPT sh session line end rcOption scroll deadlineMs cancelOption`): types the line, looks at the pane until the end marker shows, the exit code is
+   * stored, the cancel option is set or the deadline passes, and prints what the real script prints (a header with the lengths, the screen, the history). A command that never ends waits for the cancel option,
+   * or ends as a timeout after 1.2 s of real time (the clock of these tests is virtual, so the deadline itself cannot pass).
    */
   const runScript = async (argv: readonly string[]): Promise<ExecResult> => {
     calls.push([...argv]);
     const [session, line, end, rcopt, scroll, , cancel] = argv.slice(4) as string[];
     const s = sessions.get(session as string);
-    if (!s || !installed) return { code: 90, stdout: "", stderr: "no such session" };
+    if (!s || !installed || fault === "gone") return { code: 90, stdout: "", stderr: "no such session" };
     // as tmux: an argument that ends in ";" loses that character, or the backslash before it
-    const typed = (line as string).endsWith("\\;") ? `${(line as string).slice(0, -2)};` : (line as string).endsWith(";") ? (line as string).slice(0, -1) : (line as string);
+    const typed = (line as string).endsWith("\\;")
+      ? `${(line as string).slice(0, -2)};`
+      : (line as string).endsWith(";")
+        ? (line as string).slice(0, -1)
+        : (line as string);
     s.typed += typed;
-    submit(s);
     // the typing shows in the calls as the tmux calls the script makes inside the machine, so a test that looks for what was typed finds it
     calls.push(["tmux", "send-keys", "-t", session as string, "-l", "--", line as string]);
+    if (fault === "enter") return { code: 91, stdout: "", stderr: "" };
+    submit(s);
     calls.push(["tmux", "send-keys", "-t", session as string, "Enter"]);
+    if (fault === "silent") return { code: 0, stdout: "", stderr: "" };
+    if (fault === "killed") return { code: 137, stdout: "", stderr: "" };
     let status = "wait";
     let cap = "";
     let rcv = "";
     const endRe = new RegExp(`^${end}:[0-9]+$`, "m");
-    // the script's loop, in real time and capped at 1.2 s (the deadline of a test's clock is virtual): it ends when the command ends, the cancel file appears, or the cap passes
+    // the script's loop, in real time and capped at 1.2 s (the deadline of a test's clock is virtual): it ends when the command ends, the cancel option is set, or the cap passes
     const until = Date.now() + Math.min(Number(argv[9]), 1200);
     for (;;) {
-      // each look of the script's loop is the tmux call it makes inside the machine
-      calls.push(["tmux", "capture-pane", "-p", "-J", "-t", session as string, "-S", `-${scroll}`]);
+      // each look of the script's loop is the one tmux call it makes inside the machine
+      calls.push([
+        "tmux",
+        "capture-pane",
+        "-p",
+        "-J",
+        "-t",
+        session as string,
+        "-S",
+        `-${scroll}`,
+        ";",
+        "display-message",
+      ]);
       cap = captureOf(s, Number(scroll));
       rcv = s.opts.get(rcopt as string) ?? "";
       if (endRe.test(cap) || /^[0-9]+$/.test(rcv)) {
         status = "done";
         break;
       }
-      if (cancelFiles.has(cancel as string)) {
+      if ((s.opts.get(cancel as string) ?? "") !== "") {
         status = "cancel";
         break;
       }
@@ -204,21 +222,19 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
       }
       await new Promise((r) => setTimeout(r, 10));
     }
-    cancelFiles.delete(cancel as string);
-    let out = `${cap}\n__VYRE_RC__:${rcv}\n__VYRE_DONE__:${status}\n`;
-    if (status === "done") out += `__VYRE_FULL__\n${captureOf(s, null)}`;
+    const full = status === "done" ? captureOf(s, null) : "";
     s.opts.delete(rcopt as string);
-    return { code: 0, stdout: out, stderr: "__VYRE_SENT__\n" };
+    s.opts.delete(cancel as string);
+    return {
+      code: 0,
+      stdout: `__VYRE_HDR__:${Buffer.byteLength(cap)}:${Buffer.byteLength(full)}:${rcv}:${status}\n${cap}${full}`,
+      stderr: "__VYRE_SENT__\n",
+    };
   };
 
   const exec: Exec = async (argv, x) => {
     if (argv[0] === "sh" && argv[1] === "-c") {
       const src = argv[2] ?? "";
-      if (src.startsWith(": > ")) {
-        calls.push([...argv]);
-        cancelFiles.add(argv[4] as string);
-        return ok();
-      }
       if (src.startsWith("# vyre-run")) return runScript(argv);
     }
     // commands joined with ";" run one after another, their output together
@@ -361,6 +377,10 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     sessions,
     scripts,
     buffers,
+    /** Make the run script misbehave from now on (see `fault`), or as it should (null). */
+    setFault(f: typeof fault) {
+      fault = f;
+    },
     /** Print as if the program in the session wrote it. */
     write(session: string, text: string) {
       const s = sessions.get(session);

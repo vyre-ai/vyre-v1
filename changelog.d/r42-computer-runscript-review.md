@@ -1,0 +1,2 @@
+- A terminal command that prints a huge or hostile output no longer freezes the server: the kept copy is cut to its cap first, then scrubbed in blocks with the loop given back between them.
+- A command is never typed twice when the machine answers oddly (a cut or killed answer, a silent exit, Enter that failed); the run is read instead. What a command prints can no longer pass for the run's own marks, and stopping a run no longer uses a file in /tmp. A long command now costs about 15 process starts a second instead of about 250.

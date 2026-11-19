@@ -149,7 +149,7 @@ test("caps hold: a command over its cap keeps its last lines with the cut marked
   try {
     const big = Array.from({ length: 100 }, (_, i) => `row ${String(i).padStart(3, "0")}`).join("\n"); // about 900 bytes... then more
     const huge = `${big}\n${big}\n${big}`;
-    const k = keepCmdLog(hn.db, {
+    const k = await keepCmdLog(hn.db, {
       seq: 1,
       terminalId: "trm_a",
       agentId: "agt_a",
@@ -170,7 +170,7 @@ test("caps hold: a command over its cap keeps its last lines with the cut marked
       "whole lines only",
     );
     for (let i = 2; i <= 6; i++)
-      keepCmdLog(hn.db, {
+      await keepCmdLog(hn.db, {
         seq: i,
         terminalId: "trm_a",
         agentId: "agt_a",
@@ -186,7 +186,7 @@ test("caps hold: a command over its cap keeps its last lines with the cut marked
     assert.ok(left.includes(6), "the newest is kept");
     assert.ok(!left.includes(1), "the oldest went first");
     // another agent's logs are not touched by this agent's cap
-    keepCmdLog(hn.db, {
+    await keepCmdLog(hn.db, {
       seq: 50,
       terminalId: "trm_b",
       agentId: "agt_b",
@@ -194,7 +194,7 @@ test("caps hold: a command over its cap keeps its last lines with the cut marked
       endedAt: 0,
       output: "other",
     });
-    keepCmdLog(hn.db, {
+    await keepCmdLog(hn.db, {
       seq: 7,
       terminalId: "trm_a",
       agentId: "agt_a",
@@ -340,12 +340,7 @@ test("secret shapes the Vault never knew are not kept either: a key, a bearer he
   const { hn } = setup({ env: { exitCode: 0, output: out } });
   const r = await runIt(hn, "env");
   const body = String(hn.rows("SELECT body FROM terminal_cmd_log WHERE seq = ?", r.commandId)[0]?.["body"]);
-  for (const leak of [
-    STRIPE,
-    "abcdefghijklmnopqrstuvwxyz012345",
-    "hunter2hunter2",
-    "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC",
-  ])
+  for (const leak of [STRIPE, "abcdefghijklmnopqrstuvwxyz012345", "hunter2hunter2", "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC"])
     assert.equal(body.includes(leak), false, `${leak} is not stored`);
   assert.match(body, /^starting\n/);
   assert.match(body, /done in 4s$/);
@@ -413,7 +408,14 @@ test("a huge range or needle costs little: a range over a log of a million short
   const { hn } = setup();
   ensure(hn.db);
   const many = "x\n".repeat(400_000);
-  keepCmdLog(hn.db, { seq: 1, terminalId: "trm_a", agentId: "agt_a", personId: "usr_a", endedAt: 1, output: many });
+  await keepCmdLog(hn.db, {
+    seq: 1,
+    terminalId: "trm_a",
+    agentId: "agt_a",
+    personId: "usr_a",
+    endedAt: 1,
+    output: many,
+  });
   hn.db.run(
     "INSERT INTO terminal_commands (seq, terminal_id, command, exit_code, started_at, duration_ms, by_principal) VALUES (1, 'trm_a', 'x', 0, 1, 1, 'usr_a')",
   );
@@ -426,7 +428,7 @@ test("a huge range or needle costs little: a range over a log of a million short
   // a single huge line with multi-byte characters is cut at a character boundary
   setCmdLogCaps({ cmd: 1001, agent: 1_000_000 });
   try {
-    keepCmdLog(hn.db, {
+    await keepCmdLog(hn.db, {
       seq: 2,
       terminalId: "trm_a",
       agentId: "agt_a",
@@ -439,4 +441,59 @@ test("a huge range or needle costs little: a range over a log of a million short
   } finally {
     setCmdLogCaps(null);
   }
+});
+
+test("hostile output at the 5 MB cap is kept in under a second a shape, the loop is given back between blocks, and a secret in it still goes", async () => {
+  const shapes: Record<string, string> = {
+    password: "a_".repeat(2_600_000),
+    key: "key_".repeat(1_300_000),
+    named: "a.".repeat(2_600_000),
+    token: "token-a".repeat(750_000),
+    conn: "a+".repeat(2_600_000),
+    spaces: " ".repeat(5_200_000),
+    awsSpaces: `aws_secret_access_key${" ".repeat(5_200_000)}`,
+    pemNoEnd: "-----BEGIN PRIVATE KEY-----\n".repeat(190_000),
+    mysql: "mysql ".repeat(870_000),
+    lines: "a.b.c.d token-x password=hunter2hunter2 \n".repeat(125_000),
+  };
+  for (const [name, text] of Object.entries(shapes)) {
+    const { hn } = setup();
+    ensure(hn.db);
+    let ticks = 0;
+    const timer = setInterval(() => (ticks += 1), 1);
+    const t0 = Date.now();
+    await keepCmdLog(hn.db, {
+      seq: 1,
+      terminalId: "trm_a",
+      agentId: "agt_a",
+      personId: "usr_a",
+      endedAt: 1,
+      output: text,
+    });
+    const ms = Date.now() - t0;
+    clearInterval(timer);
+    assert.ok(ms < 1500, `${name}: ${ms} ms`);
+    const body = String(hn.rows("SELECT body FROM terminal_cmd_log WHERE seq = 1")[0]?.["body"]);
+    assert.ok(Buffer.byteLength(body) <= 5 * 1024 * 1024 + 100, `${name}: the cap holds`);
+    if (name === "lines") assert.ok(!body.includes("hunter2hunter2"), "the password in a flag went");
+    assert.ok(ticks > 0 || ms < 50, `${name}: the loop was given back`);
+  }
+});
+
+test("a private key split across a block edge is still taken out whole", async () => {
+  const { hn } = setup();
+  ensure(hn.db);
+  const pad = "filler line of ordinary text\n".repeat(2300); // about 64 KB
+  const key = `-----BEGIN PRIVATE KEY-----\n${"MIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n".repeat(40)}-----END PRIVATE KEY-----\n`;
+  await keepCmdLog(hn.db, {
+    seq: 1,
+    terminalId: "trm_a",
+    agentId: "agt_a",
+    personId: "usr_a",
+    endedAt: 1,
+    output: `${pad}${key}after\n`,
+  });
+  const body = String(hn.rows("SELECT body FROM terminal_cmd_log WHERE seq = 1")[0]?.["body"]);
+  assert.ok(!body.includes("MIIEvQIBADANBgkqhkiG9w0BAQEFAASC"), "no key line is kept");
+  assert.ok(body.includes("after"));
 });

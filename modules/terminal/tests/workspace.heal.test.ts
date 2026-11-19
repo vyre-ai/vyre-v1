@@ -211,11 +211,14 @@ test("a project change in the middle of a command waits for the command: the con
   );
   // an admin adds the agent to a project while the build runs. The run is one script waiting inside the machine (it reads the screen there, not through a round trip each), so the time passes here instead
   projects = ["prj_site", "prj_book"];
-  await new Promise((r) => setTimeout(r, 400));
+  await new Promise((r) => setTimeout(r, 300));
   assert.ok(
     dk.box(NAME).tmux.calls.filter((c) => c[1] === "capture-pane" && !c.includes("-E")).length > 5,
     "the script keeps reading the screen inside the machine",
   );
+  // the script's exec does not go through the container manager again, so the wait proves nothing alone: a call that DOES (a person's look at the screen) must find the change pending and the container left as it is
+  const look = await host.capture!("trm_1", { lines: 50 });
+  assert.equal(typeof look.text, "string", "a call made while the command runs is answered");
   assert.equal(dk.ops("remove").filter((x) => x.name === NAME).length, 0, "the running container was not removed");
   assert.equal(dk.ops("create").filter((x) => x.name === NAME).length, 1);
   // the build ends

@@ -223,43 +223,52 @@ export type TmuxHost = TerminalHost & { sweep(): Promise<void> };
 /** The most a command's retained output holds: the answer is cut to `maxOutput`, the kept copy to this (the log's per-command cap is the same). */
 const FULL_MAX = 5 * 1024 * 1024;
 /**
- * The script of a run, run as `sh -c SCRIPT sh session line end rcOption scrollbackLines deadlineMs cancelFile pollSeconds` in the machine the session lives on. It types the line, then looks at the pane (the screen
- * and the stored exit code) every pollSeconds until the end marker shows, the exit code is stored, the cancel file appears (the turn was stopped) or the deadline passes; then it prints the screen, the exit
- * code, how it ended and, when the command ended, the whole history of the pane, and clears the exit-code option. Exit 90 means the line was not typed.
+ * The script of a run, run as `sh -c SCRIPT sh session line end rcOption scrollbackLines deadlineMs cancelOption` in the machine the session lives on. It types the line, then looks at the pane (the screen and the
+ * stored exit code and the cancel option, in ONE tmux call) until the end marker shows, the exit code is stored, the cancel option is set (the turn was stopped) or the deadline passes; then it prints one header
+ * line, the screen, and, when the command ended, the whole history of the pane, and clears both options. The header carries the byte length of each part, so what the command printed can never be taken for
+ * the script's own marks. Exit 90 means the line was not typed, 91 that it was typed and Enter failed (typed again, never). The cancel is a tmux option of the session, not a file: only what can reach the
+ * session's tmux server can set it. The looks come fast at first (most commands end at once) and back off to 0.2 s, so a long build costs about 15 forks a second, not about 250.
  */
 export const RUN_SCRIPT = `# vyre-run
-s=$1; line=$2; end=$3; rc=$4; scroll=$5; deadline=$6; cancel=$7; poll=$8
-tmux send-keys -t "$s" -l -- "$line" && tmux send-keys -t "$s" Enter || exit 90
-printf '__VYRE_SENT__\\n' >&2
-t0=$(date +%s%3N); st=wait
+s=$1; line=$2; end=$3; rc=$4; scroll=$5; deadline=$6; cx=$7
+tmux send-keys -t "$s" -l -- "$line" || exit 90
+tmux send-keys -t "$s" Enter || exit 91
+printf '__VYRE_SENT__\n' >&2
+t0=$(date +%s); st=wait; n=0; cap=; rcv=
 while :; do
-  cap=$(tmux capture-pane -p -J -t "$s" -S "-$scroll")
-  rcv=$(tmux display-message -p -t "$s" "#{$rc}")
-  if printf '%s\n' "$cap" | grep -Eq "^$end:[0-9]+\$"; then st=done; break; fi
+  n=$((n + 1))
+  out=$(tmux capture-pane -p -J -t "$s" -S "-$scroll" \\; display-message -p -t "$s" "__VYRE_X__#{$rc}|#{$cx}")
+  meta=\${out##*__VYRE_X__}; cap=\${out%__VYRE_X__*}
+  rcv=\${meta%%|*}; cxv=\${meta#*|}
+  case $cap in *"$end:"[0-9]*) st=done; break;; esac
   case $rcv in ''|*[!0-9]*) ;; *) st=done; break;; esac
-  if [ -e "$cancel" ]; then st=cancel; break; fi
-  now=$(date +%s%3N)
-  if [ $((now - t0)) -ge "$deadline" ]; then st=timeout; break; fi
-  sleep "$poll"
+  if [ -n "$cxv" ]; then st=cancel; break; fi
+  if [ $n -gt 25 ]; then
+    now=$(date +%s)
+    if [ $(( (now - t0) * 1000 )) -ge "$deadline" ]; then st=timeout; break; fi
+    if [ $n -gt 45 ]; then sleep 0.2; else sleep 0.05; fi
+  else sleep 0.02; fi
 done
-printf '%s\n' "$cap"
-printf '__VYRE_RC__:%s\n__VYRE_DONE__:%s\n' "$rcv" "$st"
-if [ "$st" = done ]; then printf '__VYRE_FULL__\n'; tmux capture-pane -p -J -t "$s" -S -; fi
+full=
+if [ "$st" = done ]; then full=$(tmux capture-pane -p -J -t "$s" -S -); fi
+sl=$(printf '%s' "$cap" | wc -c); fl=$(printf '%s' "$full" | wc -c)
+printf '__VYRE_HDR__:%s:%s:%s:%s\n' "$((sl + 0))" "$((fl + 0))" "$rcv" "$st"
+printf '%s%s' "$cap" "$full"
 tmux set-option -u -q -t "$s" "$rc" 2>/dev/null
-rm -f "$cancel"
+tmux set-option -u -q -t "$s" "$cx" 2>/dev/null
 exit 0
 `;
-/** What the script printed, taken apart: the screen, the stored exit code, how it ended, and the whole history when it ended well. Null when it is not the script's output. */
+/** What the script printed, taken apart by the lengths in its header: the screen, the stored exit code, how it ended, and the whole history when it ended well. Null when it is not the script's output or the parts do not add up. */
 export function parseRunScript(out: string): { screen: string; rc: string; status: string; full?: string } | null {
-  const at = out.lastIndexOf("__VYRE_RC__:");
-  if (at < 0) return null;
-  const screen = out.slice(0, at);
-  const rest = out.slice(at + "__VYRE_RC__:".length);
-  const m = /^([^\n]*)\n__VYRE_DONE__:(\w+)\n?/.exec(rest);
+  const m = /^__VYRE_HDR__:(\d+):(\d+):([^:\n]*):(\w+)\n/.exec(out);
   if (!m) return null;
-  const tail = rest.slice(m[0].length);
-  const full = tail.startsWith("__VYRE_FULL__\n") ? tail.slice("__VYRE_FULL__\n".length) : undefined;
-  return { screen, rc: (m[1] ?? "").trim(), status: m[2] ?? "", ...(full === undefined ? {} : { full }) };
+  const buf = Buffer.from(out.slice(m[0].length), "utf8");
+  const sl = Number(m[1]);
+  const fl = Number(m[2]);
+  if (buf.length !== sl + fl) return null;
+  const screen = buf.subarray(0, sl).toString("utf8");
+  const full = m[4] === "done" ? buf.subarray(sl).toString("utf8") : undefined;
+  return { screen, rc: (m[3] ?? "").trim(), status: m[4] ?? "", ...(full === undefined ? {} : { full }) };
 }
 
 export function createTmuxHost(o: TmuxOptions): TmuxHost {
@@ -497,7 +506,8 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     /** `fullScreen`: the whole history of the pane (a run through the script reads it once at the end), from which the retained output is cut: far more than the answer holds. */
     const cut = (lines: string[], code: number, fullLines?: string[]) => {
       const { output, truncated } = body(lines, maxOutput);
-      const full = fullLines === undefined ? undefined : body(fullLines, FULL_MAX).output;
+      // the history is kept only from this command's own begin marker: when it is not in the history (scrolled out), nothing of it is kept and the log keeps the answer, never another command's lines
+      const full = fullLines === undefined || !fullLines.includes(beg) ? undefined : body(fullLines, FULL_MAX).output;
       return { exitCode: code, output, truncated, durationMs: now() - t0, ...(full === undefined ? {} : { full }) };
     };
     let polls = 0;
@@ -509,8 +519,10 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     // type the line (exit 90) lets the loop type it, one that typed it and then failed lets the loop go on watching without typing again.
     let sent = false;
     if (o.oneExec === true) {
-      const cancel = `/tmp/.vyre-cancel-${end}`;
-      const onAbort = (): void => void o.exec(["sh", "-c", ': > "$1"', "sh", cancel]).catch(() => undefined);
+      // the stop is a tmux option of the session: nothing on the disk, and the name is worth nothing to anyone who cannot reach the session's tmux server
+      const cancel = `@vyre_cancel_${end.replace(/\W/g, "")}`;
+      const onAbort = (): void =>
+        void o.exec(["tmux", "set-option", "-q", "-t", session, cancel, "1"]).catch(() => undefined);
       if (signal?.aborted) onAbort();
       else signal?.addEventListener("abort", onAbort, { once: true });
       let r: ExecResult | null = null;
@@ -527,17 +539,22 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
           String(Math.max(1, scrollback)),
           String(Math.max(1000, timeoutMs)),
           cancel,
-          "0.02",
         ]);
       } catch {
+        // the exec was cut: the line may be typed, and typing it again could run it twice. It is read, never typed again.
         sent = true;
       } finally {
         signal?.removeEventListener("abort", onAbort);
+        // a stop that came after the script ended leaves its option behind: it is taken off (only then, so a run that ends by itself stays one exec)
+        if (signal?.aborted)
+          await o.exec(["tmux", "set-option", "-u", "-q", "-t", session, cancel]).catch(() => undefined);
       }
       if (r !== null) {
         const parsed = parseRunScript(r.stdout);
-        // typed when the script said so (or answered); a machine that does not run the script at all (no sh, an exec that refuses) typed nothing, and the loop types the line
-        sent = r.stderr.includes("__VYRE_SENT__") || parsed !== null;
+        // The line is typed again ONLY when the script itself said it typed nothing: exit 90 (or 127, no sh) with nothing printed. Every other answer (a kill, a cut, a silent exit, an
+        // exit 91 where Enter failed) means it may have been typed: the loop below reads the screen and never types the line (after 91 it presses Enter only).
+        sent = !((r.code === 90 || r.code === 127) && r.stdout === "");
+        if (r.code === 91) await tmux(["send-keys", "-t", session, "Enter"]).catch(() => undefined);
         if (parsed !== null) {
           const screen = tidy(parsed.screen);
           // the history ends at the end marker, like the screen: what follows (the next prompt, the empty rows of the screen) is not the command's
@@ -1156,23 +1173,22 @@ export interface TerminalHostSeam {
 }
 
 /** What the daemon hands over for agent workspaces (host/src/seams/terminal-host.ts): configuration only. The module builds the Docker managers from it, as agent computers are built. */
-export interface WorkspaceConfig
-  extends Pick<
-    WorkspaceOptions,
-    | "image"
-    | "limits"
-    | "idleMs"
-    | "home"
-    | "projectsOf"
-    | "projectAccessOf"
-    | "admit"
-    | "capacity"
-    | "log"
-    | "owner"
-    | "ownsAgent"
-    | "inTurn"
-    | "folders"
-  > {
+export interface WorkspaceConfig extends Pick<
+  WorkspaceOptions,
+  | "image"
+  | "limits"
+  | "idleMs"
+  | "home"
+  | "projectsOf"
+  | "projectAccessOf"
+  | "admit"
+  | "capacity"
+  | "log"
+  | "owner"
+  | "ownsAgent"
+  | "inTurn"
+  | "folders"
+> {
   /** Is this agent in Trash now (agents_agent.deletedAt)? Read before Trash volumes go and when agent.deleted is consumed, so a restored agent never loses them (third look T2). */
   inTrash?: (agentId: string) => boolean | undefined;
   /** The Docker Engine socket of this machine. With no socket and no runner the Space has no runtime of its own, and its workspaces go on servers that joined. */
@@ -1474,8 +1490,7 @@ function accessDeps(ctx: TermCtx): AccessDeps {
     // who may read a chat is who is in it: its members (a person who left, or was never in it, has no entry on its folder)
     mayView: async (person, thread) => {
       const r = (await ctx.call?.("threads.get", { threadId: thread })) as
-        | { thread?: { members?: Array<{ kind?: string; id?: string }> } }
-        | undefined;
+        { thread?: { members?: Array<{ kind?: string; id?: string }> } } | undefined;
       if (r?.thread?.members === undefined) throw new Error("the chat could not be read");
       return r.thread.members.some((m) => m.kind === "person" && m.id === person);
     },
