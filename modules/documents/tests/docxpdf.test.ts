@@ -413,3 +413,30 @@ test("hard breaks and table rules read as before the linear versions", async () 
   assert.equal(kinds("| a |\n| ---x |\n| 1 |"), "p");
   assert.equal(kinds("| a |\n|  |\n| 1 |"), "p");
 });
+
+test("a template of one line of spaces at the 1 MB limit is read in under 100 ms (best of three) and in linear time, for every shape the line readers look at", async () => {
+  const { parse } = await import("../handlers/vdoc.ts");
+  const shapes: Array<[string, (n: number) => string]> = [
+    ["spaces then a letter", (n) => `a${" ".repeat(n)}x`],
+    ["spaces then a backslash", (n) => `a${" ".repeat(n)}\\`],
+    ["a table head, then dashes and spaces", (n) => `| a |\n-- ${" ".repeat(n)}`],
+    ["a table head, then spaces and a dash", (n) => `| a |\n${" ".repeat(n)}-x`],
+    ["a table head, then a bar and spaces", (n) => `| a |\n|${" ".repeat(n)}`],
+    ["spaces only", (n) => " ".repeat(n)],
+  ];
+  const best = (md: string): number => {
+    let b = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const t = performance.now();
+      parse(md);
+      b = Math.min(b, performance.now() - t);
+    }
+    return b;
+  };
+  for (const [label, make] of shapes) {
+    const big = best(make(1_000_000));
+    assert.ok(big < 100, `${label}: 1 MB took ${big.toFixed(0)} ms`);
+    const small = Math.max(best(make(250_000)), 5);
+    assert.ok(big / small < 10, `${label}: four times the input took ${(big / small).toFixed(1)} times as long`);
+  }
+});
