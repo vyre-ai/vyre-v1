@@ -20,6 +20,7 @@ const migration = [
   "0005_run_nodes.sql",
   "0007_board.sql",
   "0008_node_rows.sql",
+  "0009_spend_scope.sql",
 ]
   .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"))
   .join("\n");

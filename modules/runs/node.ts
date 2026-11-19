@@ -135,6 +135,8 @@ export interface Node {
   /** why it looks stuck (no news for a while, the same step again and again) */
   stuck?: { since: number; reason: string; escalatedAt?: number };
   whoName?: string;
+  /** whose money it spends: the Space's, the person's own, or not said yet */
+  spendScope?: "space" | "own";
   errorCode?: string;
   errorMessage?: string;
   stopReason?: string;
@@ -192,6 +194,8 @@ export function nodeOf(r: Row): Node {
     need: parse(r["need_json"]),
     stuck: parse(r["stuck_json"]),
     whoName: str(r["who_name"]),
+    spendScope:
+      r["spend_scope"] === "space" || r["spend_scope"] === "own" ? (r["spend_scope"] as "space" | "own") : undefined,
     errorCode: str(r["error_code"]),
     errorMessage: str(r["error_message"]),
     stopReason: str(r["stop_reason"]),
@@ -310,6 +314,8 @@ export function writeEvent(
       ctx.now(),
       runId,
     );
+  if (e.type === "account" && typeof p["space"] === "boolean")
+    ctx.db.run("UPDATE runs_node SET spend_scope = ? WHERE run_id = ?", p["space"] ? "space" : "own", runId);
   if (e.type === "need" && typeof p["requestId"] === "string")
     ctx.db.run(
       "UPDATE runs_node SET need_json = ?, updated_at = ? WHERE run_id = ?",

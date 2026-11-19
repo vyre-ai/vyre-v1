@@ -190,3 +190,26 @@ test("a turn parked on an approval says what it asks, in words, with the task as
     null,
   );
 });
+
+test("the node is told whose money the turn spends, once: the Space's when its account is shared, the person's own otherwise", async () => {
+  for (const [shared, want] of [
+    [true, "space"],
+    [false, "own"],
+  ] as const) {
+    const w = world();
+    const t = turn("trn_acct", CHAT, {
+      info: { account: { ref: "#A", driver: "api", provider: "anthropic", kind: "api_key", shared } },
+    });
+    await w.mirror.turn(t, "started");
+    await w.mirror.usage(t as never);
+    await w.mirror.usage({ ...t, tokensIn: 1500 } as never);
+    assert.equal(
+      (w.h.sqlite.prepare("SELECT spend_scope FROM runs_node").get() as { spend_scope: string }).spend_scope,
+      want,
+    );
+    assert.equal(
+      (w.h.sqlite.prepare("SELECT COUNT(*) AS n FROM runs_event WHERE type = 'account'").get() as { n: number }).n,
+      1,
+    );
+  }
+});

@@ -2,7 +2,7 @@
 // runs.node.control (pause, resume, stop) and the three reads. Who may see a tree: whoever may see its root (its owner, who started it, a Manage holder).
 import { isSystemCall } from "../../../lib/trust.ts";
 import { stop } from "./engine.ts";
-import { enforceBudgets, limited, reached, setBudget } from "../budget.ts";
+import { budgetOf, enforceBudgets, isRaise, limited, reached, setBudget, spendsSpace } from "../budget.ts";
 import {
   boardAnswer,
   boardList,
@@ -524,6 +524,30 @@ export async function nodeLabel(ctx: RunsCtx, input: In): Promise<unknown> {
 export async function budgetSet(ctx: RunsCtx, input: In): Promise<unknown> {
   const n = manageNode(ctx, input.runId);
   const clear = input.clear === true || (input.usdMicros === undefined && input.tokens === undefined);
+  const next = clear
+    ? null
+    : {
+        ...(input.usdMicros === undefined ? {} : { usdMicros: input.usdMicros }),
+        ...(input.tokens === undefined ? {} : { tokens: input.tokens }),
+      };
+  // raising or clearing a limit on work that spends the Space's money needs the permission the Space's own AI spend settings need; work on the person's own account needs only the run's owner (checked above)
+  if (
+    isRaise(budgetOf(n), next) &&
+    spendsSpace(ctx, n.id) &&
+    !isSystemCall(ctx as Parameters<typeof isSystemCall>[0])
+  ) {
+    const may =
+      ctx.authorize?.({ perm: "ai.spend", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
+    if (!may)
+      raise(
+        ctx,
+        "permission.role_lacks_permission",
+        "That work spends the Space's money. Only someone who may set its spending limits can raise this one.",
+        {
+          reason: "spend_permission",
+        },
+      );
+  }
   const r = await setBudget(
     ctx,
     n.id,

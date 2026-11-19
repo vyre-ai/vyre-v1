@@ -165,3 +165,15 @@ export async function setBudget(ctx: RunsCtx, id: string, b: Budget | null): Pro
   }
   return { node: now, resumed };
 }
+
+/** Does any work under this node spend the Space's money, or not yet say whose it spends? Unknown is treated as the Space's: the safe side for money. */
+export const spendsSpace = (ctx: RunsCtx, id: string): boolean =>
+  subtreeOf(ctx.db, id).some((x) => x.spendScope !== "own");
+
+/** Is this change a raise: a limit made bigger, or taken away (a dimension that had a limit and has none)? Setting the first limit, or lowering one, only reduces what can be spent. */
+export function isRaise(prev: Budget, next: Budget | null): boolean {
+  if (prev.usdMicros === undefined && prev.tokens === undefined) return false;
+  if (next === null) return true;
+  const more = (a: number | undefined, b: number | undefined): boolean => a !== undefined && (b === undefined || b > a);
+  return more(prev.usdMicros, next.usdMicros) || more(prev.tokens, next.tokens);
+}

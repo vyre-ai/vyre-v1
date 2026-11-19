@@ -83,7 +83,21 @@ export function createNodeMirror(h: MirrorHost) {
   }
 
   const told = new Map<string, { i: number; o: number }>(); // what of a turn's use the node has been told, so each call adds only its own
+  const accounted = new Set<string>();
   async function usage(id: string, turn: TurnFacts): Promise<void> {
+    // whose money this turn spends, said once: a limit on it can then be raised by whoever may spend that money
+    const acct = turn.info?.account;
+    if (acct && !accounted.has(turn.id)) {
+      accounted.add(turn.id);
+      if (accounted.size > 2000) accounted.delete(accounted.values().next().value as string);
+      await h.call("runs.node.event", {
+        runId: id,
+        type: "account",
+        key: `acct:${turn.id}`,
+        actor: turn.agentId,
+        payload: { space: acct.shared === true || acct.spaceKey === true },
+      });
+    }
     const i = turn.tokensIn ?? 0;
     const o = turn.tokensOut ?? 0;
     const was = told.get(turn.id) ?? { i: 0, o: 0 };

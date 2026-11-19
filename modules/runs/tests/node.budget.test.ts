@@ -33,7 +33,7 @@ function rig(opts: { pauseFails?: boolean } = {}): Rig {
   });
   return r;
 }
-async function job(r: Rig, budget?: Record<string, number>) {
+async function job(r: Rig, budget?: Record<string, number>, account: "own" | "space" | "unknown" = "own") {
   const h = r.h;
   h.advance(1);
   const root = (
@@ -70,7 +70,15 @@ async function job(r: Rig, budget?: Record<string, number>) {
       )
     ).node;
   };
-  return { root, a: await mk("b"), b: await mk("c") };
+  const kids = { a: await mk("b"), b: await mk("c") };
+  if (account !== "unknown")
+    for (const n of [root, kids.a, kids.b])
+      await h.call(
+        "runs.node.event",
+        { runId: n.id, type: "account", payload: { space: account === "space" } },
+        engine,
+      );
+  return { root, ...kids };
 }
 const use = (r: Rig, runId: string, key: string, over: Record<string, number>) =>
   r.h.call("runs.node.event", { runId, type: "usage", key, payload: { tokensIn: 0, tokensOut: 0, ...over } }, engine);
@@ -218,4 +226,77 @@ test("an agent of another job, a member, and a watcher cannot set a limit or pre
   }
   assert.equal((await r.h.call("runs.node.get", { runId: root.id }, owner)).node.budget.tokens, 100, "nothing changed");
   assert.ok((await r.h.call("runs.budget.set", { runId: root.id, tokens: 5000 }, owner)).node);
+});
+
+test("raising or clearing a limit on work that spends the Space's money needs the permission to spend it; a first limit and a lower one do not; the person's own account needs only the owner", async () => {
+  const mayRaise = new Set<string>();
+  const h = harness({ authorize: (who, action) => action.perm === "ai.spend" && mayRaise.has(who.id) });
+  const r: Rig = { h, paused: [], resumed: [], tasks: [] };
+  h.callee("engine.pause", () => ({ paused: 1 }));
+  h.callee("engine.resume_paused", () => ({ resumed: 1, lost: 0 }));
+  h.callee("tasks.create", () => ({ task: { id: "tsk_1" } }));
+  const space = await job(r, { usdMicros: 1_000_000 }, "space");
+  const refused = async (input: Record<string, unknown>) =>
+    reasonOf(await h.call("runs.budget.set", { runId: space.root.id, ...input }, owner).catch((e) => e));
+  assert.equal(
+    await refused({ usdMicros: 5_000_000 }),
+    "spend_permission",
+    "the owner is not enough for the Space's money",
+  );
+  assert.equal(await refused({ clear: true }), "spend_permission", "taking the limit away is a raise");
+  assert.equal(
+    await refused({ tokens: 10 }),
+    "spend_permission",
+    "dropping the money limit for a token one lifts the money limit",
+  );
+  assert.ok(
+    (await h.call("runs.budget.set", { runId: space.root.id, usdMicros: 500_000 }, owner)).node,
+    "lowering is always the owner's",
+  );
+  mayRaise.add(alice.id);
+  assert.ok(
+    (await h.call("runs.budget.set", { runId: space.root.id, usdMicros: 5_000_000 }, owner)).node,
+    "with the permission it goes through",
+  );
+  mayRaise.delete(alice.id);
+  const unknown = await job(r, { usdMicros: 1_000_000 }, "unknown");
+  assert.equal(
+    reasonOf(await h.call("runs.budget.set", { runId: unknown.root.id, usdMicros: 9_000_000 }, owner).catch((e) => e)),
+    "spend_permission",
+    "whose money is not said yet: the safe side",
+  );
+  const own = await job(r, { usdMicros: 1_000_000 }, "own");
+  assert.ok(
+    (await h.call("runs.budget.set", { runId: own.root.id, usdMicros: 9_000_000 }, owner)).node,
+    "the person's own account: the owner is enough",
+  );
+  const first = await job(r, undefined, "space");
+  assert.ok(
+    (await h.call("runs.budget.set", { runId: first.root.id, usdMicros: 2_000_000 }, owner)).node,
+    "a first limit only reduces what can be spent",
+  );
+});
+
+test("a member who is not the owner, even one who may spend the Space's money, is refused on a limit; and a manager of runs without the spend permission is refused on a Space-account run", async () => {
+  const may = new Set<string>(["usr_bob"]);
+  const h = harness({
+    authorize: (who, action) =>
+      (action.perm === "ai.spend" && may.has(who.id)) || (who.id === "usr_admin" && action.perm === "runs.manage"),
+  });
+  const r: Rig = { h, paused: [], resumed: [], tasks: [] };
+  const space = await job(r, { tokens: 100 }, "space");
+  assert.equal(
+    codeOf(
+      await h.call("runs.budget.set", { runId: space.root.id, tokens: 10_000 }, { ...bob, depth: 0 }).catch((e) => e),
+    ),
+    "permission.not_found",
+    "bob may spend, but it is not his run",
+  );
+  const admin = { id: "usr_admin", kind: "person" as const, depth: 0 };
+  assert.equal(
+    reasonOf(await h.call("runs.budget.set", { runId: space.root.id, tokens: 10_000 }, admin).catch((e) => e)),
+    "spend_permission",
+  );
+  may.add("usr_admin");
+  assert.ok((await h.call("runs.budget.set", { runId: space.root.id, tokens: 10_000 }, admin)).node);
 });
