@@ -71,11 +71,12 @@ const CREW: CrewMember[] = [
   }),
   row({
     id: "sub_e",
+    runId: "run_e",
     title: "Reading the sizes",
-    state: "done",
-    found: "All three fit the dock.",
+    state: "working",
+    steps: ["Opening the dock plan", "Reading the sizes"],
+    step: "Reading the sizes",
     elapsedMs: 6_000,
-    endedAt: now - 3_000,
     tokensIn: 3_000,
     costMicros: 9_000,
   }),
@@ -111,17 +112,19 @@ const NODES = [
     spent: sp,
     startedAt: 1,
   },
+  // Docs has not started: it waits for Research, so it shows only that
+  { id: "run_d", kind: "helper", name: "Docs", status: "queued", spent: sp, startedAt: 1, dependsOn: ["run_r"] },
+  // Sizes is working and looks stuck
   {
-    id: "run_d",
+    id: "run_e",
     kind: "helper",
-    name: "Docs",
+    name: "Sizes",
     status: "running",
     spent: sp,
     startedAt: 1,
-    dependsOn: ["run_r"],
-    step: "Adding the bids table",
-    stepIcon: "edit",
-    stuck: { since: 5, reason: "the same step four times" },
+    step: "Reading the sizes",
+    stepIcon: "read",
+    stuck: { since: 5, reason: "same step 4×" },
   },
 ];
 

@@ -48,6 +48,16 @@ const kindOf = (m: CrewMember): RunKind =>
 
 /** Today's crew member as a RunView. */
 export function toRunView(m: CrewMember, nodes?: readonly RunNode[]): RunView {
+  const v = toRunViewRaw(m, nodes);
+  // a helper that waits for another has not started: only what it waits for shows, no step, no mark, no stuck or sleep
+  if (v.dependsLine !== undefined) {
+    const { stepIcon: _i, stuck: _s, sleep: _z, ...rest } = v;
+    return { ...rest, lines: [] };
+  }
+  return v;
+}
+
+function toRunViewRaw(m: CrewMember, nodes?: readonly RunNode[]): RunView {
   // the node behind the member (the runtime's runId on a crew member), when it is known
   const node = m.runId !== undefined ? nodes?.find((n) => n.id === m.runId) : undefined;
   const name = m.name !== undefined && m.name !== "" ? m.name : m.title;

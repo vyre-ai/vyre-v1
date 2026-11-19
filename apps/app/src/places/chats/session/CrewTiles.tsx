@@ -62,7 +62,7 @@ export function HelperTile({
   const meter = [r.tokens > 0 ? `${tokens(r.tokens)} tokens` : "", r.costMicros > 0 ? money(r.costMicros) : ""]
     .filter((x) => x !== "")
     .join(" · ");
-  const lines = r.lines.length > 0 ? r.lines : [live ? "Starting" : ""];
+  const lines = r.lines.length > 0 ? r.lines : r.dependsLine !== undefined ? [] : [live ? "Starting" : ""];
   return (
     <Pressable
       accessibilityRole="button"
@@ -120,9 +120,12 @@ export function HelperTile({
           </Text>
         ))}
         {r.stuck !== undefined ? (
-          <Text numberOfLines={2} testID={`${id}-stuck`} style={st.line}>
-            Looks stuck: {r.stuck}
-          </Text>
+          <View testID={`${id}-stuck`} style={st.sleepRow}>
+            <Glyph name="alert" size={12} color="var(--warn)" />
+            <Text numberOfLines={1} style={st.quiet}>
+              Stuck · {r.stuck}
+            </Text>
+          </View>
         ) : null}
         {r.sleep !== undefined ? (
           <View testID={`${id}-sleep`} style={st.sleepRow}>
@@ -133,9 +136,12 @@ export function HelperTile({
           </View>
         ) : null}
         {r.dependsLine !== undefined ? (
-          <Text numberOfLines={1} testID={`${id}-depends`} style={st.dep}>
-            › {r.dependsLine}
-          </Text>
+          <View testID={`${id}-depends`} style={st.sleepRow}>
+            <Glyph name="chev" size={12} color="var(--accent)" />
+            <Text numberOfLines={1} style={st.dep}>
+              {r.dependsLine}
+            </Text>
+          </View>
         ) : null}
         {r.state === "needs_you" &&
         r.holdTaskId !== undefined &&
@@ -296,6 +302,7 @@ const st = StyleSheet.create({
   dim: { color: "var(--ink-4)" as string },
   lineNeed: { color: "var(--ink)" as string },
   lineFail: { color: "var(--ink)" as string },
+  quiet: { fontSize: 12, color: "var(--ink-3)" as string },
   sleepRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   dep: { fontSize: 11.5, color: "var(--accent)" as string },
   stepIcon: { position: "absolute", right: 0, top: 3 },

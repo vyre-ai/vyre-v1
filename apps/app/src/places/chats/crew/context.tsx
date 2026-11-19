@@ -43,11 +43,14 @@ export function CrewProvider({
   call,
   threadId,
   onShow,
+  shown = true,
   children,
 }: {
   call: Call | undefined;
   threadId: string;
   onShow?: () => void;
+  /** False while the place is kept mounted but not on screen (or the window is hidden): the runtime is not read then, and is read at once when it shows again. */
+  shown?: boolean;
   children: ReactNode;
 }): ReactElement {
   const [signal, setSignal] = useState(0);
@@ -63,7 +66,7 @@ export function CrewProvider({
   // the runtime's view of the same helpers, read once for the chat and shared by every strip and the pane (a server without it gives nothing). Only a chat that has helpers, or whose pane is open, asks:
   // a chat that never had one costs no request, and a chat with no tree of work is asked about rarely
   const absent = useMemo<Call>(() => async () => Promise.reject(new Error("unknown capability")), []);
-  const run = useRunData(call ?? absent, threadId, { enabled: call !== undefined && ((status?.members.length ?? 0) > 0 || open) });
+  const run = useRunData(call ?? absent, threadId, { enabled: shown && call !== undefined && ((status?.members.length ?? 0) > 0 || open) });
   const nodes = run.status === "ready" ? run.nodes : NO_NODES;
   const value = useMemo<CrewCtx>(
     () => ({

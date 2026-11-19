@@ -20,6 +20,7 @@ import {
 } from "./reads.ts";
 import { CrewTabs } from "./CrewTabs.tsx";
 import { CrewProvider } from "../context.tsx";
+import { useShown } from "./useShown.ts";
 
 installDom();
 
@@ -414,4 +415,62 @@ test("the chat reads the runtime only while it has helpers or its pane is open; 
   await mount(createRoot, <CrewTabs call={mk([]) as never} threadId="thr_0" helpers={HELP} run={shared} />);
   await flush();
   assert.equal(asked.filter((c) => c === "runs.tree.find").length, 0, "the pane uses the shared read, not a second one");
+});
+
+test("the chat's runtime read pauses while its place is hidden and reads at once when it shows again", async () => {
+  const asked: string[] = [];
+  const member = { kind: "helper", id: "thr_h", parentThreadId: "thr_0", title: "T", agentId: "a", state: "working", startedAt: 1, elapsedMs: 1, tokensIn: 0, tokensOut: 0, costMicros: 0 };
+  const call = async (cap: string): Promise<unknown> => {
+    asked.push(cap);
+    if (cap === "engine.crew.status") return { members: [member], totals: { members: 1, working: 1, done: 0, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 0 } };
+    if (cap === "runs.tree.find") return { roots: [] };
+    return {};
+  };
+  const Host = (): ReturnType<typeof CrewTabs> => {
+    const [shown, setShown] = useState(false);
+    return (
+      <>
+        <Pressable testID="show" onPress={() => setShown(true)}>
+          {null}
+        </Pressable>
+        <CrewProvider call={call as never} threadId="thr_0" shown={shown}>
+          <Text>x</Text>
+        </CrewProvider>
+      </>
+    ) as never;
+  };
+  const root = await mount(createRoot, <Host />);
+  await flush();
+  await flush();
+  assert.equal(asked.filter((c) => c.startsWith("runs.")).length, 0, "hidden: nothing is read");
+  await press(find(root, "show"));
+  await flush();
+  assert.ok(asked.includes("runs.tree.find"), "shown: one read at once");
+});
+
+test("a place is shown unless the window is hidden or the place has no size; it reads again on a visibility change", async () => {
+  const g = globalThis as { document?: unknown };
+  const had = g.document;
+  const listeners: Array<() => void> = [];
+  const doc = { visibilityState: "visible", addEventListener: (_t: string, f: () => void) => void listeners.push(f), removeEventListener: () => undefined };
+  g.document = doc;
+  let size = { width: 100, height: 100 };
+  const ref = { current: { getBoundingClientRect: () => size } };
+  const Host = (): ReturnType<typeof CrewTabs> => (<Text testID="state">{useShown(ref) ? "shown" : "hidden"}</Text>) as never;
+  try {
+    const root = await mount(createRoot, <Host />);
+    assert.equal(textOf(find(root, "state")), "shown");
+    size = { width: 0, height: 0 };
+    await act(async () => listeners.forEach((f) => f()));
+    assert.equal(textOf(find(root, "state")), "hidden", "kept mounted behind another place: no size");
+    size = { width: 100, height: 100 };
+    doc.visibilityState = "hidden";
+    await act(async () => listeners.forEach((f) => f()));
+    assert.equal(textOf(find(root, "state")), "hidden", "a hidden window");
+    doc.visibilityState = "visible";
+    await act(async () => listeners.forEach((f) => f()));
+    assert.equal(textOf(find(root, "state")), "shown");
+  } finally {
+    g.document = had;
+  }
 });
