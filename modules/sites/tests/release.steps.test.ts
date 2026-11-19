@@ -130,8 +130,8 @@ function world(o: Fake = {}) {
     cleanup: () => undefined,
   })) as never);
   const makeRepo = async (name: string, o: Record<string, unknown> = {}): Promise<string> =>
-    (await h["sites.create"]!(ctx, { name, source: { repo: "https://github.com/acme/app.git", branch: "main" }, ...o })).site
-      .siteId as string;
+    (await h["sites.create"]!(ctx, { name, source: { repo: "https://github.com/acme/app.git", branch: "main" }, ...o }))
+      .site.siteId as string;
   return {
     ctx,
     sdb,
@@ -381,7 +381,10 @@ test("env: a plain value and a scope are kept, listed as given, and reach only t
     });
     const list = await h["sites.env_list"]!(w.ctx, { siteId });
     assert.deepEqual(
-      list.entries.map((e: { name: string; kind: string; value?: string; scope: string }) => `${e.name}:${e.kind}:${e.value}:${e.scope}`),
+      list.entries.map(
+        (e: { name: string; kind: string; value?: string; scope: string }) =>
+          `${e.name}:${e.kind}:${e.value}:${e.scope}`,
+      ),
       ["APP_MODE:plain:calm:all", "ONLY_PREVIEW:plain:v:previews", "ONLY_PROD:plain:p:production"],
     );
     assert.equal(list.entries[0].vaultName, "");
@@ -406,7 +409,14 @@ test("env: a name takes a Vault key or a plain value, one of the two; bad scopes
     await assert.rejects(() => set([{ name: "PORT", value: "1" }]), /set by Vyre/);
     await assert.rejects(() => set([{ name: "A", value: "x".repeat(9000) }]), /over 8 KB/);
     await assert.rejects(() => set([{ name: "A", value: 5 }]), /not text/);
-    await assert.rejects(() => set([{ name: "A", value: "1" }, { name: "A", value: "2" }]), /listed twice/);
+    await assert.rejects(
+      () =>
+        set([
+          { name: "A", value: "1" },
+          { name: "A", value: "2" },
+        ]),
+      /listed twice/,
+    );
     // nothing was kept by the refusals
     assert.equal((await h["sites.env_list"]!(w.ctx, { siteId })).entries.length, 0);
     // an empty plain value is a value
@@ -417,8 +427,7 @@ test("env: a name takes a Vault key or a plain value, one of the two; bad scopes
   }
 });
 
-const route = (w: ReturnType<typeof world>, host: string) =>
-  routeByHost({ db: w.sdb } as never, host, "sites.test");
+const route = (w: ReturnType<typeof world>, host: string) => routeByHost({ db: w.sdb } as never, host, "sites.test");
 
 test("previewLabel: a branch is an address that is safe, short enough, and never shared by two branches", () => {
   const l = _test.previewLabel;
@@ -555,13 +564,18 @@ test("promote serves the preview's build as production without building: skipped
     assert.ok(w.seen.removed.includes(`c-${first.deployment.deploymentId}`), "the old production container is removed");
     // the preview keeps serving, and the shared image is not dropped
     assert.equal(route(w, new URL(prev.deployment.url).host)?.target.container, `c-${prev.deployment.deploymentId}`);
-    assert.equal(w.sdb.all("SELECT * FROM sites_promotion WHERE production_id = ?", out.deployment.deploymentId).length, 1);
+    assert.equal(
+      w.sdb.all("SELECT * FROM sites_promotion WHERE production_id = ?", out.deployment.deploymentId).length,
+      1,
+    );
     // the build before is still there to roll back to
     const back = await h["sites.rollback"]!(w.ctx, { siteId });
     assert.equal(back.deployment.deploymentId, first.deployment.deploymentId);
     // removing the preview does not take the image production uses
     await h["sites.preview_remove"]!(w.ctx, { siteId, branch: "ship-it" });
-    const row = w.sdb.all("SELECT image FROM sites_deployment WHERE id = ?", out.deployment.deploymentId)[0] as { image: string };
+    const row = w.sdb.all("SELECT image FROM sites_deployment WHERE id = ?", out.deployment.deploymentId)[0] as {
+      image: string;
+    };
     assert.ok(row.image, "production keeps its image");
     assert.ok(!w.seen.droppedImages.includes(row.image), "the image is still on the server");
   } finally {

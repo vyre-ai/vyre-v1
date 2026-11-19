@@ -188,10 +188,14 @@ export function entryOf(r: EnvRow): EnvEntry {
 /** The names that carry a secret by what they say: keys, tokens, passwords, and an address with a login in it. Everything else in a pasted .env is plain. */
 const SECRET_NAME = /(^|_)(KEY|SECRET|TOKEN|PASSWORD|PASSWD|PASS|PWD|PRIVATE|CREDENTIALS?|AUTH|SALT|DSN)(_|$)/i;
 const URL_WITH_LOGIN = /^[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s@]+@/i;
-export const isSecretVar = (name: string, value: string): boolean => SECRET_NAME.test(name) || URL_WITH_LOGIN.test(value);
+export const isSecretVar = (name: string, value: string): boolean =>
+  SECRET_NAME.test(name) || URL_WITH_LOGIN.test(value);
 
 /** Parse the text of a .env: NAME=value lines, `export NAME=value`, quoted values (a double quote reads \n), a trailing # comment on an unquoted value, blank and # lines skipped. The last of a repeated name wins. Names that cannot be env vars come back in `skipped`. */
-export function parseEnv(text: string): { vars: { name: string; value: string; secret: boolean }[]; skipped: string[] } {
+export function parseEnv(text: string): {
+  vars: { name: string; value: string; secret: boolean }[];
+  skipped: string[];
+} {
   const found = new Map<string, string>();
   const skipped: string[] = [];
   for (const raw of text.replace(/\r\n?/g, "\n").split("\n")) {
@@ -208,7 +212,8 @@ export function parseEnv(text: string): { vars: { name: string; value: string; s
       skipped.push(name.slice(0, 40));
       continue;
     }
-    if (v.startsWith('"') && v.lastIndexOf('"') > 0) v = v.slice(1, v.lastIndexOf('"')).replace(/\\n/g, "\n").replace(/\\"/g, '"');
+    if (v.startsWith('"') && v.lastIndexOf('"') > 0)
+      v = v.slice(1, v.lastIndexOf('"')).replace(/\\n/g, "\n").replace(/\\"/g, '"');
     else if (v.startsWith("'") && v.lastIndexOf("'") > 0) v = v.slice(1, v.lastIndexOf("'"));
     else v = v.replace(/\s+#.*$/, "");
     found.set(name, v);

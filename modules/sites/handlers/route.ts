@@ -1053,7 +1053,12 @@ export function routeByHost(
     if (p && site) {
       const access = str(site.access) === "public" || str(site.access) === "password" ? "space" : str(site.access);
       const row = { ...site, access, live: 1, container_id: p.container_id, port: isNull(p.port) ? site.port : p.port };
-      return { ...served(row), owner: str(site.owner), passwordHash: null, name: `${str(site.name)} (${str(p.branch)})` };
+      return {
+        ...served(row),
+        owner: str(site.owner),
+        passwordHash: null,
+        name: `${str(site.name)} (${str(p.branch)})`,
+      };
     }
   }
   if (!r) {
@@ -1092,10 +1097,12 @@ export function deployedHosts(
     ...(isNull(r.port) ? {} : { port: num(r.port) }),
     hosts: [
       ...(sitesDomain && !isNull(r.slug) ? [`${str(r.slug)}.${sitesDomain}`] : []),
-      ...(ctx.db.all(
-        "SELECT host FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND removed_at IS NULL AND host IS NOT NULL AND container_id IS NOT NULL",
-        r.id,
-      ) as Row[]).map((d) => str(d.host)),
+      ...(
+        ctx.db.all(
+          "SELECT host FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND removed_at IS NULL AND host IS NOT NULL AND container_id IS NOT NULL",
+          r.id,
+        ) as Row[]
+      ).map((d) => str(d.host)),
       ...(ctx.db.all("SELECT domain FROM sites_domain WHERE site_id = ?", r.id) as Row[]).map((d) => str(d.domain)),
     ],
   }));

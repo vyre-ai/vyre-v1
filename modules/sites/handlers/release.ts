@@ -487,7 +487,9 @@ async function envOf(
   for (const e of many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", siteId)) {
     const scope = isNull(e.scope) ? "all" : str(e.scope);
     if (scope !== "all" && scope !== want) continue;
-    out[str(e.name)] = !isNull(e.plain) ? str(e.plain) : await filled(ctx, str(e.vault_handle), `${depId}:${str(e.name)}`);
+    out[str(e.name)] = !isNull(e.plain)
+      ? str(e.plain)
+      : await filled(ctx, str(e.vault_handle), `${depId}:${str(e.name)}`);
   }
   return out;
 }
@@ -834,7 +836,13 @@ async function switchPreview(
   preview: { branch: string; host: string },
 ): Promise<void> {
   const now = Date.now();
-  db.run("UPDATE sites_deployment SET url = ?, host = ?, removed_at = NULL, updated_at = ? WHERE id = ?", `https://${preview.host}`, preview.host, now, depId);
+  db.run(
+    "UPDATE sites_deployment SET url = ?, host = ?, removed_at = NULL, updated_at = ? WHERE id = ?",
+    `https://${preview.host}`,
+    preview.host,
+    now,
+    depId,
+  );
   const older = db.all(
     "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ? AND id != ? AND (container_id IS NOT NULL OR image IS NOT NULL) ORDER BY at DESC",
     siteId,
@@ -1065,7 +1073,9 @@ async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unkno
   });
   const words = (e: unknown): string => (e instanceof Error ? e.message : String(e));
   try {
-    const entries = Array.isArray(o["env"]) ? (o["env"] as { name: string; vaultHandle?: string; value?: string }[]) : [];
+    const entries = Array.isArray(o["env"])
+      ? (o["env"] as { name: string; vaultHandle?: string; value?: string }[])
+      : [];
     if (entries.length) {
       const have = (await ctx.call("sites.env_list", { siteId } as never)) as {
         entries: { name: string; vaultName: string; kind: string; value?: string; scope: string }[];
@@ -1144,7 +1154,11 @@ async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unkno
 
 /** A name that is safe in an address: lowercase letters, digits and dashes. A branch that had to be changed to fit gets a short hash, so two branches never share an address. */
 export function previewLabel(slug: string, branch: string): string {
-  const base = branch.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "branch";
+  const base =
+    branch
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "branch";
   let h = 2166136261;
   for (const c of branch) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
   const hash = h.toString(16).padStart(8, "0").slice(0, 6);
@@ -1157,10 +1171,15 @@ export function previewLabel(slug: string, branch: string): string {
 function previewHostFor(ctx: Ctx, site: Row, branch: string): string {
   const domain = routesHost()?.sitesDomain();
   if (!domain || isNull(site.slug))
-    fail(ctx, "validation.precondition_failed", "Previews need this Space to have a sites domain. Set one in Settings.");
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "Previews need this Space to have a sites domain. Set one in Settings.",
+    );
   let label = previewLabel(str(site.slug), branch);
   // never an address that is some site's own name
-  if (one(ctx, "SELECT id FROM sites_site WHERE slug = ? AND deleted_at IS NULL", label)) label = `${label.slice(0, 60)}-p`;
+  if (one(ctx, "SELECT id FROM sites_site WHERE slug = ? AND deleted_at IS NULL", label))
+    label = `${label.slice(0, 60)}-p`;
   return `${label}.${domain}`;
 }
 
@@ -1186,7 +1205,8 @@ async function sitesPreviewRebuild(ctx: Ctx, input: unknown): Promise<{ deployme
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const branch = cleanBranch(reqStr(ctx, o, "branch"));
-  if (!branch) fail(ctx, "validation.bad_input", "A branch name uses letters, digits and . _ / -.", { field: "branch" });
+  if (!branch)
+    fail(ctx, "validation.bad_input", "A branch name uses letters, digits and . _ / -.", { field: "branch" });
   const source = sourceOf(site);
   if (!source?.repo)
     fail(ctx, "validation.precondition_failed", "A preview is a branch of a GitHub repo. This site has no repo.");
@@ -1277,12 +1297,24 @@ async function sitesPreviewRemove(ctx: Ctx, input: unknown): Promise<{ removed: 
   }
   const r = runner();
   const now = ctx.now();
-  for (const row of many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ? AND removed_at IS NULL", siteId, branch ?? "")) {
+  for (const row of many(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ? AND removed_at IS NULL",
+    siteId,
+    branch ?? "",
+  )) {
     if (r && !isNull(row.container_id)) await r.remove(str(row.container_id)).catch(() => undefined);
-    ctx.db.run("UPDATE sites_deployment SET container_id = NULL, host = NULL, url = NULL, removed_at = ?, updated_at = ? WHERE id = ?", now, now, row.id);
+    ctx.db.run(
+      "UPDATE sites_deployment SET container_id = NULL, host = NULL, url = NULL, removed_at = ?, updated_at = ? WHERE id = ?",
+      now,
+      now,
+      row.id,
+    );
     if (r && !isNull(row.image)) await dropImage(ctx.db, r, row);
   }
-  await routesHost()?.hostRoute?.(siteId, true).catch(() => undefined);
+  await routesHost()
+    ?.hostRoute?.(siteId, true)
+    .catch(() => undefined);
   return { removed: true };
 }
 
@@ -1299,7 +1331,11 @@ async function sitesPreviewPromote(ctx: Ctx, input: unknown): Promise<{ deployme
     fail(ctx, "validation.precondition_failed", "That preview has no finished build to promote. Rebuild it first.");
   if (!(await r.imageExists(str(prev.image))))
     fail(ctx, "validation.precondition_failed", "That preview's build is gone from the server. Rebuild it first.");
-  const busy = one(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'production' AND state IN ('queued', 'building')", siteId);
+  const busy = one(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'production' AND state IN ('queued', 'building')",
+    siteId,
+  );
   if (busy && done.has(str(busy.id)))
     fail(ctx, "validation.precondition_failed", "A deploy is running. Wait for it, or cancel it, then promote.");
   const depId = nid(ctx, "dpl");
@@ -1406,7 +1442,14 @@ async function runPromote(j: {
     await keepNetwork(j.db, r, siteId);
     log.begin("start");
     say(`Starting it with ${j.limits.cpus} CPU and ${j.limits.memoryMb} MB, with the production variables`);
-    const started = await r.run({ siteId, deploymentId: j.depId, image: j.image, port: j.port, env: j.env, limits: j.limits });
+    const started = await r.run({
+      siteId,
+      deploymentId: j.depId,
+      image: j.image,
+      port: j.port,
+      env: j.env,
+      limits: j.limits,
+    });
     startedId = started.containerId;
     j.db.run("UPDATE sites_deployment SET container_id = ? WHERE id = ?", started.containerId, j.depId);
     if (j.signal.aborted) throw new Canceled();
@@ -1600,7 +1643,8 @@ async function sitesEnvSet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
     next.push({ name, handle, plain: typeof value === "string" ? value : null, scope });
   }
   // the caller must be able to use each key now, or a deploy would fail later for a reason they cannot see
-  for (const e of next) if (e.handle !== "") await filled(ctx, e.handle, `check:${str(site.id)}:${e.name}:${ctx.now()}`);
+  for (const e of next)
+    if (e.handle !== "") await filled(ctx, e.handle, `check:${str(site.id)}:${e.name}:${ctx.now()}`);
   ctx.db.run("DELETE FROM sites_env WHERE site_id = ?", site.id);
   for (const e of next)
     ctx.db.run(
