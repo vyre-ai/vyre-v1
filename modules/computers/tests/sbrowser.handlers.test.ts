@@ -839,3 +839,31 @@ test("the row says what the agent's browser has waiting for approval: how many, 
     off();
   }
 });
+
+test("a send a shared agent holds for another person is not counted on someone else's row; the person it was asked for and an admin of the Space see it", async () => {
+  rig();
+  try {
+    heldTasks = { tsk_o: { title: "Send Omar's letter", actions: [{ key: "approve" }] } };
+    heldHolds = [
+      {
+        id: "hld_o",
+        capName: "computers.chrome.send",
+        taskId: "tsk_o",
+        principal: { kind: "agent", id: "agt_named" },
+        askedBy: { kind: "person", id: WATCHER },
+        createdAt: 1,
+      },
+    ];
+    const heldOf = async (h: ReturnType<typeof as>) =>
+      (await tool["computers.browser.profiles"]!(h.ctx, {})).profiles.find(
+        (p: { agentId: string }) => p.agentId === "agt_named",
+      )?.held;
+    assert.equal(await heldOf(as(DANA, false)), undefined, "a member it was not asked for sees nothing of it");
+    assert.equal((await heldOf(as(WATCHER, false)))?.count, 1, "the person it was asked for sees it");
+    assert.equal((await heldOf(as(OMAR, true)))?.count, 1, "an admin of the Space sees it");
+  } finally {
+    heldHolds = [];
+    heldTasks = {};
+    off();
+  }
+});

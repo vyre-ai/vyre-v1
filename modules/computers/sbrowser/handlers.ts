@@ -167,13 +167,26 @@ interface HeldView {
  */
 async function heldSends(ctx: CompCtx): Promise<Map<string, HeldView>> {
   const out = new Map<string, HeldView>();
-  let holds: Array<{ id: string; capName: string; taskId: string; principal: { id: string }; createdAt: number }> = [];
+  let holds: Array<{
+    id: string;
+    capName: string;
+    taskId: string;
+    principal: { id: string };
+    askedBy?: { id: string };
+    createdAt: number;
+  }> = [];
   try {
     holds = ((await ctx.call("gate.holds.list", { states: ["held"] })) as { holds?: typeof holds }).holds ?? [];
   } catch {
     return out;
   }
-  const mine = holds.filter((h) => h.capName === "computers.chrome.send").sort((a, b) => a.createdAt - b.createdAt);
+  // a send a shared agent holds for another person is theirs: its count is not shown to someone else, unless they administer the Space (the person it was asked for sees it on their own row)
+  const me = ctx.principal.kind === "person" ? ctx.principal.id : "";
+  const admin = isAdmin(ctx);
+  const mine = holds
+    .filter((h) => h.capName === "computers.chrome.send")
+    .filter((h) => h.askedBy === undefined || h.askedBy.id === me || admin)
+    .sort((a, b) => a.createdAt - b.createdAt);
   for (const h of mine) {
     const agent = h.principal.id;
     const had = out.get(agent);
