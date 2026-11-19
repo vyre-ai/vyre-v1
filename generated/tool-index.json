@@ -914,6 +914,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_readiness",
+      "summary": "What each Automation is missing before it can be turned on",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_replay",
       "summary": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
       "toolset": "automations"
@@ -1066,6 +1072,18 @@
       "deferred": false,
       "name": "automations_webhook_url_rotate",
       "summary": "Rotate the secret in the webhook URL; the old URL stops working",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_why_not",
+      "summary": "Why Automations did not run for a record, and what stopped each",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_would_run",
+      "summary": "How often it would have started last week",
       "toolset": "automations"
     },
     {

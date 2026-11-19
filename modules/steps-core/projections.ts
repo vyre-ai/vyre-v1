@@ -10,7 +10,15 @@ export interface StepsCtx {
   actingFor?: string;
   trace: { traceId: string };
   now(): number;
-  call?(cap: string, input: unknown): Promise<unknown>;
+  /** `opts` goes along to the Gate: `gate: "admin_only"` holds only on a rule an admin wrote, `step` names the Automation step the call is (and whether it asks first). */
+  call?(
+    cap: string,
+    input: unknown,
+    opts?: {
+      gate?: "admin_only";
+      step?: { automationId: string; nodeId: string; defHash: string; ask?: boolean };
+    },
+  ): Promise<unknown>;
 }
 
 /** What `{{ }}` and conditions can read: the trigger payload, the results of earlier steps, the loop item and a few Run facts. */

@@ -279,6 +279,7 @@ export function stubs(ctx: CallCtx) {
       },
       read_docs: call("automations.read_docs"),
       read_link: call("automations.read_link"),
+      readiness: call("automations.readiness"),
       replay: call("automations.replay"),
       restore_version: call("automations.restore_version"),
       retry: call("automations.retry"),
@@ -290,6 +291,7 @@ export function stubs(ctx: CallCtx) {
       senders: call("automations.senders"),
       set_enabled: call("automations.set_enabled"),
       set_owner: call("automations.set_owner"),
+      step_ask: call("automations.step_ask"),
       steps: {
         list: call("automations.steps.list"),
       },
@@ -320,6 +322,8 @@ export function stubs(ctx: CallCtx) {
         get: call("automations.webhook_url.get"),
         rotate: call("automations.webhook_url.rotate"),
       },
+      why_not: call("automations.why_not"),
+      would_run: call("automations.would_run"),
     },
     backup: {
       config_get: call("backup.config_get"),

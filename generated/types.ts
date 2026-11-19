@@ -4229,6 +4229,7 @@ export type AutomationsListOut = {
         at: number;
       };
       failedRuns: number;
+      sentence?: string;
     }>;
   next?: string;
   total?: number;
@@ -5448,6 +5449,24 @@ export type AutomationsReadLinkOut = {
     from: "image" | "icon";
   };
 };
+export type AutomationsReadinessIn = {
+  automationId?: string;
+  draft?: boolean;
+};
+export type AutomationsReadinessOut = {
+  blocked: Array<{
+      automationId?: string;
+      nodeId?: string;
+      short: string;
+      line: string;
+      button: "Connect" | "Fix";
+      fix: {
+        kind: "ai_account" | "mailbox" | "number" | "connection" | "file" | "step";
+        connector?: string;
+      };
+    }>;
+  sentence?: string;
+};
 export type AutomationsReplayIn = {
   automationId: string;
   runId: string;
@@ -5825,6 +5844,15 @@ export type AutomationsSetOwnerOut = {
     runsAs?: string;
   };
 };
+export type AutomationsStepAskIn = {
+  act: "post";
+  threadId?: string;
+  text?: string;
+  idempotencyKey: string;
+};
+export type AutomationsStepAskOut = {
+  ok: boolean;
+};
 export type AutomationsStepsListIn = {
   category?: "data" | "send" | "ai" | "control" | "wait" | "code" | "sheet" | "sign" | "journey";
   all?: boolean;
@@ -5975,6 +6003,9 @@ export type AutomationsTestIn = {
   version?: number;
   draft?: boolean;
   eventRunId?: string;
+  eventId?: string;
+  recordId?: string;
+  recordType?: string;
 };
 export type AutomationsTestOut = {
   runId: string;
@@ -6607,6 +6638,62 @@ export type AutomationsWebhookUrlRotateIn = {
 };
 export type AutomationsWebhookUrlRotateOut = {
   url: string;
+};
+export type AutomationsWhyNotIn = {
+  type: string;
+  recordId: string;
+  eventId?: string;
+};
+export type AutomationsWhyNotOut = {
+  record: {
+    id: string;
+    type?: string;
+    typeName?: string;
+    title?: string;
+  };
+  changes: Array<{
+      eventId: string;
+      at: number;
+      line: string;
+      by?: string;
+    }>;
+  eventId?: string;
+  automations: Array<{
+      automationId: string;
+      name: string;
+      status: "on" | "off" | "draft" | "paused";
+      verdict: "not_started" | "stopped" | "failed" | "waiting" | "running" | "ran" | "off";
+      line: string;
+      checks: Array<{
+          ok: boolean;
+          line: string;
+          detail?: string;
+        }>;
+      runId?: string;
+    }>;
+};
+export type AutomationsWouldRunIn = {
+  automationId: string;
+  draft?: boolean;
+};
+export type AutomationsWouldRunOut = {
+  supported: boolean;
+  days: number;
+  n: number;
+  of: number;
+  capped: boolean;
+  what?: string;
+  noun?: string;
+  starts: Array<{
+      eventId: string;
+      at: number;
+      starts: boolean;
+      name: string;
+      change: string;
+      why?: string;
+      recordId?: string;
+      type?: string;
+    }>;
 };
 export type BackupConfigGetIn = Record<string, unknown>;
 export type BackupConfigGetOut = {
@@ -48515,6 +48602,7 @@ export interface CapMap {
   "automations.proposal.discard": { in: AutomationsProposalDiscardIn; out: AutomationsProposalDiscardOut };
   "automations.read_docs": { in: AutomationsReadDocsIn; out: AutomationsReadDocsOut };
   "automations.read_link": { in: AutomationsReadLinkIn; out: AutomationsReadLinkOut };
+  "automations.readiness": { in: AutomationsReadinessIn; out: AutomationsReadinessOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
@@ -48524,6 +48612,7 @@ export interface CapMap {
   "automations.senders": { in: AutomationsSendersIn; out: AutomationsSendersOut };
   "automations.set_enabled": { in: AutomationsSetEnabledIn; out: AutomationsSetEnabledOut };
   "automations.set_owner": { in: AutomationsSetOwnerIn; out: AutomationsSetOwnerOut };
+  "automations.step_ask": { in: AutomationsStepAskIn; out: AutomationsStepAskOut };
   "automations.steps.list": { in: AutomationsStepsListIn; out: AutomationsStepsListOut };
   "automations.stop": { in: AutomationsStopIn; out: AutomationsStopOut };
   "automations.templates.list": { in: AutomationsTemplatesListIn; out: AutomationsTemplatesListOut };
@@ -48544,6 +48633,8 @@ export interface CapMap {
   "automations.watches.save": { in: AutomationsWatchesSaveIn; out: AutomationsWatchesSaveOut };
   "automations.webhook_url.get": { in: AutomationsWebhookUrlGetIn; out: AutomationsWebhookUrlGetOut };
   "automations.webhook_url.rotate": { in: AutomationsWebhookUrlRotateIn; out: AutomationsWebhookUrlRotateOut };
+  "automations.why_not": { in: AutomationsWhyNotIn; out: AutomationsWhyNotOut };
+  "automations.would_run": { in: AutomationsWouldRunIn; out: AutomationsWouldRunOut };
   "backup.config_get": { in: BackupConfigGetIn; out: BackupConfigGetOut };
   "backup.config_set": { in: BackupConfigSetIn; out: BackupConfigSetOut };
   "backup.delete": { in: BackupDeleteIn; out: BackupDeleteOut };

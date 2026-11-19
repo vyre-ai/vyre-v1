@@ -10,6 +10,7 @@
 // A relative milestone that is already past succeeds with missed output so later outward steps can be skipped. An anchor id is re-read from the calendar when the wait resumes.
 import { registry } from "../../../generated/registry.ts";
 import { missingInput } from "../../../lib/words/step-missing.ts";
+import { asksFirst } from "../../../lib/ask-first.ts";
 import { collectItems, groupItems, transformValue } from "./data-steps.ts";
 import { nextOpen } from "./hours.ts";
 import type { OpenHours } from "./hours.ts";
@@ -835,9 +836,43 @@ const stepRef = (env: StepEnv, node: StepNode) =>
         automationId: env.run.automation,
         nodeId: node.id,
         defHash: env.run.defHash,
-        ...(node.askBeforeSending === true ? { ask: true } : {}),
+        ...(asks(node) ? { ask: true } : {}),
       }
     : undefined;
+
+/** Does this step wait for a yes before it goes out? What the step says, else the rule for its act: a signature request asks unless its author turned asking off (lib/ask-first.ts). */
+const asks = (node: StepNode): boolean =>
+  asksFirst(node.askBeforeSending, (STEPS.get(node.key) as { gateAct?: string } | undefined)?.gateAct);
+
+/**
+ * A step set to ask whose own capability declares no Gate (a chat post) would go out without anyone being asked: the switch said On and nothing waited. It asks here first, through a capability that
+ * does nothing but pass the Gate, the way a code step that names hosts does. Null means go on.
+ */
+async function askFirst(env: StepEnv, node: StepNode, cap: string, input: In, call: StepCall): Promise<StepResult | null> {
+  const def = STEPS.get(node.key) as { effects?: string; gateAct?: string } | undefined;
+  const own = (CAPS.get(cap) as { gate?: { act?: string } } | undefined)?.gate?.act;
+  if (!env.ctx.call || def?.effects !== "outward" || def.gateAct !== "post" || !asks(node) || (own && own !== "none"))
+    return null;
+  const step = stepRef(env, node);
+  try {
+    await env.ctx.call(
+      "automations.step_ask",
+      {
+        act: "post",
+        // what the post will be, as the capability gets it: the thread (a channel is posted to through its main thread) and the words
+        ...(typeof input["threadId"] === "string" ? { threadId: input["threadId"] } : {}),
+        ...(typeof input["body"] === "string" ? { text: input["body"] } : {}),
+        idempotencyKey: `${call.key}:ask`,
+      },
+      step ? { step } : undefined,
+    );
+    return null;
+  } catch (e) {
+    const held = gateHold(e);
+    if (held) return held;
+    throw e;
+  }
+}
 
 /** A code step that names hosts reaches the network from a definition: it is an outward step like any other and passes the Gate before the sandbox opens. Null means go on. */
 async function codeReach(env: StepEnv, node: StepNode, input: In, call: StepCall): Promise<StepResult | null> {
@@ -880,11 +915,14 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
     "idempotencyKey" in ((CAPS.get(cap)?.input as { properties?: object } | undefined)?.properties ?? {})
   )
     input = { ...input, idempotencyKey: call.key };
+  const asked = await askFirst(env, node, cap, input, call);
+  if (asked) return asked;
   try {
-    // Ask before sending is Off unless the step says On: the Gate then holds only when a Space admin rule requires approval for this act
+    // A step that does not ask goes out on its author's standing yes: the Gate then holds only when a Space admin rule requires approval for this act. A step that asks (it says On, or it is a
+    // signature request nobody turned asking off for) is held every time.
     const step = stepRef(env, node);
     const opts = {
-      ...(def.effects === "outward" && node.askBeforeSending !== true ? { gate: "admin_only" as const } : {}),
+      ...(def.effects === "outward" && !asks(node) ? { gate: "admin_only" as const } : {}),
       ...(step ? { step } : {}),
     };
     const out = await env.ctx.call(cap, input, Object.keys(opts).length > 0 ? opts : undefined);

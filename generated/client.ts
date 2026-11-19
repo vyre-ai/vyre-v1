@@ -279,6 +279,7 @@ export function createClient(transport: Transport) {
       },
       read_docs: call("automations.read_docs", 1),
       read_link: call("automations.read_link", 1),
+      readiness: call("automations.readiness", 1),
       replay: call("automations.replay", 1),
       restore_version: call("automations.restore_version", 1),
       retry: call("automations.retry", 1),
@@ -290,6 +291,7 @@ export function createClient(transport: Transport) {
       senders: call("automations.senders", 1),
       set_enabled: call("automations.set_enabled", 1),
       set_owner: call("automations.set_owner", 1),
+      step_ask: call("automations.step_ask", 1),
       steps: {
         list: call("automations.steps.list", 1),
       },
@@ -320,6 +322,8 @@ export function createClient(transport: Transport) {
         get: call("automations.webhook_url.get", 1),
         rotate: call("automations.webhook_url.rotate", 1),
       },
+      why_not: call("automations.why_not", 1),
+      would_run: call("automations.would_run", 1),
     },
     backup: {
       config_get: call("backup.config_get", 1),

@@ -1,0 +1,6 @@
+- Every Automation says what it does in one plain sentence, written from its steps: under its name in the list and on top of its page ("When a customer's stage becomes Signed, draft an email and create a task.").
+- What an Automation is missing shows before anyone turns it on: no AI account, no mailbox, an app that is not connected, a file that is gone or a step that is not finished, as one short line with one Connect or Fix button in the list, on the first page and on its page.
+- Test is a dry run on something real: pick a record or a thing that happened last week, watch each step run, and read what was held instead of sent. It also says how many times the Automation would have started last week.
+- "Why didn't this run?" on a record lists every Automation that watches that kind of record and what became of each: did not start (and the check that stopped it), stopped or failed at a step, waiting, ran, or off.
+- A signature request now waits for a yes unless its author turned "Ask before sending" off on that step; before, it went out like an email once the Automation was on.
+- "Ask before sending" on a chat post now really waits for approval; before, the switch did nothing for a post.

@@ -93,6 +93,7 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "talk.space.configure": "turn Voice on or off for everyone",
   "talk.space.disconnect": "remove the Space's Voice key",
   "automations.code_reach": "run a code step that reaches outside sites",
+  "automations.step_ask": "post a chat message",
   "automations.delete": "delete an automation",
   "automations.http_send": "send a request to an outside address",
   "automations.read_docs": "read an outside documentation page",

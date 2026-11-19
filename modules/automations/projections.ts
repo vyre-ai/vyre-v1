@@ -578,6 +578,17 @@ export function pastEvents(db: Db, trigger: string, limit: number, automationId?
     ) as Raw[]
   ).map(rowToRunLink);
 }
+/** The Run of an Automation that one event started (never a test), when there is one. */
+export function findRunByEvent(db: Db, automationId: string, eventId: string): RunLink | undefined {
+  const r = (
+    db.all(
+      "SELECT * FROM automations_runs WHERE automation_id = ? AND event_id = ? AND test = 0 ORDER BY started_at ASC LIMIT 1",
+      automationId,
+      eventId,
+    ) as Raw[]
+  )[0];
+  return r ? rowToRunLink(r) : undefined;
+}
 export function findRunLink(db: Db, runId: string): RunLink | undefined {
   const r = (db.all("SELECT * FROM automations_runs WHERE run_id = ?", runId) as Raw[])[0];
   return r ? rowToRunLink(r) : undefined;

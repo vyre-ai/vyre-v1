@@ -53,6 +53,20 @@ test("Turn on names what leaves: a step set to ask is held for a yes, and a code
   ]);
 });
 
+test("a signature request is held for a yes unless its author turned asking off (lib/ask-first.ts)", () => {
+  const lines = describeFlow({
+    triggers: [{ key: "button" }],
+    nodes: [
+      { id: "a", key: "sign", title: "Send the agreement", input: {}, next: ["b"] },
+      { id: "b", key: "sign", title: "Send the renewal", input: {}, askBeforeSending: false },
+    ],
+  });
+  assert.deepEqual(lines.slice(1), [
+    "Then send the agreement, held for your yes",
+    "Then send the renewal, goes out once you turn this on",
+  ]);
+});
+
 test("a flow with no steps says so, and an unknown trigger or step is named by its key", () => {
   assert.deepEqual(describeFlow({ triggers: [], nodes: [] }), ["When you run it", "It has no steps yet"]);
   assert.deepEqual(describeFlow({ triggers: [{ key: "mystery" }], nodes: [{ id: "a", key: "odd", input: {} }] }), [

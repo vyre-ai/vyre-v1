@@ -40,6 +40,8 @@ import {
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { buttonType, noButtonLine } from "../button.ts";
+import { namesFor } from "../names.ts";
+import { flowSentence } from "../../../lib/flow-sentence.ts";
 import { shapeIssues } from "../shape.ts";
 import { readIssues } from "../reads.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
@@ -372,7 +374,7 @@ async function supportOf(ctx: AutoCtx): Promise<Support> {
 }
 
 /** The apps whose steps are listed only when the app is connected: the step key's start, the app's name in words, and how connected is read. */
-const APP_STEPS = [
+export const APP_STEPS = [
   { start: "google.", connector: "google" },
   { start: "ms.", connector: "microsoft" },
   { start: "github.", connector: "github" },
@@ -383,7 +385,7 @@ const APP_STEPS = [
  * list of connections is the product's own access check (a person sees the Space's connections and their own, nobody else's), and a connection still waiting to be finished is not connected. GitHub is
  * the caller's own GitHub, or the Space's app when the caller may read it. A check that cannot be made counts as not connected: nothing is listed that could not be used.
  */
-async function connectedApps(ctx: AutoCtx): Promise<{ apps: Set<string>; checked: boolean }> {
+export async function connectedApps(ctx: AutoCtx): Promise<{ apps: Set<string>; checked: boolean }> {
   const out = new Set<string>();
   if (!ctx.call) return { apps: out, checked: false };
   const call = ctx.call;
@@ -448,7 +450,7 @@ const nameOf = (p: AccountLite): string => p.name ?? p.title;
 const paysForAutomations = (p: AccountLite): boolean => !p.mine && p.usable === true;
 
 /** Why the AI steps of this definition cannot pay for their turns when it goes live, one issue per step. */
-async function aiAccountIssues(ctx: AutoCtx, kind: Automation["kind"], def: Definition): Promise<Issue[]> {
+export async function aiAccountIssues(ctx: AutoCtx, kind: Automation["kind"], def: Definition): Promise<Issue[]> {
   const nodes = def.nodes.filter((n) => n.key === "ai");
   if (nodes.length === 0) return [];
   // an account the step itself names is the person's own choice for it, so a Space account is not checked against what it is kept for; the automation's own account and Automatic are
@@ -659,7 +661,7 @@ function draftedActionIssues(def: Definition, db: Db): Issue[] {
 }
 
 /** Turn on says it plainly when a send step has nothing to send from, in the words the Inbox uses for the same sender. A person's own list decides: their access is what the Automation will get. */
-async function senderIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
+export async function senderIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
   const steps = def.nodes.filter(
     (n) => (n.key === "send_email" && n.input?.["draftOnly"] !== true) || n.key === "send_sms",
   );
@@ -837,6 +839,11 @@ async function runStats(
   }
 }
 
+/** Does the sentence of this definition name a record type or a field? Only then are the Space's record types read for it. */
+const namesRecords = (def: Definition): boolean =>
+  def.triggers.some((t) => typeof (t.filter as { type?: unknown } | null | undefined)?.type === "string") ||
+  def.nodes.some((n) => n.key === "records.create" || n.key === "records.update");
+
 export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
   const who = me(ctx);
   let rows = allAutomations(ctx.db).filter((a) => canView(ctx, a));
@@ -852,6 +859,8 @@ export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
   }
   const p = page(rows, input.cursor, input.limit);
   const automations = [];
+  // what each one does, in one sentence, with the Space's own names for its record types and fields (one read for the whole list)
+  const names = p.rows.some((a) => namesRecords(a.definition)) ? await namesFor(ctx) : undefined;
   for (const a of p.rows) {
     const s = await runStats(ctx, a.id);
     automations.push(
@@ -867,6 +876,7 @@ export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
         updatedAt: a.updatedAt,
         lastRun: s.lastRun,
         failedRuns: s.failedRuns,
+        sentence: flowSentence(a.definition, names),
       }),
     );
   }

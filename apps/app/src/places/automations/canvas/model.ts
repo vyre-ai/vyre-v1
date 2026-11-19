@@ -1156,6 +1156,14 @@ export function moveStep(def: Definition, id: string, by: -1 | 1): Definition {
   return d;
 }
 
+/** The step kinds that ask a person before they send when the step does not say: the signature request (lib/ask-first.ts; canvas/ask-before-sending.test.tsx holds this to the registry). */
+export const ASK_FIRST_STEPS: readonly string[] = ["sign"];
+/** What "Ask before sending" is for a step nobody set it on. */
+export const asksUnsaid = (key: string): boolean => ASK_FIRST_STEPS.includes(key);
+/** Does this step wait for a yes: what it says, else what its kind does unsaid. */
+export const stepAsks = (n: { key: string; askBeforeSending?: boolean | undefined }): boolean =>
+  n.askBeforeSending === undefined ? asksUnsaid(n.key) : n.askBeforeSending;
+
 export function updateStep(
   def: Definition,
   id: string,
@@ -1173,8 +1181,9 @@ export function updateStep(
   if (patch.ai !== undefined) n.ai = patch.ai;
   if (patch.branches !== undefined) n.branches = patch.branches;
   if (patch.askBeforeSending !== undefined) {
-    if (patch.askBeforeSending) n.askBeforeSending = true;
-    else delete n.askBeforeSending;
+    // what the step would do unsaid is not stored: an email keeps On only, a signature request (which asks unless told not to) keeps Off only
+    if (patch.askBeforeSending === asksUnsaid(n.key)) delete n.askBeforeSending;
+    else n.askBeforeSending = patch.askBeforeSending;
   }
   return d;
 }

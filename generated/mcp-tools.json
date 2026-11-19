@@ -7299,6 +7299,32 @@
     },
     {
       "blocks": [],
+      "cap": "automations.readiness",
+      "deferred": false,
+      "description": "What each Automation is missing before it can be turned on",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "draft": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "automations_readiness",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.replay",
       "deferred": false,
       "description": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
@@ -7805,11 +7831,32 @@
           "draft": {
             "type": "boolean"
           },
+          "eventId": {
+            "examples": [
+              "evt_a1b2c3"
+            ],
+            "pattern": "^evt_[a-z0-9]+$",
+            "type": "string"
+          },
           "eventRunId": {
             "examples": [
               "run_a1b2c3"
             ],
             "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
           },
           "sample": {
@@ -8782,6 +8829,76 @@
       },
       "name": "automations_webhook_url_rotate",
       "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.why_not",
+      "deferred": false,
+      "description": "Why Automations did not run for a record, and what stopped each",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "eventId": {
+            "examples": [
+              "evt_a1b2c3"
+            ],
+            "pattern": "^evt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_why_not",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.would_run",
+      "deferred": false,
+      "description": "How often it would have started last week",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "draft": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_would_run",
+      "planMode": "allowed",
       "toolset": "automations",
       "v": 1
     },
