@@ -37,6 +37,7 @@ import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
 import { markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
+import { warmBrowser } from "./sbrowser/warm.ts";
 import { browserOfDeleted, browserOfLeaver, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
 import {
   nodeHomeCheck,
@@ -1051,7 +1052,11 @@ export const consumers = {
         return;
       }
       if (event.name === "turn.started") {
-        if (typeof a === "string") turnStarted(ctx.space, a, t, ctx.now());
+        if (typeof a === "string") {
+          turnStarted(ctx.space, a, t, ctx.now());
+          // warm before asked (sbrowser/warm.ts): in the background, so the turn and the events behind it never wait for a browser to start; it never raises
+          setTimeout(() => void warmBrowser(ctx, a), 0);
+        }
         return;
       }
       turnEnded(ctx.space, typeof a === "string" ? a : "", t);

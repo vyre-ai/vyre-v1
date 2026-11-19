@@ -737,6 +737,13 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}),
       });
     },
+    async warm(a) {
+      await call("warm", {
+        profileId: a.profileId,
+        ...(a.space ? { spaceId: a.space } : {}),
+        ...(a.agentName ? { agentName: a.agentName } : {}),
+      });
+    },
     async markSpace(space, profileIds) {
       // not up: -1, asked again at the next pass
       if (!(await o.api.containerRunning(name))) return -1;

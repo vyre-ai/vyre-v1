@@ -1,0 +1,1 @@
+- An agent's browser is ready when its work starts: when a turn begins for an agent that has browsed before, its browser opens in the background, so the first page no longer waits for it to start. It never takes room from another browser and never gets in the way of a person using it.

@@ -59,6 +59,11 @@ export interface BrowserToolCall {
 }
 
 export interface SpaceBrowser {
+  /**
+   * Start the profile's browser now, with no page asked of it, so the first call of the agent's turn finds it up (lead, 19 Nov: warm before asked). Best effort for the caller to throw away: it can fail
+   * (no room in the service, the service not up) and nothing depends on it. A service without it is simply not warmed.
+   */
+  warm?(a: { profileId: string; space?: string; agentName?: string }): Promise<void>;
   /** Can this host run it at all (the container runtime answers)? When not, an agent keeps browsing where it did before (its own computer, or the person's Chrome). Cheap: the router asks at most every 15 seconds. */
   available(): Promise<boolean>;
   /** One browser tool for one profile. Starts the service and the profile's browser when they are not running. Throws an error with a `code` (timeout, paused, not_found, bad_input, held, unavailable). */

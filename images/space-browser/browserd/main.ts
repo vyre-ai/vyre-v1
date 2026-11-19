@@ -4,6 +4,7 @@
 //   status        {}                                                -> { profiles: [{ profileId, running, tabs, busy, takeover, viewers, lastActiveAt, held, paused }], maxRunning }
 //   configure     { profileId, agentId?, spaceId?, tabLimit?, fillUrl?, fillToken? }   (the Vault channel is held in memory for that profile only)
 //   tool          { profileId, tool, args, timeoutMs, by? }         -> the tool's answer (the chrome_* tools of agentd/chrome.ts)
+//   warm          { profileId, spaceId?, agentName? }               -> { browserStart }   starts the profile's browser with no page asked of it (the module warms an agent's browser when its turn starts)
 //   takeover      { profileId, personId }                           give_back { profileId }
 //   screenshot    { profileId }                                     -> { png, width, height }
 //   stream        { profileId }                                     -> { transport: "mjpeg", url, ws }
@@ -246,6 +247,15 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string")
         p.vault.setFiller(a["fillUrl"], a["fillToken"], p.id);
       return {};
+    }
+    case "warm": {
+      // the browser starts before anyone asked it for a page: no tool runs, no Vault value is asked for, no refs exist. It is a start like any other (room, one at a time, the same start page), and every answer
+      // after it carries the same `browserStart`, so a call that follows is never taken for a reopened browser
+      const pid = checkProfileId(a["profileId"]);
+      if (typeof a["agentName"] === "string") manager.get(pid).agentName = a["agentName"].slice(0, 80);
+      if (typeof a["spaceId"] === "string") manager.setSpace(pid, a["spaceId"]);
+      const w = await manager.ensure(pid);
+      return { browserStart: w.startId };
     }
     case "tool": {
       // The Vault channel of this profile's agent rides the call that may type a handle, held in memory for this profile only.
