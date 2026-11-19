@@ -614,3 +614,33 @@ test("what a folder follows is read from access.shares_of (inherits), not from t
     "after the real follow it says which record",
   );
 });
+
+test("inherits on a folder shows the record only to a caller who may view that record: a viewer of the folder alone gets it omitted", async () => {
+  const r = rig();
+  r.store.resources.set("fld_deal", {
+    id: "fld_deal",
+    type: "folder",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+    row: { name: "Acme files", itemType: "file", scope: "space" },
+  });
+  r.store.bump();
+  const folder = { type: "folder", id: "fld_deal" };
+  const host: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_host" } };
+  await audienceSet(host, { resource: folder, follows: "rec_one" });
+  // while the record is open to the Space, anyone who may see the folder is told which record it follows
+  assert.equal((await sharesOf(r.as("usr_dee"), { resource: folder })).inherits, "rec_one");
+  // the record is made private to its people: Dee is given the folder by name and may view it, but not the record
+  await audienceSet(r.ctx, { resource: one, audience: "added" });
+  await share(r.ctx, { resource: folder, subject: person("usr_dee"), level: "view" });
+  assert.ok(r.can("usr_dee", folder), "Dee may view the folder");
+  assert.ok(!r.can("usr_dee", one), "but not the record");
+  assert.equal(
+    (await sharesOf(r.as("usr_dee"), { resource: folder })).inherits,
+    undefined,
+    "so the record is not named to her",
+  );
+  assert.equal((await sharesOf(r.ctx, { resource: folder })).inherits, "rec_one", "Ada sees it");
+});

@@ -750,7 +750,8 @@ export default defineManifest({
           exporters: t.opt(exporters),
           inherits: t.opt(
             t.str({
-              description: "The container this resource follows (the record type of a record), when it follows it",
+              description:
+                "The container this resource follows when it follows it: the record type of a record, or the record a Files folder follows (shown only to a caller who may view that record)",
             }),
           ),
           outside: t.opt(t.bool()),
