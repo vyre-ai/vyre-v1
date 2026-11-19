@@ -259,7 +259,7 @@ const routes0: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": true,
-    "gate": "access_change"
+    "gate": "access"
   },
   {
     "method": "POST",
@@ -603,7 +603,7 @@ const routes0: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": "access_change"
+    "gate": "access"
   },
   {
     "method": "POST",
@@ -948,7 +948,7 @@ const routes0: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": true,
-    "gate": "access_change"
+    "gate": "access"
   },
   {
     "method": "POST",
@@ -1273,7 +1273,7 @@ const routes0: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": "access_change"
+    "gate": "access"
   },
   {
     "method": "POST",
@@ -1309,7 +1309,7 @@ const routes0: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": "access_change"
+    "gate": "access"
   },
   {
     "method": "POST",
@@ -1417,7 +1417,7 @@ const routes0: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": "access_change"
+    "gate": "access"
   },
   {
     "method": "POST",
@@ -5472,7 +5472,7 @@ const routes0: Route[] = [
     "risk": "medium",
     "offline": "queue",
     "teamOnly": false,
-    "gate": "access_change"
+    "gate": "access"
   },
   {
     "method": "POST",

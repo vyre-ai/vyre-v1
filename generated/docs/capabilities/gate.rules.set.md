@@ -25,7 +25,7 @@ Set a Gate rule for an act at the Space, owner floor or agent level; a rule can 
 
 ```ts
 type In = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   mode: "hold" | "allow";
@@ -42,7 +42,7 @@ type In = {
 ```ts
 type Out = {
   rule: {
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access_change" | "install" | "approve" | "github_approval" | "agent_erase";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
     mode: "hold" | "allow";
     approvers: string;
     peopleOnly: boolean;

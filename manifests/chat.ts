@@ -1854,7 +1854,7 @@ export default defineManifest({
         },
         out: { plan: t.obj({ planId: id.plan, state: t.str(), steps: t.arr(planStep) }) },
         on: ["thread", "/threadId"],
-        gate: { act: "access_change", when: "gate.by_actor(input)" },
+        gate: { act: "access", when: "gate.by_actor(input)" },
         level: "use",
         emits: ["plan.approved", "block.answered", "thread.plan_mode_changed"],
         tool: "chats",

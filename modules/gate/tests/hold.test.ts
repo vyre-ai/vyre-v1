@@ -347,7 +347,7 @@ test("rules: scope checks, never loosening, the defaults list, one event", async
     [bot.id],
   );
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent", agentId: bot2.id }, owner)).rules, []);
-  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 18); // 19 Nov 2026: admit and access_change; 16 Nov 2026: agent_erase (delete an agent for good) is the sixteenth
+  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 18); // 19 Nov 2026: admit and access; 16 Nov 2026: agent_erase (delete an agent for good) is the sixteenth
 });
 
 test("the gate settings change the defaults", async () => {

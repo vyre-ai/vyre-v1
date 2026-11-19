@@ -270,7 +270,7 @@ test("a way-in hold is never under an outward act, so a turn's grant to email or
     "access.roles.apply",
     "chat.approve_plan",
   ])
-    assert.equal(def(name).gate?.act, "access_change", `${name} always stops`);
+    assert.equal(def(name).gate?.act, "access", `${name} always stops`);
   for (const name of ["vault.share", "access.share"]) assert.equal(def(name).gate?.act, "admit", name);
   assert.equal(def("spaces.transfer_ownership").gate?.act, "transfer");
 });

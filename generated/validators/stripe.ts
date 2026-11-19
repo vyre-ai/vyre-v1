@@ -80,22 +80,22 @@ if ("cancelAtPeriodEnd" in o170) lf(o170["cancelAtPeriodEnd"], p + "/cancelAtPer
 
 function d_s_50cb1c1a01(v: unknown, p: string, e: string[]): void {
 {
-const x408 = v;
-const g408 = typeOf(x408);
-const b408: string[] = []; lf(x408, p, b408, L0); if (b408.length) e.push(...b408);
-if (g408 === "object") {
-if (g408 === 'object') { const o408 = x408 as Record<string, unknown>;
-if (!("id" in o408)) e.push(p + "/id" + ': required');
-if (!("amount" in o408)) e.push(p + "/amount" + ': required');
-if (!("currency" in o408)) e.push(p + "/currency" + ': required');
-if (!("status" in o408)) e.push(p + "/status" + ': required');
-if ("id" in o408) lf(o408["id"], p + "/id", e, L1);
-if ("amount" in o408) lf(o408["amount"], p + "/amount", e, L11);
-if ("currency" in o408) lf(o408["currency"], p + "/currency", e, L54);
-if ("status" in o408) lf(o408["status"], p + "/status", e, L1);
-if ("customerId" in o408) lf(o408["customerId"], p + "/customerId", e, L1);
-if ("hostedUrl" in o408) lf(o408["hostedUrl"], p + "/hostedUrl", e, L1);
-if ("dueDate" in o408) lf(o408["dueDate"], p + "/dueDate", e, L11);
+const x407 = v;
+const g407 = typeOf(x407);
+const b407: string[] = []; lf(x407, p, b407, L0); if (b407.length) e.push(...b407);
+if (g407 === "object") {
+if (g407 === 'object') { const o407 = x407 as Record<string, unknown>;
+if (!("id" in o407)) e.push(p + "/id" + ': required');
+if (!("amount" in o407)) e.push(p + "/amount" + ': required');
+if (!("currency" in o407)) e.push(p + "/currency" + ': required');
+if (!("status" in o407)) e.push(p + "/status" + ': required');
+if ("id" in o407) lf(o407["id"], p + "/id", e, L1);
+if ("amount" in o407) lf(o407["amount"], p + "/amount", e, L11);
+if ("currency" in o407) lf(o407["currency"], p + "/currency", e, L54);
+if ("status" in o407) lf(o407["status"], p + "/status", e, L1);
+if ("customerId" in o407) lf(o407["customerId"], p + "/customerId", e, L1);
+if ("hostedUrl" in o407) lf(o407["hostedUrl"], p + "/hostedUrl", e, L1);
+if ("dueDate" in o407) lf(o407["dueDate"], p + "/dueDate", e, L11);
 }
 }
 }
@@ -103,13 +103,13 @@ if ("dueDate" in o408) lf(o408["dueDate"], p + "/dueDate", e, L11);
 
 function d_s_66aaee851e(v: unknown, p: string, e: string[]): void {
 {
-const x535 = v;
-const g535 = typeOf(x535);
-const b535: string[] = []; lf(x535, p, b535, L0); if (b535.length) e.push(...b535);
-if (g535 === "object") {
-if (g535 === 'object') { const o535 = x535 as Record<string, unknown>;
-if (!("invoice" in o535)) e.push(p + "/invoice" + ': required');
-if ("invoice" in o535) d_s_50cb1c1a01(o535["invoice"], p + "/invoice", e);
+const x534 = v;
+const g534 = typeOf(x534);
+const b534: string[] = []; lf(x534, p, b534, L0); if (b534.length) e.push(...b534);
+if (g534 === "object") {
+if (g534 === 'object') { const o534 = x534 as Record<string, unknown>;
+if (!("invoice" in o534)) e.push(p + "/invoice" + ': required');
+if ("invoice" in o534) d_s_50cb1c1a01(o534["invoice"], p + "/invoice", e);
 }
 }
 }
@@ -117,32 +117,32 @@ if ("invoice" in o535) d_s_50cb1c1a01(o535["invoice"], p + "/invoice", e);
 
 function d_s_6c3778c1b4(v: unknown, p: string, e: string[]): void {
 {
-const x554 = v;
+const x553 = v;
+const g553 = typeOf(x553);
+const b553: string[] = []; lf(x553, p, b553, L0); if (b553.length) e.push(...b553);
+if (g553 === "object") {
+if (g553 === 'object') { const o553 = x553 as Record<string, unknown>;
+if (!("id" in o553)) e.push(p + "/id" + ': required');
+if (!("amount" in o553)) e.push(p + "/amount" + ': required');
+if (!("currency" in o553)) e.push(p + "/currency" + ': required');
+if (!("status" in o553)) e.push(p + "/status" + ': required');
+if (!("created" in o553)) e.push(p + "/created" + ': required');
+if ("id" in o553) lf(o553["id"], p + "/id", e, L1);
+if ("amount" in o553) lf(o553["amount"], p + "/amount", e, L11);
+if ("currency" in o553) lf(o553["currency"], p + "/currency", e, L54);
+if ("status" in o553) lf(o553["status"], p + "/status", e, L1);
+if ("customerId" in o553) lf(o553["customerId"], p + "/customerId", e, L1);
+if ("receiptEmail" in o553) lf(o553["receiptEmail"], p + "/receiptEmail", e, L6);
+if ("created" in o553) lf(o553["created"], p + "/created", e, L11);
+if ("metadata" in o553) {
+{
+const x554 = o553["metadata"];
 const g554 = typeOf(x554);
-const b554: string[] = []; lf(x554, p, b554, L0); if (b554.length) e.push(...b554);
+const b554: string[] = []; lf(x554, p + "/metadata", b554, L0); if (b554.length) e.push(...b554);
 if (g554 === "object") {
 if (g554 === 'object') { const o554 = x554 as Record<string, unknown>;
-if (!("id" in o554)) e.push(p + "/id" + ': required');
-if (!("amount" in o554)) e.push(p + "/amount" + ': required');
-if (!("currency" in o554)) e.push(p + "/currency" + ': required');
-if (!("status" in o554)) e.push(p + "/status" + ': required');
-if (!("created" in o554)) e.push(p + "/created" + ': required');
-if ("id" in o554) lf(o554["id"], p + "/id", e, L1);
-if ("amount" in o554) lf(o554["amount"], p + "/amount", e, L11);
-if ("currency" in o554) lf(o554["currency"], p + "/currency", e, L54);
-if ("status" in o554) lf(o554["status"], p + "/status", e, L1);
-if ("customerId" in o554) lf(o554["customerId"], p + "/customerId", e, L1);
-if ("receiptEmail" in o554) lf(o554["receiptEmail"], p + "/receiptEmail", e, L6);
-if ("created" in o554) lf(o554["created"], p + "/created", e, L11);
-if ("metadata" in o554) {
-{
-const x555 = o554["metadata"];
-const g555 = typeOf(x555);
-const b555: string[] = []; lf(x555, p + "/metadata", b555, L0); if (b555.length) e.push(...b555);
-if (g555 === "object") {
-if (g555 === 'object') { const o555 = x555 as Record<string, unknown>;
-for (const k of Object.keys(o555)) { if (([] as string[]).includes(k)) continue;
-lf(o555[k], p + "/metadata" + '/' + k, e, L1);
+for (const k of Object.keys(o554)) { if (([] as string[]).includes(k)) continue;
+lf(o554[k], p + "/metadata" + '/' + k, e, L1);
 }
 }
 }
@@ -155,25 +155,25 @@ lf(o555[k], p + "/metadata" + '/' + k, e, L1);
 
 function d_s_8ec0b22028(v: unknown, p: string, e: string[]): void {
 {
-const x743 = v;
+const x742 = v;
+const g742 = typeOf(x742);
+const b742: string[] = []; lf(x742, p, b742, L0); if (b742.length) e.push(...b742);
+if (g742 === "object") {
+if (g742 === 'object') { const o742 = x742 as Record<string, unknown>;
+if (!("id" in o742)) e.push(p + "/id" + ': required');
+if ("id" in o742) lf(o742["id"], p + "/id", e, L1);
+if ("email" in o742) lf(o742["email"], p + "/email", e, L6);
+if ("name" in o742) lf(o742["name"], p + "/name", e, L1);
+if ("created" in o742) lf(o742["created"], p + "/created", e, L11);
+if ("metadata" in o742) {
+{
+const x743 = o742["metadata"];
 const g743 = typeOf(x743);
-const b743: string[] = []; lf(x743, p, b743, L0); if (b743.length) e.push(...b743);
+const b743: string[] = []; lf(x743, p + "/metadata", b743, L0); if (b743.length) e.push(...b743);
 if (g743 === "object") {
 if (g743 === 'object') { const o743 = x743 as Record<string, unknown>;
-if (!("id" in o743)) e.push(p + "/id" + ': required');
-if ("id" in o743) lf(o743["id"], p + "/id", e, L1);
-if ("email" in o743) lf(o743["email"], p + "/email", e, L6);
-if ("name" in o743) lf(o743["name"], p + "/name", e, L1);
-if ("created" in o743) lf(o743["created"], p + "/created", e, L11);
-if ("metadata" in o743) {
-{
-const x744 = o743["metadata"];
-const g744 = typeOf(x744);
-const b744: string[] = []; lf(x744, p + "/metadata", b744, L0); if (b744.length) e.push(...b744);
-if (g744 === "object") {
-if (g744 === 'object') { const o744 = x744 as Record<string, unknown>;
-for (const k of Object.keys(o744)) { if (([] as string[]).includes(k)) continue;
-lf(o744[k], p + "/metadata" + '/' + k, e, L1);
+for (const k of Object.keys(o743)) { if (([] as string[]).includes(k)) continue;
+lf(o743[k], p + "/metadata" + '/' + k, e, L1);
 }
 }
 }
