@@ -32,6 +32,8 @@ function attrs(tag: string): Record<string, string> {
 /** The text of the first <title>, found with indexOf (the old regex took quadratic time on a run of "<title"). */
 function titleOf(head: string): string | undefined {
   const low = head.toLowerCase();
+  // The first "<title" opens it; if its ">" or the "</title>" after it is missing, no later "<title" has them either (they would start later),
+  // so one look is the same answer the old regex gave after trying every start.
   const at = low.indexOf("<title");
   if (at < 0) return undefined;
   const gt = low.indexOf(">", at);

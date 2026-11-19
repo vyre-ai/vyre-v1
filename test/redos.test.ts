@@ -7,6 +7,7 @@ import { capText, isPipeRow, isPipeRule, replaceTokens, stripTags, tagsNamed } f
 import { htmlToText as mailText, sanitizeHtml } from "../lib/mail-parse.ts";
 import { parseAddresses } from "../modules/google/handlers/gmail.ts";
 import { cleanHtml, fillTokens, htmlToText, safeUrl } from "../modules/email-builder-api/handlers/compile.ts";
+import { summaryOf } from "../modules/agents/handlers/install.ts";
 import { askedIn } from "../lib/asked.ts";
 import { redact } from "../agent/src/transcript/sanitize.ts";
 import { pageMeta } from "../modules/automations/page-meta.ts";
@@ -74,6 +75,33 @@ test("email builder: hostile HTML and merge tokens (compile.ts cleanHtml, htmlTo
   fast("{{x| N", () => safeUrl("{{x|".repeat(N / 4)));
   fast("{{x| N fill", () => fillTokens("{{x|".repeat(N / 4), { x: "y" }));
   fast("{{x| N }}", () => fillTokens("{{x|".repeat(N / 4) + "}}", { x: "y" }));
+});
+
+test("sanitizer keeps its meaning at the new limits (cleanHtml, mail tags, install summary, password prefix)", () => {
+  const long = "x".repeat(9000);
+  for (const q of ['"', "'"])
+    assert.doesNotMatch(cleanHtml(`<img src=x style=${q}${long}${q} onerror=alert(1)>`), /onerror/i);
+  assert.doesNotMatch(cleanHtml(`<img style="${long}" onclick="a" onerror="b">`), /on(click|error)/i);
+  assert.doesNotMatch(cleanHtml("<scr<!-- -->ipt>alert(1)</script>"), /alert/);
+  assert.doesNotMatch(cleanHtml("<ifr<!---->ame src=x></iframe>"), /<iframe/i);
+  assert.doesNotMatch(cleanHtml("<img o<!---->nerror=alert(1)>"), /onerror/i);
+  const img = `<p>hi</p><img src="data:image/png;base64,${"A".repeat(100_000)}"><p>bye</p>`;
+  const s = sanitizeHtml(img, { images: true }).html;
+  assert.doesNotMatch(s, /^[^<]*AAAA/);
+  assert.match(mailText(img), /hi[\s\S]*bye/);
+  assert.ok(!mailText(img).includes("AAAA"));
+  assert.ok(cleanHtml("<p>" + "a".repeat(600_000)).length <= 500_000);
+  assert.equal(cleanHtml("<p>a</p>".repeat(100_000)).endsWith(">"), true);
+  assert.ok(redact("x".repeat(70) + ".password=hunter2hunter2").hits.length >= 1);
+  assert.equal(safeUrl("{{u|https://northwind.example/" + "a".repeat(800) + "}}").startsWith("{{u|"), true);
+  const readme =
+    "[![ci](https://x.example/b.svg)](https://x.example/ci) [![v](https://x.example/v.svg)](https://x.example/v)\n\nA small agent that files the weekly report for a team.";
+  assert.equal(
+    summaryOf({ "README.md": readme }, "fallback"),
+    "A small agent that files the weekly report for a team.",
+  );
+  fast("<link N closed", () => cleanHtml("<link ".repeat(20_000) + "</link>"));
+  fast("<link N", () => cleanHtml("<link ".repeat(80_000)));
 });
 
 test("asked: an address pattern reads a long word once (lib/asked.ts)", () => {

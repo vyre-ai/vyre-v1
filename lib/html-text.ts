@@ -11,6 +11,14 @@ export const MAX_ADDRESS_PART = 998;
 /** The text cut to `max` characters (default 200 KB) before a regex touches it. */
 export const capText = (s: string, max = MAX_MAIL_HTML): string => (s.length > max ? s.slice(0, max) : s);
 
+/** The text cut to `max` characters, then back to its last ">" so a cut never leaves half a tag at the end. */
+export function capHtml(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const gt = cut.lastIndexOf(">");
+  return gt >= 0 ? cut.slice(0, gt + 1) : cut;
+}
+
 /** Replaces every `<...>` (up to the next ">") with `repl`. A "<" with no ">" after it stays as text. Linear. */
 export function stripTags(html: string, repl = ""): string {
   let out = "";
@@ -124,7 +132,6 @@ export interface MailScan {
 }
 export const newMailScan = (html: string): MailScan => ({ work: 0, limit: html.length * 4 + 100_000 });
 
-const MAIL_TAG_MAX = 16_384;
 const isWs = (c: number): boolean =>
   c === 32 || (c >= 9 && c <= 13) || c === 160 || c === 0xfeff || c === 0x2028 || c === 0x2029;
 const isNameStart = (c: number): boolean => (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
@@ -140,7 +147,8 @@ const isAttrChar = (c: number): boolean => !isWs(c) && c !== 34 && c !== 39 && c
 export function mailTagAt(html: string, i: number, scan: MailScan): MailTag | null {
   if (scan.work > scan.limit) return null;
   const n = html.length;
-  const stop = Math.min(n, i + MAIL_TAG_MAX);
+  // no length cap on a tag (an inline data: image is hundreds of KB); the per-body budget bounds the failed attempts
+  const stop = n;
   const fail = (at: number): null => {
     scan.work += Math.max(1, at - i);
     return null;
@@ -244,6 +252,7 @@ export function cutBlocks(
 ): string {
   const low = s.toLowerCase();
   const noClose = new Set<string>();
+  const closes = new Map<string, { start: number; end: number }>();
   let out = "";
   let i = 0;
   let from = 0;
@@ -268,12 +277,19 @@ export function cutBlocks(
     while (isNameStart(low.charCodeAt(p))) p += 1;
     const name = low.slice(ns, p);
     if (!names.includes(name) || noClose.has(name)) continue;
-    if (opts.accept && !opts.accept(name, s.slice(at, at + 4096))) continue;
-    const end = closeTagEnd(low, name, p);
-    if (end < 0) {
-      noClose.add(name);
-      continue;
+    // the first close after this open: a close found for an earlier open that is still ahead is the same one
+    let c = closes.get(name);
+    if (!c || c.start < p) {
+      const e = closeTagEnd(low, name, p);
+      if (e < 0) {
+        noClose.add(name);
+        continue;
+      }
+      c = { start: low.lastIndexOf("</", e), end: e };
+      closes.set(name, c);
     }
+    if (opts.accept && !opts.accept(name, s.slice(at, at + 4096))) continue;
+    const end = c.end;
     out += s.slice(i, at) + (opts.repl ?? "");
     i = from = end;
   }

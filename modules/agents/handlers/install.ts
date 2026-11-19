@@ -461,11 +461,14 @@ const jsonAt = (files: Files, path: string): Record<string, any> | null => {
 const MCP_HINT = /modelcontextprotocol|\bmcp[-_ ]?server\b|\bFastMCP\b|\bmcp\b.{0,40}\b(stdio|server)\b/i;
 
 /** A README's first real paragraph, in a sentence or two; else the manifest's description. */
-function summaryOf(files: Files, fallback: string): string {
+export function summaryOf(files: Files, fallback: string): string {
   const readme = Object.entries(files).find(([p]) => /^readme(\.md)?$/i.test(p))?.[1] ?? "";
   for (const para of readme.split(/\n\s*\n/)) {
-    const t = replaceMdLinks(para, (m) => (m.image || m.text.trim() === "" ? "" : `[${m.text}](${m.body})`)).trim();
-    if (!t || /^(#|\||<|```|---|\[!\[)/.test(t) || t.length < 20) continue;
+    // a badge "[![alt](img)](url)" loses its image first, then its empty outer link on the second pass
+    const drop = (m: { image: boolean; text: string; body: string }): string =>
+      m.image || m.text.trim() === "" ? "" : `[${m.text}](${m.body})`;
+    const t = replaceMdLinks(replaceMdLinks(para, drop), drop).trim();
+    if (!t.replace(/\W/g, "") || /^(#|\||<|```|---|\[!\[)/.test(t) || t.length < 20) continue;
     return replaceMdLinks(t, (m) => m.text)
       .replace(/\s+/g, " ")
       .slice(0, 280);

@@ -5,7 +5,7 @@
 // per-change diff. The block shapes follow the prototype's V.email (vyre-v1.html); the HTML it makes is the same family: 600 px card, inline styles, tables.
 // @reads ../migrations/0001_email_builder.sql
 
-import { capText, cutBlocks, cutTags, replaceAnchors, stripTags } from "../../../lib/html-text.ts";
+import { capHtml, capText, cutBlocks, cutTags, replaceAnchors, stripTags } from "../../../lib/html-text.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
@@ -204,7 +204,7 @@ export const esc = (s: unknown): string => String(s ?? "").replace(/[&<>"']/g, (
 
 const ENTITY = /^&(?:amp|lt|gt|quot|apos|nbsp|#\d{1,6}|#x[0-9a-f]{1,6});/i;
 const TOKEN = /\{\{\s{0,64}([a-z][a-z0-9_]*)\s{0,64}(?:\|([^}]{0,512}))?\}\}/gi;
-const SAFE_URL = /^(?:https?:\/\/|mailto:|tel:|\{\{\s{0,64}[a-z][a-z0-9_]*\s{0,64}(?:\|[^}]{0,512})?\}\})/i;
+const SAFE_URL = /^(?:https?:\/\/|mailto:|tel:|\{\{\s{0,64}[a-z][a-z0-9_]*\s{0,64}(?:\|[^}]{0,4096})?\}\})/i;
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** A URL for an href or src: http, https, mailto, tel or a merge token; anything else (javascript:, data:text/html) becomes "#". */
@@ -279,7 +279,7 @@ export function cleanInline(html: string): string {
 }
 
 const EVENT_START = /\son[a-z]+\s*=/gi;
-const EVENT_VALUE = /\s*(?:"[^"]{0,8192}"|'[^']{0,8192}'|[^\s>]+)/y;
+const EVENT_VALUE = /\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/y;
 const isLetter = (c: number): boolean => (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
 /** Removes every on* attribute from every tag. Each tag's own text is read once, so a long space run inside a tag cannot go quadratic. */
 function stripEventAttrs(s: string): string {
@@ -291,7 +291,7 @@ function stripEventAttrs(s: string): string {
     while (at >= 0 && !isLetter(s.charCodeAt(at + 1))) at = s.indexOf("<", at + 1);
     if (at < 0) break;
     const gt = s.indexOf(">", at);
-    const limit = Math.min(gt < 0 ? s.length : gt, at + 8192);
+    const limit = gt < 0 ? s.length : gt;
     const head = s.slice(at, limit);
     let skipTo = 0;
     from = limit;
@@ -313,10 +313,10 @@ function stripEventAttrs(s: string): string {
 
 /** Author-written HTML (an HTML block, or the whole body in HTML mode): scripts, frames, forms, event handlers and script URLs are removed. Styles stay. */
 export function cleanHtml(code: string): string {
-  let s = capText(code, 500_000);
+  let s = capHtml(code, 500_000);
+  s = cutBlocks(s, [], { comments: true });
   s = cutBlocks(s, ["script", "iframe", "object", "embed", "applet", "form", "base", "link"], {
-    comments: true,
-    accept: (name, tag) => name !== "link" || /^[^>]{0,4096}rel\s{0,16}=\s{0,16}["']?import/i.test(tag),
+    accept: (name, tag) => name !== "link" || /^[^>]{0,512}rel\s{0,16}=\s{0,16}["']?import/i.test(tag),
   });
   s = cutTags(
     s,
@@ -337,7 +337,7 @@ const ANCHOR_HREF = /href\s{0,16}=\s{0,16}(?:"([^"]*)"|'([^']*)')/i;
 
 /** Plain text of an HTML fragment: line breaks kept, links shown with their address, tags and styles dropped. */
 export function htmlToText(html: string): string {
-  let s = capText(html, 500_000);
+  let s = capHtml(html, 500_000);
   s = cutBlocks(s, ["style", "script", "head"]);
   s = replaceAnchors(
     s,
