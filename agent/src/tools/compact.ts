@@ -341,6 +341,8 @@ function shapeRun(o: Obj): Shaped | null {
     return `${l.slice(0, RUN_LINE_KEEP - 1)}…[+${l.length - RUN_LINE_KEEP + 1} more characters on this line]`;
   };
   const from = Math.max(0, lines.length - RUN_TAIL);
+  // the retained log (terminal.log.read, r42-computer) answers a command it kept, by its command id; a build without it names no commandId and keeps terminal_read
+  const logged = str(o["commandId"]) !== "";
   const hits: number[] = [];
   for (let i = 0; i < from; i++) if (failing(lines[i]!)) hits.push(i);
   const picked =
@@ -367,8 +369,14 @@ function shapeRun(o: Obj): Shaped | null {
       o["truncated"] === true
         ? "Long output: only the end is here, and the start of the command's output was already lost, so line numbers count from the first line that was kept."
         : "Long output: only the end is here. Line numbers count from the first line of this command's output.",
-    read:
-      reach <= READ_MAX_LINES
+    read: logged
+      ? {
+          tool: "terminal_log_read",
+          terminalId: str(o["terminalId"]),
+          commandId: str(o["commandId"]),
+          how: "from and to with a line number from matches, or match (up to 5 words) with context, or tail; it never returns the whole log",
+        }
+      : reach <= READ_MAX_LINES
         ? {
             tool: "terminal_read",
             lines: reach,
@@ -385,7 +393,13 @@ function shapeRun(o: Obj): Shaped | null {
   };
   return {
     data,
-    meta: { count: tail.length, total: lines.length, bytes: bytesOf(data), omitted: from, read: "terminal_read" },
+    meta: {
+      count: tail.length,
+      total: lines.length,
+      bytes: bytesOf(data),
+      omitted: from,
+      read: logged ? "terminal_log_read" : "terminal_read",
+    },
   };
 }
 

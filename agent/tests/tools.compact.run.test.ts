@@ -166,3 +166,25 @@ test("a cut start is said, so line numbers are not claimed to count from the com
   assert.match(note(true), /start of the command's output was already lost/);
   assert.match(note(false), /count from the first line of this command's output/);
 });
+
+test("a command the retained log kept is read through terminal_log_read by its command id; one without a command id keeps terminal_read", () => {
+  const lines = Array.from({ length: 3_000 }, (_, i) => `ok ${i} ${"x".repeat(40)}`);
+  lines[2_000] = "Error: boom";
+  const out = lines.join("\n");
+  const kept = shapeOutput("terminal.run", {
+    terminalId: "trm_1",
+    commandId: "cmd_7",
+    exitCode: 1,
+    output: out,
+    truncated: false,
+    durationMs: 1,
+  })!;
+  const d = kept.data as {
+    read: { tool: string; terminalId: string; commandId: string };
+    matches: Array<{ line: number }>;
+  };
+  assert.deepEqual([d.read.tool, d.read.terminalId, d.read.commandId], ["terminal_log_read", "trm_1", "cmd_7"]);
+  assert.equal(d.matches[0]!.line, 2_001, "the line number is the one terminal_log_read's from and to take");
+  assert.equal(kept.meta.read, "terminal_log_read");
+  assert.equal(shape(out).read.tool, "terminal_read");
+});
