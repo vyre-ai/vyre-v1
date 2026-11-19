@@ -1,6 +1,6 @@
 // The card face editor: three presets (Simple, Detailed, Visual), the fields on the card (up to six, in order), the Journey mark, and a live preview. "Just for me" writes the face into this
 // person's view; "Everyone" writes it onto the record type, the same face an agent or the API sets with type.update. Both are the one value: { preset, fields, mark }.
-import { createElement, useState } from "react";
+import { createElement, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Segmented } from "../../../../../../ui/src/Segmented/index.tsx";
@@ -118,6 +118,7 @@ export function FacePanel({
   const [draft, setDraft] = useState<CardFace>(board.face);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const chainRef = useRef<Promise<unknown>>(Promise.resolve());
   const options = showable(board);
   // what the card shows now when nobody chose a list: the defaults by rank, so the switches start where the card is
   const current = draft.fields ?? cardFields(data, board.st.v.hidden, board.field.key, 3).map((x) => x.key);
@@ -132,8 +133,14 @@ export function FacePanel({
       return;
     }
     setBusy(true);
-    stageChange(board.call, [{ op: "type.update", type: ctx.type, def: { card: payload } }])
-      .then((r) => (r.ok ? commitChange(board.call, r.staged) : r))
+    // saves to the type go one after another, so the last switch is the last write
+    const run = (): Promise<{ ok: true } | { ok: false; error: string }> =>
+      stageChange(board.call, [{ op: "type.update", type: ctx.type, def: { card: payload } }]).then((r) =>
+        r.ok ? commitChange(board.call, r.staged) : r,
+      );
+    const chain = chainRef.current.then(run, run);
+    chainRef.current = chain;
+    chain
       .then((r) => {
         if (!r.ok) setNote(r.error);
       })

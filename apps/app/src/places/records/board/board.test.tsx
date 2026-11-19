@@ -661,3 +661,39 @@ test("a card that is newer than the copy held is refused with a reason on the ca
     restore();
   }
 });
+
+test("a call that never answers frees the board after its wait, and a second bar move is told one at a time", async () => {
+  const restore = installDom();
+  const s = sample();
+  const real = s.data.call.bind(s.data);
+  let hang = true;
+  s.data.call = async (cap: string, input: unknown) =>
+    cap === "journeys.move_stage" && hang ? new Promise(() => undefined) : real(cap, input);
+  const realSet = globalThis.setTimeout;
+  (globalThis as { setTimeout: unknown }).setTimeout = ((fn: () => void, ms?: number, ...a: unknown[]) =>
+    realSet(fn, ms === 20_000 ? 30 : ms, ...a)) as never;
+  const b = await mountBoard(s);
+  try {
+    await drag(b.root, "jr_2");
+    await over(b.root, "stage2");
+    await drop(b.root, "stage2");
+    await flush();
+    await flush();
+    assert.match(
+      textOf(find(b.root, "card-refused-jr_2")),
+      /No answer yet/,
+      "the board is free again, with the reason on the card",
+    );
+    hang = false;
+    await press(find(b.root, "card-refused-dismiss-jr_2"));
+    await drag(b.root, "jr_2");
+    await over(b.root, "stage2");
+    await drop(b.root, "stage2");
+    await flush();
+    assert.equal(count(b.root, "stage2"), "2");
+  } finally {
+    (globalThis as { setTimeout: unknown }).setTimeout = realSet;
+    await b.stop();
+    restore();
+  }
+});

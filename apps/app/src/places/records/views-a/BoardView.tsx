@@ -145,6 +145,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const [toast, setToast] = useState<ToastLine | null>(null);
   const undo = useRef<Undoable[]>([]);
   const undoing = useRef<Undoable | null>(null);
+  const groupBusy = useRef(false);
   const toastId = useRef(0);
   const say = useCallback((text: string, canUndo = false): void => {
     toastId.current += 1;
@@ -255,8 +256,11 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       sendRef.current({ t: "refuse", reason: "It has moved since. Nothing was put back." });
       return;
     }
+    // a call that never answers frees the board after 20 s
+    const stuck = setTimeout(() => sendRef.current({ t: "timeout" }), 20_000);
     performMove(c.data, c.ctx.type, field, c.ctx.journey, row, to, version).then(
       (did) => {
+        clearTimeout(stuck);
         undoing.current = null;
         sendRef.current({ t: "ok" });
         if (!did) return;
@@ -272,6 +276,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
         );
       },
       (e: unknown) => {
+        clearTimeout(stuck);
         // a refused undo is not lost: it goes back on the stack
         if (pending) undo.current = pushUndo(undo.current, pending);
         undoing.current = null;
@@ -294,28 +299,37 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       send({ t: "start", id: row.id, from: laneOfRow(field, row, lanes).key, to: to.key, via, version: row.version });
       return;
     }
+    if (groupBusy.current || mvRef.current.kind === "committing" || mvRef.current.kind === "needs") {
+      say("One move at a time. Try again in a moment.");
+      return;
+    }
+    groupBusy.current = true;
     const done: { id: string; from: string; to: string }[] = [];
     void (async () => {
-      for (const row of list) {
-        const from = laneOfRow(field, row, lanes);
-        try {
-          if (await performMove(data, ctx.type, field, ctx.journey, row, to))
-            done.push({ id: row.id, from: from.key, to: to.key });
-        } catch (e) {
-          const why =
-            e instanceof GateError
-              ? `${titleOf(row)} needs ${e.missing.map((m) => m.title.toLowerCase()).join(", ")} first.`
-              : reasonOf(e);
-          if (done.length > 0) undo.current = pushUndo(undo.current, { moves: done });
-          bs.refresh();
-          say(`Moved ${done.length} of ${list.length}. ${why}`, done.length > 0);
-          return;
+      try {
+        for (const row of list) {
+          const from = laneOfRow(field, row, lanes);
+          try {
+            if (await performMove(data, ctx.type, field, ctx.journey, row, to))
+              done.push({ id: row.id, from: from.key, to: to.key });
+          } catch (e) {
+            const why =
+              e instanceof GateError
+                ? `${titleOf(row)} needs ${e.missing.map((m) => m.title.toLowerCase()).join(", ")} first.`
+                : reasonOf(e);
+            if (done.length > 0) undo.current = pushUndo(undo.current, { moves: done });
+            bs.refresh();
+            say(`Moved ${done.length} of ${list.length}. ${why}`, done.length > 0);
+            return;
+          }
         }
+        if (done.length > 0) undo.current = pushUndo(undo.current, { moves: done });
+        bs.refresh();
+        setSelected(new Set());
+        say(`Moved ${cardsWords(list.map(titleOf), ctx.def.plural)} to ${to.title}.`, done.length > 0);
+      } finally {
+        groupBusy.current = false;
       }
-      if (done.length > 0) undo.current = pushUndo(undo.current, { moves: done });
-      bs.refresh();
-      setSelected(new Set());
-      say(`Moved ${cardsWords(list.map(titleOf), ctx.def.plural)} to ${to.title}.`, done.length > 0);
     })();
   };
   const undoLast = (): void => {
@@ -343,11 +357,37 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       });
       return;
     }
+    if (groupBusy.current || mvRef.current.kind === "committing" || mvRef.current.kind === "needs") {
+      undo.current = pushUndo(undo.current, p.top);
+      say("One move at a time. Try again in a moment.");
+      return;
+    }
+    groupBusy.current = true;
     void (async () => {
-      for (const x of rowsBack)
-        await performMove(data, ctx.type, field, ctx.journey, x.row!, x.lane!).catch(() => false);
+      let ok = 0;
+      const left: { id: string; from: string; to: string }[] = [];
+      try {
+        for (const x of rowsBack) {
+          // a card that has moved since is left where it is
+          if (laneOfRow(field, x.row!, lanes).key !== x.m.to) {
+            left.push(x.m);
+            continue;
+          }
+          try {
+            if (await performMove(data, ctx.type, field, ctx.journey, x.row!, x.lane!)) ok++;
+          } catch {
+            left.push(x.m);
+          }
+        }
+      } finally {
+        groupBusy.current = false;
+      }
+      if (left.length > 0) undo.current = pushUndo(undo.current, { moves: left });
       bs.refresh();
-      say("Undone.");
+      say(
+        left.length === 0 ? "Undone." : `Put back ${ok} of ${rowsBack.length}. The others changed first.`,
+        left.length > 0,
+      );
     })();
   };
   /** The fields a card's form saved: write them and move the card, in one step. */
@@ -467,34 +507,63 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     });
   // what the view keeps of this board, written once (the face, the bands, the WIP limits)
   const mine = useRef<Record<string, unknown>>({});
-  const ownView = useRef<string | undefined>(ctx.saved?.viewId);
+  const ownView = useRef<string | undefined>(ctx.saved?.shared === true ? undefined : ctx.saved?.viewId);
+  const saving = useRef<Promise<unknown>>(Promise.resolve());
+  const saveSeq = useRef(0);
+  const faceOpenRef = useRef(false);
+  faceOpenRef.current = faceOpen;
   const persist = (extra: Record<string, unknown>): void => {
     mine.current = { ...mine.current, ...extra };
     const payload = toSaved(st.v);
     const keep: Record<string, unknown> = {};
     for (const k of ["card", "swim", "wip"]) if (ctx.saved?.config?.[k] !== undefined) keep[k] = ctx.saved.config[k];
-    void data
-      .call("views.save", {
-        type: ctx.type,
-        ...(ownView.current ? { viewId: ownView.current } : {}),
-        kind: "board",
-        title: ctx.saved?.title ?? `${ctx.def.plural} board`,
-        ...payload,
-        config: { ...payload.config, ...keep, ...mine.current },
-        idempotencyKey: `view-${ctx.type}-${Date.now()}`,
-      })
-      .then((out) => {
-        const id = (out as { view?: { viewId?: string } } | undefined)?.view?.viewId;
-        if (id && !ownView.current) ownView.current = id;
-      })
-      .catch(() => setError("Could not save the view."));
+    // saves go one after another, so the first one's id is there for the second (never two views from two quick changes); a shared (team) view is never rewritten: the person's own is made beside it
+    const base = ctx.saved?.shared === true ? undefined : ctx.saved?.viewId;
+    const cfg = { ...payload.config, ...keep, ...mine.current };
+    saving.current = saving.current.then(() =>
+      data
+        .call("views.save", {
+          type: ctx.type,
+          ...((ownView.current ?? base) ? { viewId: ownView.current ?? base } : {}),
+          kind: "board",
+          title:
+            ctx.saved?.shared === true
+              ? `My ${ctx.def.plural.toLowerCase()} board`
+              : (ctx.saved?.title ?? `${ctx.def.plural} board`),
+          ...payload,
+          config: cfg,
+          idempotencyKey: `view-${ctx.type}-${++saveSeq.current}-${Date.now()}`,
+        })
+        .then((out) => {
+          const id = (out as { view?: { viewId?: string } } | undefined)?.view?.viewId;
+          if (id && !ownView.current) {
+            ownView.current = id;
+            if (!faceOpenRef.current && (!ctx.saved || ctx.saved.shared === true))
+              dispatch({ type: "view", viewId: id });
+          }
+        })
+        .catch(() => setError("Could not save the view.")),
+    );
   };
   // the board the person is looking at becomes their own view once the editor is closed, so the face they chose is what opens next time
   useEffect(() => {
-    if (!faceOpen && ownView.current && !ctx.saved) dispatch({ type: "view", viewId: ownView.current });
+    if (!faceOpen && ownView.current && (!ctx.saved || ctx.saved.shared === true))
+      dispatch({ type: "view", viewId: ownView.current });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [faceOpen]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // a change made just before leaving is kept
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+  useEffect(
+    () => () => {
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        persistRef.current({});
+      }
+    },
+    [],
+  );
   const persistSoon = (extra: Record<string, unknown>): void => {
     mine.current = { ...mine.current, ...extra };
     if (saveTimer.current) clearTimeout(saveTimer.current);
