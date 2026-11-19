@@ -14,6 +14,7 @@
 // @reads ../migrations/0013_hook_order.sql
 // @reads ../migrations/0014_hook_seq.sql
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
+import { ensureSpaceFolder } from "../../../lib/space-folder.ts";
 import { hostOnly } from "../../../host/src/ctx/host-only.ts";
 import type { WebhookAccept } from "../../../host/src/routes/webhooks.ts";
 import { fail, isNull, many, mustSite, nid, one, optBool, rec, reqStr, str } from "./deploy.ts";
@@ -450,21 +451,16 @@ function cleanFollow(ctx: Ctx, raw: unknown): string[] {
   return list;
 }
 
-/** Put a webhook secret in the Vault, in the "Site webhooks" folder of the person the call works for; the handle comes back. Nothing is changed when the Vault cannot take it. */
+/**
+ * Put a webhook secret in the Vault, in the Space's "Site webhooks" folder (shared with Everyone at Use: a member's call can fill it, nobody can read it out; an agent's own "Mine" folder would be the agent's alone, which the person it works for could not reach); the handle comes back.
+ * Nothing is changed when the Vault cannot take it.
+ */
 async function keepSecret(ctx: Ctx, site: Row, secret: string, now: number): Promise<string> {
   try {
-    const listed = (await ctx.call("vault.folders.list", { scope: "mine" })) as {
-      folders: { id: string; name: string }[];
-    };
-    const folderId =
-      listed.folders.find((f) => f.name === "Site webhooks")?.id ??
-      (
-        (await ctx.call("vault.folders.create", {
-          name: "Site webhooks",
-          scope: "mine",
-          idempotencyKey: `site-hooks-folder:${ctx.actingFor ?? ctx.principal.id}`,
-        })) as { folder: { id: string } }
-      ).folder.id;
+    const folderId = await ensureSpaceFolder((cap, input) => ctx.call(cap as never, input) as Promise<unknown>, {
+      name: "Site webhooks",
+      idem: "site-webhooks-folder",
+    });
     const made = (await ctx.call("vault.item.put", {
       folderId,
       name: `${str(site.name)} webhook secret`,

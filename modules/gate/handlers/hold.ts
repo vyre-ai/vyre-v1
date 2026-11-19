@@ -172,11 +172,14 @@ export async function holdNamesOf(ctx: GateCtx, cap: string, input: unknown): Pr
         site?: { name?: string; source?: { branch?: string; folderId?: string; fileId?: string } };
       } | null;
       const e = (await ctx.call?.("sites.env_list", { siteId })) as {
-        entries?: { name?: string; vaultHandle?: string; scope?: string }[];
+        entries?: { name?: string; vaultName?: string; kind?: string; scope?: string }[];
       } | null;
+      // the Vault key's own name (never a value); a plain value is no key, and a previews-only key does not reach production
       const keys = (e?.entries ?? [])
-        .filter((x) => typeof x.vaultHandle === "string" && x.vaultHandle !== "" && x.scope !== "previews")
-        .map((x) => cut(String(x.vaultHandle).replace(/^#/, "").replace(/\..*$/, ""), 40));
+        .filter(
+          (x) => x.kind === "secret" && typeof x.vaultName === "string" && x.vaultName !== "" && x.scope !== "previews",
+        )
+        .map((x) => cut(String(x.vaultName).replace(/^#/, "").replace(/\..*$/, ""), 40));
       if (g?.site?.name)
         out.site = {
           name: cut(g.site.name, 60),

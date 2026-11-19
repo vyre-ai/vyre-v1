@@ -1,5 +1,6 @@
 // A held act in a person's words, in one place: the Gate titles the approval task with it and the card reads the same (lane l-chrome2a). "send message" is "send a message", "automations.read_link" is "open example.com",
 // and no module name or raw field name is shown. Nothing here decides anything.
+import { visibleText } from "./visible-text.ts";
 import { HOLD_PHRASES } from "./hold-phrases.ts";
 import { validZone, zoneName } from "./zones.ts";
 import { outwardOf } from "./outward.ts";
@@ -177,18 +178,11 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
   if (cap === "sites.webhook_set") {
     const follow = obj(input)["follow"];
     if (Array.isArray(follow)) {
-      // a branch name is written by whoever wrote the call: control characters are written out and the list is capped, as the Chrome card does
+      // a branch name is written by whoever wrote the call: cut by characters, then control characters are written out (lib/visible-text.ts, the one escaper)
       const shown = follow
         .filter((x): x is string => typeof x === "string")
         .slice(0, 5)
-        .map((x) =>
-          x
-            .replace(
-              /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g,
-              (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
-            )
-            .slice(0, 40),
-        );
+        .map((x) => visibleText(x, 40));
       const more = follow.length - shown.length;
       return `build previews of pushes to ${shown.join(", ") || "no branches"}${more > 0 ? ` and ${more} more` : ""}, with the site's keys`;
     }

@@ -196,39 +196,50 @@ export async function uploadFingerprint(
 }
 
 /**
- * The fingerprint the Gate read for a call, kept for the handler that runs the same call (in this process), so the build checks the files it fetches against the files the Gate judged, not a later look. Keyed by the trace, the call's own span and
- * the site, so nested deploys in one trace never overwrite each other. A short-lived note: taken once (and remembered as used, for recording what a yes approved), gone after ten minutes. A call the Gate did not read (a person's) has none.
+ * The fingerprint the Gate read for a call, kept for the handler that runs the same call (in this process), so the build checks the files it fetches against the files the Gate judged, not a later look. Keyed by the trace and the site: the Gate
+ * sees the caller's span and the handler its own new one, so the span is no common key, and the trace is. Notes of one trace and site are taken in the order they were made (a nested deploy of the same site is the next note, never an overwrite).
+ * A short-lived note: taken once (and remembered as used, for recording what a yes approved), gone after ten minutes. A call the Gate did not read (a person's) has none.
  */
 type CallId = { traceId: string; spanId?: string } | undefined;
-const gateFps = new Map<string, { fp: string; at: number; used: boolean }>();
+type Note = { fp: string; at: number; used: boolean };
+const gateFps = new Map<string, Note[]>();
 const GATE_FP_TTL_MS = 10 * 60 * 1000;
-const callKey = (call: CallId, siteId: string): string | null =>
-  call?.traceId ? `${call.traceId}:${call.spanId ?? ""}:${siteId}` : null;
+const callKey = (call: CallId, siteId: string): string | null => (call?.traceId ? `${call.traceId}:${siteId}` : null);
+const live = (n: Note, now: number): boolean => now - n.at <= GATE_FP_TTL_MS;
 export function noteGateFp(call: CallId, siteId: string, fp: string, now: number = Date.now()): void {
   const k = callKey(call, siteId);
   if (!k) return;
-  for (const [key, v] of gateFps) if (now - v.at > GATE_FP_TTL_MS || gateFps.size > 1000) gateFps.delete(key);
-  gateFps.set(k, { fp, at: now, used: false });
+  for (const [key, list] of gateFps) {
+    const keep = list.filter((n) => live(n, now));
+    if (keep.length === 0 || gateFps.size > 1000) gateFps.delete(key);
+    else gateFps.set(key, keep);
+  }
+  const list = gateFps.get(k) ?? [];
+  // the same files noted again before the first was taken are one note
+  const last = list[list.length - 1];
+  if (last && !last.used && last.fp === fp) last.at = now;
+  else list.push({ fp, at: now, used: false });
+  gateFps.set(k, list);
 }
-/** The fingerprint noted for this call, without taking it. */
+/** The fingerprint last noted for this call, without taking it. */
 export function peekGateFp(call: CallId, siteId: string, now: number = Date.now()): string | null {
   const k = callKey(call, siteId);
-  const v = k ? gateFps.get(k) : undefined;
-  return v && now - v.at <= GATE_FP_TTL_MS ? v.fp : null;
+  const list = (k ? gateFps.get(k) : undefined)?.filter((n) => live(n, now));
+  return list && list.length > 0 ? list[list.length - 1]!.fp : null;
 }
-/** Take the fingerprint noted for this call (once). */
+/** Take the oldest fingerprint noted for this trace and site that is not taken yet. */
 export function takeGateFp(call: CallId, siteId: string, now: number = Date.now()): string | null {
   const k = callKey(call, siteId);
-  const v = k ? gateFps.get(k) : undefined;
-  if (!v || v.used || now - v.at > GATE_FP_TTL_MS) return null;
-  v.used = true;
-  return v.fp;
+  const n = (k ? gateFps.get(k) : undefined)?.find((x) => !x.used && live(x, now));
+  if (!n) return null;
+  n.used = true;
+  return n.fp;
 }
 /** What the build of this call was held to, after it took it: what a yes approved. */
 export function usedGateFp(call: CallId, siteId: string, now: number = Date.now()): string | null {
   const k = callKey(call, siteId);
-  const v = k ? gateFps.get(k) : undefined;
-  return v?.used && now - v.at <= GATE_FP_TTL_MS ? v.fp : null;
+  const used = (k ? gateFps.get(k) : undefined)?.filter((x) => x.used && live(x, now));
+  return used && used.length > 0 ? used[used.length - 1]!.fp : null;
 }
 
 /** Calls a person approved (the Gate verified the token on the resume): the build of such a call may go on where an agent's own would refuse. Keyed like the fingerprint note. */

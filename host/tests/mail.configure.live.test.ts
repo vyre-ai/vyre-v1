@@ -209,6 +209,8 @@ function world(sites: readonly string[] = []): AccessSnapshot {
 }
 
 interface RigOptions {
+  /** real handlers to run in place of the stub for a capability (a test that needs the real code under the real invoke) */
+  handlers?: Record<string, Handler>;
   /** opens an approval token (a test hands the claims it wants the token to carry) */
   unseal?: (s: unknown) => Uint8Array;
   /** the real sites a test made: the access snapshot knows them */
@@ -234,6 +236,7 @@ function rig(o: RigOptions = {}) {
       (async () => (ran.push(n), {})) as Handler,
     ]),
   );
+  Object.assign(handlers, o.handlers ?? {});
   // the sign-in callbacks make the person's mailbox with mail.connect through the same call chain, as the person who is signing in
   for (const n of ["google.user.complete", "ms.user.complete"])
     handlers[n] = (async (ctx: { call: (cap: string, input: unknown) => Promise<unknown> }) => (
@@ -947,6 +950,20 @@ function siteWorld() {
     callAs: async (cap: string, input: unknown, person: string) =>
       cap.startsWith("files.") ? filesAnswer(cap, input) : w.opts.callAs(cap, input, person),
     exports: new Map<string, Record<string, unknown>>([...w.opts.exports, ["sites", { siteFacts }]]),
+    // the real sites.deploy runs under the real invoke: the call's own principal, trace and origin reach it as they do in the daemon
+    handlers: {
+      "sites.deploy": (async (ctx: Record<string, unknown>, input: unknown) =>
+        siteH["sites.deploy"]!(
+          {
+            ...sw.ctx,
+            principal: ctx["principal"],
+            actingFor: ctx["actingFor"],
+            trace: ctx["trace"],
+            origin: ctx["origin"],
+          },
+          input,
+        )) as unknown as Handler,
+    },
   };
   const yes = async (cap: string, input: unknown, n: string): Promise<void> => {
     const r = rig(opts);
@@ -986,6 +1003,7 @@ function siteWorld() {
       return { status, text: async () => JSON.stringify(body) };
     };
   };
+  github("protected");
   const keysOff = (siteId: string): void => void sw.sdb.run("DELETE FROM sites_env WHERE site_id = ?", siteId);
   const fp = async (folder = "fld_up"): Promise<string> =>
     (await uploadFingerprint({ folderId: folder }, (cap, i) => filesAnswer(cap, i) as Promise<unknown>)) as string;
@@ -1490,8 +1508,9 @@ test("the Gate keeps the fingerprint it read for an agent's call, so the build c
   assert.equal((await r.invoke("sites.deploy", { siteId }, { ...asAgent(), trace } as never)).status, "ok");
   // the files change after the Gate's read: the handler is handed the fingerprint the Gate read
   s.tree.files["fld_up"]![0]!.version = 5;
-  assert.equal(takeGateFp(trace, siteId), asked);
-  assert.equal(takeGateFp(trace, siteId), null, "taken once");
+  // the real handler took it (it is the call's own note), and remembers what it was held to
+  assert.equal(takeGateFp(trace, siteId), null, "taken once, by the handler");
+  assert.equal(usedGateFp(trace, siteId), asked);
   // a person's own call is not read by the Gate: nothing is kept, the handler reads for itself
   const t2 = { traceId: "c3".repeat(16), spanId: "d4".repeat(8) };
   assert.equal(
@@ -1506,7 +1525,7 @@ test("a production deploy by an agent or a push on a site that holds a Vault key
   const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
   s.store(siteId, STORED.name, STORED.handle);
   const push = { ...seed("usr_admin"), origin: "sites-push" } as never;
-  const asPush = async () => (await rig(s.opts).invoke("sites.deploy", { siteId, onlyIfChanged: true }, push)).status;
+  const asPush = async () => (await rig(s.opts).invoke("sites.deploy", { siteId }, push)).status;
   // a person's deploy asked what the host says: GitHub has no protection on main
   s.github("open");
   await s.call("sites.deploy", { siteId, wait: true });
@@ -1603,15 +1622,72 @@ test("a hold keeps the files it was made over: the resumed call is handed those,
   assert.equal(heldGateFp("not a hold"), null);
 });
 
-test("the Gate's note is the call's own: two deploys in one trace do not overwrite each other, and a note that is gone is none", () => {
-  const a = { traceId: "11".repeat(16), spanId: "aa".repeat(8) };
-  const b = { traceId: "11".repeat(16), spanId: "bb".repeat(8) };
-  noteGateFp(a, "sit_1", "fp-a");
-  noteGateFp(b, "sit_1", "fp-b");
-  assert.equal(takeGateFp(a, "sit_1"), "fp-a");
-  assert.equal(takeGateFp(b, "sit_1"), "fp-b");
-  assert.equal(takeGateFp(a, "sit_1"), null, "taken once");
-  noteGateFp(a, "sit_2", "old", Date.now() - 11 * 60_000);
-  assert.equal(takeGateFp(a, "sit_2"), null, "evicted by age");
+test("the Gate's notes of one trace and site are taken in the order they were made, once each, and a note that is gone is none", () => {
+  const trace = { traceId: "11".repeat(16), spanId: "aa".repeat(8) };
+  noteGateFp(trace, "sit_1", "fp-a");
+  noteGateFp(trace, "sit_1", "fp-b");
+  assert.equal(
+    takeGateFp({ ...trace, spanId: "bb".repeat(8) }, "sit_1"),
+    "fp-a",
+    "the handler's own span is another, the trace is the key",
+  );
+  assert.equal(takeGateFp(trace, "sit_1"), "fp-b");
+  assert.equal(takeGateFp(trace, "sit_1"), null, "taken once");
+  noteGateFp(trace, "sit_2", "old", Date.now() - 11 * 60_000);
+  assert.equal(takeGateFp(trace, "sit_2"), null, "evicted by age");
   assert.equal(takeGateFp(undefined, "sit_1"), null);
+});
+
+test("under the real invoke and the real sites.deploy: an agent's upload deploy takes the Gate's note and records what it built; after a yes the resumed call builds the files of the hold, not what the files are by then", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("Up", { folderId: "fld_up" }, false);
+  await s.deployUpload(siteId);
+  s.store(siteId, STORED.name, STORED.handle);
+  const call = { siteId, wait: true };
+  const t1 = { traceId: "c1".repeat(16), spanId: "d1".repeat(8) };
+  // the same files: the Gate lets it through, the handler takes its note (the call's own span is another than the Gate saw), the build checks and records
+  s.state.fetchFp = await s.fp();
+  const same = await rig(s.opts).invoke("sites.deploy", call, { ...asAgent(), trace: t1 } as never);
+  assert.equal(same.status, "ok");
+  assert.equal((same as { output?: { deployment?: { state?: string } } }).output?.deployment?.state, "ready");
+  // an agent replaces a file: held over those files
+  s.tree.files["fld_up"]![0]!.version = 2;
+  const held = await s.fp();
+  const t2 = { traceId: "c2".repeat(16), spanId: "d2".repeat(8) };
+  assert.equal((await rig(s.opts).invoke("sites.deploy", call, { ...asAgent(), trace: t2 } as never)).status, "held");
+  // the card waits and the files change again
+  s.tree.files["fld_up"]![0]!.version = 3;
+  const claims = {
+    v: 1,
+    exp: Date.now() + 60_000,
+    hash: payloadHash(rig(s.opts).defOf("sites.deploy"), call, asAgent()),
+  };
+  const who = [asAgent(), seed("usr_admin")];
+  const hash = who
+    .map((x) => payloadHash(rig(s.opts).defOf("sites.deploy"), call, x))
+    .find((x) => heldGateFp(x) !== null);
+  assert.ok(hash, "the hold kept the files");
+  void claims;
+  const runner = who.find((x) => payloadHash(rig(s.opts).defOf("sites.deploy"), call, x) === hash)!;
+  const token = `apv_${Buffer.from(JSON.stringify({ keyId: "k", nonce: "n", bytes: "b" })).toString("base64url")}`;
+  const t3 = { traceId: "c3".repeat(16), spanId: "d3".repeat(8) };
+  // the fetch reads what the files are now (version 3); the hold was over version 2: refused, nothing built
+  s.state.fetchFp = await s.fp();
+  const resumed = rig({
+    ...s.opts,
+    unseal: () => new TextEncoder().encode(JSON.stringify({ v: 1, exp: Date.now() + 60_000, hash })),
+  });
+  const refused = await resumed.invoke("sites.deploy", call, { ...runner, trace: t3, approval: token } as never);
+  const out = (r: unknown) =>
+    (r as { output?: { deployment?: { state?: string; problem?: string } } }).output?.deployment;
+  assert.equal(out(refused)?.state, "failed", "files that changed while the card waited are not built");
+  assert.match(String(out(refused)?.problem), /The files changed while this waited/);
+  assert.equal(siteFacts({ db: s.sw.sdb } as never, siteId)!.deployedFp !== held, true);
+  // the files are as they were at the hold: the yes builds them and records them
+  s.tree.files["fld_up"]![0]!.version = 2;
+  s.state.fetchFp = held;
+  const t4 = { traceId: "c4".repeat(16), spanId: "d4".repeat(8) };
+  const again = await resumed.invoke("sites.deploy", call, { ...runner, trace: t4, approval: token } as never);
+  assert.equal(out(again)?.state, "ready", JSON.stringify(again).slice(0, 300));
+  assert.equal(siteFacts({ db: s.sw.sdb } as never, siteId)!.deployedFp, held);
 });

@@ -2019,12 +2019,16 @@ test("a note that is gone (evicted) is a refusal for an agent on a site with a p
     const gone = await h["sites.deploy"]!(agent, { siteId, wait: true });
     assert.equal(gone.deployment.state, "failed");
     assert.match(gone.deployment.problem, /could not be checked/);
-    // two deploys of one trace: each takes its own note
-    const second = { ...agent, trace: { ...agent.trace, spanId: "ffffffffffffffff" } } as typeof w.ctx;
-    noteGateFp(agent.trace, siteId, "other-files");
-    noteGateFp(second.trace, siteId, fp!);
-    const ok = await h["sites.deploy"]!(second, { siteId, wait: true });
-    assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
+    // two deploys of one trace take their notes in the order they were made, one each
+    noteGateFp(agent.trace, siteId, fp!);
+    const first = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(first.deployment.state, "ready", first.deployment.problem);
+    noteGateFp(agent.trace, siteId, fp!);
+    const second = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(second.deployment.state, "ready", second.deployment.problem);
+    // and with no note left, nothing builds
+    const none = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(none.deployment.state, "failed");
   } finally {
     w.done();
   }

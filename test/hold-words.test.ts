@@ -135,10 +135,10 @@ test("a held production deploy says its own reason, with the site, the branch an
         if (cap === "sites.env_list")
           return {
             entries: [
-              { name: "S", vaultHandle: "#Stripe.key", scope: "production" },
-              { name: "P", vaultHandle: "#Crm.preview", scope: "previews" },
-              { name: "PLAIN", scope: "production" },
-              { name: "S2", vaultHandle: "#Stripe.key2", scope: "all" },
+              { name: "S", vaultName: "Stripe", kind: "secret", scope: "production" },
+              { name: "P", vaultName: "Crm", kind: "secret", scope: "previews" },
+              { name: "PLAIN", vaultName: "", kind: "plain", scope: "production" },
+              { name: "S2", vaultName: "Stripe", kind: "secret", scope: "all" },
             ],
           };
         return null;
