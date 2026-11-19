@@ -59,6 +59,7 @@ export const PAGES: readonly PageDef[] = [
   p("memlearn", "Memory learning", "AI", "learn", "policy.manage", "access.policies"),
   // the setting engine.egress, saved with settings.set_space (policy.manage), so the page shows to whoever may set Space policy, like the Space defaults below
   p("internet", "Internet access", "AI", "internet", "policy.manage", "access.policies"),
+  p("email", "Email setup", "Comms", "mail", "comms.domains", "mail.domains"),
   p("domains", "Sending domains", "Comms", "mail", "comms.domains", "mail.domains"),
   p("numbers", "Numbers", "Comms", "phone", "comms.numbers", "telephony.numbers"),
   p("inboxes", "Shared inboxes", "Comms", "inbox", "comms.shared_send", "mail.shared-inboxes"),
@@ -163,6 +164,7 @@ export const PAGE_NOTE: Readonly<Record<string, string>> = {
   memlearn: "How much each person's chats may teach memory each day",
   diagnostics: "Run checks",
   domains: "Your own domain for email",
+  email: "How the Space sends email, and what is left to set up",
   erase: "Remove someone's data",
   gate: "What needs an approval",
   google: "One connection for everyone",

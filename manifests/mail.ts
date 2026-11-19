@@ -33,6 +33,7 @@ const mboxState = t.enm("pending", "syncing", "paused", "error", "disconnected")
 const msgStatus = t.enm("draft", "queued", "sent", "delivered", "bounced", "complained", "failed", "received");
 const dnsState = t.enm("pass", "fail", "pending");
 const sendProvider = t.enm("resend", "mailgun", "smtp");
+const setupStep = t.enm("choose_provider", "connect_server", "add_domain", "publish_dns", "set_default", "ready");
 const smtpSecurity = t.enm("starttls", "tls");
 const smtpServer = {
   host: t.opt(t.str({ examples: ["smtp.example.com"] })),
@@ -817,6 +818,21 @@ const manifest = defineManifest({
       out: { domain: domainRow, records: t.arr(dnsRecord) },
       on: ["domain", "/domainId"],
       tool: "inbox",
+    }),
+    read("mail.setup.status", "The Space's email setup in one read: how it sends, what is missing and the next step", {
+      in: {},
+      out: {
+        provider: sendProvider,
+        smtp: t.obj(smtpState),
+        domains: t.arr(domainRow),
+        done: t.arr(setupStep),
+        step: setupStep,
+        next: t.str({ description: "The next thing to do, one sentence" }),
+        ready: t.bool(),
+      },
+      perm: "comms.domains",
+      tool: "inbox",
+      label: "check",
     }),
     // ---- the Space's own mail server (SMTP)
     read("mail.smtp.get", "The Space's mail server (SMTP) and its last test", {

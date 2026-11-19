@@ -23,7 +23,7 @@ import { Groups } from "../../console/pages/Groups.tsx";
 import { Checker } from "../../console/pages/Checker.tsx";
 import { AgentsRegister, AgentTemplate, OutsideActors } from "../../console/pages/Agents.tsx";
 import { MachinesPage } from "../../console/pages/Machines.tsx";
-import { DomainsPage, InboxesPage, NumbersPage, TextingPage } from "../../console/pages/Comms.tsx";
+import { DomainsPage, EmailPage, InboxesPage, NumbersPage, TextingPage } from "../../console/pages/Comms.tsx";
 import { LabelsPage, SchemaPage } from "../../console/pages/Data.tsx";
 import { ApiKeysPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
 import { SkillsPage } from "../../console/pages/Skills.tsx";
@@ -143,6 +143,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "plugins") return <PluginsPage />;
   if (id === "schema") return <SchemaPage />;
   if (id === "labels") return <LabelsPage />;
+  if (id === "email") return <EmailPage />;
   if (id === "domains")
     return (
       <DomainsPage

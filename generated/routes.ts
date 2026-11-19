@@ -22383,6 +22383,24 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/mail/setup/status",
+    "cap": "mail.setup.status",
+    "v": 1,
+    "module": "mail",
+    "effects": "read",
+    "permission": "comms.domains",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/mail/smtp/get",
     "cap": "mail.smtp.get",
     "v": 1,
@@ -27627,7 +27645,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/network/phone_claim",
@@ -27645,10 +27666,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/network/phone_release",
@@ -33149,7 +33167,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sessions/archive",
@@ -33167,10 +33188,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sessions/continue",
@@ -38656,7 +38674,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/templates/list",
@@ -38674,10 +38695,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/templates/preview",

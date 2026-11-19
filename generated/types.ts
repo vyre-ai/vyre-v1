@@ -25863,6 +25863,35 @@ export type MailSendPreviewOut = {
     }>;
   providerRoute: "mailbox" | "space_domain";
 };
+export type MailSetupStatusIn = Record<string, unknown>;
+export type MailSetupStatusOut = {
+  provider: "resend" | "mailgun" | "smtp";
+  smtp: {
+    configured: boolean;
+    host?: string;
+    port?: number;
+    security?: "starttls" | "tls";
+    username?: string;
+    state: "none" | "unchecked" | "ok" | "failed";
+    detail?: string;
+    checkedAt?: number;
+  };
+  domains: Array<{
+      id: string;
+      name: string;
+      provider: "resend" | "mailgun" | "smtp";
+      spf: "pass" | "fail" | "pending";
+      dkim: "pass" | "fail" | "pending";
+      dmarc: "pass" | "fail" | "pending";
+      verified: boolean;
+      isDefault: boolean;
+      checkedAt?: number;
+    }>;
+  done: Array<"choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready">;
+  step: "choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready";
+  next: string;
+  ready: boolean;
+};
 export type MailSmtpGetIn = Record<string, unknown>;
 export type MailSmtpGetOut = {
   configured: boolean;
@@ -49578,6 +49607,7 @@ export interface CapMap {
   "mail.send": { in: MailSendIn; out: MailSendOut };
   "mail.send_as": { in: MailSendAsIn; out: MailSendAsOut };
   "mail.send_preview": { in: MailSendPreviewIn; out: MailSendPreviewOut };
+  "mail.setup.status": { in: MailSetupStatusIn; out: MailSetupStatusOut };
   "mail.smtp.get": { in: MailSmtpGetIn; out: MailSmtpGetOut };
   "mail.smtp.set": { in: MailSmtpSetIn; out: MailSmtpSetOut };
   "mail.smtp.verify": { in: MailSmtpVerifyIn; out: MailSmtpVerifyOut };

@@ -39,6 +39,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.send": async () => ({"messageId":"eml_a1b2c3","status":"queued","suppressed":[]} as unknown) as never,
   "mail.send_as": async () => ({"messageId":"eml_a1b2c3","providerId":"example"} as unknown) as never,
   "mail.send_preview": async () => ({"allowed":["maya@example.com"],"providerRoute":"mailbox","suppressed":[{"address":"maya@example.com","reason":"example"}]} as unknown) as never,
+  "mail.setup.status": async () => ({"domains":[{"checkedAt":1760000000000,"dkim":"pass","dmarc":"pass","id":"dom_a1b2c3","isDefault":true,"name":"mail.example.com","provider":"resend","spf":"pass","verified":true}],"done":["choose_provider"],"next":"example","provider":"resend","ready":true,"smtp":{"checkedAt":1760000000000,"configured":true,"detail":"example","host":"smtp.example.com","port":1,"security":"starttls","state":"none","username":"example"},"step":"choose_provider"} as unknown) as never,
   "mail.smtp.get": async () => ({"checkedAt":1760000000000,"configured":true,"detail":"example","host":"smtp.example.com","port":1,"security":"starttls","state":"none","username":"example"} as unknown) as never,
   "mail.smtp.set": async () => ({"checkedAt":1760000000000,"configured":true,"detail":"example","host":"smtp.example.com","port":1,"security":"starttls","state":"none","username":"example"} as unknown) as never,
   "mail.smtp.verify": async () => ({"message":"example","ms":1,"ok":true,"reason":"blocked"} as unknown) as never,

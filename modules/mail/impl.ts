@@ -29,6 +29,7 @@ import {
   smtpSet,
   smtpVerify,
 } from "./handlers/smtp.ts";
+import { setupStatus } from "./handlers/setup.ts";
 import { setMailLinksHost, unsubscribe } from "./handlers/unsubscribe.ts";
 import type { ImapConfig, ImapMessage, ImapSession, ImapSessionFactory } from "./handlers/ingest.ts";
 import type { MailCtx, Party } from "./projections.ts";
@@ -47,6 +48,7 @@ export const handlers: Record<string, Handler> = {
   "mail.unsubscribe": (ctx, input) => unsubscribe(ctx, input as { token?: unknown }),
   "mail.message.erase": (ctx, input) => messageErase(ctx, input),
   // the Space's own mail server (SMTP): saved, tested, and used by mail.send when the sending provider is smtp
+  "mail.setup.status": (ctx) => setupStatus(ctx),
   "mail.smtp.get": (ctx) => smtpGet(ctx),
   "mail.smtp.set": (ctx, input) => smtpSet(ctx, input),
   "mail.smtp.verify": (ctx, input) => smtpVerify(ctx, input),

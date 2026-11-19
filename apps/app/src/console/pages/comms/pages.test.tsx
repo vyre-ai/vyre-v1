@@ -106,3 +106,24 @@ test("Sending domains says in one plain line what a sending domain does for noti
     );
   }
 });
+
+test("Email setup shows the next step, ticks the finished ones and shows the mail server form only for SMTP", async () => {
+  const { EmailPage, visibleSteps } = await import("./Email.tsx");
+  const base = {
+    provider: "smtp",
+    smtp: { configured: true, host: "smtp.fixture.example", port: 587, security: "starttls", username: "me@fixture.example", state: "failed", detail: "Port 587 is blocked." },
+    domains: [],
+    done: ["choose_provider"],
+    step: "connect_server",
+    next: "The mail server test failed: Port 587 is blocked.",
+    ready: false,
+  };
+  const smtpHtml = draw(<EmailPage />, { "mail.setup.status": base });
+  assert.match(smtpHtml, /Port 587 is blocked/);
+  assert.match(smtpHtml, /smtp-host/);
+  const resend = draw(<EmailPage />, { "mail.setup.status": { ...base, provider: "resend", smtp: { configured: false, state: "none" }, step: "add_domain", next: "Add the domain your email comes from." } });
+  assert.doesNotMatch(resend, /smtp-host/);
+  assert.match(resend, /Add the domain your email comes from/);
+  assert.equal(visibleSteps("resend").some((s) => s.key === "connect_server"), false);
+  assert.equal(visibleSteps("smtp").some((s) => s.key === "connect_server"), true);
+});

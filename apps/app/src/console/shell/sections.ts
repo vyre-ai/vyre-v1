@@ -109,7 +109,7 @@ export const SECTIONS: readonly SectionDef[] = [
     tabs: [
       {
         label: "Email",
-        views: [v("domains", "Sending domains"), v("inboxes", "Shared inboxes")],
+        views: [v("email", "Email setup"), v("domains", "Sending domains"), v("inboxes", "Shared inboxes")],
         extras: { domains: ["def-apps"] },
       },
       { label: "Phone and texting", views: [v("numbers", "Numbers"), v("texting", "Texting registration")] },

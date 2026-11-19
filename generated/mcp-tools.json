@@ -37807,6 +37807,21 @@
     },
     {
       "blocks": [],
+      "cap": "mail.setup.status",
+      "deferred": false,
+      "description": "The Space's email setup in one read: how it sends, what is missing and the next step",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "mail_setup_status",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.smtp.get",
       "deferred": false,
       "description": "The Space's mail server (SMTP) and its last test",

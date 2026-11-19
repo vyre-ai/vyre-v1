@@ -5390,6 +5390,12 @@
     },
     {
       "deferred": false,
+      "name": "mail_setup_status",
+      "summary": "The Space's email setup in one read: how it sends, what is missing and the next step",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mail_smtp_get",
       "summary": "The Space's mail server (SMTP) and its last test",
       "toolset": "inbox"
