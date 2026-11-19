@@ -99,8 +99,7 @@ test("on a real database, two adds of one name at once: one wins, the other is t
   assert.equal(live[0]?.mailboxId, winner.address.mailboxId);
 });
 
-test("on a real database that already holds two live routes for one address, the oldest is kept, the other is removed and queued with a visible note, and the index is then made", () => {
-  const h = harness();
+function olderDb(h: ReturnType<typeof harness>, order: [string, string][]): void {
   h.ctx.db = realDb();
   ensure(h.ctx); // the core tables only: this database is from before the index
   h.ctx.db.run(
@@ -119,10 +118,7 @@ test("on a real database that already holds two live routes for one address, the
     1,
     null,
   );
-  for (const [id, mailbox] of [
-    ["rte_0002", "mbx_b"],
-    ["rte_0001", "mbx_a"],
-  ] as const)
+  for (const [id, mailbox] of order)
     h.ctx.db.run(
       `INSERT INTO mail_route (id, "domainId", "localPart", "mailboxId", provider, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
@@ -134,65 +130,77 @@ test("on a real database that already holds two live routes for one address, the
       1,
       null,
     );
-  ensureAll(h.ctx); // the extra tables, then the duplicate is found
-  h.ctx.db.run(`INSERT INTO mail_route_ext ("routeId", "providerRouteId") VALUES (?, ?)`, "rte_0002", "mgr_dup");
-  const live = h.rows(`SELECT id, "mailboxId" FROM mail_route WHERE deleted_at IS NULL`);
-  assert.deepEqual(
-    live.map((r) => r.id),
-    ["rte_0001"],
-    "the oldest is kept",
-  );
-  assert.ok(
-    openCleanups(h.ctx).some(
-      (c) => c.kind === "duplicate_route" && /billing@northwind\.example had 2 routes/.test(c.note),
-    ),
-  );
-  assert.throws(() => insert(h as never, "rte_0003", "mbx_b"), /UNIQUE constraint failed/);
-});
-
-test("the duplicate's provider route is queued for deletion so mail is not delivered twice", () => {
-  const h = harness();
-  h.ctx.db = realDb();
-  ensure(h.ctx);
-  ensureAll(h.ctx); // extra tables (and the index), then a duplicate appears from an older code path
-  h.ctx.db.run(`DROP INDEX mail_route__address`);
-  h.ctx.db.run(
-    `INSERT INTO mail_domain (id, name, provider, spf, dkim, dmarc, verified, "isDefault", records, "checkedAt", version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    "dom_real",
-    "northwind.example",
-    "mailgun",
-    "pass",
-    "pass",
-    "pass",
-    1,
-    1,
-    "{}",
-    null,
-    1,
-    1,
-    null,
-  );
-  for (const [id, mailbox] of [
-    ["rte_0001", "mbx_a"],
-    ["rte_0002", "mbx_b"],
-  ] as const)
-    h.ctx.db.run(
-      `INSERT INTO mail_route (id, "domainId", "localPart", "mailboxId", provider, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      id,
-      "dom_real",
-      "billing",
-      mailbox,
-      "mailgun",
-      1,
-      1,
-      null,
-    );
-  h.ctx.db.run(`INSERT INTO mail_route_ext ("routeId", "providerRouteId") VALUES (?, ?)`, "rte_0002", "mgr_dup");
-  // a new process meets this database: ensureAll runs again on a fresh handle
+}
+const withExt = (h: ReturnType<typeof harness>, routeId: string, providerRouteId: string): void =>
+  h.ctx.db.run(`INSERT INTO mail_route_ext ("routeId", "providerRouteId") VALUES (?, ?)`, routeId, providerRouteId);
+function reopen(h: ReturnType<typeof harness>) {
   const again = harness();
   const inner = h.ctx.db;
   again.ctx.db = { all: (sql, ...args) => inner.all(sql, ...args), run: (sql, ...args) => inner.run(sql, ...args) }; // a new handle on the same data: a new process
   ensureAll(again.ctx);
-  const open = openCleanups(again.ctx);
-  assert.ok(open.some((c) => c.kind === "provider_route" && /duplicate Mailgun route is being deleted/.test(c.note)));
+  return again;
+}
+
+test("on a real database that already holds two live routes for one address, the one that was receiving mail is kept, the other is removed with a visible note, and the index is then made", () => {
+  const h = harness();
+  // ingest takes the first row it finds, so the first in the table is the one mail goes to today (here not the smallest id)
+  olderDb(h, [
+    ["rte_0002", "mbx_b"],
+    ["rte_0001", "mbx_a"],
+  ]);
+  const again = reopen(h);
+  const live = again.rows(`SELECT id FROM mail_route WHERE deleted_at IS NULL`);
+  assert.deepEqual(
+    live.map((r) => r.id),
+    ["rte_0002"],
+    "mail keeps arriving where it arrived",
+  );
+  assert.ok(
+    openCleanups(again.ctx).some(
+      (c) => c.kind === "duplicate_route" && /billing@northwind\.example had 2 routes/.test(c.note),
+    ),
+  );
+  assert.throws(() => insert(again as never, "rte_0003", "mbx_b"), /UNIQUE constraint failed/);
+});
+
+test("duplicates that share one Mailgun route, or where only the removed one had a route, never lose the address's only route", () => {
+  // shared: nothing is deleted
+  const shared = harness();
+  olderDb(shared, [
+    ["rte_0001", "mbx_a"],
+    ["rte_0002", "mbx_b"],
+  ]);
+  shared.ctx.db.run(`CREATE TABLE IF NOT EXISTS mail_route_ext ("routeId" TEXT PRIMARY KEY, "providerRouteId" TEXT)`);
+  withExt(shared, "rte_0001", "mgr_one");
+  withExt(shared, "rte_0002", "mgr_one");
+  assert.ok(
+    !openCleanups(reopen(shared).ctx).some((c) => c.kind === "provider_route"),
+    "the one shared route is not queued for deletion",
+  );
+  // only the removed row had one: the kept row takes it over
+  const only = harness();
+  olderDb(only, [
+    ["rte_0001", "mbx_a"],
+    ["rte_0002", "mbx_b"],
+  ]);
+  only.ctx.db.run(`CREATE TABLE IF NOT EXISTS mail_route_ext ("routeId" TEXT PRIMARY KEY, "providerRouteId" TEXT)`);
+  withExt(only, "rte_0002", "mgr_two");
+  const after = reopen(only);
+  assert.ok(!openCleanups(after.ctx).some((c) => c.kind === "provider_route"));
+  assert.equal(
+    after.rows(`SELECT "providerRouteId" FROM mail_route_ext WHERE "routeId" = ?`, "rte_0001")[0]?.providerRouteId,
+    "mgr_two",
+  );
+  // two different routes: the extra one is queued for deletion
+  const two = harness();
+  olderDb(two, [
+    ["rte_0001", "mbx_a"],
+    ["rte_0002", "mbx_b"],
+  ]);
+  two.ctx.db.run(`CREATE TABLE IF NOT EXISTS mail_route_ext ("routeId" TEXT PRIMARY KEY, "providerRouteId" TEXT)`);
+  withExt(two, "rte_0001", "mgr_a");
+  withExt(two, "rte_0002", "mgr_b");
+  assert.ok(
+    openCleanups(reopen(two).ctx).some((c) => c.kind === "provider_route" && /duplicate Mailgun route/.test(c.note)),
+  );
 });

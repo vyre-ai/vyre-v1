@@ -33,7 +33,11 @@ CREATE TABLE IF NOT EXISTS mail_status_log (
 `;
 
 const ROUTE_UNIQUE = `CREATE UNIQUE INDEX IF NOT EXISTS mail_route__address ON mail_route ("domainId", "localPart") WHERE deleted_at IS NULL`;
-/** Two live routes for one address: keep the oldest (the smallest id, which carries its time), remove the rest, and leave a visible note. A removed route's provider route is queued for deletion so mail is not delivered twice. */
+/**
+ * Two live routes for one address: keep the one mail.ingest already uses (it takes the first it finds, which is the first in the table's own order, so what arrives today keeps arriving where it did), remove the rest, and leave a visible note.
+ * A Mailgun route is deleted only when it is a different one from the kept row's: if the duplicates share one, nothing is deleted, and if only a removed row had one, the kept row takes it over, so the address never loses its only route.
+ * Every step is safe to run again, so a failure part way is finished by the next start.
+ */
 function dedupeRoutes(ctx: Pick<MailCtx, "db" | "now">): void {
   const live = rowsOf(ctx.db.all(`SELECT * FROM mail_route`)).filter(
     (r) => r.deleted_at === null || r.deleted_at === undefined,
@@ -43,12 +47,16 @@ function dedupeRoutes(ctx: Pick<MailCtx, "db" | "now">): void {
     const k = `${str(r, "domainId")}/${str(r, "localPart")}`;
     groups.set(k, [...(groups.get(k) ?? []), r]);
   }
+  const ext = (id: string): string => {
+    const row = first(ctx.db.all(`SELECT "providerRouteId" FROM mail_route_ext WHERE "routeId" = ?`, id));
+    return row ? str(row, "providerRouteId") : "";
+  };
   for (const rows of groups.values()) {
     if (rows.length < 2) continue;
-    rows.sort((a, b) => (str(a, "id") < str(b, "id") ? -1 : 1));
     const [keep, ...rest] = rows as [Row, ...Row[]];
     const domain = first(ctx.db.all(`SELECT name FROM mail_domain WHERE id = ?`, str(keep, "domainId")));
     const address = `${str(keep, "localPart")}@${domain ? str(domain, "name") : "a domain"}`;
+    let keptRoute = ext(str(keep, "id"));
     for (const r of rest) {
       ctx.db.run(
         `UPDATE mail_route SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
@@ -57,17 +65,19 @@ function dedupeRoutes(ctx: Pick<MailCtx, "db" | "now">): void {
         ctx.now(),
         str(r, "id"),
       );
-      const ext = first(ctx.db.all(`SELECT "providerRouteId" FROM mail_route_ext WHERE "routeId" = ?`, str(r, "id")));
-      if (ext && str(ext, "providerRouteId"))
-        oweProviderRouteDelete(
-          ctx,
-          str(ext, "providerRouteId"),
-          `${address}: the duplicate Mailgun route is being deleted.`,
-        );
+      const theirs = ext(str(r, "id"));
+      if (!theirs || theirs === keptRoute) continue; // nothing of its own, or the very route the kept row uses
+      if (!keptRoute) {
+        // the kept row had no provider route: it takes this one over, so mail for the address still arrives
+        ctx.db.run(`INSERT INTO mail_route_ext ("routeId", "providerRouteId") VALUES (?, ?)`, str(keep, "id"), theirs);
+        keptRoute = theirs;
+        continue;
+      }
+      oweProviderRouteDelete(ctx, theirs, `${address}: the duplicate Mailgun route is being deleted.`);
     }
     noteRemovedDuplicate(
       ctx,
-      `${address} had ${rows.length} routes. The oldest was kept and ${rest.length === 1 ? "the other was" : "the others were"} removed, so mail goes to one inbox only.`,
+      `${address} had ${rows.length} routes. The one that was already receiving mail was kept and ${rest.length === 1 ? "the other was" : "the others were"} removed, so mail goes to one inbox only.`,
     );
   }
 }

@@ -11,7 +11,13 @@ export interface RecheckOut {
   checked: number;
   failed: number;
   stopped: string[];
+  /** checks that could not run: nothing is counted for them, and the next run tries again */
+  unknown: string[];
+  /** looked at within the last day, so not looked at again yet */
+  skipped: number;
 }
+
+const DAY_MS = 23 * 60 * 60_000;
 
 function whyFailed(ctx: MailCtx, id: string, serverOk: boolean | null): string {
   const d = first(ctx.db.all(`SELECT * FROM mail_domain WHERE id = ?`, id));
@@ -23,7 +29,7 @@ function whyFailed(ctx: MailCtx, id: string, serverOk: boolean | null): string {
 
 export async function recheckDomains(ctx: MailCtx): Promise<RecheckOut> {
   ensureAll(ctx);
-  const out: RecheckOut = { checked: 0, failed: 0, stopped: [] };
+  const out: RecheckOut = { checked: 0, failed: 0, stopped: [], unknown: [], skipped: 0 };
   const domains = rowsOf(ctx.db.all(`SELECT * FROM mail_domain WHERE deleted_at IS NULL`)); // a stopped domain is looked at too: when it passes again it is verified again
   let serverOk: boolean | null = null;
   const smtp = domains.some((d) => str(d, "provider") === "smtp");
@@ -37,6 +43,11 @@ export async function recheckDomains(ctx: MailCtx): Promise<RecheckOut> {
     const wasDefault = num(fresh, "isDefault") === 1;
     const someoneIsDefault = (): boolean =>
       first(ctx.db.all(`SELECT id FROM mail_domain WHERE "isDefault" = ? AND deleted_at IS NULL`, 1)) !== null;
+    // a domain whose check finished within the day is left alone; one whose check could not run has no new time on it, so the next run (this job runs every hour) tries it again
+    if (typeof fresh.checkedAt === "number" && ctx.now() - fresh.checkedAt < DAY_MS) {
+      out.skipped += 1;
+      continue;
+    }
     out.checked += 1;
     // a check that cannot run is a failed check, not a pass: the row would still read verified
     let threw = false;
@@ -45,9 +56,14 @@ export async function recheckDomains(ctx: MailCtx): Promise<RecheckOut> {
     } catch {
       threw = true;
     }
+    // a check that could not run says nothing: it is not a pass (strikes stay) and not a failure (no strike), and it is tried again
+    if (threw) {
+      out.unknown.push(id);
+      continue;
+    }
     const now = first(ctx.db.all(`SELECT verified FROM mail_domain WHERE id = ?`, id));
     const serverDown = str(d, "provider") === "smtp" && serverOk === false;
-    if (!threw && !serverDown && now && num(now, "verified") === 1) {
+    if (!serverDown && now && num(now, "verified") === 1) {
       const back = clearStrikes(ctx, id);
       // a domain that was stopped is the default sender again when it passes, unless someone else took the place meanwhile
       if (back.wasStopped && back.wasDefault && !someoneIsDefault())
@@ -56,13 +72,17 @@ export async function recheckDomains(ctx: MailCtx): Promise<RecheckOut> {
     }
     if (!wasVerified) continue; // already stopped: nothing more to count
     out.failed += 1;
-    const why = threw
-      ? "The check could not be run."
-      : whyFailed(ctx, id, str(d, "provider") === "smtp" ? serverOk : null);
+    const why = whyFailed(ctx, id, str(d, "provider") === "smtp" ? serverOk : null);
     const count = strike(ctx, id, why, { wasDefault });
     if (count >= STRIKES_TO_STOP) {
       out.stopped.push(id);
-      ctx.db.run(`UPDATE mail_domain SET verified = ?, "isDefault" = ?, updated_at = ? WHERE id = ?`, 0, 0, ctx.now(), id);
+      ctx.db.run(
+        `UPDATE mail_domain SET verified = ?, "isDefault" = ?, updated_at = ? WHERE id = ?`,
+        0,
+        0,
+        ctx.now(),
+        id,
+      );
     } else {
       // the first failure is only noted: the domain keeps sending. Put back what the check took away, and the default only if nobody else holds it now
       ctx.db.run(`UPDATE mail_domain SET verified = ?, updated_at = ? WHERE id = ?`, 1, ctx.now(), id);

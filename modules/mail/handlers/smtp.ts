@@ -15,7 +15,7 @@ import { fail } from "../../../host/src/routes/errors.ts";
 import { blockedAddress } from "../../../lib/net-guard.ts";
 import { bad, ensure, first, num, statements, str, strOrNull } from "../projections.ts";
 import type { MailCtx, Row } from "../projections.ts";
-import { clearSmtpStrikes, strikeSmtpDomains } from "./watch.ts";
+import { clearSmtpStrikes, SAME_FAILURE_MS, strike, strikeSmtpDomains } from "./watch.ts";
 
 export type Security = "starttls" | "tls";
 export type SmtpReason = "blocked" | "refused" | "unknown_host" | "address" | "auth" | "tls" | "failed";
@@ -533,8 +533,9 @@ function stopVerified(ctx: MailCtx): void {
     1,
   );
 }
-function recordServerFailure(ctx: MailCtx, message: string): void {
-  strikeSmtpDomains(ctx, message);
+function recordServerFailure(ctx: MailCtx, message: string, domainId?: string): void {
+  if (domainId) strike(ctx, domainId, message, { minGapMs: SAME_FAILURE_MS });
+  else strikeSmtpDomains(ctx, message);
   ctx.db.run(
     `UPDATE mail_smtp SET state = ?, detail = ?, "checkedAt" = ?, updated_at = ? WHERE id = ?`,
     "failed",
@@ -562,6 +563,8 @@ export interface DeliverIn {
   attachments?: { name: string; fileId: string }[];
   /** the mail.send message row, for the per-recipient report */
   rowId?: string;
+  /** the sending domain this message went out through: a failure of the server counts against this domain only */
+  domainId?: string;
   /** the sending domain and where its DKIM key is kept; absent: the message goes out signed by the mail server alone */
   dkim?: { domain: string; selector: string; handle: string };
 }
@@ -629,7 +632,7 @@ export async function smtpDeliver(ctx: MailCtx, m: DeliverIn): Promise<string> {
     if (typeof status === "number" && status >= 400 && status < 500)
       throw fail("provider.rate_limited", ctx.trace.traceId, { message: why.message });
     // a server that cannot be reached by name, refuses the sign-in or fails TLS is not a place mail can go: the domain stops saying verified until it is checked again (a busy or slow server is not that)
-    if (["auth", "unknown_host", "tls"].includes(why.reason)) recordServerFailure(ctx, why.message);
+    if (["auth", "unknown_host", "tls"].includes(why.reason)) recordServerFailure(ctx, why.message, m.domainId);
     throw fail(why.reason === "auth" ? "provider.auth_failed" : "provider.bad_response", ctx.trace.traceId, {
       message: why.message,
     });

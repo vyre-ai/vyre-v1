@@ -128,13 +128,20 @@ export async function routeSet(
   if (existing) {
     routeId = str(existing, "id");
     if (str(existing, "mailboxId") !== input.mailboxId) {
-      ctx.db.run(
-        `UPDATE mail_route SET "mailboxId" = ?, version = ?, updated_at = ? WHERE id = ?`,
+      // conditional: it changes the route only if it still goes where it went when it was read
+      const moved = ctx.db.run(
+        `UPDATE mail_route SET "mailboxId" = ?, version = ?, updated_at = ? WHERE id = ? AND "mailboxId" = ?`,
         input.mailboxId,
         num(existing, "version") + 1,
         now,
         routeId,
+        str(existing, "mailboxId"),
       );
+      if (moved.changes === 0)
+        duplicate(
+          ctx,
+          `${localPart}@${str(domain, "name")} was just changed by someone else. Look again before moving it.`,
+        );
     }
   } else {
     let providerRouteId: string | null = null;
@@ -200,7 +207,12 @@ export async function routeSet(
     } catch (e) {
       // only the address index means "taken": any other constraint failure is a real error and is rethrown
       const said = String(e instanceof Error ? e.message : e);
-      if (/unique/i.test(said) && /mail_route/.test(said)) return lost();
+      // the index is named in postgres messages; sqlite names the two columns
+      if (
+        /unique/i.test(said) &&
+        (/mail_route__address/.test(said) || /mail_route\.domainId, mail_route\.localPart/.test(said))
+      )
+        return lost();
       throw e;
     }
     if (providerRouteId)

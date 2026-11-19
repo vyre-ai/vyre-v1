@@ -60,7 +60,12 @@ export function allWatches(ctx: MailCtx): Watch[] {
  * One more failure. On the second in a row the domain stops being verified (and stops being the default sender). Answers the count.
  * `minGapMs`: a failure that comes close behind the last one is the same bad moment and is not counted again.
  */
-export function strike(ctx: MailCtx, domainId: string, why: string, opts: { minGapMs?: number; wasDefault?: boolean } = {}): number {
+export function strike(
+  ctx: MailCtx,
+  domainId: string,
+  why: string,
+  opts: { minGapMs?: number; wasDefault?: boolean } = {},
+): number {
   ensureWatch(ctx);
   const before = watchOf(ctx, domainId);
   const now = ctx.now();
@@ -74,7 +79,8 @@ export function strike(ctx: MailCtx, domainId: string, why: string, opts: { minG
   const failures = before.failures + 1;
   const dom = first(ctx.db.all(`SELECT "isDefault" FROM mail_domain WHERE id = ?`, domainId));
   // the caller may know better than the row: the check that failed already cleared the default flag
-  const wasDefault = before.wasDefault === true || opts.wasDefault === true || (dom !== null && num(dom, "isDefault") === 1) ? 1 : 0;
+  const wasDefault =
+    before.wasDefault === true || opts.wasDefault === true || (dom !== null && num(dom, "isDefault") === 1) ? 1 : 0;
   if (before.failures > 0)
     ctx.db.run(
       `UPDATE mail_domain_watch SET strikes = ?, why = ?, "checkedAt" = ?, "wasDefault" = ? WHERE "domainId" = ?`,
@@ -94,7 +100,13 @@ export function strike(ctx: MailCtx, domainId: string, why: string, opts: { minG
       wasDefault,
     );
   if (failures >= STRIKES_TO_STOP)
-    ctx.db.run(`UPDATE mail_domain SET verified = ?, "isDefault" = ?, updated_at = ? WHERE id = ?`, 0, 0, now, domainId);
+    ctx.db.run(
+      `UPDATE mail_domain SET verified = ?, "isDefault" = ?, updated_at = ? WHERE id = ?`,
+      0,
+      0,
+      now,
+      domainId,
+    );
   return failures;
 }
 
@@ -109,18 +121,12 @@ export function clearStrikes(ctx: MailCtx, domainId: string): { wasStopped: bool
 /** Every verified domain that sends through the Space's own mail server takes the failure (at most once an hour). */
 export function strikeSmtpDomains(ctx: MailCtx, why: string): void {
   for (const d of rowsOf(
-    ctx.db.all(
-      `SELECT id FROM mail_domain WHERE provider = ? AND verified = ? AND deleted_at IS NULL`,
-      "smtp",
-      1,
-    ),
+    ctx.db.all(`SELECT id FROM mail_domain WHERE provider = ? AND verified = ? AND deleted_at IS NULL`, "smtp", 1),
   ))
     strike(ctx, str(d, "id"), why, { minGapMs: SAME_FAILURE_MS });
 }
 
 export function clearSmtpStrikes(ctx: MailCtx): void {
-  for (const d of rowsOf(
-    ctx.db.all(`SELECT id FROM mail_domain WHERE provider = ? AND deleted_at IS NULL`, "smtp"),
-  ))
+  for (const d of rowsOf(ctx.db.all(`SELECT id FROM mail_domain WHERE provider = ? AND deleted_at IS NULL`, "smtp")))
     clearStrikes(ctx, str(d, "id"));
 }

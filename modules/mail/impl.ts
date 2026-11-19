@@ -105,10 +105,10 @@ const consumersAll = {
   },
 };
 
-/** Once a day: each sending domain's DNS and mail server are looked at again; two failures in a row stop a domain. */
+/** Each sending domain is looked at once a day (the job runs hourly and skips what was checked within 23 hours): each sending domain's DNS and mail server are looked at again; two failures in a row stop a domain. */
 export const periodic = {
   "mail.recheck_domains": {
-    everyMs: 24 * 60 * 60_000,
+    everyMs: 60 * 60_000, // hourly: a domain whose check finished within the day is skipped, one whose check could not run is tried again
     run: (ctx: MailCtx) => recheckDomains(ctx),
   },
   /** Every five minutes: a provider route that had to be deleted and was not is tried again, backing off up to six hours, until it is gone. */

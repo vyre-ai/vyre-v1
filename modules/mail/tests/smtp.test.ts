@@ -823,3 +823,42 @@ test("the Vault list is read page by page, so a short name that matches many ite
   assert.equal(out.configured, true);
   assert.ok(seen.includes("p2"), "the second page was read");
 });
+
+test("two quick send failures stop only the domain whose server failed, and clear the default only if that domain held it", async () => {
+  const { r, w } = await smtpSpace();
+  ensureWatch(r.ctx);
+  // a second smtp domain that is the Space's default, and is not the one sent through
+  r.h.ctx.db.run(
+    `INSERT INTO mail_domain (id, name, provider, spf, dkim, dmarc, verified, "isDefault", records, "checkedAt", version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    "dom_other",
+    "other.test",
+    "smtp",
+    "pass",
+    "pass",
+    "pass",
+    1,
+    0,
+    JSON.stringify({ ref: "other.test", providerVerified: true, records: [] }),
+    NOW,
+    1,
+    NOW,
+    null,
+  );
+  const row = (id: string) => r.h.rows(`SELECT verified, "isDefault" FROM mail_domain WHERE id = ?`, id)[0]!;
+  w.fail = err("EAUTH", { responseCode: 535 });
+  await assert.rejects(() => send(r.ctx, sendIn()));
+  r.h.advance(2 * 60 * 60_000);
+  w.fail = err("EAUTH", { responseCode: 535 });
+  r.h.ctx.db.run(`UPDATE mail_domain SET verified = ? WHERE id = ?`, 1, "dom_vyretest");
+  await assert.rejects(() => send(r.ctx, sendIn()));
+  assert.deepEqual(
+    [Number(row("dom_vyretest")?.verified), Number(row("dom_vyretest")?.isDefault)],
+    [0, 0],
+    "the domain that was sent through stopped",
+  );
+  assert.deepEqual(
+    [Number(row("dom_other")?.verified), Number(row("dom_other")?.isDefault)],
+    [1, 0],
+    "the other domain is untouched",
+  );
+});
