@@ -1951,6 +1951,8 @@ export async function run(ctx: TermCtx, a: RunInput) {
   // The command is recorded when the machine is actually asked to run it: a command refused before that (a handle the person may not use) is not a step.
   let started: { at: number; rowId: number } | null = null;
   let result: { exitCode: number | null; truncated: boolean; durationMs: number } | null = null;
+  // the whole output the host read past what the answer holds (the pane's history, when the host read it): kept for later reads, after the same scrubbing as the answer
+  let fullText: string | undefined;
   let timedOut = false;
   let waitedOut = false;
   // only an agent's command, from its turn, is marked: a command a person runs or types is never interrupted by an agent's Stop. The mark is made before the command waits for its tab, so a
@@ -2018,6 +2020,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
         ...(mark ? { signal: mark.ac.signal } : {}),
       });
       result = { exitCode: r.exitCode, truncated: r.truncated, durationMs: r.durationMs };
+      fullText = r.full;
       return r.output;
     } catch (e) {
       if (e && typeof e === "object" && (e as { code?: unknown }).code === "timeout") timedOut = true;
@@ -2139,7 +2142,8 @@ export async function run(ctx: TermCtx, a: RunInput) {
         terminalId: s.terminalId,
         agentId: s.agentId,
         endedAt: ctx.now(),
-        output,
+        // the whole output when the host read it, else what the answer holds; either way scrubbed here, and again on every read
+        output: fullText !== undefined ? clean(scope, fullText) : output,
       });
     } catch (e) {
       ctx.log.warn("terminal: a command's output was not kept", {

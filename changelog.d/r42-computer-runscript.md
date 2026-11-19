@@ -1,0 +1,1 @@
+- A terminal command now costs one trip into the computer to run instead of several, and its whole output (not just the tail the model sees) is kept for later reads.

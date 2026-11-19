@@ -100,6 +100,8 @@ export interface TmuxOptions {
   maxOutput?: number;
   /** Lines of scrollback read when looking for a command's end. Default 5000. */
   scrollback?: number;
+  /** Run a command through one script inside the machine (type, wait, read, clear) instead of a round trip per look: a host whose exec is a container exec asks for it. Default off. */
+  oneExec?: boolean;
   /** The command a new session runs instead of the default shell (a workspace: a bash with a private umask). */
   shell?: readonly string[];
   /** tmux session names are `<prefix><terminalId>`. Default "vyre-". */
@@ -217,6 +219,48 @@ export async function shellAtPrompt(exec: Exec, target: string): Promise<boolean
 
 /** The tmux host, with the sweep of leftover values buffers for a caller that makes a session itself (a workspace that lost its tmux) or starts using a server. */
 export type TmuxHost = TerminalHost & { sweep(): Promise<void> };
+
+/** The most a command's retained output holds: the answer is cut to `maxOutput`, the kept copy to this (the log's per-command cap is the same). */
+const FULL_MAX = 5 * 1024 * 1024;
+/**
+ * The script of a run, run as `sh -c SCRIPT sh session line end rcOption scrollbackLines deadlineMs cancelFile pollSeconds` in the machine the session lives on. It types the line, then looks at the pane (the screen
+ * and the stored exit code) every pollSeconds until the end marker shows, the exit code is stored, the cancel file appears (the turn was stopped) or the deadline passes; then it prints the screen, the exit
+ * code, how it ended and, when the command ended, the whole history of the pane, and clears the exit-code option. Exit 90 means the line was not typed.
+ */
+export const RUN_SCRIPT = `# vyre-run
+s=$1; line=$2; end=$3; rc=$4; scroll=$5; deadline=$6; cancel=$7; poll=$8
+tmux send-keys -t "$s" -l -- "$line" && tmux send-keys -t "$s" Enter || exit 90
+printf '__VYRE_SENT__\\n' >&2
+t0=$(date +%s%3N); st=wait
+while :; do
+  cap=$(tmux capture-pane -p -J -t "$s" -S "-$scroll")
+  rcv=$(tmux display-message -p -t "$s" "#{$rc}")
+  if printf '%s\n' "$cap" | grep -Eq "^$end:[0-9]+\$"; then st=done; break; fi
+  case $rcv in ''|*[!0-9]*) ;; *) st=done; break;; esac
+  if [ -e "$cancel" ]; then st=cancel; break; fi
+  now=$(date +%s%3N)
+  if [ $((now - t0)) -ge "$deadline" ]; then st=timeout; break; fi
+  sleep "$poll"
+done
+printf '%s\n' "$cap"
+printf '__VYRE_RC__:%s\n__VYRE_DONE__:%s\n' "$rcv" "$st"
+if [ "$st" = done ]; then printf '__VYRE_FULL__\n'; tmux capture-pane -p -J -t "$s" -S -; fi
+tmux set-option -u -q -t "$s" "$rc" 2>/dev/null
+rm -f "$cancel"
+exit 0
+`;
+/** What the script printed, taken apart: the screen, the stored exit code, how it ended, and the whole history when it ended well. Null when it is not the script's output. */
+export function parseRunScript(out: string): { screen: string; rc: string; status: string; full?: string } | null {
+  const at = out.lastIndexOf("__VYRE_RC__:");
+  if (at < 0) return null;
+  const screen = out.slice(0, at);
+  const rest = out.slice(at + "__VYRE_RC__:".length);
+  const m = /^([^\n]*)\n__VYRE_DONE__:(\w+)\n?/.exec(rest);
+  if (!m) return null;
+  const tail = rest.slice(m[0].length);
+  const full = tail.startsWith("__VYRE_FULL__\n") ? tail.slice("__VYRE_FULL__\n".length) : undefined;
+  return { screen, rc: (m[1] ?? "").trim(), status: m[2] ?? "", ...(full === undefined ? {} : { full }) };
+}
 
 export function createTmuxHost(o: TmuxOptions): TmuxHost {
   const now = o.now ?? Date.now;
@@ -425,13 +469,12 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     timeoutMs: number,
     rcOption: string,
     signal?: AbortSignal,
-  ): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
+  ): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number; full?: string }> {
     const t0 = now();
-    await tmux(["send-keys", "-t", session, "-l", "--", line]);
-    await tmux(["send-keys", "-t", session, "Enter"]);
     const endRe = new RegExp(`^${end}:(\\d+)$`, "m");
     const RC = "__VYRE_RC__:";
-    const cut = (lines: string[], code: number) => {
+    /** The output of the command from its begin marker, cut to `limit` characters from the end. */
+    const body = (lines: string[], limit: number): { output: string; truncated: boolean } => {
       let from = -1;
       for (let i = lines.length - 1; i >= 0; i--)
         if (lines[i] === beg) {
@@ -445,15 +488,85 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
           .join("\n"),
       );
       let truncated = from < 0;
-      if (output.length > maxOutput) {
-        output = output.slice(output.length - maxOutput);
+      if (output.length > limit) {
+        output = output.slice(output.length - limit);
         truncated = true;
       }
-      return { exitCode: code, output, truncated, durationMs: now() - t0 };
+      return { output, truncated };
+    };
+    /** `fullScreen`: the whole history of the pane (a run through the script reads it once at the end), from which the retained output is cut: far more than the answer holds. */
+    const cut = (lines: string[], code: number, fullLines?: string[]) => {
+      const { output, truncated } = body(lines, maxOutput);
+      const full = fullLines === undefined ? undefined : body(fullLines, FULL_MAX).output;
+      return { exitCode: code, output, truncated, durationMs: now() - t0, ...(full === undefined ? {} : { full }) };
     };
     let polls = 0;
     const forget = (): Promise<unknown> =>
       o.exec(["tmux", "set-option", "-u", "-q", "-t", session, rcOption]).catch(() => undefined);
+
+    // One exec for the whole run on a host that asks for it (a workspace): type the line, wait for the end marker or the stored exit code inside the container, read the screen and the history once, clear the
+    // exit-code option, and answer. The wait costs no round trips, so a quick command is one exec instead of about seven. Anything unexpected falls back to the polling loop below: a script that could not
+    // type the line (exit 90) lets the loop type it, one that typed it and then failed lets the loop go on watching without typing again.
+    let sent = false;
+    if (o.oneExec === true) {
+      const cancel = `/tmp/.vyre-cancel-${end}`;
+      const onAbort = (): void => void o.exec(["sh", "-c", ': > "$1"', "sh", cancel]).catch(() => undefined);
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener("abort", onAbort, { once: true });
+      let r: ExecResult | null = null;
+      try {
+        r = await o.exec([
+          "sh",
+          "-c",
+          RUN_SCRIPT,
+          "sh",
+          session,
+          line,
+          end,
+          rcOption,
+          String(Math.max(1, scrollback)),
+          String(Math.max(1000, timeoutMs)),
+          cancel,
+          "0.02",
+        ]);
+      } catch {
+        sent = true;
+      } finally {
+        signal?.removeEventListener("abort", onAbort);
+      }
+      if (r !== null) {
+        const parsed = parseRunScript(r.stdout);
+        // typed when the script said so (or answered); a machine that does not run the script at all (no sh, an exec that refuses) typed nothing, and the loop types the line
+        sent = r.stderr.includes("__VYRE_SENT__") || parsed !== null;
+        if (parsed !== null) {
+          const screen = tidy(parsed.screen);
+          // the history ends at the end marker, like the screen: what follows (the next prompt, the empty rows of the screen) is not the command's
+          const fullTidy = parsed.full === undefined ? undefined : tidy(parsed.full);
+          const fm = fullTidy === undefined ? null : endRe.exec(fullTidy);
+          const fullLines =
+            fullTidy === undefined
+              ? undefined
+              : (fm && fm.index !== undefined ? fullTidy.slice(0, fm.index) : fullTidy).split("\n");
+          const m = endRe.exec(screen);
+          if (m && m.index !== undefined) return cut(screen.slice(0, m.index).split("\n"), Number(m[1]), fullLines);
+          if (/^\d+$/.test(parsed.rc)) return cut(screen.split("\n"), Number(parsed.rc), fullLines);
+          if (parsed.status === "cancel") {
+            await stopIn(session);
+            await forget();
+            const c = cut(screen.split("\n"), 130);
+            return { ...c, output: `${c.output}\n${STOPPED_LINE}`.trim() };
+          }
+          if (parsed.status === "timeout") {
+            await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
+            throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
+          }
+        }
+      }
+    }
+    if (!sent) {
+      await tmux(["send-keys", "-t", session, "-l", "--", line]);
+      await tmux(["send-keys", "-t", session, "Enter"]);
+    }
     for (;;) {
       // the screen and the stored exit code in one tmux call
       const both = tidy(
@@ -478,7 +591,6 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       const screen = tidy(at >= 0 ? both.slice(0, at) : both);
       const m = endRe.exec(screen);
       if (m && m.index !== undefined) {
-        // the option's name is this run's own (its nonce), so clearing it is housekeeping no later command waits for
         await forget();
         return cut(screen.slice(0, m.index).split("\n"), Number(m[1]));
       }
@@ -496,7 +608,6 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
         await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
         throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
       }
-      // the first looks come quickly (most commands end at once), then at the poll interval
       // the first looks come quickly (most commands end at once), then at the poll interval
       polls += 1;
       await sleep(polls <= 2 ? Math.min(10, pollMs) : pollMs);

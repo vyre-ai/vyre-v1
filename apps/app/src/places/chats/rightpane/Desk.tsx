@@ -332,6 +332,16 @@ export function Desk({
   }, [watching]);
   const drawn = watching && seen === null && showsCursor(ptr, clock) && ptr ? drawnAt(ptr, stage) : null;
 
+  // the full view takes the keyboard: the control that opened it (the picture in the pane) would otherwise keep the focus under the scrim, and F, T and Esc would find a button outside the desk focused and leave the press to it
+  useEffect(() => {
+    if (!full || Platform.OS !== "web") return;
+    const doc = (
+      globalThis as { document?: { activeElement?: { blur?: () => void; closest?: (s: string) => unknown } | null } }
+    ).document;
+    const a = doc?.activeElement;
+    if (a && typeof a.blur === "function" && !a.closest?.('[data-testid="desk"]')) a.blur();
+  }, [full]);
+
   const e = edgesOf(mode, win);
   const head = browserHead(view);
   const bar = barOf(view, name, mine, Date.now() - t0.current);

@@ -103,7 +103,7 @@ export interface TerminalHost {
       timeoutMs: number;
       signal?: AbortSignal;
     },
-  ): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }>;
+  ): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number; full?: string }>;
   status(
     terminalIds: readonly string[],
   ): Promise<Array<{ terminalId: string; state: TermState; lastLine?: string; exitCode: number | null }>>;

@@ -262,3 +262,34 @@ test("access: a person who may not read the terminal is refused (list and read),
     "secret-ish",
   );
 });
+
+test("when the host read the whole history, that is what is kept (scrubbed), far more than the answer holds; the answer itself is unchanged", async () => {
+  const KEY = "sk-live-ABCDEF123456";
+  const whole = Array.from(
+    { length: 800 },
+    (_, i) => `row ${i}${i === 3 ? ` token ${"sk-live-ABCDEF123456"}` : ""}`,
+  ).join("\n");
+  const { hn } = setup({ build: { exitCode: 0, output: "row 799", full: whole } });
+  bindValues(fakeValues({ "#Dana_Lawmatics.api_key": KEY }));
+  try {
+    // the value is known to the scope because this agent used it once in this tab
+    await runIt(hn, "build");
+    const r = await runIt(hn, "build");
+    assert.equal(r.output, "row 799");
+    const body = String(hn.rows("SELECT body FROM terminal_cmd_log WHERE seq = ?", r.commandId)[0]?.["body"]);
+    assert.equal(body.split("\n").length, 800, "the whole history, not the answer");
+    const rd = await call(hn, "terminal.log.read", {
+      terminalId: r.terminalId,
+      commandId: r.commandId,
+      from: 1,
+      to: 5,
+    });
+    assert.deepEqual(
+      rd.lines.map((x: { n: number }) => x.n),
+      [1, 2, 3, 4, 5],
+    );
+    assert.equal(rd.totalLines, 800);
+  } finally {
+    bindValues(null);
+  }
+});
