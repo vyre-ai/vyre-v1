@@ -289,6 +289,7 @@ export default defineManifest({
         name: t.opt(t.str()),
         owner: t.str(),
         parentRun: t.opt(id.run),
+        parentThread: t.opt(id.thread),
         threadId: t.opt(id.thread),
         whoKind: t.opt(t.str()),
         whoId: t.opt(t.str()),

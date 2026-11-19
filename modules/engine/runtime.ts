@@ -23,6 +23,7 @@ import { screenAnswer, settleAnswer } from "./answer-audience.ts";
 import { ANSWER_HELD } from "../../agent/src/turn-engine/engine.ts";
 import { clearReads } from "../../host/src/seams/answer-reads.ts";
 import { createCrewWatcher } from "./crew-watch.ts";
+import { createNodeMirror } from "./node-mirror.ts";
 import { createBackground } from "./background.ts";
 import { backgroundLine } from "./own-subagents.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
@@ -1354,6 +1355,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
     // Every turn this engine runs is reported to engine.turn.record under the engine's own id, in order per turn, so the turn list, review sampling and the agent's Working status see it.
     const recording = new Map<string, Promise<void>>();
+    // every turn is also a node of the Run tree (node-mirror.ts); it never holds a turn up
+    const mirror = createNodeMirror({ call: h.call, ...(h.log ? { log: h.log } : {}) });
     const report = (
       turnId: string,
       ev: Extract<
@@ -1401,6 +1404,10 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         // who stopped it travels with it: the turn's record names them (engine.turn.get), as the chat's stopped line does
         ...(ev.type === "turn.cancelled" && ev.stoppedBy ? { stoppedBy: ev.stoppedBy } : {}),
       };
+      void mirror.turn(turn, phase, {
+        ...(ev.type === "turn.failed" ? { code: ev.code, message: ev.message } : {}),
+        ...(ev.type === "turn.cancelled" && typeof ev.reason === "string" ? { reason: ev.reason } : {}),
+      });
       const done = (recording.get(turnId) ?? Promise.resolve())
         .then(() => h.call("engine.turn.record", input, turn.asker))
         .then(
@@ -1517,6 +1524,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       }
       // a turn a dead host left is not in this engine's rows: its record is closed from what recover() knows, so the turn list, Try again and the agent's Working status are right
       if (ev.type === "turn.failed" && ev.code === "host_lost") {
+        void mirror.turn({ id: ev.turnId, threadId: ev.threadId, agentId: ev.agentId, ...(ev.asker ? { asker: ev.asker } : {}) }, "failed", { code: ev.code, message: "The server stopped while this turn was working." });
         void h
           .call(
             "engine.turn.record",
@@ -1539,6 +1547,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           );
       } else if (ev.type === "turn.cancelled" && ev.asker !== undefined) {
         // a stopped turn a dead host left: its record is closed as cancelled from what recover() knows, as host_lost is above
+        void mirror.turn({ id: ev.turnId, threadId: ev.threadId, agentId: ev.agentId, asker: ev.asker }, "cancelled", { reason: ev.reason });
         void h
           .call(
             "engine.turn.record",

@@ -35801,6 +35801,7 @@ export type RunsNodeStartIn = {
   name?: string;
   owner: string;
   parentRun?: string;
+  parentThread?: string;
   threadId?: string;
   whoKind?: string;
   whoId?: string;

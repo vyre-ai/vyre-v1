@@ -47,11 +47,11 @@ export const NODE_STATUSES: readonly NodeStatus[] = [
 export const isTerminal = (s: NodeStatus): boolean => s === "succeeded" || s === "failed" || s === "stopped";
 export const isLive = (s: NodeStatus): boolean => !isTerminal(s);
 
-/** The legal edges. Terminal states have none: a retry is a new attempt on a new node. waiting goes to queued, never straight to running: a woken node passes the scheduler again (budget, slots, dependencies). */
+/** The legal edges. Terminal states have none: a retry is a new attempt on a new node. waiting goes to queued, never straight to running: a woken node passes the scheduler again (budget, slots, dependencies). waiting may end succeeded: a parked turn is over when its wake starts a turn of its own. */
 export const EDGES: Readonly<Record<NodeStatus, readonly NodeStatus[]>> = {
   queued: ["running", "paused", "stopped", "failed"],
   running: ["waiting", "paused", "succeeded", "failed", "stopped", "queued"],
-  waiting: ["queued", "paused", "stopped", "failed"],
+  waiting: ["queued", "paused", "stopped", "failed", "succeeded"],
   paused: ["queued", "stopped", "failed"],
   succeeded: [],
   failed: [],
@@ -342,6 +342,8 @@ export interface StartInput {
   name?: string | undefined;
   owner: string;
   parentRun?: string | undefined;
+  /** the parent is whichever turn of this chat is working now (a helper started by a turn names the chat it was started from); ignored when parentRun is given, and no live turn there means the node is a root */
+  parentThread?: string | undefined;
   threadId?: string | undefined;
   whoKind?: string | undefined;
   whoId?: string | undefined;
@@ -364,8 +366,16 @@ export function startNode(ctx: RunsCtx, i: StartInput): { node: Node; created: b
   }
   let root: string | undefined;
   let depth = 0;
-  if (i.parentRun !== undefined) {
-    const p = findNode(ctx.db, i.parentRun);
+  let parentRun = i.parentRun;
+  if (parentRun === undefined && i.parentThread !== undefined) {
+    const live = (ctx.db.all(
+      "SELECT run_id FROM runs_node WHERE thread_id = ? AND kind = 'turn' AND status IN ('running','waiting') ORDER BY started_at DESC, run_id DESC LIMIT 1",
+      i.parentThread,
+    ) as Row[])[0];
+    if (live) parentRun = String(live["run_id"]);
+  }
+  if (parentRun !== undefined) {
+    const p = findNode(ctx.db, parentRun);
     if (!p) raise(ctx, "validation.bad_input", "The parent run is not there.", { reason: "no_parent" });
     if (isTerminal(p.status))
       raise(ctx, "validation.precondition_failed", "That run has finished; it takes no new work.", {
@@ -384,7 +394,7 @@ export function startNode(ctx: RunsCtx, i: StartInput): { node: Node; created: b
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     root ?? id,
-    nul(i.parentRun),
+    nul(parentRun),
     depth,
     i.kind,
     nul(i.name),

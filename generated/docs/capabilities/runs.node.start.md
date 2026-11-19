@@ -29,6 +29,7 @@ type In = {
   name?: string;
   owner: string;
   parentRun?: string;
+  parentThread?: string;
   threadId?: string;
   whoKind?: string;
   whoId?: string;
@@ -120,6 +121,7 @@ type Out = {
     "origin": {},
     "owner": "example",
     "parentRun": "run_a1b2c3",
+    "parentThread": "thr_a1b2c3",
     "policy": {},
     "running": true,
     "threadId": "thr_a1b2c3",

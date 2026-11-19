@@ -809,6 +809,7 @@ if ("kind" in o5748) lf(o5748["kind"], p + "/kind", e, L424);
 if ("name" in o5748) lf(o5748["name"], p + "/name", e, L1);
 if ("owner" in o5748) lf(o5748["owner"], p + "/owner", e, L1);
 if ("parentRun" in o5748) lf(o5748["parentRun"], p + "/parentRun", e, L34);
+if ("parentThread" in o5748) lf(o5748["parentThread"], p + "/parentThread", e, L13);
 if ("threadId" in o5748) lf(o5748["threadId"], p + "/threadId", e, L13);
 if ("whoKind" in o5748) lf(o5748["whoKind"], p + "/whoKind", e, L1);
 if ("whoId" in o5748) lf(o5748["whoId"], p + "/whoId", e, L1);
