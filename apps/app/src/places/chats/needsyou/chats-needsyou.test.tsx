@@ -720,7 +720,7 @@ test("a held send of a preview copy shows the server's sentence on the Needs-you
       noteSigners: ["Andrea Lindahl", "Sam Okafor"],
     },
   };
-  const view = noteView(held);
+  const view = noteView(held, true);
   assert.deepEqual(view, {
     type: "note",
     text: (held.data as { note: string }).note,
@@ -732,20 +732,28 @@ test("a held send of a preview copy shows the server's sentence on the Needs-you
     /preview copy of the file for signature\. It&#x27;s in the plain page look, not the Word template&#x27;s layout\. Allow sends it as it is\./,
   );
   assert.match(out, /To: Andrea Lindahl, Sam Okafor/);
-  assert.equal(noteView({ type: "file", v: 1, data: { act: "signature_send", cap: "esign.send", input: {} } }), null);
-  assert.equal(noteView({ type: "table", v: 1, data: { columns: [], rows: [] } }), null);
+  assert.equal(
+    noteView({ type: "file", v: 1, data: { act: "signature_send", cap: "esign.send", input: {} } }, true),
+    null,
+  );
+  // the same block on a task nobody at the Gate made is the author's own data: no note, no held-act lines
+  assert.equal(noteView(held, false), null);
+  assert.equal(blockView(held, false).type, "line");
+  assert.equal(noteView({ type: "table", v: 1, data: { columns: [], rows: [] } }, true), null);
 });
 
 test("a held signature send is drawn as its own lines, not as the bare word file", () => {
-  const view = blockView({
-    type: "file",
-    v: 1,
-    data: {
-      act: "signature_send",
-      cap: "esign.send",
-      input: { subject: "Service agreement", message: "Please sign by Friday" },
+  const view = blockView(
+    {
+      type: "file",
+      v: 1,
+      data: {
+        act: "signature_send",
+        cap: "esign.send",
+        input: { subject: "Service agreement", message: "Please sign by Friday" },
+      },
     },
-  });
-  assert.equal(view.type, "quote");
+    true,
+  );
   assert.match(JSON.stringify(view), /Please sign by Friday/);
 });

@@ -9,13 +9,15 @@ import { blockView, noteView } from "../../../apps/app/src/places/chats/needsyou
 
 export const title = "Approval card, preview copy";
 
-const NOTE = "This sends a preview copy of the file for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.";
+const NOTE =
+  "This sends a preview copy of the file for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.";
 const task = (plain: boolean) => ({
   task: {
     id: "tsk_9",
     kind: "approve",
     title: "Approve: Send a document for signature",
     state: "awaiting_approval",
+    source: { kind: "gate", id: "gh_1" },
     blocks: [
       {
         type: "file",
@@ -23,7 +25,11 @@ const task = (plain: boolean) => ({
         data: {
           act: "signature_send",
           cap: "esign.send",
-          input: { fileId: "fil_1", signers: [{ name: "Andrea Lindahl" }, { name: "Sam Okafor" }], ...(plain ? { plainOk: true } : {}) },
+          input: {
+            fileId: "fil_1",
+            signers: [{ name: "Andrea Lindahl" }, { name: "Sam Okafor" }],
+            ...(plain ? { plainOk: true } : {}),
+          },
           ...(plain ? { note: NOTE, noteSigners: ["Andrea Lindahl", "Sam Okafor"] } : {}),
         },
       },
@@ -39,10 +45,18 @@ export default function Mount(): ReactNode {
   const height = useWindowDimensions().height;
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => {
-    setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "plain");
+    setPart(
+      new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+        "plain",
+    );
   }, []);
   const data = {
-    call: async (cap: string) => (cap === "tasks.get" ? task(part !== "ordinary") : cap === "files.get" ? { file: { name: "Service agreement.pdf" } } : {}),
+    call: async (cap: string) =>
+      cap === "tasks.get"
+        ? task(part !== "ordinary")
+        : cap === "files.get"
+          ? { file: { name: "Service agreement.pdf" } }
+          : {},
     nav: { openBeside: () => undefined },
     threadId: "thr_1",
     changes: { subscribe: () => () => undefined },
@@ -50,11 +64,11 @@ export default function Mount(): ReactNode {
   if (part === "needs") {
     // the Needs-you detail draws each block of the task through TaskBlock: the note first, then the act's own lines
     const block = task(true).task.blocks[0]!;
-    const quiet = noteView(block as never);
+    const quiet = noteView(block as never, true);
     return (
       <View style={{ height, padding: 24, gap: 8, backgroundColor: "var(--win)" as string }}>
         {quiet ? <TaskBlock view={quiet} /> : null}
-        <TaskBlock view={blockView(block as never)} />
+        <TaskBlock view={blockView(block as never, true)} />
       </View>
     );
   }

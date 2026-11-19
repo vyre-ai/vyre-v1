@@ -562,6 +562,7 @@ test("a held send of a preview copy shows the server's sentence quietly under th
       kind: "approve",
       title: "Approve: Send a document for signature",
       state: "awaiting_approval",
+      source: { kind: "gate", id: "gh_1" },
       blocks: [
         {
           type: "file",

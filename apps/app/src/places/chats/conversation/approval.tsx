@@ -490,7 +490,7 @@ export function ApprovalCard({
         title={headline}
         lead={<Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />}
       />
-      {held.note ? (
+      {held.note && task.source?.kind === "gate" ? (
         <HoldNote note={held.note} names={held.noteSigners} testID={`approval-note-${taskId}`} inset={CARD_INSET} />
       ) : null}
       {diff && diff.lines.length > 0 ? (

@@ -472,7 +472,8 @@ function Detail({
   else
     for (const [i, b] of t.blocks.entries())
       if (b.type !== "vault_request" && b.type !== "access_request" && b.type !== "connection_fix") {
-        const quiet = noteView(b);
+        const fromGate = t.source?.kind === "gate";
+        const quiet = noteView(b, fromGate);
         if (quiet) blockNodes.push(<Block key={`note-${i}`} view={quiet} />);
         blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
       }
