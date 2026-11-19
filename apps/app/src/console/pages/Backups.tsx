@@ -75,7 +75,7 @@ function Encryption(): ReactElement {
               confirmLabel="Turn encryption off"
               disabled={action.busy}
               onConfirm={() =>
-                void action
+                action
                   .run(
                     "settings.set_space",
                     { key: "backup.encrypt", value: false },
@@ -343,7 +343,7 @@ export function Backups(): ReactElement {
           confirmLabel="Confirm backup deletion"
           disabled={action.busy}
           onConfirm={() =>
-            void action
+            action
               .run<CapMap["backup.delete"]["out"]>("backup.delete", { backupId: remove }, (out) =>
                 out.deleted ? "Backup deleted." : "The backup was not deleted.",
               )

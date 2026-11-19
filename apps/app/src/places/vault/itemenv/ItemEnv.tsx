@@ -572,9 +572,7 @@ export function ItemEnv({
               confirmLabel="Move to Trash"
               confirmTestID="item-delete-yes"
               cancelTestID="item-delete-no"
-              onConfirm={() => {
-                void trash();
-              }}
+              onConfirm={() => trash()}
               onCancel={() => setConfirmDelete(false)}
             />
           ) : null}

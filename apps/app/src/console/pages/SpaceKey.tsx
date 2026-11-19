@@ -156,7 +156,7 @@ export function SpaceKey({
                 confirmTestID="space-key-remove-yes"
                 cancelTestID="space-key-remove-cancel"
                 onConfirm={() =>
-                  void action
+                  action
                     .run("providers.space_key.remove", {}, "Space AI key removed")
                     .then(() => setConfirm(false))
                 }

@@ -203,9 +203,7 @@ export function ProviderPage({
             confirmLabel={ask === "trash" ? "Move to Trash" : "Disconnect"}
             confirmTestID="provider-confirm-yes"
             cancelTestID="provider-confirm-no"
-            onConfirm={() => {
-              void (ask === "trash" ? trash() : disconnect());
-            }}
+            onConfirm={() => (ask === "trash" ? trash() : disconnect())}
             onCancel={() => setAsk(null)}
           />
         ) : null}

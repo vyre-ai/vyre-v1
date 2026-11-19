@@ -154,7 +154,7 @@ export function Network(): ReactElement {
                 confirmTestID="infra-network-confirm"
                 disabled={action.busy}
                 danger={review.kind === "remove"}
-                onConfirm={() => void confirm()}
+                onConfirm={() => confirm()}
                 onCancel={() => setReview(null)}
               />
             </>

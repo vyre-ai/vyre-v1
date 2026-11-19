@@ -105,7 +105,7 @@ export function PersonLifecycle({ personId, refresh }: { personId: string; refre
                   confirmTestID="person-suspend-confirm"
                   disabled={action.busy}
                   onConfirm={() =>
-                    void action
+                    action
                       .run(
                         "members.suspend",
                         { personId, ...(reason.trim() ? { reason: reason.trim() } : {}) },
@@ -224,7 +224,7 @@ function RemovalPlan({
             confirmTestID="person-remove-confirm"
             disabled={action.busy || invalid}
             onConfirm={() =>
-              void action
+              action
                 .run(
                   "members.remove",
                   { personId, plan, ...(reason.trim() ? { reason: reason.trim() } : {}) },

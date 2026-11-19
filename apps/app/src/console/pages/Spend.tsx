@@ -237,7 +237,7 @@ function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): Rea
                     danger={false}
                     disabled={action.busy}
                     onConfirm={() =>
-                      void action
+                      action
                         .run("engine.spend.caps.set", { ...input, caps: reviewedCaps }, async () => {
                           const readback = (await data.call(
                             "engine.spend.get",
@@ -331,7 +331,7 @@ function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): Rea
                     confirmLabel="Confirm pause"
                     disabled={action.busy}
                     onConfirm={() =>
-                      void action
+                      action
                         .run(
                           "engine.spend.pause_all",
                           pauseReason.trim() ? { reason: pauseReason.trim() } : {},
@@ -420,7 +420,7 @@ function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): Rea
                 confirmLabel="Confirm raise"
                 disabled={action.busy}
                 onConfirm={() =>
-                  void action.run("engine.spend.raise", reviewedRaise, "Limit raised").then((out) => {
+                  action.run("engine.spend.raise", reviewedRaise, "Limit raised").then((out) => {
                     if (out) setReviewedRaise(null);
                   })
                 }

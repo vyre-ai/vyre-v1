@@ -473,7 +473,7 @@ export function HooksPage(): ReactElement {
               disabled={action.busy}
               confirmTestID="hook-remove-confirm"
               cancelTestID="hook-remove-cancel"
-              onConfirm={() => void remove(removing)}
+              onConfirm={() => remove(removing)}
               onCancel={() => setConfirm("")}
             />
           </>

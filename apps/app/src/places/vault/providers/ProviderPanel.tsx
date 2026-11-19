@@ -231,7 +231,7 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
               cancelLabel="Keep"
               confirmTestID="provider-remove-yes"
               cancelTestID="provider-remove-no"
-              onConfirm={() => void remove()}
+              onConfirm={() => remove()}
               onCancel={() => setAsking(false)}
             />
           ) : (

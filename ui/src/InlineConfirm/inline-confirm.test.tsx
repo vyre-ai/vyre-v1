@@ -5,6 +5,7 @@ import { createRoot } from "test-renderer";
 import { renderToStaticMarkup } from "react-dom/server";
 import { find, flush, installDom, mount, press } from "../testing/dom.ts";
 import { escapeLayers } from "../Overlay/escape.ts";
+import { useState } from "react";
 import { InlineConfirm, step } from "./index.tsx";
 import type { ConfirmEvent, ConfirmState } from "./logic.ts";
 
@@ -118,6 +119,102 @@ test("a delete that failed and left the strip open can be tried again: press, fa
     await press(find(root, "ic-go"));
     await flush();
     assert.deepEqual(log, ["delete", "delete", "cancel"], "after Cancel nothing fires, however long it waits");
+  } finally {
+    restore();
+  }
+});
+
+test("a slow action never fires twice: with a promise the strip arms again only when it settles", async () => {
+  const restore = installDom();
+  try {
+    const log: string[] = [];
+    const root = await mount(
+      createRoot,
+      <InlineConfirm
+        question="Delete?"
+        confirmLabel="Delete"
+        armMs={40}
+        onConfirm={() => {
+          log.push("delete");
+          return new Promise<void>((r) => setTimeout(r, 250)); // a request that takes much longer than the wait
+        }}
+        onCancel={() => log.push("cancel")}
+        confirmTestID="ic-go"
+        cancelTestID="ic-cancel"
+      />,
+    );
+    await wait(80);
+    await press(find(root, "ic-go"));
+    await wait(120); // past the wait, the request still running
+    await press(find(root, "ic-go"));
+    await press(find(root, "ic-go"));
+    await flush();
+    assert.deepEqual(log, ["delete"], "a second press during the request fires nothing");
+    await wait(300);
+    await press(find(root, "ic-go"));
+    await flush();
+    assert.deepEqual(log, ["delete", "delete"], "the request ended and the strip is still here: it can be tried again");
+  } finally {
+    restore();
+  }
+});
+
+test("a caller that shows its work with busy holds the strip until busy ends", async () => {
+  const restore = installDom();
+  try {
+    const log: string[] = [];
+    function Host(): ReturnType<typeof InlineConfirm> {
+      const [busy, setBusy] = useState(false);
+      return (
+        <InlineConfirm
+          question="Delete?"
+          confirmLabel="Delete"
+          armMs={40}
+          busy={busy}
+          onConfirm={() => {
+            log.push("delete");
+            setBusy(true);
+            setTimeout(() => setBusy(false), 250);
+          }}
+          onCancel={() => log.push("cancel")}
+          confirmTestID="ic-go"
+        />
+      );
+    }
+    const root = await mount(createRoot, <Host />);
+    await wait(80);
+    await press(find(root, "ic-go"));
+    await wait(120);
+    await press(find(root, "ic-go"));
+    await flush();
+    assert.deepEqual(log, ["delete"], "still busy after the wait: no second delete");
+    await wait(300);
+    await press(find(root, "ic-go"));
+    await flush();
+    assert.deepEqual(log, ["delete", "delete"], "busy ended: armed again");
+  } finally {
+    restore();
+  }
+});
+
+test("Cancel stops the arm timer: afterwards Delete stays disabled however long the strip is left mounted", async () => {
+  const restore = installDom();
+  try {
+    const root = await mount(
+      createRoot,
+      <InlineConfirm
+        question="Delete?"
+        confirmLabel="Delete"
+        armMs={80}
+        onConfirm={() => undefined}
+        onCancel={() => undefined}
+        confirmTestID="ic-go"
+        cancelTestID="ic-cancel"
+      />,
+    );
+    await press(find(root, "ic-cancel")); // cancelled while still wary
+    await wait(200);
+    assert.equal(find(root, "ic-go")?.props["aria-disabled"], true, "Delete never looks live after a cancel");
   } finally {
     restore();
   }

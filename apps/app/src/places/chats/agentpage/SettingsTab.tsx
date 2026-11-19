@@ -288,7 +288,7 @@ export function SettingsTab({
                   confirmTestID="trash-yes"
                   cancelTestID="trash-no"
                   onConfirm={() =>
-                    void moveToTrash(deps, agentId, name).then((ok) => {
+                    moveToTrash(deps, agentId, name).then((ok) => {
                       setTrash(false);
                       if (ok) data.nav.closePage();
                     })

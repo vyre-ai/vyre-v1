@@ -220,7 +220,7 @@ export function AgentsRegister({ initialAgentId = null }: { initialAgentId?: str
           }
           confirmLabel="Confirm deletion"
           disabled={action.busy || picked.size === 0}
-          onConfirm={() => void deletePicked()}
+          onConfirm={() => deletePicked()}
           onCancel={() => setBulkConfirm(false)}
         />
       ) : null}
@@ -409,7 +409,7 @@ export function PeoplesAgents(): ReactElement | null {
                     confirmTestID="person-pause-yes"
                     cancelTestID="person-pause-cancel"
                     onConfirm={() =>
-                      void action
+                      action
                         .run(
                           "agents.pause_person",
                           { personId: p.personId, paused: true },
@@ -920,7 +920,7 @@ export function OutsideActors({ initialActorId = null }: { initialActorId?: stri
           }
           confirmLabel="Confirm revoke"
           disabled={action.busy || picked.size === 0}
-          onConfirm={() => void revokePicked()}
+          onConfirm={() => revokePicked()}
           onCancel={() => setBulkConfirm(false)}
         />
       ) : null}
@@ -1330,7 +1330,7 @@ export function AgentComputers({ initialComputerId = null }: { initialComputerId
           }
           confirmLabel="Confirm removal"
           disabled={action.busy || picked.size === 0}
-          onConfirm={() => void removePicked()}
+          onConfirm={() => removePicked()}
           onCancel={() => setBulkConfirm(false)}
         />
       ) : null}

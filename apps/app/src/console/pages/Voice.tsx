@@ -292,7 +292,7 @@ export function VoiceSettings(): ReactElement {
                 confirmLabel="Remove from the Vault"
                 confirmTestID="voice-remove-yes"
                 cancelTestID="voice-remove-cancel"
-                onConfirm={() => void action.run("talk.space.disconnect", {}, "Key removed").then(() => setGone(false))}
+                onConfirm={() => action.run("talk.space.disconnect", {}, "Key removed").then(() => setGone(false))}
                 onCancel={() => setGone(false)}
               />
             ) : (

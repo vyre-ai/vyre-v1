@@ -97,7 +97,7 @@ function Services(): ReactElement {
               disabled={action.busy}
               confirmTestID="infra-restart-confirm"
               onConfirm={() =>
-                void action
+                action
                   .run<CapMap["health.service_restart"]["out"]>(
                     "health.service_restart",
                     { service: confirm },

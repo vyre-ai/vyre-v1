@@ -57,7 +57,7 @@ export function Devices(): ReactElement {
             disabled={action.busy}
             confirmTestID="console-revoke-confirm"
             onConfirm={() =>
-              void action
+              action
                 .run(
                   confirm.kind === "device" ? "devices.revoke" : "devices.sessions.revoke",
                   confirm.kind === "device" ? { deviceId: confirm.id } : { sessionId: confirm.id },

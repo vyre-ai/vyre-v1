@@ -130,7 +130,7 @@ export function PersonReset({
                   confirmLabel="Create one-time reset code"
                   confirmTestID="person-reset-confirm"
                   disabled={action.busy}
-                  onConfirm={() => void issue()}
+                  onConfirm={() => issue()}
                   onCancel={() => setReview(false)}
                 />
               </>

@@ -768,7 +768,7 @@ export function CiRunnersPage(): ReactElement {
             confirmTestID="ci-off-yes"
             cancelTestID="ci-off-cancel"
             disabled={action.busy}
-            onConfirm={() => void set({ enabled: false }, "CI runners are off").then(() => setConfirmOff(false))}
+            onConfirm={() => set({ enabled: false }, "CI runners are off").then(() => setConfirmOff(false))}
             onCancel={() => setConfirmOff(false)}
           />
         </Group>

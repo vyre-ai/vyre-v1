@@ -165,7 +165,7 @@ function ReviewList({
                 danger={false}
                 disabled={busy}
                 onConfirm={() =>
-                  void onRun(
+                  onRun(
                     "settings.set_space",
                     { key: "engine.review_sampling", value: sampling() },
                     "Review sampling updated",

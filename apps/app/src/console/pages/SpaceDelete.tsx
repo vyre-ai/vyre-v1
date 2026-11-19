@@ -77,7 +77,7 @@ function Transfer({ onDone }: { onDone: () => void }): ReactElement {
             confirmTestID="transfer-confirm"
             cancelTestID="transfer-cancel"
             onConfirm={() =>
-              void action.run("spaces.transfer_ownership", { to }, `${data.name(to)} is the Owner now.`).then((out) => {
+              action.run("spaces.transfer_ownership", { to }, `${data.name(to)} is the Owner now.`).then((out) => {
                 if (out) setTo("");
               })
             }
@@ -232,7 +232,6 @@ function Delete({ space, onDone }: { space: CapMap["spaces.get"]["out"]["space"]
               />
             )}
           </Group>
-          <TextBox label={`Type ${name} to confirm`} testID="delete-name" value={typed} onChange={setTyped} />
           <InlineConfirm
             question={
               <>Deletion happens after 14 days and you can cancel until then. Everyone keeps working until the date.</>
@@ -249,7 +248,7 @@ function Delete({ space, onDone }: { space: CapMap["spaces.get"]["out"]["space"]
             confirmTestID="delete-confirm"
             cancelTestID="delete-cancel"
             onConfirm={() =>
-              void action
+              action
                 .run(
                   "spaces.delete",
                   { confirmName: typed.trim(), ...(!exported && skip ? { withoutExport: true } : {}) },
@@ -263,7 +262,9 @@ function Delete({ space, onDone }: { space: CapMap["spaces.get"]["out"]["space"]
                 })
             }
             onCancel={() => setOpen(false)}
-          />
+          >
+            <TextBox label={`Type ${name} to confirm`} testID="delete-name" value={typed} onChange={setTyped} />
+          </InlineConfirm>
         </View>
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}
@@ -292,7 +293,7 @@ function Leave(): ReactElement {
             disabled={action.busy}
             confirmTestID="leave-confirm"
             cancelTestID="leave-cancel"
-            onConfirm={() => void action.run("spaces.leave", { confirm: true }, "You left the Space.")}
+            onConfirm={() => action.run("spaces.leave", { confirm: true }, "You left the Space.")}
             onCancel={() => setOpen(false)}
           />
         </>

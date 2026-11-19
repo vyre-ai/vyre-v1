@@ -22,7 +22,8 @@ export interface InlineConfirmProps {
   note?: ReactNode;
   confirmLabel: string;
   cancelLabel?: string;
-  onConfirm(): void;
+  /** May return a promise: the strip does not arm again until it settles (a slow delete can never fire twice). A caller that returns nothing should pass `busy` while its work runs. */
+  onConfirm(): void | Promise<unknown>;
   onCancel(): void;
   /** False for an ask that does not destroy anything. */
   danger?: boolean;
@@ -34,6 +35,8 @@ export interface InlineConfirmProps {
   why?: string | undefined;
   /** Only the two buttons, for a slot that is already labelled (the end of a settings row): `question` then names them for a screen reader. */
   compact?: boolean;
+  /** A field that belongs to this ask ("type the name to confirm"): drawn inside the strip, and it takes focus in place of Cancel. Only a field inside the strip counts, never one elsewhere in the form. */
+  children?: ReactNode;
   /** Tests shorten the wait. */
   armMs?: number;
   testID?: string;
@@ -61,6 +64,7 @@ export function InlineConfirm({
   busy = false,
   disabled = false,
   why,
+  children,
   compact = false,
   armMs = armDelay(),
   testID,
@@ -74,30 +78,56 @@ export function InlineConfirm({
   calls.current = { onConfirm, onCancel };
   const root = useRef<unknown>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // the press is spent until three things are true: the wait is over, the caller's promise (if it gave one) has settled, and the caller is not busy
+  const spent = useRef({ waited: true, pending: false });
+  const busyNow = useRef(busy);
+  busyNow.current = busy;
   const arm = (): void => {
+    if (state.current === "gone") return; // a cancel ends it: nothing arms afterwards
     send("arm");
     setArmed(true);
+  };
+  const tryArm = (): void => {
+    if (state.current !== "spent") return;
+    if (spent.current.waited && !spent.current.pending && !busyNow.current) arm();
   };
   const send = (e: ConfirmEvent): void => {
     const r = step(state.current, e);
     state.current = r.state;
     if (r.fire === "confirm") {
-      // the press is spent; if the strip is still here after the wait (the work failed), it arms again
       setArmed(false);
+      spent.current = { waited: armMs <= 0, pending: false };
       if (timer.current) clearTimeout(timer.current);
-      if (armMs <= 0) arm();
-      else timer.current = setTimeout(arm, armMs);
-      calls.current.onConfirm();
-    } else if (r.fire === "cancel") calls.current.onCancel();
+      if (armMs > 0)
+        timer.current = setTimeout(() => {
+          spent.current.waited = true;
+          tryArm();
+        }, armMs);
+      const out = calls.current.onConfirm();
+      if (out && typeof (out as Promise<unknown>).then === "function") {
+        spent.current.pending = true;
+        const done = (): void => {
+          spent.current.pending = false;
+          tryArm();
+        };
+        void (out as Promise<unknown>).then(done, done);
+      } else tryArm();
+    } else if (r.fire === "cancel") {
+      if (timer.current) clearTimeout(timer.current);
+      calls.current.onCancel();
+    }
   };
+  // a caller that shows its work with `busy` re-arms the strip when the work ends
+  useEffect(() => {
+    if (!busy) tryArm();
+  }, [busy]);
   useEffect(() => {
     const doc = web ? (globalThis as { document?: FocusDoc }).document : undefined;
     const opener = doc?.activeElement ?? null;
     if (web) {
-      // a text field in the same block takes focus, as in ui/Dialog (the person types at once); else Cancel
-      const near = (root.current as { parentElement?: { querySelector?: (q: string) => Focusable | null } } | null)
-        ?.parentElement;
-      (near?.querySelector?.(FIELD) ?? cancelRef.current)?.focus?.();
+      // a text field inside the strip (a "type the name" box passed as children) takes focus, as in ui/Dialog; else Cancel. Never a field elsewhere in the form.
+      const el = root.current as { querySelector?: (q: string) => Focusable | null } | null;
+      (el?.querySelector?.(FIELD) ?? cancelRef.current)?.focus?.();
     }
     if (armMs <= 0) arm();
     else timer.current = setTimeout(arm, armMs);
@@ -123,6 +153,7 @@ export function InlineConfirm({
         <View style={s.text}>
           <Text style={s.question}>{question}</Text>
           {note ? <Text style={s.note}>{note}</Text> : null}
+          {children}
         </View>
       )}
       <View style={s.buttons}>

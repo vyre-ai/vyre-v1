@@ -337,7 +337,7 @@ export function GoogleWorkspacePage(): ReactElement {
             cancelLabel="Keep it on"
             confirmTestID="google-off-confirm"
             cancelTestID="google-off-cancel"
-            onConfirm={() => void off()}
+            onConfirm={() => off()}
             onCancel={() => setConfirmOff(false)}
           />
         </Section>

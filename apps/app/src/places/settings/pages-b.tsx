@@ -391,7 +391,7 @@ function YourSpaces(): ReactElement {
               confirmLabel="Leave"
               confirmTestID={`leave-yes-${sp.id}`}
               onConfirm={() =>
-                void data
+                data
                   .call("spaces.leave", { confirm: true })
                   .then(() => {
                     setSure(null);

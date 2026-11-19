@@ -436,7 +436,7 @@ function GroupObject({ groupId, onBack }: { groupId: string; onBack: () => void 
                       disabled={action.busy}
                       confirmTestID={`group-role-confirm-${pendingRole.id}`}
                       onConfirm={() =>
-                        void action
+                        action
                           .run(
                             current.roles.includes(pendingRole.id) ? "access.roles.unassign" : "access.roles.assign",
                             { roleId: pendingRole.id, subject: { kind: "group", id: groupId } },
@@ -518,7 +518,7 @@ function MemberRows({
             disabled={action.busy}
             confirmTestID="group-member-remove-confirm"
             onConfirm={() =>
-              void action
+              action
                 .run("access.groups.remove_member", { groupId, member: pending }, "Member removed")
                 .then((out) => {
                   if (out) setPending(null);

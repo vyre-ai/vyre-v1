@@ -341,7 +341,7 @@ export function Microsoft365Page(): ReactElement {
             cancelLabel="Keep it on"
             confirmTestID="ms-off-confirm"
             cancelTestID="ms-off-cancel"
-            onConfirm={() => void off()}
+            onConfirm={() => off()}
             onCancel={() => setConfirmOff(false)}
           />
         </Section>

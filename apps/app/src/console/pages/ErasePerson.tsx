@@ -193,7 +193,7 @@ export function ErasePerson(): ReactElement {
                   confirmLabel="Start erasure"
                   disabled={action.busy}
                   onConfirm={() =>
-                    void action
+                    action
                       .run<CapMap["governance.erase.apply"]["out"]>("governance.erase.apply", reviewed, (out) => {
                         setRunId(out.runId);
                         return `Erasure run ${out.runId} started`;
