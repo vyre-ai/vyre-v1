@@ -147,7 +147,11 @@ export async function findSpace(address: string, o: FindOptions = {}): Promise<F
       seenAt: relay.held.seenAt,
     };
   if (relay.free) return { kind: "none" };
-  if (relay.answered) return { kind: "relay", sure: false, label: "", online: true, seenAt: null };
+  if (relay.answered) {
+    // only the name says relay: a Space of its own that was slow to answer the first probe is asked once more before it is called one
+    if (await probeDirectSpace(origin, o)) return { kind: "direct" };
+    return { kind: "relay", sure: false, label: "", online: true, seenAt: null };
+  }
   return { kind: "offline" };
 }
 

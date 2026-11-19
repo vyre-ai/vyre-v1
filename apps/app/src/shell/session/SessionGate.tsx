@@ -1414,8 +1414,8 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const spaceName = (address: string): string =>
     yourSpaces().find((r) => r.address === address)?.name ?? spaceHost(address);
   /** A Space on Vyre's relay, from the desktop app: the app opens it in the browser for the person (entry.ts browserLink says why it cannot carry it itself) and keeps it in Your Spaces. */
-  const openInBrowser = (target: EntryTarget, name: string): void => {
-    rememberBrowserSpace({ address: target.address, name });
+  const openInBrowser = (target: EntryTarget, name: string, remember = true): void => {
+    if (remember) rememberBrowserSpace({ address: target.address, name });
     (globalThis as { open?: (url: string, target?: string) => unknown }).open?.(browserLink(target), "_blank");
     setEntry(false);
     setPersonalClaim(null);
@@ -1430,14 +1430,14 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     const name = (found.kind === "relay" && found.label) || stored?.def.name || spaceName(target.address);
     const where = decideLanded({ found, bridge: !!bridge, away: elsewhere(target.address) });
     if (where === "open-in-browser") {
-      openInBrowser(target, name);
+      openInBrowser(target, name, found.kind === "relay" && found.sure);
       return;
     }
     if (where === "browser-goes") {
       page()?.assign(browserLink(target));
       return;
     }
-    if (found.kind === "relay" && bridge) rememberBrowserSpace({ address: target.address, name });
+    if (found.kind === "relay" && found.sure && bridge) rememberBrowserSpace({ address: target.address, name });
     setEntry(false);
     setReaching(null);
     setInBrowser(null);

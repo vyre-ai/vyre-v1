@@ -164,3 +164,13 @@ test("the quiet retry gives up after its tries and answers offline; a sure answe
   });
   assert.deepEqual(calls, [], "a relay Space that answered is not retried");
 });
+
+test("a Space of its own that was slow to answer the first probe is not called a relay Space on the name alone", async () => {
+  let health = 0;
+  const f = fake((url) => {
+    if (url.endsWith("/healthz")) return ++health === 1 ? down() : json(200, HEALTH);
+    return html(200); // the Space's own page answers /__vyre/info.json with its app, which is no relay answer
+  });
+  assert.deepEqual(await findSpace("https://northwind.vyre.run", { fetch: f.fetch, routes }), { kind: "direct" });
+  assert.equal(health, 2, "asked once more before it was called a relay Space");
+});
