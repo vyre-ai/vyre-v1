@@ -82,6 +82,9 @@ export function pickFocus<T>(field: T | null | undefined, safe: T | null | undef
 }
 
 type Focusable = { focus?: () => void };
+/** The first thing a person types in: a text-like input, a textarea or a select. A checkbox, radio, file or hidden input is not one (Space would toggle it, so a destructive ask opens on Cancel). */
+const FIELD =
+  "input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]):not([type=button]):not([type=submit]),textarea,select";
 
 /** `hold` is given when the dialog itself chooses what takes focus (it knows whether a field is inside): the button then only offers itself. */
 function ActionButton({
@@ -203,7 +206,7 @@ export function Dialog({
     ensureCss();
     // the first field inside the card takes focus (a dialog with only buttons keeps none, so no button wears a focus ring before a key is pressed), so the keyboard works at once
     const el = card.current as { querySelector?: (q: string) => Focusable | null } | null;
-    pickFocus<Focusable>(el?.querySelector?.("input,textarea,select"), safe.current as Focusable | null)?.focus?.();
+    pickFocus<Focusable>(el?.querySelector?.(FIELD), safe.current as Focusable | null)?.focus?.();
   }, []);
   if (anchor !== undefined)
     return (

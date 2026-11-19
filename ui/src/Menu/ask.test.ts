@@ -45,3 +45,11 @@ test("a disabled safe item is not lit; two danger items both stay after the safe
   );
   assert.equal(askLit(ordered), 2, "Cancel, not the disabled Keep");
 });
+
+test("a menu with groups is an ordinary menu even when its head asks something; its separators stay", () => {
+  const grouped: MenuEntry[] = [{ head: "What next?" }, { label: "Open" }, { separator: true }, del];
+  assert.equal(askOrder(grouped), grouped);
+  assert.equal(askLit(grouped), -1);
+  const long: MenuEntry[] = [{ head: "Pick?" }, ...Array.from({ length: 7 }, (_, i) => ({ label: `Item ${i}` })), del];
+  assert.equal(isAsk(long), false, "an ask is short");
+});

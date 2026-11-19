@@ -1,8 +1,10 @@
-// ui/InlineConfirm logic: the three states of an in-place "Delete X? Cancel / Delete" strip, as a pure machine, so every transition is tested without a screen.
+// ui/InlineConfirm logic: the states of an in-place "Delete X? Cancel / Delete" strip, as a pure machine, so every transition is tested without a screen.
 //   wary   the strip has just appeared. The press that opened it (or its double-click, or an Enter held down) may still be landing, so Delete does nothing yet.
 //   armed  Delete does its work once.
-//   gone   Delete was pressed (or the strip was cancelled): nothing more fires.
-export type ConfirmState = "wary" | "armed" | "gone";
+//   spent  Delete was pressed and the strip is still on screen: the caller's work is running, or it failed and left the ask open. Delete does nothing until the strip arms again (the same wait), so
+//          a double-press never deletes twice and a failed delete can be tried again. A caller whose work succeeded closes the strip, which ends it.
+//   gone   Cancel or Escape: nothing more fires.
+export type ConfirmState = "wary" | "armed" | "spent" | "gone";
 export type ConfirmEvent = "arm" | "confirm" | "cancel";
 
 /** How long a new strip ignores Delete: longer than a double-click (the OS default is 500 ms at most), short enough that nobody waits on it. */
@@ -24,8 +26,8 @@ export interface ConfirmStep {
 }
 
 export function step(state: ConfirmState, event: ConfirmEvent): ConfirmStep {
-  if (state === "gone") return { state, fire: null }; // a second press after the first is never a second delete
-  if (event === "arm") return { state: state === "wary" ? "armed" : state, fire: null };
+  if (state === "gone") return { state, fire: null }; // after a cancel nothing fires
+  if (event === "arm") return { state: "armed", fire: null }; // from wary (first wait) or spent (the wait after a press)
   if (event === "cancel") return { state: "gone", fire: "cancel" }; // Cancel and Escape work at once, in any state
-  return state === "armed" ? { state: "gone", fire: "confirm" } : { state, fire: null }; // confirm: only when armed
+  return state === "armed" ? { state: "spent", fire: "confirm" } : { state, fire: null }; // confirm: only when armed
 }

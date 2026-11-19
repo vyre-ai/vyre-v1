@@ -296,6 +296,15 @@ export async function agentDeleteWalk(
             await page.waitForTimeout(250);
           }
           await actText("Move to Trash\u2026");
+          // a press while the ask is still wary (just opened) deletes nothing: the strip is still there afterwards
+          const early = await page.evaluate(() => {
+            const b = document.querySelector('[data-testid="trash-yes"]') as HTMLElement | null;
+            if (!b || b.getAttribute("aria-disabled") !== "true") return "armed";
+            b.click();
+            return "clicked";
+          });
+          if (early === "clicked")
+            assert.equal(await page.getByTestId("trash-confirm").count(), 1, "a press while the ask is wary deleted");
           // the ask opens focused on Cancel and Delete is armed a moment later (ui/InlineConfirm): wait for it, then one Tab from Cancel reaches it
           await page.waitForFunction(
             () => {

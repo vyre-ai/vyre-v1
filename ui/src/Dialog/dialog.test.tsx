@@ -193,11 +193,20 @@ test("a dialog with a field puts focus in the field, even when it also has a des
   assert.equal(pickFocus(undefined, undefined), null, "nothing to focus: nothing is");
 });
 
+test("the field is a text-like input: a checkbox, radio, hidden or file input does not take focus from the safe action", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  const q = /const FIELD =\s*"([^"]+)"/.exec(src)?.[1] ?? "";
+  for (const t of ["checkbox", "radio", "hidden", "file", "button", "submit"])
+    assert.ok(q.includes(`:not([type=${t}])`), t);
+  assert.ok(q.includes("textarea") && q.includes("select"));
+});
+
 test("every Dialog that has a destructive action and a field in its card: the field wins (the code that decides is pickFocus, used once, in the open effect)", async () => {
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
   assert.equal(src.match(/pickFocus<Focusable>\(/g)?.length, 1, "one place decides");
-  assert.match(src, /pickFocus<Focusable>\(el\?\.querySelector\?\.\("input,textarea,select"\), safe\.current/);
+  assert.match(src, /pickFocus<Focusable>\(el\?\.querySelector\?\.\(FIELD\), safe\.current/);
   assert.match(
     src,
     /if \(hold\) hold\.current = self\.current;\s*else/,

@@ -25,6 +25,8 @@ export const item = (label: string, onSelect: () => void, o: Partial<MenuItem> =
 
 /** A menu that asks before something destructive: it opens with a head that asks a question ("Delete Ember? Its chats stay.") and has a `danger` item. */
 export function isAsk(entries: readonly MenuEntry[]): boolean {
+  // a short menu with no groups: a menu with separators (rows in groups) is an ordinary menu even if its head asks something
+  if (entries.length > 6 || entries.some((e) => isSeparator(e))) return false;
   const first = entries[0];
   return (
     first !== undefined &&
@@ -38,7 +40,7 @@ export function isAsk(entries: readonly MenuEntry[]): boolean {
 export function askOrder(entries: readonly MenuEntry[]): readonly MenuEntry[] {
   if (!isAsk(entries)) return entries;
   const head = entries[0]!;
-  const rest = entries.slice(1).filter((e) => !isSeparator(e));
+  const rest = entries.slice(1);
   const safe = rest.filter((e) => !(isItem(e) && e.danger === true));
   const risky = rest.filter((e) => isItem(e) && e.danger === true);
   return [head, ...safe, ...risky];

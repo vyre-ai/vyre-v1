@@ -239,6 +239,13 @@ function Delete({ space, onDone }: { space: CapMap["spaces.get"]["out"]["space"]
             }
             confirmLabel="Delete the Space"
             disabled={!ready || action.busy}
+            why={
+              !exported && !skip
+                ? "Take an export first, or choose to delete without one"
+                : typed.trim() !== name
+                  ? "Type the Space's name exactly"
+                  : undefined
+            }
             confirmTestID="delete-confirm"
             cancelTestID="delete-cancel"
             onConfirm={() =>
