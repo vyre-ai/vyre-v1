@@ -73,6 +73,9 @@ export function createFill({ bridge, scripting, rules, now = Date.now, waitMs = 
         args: [r.pageRef, value],
       });
       applied = Boolean(res && res.result);
+    } catch {
+      // the page changed under the fill (navigated, the frame went, the tab closed): nothing was put anywhere
+      applied = false;
     } finally {
       value = "";
       const w = waiters.get(m.ref);
@@ -115,15 +118,17 @@ export function createFill({ bridge, scripting, rules, now = Date.now, waitMs = 
       func: prepareInPage,
       args: [{ roles: wantRoles }],
     });
+    // only frames of the page's own origin are filled: a login form inside an embedded page of another site gets nothing, however much it looks like a sign-in
+    const own = found.filter((f) => f.result && f.result.origin === page.origin);
     const frame =
-      found.find(
+      own.find(
         (f) =>
           f.result &&
           f.result.fields &&
           f.result.fields.some(
             (/** @type {any} */ x) => x.role === "password" || x.role === "otp" || x.role === "cc-number",
           ),
-      ) ?? found.find((f) => f.result && f.result.fields && f.result.fields.length);
+      ) ?? own.find((f) => f.result && f.result.fields && f.result.fields.length);
     if (!frame || !frame.result) throw new BridgeFailure("no_field", "no sign-in field");
     /** @type {{ ref: string, role: string }[]} */
     const fields = frame.result.fields;
