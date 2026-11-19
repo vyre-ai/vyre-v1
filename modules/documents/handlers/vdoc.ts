@@ -52,6 +52,9 @@ export function textOf(bytes: Uint8Array): string {
     throw new FillError("bad_input", "that is not a text file");
   }
   text = text.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  // suggestions an editor left in the text ({++add++} {--delete--} {~~old~>new~~}) are not part of the document until accepted: they would print as letters
+  if (/\{(\+\+|--|~~)/.test(text.replace(/^---\n[\s\S]*?\n---[ \t]*(?:\n|$)/, "")))
+    throw new FillError("bad_template", "the document still has suggested changes in it; accept or reject them first");
   const fm = /^---\n[\s\S]*?\n---[ \t]*(?:\n|$)/.exec(text);
   return fm ? text.slice(fm[0].length) : text;
 }

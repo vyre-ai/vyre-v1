@@ -280,3 +280,37 @@ test("documents.make: a name that is nowhere or means two is answered with what 
   );
   assert.equal(empty.files.size, 0);
 });
+
+test("a Vyre document that still holds suggested changes is refused until they are accepted or rejected, never printed as letters", async () => {
+  const w = world();
+  const id = w.add("Draft.md", enc("Fee {++1,500 {>>Imran|2026-11-19T10:00:00Z<<}++} for {client.name}.\n"));
+  const e = await expectCode("validation.precondition_failed", () =>
+    handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      values: { client: { name: "Imran" } },
+    }),
+  );
+  assert.match(e.error.message, /accept or reject them first/);
+  const done = w.add("Done.md", enc("Fee 1,500 for {client.name}.\n"));
+  assert.ok(
+    (
+      await handlers["documents.fill"](w.ctx, {
+        templateFileId: done,
+        intoFolderId: FOLDER,
+        values: { client: { name: "Imran" } },
+      })
+    ).file.fileId,
+  );
+  // a front matter block may hold dashes without tripping it
+  const fm = w.add("Fm.md", enc("---\nnote: {--x\n---\nHello {client.name}\n"));
+  assert.ok(
+    (
+      await handlers["documents.fill"](w.ctx, {
+        templateFileId: fm,
+        intoFolderId: FOLDER,
+        values: { client: { name: "Imran" } },
+      })
+    ).file.fileId,
+  );
+});

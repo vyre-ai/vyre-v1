@@ -192,3 +192,52 @@ test("when the exact converter is being fetched the plain copy says why; the exa
     configureDocuments(null);
   }
 });
+
+test("a Word template is checked when it is marked: a file that is not a real .docx, one with macros, one with no document part and one that is too big are refused in plain words and nothing is marked", async () => {
+  const w = world();
+  const refuseMark = async (id: string, code: string, words: RegExp, label: string) => {
+    const e = await expectCode(code, () =>
+      handlers["documents.mark_template"](w.ctx, { fileId: id, isTemplate: true }),
+    );
+    assert.match(e.error.message, words, label);
+    assert.equal(w.marks().length, 0, `${label}: nothing marked`);
+  };
+  await refuseMark(
+    w.add("Notes.docx", Buffer.from("hello, not a zip")),
+    "validation.unsupported",
+    /not a Word \(\.docx\) file/,
+    "plain text named .docx",
+  );
+  await refuseMark(w.add("Macro.docm", docx(para("x"))), "validation.unsupported", /macros \(\.docm\)/, "a .docm");
+  await refuseMark(
+    w.add("Hidden.docx", docx(para("x"), { "word/vbaProject.bin": "binary" })),
+    "validation.precondition_failed",
+    /macros or embedded programs/,
+    "macros in a .docx",
+  );
+  await refuseMark(
+    w.add(
+      "Typed.docx",
+      docx(para("x"), {
+        "[Content_Types].xml":
+          '<Types><Override PartName="/word/document.xml" ContentType="application/vnd.ms-word.document.macroEnabled.main+xml"/></Types>',
+      }),
+    ),
+    "validation.precondition_failed",
+    /macros or embedded programs/,
+    "a macro-enabled content type",
+  );
+  await refuseMark(
+    w.add("Empty.docx", docx("", { "word/document.xml": "<x/>" }).subarray(0, 40)),
+    "validation.unsupported",
+    /not a Word \(\.docx\) file/,
+    "a truncated file",
+  );
+  const big = w.add("Big.docx", Buffer.alloc(11 * 1024 * 1024, 1));
+  await refuseMark(big, "validation.too_large", /at most 10 MB/, "too big");
+  // a real one marks; unmarking never reads the file
+  const good = w.add("Good.docx", docx(para("Hello {name}")));
+  assert.deepEqual(await handlers["documents.mark_template"](w.ctx, { fileId: good, isTemplate: true }), { ok: true });
+  assert.equal(w.marks().length, 1);
+  assert.deepEqual(await handlers["documents.mark_template"](w.ctx, { fileId: good, isTemplate: false }), { ok: true });
+});

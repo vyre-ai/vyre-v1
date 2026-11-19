@@ -311,6 +311,18 @@ function open(buf: Buffer): Zip {
   if (names.length > MAX_ENTRIES) throw new FillError("bad_template", "that .docx holds too many parts");
   if (!zip.file("word/document.xml"))
     throw new FillError("bad_input", "that is not a Word (.docx) file: it has no word/document.xml");
+  // a Word file with macros (a .docm renamed, or macros put in a .docx) is never a template: nothing in a template may run
+  const types = String(zip.file("[Content_Types].xml")?.asText() ?? "");
+  if (
+    names.some(
+      (n) => /(^|\/)vbaProject\.bin$|(^|\/)vbaData\.xml$/i.test(n) || /^word\/(activeX|embeddings)\//i.test(n),
+    ) ||
+    /macroEnabled|vbaProject/i.test(types)
+  )
+    throw new FillError(
+      "bad_template",
+      "that Word file has macros or embedded programs; save it as a plain .docx without them",
+    );
   let total = 0;
   for (const n of names) total += zip.files[n]?._data?.uncompressedSize ?? 0;
   if (total > MAX_UNPACKED) throw new FillError("too_big", "that .docx unpacks to more than it may");
@@ -1161,12 +1173,35 @@ async function markTemplate(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> 
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: "isTemplate" });
   const isTemplate = o.isTemplate;
   const recordType = optStr(ctx, o, "recordType");
-  const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown } };
+  const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown; size?: unknown } };
   const name = typeof got.file?.name === "string" ? got.file.name : "";
+  if (isTemplate && typeof got.file?.size === "number" && got.file.size > MAX_BYTES && /\.docx$/i.test(name))
+    fail(
+      ctx,
+      "validation.too_large",
+      `That Word file is ${Math.ceil(got.file.size / 1048576)} MB; a template may be at most ${MAX_BYTES / 1048576} MB.`,
+      { fileId },
+    );
+  if (isTemplate && /\.docm$/i.test(name))
+    fail(
+      ctx,
+      "validation.unsupported",
+      "A Word file with macros (.docm) cannot be a template. Save it as a plain .docx.",
+      { fileId },
+    );
   if (isTemplate && !/\.docx$/i.test(name) && !readerFor(name))
     fail(ctx, "validation.unsupported", "Only a Word (.docx) file or a Vyre document (.md) can be a template.", {
       fileId,
     });
+  // a Word template is checked when it is marked, not only when it is first used: a file that is not a real .docx, is too big, or carries macros is refused here in plain words
+  if (isTemplate && /\.docx$/i.test(name)) {
+    const bytes = await templateBytes(ctx, fileId);
+    try {
+      open(bytes);
+    } catch (e) {
+      return refuse(ctx, e);
+    }
+  }
   if (isTemplate && recordType !== undefined) {
     // the type must be one this Space has: a template for a type that does not exist would never show on any record
     let known = false;
