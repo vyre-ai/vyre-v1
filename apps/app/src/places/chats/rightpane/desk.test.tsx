@@ -964,3 +964,14 @@ test("where the focus is, for the keys: nothing, a field, a control outside the 
     "field",
   );
 });
+
+test("the keys are not blocked by the Chats list in the sidebar: only a menu or list inside the overlay layer, or another modal, counts as open", async () => {
+  const { OTHER_MODAL } = await import("./Desk.tsx");
+  const parts = OTHER_MODAL.split(",").map((x) => x.trim());
+  assert.ok(
+    parts.some((x) => x.startsWith('[aria-modal="true"]')),
+    "another modal blocks the keys",
+  );
+  for (const p of parts.filter((x) => x.includes("[role=")))
+    assert.ok(p.startsWith("#vyre-overlay-root "), `a menu or list counts only in the overlay layer: ${p}`);
+});

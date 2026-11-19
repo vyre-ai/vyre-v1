@@ -270,6 +270,13 @@ export function withCursor(spans: readonly Span[], x: number): Span[] {
 // ---- the screen
 
 export const SCREEN_POLL_MS = 250;
+/** What xterm draws before the first answer of the first read: an empty screen. */
+const NO_SCREEN = { text: "", cols: 80, rows: 24, cursor: null } as const;
+
+/** The xterm.js renderer is its own chunk: asked for only here, when a terminal screen opens, never by the first-paint bundle. A test (or a failed load) leaves the DOM screen as the screen. */
+export const xtermLoader: { load: (() => Promise<typeof import("./XTermView.tsx")>) | null } = {
+  load: () => import("./XTermView.tsx"),
+};
 
 export function TmuxScreen({
   call,
@@ -298,6 +305,26 @@ export function TmuxScreen({
   onUnsupported?(): void;
 }): ReactElement | null {
   const [shot, setShot] = useState<Capture | null>(null);
+  // the xterm.js renderer: asked for once, kept off screen until its first frame is drawn, and never needed (the DOM screen below stays) when it cannot load or start
+  const [xt, setXt] = useState<typeof import("./XTermView.tsx") | null>(null);
+  const [xReady, setXReady] = useState(false);
+  // why the xterm.js screen is not drawing (the chunk did not load): kept on the element for whoever looks, never shown
+  const [xWhy, setXWhy] = useState<string | null>(null);
+  useEffect(() => {
+    if (Platform.OS !== "web" || xtermLoader.load === null) return;
+    let live = true;
+    xtermLoader
+      .load()
+      .then((m) => {
+        if (live) setXt(m);
+      })
+      .catch((e: unknown) => {
+        if (live) setXWhy(String((e as { message?: unknown } | null)?.message ?? e).slice(0, 160));
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
   const el = useRef<HTMLElement | null>(null);
   const stuck = useRef(true);
   // one batcher for the life of the screen: a new one per render would send batches side by side and out of order
@@ -480,6 +507,8 @@ export function TmuxScreen({
           ref: el,
           tabIndex: 0,
           "data-testid": "terminal-screen",
+          "data-renderer": xt !== null && xReady ? "xterm" : "dom",
+          ...(xWhy !== null ? { "data-renderer-why": xWhy } : {}),
           "data-hidden": shot?.hidden === true ? "1" : "0",
           onKeyDown,
           onPaste,
@@ -502,7 +531,23 @@ export function TmuxScreen({
             boxSizing: "border-box",
           },
         },
-        ...rows,
+        ...(xt !== null
+          ? [
+              createElement(
+                "div",
+                {
+                  key: "x",
+                  style: xReady ? undefined : { position: "absolute", visibility: "hidden", pointerEvents: "none" },
+                },
+                createElement(xt.XTermView, {
+                  shot: shot ?? NO_SCREEN,
+                  onReady: () => setXReady(true),
+                  onFail: () => setXt(null),
+                }),
+              ),
+            ]
+          : []),
+        ...(xt !== null && xReady ? [] : rows),
       )}
     </View>
   );

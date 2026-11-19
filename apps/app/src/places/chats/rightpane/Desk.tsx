@@ -131,10 +131,11 @@ export function activeKindOf(el: unknown): ActiveKind {
   if (!control) return "none";
   return e.closest?.('[data-testid="desk"]') ? "desk_control" : "outside_control";
 }
+// a menu or a list counts as open only inside the overlay layer, where menus and popovers are drawn: the Chats list in the sidebar is always a listbox and is no popup
+export const OTHER_MODAL =
+  '[aria-modal="true"]:not([data-testid="desk"]):not([data-testid="desk-mini"]):not([aria-hidden="true"]), #vyre-overlay-root [role="menu"]:not([aria-hidden="true"]):not([hidden]), #vyre-overlay-root [role="listbox"]:not([aria-hidden="true"]):not([hidden])';
 const otherModalOpen = (doc: { querySelector?: (s: string) => unknown }): boolean =>
-  doc.querySelector?.(
-    '[aria-modal="true"]:not([data-testid="desk"]):not([data-testid="desk-mini"]):not([aria-hidden="true"]), [role="menu"]:not([aria-hidden="true"]):not([hidden]), [role="listbox"]:not([aria-hidden="true"]):not([hidden])',
-  ) != null;
+  doc.querySelector?.(OTHER_MODAL) != null;
 
 const typingIn = (t: unknown): boolean => {
   const el = t as { tagName?: string; isContentEditable?: boolean } | null;
