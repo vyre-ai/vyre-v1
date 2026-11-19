@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { statusUpdate } from "../handlers/extra/status.ts";
-import { BACKOFF_MS, CLAIM_STALE_MS, MAX_RETRIES, retry as retryNow, trail } from "../handlers/extra/delivery.ts";
+import { BACKOFF_MS, CLAIM_STALE_MS, MAX_RETRIES, bindRetrySend, retry as retryNow, trail } from "../handlers/extra/delivery.ts";
 import { hostError, script, seedSent, eventErrors } from "../handlers/extra/kit.ts";
 import { codeOf, contractErrors, harness, NOW, seedMailbox } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -12,24 +12,27 @@ interface Scheduled {
   at: number;
   cap: string;
   input: Record<string, unknown>;
+  system?: boolean;
 }
 
 function setup(opts: { scheduler?: boolean } = {}): { h: Harness; scheduled: Scheduled[]; sent: Record<string, unknown>[] } {
-  const h = harness({ principal: { kind: "service", id: "svc_scheduler" } });
+  const h = harness({ principal: { kind: "service", id: "svc_host" } });
   seedMailbox(h, "mbx_maya", "maya@vyre.test", { kind: "personal", provider: "google", ownerId: "usr_maya01", privacy: "space" });
   const scheduled: Scheduled[] = [];
   const sent: Record<string, unknown>[] = [];
   if (opts.scheduler !== false) {
-    (h.ctx as unknown as { schedule: (at: number, cap: string, input: unknown) => Promise<string> }).schedule = async (
+    (h.ctx as unknown as { schedule: (at: number, cap: string, input: unknown, opts?: { system?: boolean }) => Promise<string> }).schedule = async (
       at,
       cap,
       input,
+      opts,
     ) => {
-      scheduled.push({ at, cap, input: input as Record<string, unknown> });
+      scheduled.push({ at, cap, input: input as Record<string, unknown>, ...(opts?.system ? { system: true } : {}) });
       return `sch_${scheduled.length}`;
     };
   }
   let n = 0;
+  bindRetrySend((c, i) => c.call("mail.send", i) as never); // the retry's send is the scripted one below
   script(h, {
     "contacts.suppression.add": (i) => ({ added: 1, rows: [{ ...i }] }),
     "contacts.suppression.check": () => ({ suppressed: [] }),
@@ -112,6 +115,7 @@ test("a soft bounce waits and retries once to that address only, never twice for
   assert.equal(h.named("message.bounced").length, 0);
   assert.equal(scheduled.length, 1);
   assert.deepEqual(scheduled[0]!.input, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 });
+  assert.equal(scheduled[0]!.system, true); // run by the host as the system, never as whoever's call scheduled it
   assert.equal(scheduled[0]!.at, NOW + BACKOFF_MS[0]);
   // a call before the wait is over changes nothing; Vyre's scheduler is the only caller
   assert.deepEqual(await retryNow(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), { outcome: "skipped" });
@@ -323,4 +327,17 @@ test("a viewer without the contacts permission still reads the trail", async () 
   const out = await trail(h.ctx, { messageId: "eml_m1" });
   assert.equal(out.state, "bounced");
   assert.deepEqual(out.blocked, []);
+});
+
+test("only the host service runs a retry: a person, an agent, an actor or another service is refused and nothing is sent", async () => {
+  const { h, sent } = setup();
+  seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
+  await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft" }));
+  h.advance(86_400_000);
+  for (const p of [{ kind: "person", id: "usr_x" }, { kind: "agent", id: "agt_x" }, { kind: "actor", id: "act_x" }, { kind: "service", id: "svc_flow" }] as const) {
+    const other = { ...h.ctx, principal: p };
+    await assert.rejects(retryNow(other, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), (e) => codeOf(e) === "permission.no_grant");
+  }
+  assert.equal(sent.length, 0);
+  assert.equal(h.rows(`SELECT state FROM mail_delivery_retry`)[0]!.state, "pending");
 });

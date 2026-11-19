@@ -26,6 +26,8 @@ import {
 } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
 import { readAttachments } from "./messages.ts";
+import { fail } from "../../../../host/src/routes/errors.ts";
+import { isHostService } from "../../../../lib/trust.ts";
 import { ensureAll } from "./common.ts";
 
 const SQL = readFileSync(fileURLToPath(new URL("../../migrations/0010_delivery_trail.sql", import.meta.url)), "utf8");
@@ -202,7 +204,19 @@ export const MAX_RETRIES = 3;
 export const BACKOFF_MS = [5 * 60_000, 30 * 60_000, 4 * 60 * 60_000] as const;
 
 interface Scheduler {
-  schedule?(at: number, cap: string, input: unknown): Promise<string>;
+  schedule?(at: number, cap: string, input: unknown, opts?: { system?: boolean }): Promise<string>;
+}
+
+/** What a retry sends with. By default the module's own send, called directly (the host holds no grant on a mailbox and the Gate has already had its say on the first send). Tests bind a recorder. */
+export type RetrySend = (ctx: MailCtx, input: Record<string, unknown>) => Promise<{ messageId?: string; status?: string }>;
+let retrySend: RetrySend | null = null;
+export function bindRetrySend(fn: RetrySend | null): void {
+  retrySend = fn;
+}
+async function sendAgain(ctx: MailCtx, input: Record<string, unknown>): Promise<{ messageId?: string; status?: string }> {
+  if (retrySend) return retrySend(ctx, input);
+  const { send } = await import("../send.ts");
+  return (await send(ctx as never, input as never)) as { messageId?: string; status?: string };
 }
 
 /** The root message a retry child belongs to; a message that is not a child is its own root. */
@@ -258,7 +272,7 @@ export async function planRetry(
     );
   }
   try {
-    await scheduler.schedule(when, "mail.delivery.retry", { messageId: rootId, address, attempt: next });
+    await scheduler.schedule(when, "mail.delivery.retry", { messageId: rootId, address, attempt: next }, { system: true });
   } catch {
     ctx.db.run(
       `UPDATE mail_delivery_retry SET state = ? WHERE "messageId" = ? AND address = ?`,
@@ -319,6 +333,8 @@ const codeOf = (e: unknown): string =>
  */
 export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: RetryOutcome; messageId?: string }> {
   ensureDelivery(ctx);
+  // the host's own follow-up, and nobody else: a person's or agent's identity is never replayed here
+  if (!isHostService(ctx.principal)) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Retries are run by Vyre itself." });
   if (!isId("eml", input.messageId)) bad(ctx, "Message id is not valid.");
   if (typeof input.address !== "string" || input.address.trim() === "") bad(ctx, "Address is required.");
   if (!Number.isSafeInteger(input.attempt) || input.attempt < 1 || input.attempt > MAX_RETRIES)
@@ -363,7 +379,7 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
       messageId: input.messageId,
       address,
       attempt: input.attempt,
-    }).catch(() => undefined);
+    }, { system: true }).catch(() => undefined);
 
   const msg = first(
     ctx.db.all(`SELECT * FROM mail_message WHERE id = ? AND direction = ? AND deleted_at IS NULL`, input.messageId, "out"),
@@ -408,12 +424,12 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
   let childId: string | undefined;
   let held = false;
   try {
-    const sent = (await ctx.call("mail.send", {
+    const sent = await sendAgain(ctx, {
       mailboxId: str(msg, "mailboxId"),
       to: [{ address }],
       ...rebuilt,
       idempotencyKey: key,
-    })) as { messageId?: string; status?: string };
+    });
     childId = sent.messageId;
     if (sent.status === "suppressed") {
       finish(ctx, input.messageId, address, "gave_up");

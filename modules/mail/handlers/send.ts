@@ -17,7 +17,7 @@
 // DECISION: consent 'unknown' sends (opt-out regime: STOP, UNSUBSCRIBE and bounces write the suppression list). Only an explicit
 // 'denied', Do-not-contact or an email opt-out refuses.
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
-import { isTenantService } from "../../../lib/trust.ts";
+import { isHostService, isTenantService } from "../../../lib/trust.ts";
 import {
   DAY,
   DEFAULT_LIMITS,
@@ -495,7 +495,8 @@ async function makePlan(
     !(await setting(ctx, "comms.agents_may_send", true, (v): v is boolean => typeof v === "boolean"))
   )
     refuse(ctx, "Agent sending is off in this Space. An admin can turn it on in Console.");
-  authorizeSender(ctx, box);
+  // our own retry, run by the host: the send was authorized when the person or Automation made it; the host service holds no grant on any mailbox
+  if (!(isHostService(ctx.principal) && isOwnRetry(ctx, (input as { idempotencyKey?: string }).idempotencyKey))) authorizeSender(ctx, box);
   if (input.senderId !== undefined && enforce) checkChosenSender(ctx, box);
   const actor = actorOf(ctx.principal.kind, ctx.origin);
   const route = resolveRoute(ctx, box, actor, requested);
