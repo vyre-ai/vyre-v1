@@ -63,8 +63,7 @@ export function createNodeMirror(h: MirrorHost) {
     if (facts.has(threadId)) return facts.get(threadId) ?? null;
     try {
       const r = (await h.call("threads.get", { threadId }, asker === "" ? undefined : asker)) as
-        | { thread?: Record<string, unknown> }
-        | undefined;
+        { thread?: Record<string, unknown> } | undefined;
       const t = r?.thread ?? (r as Record<string, unknown> | undefined);
       const f: ThreadFacts | null = t
         ? {

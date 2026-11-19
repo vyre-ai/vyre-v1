@@ -1471,8 +1471,7 @@ export async function handoff(
   // one agent hands work to another only when the other allows calls from agents in the Space (access.agents_can_call, On unless a person turned it Off)
   if (ctx.principal.kind === "agent" && ctx.call) {
     const gate = (await ctx.call("access.agents_can_call.get", { agentId: input.toAgentId })) as
-      | { on?: boolean }
-      | undefined;
+      { on?: boolean } | undefined;
     if (gate?.on === false)
       raise(
         ctx,

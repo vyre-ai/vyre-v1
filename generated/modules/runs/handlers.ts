@@ -23,6 +23,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.message.take": Handler<"runs.message.take", X>;
   "runs.node.beat": Handler<"runs.node.beat", X>;
   "runs.node.claim": Handler<"runs.node.claim", X>;
+  "runs.node.compare": Handler<"runs.node.compare", X>;
   "runs.node.control": Handler<"runs.node.control", X>;
   "runs.node.event": Handler<"runs.node.event", X>;
   "runs.node.find": Handler<"runs.node.find", X>;
@@ -30,6 +31,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.node.label": Handler<"runs.node.label", X>;
   "runs.node.move": Handler<"runs.node.move", X>;
   "runs.node.reclaim": Handler<"runs.node.reclaim", X>;
+  "runs.node.rerun": Handler<"runs.node.rerun", X>;
+  "runs.node.save_as_agent": Handler<"runs.node.save_as_agent", X>;
   "runs.node.start": Handler<"runs.node.start", X>;
   "runs.people_counts": Handler<"runs.people_counts", X>;
   "runs.pin_version": Handler<"runs.pin_version", X>;

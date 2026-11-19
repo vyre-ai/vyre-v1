@@ -482,6 +482,64 @@ export default defineManifest({
         out: { byThread: t.rec(id.run), byKey: t.rec(id.run) },
       },
     ),
+    write(
+      "runs.node.save_as_agent",
+      "Make a finished piece of work into an agent: its brief becomes the agent's instructions, with the same model and tools. Made as the person who asks, by the agent-creating permission; an agent asking needs the person's ok",
+      {
+        in: {
+          ...nodeTarget,
+          name: t.opt(t.str({ maxLength: 60 })),
+          role: t.opt(t.str({ maxLength: 200 })),
+          sharing: t.opt(t.enm("me", "everyone")),
+        },
+        out: { agent: t.json(), runId: id.run },
+        on: ["run", "/runId"],
+        level: "manage",
+        gate: { act: "approve", when: "actor.kind != 'person'", reason: "Makes a new agent from this work" },
+        offline: "online",
+        errors: ["validation.precondition_failed", "validation.duplicate"],
+      },
+    ),
+    write(
+      "runs.node.rerun",
+      "Start a finished helper again beside the first, with an edited brief or another model; both are kept and read side by side with runs.node.compare",
+      {
+        in: {
+          ...nodeTarget,
+          goal: t.opt(t.str({ maxLength: 500 })),
+          instructions: t.opt(t.str({ maxLength: 20000 })),
+          model: t.opt(t.str()),
+        },
+        out: { threadId: id.thread, rerunOf: id.run },
+        on: ["run", "/runId"],
+        level: "manage",
+        offline: "online",
+        errors: ["validation.precondition_failed", "validation.bad_input"],
+      },
+    ),
+    read(
+      "runs.node.compare",
+      "A finished node and everything started again from it, side by side: brief, result, cost and time of each (only for the owner or a manager; not for someone who only watches the chat)",
+      {
+        in: nodeTarget,
+        out: {
+          sides: t.arr(
+            t.obj({
+              runId: t.opt(id.run),
+              threadId: t.opt(id.thread),
+              status: t.str(),
+              brief: t.opt(t.obj({ goal: t.opt(t.str()), instructions: t.opt(t.str()) })),
+              result: t.opt(t.str()),
+              usdMicros: t.int({ minimum: 0 }),
+              tokens: t.int({ minimum: 0 }),
+              seconds: t.opt(t.int({ minimum: 0 })),
+              model: t.opt(t.str()),
+            }),
+          ),
+        },
+        on: ["run", "/runId"],
+      },
+    ),
     read(
       "runs.tree.find",
       "The trees of agent work that ran in a chat or in a helper's own thread, newest first, with the root of each (only those the person may see; full says whether they see all of it or only that it goes on)",

@@ -7,10 +7,8 @@ import type { Harness } from "../fixtures/db.ts";
 import { alice, engine, newRun, HOUR } from "../fixtures/seed.ts";
 import { sweepWaits, wake } from "../handlers/engine.ts";
 
-const node = (
-  h: Harness,
-  id: string,
-): Record<string, any> | undefined => // eslint-disable-line @typescript-eslint/no-explicit-any
+const node = (h: Harness, id: string): Record<string, any> | undefined =>
+  // eslint-disable-line @typescript-eslint/no-explicit-any
   h.sqlite.prepare("SELECT * FROM runs_node WHERE run_id = ?").get(id) as Record<string, any> | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
 const states = (h: Harness, id: string): string[] =>
   (

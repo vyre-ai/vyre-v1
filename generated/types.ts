@@ -1425,6 +1425,7 @@ export type AgentsCreateIn = {
     allowed: Array<string>;
     denied: Array<string>;
   };
+  instructions?: string;
   limits?: {
     runCostMicros?: number;
     dayCostMicros?: number;
@@ -35899,6 +35900,25 @@ export type RunsNodeClaimOut = {
     updatedAt: number;
   };
 };
+export type RunsNodeCompareIn = {
+  runId: string;
+};
+export type RunsNodeCompareOut = {
+  sides: Array<{
+      runId?: string;
+      threadId?: string;
+      status: string;
+      brief?: {
+        goal?: string;
+        instructions?: string;
+      };
+      result?: string;
+      usdMicros: number;
+      tokens: number;
+      seconds?: number;
+      model?: string;
+    }>;
+};
 export type RunsNodeControlIn = {
   runId: string;
   action: "pause" | "resume" | "stop";
@@ -36153,6 +36173,26 @@ export type RunsNodeMoveOut = {
 export type RunsNodeReclaimIn = Record<string, unknown>;
 export type RunsNodeReclaimOut = {
   reclaimed: Array<string>;
+};
+export type RunsNodeRerunIn = {
+  runId: string;
+  goal?: string;
+  instructions?: string;
+  model?: string;
+};
+export type RunsNodeRerunOut = {
+  threadId: string;
+  rerunOf: string;
+};
+export type RunsNodeSaveAsAgentIn = {
+  runId: string;
+  name?: string;
+  role?: string;
+  sharing?: "me" | "everyone";
+};
+export type RunsNodeSaveAsAgentOut = {
+  agent: unknown;
+  runId: string;
 };
 export type RunsNodeStartIn = {
   kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
@@ -50874,6 +50914,7 @@ export interface CapMap {
   "runs.message.take": { in: RunsMessageTakeIn; out: RunsMessageTakeOut };
   "runs.node.beat": { in: RunsNodeBeatIn; out: RunsNodeBeatOut };
   "runs.node.claim": { in: RunsNodeClaimIn; out: RunsNodeClaimOut };
+  "runs.node.compare": { in: RunsNodeCompareIn; out: RunsNodeCompareOut };
   "runs.node.control": { in: RunsNodeControlIn; out: RunsNodeControlOut };
   "runs.node.event": { in: RunsNodeEventIn; out: RunsNodeEventOut };
   "runs.node.find": { in: RunsNodeFindIn; out: RunsNodeFindOut };
@@ -50881,6 +50922,8 @@ export interface CapMap {
   "runs.node.label": { in: RunsNodeLabelIn; out: RunsNodeLabelOut };
   "runs.node.move": { in: RunsNodeMoveIn; out: RunsNodeMoveOut };
   "runs.node.reclaim": { in: RunsNodeReclaimIn; out: RunsNodeReclaimOut };
+  "runs.node.rerun": { in: RunsNodeRerunIn; out: RunsNodeRerunOut };
+  "runs.node.save_as_agent": { in: RunsNodeSaveAsAgentIn; out: RunsNodeSaveAsAgentOut };
   "runs.node.start": { in: RunsNodeStartIn; out: RunsNodeStartOut };
   "runs.people_counts": { in: RunsPeopleCountsIn; out: RunsPeopleCountsOut };
   "runs.pin_version": { in: RunsPinVersionIn; out: RunsPinVersionOut };

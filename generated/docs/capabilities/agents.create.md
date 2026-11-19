@@ -36,6 +36,7 @@ type In = {
     allowed: Array<string>;
     denied: Array<string>;
   };
+  instructions?: string;
   limits?: {
     runCostMicros?: number;
     dayCostMicros?: number;
@@ -116,6 +117,7 @@ type Out = {
     "computer": true,
     "face": "example",
     "idempotencyKey": "idem_1",
+    "instructions": "example",
     "limits": {
       "dayCostMicros": 1,
       "minutesPerRun": 1,

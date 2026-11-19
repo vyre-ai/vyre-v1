@@ -2453,6 +2453,7 @@ export function createClient(transport: Transport) {
       node: {
         beat: call("runs.node.beat", 1),
         claim: call("runs.node.claim", 1),
+        compare: call("runs.node.compare", 1),
         control: call("runs.node.control", 1),
         event: call("runs.node.event", 1),
         find: call("runs.node.find", 1),
@@ -2460,6 +2461,8 @@ export function createClient(transport: Transport) {
         label: call("runs.node.label", 1),
         move: call("runs.node.move", 1),
         reclaim: call("runs.node.reclaim", 1),
+        rerun: call("runs.node.rerun", 1),
+        save_as_agent: call("runs.node.save_as_agent", 1),
         start: call("runs.node.start", 1),
       },
       people_counts: call("runs.people_counts", 1),
