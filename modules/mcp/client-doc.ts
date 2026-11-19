@@ -6,7 +6,7 @@ import { cleanClientName, redirectKind, MAX_CLIENTS, MAX_REDIRECTS, UNUSED_CLIEN
 
 export const MAX_DOC_BYTES = 5 * 1024;
 export const DOC_TIMEOUT_MS = 3000;
-/** The most pages one host may have kept as clients. */
+/** The most pages one registered domain may have kept as clients. */
 export const MAX_DOCS_PER_HOST = 10;
 
 /** Is this client_id an address that names a document? https, no user name, no fragment, a real path (so that it names one thing), a short address. */
@@ -87,9 +87,13 @@ export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectU
   if (!known) {
     db.run("DELETE FROM mcp_oauth_clients WHERE used_at IS NULL AND created_at < ?", now - UNUSED_CLIENT_MS);
     // one host cannot fill the table: a few pages per host
-    const host = new URL(doc.clientId).host;
-    const mine = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients WHERE client_id LIKE ?", `https://${host}/%`) as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
+    // counted per registered domain (the last two labels), so a wildcard of subdomains is one source; and half the table is kept for clients that have been used
+    const labels = new URL(doc.clientId).hostname.toLowerCase().split(".");
+    const domain = labels.slice(-2).join(".");
+    const mine = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients WHERE lower(client_id) LIKE ? ESCAPE '\\'", `https://%${domain.replace(/[%_\\]/g, (c) => `\\${c}`)}/%`) as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
     if (mine >= MAX_DOCS_PER_HOST) return false;
+    const unused = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients WHERE used_at IS NULL") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
+    if (unused >= MAX_CLIENTS / 2) return false;
     const n = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
     if (n >= MAX_CLIENTS) return false;
   }

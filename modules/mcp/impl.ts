@@ -202,12 +202,13 @@ const formOf = (body: string): Record<string, string | undefined> | null => {
 const docTried = new Map<string, number>();
 const DOC_REFRESH_MS = 24 * 3_600_000;
 const DOC_RETRY_MS = 60_000;
-function docDue(db: Db, clientId: string, at: number): boolean {
-  const last = docTried.get(clientId);
+function docDue(db: Db, space: string, clientId: string, at: number): boolean {
+  const key = `${space} ${clientId}`;
+  const last = docTried.get(key);
   const known = clientBy(db, clientId) !== null;
   if (last !== undefined && at - last < (known ? DOC_REFRESH_MS : DOC_RETRY_MS)) return false;
   if (docTried.size > 5000) docTried.delete(docTried.keys().next().value as string);
-  docTried.set(clientId, at);
+  docTried.set(key, at);
   return true;
 }
 
@@ -498,8 +499,10 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
       }
       // an app that names itself by an address: read its page once (guarded), keep it as a registered client; a page that cannot be read leaves the client unknown, which is the usual refusal
       const named = q["client_id"];
-      if (named && isDocId(named) && docDue(o.db, named, at)) {
+      if (named && isDocId(named) && docDue(o.db, o.space, named, at)) {
         const doc = await fetchDoc(named, o.clientDocGet ?? createGuardedFetch({ own: false }));
+        // a page that could not be read is tried again in a minute, even for a known app
+        if ("refused" in doc) docTried.set(`${o.space} ${named}`, at - DOC_REFRESH_MS + DOC_RETRY_MS);
         if (!("refused" in doc) && !keepDoc(o.db, doc, at)) {
           const full = refusalPage("Too many apps", "This Space has no room for another app right now. Try again later.");
           return { status: 503, headers: { ...full.headers }, body: full.body };

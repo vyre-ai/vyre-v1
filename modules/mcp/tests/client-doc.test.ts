@@ -73,18 +73,18 @@ test("pages that name themselves count against the same cap as registration: pas
   for (let i = 0; i < MAX_CLIENTS; i++)
     h.db.run(
       "INSERT INTO mcp_oauth_clients (client_id, name, redirect_uris, created_at, used_at) VALUES (?, ?, ?, ?, ?)",
-      `https://a${i}.example.com/c.json`,
+      `https://a.d${i}.com/c.json`,
       "x",
       "[]",
       now - 1000,
       now - 500,
     );
-  const fresh = { clientId: "https://new.example.com/c.json", name: "New", redirectUris: ["https://new.example.com/cb"] };
+  const fresh = { clientId: "https://new.fresh.org/c.json", name: "New", redirectUris: ["https://new.fresh.org/cb"] };
   assert.equal(keepDoc(h.db, fresh, now), false, "the table is full of clients in use");
   assert.equal(clientBy(h.db, fresh.clientId), null);
-  assert.equal(keepDoc(h.db, { ...fresh, clientId: "https://a1.example.com/c.json" }, now), true, "a known one refreshes");
+  assert.equal(keepDoc(h.db, { ...fresh, clientId: "https://a.d1.com/c.json" }, now), true, "a known one refreshes");
   // unused and old: room is made
-  h.db.run("UPDATE mcp_oauth_clients SET used_at = NULL, created_at = ? WHERE client_id LIKE 'https://a1%'", now - 2 * UNUSED_CLIENT_MS);
+  h.db.run("UPDATE mcp_oauth_clients SET used_at = NULL, created_at = ? WHERE client_id LIKE 'https://a.d1.com%'", now - 2 * UNUSED_CLIENT_MS);
   assert.equal(keepDoc(h.db, fresh, now), true, "unused clients older than a day go first");
   assert.ok(clientBy(h.db, fresh.clientId));
 });
@@ -95,5 +95,14 @@ test("one host cannot fill the table: past its few pages a new address on it is 
   for (let i = 0; i < MAX_DOCS_PER_HOST; i++)
     assert.equal(keepDoc(h.db, { clientId: `https://one.example.com/${i}.json`, name: "x", redirectUris: ["https://one.example.com/cb"] }, 1000), true);
   assert.equal(keepDoc(h.db, { clientId: "https://one.example.com/extra.json", name: "x", redirectUris: ["https://one.example.com/cb"] }, 1000), false);
-  assert.equal(keepDoc(h.db, { clientId: "https://two.example.com/a.json", name: "x", redirectUris: ["https://two.example.com/cb"] }, 1000), true);
+  assert.equal(keepDoc(h.db, { clientId: "https://two.other.org/a.json", name: "x", redirectUris: ["https://two.other.org/cb"] }, 1000), true);
+});
+
+test("a wildcard of subdomains is one source: the domain's few pages are shared by every subdomain of it", () => {
+  const h = harness();
+  ensure(h.db);
+  for (let i = 0; i < MAX_DOCS_PER_HOST; i++)
+    assert.equal(keepDoc(h.db, { clientId: `https://s${i}.evil.example/c.json`, name: "x", redirectUris: ["https://s0.evil.example/cb"] }, 1000), true);
+  assert.equal(keepDoc(h.db, { clientId: "https://s99.evil.example/c.json", name: "x", redirectUris: ["https://s0.evil.example/cb"] }, 1000), false);
+  assert.equal(keepDoc(h.db, { clientId: "https://app.fine.example/c.json", name: "x", redirectUris: ["https://app.fine.example/cb"] }, 1000), true);
 });
