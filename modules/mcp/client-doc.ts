@@ -1,6 +1,7 @@
 // Client metadata documents (MCP 2026-07-28, lane r42-mcp, 19 Nov 2026): an app can name itself by an https address, its client_id, whose page says who it is and where it may be sent back. Vyre reads that page once,
 // the way a browser would from a stranger: only a public https address, never a private one (lib/net-guard.ts), small, quick, one try, and the page must name the address it was read from. What it says is kept as
 // an ordinary registered client, trusted no more than a registered one: nothing happens until a person presses Allow. Dynamic registration stays.
+import { getDomain } from "tldts";
 import type { Db } from "./projections.ts";
 import { cleanClientName, redirectKind, MAX_CLIENTS, MAX_REDIRECTS, UNUSED_CLIENT_MS } from "./oauth.ts";
 
@@ -9,18 +10,10 @@ export const DOC_TIMEOUT_MS = 3000;
 /** The most pages one registered domain may have kept as clients. */
 export const MAX_DOCS_PER_HOST = 10;
 
-/** Suffixes under which strangers register their own names (shared hosts and two-part country domains): the registered domain keeps one more label there. A short built-in list, not the whole public suffix list. */
-const SHARED_SUFFIXES: ReadonlySet<string> = new Set([
-  "co.uk", "org.uk", "ac.uk", "com.au", "net.au", "co.nz", "co.jp", "co.in", "co.za", "com.br", "com.mx", "com.tr",
-  "github.io", "gitlab.io", "pages.dev", "workers.dev", "vercel.app", "netlify.app", "herokuapp.com", "onrender.com",
-  "fly.dev", "web.app", "firebaseapp.com", "appspot.com", "azurewebsites.net", "cloudfront.net", "s3.amazonaws.com",
-  "blogspot.com", "wordpress.com", "glitch.me", "repl.co", "replit.app", "ngrok.io", "ngrok-free.app", "trycloudflare.com",
-]);
-/** The name a person or company registered, so one source cannot spread over subdomains and a shared host's users stay apart. */
+/** The name a person or company registered, from the public suffix list (ICANN and private suffixes, so alice.github.io and example.co.uk are each their own): one source cannot spread over subdomains and a shared host's users stay apart. An address with no registrable name keeps its whole host. */
 export function registeredDomain(hostname: string): string {
-  const labels = hostname.toLowerCase().split(".");
-  const two = labels.slice(-2).join(".");
-  return SHARED_SUFFIXES.has(two) && labels.length > 2 ? labels.slice(-3).join(".") : two;
+  const h = hostname.toLowerCase();
+  return getDomain(h, { allowPrivateDomains: true }) ?? h;
 }
 
 /** Is this client_id an address that names a document? https, no user name, no fragment, a real path (so that it names one thing), a short address. */
