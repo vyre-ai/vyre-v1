@@ -1045,7 +1045,7 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
         ) : null}
       </View>
       <View style={st.actions}>
-        {own ? null : (
+        {own || tab === "compare" ? null : (
           <Pressable
             accessibilityRole="button"
             testID="crew-peek-open"

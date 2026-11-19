@@ -186,6 +186,10 @@ test("Run again waits for a change, then sends the new brief once, and the Compa
   });
   assert.match(textOf(find(root, "crew-peek-tab-compare")), /Compare\s*1/);
   assert.match(textOf(find(root, "compare-side-0-result")), /Harbor Supply fits best/);
+  assert.ok(
+    find(root, "crew-peek-open") === null,
+    "each run has its own Open chat, so the pane's is not repeated under Compare",
+  );
   assert.match(textOf(find(root, "compare-side-1-open")), /Starting/);
   assert.ok(find(root, "rerun-form") === null, "the form closes once it started");
   // the re-run finishes: the pane reads again by itself and fills the side in; the reads stop after that

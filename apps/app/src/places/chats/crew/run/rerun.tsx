@@ -8,7 +8,6 @@ import { Row } from "../../../../../../../ui/src/Row/index.tsx";
 import { Segmented } from "../../../../../../../ui/src/Segmented/index.tsx";
 import { TextField } from "../../../../../../../ui/src/TextField/index.tsx";
 import { accountName, modelName } from "../../../../../../../lib/model-names.ts";
-import { Glyph } from "../../conversation/parts.tsx";
 import { money, span, tokens } from "../model.ts";
 import { compareDiff, sideLabel, sideOpen } from "./model.ts";
 import type { CompareSide } from "./model.ts";
@@ -400,7 +399,7 @@ export function CompareView({
                 {/* ui-rows-lint: not a list (a few facts about what changed, a mark and a sentence each, nothing to press) */}
                 {lines.map((l) => (
                   <View key={l} style={st.diffLine}>
-                    <Glyph name="check" size={12} />
+                    <View style={st.dot} />
                     <Text style={st.diffText}>{l}</Text>
                   </View>
                 ))}
@@ -462,6 +461,7 @@ const st = StyleSheet.create({
   result: { fontSize: 13.5, lineHeight: 20, color: "var(--ink)" as string },
   meta: { fontSize: 12, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
   diff: { gap: 4 },
+  dot: { width: 4, height: 4, marginHorizontal: 4, borderRadius: 2, backgroundColor: "var(--ink-4)" as string },
   diffLine: { flexDirection: "row", alignItems: "center", gap: 6 },
   diffText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-2)" as string },
 });
