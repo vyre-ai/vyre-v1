@@ -299,6 +299,10 @@ export function TmuxScreen({
 }): ReactElement | null {
   const [shot, setShot] = useState<Capture | null>(null);
   const el = useRef<HTMLElement | null>(null);
+  // The keyboard is a person's: the next key goes to the screen, nothing to click first. Said by the screen itself the moment it is drawn with the keyboard on it, or when the keyboard arrives (never a timer).
+  useEffect(() => {
+    if (keys) el.current?.focus?.();
+  }, [keys]);
   const stuck = useRef(true);
   // one batcher for the life of the screen: a new one per render would send batches side by side and out of order
   const lastKeyAt = useRef(0);

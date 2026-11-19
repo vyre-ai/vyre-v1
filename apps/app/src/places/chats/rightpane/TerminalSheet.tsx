@@ -109,22 +109,7 @@ export function TerminalSheet({
     onClose();
   };
   useEscapeLayer(!mine, close);
-  // taking the keyboard puts it straight on the screen: the next key goes to the terminal, nothing to click first
-  useEffect(() => {
-    if (!mine || Platform.OS !== "web") return undefined;
-    const doc = (globalThis as { document?: Document }).document;
-    let tries = 0;
-    const focus = (): void => {
-      const el = doc?.querySelector(
-        '[data-testid="terminal-popup"] [data-testid="terminal-screen"]',
-      ) as HTMLElement | null;
-      if (el && doc?.activeElement !== el) el.focus();
-      if (++tries >= 8) clearInterval(t);
-    };
-    const t = setInterval(focus, 120);
-    focus();
-    return () => clearInterval(t);
-  }, [mine, sel]);
+  // taking the keyboard puts it straight on the screen: the screen itself takes the focus when it is drawn with the keyboard on it (TmuxScreen, `keys`), so nothing here waits on a timer
   // the lease of the take-over and the number of the next batch of keys, per terminal: set by the take_over answer, advanced as batches are answered, asked again when the count is unknown
   const seat = useMemo(
     (): Seat => ({
