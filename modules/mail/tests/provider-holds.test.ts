@@ -28,10 +28,26 @@ const NOT_HELD: [RegExp, string][] = [
     "writes the person's own digest or alert line in the Space (alerts_notify is host only); no new destination",
   ],
   [
-    /^(access\.(share|unshare|join_share)|chat\.share|notes\.share|files\.share|vault\.(share|unshare)|skills\.(share|shared\.decide)|automations\.connector_share|meetings\.closeout\.share|engine\.subscription_share\.set)$/,
+    /^(access\.(share|unshare|join_share)|chat\.share|notes\.share|files\.share|vault\.(share|unshare)|skills\.(share|shared\.decide)|automations\.connector_share|meetings\.closeout\.share)$/,
     "a grant inside the Space: an agent acts for a person and is never wider than that person (kernel/tests/authorize.agent.test.ts, the property over 200 worlds), it needs Manage on the thing (modules/access/handlers/share.ts:904), a guest or an agent for a guest never shares with Everyone (share.ts:1001), and in a thread an outside-started Run marked, these are held for a yes (lib/automation-content.ts:42). Sharing outside the Space is held separately",
   ],
+  [
+    /^changesets\.approve$/,
+    "the reviewer's own yes on a changeset, with its own Gate for a push to a protected branch; it gives nobody access (an open question for the lead: should an agent approve its own changeset?)",
+  ],
   [/^projects\.unshare_out$/, "takes outside access away"],
+  [
+    /^(access\.(groups\.remove_member|roles\.(delete|unassign))|channels\.members\.remove|projects\.members\.remove|threads\.members\.remove|members\.join_requests\.decline|gate\.grants\.(take|give_back|ask))$/,
+    "takes access away, declines a request, or is the caller's own ask or return of a standing yes (a person's yes is still needed to give one: gate.grants.set and goal are held)",
+  ],
+  [
+    /^(channels\.(join|home_join)|identity\.sso_join_start|members\.accept)$/,
+    "the caller's own join of a place they can already see, or an anonymous or pending person's own step with an invitation code",
+  ],
+  [
+    /^(agents\.role_line\.set|chat\.remember|memory\.remember)$/,
+    "writes a line of words or a memory note under the caller's own access; it gives nobody access and sends nothing (the name only says role or member)",
+  ],
   [
     /^(members\.(invites\.(revoke|guest)|join_link\.(disable|request))|forms\.(unpublish|link_revoke)|vault\.exports\.revoke|projects\.links\.unlink|tasks\.links\.remove|projects\.unlink_tasks)$/,
     "takes an invitation, link or outside access away, or is called only by a held capability (members.invites.guest only by threads.invite_guest, held); join_link.request is the joiner's own press with the code",
@@ -93,7 +109,7 @@ const NOT_HELD: [RegExp, string][] = [
 ];
 const notHeldWhy = (name: string): string | undefined => NOT_HELD.find(([re]) => re.test(name))?.[1];
 const SWEEP =
-  /(route|sender|forward|alias|smtp|inbound|relay|bcc|\bcc\b|recipient|webhook|notif|digest|share|invite|guest|export|publish|link|hold)/i;
+  /(route|sender|forward|alias|smtp|inbound|relay|bcc|\bcc\b|recipient|webhook|notif|digest|share|invite|guest|export|publish|link|hold|join|approve|reactivate|suspend|member|grant|role)/i;
 
 test("every provider-level write that adds a sending domain or an inbound route, and the setting that picks the provider, is held for an agent", () => {
   for (const name of [

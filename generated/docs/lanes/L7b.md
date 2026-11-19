@@ -146,7 +146,7 @@ Capabilities:
 - network.relay_set (write, server.network, level manage, gate send)
 - network.server_approve (write, server.network, level manage, gate enroll_node)
 - network.server_decline (write, server.network, level manage)
-- network.server_join_code (write, server.network, level manage)
+- network.server_join_code (write, server.network, level manage, gate send)
 - network.server_reconnect (write, server.network, level edit)
 - network.server_remove (write, server.network, level manage, gate delete)
 - network.servers (read, console.access, level view)

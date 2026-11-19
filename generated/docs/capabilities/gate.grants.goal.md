@@ -11,7 +11,7 @@ System: what a goal may do without a hold. The owner's press on the goal names t
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

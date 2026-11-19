@@ -11,7 +11,7 @@ Make a join code to add a cloud box or office Mac for compute
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | send when gate.by_actor(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

@@ -53,3 +53,49 @@ export function hostCovers(listed: string, host: string): boolean {
   if (listed.startsWith("*.")) return host.endsWith(listed.slice(1)) && host.length > listed.length - 1;
   return listed === host;
 }
+
+/** A Vault handle (#Name or #Name.field) anywhere in a call's input, a few levels deep. */
+export function carriesHandle(v: unknown, depth = 0): boolean {
+  if (typeof v === "string") return /^#[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)?$/.test(v.trim());
+  if (v === null || typeof v !== "object" || depth > 5) return false;
+  return Object.values(v as Record<string, unknown>).some((x) => carriesHandle(x, depth + 1));
+}
+
+/** Calls that send a Vault key to a place the call names: a sync spec's or a sample read's app domain, a site's git repo. One rule for them all: the key goes only to a host a person approved for that item. */
+export const KEY_HOST_CAPS: ReadonlySet<string> = new Set([
+  "sync_specs.sample",
+  "sync_specs.survey",
+  "sync_specs.validate",
+  "sync_specs.preview",
+  "sync_specs.apply",
+  "sites.create",
+  "sites.update",
+  "sites.plan",
+  "sites.deploy",
+]);
+
+/**
+ * The key and the host a call sends it to, read from the input the way the sender will read it: `{ handle, host }`; `host` null when the call names a key but no host this can read (it holds);
+ * undefined when no key is involved. Shapes: a spec ({ spec: { auth.vaultHandle, app.domain } }), a sample or survey ({ auth.vaultHandle, domain }), a site ({ source: { tokenHandle, repo } }).
+ */
+export function keySendOf(input: unknown): { handle: string; host: string | null } | undefined {
+  const i = (input ?? {}) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const hostOfDomain = (d: unknown): string | null =>
+    typeof d === "string" ? hostOfUrl(`https://${d.trim()}/`) : null;
+  if (i["spec"]?.auth?.vaultHandle !== undefined)
+    return { handle: String(i["spec"].auth.vaultHandle), host: hostOfDomain(i["spec"]?.app?.domain) };
+  if (i["auth"]?.vaultHandle !== undefined)
+    return { handle: String(i["auth"].vaultHandle), host: hostOfDomain(i["domain"]) };
+  if (i["source"]?.tokenHandle !== undefined) {
+    const repo = typeof i["source"]?.repo === "string" ? i["source"].repo.trim() : "";
+    // owner/name is GitHub; anything else is the host of the https address
+    const host = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
+      ? "github.com"
+      : repo.startsWith("https://")
+        ? hostOfUrl(repo)
+        : null;
+    return { handle: String(i["source"].tokenHandle), host };
+  }
+  return undefined;
+}
+

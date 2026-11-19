@@ -11,7 +11,7 @@ Add a person to a thread. A private chat becomes a group chat: the newcomer read
 | Grant level | edit |
 | Risk | medium |
 | Resource | thread (/threadId) |
-| Gate | none |
+| Gate | send when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

@@ -93,6 +93,8 @@ export interface CtxSeed {
   sharedKey?: boolean | undefined;
   /** an approval token for exactly this payload, from the Gate resume path */
   approval?: string | undefined;
+  /** The person who pressed yes on a held call that now runs (the releaser of the hold), never the caller it runs as. Set only on the Gate resume path. */
+  approvedBy?: string | undefined;
   /** contract version; latest when omitted */
   v?: number | undefined;
   /**
@@ -1494,6 +1496,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
             actingFor: original.actingFor,
             run: original.run,
             thread: original.thread,
+            approvedBy: seed.principal.kind === "person" ? seed.principal.id : undefined,
           };
         }
         // CallOpts.traceId: a call that continues earlier work (a provider's callback about a call a person placed) runs on that work's trace

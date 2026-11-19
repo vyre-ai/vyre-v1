@@ -49,6 +49,12 @@ const COMMS = [
   "members.invites.create",
   "members.invites.extend",
   "members.join_link.create",
+  "members.join_requests.approve",
+  "members.reactivate",
+  "members.suspend",
+  "members.joins.retry",
+  "access.requests.approve",
+  "engine.subscription_share.set",
 ];
 // a Vault key sent to a host the call names
 const KEYED = [
@@ -69,6 +75,7 @@ function world(): AccessSnapshot {
   s.putResource({ id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "dom_1", type: "domain", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "num_1", type: "number", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
+  s.putResource({ id: "fld_1", type: "folder", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "mbx_a", type: "mailbox", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putRole({ id: "member", clearance: 2, perms: [], name: "Member" });
   s.putRole({
@@ -81,6 +88,8 @@ function world(): AccessSnapshot {
       "comms.numbers",
       "connectors.manage",
       "members.invite",
+      "members.remove",
+      "sites.deploy",
     ],
     name: "Admin",
   });
@@ -94,6 +103,8 @@ function world(): AccessSnapshot {
       "comms.numbers",
       "connectors.manage",
       "members.invite",
+      "members.remove",
+      "sites.deploy",
     ],
     name: "Mailer",
   }); // an agent never holds Admin or Owner, so the one it has is a plain role that carries the permission
@@ -261,6 +272,12 @@ const INPUT: Record<string, Record<string, unknown>> = {
   "members.invites.create": { role: "rol_member", email: "pat@outside.example", idempotencyKey: "k22" },
   "members.invites.extend": { inviteId: "inv_1", expiresInDays: 30 },
   "members.join_link.create": { role: "rol_member" },
+  "members.join_requests.approve": { requestId: "jrq_1" },
+  "members.reactivate": { personId: "usr_member" },
+  "members.suspend": { personId: "usr_member" },
+  "members.joins.retry": { personId: "usr_member" },
+  "access.requests.approve": { requestId: "arq_1" },
+  "engine.subscription_share.set": { enabled: true },
   "webhooks.update": { webhookId: "whk_1", url: "https://attacker.example/in" },
   "twilio.number.configure": { sid: "PN1", voiceUrl: "https://attacker.example/voice", idempotencyKey: "k21" },
   "mail.address.move": {
@@ -619,13 +636,79 @@ test("through the real Gate: an agent sending a Vault key to a new host is held,
   assert.equal(keySendOf({ name: "s", source: { repo: "acme/app", tokenHandle: "#T" } })?.host, "github.com");
 });
 
+const NEW_REPO = {
+  folderId: "fld_1",
+  name: "site",
+  source: { repo: "https://git.elsewhere.example/a/b", tokenHandle: "#Crm_Key" },
+  idempotencyKey: "site-1",
+};
+test("through a full invoke: sites.create with a repo on a new host is parked and nothing is created; after a person's yes the same host goes through; a person is one step", async () => {
+  const w = keyWorld();
+  const first = rig(w.opts);
+  assert.equal((await first.invoke("sites.create", { ...NEW_REPO }, asAgent())).status, "held");
+  assert.deepEqual([first.parked, first.ran], [[{ cap: "sites.create", act: "send" }], []]);
+  const approved = rig(w.opts);
+  await approved.gate.seen?.(
+    approved.defOf("sites.create"),
+    NEW_REPO,
+    {},
+    { ...asAgent(), approval: "apv_yes", approvedBy: "usr_member" } as never,
+    0,
+  );
+  assert.deepEqual(
+    w.hosts.filter((h) => h.host !== "").map((h) => [h.item_id, h.host, h.by]),
+    [["vit_crm", "git.elsewhere.example", "usr_member"]],
+    "the host is recorded as approved by the person who pressed yes, not the person the agent works for",
+  );
+  const next = rig(w.opts);
+  assert.equal((await next.invoke("sites.create", { ...NEW_REPO, idempotencyKey: "site-2" }, asAgent())).status, "ok");
+  assert.deepEqual([next.parked, next.ran], [[], ["sites.create"]]);
+  const person = rig(w.opts);
+  assert.equal(
+    (await person.invoke("sites.create", { ...NEW_REPO, idempotencyKey: "site-3" }, seed("usr_admin"))).status,
+    "ok",
+  );
+});
+
+test("a key in a shape the rule cannot read holds an agent (it fails closed), and a call with no key at all is not held", async () => {
+  const w = keyWorld();
+  const r = rig(w.opts);
+  const weird = { creds: { k: "#Crm_Key" }, domain: "api.crm.example" };
+  assert.deepEqual(await r.gate.applies(r.defOf("sync_specs.sample"), weird, { ...asAgent() } as never), {
+    act: "send",
+  });
+  assert.equal(
+    await r.gate.applies(r.defOf("sites.create"), { name: "s", source: { repo: "acme/app" } }, {
+      ...asAgent(),
+    } as never),
+    null,
+  );
+});
+
+test("an evaluator whose inner call fails with a refusal still holds: only a refusal the key rule marks is passed through", async () => {
+  const read = registry.capabilities.find((c) => c.name === "automations.read_link") as unknown as CapabilityDef;
+  const down = rig({
+    call: async (cap: string) => {
+      if (cap === "gate.links.known")
+        throw new HostError({ code: "internal.unavailable", message: "down", retryable: true, traceId: "t" } as never);
+      return null;
+    },
+  });
+  assert.deepEqual(
+    await down.gate.applies(read, { url: "https://example.com/a" }, { ...asAgent() } as never),
+    { act: "send" },
+    "an internal.unavailable from links.is_composed is a card, not an error",
+  );
+});
+
 test("through the real Gate: an agent that may not itself use the Vault item is refused, not held, even when the person it works for may", async () => {
   const w = keyWorld("deny");
   const r = rig(w.opts);
-  assert.equal(
-    await codeOf(r.invoke("sync_specs.sample", SAMPLE("api.crm.example"), asAgent())),
-    "permission.no_grant",
-  );
+  const refused = await r.invoke("sync_specs.sample", SAMPLE("api.crm.example"), asAgent()).catch((e: unknown) => e);
+  assert.ok(refused instanceof HostError, "a clean refusal, not a 500 and not a hold");
+  assert.equal(refused.error.code, "permission.no_grant");
+  assert.notEqual(refused.error.traceId, "0".repeat(32), "the refusal carries the call's own trace id");
+  assert.ok(refused.error.traceId.length === 32);
   assert.deepEqual([r.parked, r.ran], [[], []], "nothing was parked and nothing ran");
 });
 

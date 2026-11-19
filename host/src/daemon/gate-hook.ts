@@ -10,7 +10,7 @@ import { CARRIES_MARK, HELD_FROM_AUTOMATION_SET } from "../../../lib/automation-
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
-import { hostOfUrl, keyReadHost } from "../../../lib/key-target.ts";
+import { KEY_HOST_CAPS, carriesHandle, hostOfUrl, keyReadHost, keySendOf } from "../../../lib/key-target.ts";
 import { resolveKeyRef } from "../seams/key-ref.ts";
 import { HostError, fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
@@ -34,6 +34,8 @@ export interface GateHookDeps {
       seed: Pick<CtxSeed, "principal" | "thread"> & {
         actingFor?: string | undefined;
         setupGrant?: boolean | undefined;
+        trace?: CtxSeed["trace"];
+        approvedBy?: string | undefined;
       },
     ) => boolean | Promise<boolean>
   >;
@@ -103,7 +105,11 @@ async function appliesWhen(
   d: Pick<GateHookDeps, "evaluators">,
   when: string | undefined,
   input: unknown,
-  seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined; setupGrant?: boolean | undefined },
+  seed: Pick<CtxSeed, "principal" | "thread"> & {
+    actingFor?: string | undefined;
+    setupGrant?: boolean | undefined;
+    trace?: CtxSeed["trace"];
+  },
 ): Promise<boolean> {
   const fn = when === undefined ? undefined : MODULE_WHEN.exec(when)?.[1];
   const evaluate = fn === undefined ? undefined : d.evaluators?.[fn];
@@ -111,49 +117,13 @@ async function appliesWhen(
   try {
     return await evaluate(input, seed);
   } catch (e) {
-    // a refusal the condition itself chose to make (an agent that may not use the key at all) is the answer; any other failure holds
-    if (e instanceof HostError) throw e;
+    // a refusal the condition itself marked (details.refusal: an agent that may not use the key at all) is the answer; every other failure, a HostError from an inner call included, holds
+    if (e instanceof HostError && (e.error.details as { refusal?: unknown } | undefined)?.refusal === true) throw e;
     return true;
   }
 }
 
-/** Calls that send a Vault key to a place the call names: a sync spec's or a sample read's app domain, a site's git repo. One rule for them all: the key goes only to a host a person approved for that item. */
-export const KEY_HOST_CAPS: ReadonlySet<string> = new Set([
-  "sync_specs.sample",
-  "sync_specs.survey",
-  "sync_specs.validate",
-  "sync_specs.preview",
-  "sync_specs.apply",
-  "sites.create",
-  "sites.update",
-  "sites.plan",
-  "sites.deploy",
-]);
-
-/**
- * The key and the host a call sends it to, read from the input the way the sender will read it: `{ handle, host }`; `host` null when the call names a key but no host this can read (it holds);
- * undefined when no key is involved. Shapes: a spec ({ spec: { auth.vaultHandle, app.domain } }), a sample or survey ({ auth.vaultHandle, domain }), a site ({ source: { tokenHandle, repo } }).
- */
-export function keySendOf(input: unknown): { handle: string; host: string | null } | undefined {
-  const i = (input ?? {}) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const hostOfDomain = (d: unknown): string | null =>
-    typeof d === "string" ? hostOfUrl(`https://${d.trim()}/`) : null;
-  if (i["spec"]?.auth?.vaultHandle !== undefined)
-    return { handle: String(i["spec"].auth.vaultHandle), host: hostOfDomain(i["spec"]?.app?.domain) };
-  if (i["auth"]?.vaultHandle !== undefined)
-    return { handle: String(i["auth"].vaultHandle), host: hostOfDomain(i["domain"]) };
-  if (i["source"]?.tokenHandle !== undefined) {
-    const repo = typeof i["source"]?.repo === "string" ? i["source"].repo.trim() : "";
-    // owner/name is GitHub; anything else is the host of the https address
-    const host = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
-      ? "github.com"
-      : repo.startsWith("https://")
-        ? hostOfUrl(repo)
-        : null;
-    return { handle: String(i["source"].tokenHandle), host };
-  }
-  return undefined;
-}
+export { KEY_HOST_CAPS, carriesHandle, keySendOf };
 
 interface Claims {
   v?: unknown;
@@ -489,7 +459,7 @@ export function moduleWhens(
     seed.principal.kind === "actor" ||
     (seed.principal.kind === "service" && String(seed.principal.id).startsWith("aut_"));
   // an invitation made by an agent, an outside actor or an Automation step is an access grant: held (the host's own services, the seed and the join flow, are not an actor here), unless the person gave this outside agent the setup grant ("Act for me, including setup", owner ruling 3 Nov), which names invites
-  out["members.invite_by_actor"] = (_input, seed) =>
+  out["gate.by_actor"] = (_input, seed) =>
     (seed.principal.kind === "agent" ||
       seed.principal.kind === "actor" ||
       (seed.principal.kind === "service" && String(seed.principal.id).startsWith("aut_"))) &&
@@ -543,7 +513,8 @@ export function moduleWhens(
   out["vault.key_host_unapproved"] = async (input, seed) => {
     if (seed.principal.kind === "person") return false;
     const use = keySendOf(input);
-    if (use === undefined) return false;
+    // a Vault handle anywhere in the input that no known shape reads holds: the rule cannot tell where it goes
+    if (use === undefined) return carriesHandle(input);
     const h = db();
     if (use.host === null || !h || typeof approved !== "function") return true;
     const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
@@ -558,8 +529,9 @@ export function moduleWhens(
       }).catch(() => null)) as { decision?: { effect?: unknown } } | null;
       // a check that could not be made (null) is not a no: the call goes on to the approved-host rule, which holds it; only an answer that is not "allow" refuses
       if (r !== null && r.decision?.effect !== "allow")
-        throw fail("permission.no_grant", "0".repeat(32), {
+        throw fail("permission.no_grant", seed.trace?.traceId ?? "0".repeat(32), {
           message: "This agent may not use that Vault item, so its key cannot be sent anywhere.",
+          details: { refusal: true },
         });
     }
     if ((approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, use.host)) return false;
@@ -572,8 +544,11 @@ export function moduleWhens(
     if (use === undefined || use.host === null || !h || !asker || !callAs) return false;
     const ref = resolveKeyRef(h, use.handle, asker);
     if (ref === null) return false;
-    // through the capability the key's own page uses: it checks that the approving person may use the item
-    await callAs("automations.key_hosts.allow", { vaultItemId: ref.id, host: use.host }, asker).catch(() => undefined);
+    // through the capability the key's own page uses: it checks that the approving person may use the item. The host is recorded as approved by the person who pressed yes, not the one the agent works for
+    const approver = seed.approvedBy?.startsWith("usr_") ? seed.approvedBy : asker;
+    await callAs("automations.key_hosts.allow", { vaultItemId: ref.id, host: use.host }, approver).catch(
+      () => undefined,
+    );
     return true;
   };
   out["automations.key_host_unapproved"] = async (input, seed) => {

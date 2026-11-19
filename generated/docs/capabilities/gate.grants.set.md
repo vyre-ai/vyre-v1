@@ -11,7 +11,7 @@ Replace what an automation may send without a hold, for its definition as saved 
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

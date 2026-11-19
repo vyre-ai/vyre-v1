@@ -1,7 +1,7 @@
 {
   "module": "connectors",
   "capabilities": {
-    "connections.approve_hosts@1": "475488d60f4b7a5ba554c29a7c707682063abf1a2c44dab88bc5e5731b46fa99",
+    "connections.approve_hosts@1": "91a5746f72f7322394c71b803e9e91099cf3f8845b56ac0a8caa05b7b108818b",
     "connections.complete_auth@1": "dfe0f4725533541c108b78af0896224db411a1b1776d42882d70d403159922d2",
     "connections.create@1": "3614ae9efe55b6d96d2d111c16ce7b4965ce57f911ae35704bfa7beb3d9687fb",
     "connections.delete@1": "f873bd7d73760f3232ba5218c03977b3255521a5823cacb9d72f0ad370e98149",

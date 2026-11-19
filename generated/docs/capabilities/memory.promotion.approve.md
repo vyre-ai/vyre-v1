@@ -11,7 +11,7 @@ Approve a promotion request (the approver action on its task)
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |
