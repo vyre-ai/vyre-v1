@@ -8,6 +8,7 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { useObjectNames } from "../../objects/names.ts";
 import { useConsoleData } from "../../shell/data.tsx";
 import { Glyph } from "../../shell/glyphs.tsx";
@@ -125,7 +126,7 @@ export function EmailPage(): ReactElement {
   const data = useConsoleData();
   const query = useRead<Setup>("mail.setup.status", {});
   const action = useAction(query.refresh);
-  const narrow = useWindowDimensions().width < 720;
+  const narrow = isPhoneWidth(useWindowDimensions().width);
   const [testing, setTesting] = useState("");
   const [provider, setProvider] = useState(false);
   if (!query.data) return <ReadState error={query.error} retry={query.refresh} />;

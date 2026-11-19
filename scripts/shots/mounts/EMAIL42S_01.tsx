@@ -217,6 +217,7 @@ function dataFor(part: string): ConsoleData {
   return {
     ...base,
     call: call as never,
+    clock: () => ({ now: T0 }),
     screens: {
       ...base.screens,
       capQuery: (cap: string) => {

@@ -2972,6 +2972,17 @@
   "machines_set": {
     "machineId": "Quarterly planning"
   },
+  "mail_address_add": {
+    "domainId": "dom_a1b2c3",
+    "localPart": "billing"
+  },
+  "mail_address_list": {},
+  "mail_address_move": {
+    "domainId": "dom_a1b2c3",
+    "localPart": "billing",
+    "fromMailboxId": "mbx_a1b2c3",
+    "mailboxId": "mbx_a1b2c3"
+  },
   "mail_attachment_save": {
     "messageId": "eml_a1b2c3",
     "attachmentId": "Quarterly planning"
@@ -3071,6 +3082,10 @@
         "address": "dana@acme.test"
       }
     ]
+  },
+  "mail_setup_status": {},
+  "mail_setup_test_send": {
+    "to": "dana@acme.test"
   },
   "mail_smtp_get": {},
   "mail_smtp_set": {

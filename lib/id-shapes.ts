@@ -23,6 +23,7 @@ export const ID_PREFIXES: readonly string[] = [
   "chg",
   "chn",
   "cld",
+  "cln",
   "cmt",
   "cnf",
   "cnv",
