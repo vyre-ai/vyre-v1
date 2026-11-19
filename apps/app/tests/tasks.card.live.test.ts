@@ -65,7 +65,8 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
       ((await api("tasks.get", { taskId: id })) as CapMap["tasks.get"]["out"]).task;
     const titles = ["Check the quarterly report", "Reply to the vendor", "Book the venue", "Update the handbook"];
     const ids: string[] = [];
-    for (const title of titles) ids.push(await make(title));
+    for (const [n, title] of titles.entries())
+      ids.push(await make(title, n === 2 ? { source: { kind: "chat", id: "thr_not_here" } } : {}));
     const open = await make("A task that stays on the list");
     const why = [
       "Nothing has happened for 14 days.",
@@ -146,11 +147,17 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     await page.getByTestId("tasks-still").getByText("Reply to the vendor", { exact: true }).waitFor();
     await page.getByText(/Its expected date has passed/).waitFor();
     await shot("card-open-dark-desktop");
-    await page
-      .getByTestId("tasks-still")
-      .getByText(/Payment received, \$171\.56/)
-      .waitFor();
-    await page.getByTestId("still-done").waitFor();
+    // the quote is a line of a chat: a reader who cannot open that chat is told it looks done and where to look, never the words
+    await page.getByTestId("tasks-still").getByText("Open the chat to see why").waitFor();
+    assert.equal(
+      await page
+        .getByTestId("tasks-still")
+        .getByText(/Payment received/)
+        .count(),
+      0,
+      "no quote for someone who cannot read the chat",
+    );
+    assert.equal(await page.getByTestId("still-done").count(), 0, "and no Done on words they cannot see");
     await shot("card-look-dark-desktop");
     await page.emulateMedia({ colorScheme: "light" });
     await page.waitForTimeout(400);
