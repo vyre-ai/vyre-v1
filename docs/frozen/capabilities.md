@@ -743,3 +743,15 @@ Signed: lead, 17 Nov 2026
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: lead, 17 Nov 2026
+
+## 19 Nov 2026: Vyre for Chrome connects to a Space: `vault.login.check`, and a bound pair code (lane r42-chrome)
+
+- New capability `vault.login.check` (read, level view, no gate, snapshot docs/frozen/snapshots/vault.json). Input: the page address, an optional username and the submitted password (1 to 1024 characters). Output: `state` (`known`, `changed` or `new`) and, only for `changed`, the item's id and name. What it does: compares a login a person just submitted on a page with the Vault inside the Vault (the same visible-item and host rules as `vault.items.match`), so the Chrome extension can offer Save or Update without a password ever leaving the Vault.
+- Who may call it: any person or agent who may call `vault.items.match` (level view); it considers only items that person can see. The Chrome extension's list of calls now includes it.
+- What it never returns: a stored value, a field name, a hint of a password, or anything about an item on another host. The comparison is a fixed-size SHA-256 digest comparison with `timingSafeEqual`, so timing says nothing about how much of a password matched. A site set to Never Save answers `known` and nothing is compared.
+- Rate limit: 30 calls per 60 seconds per principal (manifest), and the extension adds 4 comparisons per site per minute. Audit: `sensitive` (the input is not written to the audit trail).
+- How a page cannot use it to probe which passwords a person has: (1) a page cannot call it. Only the extension's worker does, and only after a trusted submit event of the person's own (the content script ignores a script's submit, `isTrusted` is checked, tested in ext-core.fill.test.ts); the page has no message that reaches it and never sees the answer, which only changes the extension's own Save card. (2) It tests the one password the person just typed, against saved logins of the same host and username only; it cannot be pointed at another site, and it answers nothing about passwords the person did not just type. (3) The extension allows 4 comparisons per origin per minute and the capability 30 per minute per principal, so a page that provokes many submits is stopped after four (tested). (4) The only fact the answer gives is that the person already has a login for that username on that site, which is the person's own data shown to the person.
+- Changed contracts: `identity.pair_create` gains an optional `challenge` (64 hex characters, the SHA-256 of a value the extension keeps; allowed only with purpose `extension`), and `identity.pair_redeem` gains an optional `verifier`. A code made with a challenge redeems only with the value that hashes to it, once, for the extension device class, within its 10 minutes; a wrong or missing value spends nothing and counts against the redeem rate limit. Codes without a challenge behave as before. Tests: host/tests/chrome-direct.live.test.ts, modules/vault/tests/g20.test.ts.
+- Snapshots: docs/frozen/snapshots/vault.json, docs/frozen/snapshots/identity.json.
+
+Signed: pending, lead

@@ -1257,3 +1257,25 @@ test("the page changes under a fill: the frame is gone when the value arrives, s
   assert.deepEqual(w.applied, []);
   assert.equal(w.f.pendingRefs, 0);
 });
+
+test("a page cannot use the Vault comparison to try passwords: a site's logins are compared a few times a minute, then not at all until the minute passes", async () => {
+  const app = new FakeApp();
+  loginPage(doc);
+  const b = await worker(app);
+  const ctx = { id: "ext_vyre", tab: { id: 7 }, origin: "https://login.acme.test" };
+  app.login = { state: "known", itemId: "vit_acme", name: "Acme Portal" };
+  const answers: string[] = [];
+  for (let i = 0; i < 8; i++)
+    answers.push(
+      (await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: `guess-${i}`, kind: "signin" }, ctx))
+        .data.why,
+    );
+  assert.deepEqual(answers, ["known", "known", "known", "known", "rate", "rate", "rate", "rate"]);
+  assert.equal(app.received.filter((m) => m["op"] === "login.check").length, 4, "the Vault was asked four times");
+  // another site is its own count
+  const other = { ...ctx, origin: "https://other.acme.test" };
+  assert.equal(
+    (await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: "x", kind: "signin" }, other)).data.why,
+    "known",
+  );
+});
