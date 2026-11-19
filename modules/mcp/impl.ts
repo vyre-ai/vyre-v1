@@ -19,6 +19,7 @@ import { recordWork, sessionWorkKey } from "../../agent/src/tools/work-cards.ts"
 import type { McpCaller, McpServer, McpServerDeps } from "../../agent/src/mcp/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
+import { WATCHED_EVENTS, changeOf } from "../../agent/src/mcp/watch.ts";
 import { onAgentDeleted, onHoldAnswered, onKeyAnswered } from "./handlers/oauth.ts";
 import type { OauthCtx } from "./handlers/oauth.ts";
 import type { Handler } from "../../host/src/invoke.ts";
@@ -540,6 +541,16 @@ export const consumers = {
   "mcp.agent_gone": {
     on: ["agent.deleted"],
     run: (ctx: McpCtx, event: { payload: { agentId?: unknown } }): string[] => onAgentDeleted(ctx, event),
+  },
+  /** Something changed that a connected app may be watching: the open streams are told, each only after a read made as that app passes. Never throws, never waits for the event to commit. */
+  "mcp.watch": {
+    on: [...WATCHED_EVENTS],
+    run: (_ctx: McpCtx, event: { name: string; payload: unknown }): string[] => {
+      const live = boundServer();
+      const change = live && live.listeners() > 0 ? changeOf(event.name, event.payload) : null;
+      if (live && change) void live.changed(change).catch(() => undefined);
+      return [];
+    },
   },
   /** A person answered a call an outside agent was held on. */
   "mcp.hold_answered": {

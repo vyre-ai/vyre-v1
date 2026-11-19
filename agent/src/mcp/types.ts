@@ -68,6 +68,8 @@ export interface McpServerDeps {
   allowedOrigins?: readonly string[];
   recheckMs?: number;
   maxBodyBytes?: number;
+  /** How often an open notification stream sends a comment line, so nothing in between closes it for being quiet, and checks its sign-in still stands. Default 20 s. */
+  keepAliveMs?: number;
 }
 
 export interface CallDetail {
@@ -89,6 +91,21 @@ export interface McpHttpResponse {
   status: number;
   headers: Record<string, string>;
   body: string;
+  /**
+   * A response that stays open (subscriptions/listen, and the GET stream of the handshake revisions): the host sends the status and headers, then calls this. Each `write` goes to the client at once;
+   * `closed` settles when the client goes away. The response ends when the promise this returns settles.
+   */
+  stream?: (out: { write(chunk: string): void; closed: Promise<void> }) => Promise<void>;
+}
+
+/** Something changed in the Space that a connected app may be watching. */
+export interface McpChange {
+  /** The addresses it shows under. `people` limits one to the apps acting for those people (vyre://tasks/mine is each person's own). */
+  targets?: ReadonlyArray<{ uri: string; people?: readonly string[] }>;
+  /** The read that shows an app may see what changed: made as that app, before it is told anything. An app that cannot make it hears nothing. */
+  proof?: { tool: string; args: Record<string, unknown> };
+  /** The Space's skills changed: apps that asked are told to list their prompts again. */
+  prompts?: boolean;
 }
 
 export interface McpServer {
@@ -97,4 +114,8 @@ export interface McpServer {
   sessions(): number;
   /** End a session (mcp.session.close, a revoked token). */
   end(sessionId: string): boolean;
+  /** Tell the apps that are watching. Answers how many notifications went out. Never throws. */
+  changed(change: McpChange): Promise<number>;
+  /** Open notification streams. */
+  listeners(): number;
 }

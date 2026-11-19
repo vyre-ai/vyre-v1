@@ -8,7 +8,13 @@ export interface McpRuntime {
     headers: Record<string, string | undefined>;
     body: string;
     origin?: string;
-  }): Promise<{ status: number; headers: Record<string, string>; body: string }>;
+  }): Promise<{
+    status: number;
+    headers: Record<string, string>;
+    body: string;
+    /** A response that stays open: sent after the status and headers; ends when the promise settles. */
+    stream?: (out: { write(chunk: string): void; closed: Promise<void> }) => Promise<void>;
+  }>;
   /** The sign-in addresses (/oauth/*, /.well-known/oauth-*): null for any other path. */
   oauth(req: {
     method: string;
@@ -92,6 +98,25 @@ export function createMcpRoute(deps: McpRouteDeps): {
           ...(origin === null ? {} : { origin }),
         });
         res.writeHead(out.status, { ...out.headers, "cache-control": "no-store" });
+        if (out.stream) {
+          // an open stream: every write goes out at once; it ends when the app goes away or the server ends it
+          const closed = new Promise<void>((resolve) => {
+            // the response's own close: a request's close fires once its body is read, which is not the app going away
+            res.once("close", resolve);
+          });
+          res.flushHeaders();
+          try {
+            await out.stream({
+              write: (chunk) => {
+                if (!res.writableEnded && !res.destroyed) res.write(chunk);
+              },
+              closed,
+            });
+          } finally {
+            res.end();
+          }
+          return;
+        }
         res.end(out.body);
       })().catch(() => {
         if (!res.headersSent) res.writeHead(500, { "content-type": "application/json", "cache-control": "no-store" });

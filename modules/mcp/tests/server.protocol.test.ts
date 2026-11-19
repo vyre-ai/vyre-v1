@@ -140,8 +140,8 @@ test("initialize negotiates the protocol version, names the server, opens a sess
   // an app connected from outside is also offered the Space's things as resources and its skills as prompts (lane r42-mcp); a CLI engine the host runs is offered tools only
   assert.deepEqual(res.json.result.capabilities, {
     tools: { listChanged: false },
-    resources: {},
-    prompts: {},
+    resources: { subscribe: true },
+    prompts: { listChanged: true },
     completions: {},
   });
   assert.deepEqual((await rig().rpc("drv", "initialize", INIT)).json.result.capabilities, {

@@ -32,7 +32,7 @@ import { outsideAllows, outsideDoor, setupCovers, setupRefusal } from "./outside
 import { searchTools } from "../tools/access.ts";
 import { HostError } from "../../../host/src/routes/errors.ts";
 import { heldCard, workCardOf } from "../tools/work-cards.ts";
-import type { McpCaller, McpHttpRequest, McpHttpResponse, McpServer, McpServerDeps } from "./types.ts";
+import type { McpCaller, McpChange, McpHttpRequest, McpHttpResponse, McpServer, McpServerDeps } from "./types.ts";
 import {
   LIST_READS,
   RESOURCE_TEMPLATES,
@@ -65,6 +65,13 @@ const META_VERSION = "io.modelcontextprotocol/protocolVersion";
 const META_CLIENT = "io.modelcontextprotocol/clientInfo";
 const META_CLIENT_CAPS = "io.modelcontextprotocol/clientCapabilities";
 const META_SERVER = "io.modelcontextprotocol/serverInfo";
+const META_SUBSCRIPTION = "io.modelcontextprotocol/subscriptionId";
+/** The most addresses one app watches, and the most streams one sign-in holds open. */
+const MAX_WATCHED = 100;
+const MAX_STREAMS = 8;
+const KEEP_ALIVE_MS = 20_000;
+const SSE_HEADERS = { "content-type": "text/event-stream", "cache-control": "no-store", "x-accel-buffering": "no" };
+const sse = (message: unknown): string => `event: message\ndata: ${JSON.stringify(message)}\n\n`;
 /** Error codes the 2026-07-28 revision defines (its reserved range, -32020 to -32099). */
 export const HEADER_MISMATCH = -32020;
 export const UNSUPPORTED_PROTOCOL_VERSION = -32022;
@@ -144,6 +151,8 @@ interface Session {
   clientName: string | undefined;
   /** Asks this session already drew a card for: a repeat returns the same hold, and draws no second card. */
   asked: Set<string>;
+  /** The addresses a client of a handshake revision asked to watch (resources/subscribe): its GET stream is told when one changes. A client of the current revision names them on its listen request instead. */
+  subs: Set<string>;
   /** The deferred tools this caller is listed from the start, whatever it searched for since: a stateless client's list never changes because of its own earlier requests. */
   fixed: ReadonlySet<string>;
   /** Settles when the session ends: a call in flight stops waiting and fails. */
@@ -301,6 +310,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       ctx,
       tokenKey,
       asked: new Set<string>(),
+      subs: new Set<string>(),
       fixed,
       checkedAt: now(),
       protocol: PROTOCOL_VERSIONS[0] ?? "2025-06-18",
@@ -740,7 +750,10 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       );
     const instructions = s?.caller.kind === "outside" ? OUTSIDE_INSTRUCTIONS : INSTRUCTIONS;
     // an app connected from outside also gets the Space's things as resources and its skills as prompts; a CLI engine the host runs has both through its own tools, and is offered tools only
-    const more = s?.caller.kind === "outside" ? { resources: {}, prompts: {}, completions: {} } : {};
+    const more =
+      s?.caller.kind === "outside"
+        ? { resources: { subscribe: true }, prompts: { listChanged: true }, completions: {} }
+        : {};
     const params = (req.params ?? {}) as Record<string, unknown>;
     switch (req.method) {
       case "initialize":
@@ -795,6 +808,22 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         if (got && needsBytes(route, got.data)) got = (await readFor(s, route.tool, asBytes(route).args, false)) ?? got;
         if (!got) return missing();
         return done({ contents: contentsOf(route, uri as string, got.data) }, 0);
+      }
+      case "resources/subscribe":
+      case "resources/unsubscribe": {
+        // the handshake revisions: what this session's GET stream is told about. The current revision names its addresses on subscriptions/listen.
+        if (modern) break;
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        const uri = params["uri"];
+        if (typeof uri !== "string" || !routeOf(uri))
+          return err(id, RESOURCE_NOT_FOUND, "Resource not found", {
+            uri: typeof uri === "string" ? uri.slice(0, 512) : null,
+          });
+        if (req.method === "resources/unsubscribe") s.subs.delete(uri);
+        else if (s.subs.size < MAX_WATCHED) s.subs.add(uri);
+        else return err(id, INVALID_PARAMS, `One app watches at most ${MAX_WATCHED} addresses.`);
+        return ok(id, {});
       }
       case "prompts/list": {
         if (isNote) return null;
@@ -980,6 +1009,134 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     return made;
   }
 
+  // ---- watching: the streams that stay open -------------------------------------------------------------------------------------------------------------------
+
+  interface Listener {
+    s: Session;
+    /** The addresses it watches now. */
+    uris(): ReadonlySet<string>;
+    prompts: boolean;
+    /** One notification, in the shape of its revision. */
+    notify(method: string, params: Record<string, unknown>): void;
+    /** Is its sign-in still good? Asked before it is told anything. */
+    valid(): Promise<boolean>;
+    end(): void;
+  }
+  const listeners = new Set<Listener>();
+  const keepAliveMs = deps.keepAliveMs ?? KEEP_ALIVE_MS;
+  const streamsOf = (s: Session): number => [...listeners].filter((l) => l.s === s).length;
+
+  /**
+   * A stream that stays open for one app. It is told only what it asked for, only while its sign-in stands (checked at every keep-alive, and before each notification), and it ends at once when the
+   * app is removed. `subId` is the listen request's id (the current revision); null is the GET stream of a handshake revision, which has no acknowledgment and no closing answer.
+   */
+  function openStream(
+    s: Session,
+    token: string,
+    origin: string | undefined,
+    subId: Id,
+    watch: { uris(): ReadonlySet<string>; prompts: boolean },
+    ack: Record<string, unknown> | null,
+  ): McpHttpResponse {
+    const tag = subId === null ? {} : { _meta: { [META_SUBSCRIPTION]: subId } };
+    return {
+      status: 200,
+      headers: { ...SSE_HEADERS },
+      body: "",
+      stream: async ({ write, closed }) => {
+        let over: (why: "ended") => void = () => undefined;
+        const ended = new Promise<"ended">((resolve) => {
+          over = resolve;
+        });
+        const l: Listener = {
+          s,
+          uris: watch.uris,
+          prompts: watch.prompts,
+          notify: (method, params) => write(sse({ jsonrpc: "2.0", method, params: { ...params, ...tag } })),
+          valid: async () => bySession.get(s.caller.sessionId) === s && (await deps.open(token, undefined, origin)) !== null,
+          end: () => over("ended"),
+        };
+        // the acknowledgment is the first thing on the stream, before any notification can be
+        if (ack)
+          write(sse({ jsonrpc: "2.0", method: "notifications/subscriptions/acknowledged", params: { ...tag, notifications: ack } }));
+        listeners.add(l);
+        const tick = setInterval(() => {
+          write(":\n\n");
+          void l.valid().then(
+            (good) => {
+              if (!good) l.end();
+            },
+            () => l.end(),
+          );
+        }, keepAliveMs);
+        (tick as { unref?: () => void }).unref?.();
+        const why = await Promise.race([closed.then(() => "client" as const), s.gone, ended]);
+        clearInterval(tick);
+        listeners.delete(l);
+        // an ending of our own doing says so, so the client knows it was not a dropped line; a client that went away is told nothing
+        if (why !== "client" && subId !== null)
+          write(sse(ok(subId, { resultType: "complete", _meta: { [META_SUBSCRIPTION]: subId, [META_SERVER]: info } })));
+      },
+    };
+  }
+
+  /** subscriptions/listen (2026-07-28): the one long request an app keeps open to be told what changed. It names what it wants; the acknowledgment names what it gets. */
+  function listen(s: Session, token: string, origin: string | undefined, req: Request): McpHttpResponse {
+    const id: Id = req.id ?? null;
+    if (s.caller.kind !== "outside")
+      return json(404, err(id, METHOD_NOT_FOUND, `Method not found: ${req.method}`));
+    const asked = (req.params as { notifications?: unknown } | null | undefined)?.notifications;
+    if (id === null || asked === null || typeof asked !== "object" || Array.isArray(asked))
+      return json(200, err(id, INVALID_PARAMS, "subscriptions/listen needs an id and a notifications object."));
+    if (streamsOf(s) >= MAX_STREAMS)
+      return json(429, err(id, INVALID_REQUEST, `One app holds at most ${MAX_STREAMS} streams open. Close one first.`));
+    const want = asked as { promptsListChanged?: unknown; resourceSubscriptions?: unknown };
+    // an address that is not one of this server's is left out of the acknowledgment, which is how the client learns it is not watched
+    const uris = new Set(
+      (Array.isArray(want.resourceSubscriptions) ? want.resourceSubscriptions : [])
+        .filter((u): u is string => typeof u === "string" && routeOf(u) !== null)
+        .slice(0, MAX_WATCHED),
+    );
+    const prompts = want.promptsListChanged === true;
+    return openStream(s, token, origin, id, { uris: () => uris, prompts }, {
+      ...(prompts ? { promptsListChanged: true } : {}),
+      ...(Array.isArray(want.resourceSubscriptions) ? { resourceSubscriptions: [...uris] } : {}),
+    });
+  }
+
+  /** Tell the apps that are watching. Each is told only after the proof read passes as that app, so what an app may not see it does not hear of. */
+  async function changed(change: McpChange): Promise<number> {
+    let sent = 0;
+    for (const l of [...listeners]) {
+      try {
+        const who = l.s.caller.actingFor ?? "";
+        const hits = (change.targets ?? []).filter(
+          (t) => l.uris().has(t.uri) && (t.people === undefined || t.people.includes(who)),
+        );
+        const prompts = change.prompts === true && l.prompts;
+        if (hits.length === 0 && !prompts) continue;
+        if (!(await l.valid())) {
+          l.end();
+          continue;
+        }
+        if (prompts) {
+          l.notify("notifications/prompts/list_changed", {});
+          sent += 1;
+        }
+        if (hits.length === 0) continue;
+        if (change.proof && !(await readFor(l.s, change.proof.tool, change.proof.args, false))) continue;
+        if (!listeners.has(l)) continue;
+        for (const t of hits) {
+          l.notify("notifications/resources/updated", { uri: t.uri });
+          sent += 1;
+        }
+      } catch {
+        /* one app's stream never stops the others being told */
+      }
+    }
+    return sent;
+  }
+
   async function handle(req: McpHttpRequest): Promise<McpHttpResponse> {
     if (!originOk(req.headers["origin"])) return json(403, { error: "origin not allowed" });
     if (req.method === "DELETE") {
@@ -990,7 +1147,18 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       dropSession(s);
       return empty(204);
     }
-    // No server-initiated messages: a GET for an event stream is answered with the standard "not offered".
+    // GET is the notification stream of the handshake revisions (2025-11-25 and before), for an app that opened with initialize: it is told about the addresses it asked to watch with resources/subscribe.
+    // The current revision has no GET; its stream is the answer to a subscriptions/listen POST.
+    if (req.method === "GET" && /\btext\/event-stream\b/.test(req.headers["accept"] ?? "")) {
+      const token = bearer(req.headers["authorization"]);
+      if (!token) return unauthorized(req.origin);
+      const known = byToken.get(await sha256(token));
+      if (!known || known.caller.kind !== "outside") return empty(405, { allow: "POST, DELETE" });
+      const s = await sessionFor(token, known.tokenKey, undefined, req.origin);
+      if (!s) return unauthorized(req.origin, "invalid_token");
+      if (streamsOf(s) >= MAX_STREAMS) return empty(429);
+      return openStream(s, token, req.origin, null, { uris: () => s.subs, prompts: true }, null);
+    }
     if (req.method !== "POST") return empty(405, { allow: "POST, DELETE" });
     const token = bearer(req.headers["authorization"]);
     if (!token) return unauthorized(req.origin);
@@ -1031,6 +1199,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       const refusal = modernRefusal(item, meta, req.headers);
       if (refusal) return json(400, refusal);
       if (clientName !== undefined) s.clientName = clientName;
+      if (item.method === "subscriptions/listen") return listen(s, token, req.origin, item);
       const r = await dispatch(s, item, true);
       if (!r) return empty(202);
       // an unknown method is 404 with the JSON-RPC error in the body, which is how a client tells this endpoint from an older server that has no such address
@@ -1068,5 +1237,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       dropSession(s);
       return true;
     },
+    changed,
+    listeners: () => listeners.size,
   };
 }

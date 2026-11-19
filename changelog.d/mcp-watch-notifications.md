@@ -1,0 +1,1 @@
+An app connected to Vyre from outside can now watch things and be told when they change: a record, a task assigned to you, a run that finished, a file, or the skills list. It hears only of what its person may see, and the stream ends the moment the app is removed or its sign-in stops.
