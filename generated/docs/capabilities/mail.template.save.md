@@ -17,7 +17,7 @@ Save the Space's email template; text may hold {{field}} or {{field|fallback}}
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/template/save |
-| MCP tool | mail_template_save (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

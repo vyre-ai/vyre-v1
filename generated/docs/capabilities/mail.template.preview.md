@@ -17,7 +17,7 @@ Preview a template or draft filled from a record and values; names blank fields
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/template/preview |
-| MCP tool | mail_template_preview (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

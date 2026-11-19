@@ -17,7 +17,7 @@ List email templates
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/template/list |
-| MCP tool | mail_template_list (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

@@ -1640,6 +1640,7 @@ export function stubs(ctx: CallCtx) {
         retry: call("mail.delivery.retry"),
         trail: call("mail.delivery.trail"),
       },
+      delivery_state: call("mail.delivery_state"),
       domain: {
         add: call("mail.domain.add"),
         check: call("mail.domain.check"),
@@ -1704,6 +1705,7 @@ export function stubs(ctx: CallCtx) {
         reset: call("mail.template.reset"),
         save: call("mail.template.save"),
       },
+      templates: call("mail.templates"),
       thread: {
         get: call("mail.thread.get"),
       },

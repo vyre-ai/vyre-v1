@@ -2980,9 +2980,7 @@
     "provider": "google",
     "address": "dana@acme.test"
   },
-  "mail_delivery_trail": {
-    "messageId": "eml_a1b2c3"
-  },
+  "mail_delivery_state": {},
   "mail_domain_add": {
     "name": "Quarterly planning",
     "provider": "resend"
@@ -3007,7 +3005,6 @@
     "draftId": "eml_a1b2c3"
   },
   "mail_drafts_list": {},
-  "mail_inbox_monitor": {},
   "mail_mailbox_create": {
     "kind": "shared",
     "address": "dana@acme.test",
@@ -3086,24 +3083,8 @@
   "mail_sync_now": {
     "mailboxId": "mbx_a1b2c3"
   },
-  "mail_template_for_document_set": {
-    "documentId": "fil_a1b2c3",
-    "key": "signature.request",
-    "subject": "Quarterly planning",
-    "text": "Here is the summary you asked for."
-  },
-  "mail_template_get": {
-    "key": "signature.request"
-  },
-  "mail_template_list": {},
-  "mail_template_preview": {},
-  "mail_template_reset": {
-    "key": "signature.request"
-  },
-  "mail_template_save": {
-    "key": "signature.request",
-    "subject": "Quarterly planning",
-    "text": "Here is the summary you asked for."
+  "mail_templates": {
+    "action": "list"
   },
   "mail_thread_get": {
     "threadId": "Quarterly planning"
@@ -4529,11 +4510,6 @@
   "schema_set_label": {
     "type": "contact",
     "label": "public"
-  },
-  "schema_set_mergeable": {
-    "type": "contact",
-    "field": "phone",
-    "mergeable": false
   },
   "schema_trash_list": {},
   "schema_types_get": {

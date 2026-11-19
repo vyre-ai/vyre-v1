@@ -17,7 +17,7 @@ Read an email template (a document's own wording with documentId)
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/template/get |
-| MCP tool | mail_template_get (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

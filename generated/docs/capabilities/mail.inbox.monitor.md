@@ -17,7 +17,7 @@ Inbox health: how fed, last received, what failed and the fix; unrouted addresse
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/inbox/monitor |
-| MCP tool | mail_inbox_monitor (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

@@ -1640,6 +1640,7 @@ export function createClient(transport: Transport) {
         retry: call("mail.delivery.retry", 1),
         trail: call("mail.delivery.trail", 1),
       },
+      delivery_state: call("mail.delivery_state", 1),
       domain: {
         add: call("mail.domain.add", 1),
         check: call("mail.domain.check", 1),
@@ -1704,6 +1705,7 @@ export function createClient(transport: Transport) {
         reset: call("mail.template.reset", 1),
         save: call("mail.template.save", 1),
       },
+      templates: call("mail.templates", 1),
       thread: {
         get: call("mail.thread.get", 1),
       },

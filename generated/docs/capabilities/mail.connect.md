@@ -1,6 +1,6 @@
 # mail.connect
 
-Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)
+Connect the caller's own Gmail, Outlook or IMAP mailbox
 
 | | |
 |---|---|

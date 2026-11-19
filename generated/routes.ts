@@ -21823,6 +21823,24 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/mail/delivery_state",
+    "cap": "mail.delivery_state",
+    "v": 1,
+    "module": "mail",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/mail/domain/add",
     "cap": "mail.domain.add",
     "v": 1,
@@ -22134,7 +22152,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mail/mailbox/resume",
@@ -22153,10 +22174,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mail/mailbox/set_privacy",
@@ -22667,6 +22685,24 @@ const routes4: Route[] = [
     "module": "mail",
     "effects": "write",
     "permission": "comms.templates",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mail/templates",
+    "cap": "mail.templates",
+    "v": 1,
+    "module": "mail",
+    "effects": "write",
+    "permission": null,
     "level": "edit",
     "resource": {
       "type": "space"
@@ -27616,7 +27652,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/network/my_computer_decline",
@@ -27652,10 +27691,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/network/my_computers",
@@ -33139,7 +33175,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/schema/view_kinds",
@@ -33175,10 +33214,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/search/ask",
@@ -38643,7 +38679,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/number/set_recording",
@@ -38681,10 +38720,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/record",

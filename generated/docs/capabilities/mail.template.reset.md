@@ -17,7 +17,7 @@ Reset a template to the one that ships with Vyre
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/template/reset |
-| MCP tool | mail_template_reset (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

@@ -1,6 +1,6 @@
 # mail.send
 
-Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked
+Send an email (suppression, limits and the Gate apply)
 
 | | |
 |---|---|

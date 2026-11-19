@@ -17,7 +17,7 @@ Delivery trail of a sent message: events, retries, blocked addresses
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/delivery/trail |
-| MCP tool | mail_delivery_trail (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

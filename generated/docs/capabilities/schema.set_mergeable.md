@@ -17,7 +17,7 @@ Switch a field's "Can go in emails"; private and secret fields never can
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/schema/set_mergeable |
-| MCP tool | schema_set_mergeable (engineer) |
+| MCP tool | none |
 | CLI | none |
 | Emits | schema.changed |
 

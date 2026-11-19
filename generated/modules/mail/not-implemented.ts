@@ -10,6 +10,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.connect": async (ctx) => { throw new VyreErr(notImplemented("mail.connect", ctx.trace)); },
   "mail.delivery.retry": async (ctx) => { throw new VyreErr(notImplemented("mail.delivery.retry", ctx.trace)); },
   "mail.delivery.trail": async (ctx) => { throw new VyreErr(notImplemented("mail.delivery.trail", ctx.trace)); },
+  "mail.delivery_state": async (ctx) => { throw new VyreErr(notImplemented("mail.delivery_state", ctx.trace)); },
   "mail.domain.add": async (ctx) => { throw new VyreErr(notImplemented("mail.domain.add", ctx.trace)); },
   "mail.domain.check": async (ctx) => { throw new VyreErr(notImplemented("mail.domain.check", ctx.trace)); },
   "mail.domain.get": async (ctx) => { throw new VyreErr(notImplemented("mail.domain.get", ctx.trace)); },
@@ -56,6 +57,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.template.preview": async (ctx) => { throw new VyreErr(notImplemented("mail.template.preview", ctx.trace)); },
   "mail.template.reset": async (ctx) => { throw new VyreErr(notImplemented("mail.template.reset", ctx.trace)); },
   "mail.template.save": async (ctx) => { throw new VyreErr(notImplemented("mail.template.save", ctx.trace)); },
+  "mail.templates": async (ctx) => { throw new VyreErr(notImplemented("mail.templates", ctx.trace)); },
   "mail.thread.get": async (ctx) => { throw new VyreErr(notImplemented("mail.thread.get", ctx.trace)); },
   "mail.unsubscribe": async (ctx) => { throw new VyreErr(notImplemented("mail.unsubscribe", ctx.trace)); },
 };

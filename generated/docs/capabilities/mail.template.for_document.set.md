@@ -17,7 +17,7 @@ Give a document its own email template wording
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/template/for_document/set |
-| MCP tool | mail_template_for_document_set (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

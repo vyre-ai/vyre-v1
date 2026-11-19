@@ -6344,23 +6344,27 @@ export const screens: ScreenIndexEntry[] = [
     "caller": "principal",
     "queries": {
       "templates": {
-        "cap": "mail.template.list",
-        "input": {},
+        "cap": "mail.templates",
+        "input": {
+          "action": "list"
+        },
         "live": true
       }
     },
     "actions": {
       "save": {
-        "cap": "mail.template.save",
+        "cap": "mail.templates",
         "input": {
+          "action": "set",
           "key": "/state/key",
           "subject": "/state/subject",
           "text": "/state/text"
         }
       },
       "reset": {
-        "cap": "mail.template.reset",
+        "cap": "mail.templates",
         "input": {
+          "action": "reset",
           "key": "/state/key"
         },
         "confirm": "Use the template that ships with Vyre?"

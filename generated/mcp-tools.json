@@ -14290,7 +14290,7 @@
       "blocks": [],
       "cap": "comms.senders.list",
       "deferred": false,
-      "description": "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "description": "Addresses and numbers the caller can send from; one that cannot send now says usable false and why",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -19293,7 +19293,7 @@
       "blocks": [],
       "cap": "email_builder.snippets.list",
       "deferred": false,
-      "description": "List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space",
+      "description": "List composer snippets (reusable reply text), mine and shared",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -33383,7 +33383,7 @@
       "blocks": [],
       "cap": "inbox.counts",
       "deferred": false,
-      "description": "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
+      "description": "Unread conversation counts per inbox and number, and how many need a match",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -33398,7 +33398,7 @@
       "blocks": [],
       "cap": "inbox.follow_set",
       "deferred": false,
-      "description": "Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)",
+      "description": "Follow a contact or set Alert me on replies",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -33849,7 +33849,7 @@
       "blocks": [],
       "cap": "inbox.thread_conversation",
       "deferred": false,
-      "description": "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
+      "description": "The conversation of an email thread, from its provider thread id",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -33875,7 +33875,7 @@
       "blocks": [],
       "cap": "inbox.threads",
       "deferred": false,
-      "description": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
+      "description": "A contact's email threads, newest first, each whole, with what is new and your role",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -36466,7 +36466,7 @@
       "blocks": [],
       "cap": "mail.connect",
       "deferred": false,
-      "description": "Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)",
+      "description": "Connect the caller's own Gmail, Outlook or IMAP mailbox",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -36554,12 +36554,19 @@
     },
     {
       "blocks": [],
-      "cap": "mail.delivery.trail",
+      "cap": "mail.delivery_state",
       "deferred": false,
-      "description": "Delivery trail of a sent message: events, retries, blocked addresses",
+      "description": "A message's delivery trail (messageId), else inbox health",
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
           "messageId": {
             "examples": [
               "eml_a1b2c3"
@@ -36568,12 +36575,9 @@
             "type": "string"
           }
         },
-        "required": [
-          "messageId"
-        ],
         "type": "object"
       },
-      "name": "mail_delivery_trail",
+      "name": "mail_delivery_state",
       "planMode": "allowed",
       "toolset": "inbox",
       "v": 1
@@ -36752,7 +36756,7 @@
       "blocks": [],
       "cap": "mail.draft",
       "deferred": false,
-      "description": "Create or update a draft (an agent draft waits for Send, Edit or Discard with a Gate line)",
+      "description": "Create or update a draft (an agent's waits for a person)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -36973,29 +36977,6 @@
         "type": "object"
       },
       "name": "mail_drafts_list",
-      "planMode": "allowed",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.inbox.monitor",
-      "deferred": false,
-      "description": "Inbox health: how fed, last received, what failed and the fix; unrouted addresses",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "mailboxId": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "name": "mail_inbox_monitor",
       "planMode": "allowed",
       "toolset": "inbox",
       "v": 1
@@ -37255,7 +37236,7 @@
       "blocks": [],
       "cap": "mail.mailbox.set_sync_state",
       "deferred": false,
-      "description": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
+      "description": "A connection reports its sign-in lost (error) or working again (syncing)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -37603,7 +37584,7 @@
       "blocks": [],
       "cap": "mail.send",
       "deferred": false,
-      "description": "Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked",
+      "description": "Send an email (suppression, limits and the Gate apply)",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -37898,7 +37879,7 @@
       "blocks": [],
       "cap": "mail.smtp.set",
       "deferred": false,
-      "description": "Save the Space's mail server (SMTP); the password stays in the Vault",
+      "description": "Save the Space's SMTP server; password stays in the Vault",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -37948,7 +37929,7 @@
       "blocks": [],
       "cap": "mail.smtp.verify",
       "deferred": false,
-      "description": "Test a mail server: connect and sign in, nothing is sent. No input tests the saved one",
+      "description": "Test an SMTP server (sign in only, nothing sent); no input tests the saved one",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -38026,115 +38007,27 @@
     },
     {
       "blocks": [],
-      "cap": "mail.template.for_document.set",
+      "cap": "mail.templates",
       "deferred": false,
-      "description": "Give a document its own email template wording",
+      "description": "Email templates: list|get|set|preview|reset; documentId = one document's",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "action": {
+            "enum": [
+              "list",
+              "get",
+              "set",
+              "preview",
+              "reset"
+            ],
+            "type": "string"
+          },
           "documentId": {
             "examples": [
               "fil_a1b2c3"
             ],
             "pattern": "^fil_[a-z0-9]+$",
-            "type": "string"
-          },
-          "html": {
-            "type": "string"
-          },
-          "key": {
-            "examples": [
-              "signature.request"
-            ],
-            "maxLength": 60,
-            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
-            "type": "string"
-          },
-          "subject": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "documentId",
-          "key",
-          "subject",
-          "text"
-        ],
-        "type": "object"
-      },
-      "name": "mail_template_for_document_set",
-      "planMode": "blocked",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.template.get",
-      "deferred": false,
-      "description": "Read an email template (a document's own wording with documentId)",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "documentId": {
-            "examples": [
-              "fil_a1b2c3"
-            ],
-            "pattern": "^fil_[a-z0-9]+$",
-            "type": "string"
-          },
-          "key": {
-            "examples": [
-              "signature.request"
-            ],
-            "maxLength": 60,
-            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "key"
-        ],
-        "type": "object"
-      },
-      "name": "mail_template_get",
-      "planMode": "allowed",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.template.list",
-      "deferred": false,
-      "description": "List email templates",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "mail_template_list",
-      "planMode": "allowed",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.template.preview",
-      "deferred": false,
-      "description": "Preview a template or draft filled from a record and values; names blank fields",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "documentId": {
-            "examples": [
-              "fil_a1b2c3"
-            ],
-            "pattern": "^fil_[a-z0-9]+$",
-            "type": "string"
-          },
-          "html": {
             "type": "string"
           },
           "key": {
@@ -38152,70 +38045,6 @@
             "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
           },
-          "subject": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          },
-          "vars": {
-            "additionalProperties": true,
-            "type": "object"
-          }
-        },
-        "type": "object"
-      },
-      "name": "mail_template_preview",
-      "planMode": "allowed",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.template.reset",
-      "deferred": false,
-      "description": "Reset a template to the one that ships with Vyre",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "key": {
-            "examples": [
-              "signature.request"
-            ],
-            "maxLength": 60,
-            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "key"
-        ],
-        "type": "object"
-      },
-      "name": "mail_template_reset",
-      "planMode": "blocked",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.template.save",
-      "deferred": false,
-      "description": "Save the Space's email template; text may hold {{field}} or {{field|fallback}}",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "html": {
-            "type": "string"
-          },
-          "key": {
-            "examples": [
-              "signature.request"
-            ],
-            "maxLength": 60,
-            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
-            "type": "string"
-          },
           "recordType": {
             "examples": [
               "contact"
@@ -38229,18 +38058,17 @@
           "text": {
             "type": "string"
           },
-          "title": {
-            "type": "string"
+          "vars": {
+            "additionalProperties": true,
+            "type": "object"
           }
         },
         "required": [
-          "key",
-          "subject",
-          "text"
+          "action"
         ],
         "type": "object"
       },
-      "name": "mail_template_save",
+      "name": "mail_templates",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
@@ -38249,7 +38077,7 @@
       "blocks": [],
       "cap": "mail.thread.get",
       "deferred": false,
-      "description": "Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)",
+      "description": "Read one email thread whole, oldest first, with your role in it",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -55374,44 +55202,6 @@
         "type": "object"
       },
       "name": "schema_set_label",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "schema.set_mergeable",
-      "deferred": false,
-      "description": "Switch a field's \"Can go in emails\"; private and secret fields never can",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "field": {
-            "examples": [
-              "phone"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          },
-          "mergeable": {
-            "type": "boolean"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "field",
-          "mergeable"
-        ],
-        "type": "object"
-      },
-      "name": "schema_set_mergeable",
       "planMode": "blocked",
       "toolset": "engineer",
       "v": 1

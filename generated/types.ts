@@ -25170,6 +25170,13 @@ export type MailDeliveryTrailOut = {
     nextAt?: number;
   };
 };
+export type MailDeliveryStateIn = {
+  messageId?: string;
+  mailboxId?: string;
+};
+export type MailDeliveryStateOut = {
+  result: unknown;
+};
 export type MailDomainAddIn = {
   name: string;
   provider: "resend" | "mailgun" | "smtp";
@@ -26123,6 +26130,19 @@ export type MailTemplateSaveOut = {
         fallback?: string;
       }>;
   };
+};
+export type MailTemplatesIn = {
+  action: "list" | "get" | "set" | "preview" | "reset";
+  key?: string;
+  documentId?: string;
+  subject?: string;
+  text?: string;
+  recordType?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
+};
+export type MailTemplatesOut = {
+  result: unknown;
 };
 export type MailThreadGetIn = {
   threadId: string;
@@ -49756,6 +49776,7 @@ export interface CapMap {
   "mail.connect": { in: MailConnectIn; out: MailConnectOut };
   "mail.delivery.retry": { in: MailDeliveryRetryIn; out: MailDeliveryRetryOut };
   "mail.delivery.trail": { in: MailDeliveryTrailIn; out: MailDeliveryTrailOut };
+  "mail.delivery_state": { in: MailDeliveryStateIn; out: MailDeliveryStateOut };
   "mail.domain.add": { in: MailDomainAddIn; out: MailDomainAddOut };
   "mail.domain.check": { in: MailDomainCheckIn; out: MailDomainCheckOut };
   "mail.domain.get": { in: MailDomainGetIn; out: MailDomainGetOut };
@@ -49802,6 +49823,7 @@ export interface CapMap {
   "mail.template.preview": { in: MailTemplatePreviewIn; out: MailTemplatePreviewOut };
   "mail.template.reset": { in: MailTemplateResetIn; out: MailTemplateResetOut };
   "mail.template.save": { in: MailTemplateSaveIn; out: MailTemplateSaveOut };
+  "mail.templates": { in: MailTemplatesIn; out: MailTemplatesOut };
   "mail.thread.get": { in: MailThreadGetIn; out: MailThreadGetOut };
   "mail.unsubscribe": { in: MailUnsubscribeIn; out: MailUnsubscribeOut };
   "mailgun.domains.create": { in: MailgunDomainsCreateIn; out: MailgunDomainsCreateOut };
