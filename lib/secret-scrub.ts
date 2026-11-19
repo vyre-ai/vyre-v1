@@ -162,7 +162,7 @@ const VENDOR_PREFIX =
 const LONG_RUN = /[A-Za-z0-9_\-+/=]{20,}/g;
 const DB_TOOL = /^(?:mysql|mysqldump|mariadb|psql|mongosh?|redis-cli)$/i;
 const MAX_WORD = 2000;
-const WINDOW = 200_000;
+
 const REMOVED = "[removed]";
 
 /** Is this word, once its quotes and brackets are taken off, the name of something secret? Names are short; a long word is not a name. */
@@ -197,13 +197,19 @@ function trimAddress(word: string): string {
 export function scrubLog(input: unknown, limit = 4000): string {
   try {
     let text = String(input ?? "");
-    if (text.length > WINDOW) text = text.slice(0, text.lastIndexOf(" ", WINDOW) > 0 ? text.lastIndexOf(" ", WINDOW) : WINDOW);
+    // only the first few times the limit can reach the output, so only that much is read (a key that straddles the limit is inside it, and whole); the rest could only cost time
+    const window = Math.max(limit * 4, 16_000);
+    if (text.length > window) {
+      const at = text.lastIndexOf(" ", window);
+      text = text.slice(0, at > window / 2 ? at : window);
+    }
     const parts = text.split(/(\s+)/);
     const out: string[] = [];
     let hide = 0; // words still to remove
     let toNewline = false; // a header: the rest of the line goes
     let quote = ""; // a quoted value that spans words: removed to its closing quote
     let last = ""; // the word before this one, for a separator that stands alone
+    let userinfo = 0; // a password with a space in it: words until the one that carries the @
     let dbCommand = 0; // words since a database client was named: its -pPASSWORD flag takes the password glued on
     for (const part of parts) {
       if (part === "" || /^\s+$/.test(part)) {
@@ -215,6 +221,15 @@ export function scrubLog(input: unknown, limit = 4000): string {
       last = part;
       if (DB_TOOL.test(part)) dbCommand = 24;
       else if (dbCommand > 0) dbCommand -= 1;
+      if (userinfo > 0) {
+        userinfo -= 1;
+        const at = part.lastIndexOf("@");
+        if (at >= 0) {
+          userinfo = 0;
+          out.push(part.slice(at + 1));
+        } else out.push(REMOVED);
+        continue;
+      }
       if (toNewline) {
         out.push(REMOVED);
         continue;
@@ -266,6 +281,13 @@ export function scrubLog(input: unknown, limit = 4000): string {
           if (isSecretName(before)) hide = 1;
         }
         out.push(w);
+        continue;
+      }
+      // "scheme://user:pa ss@host": a word with a user and the start of a password and no @ is followed by the rest of the password, then the @
+      const open = /^([a-z][a-z0-9+.-]{0,31}:\/\/)[^\s/@?#:]*:([^\s/@?#]*)$/i.exec(w);
+      if (open && !/^\d+$/.test(open[2] ?? "")) {
+        userinfo = 3;
+        out.push(open[1] as string);
         continue;
       }
       w = trimAddress(w);
