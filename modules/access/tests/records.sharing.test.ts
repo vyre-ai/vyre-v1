@@ -505,9 +505,9 @@ test("a caller with little right that triggers the refusal does not close the fo
   assert.equal(r.store.resources.get("fld_deal")!.parentId, "rec_one");
 });
 
-test("a folder whose audience a person chose is not re-attached by the host: a manager's narrowing is never undone; a folder nobody chose still follows", async () => {
+const folderRig = (names: string[]) => {
   const r = rig();
-  for (const id of ["fld_chosen", "fld_plain"])
+  for (const id of names)
     r.store.resources.set(id, {
       id,
       type: "folder",
@@ -518,18 +518,78 @@ test("a folder whose audience a person chose is not re-attached by the host: a m
       row: { name: id, itemType: "file", scope: "space" },
     });
   r.store.bump();
+  const press: ShareCtx = { ...r.ctx, origin: "user" }; // Ada pressing it herself in the app
   const host: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_host" } };
-  // Ada (who manages them) chooses "only people added" for one of them
-  await audienceSet(r.ctx, { resource: { type: "folder", id: "fld_chosen" }, audience: "added" });
-  assert.ok(!r.can("usr_dee", { type: "folder", id: "fld_chosen" }), "closed by the manager's choice");
-  await audienceSet(host, { resource: { type: "folder", id: "fld_chosen" }, follows: "rec_one" });
-  assert.ok(!r.can("usr_dee", { type: "folder", id: "fld_chosen" }), "the host's re-attach left it closed");
+  const chosen = (id: string): boolean => r.store.resources.get(id)!.row?.["audienceChosen"] === true;
+  return { r, press, host, chosen, f: (id: string) => ({ type: "folder", id }) };
+};
+
+test("a folder whose audience a person chose is not re-attached by the host: a manager's narrowing is never undone; a folder nobody chose still follows", async () => {
+  const { r, press, host, chosen, f } = folderRig(["fld_chosen", "fld_plain"]);
+  await audienceSet(press, { resource: f("fld_chosen"), audience: "added" });
+  assert.ok(chosen("fld_chosen"));
+  assert.ok(!r.can("usr_dee", f("fld_chosen")), "closed by the manager's choice");
+  await audienceSet(host, { resource: f("fld_chosen"), follows: "rec_one" });
+  assert.ok(!r.can("usr_dee", f("fld_chosen")), "the host's re-attach left it closed");
   assert.equal(r.store.resources.get("fld_chosen")!.parentId, "spc_test", "and did not move it");
-  await audienceSet(host, { resource: { type: "folder", id: "fld_plain" }, follows: "rec_one" });
+  await audienceSet(host, { resource: f("fld_plain"), follows: "rec_one" });
   assert.equal(r.store.resources.get("fld_plain")!.parentId, "rec_one", "a folder nobody chose follows its record");
-  // the host's own narrowing is not a person's choice: it does not make a folder untouchable
   await folderNarrow(host, { folderId: "fld_plain" });
-  assert.notEqual(r.store.resources.get("fld_plain")!.row?.["audienceChosen"], true);
+  assert.ok(!chosen("fld_plain"), "the host's own narrowing is not a person's choice");
+});
+
+test("only a person's own press is a choice: an agent working under a person's Manage, a call another capability makes for them and a tenant service do not switch off the host's self-heal", async () => {
+  const { r, host, chosen, f } = folderRig(["fld_a", "fld_b", "fld_c"]);
+  putPrincipal(r.store, { id: "agt_helper", kind: "agent", name: "Helper", owner: "usr_ada" });
+  r.store.setRoles("agt_helper", ["rol_member"]);
+  r.store.grants.set("gnt_agent_folder", {
+    id: "gnt_agent_folder",
+    subject: { kind: "agent", id: "agt_helper" },
+    resource: { type: "folder", id: "fld_a" },
+    level: "manage",
+    conditions: {},
+    by: "usr_ada",
+    createdAt: 1,
+  });
+  r.store.bump();
+  // an agent acting for Ada opens the folder to the Space and narrows it again: neither is a choice
+  const agent: ShareCtx = {
+    ...r.ctx,
+    principal: { kind: "agent", id: "agt_helper" },
+    actingFor: "usr_ada",
+    origin: "user",
+  };
+  await audienceSet(agent, { resource: f("fld_a"), audience: "added" });
+  assert.ok(!chosen("fld_a"), "an agent's change records no choice");
+  // Ada's person principal, but through another capability (chat's own home folder code) or an MCP door: not her press
+  for (const origin of ["engine", "mcp", "hook"])
+    await audienceSet({ ...r.ctx, origin }, { resource: f("fld_b"), audience: "added" });
+  await audienceSet({ ...r.ctx, origin: "user", depth: 1 }, { resource: f("fld_b"), audience: "added" });
+  assert.ok(
+    !chosen("fld_b"),
+    "a call made on her behalf, or by another capability (chat's own folder code), is not her press",
+  );
+  // so the host still re-attaches a folder an agent opened
+  await audienceSet(host, { resource: f("fld_a"), follows: "rec_one" });
+  assert.equal(r.store.resources.get("fld_a")!.parentId, "rec_one");
+  // a tenant service has no Manage at all, so it cannot even try
+  const tenant: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_form_x" } };
+  assert.equal(await code(audienceSet(tenant, { resource: f("fld_c"), audience: "space" })), "permission.no_grant");
+  assert.ok(!chosen("fld_c"));
+});
+
+test("a person's no-op re-ask and an explicit \"space\" both count as a choice; a manager's follow clears it", async () => {
+  const { r, press, host, chosen, f } = folderRig(["fld_x", "fld_y"]);
+  // asking for what it already is (open to the Space) still records the choice
+  const out = await audienceSet(press, { resource: f("fld_x"), audience: "space" });
+  assert.equal(out.audience, "space");
+  assert.ok(chosen("fld_x"), "a no-op re-ask is a choice");
+  await audienceSet(host, { resource: f("fld_x"), follows: "rec_one" });
+  assert.equal(r.store.resources.get("fld_x")!.parentId, "spc_test", "an explicit space is kept by design");
+  // a manager who makes it follow has chosen to follow: the flag goes, and the host may re-attach it again
+  await audienceSet(press, { resource: f("fld_x"), follows: "rec_one" });
+  assert.equal(r.store.resources.get("fld_x")!.parentId, "rec_one");
+  assert.ok(!chosen("fld_x"), "following clears the choice");
 });
 
 test("what a folder follows is read from access.shares_of (inherits), not from the Files tree: empty before the follow, the record after it, and gone again when the folder is moved", async () => {
