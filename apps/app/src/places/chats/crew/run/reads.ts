@@ -294,8 +294,14 @@ export function refusalWords(e: unknown, what: "save" | "rerun"): string {
   const d = (e as { details?: { reason?: unknown }; reason?: unknown } | null) ?? {};
   const reason = String(d.details?.reason ?? d.reason ?? "");
   const code = String((e as { code?: unknown } | null)?.code ?? "");
-  if (reason === "manage_required" || /no_grant|role_lacks|above_clearance/.test(code))
+  if (reason === "manage_required" || (what === "rerun" && /no_grant|role_lacks|above_clearance/.test(code)))
     return "Only the person who started it, or someone who manages runs, can do that.";
+  // agents.create's own check: the person may not make agents in this Space (so not for everyone either)
+  if (what === "save" && /no_grant|role_lacks|above_clearance/.test(code))
+    return "You are not allowed to make agents in this Space.";
+  if (reason === "other_provider")
+    return "That model is from another provider than this chat uses. Pick one from the same provider.";
+  if (reason === "account_not_theirs") return "That model is on an account you cannot use.";
   if (reason === "nothing_changed") return "Change the brief or the model first, or there is nothing to compare.";
   if (reason === "not_finished") return "It is still working. Try again when it is done.";
   if (reason === "not_a_helper") return "Only a helper can be run again.";
@@ -303,4 +309,17 @@ export function refusalWords(e: unknown, what: "save" | "rerun"): string {
   if (reason === "no_brief") return "It has no written brief to save.";
   if (/duplicate/.test(code)) return "An agent with that name is already in the Space.";
   return what === "save" ? "It could not be saved as an agent. Try again." : "It could not run again. Try again.";
+}
+
+/** Whether this person may save the work as an agent, run it again or compare the runs: not someone who only watches the chat (the server cuts what they see, and refuses the rest). A failed read says no, so nothing offered can only fail. */
+export async function readMayAct(call: Call, runId: string): Promise<boolean> {
+  try {
+    const out = (await call("runs.node.get", { runId })) as {
+      full?: unknown;
+      node?: { can?: { manage?: unknown } };
+    } | null;
+    return out?.full !== false && out?.node?.can?.manage !== false;
+  } catch {
+    return false;
+  }
 }

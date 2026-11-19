@@ -12,7 +12,7 @@ import { Glyph } from "../../conversation/parts.tsx";
 import { money, span, tokens } from "../model.ts";
 import { compareDiff, sideLabel, sideOpen } from "./model.ts";
 import type { CompareSide } from "./model.ts";
-import { readCompare, refusalWords } from "./reads.ts";
+import { readCompare, readMayAct, refusalWords } from "./reads.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 
@@ -62,9 +62,29 @@ type Cat = {
   accounts: Array<{
     ref: string;
     label: string;
+    provider?: string;
     models: Array<{ model: string; available: boolean; tier?: string }>;
   }>;
+  parent?: { provider?: string };
+  policy?: string;
 };
+
+/** Whether this person may save the work as an agent, run it again or compare; unknown until read, and no for someone who only watches. */
+export function useMayAct(call: Call, runId: string | undefined, enabled: boolean): boolean {
+  const [may, setMay] = useState(false);
+  useEffect(() => {
+    setMay(false);
+    if (!enabled || runId === undefined) return undefined;
+    let dead = false;
+    void readMayAct(call, runId).then((m) => {
+      if (!dead) setMay(m);
+    });
+    return () => {
+      dead = true;
+    };
+  }, [call, runId, enabled]);
+  return may;
+}
 
 /** Run it again: the brief to edit (what the helper was told), and a model if another one should do it. Nothing changed means nothing to compare, so Run again waits for a change. */
 export function RerunForm({
@@ -125,12 +145,17 @@ export function RerunForm({
       },
     );
   };
+  // the Space's rule for helper models: inside the provider the chat runs on, unless the agent may use any
+  const keep = (provider?: string): boolean =>
+    cat?.policy !== "same_provider" || !cat.parent?.provider || provider === cat.parent.provider;
   const choices = cat
-    ? cat.accounts.flatMap((a) =>
-        a.models
-          .filter((m) => m.available && m.model !== model)
-          .map((m) => ({ account: a.label, model: m.model, tier: m.tier })),
-      )
+    ? cat.accounts
+        .filter((a) => keep(a.provider))
+        .flatMap((a) =>
+          a.models
+            .filter((m) => m.available && m.model !== model)
+            .map((m) => ({ account: a.label, model: m.model, tier: m.tier })),
+        )
     : [];
   return (
     <View testID="rerun-form" style={st.form}>
@@ -200,6 +225,7 @@ export function SaveAgentForm({
   runId,
   name: initial,
   role: initialRole,
+  instructions: initialText,
   onSaved,
   onCancel,
 }: {
@@ -207,18 +233,21 @@ export function SaveAgentForm({
   runId: string;
   name: string;
   role: string;
+  /** What the agent will be told, from now on: the brief the work ran with. Shown and editable, because it may carry words the agent that started the work wrote. */
+  instructions: string;
   onSaved: (name: string) => void;
   onCancel: () => void;
 }): ReactElement {
   const [name, setName] = useState(initial);
   const [role, setRole] = useState(initialRole);
+  const [text, setText] = useState(initialText);
   const [sharing, setSharing] = useState<"me" | "everyone">("me");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inflight = useRef(false);
   const go = (): void => {
     const n = name.trim();
-    if (inflight.current || n === "") return;
+    if (inflight.current || n === "" || text.trim() === "") return;
     inflight.current = true;
     setBusy(true);
     setErr(null);
@@ -227,6 +256,7 @@ export function SaveAgentForm({
         runId,
         name: n,
         ...(role.trim() !== "" ? { role: role.trim() } : {}),
+        ...(text.trim() !== initialText.trim() ? { instructions: text.trim() } : {}),
         sharing,
       }),
     ).then(
@@ -261,6 +291,21 @@ export function SaveAgentForm({
         onChangeText={setRole}
         style={st.input}
       />
+      <Text style={st.hint}>What it will be told</Text>
+      <TextField
+        testID="save-agent-instructions"
+        accessibilityLabel="What it will be told"
+        value={text}
+        onChangeText={setText}
+        multiline
+        numberOfLines={6}
+        style={st.area}
+      />
+      {text.length > 4000 ? (
+        <Text testID="save-agent-cut" style={st.hint}>
+          Only the first 4,000 characters are kept.
+        </Text>
+      ) : null}
       <Segmented
         label="Who can use it"
         testID="save-agent-sharing"
@@ -271,7 +316,7 @@ export function SaveAgentForm({
           { id: "everyone", label: "Everyone in the Space" },
         ]}
       />
-      <Text style={st.hint}>It keeps this brief, the model and the tools it used.</Text>
+      <Text style={st.hint}>It also keeps the model and the tools it used.</Text>
       {err ? (
         <Text testID="save-agent-error" style={st.err}>
           {err}
@@ -280,10 +325,10 @@ export function SaveAgentForm({
       <View style={st.line}>
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ disabled: busy || name.trim() === "" }}
+          accessibilityState={{ disabled: busy || name.trim() === "" || text.trim() === "" }}
           testID="save-agent-go"
           onPress={go}
-          style={[st.pill, st.pillOn, (busy || name.trim() === "") && st.off]}
+          style={[st.pill, st.pillOn, (busy || name.trim() === "" || text.trim() === "") && st.off]}
         >
           <Text style={[st.pillText, st.pillOnText]}>{busy ? "Saving" : "Save"}</Text>
         </Pressable>

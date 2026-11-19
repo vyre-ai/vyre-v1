@@ -68,7 +68,15 @@ interface Rec {
   cap: string;
   input: Record<string, unknown>;
 }
-function setup(over: { sides?: CompareSide[]; refuse?: Record<string, unknown>; member?: Partial<CrewMember> } = {}) {
+function setup(
+  over: {
+    sides?: CompareSide[];
+    refuse?: Record<string, unknown>;
+    member?: Partial<CrewMember>;
+    get?: unknown;
+    models?: unknown;
+  } = {},
+) {
   const calls: Rec[] = [];
   // a start that has not answered yet: the form stays up and a second press has to be turned away by the form itself
   let release: () => void = () => undefined;
@@ -81,6 +89,11 @@ function setup(over: { sides?: CompareSide[]; refuse?: Record<string, unknown>; 
     calls.push({ cap, input: input as Record<string, unknown> });
     if (over.refuse?.[cap] !== undefined && cap.startsWith("runs.node.") && cap !== "runs.node.compare")
       throw over.refuse[cap];
+    if (cap === "runs.node.get") {
+      if (over.get instanceof Error) throw over.get;
+      return over.get ?? {};
+    }
+    if (cap === "engine.helper_models") return over.models ?? {};
     if (cap === "chat.helper.notes")
       return { notes: [{ messageId: "m1", who: "brief", authorId: "agt_boss", body: "Compare the three bids." }] };
     if (cap === "runs.node.compare") return { sides: state.sides };
@@ -116,6 +129,12 @@ test("a finished helper can be saved as an agent: a name to confirm, one runs.no
   const root = await view();
   await press(find(root, "crew-save-agent"));
   assert.equal(find(root, "save-agent-name")?.props.value, "Tess");
+  assert.equal(
+    find(root, "save-agent-instructions")?.props.value,
+    "Compare the three bids.",
+    "the words the agent will be told are shown before saving",
+  );
+  assert.match(textOf(find(root, "save-agent-form")), /keeps the model and the tools/);
   await typeInto(find(root, "save-agent-name"), "Bid reader");
   await press(find(root, "save-agent-go"));
   await press(find(root, "save-agent-go"));
@@ -123,7 +142,7 @@ test("a finished helper can be saved as an agent: a name to confirm, one runs.no
   await flush();
   const sent = of(calls, "runs.node.save_as_agent");
   assert.equal(sent.length, 1);
-  assert.deepEqual(sent[0]!.input, { runId: "run_a", name: "Bid reader", sharing: "me" });
+  assert.deepEqual(sent[0]!.input, { runId: "run_a", name: "Bid reader", sharing: "me" }, "sharing starts on only me");
   assert.match(textOf(find(root, "crew-agent-made")), /Bid reader\s+is now an agent/);
   assert.ok(find(root, "crew-save-agent") === null, "once made, the button is gone");
 });
@@ -207,7 +226,7 @@ test("a person who cannot manage the run is told so, in words", async () => {
   assert.match(textOf(find(root, "save-agent-error")), /Only the person who started it/);
 });
 
-test("no buttons for a helper still working, one with no run behind it, or with no person looking; a subagent can be saved but not run again", async () => {
+test("no buttons for a helper still working, one with no run behind it, or with no person looking; a subagent gets neither", async () => {
   for (const member of [{ state: "working" as const }, { runId: undefined }]) {
     const { view } = setup({ member });
     const root = await view();
@@ -215,8 +234,10 @@ test("no buttons for a helper still working, one with no run behind it, or with 
   }
   const sub = setup({ member: { kind: "subagent" as never } });
   const r = await sub.view();
-  assert.ok(find(r, "crew-save-agent"));
-  assert.ok(find(r, "crew-rerun") === null);
+  assert.ok(
+    find(r, "crew-finish-actions") === null,
+    "a subagent has no brief to show, so nothing to save or run again",
+  );
   assert.equal(of(sub.calls, "runs.node.compare").length, 0, "a subagent is never compared");
 });
 
@@ -261,4 +282,64 @@ test("the reads keep only what a side needs; a row with no status is dropped", (
   ]);
   assert.deepEqual(sidesOf(null), []);
   assert.match(refusalWords(new Error("x"), "rerun"), /could not run again/);
+});
+
+test("what the agent will be told can be edited before saving, and cannot be saved empty", async () => {
+  const { calls, view, release } = setup();
+  const root = await view();
+  await press(find(root, "crew-save-agent"));
+  await typeInto(find(root, "save-agent-instructions"), "   ");
+  await press(find(root, "save-agent-go"));
+  await flush();
+  assert.equal(of(calls, "runs.node.save_as_agent").length, 0, "nothing to tell it, nothing saved");
+  await typeInto(find(root, "save-agent-instructions"), "Compare the bids and name the cheapest.");
+  await press(find(root, "save-agent-go"));
+  release();
+  await flush();
+  assert.equal(of(calls, "runs.node.save_as_agent")[0]!.input.instructions, "Compare the bids and name the cheapest.");
+});
+
+test("someone who may not make agents is told so, in the words of agents.create's own refusal, also for everyone", async () => {
+  const { view } = setup({ refuse: { "runs.node.save_as_agent": { code: "permission.no_grant" } } });
+  const root = await view();
+  await press(find(root, "crew-save-agent"));
+  await press(find(root, "save-agent-sharing-everyone"));
+  await press(find(root, "save-agent-go"));
+  await flush();
+  assert.match(textOf(find(root, "save-agent-error")), /not allowed to make agents/);
+});
+
+test("someone who only watches the chat is offered nothing: no Save, no Run again, no Compare read", async () => {
+  for (const get of [{ full: false, node: {} }, { node: { can: { manage: false } } }, new Error("down")]) {
+    const { calls, view } = setup({ get });
+    const root = await view();
+    assert.ok(find(root, "crew-finish-actions") === null);
+    assert.ok(find(root, "crew-peek-tab-compare") === null);
+    assert.equal(of(calls, "runs.node.compare").length, 0);
+  }
+});
+
+test("Another model lists only what the Space's helper rule allows, and a refusal names why", async () => {
+  const models = {
+    policy: "same_provider",
+    parent: { provider: "anthropic" },
+    accounts: [
+      { ref: "a1", label: "Claude", provider: "anthropic", models: [{ model: "claude-opus-5-5", available: true }] },
+      { ref: "a2", label: "OpenAI", provider: "openai", models: [{ model: "gpt-5", available: true }] },
+    ],
+  };
+  const { view } = setup({
+    models,
+    refuse: { "runs.node.rerun": { code: "validation.precondition_failed", details: { reason: "other_provider" } } },
+  });
+  const root = await view();
+  await press(find(root, "crew-rerun"));
+  await press(find(root, "rerun-model"));
+  await flush();
+  assert.ok(find(root, "row-rerun-pick-claude-opus-5-5"));
+  assert.ok(find(root, "row-rerun-pick-gpt-5") === null, "another provider is not offered");
+  await press(find(root, "row-rerun-pick-claude-opus-5-5"));
+  await press(find(root, "rerun-go"));
+  await flush();
+  assert.match(textOf(find(root, "rerun-error")), /another provider|same provider/);
 });

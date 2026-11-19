@@ -13,7 +13,7 @@ import { HelperHooksSection } from "../helper/HelperHooks.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { FolderMovePicker } from "../../files/tree/FolderMovePicker.tsx";
 import { CrewTabs } from "./run/CrewTabs.tsx";
-import { CompareView, RerunForm, SaveAgentForm, useCompare } from "./run/rerun.tsx";
+import { CompareView, RerunForm, SaveAgentForm, useCompare, useMayAct } from "./run/rerun.tsx";
 import type { RunData } from "./run/useRun.ts";
 import { RecordPicker } from "../../records/RecordPicker.tsx";
 import type { PickedRecord } from "../../records/RecordPicker.tsx";
@@ -523,7 +523,9 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
   const now = useNow(live);
   const fileCount = member.files?.length ?? 0;
   const finished = member.state === "done" && member.runId !== undefined;
-  const compare = useCompare(call, member.runId, finished && member.kind !== "subagent");
+  // someone who only watches the chat is not offered these (the server would refuse them), and reads no compare
+  const mayAct = useMayAct(call, member.runId, finished && meId !== undefined);
+  const compare = useCompare(call, member.runId, finished && mayAct && member.kind !== "subagent");
   const reruns = Math.max(0, compare.sides.length - 1);
   // what a helper returned, in full; nothing to turn into a task, a file or a note when it returned nothing
   const resultText = (member.answer || member.found || "").trim();
@@ -897,14 +899,14 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
             ) : null}
           </>
         ) : null}
-        {finished && meId !== undefined && member.runId !== undefined ? (
+        {finished && mayAct && !own && meId !== undefined && member.runId !== undefined ? (
           <>
             <View testID="crew-finish-actions" style={st.actions}>
               {agentMade !== null ? (
                 <Text testID="crew-agent-made" style={st.hint}>
                   {agentMade} is now an agent in your Space.
                 </Text>
-              ) : (
+              ) : brief !== undefined ? (
                 <Pressable
                   accessibilityRole="button"
                   testID="crew-save-agent"
@@ -913,24 +915,23 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
                 >
                   <Text style={st.pillText}>Save as an agent</Text>
                 </Pressable>
-              )}
-              {!own ? (
-                <Pressable
-                  accessibilityRole="button"
-                  testID="crew-rerun"
-                  onPress={() => setForm(form === "rerun" ? null : "rerun")}
-                  style={st.pill}
-                >
-                  <Text style={st.pillText}>Run again</Text>
-                </Pressable>
               ) : null}
+              <Pressable
+                accessibilityRole="button"
+                testID="crew-rerun"
+                onPress={() => setForm(form === "rerun" ? null : "rerun")}
+                style={st.pill}
+              >
+                <Text style={st.pillText}>Run again</Text>
+              </Pressable>
             </View>
-            {form === "agent" ? (
+            {form === "agent" && brief !== undefined ? (
               <SaveAgentForm
                 call={call}
                 runId={member.runId}
                 name={nameOf(member)}
                 role=""
+                instructions={brief.body}
                 onCancel={() => setForm(null)}
                 onSaved={(n) => {
                   setAgentMade(n);
