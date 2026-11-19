@@ -11,7 +11,7 @@ const svc = { id: "svc_host", kind: "service" as const };
 const world = (): Harness => {
   const h = harness();
   h.callee("tasks.transition", (input) => h.call("tasks.transition", input, svc));
-  h.callee("records.get", () => ({}));
+  h.callee("meetings.get", () => ({}));
   return h;
 };
 const mk = async (h: Harness, title: string): Promise<string> =>
@@ -112,7 +112,7 @@ test("only the doing of someone on the task closes it: another person's Vault it
 
 test("a meeting the setter cannot open is refused at set time; one refusal while closing does not stop the others", async () => {
   const h = world();
-  h.callee("records.get", () => {
+  h.callee("meetings.get", () => {
     throw new Error("not found");
   });
   const m = await mk(h, "Hold the call");

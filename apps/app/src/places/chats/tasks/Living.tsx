@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { dateIn, deviceZone } from "../../../../../../lib/zones.ts";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
@@ -40,10 +41,7 @@ export function cardOnScreen(doc: Document): boolean {
 
 /** The words under a looks-done row: the quote in a fixed frame, who wrote it and when. */
 export function lookNote(l: { quote: string; by: string; at: number }, nameOf: (id: string) => string): string {
-  const when = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" })
-    .format(l.at)
-    .replace(",", "");
-  return `\u201c${l.quote}\u201d, ${l.by === "" ? "someone" : nameOf(l.by)}, ${when}`;
+  return `\u201c${l.quote}\u201d, ${l.by === "" ? "someone" : nameOf(l.by)}, ${dateIn(l.at, deviceZone())}`;
 }
 
 /** The card stays open across a redraw of the page (a width change draws it again from nothing), for the same person only. */
@@ -207,9 +205,7 @@ const writeSeen = (at: number): void => {
 
 /** "Since Tuesday": the weekday of the time the line reaches back to. */
 export const sinceWords = (since: number, now: number): string =>
-  now - since < DAY
-    ? "Since this morning"
-    : `Since ${new Intl.DateTimeFormat("en-GB", { weekday: "long" }).format(since)}`;
+  now - since < DAY ? "Since this morning" : `Since ${dateIn(since, deviceZone())}`;
 
 /** The words of the counts: only what happened, never a zero. */
 export function aliveWords(c: Pick<Changes, "items" | "fresh">): string {

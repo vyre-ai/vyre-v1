@@ -74,7 +74,10 @@ test("a task whose moment passed is put away by the Space within a minute; the a
     await page.getByTestId("tasks-alive").waitFor({ timeout: 20_000 });
     assert.match(await page.getByTestId("tasks-alive").innerText(), /1 put away/);
     await page.getByTestId("alive-open").click();
-    await page.getByText(/It was for/).first().waitFor({ timeout: 10_000 });
+    await page
+      .getByText(/It was for/)
+      .first()
+      .waitFor({ timeout: 10_000 });
     await shot("alive-line-dark-desktop");
     await page.getByTestId("alive-put-back").click();
     for (let i = 0; i < 40 && (await read(passed)).archived !== undefined; i++) await page.waitForTimeout(250);

@@ -17,5 +17,5 @@ test("the alive line names only what happened", () => {
 
 test("it says which day it reaches back to", () => {
   assert.equal(sinceWords(NOW - 2 * 3_600_000, NOW), "Since this morning");
-  assert.match(sinceWords(NOW - 3 * DAY, NOW), /^Since (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/);
+  assert.match(sinceWords(NOW - 3 * DAY, NOW), /^Since (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ \w{3}$/);
 });

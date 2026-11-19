@@ -99,7 +99,7 @@ export async function doneWhen(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.kind === "meeting_ended" && typeof input.key === "string" && ctx.call) {
     // a proof may only name what its setter may read: a meeting they cannot open is not theirs to wait for
     try {
-      await ctx.call("records.get", { recordId: input.key.trim() });
+      await ctx.call("meetings.get", { meetingId: input.key.trim() });
     } catch {
       raise(ctx, "validation.precondition_failed", "That meeting is not one you can open.", {
         reason: "proof_unreadable",
