@@ -991,3 +991,15 @@ test("Can go in emails: a switch per field, for fields that are fine to read out
       code("validation.precondition_failed"),
     );
 });
+
+import { onlyMergeableDiffers } from "../handlers/apply.ts";
+test("a system field's options accept the Can go in emails switch and nothing else: a nested change is refused", () => {
+  const choices = (v: string) => ({ choices: [{ key: "good", title: v }], mergeable: false });
+  assert.equal(onlyMergeableDiffers({ choices: [{ key: "good", title: "Good" }] }, { choices: [{ key: "good", title: "Good" }], mergeable: true }), true);
+  assert.equal(onlyMergeableDiffers(choices("a"), { ...choices("a"), mergeable: true }), true);
+  assert.equal(onlyMergeableDiffers(undefined, { mergeable: true }), true);
+  assert.equal(onlyMergeableDiffers(choices("a"), choices("b")), false, "a changed nested choice is not the switch");
+  assert.equal(onlyMergeableDiffers({ min: 1, nested: { x: 1 } }, { min: 1, nested: { x: 999, y: 2 } }), false);
+  assert.equal(onlyMergeableDiffers({ a: 1, b: 2 }, { b: 2, a: 1, mergeable: true }), true, "key order does not matter");
+  assert.equal(onlyMergeableDiffers({ choices: [1, 2] }, { choices: [2, 1] }), false, "list order does");
+});

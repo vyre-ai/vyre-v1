@@ -346,11 +346,21 @@ export function heldRows(deps: SchemaDeps, type: string): number {
 
 /** Fields a manifest declared on a system type: they stay (title and label may change). */
 /** The "Can go in emails" switch is the one change a system field's options accept: everything but `mergeable` must stay as it is. */
-function onlyMergeableDiffers(was: unknown, next: unknown): boolean {
+export function onlyMergeableDiffers(was: unknown, next: unknown): boolean {
+  // sorted keys at every level, so nested content (choices, nested settings) is compared in full
+  const stable = (v: unknown): string =>
+    Array.isArray(v)
+      ? `[${v.map(stable).join(",")}]`
+      : v && typeof v === "object"
+        ? `{${Object.keys(v as object)
+            .sort()
+            .map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`)
+            .join(",")}}`
+        : (JSON.stringify(v) ?? "null");
   const strip = (v: unknown): string => {
-    const o = { ...((v && typeof v === "object" ? v : {}) as Record<string, unknown>) };
+    const o = { ...((v && typeof v === "object" && !Array.isArray(v) ? v : {}) as Record<string, unknown>) };
     delete o["mergeable"];
-    return JSON.stringify(o, Object.keys(o).sort());
+    return stable(o);
   };
   return strip(was) === strip(next);
 }

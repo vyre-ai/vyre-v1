@@ -292,6 +292,8 @@ test("a soft bounce is retried by the host's own schedule, as the host service, 
       attempt: 2,
     });
     assert.equal(early.body.error?.code, "permission.no_grant");
+    assert.ok(heldTables.length > 0, "there are hold or park tables to look at");
+    assert.equal(heldCount(), before, "refused before the Gate: nothing parked, no approval task");
   } finally {
     await d.stop();
   }
