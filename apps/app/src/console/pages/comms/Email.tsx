@@ -485,7 +485,10 @@ function AddressSection({ domains }: { domains: Setup["domains"] }): ReactElemen
                     id={`address-${a.address}`}
                     mono
                     leading={
-                      <IconTile icon="mail" tone={stateOf(a.mailboxId)?.state === "failing" ? "warn" : undefined} />
+                      <IconTile
+                        icon="mail"
+                        {...(stateOf(a.mailboxId)?.state === "failing" ? { tone: "warn" as const } : {})}
+                      />
                     }
                     title={a.address}
                     note={
@@ -658,6 +661,123 @@ function NewTemplate({ taken, onDone }: { taken: readonly string[]; onDone(key?:
         />
       </Actions>
       {action.note ? <Note testID="template-new-note">{action.note}</Note> : null}
+    </View>
+  );
+}
+
+function NewAddress({
+  domains,
+  inboxes,
+  onDone,
+}: {
+  domains: Setup["domains"];
+  inboxes: { key: string; title: string }[];
+  onDone(): void;
+}): ReactElement {
+  const [name, setName] = useState("");
+  const [domainId, setDomainId] = useState(domains.find((d) => d.isDefault)?.id ?? domains[0]?.id ?? "");
+  const [goesTo, setGoesTo] = useState(NEW_INBOX);
+  const [key, setKey] = useState(attempt); // one key per attempt: pressing Create twice is one add, and a retry after a failure finishes it
+  const action = useAction(onDone);
+  const domain = domains.find((d) => d.id === domainId);
+  const sendOnly = domain?.provider === "smtp";
+  const valid = /^[a-z0-9]([a-z0-9._+-]*[a-z0-9])?$/i.test(name.trim()) && domainId !== "";
+  const create = async (): Promise<void> => {
+    const out = await action.run(
+      "mail.address.add",
+      {
+        domainId,
+        localPart: name.trim().toLowerCase(),
+        ...(goesTo !== NEW_INBOX && !sendOnly ? { mailboxId: goesTo } : {}),
+        idempotencyKey: key,
+      },
+      "Address ready",
+    );
+    if (out) setKey(attempt());
+  };
+  return (
+    <View testID="address-new-form">
+      <TextBox
+        label="Name"
+        testID="address-name"
+        value={name}
+        onChange={setName}
+        hint="The part before the @, such as billing."
+      />
+      <Select
+        label="Domain"
+        value={domainId}
+        options={domains.map((d) => ({ key: d.id, title: d.name }))}
+        onChange={setDomainId}
+      />
+      {sendOnly ? (
+        <Help>This domain's mail arrives at your own mail server, so this address can send but not receive here.</Help>
+      ) : (
+        <Select
+          label="Mail goes to"
+          value={goesTo}
+          options={[{ key: NEW_INBOX, title: "A new inbox for this address" }, ...inboxes]}
+          onChange={setGoesTo}
+        />
+      )}
+      <Actions>
+        <Button label="Cancel" onPress={onDone} />
+        <Button
+          label="Create"
+          testID="address-create"
+          primary
+          disabled={!valid || action.busy}
+          onPress={() => void create()}
+        />
+      </Actions>
+      {action.note ? <Note testID="address-note">{action.note}</Note> : null}
+    </View>
+  );
+}
+
+function MoveAddress({
+  address,
+  inboxes,
+  onDone,
+}: {
+  address: Address;
+  inboxes: { key: string; title: string }[];
+  onDone(): void;
+}): ReactElement {
+  const [to, setTo] = useState("");
+  const [key] = useState(attempt);
+  const action = useAction(onDone);
+  const local = address.address.split("@")[0] ?? "";
+  return (
+    <View testID="address-move-form">
+      <Note>
+        {address.address} goes to {address.mailboxTitle} now. Choose where it should go instead; mail to it moves at
+        once.
+      </Note>
+      <Select label="New inbox" value={to} options={inboxes} onChange={setTo} />
+      <Actions>
+        <Button label="Cancel" onPress={onDone} />
+        <Button
+          label="Move"
+          testID="address-move"
+          primary
+          disabled={to === "" || action.busy}
+          onPress={() =>
+            void action.run(
+              "mail.address.move",
+              {
+                domainId: address.domainId,
+                localPart: local,
+                fromMailboxId: address.mailboxId,
+                mailboxId: to,
+                idempotencyKey: key,
+              },
+              (o: CapMap["mail.address.move"]["out"]) => `${address.address} now goes to ${o.to}`,
+            )
+          }
+        />
+      </Actions>
+      {action.note ? <Note testID="address-move-note">{action.note}</Note> : null}
     </View>
   );
 }

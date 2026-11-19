@@ -28,10 +28,54 @@ const NOT_HELD: [RegExp, string][] = [
     "writes the person's own digest or alert line in the Space (alerts_notify is host only); no new destination",
   ],
   [
-    /^(access\.(share|unshare|join_share)|chat\.share|notes\.share|files\.share|vault\.(share|unshare)|skills\.(share|shared\.decide)|automations\.connector_share|meetings\.closeout\.share|engine\.subscription_share\.set)$/,
-    "a grant inside the Space under the caller's own access: an agent is never wider than the person it works for (kernel agent ceiling). Sharing outside the Space is held separately",
+    /^(access\.(share|unshare|join_share)|chat\.share|notes\.share|files\.share|vault\.(share|unshare)|skills\.(share|shared\.decide)|automations\.connector_share|meetings\.closeout\.share)$/,
+    "a grant inside the Space: an agent acts for a person and is never wider than that person (kernel/tests/authorize.agent.test.ts, the property over 200 worlds), it needs Manage on the thing (modules/access/handlers/share.ts:904), a guest or an agent for a guest never shares with Everyone (share.ts:1001), and in a thread an outside-started Run marked, these are held for a yes (lib/automation-content.ts:42). Sharing outside the Space is held separately",
+  ],
+  [
+    /^(threads|channels)\.members\.add$/,
+    "the product's own flows add people to a chat as the agent or the Automation step that makes it (a goal's helpers, a task's assignee: test/goals.helpers.live.test.ts, test/automations.rc28.live.test.ts), and what the newcomer reads is set by the adder's own floor (modules/chat/tests/chat-acts.live.test.ts); an agent that adds someone to a chat the person can see is the person's own chat work",
+  ],
+  [
+    /^changesets\.approve$/,
+    "the reviewer's own yes on a changeset, with its own Gate for a push to a protected branch; it gives nobody access (an open question for the lead: should an agent approve its own changeset?)",
   ],
   [/^projects\.unshare_out$/, "takes outside access away"],
+  [
+    /^(access\.(groups\.remove_member|roles\.(delete|unassign))|channels\.members\.remove|projects\.members\.remove|threads\.members\.remove|members\.join_requests\.decline|gate\.grants\.(take|give_back|ask))$/,
+    "takes access away, declines a request, or is the caller's own ask or return of a standing yes (a person's yes is still needed to give one: gate.grants.set and goal are held)",
+  ],
+  [
+    /^(channels\.(join|home_join)|identity\.sso_join_start|members\.accept)$/,
+    "the caller's own join of a place they can already see, or an anonymous or pending person's own step with an invitation code",
+  ],
+  [
+    /^(agents\.role_line\.set|chat\.remember|memory\.remember)$/,
+    "writes a line of words or a memory note under the caller's own access; it gives nobody access and sends nothing (the name only says role or member)",
+  ],
+  [
+    /^(members\.(invites\.(revoke|guest)|join_link\.(disable|request))|forms\.(unpublish|link_revoke)|vault\.exports\.revoke|projects\.links\.unlink|tasks\.links\.remove|projects\.unlink_tasks)$/,
+    "takes an invitation, link or outside access away, or is called only by a held capability (members.invites.guest only by threads.invite_guest, held); join_link.request is the joiner's own press with the code",
+  ],
+  [
+    /^(sites\.(publish|artifact_publish|signin_link)|views\.publish|kits\.publish|connectors\.publish)$/,
+    "serves or shares only inside the Space to people who already have access (a view, a Kit, a connector an agent built for the Space, a Space or private site, a page); putting a site on the public internet, sites.promote, is held; signin_link signs in only the person asking",
+  ],
+  [
+    /^(automations\.packages\.export|memory\.graph_export)$/,
+    "saves a file or package inside the Space under the caller's own access; no secret, Vault value or run data in the package, and personal layers are never in a graph",
+  ],
+  [
+    /^(calendar\.link_record|inbox\.link_message|portal\.link_record|projects\.link_tasks|projects\.links\.(link|rules\.set)|tasks\.links\.add|sources\.link\.resolve)$/,
+    "ties two things already in the Space together; it sends nothing and shows nothing to anyone new",
+  ],
+  [
+    /^(gate\.holds\.revise|governance\.holds\.(place|release)|records\.(hold|release_hold))$/,
+    "a legal or approval hold: it keeps data in place, it routes nothing",
+  ],
+  [
+    /^identity\.(link_account|sso_link)$|^invites\.accept_create_account$|^install\.from_link$/,
+    "a sign-in step with no agent tool (identity.github_link and github_unlink, which change a sign-in method, are held), an anonymous join by invite code, or a plan from an address the person pasted that installs nothing (install.from_link)",
+  ],
   [
     /^automations\.webhook_url\.rotate$/,
     "makes a new address for the Space's own incoming webhook; it sends nothing anywhere",
@@ -61,10 +105,15 @@ const NOT_HELD: [RegExp, string][] = [
     /^webhooks\.(delete|rotate_secret|test|send_delivery|replay_delivery)$/,
     "acts on an endpoint a person already registered (delete removes one, test and replay go only to it); creating or changing the address, webhooks.create and update, is held",
   ],
+  [
+    /^stripe\.payment_link\.create$/,
+    "makes a payment page; nobody is contacted and no money moves until a customer pays (its own quiet Gate reason)",
+  ],
   [/^twilio\.number\.(buy|release)$/, "buying or releasing a number is held by its pay or delete Gate"],
 ];
 const notHeldWhy = (name: string): string | undefined => NOT_HELD.find(([re]) => re.test(name))?.[1];
-const SWEEP = /(route|sender|forward|alias|smtp|inbound|relay|bcc|\bcc\b|recipient|webhook|notif|digest|share)/i;
+const SWEEP =
+  /(route|sender|forward|alias|smtp|inbound|relay|bcc|\bcc\b|recipient|webhook|notif|digest|share|invite|guest|export|publish|link|hold|join|approve|reactivate|suspend|member|grant|role)/i;
 
 test("every provider-level write that adds a sending domain or an inbound route, and the setting that picks the provider, is held for an agent", () => {
   for (const name of [
@@ -154,7 +203,7 @@ function paths(s: Schema | undefined, prefix = "", depth = 0): { path: string; h
     out.push(...paths(part, prefix, depth + 1));
   return out;
 }
-const PLACE = /(host|url|endpoint|server|origin|baseurl|uri|webhook|callback)/i;
+const PLACE = /(host|url|endpoint|server|origin|baseurl|uri|webhook|callback|domain|repo|path)/i;
 
 /** Capabilities that take a handle and a place and are fine, each with why. */
 const HANDLE_OK: Record<string, string> = {
@@ -171,6 +220,9 @@ const HANDLE_OK: Record<string, string> = {
 /** Held unless the host is approved for that Vault item (the same rule and store as a test read): a handle plus an address a caller names. */
 const KEY_HOST_HELD = [
   "sites.create",
+  "sites.deploy",
+  "sites.plan",
+  "sites.update",
   "sync_specs.apply",
   "sync_specs.preview",
   "sync_specs.sample",

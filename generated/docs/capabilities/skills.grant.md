@@ -11,7 +11,7 @@ Give an agent use, edit or manage of a skill, or take it back (level null). Use 
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when gate.by_actor(input) |
 | Idempotency | none |
 | Offline | online |
 | Audit | always |

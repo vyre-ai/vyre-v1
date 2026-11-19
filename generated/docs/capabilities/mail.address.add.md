@@ -19,7 +19,7 @@ Make an address on a Space domain. With an inbox it is an alias that delivers th
 | HTTP | POST /v1/mail/address/add |
 | MCP tool | none |
 | CLI | none |
-| Emits | inbound_route.saved, mailbox.created |
+| Emits | inbound_route.saved, mailbox.created, mailbox.disconnected |
 
 ## Input
 

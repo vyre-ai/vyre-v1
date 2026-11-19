@@ -11,7 +11,7 @@ Approve a request to join: makes a one-time invite for their email at the link's
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

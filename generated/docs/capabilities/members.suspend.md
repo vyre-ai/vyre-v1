@@ -11,7 +11,7 @@ Suspend a person: they cannot act and their devices purge on next contact
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

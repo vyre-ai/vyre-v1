@@ -22,7 +22,9 @@ export function trailHeadline(t: Trail, zone: string): string {
   if (t.state === "complained") return "Marked as spam by the recipient";
   if (t.state === "failed") return "Could not be sent";
   if (t.state === "retrying")
-    return t.retry?.nextAt ? `Could not be delivered yet. Trying again at ${clock(t.retry.nextAt, zone)} (${t.retry.attempt + 1} of ${t.retry.of})` : "Could not be delivered yet. Trying again";
+    return t.retry?.nextAt
+      ? `Could not be delivered yet. Trying again at ${clock(t.retry.nextAt, zone)} (${t.retry.attempt + 1} of ${t.retry.of})`
+      : "Could not be delivered yet. Trying again";
   if (t.state === "delivered") {
     const d = at(["delivered"]);
     return d ? `Delivered ${clock(d.at, zone)}` : "Delivered";
@@ -63,12 +65,21 @@ export function DeliveryTrail({ messageId, call }: { messageId: string; call: Ca
       >
         <Text style={[st.head, bad && st.bad]}>{head || "Delivery details"}</Text>
       </Pressable>
+      {/* ui-rows-lint: not a list (one warning line for each address that is no longer emailed, in the detail text of a message) */}
       {trail.blocked.map((b) => (
-        <Text key={b.address} style={st.bad} testID={`trail-blocked:${b.address}`}>{`${b.address} will not be emailed again. ${b.reason}`}</Text>
+        <Text
+          key={b.address}
+          style={st.bad}
+          testID={`trail-blocked:${b.address}`}
+        >{`${b.address} will not be emailed again. ${b.reason}`}</Text>
       ))}
       {open
-        ? trail.events.map((e, i) => (
-            <Text key={i} style={st.line}>{`${clock(e.at, zone)}  ${e.label}${e.address ? ` · ${e.address}` : ""}${e.detail ? ` · ${e.detail}` : ""}`}</Text>
+        ? // ui-rows-lint: not a list (the lines of one message's delivery detail, small text under its head)
+          trail.events.map((e, i) => (
+            <Text
+              key={i}
+              style={st.line}
+            >{`${clock(e.at, zone)}  ${e.label}${e.address ? ` · ${e.address}` : ""}${e.detail ? ` · ${e.detail}` : ""}`}</Text>
           ))
         : null}
     </View>

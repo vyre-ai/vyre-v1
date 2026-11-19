@@ -131,8 +131,9 @@ function olderDb(h: ReturnType<typeof harness>, order: [string, string][]): void
       null,
     );
 }
-const withExt = (h: ReturnType<typeof harness>, routeId: string, providerRouteId: string): void =>
+const withExt = (h: ReturnType<typeof harness>, routeId: string, providerRouteId: string): void => {
   h.ctx.db.run(`INSERT INTO mail_route_ext ("routeId", "providerRouteId") VALUES (?, ?)`, routeId, providerRouteId);
+};
 function reopen(h: ReturnType<typeof harness>) {
   const again = harness();
   const inner = h.ctx.db;

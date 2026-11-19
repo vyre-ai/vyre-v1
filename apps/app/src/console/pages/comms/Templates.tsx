@@ -130,6 +130,7 @@ function TemplateEditor({
           />
           {template.fields.length ? (
             <Actions>
+              {/* ui-rows-lint: not a list (small buttons that put a field name into the text) */}
               {template.fields.map((f) => (
                 <Button
                   key={f.key}

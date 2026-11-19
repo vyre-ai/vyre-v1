@@ -36,7 +36,7 @@ const SQL = ["0010_delivery_trail.sql", "0015_sender_and_holds.sql"]
 const ready = new WeakSet<object>();
 
 /** Make sure the trail and retry tables exist (one cheap probe per call after the first). */
-export function ensureDelivery(ctx: Pick<MailCtx, "db">): void {
+export function ensureDelivery(ctx: Pick<MailCtx, "db" | "now" | "log">): void {
   ensureAll(ctx);
   if (ready.has(ctx.db)) return;
   try {

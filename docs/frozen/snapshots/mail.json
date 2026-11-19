@@ -1,7 +1,7 @@
 {
   "module": "mail",
   "capabilities": {
-    "mail.address.add@1": "9b73c2a0b568f18c32a88cddea1c73a8933dbc9cbf075eba07b60230321a8a66",
+    "mail.address.add@1": "0cbe00529cce64f98626fb1e7bccac52f2533d4c99b72d94bb597edf6f0d2595",
     "mail.address.list@1": "34786e3fc66b99bed682d7e29606f77ec2e99d00cda107f98e638f8c09eb613c",
     "mail.address.move@1": "eb8eb0486cd69c00e421da471220284121ac876daab572ee2347d6de2019c427",
     "mail.attachment.save@1": "6a3692e8a04d3c94ecdbfc56f366c94224a5c23f52493f81bdefbf9bc45a861b",

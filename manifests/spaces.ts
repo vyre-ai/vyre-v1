@@ -272,6 +272,7 @@ export default defineManifest({
         in: {},
         out: { runId: id.run },
         perm: "records.export",
+        gate: { act: "send", when: "actor.kind != 'person'" },
         audit: "always",
         risk: "high",
         run: { kind: "space_export", stoppable: true },

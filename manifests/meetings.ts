@@ -496,6 +496,7 @@ export default defineManifest({
         in: { meetingId: id.record, itemIds: t.opt(t.arr(t.str(), { minItems: 1 })) },
         out: { meetingId: id.record, state: closeState, items: t.arr(closeItem) },
         on: ["record", "/meetingId"],
+        gate: { act: "send", when: "gate.by_actor(input)" },
         perm: "records.edit",
         emits: ["meeting.closed"],
         tool: "inbox",
