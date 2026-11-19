@@ -210,6 +210,8 @@ test("a route that fails leaves no inbox behind, and the name can be added again
     0,
     "no orphan inbox",
   );
+  assert.equal(h.named("mailbox.disconnected").length, 1, "the inbox went through the module's own removal");
+  assert.equal(h.rows(`SELECT * FROM mail_idem WHERE kind = ?`, "mbxcreate").length, 0, "no stale idempotency ref");
   down = false;
   const ok = await addressAdd(h.ctx, { domainId: "dom_mg", localPart: "team", idempotencyKey: key() });
   assert.equal(ok.address.address, "team@mg.example");
@@ -284,4 +286,42 @@ test("move names the old and the new inbox, needs the person to see where it goe
   );
   // the same move again changes nothing
   assert.equal((await move({ fromMailboxId: "mbx_hello" })).address.mailboxId, "mbx_hello");
+});
+
+test("finishing an inbox left without a route needs the right to use it; moving an address away needs sight of where it goes now", async () => {
+  const h = setup();
+  seedMailbox(h, "mbx_orphan", "ops@northwind.example", { kind: "shared", privacy: "private" });
+  h.denied.add("mbx_orphan");
+  assert.match(
+    await msg(addressAdd(h.ctx, { domainId: "dom_northwind", localPart: "ops", idempotencyKey: key() })),
+    /^permission\.no_grant/,
+  );
+  assert.equal(h.rows(`SELECT * FROM mail_route`).length, 0, "delivery was not turned on");
+  // moving: support@ goes to a closed inbox the person cannot see
+  seedMailbox(h, "mbx_closed", "closed@northwind.example", { kind: "shared", privacy: "private" });
+  await addressAdd(h.ctx, {
+    domainId: "dom_northwind",
+    localPart: "support",
+    mailboxId: "mbx_closed",
+    idempotencyKey: key(),
+  });
+  h.denied.add("mbx_closed");
+  assert.match(
+    await msg(
+      addressMove(h.ctx, {
+        domainId: "dom_northwind",
+        localPart: "support",
+        fromMailboxId: "mbx_closed",
+        mailboxId: "mbx_hello",
+        idempotencyKey: key(),
+      }),
+    ),
+    /^permission\.no_grant/,
+  );
+  assert.deepEqual(
+    h
+      .rows(`SELECT "mailboxId" FROM mail_route WHERE "localPart" = ? AND deleted_at IS NULL`, "support")
+      .map((r) => r.mailboxId),
+    ["mbx_closed"],
+  );
 });

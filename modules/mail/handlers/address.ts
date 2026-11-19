@@ -9,7 +9,7 @@ import { bad, can, first, isId, missing, rowsOf, str, strOrNull } from "../proje
 import type { MailCtx, Row } from "../projections.ts";
 import { duplicate, ensureAll, idemRef, liveMailbox, pageOf, parsePage } from "./extra/common.ts";
 import type { PageIn } from "./extra/common.ts";
-import { mailboxCreate } from "./extra/mailboxes.ts";
+import { mailboxCreate, mailboxDisconnect } from "./extra/mailboxes.ts";
 import { routeSet } from "./extra/routes.ts";
 
 const PRIVATE_TITLE = "A private inbox";
@@ -162,7 +162,9 @@ export async function addressAdd(ctx: MailCtx, input: AddressAddIn): Promise<{ a
         ctx,
         `${address} already goes to ${where(ctx, held.box)}. Use mail.address.move to point it somewhere else.`,
       );
-    mailboxId = str(held.box, "id"); // a retry, or an inbox left behind by an add that stopped half way: finish it
+    // a retry, or an inbox left behind by an add that stopped half way: finish it, but never turn on delivery for an inbox the person may not use
+    if (held.route === null) targetBox(ctx, str(held.box, "id"));
+    mailboxId = str(held.box, "id");
   } else if (target) {
     mailboxId = str(target, "id");
   } else {
@@ -189,14 +191,15 @@ export async function addressAdd(ctx: MailCtx, input: AddressAddIn): Promise<{ a
         })
       ).route.id;
     } catch (e) {
-      // the inbox made a moment ago must not be left behind: with it gone, the same name can be added again with any key
-      if (created)
+      // the inbox made a moment ago must not be left behind: it goes through the module's own removal (event and audit), and its idempotency ref is dropped, so the same name can be added again with any key
+      if (created) {
+        await mailboxDisconnect(ctx, { mailboxId });
         ctx.db.run(
-          `UPDATE mail_mailbox SET deleted_at = ?, updated_at = ? WHERE id = ?`,
-          ctx.now(),
-          ctx.now(),
-          mailboxId,
+          `DELETE FROM mail_idem WHERE "idemKey" = ? AND kind = ?`,
+          `${input.idempotencyKey}:mailbox`,
+          "mbxcreate",
         );
+      }
       throw e;
     }
   }
@@ -258,6 +261,8 @@ export async function addressMove(
   const current = liveMailbox(ctx, str(route, "mailboxId"));
   if (!isId("mbx", input.fromMailboxId)) bad(ctx, "Mailbox id is not valid.");
   const target = targetBox(ctx, input.mailboxId);
+  // taking an address away from an inbox needs sight of that inbox, not only a place to put it
+  if (current && !seen(ctx, str(current, "id"))) throw fail("permission.no_grant", ctx.trace.traceId);
   if (str(route, "mailboxId") === str(target, "id"))
     return {
       address: describe(ctx, domain, address, str(target, "id"), str(route, "id"), true),
