@@ -1279,3 +1279,21 @@ test("a frame of another site inside the page is offered no accounts and no card
   const own = { ...frame, origin: "https://login.acme.test", url: "https://login.acme.test/signin" };
   assert.deepEqual((await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, own)).data.rows.length, 1);
 });
+
+test("a message that says nothing about which site it comes from is treated as a foreign frame, and the badge says why in one line", async () => {
+  const app = new FakeApp();
+  loginPage(doc);
+  const b = await worker(app);
+  const silent = { id: "ext_vyre", tab: { id: 7, url: "https://login.acme.test/signin" } };
+  assert.deepEqual((await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, silent)).data, {
+    blocked: "frame",
+    rows: [],
+  });
+  assert.equal(
+    (await b.w.onMessage({ type: "vyre.fill", itemId: "vit_acme", kind: "login" }, silent)).error?.code,
+    "not_allowed",
+  );
+  assert.equal(app.received.filter((m) => m["capability"] === "vault.fill").length, 0);
+  const src = (await import("node:fs")).readFileSync(new URL("../src/content/badge.js", import.meta.url), "utf8");
+  assert.match(src, /Vyre does not fill inside another site's frame\./);
+});

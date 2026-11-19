@@ -41,7 +41,8 @@ function failure(e) {
 /** Does this message come from a frame of the tab's own page (same origin as the address the person is on)? A sandboxed or foreign frame does not. @param {any} sender */
 function inOwnFrame(sender) {
   if (!sender || !sender.tab) return false;
-  if (!sender.origin) return true;
+  // no origin from the browser is not an answer: a frame that cannot say which site it is does not get the page's logins
+  if (!sender.origin) return false;
   try {
     return new URL(String(sender.tab.url)).origin === sender.origin;
   } catch {
