@@ -1,15 +1,16 @@
 // The reads behind the run views (lane r42-subagents): the runtime's rows become the shapes the views draw, a server without a read shows nothing and never an error, and "Running and asleep" in the Crew pane asks only
 // when opened, opens a run's own chat on a press and says so when it has none.
 import test, { mock } from "node:test";
-import { act } from "react";
+import { act, useState } from "react";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { Text } from "react-native";
+import { Pressable, Text } from "react-native";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../../ui/src/testing/dom.ts";
 import {
   activityRowsOf,
   boardOf,
   findRoot,
+  isAbsent,
   messagesOf,
   nodesOf,
   readActivity,
@@ -186,8 +187,12 @@ function rig(over: Record<string, (i: unknown) => unknown> = {}) {
     if (over[cap]) return over[cap]!(input);
     if (cap === "runs.activity.list") return ROWS_OK;
     if (cap === "runs.tree.find") return { roots: [{ rootRun: "run_r", runId: "run_r", full: true }] };
-    if (cap === "runs.board.list") return { entries: [{ id: "b1", kind: "fact", text: "Harbor is $4,180", byRun: "run_r", evidence: ["bid.pdf"], at: 5 }] };
-    if (cap === "runs.message.list") return { messages: [{ id: "m1", fromRun: "run_n", toRun: "run_r", body: "Calder is $13,105", at: 6 }] };
+    if (cap === "runs.board.list")
+      return {
+        entries: [{ id: "b1", kind: "fact", text: "Harbor is $4,180", byRun: "run_r", evidence: ["bid.pdf"], at: 5 }],
+      };
+    if (cap === "runs.message.list")
+      return { messages: [{ id: "m1", fromRun: "run_n", toRun: "run_r", body: "Calder is $13,105", at: 6 }] };
     if (cap === "runs.tree.get") return TREE;
     return {};
   };
@@ -197,7 +202,10 @@ function rig(over: Record<string, (i: unknown) => unknown> = {}) {
 test("the Crew pane is Helpers / Board / Tokens as the shared tab strip when the chat has a tree of work: Helpers keeps the pane and lists what the Space runs or sleeps, Board has the board and the faces-and-words lines, Tokens the quiet line", async () => {
   const { call, asked } = rig();
   const opened: string[] = [];
-  const root = await mount(createRoot, <CrewTabs call={call} threadId="thr_0" helpers={HELP} onOpenThread={(t) => opened.push(t)} />);
+  const root = await mount(
+    createRoot,
+    <CrewTabs call={call} threadId="thr_0" helpers={HELP} onOpenThread={(t) => opened.push(t)} />,
+  );
   await flush();
   assert.ok(find(root, "the-helpers"), "Helpers is the pane as it was");
   assert.ok(find(root, "activity-asleep"), "with what is running or asleep under it");
@@ -223,7 +231,10 @@ test("a press on a run opens its own chat, says so when it has none, and of two 
   const opened: string[] = [];
   const waits: Record<string, (v: unknown) => void> = {};
   const { call } = rig({ "runs.node.get": (i) => new Promise((r) => (waits[(i as { runId: string }).runId] = r)) });
-  const root = await mount(createRoot, <CrewTabs call={call} threadId="thr_0" helpers={HELP} onOpenThread={(t) => opened.push(t)} />);
+  const root = await mount(
+    createRoot,
+    <CrewTabs call={call} threadId="thr_0" helpers={HELP} onOpenThread={(t) => opened.push(t)} />,
+  );
   await flush();
   await press(find(root, "activity-row-run_a"));
   await press(find(root, "activity-row-run_b"));
@@ -283,4 +294,96 @@ test("a refresh that fails keeps the board and the rows and says so quietly; the
   } finally {
     mock.timers.reset();
   }
+});
+
+test("the runtime's new row fields: step {icon,text}, need, whoName, stuck and dependsOn are read; a need puts a run under Needs you", () => {
+  const rows = activityRowsOf({
+    rows: [
+      {
+        runId: "run_a",
+        status: "running",
+        name: "Docs",
+        step: { icon: "edit", text: "Adding the bids table" },
+        whoName: "Docs",
+        startedAt: 1,
+      },
+      {
+        runId: "run_b",
+        status: "waiting",
+        name: "Mail",
+        need: { requestId: "tsk_1", what: "Mail send", why: "It would email Harbor." },
+        startedAt: 1,
+      },
+      {
+        runId: "run_c",
+        status: "running",
+        name: "Import",
+        stuck: { since: 5, reason: "the same step four times" },
+        startedAt: 1,
+      },
+      { runId: "run_d", status: "running", name: "x", need: { what: "no request id" }, startedAt: 1 },
+    ],
+  });
+  assert.deepEqual([rows[0]!.step, rows[0]!.whoName], ["Adding the bids table", "Docs"]);
+  assert.deepEqual(rows[1]!.need, { requestId: "tsk_1", what: "Mail send", why: "It would email Harbor." });
+  assert.equal(rows[2]!.stuck?.reason, "the same step four times");
+  assert.equal(rows[3]!.need, undefined, "a need with no request is not drawn");
+  const n = nodesOf({
+    nodes: [
+      {
+        id: "run_d",
+        status: "running",
+        name: "Docs",
+        dependsOn: ["run_r", 4],
+        step: { icon: "edit", text: "Writing" },
+        stuck: { since: 1, reason: "x" },
+        need: { requestId: "t", what: "w" },
+        spent: {},
+        startedAt: 1,
+      },
+    ],
+  });
+  assert.deepEqual(
+    [n[0]!.dependsOn, n[0]!.step, n[0]!.stuck?.reason, n[0]!.need?.what],
+    [["run_r"], "Writing", "x", "w"],
+  );
+});
+
+test("only a server that says it has no such read is absent: a thread or run that is not found is one failed request", () => {
+  assert.equal(isAbsent(new Error("unknown capability runs.activity.list")), true);
+  assert.equal(isAbsent(new Error("thread not found")), false);
+  assert.equal(isAbsent(new Error("not_found")), false);
+  assert.equal(isAbsent(new Error("network down")), false);
+});
+
+test("another chat shows nothing of the last one's board while it is read", async () => {
+  const gate: { open?: (v: unknown) => void } = {};
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    const thread = (input as { threadId?: string }).threadId;
+    if (cap === "runs.tree.find")
+      return thread === "thr_a"
+        ? { roots: [{ rootRun: "run_r", runId: "run_r", full: true }] }
+        : new Promise((r) => (gate.open = r));
+    if (cap === "runs.board.list")
+      return { entries: [{ id: "b1", kind: "fact", text: "Harbor is $4,180", byRun: "run_r", at: 5 }] };
+    if (cap === "runs.tree.get") return TREE;
+    return {};
+  };
+  const Host = (): ReturnType<typeof CrewTabs> => {
+    const [t, setT] = useState("thr_a");
+    return (
+      <>
+        <Pressable testID="switch" onPress={() => setT("thr_b")}>
+          {null}
+        </Pressable>
+        <CrewTabs call={call} threadId={t} helpers={HELP} />
+      </>
+    ) as never;
+  };
+  const root = await mount(createRoot, <Host />);
+  await flush();
+  assert.ok(find(root, "crew-tab-tab-board"), "chat A has a board");
+  await press(find(root, "switch"));
+  await flush();
+  assert.equal(find(root, "crew-tab-tab-board"), null, "chat B shows none of A's while it is read");
 });

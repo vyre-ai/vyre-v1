@@ -324,3 +324,29 @@ test("while a steer is still being taken a second send goes nowhere, and a failu
     restore();
   }
 });
+
+test("words typed while a steer is in flight survive its success", async () => {
+  const restore = installDom();
+  try {
+    const s = createSample("idle");
+    let ok: (v: unknown) => void = () => undefined;
+    const data = {
+      ...s.data,
+      call: (cap: string, input: unknown) => {
+        if (cap === "engine.crew.status")
+          return Promise.resolve({ members: [NUMBERS], totals: { members: 1, working: 1, done: 0, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 1 } });
+        if (cap === "chat.helper.steer") return new Promise((r) => (ok = r));
+        return s.data.call(cap, input);
+      },
+    };
+    const root = await mount(createRoot, <CrewProvider call={data.call as never} threadId={data.threadId}><Conversation data={data as never} /></CrewProvider>);
+    await flush();
+    await send(root, "@Numbers use the 8% rate");
+    await typeInto(find(root, "composer-field"), "my next message");
+    await act(async () => ok({ messageId: "m" }));
+    await flush();
+    assert.equal(find(root, "composer-field")!.props.value, "my next message", "what was typed since is not wiped");
+  } finally {
+    restore();
+  }
+});

@@ -9,6 +9,10 @@ export interface RunNode extends NodeLike {
   dependsOn?: readonly string[];
   stuck?: { since: number; reason: string };
   whoName?: string;
+  /** The one current line of what it is on. */
+  step?: string;
+  /** Waiting for a person's yes: the request (a Gate task), what for and why. */
+  need?: { requestId: string; what: string; why: string };
 }
 export interface BoardEntry {
   id: string;
@@ -43,6 +47,7 @@ export interface ActivityRow {
   step?: string;
   wake?: { kind: string; label?: string; dueAt?: number; wokeCount?: number };
   stuck?: { since: number; reason: string };
+  need?: { requestId: string; what: string; why: string };
   startedAt: number;
 }
 
@@ -162,7 +167,7 @@ export function tokenReport(nodes: readonly RunNode[]): {
 export function activityGroups(
   rows: readonly ActivityRow[],
 ): Array<{ key: "needs" | "running" | "asleep"; title: string; rows: ActivityRow[] }> {
-  const needs = rows.filter((r) => r.status === "paused" || r.stuck !== undefined);
+  const needs = rows.filter((r) => r.status === "paused" || r.stuck !== undefined || r.need !== undefined);
   const rest = rows.filter((r) => !needs.includes(r));
   const g = [
     { key: "needs" as const, title: "Needs you", rows: needs },

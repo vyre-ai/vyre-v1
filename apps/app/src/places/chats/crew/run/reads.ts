@@ -8,6 +8,20 @@ const str = (v: unknown): string | undefined => (typeof v === "string" && v !== 
 const num = (v: unknown): number | undefined => (typeof v === "number" ? v : undefined);
 const STATUS = new Set(["queued", "running", "waiting", "paused", "succeeded", "failed", "stopped"]);
 
+/** The one current line of what a node is on: the runtime serves it as {icon, text}; a plain string is taken as it is. */
+function stepTextOf(v: unknown): string | undefined {
+  return typeof v === "string" ? str(v) : v && typeof v === "object" ? str((v as Obj)["text"]) : undefined;
+}
+
+/** A node waiting for a person's yes: the request (the Gate task), what it is for, and why. Words only. */
+function needOf(v: unknown): { requestId: string; what: string; why: string } | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Obj;
+  const requestId = str(o["requestId"]);
+  const what = str(o["what"]);
+  return requestId && what ? { requestId, what, why: str(o["why"]) ?? "" } : undefined;
+}
+
 /** runs.activity.list rows as the list draws them; a row with no id or an unknown status is dropped, a missing name reads "Helper" (an id is never shown). */
 export function activityRowsOf(out: unknown): ActivityRow[] {
   const rows = (out as { rows?: unknown } | null)?.rows;
@@ -26,7 +40,9 @@ export function activityRowsOf(out: unknown): ActivityRow[] {
         kind: str(r["kind"]) ?? "helper",
         name: str(r["name"]) ?? "Helper",
         status: status as ActivityRow["status"],
-        ...(str(r["step"]) !== undefined ? { step: str(r["step"])! } : {}),
+        ...(stepTextOf(r["step"]) !== undefined ? { step: stepTextOf(r["step"])! } : {}),
+        ...(str(r["whoName"]) !== undefined ? { whoName: str(r["whoName"])! } : {}),
+        ...(needOf(r["need"]) ? { need: needOf(r["need"])! } : {}),
         ...(wake
           ? {
               wake: {
@@ -48,7 +64,7 @@ export function activityRowsOf(out: unknown): ActivityRow[] {
 
 /** A server that does not have a read answers with an error that says so; any other error is a request that failed this once. */
 export const isAbsent = (e: unknown): boolean =>
-  /unknown (capability|cap)|no such (capability|cap)|not_found|not found|unsupported|not implemented/i.test(
+  /unknown (capability|cap)|no such (capability|cap)|unsupported capability|not implemented/i.test(
     String((e as { message?: unknown } | null)?.message ?? e),
   );
 
@@ -190,6 +206,11 @@ export function nodesOf(out: unknown): RunNode[] {
         ...(str(n["name"]) !== undefined ? { name: str(n["name"])! } : {}),
         ...(str(n["model"]) !== undefined ? { model: str(n["model"])! } : {}),
         ...(str(n["summary"]) !== undefined ? { summary: str(n["summary"])! } : {}),
+        ...(str(n["whoName"]) !== undefined ? { whoName: str(n["whoName"])! } : {}),
+        ...(Array.isArray(n["dependsOn"]) ? { dependsOn: (n["dependsOn"] as unknown[]).filter((x): x is string => typeof x === "string") } : {}),
+        ...(stepTextOf(n["step"]) !== undefined ? { step: stepTextOf(n["step"])! } : {}),
+        ...(n["stuck"] && typeof n["stuck"] === "object" && str((n["stuck"] as Obj)["reason"]) !== undefined ? { stuck: { since: num((n["stuck"] as Obj)["since"]) ?? 0, reason: str((n["stuck"] as Obj)["reason"])! } } : {}),
+        ...(needOf(n["need"]) ? { need: needOf(n["need"])! } : {}),
         ...(num(n["endedAt"]) !== undefined ? { endedAt: num(n["endedAt"])! } : {}),
         ...(wake
           ? {

@@ -291,32 +291,34 @@ export function ActivityList({
               >
                 <Avatar name={r.name} seedId={r.runId} kind="agent" size={26} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={st.actName} numberOfLines={1}>
-                    {r.name}
-                  </Text>
                   <View style={st.actState}>
-                    {r.stuck ? (
-                      <Text style={st.actLine} numberOfLines={1}>
-                        Looks stuck: {r.stuck.reason}
-                      </Text>
-                    ) : r.status === "waiting" ? (
-                      <>
-                        <Glyph name="moon" size={12} color="var(--ink-3)" />
-                        <Text style={st.actLine} numberOfLines={1}>
-                          {cond}
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <WorkingMark state="thinking" size={14} testID={`activity-live-${r.runId}`} />
-                        {r.step ? (
-                          <Text style={st.actLine} numberOfLines={1}>
-                            {r.step}
-                          </Text>
-                        ) : null}
-                      </>
-                    )}
+                    {r.status !== "waiting" && !r.stuck && !r.need ? (
+                      <WorkingMark state="thinking" size={14} testID={`activity-live-${r.runId}`} />
+                    ) : null}
+                    <Text style={st.actName} numberOfLines={1}>
+                      {r.name}
+                    </Text>
                   </View>
+                  {r.need ? (
+                    <Text style={st.actNeed} numberOfLines={1}>
+                      Needs you: {r.need.what}
+                    </Text>
+                  ) : r.stuck ? (
+                    <Text style={st.actLine} numberOfLines={1}>
+                      Looks stuck: {r.stuck.reason}
+                    </Text>
+                  ) : r.status === "waiting" ? (
+                    <View style={st.actState}>
+                      <Glyph name="moon" size={12} color="var(--ink-3)" />
+                      <Text style={st.actLine} numberOfLines={1}>
+                        {cond}
+                      </Text>
+                    </View>
+                  ) : r.step ? (
+                    <Text style={st.actLine} numberOfLines={1}>
+                      {r.step}
+                    </Text>
+                  ) : null}
                 </View>
                 {r.stuck && onNudge ? (
                   <Pressable
@@ -455,6 +457,7 @@ const st = StyleSheet.create({
   actName: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
   actLine: { fontSize: 12, color: "var(--ink-3)" as string },
   actMeta: { fontSize: 12, color: "var(--ink-3)" as string },
+  actNeed: { fontSize: 12, color: "var(--warn)" as string },
   actNudge: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   at: {
     padding: 5,

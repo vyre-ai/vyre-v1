@@ -19,6 +19,8 @@ export interface RunData {
 export function useRunData(call: Call, threadId: string): RunData {
   const [d, setD] = useState<RunData>({ status: "loading", board: [], messages: [], nodes: [], stale: false });
   useEffect(() => {
+    // another chat: nothing of the last one is shown while this one is read
+    setD({ status: "loading", board: [], messages: [], nodes: [], stale: false });
     let dead = false;
     let busy = false;
     const read = async (): Promise<void> => {

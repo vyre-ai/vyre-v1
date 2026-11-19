@@ -1096,11 +1096,13 @@ function ConversationView(): ReactElement {
       ).then(
         () => {
           steerBusy.current = false;
-          // the box is emptied only once the helper has taken it
-          unsay();
-          setTyped("");
-          typedRef.current = "";
-          setSeed((x) => (x.value === "" ? x : { value: "", n: x.n }));
+          // the box is emptied only once the helper has taken it, and only if it still holds what was sent: words typed since stay
+          if (typedRef.current.trim() === "" || typedRef.current === toHelper.body || typedRef.current === payload.text) {
+            unsay();
+            setTyped("");
+            typedRef.current = "";
+            setSeed((x) => (x.value === "" ? x : { value: "", n: x.n }));
+          }
           say(`Sent to ${toHelper.node.name}. It reads it after the step it is on`);
           crew?.refresh();
         },
