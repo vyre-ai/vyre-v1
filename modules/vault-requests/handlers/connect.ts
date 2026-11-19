@@ -518,7 +518,8 @@ export async function connectSubmit(
     )
   )
     raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
-  if (input.revision === undefined || input.revision !== svc.revision)
+  // an empty revision is a missing one, on both sides: a service that reports none cannot be pinned, so nothing is tried
+  if (!input.revision || !svc.revision || input.revision !== svc.revision)
     raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
   const card = await cardOf(ctx, row.id);
   if (!card.mayFill)

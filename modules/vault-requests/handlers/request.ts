@@ -545,6 +545,7 @@ export async function storeKey(
       : [];
     if (
       !now ||
+      !input.pin.revision ||
       strOf(now["revision"]) !== input.pin.revision ||
       [...new Set(nowHosts)].sort().join("\n") !==
         [...new Set(input.pin.hosts.map((h) => h.toLowerCase()))].sort().join("\n")

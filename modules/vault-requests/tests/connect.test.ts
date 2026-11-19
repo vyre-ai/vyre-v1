@@ -804,3 +804,23 @@ test("a submit without the revision (an app bundle from before the pin) is refus
   );
   assert.equal(w.called("connectors.check_key").length, 0);
 });
+
+test("an empty revision is a missing one: refused when the card sends none, and when the service reports none", async () => {
+  const w = room();
+  const r = await ask(w);
+  await assert.rejects(
+    submit(w, r.requestId!, undefined, "usr_asker", { revision: "" }),
+    /changed since this card was shown/,
+  );
+  const none = room({ revision: () => "" });
+  const r2 = await ask(none);
+  await assert.rejects(
+    submit(none, r2.requestId!, undefined, "usr_asker", { revision: "" }),
+    /changed since this card was shown/,
+  );
+  assert.equal(
+    w.called("connectors.check_key").length + none.called("connectors.check_key").length,
+    0,
+    "nothing was tried",
+  );
+});
