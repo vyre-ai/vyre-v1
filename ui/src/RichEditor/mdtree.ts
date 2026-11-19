@@ -5,6 +5,7 @@
 // reference) is kept as a raw block, byte for byte. A file written the way this serializer writes it comes back identical.
 
 import { criticAt } from "./doc/critic.ts";
+import { hunks } from "./diff.ts";
 
 export interface PMMark {
   type: string;
@@ -527,10 +528,15 @@ const asRead = (b: PMNode, extra = ""): string | null =>
     ? (b.attrs["src"] as string)
     : null;
 
-/** How a file ends its lines and whether it ends with one: the editor writes a file back in the style it found. */
+/**
+ * How a file ends its lines and whether it ends with one: the editor writes a file back in the style it found. A file that mixes CRLF and LF endings keeps each line's own ending:
+ * the lines are remembered, and the text written back is lined up against them, so every line that was not edited keeps the ending it had and a new line takes the file's usual one.
+ */
 export interface TextStyle {
   crlf: boolean;
   finalNewline: boolean;
+  /** Only for a file with both kinds of ending: its lines (without endings) and the ending after each (empty after the last line when the file does not end with one). */
+  mixed?: { lines: string[]; ends: string[] };
 }
 export function textStyle(md: string): TextStyle {
   let crlfCount = 0;
@@ -539,13 +545,51 @@ export function textStyle(md: string): TextStyle {
     total += 1;
     if (i > 0 && md.charAt(i - 1) === "\r") crlfCount += 1;
   }
-  return { crlf: crlfCount > total - crlfCount, finalNewline: md === "" || md.endsWith("\n") };
+  const st: TextStyle = { crlf: crlfCount > total - crlfCount, finalNewline: md === "" || md.endsWith("\n") };
+  if (crlfCount > 0 && crlfCount < total) {
+    const lines: string[] = [];
+    const ends: string[] = [];
+    let from = 0;
+    for (let i = md.indexOf("\n"); i >= 0; i = md.indexOf("\n", from)) {
+      const cr = i > from && md.charAt(i - 1) === "\r";
+      lines.push(md.slice(from, cr ? i - 1 : i));
+      ends.push(cr ? "\r\n" : "\n");
+      from = i + 1;
+    }
+    lines.push(md.slice(from));
+    ends.push("");
+    st.mixed = { lines, ends };
+  }
+  return st;
 }
-/** A file with mostly CRLF endings is written with CRLF throughout (a few LF-only lines in it are made CRLF on the first save), and one without a last newline stays without. */
 export function withStyle(md: string, st: TextStyle): string {
   let out = md;
   if (!st.finalNewline && out.endsWith("\n")) out = out.slice(0, -1);
-  return st.crlf ? out.replace(/\n/g, "\r\n") : out;
+  const usual = st.crlf ? "\r\n" : "\n";
+  if (!st.mixed) return st.crlf ? out.replace(/\n/g, "\r\n") : out;
+  const lines = out.split("\n");
+  const match = new Map<number, number>();
+  // line k of the text written and line j of the file are the same line when no hunk covers them
+  let j = 0;
+  let k = 0;
+  for (const h of hunks(st.mixed.lines, lines)) {
+    while (j < h.a && k < h.c) match.set(k++, j++);
+    // lines changed in place (as many written as there were) keep the ending of the line they replaced
+    if (h.b - h.a === h.d - h.c) for (let i = 0; i < h.b - h.a; i += 1) match.set(h.c + i, h.a + i);
+    j = h.b;
+    k = h.d;
+  }
+  while (j < st.mixed.lines.length && k < lines.length) match.set(k++, j++);
+  let res = "";
+  for (let n = 0; n < lines.length; n += 1) {
+    res += lines[n];
+    if (n < lines.length - 1) {
+      const at = match.get(n);
+      const own = at === undefined ? "" : (st.mixed.ends[at] ?? "");
+      res += own === "" ? usual : own;
+    }
+  }
+  return res;
 }
 
 /* ---------- blocks: markdown to document ---------- */
@@ -1233,6 +1277,53 @@ function toMarkdown(d: PMNode): string {
   if (blocks.length === 1 && blocks[0]?.type === "paragraph" && (blocks[0].content ?? []).length === 0) return "";
   const body = blocksToMarkdownBody(blocks);
   return body === "" ? "" : `${body}\n`;
+}
+
+/** What the writer reads of a ProseMirror block: enough to join the blocks of a document without turning the whole document into JSON. */
+export interface DocBlock {
+  attrs: Record<string, unknown>;
+  type: { name: string };
+  toJSON(): PMNode;
+}
+export interface DocLike {
+  childCount: number;
+  child(i: number): DocBlock;
+}
+/** The text of blocks already written, by block: ProseMirror keeps an unchanged block as the same object from one state to the next, so a document is written again block by block, only the changed ones. */
+export type BlockTexts = WeakMap<object, string>;
+
+/**
+ * The same text as `docToMarkdown(doc.toJSON())`, made from the ProseMirror document itself with the text of each unchanged block taken from `texts`. Typing in a long document changes one block, so
+ * writing the file out costs that block and the joins, not the document.
+ */
+export function docToMarkdownCached(doc: DocLike, texts: BlockTexts, opt?: MdOptions): string {
+  return withDoc(opt, () => {
+    const n = doc.childCount;
+    if (n === 1) {
+      const only = doc.child(0);
+      if (only.type.name === "paragraph" && (only.toJSON().content ?? []).length === 0) return "";
+    }
+    let out = "";
+    for (let i = 0; i < n; i += 1) {
+      const b = doc.child(i);
+      if (i > 0) out += b.attrs["tight"] === true ? "\n" : "\n".repeat(Math.max(2, Number(b.attrs["blanks"] ?? 0) + 1));
+      const id = b.attrs["blockId"];
+      if (typeof id === "string" && id !== "") out += `<!--b:${id}-->\n`;
+      // a fence that was never closed is written open only as the last block; its text depends on its place, so it is not kept
+      if (b.type.name === "codeBlock" && b.attrs["open"] === true) {
+        const j = b.toJSON();
+        out += blockText(i === n - 1 ? j : { ...j, attrs: { ...j.attrs, open: false } });
+        continue;
+      }
+      let t = texts.get(b);
+      if (t === undefined) {
+        t = blockText(b.toJSON());
+        texts.set(b, t);
+      }
+      out += t;
+    }
+    return out === "" ? "" : `${out}\n`;
+  });
 }
 
 /** Plain text of the document, for a word count or a search index. */

@@ -6,6 +6,7 @@ import { getSchema } from "@tiptap/core";
 import { Plugin, EditorState, TextSelection } from "@tiptap/pm/state";
 import {
   docToMarkdown,
+  docToMarkdownCached,
   markdownToDoc,
   nodesToInline,
   inlineToNodes,
@@ -820,4 +821,74 @@ test("an unclosed fence that ends a list item or a quote, followed by a sibling,
     content: [{ type: "paragraph", attrs: { src: "{++x++}", ck: "abc" }, content: [{ type: "text", text: "plain" }] }],
   });
   assert.equal(docToMarkdown(forged.toJSON(), D), "plain\n");
+});
+
+test("a file that mixes CRLF and LF endings keeps each line's own ending, and an edit keeps the others", () => {
+  const files = [
+    "a\r\nb\nc\r\n\nd\n",
+    "one\ntwo\r\nthree\n\nfour\r\n",
+    "x\r\ny\nz",
+    "# T\r\n\n- a\n- b\r\n- c\n\nlast\r\n",
+  ];
+  for (const t of files) assert.equal(styled(t), t, JSON.stringify(t));
+  // an edit in the middle: lines that were not touched keep their endings; the new line takes the usual one
+  const t = "a\r\nb\nc\r\n\nd\n";
+  const st = textStyle(t);
+  assert.ok(st.mixed);
+  const edited = withStyle(docToMarkdown(markdownToDoc(t.replace("c", "c more"), D), D), st);
+  assert.equal(edited, "a\r\nb\nc more\r\n\nd\n");
+  const added = withStyle("a\n\nb\n\nc\n\nNEW\n\nd\n", textStyle("a\r\n\nb\n\nc\r\n\nd\n"));
+  assert.ok(added.startsWith("a\r\n\nb\n\nc\r\n"), JSON.stringify(added));
+  assert.ok(added.endsWith("d\n"), JSON.stringify(added));
+});
+
+test("writing a document out block by block gives the same text as writing it whole, before and after edits", () => {
+  const texts = new WeakMap<object, string>();
+  const samples = [
+    big(300),
+    "```js\nlet a = 1;",
+    "a\n\n\nb\n",
+    "- - x\n\n> q\n\n1. a\n2. b\n",
+    "# T ##\n\n<!--b:blk_1-->\ntext\n",
+    "",
+  ];
+  for (const md of samples) {
+    let s = stateOf(md, false);
+    assert.equal(
+      docToMarkdownCached(s.doc, texts, D),
+      docToMarkdown(s.doc.toJSON(), D),
+      JSON.stringify(md.slice(0, 20)),
+    );
+    if (s.doc.childCount > 1) {
+      s = s.apply(s.tr.insertText("EDIT", 3));
+      assert.equal(docToMarkdownCached(s.doc, texts, D), docToMarkdown(s.doc.toJSON(), D), "after an edit");
+      s = s.apply(s.tr.insert(s.doc.content.size, schema.nodes["paragraph"]!.create(null, schema.text("tail"))));
+      assert.equal(docToMarkdownCached(s.doc, texts, D), docToMarkdown(s.doc.toJSON(), D), "after a new block");
+    }
+  }
+});
+
+test("a 1 MB document: a keystroke and the write-out after it cost less than a frame", () => {
+  const md = big(6000);
+  assert.ok(md.length > 900_000);
+  const texts = new WeakMap<object, string>();
+  let s = stateOf(md, false);
+  docToMarkdownCached(s.doc, texts, D);
+  let pos = 0;
+  s.doc.forEach((n, off, i) => {
+    if (i === Math.floor(s.doc.childCount / 2)) pos = off + 2;
+  });
+  const keys: number[] = [];
+  const outs: number[] = [];
+  for (let i = 0; i < 40; i += 1) {
+    let t0 = performance.now();
+    s = s.apply(s.tr.insertText("x", pos + i));
+    keys.push(performance.now() - t0);
+    t0 = performance.now();
+    docToMarkdownCached(s.doc, texts, D);
+    outs.push(performance.now() - t0);
+  }
+  const med = (a: number[]): number => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] as number;
+  assert.ok(med(keys) < 8, `a keystroke took ${med(keys).toFixed(2)} ms`);
+  assert.ok(med(outs) < 16, `the write-out took ${med(outs).toFixed(2)} ms`);
 });

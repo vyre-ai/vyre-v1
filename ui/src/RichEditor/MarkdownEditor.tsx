@@ -15,7 +15,7 @@ import { MarkdownText } from "../stream/MarkdownText.tsx";
 import {
   blockOfLine,
   dedentPaste,
-  docToMarkdown,
+  docToMarkdownCached,
   looksLikeMarkdown,
   markdownToDoc,
   textStyle,
@@ -711,6 +711,8 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
   const last = useRef(props.value);
   // how the file ends its lines and whether it ends with one: written back the same way
   const fileStyle = useRef(textStyle(props.value));
+  // the text of blocks already written (see docToMarkdownCached); a new one for each editor, since the text depends on whether it reads chips and suggestions
+  const blockTexts = useRef<WeakMap<object, string>>(new WeakMap());
   // the text the file last held, as far as the other side is concerned (what arrived as `value`): what an incoming change is merged against
   const base = useRef(props.value);
   const cb = useRef(props);
@@ -974,7 +976,14 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
               cb.current.doc.controller?.set(list);
               cb.current.doc.onChanges?.(list.length);
             }
-            const md = withStyle(docToMarkdown(e2.getJSON(), mdo()), fileStyle.current);
+            const md = withStyle(
+              docToMarkdownCached(
+                (e2 as unknown as { state: { doc: Parameters<typeof docToMarkdownCached>[0] } }).state.doc,
+                blockTexts.current,
+                mdo(),
+              ),
+              fileStyle.current,
+            );
             if (md === last.current) return;
             last.current = md;
             if (!clean) {
