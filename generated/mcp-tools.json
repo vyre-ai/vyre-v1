@@ -36556,7 +36556,7 @@
       "blocks": [],
       "cap": "mail.delivery.trail",
       "deferred": false,
-      "description": "What happened to a sent message: sent, delivered, opened, bounced and why, retries, and any address that is now blocked",
+      "description": "Delivery trail of a sent message: events, retries, blocked addresses",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -36981,7 +36981,7 @@
       "blocks": [],
       "cap": "mail.inbox.monitor",
       "deferred": false,
-      "description": "Each inbox you may see: how it is fed, when it last received, whether it is working, what failed and the one thing to do; and mail that arrived for an address no inbox answers to",
+      "description": "Inbox health: how fed, last received, what failed and the fix; unrouted addresses",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -38026,79 +38026,9 @@
     },
     {
       "blocks": [],
-      "cap": "mail.template.for_document.clear",
-      "deferred": false,
-      "description": "Take a document back to the Space's version of an email template",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "documentId": {
-            "examples": [
-              "fil_a1b2c3"
-            ],
-            "pattern": "^fil_[a-z0-9]+$",
-            "type": "string"
-          },
-          "key": {
-            "examples": [
-              "signature.request"
-            ],
-            "maxLength": 60,
-            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "documentId",
-          "key"
-        ],
-        "type": "object"
-      },
-      "name": "mail_template_for_document_clear",
-      "planMode": "blocked",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.template.for_document.get",
-      "deferred": false,
-      "description": "The email template a document uses for a key, and whether it keeps its own version",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "documentId": {
-            "examples": [
-              "fil_a1b2c3"
-            ],
-            "pattern": "^fil_[a-z0-9]+$",
-            "type": "string"
-          },
-          "key": {
-            "examples": [
-              "signature.request"
-            ],
-            "maxLength": 60,
-            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "documentId",
-          "key"
-        ],
-        "type": "object"
-      },
-      "name": "mail_template_for_document_get",
-      "planMode": "allowed",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "mail.template.for_document.set",
       "deferred": false,
-      "description": "Give a document its own version of an email template",
+      "description": "Give a document its own email template wording",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -38144,7 +38074,7 @@
       "blocks": [],
       "cap": "mail.template.get",
       "deferred": false,
-      "description": "Read one email template; with a document, the text that document's emails use",
+      "description": "Read an email template (a document's own wording with documentId)",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -38178,7 +38108,7 @@
       "blocks": [],
       "cap": "mail.template.list",
       "deferred": false,
-      "description": "List email templates: the ones that ship with Vyre and the Space's own, with which are changed",
+      "description": "List email templates",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -38193,7 +38123,7 @@
       "blocks": [],
       "cap": "mail.template.preview",
       "deferred": false,
-      "description": "Fill a template (a saved key, or a draft subject and text) from a real record and values you pass; says which fields would go out blank",
+      "description": "Preview a template or draft filled from a record and values; names blank fields",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -38244,7 +38174,7 @@
       "blocks": [],
       "cap": "mail.template.reset",
       "deferred": false,
-      "description": "Remove the Space's version of a template; the one that ships with Vyre comes back",
+      "description": "Reset a template to the one that ships with Vyre",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -38271,7 +38201,7 @@
       "blocks": [],
       "cap": "mail.template.save",
       "deferred": false,
-      "description": "Create or change the Space's email template for a key. Text carries {{field}} or {{field|fallback}} merge fields",
+      "description": "Save the Space's email template; text may hold {{field}} or {{field|fallback}}",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -55452,7 +55382,7 @@
       "blocks": [],
       "cap": "schema.set_mergeable",
       "deferred": false,
-      "description": "Switch \"Can go in emails\" on or off for one field: whether a template may merge its value into an email. Private and secret fields can never be switched on",
+      "description": "Switch a field's \"Can go in emails\"; private and secret fields never can",
       "effects": "write",
       "inputSchema": {
         "properties": {

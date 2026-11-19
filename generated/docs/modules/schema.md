@@ -20,7 +20,7 @@ Requires: nothing.
 - [schema.restore_field](../capabilities/schema.restore_field.md): Bring a dropped field back from Trash with its values
 - [schema.sensitivity.scan](../capabilities/schema.sensitivity.scan.md): Detect sensitive data in the fields of a type (ID numbers, card and bank numbers, health terms) and suggest which fields to seal; changes nothing and returns no values
 - [schema.set_label](../capabilities/schema.set_label.md): Set the sensitivity label of a record type or of one field
-- [schema.set_mergeable](../capabilities/schema.set_mergeable.md): Switch "Can go in emails" on or off for one field: whether a template may merge its value into an email. Private and secret fields can never be switched on
+- [schema.set_mergeable](../capabilities/schema.set_mergeable.md): Switch a field's "Can go in emails"; private and secret fields never can
 - [schema.trash.list](../capabilities/schema.trash.list.md): Dropped fields and types still held in Trash (30 days)
 - [schema.types.get](../capabilities/schema.types.get.md): Read one record type with every field
 - [schema.types.list](../capabilities/schema.types.list.md): List record types in Personal, Shared with me or Space sections with folders and counts

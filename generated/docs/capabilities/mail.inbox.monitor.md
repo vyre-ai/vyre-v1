@@ -1,6 +1,6 @@
 # mail.inbox.monitor
 
-Each inbox you may see: how it is fed, when it last received, whether it is working, what failed and the one thing to do; and mail that arrived for an address no inbox answers to
+Inbox health: how fed, last received, what failed and the fix; unrouted addresses
 
 | | |
 |---|---|

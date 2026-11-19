@@ -1,6 +1,6 @@
 # mail.template.list
 
-List email templates: the ones that ship with Vyre and the Space's own, with which are changed
+List email templates
 
 | | |
 |---|---|

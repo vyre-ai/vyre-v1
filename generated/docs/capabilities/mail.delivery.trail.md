@@ -1,6 +1,6 @@
 # mail.delivery.trail
 
-What happened to a sent message: sent, delivered, opened, bounced and why, retries, and any address that is now blocked
+Delivery trail of a sent message: events, retries, blocked addresses
 
 | | |
 |---|---|

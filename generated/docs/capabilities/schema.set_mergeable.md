@@ -1,6 +1,6 @@
 # schema.set_mergeable
 
-Switch "Can go in emails" on or off for one field: whether a template may merge its value into an email. Private and secret fields can never be switched on
+Switch a field's "Can go in emails"; private and secret fields never can
 
 | | |
 |---|---|

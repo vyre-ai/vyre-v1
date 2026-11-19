@@ -1,6 +1,6 @@
 # mail.template.for_document.clear
 
-Take a document back to the Space's version of an email template
+Return a document to the Space's template
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@ Take a document back to the Space's version of an email template
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/template/for_document/clear |
-| MCP tool | mail_template_for_document_clear (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

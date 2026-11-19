@@ -1,6 +1,6 @@
 # mail.template.for_document.get
 
-The email template a document uses for a key, and whether it keeps its own version
+The template a document uses, and whether it has its own
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@ The email template a document uses for a key, and whether it keeps its own versi
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/template/for_document/get |
-| MCP tool | mail_template_for_document_get (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

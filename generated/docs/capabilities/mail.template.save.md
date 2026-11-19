@@ -1,6 +1,6 @@
 # mail.template.save
 
-Create or change the Space's email template for a key. Text carries {{field}} or {{field|fallback}} merge fields
+Save the Space's email template; text may hold {{field}} or {{field|fallback}}
 
 | | |
 |---|---|

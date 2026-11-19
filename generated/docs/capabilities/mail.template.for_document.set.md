@@ -1,6 +1,6 @@
 # mail.template.for_document.set
 
-Give a document its own version of an email template
+Give a document its own email template wording
 
 | | |
 |---|---|

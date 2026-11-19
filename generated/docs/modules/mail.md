@@ -9,8 +9,8 @@ Requires: nothing.
 - [mail.attachment.save](../capabilities/mail.attachment.save.md): Save an attachment into Files
 - [mail.auto_connect_members](../capabilities/mail.auto_connect_members.md): Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)
 - [mail.connect](../capabilities/mail.connect.md): Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)
-- [mail.delivery.retry](../capabilities/mail.delivery.retry.md): Scheduled by Vyre after a soft bounce: send the message again to the one address that bounced, once per attempt, never to a suppressed address
-- [mail.delivery.trail](../capabilities/mail.delivery.trail.md): What happened to a sent message: sent, delivered, opened, bounced and why, retries, and any address that is now blocked
+- [mail.delivery.retry](../capabilities/mail.delivery.retry.md): Vyre-only: resend a soft-bounced message to that address
+- [mail.delivery.trail](../capabilities/mail.delivery.trail.md): Delivery trail of a sent message: events, retries, blocked addresses
 - [mail.domain.add](../capabilities/mail.domain.add.md): Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish
 - [mail.domain.check](../capabilities/mail.domain.check.md): Re-check SPF, DKIM and DMARC for a domain (mailauth) and ask the provider to verify
 - [mail.domain.get](../capabilities/mail.domain.get.md): Read one sending domain with the DNS records to publish
@@ -21,7 +21,7 @@ Requires: nothing.
 - [mail.drafts.discard](../capabilities/mail.drafts.discard.md): Discard a draft
 - [mail.drafts.list](../capabilities/mail.drafts.list.md): List drafts for a mailbox or contact
 - [mail.health](../capabilities/mail.health.md): Mail sync health: age of the last successful sync per mailbox (worst state wins)
-- [mail.inbox.monitor](../capabilities/mail.inbox.monitor.md): Each inbox you may see: how it is fed, when it last received, whether it is working, what failed and the one thing to do; and mail that arrived for an address no inbox answers to
+- [mail.inbox.monitor](../capabilities/mail.inbox.monitor.md): Inbox health: how fed, last received, what failed and the fix; unrouted addresses
 - [mail.ingest](../capabilities/mail.ingest.md): Land one inbound or synced message: dedupe on provider id, one record across inboxes, link to a contact (sure matches link, unsure go to Needs you)
 - [mail.mailbox.create](../capabilities/mail.mailbox.create.md): Create a shared, agent or service mailbox (hello@, support@, an agent address)
 - [mail.mailbox.disconnect](../capabilities/mail.mailbox.disconnect.md): Remove a mailbox connection (mail already filed to records stays)
@@ -49,14 +49,14 @@ Requires: nothing.
 - [mail.smtp.verify](../capabilities/mail.smtp.verify.md): Test a mail server: connect and sign in, nothing is sent. No input tests the saved one
 - [mail.status_update](../capabilities/mail.status_update.md): Apply a provider status (delivered, bounced, complained, opened, clicked, failed); hard bounces and complaints write the suppression list
 - [mail.sync_now](../capabilities/mail.sync_now.md): Sync a mailbox now
-- [mail.template.for_document.clear](../capabilities/mail.template.for_document.clear.md): Take a document back to the Space's version of an email template
-- [mail.template.for_document.get](../capabilities/mail.template.for_document.get.md): The email template a document uses for a key, and whether it keeps its own version
-- [mail.template.for_document.set](../capabilities/mail.template.for_document.set.md): Give a document its own version of an email template
-- [mail.template.get](../capabilities/mail.template.get.md): Read one email template; with a document, the text that document's emails use
-- [mail.template.list](../capabilities/mail.template.list.md): List email templates: the ones that ship with Vyre and the Space's own, with which are changed
-- [mail.template.preview](../capabilities/mail.template.preview.md): Fill a template (a saved key, or a draft subject and text) from a real record and values you pass; says which fields would go out blank
-- [mail.template.reset](../capabilities/mail.template.reset.md): Remove the Space's version of a template; the one that ships with Vyre comes back
-- [mail.template.save](../capabilities/mail.template.save.md): Create or change the Space's email template for a key. Text carries {{field}} or {{field|fallback}} merge fields
+- [mail.template.for_document.clear](../capabilities/mail.template.for_document.clear.md): Return a document to the Space's template
+- [mail.template.for_document.get](../capabilities/mail.template.for_document.get.md): The template a document uses, and whether it has its own
+- [mail.template.for_document.set](../capabilities/mail.template.for_document.set.md): Give a document its own email template wording
+- [mail.template.get](../capabilities/mail.template.get.md): Read an email template (a document's own wording with documentId)
+- [mail.template.list](../capabilities/mail.template.list.md): List email templates
+- [mail.template.preview](../capabilities/mail.template.preview.md): Preview a template or draft filled from a record and values; names blank fields
+- [mail.template.reset](../capabilities/mail.template.reset.md): Reset a template to the one that ships with Vyre
+- [mail.template.save](../capabilities/mail.template.save.md): Save the Space's email template; text may hold {{field}} or {{field|fallback}}
 - [mail.thread.get](../capabilities/mail.thread.get.md): Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)
 - [mail.unsubscribe](../capabilities/mail.unsubscribe.md): Inbound: a person pressed the unsubscribe link in an email; writes the Suppression list
 

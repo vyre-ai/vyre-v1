@@ -1,6 +1,6 @@
 # mail.template.get
 
-Read one email template; with a document, the text that document's emails use
+Read an email template (a document's own wording with documentId)
 
 | | |
 |---|---|

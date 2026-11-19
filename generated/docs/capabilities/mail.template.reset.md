@@ -1,6 +1,6 @@
 # mail.template.reset
 
-Remove the Space's version of a template; the one that ships with Vyre comes back
+Reset a template to the one that ships with Vyre
 
 | | |
 |---|---|

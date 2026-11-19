@@ -1,6 +1,6 @@
 # mail.template.preview
 
-Fill a template (a saved key, or a draft subject and text) from a real record and values you pass; says which fields would go out blank
+Preview a template or draft filled from a record and values; names blank fields
 
 | | |
 |---|---|

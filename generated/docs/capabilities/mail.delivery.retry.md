@@ -1,6 +1,6 @@
 # mail.delivery.retry
 
-Scheduled by Vyre after a soft bounce: send the message again to the one address that bounced, once per attempt, never to a suppressed address
+Vyre-only: resend a soft-bounced message to that address
 
 | | |
 |---|---|
