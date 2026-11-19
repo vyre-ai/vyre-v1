@@ -140,10 +140,18 @@ test("a PDF set in the plain page look says so to signing; one the converter mad
   const copy = w.add("Copy of agreement.pdf", Buffer.from(bytes), "fld_other");
   assert.equal((await handlers["documents.signing"](w.ctx, { fileId: copy })).plain, true, "a copy is held");
   const edited = w.add("Edited.pdf", Buffer.concat([bytes, Buffer.from("\n%edited")]));
-  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: edited })).plain, undefined, "other bytes are not held");
+  assert.equal(
+    (await handlers["documents.signing"](w.ctx, { fileId: edited })).plain,
+    undefined,
+    "other bytes are not held",
+  );
   w.files.get(plain.file.fileId)!.versions = 2;
   w.files.get(plain.file.fileId)!.bytes = Buffer.from("%PDF-1.7 a new version");
-  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, undefined, "a new version with other bytes is not held");
+  assert.equal(
+    (await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain,
+    undefined,
+    "a new version with other bytes is not held",
+  );
   configureDocuments({ pdf: async () => Buffer.from("%PDF-1.7 exact") });
   try {
     const exact = await handlers["documents.fill"](w.ctx, {
@@ -254,4 +262,32 @@ test("a hostile Word file does not break the plain PDF: impossible character ref
   const blocks = docxBlocks(docx(xml));
   const text = blocks.map((b) => (b.t === "p" ? b.runs.map((r) => r.text).join("") : "")).join("|");
   assert.equal(text, "abcd|kept");
+});
+
+test("hostile input cannot make the readers slow: a tag opened a hundred thousand times and never closed is read in linear time, in Word and in Markdown", async () => {
+  const N = 100_000;
+  const files = [
+    "<w:r ".repeat(N),
+    "<w:p ".repeat(N),
+    "<w:t ".repeat(N),
+    "<w:tbl><w:tr><w:tc>".repeat(N),
+    "<w:pPr>".repeat(N),
+    "<w:r><w:t ".repeat(N / 2),
+  ].map((b) => docx(b));
+  const t0 = Date.now();
+  for (const f of files) {
+    try {
+      docxBlocks(f);
+    } catch {
+      /* a Word file with nothing to read is refused; what matters is how long it took */
+    }
+  }
+  assert.ok(Date.now() - t0 < 2000, `the Word readers took ${Date.now() - t0} ms`);
+  const { parse, inline } = await import("../handlers/vdoc.ts");
+  const t1 = Date.now();
+  for (const md of ["[a".repeat(N), "![".repeat(N), "[a](".repeat(N), "{~~a~>".repeat(N)]) {
+    parse(md);
+    inline(md);
+  }
+  assert.ok(Date.now() - t1 < 6000, `the Markdown readers took ${Date.now() - t1} ms`);
 });

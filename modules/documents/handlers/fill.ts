@@ -1037,7 +1037,8 @@ export async function documentsFill(
   });
   const { fileId, versionId } = saved;
   // a PDF set in the plain page look is a preview of the Word file: its bytes are marked, so signing holds it (and any copy of it) until the sender chooses (documents.signing says plain)
-  if (layout === "simple") ctx.db.run("INSERT OR IGNORE INTO documents_plain (sha256, made_at) VALUES (?, ?)", await sha256Of(out), ctx.now());
+  if (layout === "simple")
+    ctx.db.run("INSERT OR IGNORE INTO documents_plain (sha256, made_at) VALUES (?, ?)", await sha256Of(out), ctx.now());
   const payload: Record<string, unknown> = { fileId, templateFileId, fields: made.used.length, missing: 0 };
   const recordId = optStr(ctx, o, "recordId");
   if (recordId !== undefined) payload.recordId = recordId;

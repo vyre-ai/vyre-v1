@@ -351,8 +351,8 @@ export function inline(src: string): Run[] {
     buf = "";
   };
   const s = src
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/!\[([^\]\n]{0,200})\]\([^)\n]{0,500}\)/g, "$1")
+    .replace(/\[([^\]\n]{0,200})\]\([^)\n]{0,500}\)/g, "$1")
     .replace(/~~(.*?)~~/g, "$1");
   for (let k = 0; k < s.length; k++) {
     const c = s[k] as string;

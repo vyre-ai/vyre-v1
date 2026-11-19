@@ -24,11 +24,80 @@ const unxml = (s: string): string =>
     return UNESCAPE[e.toLowerCase()] ?? "";
   });
 
+// ---- a linear reader of the XML parts: found with indexOf, so no input (a tag opened a hundred thousand times and never closed) can make the search quadratic ----
+
+const NAME_END = new Set([" ", ">", "/", "\n", "\t", "\r"]);
+interface Span {
+  /** the whole element, open tag to close tag */
+  all: string;
+  /** what is inside it */
+  inner: string;
+  /** the attributes of the open tag */
+  attrs: string;
+}
+/** The elements <tag ...>...</tag> in order, not nested in themselves; an element that is never closed ends the search. */
+function spans(xml: string, tag: string, from = 0): Span[] {
+  const open = `<${tag}`;
+  const close = `</${tag}>`;
+  const out: Span[] = [];
+  let at = from;
+  for (;;) {
+    const i = xml.indexOf(open, at);
+    if (i < 0) return out;
+    const next = xml[i + open.length] ?? "";
+    if (!NAME_END.has(next)) {
+      at = i + open.length;
+      continue;
+    }
+    const gt = xml.indexOf(">", i);
+    if (gt < 0) return out;
+    if (xml[gt - 1] === "/") {
+      // a self-closing element holds nothing
+      out.push({ all: xml.slice(i, gt + 1), inner: "", attrs: xml.slice(i + open.length, gt - 1) });
+      at = gt + 1;
+      continue;
+    }
+    const end = xml.indexOf(close, gt);
+    if (end < 0) return out;
+    out.push({
+      all: xml.slice(i, end + close.length),
+      inner: xml.slice(gt + 1, end),
+      attrs: xml.slice(i + open.length, gt),
+    });
+    at = end + close.length;
+  }
+}
+/** The inside of the first <tag>...</tag>, or "". */
+const firstInner = (xml: string, tag: string): string => spans(xml, tag)[0]?.inner ?? "";
+/** The value of an attribute w:val="..." in an attribute string. */
+const valOf = (attrs: string, name = "w:val"): string | undefined => {
+  const k = attrs.indexOf(`${name}="`);
+  if (k < 0) return undefined;
+  const e = attrs.indexOf('"', k + name.length + 2);
+  return e < 0 ? undefined : attrs.slice(k + name.length + 2, e);
+};
+/** The first self-closing or open tag <tag .../> in a small string, as its attributes; undefined when there is none. */
+function tagAttrs(xml: string, tag: string): string | undefined {
+  const open = `<${tag}`;
+  let at = 0;
+  for (;;) {
+    const i = xml.indexOf(open, at);
+    if (i < 0) return undefined;
+    if (!NAME_END.has(xml[i + open.length] ?? "")) {
+      at = i + open.length;
+      continue;
+    }
+    const gt = xml.indexOf(">", i);
+    if (gt < 0) return undefined;
+    return xml.slice(i + open.length, xml[gt - 1] === "/" ? gt - 1 : gt);
+  }
+}
+
 /** An on/off property: <w:b/>, <w:b w:val="1"/> are on; w:val "0", "false" or "off" is off. */
 const flag = (xml: string, tag: string): boolean => {
-  const m = new RegExp(`<w:${tag}(?:\\s([^>]*?))?/?>`).exec(xml);
-  if (!m) return false;
-  const v = /w:val="([^"]*)"/.exec(m[1] ?? "")?.[1];
+  const a = tagAttrs(xml, `w:${tag}`);
+  if (a === undefined) return false;
+  const v = valOf(a);
   return v === undefined || !/^(0|false|off|none)$/i.test(v);
 };
 
@@ -36,14 +105,18 @@ const flag = (xml: string, tag: string): boolean => {
 function orderedNumbers(zip: Zip): Set<string> {
   const xml = zip.file("word/numbering.xml")?.asText() ?? "";
   const abstractOrdered = new Map<string, boolean>();
-  for (const m of xml.matchAll(/<w:abstractNum\b[^>]*w:abstractNumId="(\d+)"[^>]*>([\s\S]*?)<\/w:abstractNum>/g)) {
-    const first = /<w:lvl\b[^>]*w:ilvl="0"[\s\S]*?<w:numFmt w:val="([^"]+)"/.exec(m[2] as string)?.[1];
-    abstractOrdered.set(m[1] as string, first !== undefined && first !== "bullet" && first !== "none");
+  for (const m of spans(xml, "w:abstractNum")) {
+    const id = valOf(m.attrs, "w:abstractNumId");
+    if (id === undefined) continue;
+    const lvl = spans(m.inner, "w:lvl").find((l) => valOf(l.attrs, "w:ilvl") === "0");
+    const first = lvl ? valOf(tagAttrs(lvl.inner, "w:numFmt") ?? "") : undefined;
+    abstractOrdered.set(id, first !== undefined && first !== "bullet" && first !== "none");
   }
   const out = new Set<string>();
-  for (const m of xml.matchAll(/<w:num\b[^>]*w:numId="(\d+)"[^>]*>([\s\S]*?)<\/w:num>/g)) {
-    const abs = /<w:abstractNumId w:val="(\d+)"/.exec(m[2] as string)?.[1];
-    if (abs !== undefined && abstractOrdered.get(abs)) out.add(m[1] as string);
+  for (const m of spans(xml, "w:num")) {
+    const id = valOf(m.attrs, "w:numId");
+    const abs = valOf(tagAttrs(m.inner, "w:abstractNumId") ?? "");
+    if (id !== undefined && abs !== undefined && abstractOrdered.get(abs)) out.add(id);
   }
   return out;
 }
@@ -56,18 +129,21 @@ interface Para {
 }
 
 function readPara(xml: string): Para {
-  const props = /<w:pPr>([\s\S]*?)<\/w:pPr>/.exec(xml)?.[1] ?? "";
-  const style = /<w:pStyle w:val="([^"]*)"/.exec(props)?.[1] ?? "";
+  const props = firstInner(xml, "w:pPr");
+  const style = valOf(tagAttrs(props, "w:pStyle") ?? "") ?? "";
   const h = /^(?:Heading|heading)\s?([1-9])$/.exec(style);
   const heading: 1 | 2 | 3 | undefined = h
     ? (Math.min(Number(h[1]), 3) as 1 | 2 | 3)
     : /^(Title|Subtitle)$/i.test(style)
       ? 1
       : undefined;
-  const num = /<w:numPr>([\s\S]*?)<\/w:numPr>/.exec(props)?.[1];
-  const numId = num ? /<w:numId w:val="(\d+)"/.exec(num)?.[1] : undefined;
-  const ilvl = num ? Number(/<w:ilvl w:val="(\d+)"/.exec(num)?.[1] ?? "0") : 0;
-  let pageBreak = /<w:pageBreakBefore\b(?![^>]*w:val="(?:0|false)")/.test(props);
+  const num = spans(props, "w:numPr")[0]?.inner;
+  const numRaw = num ? valOf(tagAttrs(num, "w:numId") ?? "") : undefined;
+  const numId = numRaw !== undefined && /^\d+$/.test(numRaw) ? numRaw : undefined;
+  const ilvlRaw = num ? valOf(tagAttrs(num, "w:ilvl") ?? "") : undefined;
+  const ilvl = ilvlRaw !== undefined && /^\d+$/.test(ilvlRaw) ? Number(ilvlRaw) : 0;
+  const pb = tagAttrs(props, "w:pageBreakBefore");
+  let pageBreak = pb !== undefined && !/^(0|false)$/.test(valOf(pb) ?? "");
   const runs: Run[] = [];
   const push = (text: string, b: boolean, i: boolean): void => {
     if (text === "") return;
@@ -75,20 +151,35 @@ function readPara(xml: string): Para {
     if (last && !!last.b === b && !!last.i === i) last.text += text;
     else runs.push({ text, ...(b ? { b } : {}), ...(i ? { i } : {}) });
   };
-  for (const r of xml.matchAll(/<w:r(?:\s[^>]*)?>([\s\S]*?)<\/w:r>/g)) {
-    const body = r[1] as string;
-    const rPr = /<w:rPr>([\s\S]*?)<\/w:rPr>/.exec(body)?.[1] ?? "";
+  for (const r of spans(xml, "w:r")) {
+    const body = r.inner;
+    const rPr = firstInner(body, "w:rPr");
     const b = flag(rPr, "b");
     const i = flag(rPr, "i");
-    // text, tabs and breaks in the order they stand
-    for (const t of body.matchAll(
-      /<w:t(?:\s[^>]*)?(?<!\/)>([\s\S]*?)<\/w:t>|<w:tab\s*\/>|<w:br\b([^>]*)\/?>|<w:noBreakHyphen\s*\/>/g,
-    )) {
-      if (t[1] !== undefined) push(unxml(t[1]), b, i);
-      else if (t[0].startsWith("<w:tab")) push("    ", b, i);
-      else if (t[0].startsWith("<w:noBreak")) push("-", b, i);
-      else if (/w:type="page"/.test(t[2] ?? "")) pageBreak = true;
-      else push(" ", b, i);
+    // text, tabs and breaks in the order they stand, read by walking the element names
+    let at = 0;
+    for (;;) {
+      const k = body.indexOf("<w:", at);
+      if (k < 0) break;
+      let e = k + 3;
+      while (e < body.length && !NAME_END.has(body[e] as string)) e++;
+      const name = body.slice(k + 3, e);
+      const gt = body.indexOf(">", e);
+      if (gt < 0) break;
+      const attrs = body.slice(e, body[gt - 1] === "/" ? gt - 1 : gt);
+      const selfClosed = body[gt - 1] === "/";
+      at = gt + 1;
+      if (name === "t" && !selfClosed) {
+        const end = body.indexOf("</w:t>", gt);
+        if (end < 0) break;
+        push(unxml(body.slice(gt + 1, end)), b, i);
+        at = end + 6;
+      } else if (name === "tab") push("    ", b, i);
+      else if (name === "noBreakHyphen") push("-", b, i);
+      else if (name === "br") {
+        if (valOf(attrs, "w:type") === "page") pageBreak = true;
+        else push(" ", b, i);
+      }
     }
   }
   return {
@@ -144,16 +235,27 @@ export function docxBlocks(bytes: Uint8Array): Block[] {
     out.push({ t: "p", runs });
   };
   const text = (xml: string): Run[] =>
-    plain(Array.from(xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)).flatMap((m) => [...readPara(m[0]).runs, { text: " " }]));
-  // walk the top level of the body: paragraphs and tables in order
-  const inner = /<w:body>([\s\S]*)<\/w:body>/.exec(body)?.[1] ?? body;
-  const top = /<w:p\b[\s\S]*?<\/w:p>|<w:tbl>[\s\S]*?<\/w:tbl>/g;
-  for (const m of inner.matchAll(top)) {
-    const xml = m[0];
-    if (xml.startsWith("<w:tbl>")) {
-      const rows = Array.from(xml.matchAll(/<w:tr\b[\s\S]*?<\/w:tr>/g)).map((tr) =>
-        Array.from(tr[0].matchAll(/<w:tc>[\s\S]*?<\/w:tc>/g)).map((tc) => {
-          const cell = text(tc[0]);
+    plain(spans(xml, "w:p").flatMap((m) => [...readPara(m.all).runs, { text: " " }]));
+  // walk the top level of the body: paragraphs and tables in order (a table is one element; paragraphs outside tables are the rest)
+  const inner = firstInner(body, "w:body") || body;
+  const tops: { xml: string; table: boolean }[] = [];
+  {
+    const tables = spans(inner, "w:tbl");
+    let at = 0;
+    for (const t of tables) {
+      const start = inner.indexOf(t.all, at);
+      for (const p of spans(inner.slice(at, start), "w:p")) tops.push({ xml: p.all, table: false });
+      tops.push({ xml: t.all, table: true });
+      at = start + t.all.length;
+    }
+    for (const p of spans(inner.slice(at), "w:p")) tops.push({ xml: p.all, table: false });
+  }
+  for (const m of tops) {
+    const xml = m.xml;
+    if (m.table) {
+      const rows = spans(xml, "w:tr").map((tr) =>
+        spans(tr.all, "w:tc").map((tc) => {
+          const cell = text(tc.all);
           while (cell.length > 0 && cell[cell.length - 1]!.text.trim() === "") cell.pop();
           return cell;
         }),

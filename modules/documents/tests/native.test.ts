@@ -320,8 +320,17 @@ test("with no key of its own, fill derives it from what is asked: another value,
   const id = w.add("Service agreement.md", enc(AGREEMENT));
   const keyOf = async (extra: Record<string, unknown> = {}) => {
     const before = w.calls.filter((c) => c.cap === "files.create").length;
-    await handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: FOLDER, values: VALUES, signingDate: "2026-11-19", ...extra });
-    return String(w.calls.filter((c) => c.cap === "files.create")[before]!.input.idempotencyKey).replace(/:[^:]*\.pdf$|:[^:]*\.md$/, "");
+    await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      values: VALUES,
+      signingDate: "2026-11-19",
+      ...extra,
+    });
+    return String(w.calls.filter((c) => c.cap === "files.create")[before]!.input.idempotencyKey).replace(
+      /:[^:]*\.pdf$|:[^:]*\.md$/,
+      "",
+    );
   };
   const base = await keyOf();
   assert.equal(await keyOf(), base, "the same ask is the same key");
@@ -339,8 +348,15 @@ test("documents.make with no key makes a new ask every call, so an old file is n
   const ask = { template: "Service agreement", recordId: "rec_imran", values: VALUES, signingDate: "2026-11-19" };
   const keys = async (extra: Record<string, unknown>, calls: number) => {
     const before = w.calls.filter((c) => c.cap === "files.create").length;
-    for (let i = 0; i < calls; i++) await handlers["documents.make"]({ ...w.ctx, trace: { ...w.ctx.trace, traceId: `${i}`.padStart(32, "a") } }, { ...ask, ...extra });
-    return w.calls.filter((c) => c.cap === "files.create").slice(before).map((c) => String(c.input.idempotencyKey).replace(/:[^:]*\.pdf$/, ""));
+    for (let i = 0; i < calls; i++)
+      await handlers["documents.make"](
+        { ...w.ctx, trace: { ...w.ctx.trace, traceId: `${i}`.padStart(32, "a") } },
+        { ...ask, ...extra },
+      );
+    return w.calls
+      .filter((c) => c.cap === "files.create")
+      .slice(before)
+      .map((c) => String(c.input.idempotencyKey).replace(/:[^:]*\.pdf$/, ""));
   };
   const none = await keys({}, 2);
   assert.notEqual(none[0], none[1], "no caller key: every call is its own ask");
