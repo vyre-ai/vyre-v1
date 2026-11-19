@@ -19,6 +19,8 @@ import { nameStandIns } from "../apps/app/src/places/chats/crew/run/model.ts";
 import { toRunView } from "../apps/app/src/places/chats/crew/run-view.ts";
 
 test("a queued helper reads as 'Starts when Alpha is done' from the real nodes, then starts; an edited brief is what the saved agent holds", async () => {
+  const failGo: Array<Promise<void>> = [];
+  const failNow: Array<() => void> = [];
   let release!: () => void;
   const alphaGo = new Promise<void>((r) => (release = r));
   const model = scriptedModel(async function* (input) {
@@ -28,8 +30,10 @@ test("a queued helper reads as 'Starts when Alpha is done' from the real nodes, 
       await alphaGo;
       yield { type: "text", text: "alpha done" };
     } else if (body.includes("BETA")) yield { type: "text", text: "beta done" };
-    else if (body.includes("GAMMA")) {
-      yield { type: "error", code: "model.failed", message: "gamma could not finish" };
+    else if (/EPSILON|ZETA|THETA/.test(body)) {
+      const k = body.includes("EPSILON") ? 0 : body.includes("ZETA") ? 1 : 2;
+      await failGo[k];
+      yield { type: "error", code: "model.failed", message: "could not finish" };
       return;
     }
   });
@@ -95,33 +99,55 @@ test("a queued helper reads as 'Starts when Alpha is done' from the real nodes, 
     await waitFor(async () => ((await seen("Beta")).node?.status === "succeeded" ? true : null), 30_000);
     assert.equal((await seen("Beta")).line, undefined, "once it has run there is no line");
 
-    // a helper behind one that fails: what the UI reads for it (printed, then asserted below)
-    await start("Gamma", "GAMMA: this one fails");
-    await waitFor(async () => ((await seen("Gamma")).node?.status === "failed" ? true : null), 30_000);
-    await start("Delta", "DELTA: after gamma", ["Gamma"]);
-    // the host's sweep fails a helper behind failed work every few seconds: catch the moment before it, if there is one
+    // a helper behind one that fails: it stands queued while the one it waits for runs; when that fails, the host's sweep (every five seconds) fails it too. In the gap between the two the tile says it cannot
+    // start. The gap is up to five seconds and is polled every 15 ms, so it is caught every time except when the sweep lands inside one poll; then the whole thing is tried again with the next pair.
     let cant: string | undefined;
-    const delta = await waitFor(async () => {
-      const s = await seen("Delta");
-      if (s.node?.status === "queued" && s.line !== undefined && cant === undefined) {
-        cant = s.line;
-        await grab("cant-start");
+    let pair = "";
+    for (const [i, [front, back]] of [
+      ["Epsilon", "Delta"],
+      ["Zeta", "Eta"],
+      ["Theta", "Iota"],
+    ].entries()) {
+      pair = back!;
+      failGo[i] = new Promise<void>((r) => (failNow[i] = r));
+      await start(front!, `${front!.toUpperCase()}: this one will fail`);
+      await waitFor(async () => ((await seen(front!)).node?.status === "running" ? true : null), 20_000);
+      await start(back!, `${back!.toUpperCase()}: after ${front}`, [front!]);
+      await waitFor(async () => ((await seen(back!)).node?.status === "queued" ? true : null), 20_000);
+      failNow[i]!();
+      const until = Date.now() + 9_000;
+      while (Date.now() < until && cant === undefined) {
+        const s = await seen(back!);
+        if (s.node?.status === "queued" && s.line !== undefined) {
+          cant = s.line;
+          await grab("cant-start");
+          assert.equal(cant, `Can't start: ${front} failed`, "while it still stood queued behind the failed one");
+        } else if (s.node && s.node.status !== "queued") break;
+        await new Promise((r) => setTimeout(r, 15));
       }
-      return s.node && s.node.status !== "queued" && s.node.status !== "running" ? s : null;
+      if (cant !== undefined) break;
+      await waitFor(async () => ((await seen(back!)).node?.status === "failed" ? true : null), 20_000);
+    }
+    assert.ok(cant !== undefined, "the moment it could not start was seen");
+    const front = cant!.replace(/^Can't start: | failed$/g, "");
+    const delta = await waitFor(async () => {
+      const s = await seen(pair);
+      return s.node?.status === "failed" ? s : null;
     }, 30_000);
-    if (cant !== undefined)
-      assert.equal(cant, "Can't start: Gamma failed", "while it still stood queued behind the failed one");
-    console.log("CANT-START-SEEN", cant !== undefined);
     await grab("failed");
-    const dn = delta.node as { status: string; errorMessage?: string };
-    console.log("DELTA", JSON.stringify({ status: dn.status, errorMessage: dn.errorMessage, line: delta.line }));
+    const dn = delta.node as { status: string; reason?: string };
     assert.equal(dn.status, "failed", "it fails with the one it waited for");
+    assert.equal(dn.reason, `Didn't start because ${front} failed.`, "the runtime's own words, naming which");
     assert.equal(delta.line, undefined, "a failed helper shows no waiting line");
-    const dv = (await seen("Delta")).view!;
+    const dv = (await seen(pair)).view!;
     assert.equal(dv.state, "failed", "its tile is failed, not a working helper with a clock that keeps counting");
-    assert.match(dv.lines[0] ?? "", /after Gamma, which did not finish/);
-    assert.match((await seen("Gamma")).view!.lines[0] ?? "", /gamma could not finish/, "a failed helper says why");
-    assert.match(String(dn.errorMessage), /after Gamma, which did not finish/, "and says which one it waited for");
+    assert.deepEqual(dv.lines, [`Didn't start because ${front} failed.`]);
+    assert.equal(dv.blocked, true, "it never ran: no clock and no Retry");
+    assert.equal((await seen(front)).view!.blocked, undefined, "the one that failed can be tried again");
+    const crew = (await ok(d, "engine.crew.status", { threadId: chat })) as {
+      members: Array<{ title: string; state: string }>;
+    };
+    assert.equal(crew.members.find((m) => m.title === pair)?.state, "failed", "the strip's own member says failed too");
 
     // save the finished Alpha as an agent with the instructions edited
     const alpha = (await seen("Alpha")).node!;

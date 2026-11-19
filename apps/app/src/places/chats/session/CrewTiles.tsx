@@ -58,14 +58,15 @@ export function HelperTile({
     setReason("");
   }, [r.holdTaskId]);
   const live = r.state === "working";
-  const canRetry = (r.state === "failed" || r.state === "stopped") && onRetry !== undefined;
+  const canRetry = (r.state === "failed" || r.state === "stopped") && r.blocked !== true && onRetry !== undefined;
   // a helper that waits for another has not started: no clock, no tokens
   const waiting = r.dependsLine !== undefined;
-  const meter = waiting
-    ? ""
-    : [r.tokens > 0 ? `${tokens(r.tokens)} tokens` : "", r.costMicros > 0 ? money(r.costMicros) : ""]
-        .filter((x) => x !== "")
-        .join(" · ");
+  const meter =
+    waiting || r.blocked === true
+      ? ""
+      : [r.tokens > 0 ? `${tokens(r.tokens)} tokens` : "", r.costMicros > 0 ? money(r.costMicros) : ""]
+          .filter((x) => x !== "")
+          .join(" · ");
   const lines = r.lines.length > 0 ? r.lines : r.dependsLine !== undefined ? [] : [live ? "Starting" : ""];
   return (
     <Pressable
@@ -98,7 +99,7 @@ export function HelperTile({
           ) : null}
         </View>
         <Text testID={`${id}-time`} style={st.time}>
-          {waiting ? "waiting" : timeOf(r, now)}
+          {waiting ? "waiting" : r.blocked === true ? "" : timeOf(r, now)}
         </Text>
       </View>
       <View testID={`${id}-window`} style={st.win}>

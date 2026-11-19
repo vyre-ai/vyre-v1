@@ -37,6 +37,8 @@ export interface RunView {
   dependsLine?: string;
   /** The held request (a Gate task) it waits on while it needs a person's yes: Allow and Deny answer it. */
   holdTaskId?: string;
+  /** It ended because work it was to start after did not finish: it never ran (no clock) and retrying it alone only fails again (no Retry). */
+  blocked?: boolean;
   /** What it sleeps on, when it sleeps: the one line ("Until the build finishes"), when it wakes, how often it has woken. */
   wake?: { label: string; dueAt?: number; wokeCount: number };
   /** Tokens served from the run's cache, when known (the token report). */
@@ -65,7 +67,17 @@ function toRunViewRaw(m: CrewMember, nodes?: readonly RunNode[]): RunView {
   const ended = node !== undefined && (node.status === "failed" || node.status === "stopped") && m.state === "working";
   const state: MemberState = ended ? (node.status === "failed" ? "failed" : "stopped") : m.state;
   const live = state === "working";
-  const said = m.found ?? (state === "failed" || ended ? node?.errorMessage : undefined);
+  const said = m.found ?? (state === "failed" || ended ? node?.reason : undefined);
+  // it ended because work it was to start after did not finish: it never ran, so no clock, and trying it alone only fails again (the way back is the one that failed)
+  const blocked =
+    node !== undefined &&
+    (node.status === "failed" || node.status === "stopped") &&
+    (node.dependsOn ?? []).some((id) => {
+      const d = nodes?.find((x) => x.id === id);
+      return d !== undefined && (d.status === "failed" || d.status === "stopped");
+    });
+  // the clock is the node's own: from when it began to when it ended, or to now while it runs (never mixed with the member's start); only a real timestamp is trusted
+  const own = node !== undefined && node.status !== "queued" && node.startedAt > 1_000_000_000_000;
   const lines: string[] = live
     ? m.steps !== undefined && m.steps.length > 0
       ? m.steps.slice(-3)
@@ -88,13 +100,14 @@ function toRunViewRaw(m: CrewMember, nodes?: readonly RunNode[]): RunView {
     lines,
     tokens: m.tokensIn + m.tokensOut,
     costMicros: m.costMicros,
-    startedAt: m.startedAt,
-    ...(ended && node.endedAt !== undefined
+    startedAt: own ? node.startedAt : m.startedAt,
+    ...(own && node.endedAt !== undefined
       ? { endedAt: node.endedAt }
       : m.endedAt !== undefined
         ? { endedAt: m.endedAt }
         : {}),
-    elapsedMs: ended && node.endedAt !== undefined ? Math.max(0, node.endedAt - m.startedAt) : m.elapsedMs,
+    elapsedMs: own ? (node.endedAt !== undefined ? Math.max(0, node.endedAt - node.startedAt) : 0) : m.elapsedMs,
+    ...(blocked ? { blocked: true } : {}),
     model: modelTag(m),
     ...(m.branch !== undefined && m.branch !== "" ? { branch: m.branch } : {}),
     // what the runtime knows of this helper's node: the kind of its step, that it looks stuck, and what it waits for (only while it works)
@@ -123,7 +136,10 @@ export interface NodeLike {
   status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
   model?: string;
   summary?: string;
-  errorMessage?: string;
+  /** Why it ended, in words a person reads (the runtime's `reason`). */
+  reason?: string;
+  /** Other work it was to start after (node ids). */
+  dependsOn?: readonly string[];
   stopReason?: string;
   spent: { tokensIn: number; tokensOut: number; cacheRead: number; usdMicros: number };
   wake?: { kind: string; label?: string; dueAt?: number; wokeCount?: number };
@@ -152,7 +168,7 @@ export function toRunViewFromNode(n: NodeLike, step?: string, now: number = Date
         ? [n.summary]
         : []
       : state === "failed"
-        ? [n.errorMessage ?? n.summary ?? "Could not finish"]
+        ? [n.reason ?? "Could not finish"]
         : state === "stopped"
           ? n.stopReason !== undefined
             ? [n.stopReason]

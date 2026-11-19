@@ -195,7 +195,7 @@ test("a Run node reads as a RunView under the runtime's names: waiting is calm w
   assert.equal(n({ status: "paused" }).state, "needs_you");
   assert.deepEqual(n({ status: "succeeded", summary: "Done it", endedAt: 5_000 }).lines, ["Done it"]);
   assert.equal(n({ status: "succeeded", summary: "x", endedAt: 5_000 }).elapsedMs, 4_000);
-  assert.deepEqual(n({ status: "failed", errorMessage: "No tax column" }).lines, ["No tax column"]);
+  assert.deepEqual(n({ status: "failed", reason: "No tax column" }).lines, ["No tax column"]);
   assert.equal(n({ kind: "crew" }).kind, "coder");
   assert.equal(n({ kind: "mystery" }).kind, "helper");
 });

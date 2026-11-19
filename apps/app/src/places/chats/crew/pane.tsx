@@ -13,7 +13,7 @@ import { HelperHooksSection } from "../helper/HelperHooks.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { FolderMovePicker } from "../../files/tree/FolderMovePicker.tsx";
 import { CrewTabs } from "./run/CrewTabs.tsx";
-import { CompareView, RerunForm, SaveAgentForm, useCompare, useMayAct } from "./run/rerun.tsx";
+import { CompareView, RerunForm, SaveAgentForm, toolsWords, useCompare, useMayAct } from "./run/rerun.tsx";
 import type { RunData } from "./run/useRun.ts";
 import { RecordPicker } from "../../records/RecordPicker.tsx";
 import type { PickedRecord } from "../../records/RecordPicker.tsx";
@@ -512,7 +512,7 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
   const [addedTo, setAddedTo] = useState<string | null>(null);
   // finished work becomes an agent, or runs again beside the first (r42-runtime slice 7); the compare reads while there is a re-run
   const [form, setForm] = useState<"agent" | "rerun" | null>(null);
-  const [agentMade, setAgentMade] = useState<string | null>(null);
+  const [agentMade, setAgentMade] = useState<{ name: string; tools: string } | null>(null);
   // a different helper opens on its transcript, never on the tab the last one was left on
   useEffect(() => {
     setTab("transcript");
@@ -904,7 +904,7 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
             <View testID="crew-finish-actions" style={st.actions}>
               {agentMade !== null ? (
                 <Text testID="crew-agent-made" style={st.hint}>
-                  {agentMade} is now an agent in your Space.
+                  {agentMade.name} is now an agent in your Space. {agentMade.tools}
                 </Text>
               ) : brief !== undefined ? (
                 <Pressable
@@ -933,8 +933,8 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
                 role=""
                 instructions={brief.body}
                 onCancel={() => setForm(null)}
-                onSaved={(n) => {
-                  setAgentMade(n);
+                onSaved={(n, t) => {
+                  setAgentMade({ name: n, tools: toolsWords(t) });
                   setForm(null);
                 }}
               />

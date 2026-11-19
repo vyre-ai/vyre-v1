@@ -212,7 +212,8 @@ export function nodesOf(out: unknown): RunNode[] {
         ...(str(n["name"]) !== undefined ? { name: str(n["name"])! } : {}),
         ...(str(n["model"]) !== undefined ? { model: str(n["model"])! } : {}),
         ...(str(n["summary"]) !== undefined ? { summary: str(n["summary"])! } : {}),
-        ...(str(n["errorMessage"]) !== undefined ? { errorMessage: str(n["errorMessage"])! } : {}),
+        // the words a person reads for why it ended (the runtime's `reason`); the raw error is never served, never shown
+        ...(str(n["reason"]) !== undefined ? { reason: str(n["reason"])! } : {}),
         ...(str(n["whoName"]) !== undefined ? { whoName: str(n["whoName"])! } : {}),
         ...(Array.isArray(n["dependsOn"])
           ? { dependsOn: (n["dependsOn"] as unknown[]).filter((x): x is string => typeof x === "string") }

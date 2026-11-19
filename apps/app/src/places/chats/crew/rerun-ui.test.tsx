@@ -106,7 +106,7 @@ function setup(
     }
     if (cap === "runs.node.save_as_agent") {
       await held;
-      return { agent: {}, runId: "run_a" };
+      return { agent: {}, runId: "run_a", toolsCarried: "narrowed" };
     }
     return {};
   };
@@ -146,6 +146,11 @@ test("a finished helper can be saved as an agent: a name to confirm, one runs.no
   assert.equal(sent.length, 1);
   assert.deepEqual(sent[0]!.input, { runId: "run_a", name: "Bid reader", sharing: "me" }, "sharing starts on only me");
   assert.match(textOf(find(root, "crew-agent-made")), /Bid reader\s+is now an agent/);
+  assert.match(
+    textOf(find(root, "crew-agent-made")),
+    /keeps what this helper was not allowed/,
+    "the tools line is the server's toolsCarried",
+  );
   assert.ok(find(root, "crew-save-agent") === null, "once made, the button is gone");
 });
 
@@ -366,5 +371,9 @@ test("what the form sends and the limits it keeps are the server's own: every ke
   for (const k of ["runId", "instructions", "model"]) assert.ok(k in again, `rerun takes ${k}`);
   assert.equal(again.instructions!.maxLength, LIMITS.rerunInstructions);
   assert.ok("runId" in props("runs.node.compare"));
+  const out = reg.capabilities.find((c) => c.name === "runs.node.save_as_agent") as unknown as {
+    output: { properties: Record<string, unknown> };
+  };
+  assert.ok("toolsCarried" in out.output.properties, "save_as_agent says which tools it carried");
   assert.ok(reg.capabilities.some((c) => c.name === "runs.node.get"));
 });

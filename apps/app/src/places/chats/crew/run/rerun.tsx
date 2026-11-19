@@ -15,6 +15,17 @@ import { readCompare, readMayAct, refusalWords } from "./reads.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 
+/** What the saved agent got for tools, in the server's own words kept / narrowed / default; nothing said when the server did not say. */
+export function toolsWords(carried: string | undefined): string {
+  return carried === "kept"
+    ? "It keeps the tools this helper had."
+    : carried === "narrowed"
+      ? "It keeps what this helper was not allowed; its other tools are the defaults."
+      : carried === "default"
+        ? "It starts with the default tools."
+        : "";
+}
+
 /** The most the server takes in each field (the manifest's maxLength; a test reads them from the generated registry), so a field stops there and nothing is cut after the person has read it. */
 export const LIMITS = { name: 60, role: 200, saveInstructions: 4000, rerunInstructions: 20000 } as const;
 
@@ -238,7 +249,7 @@ export function SaveAgentForm({
   role: string;
   /** What the agent will be told, from now on: the brief the work ran with. Shown and editable, because it may carry words the agent that started the work wrote. */
   instructions: string;
-  onSaved: (name: string) => void;
+  onSaved: (name: string, tools: string | undefined) => void;
   onCancel: () => void;
 }): ReactElement {
   const [name, setName] = useState(initial);
@@ -263,10 +274,11 @@ export function SaveAgentForm({
         sharing,
       }),
     ).then(
-      () => {
+      (out) => {
         inflight.current = false;
         setBusy(false);
-        onSaved(n);
+        const t = (out as { toolsCarried?: unknown } | null)?.toolsCarried;
+        onSaved(n, typeof t === "string" ? t : undefined);
       },
       (e: unknown) => {
         inflight.current = false;

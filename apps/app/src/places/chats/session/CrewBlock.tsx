@@ -13,6 +13,7 @@ import { stripTone, faceSeed } from "../crew/model.ts";
 import type { CrewMember, CrewTotals } from "../crew/model.ts";
 import { useNow } from "../crew/strip.tsx";
 import { toRunView } from "../crew/run-view.ts";
+import type { RunView } from "../crew/run-view.ts";
 import type { RunNode } from "../crew/run/model.ts";
 import { movesFor } from "../tasks/moves.ts";
 import type { MoveTask } from "../tasks/moves.ts";
@@ -109,6 +110,7 @@ export function useLastSteps(
 
 function HelperRow({
   m,
+  r,
   now,
   call,
   selected,
@@ -116,6 +118,8 @@ function HelperRow({
   onRetry,
 }: {
   m: CrewMember;
+  /** The same piece of work as the tile reads it: what the runtime knows (waiting for another, ended before it started) over the member. */
+  r: RunView;
   now: number;
   call: Call | undefined;
   selected: boolean;
@@ -128,13 +132,15 @@ function HelperRow({
   // a subagent the engine started in its own turn has no chat to read steps from: its steps come with the row
   const own = m.kind === "subagent";
   const steps = useLastSteps(call, m, open && !own);
-  const canRetry = (m.state === "failed" || m.state === "stopped") && onRetry !== undefined;
-  const last = m.state === "working" || m.state === "needs_you" ? m.step : m.found;
+  const waiting = r.dependsLine !== undefined;
+  const canRetry = (r.state === "failed" || r.state === "stopped") && r.blocked !== true && onRetry !== undefined;
+  const last = r.state === "working" || r.state === "needs_you" ? m.step : (r.lines[0] ?? m.found);
   return (
-    <View testID={id} {...(web ? { dataSet: { state: m.state } } : {})}>
+    <View testID={id} {...(web ? { dataSet: { state: r.state } } : {})}>
       <Row
         id={`${id}-toggle`}
         title={name}
+        {...(waiting ? { note: r.dependsLine } : {})}
         onPress={() => setOpen((o) => !o)}
         leading={
           <Pressable
@@ -149,16 +155,16 @@ function HelperRow({
         }
         trailing={
           <View style={st.trail}>
-            {task !== "" ? (
+            {waiting ? null : task !== "" ? (
               <Text numberOfLines={1} testID={`${id}-role`} style={st.task}>
                 {task}
               </Text>
             ) : null}
-            {m.state === "working" && web
+            {r.state === "working" && !waiting && web
               ? createElement("span", { className: "vy-cb-spin", "aria-hidden": true, title: "Working" })
               : null}
-            <Text testID={`${id}-state`} style={[st.statusText, m.state === "needs_you" && st.wait]}>
-              {statusWord(m.state)}
+            <Text testID={`${id}-state`} style={[st.statusText, r.state === "needs_you" && st.wait]}>
+              {waiting ? "Waiting" : statusWord(r.state)}
             </Text>
             {canRetry ? (
               <Pressable accessibilityRole="button" testID={`${id}-retry`} onPress={() => onRetry!(m)} style={st.retry}>
@@ -166,7 +172,9 @@ function HelperRow({
               </Pressable>
             ) : (
               <Text testID={`${id}-time`} style={st.time}>
-                {m.state === "working" ? durationWords(Math.max(m.elapsedMs, now - m.startedAt)) : ""}
+                {r.state === "working" && !waiting && r.blocked !== true
+                  ? durationWords(Math.max(m.elapsedMs, now - m.startedAt))
+                  : ""}
               </Text>
             )}
           </View>
@@ -186,9 +194,9 @@ function HelperRow({
               {last}
             </Text>
           ) : (
-            <Text style={st.step}>{m.state === "working" ? "Getting started" : "No steps kept"}</Text>
+            <Text style={st.step}>{r.state === "working" && !waiting ? "Getting started" : "No steps kept"}</Text>
           )}
-          {(steps.length > 0 || own) && m.state === "done" && m.found ? (
+          {(steps.length > 0 || own) && r.state === "done" && m.found ? (
             <Text numberOfLines={2} testID={`${id}-line`} style={[st.step, st.found]}>
               {m.found}
             </Text>
@@ -422,6 +430,7 @@ export function CrewBlock({
           <HelperRow
             key={m.id}
             m={m}
+            r={toRunView(m, nodes)}
             now={now}
             call={call}
             selected={selectedId === m.id}

@@ -19,12 +19,29 @@ const STATES: Array<[string, string]> = [
   ["failed", "Failed with it"],
 ];
 
+/** The capture was taken some time ago: move every timestamp in it so the moment it was taken reads as a few seconds ago, as it did live (the clocks count from the node's own start). */
+function shifted(s: Snap): Snap {
+  const stamps = (o: Record<string, unknown>): number[] =>
+    ["startedAt", "endedAt"].flatMap((f) => (typeof o[f] === "number" ? [o[f] as number] : []));
+  const all = [...s.members, ...(s.nodes as Array<Record<string, unknown>>)].flatMap((o) => stamps(o as never));
+  const by = Date.now() - 4_000 - Math.max(...all);
+  const move = <T extends Record<string, unknown>>(o: T): T => {
+    const c: Record<string, unknown> = { ...o };
+    for (const f of ["startedAt", "endedAt"]) if (typeof c[f] === "number") c[f] = (c[f] as number) + by;
+    return c as T;
+  };
+  return {
+    members: s.members.map((m) => move(m as never)) as CrewMember[],
+    nodes: s.nodes.map((n) => move(n as never)),
+  };
+}
+
 export default function Mount(): ReactNode {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
       <View testID="deps-mount" style={{ padding: 20, maxWidth: 700, gap: 22 }}>
         {STATES.filter(([k]) => SNAPS[k] !== undefined).map(([k, label]) => {
-          const s = SNAPS[k]!;
+          const s = shifted(SNAPS[k]!);
           const titles = new Map(s.members.map((m) => [m.id, (m.name ?? m.title).trim()] as const));
           const nodes = nameStandIns(nodesOf({ nodes: s.nodes }), titles);
           return (
