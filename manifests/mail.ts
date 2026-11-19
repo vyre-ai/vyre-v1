@@ -643,7 +643,7 @@ const manifest = defineManifest({
     }),
     outward(
       "mail.send",
-      "Send an email (suppression, consent, limits and the Gate apply)",
+      "Send an email (suppression, limits and the Gate apply)",
       {
         in: {
           mailboxId: id.mailbox,
@@ -727,7 +727,7 @@ const manifest = defineManifest({
         errors: ["provider.auth_failed", "provider.rate_limited"],
       },
     ),
-    write("mail.draft", "Create or update a draft (an agent draft waits for a person)", {
+    write("mail.draft", "Create or update a draft (an agent's waits for a person)", {
       in: { mailboxId: id.mailbox, ...composed, to: t.opt(t.arr(recipient)), subject: t.opt(t.str()) },
       out: {
         draftId: emlId,
@@ -1002,7 +1002,7 @@ const manifest = defineManifest({
     // the one tool for templates and the one for delivery: models are shown these two, not eleven (the capabilities above stay for screens and the API)
     write(
       "mail.templates",
-      "Email templates. action: list|get|set|preview|reset; documentId = one document's own wording",
+      "Email templates: list|get|set|preview|reset; documentId = one document's",
       {
         in: {
           action: t.enm("list", "get", "set", "preview", "reset"),
@@ -1020,7 +1020,7 @@ const manifest = defineManifest({
         errors: ["validation.bad_input", "validation.not_found", "permission.no_grant"],
       },
     ),
-    read("mail.delivery_state", "messageId: its delivery trail; none: inbox health (mailboxId optional)", {
+    read("mail.delivery_state", "A message's delivery trail (messageId), else inbox health", {
       in: { messageId: t.opt(emlId), mailboxId: t.opt(id.mailbox) },
       out: { result: t.json() },
       tool: "inbox",
@@ -1055,7 +1055,7 @@ const manifest = defineManifest({
       tool: "inbox",
       label: "check",
     }),
-    write("mail.smtp.set", "Save the Space's mail server (SMTP); the password stays in the Vault", {
+    write("mail.smtp.set", "Save the Space's SMTP server; password stays in the Vault", {
       in: {
         host: t.str({ examples: ["smtp.example.com"] }),
         port: t.int({ minimum: 1, maximum: 65535 }),
@@ -1072,7 +1072,7 @@ const manifest = defineManifest({
     }),
     outward(
       "mail.smtp.verify",
-      "Test a mail server: connect and sign in, nothing is sent. No input tests the saved one",
+      "Test an SMTP server (sign in only, nothing sent); no input tests the saved one",
       {
         in: { ...smtpServer, passwordHandle: t.opt(id.handle) },
         out: {
