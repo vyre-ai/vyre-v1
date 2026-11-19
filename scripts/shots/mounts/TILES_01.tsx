@@ -106,11 +106,10 @@ const NODES = [
     id: "run_r",
     kind: "subagent",
     name: "Research",
-    status: "running",
+    status: "waiting",
+    wake: { kind: "child", label: "the three readers finish" },
     spent: sp,
     startedAt: 1,
-    step: "Checking what the bid leaves out",
-    stepIcon: "read",
   },
   {
     id: "run_d",

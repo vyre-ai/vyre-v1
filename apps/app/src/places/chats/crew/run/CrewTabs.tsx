@@ -9,6 +9,7 @@ import { useDueText } from "../../../../../../../ui/src/Time/index.tsx";
 import { ActivityList, BoardView, MessageLines, TokenReport } from "./views.tsx";
 import { threadOfRun } from "./reads.ts";
 import { useActivity, useRunData } from "./useRun.ts";
+import type { RunData } from "./useRun.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 type Tab = "helpers" | "board" | "tokens";
@@ -18,14 +19,18 @@ export function CrewTabs({
   threadId,
   helpers,
   onOpenThread,
+  run: shared,
 }: {
+  /** The reads the chat already shares (CrewProvider): when given, the pane reads nothing of its own. */
+  run?: RunData | undefined;
   call: Call;
   threadId: string;
   /** The Helpers tab: the pane as it was. */
   helpers: ReactNode;
   onOpenThread?: (threadId: string) => void;
 }): ReactElement {
-  const run = useRunData(call, threadId);
+  const own = useRunData(call, threadId, { enabled: shared === undefined });
+  const run = shared ?? own;
   const act = useActivity(call);
   const when = useDueText();
   const [tab, setTab] = useState<Tab>("helpers");

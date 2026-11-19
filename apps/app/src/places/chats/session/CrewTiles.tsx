@@ -124,6 +124,14 @@ export function HelperTile({
             Looks stuck: {r.stuck}
           </Text>
         ) : null}
+        {r.sleep !== undefined ? (
+          <View testID={`${id}-sleep`} style={st.sleepRow}>
+            <Glyph name="moon" size={12} color="var(--ink-3)" />
+            <Text numberOfLines={1} style={st.line}>
+              {r.sleep}
+            </Text>
+          </View>
+        ) : null}
         {r.dependsLine !== undefined ? (
           <Text numberOfLines={1} testID={`${id}-depends`} style={st.dep}>
             › {r.dependsLine}
@@ -288,6 +296,7 @@ const st = StyleSheet.create({
   dim: { color: "var(--ink-4)" as string },
   lineNeed: { color: "var(--ink)" as string },
   lineFail: { color: "var(--ink)" as string },
+  sleepRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   dep: { fontSize: 11.5, color: "var(--accent)" as string },
   stepIcon: { position: "absolute", right: 0, top: 3 },
   decide: { gap: 4 },

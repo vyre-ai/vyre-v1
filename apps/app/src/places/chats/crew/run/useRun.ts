@@ -16,11 +16,16 @@ export interface RunData {
   stale: boolean;
 }
 
-export function useRunData(call: Call, threadId: string): RunData {
+export function useRunData(call: Call, threadId: string, opts: { enabled?: boolean } = {}): RunData {
+  const enabled = opts.enabled ?? true;
   const [d, setD] = useState<RunData>({ status: "loading", board: [], messages: [], nodes: [], stale: false });
+  const none = d.status === "none";
   useEffect(() => {
     // another chat: nothing of the last one is shown while this one is read
     setD({ status: "loading", board: [], messages: [], nodes: [], stale: false });
+  }, [threadId]);
+  useEffect(() => {
+    if (!enabled) return undefined;
     let dead = false;
     let busy = false;
     const read = async (): Promise<void> => {
@@ -53,13 +58,14 @@ export function useRunData(call: Call, threadId: string): RunData {
       }
     };
     void read();
-    const t = setInterval(() => void read(), 5000);
+    // a chat with no tree of work is asked about rarely; one that has one, every few seconds
+    const t = setInterval(() => void read(), none ? 30_000 : 5000);
     (t as { unref?: () => void }).unref?.();
     return () => {
       dead = true;
       clearInterval(t);
     };
-  }, [call, threadId]);
+  }, [call, threadId, enabled, none]);
   return d;
 }
 

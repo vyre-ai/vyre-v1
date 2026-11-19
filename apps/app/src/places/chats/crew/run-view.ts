@@ -3,7 +3,7 @@
 // so when the node lands a rename touches this file and nothing that draws.
 import type { CrewMember, MemberState } from "./model.ts";
 import { modelTag } from "./model.ts";
-import { dependencyLine } from "./run/model.ts";
+import { dependencyLine, wakeCondition } from "./run/model.ts";
 import type { RunNode } from "./run/model.ts";
 
 export type RunKind = "subagent" | "helper" | "coder";
@@ -29,6 +29,8 @@ export interface RunView {
   branch?: string;
   /** The kind of its current step (read, web, term, edit, find, think, send, cal, wait, kid), when the runtime says. */
   stepIcon?: string;
+  /** What it sleeps on ("until the export finishes"), when the runtime says the node waits. */
+  sleep?: string;
   /** The runtime's word that it looks stuck. */
   stuck?: string;
   /** "Starts when Numbers is done", only while something it waits for is not done. */
@@ -47,8 +49,7 @@ const kindOf = (m: CrewMember): RunKind =>
 /** Today's crew member as a RunView. */
 export function toRunView(m: CrewMember, nodes?: readonly RunNode[]): RunView {
   // the node behind the member (the runtime's runId on a crew member), when it is known
-  const runId = (m as { runId?: unknown }).runId;
-  const node = typeof runId === "string" ? nodes?.find((n) => n.id === runId) : undefined;
+  const node = m.runId !== undefined ? nodes?.find((n) => n.id === m.runId) : undefined;
   const name = m.name !== undefined && m.name !== "" ? m.name : m.title;
   const live = m.state === "working";
   const lines: string[] = live
@@ -81,6 +82,7 @@ export function toRunView(m: CrewMember, nodes?: readonly RunNode[]): RunView {
     // what the runtime knows of this helper's node: the kind of its step, that it looks stuck, and what it waits for (only while it works)
     ...(node?.stepIcon !== undefined && live ? { stepIcon: node.stepIcon } : {}),
     ...(node?.stuck !== undefined && live ? { stuck: node.stuck.reason } : {}),
+    ...(node?.status === "waiting" && node.wake && live && wakeCondition(node.wake, () => "") !== "" ? { sleep: wakeCondition(node.wake, () => "") } : {}),
     ...(node && nodes && live && dependencyLine(node, nodes) !== null
       ? { dependsLine: dependencyLine(node, nodes)! }
       : {}),

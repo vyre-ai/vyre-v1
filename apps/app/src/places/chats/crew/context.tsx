@@ -5,6 +5,7 @@ import { withLive } from "./model.ts";
 import type { CrewMember, CrewStatusOut } from "./model.ts";
 import { useCrewStatus } from "./status.ts";
 import { useRunData } from "./run/useRun.ts";
+import type { RunData } from "./run/useRun.ts";
 import type { RunNode } from "./run/model.ts";
 import type { Call } from "./status.ts";
 
@@ -27,6 +28,8 @@ export interface CrewCtx {
   threadId: string;
   /** The nodes of this chat's newest tree of work (the runtime's step, stuck and dependsOn per helper); empty when there is none or this person only watches. */
   nodes: readonly RunNode[];
+  /** The runtime's reads for this chat (board, messages, nodes): one reader shared by the strips and the pane. */
+  run: RunData;
 }
 
 const Ctx = createContext<CrewCtx | null>(null);
@@ -54,13 +57,14 @@ export function CrewProvider({
   const setLive = useCallback((m: readonly CrewMember[]) => setLiveState((cur) => (same(cur, m) ? cur : m)), []);
   const { status: read } = useCrewStatus(call, threadId, signal);
   const status = useMemo(() => withLive(read, live), [read, live]);
-  // the runtime's view of the same helpers, read once for the chat and shared by every strip and the pane (a server without it gives nothing)
-  const absent = useMemo<Call>(() => async () => Promise.reject(new Error("unknown capability")), []);
-  const run = useRunData(call ?? absent, threadId);
-  const nodes = run.status === "ready" ? run.nodes : NO_NODES;
   const [selected, setSelected] = useState<string | null>(null);
   const [seq, setSeq] = useState(0);
   const [open, setOpen] = useState(false);
+  // the runtime's view of the same helpers, read once for the chat and shared by every strip and the pane (a server without it gives nothing). Only a chat that has helpers, or whose pane is open, asks:
+  // a chat that never had one costs no request, and a chat with no tree of work is asked about rarely
+  const absent = useMemo<Call>(() => async () => Promise.reject(new Error("unknown capability")), []);
+  const run = useRunData(call ?? absent, threadId, { enabled: call !== undefined && ((status?.members.length ?? 0) > 0 || open) });
+  const nodes = run.status === "ready" ? run.nodes : NO_NODES;
   const value = useMemo<CrewCtx>(
     () => ({
       status,
@@ -71,6 +75,7 @@ export function CrewProvider({
       call,
       threadId,
       nodes,
+      run,
       open,
       close: () => {
         setOpen(false);
@@ -83,7 +88,7 @@ export function CrewProvider({
         onShow?.();
       },
     }),
-    [status, selected, seq, call, threadId, nodes, onShow, open, refresh, setLive],
+    [status, selected, seq, call, threadId, nodes, run, onShow, open, refresh, setLive],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -685,3 +685,14 @@ test("a tile reads the runtime's node for its helper: the kind of step, that it 
   assert.equal(find(ended, "crew-tile-sub_d-depends"), null);
   assert.equal(toRunView(members[0]!, NODES as never).stuck, "the same step four times");
 });
+
+test("a tile whose node sleeps says what it waits on with the moon, and a finished one does not", async () => {
+  const nodes = [{ id: "run_s", kind: "helper", name: "Research", status: "waiting", wake: { kind: "child", label: "the three readers finish" }, spent: { tokensIn: 0, tokensOut: 0, cacheRead: 0, usdMicros: 0 }, startedAt: 1 }];
+  const members = [S({ id: "sub_s", title: "Compare the bids", runId: "run_s" } as never), S({ id: "sub_o", title: "Other" })];
+  const root = await mount(createRoot, <CrewBlock members={members} totals={totalsOf(members)} width={900} nodes={nodes as never} onPeek={() => undefined} />);
+  assert.match(textOf(find(root, "crew-tile-sub_s-sleep")), /until the three readers finish/);
+  assert.equal(find(root, "crew-tile-sub_o-sleep"), null);
+  const done = [S({ id: "sub_s", title: "x", runId: "run_s", state: "done", found: "ok" } as never), S({ id: "sub_o", title: "y", state: "done", found: "z" })];
+  const ended = await mount(createRoot, <CrewBlock members={done} totals={totalsOf(done)} width={900} view="tiles" nodes={nodes as never} onPeek={() => undefined} />);
+  assert.equal(find(ended, "crew-tile-sub_s-sleep"), null);
+});

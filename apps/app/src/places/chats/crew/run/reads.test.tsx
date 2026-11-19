@@ -19,6 +19,7 @@ import {
   threadOfRun,
 } from "./reads.ts";
 import { CrewTabs } from "./CrewTabs.tsx";
+import { CrewProvider } from "../context.tsx";
 
 installDom();
 
@@ -386,4 +387,31 @@ test("another chat shows nothing of the last one's board while it is read", asyn
   await press(find(root, "switch"));
   await flush();
   assert.equal(find(root, "crew-tab-tab-board"), null, "chat B shows none of A's while it is read");
+});
+
+test("the chat reads the runtime only while it has helpers or its pane is open; a pane given the shared reads reads none of its own", async () => {
+  const asked: string[] = [];
+  const mk = (members: unknown[]) => async (cap: string): Promise<unknown> => {
+    asked.push(cap);
+    if (cap === "engine.crew.status") return { members, totals: { members: members.length, working: members.length, done: 0, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 0 } };
+    if (cap === "runs.tree.find") return { roots: [] };
+    return {};
+  };
+  const Probe = (): ReturnType<typeof CrewTabs> => null as never;
+  void Probe;
+  const idle = await mount(createRoot, <CrewProvider call={mk([]) as never} threadId="thr_0"><Text>x</Text></CrewProvider>);
+  await flush();
+  assert.equal(asked.filter((c) => c.startsWith("runs.")).length, 0, "a chat that never had a helper asks the runtime nothing");
+  void idle;
+  asked.length = 0;
+  const member = { kind: "helper", id: "thr_h", parentThreadId: "thr_0", title: "T", agentId: "a", state: "working", startedAt: 1, elapsedMs: 1, tokensIn: 0, tokensOut: 0, costMicros: 0 };
+  await mount(createRoot, <CrewProvider call={mk([member]) as never} threadId="thr_0"><Text>x</Text></CrewProvider>);
+  await flush();
+  await flush();
+  assert.ok(asked.includes("runs.tree.find"), "a chat with a helper does");
+  asked.length = 0;
+  const shared = { status: "ready" as const, board: [], messages: [], nodes: [], stale: false };
+  await mount(createRoot, <CrewTabs call={mk([]) as never} threadId="thr_0" helpers={HELP} run={shared} />);
+  await flush();
+  assert.equal(asked.filter((c) => c === "runs.tree.find").length, 0, "the pane uses the shared read, not a second one");
 });

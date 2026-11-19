@@ -13,6 +13,7 @@ import { HelperHooksSection } from "../helper/HelperHooks.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { FolderMovePicker } from "../../files/tree/FolderMovePicker.tsx";
 import { CrewTabs } from "./run/CrewTabs.tsx";
+import type { RunData } from "./run/useRun.ts";
 import { RecordPicker } from "../../records/RecordPicker.tsx";
 import type { PickedRecord } from "../../records/RecordPicker.tsx";
 import { HelperChip, MemberRing, timeOf, useNow } from "./strip.tsx";
@@ -92,8 +93,11 @@ export function CrewOverview({
   onPeek,
   onRefresh,
   onOpenThread,
+  run,
   initialShow = "all",
 }: {
+  /** The runtime's reads the chat already shares: the Board and Tokens tabs show these and read nothing of their own. */
+  run?: RunData;
   status: CrewStatusOut;
   call: Call;
   threadId: string;
@@ -145,6 +149,7 @@ export function CrewOverview({
       <CrewTabs
         call={call}
         threadId={threadId}
+        {...(run ? { run } : {})}
         {...(onOpenThread ? { onOpenThread } : {})}
         helpers={
           <>
