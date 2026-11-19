@@ -17,7 +17,7 @@ What learning from your chats used today against your daily quota (model passes 
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/memory/learning/today |
-| MCP tool | none |
+| MCP tool | memory_learning_today (memory, deferred) |
 | CLI | none |
 | Emits | none |
 

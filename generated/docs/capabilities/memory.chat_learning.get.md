@@ -17,7 +17,7 @@ Whether a chat is remembered: off means nothing is learned from it
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/memory/chat_learning/get |
-| MCP tool | none |
+| MCP tool | memory_chat_learning_get (memory, deferred) |
 | CLI | none |
 | Emits | none |
 

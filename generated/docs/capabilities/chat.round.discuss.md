@@ -17,7 +17,7 @@ Let the agents that answered a message talk it over: the thread under the messag
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/chat/round/discuss |
-| MCP tool | none |
+| MCP tool | chat_round_discuss (chats, deferred) |
 | CLI | none |
 | Emits | agent.engaged, message.received, message.direct, message.mentioned, thread.replied, thread.unarchived, thread.updated |
 

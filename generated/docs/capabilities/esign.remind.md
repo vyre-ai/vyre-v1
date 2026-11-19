@@ -17,7 +17,7 @@ New link for a signer; the old one stops
 | Audit | always |
 | Team Space only | yes |
 | HTTP | POST /v1/esign/remind |
-| MCP tool | none |
+| MCP tool | esign_remind (files, deferred) |
 | CLI | none |
 | Emits | none |
 

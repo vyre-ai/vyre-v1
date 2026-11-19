@@ -17,7 +17,7 @@ Cached row count for a view
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/records/counts |
-| MCP tool | none |
+| MCP tool | records_counts (records, deferred) |
 | CLI | none |
 | Emits | none |
 

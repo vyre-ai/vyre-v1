@@ -1537,6 +1537,12 @@
       "toolset": "chats"
     },
     {
+      "deferred": true,
+      "name": "chat_history_search",
+      "summary": "Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line",
+      "toolset": "chats"
+    },
+    {
       "deferred": false,
       "name": "chat_make_task",
       "summary": "Turn a message into a task: the title is its first line, the task points back at it and a \"Task created\" card in the thread links to the task. An agent may do it for the person it acts for",
@@ -1603,6 +1609,12 @@
       "toolset": "chats"
     },
     {
+      "deferred": true,
+      "name": "chat_question_withdraw",
+      "summary": "Take back a question: its turn ended without waiting for it. The card closes as withdrawn and its task leaves the Needs you list. Only the agent that asked, or a person in the chat",
+      "toolset": "chats"
+    },
+    {
       "deferred": false,
       "name": "chat_react",
       "summary": "Add or remove a reaction",
@@ -1636,6 +1648,18 @@
       "deferred": false,
       "name": "chat_rewind",
       "summary": "Go back in a chat with an agent to a point: the agent's work folder is put back, the agents stop reading the messages after it, one line says so. Messages stay; anything sent stays sent. Your own message only; only the person",
+      "toolset": "chats"
+    },
+    {
+      "deferred": true,
+      "name": "chat_round_decide",
+      "summary": "Go with one agent's answer after a message asked several: one quiet line, \"Decided: going with Nova's answer\", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": true,
+      "name": "chat_round_discuss",
+      "summary": "Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts \"Decided:\". The engine's hand-off limits cap it at four turns. Only the person who asked",
       "toolset": "chats"
     },
     {
@@ -2111,6 +2135,12 @@
       "name": "computers_wake",
       "summary": "Wake an asleep computer (it sleeps when idle and never mid-task)",
       "toolset": "computer"
+    },
+    {
+      "deferred": true,
+      "name": "conflicts_assist",
+      "summary": "Start the assistant run that compares both sides of a non-restricted conflict (never started for Restricted fields)",
+      "toolset": "meta"
     },
     {
       "deferred": false,
@@ -3151,6 +3181,12 @@
       "toolset": "files"
     },
     {
+      "deferred": true,
+      "name": "esign_remind",
+      "summary": "New link for a signer; the old one stops",
+      "toolset": "files"
+    },
+    {
       "deferred": false,
       "name": "esign_send",
       "summary": "Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can",
@@ -3160,6 +3196,12 @@
       "deferred": false,
       "name": "esign_status",
       "summary": "Envelope status and signers",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "esign_verify",
+      "summary": "Is this file sealed, unchanged since, and sealed by this Space",
       "toolset": "files"
     },
     {
@@ -3937,9 +3979,21 @@
       "toolset": "tasks"
     },
     {
+      "deferred": true,
+      "name": "goals_brief",
+      "summary": "What the lead agent of a goal reads at each wake-up: the finish line and where it stands, why it was woken, the plan, what waits, the budget and the rules",
+      "toolset": "tasks"
+    },
+    {
       "deferred": false,
       "name": "goals_checkin_post",
       "summary": "Post the check-in in the goal chat: the real number against the pace, what changed and why, what was done, the next best step. One per wake-up; short and specific",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": true,
+      "name": "goals_checklist_tick",
+      "summary": "The owner ticks or unticks one condition of a checklist goal",
       "toolset": "tasks"
     },
     {
@@ -4000,6 +4054,12 @@
       "deferred": false,
       "name": "goals_mark_stuck",
       "summary": "Say plainly that the goal cannot move: the reason and two options for the owner. The owner hears once; the goal shows Stuck until the number moves or the owner picks",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": true,
+      "name": "goals_number_set",
+      "summary": "The owner updates the number of a goal whose source is a number they keep",
       "toolset": "tasks"
     },
     {
@@ -5383,6 +5443,12 @@
       "toolset": "inbox"
     },
     {
+      "deferred": true,
+      "name": "mail_send_as",
+      "summary": "Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from the inbox the thread came in on)",
+      "toolset": "inbox"
+    },
+    {
       "deferred": false,
       "name": "mail_send_preview",
       "summary": "Dry run of a send: who would be reached and who is suppressed, without sending",
@@ -5767,6 +5833,18 @@
       "toolset": "memory"
     },
     {
+      "deferred": true,
+      "name": "memory_chat_learning_get",
+      "summary": "Whether a chat is remembered: off means nothing is learned from it",
+      "toolset": "memory"
+    },
+    {
+      "deferred": true,
+      "name": "memory_chat_learning_set",
+      "summary": "Don't remember this chat: anyone in it turns learning off; who turned it off, or who started the chat, turns it back on",
+      "toolset": "memory"
+    },
+    {
       "deferred": false,
       "name": "memory_corrections_record",
       "summary": "Keep a lesson from a correction made outside the chat's own words: an edit of the agent's draft, a declined or sent-back action, an undo. Called as the person who corrected; kept only when their switch Learn from my corrections is on",
@@ -5887,6 +5965,12 @@
       "toolset": "memory"
     },
     {
+      "deferred": true,
+      "name": "memory_learning_today",
+      "summary": "What learning from your chats used today against your daily quota (model passes and input tokens), when it resets, and whether it learns with a model or by rules until then",
+      "toolset": "memory"
+    },
+    {
       "deferred": false,
       "name": "memory_map_get",
       "summary": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
@@ -5962,6 +6046,18 @@
       "deferred": false,
       "name": "memory_profile",
       "summary": "Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate's public part",
+      "toolset": "memory"
+    },
+    {
+      "deferred": true,
+      "name": "memory_profile_add",
+      "summary": "Add a fact about yourself to your public or private profile",
+      "toolset": "memory"
+    },
+    {
+      "deferred": true,
+      "name": "memory_profile_context",
+      "summary": "The profile lines a turn loads, as the person who asked: their public part, their private part only when nobody else reads the chat, and the public part of the other people in it",
       "toolset": "memory"
     },
     {
@@ -6991,9 +7087,21 @@
       "toolset": "agents"
     },
     {
+      "deferred": true,
+      "name": "plugins_connections_policy",
+      "summary": "Who may add Space connections, and the allow-list that limits what anyone else may add",
+      "toolset": "agents"
+    },
+    {
       "deferred": false,
       "name": "plugins_get",
       "summary": "One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought",
+      "toolset": "agents"
+    },
+    {
+      "deferred": true,
+      "name": "plugins_hooks_list",
+      "summary": "The hooks of the plugins that apply to this agent. They run only in the sandbox.",
       "toolset": "agents"
     },
     {
@@ -7543,6 +7651,12 @@
       "toolset": "records"
     },
     {
+      "deferred": true,
+      "name": "records_changes",
+      "summary": "Change feed of a record type since a sequence number (RecordStore.changes)",
+      "toolset": "records"
+    },
+    {
       "deferred": false,
       "name": "records_comments_add",
       "summary": "Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)",
@@ -7576,6 +7690,12 @@
       "deferred": false,
       "name": "records_completeness",
       "summary": "Completeness of one record (for example 8 of 11) with the missing fields; Ask for these turns the list into a short-lived form",
+      "toolset": "records"
+    },
+    {
+      "deferred": true,
+      "name": "records_counts",
+      "summary": "Cached row count for a view",
       "toolset": "records"
     },
     {
@@ -7828,6 +7948,12 @@
       "deferred": false,
       "name": "runs_replay",
       "summary": "Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer holds clearance",
+      "toolset": "automations"
+    },
+    {
+      "deferred": true,
+      "name": "runs_resume",
+      "summary": "Continue a waiting Run",
       "toolset": "automations"
     },
     {
@@ -8236,6 +8362,12 @@
       "deferred": false,
       "name": "settings_pages",
       "summary": "The settings pages a person has, with row counts",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "settings_public_of",
+      "summary": "A teammate's time zone, working hours, pronouns, title and a public phone, only when they set them themselves",
       "toolset": "meta"
     },
     {

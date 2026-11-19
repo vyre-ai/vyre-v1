@@ -8,13 +8,13 @@
     "esign.list@1": "877b647443c64dc1bd46ca7632dcb75cde39184ba19112d5951a202d153218e0",
     "esign.provider_set@1": "f02d3e42811b7054f970a67a54106d3c51f7781f6360860a7bc405ea7c59004d",
     "esign.providers@1": "dcec757cce0b5fff8b374b8d4d93f87e12b104e608a57e8a4fd1671f8c9a09b6",
-    "esign.remind@1": "599c7f76237fa16c2331e1a5c5d9a47cbe8ee9d5d7cd9a97537c8e50b0c7e962",
+    "esign.remind@1": "e4da51e63f4b0c9aa9c83c0f5d5913a4cc7eff6d5cc6f5620e298a75f24cdd76",
     "esign.send@1": "36726c652bbc32061640b528fad21fce3c04f5a4064debd70d37b4b032897ff4",
     "esign.signer_act@1": "c7be9ffe8d82aa6507b44264df86b3cdd4158807bfc8d7b39dd8cc419ce31bd3",
     "esign.signer_doc@1": "480f29749173a4f2ba8110868eeebf55f5b6b42eec747661877bc61278210fc8",
     "esign.signer_view@1": "7f302f815870541d9e79edcf94c66e1ad8e40862543e3a9e519c781e27a86264",
     "esign.status@1": "aa195b91ea8c0b8f31d0a2005bee6be61ecf9eabccec631cbe93056a1cbe85aa",
-    "esign.verify@1": "f5b859b2ca10691b3fb4eabfd9467b48bd64d331e71a6fadaf38d6bb4f4a6698"
+    "esign.verify@1": "b6f29c97e52d348bf712fce19ca31cbe7811a57418a8936678fb4c543b2deb8a"
   },
   "events": {
     "signature.cancelled": "bd1271f78dd571a65c129009d224a2e089afbbf959eb75ff8c0ad2bfc41080a6",

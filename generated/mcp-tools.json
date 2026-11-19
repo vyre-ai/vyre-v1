@@ -11814,6 +11814,53 @@
     },
     {
       "blocks": [],
+      "cap": "chat.history.search",
+      "deferred": true,
+      "description": "Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "excludeThreadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minCoverage": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "q": {
+            "type": "string"
+          },
+          "ref": {
+            "description": "A message id, or <thread>#<index> for a transcript row: read that one line in full",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "chat_history_search",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.make_task",
       "deferred": false,
       "description": "Turn a message into a task: the title is its first line, the task points back at it and a \"Task created\" card in the thread links to the task. An agent may do it for the person it acts for",
@@ -12482,6 +12529,40 @@
     },
     {
       "blocks": [],
+      "cap": "chat.question.withdraw",
+      "deferred": true,
+      "description": "Take back a question: its turn ended without waiting for it. The card closes as withdrawn and its task leaves the Needs you list. Only the agent that asked, or a person in the chat",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "blockId": {
+            "examples": [
+              "blk_a1b2c3"
+            ],
+            "pattern": "^blk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "blockId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_question_withdraw",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.react",
       "deferred": false,
       "description": "Add or remove a reaction",
@@ -12687,6 +12768,98 @@
         "type": "object"
       },
       "name": "chat_rewind",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.round.decide",
+      "deferred": true,
+      "description": "Go with one agent's answer after a message asked several: one quiet line, \"Decided: going with Nova's answer\", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "agentId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_round_decide",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.round.discuss",
+      "deferred": true,
+      "description": "Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts \"Decided:\". The engine's hand-off limits cap it at four turns. Only the person who asked",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_round_discuss",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -15471,6 +15644,32 @@
       "name": "computers_wake",
       "planMode": "blocked",
       "toolset": "computer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "conflicts.assist",
+      "deferred": true,
+      "description": "Start the assistant run that compares both sides of a non-restricted conflict (never started for Restricted fields)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "conflictId": {
+            "examples": [
+              "cfl_a1b2c3"
+            ],
+            "pattern": "^cfl_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conflictId"
+        ],
+        "type": "object"
+      },
+      "name": "conflicts_assist",
+      "planMode": "blocked",
+      "toolset": "meta",
       "v": 1
     },
     {
@@ -21416,6 +21615,44 @@
     },
     {
       "blocks": [],
+      "cap": "esign.remind",
+      "deferred": true,
+      "description": "New link for a signer; the old one stops",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "envelopeId": {
+            "examples": [
+              "env_a1b2c3"
+            ],
+            "pattern": "^env_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "signer": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "envelopeId",
+          "signer",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "esign_remind",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "esign.send",
       "deferred": false,
       "description": "Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can",
@@ -21519,6 +21756,32 @@
         "type": "object"
       },
       "name": "esign_status",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "esign.verify",
+      "deferred": true,
+      "description": "Is this file sealed, unchanged since, and sealed by this Space",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "esign_verify",
       "planMode": "allowed",
       "toolset": "files",
       "v": 1
@@ -26838,6 +27101,39 @@
     },
     {
       "blocks": [],
+      "cap": "goals.brief",
+      "deferred": true,
+      "description": "What the lead agent of a goal reads at each wake-up: the finish line and where it stands, why it was woken, the plan, what waits, the budget and the rules",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "goalId": {
+            "examples": [
+              "gol_a1b2c3"
+            ],
+            "pattern": "^gol_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "goalId"
+        ],
+        "type": "object"
+      },
+      "name": "goals_brief",
+      "planMode": "allowed",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "goals.report",
       "deferred": false,
       "description": "Post the check-in in the goal chat: the real number against the pace, what changed and why, what was done, the next best step. One per wake-up; short and specific",
@@ -26881,6 +27177,40 @@
         "type": "object"
       },
       "name": "goals_checkin_post",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "goals.checklist.tick",
+      "deferred": true,
+      "description": "The owner ticks or unticks one condition of a checklist goal",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "done": {
+            "type": "boolean"
+          },
+          "goalId": {
+            "examples": [
+              "gol_a1b2c3"
+            ],
+            "pattern": "^gol_[a-z0-9]+$",
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "goalId",
+          "itemId",
+          "done"
+        ],
+        "type": "object"
+      },
+      "name": "goals_checklist_tick",
       "planMode": "blocked",
       "toolset": "tasks",
       "v": 1
@@ -27766,6 +28096,36 @@
         "type": "object"
       },
       "name": "goals_mark_stuck",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "goals.number.set",
+      "deferred": true,
+      "description": "The owner updates the number of a goal whose source is a number they keep",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "goalId": {
+            "examples": [
+              "gol_a1b2c3"
+            ],
+            "pattern": "^gol_[a-z0-9]+$",
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "goalId",
+          "value"
+        ],
+        "type": "object"
+      },
+      "name": "goals_number_set",
       "planMode": "blocked",
       "toolset": "tasks",
       "v": 1
@@ -37737,6 +38097,174 @@
     },
     {
       "blocks": [],
+      "cap": "mail.send_as",
+      "deferred": true,
+      "description": "Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from the inbox the thread came in on)",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "attachments": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bcc": {
+            "items": {
+              "properties": {
+                "address": {
+                  "examples": [
+                    "maya@example.com"
+                  ],
+                  "pattern": "^[^@\\s]+@[^@\\s]+$",
+                  "type": "string"
+                },
+                "contactId": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "address"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "cc": {
+            "items": {
+              "properties": {
+                "address": {
+                  "examples": [
+                    "maya@example.com"
+                  ],
+                  "pattern": "^[^@\\s]+@[^@\\s]+$",
+                  "type": "string"
+                },
+                "contactId": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "address"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "contactId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "draftId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "replyToMessageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          },
+          "senderId": {
+            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "properties": {
+                "address": {
+                  "examples": [
+                    "maya@example.com"
+                  ],
+                  "pattern": "^[^@\\s]+@[^@\\s]+$",
+                  "type": "string"
+                },
+                "contactId": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "address"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "mailboxId",
+          "to",
+          "subject",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mail_send_as",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.send_preview",
       "deferred": false,
       "description": "Dry run of a send: who would be reached and who is suppressed, without sending",
@@ -40061,6 +40589,62 @@
     },
     {
       "blocks": [],
+      "cap": "memory.chat_learning.get",
+      "deferred": true,
+      "description": "Whether a chat is remembered: off means nothing is learned from it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_chat_learning_get",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.chat_learning.set",
+      "deferred": true,
+      "description": "Don't remember this chat: anyone in it turns learning off; who turned it off, or who started the chat, turns it back on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "remember": {
+            "type": "boolean"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "remember"
+        ],
+        "type": "object"
+      },
+      "name": "memory_chat_learning_set",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.corrections.record",
       "deferred": false,
       "description": "Keep a lesson from a correction made outside the chat's own words: an edit of the agent's draft, a declined or sent-back action, an undo. Called as the person who corrected; kept only when their switch Learn from my corrections is on",
@@ -40922,6 +41506,21 @@
     },
     {
       "blocks": [],
+      "cap": "memory.learning.today",
+      "deferred": true,
+      "description": "What learning from your chats used today against your daily quota (model passes and input tokens), when it resets, and whether it learns with a model or by rules until then",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "memory_learning_today",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.map.get",
       "deferred": false,
       "description": "The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night",
@@ -41390,6 +41989,69 @@
         "type": "object"
       },
       "name": "memory_profile",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.profile.add",
+      "deferred": true,
+      "description": "Add a fact about yourself to your public or private profile",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "examples": [
+              "preference"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "to": {
+            "enum": [
+              "public",
+              "private"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "to"
+        ],
+        "type": "object"
+      },
+      "name": "memory_profile_add",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.profile.context",
+      "deferred": true,
+      "description": "The profile lines a turn loads, as the person who asked: their public part, their private part only when nobody else reads the chat, and the public part of the other people in it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_profile_context",
       "planMode": "allowed",
       "toolset": "memory",
       "v": 1
@@ -48098,6 +48760,21 @@
     },
     {
       "blocks": [],
+      "cap": "plugins.connections.policy",
+      "deferred": true,
+      "description": "Who may add Space connections, and the allow-list that limits what anyone else may add",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "plugins_connections_policy",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "plugins.get",
       "deferred": false,
       "description": "One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought",
@@ -48118,6 +48795,29 @@
         "type": "object"
       },
       "name": "plugins_get",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.hooks.list",
+      "deferred": true,
+      "description": "The hooks of the plugins that apply to this agent. They run only in the sandbox.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "plugins_hooks_list",
       "planMode": "allowed",
       "toolset": "agents",
       "v": 1
@@ -51700,6 +52400,40 @@
     },
     {
       "blocks": [],
+      "cap": "records.changes",
+      "deferred": true,
+      "description": "Change feed of a record type since a sequence number (RecordStore.changes)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "type": "integer"
+          },
+          "since": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "since"
+        ],
+        "type": "object"
+      },
+      "name": "records_changes",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "records.comments.add",
       "deferred": false,
       "description": "Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)",
@@ -51927,6 +52661,35 @@
         "type": "object"
       },
       "name": "records_completeness",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.counts",
+      "deferred": true,
+      "description": "Cached row count for a view",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "filter": {
+            "description": "Any JSON value"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "name": "records_counts",
       "planMode": "allowed",
       "toolset": "records",
       "v": 1
@@ -53767,6 +54530,41 @@
         "type": "object"
       },
       "name": "runs_replay",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "runs.resume",
+      "deferred": true,
+      "description": "Continue a waiting Run",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "approval",
+              "background",
+              "key"
+            ],
+            "type": "string"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "name": "runs_resume",
       "planMode": "blocked",
       "toolset": "automations",
       "v": 1
@@ -56293,6 +57091,32 @@
         "type": "object"
       },
       "name": "settings_pages",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "settings.public_of",
+      "deferred": true,
+      "description": "A teammate's time zone, working hours, pronouns, title and a public phone, only when they set them themselves",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId"
+        ],
+        "type": "object"
+      },
+      "name": "settings_public_of",
       "planMode": "allowed",
       "toolset": "meta",
       "v": 1

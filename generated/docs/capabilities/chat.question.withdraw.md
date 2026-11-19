@@ -17,7 +17,7 @@ Take back a question: its turn ended without waiting for it. The card closes as 
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/chat/question/withdraw |
-| MCP tool | none |
+| MCP tool | chat_question_withdraw (chats, deferred) |
 | CLI | none |
 | Emits | block.withdrawn |
 

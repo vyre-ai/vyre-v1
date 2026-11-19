@@ -949,6 +949,7 @@
     "threadId": "thr_a1b2c3",
     "before": 1
   },
+  "chat_history_search": {},
   "chat_make_task": {
     "threadId": "thr_a1b2c3",
     "messageId": "msg_a1b2c3"
@@ -992,6 +993,9 @@
     "threadId": "thr_a1b2c3",
     "body": "Here is the summary you asked for."
   },
+  "chat_question_withdraw": {
+    "blockId": "blk_a1b2c3"
+  },
   "chat_react": {
     "messageId": "msg_a1b2c3",
     "threadId": "thr_a1b2c3",
@@ -1012,6 +1016,13 @@
   "chat_rewind": {
     "threadId": "thr_a1b2c3",
     "pointId": "Quarterly planning"
+  },
+  "chat_round_decide": {
+    "messageId": "msg_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "chat_round_discuss": {
+    "messageId": "msg_a1b2c3"
   },
   "chat_screen_get": {
     "threadId": "thr_a1b2c3"
@@ -1224,6 +1235,9 @@
   },
   "computers_wake": {
     "computerId": "cmt_a1b2c3"
+  },
+  "conflicts_assist": {
+    "conflictId": "cfl_a1b2c3"
   },
   "conflicts_confirm": {
     "conflictId": "cfl_a1b2c3"
@@ -1772,6 +1786,10 @@
     "provider": "documenso"
   },
   "esign_providers": {},
+  "esign_remind": {
+    "envelopeId": "env_a1b2c3",
+    "signer": 1
+  },
   "esign_send": {
     "fileId": "fil_a1b2c3",
     "signers": [
@@ -1783,6 +1801,9 @@
   },
   "esign_status": {
     "envelopeId": "env_a1b2c3"
+  },
+  "esign_verify": {
+    "fileId": "fil_a1b2c3"
   },
   "events_get": {
     "eventId": "evt_a1b2c3"
@@ -2251,9 +2272,17 @@
     "decision": "Quarterly planning",
     "question": "Here is the summary you asked for."
   },
+  "goals_brief": {
+    "goalId": "gol_a1b2c3"
+  },
   "goals_checkin_post": {
     "goalId": "gol_a1b2c3",
     "summary": "Quarterly planning"
+  },
+  "goals_checklist_tick": {
+    "goalId": "gol_a1b2c3",
+    "itemId": "Quarterly planning",
+    "done": false
   },
   "goals_complete": {
     "goalId": "gol_a1b2c3",
@@ -2305,6 +2334,10 @@
       "Quarterly planning",
       "Quarterly planning"
     ]
+  },
+  "goals_number_set": {
+    "goalId": "gol_a1b2c3",
+    "value": 1
   },
   "goals_pause": {
     "goalId": "gol_a1b2c3"
@@ -3063,6 +3096,15 @@
     ],
     "subject": "Quarterly planning"
   },
+  "mail_send_as": {
+    "mailboxId": "mbx_a1b2c3",
+    "to": [
+      {
+        "address": "dana@acme.test"
+      }
+    ],
+    "subject": "Quarterly planning"
+  },
   "mail_send_preview": {
     "mailboxId": "mbx_a1b2c3",
     "to": [
@@ -3265,6 +3307,10 @@
   "memory_backlinks": {
     "pageId": "Quarterly planning"
   },
+  "memory_chat_learning_get": {},
+  "memory_chat_learning_set": {
+    "remember": false
+  },
   "memory_corrections_record": {
     "agentId": "agt_a1b2c3",
     "how": "edit"
@@ -3315,6 +3361,7 @@
     "positions": {}
   },
   "memory_learned": {},
+  "memory_learning_today": {},
   "memory_map_get": {
     "agentId": "agt_a1b2c3"
   },
@@ -3355,6 +3402,11 @@
     "placeId": "Quarterly planning"
   },
   "memory_profile": {},
+  "memory_profile_add": {
+    "text": "Here is the summary you asked for.",
+    "to": "public"
+  },
+  "memory_profile_context": {},
   "memory_profile_move": {
     "factId": "fct_a1b2c3",
     "to": "public"
@@ -3889,9 +3941,11 @@
   },
   "plugins_connections": {},
   "plugins_connections_home": {},
+  "plugins_connections_policy": {},
   "plugins_get": {
     "pluginId": "plg_a1b2c3"
   },
+  "plugins_hooks_list": {},
   "plugins_install": {
     "plugin": "Quarterly planning",
     "scope": "space"
@@ -4202,6 +4256,10 @@
       "Quarterly planning"
     ]
   },
+  "records_changes": {
+    "type": "contact",
+    "since": 1
+  },
   "records_comments_add": {
     "type": "contact",
     "recordId": "rec_a1b2c3",
@@ -4225,6 +4283,9 @@
   "records_completeness": {
     "type": "contact",
     "recordId": "rec_a1b2c3"
+  },
+  "records_counts": {
+    "type": "contact"
   },
   "records_create": {
     "type": "contact",
@@ -4394,6 +4455,10 @@
   },
   "runs_replay": {
     "runId": "run_a1b2c3"
+  },
+  "runs_resume": {
+    "runId": "run_a1b2c3",
+    "reason": "approval"
   },
   "runs_retry": {
     "runId": "run_a1b2c3"
@@ -4626,6 +4691,9 @@
   },
   "settings_list": {},
   "settings_pages": {},
+  "settings_public_of": {
+    "personId": "usr_a1b2c3"
+  },
   "settings_reset": {
     "key": "Plan_Key"
   },
