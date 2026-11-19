@@ -25,7 +25,7 @@ function setup(fields: Record<string, unknown> = { signer_name: "Sam Rivers", co
 
 test("merge tokens: a value, a fallback, an empty fallback that leaves it out, and a blank that is named", () => {
   const f = fillTokens("Hi {{name|there}}, {{greeting|}}re: {{doc}} <{{who}}>", { doc: "A & B" });
-  assert.equal(f.text, "Hi there, re: A & B who");
+  assert.equal(f.text, "Hi there, re: A & B <who>");
   assert.deepEqual([f.blanks, f.fallbacks], [["who"], ["name", "greeting"]]);
   assert.equal(fillTokens("<b>{{doc}}</b>", { doc: "A & <B>" }, { html: true }).text, "<b>A &amp; &lt;B&gt;</b>");
   assert.deepEqual(tokensIn("{{A_b|x}} {{a_b}} {{c}}"), [{ key: "a_b", fallback: "x" }, { key: "c" }]);
