@@ -44,7 +44,7 @@ const names: Record<string, { name: string; sentence?: string; state: "on" | "of
 const name = (id: string) => names[id];
 
 test("columns come in stage order with counts, limits in words and a name for every member, even one that is gone", () => {
-  const c = columns(j(), [{ stage: "prop", count: 3, overLimit: 1 }], name);
+  const c = columns(j(), [{ stage: "prop", count: 3, overLimit: 1 }], name, (id) => (id === "usr_maya" ? "Maya" : id));
   assert.deepEqual(
     c.map((x) => x.key),
     ["lead", "prop", "won"],

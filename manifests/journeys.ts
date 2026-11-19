@@ -420,6 +420,10 @@ export default defineManifest({
       tool: "automations",
       errors: ["validation.precondition_failed"],
     }),
+    read("journeys.stage_since", "When records entered their current stage", {
+      in: { ...target, recordIds: t.arr(id.record, { maxItems: 200 }) },
+      out: { since: t.rec() },
+    }),
     write(
       "journeys.adopt",
       "Bring a pipeline type's existing records into the Journey by their stage field, a page at a time",

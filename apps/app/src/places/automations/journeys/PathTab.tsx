@@ -72,7 +72,7 @@ export function PathTab({
     if (!name) return undefined;
     return { name, ...(a?.sentence ? { sentence: a.sentence } : {}), state: a ? (needsYou(a) ? "needs" : a.status === "on" ? "on" : "off") : "off" };
   };
-  const cols = columns(j, counts, info);
+  const cols = columns(j, counts, info, (id) => data.name(id) || id);
   const facts = strip(j);
   const open = cols.filter((c) => !c.final);
   const done = cols.filter((c) => c.final);
@@ -137,9 +137,9 @@ export function PathTab({
     for (const h of LIMIT_CHOICES) {
       const l = { hours: h, ...(stage?.timeLimit?.escalateTo ? { escalateTo: stage.timeLimit.escalateTo } : {}) };
       items.push({
-        label: limitWords(l, (id) => id),
+        label: limitWords(l, (id) => data.name(id) || id),
         checked: stage?.timeLimit?.hours === h,
-        onSelect: () => void design.design(setTimeLimit(j.stages, c.key, l), `${c.title}: ${limitWords(l, (id) => id)}`),
+        onSelect: () => void design.design(setTimeLimit(j.stages, c.key, l), `${c.title}: ${limitWords(l, (id) => data.name(id) || id)}`),
       });
     }
     if (stage?.timeLimit)
@@ -291,7 +291,7 @@ const s = StyleSheet.create({
   quiet: { fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
   late: { color: "var(--warn)" as string },
   cols: { gap: 12, paddingBottom: 12, alignItems: "flex-start" },
-  col: { width: 240, gap: 8 },
+  col: { width: 216, gap: 8 },
   colHead: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4 },
   colTitle: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   colCount: { fontSize: 12, color: "var(--ink-3)" as string },

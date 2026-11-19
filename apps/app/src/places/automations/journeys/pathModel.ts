@@ -33,7 +33,12 @@ export interface AutoInfo {
 }
 
 /** The columns, in stage order, each with its members (an Automation that is gone shows by what it was, never as a blank). */
-export function columns(j: Journey, counts: StageCounts, info: (id: string) => AutoInfo | undefined): Column[] {
+export function columns(
+  j: Journey,
+  counts: StageCounts,
+  info: (id: string) => AutoInfo | undefined,
+  who: (id: string) => string = (id) => id,
+): Column[] {
   return [...j.stages]
     .sort((a, b) => a.order - b.order)
     .map((s) => {
@@ -43,7 +48,7 @@ export function columns(j: Journey, counts: StageCounts, info: (id: string) => A
         title: s.title,
         count: c.count,
         over: c.over,
-        ...(s.timeLimit ? { limit: limitWords(s.timeLimit, (id) => info(id)?.name ?? id) } : {}),
+        ...(s.timeLimit ? { limit: limitWords(s.timeLimit, who) } : {}),
         final: s.final === true,
         cards: s.automations.map((id) => {
           const a = info(id);

@@ -448,3 +448,16 @@ test("values follow the record through a move onto the pipeline model", async ()
   const g = (await h.call("journeys.get", { journeyId: j.id }, alice)).journey;
   assert.equal(g.variables, undefined, "an old Journey carries nothing until it is given values");
 });
+
+test("stage_since: when each record entered the stage it is in; a move restarts it, an edit does not, other records are left out", async () => {
+  const h = harness();
+  const j = await pipe(h);
+  await h.call("journeys.start", { journeyId: j.id, subjectRecordId: "rec_c1" }, alice);
+  const t0 = h.now();
+  h.advance(5 * 86_400_000);
+  const a = await h.call("journeys.stage_since", { journeyId: j.id, recordIds: ["rec_c1", "rec_nobody"] }, alice);
+  assert.deepEqual(a.since, { rec_c1: t0 });
+  await h.call("journeys.move_stage", { journeyId: j.id, recordId: "rec_c1", toStage: "won", reason: "Signed" }, alice);
+  const b = await h.call("journeys.stage_since", { journeyId: j.id, recordIds: ["rec_c1"] }, alice);
+  assert.equal(b.since.rec_c1, t0 + 5 * 86_400_000);
+});

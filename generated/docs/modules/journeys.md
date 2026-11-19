@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (23)
+## Capabilities (24)
 
 - [journeys.adopt](../capabilities/journeys.adopt.md): Bring a pipeline type's existing records into the Journey by their stage field, a page at a time
 - [journeys.advance](../capabilities/journeys.advance.md): Check the exit rule of the current stage and advance when its required tasks are done (called on task.completed)
@@ -21,6 +21,7 @@ Requires: nothing.
 - [journeys.rename](../capabilities/journeys.rename.md): Rename a Journey
 - [journeys.rules.set](../capabilities/journeys.rules.set.md): Set the exit rule and time limit of one stage
 - [journeys.stage_counts](../capabilities/journeys.stage_counts.md): Records in flight per stage, with how many are over their time limit
+- [journeys.stage_since](../capabilities/journeys.stage_since.md): When records entered their current stage
 - [journeys.start](../capabilities/journeys.start.md): Start a Journey on a subject record: creates the Journey record with its channel and folder and enters the first stage
 - [journeys.tasks](../capabilities/journeys.tasks.md): The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)
 - [journeys.test_path](../capabilities/journeys.test_path.md): Test every stage's Automations on a record; nothing is sent
