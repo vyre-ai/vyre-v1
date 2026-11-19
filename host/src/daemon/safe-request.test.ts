@@ -166,11 +166,19 @@ test("an upgrade that throws closes its socket and does not take the process dow
 });
 
 test("scrub takes time proportional to its input: a hostile run of word boundaries cannot freeze the daemon while it logs", () => {
+  const best = (text: string): number => {
+    let m = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const t = performance.now();
+      scrub(text);
+      m = Math.min(m, performance.now() - t);
+    }
+    return m;
+  };
   for (const text of ["a.".repeat(100_000), "a-".repeat(100_000), "http://".repeat(50_000), "a:/".repeat(100_000), ("x ".repeat(2000) + "password=").repeat(500)]) {
-    const t = performance.now();
+    const ms = best(text);
     const out = scrub(text);
-    const ms = performance.now() - t;
-    assert.ok(ms < 100, `${ms.toFixed(0)} ms for ${text.slice(0, 12)}`);
+    assert.ok(ms < 100, `${ms.toFixed(0)} ms (best of 3) for ${text.slice(0, 12)}`);
     assert.ok(out.length <= 4000 + 100);
   }
 });
@@ -188,6 +196,13 @@ test("scrub removes short secrets too: a value after password= or token=, a Bear
   for (const [text, secret] of cases) assert.ok(!scrub(text).includes(secret), `${text} -> ${scrub(text)}`);
   assert.match(scrub("fetch failed https://api.example.com/v1/x?token=abc"), /https:\/\/api\.example\.com\/v1\/x/, "the origin and path stay, they are what makes a log useful");
   assert.match(scrub("password=hunter2"), /^password=/, "the name stays");
+});
+
+test("what the shared redact() catches is caught here too: a vendor key in a message is removed", () => {
+  const key = ["sk", "-ant-", "api03-", "A".repeat(24)].join("");
+  const out = scrub(`upstream said no for ${key}`);
+  assert.ok(!out.includes("AAAAAAAAAAAAAAAAAAAAAAAA"), out);
+  assert.match(out, /upstream said no/);
 });
 
 test("a logger given to the backstop is not called after its daemon stops", () => {

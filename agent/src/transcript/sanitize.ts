@@ -13,7 +13,8 @@ const VENDOR: readonly Rule[] = [
   ["stripe", /\b[prs]k_(?:live|test)_[A-Za-z0-9]{20,}/g, "Stripe key"],
   ["github", /\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{20,}/g, "GitHub token"],
   ["aws", /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, "AWS key id"],
-  ["aws-secret", /(?<=aws_secret_access_key\s*[=:]\s*)[A-Za-z0-9/+=]{40}/gi, "AWS secret"],
+  // No lookbehind over a space run (it was quadratic): the name is matched and only group 1, the value, is replaced.
+  ["aws-secret", /aws_secret_access_key\s{0,32}[=:]\s{0,32}([A-Za-z0-9/+=]{40})/gi, "AWS secret", 1],
   ["slack", /\bxox[abprs]-[A-Za-z0-9-]{10,}/g, "Slack token"],
   ["slack-app", /\bxapp-[0-9]-[A-Za-z0-9]+-[0-9]+-[A-Za-z0-9]{16,}/g, "Slack app token"],
   ["google", /\bAIza[0-9A-Za-z_-]{30,}/g, "Google key"],
@@ -32,19 +33,23 @@ const GENERIC: readonly Rule[] = [
     1,
   ],
   ["curl-userpass", /\B-u\s+[^\s:]{1,64}:([^\s]{6,})/g, "password", 1],
-  ["pem", /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, "private key"],
-  // A key block with no end takes the rest of the text with it: a clipped paste loses its END line all the time.
-  ["pem-open", /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*$/g, "private key"],
-  ["conn-url", /\b([a-z][a-z0-9+.-]*:\/\/[^\s:@/?#]+):([^\s@/?&=#]{3,})@/gi, "url password", 2],
+  // A key block with no end takes the rest of the text with it: a clipped paste loses its END line all the time. One rule, so the first
+  // BEGIN always ends the scan (at its END or at the end of the text); two rules rescanned to the end from every BEGIN.
+  ["pem", /-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]{0,40}PRIVATE KEY-----|$)/g, "private key"],
+  ["conn-url", /(?<![a-z0-9+.-])([a-z][a-z0-9+.-]{0,31}:\/\/[^\s:@/?#]+):([^\s@/?&=#]{3,})@/gi, "url password", 2],
+  // The name is read as one run of name characters that starts where the run starts (the lookbehind is one character), so a long run is scanned once.
+  // The optional prefix of the old pattern only fed the name check, which reads the whole run now.
   [
     "password",
-    /(?:^|[\s{,"'`_-])((?:[A-Za-z0-9_.-]*[_.-])?pass(?:word|wd)?|passphrase)["']?\s*[:=]\s*["']?((?!\$\{|<|your|xxx|process\.env)[^\s"',;}\n]{8,})/gi,
+    /(?<=^|[\s{,"'`_.-])(pass(?:word|wd)?|passphrase)["']?\s{0,32}[:=]\s{0,32}["']?((?!\$\{|<|your|xxx|process\.env)[^\s"',;}\n]{8,})/gim,
     "password",
     2,
   ],
   [
     "named-secret",
-    /\b(?:export\s+)?["']?((?:[A-Za-z0-9_.-]*[_.-])?(?:apikey|apisecret|authtoken|accesstoken|accesskey|secretkey|privatekey|clientsecret|refreshtoken|sessiontoken|token|secret|key|password|passwd|passphrase|credential|auth)(?:[_.-][A-Za-z0-9_.-]*)?)(?<!_FILE)(?<!_PATH)(?<!_file)(?<!_path)["']?\s*[:=]\s*["']?((?!\$\{|<|your|xxx|\.\.\.|changeme|placeholder|example|process\.env|import\.meta|\.{0,2}\/)[^\s"',;}()\n]{12,})/gi,
+    // The name is one run of name characters, read from where the run starts. The lookahead asks for a secret word as a whole segment of the
+    // name ("API_KEY", "db.password", "clientSecret"); at most 20 segments of 200 characters are looked at, so nothing here backtracks over a long run.
+    /(?<![A-Za-z0-9_.-])(?=(?:[A-Za-z0-9]{0,200}[_.-]){0,20}(?:apikey|apisecret|authtoken|accesstoken|accesskey|secretkey|privatekey|clientsecret|refreshtoken|sessiontoken|token|secret|key|password|passwd|passphrase|credential|auth)(?![A-Za-z0-9]))([A-Za-z0-9_.-]{1,200})(?<!_FILE)(?<!_PATH)["']?\s{0,32}[:=]\s{0,32}["']?((?!\$\{|<|your|xxx|\.\.\.|changeme|placeholder|example|process\.env|import\.meta|\.{0,2}\/)[^\s"',;}()\n]{12,})/gi,
     "secret",
     2,
   ],
@@ -57,6 +62,34 @@ const GENERIC: readonly Rule[] = [
 ];
 
 export const PATTERNS: readonly Rule[] = [...VENDOR, ...GENERIC];
+
+/**
+ * Lowercase text a rule needs somewhere in the input before it can match at all (any one of them). A long output with none of them skips the
+ * rule's scan, which is most of the time spent on a 5 MB tool result. Every entry is a literal the rule's pattern cannot match without.
+ */
+const NEEDS: Readonly<Record<string, readonly string[]>> = {
+  digitalocean: ["dop_v1_"],
+  anthropic: ["sk-ant-"],
+  openai: ["sk-"],
+  stripe: ["k_live_", "k_test_"],
+  github: ["ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"],
+  aws: ["akia", "asia"],
+  "aws-secret": ["aws_secret_access_key"],
+  slack: ["xox"],
+  "slack-app": ["xapp-"],
+  google: ["aiza"],
+  sendgrid: ["sg."],
+  npm: ["npm_"],
+  jwt: ["eyj"],
+  bearer: ["bearer"],
+  "db-flag-password": ["mysql", "psql", "mongo", "mariadb", "redis-cli"],
+  "curl-userpass": ["-u"],
+  pem: ["-----begin"],
+  "conn-url": ["://"],
+  password: ["pass"],
+  "named-secret": ["=", ":"],
+  "camel-secret": ["=", ":"],
+};
 
 /** Names that contain a secret word and are not secrets: a token count is a number, a cache key an identifier, a secretary a person. */
 const NOT_SECRET_NAME =
@@ -72,7 +105,11 @@ export function redact(input: unknown): Redacted {
   if (input === null || input === undefined || input === "") return { text: "", hits: [] };
   let out = String(input);
   const hits: string[] = [];
+  let low = out.toLowerCase();
   for (const [name, re, label, group] of PATTERNS) {
+    const needs = NEEDS[name];
+    if (needs && !needs.some((w) => low.includes(w))) continue;
+    const before = out;
     out = out.replace(re, (m: string, ...rest: unknown[]) => {
       // For a name/value rule the first group is the NAME, and some names contain a secret word without meaning one.
       if (group === 2 && NOT_SECRET_NAME.test(String(rest[0] ?? ""))) return m;
@@ -81,7 +118,7 @@ export function redact(input: unknown): Redacted {
       // Placeholders help nobody when redacted, and markers must never be redacted again, or every re-index would chew further into the text.
       if (/^(\[|x{4,}|\*{4,}|<[^>]+>|\$\{?\w+\}?|redacted|changeme|your[-_])/i.test(secret)) return m;
       // The checks below apply only to generic name/value rules. A vendor rule has proved what it found by its prefix.
-      if (group) {
+      if (group && name !== "aws-secret") {
         if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/.test(secret)) return m; // a dotted identifier is code
         if (/^[A-Z][A-Z0-9_]*$/.test(secret) || /^[A-Z][A-Za-z_$]*$/.test(secret)) return m; // a CONSTANT or a TypeName is a variable
         if (name !== "password" && /^[A-Za-z_$]+(?:[-_][A-Za-z_$]+)+$/.test(secret)) return m; // words joined by hyphens are prose or configuration
@@ -92,6 +129,7 @@ export function redact(input: unknown): Redacted {
       const marker = label === "private key" ? "[private key redacted]" : `[${label} redacted …${secret.slice(-4)}]`;
       return group ? m.replace(secret, marker) : marker;
     });
+    if (out !== before) low = out.toLowerCase();
   }
   return { text: out, hits };
 }
