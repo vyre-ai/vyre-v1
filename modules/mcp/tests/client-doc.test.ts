@@ -66,27 +66,32 @@ test("what the page said is kept as an ordinary client, and read again replaces 
   assert.equal(serverMetadata("https://x.example")["client_id_metadata_document_supported"], true);
 });
 
-test("pages that name themselves count against the same cap as registration: past it a new address is refused, a known one still refreshes, and unused old ones make room", () => {
+test("a full table makes room by dropping the oldest page nobody has used, never an app in use; it refuses only when every place is in use", () => {
   const h = harness();
   ensure(h.db);
   const now = 10 * UNUSED_CLIENT_MS;
-  for (let i = 0; i < MAX_CLIENTS; i++)
-    h.db.run(
-      "INSERT INTO mcp_oauth_clients (client_id, name, redirect_uris, created_at, used_at) VALUES (?, ?, ?, ?, ?)",
-      `https://a.d${i}.com/c.json`,
-      "x",
-      "[]",
-      now - 1000,
-      now - 500,
-    );
+  const fill = (used: boolean) => {
+    h.db.run("DELETE FROM mcp_oauth_clients");
+    for (let i = 0; i < MAX_CLIENTS; i++)
+      h.db.run(
+        "INSERT INTO mcp_oauth_clients (client_id, name, redirect_uris, created_at, used_at) VALUES (?, ?, ?, ?, ?)",
+        `https://a.d${i}.com/c.json`,
+        "x",
+        "[]",
+        now - 1000 + i,
+        used ? now - 500 : null,
+      );
+  };
   const fresh = { clientId: "https://new.fresh.org/c.json", name: "New", redirectUris: ["https://new.fresh.org/cb"] };
-  assert.equal(keepDoc(h.db, fresh, now), false, "the table is full of clients in use");
+  fill(true);
+  assert.equal(keepDoc(h.db, fresh, now), false, "every place is an app in use");
   assert.equal(clientBy(h.db, fresh.clientId), null);
-  assert.equal(keepDoc(h.db, { ...fresh, clientId: "https://a.d1.com/c.json" }, now), true, "a known one refreshes");
-  // unused and old: room is made
-  h.db.run("UPDATE mcp_oauth_clients SET used_at = NULL, created_at = ? WHERE client_id LIKE 'https://a.d1.com%'", now - 2 * UNUSED_CLIENT_MS);
-  assert.equal(keepDoc(h.db, fresh, now), true, "unused clients older than a day go first");
+  fill(false);
+  assert.equal(keepDoc(h.db, fresh, now), true, "a table full of unused pages gives the oldest up");
   assert.ok(clientBy(h.db, fresh.clientId));
+  assert.equal(clientBy(h.db, "https://a.d0.com/c.json"), null, "the oldest was dropped");
+  assert.ok(clientBy(h.db, "https://a.d1.com/c.json"), "the next oldest stays");
+  assert.equal(keepDoc(h.db, { ...fresh, clientId: "https://a.d1.com/c.json" }, now), true, "a known one still refreshes");
 });
 
 test("one host cannot fill the table: past its few pages a new address on it is refused, others are not", () => {

@@ -222,3 +222,39 @@ test("authorize with a client_id that is an address: its page is read once and k
   }));
   assert.equal((await authorize(liar, "https://liar.example.com/client.json"))?.status, 400);
 });
+
+// one actor naming many apps cannot block another actor's first (lane r42-mcp)
+test("authorize: one source that names many apps is stopped after its daily few, and a second source's first is never refused for it", async () => {
+  const hn = harness();
+  ensure(hn.db);
+  const mk = (id: string) =>
+    JSON.stringify({ client_id: id, client_name: "App", redirect_uris: [`https://${new URL(id).host}/cb`] });
+  const rt = createMcpRuntime({
+    db: hn.db,
+    space: "spc_sources",
+    invoke: (async () => ({ status: "ok", output: {}, traceId: "t" })) as Invoke,
+    now: () => hn.clock.t,
+    active: () => true,
+    endpoint: { url: `${ORIGIN}/mcp`, loopbackUrl: "http://127.0.0.1:1/mcp" },
+    clientDocGet: (async (u: string) => ({
+      ok: true,
+      status: 200,
+      body: { async *[Symbol.asyncIterator]() { yield new TextEncoder().encode(mk(u)); } },
+    })) as never,
+  });
+  const ask = (visitor: string, id: string) =>
+    rt.oauth({
+      method: "GET",
+      path: "/oauth/authorize",
+      search: `?client_id=${encodeURIComponent(id)}&redirect_uri=${encodeURIComponent(`https://${new URL(id).host}/cb`)}&response_type=code&code_challenge=${challengeOf(VERIFIER)}&code_challenge_method=S256`,
+      headers: {},
+      body: "",
+      origin: ORIGIN,
+      visitor,
+    });
+  const statuses: number[] = [];
+  for (let i = 0; i < 25; i++) statuses.push((await ask("evil", `https://spam${i}.junk${i}.example/c.json`))!.status);
+  assert.equal(statuses.filter((s) => s === 200).length, 20, "twenty new apps for one source");
+  assert.ok(statuses.slice(20).every((s) => s === 429), "then it is stopped");
+  assert.equal((await ask("honest", "https://app.honest.example/c.json"))!.status, 200, "another source's first is welcome");
+});

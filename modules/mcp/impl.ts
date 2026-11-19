@@ -201,6 +201,21 @@ const formOf = (body: string): Record<string, string | undefined> | null => {
 /** When each client page was last tried (this process): a kept page is read again after a day, a page that failed is not tried again for a minute, and an address is never fetched on every request. */
 const docTried = new Map<string, number>();
 const DOC_REFRESH_MS = 24 * 3_600_000;
+/** How many new apps one source may name in a day (this process): one actor cannot fill the table or make the Space fetch without end; another actor's first is never refused for it. */
+const NEW_DOCS_PER_SOURCE = 20;
+const sourceDocs = new Map<string, number[]>();
+function sourceMay(space: string, visitor: string, at: number): boolean {
+  const key = `${space} ${visitor}`;
+  const recent = (sourceDocs.get(key) ?? []).filter((t) => at - t < DOC_REFRESH_MS);
+  if (recent.length >= NEW_DOCS_PER_SOURCE) {
+    sourceDocs.set(key, recent);
+    return false;
+  }
+  recent.push(at);
+  sourceDocs.set(key, recent);
+  if (sourceDocs.size > 5000) sourceDocs.delete(sourceDocs.keys().next().value as string);
+  return true;
+}
 const DOC_RETRY_MS = 60_000;
 function docDue(db: Db, space: string, clientId: string, at: number): boolean {
   const key = `${space} ${clientId}`;
@@ -499,6 +514,10 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
       }
       // an app that names itself by an address: read its page once (guarded), keep it as a registered client; a page that cannot be read leaves the client unknown, which is the usual refusal
       const named = q["client_id"];
+      if (named && isDocId(named) && clientBy(o.db, named) === null && !sourceMay(o.space, req.visitor, at)) {
+        const page = refusalPage("Too many new apps", "Try again tomorrow.");
+        return { status: 429, headers: { ...page.headers }, body: page.body };
+      }
       if (named && isDocId(named) && docDue(o.db, o.space, named, at)) {
         const doc = await fetchDoc(named, o.clientDocGet ?? createGuardedFetch({ own: false }));
         // a page that could not be read is tried again in a minute, even for a known app
