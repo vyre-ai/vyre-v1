@@ -55,6 +55,8 @@ export interface JoinFlowProps {
   onBackFromSignIn?: () => void;
   /** rc.17: "I already have a Vyre account", for a person with an account in another Space and no session for it on this device */
   onHaveAccount?: () => void;
+  /** What is happening behind the sign-in form, said quietly where the error line would be ("Reconnecting"). An error wins. */
+  status?: string;
 }
 
 export { makeRecoveryCode };
@@ -252,6 +254,7 @@ function JoinFlowForHost(props: JoinFlowProps) {
         state={state}
         dispatch={dispatch}
         busy={signingIn}
+        {...(props.status ? { status: props.status } : {})}
         onSubmit={() => void signIn()}
         {...(props.onSso ? { onSso: props.onSso } : {})}
         {...(props.onGithub ? { onGithub: props.onGithub } : {})}

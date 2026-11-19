@@ -6,6 +6,7 @@ import {
   Button,
   Caption,
   ErrorLine,
+  QuietLine,
   FieldRow,
   Foot,
   Group,
@@ -24,6 +25,8 @@ export interface SignInProps {
   state: FlowState;
   dispatch: Dispatch<Action>;
   busy?: boolean;
+  /** Said quietly where the error line would be, while there is no error ("Reconnecting"). */
+  status?: string;
   onSubmit?: () => void;
   onSso?: (provider: string) => void;
   onGithub?: () => void;
@@ -36,6 +39,7 @@ export function SignIn({
   state,
   dispatch,
   busy,
+  status,
   onSubmit,
   onSso,
   onGithub,
@@ -143,7 +147,11 @@ export function SignIn({
               error={!!state.error}
             />
           </Group>
-          <ErrorLine testID="join-error">{state.error}</ErrorLine>
+          {status && !state.error ? (
+            <QuietLine testID="join-status">{status}</QuietLine>
+          ) : (
+            <ErrorLine testID="join-error">{state.error}</ErrorLine>
+          )}
         </Step>
       )}
     </Panel>

@@ -97,9 +97,8 @@ test("2 Aina joins by password in a browser; Bilal joins with Google in the Wind
 
 test("2b the Windows and Mac apps take the Space's own vyre.run name, which answers directly, and Bilal's invite opens in the app (l-directaddr)", async () => {
   // 3 Nov: the desktop app refused northwind.vyre.run as a relay (phone) address, so a member on the Windows app could not join or sign in there. Now the name is asked what it is.
-  const { desktopEntryRefusal, forgetAddressChecks, inviteAppLink, isRelayAddress } = await import(
-    "../apps/app/src/shell/session/entry.ts"
-  );
+  const { forgetAddressChecks, inviteAppLink, isRelayAddress } = await import("../apps/app/src/shell/session/entry.ts");
+  const { findSpace } = await import("../client/src/gateway/find-space.ts");
   const { probeDirectSpace } = await import("../client/src/gateway/space-probe.ts");
   const own = "https://northwind.vyre.run";
   const viaEdge = ((url: string, init?: RequestInit) =>
@@ -107,16 +106,8 @@ test("2b the Windows and Mac apps take the Space's own vyre.run name, which answ
   const check = { probe: (origin: string) => probeDirectSpace(origin, { fetch: viaEdge }), page: undefined };
   forgetAddressChecks();
   assert.equal(await isRelayAddress(own, check), false, "the Space answers at its own vyre.run name");
-  assert.equal(
-    await desktopEntryRefusal({ kind: "signin", address: own } as never, check),
-    null,
-    "the app signs in there",
-  );
-  assert.equal(
-    await desktopEntryRefusal({ kind: "join", address: own, code: codes["b"]!, fingerprint: "" } as never, check),
-    null,
-    "and joins there",
-  );
+  // what every way in asks before it goes anywhere (sign in, join): the address answers as a Space server, so the app goes in itself
+  assert.deepEqual(await findSpace(own, { fetch: viaEdge }), { kind: "direct" }, "the app signs in and joins there");
   assert.ok(
     inviteAppLink({ kind: "join", address: own, code: codes["b"]!, fingerprint: "" } as never, false),
     "the invite page offers to open it in the app",
