@@ -1,7 +1,7 @@
 // The turn context builder (CHAT-DESIGN "The turn"): before each turn it asks the capabilities that know, as the person who is asking, and puts the answers in one ordered context
 // (agent/src/turn-engine/context.ts). Every read runs as the asker, so a thing the asker may not see never reaches the agent through here. Every read is also optional: a capability that is
 // slow, off or refuses leaves its section out and the turn goes on. Nothing in the context is a secret value; the Vault appears by item name only.
-import { frameCode, nameTag } from "../../lib/helper-result.ts";
+import { frameCode, labelFrame, nameTag } from "../../lib/helper-result.ts";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { SECTION_ORDER, parseScreen, screenText } from "../../agent/src/turn-engine/context.ts";
 import type { ContextSection, ScreenContext, TurnContext } from "../../agent/src/turn-engine/context.ts";
@@ -762,7 +762,23 @@ export function createContextBuilder(d: ContextDeps) {
     const scope = await scopeLine(str(th?.["scopeType"]), str(th?.["scopeId"]), asker);
     const title = str(th?.["title"]);
     // which thread this is differs between two helpers of one parent, and everything after it in a prefix would then differ too: it is its own section, outside the cached prefix (r42-runtime-tokens)
-    const hereLine = `threadId ${input.threadId}. This is ${kind === "ask" ? "an Ask thread, private to you and the person" : kind === "channel" ? "a channel" : kind === "thread" ? "a thread" : "a chat"}${title ? ` called "${one(title, 80)}"` : ""}${scope ? `, ${scope}` : ""}.`;
+    const hereKind =
+      kind === "ask"
+        ? "an Ask thread, private to you and the person"
+        : kind === "channel"
+          ? "a channel"
+          : kind === "thread"
+            ? "a thread"
+            : "a chat";
+    const hereLabels = `${title ? `called "${one(title, 80)}"` : ""}${title && scope ? ", " : ""}${scope ?? ""}`;
+    const hereLine =
+      hereLabels === ""
+        ? `threadId ${input.threadId}. This is ${hereKind}.`
+        : labelFrame(
+            "thread",
+            `threadId ${input.threadId}. This is ${hereKind}; its name and what it is about follow.`,
+            hereLabels,
+          );
     where.push(`You are talking with ${who(asker)} (${asker}; they asked, they pay, and their access limits yours).`);
     const others = people.filter((p) => p !== asker);
     if (others.length > 0) where.push(`Also here: ${others.slice(0, 12).map(who).join(", ")}.`);
@@ -1114,7 +1130,12 @@ export function createContextBuilder(d: ContextDeps) {
         : timeLine(now(), str((zone?.["row"] as Obj | undefined)?.["value"])),
     );
     const w = (waits ?? []).filter((x) => x !== "");
-    if (w.length > 0) add("waiting", false, w.map((x) => `- ${x}`).join("\n"));
+    if (w.length > 0)
+      add(
+        "waiting",
+        false,
+        labelFrame("waiting", "You are waiting on these.", w.map((x) => `- ${one(x, 240)}`).join("\n")),
+      );
 
     const ordered = SECTION_ORDER.flatMap((id) => sections.filter((s) => s.id === id));
     return {
