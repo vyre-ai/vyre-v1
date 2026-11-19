@@ -22483,7 +22483,7 @@ const routes4: Route[] = [
     "v": 1,
     "module": "mail",
     "effects": "write",
-    "permission": null,
+    "permission": "comms.templates",
     "level": "edit",
     "resource": {
       "type": "file",
@@ -22521,7 +22521,7 @@ const routes4: Route[] = [
     "v": 1,
     "module": "mail",
     "effects": "write",
-    "permission": null,
+    "permission": "comms.templates",
     "level": "edit",
     "resource": {
       "type": "file",

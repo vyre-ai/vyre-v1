@@ -7,7 +7,7 @@ Take a document back to the Space's version of an email template
 | Module | mail |
 | Version | 1 (since 1.0.0) |
 | Effects | write |
-| Permission | grant only |
+| Permission | comms.templates |
 | Grant level | edit |
 | Risk | medium |
 | Resource | file (/documentId) |
@@ -43,6 +43,7 @@ type Out = {
 - internal.unexpected
 - permission.above_clearance
 - permission.no_grant
+- permission.role_lacks_permission
 - validation.bad_input
 - validation.not_found
 

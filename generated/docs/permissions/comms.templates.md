@@ -14,5 +14,7 @@ Area: comms. Risk: medium. Applies to: space.
 
 ## Capabilities that need it
 
+- mail.template.for_document.clear
+- mail.template.for_document.set
 - mail.template.reset
 - mail.template.save
