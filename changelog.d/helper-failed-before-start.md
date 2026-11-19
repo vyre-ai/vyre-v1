@@ -1,0 +1,1 @@
+- A helper that never got to start because the one it waited for failed now shows as failed with the reason ("It was to start after Gamma, which did not finish") and a stopped clock, instead of as working. A failed helper with no words of its own shows the runtime's reason.

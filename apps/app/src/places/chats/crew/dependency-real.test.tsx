@@ -89,3 +89,36 @@ test("the line follows what finishes: one done, then the rest; one that failed s
   assert.equal(await lineFor("succeeded", "failed"), "Can't start: Calendar failed");
   assert.equal(await lineFor("succeeded", "succeeded"), undefined, "nothing left to wait for");
 });
+
+test("a helper the host failed before it ever ran shows as failed with the reason, not as working with a clock that keeps counting; a failed one with no words of its own says what the node says", async () => {
+  const docs = MEMBERS[2]!; // the strip lists it as working: its own chat never started
+  const nodes = [
+    node({
+      id: "run_x",
+      name: "Calendar",
+      threadId: "thr_x",
+      status: "failed",
+      errorMessage: "calendar could not finish",
+    }),
+    node({
+      id: "run_d",
+      name: "Docs",
+      threadId: "thr_d",
+      status: "failed",
+      startedAt: 1_000,
+      endedAt: 6_000,
+      errorMessage: "It was to start after Calendar, which did not finish.",
+    }),
+  ] as never;
+  const v = toRunView(docs, nodes);
+  assert.equal(v.state, "failed");
+  assert.deepEqual(v.lines, ["It was to start after Calendar, which did not finish."]);
+  assert.equal(v.endedAt, 6_000);
+  assert.equal(v.elapsedMs, 5_000, "the clock stops where the node ended");
+  assert.equal(v.dependsLine, undefined);
+  const cal = toRunView(member({ id: "thr_x", runId: "run_x", title: "Calendar", state: "failed" }), nodes);
+  assert.deepEqual(cal.lines, ["calendar could not finish"]);
+  // a helper that is really working keeps working, whatever an old node says
+  const live = toRunView(docs, [node({ id: "run_d", status: "running" })] as never);
+  assert.equal(live.state, "working");
+});

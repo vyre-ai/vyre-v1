@@ -25,7 +25,7 @@ const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) =>
-  /^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01|RUNSECTION_01|RERUN_01)/.test(t.id),
+  /^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01|RUNSECTION_01|RERUN_01|DEPS_01)/.test(t.id),
 );
 const report = [];
 for (const t of targets)
@@ -52,7 +52,7 @@ for (const t of targets)
       const over = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
       const file = path.join(
         out,
-        `${t.id.replace(/^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01|RUNSECTION_01|RERUN_01)-/, "")}-${skin}-${size}.png`,
+        `${t.id.replace(/^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01|RUNSECTION_01|RERUN_01|DEPS_01)-/, "")}-${skin}-${size}.png`,
       );
       await page.screenshot({ path: file });
       report.push({
@@ -114,7 +114,20 @@ for (const t of targets)
           if (name === "rerun") await page.click("[data-testid='rerun-model']").catch(() => undefined);
           await page.waitForTimeout(300);
           await page.screenshot({ path: file.replace(".png", `-${name}.png`) });
-          report.push({ file: path.basename(file) + " " + name, closeControlShown: await page.locator(`[data-testid='${close}']`).count() });
+          report.push({
+            file: path.basename(file) + " " + name,
+            closeControlShown: await page.locator(`[data-testid='${close}']`).count(),
+          });
+          if (name === "agent") {
+            await page.click("[data-testid='save-agent-go']");
+            await page.waitForTimeout(500);
+            await page.screenshot({ path: file.replace(".png", "-agent-made.png") });
+            report.push({
+              file: path.basename(file) + " agent-made",
+              made: await page.locator("[data-testid='crew-agent-made']").count(),
+            });
+            continue;
+          }
           await page.click(`[data-testid='${close}']`);
           await page.waitForTimeout(300);
         }

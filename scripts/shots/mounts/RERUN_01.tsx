@@ -38,6 +38,8 @@ const call = async (cap: string): Promise<unknown> => {
         },
       ],
     };
+  // the person who started it may manage it: the server says so, and the buttons show only then
+  if (cap === "runs.node.get") return { node: { id: "run_h", can: { manage: true } } };
   if (cap === "engine.helper_models")
     return {
       accounts: [

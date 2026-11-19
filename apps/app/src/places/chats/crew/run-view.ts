@@ -61,38 +61,48 @@ function toRunViewRaw(m: CrewMember, nodes?: readonly RunNode[]): RunView {
   // the node behind the member (the runtime's runId on a crew member), when it is known
   const node = m.runId !== undefined ? nodes?.find((n) => n.id === m.runId) : undefined;
   const name = m.name !== undefined && m.name !== "" ? m.name : m.title;
-  const live = m.state === "working";
+  // a helper the host failed before it ever ran (its dependency did not finish) has a chat that never started, so the strip still lists it as working: the node, which is the one that knows, says it ended
+  const ended = node !== undefined && (node.status === "failed" || node.status === "stopped") && m.state === "working";
+  const state: MemberState = ended ? (node.status === "failed" ? "failed" : "stopped") : m.state;
+  const live = state === "working";
+  const said = m.found ?? (state === "failed" || ended ? node?.errorMessage : undefined);
   const lines: string[] = live
     ? m.steps !== undefined && m.steps.length > 0
       ? m.steps.slice(-3)
       : m.step !== undefined
         ? [m.step]
         : []
-    : m.state === "needs_you"
+    : state === "needs_you"
       ? m.step !== undefined
         ? [m.step]
         : []
-      : m.found !== undefined
-        ? [m.found]
+      : said !== undefined
+        ? [said]
         : [];
   return {
     id: m.id,
     kind: kindOf(m),
     name,
     task: name === m.title ? "" : m.title,
-    state: m.state,
+    state,
     lines,
     tokens: m.tokensIn + m.tokensOut,
     costMicros: m.costMicros,
     startedAt: m.startedAt,
-    ...(m.endedAt !== undefined ? { endedAt: m.endedAt } : {}),
-    elapsedMs: m.elapsedMs,
+    ...(ended && node.endedAt !== undefined
+      ? { endedAt: node.endedAt }
+      : m.endedAt !== undefined
+        ? { endedAt: m.endedAt }
+        : {}),
+    elapsedMs: ended && node.endedAt !== undefined ? Math.max(0, node.endedAt - m.startedAt) : m.elapsedMs,
     model: modelTag(m),
     ...(m.branch !== undefined && m.branch !== "" ? { branch: m.branch } : {}),
     // what the runtime knows of this helper's node: the kind of its step, that it looks stuck, and what it waits for (only while it works)
     ...(node?.stepIcon !== undefined && live ? { stepIcon: node.stepIcon } : {}),
     ...(node?.stuck !== undefined && live ? { stuck: node.stuck.reason } : {}),
-    ...(node?.status === "waiting" && node.wake && live && wakeCondition(node.wake, () => "") !== "" ? { sleep: wakeCondition(node.wake, () => "") } : {}),
+    ...(node?.status === "waiting" && node.wake && live && wakeCondition(node.wake, () => "") !== ""
+      ? { sleep: wakeCondition(node.wake, () => "") }
+      : {}),
     ...(node && nodes && live && dependencyLine(node, nodes) !== null
       ? { dependsLine: dependencyLine(node, nodes)! }
       : {}),
