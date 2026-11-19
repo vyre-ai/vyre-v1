@@ -11,6 +11,7 @@ export const ID_PREFIXES: readonly string[] = [
   "adr",
   "agr",
   "agt",
+  "aus",
   "aut",
   "bkp",
   "blb",
