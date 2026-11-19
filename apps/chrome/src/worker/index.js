@@ -170,6 +170,7 @@ export function createWorker(ext) {
           itemId: String(msg.itemId),
           usernameField: msg.usernameField ? String(msg.usernameField) : undefined,
           kind: msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login",
+          ...(msg.itemKind === "totp" ? { itemKind: "totp" } : {}),
           signIn: Boolean(msg.signIn),
         });
         return { data: r };
@@ -325,6 +326,7 @@ export function createWorker(ext) {
             itemId: String(msg.itemId || ""),
             usernameField: msg.usernameField ? String(msg.usernameField) : undefined,
             kind,
+            ...(msg.itemKind === "totp" ? { itemKind: "totp" } : {}),
             signIn: false,
           }),
         };

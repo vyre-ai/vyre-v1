@@ -1289,7 +1289,10 @@ test("Connect a Space from the panel: the address opens the Space's page, a code
   const b = await worker(app);
   const panelPage = { id: "ext_vyre", url: "chrome-extension://ext_vyre/src/panel/panel.html" };
   // only the panel's own page may start it
-  assert.equal((await b.w.onMessage({ type: "panel.link.begin", address: "team.example.com" }, sender)).error?.code, "not_allowed");
+  assert.equal(
+    (await b.w.onMessage({ type: "panel.link.begin", address: "team.example.com" }, sender)).error?.code,
+    "not_allowed",
+  );
   const bad = await b.w.onMessage({ type: "panel.link.begin", address: "not an address" }, panelPage);
   assert.equal(bad.error?.code, "bad_input");
   assert.equal(b.created.length, 0, "no tab for a bad address");
@@ -1299,18 +1302,29 @@ test("Connect a Space from the panel: the address opens the Space's page, a code
   assert.deepEqual((await b.w.onMessage({ type: "panel.link.list" }, panelPage)).data.links, []);
 
   const realFetch = globalThis.fetch;
-  (globalThis as any).fetch = async () => ({ ok: true, json: async () => ({ data: { session: { token: "vst_tok" } } }) });
+  (globalThis as any).fetch = async () => ({
+    ok: true,
+    json: async () => ({ data: { session: { token: "vst_tok" } } }),
+  });
   try {
     const page = (origin: string) => ({ id: "ext_vyre", tab: { id: 9 }, url: `${origin}/chrome/connect`, origin });
     // a page of another site, or a panel message, cannot hand over a code
-    assert.equal((await b.w.onMessage({ type: "vyre.link.code", code: "K7P2-9QXA" }, page("https://evil.example"))).error?.code, "link_wrong_page");
-    assert.equal((await b.w.onMessage({ type: "vyre.link.code", code: "K7P2-9QXA" }, panelPage)).error?.code, "not_allowed");
+    assert.equal(
+      (await b.w.onMessage({ type: "vyre.link.code", code: "K7P2-9QXA" }, page("https://evil.example"))).error?.code,
+      "link_wrong_page",
+    );
+    assert.equal(
+      (await b.w.onMessage({ type: "vyre.link.code", code: "K7P2-9QXA" }, panelPage)).error?.code,
+      "not_allowed",
+    );
     const ok = await b.w.onMessage({ type: "vyre.link.code", code: "K7P2-9QXA" }, page("https://team.example.com"));
     assert.deepEqual(ok.data ?? ok, { linked: true });
   } finally {
     (globalThis as any).fetch = realFetch;
   }
-  assert.deepEqual((await b.w.onMessage({ type: "panel.link.list" }, panelPage)).data.links, [{ address: "https://team.example.com", name: "team.example.com" }]);
+  assert.deepEqual((await b.w.onMessage({ type: "panel.link.list" }, panelPage)).data.links, [
+    { address: "https://team.example.com", name: "team.example.com" },
+  ]);
   const st = await b.w.onMessage({ type: "panel.state" }, panelPage);
   assert.deepEqual(st.data.direct, { name: "team.example.com", address: "https://team.example.com" });
   await b.w.onMessage({ type: "panel.link.signout", address: "https://team.example.com" }, panelPage);
@@ -1329,9 +1343,29 @@ test("a one-time code is filled from a totp item whose only field is its secret,
       },
       uses: { handle: "#Acme_TOTP", fields },
     });
-    const done = await w.f.fill({ ...JOB, kind: "otp" });
+    const done = await w.f.fill({ ...JOB, kind: "otp", ...(fields.includes("totp") ? {} : { itemKind: "totp" }) });
     assert.deepEqual(done.filled, ["otp"], JSON.stringify(fields));
-    assert.deepEqual(w.applied.map((a) => a.value), ["482913"]);
+    assert.deepEqual(
+      w.applied.map((a) => a.value),
+      ["482913"],
+    );
     assert.match(wrote[0]!, fields.includes("totp") ? /\.totp$/ : /\.secret$/);
   }
+});
+
+test("a one-time-code input is never filled from an item's single secret field unless the item is a totp item: an API key item with only a secret types nothing", async () => {
+  const wrote: string[] = [];
+  const w = await scriptedFill({
+    frames: [{ frameId: 0, origin: "https://acme.test", fields: [{ ref: "o1", role: "otp" }] }],
+    fillCall: async (_c, i, push) => {
+      wrote.push(String(i["handle"]));
+      push("sk-live-the-whole-api-key");
+      return { filled: true };
+    },
+    uses: { handle: "#Api_Key", fields: ["secret"] },
+  });
+  const done = await w.f.fill({ ...JOB, kind: "otp" });
+  assert.deepEqual(done.filled, []);
+  assert.deepEqual(wrote, [], "the Vault was never asked for that field");
+  assert.deepEqual(w.applied, [], "and nothing was typed");
 });

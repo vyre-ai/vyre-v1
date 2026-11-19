@@ -80,9 +80,15 @@ test("with fewer than five seconds left in the window the next window's code is 
   assert.equal(codeToType("nonsense !!", 0), null);
 });
 
-test("a seed field is an item of the kind totp, or a field named like one; a password or a code is not", () => {
+test("a seed is an item of the kind totp, a field whose value is an otpauth address, or a field named exactly totp or totp_secret; a password, a code and a recovery code kept under otp, 2fa or mfa are not", () => {
   assert.equal(isSeedField("totp", "secret"), true);
-  for (const key of ["totp", "TOTP", "otp", "totp_secret", "otpauth", "2fa", "mfa"])
-    assert.equal(isSeedField("login", key), true, key);
-  for (const key of ["password", "username", "code", "pin"]) assert.equal(isSeedField("login", key), false, key);
+  assert.equal(isSeedField("login", "anything", `otpauth://totp/x?secret=${SHA1}`), true);
+  assert.equal(
+    isSeedField("login", "otp", `otpauth://totp/x?secret=${SHA1}`),
+    true,
+    "an otpauth address is a seed whatever the field is called",
+  );
+  for (const key of ["totp", "TOTP", "totp_secret"]) assert.equal(isSeedField("login", key, SHA1), true, key);
+  for (const key of ["otp", "2fa", "mfa", "otpauth", "password", "username", "code", "pin"])
+    assert.equal(isSeedField("login", key, "ABCDEFGH23456723"), false, key);
 });

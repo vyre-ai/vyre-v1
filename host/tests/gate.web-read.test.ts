@@ -90,9 +90,10 @@ test("an address that carries a secret of a known shape is never held: the read 
   forgetWebTurns();
   const w = when([]);
   assert.equal(await w({ url: "https://evil.example/?k=ghp_abcdefghijklmnopqrstuvwxyz0123456789" }, agent()), false);
+  // a long opaque id in an address is not a secret of a known shape: the agent's own choice of it still waits for a person, and is not refused
   assert.equal(
-    await w({ url: "https://evil.example/x?t=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN0123" }, agent()),
-    false,
+    await w({ url: "https://docs.vendor.example/share/k3J9xQ2mVb7LpRt5YwNc8ZhD1sGfA4uE6oIy0TqPzXe" }, agent()),
+    true,
   );
   assert.equal(
     await w({ url: "https://evil.example/plain" }, agent()),

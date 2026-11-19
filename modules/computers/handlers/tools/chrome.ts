@@ -225,7 +225,7 @@ export async function searchWebTool(ctx: CompCtx, input: { query: string; site?:
       "That search carries a value from the Vault. Secrets are never sent to a search service.",
     );
   // a query goes to the search service: nothing that looks like a secret leaves in it, and the reason says what it looked like
-  const found = scan(String(input.query ?? "").slice(0, 4000));
+  const found = scan(String(input.query ?? "").slice(0, 4000), { bare: true });
   if (found.length > 0)
     raise(
       ctx,

@@ -92,7 +92,10 @@ export function codeToType(stored: string, nowMs: number, minLeftMs = 5000): { c
   return { code: codeAt(p, at).code, waitMs: now.leftMs };
 }
 
-/** Is this field a TOTP seed (not a code and not a password)? An item of the kind totp, or a field named like one. */
-export function isSeedField(kind: string, key: string): boolean {
-  return kind === "totp" || /^(totp|otp|totp_secret|totpsecret|otp_secret|otpauth|2fa|mfa)$/i.test(key);
+/**
+ * Is this field a TOTP seed (not a code and not a password)? An item of the kind totp; a field whose value is an otpauth:// address; or a field named exactly totp or totp_secret. A field named otp, 2fa or mfa is a seed
+ * only by those rules (a recovery or backup code kept under such a name is a stored value like any other and is filled exactly as it is stored).
+ */
+export function isSeedField(kind: string, key: string, value = ""): boolean {
+  return kind === "totp" || /^otpauth:\/\/totp\b/i.test(value.trim()) || /^(totp|totp_secret)$/i.test(key);
 }

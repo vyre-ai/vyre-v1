@@ -62,9 +62,6 @@ const GENERIC: readonly Rule[] = [
     "secret",
     2,
   ],
-  // A long bare token with no name, no prefix and no key in front of it: 40 or more token characters in one run, with letters and digits both in it, that is not a hash (all hex) and not words joined by hyphens.
-  // The run is read once from where it starts (the lookbehind is one character) and the checks that tell a token from prose are made on the match, so nothing here backtracks over a long run.
-  ["long-token", /(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{40,}(?![A-Za-z0-9_-])/g, "token"],
 ];
 
 export const PATTERNS: readonly Rule[] = [...VENDOR, ...GENERIC];
@@ -127,11 +124,6 @@ export function redact(input: unknown): Redacted {
       }
       if (group === 2 && NOT_SECRET_NAME.test(String(rest[0] ?? ""))) return m;
       const secret = group ? String(rest[group - 1] ?? m) : m;
-      if (name === "long-token") {
-        // letters and digits both, not a hash (all hex), not a slug of words (a hyphen or underscore every few characters)
-        if (!/\d/.test(m) || !/[A-Za-z]/.test(m) || /^[A-Fa-f0-9]+$/.test(m)) return m;
-        if ((m.match(/[-_]/g)?.length ?? 0) * 10 > m.length) return m;
-      }
       if (!secret || secret.length < 8) return m;
       // Placeholders help nobody when redacted, and markers must never be redacted again, or every re-index would chew further into the text.
       if (/^(\[|x{4,}|\*{4,}|<[^>]+>|\$\{?\w+\}?|redacted|changeme|your[-_])/i.test(secret)) return m;
@@ -153,7 +145,28 @@ export function redact(input: unknown): Redacted {
 }
 
 /** The kinds of secret in a text, without changing it. */
-export const scan = (text: unknown): string[] => redact(text).hits;
+/**
+ * A long bare token with no name, no prefix and no key in front of it: 40 or more token characters in one run, with letters and digits both in it, that is not a hash (all hex) and not words joined by hyphens.
+ * It is NOT one of the transcript rules: long base64, opaque ids and file names look like this and must stay readable in a conversation. A reader that sends a typed question outward asks for it by `bare`.
+ * The run is read once from where it starts (the lookbehind is one character) and the checks that tell a token from prose are made on each match.
+ */
+const BARE = /(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{40,}(?![A-Za-z0-9_-])/g;
+function hasBareToken(text: string): boolean {
+  for (const m of text.matchAll(BARE)) {
+    const t = m[0];
+    if (!/\d/.test(t) || !/[A-Za-z]/.test(t) || /^[A-Fa-f0-9]+$/.test(t)) continue;
+    if ((t.match(/[-_]/g)?.length ?? 0) * 10 > t.length) continue;
+    return true;
+  }
+  return false;
+}
+
+/** The kinds of secret in a text, without changing it. With `bare`, also a long bare token (for text typed to be sent outward, not for a transcript). */
+export function scan(text: unknown, o: { bare?: boolean } = {}): string[] {
+  const hits = redact(text).hits;
+  if (o.bare && typeof text === "string" && hasBareToken(text.slice(0, 4000))) return [...hits, "long-token"];
+  return hits;
+}
 
 // ---- text for a log -------------------------------------------------------------------------------------------------------------------------------------
 // redact() above is for text that is kept (transcripts, tool results) and keeps what looks like prose. A log line made from an error needs more: the error may echo anything an upstream said, a request body, a header, a
