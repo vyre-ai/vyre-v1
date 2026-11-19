@@ -30,7 +30,13 @@ export function createBackgroundPort(
       })) as { node: { id: string; status: string } };
       const id = started.node.id;
       const got = (await h.call("runs.node.claim", { runId: id, holder })) as { node?: unknown };
-      if (!got.node && started.node.status !== "running") return null;
+      if (!got.node && started.node.status !== "running") {
+        // no node is left queued for ever when the command is simply waited for instead
+        await h
+          .call("runs.node.move", { runId: id, to: "stopped", why: "stopped", stopReason: "not_started" })
+          .catch(() => undefined);
+        return null;
+      }
       const timer = setInterval(() => {
         void h
           .call("runs.node.beat", { runId: id, holder })
@@ -47,6 +53,7 @@ export function createBackgroundPort(
       stop(runId);
       try {
         await h.call("runs.node.move", {
+          holder,
           runId,
           to: outcome.held ? "stopped" : outcome.ok ? "succeeded" : "failed",
           why: outcome.held ? "stopped" : outcome.ok ? "done" : "failed",

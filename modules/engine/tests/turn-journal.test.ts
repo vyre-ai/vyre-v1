@@ -42,7 +42,7 @@ test("a call is one row that is written twice: started, then answered; a second 
   assert.equal(plan.tool, "send_email");
 });
 
-test("drop removes a turn's rows and no one else's; a row a week old is swept when the next call starts", () => {
+test("drop removes a turn's rows and no one else's; a row a day old is swept when the next call starts", () => {
   const h = harness();
   let now = 1_000;
   const j = sqlJournal(h.ctx.db, () => now);
@@ -51,7 +51,7 @@ test("drop removes a turn's rows and no one else's; a row a week old is swept wh
   j.drop("trn_1");
   assert.equal(j.list("trn_1").length, 0);
   assert.equal(j.list("trn_2").length, 1);
-  now = 1_000 + 8 * 86_400_000;
+  now = 1_000 + 25 * 3_600_000;
   j.put(entry({ turnId: "trn_3", at: now }));
   assert.equal(j.list("trn_2").length, 0, "a turn that was never resumed does not stay for ever");
   assert.equal(j.list("trn_3").length, 1);
@@ -67,4 +67,25 @@ test("held and own-tool calls say why the turn is not resumed", () => {
     ok.replay.map((e) => e.callId),
     ["c2"],
   );
+});
+
+test("the input of a call is kept without its secrets, a call so kept is never asked again, and the 24 hour rule holds for a turn nobody resumed", () => {
+  const h = harness();
+  const j = sqlJournal(h.ctx.db, () => 2_000);
+  j.put(
+    entry({
+      input: {
+        to: "a@b.example",
+        password: "hunter2",
+        note: "key sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ",
+        ref: "#Mail.password",
+      },
+      scrubbed: true,
+    }),
+  );
+  const got = j.list("trn_1")[0]!;
+  assert.equal(got.scrubbed, true);
+  const plan = planResume([{ ...got, state: "started", safety: "keyed" }]);
+  assert.equal(plan.resumable, false, "what would be sent is no longer what was sent");
+  assert.equal(plan.why, "unsafe_in_flight");
 });

@@ -25,6 +25,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.node.control": Handler<"runs.node.control", X>;
   "runs.node.event": Handler<"runs.node.event", X>;
   "runs.node.get": Handler<"runs.node.get", X>;
+  "runs.node.label": Handler<"runs.node.label", X>;
   "runs.node.move": Handler<"runs.node.move", X>;
   "runs.node.reclaim": Handler<"runs.node.reclaim", X>;
   "runs.node.start": Handler<"runs.node.start", X>;
@@ -43,6 +44,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.step_io": Handler<"runs.step_io", X>;
   "runs.steps": Handler<"runs.steps", X>;
   "runs.stop": Handler<"runs.stop", X>;
+  "runs.tree.find": Handler<"runs.tree.find", X>;
   "runs.tree.get": Handler<"runs.tree.get", X>;
   "runs.undo": Handler<"runs.undo", X>;
   "runs.wait_for": Handler<"runs.wait_for", X>;

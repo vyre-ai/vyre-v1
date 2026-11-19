@@ -2448,6 +2448,7 @@ export function stubs(ctx: CallCtx) {
         control: call("runs.node.control"),
         event: call("runs.node.event"),
         get: call("runs.node.get"),
+        label: call("runs.node.label"),
         move: call("runs.node.move"),
         reclaim: call("runs.node.reclaim"),
         start: call("runs.node.start"),
@@ -2468,6 +2469,7 @@ export function stubs(ctx: CallCtx) {
       steps: call("runs.steps"),
       stop: call("runs.stop"),
       tree: {
+        find: call("runs.tree.find"),
         get: call("runs.tree.get"),
       },
       undo: call("runs.undo"),

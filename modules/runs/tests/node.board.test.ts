@@ -1,7 +1,7 @@
 // The board and the messages of a tree (r42-runtime slice 5): evidence is required, disagreement is kept and asked about, a message is delivered once, in order, to a node that still lives, and the people who only watch see none of it.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { codeOf, harness, reasonOf } from "../fixtures/db.ts";
+import { codeOf, harness, hold, reasonOf } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, engine } from "../fixtures/seed.ts";
 
@@ -123,6 +123,11 @@ test("a message goes to a sibling or the parent, once, in order, and is told whe
     first.messages.map((m: any) => m.body),
     ["Pine's price changed to 3,820", "And delivery is included"],
   ); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    first.messages.map((m: any) => m.fromName),
+    ["Calder", "Calder"],
+    "each says who it is from, in words",
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal((await h.call("runs.message.take", { runId: b.id }, engine)).messages.length, 0, "delivered once");
   assert.equal((await h.call("runs.message.seen", { messageIds: [m1.message.id] }, engine)).marked, 1);
   const list = (await h.call("runs.message.list", { runId: a.id }, owner)).messages;
@@ -144,7 +149,7 @@ test("two nodes writing to one receiver at once are two messages in order; a mes
     reasonOf(await h.call("runs.message.send", { runId: a.id, to: other.id, body: "x" }, calder).catch((e) => e)),
     "not_in_tree",
   );
-  await h.call("runs.node.move", { runId: b.id, to: "stopped", why: "stopped" }, engine);
+  await h.call("runs.node.move", { ...hold(h, b.id), runId: b.id, to: "stopped", why: "stopped" }, engine);
   assert.equal(
     reasonOf(await h.call("runs.message.send", { runId: a.id, to: b.id, body: "x" }, calder).catch((e) => e)),
     "receiver_finished",
@@ -170,4 +175,28 @@ test("people who only watch the chat see no board and no messages; the log of th
   assert.ok(types.includes("board") && types.includes("message"));
   const seen = (await h.call("runs.events.list", { runId: root.id }, bob)).events;
   assert.equal(JSON.stringify(seen).includes("secret"), false);
+});
+
+test("only a node of the tree writes to its board: an agent whose node is in another tree is refused, on the board and by message", async () => {
+  const h = harness();
+  const { root, a } = await tree(h);
+  const other = (
+    await h.call("runs.node.start", { kind: "helper", owner: alice.id, whoKind: "agent", whoId: PINE }, engine)
+  ).node;
+  assert.equal(
+    codeOf(await put(h, pine, a.id, {}).catch((e) => e)),
+    "permission.not_found",
+    "pine's node is elsewhere; it cannot use calder's",
+  );
+  assert.equal(codeOf(await put(h, pine, root.id, {}).catch((e) => e)), "permission.not_found");
+  const ok = await put(h, pine, other.id, { text: "Pine writes to its own tree" });
+  assert.equal(ok.entry.rootRun, other.id, "and it lands on its own board, not on the other tree's");
+  assert.equal(
+    (await h.call("runs.board.list", { runId: root.id }, owner)).entries.some((e: any) => e.byRun === other.id),
+    false,
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.equal(
+    reasonOf(await h.call("runs.message.send", { runId: other.id, to: a.id, body: "hello" }, pine).catch((e) => e)),
+    "not_in_tree",
+  );
 });

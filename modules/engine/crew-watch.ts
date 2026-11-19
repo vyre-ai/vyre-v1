@@ -12,6 +12,7 @@ import type { StreamEvent } from "./handlers/bridge.ts";
 import { ensure } from "./projections.ts";
 import { workFolder } from "./sandbox.ts";
 import { agentDisplay } from "./agent-names.ts";
+import { createSubNodes } from "./sub-nodes.ts";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -36,6 +37,7 @@ export function cardBody(o: {
 }
 
 export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => number }): (e: StreamEvent) => void {
+  const subNodes = createSubNodes({ call: (cap, input, as) => o.host.call(cap, input, as), log: o.host.log });
   const ended = new Map<string, "done" | "failed" | "cancelled" | "waiting" | "lost">();
   const askers = new Map<string, string>(); // turnId -> the person it ran for, kept from its start for the result of a helper
   const warn = (msg: string, attrs: Record<string, unknown>): void => o.host.log?.(msg, attrs);
@@ -207,6 +209,11 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
 
   async function handle(e: StreamEvent): Promise<void> {
     ensure(o.db);
+    // the subagents of a command-line engine are nodes of the Run tree too (sub-nodes.ts); what they said and used goes to their record only
+    if (e.kind === "step" || e.kind === "sub") {
+      void subNodes.feed({ ...e, asker: askerOfTurn(e.turnId) ?? askers.get(e.turnId) ?? "" });
+      if (e.kind === "sub") return;
+    }
     // each step as it happens (the watcher is fed the raw stream, not the coalesced live line): a test run is read from its call, its command and its result
     if (e.kind === "step") {
       try {
@@ -260,7 +267,7 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
           /* nothing waiting */
         }
       }
-      if (e.kind === "end") ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);
+      if (e.kind === "end") ended.set(e.turnId, e.code === "host_lost" || e.code === "host_resumed" ? "lost" : e.state);
       if (e.kind === "final") await helperResult(e);
       return;
     }
@@ -273,7 +280,7 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
       return;
     }
     if (e.kind === "end") {
-      ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);
+      ended.set(e.turnId, e.code === "host_lost" || e.code === "host_resumed" ? "lost" : e.state);
       if (e.state === "waiting")
         o.db.run(
           "UPDATE engine_crew_job SET state = 'waiting' WHERE job_id = ? AND state = 'working'",

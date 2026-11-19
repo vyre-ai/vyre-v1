@@ -1,7 +1,7 @@
 // Who sees what of a tree (r42-runtime slice 3): the owner sees all; another person in the chat sees that work goes on, "Helper 1", state and clock, and nothing it was asked, said, found or spent; anyone else sees nothing.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { codeOf, harness } from "../fixtures/db.ts";
+import { codeOf, harness, hold } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, bob, engine } from "../fixtures/seed.ts";
 
@@ -51,6 +51,7 @@ async function built(h: Harness) {
   await h.call(
     "runs.node.move",
     {
+      ...hold(h, a.id),
       runId: a.id,
       to: "failed",
       why: "failed",
@@ -62,7 +63,13 @@ async function built(h: Harness) {
   await h.call("runs.node.claim", { runId: b.id, holder: "host:a" }, engine);
   await h.call(
     "runs.node.move",
-    { runId: b.id, to: "waiting", why: "slept", wake: { kind: "person", label: "Rubab's answer on Pine" } },
+    {
+      ...hold(h, b.id),
+      runId: b.id,
+      to: "waiting",
+      why: "slept",
+      wake: { kind: "person", label: "Rubab's answer on Pine" },
+    },
     engine,
   );
   return { root, a, b };
@@ -172,4 +179,67 @@ test("activity: a person sees their own live work, not finished work and not ano
     { id: "usr_admin", kind: "person" as const, depth: 0 },
   );
   assert.ok(all.rows.map((r: any) => r.runId).includes(other.id)); // eslint-disable-line @typescript-eslint/no-explicit-any
+});
+
+test("work in another chat that a person cannot open is not shown to them, though they may see the chat the tree began in", async () => {
+  const h = harness({ authorize: member });
+  const OTHER = `thr_${"f".repeat(32)}`;
+  const root = (await h.call("runs.node.start", { kind: "turn", owner: alice.id, threadId: THREAD }, engine)).node;
+  h.advance(1);
+  const here = (
+    await h.call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: root.id, threadId: THREAD }, engine)
+  ).node;
+  h.advance(1);
+  const there = (
+    await h.call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: root.id, threadId: OTHER }, engine)
+  ).node;
+  const tree = await h.call("runs.tree.get", { runId: root.id }, at0(bob));
+  const ids = tree.nodes.map((n: any) => n.id); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.ok(ids.includes(here.id));
+  assert.equal(ids.includes(there.id), false);
+});
+
+test("tree.find: the trees that ran in a chat, newest first, for people who may see them; a helper's own thread maps to its node; a stranger gets none", async () => {
+  const h = harness({ authorize: member });
+  const HELPER = `thr_${"9".repeat(32)}`;
+  const { root, a } = await built(h);
+  void a;
+  h.advance(1);
+  const kid = (
+    await h.call(
+      "runs.node.start",
+      { kind: "helper", owner: alice.id, parentRun: root.id, threadId: HELPER, name: "Own thread" },
+      engine,
+    )
+  ).node;
+  h.advance(1);
+  const later = (await h.call("runs.node.start", { kind: "turn", owner: alice.id, threadId: THREAD }, engine)).node;
+  const mine = await h.call("runs.tree.find", { threadId: THREAD }, at0(alice));
+  assert.deepEqual(
+    mine.roots.map((r: any) => r.rootRun),
+    [later.id, root.id],
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.equal(
+    mine.roots.every((r: any) => r.full),
+    true,
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const helper = await h.call("runs.tree.find", { threadId: HELPER }, at0(alice));
+  assert.deepEqual(
+    helper.roots.map((r: any) => [r.rootRun, r.runId]),
+    [[root.id, kid.id]],
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const watcher = await h.call("runs.tree.find", { threadId: THREAD }, at0(bob));
+  assert.equal(watcher.roots.length > 0 && watcher.roots.every((r: any) => r.full === false), true); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    (await h.call("runs.tree.find", { threadId: THREAD }, { id: "usr_carol", kind: "person" as const, depth: 0 }))
+      .roots,
+    [],
+  );
+  await h.call("runs.node.move", { runId: later.id, to: "stopped", why: "stopped" }, engine);
+  const live = await h.call("runs.tree.find", { threadId: THREAD, active: true }, at0(alice));
+  assert.equal(
+    live.roots.some((r: any) => r.rootRun === later.id),
+    false,
+    "a finished tree is not active",
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
 });

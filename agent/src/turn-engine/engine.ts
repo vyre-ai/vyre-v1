@@ -12,7 +12,7 @@ import { payLine } from "../accounts/paid.ts";
 import { createMemoryQueue } from "./queue.ts";
 import type { QueueStore } from "./queue.ts";
 import { HEARTBEAT_MS, createMemoryLeases } from "./lease.ts";
-import { createMemoryJournal, planResume, resumeNote, summaryOf } from "./journal.ts";
+import { createMemoryJournal, planResume, resumeNote, scrubInput, summaryOf } from "./journal.ts";
 import type { JournalStore, ResumePlan, Safety } from "./journal.ts";
 import type { LeaseStore } from "./lease.ts";
 import { createMemoryMessages, createMemoryWaits } from "./stores.ts";
@@ -189,6 +189,15 @@ export interface EngineOptions {
    * that had called tools when its host died is resumed from its journal instead of ending host_lost; without it every such turn ends host_lost, as before.
    */
   toolSafety?: (name: string) => Safety;
+  /**
+   * What other nodes of the work have said to this turn since it last asked (messages between helpers of one job): read after each tool call and handed to the model at the step boundary, like a person's steering.
+   * Each is the sender's name and the words. A failure is no news: the turn goes on.
+   */
+  takeNotes?: (c: {
+    threadId: string;
+    turnId: string;
+    agentId: string;
+  }) => Promise<ReadonlyArray<{ from: string; body: string }>>;
   /** Where the tool calls of a turn are written as they happen. Memory by default; the engine module keeps them in SQL. */
   journal?: JournalStore;
   /** Most reads run at the same time. Default 6. */
@@ -428,6 +437,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const toolLog = opts.journal ?? createMemoryJournal();
   const resumes = new Map<string, ResumePlan & { turnId: string }>();
   const keySeq = new Map<string, number>();
+  const noted = new Map<string, Array<{ from: string; body: string }>>();
   const rowKey = (threadId: string, qseq: number): string => `${threadId}:${qseq}`;
   const leases = opts.leases ?? createMemoryLeases();
   const messages = opts.messages ?? createMemoryMessages();
@@ -481,11 +491,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (
       (e.type === "turn.completed" ||
         e.type === "turn.cancelled" ||
-        (e.type === "turn.failed" && e.code !== "host_lost")) &&
+        (e.type === "turn.failed" && e.code !== "host_lost" && e.code !== "host_resumed")) &&
       "turnId" in e
     )
       try {
         toolLog.drop(e.turnId);
+        noted.delete(e.turnId);
       } catch {
         /* the journal never fails an event */
       }
@@ -1016,6 +1027,20 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   function steerBoundary(st: ThreadState, run: Running, turn: TurnRow): void {
     if (!run.session) return;
+    const said = noted.get(turn.id);
+    if (said && said.length > 0) {
+      noted.delete(turn.id);
+      for (const n of said)
+        run.session.inject({
+          id: `note:${turn.id}:${noted.size}:${n.from}`,
+          threadId: st.thread.id,
+          threadSeq: 0,
+          author: { kind: "agent", id: n.from },
+          mentions: [],
+          depth: 0,
+          body: n.body,
+        });
+    }
     for (const row of queue.steerable(st.thread.id, run.agentId)) {
       const msg = findMessage(st, row.messageId);
       if (!msg) continue;
@@ -1914,26 +1939,33 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     ctx: ToolContext,
   ): Promise<ToolRunResult> {
     if (!fn) return { ok: false, content: { code: "no_tools", message: "this engine has no tool runner" } };
+    const kept = scrubInput(call.input);
     const entry = (
       state: "started" | "done" | "failed" | "held",
       more: { summary?: string; endedAt?: number } = {},
-    ) => {
-      if (!opts.toolSafety) return;
+    ): boolean => {
+      if (!opts.toolSafety) return true;
       try {
         toolLog.put({
           threadId: ctx.threadId,
           turnId: ctx.turnId,
           callId: call.id,
           name: call.name,
-          input: call.input,
+          input: kept.value,
+          ...(kept.changed ? { scrubbed: true } : {}),
           ...(callKey === undefined ? {} : { callKey }),
           safety: opts.toolSafety(call.name),
           state,
           at: begun,
           ...more,
         });
-      } catch {
-        /* a journal that cannot be written never fails a tool call */
+        return true;
+      } catch (e) {
+        opts.log?.("a tool call could not be written to the journal", {
+          turnId: ctx.turnId,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return false;
       }
     };
     const begun = now();
@@ -1942,10 +1974,29 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (callKey !== undefined && ctx.callKey === undefined) keySeq.set(ctx.turnId, (keySeq.get(ctx.turnId) ?? 0) + 1);
     if (keySeq.size > 500) keySeq.delete(keySeq.keys().next().value as string);
     ctx = callKey === undefined ? ctx : { ...ctx, callKey };
-    entry("started");
+    // journal first, then act: a call that may change something is not made unless it is on record as started, or a resumed turn could not know it went out and might send it again
+    if (!entry("started") && opts.toolSafety!(call.name) !== "read")
+      return {
+        ok: false,
+        content: {
+          code: "journal_failed",
+          message: "That could not be started just now: nothing was done. Try it again.",
+        },
+      };
     try {
       const r = await fn(call, ctx);
-      entry(r.held ? "held" : r.ok ? "done" : "failed", { summary: summaryOf(r.content), endedAt: now() });
+      entry(r.held ? "held" : r.ok ? "done" : "failed", {
+        summary: summaryOf(scrubInput(r.content).value),
+        endedAt: now(),
+      });
+      if (opts.takeNotes && !r.held) {
+        try {
+          const got = await opts.takeNotes({ threadId: ctx.threadId, turnId: ctx.turnId, agentId: ctx.agentId });
+          if (got.length > 0) noted.set(ctx.turnId, [...(noted.get(ctx.turnId) ?? []), ...got]);
+        } catch {
+          /* no news is not a failure */
+        }
+      }
       return r;
     } catch (e) {
       entry("failed", { summary: "the tool failed", endedAt: now() });
@@ -2250,7 +2301,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           threadId,
           turnId: lostId,
           agentId: row.agentId,
-          code: "host_lost",
+          code: plan?.resumable ? "host_resumed" : "host_lost",
           qseq: row.qseq,
           asker: row.from.startsWith("usr_") ? row.from : st.thread.starter,
         });

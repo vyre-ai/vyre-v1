@@ -188,6 +188,7 @@ const nodeMessage = t.obj({
   at: t.ts(),
   deliveredAt: t.opt(t.ts()),
   seenAt: t.opt(t.ts()),
+  fromName: t.opt(t.str()),
 });
 const nodeTarget = { runId: id.run };
 
@@ -253,7 +254,7 @@ export default defineManifest({
     }),
     ev(
       "run.node_ended",
-      "A node of the agent work tree is over (done, failed or stopped); a Run that sleeps until it waits on this event",
+      "A node of the agent work tree is over (done, failed or stopped); it carries no words, so everyone who may hear of it learns state only: read the node for what it found. Native nodes only: a routine, wait or terminal Run mirrored into the tree is waited for as a Run",
       {
         p: {
           runId: id.run,
@@ -360,6 +361,10 @@ export default defineManifest({
         emits: ["run.node_state", "run.node_ended"],
       },
     ),
+    write("runs.node.label", "Give a node its name, once the task it was asked is known (the server)", {
+      in: { ...nodeTarget, name: t.str({ maxLength: 120 }) },
+      out: { ok: t.bool() },
+    }),
     write(
       "runs.node.move",
       "Move a node to another state; the one way a node changes state (a node already there answers as a no-op, a finished one refuses)",
@@ -445,6 +450,26 @@ export default defineManifest({
       out: { node: nodeRow },
       on: ["run", "/runId"],
     }),
+    read(
+      "runs.tree.find",
+      "The trees of agent work that ran in a chat or in a helper's own thread, newest first, with the root of each (only those the person may see; full says whether they see all of it or only that it goes on)",
+      {
+        in: { threadId: id.thread, active: t.opt(t.bool()), limit: t.opt(t.int({ minimum: 1, maximum: 100 })) },
+        out: {
+          roots: t.arr(
+            t.obj({
+              rootRun: id.run,
+              runId: id.run,
+              kind: nodeKind,
+              status: nodeStatus,
+              startedAt: t.ts(),
+              endedAt: t.opt(t.ts()),
+              full: t.bool(),
+            }),
+          ),
+        },
+      },
+    ),
     read(
       "runs.tree.get",
       "Read a whole tree of agent work: every node, with what each has spent and what it waits for",

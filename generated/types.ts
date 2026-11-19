@@ -35669,6 +35669,7 @@ export type RunsMessageListOut = {
       at: number;
       deliveredAt?: number;
       seenAt?: number;
+      fromName?: string;
     }>;
 };
 export type RunsMessageSeenIn = {
@@ -35693,6 +35694,7 @@ export type RunsMessageSendOut = {
     at: number;
     deliveredAt?: number;
     seenAt?: number;
+    fromName?: string;
   };
   duplicate: boolean;
 };
@@ -35709,6 +35711,7 @@ export type RunsMessageTakeOut = {
       at: number;
       deliveredAt?: number;
       seenAt?: number;
+      fromName?: string;
     }>;
 };
 export type RunsNodeBeatIn = {
@@ -35886,6 +35889,13 @@ export type RunsNodeGetOut = {
     endedAt?: number;
     updatedAt: number;
   };
+};
+export type RunsNodeLabelIn = {
+  runId: string;
+  name: string;
+};
+export type RunsNodeLabelOut = {
+  ok: boolean;
 };
 export type RunsNodeMoveIn = {
   runId: string;
@@ -36311,6 +36321,22 @@ export type RunsStopOut = {
       channelId?: string;
     };
   };
+};
+export type RunsTreeFindIn = {
+  threadId: string;
+  active?: boolean;
+  limit?: number;
+};
+export type RunsTreeFindOut = {
+  roots: Array<{
+      rootRun: string;
+      runId: string;
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+      startedAt: number;
+      endedAt?: number;
+      full: boolean;
+    }>;
 };
 export type RunsTreeGetIn = {
   runId: string;
@@ -50634,6 +50660,7 @@ export interface CapMap {
   "runs.node.control": { in: RunsNodeControlIn; out: RunsNodeControlOut };
   "runs.node.event": { in: RunsNodeEventIn; out: RunsNodeEventOut };
   "runs.node.get": { in: RunsNodeGetIn; out: RunsNodeGetOut };
+  "runs.node.label": { in: RunsNodeLabelIn; out: RunsNodeLabelOut };
   "runs.node.move": { in: RunsNodeMoveIn; out: RunsNodeMoveOut };
   "runs.node.reclaim": { in: RunsNodeReclaimIn; out: RunsNodeReclaimOut };
   "runs.node.start": { in: RunsNodeStartIn; out: RunsNodeStartOut };
@@ -50652,6 +50679,7 @@ export interface CapMap {
   "runs.step_io": { in: RunsStepIoIn; out: RunsStepIoOut };
   "runs.steps": { in: RunsStepsIn; out: RunsStepsOut };
   "runs.stop": { in: RunsStopIn; out: RunsStopOut };
+  "runs.tree.find": { in: RunsTreeFindIn; out: RunsTreeFindOut };
   "runs.tree.get": { in: RunsTreeGetIn; out: RunsTreeGetOut };
   "runs.undo": { in: RunsUndoIn; out: RunsUndoOut };
   "runs.wait_for": { in: RunsWaitForIn; out: RunsWaitForOut };

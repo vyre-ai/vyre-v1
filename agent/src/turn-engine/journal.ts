@@ -1,3 +1,5 @@
+import { looksSecretContent } from "../../../lib/secret-files.ts";
+import { redact } from "../drivers/cli/redact.ts";
 // The journal of a turn's tool calls (r42-runtime): what a turn did, written as it did it, so a server that stopped under a turn that had already called tools can resume it instead of ending it host_lost.
 // A call is written when it starts and again when it ends. On recovery the journal says which calls finished (their short result goes into the resumed turn's note), which were in flight, and whether it is safe to
 // go on: a read or a call that carries an idempotency key can be asked again with the same key and the server answers once; anything else that was in flight may have changed the world, so the turn is NOT resumed
@@ -17,6 +19,8 @@ export interface JournalEntry {
   state: "started" | "done" | "failed" | "held";
   /** at most JOURNAL_SUMMARY characters of what it answered, or the error code */
   summary?: string;
+  /** the input kept had a secret taken out of it (see scrubInput): a call like that cannot be asked again, because the input that would be sent is no longer the one that was */
+  scrubbed?: boolean;
   /** the call came from an engine that runs its own tools (a block, not a call this engine ran): it can never be asked again */
   own?: boolean;
   at: number;
@@ -61,9 +65,40 @@ export function planResume(entries: readonly JournalEntry[]): ResumePlan {
   const own = entries.find((e) => e.own === true);
   if (own) return { resumable: false, why: "own_tool", tool: own.name, done, replay: [] };
   if (entries.some((e) => e.state === "held")) return { resumable: false, why: "held", done, replay: [] };
-  const bad = flight.find((e) => e.safety === "unsafe");
+  const bad = flight.find((e) => e.safety === "unsafe" || e.scrubbed === true);
   if (bad) return { resumable: false, why: "unsafe_in_flight", tool: bad.name, done, replay: [] };
   return { resumable: true, done, replay: flight };
+}
+
+const SECRET_KEY = /(pass(word|wd)?|secret|token|api[-_]?key|authorization|credential|cookie|private[-_]?key|seal)/i;
+/**
+ * The input of a call as it may be kept: a field whose name says it is a secret, a held token, and anything that reads like a key or a certificate are replaced by [secret]. A Vault reference (#Handle.field) is not a
+ * value and stays. `changed` says something was taken out; such a call is never asked again after a restart, since what would be sent is not what was sent.
+ */
+export function scrubInput(input: unknown): { value: unknown; changed: boolean } {
+  let changed = false;
+  const walk = (v: unknown, key: string, depth: number): unknown => {
+    if (depth > 12) return "[cut]";
+    if (typeof v === "string") {
+      if (/^#[A-Za-z][\w-]*\.[\w.-]+$/.test(v)) return v;
+      if (SECRET_KEY.test(key) || looksSecretContent(v) || redact(v) !== v) {
+        changed = true;
+        return "[secret]";
+      }
+      return v.length > 4000 ? `${v.slice(0, 3999)}…` : v;
+    }
+    if (Array.isArray(v)) return v.slice(0, 200).map((x) => walk(x, key, depth + 1));
+    if (v !== null && typeof v === "object")
+      return Object.fromEntries(
+        Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, walk(x, k, depth + 1)]),
+      );
+    if (SECRET_KEY.test(key) && v !== null && v !== undefined && v !== false) {
+      changed = true;
+      return "[secret]";
+    }
+    return v;
+  };
+  return { value: walk(input, "", 0), changed };
 }
 
 const clip = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1)}…`);

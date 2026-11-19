@@ -22,6 +22,7 @@ import {
   getNode,
   isTerminal,
   liveNodes,
+  nodesOfThread,
   moveNode,
   pauseSubtree,
   reclaimExpired,
@@ -76,6 +77,15 @@ export async function nodeStart(ctx: RunsCtx, input: In): Promise<unknown> {
 }
 export async function nodeMove(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
+  // a worker's move is fenced by its lease: once the node was taken from it (its lease ran out and another worker claimed it, or it was queued again as the next attempt) a late move of the old worker is refused
+  const cur = getNode(ctx, input.runId);
+  if (cur.leaseHolder !== undefined && input.holder !== cur.leaseHolder)
+    raise(ctx, "validation.precondition_failed", "That run belongs to another worker now.", { reason: "not_holder" });
+  if (input.attempt !== undefined && input.attempt !== cur.attempt)
+    raise(ctx, "validation.precondition_failed", "That run has started again since.", {
+      reason: "stale_attempt",
+      attempt: cur.attempt,
+    });
   const { node, changed } = moveNode(ctx, input.runId, input.to as NodeStatus, {
     why: input.why as Why,
     expectedVersion: input.expectedVersion,
@@ -152,10 +162,11 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
           });
         }
       }
-      moved =
-        input.subtree === false
-          ? [moveNode(ctx, n.id, "stopped", { why: "stopped", stopReason: reason, by }).node]
-          : stopSubtree(ctx, n.id, reason, by);
+      const live = scope.filter((x) => !isTerminal(x.status)).map((x) => x.id);
+      if (input.subtree === false) moveNode(ctx, n.id, "stopped", { why: "stopped", stopReason: reason, by });
+      else stopSubtree(ctx, n.id, reason, by);
+      // the engine's own end of a turn (turn.cancelled, mirrored) may have closed a node before this did: the answer is where each node stands now
+      moved = live.map((id) => getNode(ctx, id));
     }
   } else if (input.action === "pause") {
     if (n.status === "paused") moved = [n];
@@ -255,8 +266,13 @@ export async function treeGet(ctx: RunsCtx, input: In): Promise<unknown> {
   const last = lastSeq(ctx, n.rootRun);
   if (full) return { nodes: nodes.map(nodeOut), spent: subtreeSpent(ctx.db, n.id), lastSeq: last };
   const labels = labelsOf(all);
+  // work in another chat (a handoff, a helper's own thread) that this person cannot open is not shown to them at all
+  const mayOpen = (x: Node): boolean =>
+    x.threadId === undefined ||
+    x.threadId === (findNode(ctx.db, n.rootRun)?.threadId ?? n.threadId) ||
+    ctx.authorize?.({ perm: null, level: "view" }, { type: "thread", id: x.threadId }).effect === "allow";
   return {
-    nodes: nodes.map((x) => redactedOut(x, labels.get(x.id) ?? "Work")),
+    nodes: nodes.filter(mayOpen).map((x) => redactedOut(x, labels.get(x.id) ?? "Work")),
     spent: { tokensIn: 0, tokensOut: 0, cacheRead: 0, usdMicros: 0, calls: 0 },
     lastSeq: last,
   };
@@ -376,7 +392,13 @@ export async function messageTakeCap(ctx: RunsCtx, input: In): Promise<unknown> 
   if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
     raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
   getNode(ctx, input.runId);
-  return { messages: takeMessages(ctx, input.runId) };
+  // each carries who it is from, in words, so the receiver reads "Pine: the price changed", not an id
+  return {
+    messages: takeMessages(ctx, input.runId).map((m) => {
+      const from = findNode(ctx.db, m.fromRun);
+      return { ...m, fromName: from?.name ?? from?.kind ?? "A helper" };
+    }),
+  };
 }
 export async function messageSeenCap(ctx: RunsCtx, input: In): Promise<unknown> {
   if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
@@ -386,4 +408,39 @@ export async function messageSeenCap(ctx: RunsCtx, input: In): Promise<unknown> 
 export async function messageListCap(ctx: RunsCtx, input: In): Promise<unknown> {
   const n = fullOnly(ctx, input.runId);
   return { messages: input.tree === true ? messagesInTree(ctx.db, n.rootRun) : messagesOf(ctx.db, n.id) };
+}
+
+/** The trees of work that ran in a chat (or a helper's thread), newest first, each with the node that ran there and the root to read the tree from. Only trees the person may see, in full or as a watcher. */
+export async function treeFind(ctx: RunsCtx, input: In): Promise<unknown> {
+  const out: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  for (const n of nodesOfThread(ctx.db, input.threadId, input.active === true, Math.min(100, input.limit ?? 30) * 3)) {
+    if (seen.has(n.rootRun)) continue; // one line per tree: the newest node of it that ran here
+    seen.add(n.rootRun);
+    try {
+      const { full } = look(ctx, n.id);
+      out.push({
+        rootRun: n.rootRun,
+        runId: n.id,
+        kind: n.kind,
+        status: n.status,
+        startedAt: n.startedAt,
+        ...(n.endedAt === undefined ? {} : { endedAt: n.endedAt }),
+        full,
+      });
+    } catch {
+      /* not theirs to see */
+    }
+    if (out.length >= Math.min(100, input.limit ?? 30)) break;
+  }
+  return { roots: out };
+}
+
+export async function nodeLabel(ctx: RunsCtx, input: In): Promise<unknown> {
+  systemOnly(ctx);
+  const n = getNode(ctx, input.runId);
+  const name = String(input.name).trim();
+  if (name !== "" && n.name === undefined)
+    ctx.db.run("UPDATE runs_node SET name = ?, updated_at = ? WHERE run_id = ?", name, ctx.now(), n.id);
+  return { ok: true };
 }

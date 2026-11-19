@@ -448,14 +448,9 @@ function announce(ctx: RunsCtx, n: Node, from: NodeStatus | null, to: NodeStatus
   );
   // one event that says "this node is over", whichever way: what a parent that sleeps until it ends waits on (a wait on event run.node_ended with the node's runId)
   if (isTerminal(to))
-    ctx.emit(
-      "run.node_ended",
-      `run/${n.id}`,
-      clean({ runId: n.id, rootRun: n.rootRun, kind: n.kind, to, summary: n.summary?.slice(0, 300) }),
-      {
-        vis: "participants",
-      },
-    );
+    ctx.emit("run.node_ended", `run/${n.id}`, clean({ runId: n.id, rootRun: n.rootRun, kind: n.kind, to }), {
+      vis: "participants",
+    });
 }
 
 // ---- move ----
@@ -505,6 +500,9 @@ export function moveNode(ctx: RunsCtx, id: string, to: NodeStatus, o: MoveOpts):
         to,
       },
     );
+  // a node that wakes while something above it is paused does not run: it is paused on wake
+  if (cur.status === "waiting" && to === "queued" && ancestorPaused(ctx.db, cur))
+    return moveNode(ctx, id, "paused", { ...o, why: "parent_paused" });
   const now = ctx.now();
   const ending = isTerminal(to);
   const leaving = to !== "running";
@@ -570,6 +568,16 @@ export function moveNode(ctx: RunsCtx, id: string, to: NodeStatus, o: MoveOpts):
   return { node, changed: true };
 }
 
+function ancestorPaused(db: Db, n: Node): boolean {
+  for (let p = n.parentRun, i = 0; p !== undefined && i < 64; i++) {
+    const a = findNode(db, p);
+    if (!a) return false;
+    if (a.status === "paused") return true;
+    p = a.parentRun;
+  }
+  return false;
+}
+
 /** Stop a node and every unfinished node under it, parents first so a child cannot wake a parent that is going. A finished node stays as it is. */
 export function stopSubtree(ctx: RunsCtx, id: string, reason: string | undefined, by?: string): Node[] {
   const out: Node[] = [];
@@ -585,7 +593,8 @@ export function stopSubtree(ctx: RunsCtx, id: string, reason: string | undefined
 export function pauseSubtree(ctx: RunsCtx, id: string, by?: string): Node[] {
   const out: Node[] = [];
   for (const n of subtreeOf(ctx.db, id)) {
-    if (n.status !== "queued" && n.status !== "running" && n.status !== "waiting") continue;
+    // a sleeping node stays asleep: it is paused when it wakes into a paused parent (moveNode)
+    if (n.status !== "queued" && n.status !== "running") continue;
     out.push(moveNode(ctx, n.id, "paused", { why: n.id === id ? "paused" : "parent_paused", by }).node);
   }
   return out;
@@ -704,4 +713,19 @@ export function liveNodes(db: Db, owner: string | undefined, limit: number): Nod
         )
   ) as Row[];
   return rows.map(nodeOf);
+}
+
+/** The nodes that ran in one chat or helper thread, newest first, with the root of each tree. active: only trees that still have a live node. */
+export function nodesOfThread(db: Db, threadId: string, active: boolean, limit: number): Node[] {
+  const rows = (
+    db.all(
+      active
+        ? `SELECT n.* FROM runs_node n WHERE n.thread_id = ? AND EXISTS (SELECT 1 FROM runs_node l WHERE l.root_run = n.root_run AND l.status IN ('queued','running','waiting','paused'))
+           ORDER BY n.started_at DESC, n.run_id DESC LIMIT ?`
+        : "SELECT * FROM runs_node WHERE thread_id = ? ORDER BY started_at DESC, run_id DESC LIMIT ?",
+      threadId,
+      limit,
+    ) as Row[]
+  ).map(nodeOf);
+  return rows;
 }

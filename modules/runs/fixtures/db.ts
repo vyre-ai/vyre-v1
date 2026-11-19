@@ -164,3 +164,14 @@ export function codeOf(e: unknown): string | undefined {
 export function reasonOf(e: unknown): unknown {
   return ((e as { error?: { details?: { reason?: unknown } } } | null)?.error?.details ?? {}).reason;
 }
+
+/** The lease a node is held under, as a move names it: {} when nobody holds it. A worker's move carries it (runs.node.move is fenced by it). */
+export function hold(
+  h: { sqlite: { prepare(sql: string): { get(...a: unknown[]): unknown } } },
+  runId: string,
+): { holder?: string } {
+  const r = h.sqlite.prepare("SELECT lease_holder FROM runs_node WHERE run_id = ?").get(runId) as
+    | { lease_holder: string | null }
+    | undefined;
+  return r?.lease_holder ? { holder: r.lease_holder } : {};
+}

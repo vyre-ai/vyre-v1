@@ -1062,7 +1062,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           now,
           stream: (e) => {
             if (e.kind === "final" && e.messageId) linkPosted(e);
-            live?.(e);
+            // what a subagent said and used is for its record only: it never reaches the live view
+            if (e.kind !== "sub") live?.(e);
             crewWatch?.(e);
           },
           addressAsker: (threadId, agentId) => {
@@ -1150,6 +1151,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       ...(h.postAs ? { postAs: h.postAs } : {}),
       ...(h.log ? { log: h.log } : {}),
     });
+    // every turn is also a node of the Run tree (node-mirror.ts); it never holds a turn up
+    const mirror = createNodeMirror({ call: h.call, ...(h.log ? { log: h.log } : {}) });
     const engine = createTurnEngine({
       hooks: hooksPort,
       holder: h.holder,
@@ -1240,6 +1243,15 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       messages: sqlMessages(ctx.db, now),
       waits: sqlWaits(ctx.db),
       journal: sqlJournal(ctx.db, now),
+      // what other nodes of this work told this turn (runs.message.take): handed over at the next step boundary
+      takeNotes: async (c) => {
+        const id = mirror.nodeFor(c.turnId);
+        if (!id) return [];
+        const r = (await h.call("runs.message.take", { runId: id })) as {
+          messages?: Array<{ body: string; fromName?: string }>;
+        };
+        return (r.messages ?? []).map((m) => ({ from: m.fromName ?? "A helper", body: m.body }));
+      },
       newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
@@ -1362,7 +1374,6 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // Every turn this engine runs is reported to engine.turn.record under the engine's own id, in order per turn, so the turn list, review sampling and the agent's Working status see it.
     const recording = new Map<string, Promise<void>>();
     // every turn is also a node of the Run tree (node-mirror.ts); it never holds a turn up
-    const mirror = createNodeMirror({ call: h.call, ...(h.log ? { log: h.log } : {}) });
     const report = (
       turnId: string,
       ev: Extract<
@@ -1525,14 +1536,14 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       else if (
         ev.type === "turn.completed" ||
         (ev.type === "turn.cancelled" && ev.asker === undefined) ||
-        (ev.type === "turn.failed" && ev.code !== "host_lost") ||
+        (ev.type === "turn.failed" && ev.code !== "host_lost" && ev.code !== "host_resumed") ||
         (ev.type === "turn.waiting" && ev.reason === "approval")
       ) {
         awake.down();
         h.turns?.(awake.running());
       }
       // a turn a dead host left is not in this engine's rows: its record is closed from what recover() knows, so the turn list, Try again and the agent's Working status are right
-      if (ev.type === "turn.failed" && ev.code === "host_lost") {
+      if (ev.type === "turn.failed" && (ev.code === "host_lost" || ev.code === "host_resumed")) {
         void mirror.turn(
           { id: ev.turnId, threadId: ev.threadId, agentId: ev.agentId, ...(ev.asker ? { asker: ev.asker } : {}) },
           "failed",
