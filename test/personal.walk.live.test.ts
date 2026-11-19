@@ -470,10 +470,8 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       // the plus shows while the pointer is over the head (and on focus, and always on touch)
       await page.getByTestId("head-team").hover({ timeout: 10_000 });
       await page.getByTestId("head-plus-team").first().click({ timeout: 10_000 });
-      await page
-        .getByRole("menuitem", { name: /^New agent/ })
-        .first()
-        .click({ timeout: 10_000 });
+      // a Personal Space's Team plus has one thing to make (a person cannot be invited), so it makes it at once: no menu
+      // (the plus of a head with one item runs it; a head with two opens a menu)
       // the New agent form opens at once: a name, then Save
       await page.getByTestId("agent-name").fill("Walk Agent", { timeout: 10_000 });
       await page.getByTestId("agent-save").click({ timeout: 10_000 });
