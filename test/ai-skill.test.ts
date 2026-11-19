@@ -1,10 +1,10 @@
 // An AI step in Answer mode has no tools, so a prompt that asks it to load a skill is told how to get that (r40 audit, gap 7): a warning when the Flow is checked, and the brief says so to the model.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildBrief } from "../../steps-core/handlers/brief.ts";
-import { asksForSkill, SKILL_NEEDS_TASK } from "../../../lib/ai-skill-hint.ts";
-import { validateDefinition } from "../handlers/defs.ts";
-import type { Definition } from "../projections.ts";
+import { buildBrief } from "../modules/steps-core/handlers/brief.ts";
+import { asksForSkill, SKILL_NEEDS_TASK } from "../lib/ai-skill-hint.ts";
+import { validateDefinition } from "../modules/automations/handlers/defs.ts";
+import type { Definition } from "../modules/automations/projections.ts";
 
 const POLICY = {
   maxChainDepth: 8,
