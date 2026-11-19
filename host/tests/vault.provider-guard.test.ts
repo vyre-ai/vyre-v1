@@ -35,9 +35,18 @@ test("with no fetch and no accept mode the key check refuses loudly and never re
 });
 
 test("accept mode accepts a fixture key, and a fetch handed in is used", async () => {
-  await withEnv({ VYRE_TEST_KEY_CHECK: "accept" }, async () => {
-    assert.equal((await createProviderProbe()(ask)).ok, true);
-  });
+  const MARK = Symbol.for("vyre.test-runner");
+  const g = globalThis as Record<symbol, unknown>,
+    was = g[MARK];
+  g[MARK] = true; // accept mode is honoured only inside the test runner (host/src/test-mode.ts)
+  try {
+    await withEnv({ VYRE_TEST_KEY_CHECK: "accept" }, async () => {
+      assert.equal((await createProviderProbe()(ask)).ok, true);
+    });
+  } finally {
+    if (was === undefined) delete g[MARK];
+    else g[MARK] = was;
+  }
   await withEnv({ NODE_TEST_CONTEXT: "child-v8", VYRE_TEST_KEY_CHECK: undefined }, async () => {
     const fetchFn = (() =>
       Promise.resolve(new Response(JSON.stringify({ data: [{ id: "m1" }] }), { status: 200 }))) as never;

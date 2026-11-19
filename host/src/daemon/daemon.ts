@@ -373,6 +373,7 @@ import { openDb, readLogMeta } from "./sqlite.ts";
 import { openInviteHashes } from "./invite-hashes.ts";
 import { bindSpacePorts, unbindSpacePorts } from "./module-ports.ts";
 import type { HostDb } from "./sqlite.ts";
+import { ignoreTestSwitches } from "../test-mode.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The repo (or install) root that holds generated/, modules/ and host/modules.json. */
@@ -748,6 +749,7 @@ const bootFoldTypes: readonly string[] = [
 ];
 
 export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
+  ignoreTestSwitches();
   const cfg = o.config;
   const now = o.now ?? Date.now;
   // What holds a GitHub installation token for one use: the token is delivered once, to the git module's credential slot (a ref), and read back by the git host. It is no Vault item and is never stored.
