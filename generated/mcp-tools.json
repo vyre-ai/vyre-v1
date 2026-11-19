@@ -34329,40 +34329,6 @@
     },
     {
       "blocks": [],
-      "cap": "journeys.adopt",
-      "deferred": false,
-      "description": "Bring a pipeline type's existing records into the Journey by their stage field, a page at a time",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "cursor": {
-            "type": "string"
-          },
-          "journeyId": {
-            "examples": [
-              "jrn_a1b2c3"
-            ],
-            "pattern": "^jrn_[a-z0-9]+$",
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 500,
-            "minimum": 1,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "journeyId"
-        ],
-        "type": "object"
-      },
-      "name": "journeys_adopt",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "journeys.create",
       "deferred": false,
       "description": "Create a Journey and its record type (cloned from the Projects template) on a subject record type",
@@ -35119,32 +35085,6 @@
     },
     {
       "blocks": [],
-      "cap": "journeys.migration_state",
-      "deferred": false,
-      "description": "Where the move onto the pipeline stands",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "journeyId": {
-            "examples": [
-              "jrn_a1b2c3"
-            ],
-            "pattern": "^jrn_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "journeyId"
-        ],
-        "type": "object"
-      },
-      "name": "journeys_migration_state",
-      "planMode": "allowed",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "journeys.move_stage",
       "deferred": false,
       "description": "Move a Journey record to another stage by hand; the reason is required and handoffs post in the record channel",
@@ -35457,7 +35397,7 @@
       "blocks": [],
       "cap": "journeys.test_path",
       "deferred": false,
-      "description": "Try every stage's Automations on one record as tests; sends and writes are held",
+      "description": "Test every stage's Automations on a record; nothing is sent",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -35483,61 +35423,6 @@
       },
       "name": "journeys_test_path",
       "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "journeys.to_pipeline",
-      "deferred": false,
-      "description": "Move a Journey onto its subject type as a pipeline; run again after a stop, nothing is deleted",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "journeyId": {
-            "examples": [
-              "jrn_a1b2c3"
-            ],
-            "pattern": "^jrn_[a-z0-9]+$",
-            "type": "string"
-          },
-          "stageField": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "journeyId"
-        ],
-        "type": "object"
-      },
-      "name": "journeys_to_pipeline",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "journeys.values.get",
-      "deferred": false,
-      "description": "Values a Journey carries for a record",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "recordId": {
-            "examples": [
-              "rec_a1b2c3"
-            ],
-            "pattern": "^rec_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "recordId"
-        ],
-        "type": "object"
-      },
-      "name": "journeys_values_get",
-      "planMode": "allowed",
       "toolset": "automations",
       "v": 1
     },
@@ -35606,7 +35491,7 @@
       "blocks": [],
       "cap": "journeys.where",
       "deferred": false,
-      "description": "Where one record is on its Journey and how long it has been in its stage",
+      "description": "Where a record is on its Journey",
       "effects": "read",
       "inputSchema": {
         "properties": {

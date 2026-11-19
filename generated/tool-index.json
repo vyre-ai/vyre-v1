@@ -4946,12 +4946,6 @@
     },
     {
       "deferred": false,
-      "name": "journeys_adopt",
-      "summary": "Bring a pipeline type's existing records into the Journey by their stage field, a page at a time",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
       "name": "journeys_create",
       "summary": "Create a Journey and its record type (cloned from the Projects template) on a subject record type",
       "toolset": "automations"
@@ -4984,12 +4978,6 @@
       "deferred": false,
       "name": "journeys_migrate",
       "summary": "Migrate in-flight records to a new Journey version through a stage mapping (a Run; stoppable)",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "journeys_migration_state",
-      "summary": "Where the move onto the pipeline stands",
       "toolset": "automations"
     },
     {
@@ -5037,19 +5025,7 @@
     {
       "deferred": false,
       "name": "journeys_test_path",
-      "summary": "Try every stage's Automations on one record as tests; sends and writes are held",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "journeys_to_pipeline",
-      "summary": "Move a Journey onto its subject type as a pipeline; run again after a stop, nothing is deleted",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "journeys_values_get",
-      "summary": "Values a Journey carries for a record",
+      "summary": "Test every stage's Automations on a record; nothing is sent",
       "toolset": "automations"
     },
     {
@@ -5067,7 +5043,7 @@
     {
       "deferred": false,
       "name": "journeys_where",
-      "summary": "Where one record is on its Journey and how long it has been in its stage",
+      "summary": "Where a record is on its Journey",
       "toolset": "automations"
     },
     {

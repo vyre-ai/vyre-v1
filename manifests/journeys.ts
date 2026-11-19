@@ -352,7 +352,6 @@ export default defineManifest({
       "journeys.to_pipeline",
       "Move a Journey onto its subject type as a pipeline; run again after a stop, nothing is deleted",
       {
-        tool: "automations",
         in: { ...target, stageField: t.opt(t.str()) },
         out: {
           journey: journeyRow,
@@ -370,7 +369,7 @@ export default defineManifest({
         errors: ["validation.precondition_failed", "validation.duplicate"],
       },
     ),
-    read("journeys.where", "Where one record is on its Journey and how long it has been in its stage", {
+    read("journeys.where", "Where a record is on its Journey", {
       in: { ...target, recordId: id.record },
       out: {
         journeyId: id.journey,
@@ -397,7 +396,7 @@ export default defineManifest({
       tool: "automations",
       errors: ["permission.not_found"],
     }),
-    write("journeys.test_path", "Try every stage's Automations on one record as tests; sends and writes are held", {
+    write("journeys.test_path", "Test every stage's Automations on a record; nothing is sent", {
       in: { ...target, recordId: t.opt(id.record) },
       out: {
         runs: t.arr(
@@ -412,7 +411,6 @@ export default defineManifest({
       in: { recordId: id.record },
       out: { values: t.rec() },
       on: ["record", "/recordId"],
-      tool: "automations",
     }),
     write("journeys.values.set", "Keep a Journey value for a record", {
       in: { recordId: id.record, key: t.str({ pattern: "^[a-z][a-z0-9_]*$" }), value: t.json() },
@@ -426,7 +424,6 @@ export default defineManifest({
       "journeys.adopt",
       "Bring a pipeline type's existing records into the Journey by their stage field, a page at a time",
       {
-        tool: "automations",
         in: { ...target, ...pageIn },
         out: { adopted: t.int(), skipped: t.int(), next: t.opt(t.str()) },
         perm: "journeys.manage",
@@ -437,7 +434,6 @@ export default defineManifest({
       },
     ),
     read("journeys.migration_state", "Where the move onto the pipeline stands", {
-      tool: "automations",
       in: target,
       out: {
         mode: t.enm("subject", "migrating", "pipeline"),

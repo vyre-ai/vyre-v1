@@ -17,7 +17,7 @@ Where the move onto the pipeline stands
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/journeys/migration_state |
-| MCP tool | journeys_migration_state (automations) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

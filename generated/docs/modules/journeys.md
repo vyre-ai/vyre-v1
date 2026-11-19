@@ -23,12 +23,12 @@ Requires: nothing.
 - [journeys.stage_counts](../capabilities/journeys.stage_counts.md): Records in flight per stage, with how many are over their time limit
 - [journeys.start](../capabilities/journeys.start.md): Start a Journey on a subject record: creates the Journey record with its channel and folder and enters the first stage
 - [journeys.tasks](../capabilities/journeys.tasks.md): The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)
-- [journeys.test_path](../capabilities/journeys.test_path.md): Try every stage's Automations on one record as tests; sends and writes are held
+- [journeys.test_path](../capabilities/journeys.test_path.md): Test every stage's Automations on a record; nothing is sent
 - [journeys.to_pipeline](../capabilities/journeys.to_pipeline.md): Move a Journey onto its subject type as a pipeline; run again after a stop, nothing is deleted
 - [journeys.values.get](../capabilities/journeys.values.get.md): Values a Journey carries for a record
 - [journeys.values.set](../capabilities/journeys.values.set.md): Keep a Journey value for a record
 - [journeys.versions](../capabilities/journeys.versions.md): List versions of a Journey definition
-- [journeys.where](../capabilities/journeys.where.md): Where one record is on its Journey and how long it has been in its stage
+- [journeys.where](../capabilities/journeys.where.md): Where a record is on its Journey
 
 ## Events (10)
 

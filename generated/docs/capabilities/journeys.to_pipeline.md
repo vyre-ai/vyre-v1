@@ -17,7 +17,7 @@ Move a Journey onto its subject type as a pipeline; run again after a stop, noth
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/journeys/to_pipeline |
-| MCP tool | journeys_to_pipeline (automations) |
+| MCP tool | none |
 | CLI | none |
 | Emits | journey.designed |
 

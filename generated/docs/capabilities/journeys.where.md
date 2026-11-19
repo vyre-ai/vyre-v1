@@ -1,6 +1,6 @@
 # journeys.where
 
-Where one record is on its Journey and how long it has been in its stage
+Where a record is on its Journey
 
 | | |
 |---|---|

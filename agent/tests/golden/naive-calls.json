@@ -2818,9 +2818,6 @@
   "install_remove": {
     "installId": "ins_a1b2c3"
   },
-  "journeys_adopt": {
-    "journeyId": "jrn_a1b2c3"
-  },
   "journeys_create": {
     "name": "Quarterly planning",
     "subjectType": "contact"
@@ -2864,9 +2861,6 @@
     "toVersion": 1,
     "stageMap": {}
   },
-  "journeys_migration_state": {
-    "journeyId": "jrn_a1b2c3"
-  },
   "journeys_move_stage": {
     "journeyId": "jrn_a1b2c3",
     "recordId": "rec_a1b2c3",
@@ -2898,16 +2892,10 @@
   "journeys_test_path": {
     "journeyId": "jrn_a1b2c3"
   },
-  "journeys_to_pipeline": {
-    "journeyId": "jrn_a1b2c3"
-  },
-  "journeys_values_get": {
-    "recordId": "rec_a1b2c3"
-  },
   "journeys_values_set": {
     "recordId": "rec_a1b2c3",
-    "key": "Plan_Key",
-    "value": "Quarterly planning"
+    "key": "plan",
+    "value": "Premium"
   },
   "journeys_versions": {
     "journeyId": "jrn_a1b2c3"
