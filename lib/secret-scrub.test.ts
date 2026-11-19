@@ -168,6 +168,10 @@ test("a secret nested inside the value of another pair is found: compact JSON, b
     ['[{"password":"hunter2"},{"token":"abc12"}]', "hunter2"],
     ['{"users":[{"name":"x","password":"hunter2"},{"name":"y","secret":"abc12"}]}', "abc12"],
     ['{"users":[{"password":"hunter2"}]}', "hunter2"],
+    ['{"body":"{\\"password\\":\\"hunter2\\"}"}', "hunter2"],
+    ['body: "{\\"token\\":\\"abc12\\"}"', "abc12"],
+    ['{"body":"{\\\\\\"password\\\\\\":\\\\\\"hunter2\\\\\\"}"}', "hunter2"],
+    ['msg=\\"api_key\\":\\"abc12\\"', "abc12"],
   ] as const) gone(text, secret);
   assert.match(scrubLog('{"users":[{"name":"x","password":"hunter2"}]}'), /"name":"x"/, "names in an array of objects stay");
   assert.match(scrubLog('{"config":{"password":"hunter2","host":"h"}}'), /"host":"h"/, "the other keys stay");

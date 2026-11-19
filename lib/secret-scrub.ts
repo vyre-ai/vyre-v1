@@ -179,7 +179,7 @@ function isSecretName(raw: string): boolean {
   return w.length > 0 && w.length <= 60 && SECRET_NAME.test(w);
 }
 
-const PAIR = /(["'`]?)([A-Za-z0-9_.-]{1,60})\1([:=])("[^"]{0,500}"|'[^']{0,500}'|[^\s,;&}\])]{0,500})/g;
+const PAIR = /(\\{0,4}["'`]?)([A-Za-z0-9_.-]{1,60})\1([:=])("[^"]{0,500}"|'[^']{0,500}'|[^\s,;&}\])]{0,500})/g;
 
 /**
  * The word with the value of every secret-named pair taken out (name=value, "name":"value", a query or a JSON text in one word); the rest of the word is kept, so a JSON text still reads. Null when no pair
