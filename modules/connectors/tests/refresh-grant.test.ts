@@ -315,3 +315,50 @@ test("a connection deleted while the Vault could not take a rotated refresh toke
   assert.equal(k.vault["#Clio_App.refresh_token"], "rt_3", "rt_2 was saved first, then traded for rt_3");
   assert.equal(s.n, 2);
 });
+
+test("a connection whose refresh token is lost shows as needing a reconnect, once, with a task that has the one-press fix; a pasted token and Check again bring it back", async () => {
+  const k = kit();
+  const s = app(k);
+  resetGrants();
+  k.install(CLIO);
+  k.items["vit_9"] = { handle: "#Clio_App", name: "Clio_App", value: "", folderId: "vfd_1" };
+  Object.assign(k.vault, {
+    "#Clio_App.client_id": "cid",
+    "#Clio_App.client_secret": "csecret",
+    "#Clio_App.refresh_token": "rt_lost",
+  });
+  const made = await k.hs["connections.create"](k.ctx, {
+    connector: "clio",
+    title: "Clio",
+    ownerKind: "space",
+    secrets: {
+      Client_id: "#Clio_App.client_id",
+      Client_secret: "#Clio_App.client_secret",
+      Refresh_token: "#Clio_App.refresh_token",
+    },
+  } as never);
+  const id = made.connection.connectionId;
+  // the person who applied the sync spec is who is told
+  k.tx.run(
+    "INSERT INTO cn_sync_specs (connector, spec, connection_id, applied_by, applied_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+    "clio",
+    "{}",
+    id,
+    "usr_dana",
+    1,
+    1,
+  );
+  await assert.rejects(ping(k, id), (e) => (e as { error?: { code?: string } }).error?.code === "provider.auth_failed");
+  await assert.rejects(ping(k, id));
+  assert.equal(stateOf(k, id), "needs_reconnect");
+  assert.equal(k.events2("connection.needs_reconnect").length, 1, "said once, not on every failed call");
+  const tasks = k.calls.filter((c) => c.cap === "tasks.create");
+  assert.equal(tasks.length, 1);
+  const input = tasks[0]!.input as { blocks: { type: string; data: { connectionId: string } }[] };
+  assert.deepEqual([input.blocks[0]!.type, input.blocks[0]!.data.connectionId], ["connection_fix", id]);
+  // the person pastes a refresh token the app knows; Check again is the one press
+  k.vault["#Clio_App.refresh_token"] = s.refresh;
+  const checked = await k.hs["connections.test"](k.ctx, { connectionId: id } as never);
+  assert.equal(checked.state, "healthy");
+  assert.equal(stateOf(k, id), "active");
+});

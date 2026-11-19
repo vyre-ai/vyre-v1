@@ -64,6 +64,7 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
     call: async (cap, input) => {
       calls.push({ cap, input });
       if (cap === "runs.start") return { runId: "run_abc123" };
+      if (cap === "tasks.create") return { taskId: `tsk_${calls.length}`, task: { id: `tsk_${calls.length}` } };
       // a small Vault: the folders and items a connection's OAuth tokens are kept in, as the vault capabilities answer them
       const i = input as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
       if (vaultFault.next) {
