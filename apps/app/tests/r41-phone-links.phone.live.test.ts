@@ -15,6 +15,15 @@ test("phone: #main=meetings opens the Inbox on Meetings, not on the list of inbo
   }
   const { page } = k;
   try {
+    // every frame from the shell's first one: the list of inboxes must never be drawn for a frame before the view the link names
+    await page.addInitScript(`(function () {
+      window.__sidebarFrames = 0;
+      function tick() {
+        if (document.querySelector('[data-testid="mobile-shell"]') && document.querySelector('[data-testid="inbox-sidebar"]')) window.__sidebarFrames++;
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    })()`);
     await page.goto(`${new URL(page.url()).origin}/inbox#main=meetings`, { waitUntil: "load" });
     await page.reload({ waitUntil: "load" });
     await page.getByTestId("mobile-shell").waitFor({ timeout: 30_000 });
@@ -24,6 +33,7 @@ test("phone: #main=meetings opens the Inbox on Meetings, not on the list of inbo
       { timeout: 20_000 },
     );
     assert.equal(await page.getByTestId("inbox-sidebar").count(), 0, "not the list of inboxes");
+    assert.equal(await page.evaluate(`window.__sidebarFrames`), 0, "and not for a frame on the way");
   } finally {
     await k.close();
   }
