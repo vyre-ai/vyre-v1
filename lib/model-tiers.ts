@@ -36,3 +36,21 @@ export function pick(models: readonly string[], tier: Tier): string | undefined 
   }
   return models[0];
 }
+
+const READ_OPEN =
+  /^\s*(?:please\s+)?(?:read|find|look\s*up|look\s+for|search|list|check|extract|pull|collect|gather|fetch|count|locate|open|scan|grep|summari[sz]e|report\s+(?:what|which|how\s+many))\b/i;
+/** A verb that makes the work judgement, writing or a change: one of these anywhere and the brief is not a plain read. */
+const NOT_READ =
+  /\b(?:write|draft|rewrite|compose|edit|change|fix|implement|build|create|make|update|modify|delete|remove|send|publish|post|merge|push|commit|deploy|decide|recommend|propose|plan|design|review|evaluate|assess|analy[sz]e|compare|judge|argue|negotiate|reply|respond|answer\s+the|refactor|migrate|translate|investigate|debug|diagnose|why)\b/i;
+
+/**
+ * The job a helper's brief is, when it is plainly reading, searching or extracting and nothing else (r42-runtime-tokens, DIRECTION-agent-runtime C: a fast model for reads and extraction, a strong one for
+ * judgement and writing). Conservative on purpose: a brief that opens with a read verb, is short, and holds no verb of writing, changing or judging is "read"; anything else is undefined, and the helper
+ * keeps the model it would have had. Never "think": the strong model is the default already, and a wrong "read" costs quality while a missed one only costs money.
+ */
+export function briefJob(brief: string): "read" | undefined {
+  const text = brief.trim();
+  if (text.length === 0 || text.length > 1_500) return undefined;
+  if (!READ_OPEN.test(text)) return undefined;
+  return NOT_READ.test(text) ? undefined : "read";
+}

@@ -6,7 +6,7 @@ import { DANA, DRAFTER, INTAKE, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { g24dHandlers as g } from "../handlers/g24d.ts";
 import { start } from "../handlers/thread.ts";
-import { pick, tierFor, tierOf } from "../../../lib/model-tiers.ts";
+import { briefJob, pick, tierFor, tierOf } from "../../../lib/model-tiers.ts";
 
 const model = (m: string, available = true) => ({ model: m, tier: tierOf(m), available });
 const CAT = (policy: "same_provider" | "any" | "ask" = "same_provider") => ({
@@ -274,4 +274,58 @@ test("any member of the chat can message a running helper; someone outside it ca
     "validation.precondition_failed",
     "not in the chat",
   );
+});
+
+test("a brief that only reads, searches or extracts is a read; one that writes, changes, judges or asks why is not (r42-runtime-tokens)", () => {
+  const reads = [
+    "Read the lease in the Northwind folder and list the renewal dates.",
+    "Find every invoice over 5,000 from October and list its number and amount.",
+    "Search the Space for pages that mention the 2025 price sheet.",
+    "Extract the totals from the three spreadsheets and report what they say.",
+    "Count how many open tasks each person has.",
+  ];
+  const others = [
+    "Draft a reply to Dana about the lease.",
+    "Read the policy and recommend which option we take.",
+    "Find the bug in the sync code and fix it.",
+    "Why did the invoice total change last week?",
+    "Compare the two quotes and tell me which is better.",
+    "Do it.",
+    "",
+    `Read ${"all of these files and ".repeat(100)}`,
+  ];
+  for (const t of reads) assert.equal(briefJob(t), "read", t);
+  for (const t of others) assert.equal(briefJob(t), undefined, t);
+});
+
+test("a plain read goes to the parent account's fast model by itself and the row says so; a thinking brief, a named model, a cheap parent, an ask-first agent and a crew keep their own rules", async () => {
+  const cat = (parentModel?: string, policy: "same_provider" | "any" | "ask" = "same_provider") => ({
+    ...CAT(policy),
+    parent: { provider: "anthropic", ...(parentModel ? { model: parentModel } : {}) },
+    suggest: { read: { account: "#Mine_Claude", model: "claude-haiku-5-5" } },
+  });
+  const run = async (c: unknown, extra: Record<string, unknown>) => {
+    const hn = harness({ calls: { "engine.helper_models": () => c } });
+    const threadId = await chatOf(hn);
+    const h = (await startHelper(hn, threadId, extra)).helper["threadId"] as string;
+    return pickOf(hn, h);
+  };
+  const reading = { instruction: "Find every invoice over 5,000 from October and list its number and amount." };
+  assert.deepEqual(await run(cat("claude-opus-5-5"), reading), {
+    accountRef: "#Mine_Claude",
+    accountLabel: "Claude · Imran",
+    provider: "anthropic",
+    model: "claude-haiku-5-5",
+    auto: true,
+    why: "reading only, so the faster model",
+  });
+  assert.equal(await run(cat("claude-opus-5-5"), { instruction: "Draft a reply to Dana about the lease." }), undefined);
+  assert.equal(
+    (await run(cat("claude-opus-5-5"), { ...reading, account: "#Mine_Claude", model: "claude-opus-5-5" }))?.["model"],
+    "claude-opus-5-5",
+    "a model the agent named is never replaced",
+  );
+  assert.equal(await run(cat("claude-haiku-5-5"), reading), undefined, "a parent that is already fast keeps its model");
+  assert.equal(await run({ ...cat("claude-opus-5-5"), suggest: undefined }, reading), undefined);
+  assert.equal(await run(cat("claude-opus-5-5"), { ...reading, crew: true }), undefined, "a crew writes code");
 });
