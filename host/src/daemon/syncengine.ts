@@ -360,8 +360,12 @@ export function remoteStore(
           action,
           connectionId: b.connectionId,
           input:
-            opts.unmaskToken && reading && opts.sealed?.length
-              ? { ...(isObj(input) ? input : {}), __unmask: `${opts.unmaskToken}:${opts.nonce ?? "pass"}` }
+            opts.unmaskToken && reading
+              ? {
+                  ...(isObj(input) ? input : {}),
+                  ...(opts.sealed?.length ? { __unmask: `${opts.unmaskToken}:${opts.nonce ?? "pass"}` } : {}),
+                  __keep: `${opts.unmaskToken}:${opts.nonce ?? "pass"}`,
+                }
               : input,
           idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}|${opts.nonce ?? ""}`).slice(0, 32)}`,
         })) as { output?: unknown };

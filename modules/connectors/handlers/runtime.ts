@@ -20,11 +20,13 @@ import {
   secretsIn,
   seedBuiltins,
   takeToken,
+  holdMsOf,
   tokenWaitMs,
   parseRetryAfter,
   noteRateLimited,
   noteServed,
   SLOW_DOWN_FIRST_MS,
+  PACE_LONGEST_MS,
   checkEgress,
   originKey,
   recordHosts,
@@ -151,6 +153,10 @@ export interface ExecOpts {
   actor?: string;
   /** Set on the one retry after a refresh, so a token the app still rejects ends in a reconnect instead of a loop. */
   refreshed?: boolean;
+  /** Asked again after a key the process had kept was rejected: nothing kept is used. */
+  fresh?: boolean;
+  /** The id of the sync pass this call belongs to (said with the process's own token): what the pass reads from the Vault is kept for the pass. Nobody else's call keeps anything. */
+  keep?: string;
   /** Called with the answer's status and text before the status is turned into an error, so a check can read a verdict from it. It must keep nothing of the text but its own verdict. */
   verdict?: (status: number, text: string) => void;
   /** Set by the runtime itself for the token call that stands before another action: only then does the token action's answer (the short-lived token) come back out of it. */
@@ -252,11 +258,22 @@ export async function clearReconnectTask(
 
 /** Run one action of a connector. Throws the catalogue error for anything that goes wrong; the message and details never hold a secret. */
 /** The sync engine's pass says so with the process's own token inside the action's input; the token is taken out before the input is used. Anyone else's input is left as it is. */
-function passOf(input: unknown): { input: unknown; unmask: boolean; nonce?: string } {
-  if (input !== null && typeof input === "object" && !Array.isArray(input) && "__unmask" in input) {
-    const { __unmask, ...rest } = input as Record<string, unknown>;
+function passOf(input: unknown): { input: unknown; unmask: boolean; nonce?: string; keep?: string } {
+  if (
+    input !== null &&
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    ("__unmask" in input || "__keep" in input)
+  ) {
+    const { __unmask, __keep, ...rest } = input as Record<string, unknown>;
     const [token, nonce] = typeof __unmask === "string" ? __unmask.split(":") : [];
-    return { input: rest, unmask: token === SYNC_PASS_TOKEN && !!nonce, ...(nonce ? { nonce } : {}) };
+    const [ktoken, knonce] = typeof __keep === "string" ? __keep.split(":") : [];
+    return {
+      input: rest,
+      unmask: token === SYNC_PASS_TOKEN && !!nonce,
+      ...(nonce ? { nonce } : {}),
+      ...(ktoken === SYNC_PASS_TOKEN && knonce ? { keep: knonce } : {}),
+    };
   }
   return { input, unmask: false };
 }
@@ -268,6 +285,39 @@ function maskedText(text: string, paths: readonly string[]): string {
   } catch {
     return "";
   }
+}
+
+/** Values a pass has just read from the Vault, kept in this process only (never written anywhere) for a few seconds, per person, connection, slot and item: every page of every type of a pass asks for the same keys, and each ask was an access check and a Vault read (30 in one burst). A rejected key forgets them (see 401 below). */
+const KEPT = new Map<string, { value: string; at: number }>();
+export const SECRET_KEEP_MS = 60_000;
+export const forgetKept = (connectionId: string): void => {
+  for (const k of KEPT.keys()) if (k.split("|")[1] === connectionId) KEPT.delete(k);
+};
+export const resetKept = (): void => KEPT.clear();
+async function secretOf(
+  deps: ConnectorsDeps,
+  actor: string,
+  connector: string,
+  connectionId: string,
+  slot: string,
+  handle: string,
+  keep: string | undefined,
+  onKept: () => void,
+): Promise<string | undefined> {
+  if (keep === undefined) return deps.resolveSecret!(handle, { connector, connectionId, slot });
+  const key = `${actor}|${connectionId}|${slot}|${handle}|${keep}`;
+  const at = nowOf(deps);
+  const had = KEPT.get(key);
+  if (had && at - had.at >= 0 && at - had.at < SECRET_KEEP_MS) {
+    onKept();
+    return had.value;
+  }
+  const value = await deps.resolveSecret!(handle, { connector, connectionId, slot });
+  if (typeof value === "string") {
+    if (KEPT.size > 512) KEPT.clear();
+    KEPT.set(key, { value, at });
+  }
+  return value;
 }
 
 export async function executeAction(
@@ -310,7 +360,7 @@ export async function executeAction(
     refuse(ctx, "validation.bad_input", "A secret cannot be part of the address.");
   // an access token that ends within a minute is refreshed before the call that would use it (calls for one connection share one refresh)
   if (conn && def.auth.type === "oauth2" && o.persist !== false && oauthOf(deps).dueSoon(conn, def))
-    await oauthOf(deps).refresh(ctx, def, conn);
+    (await oauthOf(deps).refresh(ctx, def, conn), forgetKept(conn.connection_id));
 
   // secrets, by name, at call time
   const basic = a.basic ?? (def.auth.type === "api_key" || def.auth.type === "bearer" ? def.auth.basic : undefined);
@@ -323,6 +373,7 @@ export async function executeAction(
   if (def.auth.type !== "none" && def.auth.type !== "client_credentials" && def.auth.secret)
     needed.add(def.auth.secret);
   const values: Record<string, string> = {};
+  let keptUsed = false;
   for (const name of needed) {
     if (!def.secrets.some((s) => s.name === name))
       refuse(
@@ -335,7 +386,16 @@ export async function executeAction(
       const handle = connectionSecrets(conn)[name];
       if (!handle) refuse(ctx, "validation.precondition_failed", `The connection has no Vault item for ${name}.`);
       v = deps.resolveSecret
-        ? await deps.resolveSecret(handle!, { connector: def.key, connectionId: conn.connection_id, slot: name })
+        ? await secretOf(
+            deps,
+            actor,
+            def.key,
+            conn.connection_id,
+            name,
+            handle!,
+            o.fresh === true || o.keep === undefined ? undefined : o.keep,
+            () => (keptUsed = true),
+          )
         : undefined;
       if (v === undefined) refuse(ctx, "validation.precondition_failed", `The Vault item for ${name} has no value.`);
     }
@@ -348,11 +408,16 @@ export async function executeAction(
     for (const [name, handle] of Object.entries(connectionSecrets(conn))) {
       if (name in values) continue;
       try {
-        const v = await deps.resolveSecret(handle, {
-          connector: def.key,
-          connectionId: conn.connection_id,
-          slot: name,
-        });
+        const v = await secretOf(
+          deps,
+          actor,
+          def.key,
+          conn.connection_id,
+          name,
+          handle,
+          o.fresh === true || o.keep === undefined ? undefined : o.keep,
+          () => (keptUsed = true),
+        );
         if (v) everySecret.push(v);
       } catch {
         /* an unreadable item has nothing to scrub */
@@ -507,13 +572,22 @@ export async function executeAction(
       dryRun: true,
     };
 
-  if (conn && !takeToken(conn.connection_id, def.rate, nowOf(deps)))
-    refuse(
-      ctx,
-      "rate_limit.exceeded",
-      `The connection is at its rate limit (${def.rate ? Math.round(def.rate.rps * 60) : 0} a minute).`,
-      { retryAfterMs: Math.max(50, tokenWaitMs(conn.connection_id, def.rate, nowOf(deps))) },
-    );
+  // the connection's budget: a short wait is served here (in this process, in line) instead of being refused and asked again, which cost a refusal, an access check and a Vault read for every try
+  if (conn && !o.dryRun) {
+    for (let tries = 0; !takeToken(conn.connection_id, def.rate, nowOf(deps)); tries++) {
+      const wait = Math.max(50, tokenWaitMs(conn.connection_id, def.rate, nowOf(deps)));
+      const held = holdMsOf(conn.connection_id, nowOf(deps));
+      if (!deps.pace || held > 0 || wait > PACE_LONGEST_MS || tries >= 200)
+        refuse(
+          ctx,
+          "rate_limit.exceeded",
+          `The connection is at its rate limit (${def.rate ? Math.round(def.rate.rps * 60) : 0} a minute).`,
+          { retryAfterMs: wait },
+        );
+      await deps.pace(wait);
+    }
+  }
+
   const http = o.http ?? ctx.http;
   const started = nowOf(deps);
   const logRow = (status: number | null, error: string | null): void => {
@@ -556,6 +630,11 @@ export async function executeAction(
   o.verdict?.(res.status, text);
   if (res.status === 401 || res.status === 403) {
     logRow(res.status, "rejected the sign-in");
+    // a key kept for a few seconds may be one that was just changed: forget what is kept and ask once more with the Vault's own value
+    if (conn && persist && !o.fresh && keptUsed) {
+      forgetKept(conn.connection_id);
+      return executeAction(deps, ctx, def, actionName, { ...o, fresh: true });
+    }
     // an OAuth token the app rejects is refreshed once and the call repeated; only a refresh that fails (or a repeat that is rejected again) asks the person to reconnect
     if (
       conn &&
@@ -564,8 +643,10 @@ export async function executeAction(
       def.auth.type === "oauth2" &&
       refreshSlot(def) &&
       (await oauthOf(deps).refresh(ctx, def, conn))
-    )
+    ) {
+      forgetKept(conn.connection_id);
       return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
+    }
     if (conn && persist) await markReconnect(deps, ctx, conn);
     return refuse(ctx, "provider.auth_failed", "The app rejected the key or sign-in.", { status: res.status });
   }
@@ -1169,6 +1250,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         connection: conn,
         input: pass.input,
         ...(pass.unmask ? { unmask: true, passNonce: pass.nonce! } : {}),
+        ...(pass.keep ? { keep: pass.keep } : {}),
       });
       tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
       return { output: out.output };
@@ -1193,6 +1275,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         input: pass.input,
         dryRun: input.dryRun === true,
         ...(pass.unmask ? { unmask: true, passNonce: pass.nonce! } : {}),
+        ...(pass.keep ? { keep: pass.keep } : {}),
       });
       if (!out.dryRun)
         tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);

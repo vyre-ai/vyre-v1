@@ -8,7 +8,15 @@ import { NOW } from "../fixtures/kit.ts";
 import { ledgerSpec } from "../fixtures/crm.ts";
 import type { RunReport, SyncEngine } from "../handlers/sync.ts";
 import type { ConnectorsCtx } from "../projections.ts";
-import { dueSyncs, runCadence, RUN_STALE_MS } from "../handlers/cadence.ts";
+import {
+  MAX_STARTS_PER_TICK,
+  dueSyncs,
+  clearRunning,
+  markRunning,
+  noteResult,
+  runCadence,
+  RUN_STALE_MS,
+} from "../handlers/cadence.ts";
 
 const SOURCES_SQL = readFileSync(new URL("../../sources/migrations/0001_sources.sql", import.meta.url), "utf8");
 const MIN = 60_000;
@@ -291,4 +299,31 @@ test("a type nobody can be named for (the spec was applied by the server itself)
     w.k.tx.all<{ summary: string }>("SELECT summary FROM sy_log WHERE kind = 'error'")[0]!.summary,
     /^Syncing is paused/,
   );
+});
+
+test("seven types due on seven connections: the driver starts a few a tick and the rest on the next ticks, none lost", async () => {
+  const w = await setup();
+  dropChains(w);
+  for (let i = 1; i <= 5; i++) {
+    w.k.tx.exec(
+      `CREATE TEMP TABLE t1 AS SELECT * FROM cn_connections LIMIT 1; UPDATE t1 SET connection_id = 'con_x${i}'; INSERT INTO cn_connections SELECT * FROM t1; DROP TABLE t1;
+       CREATE TEMP TABLE t2 AS SELECT * FROM cn_synced_types WHERE type = 'org'; UPDATE t2 SET sync_type_id = 'syt_x${i}', type = 'org_x${i}', connection_id = 'con_x${i}'; INSERT INTO cn_synced_types SELECT * FROM t2; DROP TABLE t2;`,
+    );
+  }
+  w.k.clock.t = NOW + 40 * MIN;
+  const seen = new Set<string>();
+  let ticks = 0;
+  for (; ticks < 10; ticks++) {
+    const due = dueSyncs({ tx: w.k.tx, now: () => w.k.clock.t });
+    if (!due.length) break;
+    assert.ok(due.length <= MAX_STARTS_PER_TICK, `a tick starts at most ${MAX_STARTS_PER_TICK} (${due.length})`);
+    for (const d of due) {
+      seen.add(d.syncTypeId);
+      markRunning(w.k.tx, d.connectionId, w.k.clock.t);
+      clearRunning(w.k.tx, d.connectionId); // its pass is over
+      noteResult(w.k.tx, d.syncTypeId, { activeSec: 120, idleSec: 900, dormantSec: 3600 }, true, w.k.clock.t);
+    }
+  }
+  assert.equal(seen.size, 7, "every type got its pass");
+  assert.ok(ticks >= 4, `spread over ${ticks} ticks`);
 });

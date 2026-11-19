@@ -289,6 +289,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
               const text = scrubber([value]).text(await res.text());
               return { status: res.status, text, ...(res.link ? { link: res.link } : {}) };
             },
+            pace: (ms: number) => new Promise<void>((done) => setTimeout(done, ms)),
             resolveSecret: async (
               secretHandle: string,
               binding?: { connector: string; connectionId: string; slot: string },

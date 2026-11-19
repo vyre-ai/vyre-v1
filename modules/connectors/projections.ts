@@ -160,6 +160,8 @@ export interface ConnectorsDeps {
     handle: string,
     binding?: { connector: string; connectionId: string; slot: string },
   ) => Promise<string | undefined>;
+  /** Waits in line for the connection's budget (the host's timer). Absent in tests, where a call at its limit is refused with the wait. */
+  pace?: (ms: number) => Promise<void>;
   /** Store a secret the module obtained (an OAuth token) in the Vault and return its handle. */
   storeSecret?: (name: string, value: string) => Promise<string>;
   /** The connector folder in Files: parsed into a def (connector.toml, tests). Drafts follow it. */
@@ -417,6 +419,13 @@ export function takeToken(key: string, rate: { rps: number; burst: number } | un
   b.tokens -= 1;
   buckets.set(key, b);
   return true;
+}
+/** The longest wait a call serves in line (when the host gives it a way to wait); a longer one is refused with the wait it needs. */
+export const PACE_LONGEST_MS = 5_000;
+/** What an app's "slow down" still holds this connection for (0: nothing). */
+export function holdMsOf(key: string, nowMs: number): number {
+  const held = holds.get(key);
+  return held && held.until > nowMs ? held.until - nowMs : 0;
 }
 /** How long until a call on this connection may go (0: now). Reads only. */
 export function tokenWaitMs(key: string, rate: { rps: number; burst: number } | undefined, nowMs: number): number {
