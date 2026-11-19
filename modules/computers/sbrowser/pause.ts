@@ -139,9 +139,10 @@ export function dropPausesOfAgent(ctx: Pick<CompCtx, "db">, agentId: string): nu
   ensure(ctx.db);
   const rows = rowsOf(
     ctx.db,
-    "SELECT profile_id FROM computers_browser_pause WHERE profile_id = ? OR profile_id LIKE ?",
+    "SELECT profile_id FROM computers_browser_pause WHERE profile_id = ? OR profile_id LIKE ? ESCAPE '\\'",
     agentId,
-    `${agentId}-%`,
+    // ids hold underscores, which LIKE reads as "any character": they are escaped, so only this agent's profiles match
+    `${agentId.replace(/[\\%_]/g, (c) => `\\${c}`)}-%`,
   );
   for (const r of rows) dropPause(ctx, String(r["profile_id"]), { stopped: true });
   return rows.length;

@@ -36,7 +36,7 @@ import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
-import { markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
+import { inTurn, markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
 import { warmBrowser } from "./sbrowser/warm.ts";
 import { dropPausesOfAgent } from "./sbrowser/pause.ts";
 import { browserOfDeleted, browserOfLeaver, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
@@ -1061,8 +1061,14 @@ export const consumers = {
         return;
       }
       // a stop (or a failure) ends a pause on the agent's browsers by itself: whoever pressed Stop, the call that waits behind the pause never runs after it (sbrowser/pause.ts)
-      if ((event.name === "turn.cancelled" || event.name === "turn.failed") && typeof a === "string") dropPausesOfAgent(ctx, a);
       turnEnded(ctx.space, typeof a === "string" ? a : "", t);
+      // only when the agent has no other turn running: an agent working in two chats is not stopped in one because the other was (a pause is the browser's, not a chat's)
+      if (
+        (event.name === "turn.cancelled" || event.name === "turn.failed") &&
+        typeof a === "string" &&
+        !inTurn(ctx.space, a, ctx.now())
+      )
+        dropPausesOfAgent(ctx, a);
     },
   },
   /** A person left the Space: their own browser profiles on shared agents go after Trash time, like their Assistant's (sbrowser/forget.ts). */

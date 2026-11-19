@@ -944,6 +944,25 @@ async function browserStep(
       spec.name !== "chrome_plan"
     )
       await needRoom(ctx, sb, profileId);
+    // the call may have waited a long while for room: a pause or a take-over that came meanwhile is honoured right before the send, the same way as at the start (admitAfterPause)
+    if (
+      spec.name !== "chrome_status" &&
+      spec.name !== "chrome_stop" &&
+      spec.name !== "chrome_resume" &&
+      spec.name !== "chrome_plan"
+    ) {
+      const again = await admitAfterPause(ctx, profileId, false, () => currentHold(ctx, sb, profileId));
+      if (!again.ok)
+        refuse(
+          ctx,
+          again.why === "gave_up"
+            ? new ToolError("unavailable", PAUSED_LINE, "browser_paused")
+            : new ToolError("unavailable", STOPPED_LINE, "browser_stopped"),
+          profileId,
+        );
+      if (again.hold && !DURING_HOLD.has(spec.name))
+        refuse(ctx, new ToolError("paused", HELD_LINE, "profile_held"), profileId, { takeoverBy: again.hold.personId });
+    }
     // the agent's name rides every call (the service keeps it in memory); its face is drawn once and kept with the profile
     let agent: { name: string; faceSvg?: string } | undefined;
     const who = await agentInfo(ctx, ctx.principal.id);

@@ -899,8 +899,17 @@ test("the keys leave a press alone when something else has it: a held-down repea
     doc["querySelector"] = () => null;
     await flush();
     assert.equal(pauses(), 0, "none of those is the desk's key");
-    // a control of the desk itself, and nowhere in particular, are the desk's
-    doc["activeElement"] = { tagName: "BUTTON", closest: () => ({}), getAttribute: () => null };
+    // Space on a focused control of the desk is that button's own press (the browser clicks it on key up): the desk does not also act, or one press would pause and resume
+    doc["activeElement"] = {
+      tagName: "BUTTON",
+      closest: (q: string) => (q.includes("desk") ? {} : null),
+      getAttribute: () => null,
+    };
+    space();
+    await flush();
+    assert.equal(pauses(), 0, "the focused button owns Space");
+    // but a letter key is still the desk's with a desk button focused, and Space with nowhere in particular focused is the desk's
+    doc["activeElement"] = null;
     space();
     await flush();
     assert.equal(pauses(), 1);
@@ -932,6 +941,26 @@ test("where the focus is, for the keys: nothing, a field, a control outside the 
   assert.equal(activeKindOf({ tagName: "DIV", getAttribute: () => "searchbox" }), "field");
   assert.equal(activeKindOf({ tagName: "BUTTON", closest: () => null }), "outside_control");
   assert.equal(activeKindOf({ tagName: "DIV", getAttribute: () => "tab", closest: () => null }), "outside_control");
-  assert.equal(activeKindOf({ tagName: "BUTTON", closest: () => ({}) }), "desk_control");
+  assert.equal(
+    activeKindOf({ tagName: "BUTTON", closest: (q: string) => (q.includes("desk") ? {} : null) }),
+    "desk_control",
+  );
   assert.equal(activeKindOf({ tagName: "DIV", getAttribute: () => null }), "none");
+  // a widget made of parts: a focused part inside a textbox, a slider or a spinbutton is the field's own
+  assert.equal(
+    activeKindOf({
+      tagName: "SPAN",
+      getAttribute: () => null,
+      closest: (q: string) => (q.includes("slider") ? {} : null),
+    }),
+    "field",
+  );
+  assert.equal(
+    activeKindOf({ tagName: "DIV", getAttribute: (n: string) => (n === "role" ? "slider" : null) }),
+    "field",
+  );
+  assert.equal(
+    activeKindOf({ tagName: "DIV", getAttribute: (n: string) => (n === "role" ? "spinbutton" : null) }),
+    "field",
+  );
 });

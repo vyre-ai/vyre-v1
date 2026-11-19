@@ -90,6 +90,7 @@ function usePolled<T>(ask: () => Promise<T> | undefined, every: number, on: bool
 }
 
 const CONTROL_TAGS = new Set(["BUTTON", "A", "SUMMARY"]);
+const FIELD_ROLES = new Set(["textbox", "searchbox", "combobox", "spinbutton", "slider"]);
 const CONTROL_ROLES = new Set([
   "button",
   "menuitem",
@@ -120,10 +121,11 @@ export function activeKindOf(el: unknown): ActiveKind {
     tag === "TEXTAREA" ||
     tag === "SELECT" ||
     e.isContentEditable === true ||
-    role === "textbox" ||
-    role === "searchbox" ||
-    role === "combobox"
+    FIELD_ROLES.has(role)
   )
+    return "field";
+  // a widget made of parts: the focused part sits inside the element that has the role
+  if (e.closest?.('[role="textbox"],[role="searchbox"],[role="combobox"],[role="spinbutton"],[role="slider"]'))
     return "field";
   const control = CONTROL_TAGS.has(tag) || CONTROL_ROLES.has(role);
   if (!control) return "none";
@@ -131,7 +133,7 @@ export function activeKindOf(el: unknown): ActiveKind {
 }
 const otherModalOpen = (doc: { querySelector?: (s: string) => unknown }): boolean =>
   doc.querySelector?.(
-    '[aria-modal="true"]:not([data-testid="desk"]):not([data-testid="desk-mini"]), [role="menu"], [role="listbox"]',
+    '[aria-modal="true"]:not([data-testid="desk"]):not([data-testid="desk-mini"]):not([aria-hidden="true"]), [role="menu"]:not([aria-hidden="true"]):not([hidden]), [role="listbox"]:not([aria-hidden="true"]):not([hidden])',
   ) != null;
 
 const typingIn = (t: unknown): boolean => {
@@ -270,6 +272,12 @@ export function Desk({
       if (!k) return;
       // Stop is Shift S, never a bare letter
       if (needsShift(k) && !ev.shiftKey) return;
+      // Space on a focused button is that button's own press (the browser clicks it on key up): the desk does not also act on it
+      if (
+        k === "space" &&
+        activeKindOf((doc as unknown as { activeElement?: unknown }).activeElement) === "desk_control"
+      )
+        return;
       const active = (doc as unknown as { activeElement?: unknown }).activeElement;
       if (
         !keysMayAct({

@@ -508,7 +508,7 @@ export function launchChrome(
       }
       if (Date.now() - t0 > timeoutMs)
         throw new AgentError("timeout", `Waited ${Math.round(timeoutMs / 1000)} seconds for ${until}.`);
-      await sleep(50);
+      await sleep(until === "load" ? 50 : 150);
     }
   };
 
@@ -562,18 +562,32 @@ export function launchChrome(
             active = t.id;
             if (PIPE) toFront(t.id);
             await c.send("Page.enable");
-            // the page's own load event, not a fixed pause and a poll: the answer comes the moment the page has loaded (the old way slept 100 ms, then looked every 150 ms). A navigation that has no new document
-            // (the same page with a new fragment, a download, a refusal) has no load event to wait for and goes straight to the readyState look below.
-            let loaded = false;
+            // the page's own load event, not a fixed pause and a poll: the answer comes the moment the page has loaded (the old way slept 100 ms, then looked every 150 ms). The wait has one deadline of 30 s for the
+            // event and the readyState look together, so a page that never fires load (a hung subresource, a long poll) costs no more than before. A navigation with no new document (the same page with a new
+            // fragment), a download, a refusal and a navigation that is replaced mid-wait have no load event to wait for or may never get one: they fall through to the readyState look, which settles them. An event
+            // from the document that was there before is ignored (only a load after the navigation answered counts); the connection is this call's own, so its handler goes with it.
+            const until = Date.now() + 30_000;
+            let armed = false;
+            let onLoad: () => void = () => undefined;
+            const loaded = new Promise<void>((done) => {
+              onLoad = done;
+            });
             c.on("Page.loadEventFired", () => {
-              loaded = true;
+              if (armed) onLoad();
             });
             const nav = await c.send<{ loaderId?: string; errorText?: string }>("Page.navigate", { url });
+            armed = true;
             if (typeof nav.loaderId === "string" && nav.errorText === undefined) {
-              const until = Date.now() + 30_000;
-              while (!loaded && Date.now() < until) await sleep(5);
+              let timer: ReturnType<typeof setTimeout> | undefined;
+              await Promise.race([
+                loaded,
+                new Promise<void>((done) => {
+                  timer = setTimeout(done, Math.max(0, until - Date.now()));
+                }),
+              ]);
+              if (timer !== undefined) clearTimeout(timer);
             }
-            await waitFor(c, "load", undefined, 30_000).catch(() => 0);
+            await waitFor(c, "load", undefined, Math.max(1, until - Date.now())).catch(() => 0);
             return {
               tabId: t.id,
               url: await evalIn<string>(c, "location.href"),

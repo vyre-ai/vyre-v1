@@ -364,3 +364,36 @@ test("admitting a call: a pause that appears while the hold is being read is wai
     clean();
   }
 });
+
+test("an agent working in two chats is not stopped in one because the other turn was cancelled: the pause stays while another turn runs, and ends when the last one does", async () => {
+  const r = rig();
+  try {
+    const run = consumers["computers.browser_turns"].run;
+    const ctx = r.dana.ctx;
+    await run(ctx, { name: "turn.started", payload: { agentId: "agt_dex", turnId: "trn_A" } });
+    await run(ctx, { name: "turn.started", payload: { agentId: "agt_dex", turnId: "trn_B" } });
+    setPause(ctx, "agt_dex", DANA);
+    await run(ctx, { name: "turn.cancelled", payload: { agentId: "agt_dex", turnId: "trn_A" } });
+    assert.equal(pausedBy(ctx, "agt_dex"), DANA, "chat B's turn still runs: its pause stands");
+    await run(ctx, { name: "turn.failed", payload: { agentId: "agt_dex", turnId: "trn_B" } });
+    assert.equal(pausedBy(ctx, "agt_dex"), null, "the last turn ended in a stop: the pause is over");
+  } finally {
+    clean();
+  }
+});
+
+test("only this agent's profiles are matched when a stop ends pauses, even when ids hold wildcard characters", async () => {
+  const r = rig();
+  try {
+    const ctx = r.dana.ctx;
+    setPause(ctx, "agt_a_b", DANA);
+    setPause(ctx, "agt_a_b-usr_x", OMAR);
+    setPause(ctx, "agtXaXb", DANA);
+    setPause(ctx, "agt_a_bc", DANA);
+    assert.equal(dropPausesOfAgent(ctx, "agt_a_b"), 2, "its own and its asker's");
+    assert.equal(pausedBy(ctx, "agtXaXb"), DANA, "an underscore is not a wildcard");
+    assert.equal(pausedBy(ctx, "agt_a_bc"), DANA, "and an id that only starts the same is another agent");
+  } finally {
+    clean();
+  }
+});
