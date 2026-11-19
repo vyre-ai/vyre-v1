@@ -1,7 +1,17 @@
 // Site logs: cleaning, levels, search words, the caps, and the follower that reads Docker's stamped lines (r42-sites-run, slice 4).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LOG_CAPS, LogFollower, LogRing, cleanLines, leftOut, levelOf, limitOf, parseStamped, terms } from "../ops/logs.ts";
+import {
+  LOG_CAPS,
+  LogFollower,
+  LogRing,
+  cleanLines,
+  leftOut,
+  levelOf,
+  limitOf,
+  parseStamped,
+  terms,
+} from "../ops/logs.ts";
 
 test("cleanLines drops colour codes, carriage returns and blank lines, and cuts a long line", () => {
   assert.deepEqual(cleanLines("\u001b[31mred\u001b[0m\r\n\n  \nok  "), ["red", "ok"]);
@@ -15,6 +25,7 @@ test("levelOf reads the words", () => {
   assert.equal(levelOf("Error: connect ECONNREFUSED 10.0.0.1:5432"), "error");
   assert.equal(levelOf("Unhandled promise rejection"), "error");
   assert.equal(levelOf("DeprecationWarning: x"), "warn");
+  assert.equal(levelOf("npm ERR! code ELIFECYCLE"), "error");
   assert.equal(levelOf("listening on 3000"), "info");
 });
 
@@ -34,10 +45,22 @@ test("search needs every word, ignores case, and honours exclusions, source, lev
   r.add("requests", "svc", 2000, "GET /api 200 12ms");
   const all = r.read({}).lines;
   assert.equal(all.length, 4);
-  assert.deepEqual(r.read({ q: "db POOL" }).lines.map((l) => l.text), ["DB pool timeout after 30s", "error: db pool exhausted"]);
-  assert.deepEqual(r.read({ q: "pool -exhausted" }).lines.map((l) => l.text), ["DB pool timeout after 30s"]);
-  assert.deepEqual(r.read({ source: "requests" }).lines.map((l) => l.text), ["GET /api 200 12ms"]);
-  assert.deepEqual(r.read({ level: "error" }).lines.map((l) => l.text), ["error: db pool exhausted"]);
+  assert.deepEqual(
+    r.read({ q: "db POOL" }).lines.map((l) => l.text),
+    ["DB pool timeout after 30s", "error: db pool exhausted"],
+  );
+  assert.deepEqual(
+    r.read({ q: "pool -exhausted" }).lines.map((l) => l.text),
+    ["DB pool timeout after 30s"],
+  );
+  assert.deepEqual(
+    r.read({ source: "requests" }).lines.map((l) => l.text),
+    ["GET /api 200 12ms"],
+  );
+  assert.deepEqual(
+    r.read({ level: "error" }).lines.map((l) => l.text),
+    ["error: db pool exhausted"],
+  );
   assert.equal(r.read({ from: 1500 }).lines.length, 1);
   assert.equal(r.read({ to: 1500 }).lines.length, 3);
 });
@@ -48,7 +71,10 @@ test("a follower's cursor returns only what came after", () => {
   const first = r.read({});
   r.add("app", "a", 2, "three");
   const more = r.read({ after: first.lastSeq });
-  assert.deepEqual(more.lines.map((l) => l.text), ["three"]);
+  assert.deepEqual(
+    more.lines.map((l) => l.text),
+    ["three"],
+  );
   assert.equal(r.read({ after: more.lastSeq }).lines.length, 0);
 });
 
@@ -94,7 +120,10 @@ test("past the scope cap the scope that printed longest ago goes, never the one 
   r.add("build", "d2", 20, "b");
   r.add("app", "svc", 30, "c");
   r.add("build", "d3", 40, "d");
-  const names = r.scopes().map((s) => s.scope).sort();
+  const names = r
+    .scopes()
+    .map((s) => s.scope)
+    .sort();
   assert.deepEqual(names, ["d2", "d3", "svc"]);
   r.add("build", "d1", 5, "again"); // an old scope coming back is allowed and evicts the oldest other
   assert.equal(r.scopes().length, 3);
@@ -140,7 +169,10 @@ test("a follower hands over each line once, even when Docker repeats the second 
 
 test("a follower keeps two different lines that carry the same time, and drops a repeat of one", async () => {
   const t = "2026-11-19T10:00:00.500000000Z";
-  const { f, got } = follow([[`${t} x`, `${t} y`], [`${t} x`, `${t} y`, `${t} z`]]);
+  const { f, got } = follow([
+    [`${t} x`, `${t} y`],
+    [`${t} x`, `${t} y`, `${t} z`],
+  ]);
   await f.poll();
   await f.poll();
   assert.deepEqual(got, ["x", "y", "z"]);

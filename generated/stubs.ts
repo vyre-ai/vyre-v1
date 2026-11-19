@@ -2588,6 +2588,8 @@ export function stubs(ctx: CallCtx) {
       host: call("sites.host"),
       list: call("sites.list"),
       logs: call("sites.logs"),
+      logs_read: call("sites.logs_read"),
+      metrics: call("sites.metrics"),
       password_set: call("sites.password_set"),
       plan: call("sites.plan"),
       preview_rebuild: call("sites.preview_rebuild"),

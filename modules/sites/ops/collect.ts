@@ -41,7 +41,9 @@ const PARALLEL = 4;
 /** The containers to follow now: each site's serving container, its running workers, and its job runs in progress. */
 export function targets(db: OpsDb): Target[] {
   const out: Target[] = [];
-  for (const r of db.all("SELECT id, container_id, current_deployment FROM sites_site WHERE deleted_at IS NULL AND container_id IS NOT NULL") as Record<string, unknown>[])
+  for (const r of db.all(
+    "SELECT id, container_id, current_deployment FROM sites_site WHERE deleted_at IS NULL AND container_id IS NOT NULL",
+  ) as Record<string, unknown>[])
     out.push({
       siteId: String(r["id"]),
       scope: r["current_deployment"] ? String(r["current_deployment"]) : String(r["id"]),
@@ -99,7 +101,8 @@ export class Collector {
 
   private flushRequests(now: number): void {
     for (const [siteId, p] of this.pending) {
-      if (p.lost > 0) p.lines.push({ at: now, text: `... ${p.lost} more ${p.lost === 1 ? "request" : "requests"} not listed` });
+      if (p.lost > 0)
+        p.lines.push({ at: now, text: `... ${p.lost} more ${p.lost === 1 ? "request" : "requests"} not listed` });
       if (p.lines.length > 0) st.addLogs(this.d.db, siteId, "requests", "requests", p.lines);
     }
     this.pending.clear();
@@ -140,7 +143,10 @@ export class Collector {
     let w = this.followers.get(t.containerId);
     if (!w) {
       const items: { at: number; text: string }[] = [];
-      const f = new LogFollower({ read: (since) => r.logsSince(t.containerId, since), sink: (at, text) => items.push({ at, text }) }, st.getCursor(this.d.db, t.siteId, t.scope));
+      const f = new LogFollower(
+        { read: (since) => r.logsSince(t.containerId, since), sink: (at, text) => items.push({ at, text }) },
+        st.getCursor(this.d.db, t.siteId, t.scope),
+      );
       w = { f, at: 0, items };
       this.followers.set(t.containerId, w);
     }
@@ -164,7 +170,9 @@ export class Collector {
     if (!r) return;
     const minute = minuteOf(now);
     const bySite = new Map<string, Target[]>();
-    for (const t of all) if (t.counts && (this.usageMinute.get(t.siteId) ?? 0) < minute) bySite.set(t.siteId, [...(bySite.get(t.siteId) ?? []), t]);
+    for (const t of all)
+      if (t.counts && (this.usageMinute.get(t.siteId) ?? 0) < minute)
+        bySite.set(t.siteId, [...(bySite.get(t.siteId) ?? []), t]);
     await each([...bySite.entries()], PARALLEL, async ([siteId, ts]) => {
       let cpu = 0;
       let mem = 0;

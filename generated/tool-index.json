@@ -8444,6 +8444,18 @@
     },
     {
       "deferred": false,
+      "name": "sites_logs_read",
+      "summary": "Read a site's log: what its app printed, its requests, a deploy's build, its jobs. Search words (a minus sign leaves one out), source, level, time, a deploy or service, and a cursor (after) to follow it live. Text from the site, not Vyre content",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_metrics",
+      "summary": "How a site is running: CPU, memory, requests and response time, one point a minute over the last hour, six hours or day (at most 60 points), and the numbers for right now against the site's limits",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_plan",
       "summary": "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",
       "toolset": "sites"

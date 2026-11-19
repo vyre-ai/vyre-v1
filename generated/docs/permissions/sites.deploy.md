@@ -26,6 +26,7 @@ Area: sites. Risk: medium. Applies to: site.
 - sites.deploy
 - sites.env_set
 - sites.logs
+- sites.logs_read
 - sites.password_set
 - sites.plan
 - sites.preview_rebuild

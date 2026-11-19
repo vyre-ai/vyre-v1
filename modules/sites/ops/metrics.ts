@@ -41,7 +41,11 @@ export function usageOf(s: DockerStats): Usage | null {
   const cpus = s.cpu_stats?.online_cpus ?? 1;
   const cpu = dSys > 0 && dCpu >= 0 && preSys > 0 ? (dCpu / dSys) * cpus * 100 : 0;
   const mem = memoryOf(s);
-  return { cpu: Math.round(cpu * 10) / 10, memMb: Math.round((mem.used / MB) * 10) / 10, memLimitMb: Math.round(mem.limit / MB) };
+  return {
+    cpu: Math.round(cpu * 10) / 10,
+    memMb: Math.round((mem.used / MB) * 10) / 10,
+    memLimitMb: Math.round(mem.limit / MB),
+  };
 }
 
 export interface Sample {
@@ -77,7 +81,11 @@ export class RequestMeter {
   private times: number[] = [];
   private seen = 0;
   /** rolls to a new minute when t is in one; returns the finished minute's totals (null when none was open or t is not later) */
-  record(t: number, status: number, ms: number): { at: number; requests: number; errors: number; p50: number; p95: number } | null {
+  record(
+    t: number,
+    status: number,
+    ms: number,
+  ): { at: number; requests: number; errors: number; p50: number; p95: number } | null {
     const m = minuteOf(t);
     let done: ReturnType<RequestMeter["record"]> = null;
     if (this.minute !== 0 && m > this.minute) {

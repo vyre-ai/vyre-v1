@@ -655,6 +655,7 @@ export interface DaemonOptions {
     hooks?: number;
     sweep?: number;
     sitesPush?: number;
+    sitesOps?: number;
   };
 }
 
@@ -1100,6 +1101,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const ingressContainer = (): string | undefined =>
     process.env["VYRE_INGRESS_CONTAINER"] ?? (fs.existsSync("/.dockerenv") ? process.env["HOSTNAME"] : undefined);
   let sitesTick: () => Promise<void> = () => Promise.resolve();
+  /** site logs, CPU and memory, jobs and workers (modules/sites/ops): a short tick of its own, since a log is followed live */
+  let sitesOps: () => Promise<void> = () => Promise.resolve();
   const siteHostRoute = createSiteHostRoute({
     own: (h) => siteHosts?.own(h) ?? true,
     site: (h) => siteHosts?.site(h) ?? null,
@@ -5493,6 +5496,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 });
             }
           };
+          sitesOps = async () => {
+            await (sitesExports?.["opsTick"] as ((c: { db: unknown }) => Promise<void>) | undefined)?.({ db: db! });
+          };
           const made = createSitesHost({
             containerAddress: (c) =>
               (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ??
@@ -7487,6 +7493,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       schedule: { everyMs: o.intervals?.slow ?? 60_000 },
       run: async () => {
         await refreshDomains();
+      },
+    });
+    scheduler.add({
+      name: "sites.ops",
+      schedule: { everyMs: o.intervals?.sitesOps ?? 2_000 },
+      run: async () => {
+        await sitesOps();
       },
     });
     scheduler.add({

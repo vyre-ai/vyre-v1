@@ -2588,6 +2588,8 @@ export function createClient(transport: Transport) {
       host: call("sites.host", 1),
       list: call("sites.list", 1),
       logs: call("sites.logs", 1),
+      logs_read: call("sites.logs_read", 1),
+      metrics: call("sites.metrics", 1),
       password_set: call("sites.password_set", 1),
       plan: call("sites.plan", 1),
       preview_rebuild: call("sites.preview_rebuild", 1),

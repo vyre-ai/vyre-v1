@@ -1,20 +1,71 @@
 // Services beyond static: every transition of a service, the crash-loop backoff, readiness, and recovery after a restart (r42-sites-run, slice 5).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BACKOFF_BASE_MS, BACKOFF_MAX_MS, LOOP_MAX, LOOP_WINDOW_MS, READY_AFTER_MS, STABLE_MS, advance, backoffMs, fresh, ready, reconcile } from "../ops/workers.ts";
+import {
+  BACKOFF_BASE_MS,
+  BACKOFF_MAX_MS,
+  LOOP_MAX,
+  LOOP_WINDOW_MS,
+  READY_AFTER_MS,
+  STABLE_MS,
+  advance,
+  backoffMs,
+  fresh,
+  ready,
+  reconcile,
+} from "../ops/workers.ts";
 import type { Service, ServiceEvent, ServiceState } from "../ops/workers.ts";
 
-const svc = (state: ServiceState, o: Partial<Service> = {}): Service => ({ ...fresh("v1", "s1", "queue", "worker"), state, ...o });
+const svc = (state: ServiceState, o: Partial<Service> = {}): Service => ({
+  ...fresh("v1", "s1", "queue", "worker"),
+  state,
+  ...o,
+});
 const T = 1_000_000;
 
 // state x event: the expected state and action
 type Want = [ServiceState, string];
 const TABLE: Record<ServiceState, Record<string, Want>> = {
-  stopped: { want: ["starting", "start"], spawned: ["stopped", "none"], exited: ["stopped", "none"], tick: ["stopped", "none"], stop: ["stopped", "none"], restart: ["starting", "start"] },
-  starting: { want: ["starting", "none"], spawned: ["starting", "none"], exited: ["backoff", "none"], tick: ["starting", "none"], stop: ["stopped", "kill"], restart: ["starting", "restart"] },
-  running: { want: ["running", "none"], spawned: ["running", "none"], exited: ["backoff", "none"], tick: ["running", "none"], stop: ["stopped", "kill"], restart: ["starting", "restart"] },
-  backoff: { want: ["backoff", "none"], spawned: ["backoff", "none"], exited: ["backoff", "none"], tick: ["backoff", "none"], stop: ["stopped", "none"], restart: ["starting", "start"] },
-  failed: { want: ["failed", "none"], spawned: ["failed", "none"], exited: ["failed", "none"], tick: ["failed", "none"], stop: ["stopped", "none"], restart: ["starting", "start"] },
+  stopped: {
+    want: ["starting", "start"],
+    spawned: ["stopped", "none"],
+    exited: ["stopped", "none"],
+    tick: ["stopped", "none"],
+    stop: ["stopped", "none"],
+    restart: ["starting", "start"],
+  },
+  starting: {
+    want: ["starting", "none"],
+    spawned: ["starting", "none"],
+    exited: ["backoff", "none"],
+    tick: ["starting", "none"],
+    stop: ["stopped", "kill"],
+    restart: ["starting", "restart"],
+  },
+  running: {
+    want: ["running", "none"],
+    spawned: ["running", "none"],
+    exited: ["backoff", "none"],
+    tick: ["running", "none"],
+    stop: ["stopped", "kill"],
+    restart: ["starting", "restart"],
+  },
+  backoff: {
+    want: ["backoff", "none"],
+    spawned: ["backoff", "none"],
+    exited: ["backoff", "none"],
+    tick: ["backoff", "none"],
+    stop: ["stopped", "none"],
+    restart: ["starting", "start"],
+  },
+  failed: {
+    want: ["failed", "none"],
+    spawned: ["failed", "none"],
+    exited: ["failed", "none"],
+    tick: ["failed", "none"],
+    stop: ["stopped", "none"],
+    restart: ["starting", "start"],
+  },
 };
 const EV = (e: string): ServiceEvent =>
   e === "exited" ? { t: "exited", at: T, code: 1 } : ({ t: e, at: T } as ServiceEvent);

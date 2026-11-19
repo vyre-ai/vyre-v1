@@ -46,7 +46,8 @@ export const fresh = (id: string, siteId: string, name: string, kind: ServiceKin
   crashes: [],
 });
 
-export const backoffMs = (streak: number): number => Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** Math.max(0, streak - 1));
+export const backoffMs = (streak: number): number =>
+  Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** Math.max(0, streak - 1));
 
 export type ServiceEvent =
   /** a person or a deploy wants it running */
@@ -69,7 +70,11 @@ export type ServiceOut = {
 };
 
 const why = (code: number, oom?: boolean): string =>
-  oom ? "It ran out of memory." : code === 0 ? "It finished and exited." : `It stopped with an error (exit code ${code}).`;
+  oom
+    ? "It ran out of memory."
+    : code === 0
+      ? "It finished and exited."
+      : `It stopped with an error (exit code ${code}).`;
 
 /** The one place a service changes. Events that do not apply in the current state change nothing (a late "exited" after a stop, a second "spawned"). */
 export function advance(s: Service, ev: ServiceEvent): ServiceOut {
@@ -80,9 +85,15 @@ export function advance(s: Service, ev: ServiceEvent): ServiceOut {
       return keep(s);
     case "restart":
       // a clean slate: no streak, no history, started at once
-      return keep({ ...s, state: "starting", streak: 0, crashes: [], restartAt: undefined, note: undefined }, s.state === "running" || s.state === "starting" ? "restart" : "start");
+      return keep(
+        { ...s, state: "starting", streak: 0, crashes: [], restartAt: undefined, note: undefined },
+        s.state === "running" || s.state === "starting" ? "restart" : "start",
+      );
     case "stop":
-      return keep({ ...s, state: "stopped", restartAt: undefined, note: undefined }, s.state === "running" || s.state === "starting" ? "kill" : "none");
+      return keep(
+        { ...s, state: "stopped", restartAt: undefined, note: undefined },
+        s.state === "running" || s.state === "starting" ? "kill" : "none",
+      );
     case "spawned":
       if (s.state === "starting") return keep({ ...s, startedAt: ev.at, restartAt: undefined });
       return keep(s);
@@ -132,11 +143,16 @@ export function ready(s: Service, answers: boolean): boolean {
 }
 
 /** After the server restarts: containers the runner still has are adopted, services that should run but have no container are started. */
-export function reconcile(services: readonly Service[], alive: ReadonlySet<string>, at: number): { id: string; ev: ServiceEvent }[] {
+export function reconcile(
+  services: readonly Service[],
+  alive: ReadonlySet<string>,
+  at: number,
+): { id: string; ev: ServiceEvent }[] {
   const out: { id: string; ev: ServiceEvent }[] = [];
   for (const s of services) {
     const up = alive.has(s.id);
-    if ((s.state === "starting" || s.state === "running") && !up) out.push({ id: s.id, ev: { t: "exited", at, code: 255 } });
+    if ((s.state === "starting" || s.state === "running") && !up)
+      out.push({ id: s.id, ev: { t: "exited", at, code: 255 } });
     else if (s.state === "stopped" && up) out.push({ id: s.id, ev: { t: "stop", at } });
   }
   return out;

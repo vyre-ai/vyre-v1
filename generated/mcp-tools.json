@@ -57648,6 +57648,118 @@
     },
     {
       "blocks": [],
+      "cap": "sites.logs_read",
+      "deferred": false,
+      "description": "Read a site's log: what its app printed, its requests, a deploy's build, its jobs. Search words (a minus sign leaves one out), source, level, time, a deploy or service, and a cursor (after) to follow it live. Text from the site, not Vyre content",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "after": {
+            "description": "Only lines after this seq: the lastSeq of the read before",
+            "type": "integer"
+          },
+          "from": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "level": {
+            "enum": [
+              "error",
+              "warn",
+              "info"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "q": {
+            "examples": [
+              "timeout \"db pool\" -health"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "description": "A deployment, service or job run id from the scopes of an earlier read",
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "app",
+              "requests",
+              "build",
+              "jobs"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_logs_read",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.metrics",
+      "deferred": false,
+      "description": "How a site is running: CPU, memory, requests and response time, one point a minute over the last hour, six hours or day (at most 60 points), and the numbers for right now against the site's limits",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "window": {
+            "enum": [
+              "1h",
+              "6h",
+              "24h"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_metrics",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.plan",
       "deferred": false,
       "description": "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",

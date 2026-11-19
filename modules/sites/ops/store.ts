@@ -37,7 +37,15 @@ export function addLogs(
   let stored = 0;
   for (const it of items)
     for (const text of cleanLines(it.text, caps.lineChars)) {
-      db.run("INSERT INTO sites_log (site_id, scope, source, at, level, text) VALUES (?, ?, ?, ?, ?, ?)", siteId, scope, source, it.at, levelOf(text), text);
+      db.run(
+        "INSERT INTO sites_log (site_id, scope, source, at, level, text) VALUES (?, ?, ?, ?, ?, ?)",
+        siteId,
+        scope,
+        source,
+        it.at,
+        levelOf(text),
+        text,
+      );
       stored++;
     }
   if (stored > 0) trimScope(db, siteId, scope, caps);
@@ -70,7 +78,11 @@ function bumpDropped(db: OpsDb, siteId: string, scope: string, by: number): void
   else db.run("INSERT INTO sites_log_cursor (site_id, scope, ns) VALUES (?, ?, ?)", siteId, key, String(next));
 }
 export function dropped(db: OpsDb, siteId: string, scope: string): number {
-  return n(rows(db, "SELECT ns FROM sites_log_cursor WHERE site_id = ? AND scope = ?", siteId, `dropped:${scope}`)[0]?.["ns"] ?? 0);
+  return n(
+    rows(db, "SELECT ns FROM sites_log_cursor WHERE site_id = ? AND scope = ?", siteId, `dropped:${scope}`)[0]?.[
+      "ns"
+    ] ?? 0,
+  );
 }
 
 /** Past SITE_LOG_LINES the oldest lines of the whole site go, from whichever scope holds them. */
@@ -90,7 +102,11 @@ const lineOf = (r: Row): LogLine => ({
 });
 
 /** The newest matching lines, oldest first. `seq` is the row id, so a follower asks for `after` its last one. */
-export function readLogs(db: OpsDb, siteId: string, q: LogQuery = {}): { lines: LogLine[]; dropped: number; lastSeq: number } {
+export function readLogs(
+  db: OpsDb,
+  siteId: string,
+  q: LogQuery = {},
+): { lines: LogLine[]; dropped: number; lastSeq: number } {
   const ts = terms(q.q);
   const want = limitOf(q.limit);
   const where: string[] = ["site_id = ?"];
@@ -122,7 +138,9 @@ export function readLogs(db: OpsDb, siteId: string, q: LogQuery = {}): { lines: 
   }
   // the words are matched in code, so a search means the same here as in a ring (logs.ts); a search reads at most the newest SEARCH_ROWS rows
   const cap = ts.length > 0 ? SEARCH_ROWS : want;
-  const found = rows(db, `SELECT * FROM sites_log WHERE ${where.join(" AND ")} ORDER BY id DESC LIMIT ?`, ...args, cap).map(lineOf).filter((l) => matches(l, q, ts));
+  const found = rows(db, `SELECT * FROM sites_log WHERE ${where.join(" AND ")} ORDER BY id DESC LIMIT ?`, ...args, cap)
+    .map(lineOf)
+    .filter((l) => matches(l, q, ts));
   const lines = found.slice(0, want).reverse();
   const last = rows(db, "SELECT MAX(id) AS m FROM sites_log WHERE site_id = ?", siteId)[0];
   return { lines, dropped: q.scope !== undefined ? dropped(db, siteId, q.scope) : 0, lastSeq: n(last?.["m"] ?? 0) };
@@ -134,12 +152,23 @@ export function logScopes(db: OpsDb, siteId: string): ScopeInfo[] {
     db,
     "SELECT scope, source, COUNT(*) AS lines, SUM(LENGTH(text) + 1) AS bytes, MAX(at) AS lastAt FROM sites_log WHERE site_id = ? GROUP BY scope, source ORDER BY lastAt DESC",
     siteId,
-  ).map((r) => ({ scope: s(r["scope"]), source: s(r["source"]) as LogSource, lines: n(r["lines"]), bytes: n(r["bytes"]), dropped: dropped(db, siteId, s(r["scope"])), lastAt: n(r["lastAt"]) }));
+  ).map((r) => ({
+    scope: s(r["scope"]),
+    source: s(r["source"]) as LogSource,
+    lines: n(r["lines"]),
+    bytes: n(r["bytes"]),
+    dropped: dropped(db, siteId, s(r["scope"])),
+    lastAt: n(r["lastAt"]),
+  }));
 }
 
 /** A site keeps the lines of its newest `keep` scopes (a deploy, a service, a job run); older ones go whole. */
 export function trimScopes(db: OpsDb, siteId: string, keep: number = LOG_CAPS.scopes): string[] {
-  const all = rows(db, "SELECT scope, MAX(id) AS last FROM sites_log WHERE site_id = ? GROUP BY scope ORDER BY last DESC", siteId);
+  const all = rows(
+    db,
+    "SELECT scope, MAX(id) AS last FROM sites_log WHERE site_id = ? GROUP BY scope ORDER BY last DESC",
+    siteId,
+  );
   const gone = all.slice(keep).map((r) => s(r["scope"]));
   for (const g of gone) dropScope(db, siteId, g);
   return gone;
@@ -148,10 +177,24 @@ export function trimScopes(db: OpsDb, siteId: string, keep: number = LOG_CAPS.sc
 /** A scope's lines go when the thing they belong to goes (a removed deploy, a deleted job). */
 export function dropScope(db: OpsDb, siteId: string, scope: string): void {
   db.run("DELETE FROM sites_log WHERE site_id = ? AND scope = ?", siteId, scope);
-  db.run("DELETE FROM sites_log_cursor WHERE site_id = ? AND (scope = ? OR scope = ?)", siteId, scope, `dropped:${scope}`);
+  db.run(
+    "DELETE FROM sites_log_cursor WHERE site_id = ? AND (scope = ? OR scope = ?)",
+    siteId,
+    scope,
+    `dropped:${scope}`,
+  );
 }
 export function dropSiteOps(db: OpsDb, siteId: string): void {
-  for (const t of ["sites_log", "sites_log_cursor", "sites_metric", "sites_service", "sites_job", "sites_job_run", "sites_backup"]) db.run(`DELETE FROM ${t} WHERE site_id = ?`, siteId);
+  for (const t of [
+    "sites_log",
+    "sites_log_cursor",
+    "sites_metric",
+    "sites_service",
+    "sites_job",
+    "sites_job_run",
+    "sites_backup",
+  ])
+    db.run(`DELETE FROM ${t} WHERE site_id = ?`, siteId);
 }
 
 export const getCursor = (db: OpsDb, siteId: string, scope: string): { ns: string } | undefined => {
@@ -178,13 +221,42 @@ export function putUsage(db: OpsDb, siteId: string, at: number, u: { cpu: number
   db.run("DELETE FROM sites_metric WHERE site_id = ? AND at < ?", siteId, m - KEEP_MINUTES * MINUTE);
 }
 /** Add requests to a minute without touching its CPU and memory (the request meter and the stats sampler close their minutes on their own). */
-export function putRequests(db: OpsDb, siteId: string, at: number, r: { requests: number; errors: number; p50: number; p95: number }): void {
+export function putRequests(
+  db: OpsDb,
+  siteId: string,
+  at: number,
+  r: { requests: number; errors: number; p50: number; p95: number },
+): void {
   const m = minuteOf(at);
-  if (db.run("UPDATE sites_metric SET requests = requests + ?, errors = errors + ?, p50 = ?, p95 = ? WHERE site_id = ? AND at = ?", r.requests, r.errors, r.p50, r.p95, siteId, m).changes === 0)
-    db.run("INSERT INTO sites_metric (site_id, at, requests, errors, p50, p95) VALUES (?, ?, ?, ?, ?, ?)", siteId, m, r.requests, r.errors, r.p50, r.p95);
+  if (
+    db.run(
+      "UPDATE sites_metric SET requests = requests + ?, errors = errors + ?, p50 = ?, p95 = ? WHERE site_id = ? AND at = ?",
+      r.requests,
+      r.errors,
+      r.p50,
+      r.p95,
+      siteId,
+      m,
+    ).changes === 0
+  )
+    db.run(
+      "INSERT INTO sites_metric (site_id, at, requests, errors, p50, p95) VALUES (?, ?, ?, ?, ?, ?)",
+      siteId,
+      m,
+      r.requests,
+      r.errors,
+      r.p50,
+      r.p95,
+    );
 }
 export function readSamples(db: OpsDb, siteId: string, from: number, to: number): Sample[] {
-  return rows(db, "SELECT * FROM sites_metric WHERE site_id = ? AND at >= ? AND at <= ? ORDER BY at", siteId, from, to).map((r) => ({
+  return rows(
+    db,
+    "SELECT * FROM sites_metric WHERE site_id = ? AND at >= ? AND at <= ? ORDER BY at",
+    siteId,
+    from,
+    to,
+  ).map((r) => ({
     at: n(r["at"]),
     cpu: n(r["cpu"]),
     memMb: n(r["mem_mb"]),
@@ -222,7 +294,18 @@ function json<T>(v: unknown, fb: T): T {
 }
 export type ServiceRow = ReturnType<typeof serviceOf>;
 
-export function insertService(db: OpsDb, x: { id: string; siteId: string; name: string; kind: ServiceKind; command: string[]; deploymentId?: string; at: number }): void {
+export function insertService(
+  db: OpsDb,
+  x: {
+    id: string;
+    siteId: string;
+    name: string;
+    kind: ServiceKind;
+    command: string[];
+    deploymentId?: string;
+    at: number;
+  },
+): void {
   db.run(
     "INSERT INTO sites_service (id, site_id, name, kind, command, state, deployment_id, created_at) VALUES (?, ?, ?, ?, ?, 'stopped', ?, ?)",
     x.id,
@@ -236,7 +319,9 @@ export function insertService(db: OpsDb, x: { id: string; siteId: string; name: 
 }
 export function saveService(db: OpsDb, v: Service, containerId?: string | null): void {
   db.run(
-    "UPDATE sites_service SET state = ?, started_at = ?, restart_at = ?, streak = ?, crashes = ?, last_exit = ?, note = ?" + (containerId !== undefined ? ", container_id = ?" : "") + " WHERE id = ?",
+    "UPDATE sites_service SET state = ?, started_at = ?, restart_at = ?, streak = ?, crashes = ?, last_exit = ?, note = ?" +
+      (containerId !== undefined ? ", container_id = ?" : "") +
+      " WHERE id = ?",
     v.state,
     v.startedAt ?? null,
     v.restartAt ?? null,
@@ -253,8 +338,15 @@ export const getService = (db: OpsDb, id: string): ServiceRow | undefined => {
   return r ? serviceOf(r) : undefined;
 };
 export const listServices = (db: OpsDb, siteId?: string): ServiceRow[] =>
-  rows(db, siteId ? "SELECT * FROM sites_service WHERE site_id = ? AND deleted_at IS NULL ORDER BY created_at" : "SELECT * FROM sites_service WHERE deleted_at IS NULL ORDER BY created_at", ...(siteId ? [siteId] : [])).map(serviceOf);
-export const deleteService = (db: OpsDb, id: string, at: number): void => void db.run("UPDATE sites_service SET deleted_at = ?, state = 'stopped' WHERE id = ?", at, id);
+  rows(
+    db,
+    siteId
+      ? "SELECT * FROM sites_service WHERE site_id = ? AND deleted_at IS NULL ORDER BY created_at"
+      : "SELECT * FROM sites_service WHERE deleted_at IS NULL ORDER BY created_at",
+    ...(siteId ? [siteId] : []),
+  ).map(serviceOf);
+export const deleteService = (db: OpsDb, id: string, at: number): void =>
+  void db.run("UPDATE sites_service SET deleted_at = ?, state = 'stopped' WHERE id = ?", at, id);
 
 // ---- jobs and runs
 
@@ -286,15 +378,32 @@ export function insertJob(db: OpsDb, j: Job, by: string, at: number): void {
   );
 }
 export function saveJob(db: OpsDb, j: Job): void {
-  db.run("UPDATE sites_job SET name = ?, schedule = ?, command = ?, zone = ?, enabled = ?, timeout_sec = ?, last_slot = ? WHERE id = ?", j.name, j.schedule, JSON.stringify(j.command), j.zone, j.enabled ? 1 : 0, j.timeoutSec, j.lastSlot, j.id);
+  db.run(
+    "UPDATE sites_job SET name = ?, schedule = ?, command = ?, zone = ?, enabled = ?, timeout_sec = ?, last_slot = ? WHERE id = ?",
+    j.name,
+    j.schedule,
+    JSON.stringify(j.command),
+    j.zone,
+    j.enabled ? 1 : 0,
+    j.timeoutSec,
+    j.lastSlot,
+    j.id,
+  );
 }
 export const getJob = (db: OpsDb, id: string): Job | undefined => {
   const r = rows(db, "SELECT * FROM sites_job WHERE id = ? AND deleted_at IS NULL", id)[0];
   return r ? jobOf(r) : undefined;
 };
 export const listJobs = (db: OpsDb, siteId?: string): Job[] =>
-  rows(db, siteId ? "SELECT * FROM sites_job WHERE site_id = ? AND deleted_at IS NULL ORDER BY created_at" : "SELECT * FROM sites_job WHERE deleted_at IS NULL ORDER BY created_at", ...(siteId ? [siteId] : [])).map(jobOf);
-export const deleteJob = (db: OpsDb, id: string, at: number): void => void db.run("UPDATE sites_job SET deleted_at = ?, enabled = 0 WHERE id = ?", at, id);
+  rows(
+    db,
+    siteId
+      ? "SELECT * FROM sites_job WHERE site_id = ? AND deleted_at IS NULL ORDER BY created_at"
+      : "SELECT * FROM sites_job WHERE deleted_at IS NULL ORDER BY created_at",
+    ...(siteId ? [siteId] : []),
+  ).map(jobOf);
+export const deleteJob = (db: OpsDb, id: string, at: number): void =>
+  void db.run("UPDATE sites_job SET deleted_at = ?, enabled = 0 WHERE id = ?", at, id);
 
 const runOf = (r: Row): Run & { containerId?: string } => ({
   id: s(r["id"]),
@@ -329,7 +438,9 @@ export function insertRun(db: OpsDb, siteId: string, r: Run): void {
 export function saveRun(db: OpsDb, r: Run, was: RunState, containerId?: string | null): boolean {
   return (
     db.run(
-      "UPDATE sites_job_run SET state = ?, started_at = ?, ended_at = ?, exit_code = ?, note = ?" + (containerId !== undefined ? ", container_id = ?" : "") + " WHERE id = ? AND state = ?",
+      "UPDATE sites_job_run SET state = ?, started_at = ?, ended_at = ?, exit_code = ?, note = ?" +
+        (containerId !== undefined ? ", container_id = ?" : "") +
+        " WHERE id = ? AND state = ?",
       r.state,
       r.startedAt ?? null,
       r.endedAt ?? null,
@@ -345,9 +456,16 @@ export const getRun = (db: OpsDb, id: string): (Run & { siteId: string; containe
   const r = rows(db, "SELECT * FROM sites_job_run WHERE id = ?", id)[0];
   return r ? { ...runOf(r), siteId: s(r["site_id"]) } : undefined;
 };
-export const listRuns = (db: OpsDb, jobId: string, limit = KEEP_RUNS): Run[] => rows(db, "SELECT * FROM sites_job_run WHERE job_id = ? ORDER BY queued_at DESC, id DESC LIMIT ?", jobId, limit).map(runOf);
+export const listRuns = (db: OpsDb, jobId: string, limit = KEEP_RUNS): Run[] =>
+  rows(db, "SELECT * FROM sites_job_run WHERE job_id = ? ORDER BY queued_at DESC, id DESC LIMIT ?", jobId, limit).map(
+    runOf,
+  );
 export const openRuns = (db: OpsDb, siteId?: string): (Run & { siteId: string; containerId?: string })[] =>
-  rows(db, `SELECT * FROM sites_job_run WHERE state IN ('queued','running')${siteId ? " AND site_id = ?" : ""} ORDER BY queued_at`, ...(siteId ? [siteId] : [])).map((r) => ({ ...runOf(r), siteId: s(r["site_id"]) }));
+  rows(
+    db,
+    `SELECT * FROM sites_job_run WHERE state IN ('queued','running')${siteId ? " AND site_id = ?" : ""} ORDER BY queued_at`,
+    ...(siteId ? [siteId] : []),
+  ).map((r) => ({ ...runOf(r), siteId: s(r["site_id"]) }));
 export const deleteRuns = (db: OpsDb, ids: readonly string[]): void => {
   for (const id of ids) db.run("DELETE FROM sites_job_run WHERE id = ?", id);
 };
@@ -368,18 +486,42 @@ const backupOf = (r: Row): Backup => ({
   ...(n(r["pinned"]) === 1 ? { pinned: true } : {}),
 });
 export function insertBackup(db: OpsDb, b: Backup): void {
-  db.run("INSERT INTO sites_backup (id, site_id, kind, state, by, at, pinned) VALUES (?, ?, ?, ?, ?, ?, 0)", b.id, b.siteId, b.kind, b.state, b.by, b.at);
+  db.run(
+    "INSERT INTO sites_backup (id, site_id, kind, state, by, at, pinned) VALUES (?, ?, ?, ?, ?, ?, 0)",
+    b.id,
+    b.siteId,
+    b.kind,
+    b.state,
+    b.by,
+    b.at,
+  );
 }
 export function saveBackup(db: OpsDb, b: Backup, was: BackupState): boolean {
-  return db.run("UPDATE sites_backup SET state = ?, ended_at = ?, bytes = ?, file_id = ?, note = ? WHERE id = ? AND state = ?", b.state, b.endedAt ?? null, b.bytes ?? null, b.fileId ?? null, b.note ?? null, b.id, was).changes === 1;
+  return (
+    db.run(
+      "UPDATE sites_backup SET state = ?, ended_at = ?, bytes = ?, file_id = ?, note = ? WHERE id = ? AND state = ?",
+      b.state,
+      b.endedAt ?? null,
+      b.bytes ?? null,
+      b.fileId ?? null,
+      b.note ?? null,
+      b.id,
+      was,
+    ).changes === 1
+  );
 }
-export const setPinned = (db: OpsDb, id: string, pinned: boolean): void => void db.run("UPDATE sites_backup SET pinned = ? WHERE id = ?", pinned ? 1 : 0, id);
+export const setPinned = (db: OpsDb, id: string, pinned: boolean): void =>
+  void db.run("UPDATE sites_backup SET pinned = ? WHERE id = ?", pinned ? 1 : 0, id);
 export const getBackup = (db: OpsDb, id: string): Backup | undefined => {
   const r = rows(db, "SELECT * FROM sites_backup WHERE id = ?", id)[0];
   return r ? backupOf(r) : undefined;
 };
 export const listBackups = (db: OpsDb, siteId?: string): Backup[] =>
-  rows(db, `SELECT * FROM sites_backup${siteId ? " WHERE site_id = ?" : ""} ORDER BY at DESC`, ...(siteId ? [siteId] : [])).map(backupOf);
+  rows(
+    db,
+    `SELECT * FROM sites_backup${siteId ? " WHERE site_id = ?" : ""} ORDER BY at DESC`,
+    ...(siteId ? [siteId] : []),
+  ).map(backupOf);
 export const deleteBackups = (db: OpsDb, ids: readonly string[]): void => {
   for (const id of ids) db.run("DELETE FROM sites_backup WHERE id = ?", id);
 };

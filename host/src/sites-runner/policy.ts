@@ -338,7 +338,9 @@ export function judge(
   }
   if (m === "GET" && p === "/containers/json")
     return workspaceListOk(r.query) ? { ok: true, kind: "plain" } : no("only the list of agent workspaces may be read");
-  const c = /^\/containers\/([A-Za-z0-9_.-]{1,128})(?:\/(json|logs|stats|start|stop|restart|archive|exec|wait))?$/.exec(p);
+  const c = /^\/containers\/([A-Za-z0-9_.-]{1,128})(?:\/(json|logs|stats|start|stop|restart|archive|exec|wait))?$/.exec(
+    p,
+  );
   if (c) {
     const action = c[2] ?? (m === "DELETE" ? "remove" : "");
     // the first look is for the methods; which of them a container may be asked is decided once its labels say whether it is a site's or a computer's (siteAllows, computerAllows)

@@ -40,7 +40,7 @@ export function cleanLines(raw: string, lineChars: number = LOG_CAPS.lineChars):
   return out;
 }
 
-const ERROR = /error|fatal|panic|exception|traceback|uncaught|unhandled|segfault|\b(failed|oom)\b|\bE[A-Z]{4,}\b/i;
+const ERROR = /error|fatal|panic|exception|traceback|uncaught|unhandled|segfault|\b(failed|oom|err)\b|\bE[A-Z]{4,}\b/i;
 const WARN = /warn|\b(deprecated|retrying|timeout)\b/i;
 /** The level a line reads as: what an app prints has no format, so the words decide. */
 export function levelOf(text: string): LogLevel {

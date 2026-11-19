@@ -357,13 +357,21 @@ test("refusals: containers that are not a site's, execs, networks, volumes, pull
 test("stats of a site's container are read once; a stream, another query or another container's stats are refused", async (t) => {
   const w = await world();
   t.after(w.close);
-  assert.equal((await w.call("GET", "/containers/site2/stats?stream=false")).status, 200, "a site's own container, read once");
+  assert.equal(
+    (await w.call("GET", "/containers/site2/stats?stream=false")).status,
+    200,
+    "a site's own container, read once",
+  );
   assert.equal((await w.call("GET", "/containers/site2/stats")).status, 403, "no query would stream");
   assert.equal((await w.call("GET", "/containers/site2/stats?stream=true")).status, 403, "a stream");
   assert.equal((await w.call("GET", "/containers/site2/stats?stream=false&x=1")).status, 403, "another query");
   assert.equal((await w.call("POST", "/containers/site2/stats?stream=false")).status, 403, "a write method");
   assert.equal((await w.call("GET", "/containers/vyred/stats?stream=false")).status, 403, "the ingress");
-  assert.equal((await w.call("GET", "/containers/other/stats?stream=false")).status, 403, "a container that is not Vyre's");
+  assert.equal(
+    (await w.call("GET", "/containers/other/stats?stream=false")).status,
+    403,
+    "a container that is not Vyre's",
+  );
 });
 
 test("a worker or a job is a container of the site's own image with its own command, its own site's network and no restart policy of Docker's", async (t) => {
@@ -380,6 +388,10 @@ test("a worker or a job is a container of the site's own image with its own comm
   assert.equal(sent.HostConfig.RestartPolicy.Name, "no");
   assert.deepEqual(sent.HostConfig.CapDrop, ["ALL"]);
   // another site's image, or a name that is not the site's, is still refused
-  assert.equal((await w.call("POST", `/containers/create?name=vyre-site-${HEX}-svcabc`, { ...body, Image: "vyre-site/other:x" })).status, 403);
+  assert.equal(
+    (await w.call("POST", `/containers/create?name=vyre-site-${HEX}-svcabc`, { ...body, Image: "vyre-site/other:x" }))
+      .status,
+    403,
+  );
   assert.equal((await w.call("POST", "/containers/create?name=vyre-site-zzzzz-svcabc", body)).status, 403);
 });

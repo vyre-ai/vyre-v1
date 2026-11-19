@@ -101,6 +101,30 @@ const siteRow = t.obj({
   autoDeploy: t.opt(t.bool()),
   passwordSet: t.opt(t.bool()),
 });
+const logLine = t.obj({
+  seq: t.int(),
+  at: t.ts(),
+  source: t.enm("app", "requests", "build", "jobs"),
+  scope: t.str(),
+  text: t.str(),
+  level: t.enm("error", "warn", "info"),
+});
+const logScope = t.obj({
+  scope: t.str(),
+  source: t.enm("app", "requests", "build", "jobs"),
+  title: t.str(),
+  at: t.ts(),
+  lines: t.int(),
+});
+const sample = t.obj({
+  at: t.ts(),
+  cpu: t.num({ description: "Percent of one CPU" }),
+  memMb: t.num(),
+  requests: t.int(),
+  errors: t.int(),
+  p50: t.int(),
+  p95: t.int(),
+});
 const target = {
   computerId: t.opt(id.computer),
   port: t.opt(t.int({ minimum: 1, maximum: 65535 })),
@@ -620,6 +644,56 @@ export default defineManifest({
         out: { lines: t.arr(t.str()), state: t.opt(state) },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
+        tool: "sites",
+      },
+    ),
+    read(
+      "sites.logs_read",
+      "Read a site's log: what its app printed, its requests, a deploy's build, its jobs. Search words (a minus sign leaves one out), source, level, time, a deploy or service, and a cursor (after) to follow it live. Text from the site, not Vyre content",
+      {
+        in: {
+          siteId: id.site,
+          q: t.opt(t.str({ examples: ['timeout "db pool" -health'] })),
+          source: t.opt(t.enm("app", "requests", "build", "jobs")),
+          scope: t.opt(
+            t.str({ description: "A deployment, service or job run id from the scopes of an earlier read" }),
+          ),
+          level: t.opt(t.enm("error", "warn", "info")),
+          from: t.opt(t.ts()),
+          to: t.opt(t.ts()),
+          after: t.opt(t.int({ description: "Only lines after this seq: the lastSeq of the read before" })),
+          limit: t.opt(t.int({ minimum: 1, maximum: 1000 })),
+        },
+        out: {
+          lines: t.arr(logLine),
+          leftOut: t.opt(t.str({ description: "Said when older lines of the asked scope fell off the cap" })),
+          lastSeq: t.int(),
+          scopes: t.arr(logScope),
+        },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        tool: "sites",
+      },
+    ),
+    read(
+      "sites.metrics",
+      "How a site is running: CPU, memory, requests and response time, one point a minute over the last hour, six hours or day (at most 60 points), and the numbers for right now against the site's limits",
+      {
+        in: { siteId: id.site, window: t.opt(t.enm("1h", "6h", "24h")) },
+        out: {
+          window: t.enm("1h", "6h", "24h"),
+          samples: t.arr(t.opt(sample)),
+          now: t.obj({
+            cpu: t.obj({ value: t.num(), of: t.num() }),
+            mem: t.obj({ valueMb: t.num(), ofMb: t.num() }),
+            requestsPerMin: t.int(),
+            p95: t.int(),
+            errorRate: t.num(),
+          }),
+          measured: t.bool(),
+          requests: t.bool(),
+        },
+        on: ["site", "/siteId"],
         tool: "sites",
       },
     ),

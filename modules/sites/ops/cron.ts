@@ -99,7 +99,14 @@ export function localOf(t: number, tz: string): Local {
   }
   const o: Record<string, string> = {};
   for (const p of f.formatToParts(new Date(t))) o[p.type] = p.value;
-  return { y: Number(o["year"]), mo: Number(o["month"]), d: Number(o["day"]), h: Number(o["hour"]) % 24, mi: Number(o["minute"]), wd: WD[o["weekday"] as string] ?? 0 };
+  return {
+    y: Number(o["year"]),
+    mo: Number(o["month"]),
+    d: Number(o["day"]),
+    h: Number(o["hour"]) % 24,
+    mi: Number(o["minute"]),
+    wd: WD[o["weekday"] as string] ?? 0,
+  };
 }
 
 export function validZone(tz: string): boolean {

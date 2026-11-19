@@ -16,13 +16,15 @@ function mem(): OpsDb {
   db.exec(
     "CREATE TABLE sites_site (id TEXT PRIMARY KEY, container_id TEXT, current_deployment TEXT, deleted_at INTEGER);",
   );
-  for (const f of ["0010_ops.sql", "0011_ops_runs.sql"]) db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
+  for (const f of ["0010_ops.sql", "0011_ops_runs.sql"])
+    db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   return {
     all: (q, ...a) => db.prepare(q).all(...(a as never[])),
     run: (q, ...a) => ({ changes: Number(db.prepare(q).run(...(a as never[])).changes) }),
   };
 }
-const site = (db: OpsDb, id: string, ctr: string | null, dep: string | null = "dpl_1"): void => void db.run("INSERT INTO sites_site (id, container_id, current_deployment) VALUES (?, ?, ?)", id, ctr, dep);
+const site = (db: OpsDb, id: string, ctr: string | null, dep: string | null = "dpl_1"): void =>
+  void db.run("INSERT INTO sites_site (id, container_id, current_deployment) VALUES (?, ?, ?)", id, ctr, dep);
 const T0 = Date.parse("2026-11-19T10:00:00Z");
 
 function world(o: { logs?: () => string[]; stats?: () => unknown } = {}) {
@@ -39,7 +41,12 @@ function world(o: { logs?: () => string[]; stats?: () => unknown } = {}) {
       return (o.stats ? o.stats() : null) as never;
     },
   };
-  const c = new Collector({ db, runner: () => runner, now: () => now, siteOfHost: (h) => (h === "shop.sites.test" ? "s1" : null) });
+  const c = new Collector({
+    db,
+    runner: () => runner,
+    now: () => now,
+    siteOfHost: (h) => (h === "shop.sites.test" ? "s1" : null),
+  });
   return { db, c, calls, at: (ms: number) => void (now = ms), advance: (ms: number) => void (now += ms) };
 }
 
@@ -49,14 +56,31 @@ test("targets lists a site's app, its running workers and its running jobs, and 
   site(w.db, "s2", null);
   w.db.run("INSERT INTO sites_site (id, container_id, deleted_at) VALUES ('s3', 'ctr_gone', 5)");
   st.insertService(w.db, { id: "v1", siteId: "s1", name: "q", kind: "worker", command: ["x"], at: 1 });
-  st.saveService(w.db, { id: "v1", siteId: "s1", name: "q", kind: "worker", state: "running", streak: 0, crashes: [] }, "ctr_w");
+  st.saveService(
+    w.db,
+    { id: "v1", siteId: "s1", name: "q", kind: "worker", state: "running", streak: 0, crashes: [] },
+    "ctr_w",
+  );
   st.insertService(w.db, { id: "v2", siteId: "s1", name: "r", kind: "worker", command: ["x"], at: 1 });
-  st.saveService(w.db, { id: "v2", siteId: "s1", name: "r", kind: "worker", state: "backoff", streak: 1, crashes: [1] }, "ctr_dead");
+  st.saveService(
+    w.db,
+    { id: "v2", siteId: "s1", name: "r", kind: "worker", state: "backoff", streak: 1, crashes: [1] },
+    "ctr_dead",
+  );
   st.insertRun(w.db, "s1", { id: "run1", jobId: "j1", state: "queued", slot: 1, by: "schedule", queuedAt: 1 });
-  st.saveRun(w.db, { id: "run1", jobId: "j1", state: "running", slot: 1, by: "schedule", queuedAt: 1, startedAt: 2 }, "queued", "ctr_j");
+  st.saveRun(
+    w.db,
+    { id: "run1", jobId: "j1", state: "running", slot: 1, by: "schedule", queuedAt: 1, startedAt: 2 },
+    "queued",
+    "ctr_j",
+  );
   assert.deepEqual(
     targets(w.db).map((t) => [t.scope, t.source, t.containerId, t.counts]),
-    [["dpl_9", "app", "ctr_a", true], ["v1", "app", "ctr_w", true], ["run1", "jobs", "ctr_j", false]],
+    [
+      ["dpl_9", "app", "ctr_a", true],
+      ["v1", "app", "ctr_w", true],
+      ["run1", "jobs", "ctr_j", false],
+    ],
   );
 });
 
@@ -68,7 +92,13 @@ test("a tick stores the container's lines under the deployment, once each, and k
   w.advance(2000);
   await w.c.tick(); // Docker sends the same lines again
   const r = st.readLogs(w.db, "s1", { scope: "dpl_1" });
-  assert.deepEqual(r.lines.map((l) => [l.text, l.level, l.source]), [["hello", "info", "app"], ["Error: boom", "error", "app"]]);
+  assert.deepEqual(
+    r.lines.map((l) => [l.text, l.level, l.source]),
+    [
+      ["hello", "info", "app"],
+      ["Error: boom", "error", "app"],
+    ],
+  );
   assert.equal(st.getCursor(w.db, "s1", "dpl_1")?.ns, "2026-11-19T10:00:00.200000000Z");
 });
 
@@ -77,7 +107,12 @@ test("a server restart resumes from the stored cursor and does not store a line 
   const w = world({ logs: () => lines });
   site(w.db, "s1", "ctr_a");
   await w.c.tick();
-  const again = new Collector({ db: w.db, runner: () => ({ logsSince: async () => lines, stats: async () => null }), now: () => T0 + 5000, siteOfHost: () => null });
+  const again = new Collector({
+    db: w.db,
+    runner: () => ({ logsSince: async () => lines, stats: async () => null }),
+    now: () => T0 + 5000,
+    siteOfHost: () => null,
+  });
   await again.tick();
   assert.equal(st.readLogs(w.db, "s1").lines.length, 2);
 });
@@ -97,7 +132,10 @@ test("a container that cannot be read changes nothing and the next round tries a
   fail = false;
   w.advance(2000);
   await w.c.tick();
-  assert.deepEqual(st.readLogs(w.db, "s1").lines.map((l) => l.text), ["back"]);
+  assert.deepEqual(
+    st.readLogs(w.db, "s1").lines.map((l) => l.text),
+    ["back"],
+  );
 });
 
 test("a container is read at most once every second and a half, and drain reads at once", async () => {
@@ -132,14 +170,25 @@ test("a tick that starts while another runs returns at once", async () => {
 });
 
 test("CPU and memory are written once a minute, summed over the app and its workers", async () => {
-  const stats = { cpu_stats: { cpu_usage: { total_usage: 2000 }, system_cpu_usage: 4000, online_cpus: 1 }, precpu_stats: { cpu_usage: { total_usage: 1000 }, system_cpu_usage: 3000 }, memory_stats: { usage: 100 * 1024 * 1024, limit: 512 * 1024 * 1024 } };
+  const stats = {
+    cpu_stats: { cpu_usage: { total_usage: 2000 }, system_cpu_usage: 4000, online_cpus: 1 },
+    precpu_stats: { cpu_usage: { total_usage: 1000 }, system_cpu_usage: 3000 },
+    memory_stats: { usage: 100 * 1024 * 1024, limit: 512 * 1024 * 1024 },
+  };
   const w = world({ stats: () => stats });
   site(w.db, "s1", "ctr_a");
   st.insertService(w.db, { id: "v1", siteId: "s1", name: "q", kind: "worker", command: ["x"], at: 1 });
-  st.saveService(w.db, { id: "v1", siteId: "s1", name: "q", kind: "worker", state: "running", streak: 0, crashes: [] }, "ctr_w");
+  st.saveService(
+    w.db,
+    { id: "v1", siteId: "s1", name: "q", kind: "worker", state: "running", streak: 0, crashes: [] },
+    "ctr_w",
+  );
   await w.c.tick();
   const m = Math.floor(T0 / MINUTE) * MINUTE;
-  assert.deepEqual(st.readSamples(w.db, "s1", m, m).map((x) => [x.cpu, x.memMb]), [[200, 200]]);
+  assert.deepEqual(
+    st.readSamples(w.db, "s1", m, m).map((x) => [x.cpu, x.memMb]),
+    [[200, 200]],
+  );
   const before = w.calls.stats;
   w.advance(20_000);
   await w.c.tick();
@@ -171,7 +220,10 @@ test("access lines of a site's host are counted and listed without their query; 
   const m = Math.floor(T0 / MINUTE) * MINUTE;
   const [s] = st.readSamples(w.db, "s1", m, m);
   assert.deepEqual([s?.requests, s?.errors, s?.p95], [2, 1, 40]);
-  assert.deepEqual(st.readLogs(w.db, "s1", { source: "requests" }).lines.map((l) => l.text), ["GET /x 200 20ms", "GET /x 500 40ms"]);
+  assert.deepEqual(
+    st.readLogs(w.db, "s1", { source: "requests" }).lines.map((l) => l.text),
+    ["GET /x 200 20ms", "GET /x 500 40ms"],
+  );
   assert.equal(st.readLogs(w.db, "s2", {}).lines.length, 0);
 });
 

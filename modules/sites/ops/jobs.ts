@@ -3,7 +3,15 @@
 // `tick` decides what a schedule asks for right now: at most one run per tick, never two at once for one job, never a storm of missed runs after downtime.
 import { latestBefore, next, parseCron } from "./cron.ts";
 
-export type RunState = "queued" | "running" | "succeeded" | "failed" | "timed_out" | "canceled" | "skipped" | "interrupted";
+export type RunState =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "timed_out"
+  | "canceled"
+  | "skipped"
+  | "interrupted";
 export const ENDED: readonly RunState[] = ["succeeded", "failed", "timed_out", "canceled", "skipped", "interrupted"];
 export const isEnded = (s: RunState): boolean => ENDED.includes(s);
 
@@ -66,12 +74,19 @@ export function step(run: Run, ev: RunEvent, job: Pick<Job, "timeoutSec">): Step
     run: { ...run, state, endedAt: ev.at, ...extra },
   });
   const target: RunState | null =
-    ev.t === "finish" ? (ev.code === 0 ? "succeeded" : "failed")
-    : ev.t === "timeout" ? "timed_out"
-    : ev.t === "cancel" ? "canceled"
-    : ev.t === "lost" ? "interrupted"
-    : ev.t === "expire" ? "skipped"
-    : null;
+    ev.t === "finish"
+      ? ev.code === 0
+        ? "succeeded"
+        : "failed"
+      : ev.t === "timeout"
+        ? "timed_out"
+        : ev.t === "cancel"
+          ? "canceled"
+          : ev.t === "lost"
+            ? "interrupted"
+            : ev.t === "expire"
+              ? "skipped"
+              : null;
   if (isEnded(run.state)) {
     if (target !== null && target === run.state) return { ok: true, run, same: true };
     return { ok: false, why: "That run has already ended." };
@@ -89,7 +104,9 @@ export function step(run: Run, ev: RunEvent, job: Pick<Job, "timeoutSec">): Step
     case "start":
       return { ok: true, same: true, run };
     case "finish":
-      return ev.code === 0 ? end("succeeded", { exitCode: 0 }) : end("failed", { exitCode: ev.code, note: NOTE.failed(ev.code) });
+      return ev.code === 0
+        ? end("succeeded", { exitCode: 0 })
+        : end("failed", { exitCode: ev.code, note: NOTE.failed(ev.code) });
     case "timeout":
       return end("timed_out", { note: NOTE.timed_out(job.timeoutSec) });
     case "cancel":
@@ -134,7 +151,11 @@ export function tick(job: Job, runs: readonly Run[], now: number): TickOut {
 }
 
 /** A person asked for a run now. Refused while one is going, so a double press does not start two. */
-export function runNow(job: Job, runs: readonly Run[], now: number): { ok: true; slot: number } | { ok: false; why: string } {
+export function runNow(
+  job: Job,
+  runs: readonly Run[],
+  now: number,
+): { ok: true; slot: number } | { ok: false; why: string } {
   if (runs.some((r) => r.jobId === job.id && !isEnded(r.state))) return { ok: false, why: "It is already running." };
   return { ok: true, slot: now };
 }
@@ -183,21 +204,27 @@ export function recover(runs: readonly Run[], now: number): { id: string; ev: Ru
   const out: { id: string; ev: RunEvent }[] = [];
   for (const r of runs) {
     if (r.state === "running") out.push({ id: r.id, ev: { t: "lost", at: now } });
-    else if (r.state === "queued" && now - r.queuedAt > QUEUE_MAX_MS) out.push({ id: r.id, ev: { t: "expire", at: now } });
+    else if (r.state === "queued" && now - r.queuedAt > QUEUE_MAX_MS)
+      out.push({ id: r.id, ev: { t: "expire", at: now } });
   }
   return out;
 }
 
 /** Check a job a person wrote, in one plain sentence per problem; null when it is fine. */
-export function checkJob(j: { schedule: string; command: string[]; timeoutSec: number; zone: string }, validZone: (z: string) => boolean): string | null {
+export function checkJob(
+  j: { schedule: string; command: string[]; timeoutSec: number; zone: string },
+  validZone: (z: string) => boolean,
+): string | null {
   try {
     parseCron(j.schedule);
   } catch (e) {
     return e instanceof Error ? e.message : "That schedule cannot be read.";
   }
-  if (j.command.length === 0 || j.command.some((w) => typeof w !== "string" || w === "")) return "Give the command to run.";
+  if (j.command.length === 0 || j.command.some((w) => typeof w !== "string" || w === ""))
+    return "Give the command to run.";
   if (j.command.join(" ").length > 2000) return "That command is too long.";
-  if (!Number.isInteger(j.timeoutSec) || j.timeoutSec < 5 || j.timeoutSec > 6 * 3600) return "A job may run between 5 seconds and 6 hours.";
+  if (!Number.isInteger(j.timeoutSec) || j.timeoutSec < 5 || j.timeoutSec > 6 * 3600)
+    return "A job may run between 5 seconds and 6 hours.";
   if (!validZone(j.zone)) return "That time zone is not known.";
   return null;
 }

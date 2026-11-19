@@ -1,13 +1,48 @@
 // Scheduled jobs: every transition of a run, the tick (overlap, catch-up, pause), the caps, recovery after a restart, history pruning (r42-sites-run, slice 5).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CATCH_UP_MS, ENDED, KEEP_RUNS, NOTE, QUEUE_MAX_MS, RUN_CAPS, checkJob, isEnded, prune, recover, resume, runNow, startable, step, tick } from "../ops/jobs.ts";
+import {
+  CATCH_UP_MS,
+  ENDED,
+  KEEP_RUNS,
+  NOTE,
+  QUEUE_MAX_MS,
+  RUN_CAPS,
+  checkJob,
+  isEnded,
+  prune,
+  recover,
+  resume,
+  runNow,
+  startable,
+  step,
+  tick,
+} from "../ops/jobs.ts";
 import type { Job, Run, RunEvent, RunState } from "../ops/jobs.ts";
 import { validZone } from "../ops/cron.ts";
 
 const at = (iso: string): number => Date.parse(iso);
-const job = (o: Partial<Job> = {}): Job => ({ id: "j1", siteId: "s1", name: "Nightly", schedule: "*/5 * * * *", command: ["node", "job.js"], zone: "UTC", enabled: true, timeoutSec: 60, lastSlot: at("2026-11-19T10:00:00Z"), ...o });
-const run = (state: RunState, o: Partial<Run> = {}): Run => ({ id: "r1", jobId: "j1", state, slot: 1, by: "schedule", queuedAt: 1000, ...o });
+const job = (o: Partial<Job> = {}): Job => ({
+  id: "j1",
+  siteId: "s1",
+  name: "Nightly",
+  schedule: "*/5 * * * *",
+  command: ["node", "job.js"],
+  zone: "UTC",
+  enabled: true,
+  timeoutSec: 60,
+  lastSlot: at("2026-11-19T10:00:00Z"),
+  ...o,
+});
+const run = (state: RunState, o: Partial<Run> = {}): Run => ({
+  id: "r1",
+  jobId: "j1",
+  state,
+  slot: 1,
+  by: "schedule",
+  queuedAt: 1000,
+  ...o,
+});
 
 const EVENTS: RunEvent[] = [
   { t: "start", at: 5 },
@@ -21,8 +56,24 @@ const EVENTS: RunEvent[] = [
 const name = (e: RunEvent): string => (e.t === "finish" ? `finish(${e.code})` : e.t);
 // the expected state after each event, for every state a run can be in; "-" means refused, "=" means accepted with no change
 const TABLE: Record<RunState, Record<string, string>> = {
-  queued: { start: "running", "finish(0)": "-", "finish(3)": "-", timeout: "-", cancel: "canceled", lost: "=", expire: "skipped" },
-  running: { start: "=", "finish(0)": "succeeded", "finish(3)": "failed", timeout: "timed_out", cancel: "canceled", lost: "interrupted", expire: "-" },
+  queued: {
+    start: "running",
+    "finish(0)": "-",
+    "finish(3)": "-",
+    timeout: "-",
+    cancel: "canceled",
+    lost: "=",
+    expire: "skipped",
+  },
+  running: {
+    start: "=",
+    "finish(0)": "succeeded",
+    "finish(3)": "failed",
+    timeout: "timed_out",
+    cancel: "canceled",
+    lost: "interrupted",
+    expire: "-",
+  },
   succeeded: { start: "-", "finish(0)": "=", "finish(3)": "-", timeout: "-", cancel: "-", lost: "-", expire: "-" },
   failed: { start: "-", "finish(0)": "-", "finish(3)": "=", timeout: "-", cancel: "-", lost: "-", expire: "-" },
   timed_out: { start: "-", "finish(0)": "-", "finish(3)": "-", timeout: "=", cancel: "-", lost: "-", expire: "-" },
@@ -128,16 +179,26 @@ test("Run now is refused while a run goes", () => {
 test("caps: two per site and four on the server, oldest first, and a full site does not block another", () => {
   const q = (id: string, siteId: string, queuedAt: number) => ({ run: run("queued", { id, queuedAt }), siteId });
   assert.deepEqual(startable([q("a", "s1", 1), q("b", "s1", 2), q("c", "s1", 3)], [], RUN_CAPS), ["a", "b"]);
-  assert.deepEqual(startable([q("a", "s1", 1), q("b", "s2", 2)], [{ siteId: "s1" }, { siteId: "s1" }], RUN_CAPS), ["b"]);
+  assert.deepEqual(startable([q("a", "s1", 1), q("b", "s2", 2)], [{ siteId: "s1" }, { siteId: "s1" }], RUN_CAPS), [
+    "b",
+  ]);
   const four = [{ siteId: "x" }, { siteId: "y" }, { siteId: "z" }, { siteId: "w" }];
   assert.deepEqual(startable([q("a", "s1", 1)], four, RUN_CAPS), []);
-  assert.deepEqual(startable([q("late", "s1", 9), q("early", "s2", 1)], [{ siteId: "x" }, { siteId: "y" }, { siteId: "z" }], RUN_CAPS), ["early"]);
+  assert.deepEqual(
+    startable([q("late", "s1", 9), q("early", "s2", 1)], [{ siteId: "x" }, { siteId: "y" }, { siteId: "z" }], RUN_CAPS),
+    ["early"],
+  );
 });
 
 test("restart mid-job: a running run is lost, a stale queued run expires, a fresh queued run waits", () => {
   const now = 10 * QUEUE_MAX_MS;
   const out = recover(
-    [run("running", { id: "a" }), run("queued", { id: "b", queuedAt: now - QUEUE_MAX_MS - 1 }), run("queued", { id: "c", queuedAt: now - 1000 }), run("succeeded", { id: "d" })],
+    [
+      run("running", { id: "a" }),
+      run("queued", { id: "b", queuedAt: now - QUEUE_MAX_MS - 1 }),
+      run("queued", { id: "c", queuedAt: now - 1000 }),
+      run("succeeded", { id: "d" }),
+    ],
     now,
   );
   assert.deepEqual(out, [

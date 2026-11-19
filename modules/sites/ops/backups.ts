@@ -32,23 +32,38 @@ export type BackupStepped = { ok: true; backup: Backup; same: boolean } | { ok: 
 export function stepBackup(b: Backup, ev: BackupEvent): BackupStepped {
   const ended = b.state === "ready" || b.state === "failed";
   if (ended) {
-    const same = (ev.t === "done" && b.state === "ready") || ((ev.t === "fail" || ev.t === "lost") && b.state === "failed");
+    const same =
+      (ev.t === "done" && b.state === "ready") || ((ev.t === "fail" || ev.t === "lost") && b.state === "failed");
     return same ? { ok: true, backup: b, same: true } : { ok: false, why: "That backup has already ended." };
   }
   if (b.state === "queued") {
     if (ev.t === "start") return { ok: true, same: false, backup: { ...b, state: "running" } };
-    if (ev.t === "fail") return { ok: true, same: false, backup: { ...b, state: "failed", endedAt: ev.at, note: ev.note } };
+    if (ev.t === "fail")
+      return { ok: true, same: false, backup: { ...b, state: "failed", endedAt: ev.at, note: ev.note } };
     return { ok: false, why: "That backup has not started." };
   }
   switch (ev.t) {
     case "start":
       return { ok: true, same: true, backup: b };
     case "done":
-      return { ok: true, same: false, backup: { ...b, state: "ready", endedAt: ev.at, bytes: ev.bytes, fileId: ev.fileId } };
+      return {
+        ok: true,
+        same: false,
+        backup: { ...b, state: "ready", endedAt: ev.at, bytes: ev.bytes, fileId: ev.fileId },
+      };
     case "fail":
       return { ok: true, same: false, backup: { ...b, state: "failed", endedAt: ev.at, note: ev.note } };
     case "lost":
-      return { ok: true, same: false, backup: { ...b, state: "failed", endedAt: ev.at, note: "The server restarted while the backup ran. Back up again." } };
+      return {
+        ok: true,
+        same: false,
+        backup: {
+          ...b,
+          state: "failed",
+          endedAt: ev.at,
+          note: "The server restarted while the backup ran. Back up again.",
+        },
+      };
   }
 }
 

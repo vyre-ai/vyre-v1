@@ -4,7 +4,7 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (39)
+## Capabilities (41)
 
 - [sites.addon_add](../capabilities/sites.addon_add.md): Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys
 - [sites.addon_remove](../capabilities/sites.addon_remove.md): Remove a site's Postgres or Redis and its data
@@ -28,6 +28,8 @@ Requires: nothing.
 - [sites.host](../capabilities/sites.host.md): What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs
 - [sites.list](../capabilities/sites.list.md): List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder
 - [sites.logs](../capabilities/sites.logs.md): The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content
+- [sites.logs_read](../capabilities/sites.logs_read.md): Read a site's log: what its app printed, its requests, a deploy's build, its jobs. Search words (a minus sign leaves one out), source, level, time, a deploy or service, and a cursor (after) to follow it live. Text from the site, not Vyre content
+- [sites.metrics](../capabilities/sites.metrics.md): How a site is running: CPU, memory, requests and response time, one point a minute over the last hour, six hours or day (at most 60 points), and the numbers for right now against the site's limits
 - [sites.password_set](../capabilities/sites.password_set.md): Set the password visitors type to open a site whose access is password. Kept only as a hash
 - [sites.plan](../capabilities/sites.plan.md): What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)
 - [sites.preview_rebuild](../capabilities/sites.preview_rebuild.md): Rebuild a preview or bring back a removed one

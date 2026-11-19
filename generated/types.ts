@@ -37662,6 +37662,67 @@ export type SitesLogsOut = {
   lines: Array<string>;
   state?: "queued" | "building" | "ready" | "failed" | "stopped";
 };
+export type SitesLogsReadIn = {
+  siteId: string;
+  q?: string;
+  source?: "app" | "requests" | "build" | "jobs";
+  scope?: string;
+  level?: "error" | "warn" | "info";
+  from?: number;
+  to?: number;
+  after?: number;
+  limit?: number;
+};
+export type SitesLogsReadOut = {
+  lines: Array<{
+      seq: number;
+      at: number;
+      source: "app" | "requests" | "build" | "jobs";
+      scope: string;
+      text: string;
+      level: "error" | "warn" | "info";
+    }>;
+  leftOut?: string;
+  lastSeq: number;
+  scopes: Array<{
+      scope: string;
+      source: "app" | "requests" | "build" | "jobs";
+      title: string;
+      at: number;
+      lines: number;
+    }>;
+};
+export type SitesMetricsIn = {
+  siteId: string;
+  window?: "1h" | "6h" | "24h";
+};
+export type SitesMetricsOut = {
+  window: "1h" | "6h" | "24h";
+  samples: Array<{
+      at: number;
+      cpu: number;
+      memMb: number;
+      requests: number;
+      errors: number;
+      p50: number;
+      p95: number;
+    }>;
+  now: {
+    cpu: {
+      value: number;
+      of: number;
+    };
+    mem: {
+      valueMb: number;
+      ofMb: number;
+    };
+    requestsPerMin: number;
+    p95: number;
+    errorRate: number;
+  };
+  measured: boolean;
+  requests: boolean;
+};
 export type SitesPasswordSetIn = {
   siteId: string;
   password: string;
@@ -50178,6 +50239,8 @@ export interface CapMap {
   "sites.host": { in: SitesHostIn; out: SitesHostOut };
   "sites.list": { in: SitesListIn; out: SitesListOut };
   "sites.logs": { in: SitesLogsIn; out: SitesLogsOut };
+  "sites.logs_read": { in: SitesLogsReadIn; out: SitesLogsReadOut };
+  "sites.metrics": { in: SitesMetricsIn; out: SitesMetricsOut };
   "sites.password_set": { in: SitesPasswordSetIn; out: SitesPasswordSetOut };
   "sites.plan": { in: SitesPlanIn; out: SitesPlanOut };
   "sites.preview_rebuild": { in: SitesPreviewRebuildIn; out: SitesPreviewRebuildOut };

@@ -34122,6 +34122,44 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/sites/logs_read",
+    "cap": "sites.logs_read",
+    "v": 1,
+    "module": "sites",
+    "effects": "read",
+    "permission": "sites.deploy",
+    "level": "view",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/metrics",
+    "cap": "sites.metrics",
+    "v": 1,
+    "module": "sites",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/sites/password_set",
     "cap": "sites.password_set",
     "v": 1,
@@ -38638,7 +38676,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/templates/project_starters",
@@ -38674,10 +38715,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/terminal/attach",

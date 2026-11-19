@@ -6,7 +6,15 @@ import type { Backup, BackupEvent, BackupState } from "../ops/backups.ts";
 
 const DAY = 24 * 3_600_000;
 const NOW = 100 * DAY;
-const b = (state: BackupState, o: Partial<Backup> = {}): Backup => ({ id: "b1", siteId: "s1", kind: "postgres", state, by: "schedule", at: NOW, ...o });
+const b = (state: BackupState, o: Partial<Backup> = {}): Backup => ({
+  id: "b1",
+  siteId: "s1",
+  kind: "postgres",
+  state,
+  by: "schedule",
+  at: NOW,
+  ...o,
+});
 const EVENTS: [string, BackupEvent][] = [
   ["start", { t: "start", at: 1 }],
   ["done", { t: "done", at: 1, bytes: 10, fileId: "fil_1" }],
@@ -67,7 +75,11 @@ test("the newest ready backup survives even when it is old", () => {
 });
 
 test("a failed backup goes after a day, unless pinned", () => {
-  const all = [b("failed", { id: "f1", at: NOW - 2 * DAY }), b("failed", { id: "f2", at: NOW - 3_600_000 }), b("failed", { id: "f3", at: NOW - 9 * DAY, pinned: true })];
+  const all = [
+    b("failed", { id: "f1", at: NOW - 2 * DAY }),
+    b("failed", { id: "f2", at: NOW - 3_600_000 }),
+    b("failed", { id: "f3", at: NOW - 9 * DAY, pinned: true }),
+  ];
   assert.deepEqual(expired(all, NOW), ["f1"]);
 });
 
