@@ -29,7 +29,7 @@ import {
   reqStr,
   str,
 } from "./deploy.ts";
-import { uploadFingerprint } from "../../../lib/key-target.ts";
+import { takeGateFp, uploadFingerprint } from "../../../lib/key-target.ts";
 import { looksSecret } from "./secrets.ts";
 import { sitePlan } from "./plan.ts";
 import type { SitePlan } from "./plan.ts";
@@ -481,18 +481,34 @@ async function addonEnv(ctx: Ctx, siteId: string): Promise<Record<string, string
 }
 
 /** The env vars of a deploy: the site's databases, then each var whose scope applies to this kind of deploy (all, and production or previews). A plain value is used as kept; a secret is filled from the Vault now. */
+/** The branches a person named in the site's webhook follow list, one by one: a pattern with a * names none. */
+function namedBranches(ctx: Ctx, siteId: string): string[] {
+  const site = one(ctx, "SELECT hook_follow FROM sites_site WHERE id = ?", siteId);
+  try {
+    const v = JSON.parse(!site || isNull(site.hook_follow) ? "[]" : str(site.hook_follow)) as unknown;
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !x.includes("*")) : [];
+  } catch {
+    return [];
+  }
+}
+
 async function envOf(
   ctx: Ctx,
   siteId: string,
   depId: string,
   kind: "production" | "preview" = "production",
+  branch?: string,
 ): Promise<Record<string, string>> {
   // a preview never gets the site's own databases: it would write to production data. It gets the ones its variables name (scope previews).
   const out = kind === "production" ? await addonEnv(ctx, siteId) : {};
   const want = kind === "production" ? "production" : "previews";
+  // a Vault key scoped to everything reaches a preview only for a branch a person named in the follow list: a "*" follow, or any branch a push can make, gets plain values and the keys made for previews
+  const named = kind === "preview" ? namedBranches(ctx, siteId) : [];
   for (const e of many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", siteId)) {
     const scope = isNull(e.scope) ? "production" : str(e.scope);
     if (scope !== "all" && scope !== want) continue;
+    if (kind === "preview" && scope === "all" && isNull(e.plain) && !(branch !== undefined && named.includes(branch)))
+      continue;
     out[str(e.name)] = !isNull(e.plain)
       ? str(e.plain)
       : await filled(ctx, str(e.vault_handle), `${depId}:${str(e.name)}`);
@@ -507,10 +523,11 @@ async function envForNew(
   depId: string,
   kind: "production" | "preview",
   ac: AbortController,
+  branch?: string,
 ): Promise<Record<string, string> | null> {
   cancels.set(depId, ac);
   try {
-    const env = await envOf(ctx, siteId, depId, kind);
+    const env = await envOf(ctx, siteId, depId, kind, branch);
     if (!ac.signal.aborted) return env;
   } catch (e) {
     cancels.delete(depId);
@@ -1049,10 +1066,11 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
   const siteId = str(site.id);
   const current = isNull(site.current_deployment) ? null : str(site.current_deployment);
   const token = source.tokenHandle ? await filled(ctx, source.tokenHandle, `${siteId}:token:${ctx.now()}`) : null;
-  // uploaded files: what they are right now, read as the caller, which the build checks against what it fetches
+  // uploaded files: the files the Gate judged for this call when it read them, else what they are now (read as the caller); the build checks what it fetches against it
   const expectFp =
     source.folderId || source.fileId
-      ? await uploadFingerprint(source, (cap, inp) => ctx.call(cap as never, inp))
+      ? (takeGateFp(ctx.trace?.traceId, siteId) ??
+        (await uploadFingerprint(source, (cap, inp) => ctx.call(cap as never, inp))))
       : null;
   if (optBool(ctx, o, "onlyIfChanged") === true && source.repo) {
     const last = one(
@@ -1533,7 +1551,7 @@ async function sitesPreviewRebuild(ctx: Ctx, input: unknown): Promise<{ deployme
     });
     throw e;
   }
-  const env = await envForNew(ctx, siteId, depId, "preview", ac);
+  const env = await envForNew(ctx, siteId, depId, "preview", ac, branch);
   if (env === null)
     return { deployment: depRow(one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", depId) as Row, null) };
   const job: Job = {

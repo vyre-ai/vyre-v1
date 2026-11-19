@@ -19,6 +19,7 @@ import {
   hostOfUrl,
   keyReadHost,
   keySendOf,
+  noteGateFp,
   siteKeyPairs,
   sourceKeyHost,
   sourceOfInput,
@@ -584,6 +585,7 @@ export function moduleWhens(
   const pairsOf = async (
     input: unknown,
     asker: string | undefined,
+    trace?: string,
   ): Promise<{ handle: string; host: string | null }[]> => {
     const read = async (s: SiteSource | null): Promise<SiteSource | null> => {
       if (!s || !(s.folderId || s.fileId) || !asker || !callAs) return s;
@@ -593,6 +595,10 @@ export function moduleWhens(
     let facts = siteFactsOf(input);
     if (facts) facts = { ...facts, source: await read(facts.source) };
     const given = await read(sourceOfInput(input));
+    // what the Gate judged is what the build must read: the fingerprint of the files this call would build is kept for the handler
+    const siteId = (input as { siteId?: unknown } | null)?.siteId;
+    const built = given ?? facts?.source ?? null;
+    if (typeof siteId === "string" && built?.fp) noteGateFp(trace, siteId, built.fp);
     const out: { handle: string; host: string | null }[] = [];
     for (const p of siteKeyPairs(input, facts, given))
       out.push({ handle: p.handle, host: p.source === null ? null : await sourceKeyHost(p.source) });
@@ -604,7 +610,7 @@ export function moduleWhens(
     const asker0 = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
     // what gets built for production on a site that stores Vault keys is a person's to change
     if (exposesKeys(input, siteFactsOf(input))) return true;
-    const pairs = await pairsOf(input, asker0);
+    const pairs = await pairsOf(input, asker0, seed.trace?.traceId);
     if (pairs.length > 0) {
       const h = db();
       if (!h || typeof approved !== "function") return true;
@@ -634,7 +640,7 @@ export function moduleWhens(
     const h = db();
     const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
     // the keys that were to reach code from a source: each pair is approved, by the person who pressed yes
-    const pairs = await pairsOf(input, asker);
+    const pairs = await pairsOf(input, asker, seed.trace?.traceId);
     if (pairs.length > 0 && h && asker && callAs) {
       const approver = seed.approvedBy?.startsWith("usr_") ? seed.approvedBy : asker;
       for (const pair of pairs) {

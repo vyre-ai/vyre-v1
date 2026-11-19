@@ -30,6 +30,8 @@ export interface Fake {
   files?: (cap: string, input: unknown) => unknown;
   /** The fingerprint the stand-in fetcher says it read for an uploaded source. */
   fetchFp?: () => string | undefined;
+  /** What the Vault answers for a variable, by its name (the value a stored key fills in). */
+  values?: Record<string, string>;
 }
 
 export function world(o: Fake = {}) {
@@ -133,7 +135,7 @@ export function world(o: Fake = {}) {
     sitesDomain: () => "sites.test",
     domainOf: () => null,
     hostRoute: (...a: unknown[]) => hooks.hostRoute(...a),
-    take: () => undefined,
+    take: (ref: string) => fake.values?.[ref.slice(ref.indexOf(":") + 1)],
   } as never);
   const make = async (name: string): Promise<string> =>
     (await h["sites.create"]!(ctx, { name, source: { path: FIXTURE } })).site.siteId as string;

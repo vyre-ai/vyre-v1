@@ -73,3 +73,22 @@ test("a held change of the Space time zone says the zone in words: Pacific Time,
   );
   assert.equal(HOLD_PHRASES["spaces.timezone.set"], "change the Space time zone");
 });
+
+test("the site's webhook, deploy on push and settings have their own words, and none of them is a capability name", () => {
+  const said = [
+    wantsFromInput("sites.webhook_set", { siteId: "sit_1", follow: ["release", "feat/*"] }),
+    wantsFromInput("sites.webhook_set", { siteId: "sit_1", follow: [] }),
+    wantsFromInput("sites.webhook_set", { siteId: "sit_1", enabled: true }),
+    wantsFromInput("sites.update", { siteId: "sit_1", autoDeploy: true }),
+    wantsFromInput("sites.update", { siteId: "sit_1", settings: { a: 1 } }),
+  ];
+  assert.deepEqual(said, [
+    "build previews of pushes to release, feat/*, with the site's keys",
+    "build previews of pushes to no branches, with the site's keys",
+    "switch on builds from GitHub pushes for a site with keys",
+    "deploy this site on every push, with its keys",
+    "change the settings of a site that holds keys",
+  ]);
+  for (const w of said) assert.doesNotMatch(String(w), /sites?\.|webhook_set|hook_follow|autoDeploy/);
+  assert.doesNotMatch(String(wantsFromInput("sites.webhook_set", { siteId: "sit_1", rotate: true })), /previews|switch on/, "a new secret builds nothing");
+});

@@ -173,6 +173,16 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
   }
   // a site's own keys meeting code from another source: a move to another repo or files, or a preview promoted to production
   if (cap === "sites.preview_promote") return "serve a preview as production with the site's keys";
+  // what gets built for production on a site that stores keys: which pushes build, deploy on push, the settings
+  if (cap === "sites.webhook_set") {
+    const follow = obj(input)["follow"];
+    if (Array.isArray(follow))
+      return `build previews of pushes to ${follow.filter((x) => typeof x === "string").join(", ") || "no branches"}, with the site's keys`;
+    if (obj(input)["enabled"] === true) return "switch on builds from GitHub pushes for a site with keys";
+  }
+  if (cap === "sites.update" && obj(input)["autoDeploy"] === true) return "deploy this site on every push, with its keys";
+  if (cap === "sites.update" && obj(input)["settings"] !== undefined && obj(input)["settings"] !== null)
+    return "change the settings of a site that holds keys";
   if (cap.startsWith("sites.") && obj(obj(input)["source"])["repo"] !== undefined && keySendOf(input) === undefined)
     return `give the site's keys to code from ${str(obj(obj(input)["source"])["repo"])
       .replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "")

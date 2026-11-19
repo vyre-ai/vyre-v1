@@ -13,7 +13,7 @@ import { createHmac } from "node:crypto";
 import { handlers, siteFacts } from "../impl.ts";
 import { deployHandlers } from "../handlers/deploy.ts";
 import { FIXTURE, h, world, type Fake } from "../fixtures/deploy-world.ts";
-import { uploadFingerprint } from "../../../lib/key-target.ts";
+import { exposesKeys, noteGateFp, uploadFingerprint } from "../../../lib/key-target.ts";
 import { fetchSource } from "../handlers/source.ts";
 
 const states = (steps: Array<{ key: string; state: string }>): string =>
@@ -1660,5 +1660,111 @@ test("the fetcher fingerprints the versions it read, the same way the Gate does"
     );
   } finally {
     got.cleanup();
+  }
+});
+
+test("a Vault key scoped to everything reaches a preview only for a branch a person named in the follow list: a * follow or any other branch gets plain values and the keys made for previews", async () => {
+  const w = world({ values: { SECRET_ALL: "s-all", SECRET_PREVIEW: "s-prev", SECRET_PROD: "s-prod" } });
+  try {
+    const siteId = await w.makeRepo("Scoped");
+    const row = (name: string, handle: string | null, plain: string | null, scope: string): void =>
+      void w.sdb.run(
+        "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
+        siteId,
+        name,
+        handle ?? "",
+        0,
+        plain,
+        scope,
+      );
+    row("SECRET_ALL", "#Stripe.key", null, "all");
+    row("SECRET_PREVIEW", "#Stripe.key", null, "previews");
+    row("SECRET_PROD", "#Stripe.key", null, "production");
+    row("PLAIN_ALL", null, "calm", "all");
+    const preview = (branch: string) => _test.envOf(w.ctx, siteId, "d", "preview", branch);
+    // no follow list: no branch is named
+    assert.deepEqual(await preview("feat/x"), { PLAIN_ALL: "calm", SECRET_PREVIEW: "s-prev" });
+    // a * follow names nothing: an agent that pushes a branch gets no everywhere-key
+    await h["sites.webhook_set"]!(w.ctx, { siteId, follow: ["*"] });
+    assert.deepEqual(await preview("agent-branch"), { PLAIN_ALL: "calm", SECRET_PREVIEW: "s-prev" });
+    await h["sites.webhook_set"]!(w.ctx, { siteId, follow: ["feat/*"] });
+    assert.deepEqual(await preview("feat/y"), { PLAIN_ALL: "calm", SECRET_PREVIEW: "s-prev" }, "a prefix names none");
+    // a branch a person named gets it
+    await h["sites.webhook_set"]!(w.ctx, { siteId, follow: ["release", "feat/*"] });
+    assert.deepEqual(await preview("release"), { PLAIN_ALL: "calm", SECRET_ALL: "s-all", SECRET_PREVIEW: "s-prev" });
+    assert.deepEqual(await preview("feat/y"), { PLAIN_ALL: "calm", SECRET_PREVIEW: "s-prev" });
+    // production still takes the everywhere-key
+    assert.deepEqual(await _test.envOf(w.ctx, siteId, "d", "production"), {
+      PLAIN_ALL: "calm",
+      SECRET_ALL: "s-all",
+      SECRET_PROD: "s-prod",
+    });
+    // and a real preview build of an unnamed branch is built with no everywhere-key
+    await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "agent-branch", wait: true });
+    const dep = w.sdb.all("SELECT id FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ?", siteId, "agent-branch")[0] as { id: string };
+    assert.equal(w.seen.envs[dep.id]?.["SECRET_ALL"], undefined);
+    assert.equal(w.seen.envs[dep.id]?.["SECRET_PREVIEW"], "s-prev");
+  } finally {
+    w.done();
+  }
+});
+
+test("exposesKeys, read from a real site's facts: what reaches production on a site that stores a production Vault key is held; a site with no such key, an unreadable site, and a change that builds nothing are not", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Exposed");
+    const key = (scope: string): void =>
+      void w.sdb.run(
+        "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
+        siteId,
+        `K_${scope}`,
+        "#Stripe.key",
+        0,
+        null,
+        scope,
+      );
+    const facts = () => siteFacts({ db: w.sdb } as never, siteId) as never;
+    const changes: Record<string, unknown>[] = [
+      { follow: ["*"] },
+      { enabled: true },
+      { autoDeploy: true },
+      { settings: { defaultBranch: "x" } },
+    ];
+    for (const c of changes) assert.equal(exposesKeys({ siteId, ...c }, facts()), false, "no key stored");
+    key("previews");
+    for (const c of changes) assert.equal(exposesKeys({ siteId, ...c }, facts()), false, "a previews-only key");
+    key("all");
+    for (const c of changes) assert.equal(exposesKeys({ siteId, ...c }, facts()), true, `a key for everything: ${JSON.stringify(c)}`);
+    for (const c of [{ rotate: true }, { enabled: false }, { name: "New" }, { autoDeploy: false }])
+      assert.equal(exposesKeys({ siteId, ...c }, facts()), false, `${JSON.stringify(c)} changes nothing that is built`);
+    assert.equal(exposesKeys({ siteId: "sit_nope", follow: ["*"] }, siteFacts({ db: w.sdb } as never, "sit_nope")), true, "a site it cannot read");
+  } finally {
+    w.done();
+  }
+});
+
+test("a build checks the files it fetches against the fingerprint the Gate read for the call, not a fresh read at the deploy call", async () => {
+  const rows = [{ fileId: "fil_a", name: "index.html", version: 1, size: 4 }];
+  const files = (cap: string, input: unknown): unknown =>
+    cap === "files.list" && (input as { folder: string }).folder === "fld_up" ? { files: rows, folders: [] } : null;
+  let read: string | undefined;
+  const w = world({ files, fetchFp: () => read });
+  try {
+    const siteId = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site.siteId as string;
+    const judged = (await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i)))!;
+    // between the Gate's read and the handler the files change; the build reads the new ones
+    rows[0]!.version = 2;
+    const now = (await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i)))!;
+    read = now;
+    noteGateFp(w.ctx.trace.traceId, siteId, judged);
+    const bad = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(bad.deployment.state, "failed", "the files are not the ones the Gate judged");
+    assert.match(bad.deployment.problem, /files in Files changed after this deploy was asked for/);
+    // a call the Gate did not read (a person's): the handler reads for itself, and the build goes on
+    const ok = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
+    assert.equal(siteFacts({ db: w.sdb } as never, siteId)!.deployedFp, now);
+  } finally {
+    w.done();
   }
 });

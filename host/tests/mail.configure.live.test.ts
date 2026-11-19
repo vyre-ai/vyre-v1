@@ -1,7 +1,7 @@
 // The email setup capabilities through the real invoke pipeline: the real definitions from the registry, the real kernel authorize over a real access snapshot, and the real Gate hook.
 // mail.configure routes to these, so they are its whole door: a member without comms.domains is refused, an admin is let in, and when an agent changes the Space's mail server or moves an address the call is held for a person's ok.
 import { wantsFromInput } from "../../lib/hold-words.ts";
-import { sourceKeyHost, uploadFingerprint } from "../../lib/key-target.ts";
+import { sourceKeyHost, takeGateFp, uploadFingerprint } from "../../lib/key-target.ts";
 import { siteFacts } from "../../modules/sites/impl.ts";
 import { world as sitesWorld, h as siteH } from "../../modules/sites/fixtures/deploy-world.ts";
 import test from "node:test";
@@ -1369,4 +1369,23 @@ test("through the real Gate: an Automation's step is held on a pause, resume or 
     assert.equal(await at({ kind: "person", id: "usr_admin" }), null, `${name}: a person is one step`);
     assert.equal(await at({ kind: "service", id: "svc_host" }), null, `${name}: the host's own service is one step`);
   }
+});
+
+test("the Gate keeps the fingerprint it read for an agent's call, so the build can check against the files it judged and not a later look", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("Up", { folderId: "fld_up" }, false);
+  await s.deployUpload(siteId);
+  s.store(siteId, STORED.name, STORED.handle);
+  const trace = { traceId: "a1".repeat(16), spanId: "b2".repeat(8) };
+  const asked = await s.fp();
+  const r = rig(s.opts);
+  assert.equal((await r.invoke("sites.deploy", { siteId }, { ...asAgent(), trace } as never)).status, "ok");
+  // the files change after the Gate's read: the handler is handed the fingerprint the Gate read
+  s.tree.files["fld_up"]![0]!.version = 5;
+  assert.equal(takeGateFp(trace.traceId, siteId), asked);
+  assert.equal(takeGateFp(trace.traceId, siteId), null, "taken once");
+  // a person's own call is not read by the Gate: nothing is kept, the handler reads for itself
+  const t2 = { traceId: "c3".repeat(16), spanId: "d4".repeat(8) };
+  assert.equal((await rig(s.opts).invoke("sites.deploy", { siteId }, { ...seed("usr_admin"), trace } as never)).status, "ok");
+  assert.equal(takeGateFp(t2.traceId, siteId), null);
 });

@@ -193,6 +193,25 @@ export async function uploadFingerprint(
   return fingerprintOf(lines);
 }
 
+/**
+ * The fingerprint the Gate read for a call, kept for the handler that runs the same call (in this process, under the same trace), so the build checks the files it fetches against the files the Gate judged, not a later look.
+ * A short-lived note: taken once, gone after ten minutes. A call the Gate did not read (a person's) has none, and the handler reads for itself.
+ */
+const gateFps = new Map<string, { fp: string; at: number }>();
+const GATE_FP_TTL_MS = 10 * 60 * 1000;
+export function noteGateFp(trace: string | undefined, siteId: string, fp: string, now: number = Date.now()): void {
+  if (!trace) return;
+  for (const [k, v] of gateFps) if (now - v.at > GATE_FP_TTL_MS || gateFps.size > 1000) gateFps.delete(k);
+  gateFps.set(`${trace}:${siteId}`, { fp, at: now });
+}
+export function takeGateFp(trace: string | undefined, siteId: string, now: number = Date.now()): string | null {
+  if (!trace) return null;
+  const k = `${trace}:${siteId}`;
+  const v = gateFps.get(k);
+  gateFps.delete(k);
+  return v && now - v.at <= GATE_FP_TTL_MS ? v.fp : null;
+}
+
 /** What the Gate knows about a site the call names: where its code comes from now, its stored Vault env rows, where a preview of a branch was built from, and what the files were when it was last deployed. */
 export interface SiteFacts {
   source: SiteSource | null;
