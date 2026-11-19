@@ -127,13 +127,13 @@ if ("limit" in o912) lf(o912["limit"], p + "/limit", e, L122);
 
 function d_s_e42a181eb0(v: unknown, p: string, e: string[]): void {
 {
-const x1160 = v;
-const g1160 = typeOf(x1160);
-const b1160: string[] = []; lf(x1160, p, b1160, L0); if (b1160.length) e.push(...b1160);
-if (g1160 === "object") {
-if (g1160 === 'object') { const o1160 = x1160 as Record<string, unknown>;
-if (!("conversation" in o1160)) e.push(p + "/conversation" + ': required');
-if ("conversation" in o1160) d_s_acdf9f65cd(o1160["conversation"], p + "/conversation", e);
+const x1158 = v;
+const g1158 = typeOf(x1158);
+const b1158: string[] = []; lf(x1158, p, b1158, L0); if (b1158.length) e.push(...b1158);
+if (g1158 === "object") {
+if (g1158 === 'object') { const o1158 = x1158 as Record<string, unknown>;
+if (!("conversation" in o1158)) e.push(p + "/conversation" + ': required');
+if ("conversation" in o1158) d_s_acdf9f65cd(o1158["conversation"], p + "/conversation", e);
 }
 }
 }

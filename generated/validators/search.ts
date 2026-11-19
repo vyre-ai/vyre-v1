@@ -76,15 +76,15 @@ if ("updatedAt" in o922) lf(o922["updatedAt"], p + "/updatedAt", e, L17);
 
 function d_s_d35c81be77(v: unknown, p: string, e: string[]): void {
 {
-const x1038 = v;
-const g1038 = typeOf(x1038);
-const b1038: string[] = []; lf(x1038, p, b1038, L0); if (b1038.length) e.push(...b1038);
-if (g1038 === "object") {
-if (g1038 === 'object') { const o1038 = x1038 as Record<string, unknown>;
-if (!("kind" in o1038)) e.push(p + "/kind" + ': required');
-if (!("itemId" in o1038)) e.push(p + "/itemId" + ': required');
-if ("kind" in o1038) lf(o1038["kind"], p + "/kind", e, L156);
-if ("itemId" in o1038) lf(o1038["itemId"], p + "/itemId", e, L1);
+const x1036 = v;
+const g1036 = typeOf(x1036);
+const b1036: string[] = []; lf(x1036, p, b1036, L0); if (b1036.length) e.push(...b1036);
+if (g1036 === "object") {
+if (g1036 === 'object') { const o1036 = x1036 as Record<string, unknown>;
+if (!("kind" in o1036)) e.push(p + "/kind" + ': required');
+if (!("itemId" in o1036)) e.push(p + "/itemId" + ': required');
+if ("kind" in o1036) lf(o1036["kind"], p + "/kind", e, L156);
+if ("itemId" in o1036) lf(o1036["itemId"], p + "/itemId", e, L1);
 }
 }
 }

@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { configureRoutes, routeByHost } from "../handlers/route.ts";
-import { _test } from "../handlers/release.ts";
+import { _test, servingContainers } from "../handlers/release.ts";
 import { acceptWebhook, markPushDone, pendingPushes, signed, follows } from "../handlers/hook.ts";
 import { createHmac } from "node:crypto";
 import { handlers } from "../impl.ts";
@@ -43,6 +43,7 @@ function world(o: Fake = {}) {
     "0005_deploy_steps.sql",
     "0006_env_plain.sql",
     "0007_webhook.sql",
+    "0008_env_scope.sql",
   ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const sdb = {
@@ -387,8 +388,8 @@ test("env: a plain value and a scope are kept, listed as given, and reach only t
     await h["sites.env_set"]!(w.ctx, {
       siteId,
       entries: [
-        { name: "APP_MODE", value: "calm" },
-        { name: "ONLY_PROD", value: "p", scope: "production" },
+        { name: "APP_MODE", value: "calm", scope: "all" },
+        { name: "ONLY_PROD", value: "p" },
         { name: "ONLY_PREVIEW", value: "v", scope: "previews" },
       ],
     });
@@ -446,11 +447,19 @@ test("previewLabel: a branch is an address that is safe, short enough, and never
   const l = _test.previewLabel;
   assert.equal(l("shop", "next"), "next--shop");
   assert.notEqual(l("shop", "feat/a"), l("shop", "feat-a"));
-  assert.match(l("shop", "feat/Login Page!"), /^feat-login-page-[0-9a-f]{6}--shop$/);
+  assert.match(l("shop", "feat/Login Page!"), /^feat-login-page-[0-9a-f]{8}--shop$/);
   const long = l("a-fairly-long-site-name-here", "feature/".padEnd(120, "x"));
   assert.ok(long.length <= 63, long);
   assert.match(long, /^[a-z0-9][a-z0-9-]*[a-z0-9]$/);
   assert.ok(long.endsWith("--a-fairly-long-site-name-here"));
+  // a site name that leaves no room: still 63 or less, and two sites with the same long start get different addresses
+  const s1 = "x".repeat(55) + "-one";
+  const s2 = "x".repeat(55) + "-two";
+  assert.ok(l(s1, "main").length <= 63 && l(s2, "main").length <= 63);
+  const long1 = l("a".repeat(60), "feature/very-long-branch-name");
+  const long2 = l("a".repeat(59) + "b", "feature/very-long-branch-name");
+  assert.ok(long1.length <= 63 && long2.length <= 63);
+  assert.notEqual(long1, long2);
 });
 
 test("a preview builds a branch at its own address behind sign-in, and does not touch what is serving", async () => {
@@ -464,15 +473,15 @@ test("a preview builds a branch at its own address behind sign-in, and does not 
     await h["sites.env_set"]!(w.ctx, {
       siteId,
       entries: [
-        { name: "MODE", value: "prod", scope: "production" },
+        { name: "MODE", value: "prod" },
         { name: "MODE_P", value: "preview", scope: "previews" },
-        { name: "ALL", value: "x" },
+        { name: "ALL", value: "x", scope: "all" },
       ],
     });
     const out = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "feat/login", wait: true });
     assert.equal(out.deployment.state, "ready", out.deployment.problem);
     assert.equal(out.deployment.branch, "feat/login");
-    assert.match(out.deployment.url, /^https:\/\/feat-login-[0-9a-f]{6}--shop\.sites\.test$/);
+    assert.match(out.deployment.url, /^https:\/\/feat-login-[0-9a-f]{8}--shop\.sites\.test$/);
     assert.equal(states(out.deployment.steps), "fetch:ok build:ok start:ok check:ok");
     // production is as it was
     const after = (await h["sites.get"]!(w.ctx, { siteId })).site;
@@ -739,14 +748,14 @@ const push = (branch: string, after = "a".repeat(40)) => ({ ref: `refs/heads/${b
 const queued = (w: ReturnType<typeof world>) =>
   pendingPushes({ db: w.sdb } as never).map((p) => `${p.action}:${p.branch}`);
 
-test("a signature is the HMAC of the raw body, compared whole: a wrong digest, a short one and none are refused", () => {
+test("a signature is the HMAC of the raw body, compared whole: a wrong digest, a short one and none are refused", async () => {
   const good = sign("s3cret", "{}");
-  assert.equal(signed("s3cret", good, "{}"), true);
-  assert.equal(signed("s3cret", sign("other", "{}"), "{}"), false);
-  assert.equal(signed("s3cret", good, "{} "), false, "the body is part of it");
-  assert.equal(signed("s3cret", good.slice(0, -2), "{}"), false);
-  assert.equal(signed("s3cret", undefined, "{}"), false);
-  assert.equal(signed("s3cret", good.toUpperCase(), "{}"), false);
+  assert.equal(await signed("s3cret", good, "{}"), true);
+  assert.equal(await signed("s3cret", sign("other", "{}"), "{}"), false);
+  assert.equal(await signed("s3cret", good, "{} "), false, "the body is part of it");
+  assert.equal(await signed("s3cret", good.slice(0, -2), "{}"), false);
+  assert.equal(await signed("s3cret", undefined, "{}"), false);
+  assert.equal(await signed("s3cret", good.toUpperCase(), "{}"), false);
 });
 
 test("branch patterns: a name, a prefix ending in *, or *", () => {
@@ -931,6 +940,211 @@ test("a delivery counts for the site whose secret signed it, not for another sit
       [a],
     );
   } finally {
+    w.done();
+  }
+});
+
+test("a cancel that arrives while the address is changing hands is refused, and the deploy goes live", async () => {
+  const w = world();
+  _test.cancelWait(30);
+  try {
+    const siteId = await w.make("Going live");
+    let refused = "";
+    // the route write runs inside the switch: the cancel arrives there
+    w.hooks.hostRoute = async () => {
+      await h["sites.deploy_cancel"]!(w.ctx, { siteId }).then(
+        () => (refused = "accepted"),
+        (e: { error?: { message?: string } }) => (refused = e.error?.message ?? "refused"),
+      );
+    };
+    const out = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.match(refused, /going live now/);
+    assert.equal(out.deployment.state, "ready");
+    const site = (await h["sites.get"]!(w.ctx, { siteId })).site;
+    assert.equal(site.lastDeploy.state, "ready");
+    assert.equal(site.lastDeploy.current, true);
+    assert.equal(site.live, true);
+  } finally {
+    _test.cancelWait(null);
+    w.done();
+  }
+});
+
+test("a preview that is not ready is not restarted by the server: only ready previews are served again", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Restart");
+    const ok = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "up", wait: true });
+    w.sdb.run(
+      "INSERT INTO sites_deployment (id, site_id, env, state, branch, container_id, log, created_by, at, updated_at, merge_pending) VALUES ('dpl_orphan', ?, 'preview', 'stopped', 'x', 'c-orphan', '[]', 'u', 1, 1, 0)",
+      siteId,
+    );
+    const serving = servingContainers({ db: w.sdb } as never).map((c) => c.containerId);
+    assert.ok(serving.includes(`c-${ok.deployment.deploymentId}`));
+    assert.equal(serving.includes("c-orphan"), false);
+  } finally {
+    w.done();
+  }
+});
+
+test("a variable applies to production unless it is scoped wider, and a preview only gets what was scoped to it", async () => {
+  const w = world();
+  try {
+    const siteId = await w.make("Scopes");
+    await h["sites.env_set"]!(w.ctx, {
+      siteId,
+      entries: [
+        { name: "A", value: "1" },
+        { name: "B", value: "2", scope: "previews" },
+      ],
+    });
+    const list = (await h["sites.env_list"]!(w.ctx, { siteId })).entries;
+    assert.deepEqual(
+      list.map((e: { name: string; scope: string }) => `${e.name}:${e.scope}`),
+      ["A:production", "B:previews"],
+    );
+    assert.deepEqual(await _test.envOf(w.ctx, siteId, "d", "preview"), { B: "2" });
+    assert.deepEqual(await _test.envOf(w.ctx, siteId, "d", "production"), { A: "1" });
+    // the ones kept before the default changed are production too
+    w.sdb.run(
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected, scope) VALUES (?, 'OLD', '#K', 0, 'all')",
+      siteId,
+    );
+    w.sdb.run(require_migration("0008_env_scope.sql"));
+    assert.equal(
+      (w.sdb.all("SELECT scope FROM sites_env WHERE name = 'OLD'")[0] as { scope: string }).scope,
+      "production",
+    );
+  } finally {
+    w.done();
+  }
+});
+
+function require_migration(file: string): string {
+  return fs.readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8").replace(/^--.*$/gm, "");
+}
+
+test("a plain value that looks like a secret is refused unless it is confirmed plain; a kept plain value is saved again without asking", async () => {
+  const w = world();
+  try {
+    const siteId = await w.make("Looks secret");
+    const set = (entries: unknown[]) => h["sites.env_set"]!(w.ctx, { siteId, entries });
+    await assert.rejects(() => set([{ name: "STRIPE_API_KEY", value: "abc" }]), /looks like a secret/);
+    await assert.rejects(() => set([{ name: "WHATEVER", value: "sk_live_51Habcdefghijkl" }]), /looks like a secret/);
+    await assert.rejects(() => set([{ name: "DB", value: "postgres://u:p@h/db" }]), /looks like a secret/);
+    assert.equal((await h["sites.env_list"]!(w.ctx, { siteId })).entries.length, 0, "nothing was kept");
+    await set([
+      { name: "STRIPE_API_KEY", value: "abc", confirmPlain: true },
+      { name: "APP_MODE", value: "calm" },
+    ]);
+    const kept = (await h["sites.env_list"]!(w.ctx, { siteId })).entries as {
+      name: string;
+      kind: string;
+      value: string;
+      scope: string;
+    }[];
+    assert.equal(kept.length, 2);
+    // a public name keeps its plain value, and the list read back goes in again (the page and sites_ship do this)
+    await set(kept.map((e) => ({ name: e.name, value: e.value, scope: e.scope, confirmPlain: true })));
+    await set([{ name: "NEXT_PUBLIC_SITE_KEY", value: "pk_live_abc" }]);
+  } finally {
+    w.done();
+  }
+});
+
+test("sites_ship by name finds the site it made, and says where a deploy error really stopped", async () => {
+  const w = world();
+  try {
+    const bad = await h["sites.ship"]!(w.ctx, {
+      name: "Ship twice",
+      source: { path: FIXTURE },
+      env: [{ name: "PORT", value: "1" }],
+    });
+    assert.equal(bad.ok, false);
+    assert.equal(bad.failedStep, "setup");
+    const again = await h["sites.ship"]!(w.ctx, { name: "ship TWICE", source: { path: FIXTURE } });
+    assert.equal(again.ok, true, again.say);
+    assert.equal(again.siteId, bad.siteId, "the same site, not a second one");
+    const all = await h["sites.list"]!(w.ctx, {});
+    assert.equal(all.sites.filter((s: { name: string }) => s.name.toLowerCase() === "ship twice").length, 1);
+    // an error from the deploy call itself is the deploy's, not setup's
+    const stopped = await h["sites.ship"]!(w.ctx, { siteId: again.siteId, source: { repo: "not a repo!!" } });
+    assert.equal(stopped.ok, false);
+    assert.equal(stopped.failedStep, "deploy");
+    assert.match(stopped.say, /^It could not start the deploy/);
+  } finally {
+    w.done();
+  }
+});
+
+test("a site keeps its newest ten previews: an older branch is removed with its container", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Many");
+    const ids: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      const out = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: `b${i}`, wait: true });
+      assert.equal(out.deployment.state, "ready");
+      ids.push(out.deployment.deploymentId);
+    }
+    const list = (await h["sites.previews"]!(w.ctx, { siteId })).previews as { branch: string }[];
+    assert.equal(list.length, 10);
+    assert.deepEqual(list.map((p) => p.branch).sort(), Array.from({ length: 10 }, (_, i) => `b${i + 2}`).sort());
+    assert.ok(w.seen.removed.includes(`c-${ids[0]}`) && w.seen.removed.includes(`c-${ids[1]}`));
+  } finally {
+    w.done();
+  }
+});
+
+test("two asks to build the same branch at once make one build", async () => {
+  const w = world({ buildMs: 100 });
+  try {
+    const siteId = await w.makeRepo("Parallel");
+    const [a, b] = await Promise.all([
+      h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "same", wait: true }),
+      h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "same", wait: true }),
+    ]);
+    assert.equal(a.deployment.deploymentId, b.deployment.deploymentId);
+    assert.equal(w.seen.builds, 1);
+    const rows = w.sdb.all("SELECT id FROM sites_deployment WHERE env = 'preview'");
+    assert.equal(rows.length, 1);
+  } finally {
+    w.done();
+  }
+});
+
+test("removing a preview that is still building closes its row with the removal: nothing reads it half built, and it never goes up", async () => {
+  const w = world({ uncuttable: true, buildMs: 300 });
+  _test.cancelWait(30);
+  try {
+    const siteId = await w.makeRepo("Remove building");
+    const started = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "mid" });
+    await settle(50);
+    assert.deepEqual(await h["sites.preview_remove"]!(w.ctx, { siteId, branch: "mid" }), { removed: true });
+    const row = w.sdb.all(
+      "SELECT state, removed_at, host FROM sites_deployment WHERE id = ?",
+      started.deployment.deploymentId,
+    )[0] as {
+      state: string;
+      removed_at: number | null;
+      host: string | null;
+    };
+    assert.equal(row.state, "stopped");
+    assert.ok(row.removed_at);
+    await settle(700);
+    const after = w.sdb.all(
+      "SELECT state, host, container_id FROM sites_deployment WHERE id = ?",
+      started.deployment.deploymentId,
+    )[0] as {
+      state: string;
+      host: string | null;
+      container_id: string | null;
+    };
+    assert.equal(after.state, "stopped", "the job did not bring it back");
+    assert.equal(after.host, null);
+    assert.equal((await h["sites.previews"]!(w.ctx, { siteId })).previews.length, 0);
+  } finally {
+    _test.cancelWait(null);
     w.done();
   }
 });

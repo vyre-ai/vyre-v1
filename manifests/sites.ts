@@ -66,6 +66,7 @@ const envEntry = t.obj({
   vaultHandle: t.opt(id.handle),
   value: t.opt(t.str({ description: "A plain value that is not a secret. Give this or vaultHandle, not both" })),
   scope: t.opt(envScope),
+  confirmPlain: t.opt(t.bool({ description: "Say that a value that looks like a secret is plain on purpose" })),
 });
 const source = t.obj({
   repo: t.opt(
@@ -405,7 +406,7 @@ export default defineManifest({
           siteId: id.site,
           address: t.opt(t.str({ description: "Where it is live" })),
           say: t.str({ description: "The answer in one or two sentences, to give the person" }),
-          failedStep: t.opt(t.enm("setup", "fetch", "build", "start", "check")),
+          failedStep: t.opt(t.enm("setup", "deploy", "fetch", "build", "start", "check")),
           problem: t.opt(t.str()),
           fix: t.opt(fix),
           deployment: t.opt(dep),
@@ -563,7 +564,7 @@ export default defineManifest({
     }),
     write(
       "sites.env_set",
-      "Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them",
+      "Set the env vars of a deployed site (replaces the list). A secret takes its value from a Vault key at deploy time. A plain value is kept as given; one that looks like a secret is refused unless confirmPlain. scope: production (default), previews or all",
       {
         in: { siteId: id.site, entries: t.arr(envEntry) },
         out: { ok: t.bool() },

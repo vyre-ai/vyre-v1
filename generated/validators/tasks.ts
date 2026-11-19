@@ -334,22 +334,22 @@ if ("follower" in o914) lf(o914["follower"], p + "/follower", e, L1);
 
 function d_s_d2c64dc123(v: unknown, p: string, e: string[]): void {
 {
-const x1034 = v;
-const g1034 = typeOf(x1034);
-const b1034: string[] = []; lf(x1034, p, b1034, L4); if (b1034.length) e.push(...b1034);
-if (g1034 === "array") {
-if (g1034 === 'array') { const a1034 = x1034 as unknown[];
-for (let i1034 = 0; i1034 < a1034.length; i1034++) {
+const x1032 = v;
+const g1032 = typeOf(x1032);
+const b1032: string[] = []; lf(x1032, p, b1032, L4); if (b1032.length) e.push(...b1032);
+if (g1032 === "array") {
+if (g1032 === 'array') { const a1032 = x1032 as unknown[];
+for (let i1032 = 0; i1032 < a1032.length; i1032++) {
 {
-const x1035 = a1034[i1034];
-const g1035 = typeOf(x1035);
-const b1035: string[] = []; lf(x1035, p + '/' + i1034, b1035, L0); if (b1035.length) e.push(...b1035);
-if (g1035 === "object") {
-if (g1035 === 'object') { const o1035 = x1035 as Record<string, unknown>;
-if (!("type" in o1035)) e.push(p + '/' + i1034 + "/type" + ': required');
-if (!("data" in o1035)) e.push(p + '/' + i1034 + "/data" + ': required');
-if ("type" in o1035) lf(o1035["type"], p + '/' + i1034 + "/type", e, L1);
-if ("v" in o1035) lf(o1035["v"], p + '/' + i1034 + "/v", e, L12);
+const x1033 = a1032[i1032];
+const g1033 = typeOf(x1033);
+const b1033: string[] = []; lf(x1033, p + '/' + i1032, b1033, L0); if (b1033.length) e.push(...b1033);
+if (g1033 === "object") {
+if (g1033 === 'object') { const o1033 = x1033 as Record<string, unknown>;
+if (!("type" in o1033)) e.push(p + '/' + i1032 + "/type" + ': required');
+if (!("data" in o1033)) e.push(p + '/' + i1032 + "/data" + ': required');
+if ("type" in o1033) lf(o1033["type"], p + '/' + i1032 + "/type", e, L1);
+if ("v" in o1033) lf(o1033["v"], p + '/' + i1032 + "/v", e, L12);
 }
 }
 }

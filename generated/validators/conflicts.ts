@@ -95,15 +95,15 @@ if ("runId" in o923) lf(o923["runId"], p + "/runId", e, L34);
 
 function d_s_d09bc4ad3a(v: unknown, p: string, e: string[]): void {
 {
-const x1025 = v;
-const g1025 = typeOf(x1025);
-const b1025: string[] = []; lf(x1025, p, b1025, L0); if (b1025.length) e.push(...b1025);
-if (g1025 === "object") {
-if (g1025 === 'object') { const o1025 = x1025 as Record<string, unknown>;
-if (!("resolutionId" in o1025)) e.push(p + "/resolutionId" + ': required');
-if (!("state" in o1025)) e.push(p + "/state" + ': required');
-if ("resolutionId" in o1025) lf(o1025["resolutionId"], p + "/resolutionId", e, L370);
-if ("state" in o1025) lf(o1025["state"], p + "/state", e, L386);
+const x1023 = v;
+const g1023 = typeOf(x1023);
+const b1023: string[] = []; lf(x1023, p, b1023, L0); if (b1023.length) e.push(...b1023);
+if (g1023 === "object") {
+if (g1023 === 'object') { const o1023 = x1023 as Record<string, unknown>;
+if (!("resolutionId" in o1023)) e.push(p + "/resolutionId" + ': required');
+if (!("state" in o1023)) e.push(p + "/state" + ': required');
+if ("resolutionId" in o1023) lf(o1023["resolutionId"], p + "/resolutionId", e, L370);
+if ("state" in o1023) lf(o1023["state"], p + "/state", e, L386);
 }
 }
 }

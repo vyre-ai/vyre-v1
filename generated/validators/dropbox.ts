@@ -63,15 +63,15 @@ if ("entry" in o960) d_s_9b30b1af72(o960["entry"], p + "/entry", e);
 
 function d_s_cc4e1cf783(v: unknown, p: string, e: string[]): void {
 {
-const x1014 = v;
-const g1014 = typeOf(x1014);
-const b1014: string[] = []; lf(x1014, p, b1014, L0); if (b1014.length) e.push(...b1014);
-if (g1014 === "object") {
-if (g1014 === 'object') { const o1014 = x1014 as Record<string, unknown>;
-if (!("connectionId" in o1014)) e.push(p + "/connectionId" + ': required');
-if (!("path" in o1014)) e.push(p + "/path" + ': required');
-if ("connectionId" in o1014) lf(o1014["connectionId"], p + "/connectionId", e, L40);
-if ("path" in o1014) lf(o1014["path"], p + "/path", e, L1);
+const x1012 = v;
+const g1012 = typeOf(x1012);
+const b1012: string[] = []; lf(x1012, p, b1012, L0); if (b1012.length) e.push(...b1012);
+if (g1012 === "object") {
+if (g1012 === 'object') { const o1012 = x1012 as Record<string, unknown>;
+if (!("connectionId" in o1012)) e.push(p + "/connectionId" + ': required');
+if (!("path" in o1012)) e.push(p + "/path" + ': required');
+if ("connectionId" in o1012) lf(o1012["connectionId"], p + "/connectionId", e, L40);
+if ("path" in o1012) lf(o1012["path"], p + "/path", e, L1);
 }
 }
 }
@@ -79,16 +79,16 @@ if ("path" in o1014) lf(o1014["path"], p + "/path", e, L1);
 
 function d_s_e71a4b75c4(v: unknown, p: string, e: string[]): void {
 {
-const x1167 = v;
-const g1167 = typeOf(x1167);
-const b1167: string[] = []; lf(x1167, p, b1167, L0); if (b1167.length) e.push(...b1167);
-if (g1167 === "object") {
-if (g1167 === 'object') { const o1167 = x1167 as Record<string, unknown>;
-if (!("connectionId" in o1167)) e.push(p + "/connectionId" + ': required');
-if (!("path" in o1167)) e.push(p + "/path" + ': required');
-if ("connectionId" in o1167) lf(o1167["connectionId"], p + "/connectionId", e, L40);
-if ("path" in o1167) lf(o1167["path"], p + "/path", e, L1);
-if ("rev" in o1167) lf(o1167["rev"], p + "/rev", e, L1);
+const x1165 = v;
+const g1165 = typeOf(x1165);
+const b1165: string[] = []; lf(x1165, p, b1165, L0); if (b1165.length) e.push(...b1165);
+if (g1165 === "object") {
+if (g1165 === 'object') { const o1165 = x1165 as Record<string, unknown>;
+if (!("connectionId" in o1165)) e.push(p + "/connectionId" + ': required');
+if (!("path" in o1165)) e.push(p + "/path" + ': required');
+if ("connectionId" in o1165) lf(o1165["connectionId"], p + "/connectionId", e, L40);
+if ("path" in o1165) lf(o1165["path"], p + "/path", e, L1);
+if ("rev" in o1165) lf(o1165["rev"], p + "/rev", e, L1);
 }
 }
 }

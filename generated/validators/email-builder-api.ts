@@ -103,15 +103,15 @@ if ("updatedAt" in o883) lf(o883["updatedAt"], p + "/updatedAt", e, L17);
 
 function d_s_cb6eb7675e(v: unknown, p: string, e: string[]): void {
 {
-const x1010 = v;
-const g1010 = typeOf(x1010);
-const b1010: string[] = []; lf(x1010, p, b1010, L0); if (b1010.length) e.push(...b1010);
-if (g1010 === "object") {
-if (g1010 === 'object') { const o1010 = x1010 as Record<string, unknown>;
-if (!("emailId" in o1010)) e.push(p + "/emailId" + ': required');
-if (!("version" in o1010)) e.push(p + "/version" + ': required');
-if ("emailId" in o1010) lf(o1010["emailId"], p + "/emailId", e, L24);
-if ("version" in o1010) lf(o1010["version"], p + "/version", e, L2);
+const x1008 = v;
+const g1008 = typeOf(x1008);
+const b1008: string[] = []; lf(x1008, p, b1008, L0); if (b1008.length) e.push(...b1008);
+if (g1008 === "object") {
+if (g1008 === 'object') { const o1008 = x1008 as Record<string, unknown>;
+if (!("emailId" in o1008)) e.push(p + "/emailId" + ': required');
+if (!("version" in o1008)) e.push(p + "/version" + ': required');
+if ("emailId" in o1008) lf(o1008["emailId"], p + "/emailId", e, L24);
+if ("version" in o1008) lf(o1008["version"], p + "/version", e, L2);
 }
 }
 }
@@ -119,21 +119,21 @@ if ("version" in o1010) lf(o1010["version"], p + "/version", e, L2);
 
 function d_s_dec3308fa1(v: unknown, p: string, e: string[]): void {
 {
-const x1117 = v;
-const g1117 = typeOf(x1117);
-const b1117: string[] = []; lf(x1117, p, b1117, L0); if (b1117.length) e.push(...b1117);
-if (g1117 === "object") {
-if (g1117 === 'object') { const o1117 = x1117 as Record<string, unknown>;
-if (!("blockId" in o1117)) e.push(p + "/blockId" + ': required');
-if (!("name" in o1117)) e.push(p + "/name" + ': required');
-if (!("block" in o1117)) e.push(p + "/block" + ': required');
-if (!("shared" in o1117)) e.push(p + "/shared" + ': required');
-if (!("updatedAt" in o1117)) e.push(p + "/updatedAt" + ': required');
-if ("blockId" in o1117) lf(o1117["blockId"], p + "/blockId", e, L133);
-if ("name" in o1117) lf(o1117["name"], p + "/name", e, L1);
-if ("block" in o1117) d_s_65cbb13876(o1117["block"], p + "/block", e);
-if ("shared" in o1117) lf(o1117["shared"], p + "/shared", e, L3);
-if ("updatedAt" in o1117) lf(o1117["updatedAt"], p + "/updatedAt", e, L17);
+const x1115 = v;
+const g1115 = typeOf(x1115);
+const b1115: string[] = []; lf(x1115, p, b1115, L0); if (b1115.length) e.push(...b1115);
+if (g1115 === "object") {
+if (g1115 === 'object') { const o1115 = x1115 as Record<string, unknown>;
+if (!("blockId" in o1115)) e.push(p + "/blockId" + ': required');
+if (!("name" in o1115)) e.push(p + "/name" + ': required');
+if (!("block" in o1115)) e.push(p + "/block" + ': required');
+if (!("shared" in o1115)) e.push(p + "/shared" + ': required');
+if (!("updatedAt" in o1115)) e.push(p + "/updatedAt" + ': required');
+if ("blockId" in o1115) lf(o1115["blockId"], p + "/blockId", e, L133);
+if ("name" in o1115) lf(o1115["name"], p + "/name", e, L1);
+if ("block" in o1115) d_s_65cbb13876(o1115["block"], p + "/block", e);
+if ("shared" in o1115) lf(o1115["shared"], p + "/shared", e, L3);
+if ("updatedAt" in o1115) lf(o1115["updatedAt"], p + "/updatedAt", e, L17);
 }
 }
 }

@@ -37549,6 +37549,7 @@ export type SitesEnvSetIn = {
       vaultHandle?: string;
       value?: string;
       scope?: "all" | "production" | "previews";
+      confirmPlain?: boolean;
     }>;
 };
 export type SitesEnvSetOut = {
@@ -38077,6 +38078,7 @@ export type SitesShipIn = {
       vaultHandle?: string;
       value?: string;
       scope?: "all" | "production" | "previews";
+      confirmPlain?: boolean;
     }>;
   addons?: Array<"postgres" | "redis">;
   wait?: boolean;
@@ -38086,7 +38088,7 @@ export type SitesShipOut = {
   siteId: string;
   address?: string;
   say: string;
-  failedStep?: "setup" | "fetch" | "build" | "start" | "check";
+  failedStep?: "setup" | "deploy" | "fetch" | "build" | "start" | "check";
   problem?: string;
   fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
   deployment?: {

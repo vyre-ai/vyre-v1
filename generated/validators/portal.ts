@@ -26,15 +26,15 @@ if ("recordId" in o501) lf(o501["recordId"], p + "/recordId", e, L28);
 
 function d_s_e1c2ea017d(v: unknown, p: string, e: string[]): void {
 {
-const x1126 = v;
-const g1126 = typeOf(x1126);
-const b1126: string[] = []; lf(x1126, p, b1126, L0); if (b1126.length) e.push(...b1126);
-if (g1126 === "object") {
-if (g1126 === 'object') { const o1126 = x1126 as Record<string, unknown>;
-if (!("accountId" in o1126)) e.push(p + "/accountId" + ': required');
-if (!("siteId" in o1126)) e.push(p + "/siteId" + ': required');
-if ("accountId" in o1126) lf(o1126["accountId"], p + "/accountId", e, L252);
-if ("siteId" in o1126) lf(o1126["siteId"], p + "/siteId", e, L49);
+const x1124 = v;
+const g1124 = typeOf(x1124);
+const b1124: string[] = []; lf(x1124, p, b1124, L0); if (b1124.length) e.push(...b1124);
+if (g1124 === "object") {
+if (g1124 === 'object') { const o1124 = x1124 as Record<string, unknown>;
+if (!("accountId" in o1124)) e.push(p + "/accountId" + ': required');
+if (!("siteId" in o1124)) e.push(p + "/siteId" + ': required');
+if ("accountId" in o1124) lf(o1124["accountId"], p + "/accountId", e, L252);
+if ("siteId" in o1124) lf(o1124["siteId"], p + "/siteId", e, L49);
 }
 }
 }

@@ -28,6 +28,7 @@ import {
   reqStr,
   str,
 } from "./deploy.ts";
+import { looksSecret } from "./secrets.ts";
 import { sitePlan } from "./plan.ts";
 import type { SitePlan } from "./plan.ts";
 import { addonHost, DEFAULT_LIMITS, MIN_FREE_MB } from "./runner.ts";
@@ -53,6 +54,7 @@ export type Fix =
 const LOG_KEEP = 3000;
 const READY_MS = 120_000;
 const KEEP_IMAGES = 5;
+const PREVIEW_KEEP = 10;
 const WAIT_MAX_MS = 20 * 60_000;
 let CANCEL_WAIT_MS = 20_000;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
@@ -485,7 +487,7 @@ async function envOf(
   const out = kind === "production" ? await addonEnv(ctx, siteId) : {};
   const want = kind === "production" ? "production" : "previews";
   for (const e of many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", siteId)) {
-    const scope = isNull(e.scope) ? "all" : str(e.scope);
+    const scope = isNull(e.scope) ? "production" : str(e.scope);
     if (scope !== "all" && scope !== want) continue;
     out[str(e.name)] = !isNull(e.plain)
       ? str(e.plain)
@@ -567,6 +569,8 @@ interface Job {
 
 /** The deploys this process is running, by id, with the switch that cancels each. */
 const cancels = new Map<string, AbortController>();
+/** The deploys whose address is changing hands right now: past the point where a cancel can help, so a cancel says so and changes nothing. */
+const switching = new Set<string>();
 class Canceled extends Error {}
 /** How a source is fetched; a test replaces it (a repo cannot be cloned there). */
 let fetcher: typeof fetchSource = fetchSource;
@@ -803,6 +807,7 @@ async function runJob(j: Job): Promise<void> {
     // from here the address changes hands: a cancel that arrives now is too late, and the deploy goes live
     if (!isOpen(j.db, j.depId)) throw new Canceled();
     switched = true;
+    switching.add(j.depId);
     if (j.preview) await switchPreview(j.db, r, siteId, j.depId, started.containerId, j.preview);
     else await switchTo(j.db, r, siteId, j.depId, started.containerId, plan.port, j.by, j.publicNeedsPromote);
     say("Live");
@@ -826,6 +831,7 @@ async function runJob(j: Job): Promise<void> {
     log.add(why);
     end("failed", { problem: `The deploy stopped: ${why.slice(0, 200)}`, fix: "retry" });
   } finally {
+    switching.delete(j.depId);
     fetched?.cleanup();
     log.close();
   }
@@ -942,9 +948,36 @@ async function switchPreview(
     }
     if (!isNull(old.image)) await dropImage(db, r, old);
   }
+  await prunePreviews(db, r, siteId, depId);
   await routesHost()
     ?.hostRoute?.(siteId, true)
     .catch(() => undefined);
+}
+
+/** A site keeps its newest few previews (one per branch); an older one is removed with its container and its image, so branches that were never cleaned up cannot fill the disk. */
+async function prunePreviews(db: Db, r: Runner, siteId: string, depId: string): Promise<void> {
+  const rows = db.all(
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND removed_at IS NULL AND (state = 'ready' OR id = ?) ORDER BY at DESC",
+    siteId,
+    depId,
+  ) as Row[];
+  const seen = new Set<string>();
+  const now = Date.now();
+  for (const row of rows) {
+    const b = isNull(row.branch) ? "" : str(row.branch);
+    if (!seen.has(b) && seen.size < PREVIEW_KEEP) {
+      seen.add(b);
+      continue;
+    }
+    if (!isNull(row.container_id)) await r.remove(str(row.container_id)).catch(() => undefined);
+    db.run(
+      "UPDATE sites_deployment SET container_id = NULL, host = NULL, url = NULL, removed_at = ?, updated_at = ? WHERE id = ?",
+      now,
+      now,
+      row.id,
+    );
+    if (!isNull(row.image)) await dropImage(db, r, row);
+  }
 }
 
 /** The site's own network, made when missing; its subnet is kept so the gateway refuses connections that come from it (sites never reach vyred). */
@@ -1014,7 +1047,7 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     siteId,
     "production",
   );
-  if (busy && done.has(str(busy.id))) {
+  if (busy && (done.has(str(busy.id)) || cancels.has(str(busy.id)))) {
     // one deploy at a time per site: a second ask joins the one running, and waits for it when asked to
     if (optBool(ctx, o, "wait") === true)
       await Promise.race([done.get(str(busy.id)), new Promise((res) => setTimeout(res, WAIT_MAX_MS).unref?.())]);
@@ -1102,9 +1135,25 @@ async function sitesDeployCancel(ctx: Ctx, input: unknown): Promise<{ deployment
     .sort((a, b) => num(b.at) - num(a.at))[0];
   if (!busy) fail(ctx, "validation.precondition_failed", "No deploy is running.");
   const id = str(busy.id);
+  if (switching.has(id))
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "It is going live now, so it cannot be canceled. Roll back once it is live if you do not want it.",
+    );
   const running = done.get(id);
   cancels.get(id)?.abort();
   if (running) await Promise.race([running, new Promise((res) => setTimeout(res, CANCEL_WAIT_MS).unref?.())]);
+  if (switching.has(id)) {
+    // it reached the switch while the cancel waited: it goes live, and says so
+    const after = mustSite(ctx, str(site.id));
+    return {
+      deployment: depRow(
+        one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", id) as Row,
+        isNull(after.current_deployment) ? null : str(after.current_deployment),
+      ),
+    };
+  }
   const row = one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", id) as Row;
   if (row.state === "queued" || row.state === "building") {
     // a deploy this process is not running (the server restarted), or one still inside a step that cannot be cut off: it is closed here, and what it does next is thrown away
@@ -1119,6 +1168,13 @@ async function sitesDeployCancel(ctx: Ctx, input: unknown): Promise<{ deployment
       now,
       id,
     );
+    // what the closed deploy started is taken away, so a container nothing routes to is not left behind
+    if (!isNull(row.container_id)) {
+      await runner()
+        ?.remove(str(row.container_id))
+        .catch(() => undefined);
+      ctx.db.run("UPDATE sites_deployment SET container_id = NULL WHERE id = ? AND state = 'stopped'", id);
+    }
   }
   const after = mustSite(ctx, str(site.id));
   return {
@@ -1135,26 +1191,47 @@ async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unkno
   const wait = optBool(ctx, o, "wait") !== false;
   const named = optStr(ctx, o, "siteId");
   let siteId: string;
+  // a site this caller made by this name before is the one meant (a retry that has only the name finds it; it does not make a second)
+  let reused = false;
   if (named === undefined) {
     const name = reqStr(ctx, o, "name");
-    if (o["source"] === undefined)
-      fail(ctx, "validation.bad_input", "Say where the code is: a repo, a folder or zip in Files, or a path.", {
-        field: "source",
-      });
-    const made = (await ctx.call("sites.create", {
-      name,
-      kind: optStr(ctx, o, "kind") ?? "app",
-      source: o["source"],
-      ...(o["access"] === undefined ? {} : { access: o["access"] }),
-      ...(o["limits"] === undefined ? {} : { limits: o["limits"] }),
-    } as never)) as { site: { siteId: string } };
-    siteId = made.site.siteId;
+    const mine = one(
+      ctx,
+      "SELECT id FROM sites_site WHERE deleted_at IS NULL AND source IS NOT NULL AND lower(name) = lower(?) AND owner = ? ORDER BY created_at DESC",
+      name.trim(),
+      ctx.actingFor ?? ctx.principal.id,
+    );
+    if (mine) {
+      siteId = str(mine.id);
+      reused = true;
+    } else {
+      if (o["source"] === undefined)
+        fail(ctx, "validation.bad_input", "Say where the code is: a repo, a folder or zip in Files, or a path.", {
+          field: "source",
+        });
+      const made = (await ctx.call("sites.create", {
+        name,
+        kind: optStr(ctx, o, "kind") ?? "app",
+        source: o["source"],
+        ...(o["access"] === undefined ? {} : { access: o["access"] }),
+        ...(o["limits"] === undefined ? {} : { limits: o["limits"] }),
+      } as never)) as { site: { siteId: string } };
+      siteId = made.site.siteId;
+    }
   } else siteId = str(mustSite(ctx, named).id);
-  const stuck = (step: string, problem: string, fixKey?: Fix): Record<string, unknown> => ({
+  const stuck = (
+    step: string,
+    problem: string,
+    fixKey?: Fix,
+    failedStep: "setup" | "deploy" = "setup",
+  ): Record<string, unknown> => ({
     ok: false,
     siteId,
-    say: `It stopped before the build, at ${step}: ${problem} Call sites_ship again with this siteId once that is fixed.`,
-    failedStep: "setup",
+    say:
+      failedStep === "deploy"
+        ? `It could not start the deploy: ${problem} Call sites_ship again with this siteId once that is fixed.`
+        : `It stopped before the build, at ${step}: ${problem} Call sites_ship again with this siteId once that is fixed.`,
+    failedStep,
     problem,
     ...(fixKey ? { fix: fixKey } : {}),
   });
@@ -1172,7 +1249,7 @@ async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unkno
         .map((e) => ({
           name: e.name,
           scope: e.scope,
-          ...(e.kind === "plain" ? { value: e.value ?? "" } : { vaultHandle: e.vaultName }),
+          ...(e.kind === "plain" ? { value: e.value ?? "", confirmPlain: true } : { vaultHandle: e.vaultName }),
         }));
       await ctx.call("sites.env_set", { siteId, entries: [...keep, ...entries] } as never);
     }
@@ -1195,11 +1272,11 @@ async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unkno
     const out = (await ctx.call("sites.deploy", {
       siteId,
       wait,
-      ...(named !== undefined && o["source"] !== undefined ? { source: o["source"] } : {}),
+      ...((named !== undefined || reused) && o["source"] !== undefined ? { source: o["source"] } : {}),
     } as never)) as { deployment: Record<string, unknown> };
     deployment = out.deployment;
   } catch (e) {
-    return stuck("the deploy", words(e));
+    return stuck("the deploy", words(e), undefined, "deploy");
   }
   const site = (await ctx.call("sites.get", { siteId } as never)) as { site: { url?: string; live?: boolean } };
   const state = str(deployment.state);
@@ -1239,20 +1316,23 @@ async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unkno
 
 // ---- previews: a branch of the repo built and run at its own address, behind sign-in, and promoted to production without a rebuild
 
-/** A name that is safe in an address: lowercase letters, digits and dashes. A branch that had to be changed to fit gets a short hash, so two branches never share an address. */
+const fnv = (s: string): string => {
+  let h = 2166136261;
+  for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+  return h.toString(16).padStart(8, "0");
+};
+
+/** A name that is safe in an address: lowercase letters, digits and dashes, at most 63 characters, always ending in --<site name>. A branch that had to be changed to fit gets a hash of 8 hex, so two branches never share an address; when the whole thing is too long the hash covers the site name too, so two sites never do. */
 export function previewLabel(slug: string, branch: string): string {
   const base =
     branch
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "branch";
-  let h = 2166136261;
-  for (const c of branch) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
-  const hash = h.toString(16).padStart(8, "0").slice(0, 6);
-  const plain = base === branch;
-  const room = 63 - slug.length - 2 - (plain ? 0 : 7);
-  const head = base.slice(0, Math.max(1, room)).replace(/-+$/g, "");
-  return `${plain && head === base ? head : `${head}-${hash}`}--${slug}`.slice(0, 63);
+  const whole = base === branch ? `${base}--${slug}` : `${base}-${fnv(branch)}--${slug}`;
+  if (whole.length <= 63) return whole;
+  const head = `${base.slice(0, 12).replace(/-+$/g, "") || "b"}-${fnv(`${slug}\n${branch}`)}--`;
+  return (head + slug).slice(0, 63).replace(/-+$/g, "");
 }
 
 function previewHostFor(ctx: Ctx, site: Row, branch: string): string {
@@ -1267,6 +1347,17 @@ function previewHostFor(ctx: Ctx, site: Row, branch: string): string {
   // never an address that is some site's own name
   if (one(ctx, "SELECT id FROM sites_site WHERE slug = ? AND deleted_at IS NULL", label))
     label = `${label.slice(0, 60)}-p`;
+  // nor one another site's preview already has
+  let n = 2;
+  while (
+    one(
+      ctx,
+      "SELECT id FROM sites_deployment WHERE host = ? AND site_id != ? AND removed_at IS NULL",
+      `${label}.${domain}`,
+      site.id,
+    )
+  )
+    label = `${label.slice(0, 58)}-${n++}`;
   return `${label}.${domain}`;
 }
 
@@ -1307,8 +1398,7 @@ async function sitesPreviewRebuild(ctx: Ctx, input: unknown): Promise<{ deployme
     siteId,
     branch,
   )[0];
-  if (busy && done.has(str(busy.id))) return { deployment: depRow(busy, null) };
-  const token = source.tokenHandle ? await filled(ctx, source.tokenHandle, `${siteId}:token:${ctx.now()}`) : null;
+  if (busy && (done.has(str(busy.id)) || cancels.has(str(busy.id)))) return { deployment: depRow(busy, null) };
   const depId = nid(ctx, "dpl");
   const now = ctx.now();
   const by = ctx.actingFor ?? ctx.principal.id;
@@ -1334,6 +1424,19 @@ async function sitesPreviewRebuild(ctx: Ctx, input: unknown): Promise<{ deployme
     0,
   );
   const ac = new AbortController();
+  // registered before the first await, so a second call sees this one and a cancel is recorded; a token that cannot be filled ends the row
+  cancels.set(depId, ac);
+  let token: string | null = null;
+  try {
+    token = source.tokenHandle ? await filled(ctx, source.tokenHandle, `${siteId}:token:${ctx.now()}`) : null;
+  } catch (e) {
+    cancels.delete(depId);
+    finish(ctx.db, depId, "failed", {
+      problem: e instanceof Error ? e.message.slice(0, 200) : "The token could not be read.",
+      fix: "connect_repo",
+    });
+    throw e;
+  }
   const env = await envForNew(ctx, siteId, depId, "preview", ac);
   if (env === null)
     return { deployment: depRow(one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", depId) as Row, null) };
@@ -1367,30 +1470,31 @@ async function sitesPreviewRemove(ctx: Ctx, input: unknown): Promise<{ removed: 
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const branch = cleanBranch(reqStr(ctx, o, "branch"));
   const siteId = str(site.id);
-  const rows = many(
-    ctx,
-    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ? AND removed_at IS NULL",
-    siteId,
-    branch ?? "",
-  );
-  if (rows.length === 0) return { removed: false };
-  // one that is still building is canceled first, so it cannot start a container after this
-  for (const row of rows) {
+  const open = (): Row[] =>
+    many(
+      ctx,
+      "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ? AND removed_at IS NULL",
+      siteId,
+      branch ?? "",
+    );
+  if (open().length === 0) return { removed: false };
+  // one that is still building is canceled first, so it cannot start a container after this; one that is going live is waited for
+  for (const row of open()) {
     const id = str(row.id);
-    if (row.state === "queued" || row.state === "building") {
-      cancels.get(id)?.abort();
-      const running = done.get(id);
-      if (running) await Promise.race([running, new Promise((res) => setTimeout(res, CANCEL_WAIT_MS).unref?.())]);
+    if (row.state !== "queued" && row.state !== "building") continue;
+    if (switching.has(id)) {
+      await done.get(id);
+      continue;
     }
+    cancels.get(id)?.abort();
+    const running = done.get(id);
+    if (running) await Promise.race([running, new Promise((res) => setTimeout(res, CANCEL_WAIT_MS).unref?.())]);
+    // closed here when its step could not be cut off: the state moves with the removal, so nothing reads it half built
+    finish(ctx.db, id, "stopped", { problem: "Removed.", fix: "retry" });
   }
   const r = runner();
   const now = ctx.now();
-  for (const row of many(
-    ctx,
-    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ? AND removed_at IS NULL",
-    siteId,
-    branch ?? "",
-  )) {
+  for (const row of open()) {
     if (r && !isNull(row.container_id)) await r.remove(str(row.container_id)).catch(() => undefined);
     ctx.db.run(
       "UPDATE sites_deployment SET container_id = NULL, host = NULL, url = NULL, removed_at = ?, updated_at = ? WHERE id = ?",
@@ -1424,7 +1528,7 @@ async function sitesPreviewPromote(ctx: Ctx, input: unknown): Promise<{ deployme
     "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'production' AND state IN ('queued', 'building')",
     siteId,
   );
-  if (busy && done.has(str(busy.id)))
+  if (busy && (done.has(str(busy.id)) || cancels.has(str(busy.id))))
     fail(ctx, "validation.precondition_failed", "A deploy is running. Wait for it, or cancel it, then promote.");
   const depId = nid(ctx, "dpl");
   const now = ctx.now();
@@ -1564,6 +1668,7 @@ async function runPromote(j: {
     }
     if (!isOpen(j.db, j.depId)) throw new Canceled();
     switched = true;
+    switching.add(j.depId);
     await switchTo(j.db, r, siteId, j.depId, started.containerId, j.port, j.by, j.publicNeedsPromote);
     say("Live");
     end("ready", {});
@@ -1585,6 +1690,7 @@ async function runPromote(j: {
     log.add(why);
     end("failed", { problem: `The deploy stopped: ${why.slice(0, 200)}`, fix: "retry" });
   } finally {
+    switching.delete(j.depId);
     log.close();
   }
 }
@@ -1707,7 +1813,8 @@ async function sitesEnvSet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
     const value = row["value"];
     if (value !== undefined && typeof value !== "string")
       fail(ctx, "validation.bad_input", `The value of ${name} is not text.`, { field: "entries.value", name });
-    const scope = optStr(ctx, row, "scope") ?? "all";
+    // a variable applies to production unless a person says otherwise: a preview runs any branch's code, so it only gets what was scoped to it
+    const scope = optStr(ctx, row, "scope") ?? "production";
     if (!ENV_SCOPES.has(scope))
       fail(ctx, "validation.bad_input", "A scope is all, production or previews.", { field: "entries.scope", name });
     if (!ENV_NAME.test(name))
@@ -1724,6 +1831,13 @@ async function sitesEnvSet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
         field: "entries.vaultHandle",
         name,
       });
+    if (value !== undefined && row["confirmPlain"] !== true && looksSecret(name, value))
+      fail(
+        ctx,
+        "validation.bad_input",
+        `${name} looks like a secret. Keep it in the Vault (vaultHandle), or say it is plain on purpose (confirmPlain).`,
+        { field: "entries.value", name },
+      );
     if (value !== undefined && value.length > 8192)
       fail(ctx, "validation.too_large", `The value of ${name} is over 8 KB. Put it in the Vault as a secret.`, {
         field: "entries.value",
@@ -1780,7 +1894,7 @@ async function sitesEnvList(ctx: Ctx, input: unknown): Promise<{ entries: unknow
       injected: injected > 0,
       kind: isNull(r.plain) ? "secret" : "plain",
       ...(isNull(r.plain) ? {} : { value: str(r.plain) }),
-      scope: isNull(r.scope) ? "all" : str(r.scope),
+      scope: isNull(r.scope) ? "production" : str(r.scope),
     })),
     wanted,
   };
@@ -2089,7 +2203,7 @@ export function servingContainers(ctx: Pick<Ctx, "db">): { siteId: string; conta
   // a preview that is up serves too
   const previews = (
     ctx.db.all(
-      "SELECT d.site_id AS id, d.container_id AS container_id FROM sites_deployment d JOIN sites_site s ON s.id = d.site_id WHERE d.env = 'preview' AND d.removed_at IS NULL AND d.container_id IS NOT NULL AND s.deleted_at IS NULL",
+      "SELECT d.site_id AS id, d.container_id AS container_id FROM sites_deployment d JOIN sites_site s ON s.id = d.site_id WHERE d.env = 'preview' AND d.state = 'ready' AND d.removed_at IS NULL AND d.container_id IS NOT NULL AND s.deleted_at IS NULL",
     ) as Row[]
   ).map((r) => ({ siteId: str(r.id), containerId: str(r.container_id) }));
   return [...sites, ...previews];
@@ -2178,6 +2292,7 @@ export const _test = {
   envOf,
   previewLabel,
   cancels,
+  switching,
   cancelWait: (ms: number | null): void => {
     CANCEL_WAIT_MS = ms ?? 20_000;
   },

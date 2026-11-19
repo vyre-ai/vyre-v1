@@ -7,7 +7,6 @@
 //             branch, and any other event, is acknowledged and ignored.
 //   running   a verified push is not run here (this call has no person behind it, and the Vault is checked against a person): it leaves a row in sites_push, and the server's tick runs it as whoever deployed last.
 // @reads ../migrations/0007_webhook.sql
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { hostOnly } from "../../../host/src/ctx/host-only.ts";
 import type { WebhookAccept } from "../../../host/src/routes/webhooks.ts";
@@ -34,11 +33,24 @@ function repoOfSite(site: Row): string | null {
   );
 }
 
-/** Does GitHub's signature header match this body under this secret? Constant time on the digests. */
-export function signed(secret: string, header: string | undefined, body: string): boolean {
-  const want = Buffer.from(`sha256=${createHmac("sha256", secret).update(body).digest("hex")}`);
-  const got = Buffer.from(header ?? "");
-  return got.length === want.length && timingSafeEqual(got, want);
+const hex = (b: Uint8Array): string => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+const randomHex = (n: number): string => hex(globalThis.crypto.getRandomValues(new Uint8Array(n)));
+
+/** Does GitHub's signature header match this body under this secret? The digest is HMAC SHA-256 of the raw body, compared over its whole length without stopping at the first difference. */
+export async function signed(secret: string, header: string | undefined, body: string): Promise<boolean> {
+  const key = await globalThis.crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = new Uint8Array(await globalThis.crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body)));
+  const want = `sha256=${hex(mac)}`;
+  const got = header ?? "";
+  let diff = got.length ^ want.length;
+  for (let i = 0; i < want.length; i++) diff |= (got.charCodeAt(i) || 0) ^ want.charCodeAt(i);
+  return diff === 0;
 }
 
 const secretOf = (ctx: Ctx, site: Row): string | null => {
@@ -96,10 +108,10 @@ export async function acceptWebhook(ctx: Ctx, a: WebhookAccept): Promise<unknown
   const verified: Row[] = [];
   for (const s of candidates) {
     const secret = secretOf(ctx, s);
-    if (secret !== null && signed(secret, signature, a.body)) verified.push(s);
+    if (secret !== null && (await signed(secret, signature, a.body))) verified.push(s);
   }
   // the same work whether or not a site was found, so the time says nothing about which check failed
-  if (candidates.length === 0) signed(randomBytes(16).toString("hex"), signature, a.body);
+  if (candidates.length === 0) await signed(randomHex(16), signature, a.body);
   if (verified.length === 0)
     fail(ctx, "auth.bad_credentials", "That request was not signed with a secret this Space knows.");
   if (!event || !delivery || !/^[A-Za-z0-9-]{8,100}$/.test(delivery))
@@ -245,7 +257,7 @@ async function webhookSet(ctx: Ctx, input: unknown): Promise<HookInfo> {
     ctx.db.run("UPDATE sites_site SET hook_secret = NULL, updated_at = ? WHERE id = ?", ctx.now(), siteId);
   else if (enabled === true || rotate) {
     if (isNull(site.hook_secret) || rotate) {
-      const secret = randomBytes(32).toString("hex");
+      const secret = randomHex(32);
       ctx.db.run(
         "UPDATE sites_site SET hook_secret = ?, updated_at = ? WHERE id = ?",
         JSON.stringify(ctx.seal.seal(new TextEncoder().encode(secret), `site-hook:${siteId}`)),
