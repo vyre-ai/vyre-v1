@@ -79,7 +79,8 @@ export function Webhook({ site, online, busy }: { site: Site; online: boolean; b
           ) : null}
           <Text style={ui.text}>
             In the repo on GitHub: Settings, Webhooks, Add webhook. Content type application/json, the secret above, and
-            the push and pull request events.
+            the push and pull request events. Anyone who can push to the repo can get a branch built here as a preview,
+            so follow only branch names you trust.
           </Text>
           <Text style={ui.text}>
             {cur.lastDeliveryAt ? `Last delivery ${ago(cur.lastDeliveryAt, d.clock().now)}.` : "Nothing received yet."}
