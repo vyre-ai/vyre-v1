@@ -6,7 +6,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Text, View } from "react-native";
+import { Platform, Text, View, useWindowDimensions } from "react-native";
+import { isPhoneWidth } from "../SidePane/layout.ts";
 import { useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { boardView } from "./board.tsx";
@@ -256,11 +257,14 @@ export function Plan(props: PlanProps): ReactElement {
     const t = items.find((x) => x.id === id);
     if (t && props.onOpenTask) props.onOpenTask(taskOf(t, raw.current.get(id)));
   };
+  // a phone has no double click and no modifier keys: one tap on a task opens it (a row of the list, the board's card or a name beside the timeline used to only select it)
+  const phone = isPhoneWidth(useWindowDimensions().width);
   const select = (id: string, mod: boolean, shift: boolean): void => {
     const r = clickSelect(order, sel, anchor, id, mod, shift);
     setSel(r.sel);
     setAnchor(r.anchor);
     setCur(r.cur);
+    if (phone && !mod && !shift) open(id);
   };
   const only = (id: string): void => {
     setSel(new Set([id]));
