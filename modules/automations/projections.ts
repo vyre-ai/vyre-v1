@@ -28,6 +28,8 @@ export interface AiBlock {
   timeoutMinutes?: number;
   nudgeMinutes?: number;
   escalateTo?: Assignee;
+  /** Names of the Space's skills this step is given: their instructions go in its brief. */
+  skills?: string[];
 }
 export interface Branch {
   label: string;

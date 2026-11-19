@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
+import { BuilderPage } from "../../../apps/app/src/places/automations/screens/BuilderPage.tsx";
+import { createSampleAutomations } from "../../../apps/app/src/places/automations/sidebar/sample.ts";
 import { AutomationsList } from "../../../apps/app/src/places/automations/sidebar/AutomationsList.tsx";
 import { AutomationsDataProvider } from "../../../apps/app/src/places/automations/canvas/data.tsx";
 import { ConfigExtrasProvider } from "../../../apps/app/src/places/automations/config/data.tsx";
@@ -122,6 +124,18 @@ function PlacePage(): ReactNode {
   );
 }
 
+/** The AI step's form with its Skills field: the sample's "Ask an agent" step. */
+function AiStepPage(): ReactNode {
+  const sample = useMemo(() => createSampleAutomations(northwind), []);
+  return (
+    <AutomationsDataProvider value={sample.data}>
+      <View style={{ flex: 1, width: "100%", maxWidth: 1180, alignSelf: "center" }}>
+        <BuilderPage automationId="aut_lead" initialSelected="draft" />
+      </View>
+    </AutomationsDataProvider>
+  );
+}
+
 function FacePage({ preset }: { preset: "simple" | "detail" | "visual" }): ReactNode {
   const sample = useMemo(() => {
     const space = {
@@ -155,6 +169,7 @@ export default function Mount(): ReactNode {
     );
   }, []);
   if (!part) return null;
+  if (part === "ai-step") return <AiStepPage />;
   if (part === "place-journey") return <PlacePage />;
   if (part.startsWith("face-")) return <FacePage preset={part.slice(5) as "simple" | "detail" | "visual"} />;
   return <PathPage part={part} />;

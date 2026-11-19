@@ -261,7 +261,7 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (n.key === "connector_request" && containsSecret(have["input"]))
       out.push(issue("error", "An authenticated request cannot hold a secret. Use the connection.", n.id));
     if (n.key === "http_request") out.push(...httpIssues(n.id, have));
-    if (n.key === "ai" && n.ai?.mode !== "task" && have["mode"] !== "task" && asksForSkill(have["prompt"]))
+    if (n.key === "ai" && n.ai?.mode !== "task" && have["mode"] !== "task" && !(n.ai?.skills?.length ?? 0) && asksForSkill(have["prompt"]))
       out.push(issue("warning", SKILL_NEEDS_TASK, n.id));
     if (n.key === "loop") {
       const max = have["maxIterations"];
@@ -945,8 +945,39 @@ export async function journeyValueIssues(ctx: AutoCtx, def: Definition): Promise
   return out;
 }
 
+/** A skill an AI step names has to be in the Space (or the step's agent): said at save, with the names that are. */
+export async function skillIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
+  const named = def.nodes.filter((n) => n.key === "ai" && (n.ai?.skills?.length ?? 0) > 0);
+  if (named.length === 0 || !ctx.call) return [];
+  const out: Issue[] = [];
+  const have = new Map<string, Set<string>>();
+  for (const n of named) {
+    if (n.ai!.skills!.length > 5) out.push(issue("error", "A step can be given up to five skills.", n.id));
+    const agent = n.ai?.agentId ?? "";
+    if (!have.has(agent)) {
+      try {
+        const r = (await ctx.call("skills.list", agent ? { agentId: agent } : {})) as { skills?: { name: string; shadowedBy?: unknown; broken?: unknown; enabled?: boolean }[] };
+        have.set(agent, new Set((r.skills ?? []).filter((s) => !s.shadowedBy && !s.broken && s.enabled !== false).map((s) => s.name)));
+      } catch {
+        return [];
+      }
+    }
+    const names = have.get(agent)!;
+    for (const k of n.ai!.skills!)
+      if (!names.has(k))
+        out.push(
+          issue(
+            "error",
+            `The skill "${k}" is not in this Space${names.size ? `. Skills: ${[...names].sort().slice(0, 8).join(", ")}` : ""}.`,
+            n.id,
+          ),
+        );
+  }
+  return out;
+}
+
 async function refuseJourneyValues(ctx: AutoCtx, def: Definition): Promise<void> {
-  const bad = await journeyValueIssues(ctx, def);
+  const bad = [...(await journeyValueIssues(ctx, def)), ...(await skillIssues(ctx, def))];
   if (bad.length) raise(ctx, "validation.bad_input", bad[0]!.message, { issues: bad });
 }
 
@@ -959,7 +990,9 @@ export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
   const useBlocked = Array.isArray(def?.nodes) ? await accountUseIssues(ctx, def) : [];
   const gone = Array.isArray(def?.nodes) ? await goneAgentIssues(ctx, def) : [];
   const button = Array.isArray(def?.triggers) ? await buttonIssues(ctx, def) : [];
-  const journeyValues = Array.isArray(def?.nodes) ? await journeyValueIssues(ctx, def) : [];
+  const journeyValues = Array.isArray(def?.nodes)
+    ? [...(await journeyValueIssues(ctx, def)), ...(await skillIssues(ctx, def))]
+    : [];
   const issues = [
     ...validateDefinition(def, readPolicy(ctx.db)),
     ...keyBlocked,

@@ -48,6 +48,13 @@
       "waitFor": "body",
       "note": "Board, visual card face",
       "proto": "automations,{skin}"
+    },
+    {
+      "id": "R41_01-ai-step",
+      "route": "/m/R41_01?part=ai-step",
+      "waitFor": "body",
+      "note": "AI step with the Skills field",
+      "proto": "automations,{skin}"
     }
   ]
 }

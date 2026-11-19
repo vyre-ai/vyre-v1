@@ -33,6 +33,7 @@ const aiKeys = {
   escalateTo: t.opt(assignee),
   mode: t.opt(t.enm("answer", "task")),
   doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
+  skills: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 5 })),
 };
 
 export default defineManifest({
