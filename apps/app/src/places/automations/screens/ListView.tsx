@@ -17,6 +17,7 @@ export function ListView({
   query,
   selectedId,
   onMenu,
+  onFix,
 }: {
   rows: readonly ListRowIn[];
   onOpen(id: string): void;
@@ -27,6 +28,8 @@ export function ListView({
   selectedId?: string | null;
   /** The row's own menu: right-click, the keyboard's menu key, a long press on a phone. */
   onMenu?(id: string, x: number, y: number): void;
+  /** The one button of a row that is missing something (Connect, Fix). */
+  onFix?(id: string): void;
 }): ReactElement {
   const [own, setOwn] = useState("");
   const q = query ?? own;
@@ -38,7 +41,7 @@ export function ListView({
         <>
           <Pressable testID="al-home" accessibilityRole="button" onPress={onHome} style={s.head}>
             <Text style={s.title}>{v.head.title}</Text>
-            {v.head.count > 0 ? <Text style={s.count}>{String(v.head.count)}</Text> : null}
+            {v.head.count > 0 ? <Text style={s.count}>{`${v.head.count} need you`}</Text> : null}
             <View style={{ flex: 1 }} />
             {onNew ? (
               <Pressable testID="al-new" accessibilityRole="button" accessibilityLabel="New automation" onPress={onNew}>
@@ -65,8 +68,30 @@ export function ListView({
             {...(selectedId === r.id ? { selected: true } : {})}
             title={r.name}
             leading={<View style={[s.dot, { backgroundColor: DOT[r.dot] as string }]} />}
-            domProps={{ style: { minHeight: 34 } }}
-            {...(r.scope ? { trailing: <Text style={s.quiet}>{r.scope}</Text> } : {})}
+            domProps={{ style: { minHeight: 34, ...(r.sentence ? { paddingTop: 6, paddingBottom: 6 } : {}) } }}
+            // what it does, in one sentence, under its name; what it is missing leads that line in the warning colour
+            {...(r.sentence ? { tall: true, note: r.sentence } : r.blocked ? { note: r.blocked.short } : {})}
+            {...(r.blocked && r.sentence ? { noteLead: r.blocked.short, noteLeadTone: "warning" as const } : {})}
+            {...(r.blocked && onFix
+              ? {
+                  trailing: (
+                    <Pressable
+                      testID={`al-fix-${r.id}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${r.blocked.button}: ${r.blocked.short}`}
+                      onPress={(e) => {
+                        (e as { stopPropagation?: () => void } | undefined)?.stopPropagation?.();
+                        onFix(r.id);
+                      }}
+                      style={s.fix}
+                    >
+                      <Text style={s.fixText}>{r.blocked.button}</Text>
+                    </Pressable>
+                  ),
+                }
+              : r.scope
+                ? { trailing: <Text style={s.quiet}>{r.scope}</Text> }
+                : {})}
             onPress={() => onOpen(r.id)}
           />
         </View>
@@ -103,5 +128,15 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  fix: {
+    height: 24,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fixText: { fontSize: 12, fontWeight: "600", color: "var(--ink)" as string },
   quiet: { fontSize: 12, color: "var(--ink-3)" as string, paddingHorizontal: 8 },
 });

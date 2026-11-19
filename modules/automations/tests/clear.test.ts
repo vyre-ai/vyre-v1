@@ -180,7 +180,13 @@ test("why it did not run: the Automation that watches this kind of record says w
   const id = await made(h, welcome());
   await h.call("automations.set_enabled", { automationId: id, enabled: true }, alice).catch(() => undefined);
   const out = await h.call("automations.why_not", { type: "customer", recordId: "rec_harbor" }, alice);
-  assert.deepEqual(out.record, { id: "rec_harbor", type: "customer", typeName: "Customer", title: "Harbor Co" });
+  assert.deepEqual(out.record, {
+    id: "rec_harbor",
+    type: "customer",
+    typeName: "Customer",
+    typePlural: "Customers",
+    title: "Harbor Co",
+  });
   assert.equal(out.changes[0].line, "Stage became Proposal");
   const a = out.automations[0];
   assert.equal(a.name, "Welcome new customers");

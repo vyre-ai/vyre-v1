@@ -52,6 +52,8 @@ export interface RecordsNav {
   bringInNote?: string;
   /** The Sync page of a synced type (its sync dot opens it). */
   openSync?(type: string): void;
+  /** An Automation's own page (the Why sheet's Open). Left out where the shell cannot open one: the sheet is then not offered. */
+  openAutomation?(automationId: string): void;
 }
 
 export interface RecordsData {

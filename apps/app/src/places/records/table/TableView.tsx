@@ -77,7 +77,8 @@ import type { FieldMode } from "../typeedit/index.ts";
 import { recordMenu } from "../menus/record.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
 import type { Column, FieldDef, GroupItem, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
-import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
+import { TimePop, useWhenText } from "../../../../../../ui/src/Time/index.tsx";
+import { WhySheet } from "../../automations/clear/WhySheet.tsx";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { copyLinkText, itemLink } from "../../../share/rows.ts";
 
@@ -1175,6 +1176,9 @@ function Grid({
       );
   };
   const nPicked = pickCount(sel, count ?? 0);
+  // "Why didn't an Automation run?" for one record (rc.41): the sheet the row's menu opens
+  const [why, setWhy] = useState<string | null>(null);
+  const whenText = useWhenText();
   /** The bulk work in flight or just done: a confirm to answer, a progress line, then what was deleted with Undo. */
   const [work, setWork] = useState<
     | { kind: "confirm"; ids: readonly string[]; every: boolean; n: number }
@@ -1241,6 +1245,7 @@ function Grid({
           ? { share: () => data.share?.open({ type: "record", id, name: titleOf(id), typeName: def.plural }) }
           : {}),
         ...(id ? { copyLink: () => copyText(linkTo(id)) } : {}),
+        ...(id && data.nav.openAutomation ? { whyNotRun: () => setWhy(id) } : {}),
         exportCsv: exportView,
         remove: () => setWork({ kind: "confirm", ids, every, n }),
       },
@@ -1851,6 +1856,20 @@ function Grid({
         </View>
       )}
       {menu.element}
+      {why && data.nav.openAutomation ? (
+        <WhySheet
+          type={type}
+          recordId={why}
+          call={data.call}
+          nameOf={data.nameOf}
+          whenText={(at) => whenText(at, Date.now())}
+          onOpenAutomation={(automationId) => {
+            setWhy(null);
+            data.nav.openAutomation?.(automationId);
+          }}
+          onClose={() => setWhy(null)}
+        />
+      ) : null}
       {panel ? (
         <FieldsPanel
           key={`${panel.field ?? ""}:${panel.mode ?? ""}`}

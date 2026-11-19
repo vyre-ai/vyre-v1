@@ -34,8 +34,8 @@ const orList = (xs: string[]): string =>
 // ---- readiness: what is missing, before anyone presses Turn on ----
 
 export interface Blocked {
-  automationId?: string;
-  nodeId?: string;
+  automationId?: string | undefined;
+  nodeId?: string | undefined;
   /** a few words for a list row: "No mailbox" */ short: string;
   /** one sentence for the page: which step, and what is missing */ line: string;
   button: "Connect" | "Fix";
@@ -68,7 +68,8 @@ function fileThere(ctx: AutoCtx, seen: Seen, fileId: string): Promise<boolean> {
 /** How many mailboxes the caller could send or draft from; null when it cannot be read. */
 function mailboxCount(ctx: AutoCtx, seen: Seen): Promise<number | null> {
   seen.mailboxes ??= ctx.call!("comms.senders.list", {}).then(
-    (o) => ((o as { senders?: { channel?: string }[] } | null)?.senders ?? []).filter((s) => s.channel === "email").length,
+    (o) =>
+      ((o as { senders?: { channel?: string }[] } | null)?.senders ?? []).filter((s) => s.channel === "email").length,
     () => null,
   );
   return seen.mailboxes;
@@ -83,7 +84,12 @@ const stepName = (def: Definition, n: Node): string => {
  * The first thing that would stop this definition when it is turned on or when it next runs, in the order a person can fix it: an AI account, a mailbox or number, an app that is not connected, a file
  * that is gone, then a step that is not finished. One thing, one button: the next shows when this one is done.
  */
-export async function blockedOf(ctx: AutoCtx, kind: Automation["kind"], def: Definition, seen: Seen): Promise<Blocked | null> {
+export async function blockedOf(
+  ctx: AutoCtx,
+  kind: Automation["kind"],
+  def: Definition,
+  seen: Seen,
+): Promise<Blocked | null> {
   if (!ctx.call || !Array.isArray(def?.nodes) || def.nodes.length === 0) return null;
   const node = (id: string | undefined): Node | undefined => def.nodes.find((n) => n.id === id);
   const said = (n: Node | undefined, what: string): string => (n ? `${stepName(def, n)}: ${what}` : cap(what));
@@ -94,7 +100,12 @@ export async function blockedOf(ctx: AutoCtx, kind: Automation["kind"], def: Def
       return clean({
         nodeId: ai.nodeId,
         short: "No AI account",
-        line: said(node(ai.nodeId), kind === "space" ? "no Space AI account pays for automations." : "you have no AI account that works on the server."),
+        line: said(
+          node(ai.nodeId),
+          kind === "space"
+            ? "no Space AI account pays for automations."
+            : "you have no AI account that works on the server.",
+        ),
         button: "Connect" as const,
         fix: { kind: "ai_account" as const },
       });
@@ -108,8 +119,17 @@ export async function blockedOf(ctx: AutoCtx, kind: Automation["kind"], def: Def
     const none = /No (mailbox|texting number) is connected/.test(sender.message);
     return clean({
       nodeId: sender.nodeId,
-      short: none ? (text ? "No texting number" : "No mailbox") : text ? "The number cannot send" : "The mailbox cannot send",
-      line: said(n, none ? (text ? "no texting number is connected." : "no mailbox is connected.") : lowerFirst(sender.message)),
+      short: none
+        ? text
+          ? "No texting number"
+          : "No mailbox"
+        : text
+          ? "The number cannot send"
+          : "The mailbox cannot send",
+      line: said(
+        n,
+        none ? (text ? "no texting number is connected." : "no mailbox is connected.") : lowerFirst(sender.message),
+      ),
       button: none ? ("Connect" as const) : ("Fix" as const),
       fix: { kind: none ? (text ? ("number" as const) : ("mailbox" as const)) : ("step" as const) },
     });
@@ -145,7 +165,13 @@ export async function blockedOf(ctx: AutoCtx, kind: Automation["kind"], def: Def
     for (const [k, v] of Object.entries(n.input ?? {})) {
       if (!/fileId$/i.test(k) || typeof v !== "string" || !/^fil_[a-z0-9]+$/.test(v)) continue;
       if (!(await fileThere(ctx, seen, v)))
-        return { nodeId: n.id, short: "A file is missing", line: said(n, "the file it uses is gone or you cannot open it."), button: "Fix", fix: { kind: "file" } };
+        return {
+          nodeId: n.id,
+          short: "A file is missing",
+          line: said(n, "the file it uses is gone or you cannot open it."),
+          button: "Fix",
+          fix: { kind: "file" },
+        };
     }
   }
   // 5. a step that is not finished
@@ -195,7 +221,13 @@ interface EventRow {
   payload: Record<string, unknown>;
 }
 const asLogged = (e: EventRow): LoggedEvent =>
-  clean({ id: e.id, type: e.type, payload: isRec(e.payload) ? e.payload : {}, origin: e.origin, depth: e.depth }) as LoggedEvent;
+  clean({
+    id: e.id,
+    type: e.type,
+    payload: isRec(e.payload) ? e.payload : {},
+    origin: e.origin,
+    depth: e.depth,
+  }) as LoggedEvent;
 
 /**
  * Events of these kinds from a moment on, newest first. The log is read by position, so the position of that moment is found first (a handful of one-row reads), then only the events after it are read:
@@ -208,7 +240,11 @@ export async function eventsSince(
   cap = 2000,
 ): Promise<{ events: EventRow[]; capped: boolean }> {
   if (!ctx.call || types.length === 0) return { events: [], capped: false };
-  const since = async (after: number, limit: number, only?: readonly string[]): Promise<{ events: EventRow[]; head: number; next: number }> => {
+  const since = async (
+    after: number,
+    limit: number,
+    only?: readonly string[],
+  ): Promise<{ events: EventRow[]; head: number; next: number }> => {
     const r = (await ctx.call!("events.since", { after, limit, ...(only ? { types: [...only] } : {}) })) as {
       events?: EventRow[];
       head?: number;
@@ -261,7 +297,7 @@ function happened(ref: TriggerRef, ev: LoggedEvent, names: Names): string {
 export interface CheckLine {
   ok: boolean;
   line: string;
-  detail?: string;
+  detail?: string | undefined;
 }
 
 /** One filter check as a line a person reads: what the Automation waits for, and when it did not hold, what was there instead. */
@@ -275,8 +311,14 @@ export function checkLine(c: MatchCheck, ev: LoggedEvent, names: Names): CheckLi
       detail: c.ok ? undefined : `It is ${an(typeWord(names, c.got))}.`,
     });
   if (c.key === "op") {
-    const want = c.want === "created" ? "It was just added" : c.want === "deleted" ? "It was deleted" : "It was changed";
-    const got = c.got === "created" ? "It was just added." : c.got === "deleted" ? "It was deleted." : "It was changed, not added.";
+    const want =
+      c.want === "created" ? "It was just added" : c.want === "deleted" ? "It was deleted" : "It was changed";
+    const got =
+      c.got === "created"
+        ? "It was just added."
+        : c.got === "deleted"
+          ? "It was deleted."
+          : "It was changed, not added.";
     return clean({ ok: c.ok, line: want, detail: c.ok ? undefined : got });
   }
   if (c.key === "fields") {
@@ -285,7 +327,11 @@ export function checkLine(c: MatchCheck, ev: LoggedEvent, names: Names): CheckLi
     return clean({
       ok: c.ok,
       line: `${cap(orList(want))} ${made ? "is set" : "changed"}`,
-      detail: c.ok ? undefined : got.length > 0 ? `This change was to ${got.slice(0, 3).join(", ")}.` : "Nothing it watches changed.",
+      detail: c.ok
+        ? undefined
+        : got.length > 0
+          ? `This change was to ${got.slice(0, 3).join(", ")}.`
+          : "Nothing it watches changed.",
     });
   }
   const field = c.key === "where" ? fieldWord(names, type, c.field ?? "") : cap(words(c.field ?? ""));
@@ -296,7 +342,12 @@ export function checkLine(c: MatchCheck, ev: LoggedEvent, names: Names): CheckLi
   return {
     ok: false,
     line,
-    detail: c.got === undefined ? `${field} did not change.` : c.key === "where" && !made ? `It became ${got}.` : `It is ${got}.`,
+    detail:
+      c.got === undefined
+        ? `${field} did not change.`
+        : c.key === "where" && !made
+          ? `It became ${got}.`
+          : `It is ${got}.`,
   };
 }
 
@@ -306,12 +357,20 @@ interface TitleCache {
   by: Map<string, Promise<string | undefined>>;
 }
 /** A record's own name, as its type names it. Nothing when the caller cannot read it. */
-function titleOf(ctx: AutoCtx, names: Names, cache: TitleCache, type: unknown, recordId: unknown, fallback?: unknown): Promise<string | undefined> {
+function titleOf(
+  ctx: AutoCtx,
+  names: Names,
+  cache: TitleCache,
+  type: unknown,
+  recordId: unknown,
+  fallback?: unknown,
+): Promise<string | undefined> {
   if (typeof type !== "string" || typeof recordId !== "string" || !ctx.call) return Promise.resolve(undefined);
   let p = cache.by.get(recordId);
   if (!p) {
     const key = names.types.get(type)?.titleField ?? "name";
-    const fromFields = (f: unknown): string | undefined => (isRec(f) && typeof f[key] === "string" && f[key] !== "" ? (f[key] as string) : undefined);
+    const fromFields = (f: unknown): string | undefined =>
+      isRec(f) && typeof f[key] === "string" && f[key] !== "" ? (f[key] as string) : undefined;
     p = ctx.call("records.get", { type, recordId }).then(
       (r) => fromFields((r as { record?: { fields?: unknown } } | null)?.record?.fields) ?? fromFields(fallback),
       () => fromFields(fallback),
@@ -324,7 +383,10 @@ function titleOf(ctx: AutoCtx, names: Names, cache: TitleCache, type: unknown, r
 /** What one event is called in a list: the record's name for a record change, else what happened. */
 async function eventName(ctx: AutoCtx, names: Names, cache: TitleCache, ref: TriggerRef, e: EventRow): Promise<string> {
   const p = e.payload;
-  const title = await titleOf(ctx, names, cache, p["type"], p["recordId"], { ...(isRec(p["prev"]) ? p["prev"] : {}), ...(isRec(p["fields"]) ? p["fields"] : {}) });
+  const title = await titleOf(ctx, names, cache, p["type"], p["recordId"], {
+    ...(isRec(p["prev"]) ? p["prev"] : {}),
+    ...(isRec(p["fields"]) ? p["fields"] : {}),
+  });
   if (title) return title;
   if (typeof p["subject"] === "string" && p["subject"] !== "") return p["subject"];
   return happened(ref, asLogged(e), names);
@@ -364,13 +426,17 @@ export async function wouldRun(ctx: AutoCtx, input: In): Promise<unknown> {
   for (const e of events) {
     const ev = asLogged(e);
     // the first trigger that listens for it and whose record type it is; a change to another type is not one of "its" events
-    let best: { ref: TriggerRef; ok: boolean; why?: CheckLine } | undefined;
+    let best: { ref: TriggerRef; ok: boolean; why?: CheckLine | undefined } | undefined;
     for (const ref of refs) {
       const m = explainMatch(ref, ev);
       if (!m.listens) continue;
       const last = m.checks[m.checks.length - 1];
       if (!m.ok && last && last.key === "type") continue;
-      const why = !m.ok ? (last ? checkLine(last, ev, names) : { ok: false, line: "Its filter could not be read" }) : undefined;
+      const why = !m.ok
+        ? last
+          ? checkLine(last, ev, names)
+          : { ok: false, line: "Its filter could not be read" }
+        : undefined;
       if (!best || (m.ok && !best.ok)) best = clean({ ref, ok: m.ok && !m.error, why });
       if (m.ok) break;
     }
@@ -400,8 +466,17 @@ export async function wouldRun(ctx: AutoCtx, input: In): Promise<unknown> {
     of,
     capped,
     // what the "of" counts, in words: "changes to Customers", "forms submitted"
-    what: first.key === "record_change" ? `changes to ${typeof type === "string" ? cap(names.plural(type)) : "records"}` : `times ${lowerFirst(TRIGGERS.get(first.key)?.title ?? "it happened")}`,
+    what:
+      first.key === "record_change"
+        ? `changes to ${typeof type === "string" ? cap(names.plural(type)) : "records"}`
+        : `times ${lowerFirst(TRIGGERS.get(first.key)?.title ?? "it happened")}`,
     noun: first.key === "record_change" ? typeWord(names, type) : undefined,
+    // for "Find a customer": the type to search and the field its records are named by
+    recordType: first.key === "record_change" && typeof type === "string" ? type : undefined,
+    titleField:
+      first.key === "record_change" && typeof type === "string"
+        ? (names.types.get(type)?.titleField ?? "name")
+        : undefined,
     starts,
   });
 }
@@ -419,7 +494,12 @@ interface StepRow {
 }
 
 /** What became of the Run an event started: how far it got and what stopped it, from the Run's own step log. */
-async function runStory(ctx: AutoCtx, a: Automation, runId: string, version: number): Promise<{ verdict: Verdict; line: string; checks: CheckLine[] }> {
+async function runStory(
+  ctx: AutoCtx,
+  a: Automation,
+  runId: string,
+  version: number,
+): Promise<{ verdict: Verdict; line: string; checks: CheckLine[] }> {
   const def = versionDefinition(ctx.db, a.id, version) ?? a.definition;
   const order = inRunOrder(def);
   const numberOf = (id: string): number => order.findIndex((n) => n.id === id) + 1;
@@ -449,7 +529,14 @@ async function runStory(ctx: AutoCtx, a: Automation, runId: string, version: num
     return {
       verdict: "failed",
       line: n > 0 ? `Failed at step ${n}` : "Failed",
-      checks: [started, clean({ ok: false, line: at ? `Step ${n}, ${nameOf(at.step).toLowerCase()}` : "A step failed", detail: at?.error?.message })],
+      checks: [
+        started,
+        clean({
+          ok: false,
+          line: at ? `Step ${n}, ${nameOf(at.step).toLowerCase()}` : "A step failed",
+          detail: at?.error?.message,
+        }),
+      ],
     };
   }
   if (status === "waiting" || status === "queued" || status === "running") {
@@ -459,11 +546,22 @@ async function runStory(ctx: AutoCtx, a: Automation, runId: string, version: num
     return {
       verdict: waiting ? "waiting" : "running",
       line: waiting ? (n > 0 ? `Waiting at step ${n}` : "Waiting") : "Running now",
-      checks: [started, { ok: true, line: at ? `Step ${n}, ${nameOf(at.step).toLowerCase()}` : "It is on its way", detail: waiting ? "It is waiting here, for a person or for a time." : "It is running now." }],
+      checks: [
+        started,
+        {
+          ok: true,
+          line: at ? `Step ${n}, ${nameOf(at.step).toLowerCase()}` : "It is on its way",
+          detail: waiting ? "It is waiting here, for a person or for a time." : "It is running now.",
+        },
+      ],
     };
   }
   if (status === "stopped" || status === "cancelled")
-    return { verdict: "stopped", line: "Stopped by a person", checks: [started, { ok: false, line: `${done} of ${total} steps ran`, detail: "Someone stopped this run." }] };
+    return {
+      verdict: "stopped",
+      line: "Stopped by a person",
+      checks: [started, { ok: false, line: `${done} of ${total} steps ran`, detail: "Someone stopped this run." }],
+    };
   // finished: did it reach the end, or did a step end it early?
   const lastRan = ran[ran.length - 1];
   const lastNode = lastRan ? order.find((n) => n.id === lastRan.step) : undefined;
@@ -477,12 +575,26 @@ async function runStory(ctx: AutoCtx, a: Automation, runId: string, version: num
         {
           ok: false,
           line: `Step ${n}, ${nameOf(lastNode.id).toLowerCase()}`,
-          detail: lastNode.key === "stop" ? "The steps say to stop here." : "It took the path that ends here, so the steps after it did not run.",
+          detail:
+            lastNode.key === "stop"
+              ? "The steps say to stop here."
+              : "It took the path that ends here, so the steps after it did not run.",
         },
       ],
     };
   }
-  return { verdict: "ran", line: "Ran", checks: [started, { ok: true, line: done >= total ? (total === 1 ? "Its step ran" : `All ${total} steps ran`) : `${done} of ${total} steps ran` }] };
+  return {
+    verdict: "ran",
+    line: "Ran",
+    checks: [
+      started,
+      {
+        ok: true,
+        line:
+          done >= total ? (total === 1 ? "Its step ran" : `All ${total} steps ran`) : `${done} of ${total} steps ran`,
+      },
+    ],
+  };
 }
 
 const DROP_WORDS: Readonly<Record<string, string>> = {
@@ -499,21 +611,35 @@ const DROP_WORDS: Readonly<Record<string, string>> = {
 export async function whyNot(ctx: AutoCtx, input: In): Promise<unknown> {
   if (!ctx.call) raise(ctx, "internal.unavailable", "This is not available right now.");
   const names = await namesFor(ctx);
-  const got = (await ctx.call("records.get", { ...(input.type ? { type: input.type } : {}), recordId: input.recordId }).catch(() => null)) as {
+  const got = (await ctx
+    .call("records.get", { ...(input.type ? { type: input.type } : {}), recordId: input.recordId })
+    .catch(() => null)) as {
     record?: { type?: string; fields?: Record<string, unknown> };
   } | null;
-  const type = typeof got?.record?.type === "string" ? got.record.type : typeof input.type === "string" ? input.type : undefined;
+  const type =
+    typeof got?.record?.type === "string" ? got.record.type : typeof input.type === "string" ? input.type : undefined;
   const titleField = type ? (names.types.get(type)?.titleField ?? "name") : "name";
-  const title = typeof got?.record?.fields?.[titleField] === "string" ? (got.record.fields[titleField] as string) : undefined;
+  const title =
+    typeof got?.record?.fields?.[titleField] === "string" ? (got.record.fields[titleField] as string) : undefined;
   // what happened to this record, newest first
   const kinds = [...new Set(registry.triggers.flatMap((t) => eventsOf({ key: t.key } as TriggerRef)))];
-  const page = (await ctx.call("events.list", { subject: { type: "record", id: input.recordId }, limit: 500 }).catch(() => null)) as {
+  const page = (await ctx
+    .call("events.list", { subject: { type: "record", id: input.recordId }, limit: 500 })
+    .catch(() => null)) as {
     events?: EventRow[];
   } | null;
   const all = (page?.events ?? []).filter((e) => kinds.includes(e.type)).sort((x, y) => y.at - x.at || y.seq - x.seq);
-  const changes = all.slice(0, 12).map((e) => clean({ eventId: e.id, at: e.at, line: changeWords(e, names), by: e.actor }));
+  const changes = all
+    .slice(0, 12)
+    .map((e) => clean({ eventId: e.id, at: e.at, line: changeWords(e, names), by: e.actor }));
   const chosen = (typeof input.eventId === "string" ? all.find((e) => e.id === input.eventId) : undefined) ?? all[0];
-  const record = clean({ id: input.recordId as string, type, typeName: type ? cap(typeWord(names, type)) : undefined, title });
+  const record = clean({
+    id: input.recordId as string,
+    type,
+    typeName: type ? cap(typeWord(names, type)) : undefined,
+    typePlural: type ? cap(names.plural(type)) : undefined,
+    title,
+  });
   if (!chosen) return { record, changes: [], automations: [] };
   const ev = asLogged(chosen);
   const policy = readPolicy(ctx.db);
@@ -530,7 +656,10 @@ export async function whyNot(ctx: AutoCtx, input: In): Promise<unknown> {
       if (!pick || (m.ok && !pick.m.ok)) pick = { ref, m };
     }
     if (!pick) continue;
-    const checks: CheckLine[] = [{ ok: true, line: happened(pick.ref, ev, names) }, ...pick.m.checks.filter((c) => c.key !== "type").map((c) => checkLine(c, ev, names))];
+    const checks: CheckLine[] = [
+      { ok: true, line: happened(pick.ref, ev, names) },
+      ...pick.m.checks.filter((c) => c.key !== "type").map((c) => checkLine(c, ev, names)),
+    ];
     let verdict: Verdict;
     let line: string;
     let runId: string | undefined;
@@ -554,7 +683,12 @@ export async function whyNot(ctx: AutoCtx, input: In): Promise<unknown> {
       checks.push({
         ok: false,
         line: a.status === "paused" ? "It is paused" : "It is off",
-        detail: a.status === "paused" ? (a.pausedReason ?? "Turn it back on to let it run.") : a.status === "draft" ? "It has never been turned on." : "Turn it on to let it run.",
+        detail:
+          a.status === "paused"
+            ? (a.pausedReason ?? "Turn it back on to let it run.")
+            : a.status === "draft"
+              ? "It has never been turned on."
+              : "Turn it on to let it run.",
       });
     } else {
       const drop = dropReason(a, pick.ref, clean({ origin: chosen.origin, depth: chosen.depth ?? 0 }), policy);
@@ -563,7 +697,12 @@ export async function whyNot(ctx: AutoCtx, input: In): Promise<unknown> {
       checks.push({
         ok: false,
         line: "It did not start a run",
-        detail: drop && DROP_WORDS[drop] ? DROP_WORDS[drop]! : a.updatedAt > chosen.at ? "It was turned on or changed after this happened." : "No run was kept for this. It may have been off at the time.",
+        detail:
+          drop && DROP_WORDS[drop]
+            ? DROP_WORDS[drop]!
+            : a.updatedAt > chosen.at
+              ? "It was turned on or changed after this happened."
+              : "No run was kept for this. It may have been off at the time.",
       });
     }
     rows.push({

@@ -954,6 +954,8 @@ export default defineManifest({
           capped: t.bool(),
           what: t.opt(t.str()),
           noun: t.opt(t.str()),
+          recordType: t.opt(id.recordType),
+          titleField: t.opt(t.str()),
           starts: t.arr(
             t.obj({
               eventId: id.event,
@@ -978,7 +980,13 @@ export default defineManifest({
       {
         in: { type: id.recordType, recordId: id.record, eventId: t.opt(id.event) },
         out: {
-          record: t.obj({ id: id.record, type: t.opt(id.recordType), typeName: t.opt(t.str()), title: t.opt(t.str()) }),
+          record: t.obj({
+            id: id.record,
+            type: t.opt(id.recordType),
+            typeName: t.opt(t.str()),
+            typePlural: t.opt(t.str()),
+            title: t.opt(t.str()),
+          }),
           changes: t.arr(t.obj({ eventId: id.event, at: t.ts(), line: t.str(), by: t.opt(t.str()) })),
           eventId: t.opt(id.event),
           automations: t.arr(

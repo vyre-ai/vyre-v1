@@ -21,7 +21,8 @@ export type StoryAction =
   | "ask"
   | "insert"
   | "rowmenu"
-  | "trigger";
+  | "trigger"
+  | "blocked";
 
 function Btn({
   id,
@@ -138,6 +139,19 @@ export function StoryView({
           <StoryActions story={story} on={on} />
         </View>
       )}
+      {story.sentence ? (
+        <Text testID="sv-sentence" style={s.say}>
+          {story.sentence}
+        </Text>
+      ) : null}
+      {story.blocked ? (
+        <View style={s.blocked} testID="sv-blocked">
+          <Text style={[look.warn, s.grow]}>{story.blocked.line}</Text>
+          {readOnly ? null : (
+            <Btn id="sv-blocked-fix" label={story.blocked.button} kind="outlined" onPress={() => on("blocked")} />
+          )}
+        </View>
+      ) : null}
       {/* ui-rows-lint: not a list (the bars above the steps) */}
       {story.bars.map((b) => (
         <View key={b.kind} style={s.bar}>
@@ -300,6 +314,8 @@ const s = StyleSheet.create({
   pad: { paddingHorizontal: 16 },
   headRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   name: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string },
+  say: { fontSize: 15, lineHeight: 22, color: "var(--ink-2)" as string, maxWidth: 560 },
+  blocked: { flexDirection: "row", alignItems: "center", gap: 12 },
   grow: { flex: 1, minWidth: 0, gap: 2 },
   sentence: { fontSize: 15, lineHeight: 22, color: "var(--ink)" as string },
   barText: { fontSize: 14, color: "var(--ink)" as string },
