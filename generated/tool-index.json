@@ -8456,8 +8456,14 @@
     },
     {
       "deferred": false,
+      "name": "sites_preview_promote",
+      "summary": "Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_preview_rebuild",
-      "summary": "Rebuild a preview or bring back a removed one",
+      "summary": "Build a branch of the site's repo as a preview at its own address behind sign-in, or build it again. A new build replaces the one before it for that branch. wait returns when it ends",
       "toolset": "sites"
     },
     {

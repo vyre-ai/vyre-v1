@@ -2591,6 +2591,7 @@ export function createClient(transport: Transport) {
       logs: call("sites.logs", 1),
       password_set: call("sites.password_set", 1),
       plan: call("sites.plan", 1),
+      preview_promote: call("sites.preview_promote", 1),
       preview_rebuild: call("sites.preview_rebuild", 1),
       preview_remove: call("sites.preview_remove", 1),
       previews: call("sites.previews", 1),

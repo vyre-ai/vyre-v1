@@ -30,6 +30,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.logs": Handler<"sites.logs", X>;
   "sites.password_set": Handler<"sites.password_set", X>;
   "sites.plan": Handler<"sites.plan", X>;
+  "sites.preview_promote": Handler<"sites.preview_promote", X>;
   "sites.preview_rebuild": Handler<"sites.preview_rebuild", X>;
   "sites.preview_remove": Handler<"sites.preview_remove", X>;
   "sites.previews": Handler<"sites.previews", X>;

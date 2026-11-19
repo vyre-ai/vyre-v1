@@ -37767,9 +37767,40 @@ export type SitesPlanOut = {
   env: Array<string>;
   from: Array<string>;
 };
+export type SitesPreviewPromoteIn = {
+  siteId: string;
+  branch: string;
+  wait?: boolean;
+};
+export type SitesPreviewPromoteOut = {
+  deployment: {
+    deploymentId: string;
+    siteId: string;
+    env: "staging" | "preview" | "production";
+    state: "queued" | "building" | "ready" | "failed" | "stopped";
+    url?: string;
+    branch?: string;
+    commit?: string;
+    message?: string;
+    at: number;
+    by?: string;
+    note?: string;
+    problem?: string;
+    fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+    current?: boolean;
+    finishedAt?: number;
+    steps?: Array<{
+        key: "fetch" | "build" | "start" | "check";
+        state: "waiting" | "running" | "ok" | "failed" | "skipped";
+        ms?: number;
+        startedAt?: number;
+      }>;
+  };
+};
 export type SitesPreviewRebuildIn = {
   siteId: string;
   branch: string;
+  wait?: boolean;
 };
 export type SitesPreviewRebuildOut = {
   deployment: {
@@ -50366,6 +50397,7 @@ export interface CapMap {
   "sites.logs": { in: SitesLogsIn; out: SitesLogsOut };
   "sites.password_set": { in: SitesPasswordSetIn; out: SitesPasswordSetOut };
   "sites.plan": { in: SitesPlanIn; out: SitesPlanOut };
+  "sites.preview_promote": { in: SitesPreviewPromoteIn; out: SitesPreviewPromoteOut };
   "sites.preview_rebuild": { in: SitesPreviewRebuildIn; out: SitesPreviewRebuildOut };
   "sites.preview_remove": { in: SitesPreviewRemoveIn; out: SitesPreviewRemoveOut };
   "sites.previews": { in: SitesPreviewsIn; out: SitesPreviewsOut };

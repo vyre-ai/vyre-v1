@@ -69,6 +69,7 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
   const wide = useWindowDimensions().width >= WIDE;
   const id = x.siteId;
   const deps = useRead<CapMap["sites.deployments"]["out"]>("sites.deployments", { siteId: id, limit: 20 }, "sites");
+  const previews = useRead<CapMap["sites.previews"]["out"]>("sites.previews", { siteId: id }, "sites");
   const env = useRead<CapMap["sites.env_list"]["out"]>("sites.env_list", { siteId: id }, "sites");
   const host = useRead<CapMap["sites.host"]["out"]>("sites.host", {}, "sites");
   const domains = useRead<CapMap["sites.domains_get"]["out"]>("sites.domains_get", { siteId: id }, "sites");
@@ -107,6 +108,13 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
     }, 1500);
     return () => clearInterval(t);
   }, [building, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a preview that is building is read again every two seconds, with its steps
+  const previewBusy = (previews.data?.previews ?? []).some(isRunning);
+  useEffect(() => {
+    if (!previewBusy) return undefined;
+    const t = setInterval(() => previews.refresh(), 2000);
+    return () => clearInterval(t);
+  }, [previewBusy]); // eslint-disable-line react-hooks/exhaustive-deps
   // a deploy that starts (from here, from an agent, or on a push) opens once, so the page shows it moving
   const autoOpened = useRef(false);
   useEffect(() => {
@@ -193,6 +201,20 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
     });
   };
   const cancel = (): void => void run("Canceling", "sites.deploy_cancel", { siteId: id });
+  const buildBranch = (name: string): Promise<unknown> =>
+    run("Building the preview", "sites.preview_rebuild", { siteId: id, branch: name }, () => {
+      previews.refresh();
+    });
+  const promote = (dep: Dep): void =>
+    void run("Promoting", "sites.preview_promote", { siteId: id, branch: dep.branch ?? "" }, () => {
+      setOpenId(null);
+      setFollow(true);
+    });
+  const removePreview = (dep: Dep): void =>
+    void run("Removing", "sites.preview_remove", { siteId: id, branch: dep.branch ?? "" }, () => {
+      previews.refresh();
+      setOpenId(null);
+    });
   const rollback = (dep: Dep): void =>
     void run("Rolling back", "sites.rollback", { siteId: id, toDeploymentId: dep.deploymentId });
   const askAgent = (): void => {
@@ -250,7 +272,9 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
   const pg = addon("postgres"),
     redis = addon("redis");
   const list = deps.data?.deployments ?? [];
-  const opened = openId ? list.find((r) => r.deploymentId === openId) : undefined;
+  const previewList = previews.data?.previews ?? [];
+  const opened = openId ? [...list, ...previewList].find((r) => r.deploymentId === openId) : undefined;
+  const [branch, setBranch] = useState("");
   const who = (by: string | undefined): string | null =>
     by ? (by === d.me?.id ? "you" : (d.nameOf?.(by) ?? "a teammate")) : null;
   // ui-rows-lint: not a list (chips to pick one Vault key)
@@ -286,6 +310,9 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
       onRollback={rollback}
       onRedeploy={() => void deploy()}
       onFix={fix}
+      onPromote={promote}
+      onRemove={removePreview}
+      onRebuild={(dep) => void buildBranch(dep.branch ?? "")}
       inPage={!wide}
     />
   ) : null;
@@ -383,6 +410,48 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
               })
             )}
           </Card>
+          {x.source?.repo ? (
+            <Card title="Previews">
+              <Text style={ui.text}>
+                A branch built at its own address, behind sign-in. A new build replaces the one before it.
+              </Text>
+              {previewList.length === 0 ? <Text style={ui.text}>None yet.</Text> : null}
+              {previewList.map((dep: Dep) => (
+                <Row
+                  key={dep.deploymentId}
+                  id={`preview-${dep.deploymentId}`}
+                  title={dep.branch ?? "branch"}
+                  note={depNote(dep, who(dep.by), ago(dep.finishedAt ?? dep.at, now), now)}
+                  selected={dep.deploymentId === openId}
+                  leading={<StepMark state={markOf(dep.state)} />}
+                  onPress={() => setOpenId(dep.deploymentId)}
+                  trailing={
+                    <Text style={s.rowWord} testID={`site-preview-${dep.deploymentId}`}>
+                      {dep.state === "ready" ? (dep.url ?? "").replace("https://", "") : depState(dep).word}
+                    </Text>
+                  }
+                />
+              ))}
+              <View style={ui.actions}>
+                <TextInput
+                  accessibilityLabel="Branch to preview"
+                  testID="site-preview-branch"
+                  value={branch}
+                  onChangeText={setBranch}
+                  placeholder="branch name"
+                  placeholderTextColor="var(--ink-4)"
+                  autoCapitalize="none"
+                  style={[ui.input, { flex: 1, minWidth: 200 }]}
+                />
+                <Button
+                  title="Build preview"
+                  testID="site-preview-build"
+                  disabled={off || branch.trim() === ""}
+                  onPress={() => void buildBranch(branch.trim()).then(() => setBranch(""))}
+                />
+              </View>
+            </Card>
+          ) : null}
         </View>
       )}
       {wide && opened ? (

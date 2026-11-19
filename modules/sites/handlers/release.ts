@@ -280,6 +280,12 @@ class DeployLog {
     if (step) Object.assign(step, { s: "running", at: now, line: this.dropped + this.lines.length });
     this.dirty = true;
   }
+  /** Steps that never happen for this deploy (a promoted preview is not fetched or built). */
+  skip(...keys: StepKey[]): void {
+    if (!this.steps) return;
+    for (const x of this.steps) if (keys.includes(x.k)) x.s = "skipped";
+    this.dirty = true;
+  }
   /** The deploy ended: the step that ran ended with it, and after a failure the ones that never ran say so. */
   settle(ok: boolean): void {
     if (!this.steps) return;
@@ -475,7 +481,8 @@ async function envOf(
   depId: string,
   kind: "production" | "preview" = "production",
 ): Promise<Record<string, string>> {
-  const out = await addonEnv(ctx, siteId);
+  // a preview never gets the site's own databases: it would write to production data. It gets the ones its variables name (scope previews).
+  const out = kind === "production" ? await addonEnv(ctx, siteId) : {};
   const want = kind === "production" ? "production" : "previews";
   for (const e of many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", siteId)) {
     const scope = isNull(e.scope) ? "all" : str(e.scope);
@@ -522,11 +529,15 @@ interface Job {
   by: string;
   publicNeedsPromote: boolean;
   signal: AbortSignal;
+  /** A preview deploy: its own container at its own address, behind sign-in, never the site's address. */
+  preview?: { branch: string; host: string };
 }
 
 /** The deploys this process is running, by id, with the switch that cancels each. */
 const cancels = new Map<string, AbortController>();
 class Canceled extends Error {}
+/** How a source is fetched; a test replaces it (a repo cannot be cloned there). */
+let fetcher: typeof fetchSource = fetchSource;
 
 function finish(
   db: Db,
@@ -621,7 +632,7 @@ async function runJob(j: Job): Promise<void> {
             : `Copying ${j.source.path}`,
     );
     try {
-      fetched = await fetchSource(j.source, {
+      fetched = await fetcher(j.source, {
         call: j.call,
         token: async () => j.token,
         contained: j.contained,
@@ -737,7 +748,8 @@ async function runJob(j: Job): Promise<void> {
       return;
     }
     // from here the address changes hands: a cancel that arrives now is too late, and the deploy goes live
-    await switchTo(j.db, r, siteId, j.depId, started.containerId, plan.port, j.by, j.publicNeedsPromote);
+    if (j.preview) await switchPreview(j.db, r, siteId, j.depId, started.containerId, j.preview);
+    else await switchTo(j.db, r, siteId, j.depId, started.containerId, plan.port, j.by, j.publicNeedsPromote);
     say("Live");
     end("ready", {});
   } catch (e) {
@@ -795,12 +807,46 @@ async function switchTo(
     db.run("UPDATE sites_deployment SET container_id = NULL WHERE site_id = ? AND container_id = ?", siteId, before);
   }
   const images = db.all(
-    "SELECT id, image FROM sites_deployment WHERE site_id = ? AND image IS NOT NULL ORDER BY at DESC",
+    "SELECT id, image FROM sites_deployment WHERE site_id = ? AND env = 'production' AND image IS NOT NULL ORDER BY at DESC",
     siteId,
   ) as Row[];
-  for (const old of images.slice(KEEP_IMAGES)) {
-    await r.removeImage(str(old.image)).catch(() => undefined);
-    db.run("UPDATE sites_deployment SET image = NULL WHERE id = ?", old.id);
+  for (const old of images.slice(KEEP_IMAGES)) await dropImage(db, r, old);
+  await routesHost()
+    ?.hostRoute?.(siteId, true)
+    .catch(() => undefined);
+}
+
+/** An image is removed from the server only when no other deploy row still names it (a promoted preview shares its image with production). The row forgets it either way. */
+async function dropImage(db: Db, r: Runner, row: Row): Promise<void> {
+  const image = str(row.image);
+  db.run("UPDATE sites_deployment SET image = NULL WHERE id = ?", row.id);
+  const other = db.all("SELECT id FROM sites_deployment WHERE image = ? AND id != ?", image, row.id) as Row[];
+  if (other.length === 0) await r.removeImage(image).catch(() => undefined);
+}
+
+/** A preview is up: the one before it for the same branch is removed (its image too, unless something else uses it), and its address serves this container. */
+async function switchPreview(
+  db: Db,
+  r: Runner,
+  siteId: string,
+  depId: string,
+  containerId: string,
+  preview: { branch: string; host: string },
+): Promise<void> {
+  const now = Date.now();
+  db.run("UPDATE sites_deployment SET url = ?, host = ?, removed_at = NULL, updated_at = ? WHERE id = ?", `https://${preview.host}`, preview.host, now, depId);
+  const older = db.all(
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ? AND id != ? AND (container_id IS NOT NULL OR image IS NOT NULL) ORDER BY at DESC",
+    siteId,
+    preview.branch,
+    depId,
+  ) as Row[];
+  for (const old of older) {
+    if (!isNull(old.container_id)) {
+      await r.remove(str(old.container_id)).catch(() => undefined);
+      db.run("UPDATE sites_deployment SET container_id = NULL, host = NULL, url = NULL WHERE id = ?", old.id);
+    }
+    if (!isNull(old.image)) await dropImage(db, r, old);
   }
   await routesHost()
     ?.hostRoute?.(siteId, true)
@@ -953,11 +999,11 @@ async function sitesDeployCancel(ctx: Ctx, input: unknown): Promise<{ deployment
   const wanted = optStr(ctx, o, "deploymentId");
   const busy = many(
     ctx,
-    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND state IN ('queued', 'building')",
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND state IN ('queued', 'building')",
     site.id,
-    "production",
   )
-    .filter((d) => wanted === undefined || d.id === wanted)
+    // without a deployment named it is the production deploy that runs; with one, any deploy of the site (a preview too)
+    .filter((d) => (wanted === undefined ? d.env === "production" : d.id === wanted))
     .sort((a, b) => num(b.at) - num(a.at))[0];
   if (!busy) fail(ctx, "validation.precondition_failed", "No deploy is running.");
   const id = str(busy.id);
@@ -1092,6 +1138,316 @@ async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unkno
     ...(fixKey ? { fix: fixKey } : {}),
     deployment,
   };
+}
+
+// ---- previews: a branch of the repo built and run at its own address, behind sign-in, and promoted to production without a rebuild
+
+/** A name that is safe in an address: lowercase letters, digits and dashes. A branch that had to be changed to fit gets a short hash, so two branches never share an address. */
+export function previewLabel(slug: string, branch: string): string {
+  const base = branch.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "branch";
+  let h = 2166136261;
+  for (const c of branch) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+  const hash = h.toString(16).padStart(8, "0").slice(0, 6);
+  const plain = base === branch;
+  const room = 63 - slug.length - 2 - (plain ? 0 : 7);
+  const head = base.slice(0, Math.max(1, room)).replace(/-+$/g, "");
+  return `${plain && head === base ? head : `${head}-${hash}`}--${slug}`.slice(0, 63);
+}
+
+function previewHostFor(ctx: Ctx, site: Row, branch: string): string {
+  const domain = routesHost()?.sitesDomain();
+  if (!domain || isNull(site.slug))
+    fail(ctx, "validation.precondition_failed", "Previews need this Space to have a sites domain. Set one in Settings.");
+  let label = previewLabel(str(site.slug), branch);
+  // never an address that is some site's own name
+  if (one(ctx, "SELECT id FROM sites_site WHERE slug = ? AND deleted_at IS NULL", label)) label = `${label.slice(0, 60)}-p`;
+  return `${label}.${domain}`;
+}
+
+const previewRows = (ctx: Ctx, siteId: string): Row[] =>
+  many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND removed_at IS NULL", siteId).sort(
+    (a, b) => num(b.at) - num(a.at),
+  );
+
+async function sitesPreviews(ctx: Ctx, input: unknown): Promise<{ previews: unknown[] }> {
+  const site = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
+  const seen = new Set<string>();
+  const latest: Row[] = [];
+  for (const r of previewRows(ctx, str(site.id))) {
+    const b = isNull(r.branch) ? "" : str(r.branch);
+    if (seen.has(b)) continue;
+    seen.add(b);
+    latest.push(r);
+  }
+  return { previews: latest.map((r) => depRow(r, null)) };
+}
+
+async function sitesPreviewRebuild(ctx: Ctx, input: unknown): Promise<{ deployment: unknown }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const branch = cleanBranch(reqStr(ctx, o, "branch"));
+  if (!branch) fail(ctx, "validation.bad_input", "A branch name uses letters, digits and . _ / -.", { field: "branch" });
+  const source = sourceOf(site);
+  if (!source?.repo)
+    fail(ctx, "validation.precondition_failed", "A preview is a branch of a GitHub repo. This site has no repo.");
+  const need = deployNeed();
+  if (need) fail(ctx, "validation.precondition_failed", need);
+  const siteId = str(site.id);
+  const host = previewHostFor(ctx, site, branch);
+  const busy = many(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ? AND state IN ('queued', 'building')",
+    siteId,
+    branch,
+  )[0];
+  if (busy && done.has(str(busy.id))) return { deployment: depRow(busy, null) };
+  const token = source.tokenHandle ? await filled(ctx, source.tokenHandle, `${siteId}:token:${ctx.now()}`) : null;
+  const depId = nid(ctx, "dpl");
+  const now = ctx.now();
+  const by = ctx.actingFor ?? ctx.principal.id;
+  ctx.db.run(
+    "INSERT INTO sites_deployment (id, site_id, env, state, url, branch, commit_sha, image, container_id, host, upstream, pr_number, log, created_by, at, updated_at, removed_at, merge_pending) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    depId,
+    siteId,
+    "preview",
+    "queued",
+    null,
+    branch,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "[]",
+    by,
+    now,
+    now,
+    null,
+    0,
+  );
+  const env = await envOf(ctx, siteId, depId, "preview");
+  const ac = new AbortController();
+  const job: Job = {
+    db: ctx.db,
+    site,
+    depId,
+    source: { ...source, branch },
+    env,
+    token,
+    limits: limitsOf(site),
+    by,
+    contained: routesHost()?.contained === true,
+    call: (cap, inp) => ctx.call(cap as never, inp),
+    publicNeedsPromote: true,
+    signal: ac.signal,
+    preview: { branch, host },
+  };
+  const p = enqueue(() => runJob(job)).finally(() => {
+    done.delete(depId);
+    cancels.delete(depId);
+  });
+  done.set(depId, p);
+  cancels.set(depId, ac);
+  if (optBool(ctx, o, "wait") === true)
+    await Promise.race([p, new Promise((res) => setTimeout(res, WAIT_MAX_MS).unref?.())]);
+  return { deployment: depRow(one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", depId) as Row, null) };
+}
+
+async function sitesPreviewRemove(ctx: Ctx, input: unknown): Promise<{ removed: boolean }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const branch = cleanBranch(reqStr(ctx, o, "branch"));
+  const siteId = str(site.id);
+  const rows = many(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ? AND removed_at IS NULL",
+    siteId,
+    branch ?? "",
+  );
+  if (rows.length === 0) return { removed: false };
+  // one that is still building is canceled first, so it cannot start a container after this
+  for (const row of rows) {
+    const id = str(row.id);
+    if (row.state === "queued" || row.state === "building") {
+      cancels.get(id)?.abort();
+      const running = done.get(id);
+      if (running) await Promise.race([running, new Promise((res) => setTimeout(res, CANCEL_WAIT_MS).unref?.())]);
+    }
+  }
+  const r = runner();
+  const now = ctx.now();
+  for (const row of many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ? AND removed_at IS NULL", siteId, branch ?? "")) {
+    if (r && !isNull(row.container_id)) await r.remove(str(row.container_id)).catch(() => undefined);
+    ctx.db.run("UPDATE sites_deployment SET container_id = NULL, host = NULL, url = NULL, removed_at = ?, updated_at = ? WHERE id = ?", now, now, row.id);
+    if (r && !isNull(row.image)) await dropImage(ctx.db, r, row);
+  }
+  await routesHost()?.hostRoute?.(siteId, true).catch(() => undefined);
+  return { removed: true };
+}
+
+/** Serve a preview's build as production without building it again: its image starts with the production variables, and goes through the same check and switch as any deploy. */
+async function sitesPreviewPromote(ctx: Ctx, input: unknown): Promise<{ deployment: unknown }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const branch = cleanBranch(reqStr(ctx, o, "branch"));
+  const r = runner();
+  if (!r) fail(ctx, "validation.precondition_failed", deployNeed() ?? "No server can run it.");
+  const siteId = str(site.id);
+  const prev = previewRows(ctx, siteId).find((d) => d.branch === branch && d.state === "ready");
+  if (!prev || isNull(prev.image))
+    fail(ctx, "validation.precondition_failed", "That preview has no finished build to promote. Rebuild it first.");
+  if (!(await r.imageExists(str(prev.image))))
+    fail(ctx, "validation.precondition_failed", "That preview's build is gone from the server. Rebuild it first.");
+  const busy = one(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = 'production' AND state IN ('queued', 'building')", siteId);
+  if (busy && done.has(str(busy.id)))
+    fail(ctx, "validation.precondition_failed", "A deploy is running. Wait for it, or cancel it, then promote.");
+  const depId = nid(ctx, "dpl");
+  const now = ctx.now();
+  const by = ctx.actingFor ?? ctx.principal.id;
+  ctx.db.run(
+    "INSERT INTO sites_deployment (id, site_id, env, state, url, branch, commit_sha, message, image, container_id, host, upstream, pr_number, log, created_by, at, updated_at, removed_at, merge_pending, plan, port, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    depId,
+    siteId,
+    "production",
+    "queued",
+    null,
+    prev.branch,
+    prev.commit_sha,
+    prev.message ?? null,
+    prev.image,
+    null,
+    null,
+    null,
+    null,
+    "[]",
+    by,
+    now,
+    now,
+    null,
+    0,
+    prev.plan ?? null,
+    prev.port ?? null,
+    `Promoted from the preview of ${branch}. Not built again.`,
+  );
+  ctx.db.run(
+    "INSERT INTO sites_promotion (production_id, site_id, source_id, pr_number, merge_sha, promoted_by, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    depId,
+    siteId,
+    prev.id,
+    null,
+    prev.commit_sha ?? null,
+    by,
+    now,
+  );
+  const env = await envOf(ctx, siteId, depId);
+  const ac = new AbortController();
+  const p = enqueue(() =>
+    runPromote({
+      db: ctx.db,
+      site,
+      depId,
+      image: str(prev.image),
+      port: num(prev.port) || parseJson<{ port?: number }>(prev.plan, {}).port || 3000,
+      env,
+      limits: limitsOf(site),
+      by,
+      publicNeedsPromote: ctx.principal.kind !== "person",
+      signal: ac.signal,
+    }),
+  ).finally(() => {
+    done.delete(depId);
+    cancels.delete(depId);
+  });
+  done.set(depId, p);
+  cancels.set(depId, ac);
+  if (optBool(ctx, o, "wait") === true)
+    await Promise.race([p, new Promise((res) => setTimeout(res, WAIT_MAX_MS).unref?.())]);
+  const after = mustSite(ctx, siteId);
+  return {
+    deployment: depRow(
+      one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", depId) as Row,
+      isNull(after.current_deployment) ? null : str(after.current_deployment),
+    ),
+  };
+}
+
+/** The run of a promoted preview: fetch and build never happen (they say so), the image starts with the production variables, is checked, and the address switches. A cancel before the switch leaves what was serving. */
+async function runPromote(j: {
+  db: Db;
+  site: Row;
+  depId: string;
+  image: string;
+  port: number;
+  env: Record<string, string>;
+  limits: Limits;
+  by: string;
+  publicNeedsPromote: boolean;
+  signal: AbortSignal;
+}): Promise<void> {
+  const r = runner();
+  const siteId = str(j.site.id);
+  const log = new DeployLog(j.db, j.depId, { steps: true });
+  const say = (line: string): void => log.add(`==> ${line}`);
+  const end = (state: "ready" | "failed" | "stopped", fields: { problem?: string; fix?: Fix; note?: string }): void => {
+    log.settle(state === "ready");
+    finish(j.db, j.depId, state, fields);
+  };
+  let startedId: string | null = null;
+  try {
+    if (j.signal.aborted) throw new Canceled();
+    if (!r) {
+      end("failed", { problem: deployNeed() ?? "No server can run it.", fix: "retry" });
+      return;
+    }
+    j.db.run("UPDATE sites_deployment SET state = ?, updated_at = ? WHERE id = ?", "building", Date.now(), j.depId);
+    log.skip("fetch", "build");
+    say("Promoting the build of the preview. It is not built again.");
+    await keepNetwork(j.db, r, siteId);
+    log.begin("start");
+    say(`Starting it with ${j.limits.cpus} CPU and ${j.limits.memoryMb} MB, with the production variables`);
+    const started = await r.run({ siteId, deploymentId: j.depId, image: j.image, port: j.port, env: j.env, limits: j.limits });
+    startedId = started.containerId;
+    j.db.run("UPDATE sites_deployment SET container_id = ? WHERE id = ?", started.containerId, j.depId);
+    if (j.signal.aborted) throw new Canceled();
+    log.begin("check");
+    const ready = await waitReady(r, started.containerId, j.port, "/", log, j.signal);
+    if (j.signal.aborted) throw new Canceled();
+    if (!ready.ok) {
+      const d = diagnose(ready.lines, {
+        stage: "start",
+        port: j.port,
+        oom: ready.oom,
+        memoryMb: j.limits.memoryMb,
+        hasPostgres: "DATABASE_URL" in j.env,
+        hasRedis: "REDIS_URL" in j.env,
+        envSet: new Set(Object.keys(j.env)),
+      });
+      await r.remove(started.containerId).catch(() => undefined);
+      j.db.run("UPDATE sites_deployment SET container_id = NULL WHERE id = ?", j.depId);
+      log.add(d.problem);
+      end("failed", d);
+      return;
+    }
+    await switchTo(j.db, r, siteId, j.depId, started.containerId, j.port, j.by, j.publicNeedsPromote);
+    say("Live");
+    end("ready", {});
+  } catch (e) {
+    if (e instanceof Canceled || j.signal.aborted) {
+      if (startedId && r) {
+        await r.remove(startedId).catch(() => undefined);
+        j.db.run("UPDATE sites_deployment SET container_id = NULL WHERE id = ?", j.depId);
+      }
+      say("Canceled");
+      end("stopped", { problem: "Canceled.", fix: "retry" });
+      return;
+    }
+    const why = e instanceof Error ? e.message : String(e);
+    log.add(why);
+    end("failed", { problem: `The deploy stopped: ${why.slice(0, 200)}`, fix: "retry" });
+  } finally {
+    log.close();
+  }
 }
 
 async function sitesDeployments(
@@ -1587,9 +1943,16 @@ export function autoDeploySites(ctx: Pick<Ctx, "db">): { siteId: string; as: str
 
 /** Containers that should be serving, for the host to start again after a server restart (Docker restarts them itself; this catches one that was removed). */
 export function servingContainers(ctx: Pick<Ctx, "db">): { siteId: string; containerId: string }[] {
-  return (
+  const sites = (
     ctx.db.all("SELECT id, container_id FROM sites_site WHERE container_id IS NOT NULL AND deleted_at IS NULL") as Row[]
   ).map((r) => ({ siteId: str(r.id), containerId: str(r.container_id) }));
+  // a preview that is up serves too
+  const previews = (
+    ctx.db.all(
+      "SELECT d.site_id AS id, d.container_id AS container_id FROM sites_deployment d JOIN sites_site s ON s.id = d.site_id WHERE d.env = 'preview' AND d.removed_at IS NULL AND d.container_id IS NOT NULL AND s.deleted_at IS NULL",
+    ) as Row[]
+  ).map((r) => ({ siteId: str(r.id), containerId: str(r.container_id) }));
+  return [...sites, ...previews];
 }
 
 /** When a deployed site is stopped or deleted, its container goes; the images stay until the site is deleted. */
@@ -1598,6 +1961,8 @@ export async function stopDeployed(ctx: Ctx, site: Row, removeAll: boolean): Pro
   if (!r) return;
   if (!isNull(site.container_id) && removeAll) await r.remove(str(site.container_id)).catch(() => undefined);
   if (removeAll) {
+    for (const d of many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND container_id IS NOT NULL", site.id))
+      await r.remove(str(d.container_id)).catch(() => undefined);
     for (const d of many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND image IS NOT NULL", site.id))
       await r.removeImage(str(d.image)).catch(() => undefined);
     for (const a of many(ctx, "SELECT * FROM sites_addon WHERE site_id = ?", site.id))
@@ -1647,6 +2012,10 @@ export const releaseHandlers = {
   "sites.deploy": (ctx: Ctx, input: unknown) => sitesDeploy(ctx, input),
   "sites.deploy_cancel": (ctx: Ctx, input: unknown) => sitesDeployCancel(ctx, input),
   "sites.ship": (ctx: Ctx, input: unknown) => sitesShip(ctx, input),
+  "sites.previews": (ctx: Ctx, input: unknown) => sitesPreviews(ctx, input),
+  "sites.preview_rebuild": (ctx: Ctx, input: unknown) => sitesPreviewRebuild(ctx, input),
+  "sites.preview_remove": (ctx: Ctx, input: unknown) => sitesPreviewRemove(ctx, input),
+  "sites.preview_promote": (ctx: Ctx, input: unknown) => sitesPreviewPromote(ctx, input),
   "sites.deployments": (ctx: Ctx, input: unknown) => sitesDeployments(ctx, input),
   "sites.rollback": (ctx: Ctx, input: unknown) => sitesRollback(ctx, input),
   "sites.env_set": (ctx: Ctx, input: unknown) => sitesEnvSet(ctx, input),
@@ -1659,4 +2028,16 @@ export const releaseHandlers = {
   "sites.signin_link": (ctx: Ctx, input: unknown) => sitesSigninLink(ctx, input),
 };
 
-export const _test = { diagnose, enqueue, hexOf, DeployLog, stepsIn, closedMeta, envOf };
+export const _test = {
+  diagnose,
+  enqueue,
+  hexOf,
+  DeployLog,
+  stepsIn,
+  closedMeta,
+  envOf,
+  previewLabel,
+  useFetcher: (f: typeof fetchSource | null): void => {
+    fetcher = f ?? fetchSource;
+  },
+};

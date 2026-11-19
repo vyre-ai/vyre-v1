@@ -4759,6 +4759,10 @@
     "siteId": "sit_a1b2c3"
   },
   "sites_plan": {},
+  "sites_preview_promote": {
+    "siteId": "sit_a1b2c3",
+    "branch": "main"
+  },
   "sites_preview_rebuild": {
     "siteId": "sit_a1b2c3",
     "branch": "main"

@@ -53,6 +53,10 @@ export interface DeployDetailProps {
   onRollback(dep: Dep): void;
   onRedeploy(): void;
   onFix(fix: string): void;
+  /** A preview's own actions: serve its build as production, take it away, build its branch again. */
+  onPromote?(dep: Dep): void;
+  onRemove?(dep: Dep): void;
+  onRebuild?(dep: Dep): void;
   /** On a phone the page scrolls, so this draws as a plain column. */
   inPage?: boolean;
 }
@@ -66,6 +70,9 @@ export function DeployDetail({
   onRollback,
   onRedeploy,
   onFix,
+  onPromote,
+  onRemove,
+  onRebuild,
   inPage = false,
 }: DeployDetailProps): ReactElement {
   const d = useAppsData();
@@ -156,6 +163,34 @@ export function DeployDetail({
       <View style={s.actions}>
         {isRunning(dep) ? (
           <Button title="Cancel" testID="site-deploy-cancel" disabled={off} onPress={onCancel} />
+        ) : dep.env === "preview" ? (
+          <>
+            {dep.state === "ready" && dep.url ? (
+              <Button title="Open" testID="site-preview-open" onPress={() => d.nav.openUrl?.(dep.url as string)} />
+            ) : null}
+            {dep.state === "ready" ? (
+              <Button
+                title="Promote to production"
+                primary
+                testID="site-preview-promote"
+                disabled={off}
+                onPress={() => onPromote?.(dep)}
+              />
+            ) : (
+              <Button
+                title="Build again"
+                testID="site-preview-rebuild"
+                disabled={off}
+                onPress={() => onRebuild?.(dep)}
+              />
+            )}
+            <Button
+              title="Remove preview"
+              testID="site-preview-remove"
+              disabled={off}
+              onPress={() => onRemove?.(dep)}
+            />
+          </>
         ) : dep.current ? (
           <>
             {site.live && site.url ? <Button title="Open" onPress={() => d.nav.openUrl?.(site.url as string)} /> : null}

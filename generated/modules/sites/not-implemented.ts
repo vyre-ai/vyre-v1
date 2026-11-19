@@ -30,6 +30,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "sites.logs": async (ctx) => { throw new VyreErr(notImplemented("sites.logs", ctx.trace)); },
   "sites.password_set": async (ctx) => { throw new VyreErr(notImplemented("sites.password_set", ctx.trace)); },
   "sites.plan": async (ctx) => { throw new VyreErr(notImplemented("sites.plan", ctx.trace)); },
+  "sites.preview_promote": async (ctx) => { throw new VyreErr(notImplemented("sites.preview_promote", ctx.trace)); },
   "sites.preview_rebuild": async (ctx) => { throw new VyreErr(notImplemented("sites.preview_rebuild", ctx.trace)); },
   "sites.preview_remove": async (ctx) => { throw new VyreErr(notImplemented("sites.preview_remove", ctx.trace)); },
   "sites.previews": async (ctx) => { throw new VyreErr(notImplemented("sites.previews", ctx.trace)); },

@@ -4,7 +4,7 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (41)
+## Capabilities (42)
 
 - [sites.addon_add](../capabilities/sites.addon_add.md): Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys
 - [sites.addon_remove](../capabilities/sites.addon_remove.md): Remove a site's Postgres or Redis and its data
@@ -31,7 +31,8 @@ Requires: nothing.
 - [sites.logs](../capabilities/sites.logs.md): The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content
 - [sites.password_set](../capabilities/sites.password_set.md): Set the password visitors type to open a site whose access is password. Kept only as a hash
 - [sites.plan](../capabilities/sites.plan.md): What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)
-- [sites.preview_rebuild](../capabilities/sites.preview_rebuild.md): Rebuild a preview or bring back a removed one
+- [sites.preview_promote](../capabilities/sites.preview_promote.md): Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback
+- [sites.preview_rebuild](../capabilities/sites.preview_rebuild.md): Build a branch of the site's repo as a preview at its own address behind sign-in, or build it again. A new build replaces the one before it for that branch. wait returns when it ends
 - [sites.preview_remove](../capabilities/sites.preview_remove.md): Remove a preview
 - [sites.previews](../capabilities/sites.previews.md): List previews (one per branch and pull request, on their own staging address)
 - [sites.promote](../capabilities/sites.promote.md): Put a site on the public internet at its address. Held for approval unless the person asked for it this turn

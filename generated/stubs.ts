@@ -2591,6 +2591,7 @@ export function stubs(ctx: CallCtx) {
       logs: call("sites.logs"),
       password_set: call("sites.password_set"),
       plan: call("sites.plan"),
+      preview_promote: call("sites.preview_promote"),
       preview_rebuild: call("sites.preview_rebuild"),
       preview_remove: call("sites.preview_remove"),
       previews: call("sites.previews"),

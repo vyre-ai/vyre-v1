@@ -6,7 +6,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
-import { configureRoutes } from "../handlers/route.ts";
+import { configureRoutes, routeByHost } from "../handlers/route.ts";
 import { _test } from "../handlers/release.ts";
 import { handlers } from "../impl.ts";
 import { harness as base } from "../fixtures/world.ts";
@@ -52,7 +52,15 @@ function world(o: Fake = {}) {
     now: () => ++clock,
     call: async (cap: string, inp: unknown) => (h[cap] ? h[cap]!(ctx, inp) : {}),
   }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const seen = { builds: 0, cut: 0, removed: [] as string[], running: [] as string[] };
+  const seen = {
+    builds: 0,
+    cut: 0,
+    removed: [] as string[],
+    running: [] as string[],
+    envs: {} as Record<string, Record<string, string>>,
+    images: [] as string[],
+    droppedImages: [] as string[],
+  };
   const fake = { ...o };
   const runner = {
     ping: async () => true,
@@ -83,15 +91,16 @@ function world(o: Fake = {}) {
     },
     network: async () => ({ name: "vyre-site-test", subnet: "10.250.0.0/28" }),
     removeNetwork: async () => undefined,
-    async run(a: { deploymentId: string }) {
+    async run(a: { deploymentId: string; env?: Record<string, string> }) {
       seen.running.push(`c-${a.deploymentId}`);
+      seen.envs[a.deploymentId] = a.env ?? {};
       return { containerId: `c-${a.deploymentId}`, name: `vyre-site-${a.deploymentId}` };
     },
     address: async () => "10.250.0.2",
     state: async () => ({ running: true }),
     logs: async () => ["Serving on 3000"],
     remove: async (id: string) => void seen.removed.push(id),
-    removeImage: async () => undefined,
+    removeImage: async (i: string) => void seen.droppedImages.push(i),
     imageExists: async () => true,
     addon: async () => ({ containerId: "addon" }),
     removeAddon: async () => undefined,
@@ -111,7 +120,30 @@ function world(o: Fake = {}) {
   } as never);
   const make = async (name: string): Promise<string> =>
     (await h["sites.create"]!(ctx, { name, source: { path: FIXTURE } })).site.siteId as string;
-  return { ctx, sdb, seen, fake, make, done: () => configureRoutes(null) };
+  // a repo site: its source is fetched by a stand-in that returns the static fixture with a commit (a repo cannot be cloned here)
+  let n = 0;
+  _test.useFetcher((async (s: { branch?: string }) => ({
+    dir: FIXTURE,
+    commit: `c0ffee${(++n).toString(16).padStart(2, "0")}aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
+    message: `Change ${n}`,
+    branch: s.branch ?? "main",
+    cleanup: () => undefined,
+  })) as never);
+  const makeRepo = async (name: string, o: Record<string, unknown> = {}): Promise<string> =>
+    (await h["sites.create"]!(ctx, { name, source: { repo: "https://github.com/acme/app.git", branch: "main" }, ...o })).site
+      .siteId as string;
+  return {
+    ctx,
+    sdb,
+    seen,
+    fake,
+    make,
+    makeRepo,
+    done: () => {
+      _test.useFetcher(null);
+      configureRoutes(null);
+    },
+  };
 }
 
 const states = (steps: Array<{ key: string; state: string }>): string =>
@@ -380,6 +412,175 @@ test("env: a name takes a Vault key or a plain value, one of the two; bad scopes
     // an empty plain value is a value
     await set([{ name: "EMPTY", value: "" }]);
     assert.equal((await h["sites.env_list"]!(w.ctx, { siteId })).entries[0].kind, "plain");
+  } finally {
+    w.done();
+  }
+});
+
+const route = (w: ReturnType<typeof world>, host: string) =>
+  routeByHost({ db: w.sdb } as never, host, "sites.test");
+
+test("previewLabel: a branch is an address that is safe, short enough, and never shared by two branches", () => {
+  const l = _test.previewLabel;
+  assert.equal(l("shop", "next"), "next--shop");
+  assert.notEqual(l("shop", "feat/a"), l("shop", "feat-a"));
+  assert.match(l("shop", "feat/Login Page!"), /^feat-login-page-[0-9a-f]{6}--shop$/);
+  const long = l("a-fairly-long-site-name-here", "feature/".padEnd(120, "x"));
+  assert.ok(long.length <= 63, long);
+  assert.match(long, /^[a-z0-9][a-z0-9-]*[a-z0-9]$/);
+  assert.ok(long.endsWith("--a-fairly-long-site-name-here"));
+});
+
+test("a preview builds a branch at its own address behind sign-in, and does not touch what is serving", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Shop", { access: "public" });
+    const prod = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(prod.deployment.state, "ready");
+    const before = (await h["sites.get"]!(w.ctx, { siteId })).site;
+    await h["sites.addon_add"]!(w.ctx, { siteId, kind: "postgres" });
+    await h["sites.env_set"]!(w.ctx, {
+      siteId,
+      entries: [
+        { name: "MODE", value: "prod", scope: "production" },
+        { name: "MODE_P", value: "preview", scope: "previews" },
+        { name: "ALL", value: "x" },
+      ],
+    });
+    const out = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "feat/login", wait: true });
+    assert.equal(out.deployment.state, "ready", out.deployment.problem);
+    assert.equal(out.deployment.branch, "feat/login");
+    assert.match(out.deployment.url, /^https:\/\/feat-login-[0-9a-f]{6}--shop\.sites\.test$/);
+    assert.equal(states(out.deployment.steps), "fetch:ok build:ok start:ok check:ok");
+    // production is as it was
+    const after = (await h["sites.get"]!(w.ctx, { siteId })).site;
+    assert.equal(after.lastDeploy.deploymentId, before.lastDeploy.deploymentId);
+    assert.equal(after.live, before.live);
+    const prodList = await h["sites.deployments"]!(w.ctx, { siteId });
+    assert.equal(prodList.deployments.length, 1, "a preview is not in the production list");
+    // the preview got its own variables and no database of the site's
+    const env = w.seen.envs[out.deployment.deploymentId]!;
+    assert.deepEqual(Object.keys(env).sort(), ["ALL", "MODE_P"]);
+    // its address serves its container, behind sign-in even though the site is public
+    const hit = route(w, new URL(out.deployment.url).host);
+    assert.equal(hit?.access, "space");
+    assert.equal(hit?.passwordHash, null);
+    assert.equal(hit?.live, true);
+    assert.equal(hit?.target.container, `c-${out.deployment.deploymentId}`);
+    assert.equal(route(w, "nobody--shop.sites.test"), null);
+    const list = await h["sites.previews"]!(w.ctx, { siteId });
+    assert.equal(list.previews.length, 1);
+    assert.equal(list.previews[0].branch, "feat/login");
+  } finally {
+    w.done();
+  }
+});
+
+test("a new build of a branch replaces the one before it: its container goes, one address, one row in the list", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Shop2");
+    const a = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "next", wait: true });
+    const b = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "next", wait: true });
+    assert.equal(b.deployment.state, "ready");
+    assert.ok(w.seen.removed.includes(`c-${a.deployment.deploymentId}`), "the first build's container is removed");
+    assert.equal(route(w, new URL(b.deployment.url).host)?.target.container, `c-${b.deployment.deploymentId}`);
+    assert.equal((await h["sites.previews"]!(w.ctx, { siteId })).previews.length, 1);
+    // another branch is another address
+    const c = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "other", wait: true });
+    assert.notEqual(c.deployment.url, b.deployment.url);
+    assert.equal((await h["sites.previews"]!(w.ctx, { siteId })).previews.length, 2);
+    // a failed rebuild leaves the one that was serving
+    w.fake.failBuild = true;
+    const bad = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "next", wait: true });
+    assert.equal(bad.deployment.state, "failed");
+    assert.equal(route(w, new URL(b.deployment.url).host)?.target.container, `c-${b.deployment.deploymentId}`);
+  } finally {
+    w.done();
+  }
+});
+
+test("removing a preview takes its container and its address away; removing it again says nothing was there", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Shop3");
+    const a = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "gone", wait: true });
+    const host = new URL(a.deployment.url).host;
+    assert.ok(route(w, host));
+    assert.deepEqual(await h["sites.preview_remove"]!(w.ctx, { siteId, branch: "gone" }), { removed: true });
+    assert.ok(w.seen.removed.includes(`c-${a.deployment.deploymentId}`));
+    assert.equal(route(w, host), null);
+    assert.equal((await h["sites.previews"]!(w.ctx, { siteId })).previews.length, 0);
+    assert.deepEqual(await h["sites.preview_remove"]!(w.ctx, { siteId, branch: "gone" }), { removed: false });
+    // and a branch can be built again after it was removed
+    const again = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "gone", wait: true });
+    assert.equal(again.deployment.state, "ready");
+  } finally {
+    w.done();
+  }
+});
+
+test("a preview is refused where it cannot work: no repo, a bad branch, nothing to promote", async () => {
+  const w = world();
+  try {
+    const plain = await w.make("No repo");
+    await assert.rejects(() => h["sites.preview_rebuild"]!(w.ctx, { siteId: plain, branch: "x" }), /no repo/);
+    const siteId = await w.makeRepo("Shop4");
+    await assert.rejects(() => h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "../etc" }), /branch name/);
+    await assert.rejects(() => h["sites.preview_promote"]!(w.ctx, { siteId, branch: "nothing" }), /no finished build/);
+  } finally {
+    w.done();
+  }
+});
+
+test("promote serves the preview's build as production without building: skipped steps, same image, the old build kept for a rollback", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Shop5");
+    const first = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(first.deployment.state, "ready");
+    const prev = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "ship-it", wait: true });
+    const builds = w.seen.builds;
+    await h["sites.env_set"]!(w.ctx, { siteId, entries: [{ name: "MODE", value: "prod", scope: "production" }] });
+    const out = await h["sites.preview_promote"]!(w.ctx, { siteId, branch: "ship-it", wait: true });
+    assert.equal(out.deployment.state, "ready", out.deployment.problem);
+    assert.equal(out.deployment.current, true);
+    assert.equal(states(out.deployment.steps), "fetch:skipped build:skipped start:ok check:ok");
+    assert.equal(w.seen.builds, builds, "nothing was built");
+    assert.equal(w.seen.envs[out.deployment.deploymentId]!["MODE"], "prod", "it runs with the production variables");
+    assert.equal(out.deployment.commit, prev.deployment.commit);
+    assert.match(out.deployment.note, /Promoted from the preview of ship-it/);
+    const site = (await h["sites.get"]!(w.ctx, { siteId })).site;
+    assert.equal(site.lastDeploy.deploymentId, out.deployment.deploymentId);
+    assert.ok(w.seen.removed.includes(`c-${first.deployment.deploymentId}`), "the old production container is removed");
+    // the preview keeps serving, and the shared image is not dropped
+    assert.equal(route(w, new URL(prev.deployment.url).host)?.target.container, `c-${prev.deployment.deploymentId}`);
+    assert.equal(w.sdb.all("SELECT * FROM sites_promotion WHERE production_id = ?", out.deployment.deploymentId).length, 1);
+    // the build before is still there to roll back to
+    const back = await h["sites.rollback"]!(w.ctx, { siteId });
+    assert.equal(back.deployment.deploymentId, first.deployment.deploymentId);
+    // removing the preview does not take the image production uses
+    await h["sites.preview_remove"]!(w.ctx, { siteId, branch: "ship-it" });
+    const row = w.sdb.all("SELECT image FROM sites_deployment WHERE id = ?", out.deployment.deploymentId)[0] as { image: string };
+    assert.ok(row.image, "production keeps its image");
+    assert.ok(!w.seen.droppedImages.includes(row.image), "the image is still on the server");
+  } finally {
+    w.done();
+  }
+});
+
+test("a preview that is building can be canceled by its id, and leaves nothing running", async () => {
+  const w = world();
+  w.fake.buildMs = 30_000;
+  try {
+    const siteId = await w.makeRepo("Shop6");
+    const started = await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "slow" });
+    const id = started.deployment.deploymentId;
+    await new Promise((r) => setTimeout(r, 50));
+    const out = await h["sites.deploy_cancel"]!(w.ctx, { siteId, deploymentId: id });
+    assert.equal(out.deployment.state, "stopped");
+    assert.equal(w.seen.running.length, 0);
+    assert.equal(route(w, "slow--shop6.sites.test"), null);
   } finally {
     w.done();
   }

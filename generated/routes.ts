@@ -34178,6 +34178,25 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/sites/preview_promote",
+    "cap": "sites.preview_promote",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": "sites.deploy",
+    "level": "edit",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/sites/preview_rebuild",
     "cap": "sites.preview_rebuild",
     "v": 1,
@@ -38657,7 +38676,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/templates/preview",
@@ -38675,10 +38697,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/templates/project_starters",
