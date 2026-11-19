@@ -1,6 +1,7 @@
 // Report a problem is mounted in the shell: the error panel's event opens the sheet with the failed action's trace id, and Send submits it through reports.submit.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { act } from "react";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press } from "../../../../../ui/src/testing/dom.ts";
 import { ReportHost } from "./ReportHost.tsx";
@@ -73,6 +74,45 @@ test("with no session the sheet still opens from an error panel and Send queues 
     await flush();
     await flush();
     assert.ok(find(root, "report-result"), "the result shows (Queued)");
+  } finally {
+    delete (globalThis as { window?: unknown }).window;
+    restore();
+  }
+});
+
+test("a report queued before the session opened is sent once it opens, not left in the queue", async () => {
+  const win = Object.assign(new EventTarget(), {
+    Image: class {
+      set src(_v: string) {
+        /* never loads */
+      }
+    },
+  });
+  (globalThis as { window?: unknown }).window = win;
+  const restore = installDom();
+  const calls: string[] = [];
+  const call = (async (cap: string) => {
+    calls.push(cap);
+    if (cap === "reports.policy_get") return { policy: "on" };
+    if (cap === "reports.submit") return { reportId: "rpt_9", taskId: "tsk_9", sentToVyre: true };
+    return {};
+  }) as unknown as CapCall;
+  try {
+    const r = createRoot();
+    await act(async () => {
+      r.render(<ReportHost call={null} place="files" />);
+    });
+    win.dispatchEvent(Object.assign(new Event(REPORT_PROBLEM_EVENT), { detail: { traceId: "tr_q", message: "Could not reach the Space" } }));
+    await flush();
+    await press(find(r.container as never, "report-send"));
+    await flush();
+    assert.equal(calls.includes("reports.submit"), false, "no session: nothing is sent yet");
+    await act(async () => {
+      r.render(<ReportHost call={call} place="files" />); // the session opened
+    });
+    await flush();
+    await flush();
+    assert.equal(calls.filter((c) => c === "reports.submit").length, 1, "the queued report went once the session opened");
   } finally {
     delete (globalThis as { window?: unknown }).window;
     restore();
