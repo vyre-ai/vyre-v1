@@ -24,6 +24,7 @@ import {
   markRefusal,
   moduleWhens,
   payloadHash,
+  pinnedDeploy,
 } from "../../../host/src/daemon/gate-hook.ts";
 import { createInvoke, createRateLimiter, indexCapabilities } from "../../../host/src/invoke.ts";
 import type { CtxSeed, Handler, InvokeDeps } from "../../../host/src/invoke.ts";
@@ -260,6 +261,7 @@ function rig(o: RigOptions = {}) {
         ? await realGate.call("gate.effective_rule", input, { id: "usr_owner", kind: "person" })
         : ((await o.call?.(cap, input)) ?? null),
     unseal: o.unseal ?? (() => new Uint8Array()),
+    pin: pinnedDeploy(() => o.callAs ?? null),
     now: () => 0,
     hold: () => null,
     evaluators: moduleWhens(
@@ -945,15 +947,24 @@ function siteWorld() {
     run: (sql: string, ...a: unknown[]) => (keyed(sql) ? kdb.run(sql, ...a) : sw.sdb.run(sql, ...a)),
   };
   const known: string[] = [];
+  const parks: { input: unknown; payloadHash: string }[] = [];
   const opts = {
     ...w.opts,
     siteIds: known,
+    // the Gate module's park: what the card is made over is kept here
+    call: async (cap: string, input?: unknown) =>
+      cap === "gate.park"
+        ? (parks.push(input as never), { taskId: "tsk_1" })
+        : (w.opts.call as (c: string) => Promise<unknown>)(cap),
     db: () => db,
     callAs: async (cap: string, input: unknown, person: string) =>
       cap.startsWith("files.")
         ? filesAnswer(cap, input)
         : cap === "sites.head_check"
-          ? { head: state.head, changed: true }
+          ? // a repo site has a head; uploaded files have none (the real read answers the same)
+            siteFacts({ db: sw.sdb } as never, (input as { siteId: string }).siteId)?.source?.repo
+            ? { head: state.head, changed: true }
+            : { changed: true }
           : w.opts.callAs(cap, input, person),
     exports: new Map<string, Record<string, unknown>>([...w.opts.exports, ["sites", { siteFacts }]]),
     // the real sites.deploy runs under the real invoke: the call's own principal, trace and origin reach it as they do in the daemon
@@ -1038,6 +1049,7 @@ function siteWorld() {
     tree,
     state,
     known,
+    parks,
     opts,
     yes,
     protect,
@@ -1823,4 +1835,49 @@ test("a non-person's deploy names the files it is for: a claim that is not what 
   );
   // a person's own call says nothing the Gate checks
   assert.equal((await rig(s.opts).invoke("sites.deploy", { siteId, wait: true }, seed("usr_admin"))).status, "ok");
+});
+
+test("an agent's own held deploy that names no commit is pinned to the head at hold time: the parked input carries it, and the yes builds it though the branch has moved", async () => {
+  const s = siteWorld();
+  const X = "b".repeat(40);
+  const Y = "c".repeat(40);
+  s.github("open");
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
+  s.store(siteId, STORED.name, STORED.handle);
+  const asked = { siteId, wait: true };
+  s.state.head = X;
+  assert.equal((await rig(s.opts).invoke("sites.deploy", asked, asAgent())).status, "held");
+  const parked = s.parks.at(-1) as unknown as { input: Record<string, unknown>; payloadHash: string };
+  assert.equal(parked.input["commit"], X, "the card is made over the head at hold time");
+  assert.equal(parked.input["siteId"], siteId);
+  assert.equal(
+    parked.payloadHash,
+    payloadHash(rig(s.opts).defOf("sites.deploy"), parked.input, asAgent()),
+    "the hold is bound to the pinned input",
+  );
+  // a call that names its own commit is parked as it was asked
+  const own = { siteId, wait: true, commit: "d".repeat(40) };
+  await rig(s.opts).invoke("sites.deploy", own, asAgent());
+  assert.equal((s.parks.at(-1) as unknown as { input: Record<string, unknown> }).input["commit"], "d".repeat(40));
+  // the branch moves on; the yes replays the held input (with the commit) and builds X
+  s.state.head = Y;
+  const token = `apv_${Buffer.from(JSON.stringify({ keyId: "k", nonce: "n", bytes: "b" })).toString("base64url")}`;
+  const resumed = rig({
+    ...s.opts,
+    unseal: () =>
+      new TextEncoder().encode(JSON.stringify({ v: 1, exp: Date.now() + 60_000, hash: parked.payloadHash })),
+  });
+  assert.equal(
+    (await resumed.invoke("sites.deploy", parked.input, { ...asAgent(), approval: token } as never)).status,
+    "ok",
+  );
+  const last = (
+    s.sw.sdb.all(
+      "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
+      siteId,
+    )[0] as {
+      commit_sha: string;
+    }
+  ).commit_sha;
+  assert.equal(last, X, "the commit the card showed is the one built");
 });

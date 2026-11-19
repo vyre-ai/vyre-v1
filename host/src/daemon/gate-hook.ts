@@ -42,6 +42,11 @@ import type { ScopedDb } from "../../../packages/contracts/src/ctx.ts";
 export interface GateHookDeps {
   /** Call a capability as the Space itself (its owner, origin "gate"), through the whole pipeline. */
   call(cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown>;
+  /**
+   * What a call is parked as: the call's input with what the hold must pin (a deploy that names no commit is pinned to the branch's head at hold time, so the yes builds exactly what the card showed). The held row keeps it, so it
+   * survives a restart. Absent or throwing, the call is parked as it was asked.
+   */
+  pin?(cap: string, input: unknown, seed: Pick<CtxSeed, "principal" | "actingFor">): Promise<unknown>;
   /** ctx.seal.unseal: opens the approval token. */
   unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array;
   now(): number;
@@ -373,11 +378,13 @@ export function createGateHook(d: GateHookDeps): GateHook {
       const runner: Pick<CtxSeed, "principal" | "actingFor"> = person
         ? { principal: { kind: "person", id: person } }
         : a.seed;
+      // what the card is made over: the input as asked, with the commit a deploy that named none will build
+      const parked = (await d.pin?.(a.cap.name, a.input, a.seed).catch(() => a.input)) ?? a.input;
       const input: Record<string, unknown> = {
         capName: a.cap.name,
         capVersion: a.cap.v,
-        input: a.input,
-        payloadHash: payloadHash(a.cap, a.input, runner),
+        input: parked,
+        payloadHash: payloadHash(a.cap, parked, runner),
         act: a.act,
         principal: { kind: runner.principal.kind, id: runner.principal.id },
         decisionId: a.decisionId,
@@ -827,4 +834,30 @@ export function moduleWhens(
   if (typeof danger === "function")
     out["terminal.is_danger"] = (input) => (danger as (ctx: unknown, input: unknown) => Promise<boolean>)(null, input);
   return out;
+}
+
+/**
+ * What the Gate parks a deploy as: when a sites.deploy names no commit, the branch's head at hold time is written into the parked input (read as the person the call works for, with the site's own token), so the card shows it and the yes builds exactly it.
+ * A head that cannot be read leaves the call as it was asked.
+ */
+export function pinnedDeploy(
+  callAs: () => ((cap: string, input: unknown, person: string) => Promise<unknown>) | null,
+): NonNullable<GateHookDeps["pin"]> {
+  return async (cap, input, seed) => {
+    const i = (input ?? {}) as { siteId?: unknown; commit?: unknown };
+    if (cap !== "sites.deploy" || typeof i.siteId !== "string" || typeof i.commit === "string") return input;
+    const asker = seed.actingFor?.startsWith("usr_")
+      ? seed.actingFor
+      : seed.principal.kind === "person"
+        ? seed.principal.id
+        : undefined;
+    const read = callAs();
+    if (!asker || !read) return input;
+    const r = (await read("sites.head_check", { siteId: i.siteId }, asker).catch(() => null)) as {
+      head?: unknown;
+    } | null;
+    return typeof r?.head === "string" && /^[0-9a-f]{40}$/.test(r.head)
+      ? { ...(input as object), commit: r.head }
+      : input;
+  };
 }

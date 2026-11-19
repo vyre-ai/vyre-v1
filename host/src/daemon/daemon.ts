@@ -195,7 +195,15 @@ import { endOfDeadJob } from "./dead-jobs.ts";
 import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleFetches, moduleOutward, moduleWhens, ownAddress, payloadHash } from "./gate-hook.ts";
+import {
+  createGateHook,
+  pinnedDeploy,
+  moduleFetches,
+  moduleOutward,
+  moduleWhens,
+  ownAddress,
+  payloadHash,
+} from "./gate-hook.ts";
 import { SIGN_IN_FOLDER } from "../../../lib/company-keys.ts";
 import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
@@ -3216,6 +3224,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 },
                 unseal: (s) => seal.unseal(s),
                 now,
+                // a held deploy that names no commit is pinned to the branch's head at hold time
+                pin: pinnedDeploy(() => keyHostCallAs),
                 evaluators: moduleWhens(
                   loaded.moduleExports,
                   () => db,
