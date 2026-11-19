@@ -1,0 +1,1 @@
+- A sign-out that has not yet been answered by the Space is remembered sealed (AES-GCM, a key the browser cannot export), never as plain text, for at most a day, and is dropped as soon as the Space revokes the token or says it is already invalid.

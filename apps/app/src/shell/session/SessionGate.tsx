@@ -88,6 +88,7 @@ import { HaveAccount } from "../../join/HaveAccount.tsx";
 import { knownIdentity } from "../../join/identity.ts";
 import type { Carried, KnownIdentity } from "../../join/identity.ts";
 import { carried, checkKnownCode, haveAccountDeps, knownProof, rememberAccount } from "../../join/carry-wiring.ts";
+import { retryPendingRevokes } from "./revoke-token.ts";
 import type { SignInOptions, StoredSession } from "./stored.ts";
 import { SSO_FAILED_LINE, SSO_SECOND_FACTOR_LINE, ssoStartUrl, takeSsoReturn } from "./sso.ts";
 import { GITHUB_FAILED_LINE, GITHUB_SECOND_FACTOR_LINE, githubStartUrl, takeGithubReturn } from "./github.ts";
@@ -1020,6 +1021,10 @@ const signInDevice = (): { deviceName: string; deviceClass: "desktop" | "web" } 
 export function SessionGate(props: SessionGateProps): ReactElement {
   // What the first-launch screen reads about this window (the desktop app, the Mac, the width) is known only in the browser: the static page is drawn without it, so the first client
   // render must be drawn without it too (a different door count or title is a hydration mismatch, React #418); it is read right after mount and follows the window size.
+  // a Sign Out whose revoke did not get its answer (the page was left, the Space was out of reach) is sent again at the start
+  useEffect(() => {
+    void retryPendingRevokes();
+  }, []);
   const [windowKnown, setWindowKnown] = useState(false);
   const [windowWidth, setWindowWidth] = useState(1280);
   useEffect(() => {
