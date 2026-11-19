@@ -281,7 +281,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
               // an app that issues its own OAuth client: the Vault item holds client_id, client_secret and refresh_token, and the read goes with the access token they are traded for
               const value = req.refreshFrom
                 ? await accessToken(`probe:${req.handle}`, req.refreshFrom.tokenUrl, {
-                    now: () => ctx.now(),
+                    now: () => Date.now(),
                     fill: (field) => fillField(`${req.handle}.${field}`),
                     http: (url, init) => {
                       const eg = checkEgress(url, [req.domain, new URL(req.refreshFrom!.tokenUrl).hostname]);

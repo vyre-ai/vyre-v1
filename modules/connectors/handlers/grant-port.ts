@@ -30,7 +30,9 @@ export function grantPortFor(
         throw Object.assign(new Error(`The connection has no Vault item for ${field}.`), {
           error: { code: "validation.precondition_failed", message: `The connection has no Vault item for ${field}.` },
         });
-      return deps.resolveSecret(handle, { connector: def.key, connectionId: conn.connection_id, slot });
+      const value = await deps.resolveSecret(handle, { connector: def.key, connectionId: conn.connection_id, slot });
+      if (value === undefined) throw new Error(`The Vault item for ${field} has no value.`);
+      return value;
     },
     async http(url, init) {
       const eg = checkEgress(url, def.domains);

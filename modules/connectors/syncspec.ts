@@ -188,7 +188,7 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
   if (isObj(auth) && auth["style"] === "oauth")
     bad("auth.style", "Sign in with OAuth in Console > Integrations first; the spec takes a key held in the Vault.");
   if (isObj(auth) && auth["style"] === "oauth_refresh") {
-    const token = str(auth["tokenUrl"]);
+    const token = typeof auth["tokenUrl"] === "string" ? auth["tokenUrl"] : "";
     let ok = false;
     try {
       ok = token !== "" && new URL(token).protocol === "https:";
@@ -200,7 +200,7 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
         "auth.tokenUrl",
         "auth.tokenUrl is the https address that renews the sign-in, such as https://app.example.com/oauth/token.",
       );
-    if (str(auth["vaultHandle"]).includes("."))
+    if (String(auth["vaultHandle"] ?? "").includes("."))
       bad(
         "auth.vaultHandle",
         "For oauth_refresh the handle names the whole Vault item (#Clio_App), which holds client_id, client_secret and refresh_token.",
