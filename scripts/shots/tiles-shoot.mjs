@@ -24,7 +24,9 @@ const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => /^(TILES_01|PEEKTABS_01|RUNVIEWS_01)/.test(t.id));
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) =>
+  /^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01)/.test(t.id),
+);
 const report = [];
 for (const t of targets)
   for (const skin of ["paper", "graphite"])
@@ -48,7 +50,10 @@ for (const t of targets)
       const tiles = await page.locator("[data-testid='crew-tiles']").count();
       const sw = await page.locator("[data-testid='crew-strip-view']").count();
       const over = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
-      const file = path.join(out, `${t.id.replace(/^(TILES_01|PEEKTABS_01|RUNVIEWS_01)-/, "")}-${skin}-${size}.png`);
+      const file = path.join(
+        out,
+        `${t.id.replace(/^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01)-/, "")}-${skin}-${size}.png`,
+      );
       await page.screenshot({ path: file });
       report.push({
         file: path.basename(file),
@@ -58,6 +63,22 @@ for (const t of targets)
         overflowX: over,
         errs: errs.slice(0, 2),
       });
+      // a finished result: press each action, shoot the sheet it opens, close it
+      if (t.id.startsWith("PEEKRESULT_01")) {
+        for (const [act, close] of [
+          ["crew-result-task", "crew-result-task-cancel"],
+          ["crew-result-file", "folder-move-cancel"],
+          ["crew-result-record", "record-picker-cancel"],
+        ]) {
+          await page.click(`[data-testid='${act}']`);
+          await page.waitForTimeout(500);
+          await page.screenshot({ path: file.replace(".png", `-${act.replace("crew-result-", "")}.png`) });
+          const opened = await page.locator(`[data-testid='${close}']`).count();
+          report.push({ file: path.basename(file) + " " + act, closeControlShown: opened });
+          await page.click(`[data-testid='${close}']`);
+          await page.waitForTimeout(300);
+        }
+      }
       // a helper's session: press each tab and shoot it
       if (t.id.startsWith("PEEKTABS_01")) {
         for (const tab of ["files", "details"]) {

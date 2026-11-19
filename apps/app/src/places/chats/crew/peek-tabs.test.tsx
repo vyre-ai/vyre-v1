@@ -228,6 +228,8 @@ test("Add to a record searches records the way Cmd-K does, and the chosen one ge
         ],
       };
     if (cap === "records.comments.add") return { comment: { commentId: "c1" } };
+    if (cap === "projects.files_folder") return { folderId: "fld_rec" };
+    if (cap === "files.create") return { file: { fileId: "fil_r", folderId: "fld_rec", name: "Tess result.md" } };
     return cap === "chat.helper.notes" ? { notes: [] } : {};
   };
   const root = await mount(
@@ -256,6 +258,12 @@ test("Add to a record searches records the way Cmd-K does, and the chosen one ge
   );
   assert.match(String(added[0]!.input.text), /^74 tests pass\n\nFrom Tess in vyre:\/\/chat\/thr_0$/);
   assert.match(textOf(find(root, "crew-result-added")), /Added to\s+Harbor Supply/);
+  // the result is also a file in the record's own Files folder, the one its Files tab shows, once
+  assert.deepEqual(calls.find((c) => c.cap === "projects.files_folder")?.input, { type: "supplier", recordId: "rec_harbor" });
+  const filed = calls.filter((c) => c.cap === "files.create");
+  assert.equal(filed.length, 1);
+  assert.deepEqual([filed[0]!.input.folderId, filed[0]!.input.name, filed[0]!.input.kind, filed[0]!.input.idempotencyKey], ["fld_rec", "Tess result.md", "markdown", "helper-recfile-thr_a-rec_harbor"]);
+  assert.equal((filed[0]!.input.content as { text: string }).text, "74 tests pass");
   assert.equal(find(root, "record-picker"), null);
   assert.equal(find(root, "crew-result-record"), null, "once added, the button is gone");
 });
@@ -296,4 +304,23 @@ test("a record that cannot take the note says so and the button stays; searching
   assert.match(textOf(find(root, "crew-peek-error")), /could not be added/);
   assert.ok(find(root, "crew-result-record"));
   assert.equal(find(root, "crew-result-added"), null);
+});
+
+test("when the record's folder cannot be made the note stays and the person is told the file was not saved", async () => {
+  const rec = async (cap: string): Promise<unknown> => {
+    if (cap === "search.recent.list") return { hits: [{ kind: "record", id: "rec_a", title: "Pine Works", recordType: "supplier", link: "x" }] };
+    if (cap === "records.comments.add") return { comment: { commentId: "c" } };
+    if (cap === "projects.files_folder") return { folderId: null };
+    return cap === "chat.helper.notes" ? { notes: [] } : {};
+  };
+  const root = await mount(
+    createRoot,
+    <CrewPeek member={M()} call={rec} meId="usr_me" onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />,
+  );
+  await press(find(root, "crew-result-record"));
+  await flush();
+  await press(find(root, "record-pick-rec_a"));
+  await flush();
+  assert.match(textOf(find(root, "crew-result-added")), /Added to\s+Pine Works/);
+  assert.match(textOf(find(root, "crew-peek-error")), /note was added, but the file could not be saved/);
 });

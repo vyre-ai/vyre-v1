@@ -606,27 +606,42 @@ export function CrewPeek({
       },
     );
   };
-  // the result as a note on a record the person picks: what it found, who found it and where (a link back to this chat), and the file it was saved as when it was; one key per helper and record
+  // the result on a record the person picks: a note (what it found, who found it, a link back to this chat, and the file when it was saved in Files here) and the result as a markdown file in the record's own Files folder
+  // (the folder the Space makes for it, the one its Files tab shows); one key per helper and record, so a repeat adds nothing
   const addTo = (r: PickedRecord): void => {
     setPickRecord(false);
     setErr(null);
-    const text = [
-      member.answer ?? member.found ?? "",
-      "",
-      `From ${nameOf(member)} in vyre://chat/${member.parentThreadId}`,
-      ...(saved !== null ? [`Saved as ${saved}`] : []),
-    ].join("\n");
+    const name = `${nameOf(member)} result.md`;
+    const result = member.answer ?? member.found ?? "";
+    let noted = false;
+    const note = [result, "", `From ${nameOf(member)} in vyre://chat/${member.parentThreadId}`, ...(saved !== null ? [`Saved as ${saved}`] : [])].join("\n");
     void Promise.resolve(
       call("records.comments.add", {
         type: r.type,
         recordId: r.id,
-        text,
+        text: note,
         idempotencyKey: `helper-record-${member.id}-${r.id}`,
       }),
-    ).then(
-      () => setAddedTo(r.title),
-      () => setErr("It could not be added. Try again."),
-    );
+    )
+      .then(() => {
+        noted = true;
+        setAddedTo(r.title);
+        return Promise.resolve(call("projects.files_folder", { type: r.type, recordId: r.id })).then((o) => {
+          const folderId = (o as { folderId?: string | null } | null)?.folderId;
+          if (!folderId) throw new Error("no folder");
+          return call("files.create", {
+            folderId,
+            name,
+            content: { text: result },
+            kind: "markdown",
+            idempotencyKey: `helper-recfile-${member.id}-${r.id}`,
+          });
+        });
+      })
+      .then(
+        () => undefined,
+        () => setErr(!noted ? "It could not be added. Try again." : "The note was added, but the file could not be saved on the record."),
+      );
   };
   const send = (): void => {
     const body = text.trim();

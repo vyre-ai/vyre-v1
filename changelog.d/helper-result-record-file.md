@@ -1,0 +1,1 @@
+- Adding a helper's result to a record now also puts the result as a file in that record's own Files, next to the note.
