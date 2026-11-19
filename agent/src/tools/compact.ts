@@ -304,6 +304,48 @@ function readThread(o: Obj): Shaped {
   return { data, meta: { count: msgs.length, bytes: bytesOf(data) } };
 }
 
+/** A command's output up to this many characters reaches the model whole (about 1,500 tokens); past it, the model gets the shape below. */
+export const RUN_WHOLE = 6_000;
+/** The lines of a long output the model keeps from its end, and the longest a kept line is. */
+export const RUN_TAIL = 40;
+const RUN_LINE = 300;
+/** The most lines that look like a failure that are named beside the tail. */
+export const RUN_MATCHES = 20;
+const FAILURE =
+  /\b(?:error|errors|failed|failure|fatal|panic|exception|traceback|denied|refused|timed?\s*out|cannot|can't|not ok)\b|✖|✗/i;
+
+/**
+ * What a model reads of a long command's output (r42-runtime-tokens, DIRECTION-agent-runtime C: terminal output reaches the model only as a tail, a search or a summary, never whole). A short output is
+ * returned as it is. A long one is `{ exitCode, durationMs, lines, bytes, tail (the last 40 lines), matches (up to 20 lines that look like a failure, with their line numbers), omitted }`; the whole log stays in the tab,
+ * and terminal_read reads more of it. The people's own views and the hooks see the whole output: this is only the model's copy.
+ */
+function shapeRun(o: Obj): Shaped | null {
+  const output = str(o["output"]);
+  if (output.length <= RUN_WHOLE) return null;
+  const lines = output.split("\n");
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  const cutLine = (l: string): string => (l.length > RUN_LINE ? `${l.slice(0, RUN_LINE - 1)}…` : l);
+  const from = Math.max(0, lines.length - RUN_TAIL);
+  const matches: Array<{ line: number; text: string }> = [];
+  for (let i = 0; i < from && matches.length < RUN_MATCHES; i++)
+    if (FAILURE.test(lines[i]!)) matches.push({ line: i + 1, text: cutLine(lines[i]!) });
+  const data = {
+    terminalId: str(o["terminalId"]),
+    exitCode: typeof o["exitCode"] === "number" ? o["exitCode"] : null,
+    durationMs: num(o["durationMs"]),
+    lines: lines.length,
+    bytes: output.length,
+    ...(o["truncated"] === true ? { startCut: true } : {}),
+    omitted: from,
+    ...(matches.length > 0 ? { matches } : {}),
+    tail: lines.slice(from).map(cutLine),
+  };
+  return {
+    data,
+    meta: { count: data.tail.length, total: lines.length, bytes: bytesOf(data), omitted: from, read: "terminal_read" },
+  };
+}
+
 /** The agent-facing shape of one capability's answer, or null when the capability is not one of the calendar and mail reads (it is returned as it is). */
 export function shapeOutput(cap: string, output: unknown): Shaped | null {
   const o = obj(output);
@@ -377,6 +419,8 @@ export function shapeOutput(cap: string, output: unknown): Shaped | null {
       return readMessage(o);
     case "mail.thread.get":
       return readThread(o);
+    case "terminal.run":
+      return shapeRun(o);
     default:
       return null;
   }
