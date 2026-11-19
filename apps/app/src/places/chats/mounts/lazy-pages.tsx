@@ -1,8 +1,8 @@
 // The pages of the Chats place that a visit opens only on request: the agent form, a task and the task list, a goal, a project. Each is loaded the first time it is drawn (r39: statically imported they were about
 // 570 KB of source in front of the first signed-in screen, whichever chat was opening). Notes stays in the place's own file: a note started from Files hands its intent to the page as it mounts (w-first walk part c). The wrappers keep each page's props.
 // Once a page's code has arrived it draws at once, without a Suspense frame: preloadChatsPages() fetches them all (after the first screen, and in tests that draw a page in one pass).
-import { Suspense, lazy } from "react";
-import type { ComponentProps, ComponentType, ReactElement } from "react";
+import type { ComponentProps } from "react";
+import { lazyPage } from "./lazy-page.tsx";
 import type { AgentForm as AgentFormView } from "../agentform/AgentForm.tsx";
 import type { GoalPage as GoalPageView } from "../goals/GoalPage.tsx";
 import type { ProjectScreen as ProjectScreenView } from "../projects/ProjectScreen.tsx";
@@ -22,33 +22,6 @@ import type { ThingPane as ThingPaneView } from "./ThingPane.tsx";
 import type { AgentShareHost as AgentShareHostView } from "../agentform/AgentShare.tsx";
 import type { ProjectChatGate as ProjectChatGateView } from "../projects/ProjectChatGate.tsx";
 import type { PhoneProfile as PhoneProfileView } from "./PhoneProfile.tsx";
-
-/** A page loaded on first draw; once loaded it is drawn directly. */
-function lazyPage<P extends object>(
-  load: () => Promise<ComponentType<P>>,
-): {
-  Draw: (props: P) => ReactElement;
-  preload: () => Promise<void>;
-} {
-  let loaded: ComponentType<P> | null = null;
-  let pending: Promise<ComponentType<P>> | null = null;
-  const get = (): Promise<ComponentType<P>> =>
-    (pending ??= load().then((c) => {
-      loaded = c;
-      return c;
-    }));
-  const Lazy = lazy(() => get().then((c) => ({ default: c })));
-  function Draw(props: P): ReactElement {
-    const Loaded = loaded;
-    if (Loaded) return <Loaded {...props} />;
-    return (
-      <Suspense fallback={null}>
-        <Lazy {...props} />
-      </Suspense>
-    );
-  }
-  return { Draw, preload: () => get().then(() => undefined) };
-}
 
 const form = lazyPage<ComponentProps<typeof AgentFormView>>(() =>
   import("../agentform/AgentForm.tsx").then((m) => m.AgentForm),
