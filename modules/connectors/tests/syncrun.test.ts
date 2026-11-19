@@ -308,3 +308,25 @@ test("a sync that cannot be queued does not clear the mark of a pass that is liv
 test("the pass token is made from random bytes, long and not guessable from the time", () => {
   assert.match(SYNC_PASS_TOKEN, /^sp_[0-9a-f]{48}$/);
 });
+
+test("the same ask again after its pass could not be queued starts a new Run, not the failed one", async () => {
+  const w = await setup();
+  w.k.tx.run("DELETE FROM cn_sync_running");
+  const failing: ConnectorsCtx = {
+    ...w.ctx,
+    schedule: async () => {
+      throw new Error("the queue is not there");
+    },
+  };
+  const ask = { type: "person", idempotencyKey: "retry-key" } as never;
+  await assert.rejects(w.k.hs["connectors.sync_now"](failing, ask));
+  const failed = finishes(w.calls).at(-1);
+  assert.equal(failed.status, "failed");
+  const again = await w.k.hs["connectors.sync_now"](w.ctx, ask);
+  assert.notEqual(again.runId, failed.runId, "a Run that has failed is finished: the retry is a new Run");
+  const ran = await w.k.hs["connectors.sync_run"](w.ctx, { runId: again.runId });
+  assert.equal(ran.ok, true, "and it runs");
+  // asking again with the same key now is the same ask: the Run is the one just made
+  const same = await w.k.hs["connectors.sync_now"](w.ctx, ask);
+  assert.equal(same.runId, again.runId);
+});

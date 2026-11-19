@@ -391,3 +391,53 @@ test("under cap pressure a type with a change waiting to go out starts before ev
     .filter((id) => id.startsWith("syt_o"));
   assert.deepEqual(first, ["syt_o1", "syt_o5"], "the type with a waiting change first, then the stalest idle one");
 });
+
+test("types whose pushes are out of tries wait for a person and owe the driver nothing; types with pushes still to try take one start slot a tick, and every idle type is reached", async () => {
+  const w = await setup();
+  dropChains(w);
+  for (let i = 1; i <= 7; i++) {
+    w.k.tx.exec(
+      `CREATE TEMP TABLE t1 AS SELECT * FROM cn_connections LIMIT 1; UPDATE t1 SET connection_id = 'con_f${i}'; INSERT INTO cn_connections SELECT * FROM t1; DROP TABLE t1;
+       CREATE TEMP TABLE t2 AS SELECT * FROM cn_synced_types WHERE type = 'org'; UPDATE t2 SET sync_type_id = 'syt_f${i}', type = 'org_f${i}', connection_id = 'con_f${i}'; INSERT INTO cn_synced_types SELECT * FROM t2; DROP TABLE t2;`,
+    );
+    w.k.tx.run(
+      "INSERT INTO cn_sync_guard (sync_type_id, failures, last_at, next_at) VALUES (?, 0, ?, 0) ON CONFLICT(sync_type_id) DO UPDATE SET last_at = excluded.last_at",
+      `syt_f${i}`,
+      NOW + (10 - i) * MIN,
+    );
+  }
+  w.k.tx.run("UPDATE cn_synced_types SET paused = 1 WHERE type IN ('person', 'org')");
+  // f1 and f2: a push that is out of tries (failed: waits for a person). f3 and f4: a push still to try (pending).
+  const outbox = (id: string, type: string, status: string): void => {
+    w.k.tx.run(
+      "INSERT INTO sy_outbox (outbox_id, sync_type, local_id, remote_id, op, fields, values_json, idem_key, status, attempts, error, created_at) VALUES (?, ?, 'rec_1', 'r1', 'update', '[\"name\"]', '{}', ?, ?, 3, NULL, ?)",
+      id,
+      type,
+      `k_${id}`,
+      status,
+      NOW,
+    );
+  };
+  outbox("o1", "syt_f1", "failed");
+  outbox("o2", "syt_f2", "failed");
+  outbox("o3", "syt_f3", "pending");
+  outbox("o4", "syt_f4", "pending");
+  w.k.clock.t = NOW + 60 * MIN;
+  const reached = new Set<string>();
+  let ticks = 0;
+  for (; ticks < 8; ticks++) {
+    const due = dueSyncs({ tx: w.k.tx, now: () => w.k.clock.t }).filter((d) => d.syncTypeId.startsWith("syt_f"));
+    if (!due.length) break;
+    assert.ok(due.length <= MAX_STARTS_PER_TICK);
+    assert.ok(
+      due.filter((d) => d.syncTypeId === "syt_f3" || d.syncTypeId === "syt_f4").length <= 1,
+      "types with pushes still to try take at most one slot",
+    );
+    for (const d of due) {
+      reached.add(d.syncTypeId);
+      noteResult(w.k.tx, d.syncTypeId, { activeSec: 120, idleSec: 900, dormantSec: 3600 }, true, w.k.clock.t);
+    }
+  }
+  assert.equal(reached.size, 7, `every type was reached, idle ones included: ${[...reached].join(", ")}`);
+  assert.ok(ticks <= 5, `within a few ticks (${ticks})`);
+});

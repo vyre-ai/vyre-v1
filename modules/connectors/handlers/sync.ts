@@ -1118,9 +1118,13 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       };
       // a pass is on its way: the periodic driver leaves these connections alone until it ends (sync_run clears the mark)
       for (const r of rows) markRunning(tx, r.connection_id, nowOf(deps));
+      // the same key after an ask whose pass could not be queued is a new ask: the Run that failed is finished, and a Run that is finished is not asked to run again
+      const askKey = String((input as { idempotencyKey?: string }).idempotencyKey ?? "");
+      const failedBefore = tx.get<{ n: number }>("SELECT n FROM cn_sync_failed_keys WHERE key = ?", askKey)?.n ?? 0;
+      const runKeyTail = failedBefore > 0 ? `:retry${failedBefore}` : "";
       const started = (await ctx
         .call("runs.start", {
-          idempotencyKey: `connectors.sync_now:${input.idempotencyKey}`,
+          idempotencyKey: `connectors.sync_now:${input.idempotencyKey}${runKeyTail}`,
           kind: "connector_sync",
           name: one ? `Sync ${one.type}` : `Sync ${rows.length} types`,
           owner: actorOf(ctx),
@@ -1143,6 +1147,10 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       if (ctx.schedule)
         await ctx.schedule(nowOf(deps), "connectors.sync_run", { runId: started.runId }).catch(async () => {
           release(); // nothing will run it: the connection is not busy
+          tx.run(
+            "INSERT INTO cn_sync_failed_keys (key, n) VALUES (?, 1) ON CONFLICT(key) DO UPDATE SET n = n + 1",
+            askKey,
+          );
           // and the Run does not stay "started" for ever: it ends failed, with the reason
           await ctx
             .call("runs.finish", {

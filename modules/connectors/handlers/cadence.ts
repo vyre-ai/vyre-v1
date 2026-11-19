@@ -29,6 +29,8 @@ export const CADENCE_SQL = `
 -- One pass at a time per connection: set when a pass is asked for, cleared when it ends (a mark that is never cleared goes stale).
 CREATE TABLE IF NOT EXISTS cn_sync_running (connection_id TEXT PRIMARY KEY, started_at INTEGER NOT NULL);
 -- Failures in a row per synced type, and the earliest time the driver may try again.
+-- Idempotency keys of asks whose pass could not be queued: the next ask with the same key starts a new Run instead of getting the failed one back.
+CREATE TABLE IF NOT EXISTS cn_sync_failed_keys (key TEXT PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS cn_sync_guard (sync_type_id TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, last_at INTEGER NOT NULL, next_at INTEGER NOT NULL DEFAULT 0);
 `;
 const ready = new WeakSet<object>();
@@ -143,11 +145,11 @@ export function dueSyncs(d: Pick<CadenceDeps, "tx" | "now">): Due[] {
       r.sync_type_id,
       outbox &&
         (d.tx.get<{ n: number }>(
-          "SELECT count(*) AS n FROM sy_outbox WHERE sync_type = ? AND status IN ('pending', 'failed')",
+          "SELECT count(*) AS n FROM sy_outbox WHERE sync_type = ? AND status = 'pending'",
           r.sync_type_id,
         )?.n ?? 0) > 0,
     );
-  // a type with a person's change waiting to go out comes before every idle type (a change should not wait behind a long-idle sync); inside each group the one synced longest ago goes first (a stable sort:
+  // a type with a change that WILL be tried again (a 'pending' push: a 'failed' one is out of tries and waits for a person to retry or cancel it, so it owes the driver nothing) comes before every idle type (a change should not wait behind a long-idle sync); inside each group the one synced longest ago goes first (a stable sort:
   // ties keep the order they were made in), so the few starts a tick are never always the same oldest types
   rows.sort(
     (a, b) => Number(owes.get(b.sync_type_id)) - Number(owes.get(a.sync_type_id)) || staleness(a) - staleness(b),
@@ -166,6 +168,8 @@ export function dueSyncs(d: Pick<CadenceDeps, "tx" | "now">): Due[] {
     const last = Math.max(r.created_at, r.last_run_at ?? 0, r.last_at ?? 0);
     if (now - last < every) continue;
     if (out.length >= MAX_STARTS_PER_TICK) break;
+    // types with a change to push take at most one of a tick's start slots: the rest go to the types that have waited longest, so busy types never starve the idle ones
+    if (waiting && out.some((o) => owes.get(o.syncTypeId) === true)) continue;
     busy.add(r.connection_id);
     out.push({
       syncTypeId: r.sync_type_id,
