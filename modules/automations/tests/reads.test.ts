@@ -152,7 +152,12 @@ test("a version the server saved is marked checked; a version saved before the c
   assert.equal(isChecked(h.db, id, made.automation.version), false);
   const edited = await h.call(
     "automations.update",
-    { automationId: id, definition: goodDefinition({ nodes: [node("a", "records.update", { type: "contact", recordId: "rec_x", patch: {} })] }) },
+    {
+      automationId: id,
+      definition: goodDefinition({
+        nodes: [node("a", "records.update", { type: "contact", recordId: "rec_x", patch: {} })],
+      }),
+    },
     alice,
   );
   assert.equal(edited.automation.version, made.automation.version + 1);

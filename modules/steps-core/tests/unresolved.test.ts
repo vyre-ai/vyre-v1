@@ -94,5 +94,8 @@ test("an Automation saved before the variable check reads an unknown name as emp
   // a step with nothing wrong says nothing
   const clean = withTrigger("manual");
   clean.env.run.strict = false;
-  assert.equal((await runStep(clean.env, post("{{trigger.input.email}}"), callOf({ trigger: { input: { email: "a@x" } } }))).notes, undefined);
+  assert.equal(
+    (await runStep(clean.env, post("{{trigger.input.email}}"), callOf({ trigger: { input: { email: "a@x" } } }))).notes,
+    undefined,
+  );
 });

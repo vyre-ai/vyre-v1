@@ -176,7 +176,12 @@ export const hostCalls = {
   "automations.run_plan": (ctx: Ctx, i: { runId: string }) => {
     const p = loadRunPlan(ctx, i.runId);
     return p
-      ? { link: p.link, definition: p.definition, vault: p.vault, checked: isChecked(ctx.db, p.link.automationId, p.link.version) }
+      ? {
+          link: p.link,
+          definition: p.definition,
+          vault: p.vault,
+          checked: isChecked(ctx.db, p.link.automationId, p.link.version),
+        }
       : null;
   },
   /** One lane or one loop iteration. Pins the parent's definition version. The same key returns the same Run. */
