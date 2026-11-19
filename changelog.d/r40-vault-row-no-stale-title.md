@@ -1,0 +1,1 @@
+On a phone, tapping a Vault row (Logins, Keys and the rest) no longer shows the previous list's title ("All 0") for a frame or two before the row's own name: the selection now follows the new address in the same render. The phone nav walk records the title at every frame after the tap and fails on any other title.
