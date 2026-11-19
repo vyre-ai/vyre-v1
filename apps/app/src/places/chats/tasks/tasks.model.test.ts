@@ -16,7 +16,6 @@ import {
   holderOf,
   monthCells,
   NO_FILTER,
-  QUIET_MS,
   sectionsOf,
   sortRows,
 } from "./model.ts";
@@ -55,16 +54,14 @@ const base: Omit<BuildIn, "rows"> = {
   doneRows: null,
   doneCount: 0,
   names,
-  quietOff: false,
 };
 
-test("the list is ordered for you: Now, Next, Waiting on others, with quiet tasks folded", () => {
+test("the list is ordered for you: Now, Next, Waiting on others; what nobody touched is the server's to ask about", () => {
   const rows = [
     row({ id: "late", due: NOW - 2 * DAY }),
     row({ id: "today", due: NOW + 3_600_000 }),
     row({ id: "under-way", state: "doing" }),
     row({ id: "later", due: NOW + 5 * DAY }),
-    row({ id: "old", updatedAt: NOW - QUIET_MS - 1 }),
     row({ id: "theirs", assigned: { kind: "agent", id: "agt_mira" } }),
   ];
   const s = sectionsOf(rows, me, NOW, 0, new Set());
@@ -75,10 +72,6 @@ test("the list is ordered for you: Now, Next, Waiting on others, with quiet task
   assert.deepEqual(
     s.next.map((r) => r.id),
     ["later"],
-  );
-  assert.deepEqual(
-    s.quiet.map((r) => r.id),
-    ["old"],
   );
   assert.deepEqual(
     s.waiting.map((r) => r.id),
@@ -99,13 +92,13 @@ test("the flat list has Needs you first, then the sections, then add and the cou
   const need = { task: { id: "n", kind: "answer", title: "Q" }, yourTurn: true } as unknown as NeedItem;
   const entries = buildEntries({
     ...base,
-    rows: [row({ id: "a", due: NOW }), row({ id: "b", updatedAt: NOW - QUIET_MS - 1 })],
+    rows: [row({ id: "a", due: NOW })],
     needs: [need],
     doneCount: 12,
   });
   assert.deepEqual(
     entries.map((e) => e.key),
-    ["h:needs", "n:n", "h:now", "now:a", "quiet", "add", "done"],
+    ["h:needs", "n:n", "h:now", "now:a", "add", "done"],
   );
 });
 
@@ -320,7 +313,7 @@ test("a due chip in a Space's zone: the day is the Space's day, hover names both
   assert.equal(dueLabel(Date.parse("2026-12-12T20:00:00Z"), now, z).text, "12 Dec");
 });
 
-test("an Approve that was sent back is not under way: it never sits in Now, and folds into quiet when it has not moved", () => {
+test("an Approve that was sent back is not under way: it never sits in Now", () => {
   const back = row({ id: "back", kind: "approve", state: "doing" });
   const s = sectionsOf([back, row({ id: "mine", state: "doing" })], me, NOW, 0, new Set());
   assert.deepEqual(
@@ -329,17 +322,6 @@ test("an Approve that was sent back is not under way: it never sits in Now, and 
   );
   assert.deepEqual(
     s.next.map((r) => r.id),
-    ["back"],
-  );
-  const old = sectionsOf(
-    [row({ id: "back", kind: "approve", state: "doing", updatedAt: NOW - QUIET_MS - 1 })],
-    me,
-    NOW,
-    0,
-    new Set(),
-  );
-  assert.deepEqual(
-    old.quiet.map((r) => r.id),
     ["back"],
   );
 });

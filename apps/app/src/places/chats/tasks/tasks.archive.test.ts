@@ -36,7 +36,6 @@ const base: Omit<BuildIn, "rows" | "scope"> = {
   doneRows: null,
   doneCount: 3,
   names,
-  quietOff: false,
 };
 const put = (code: "hand" | "passed", why: string, by = me): NonNullable<TaskRow["archived"]> => ({
   at: NOW,

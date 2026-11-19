@@ -50,8 +50,6 @@ const STATE_RANK: Record<string, number> = {
 };
 
 export const DAY = 86_400_000;
-/** A task nobody has moved in this long folds into Assistant's line. */
-export const QUIET_MS = 14 * DAY;
 
 export const isOpenState = (s: TaskState): boolean => s !== "done" && s !== "canceled";
 /** Whose move it is: the Assigned while the work is open, the Reviewer in review, the Approver in approval. */
@@ -70,11 +68,10 @@ const dayStart = (ms: number, offsetMin: number): number => {
 export interface Sections {
   now: TaskRow[];
   next: TaskRow[];
-  quiet: TaskRow[];
   waiting: TaskRow[];
 }
 
-/** Mine, in the order that helps: what is late or due today or under way, then the rest. Quiet tasks fold into one line; what someone else holds waits underneath. Needs you is read apart (tasks.needs_you). */
+/** Mine, in the order that helps: what is late or due today or under way, then the rest. What nobody has touched for two weeks is asked about on the Still need these card (the server decides, tasks.still_needed); what someone else holds waits underneath. Needs you is read apart (tasks.needs_you). */
 export function sectionsOf(
   rows: readonly TaskRow[],
   me: string,
@@ -82,7 +79,7 @@ export function sectionsOf(
   offsetMin: number,
   needIds: ReadonlySet<string>,
 ): Sections {
-  const out: Sections = { now: [], next: [], quiet: [], waiting: [] };
+  const out: Sections = { now: [], next: [], waiting: [] };
   const end = dayStart(now, offsetMin) + DAY;
   for (const t of rows) {
     if (needIds.has(t.id)) continue;
@@ -95,11 +92,7 @@ export function sectionsOf(
       continue;
     }
     // an Approve sent back is open for its thread and nobody waits on it: it is never "under way"
-    const underWay = t.state === "doing" && !(t.kind === "approve");
-    if (t.due === undefined && !underWay && now - t.updatedAt > QUIET_MS) {
-      out.quiet.push(t);
-      continue;
-    }
+    const underWay = t.state === "doing" && t.kind !== "approve";
     if ((t.due !== undefined && t.due < end) || underWay) out.now.push(t);
     else out.next.push(t);
   }
@@ -277,7 +270,6 @@ export type Entry =
   | { kind: "head"; key: string; title: string; count: number; quiet?: boolean }
   | { kind: "need"; key: string; item: NeedItem }
   | { kind: "task"; key: string; row: TaskRow }
-  | { kind: "quiet"; key: string; rows: readonly TaskRow[] }
   | { kind: "add"; key: string }
   | { kind: "done"; key: string; count: number; open: boolean }
   | { kind: "more"; key: string; count: number; open: boolean }
@@ -324,7 +316,6 @@ export const HEIGHT: Record<Entry["kind"], number> = {
   head: 44,
   need: 54,
   task: 48,
-  quiet: 76,
   add: 44,
   done: 40,
   more: 40,
@@ -345,7 +336,6 @@ export interface BuildIn {
   doneRows: readonly TaskRow[] | null;
   doneCount: number;
   names: Names;
-  quietOff: boolean;
   /** Needs you shows five rows; the rest wait under "N more" until this is true */
   needsOpen?: boolean;
 }
@@ -378,7 +368,6 @@ export function buildEntries(b: BuildIn): Entry[] {
     const s = sectionsOf(rows, b.me, b.now, b.offsetMin, new Set(needs.map((n) => n.task.id)));
     push("now", "Now", s.now);
     push("next", "Next", s.next);
-    if (s.quiet.length > 0 && !b.quietOff) out.push({ kind: "quiet", key: "quiet", rows: s.quiet });
     push("waiting", "Waiting on others", s.waiting);
   } else {
     const open = rows.filter((t) => isOpenState(t.state));

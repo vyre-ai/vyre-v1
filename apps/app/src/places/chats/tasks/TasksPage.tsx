@@ -37,8 +37,6 @@ import {
   bulkStatus,
   dueEntries,
   failure,
-  keepQuiet,
-  letGo,
   putBack,
   priorityEntries,
   setStatus,
@@ -67,6 +65,7 @@ import type { ScopeKey } from "./store.ts";
 import { CalendarView, Timeline } from "./Timeline.tsx";
 import { offered } from "../../../shell/session/private-agents.ts";
 import { AwayLine } from "./AwayLine.tsx";
+import { AliveLine, StillCard } from "./Living.tsx";
 import { canTake, movesFor } from "./moves.ts";
 import type { Move } from "./moves.ts";
 import { useTaskPeople } from "./people.ts";
@@ -118,7 +117,6 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   const [searching, setSearching] = useState(false);
   const [line, setLine] = useState<{ text: string; undo?: () => void } | null>(null);
   const [doneRows, setDoneRows] = useState<readonly TaskRow[] | null>(null);
-  const [quietOpen, setQuietOpen] = useState(false);
   const [needsOpen, setNeedsOpen] = useState(false);
   const [quick, setQuick] = useState("");
   // files dropped or pasted on quick add: held beside the field, stored the way a chat stores its uploads, and made the new task's attachments
@@ -533,7 +531,6 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
         filter: shownFilter,
         doneRows,
         doneCount: snap.doneThisWeek,
-        quietOff: false,
         needsOpen,
         names: { name: nameOf, project: (id) => projectName.get(id) },
       }),
@@ -885,16 +882,6 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
           const cur = e.row.id === currentRow?.id;
           return <TaskLine row={e.row} env={env} selected={selected.has(e.row.id)} current={cur} />;
         }
-        case "quiet":
-          return (
-            <QuietLine
-              rows={e.rows}
-              open={quietOpen}
-              onToggle={() => setQuietOpen((o) => !o)}
-              assistant={rt.assistant}
-              act={act}
-            />
-          );
         case "add":
           return (
             <View style={st.wrap}>
@@ -964,7 +951,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
           );
       }
     },
-    [act, addTask, currentRow?.id, env, quick, quickFiles, quietOpen, rt.assistant, selected, toggleDone],
+    [act, addTask, currentRow?.id, env, quick, quickFiles, rt.assistant, selected, toggleDone],
   );
 
   const body =
@@ -1096,6 +1083,23 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
           openTask={openTask}
         />
       ) : null}
+      {scope.kind === "mine" && !isFiltered(filter) ? (
+        <>
+          <AliveLine
+            call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+            now={now}
+            rev={revValue}
+            openTask={openTask}
+            onChanged={() => store.refresh()}
+          />
+          <StillCard
+            call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+            rev={revValue}
+            openTask={openTask}
+            onChanged={() => store.refresh()}
+          />
+        </>
+      ) : null}
       <View style={{ flex: 1, minHeight: 0 }}>
         {body}
         {selected.size > 0 ? (
@@ -1213,71 +1217,6 @@ function BulkBar({
   );
 }
 
-/** Things do not pile up: the tasks nobody has moved fold into one line from Assistant, with keep, snooze and let go, for all of them or one at a time. */
-function QuietLine({
-  rows,
-  open,
-  onToggle,
-  assistant,
-  act,
-}: {
-  rows: readonly TaskRow[];
-  open: boolean;
-  onToggle(): void;
-  assistant: { id: string; name: string };
-  act: ActEnv;
-}): ReactElement {
-  const ids = rows.map((r) => r.id);
-  const month = (): number => act.now() + 30 * DAY;
-  return (
-    <View style={st.wrap}>
-      <View testID="tasks-quiet" style={st.quiet}>
-        <Avatar name={assistant.name} seedId={assistant.id} kind="assistant" size={22} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text
-            numberOfLines={1}
-            style={st.quietTitle}
-          >{`${rows.length} ${rows.length === 1 ? "task has" : "tasks have"} not moved in weeks`}</Text>
-          <Text numberOfLines={1} style={st.quietSub}>
-            {open
-              ? rows
-                  .slice(0, 3)
-                  .map((r) => r.title)
-                  .join(", ")
-              : "Keep them, snooze them, or let them go"}
-          </Text>
-        </View>
-        {open ? (
-          <>
-            <QuietBtn label="Keep" testID="quiet-keep" onPress={() => void keepQuiet(act, ids)} />
-            <QuietBtn
-              label="Snooze a month"
-              testID="quiet-snooze"
-              onPress={() => void snoozeQuiet(act, ids, month(), "for a month")}
-            />
-            <QuietBtn label="Let go" testID="quiet-letgo" onPress={() => void letGo(act, ids)} />
-          </>
-        ) : (
-          <QuietBtn label="Go through them" testID="quiet-open" onPress={onToggle} />
-        )}
-      </View>
-    </View>
-  );
-}
-function QuietBtn({ label, onPress, testID }: { label: string; onPress(): void; testID: string }): ReactElement {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      testID={testID}
-      onPress={onPress}
-      style={({ hovered }: { hovered?: boolean }) => [st.quietBtn, hovered === true && st.quietOver]}
-    >
-      <Text style={st.quietBtnText}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const QUICK_DROP = { minWidth: 0 };
 
 const st = StyleSheet.create({
@@ -1323,21 +1262,6 @@ const st = StyleSheet.create({
   done: { height: 36, justifyContent: "center", paddingLeft: 26 },
   doneText: { fontSize: 13, color: "var(--ink-3)" as string },
   empty: { paddingTop: 30, textAlign: "center", fontSize: 13.5, color: "var(--ink-3)" as string },
-  quiet: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginTop: 10,
-    minHeight: 58,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    backgroundColor: "var(--sunk)" as string,
-  },
-  quietTitle: { fontSize: 14, color: "var(--ink)" as string },
-  quietSub: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  quietBtn: { height: 30, justifyContent: "center", paddingHorizontal: 11, borderRadius: 9 },
-  quietOver: { backgroundColor: "var(--hover)" as string },
-  quietBtnText: { fontSize: 13, color: "var(--ink)" as string },
   bulk: {
     position: "absolute",
     bottom: 10,

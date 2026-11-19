@@ -272,21 +272,6 @@ export const priorityEntries = (
     onSelect: () => choose(p.key, p.title),
   }));
 
-/** Keep, snooze, let go: the three answers to a task nobody has moved. */
-export async function keepQuiet(env: ActEnv, ids: readonly string[]): Promise<void> {
-  // a note counts as a move, so the task leaves the quiet line and comes back only if it goes quiet again
-  await forEach(
-    env,
-    ids,
-    (id) =>
-      env.call("tasks.working_notes.set", {
-        taskId: id,
-        key: "quiet.kept",
-        value: new Date(env.now()).toISOString().slice(0, 10),
-      }),
-    ids.length === 1 ? "Kept" : `Kept ${ids.length} tasks`,
-  );
-}
 export const snoozeQuiet = (env: ActEnv, ids: readonly string[], until: number, words: string): Promise<number> => {
   const back = env.store.remove(ids);
   return forEach(
@@ -294,18 +279,6 @@ export const snoozeQuiet = (env: ActEnv, ids: readonly string[], until: number, 
     ids,
     (id) => env.call("tasks.snooze", { taskId: id, until }),
     `Snoozed ${ids.length === 1 ? "it" : `${ids.length} tasks`} ${words}`,
-  ).then((n) => {
-    if (n === 0) back();
-    return n;
-  });
-};
-export const letGo = (env: ActEnv, ids: readonly string[]): Promise<number> => {
-  const back = env.store.remove(ids);
-  return forEach(
-    env,
-    ids,
-    (id) => env.call("tasks.withdraw", { taskId: id, note: "Let go after it went quiet." }),
-    `Let ${ids.length === 1 ? "it" : `${ids.length} tasks`} go`,
   ).then((n) => {
     if (n === 0) back();
     return n;
