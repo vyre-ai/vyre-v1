@@ -191,7 +191,7 @@ test("a rejected confirm shows its own line, opens nothing by itself, re-arms, a
     await wait(100);
     assert.deepEqual(reports, [], "nothing opens by itself");
     const line = textOf(find(root, "ic-failed"));
-    assert.match(line, /That did not work: Cannot delete Ada Lovelace/, "the person reads what the gateway said");
+    assert.match(line, /You don't have access to delete this\./, "the person reads what the gateway said");
     assert.doesNotMatch(line, /object Object/);
     await press(find(root, "ic-go"));
     await wait(100);
@@ -210,16 +210,22 @@ test("a rejected confirm shows its own line, opens nothing by itself, re-arms, a
   }
 });
 
-test("the gateway's words show only for a user-facing code family; anything else gets the plain line", async () => {
+test("the failure line is plain words chosen from the code, never the server's message", async () => {
   const restore = installDom();
   try {
     for (const [err, want] of [
-      [{ error: { code: "validation.name", message: "Name is too long" } }, /That did not work: Name is too long/],
       [
-        { error: { code: "internal.sql", message: "select * from x at 10.0.0.4:5432" } },
-        /^That did not work\. You can try again\.\s*$/,
+        { error: { code: "access.denied", message: "no grant for rec_9 on 10.0.0.4:5432" } },
+        /^You don't have access to delete this\.\s*$/,
       ],
-      [new Error("connect ECONNREFUSED 10.0.0.4:5432"), /^That did not work\. You can try again\.\s*$/],
+      [
+        { error: { code: "conflict.stale", message: "version 4 != 5 (select * from t)" } },
+        /^It changed first\. Try again\.\s*$/,
+      ],
+      [new Error("connect ECONNREFUSED 10.0.0.4:5432"), /^Couldn't reach the Space\.\s*$/],
+      [new TypeError("Failed to fetch"), /^Couldn't reach the Space\.\s*$/],
+      [{ error: { code: "internal.sql", message: "syntax error at or near" } }, /^That did not work\.\s*$/],
+      ["boom for Ada Lovelace", /^That did not work\.\s*$/],
     ] as const) {
       const root = await mount(
         createRoot,
@@ -236,11 +242,26 @@ test("the gateway's words show only for a user-facing code family; anything else
       await wait(50);
       await press(find(root, "ic-go"));
       await wait(60);
-      assert.match(textOf(find(root, "ic-failed")).replace(/Report$/, ""), want);
+      const line = textOf(find(root, "ic-failed")).replace(/Report\s*$/, "");
+      assert.match(line, want);
+      assert.doesNotMatch(line, /10\.0\.0\.4|rec_9|select|Lovelace|object Object/, "no server text reaches the screen");
     }
   } finally {
     restore();
   }
+});
+
+test("in the compact row the failure line is one line that gives way (ellipsis), so Delete and Cancel stay on the strip", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  assert.match(
+    src,
+    /compact: \{ flexDirection: "row", flexWrap: "nowrap"/,
+    "the compact row does not wrap its buttons off",
+  );
+  assert.match(src, /<Text numberOfLines=\{1\} style=\{s\.failed\}>/, "one line, ellipsised");
+  assert.match(src, /failedRow: \{[^}]*flexShrink: 1[^}]*minWidth: 0/, "the line shrinks");
+  assert.match(src, /failed: \{ flexShrink: 1, minWidth: 0/);
 });
 
 test("a compact strip shows the failure line too", async () => {

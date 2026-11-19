@@ -48,19 +48,17 @@ export interface InlineConfirmProps {
   cancelTestID?: string;
 }
 
-/** What a rejection says, in words for the person: an Error's message, a string, or a gateway error object's message (`{ error: { code, message } }`); never "[object Object]". Cut short. */
-function textOf(e: unknown): string {
-  const o = e as { message?: unknown; error?: { message?: unknown } } | string | null | undefined;
-  const m =
-    typeof o === "string"
-      ? o
-      : typeof o?.error?.message === "string"
-        ? o.error.message
-        : typeof o?.message === "string"
-          ? o.message
-          : "";
-  const t = m.trim().replace(/\s+/g, " ");
-  return t.length > 140 ? `${t.slice(0, 137)}...` : t;
+/** Plain words for a failed confirm, chosen from the error's code: never the server's own message, which can carry hosts, SQL, names or ids. */
+export function wordsFor(code: string, e: unknown): string {
+  if (/^access\./.test(code)) return "You don't have access to delete this.";
+  if (/^conflict\./.test(code)) return "It changed first. Try again.";
+  const m = (typeof e === "string" ? e : ((e as { message?: unknown } | null)?.message ?? "")) as unknown;
+  if (
+    /^(net|network|offline|unreachable)[._-]?/i.test(code) ||
+    (typeof m === "string" && /failed to fetch|network|econnrefused|timed out|offline/i.test(m))
+  )
+    return "Couldn't reach the Space.";
+  return "That did not work.";
 }
 
 /** A short error code from a rejection ("access.denied"), or "": never a message, which can carry a name, an id or a link. */
@@ -166,7 +164,7 @@ export function InlineConfirm({
             clearTimeout(cap);
             const code = codeOf(e);
             // the gateway's own words only for a user-facing family; anything else (a network error, a stack) gets the plain line
-            setFailed({ code, text: /^(access|validation|conflict)\./.test(code) ? textOf(e) : "" });
+            setFailed({ code, text: wordsFor(code, e) });
             done();
             // the strip says it did not work (inline); a person who wants to tell Vyre presses Report. Nothing opens by itself and nothing is thrown.
           },
@@ -211,8 +209,8 @@ export function InlineConfirm({
   const fill = danger ? "var(--danger)" : "var(--accent)";
   const failureLine = failed ? (
     <View accessibilityRole="alert" testID={testID ? `${testID}-failed` : undefined} style={s.failedRow}>
-      <Text style={s.failed}>
-        {failed.text ? `That did not work: ${failed.text}` : "That did not work. You can try again."}
+      <Text numberOfLines={1} style={s.failed}>
+        {failed.text}
       </Text>
       <Pressable
         accessibilityRole="button"
@@ -289,11 +287,11 @@ const s = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: "var(--sunk)" as string,
   },
-  compact: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
+  compact: { flexDirection: "row", flexWrap: "nowrap", alignItems: "center", gap: 6 },
   text: { flexGrow: 1, flexShrink: 1, minWidth: 160 },
   question: { fontSize: 13.5, lineHeight: 19, fontWeight: "600", color: "var(--ink)" as string },
-  failedRow: { flexDirection: "row", flexShrink: 1, flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 4 },
-  failed: { flexShrink: 1, fontSize: 12.5, lineHeight: 18, color: "var(--danger)" as string },
+  failedRow: { flexDirection: "row", flexShrink: 1, minWidth: 0, alignItems: "center", gap: 8, marginTop: 4 },
+  failed: { flexShrink: 1, minWidth: 0, fontSize: 12.5, lineHeight: 18, color: "var(--danger)" as string },
   report: { fontSize: 12.5, lineHeight: 18, fontWeight: "500", color: "var(--accent)" as string },
   note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: 2 },
   buttons: { flexDirection: "row", alignItems: "center", gap: 6 },
