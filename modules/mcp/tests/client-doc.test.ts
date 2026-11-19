@@ -1,7 +1,7 @@
 // Client metadata documents (lane r42-mcp): an app names itself by an https address; what its page says is checked, read once with every failure a refusal, and kept as an ordinary client.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fetchDoc, isDocId, keepDoc, readDoc, MAX_DOC_BYTES } from "../client-doc.ts";
+import { fetchDoc, isDocId, keepDoc, readDoc, MAX_DOC_BYTES, MAX_DOCS_PER_HOST } from "../client-doc.ts";
 import { clientBy, serverMetadata, MAX_CLIENTS, UNUSED_CLIENT_MS } from "../oauth.ts";
 import { ensure } from "../projections.ts";
 import { harness } from "../fixtures/harness.ts";
@@ -87,4 +87,13 @@ test("pages that name themselves count against the same cap as registration: pas
   h.db.run("UPDATE mcp_oauth_clients SET used_at = NULL, created_at = ? WHERE client_id LIKE 'https://a1%'", now - 2 * UNUSED_CLIENT_MS);
   assert.equal(keepDoc(h.db, fresh, now), true, "unused clients older than a day go first");
   assert.ok(clientBy(h.db, fresh.clientId));
+});
+
+test("one host cannot fill the table: past its few pages a new address on it is refused, others are not", () => {
+  const h = harness();
+  ensure(h.db);
+  for (let i = 0; i < MAX_DOCS_PER_HOST; i++)
+    assert.equal(keepDoc(h.db, { clientId: `https://one.example.com/${i}.json`, name: "x", redirectUris: ["https://one.example.com/cb"] }, 1000), true);
+  assert.equal(keepDoc(h.db, { clientId: "https://one.example.com/extra.json", name: "x", redirectUris: ["https://one.example.com/cb"] }, 1000), false);
+  assert.equal(keepDoc(h.db, { clientId: "https://two.example.com/a.json", name: "x", redirectUris: ["https://two.example.com/cb"] }, 1000), true);
 });

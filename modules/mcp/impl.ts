@@ -198,10 +198,17 @@ const formOf = (body: string): Record<string, string | undefined> | null => {
 };
 
 /** The MCP server on this host's tables. Binds itself so mcp.session.close also ends the live session. */
-/** A kept client page older than a day is read again. */
-function docIsOld(db: Db, clientId: string, at: number): boolean {
-  const r = (db.all("SELECT created_at FROM mcp_oauth_clients WHERE client_id = ?", clientId) as Array<Record<string, unknown>>)[0];
-  return r !== undefined && at - Number(r["created_at"]) > 24 * 3_600_000;
+/** When each client page was last tried (this process): a kept page is read again after a day, a page that failed is not tried again for a minute, and an address is never fetched on every request. */
+const docTried = new Map<string, number>();
+const DOC_REFRESH_MS = 24 * 3_600_000;
+const DOC_RETRY_MS = 60_000;
+function docDue(db: Db, clientId: string, at: number): boolean {
+  const last = docTried.get(clientId);
+  const known = clientBy(db, clientId) !== null;
+  if (last !== undefined && at - last < (known ? DOC_REFRESH_MS : DOC_RETRY_MS)) return false;
+  if (docTried.size > 5000) docTried.delete(docTried.keys().next().value as string);
+  docTried.set(clientId, at);
+  return true;
 }
 
 export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
@@ -491,7 +498,7 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
       }
       // an app that names itself by an address: read its page once (guarded), keep it as a registered client; a page that cannot be read leaves the client unknown, which is the usual refusal
       const named = q["client_id"];
-      if (named && isDocId(named) && (clientBy(o.db, named) === null || docIsOld(o.db, named, at))) {
+      if (named && isDocId(named) && docDue(o.db, named, at)) {
         const doc = await fetchDoc(named, o.clientDocGet ?? createGuardedFetch({ own: false }));
         if (!("refused" in doc) && !keepDoc(o.db, doc, at)) {
           const full = refusalPage("Too many apps", "This Space has no room for another app right now. Try again later.");

@@ -6,6 +6,8 @@ import { cleanClientName, redirectKind, MAX_CLIENTS, MAX_REDIRECTS, UNUSED_CLIEN
 
 export const MAX_DOC_BYTES = 5 * 1024;
 export const DOC_TIMEOUT_MS = 3000;
+/** The most pages one host may have kept as clients. */
+export const MAX_DOCS_PER_HOST = 10;
 
 /** Is this client_id an address that names a document? https, no user name, no fragment, a real path (so that it names one thing), a short address. */
 export function isDocId(id: string): boolean {
@@ -84,6 +86,10 @@ export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectU
   const known = (db.all("SELECT 1 AS x FROM mcp_oauth_clients WHERE client_id = ?", doc.clientId) as unknown[]).length > 0;
   if (!known) {
     db.run("DELETE FROM mcp_oauth_clients WHERE used_at IS NULL AND created_at < ?", now - UNUSED_CLIENT_MS);
+    // one host cannot fill the table: a few pages per host
+    const host = new URL(doc.clientId).host;
+    const mine = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients WHERE client_id LIKE ?", `https://${host}/%`) as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
+    if (mine >= MAX_DOCS_PER_HOST) return false;
     const n = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
     if (n >= MAX_CLIENTS) return false;
   }

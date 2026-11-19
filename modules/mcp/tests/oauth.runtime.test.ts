@@ -201,6 +201,11 @@ test("authorize with a client_id that is an address: its page is read once and k
   assert.equal(reads, 1);
   await authorize(good, ID);
   assert.equal(reads, 1, "the second request does not read the page again");
+  hn.clock.t += 3 * 86_400_000;
+  await authorize(good, ID);
+  await authorize(good, ID);
+  await authorize(good, ID);
+  assert.equal(reads, 2, "a day later it is read once more, and not again on every request after that");
   // a page that cannot be read: the usual refusal page, never a redirect
   const other = "https://down.example.com/client.json";
   const down = make(async () => {
