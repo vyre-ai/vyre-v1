@@ -50,46 +50,46 @@ if (g113 === 'object') { const o113 = x113 as Record<string, unknown>;
 
 function d_s_9dd37bdda3(v: unknown, p: string, e: string[]): void {
 {
-const x822 = v;
-const g822 = typeOf(x822);
-const b822: string[] = []; lf(x822, p, b822, L4); if (b822.length) e.push(...b822);
-if (g822 === "array") {
-if (g822 === 'array') { const a822 = x822 as unknown[];
-for (let i822 = 0; i822 < a822.length; i822++) {
+const x826 = v;
+const g826 = typeOf(x826);
+const b826: string[] = []; lf(x826, p, b826, L4); if (b826.length) e.push(...b826);
+if (g826 === "array") {
+if (g826 === 'array') { const a826 = x826 as unknown[];
+for (let i826 = 0; i826 < a826.length; i826++) {
 {
-const x823 = a822[i822];
-const g823 = typeOf(x823);
-const b823: string[] = []; lf(x823, p + '/' + i822, b823, L0); if (b823.length) e.push(...b823);
-if (g823 === "object") {
-if (g823 === 'object') { const o823 = x823 as Record<string, unknown>;
-if (!("id" in o823)) e.push(p + '/' + i822 + "/id" + ': required');
-if (!("at" in o823)) e.push(p + '/' + i822 + "/at" + ': required');
-if (!("level" in o823)) e.push(p + '/' + i822 + "/level" + ': required');
-if (!("msg" in o823)) e.push(p + '/' + i822 + "/msg" + ': required');
-if ("id" in o823) lf(o823["id"], p + '/' + i822 + "/id", e, L2);
-if ("at" in o823) lf(o823["at"], p + '/' + i822 + "/at", e, L11);
-if ("level" in o823) lf(o823["level"], p + '/' + i822 + "/level", e, L355);
-if ("traceId" in o823) lf(o823["traceId"], p + '/' + i822 + "/traceId", e, L81);
-if ("spanId" in o823) lf(o823["spanId"], p + '/' + i822 + "/spanId", e, L1);
-if ("actor" in o823) lf(o823["actor"], p + '/' + i822 + "/actor", e, L1);
-if ("onBehalf" in o823) lf(o823["onBehalf"], p + '/' + i822 + "/onBehalf", e, L1);
-if ("runId" in o823) lf(o823["runId"], p + '/' + i822 + "/runId", e, L39);
-if ("place" in o823) lf(o823["place"], p + '/' + i822 + "/place", e, L1);
-if ("cap" in o823) lf(o823["cap"], p + '/' + i822 + "/cap", e, L1);
-if ("entity" in o823) lf(o823["entity"], p + '/' + i822 + "/entity", e, L1);
-if ("entityId" in o823) lf(o823["entityId"], p + '/' + i822 + "/entityId", e, L1);
-if ("result" in o823) lf(o823["result"], p + '/' + i822 + "/result", e, L1);
-if ("durMs" in o823) lf(o823["durMs"], p + '/' + i822 + "/durMs", e, L88);
-if ("costMicros" in o823) lf(o823["costMicros"], p + '/' + i822 + "/costMicros", e, L2);
-if ("label" in o823) lf(o823["label"], p + '/' + i822 + "/label", e, L2);
-if ("msg" in o823) lf(o823["msg"], p + '/' + i822 + "/msg", e, L1);
-if ("attrs" in o823) {
+const x827 = a826[i826];
+const g827 = typeOf(x827);
+const b827: string[] = []; lf(x827, p + '/' + i826, b827, L0); if (b827.length) e.push(...b827);
+if (g827 === "object") {
+if (g827 === 'object') { const o827 = x827 as Record<string, unknown>;
+if (!("id" in o827)) e.push(p + '/' + i826 + "/id" + ': required');
+if (!("at" in o827)) e.push(p + '/' + i826 + "/at" + ': required');
+if (!("level" in o827)) e.push(p + '/' + i826 + "/level" + ': required');
+if (!("msg" in o827)) e.push(p + '/' + i826 + "/msg" + ': required');
+if ("id" in o827) lf(o827["id"], p + '/' + i826 + "/id", e, L2);
+if ("at" in o827) lf(o827["at"], p + '/' + i826 + "/at", e, L11);
+if ("level" in o827) lf(o827["level"], p + '/' + i826 + "/level", e, L355);
+if ("traceId" in o827) lf(o827["traceId"], p + '/' + i826 + "/traceId", e, L81);
+if ("spanId" in o827) lf(o827["spanId"], p + '/' + i826 + "/spanId", e, L1);
+if ("actor" in o827) lf(o827["actor"], p + '/' + i826 + "/actor", e, L1);
+if ("onBehalf" in o827) lf(o827["onBehalf"], p + '/' + i826 + "/onBehalf", e, L1);
+if ("runId" in o827) lf(o827["runId"], p + '/' + i826 + "/runId", e, L39);
+if ("place" in o827) lf(o827["place"], p + '/' + i826 + "/place", e, L1);
+if ("cap" in o827) lf(o827["cap"], p + '/' + i826 + "/cap", e, L1);
+if ("entity" in o827) lf(o827["entity"], p + '/' + i826 + "/entity", e, L1);
+if ("entityId" in o827) lf(o827["entityId"], p + '/' + i826 + "/entityId", e, L1);
+if ("result" in o827) lf(o827["result"], p + '/' + i826 + "/result", e, L1);
+if ("durMs" in o827) lf(o827["durMs"], p + '/' + i826 + "/durMs", e, L88);
+if ("costMicros" in o827) lf(o827["costMicros"], p + '/' + i826 + "/costMicros", e, L2);
+if ("label" in o827) lf(o827["label"], p + '/' + i826 + "/label", e, L2);
+if ("msg" in o827) lf(o827["msg"], p + '/' + i826 + "/msg", e, L1);
+if ("attrs" in o827) {
 {
-const x824 = o823["attrs"];
-const g824 = typeOf(x824);
-const b824: string[] = []; lf(x824, p + '/' + i822 + "/attrs", b824, L0); if (b824.length) e.push(...b824);
-if (g824 === "object") {
-if (g824 === 'object') { const o824 = x824 as Record<string, unknown>;
+const x828 = o827["attrs"];
+const g828 = typeOf(x828);
+const b828: string[] = []; lf(x828, p + '/' + i826 + "/attrs", b828, L0); if (b828.length) e.push(...b828);
+if (g828 === "object") {
+if (g828 === 'object') { const o828 = x828 as Record<string, unknown>;
 }
 }
 }

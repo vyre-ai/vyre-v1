@@ -391,11 +391,12 @@ interface HookInfo {
   url?: string;
   follow: string[];
   secret?: string;
+  vault?: string;
   lastDeliveryAt?: number;
   failed: { branch: string; action: string; error: string; at: number }[];
 }
 
-function info(ctx: Ctx, site: Row, secret?: string): HookInfo {
+function info(ctx: Ctx, site: Row, secret?: string, vault?: string): HookInfo {
   const enabled = !isNull(site.hook_secret);
   const origin = routesHost()?.origin()?.origin;
   const last = (ctx.db.all("SELECT MAX(at) AS at FROM sites_hook_delivery WHERE site_id = ?", site.id) as Row[])[0]?.at;
@@ -404,6 +405,7 @@ function info(ctx: Ctx, site: Row, secret?: string): HookInfo {
     ...(enabled && origin ? { url: `${origin.replace(/\/+$/, "")}/hooks/sites` } : {}),
     follow: followList(site),
     ...(secret ? { secret } : {}),
+    ...(vault ? { vault } : {}),
     ...(typeof last === "number" ? { lastDeliveryAt: last } : {}),
     failed: (
       ctx.db.all(
@@ -432,6 +434,38 @@ function cleanFollow(ctx: Ctx, raw: unknown): string[] {
   return list;
 }
 
+/** Put a webhook secret in the Vault, in the "Site webhooks" folder of the person the call works for; the handle comes back. Nothing is changed when the Vault cannot take it. */
+async function keepSecret(ctx: Ctx, site: Row, secret: string, now: number): Promise<string> {
+  try {
+    const listed = (await ctx.call("vault.folders.list", { scope: "mine" })) as {
+      folders: { id: string; name: string }[];
+    };
+    const folderId =
+      listed.folders.find((f) => f.name === "Site webhooks")?.id ??
+      (
+        (await ctx.call("vault.folders.create", {
+          name: "Site webhooks",
+          scope: "mine",
+          idempotencyKey: `site-hooks-folder:${ctx.actingFor ?? ctx.principal.id}`,
+        })) as { folder: { id: string } }
+      ).folder.id;
+    const made = (await ctx.call("vault.item.put", {
+      folderId,
+      name: `${str(site.name)} webhook secret`,
+      kind: "other",
+      fields: [{ key: "secret", value: secret, secret: true }],
+      idempotencyKey: `site-hook-secret:${str(site.id)}:${now}`,
+    })) as { item: { handle: string } };
+    return made.item.handle;
+  } catch {
+    return fail(
+      ctx,
+      "validation.precondition_failed",
+      "The new secret could not be put in the Vault, so nothing was changed.",
+    );
+  }
+}
+
 async function webhookSet(ctx: Ctx, input: unknown): Promise<HookInfo> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
@@ -443,13 +477,17 @@ async function webhookSet(ctx: Ctx, input: unknown): Promise<HookInfo> {
   const follow = o["follow"] === undefined ? null : cleanFollow(ctx, o["follow"]);
   const now = ctx.now();
   let shown: string | undefined;
+  let vault: string | undefined;
+  // a new secret an agent makes goes straight into a Vault item the person it works for owns: the agent is told where, never what (rotating widens nothing, so it stays free)
+  const makes = enabled !== false && (enabled === true || rotate) && (isNull(site.hook_secret) || rotate);
+  const secret = makes ? randomHex(32) : undefined;
+  if (secret !== undefined && ctx.principal.kind !== "person") vault = await keepSecret(ctx, site, secret, now);
   if (enabled === false) {
     ctx.db.run("UPDATE sites_site SET hook_secret = NULL, updated_at = ? WHERE id = ?", now, siteId);
     // what a delivery of the old secret left and has not run is not run after it is off
     ctx.db.run("UPDATE sites_push SET done_at = ? WHERE site_id = ? AND done_at IS NULL", now, siteId);
   } else if (enabled === true || rotate) {
-    if (isNull(site.hook_secret) || rotate) {
-      const secret = randomHex(32);
+    if (secret !== undefined) {
       ctx.db.run(
         "UPDATE sites_site SET hook_secret = ?, updated_at = ? WHERE id = ?",
         JSON.stringify(ctx.seal.seal(new TextEncoder().encode(secret), `site-hook:${siteId}`)),
@@ -457,7 +495,7 @@ async function webhookSet(ctx: Ctx, input: unknown): Promise<HookInfo> {
         siteId,
       );
       if (rotate) ctx.db.run("UPDATE sites_push SET done_at = ? WHERE site_id = ? AND done_at IS NULL", now, siteId);
-      shown = secret;
+      shown = vault === undefined ? secret : undefined;
     }
   }
   if (follow !== null)
@@ -467,7 +505,7 @@ async function webhookSet(ctx: Ctx, input: unknown): Promise<HookInfo> {
       now,
       siteId,
     );
-  return info(ctx, mustSite(ctx, siteId), shown);
+  return info(ctx, mustSite(ctx, siteId), shown, vault);
 }
 
 export const hookHandlers = {

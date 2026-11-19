@@ -18,13 +18,17 @@ import {
   exposesKeys,
   hostOfUrl,
   keyReadHost,
+  heldGateFp,
+  holdGateFp,
   keySendOf,
   noteGateFp,
+  peekGateFp,
   protectionHolds,
   siteKeyPairs,
   sourceKeyHost,
   sourceOfInput,
   uploadFingerprint,
+  usedGateFp,
 } from "../../../lib/key-target.ts";
 import type { SiteFacts, SiteSource } from "../../../lib/key-target.ts";
 import { resolveKeyRef } from "../seams/key-ref.ts";
@@ -367,6 +371,10 @@ export function createGateHook(d: GateHookDeps): GateHook {
         decisionId: a.decisionId,
         idempotencyKey: a.decisionId,
       };
+      // the files the Gate read when it made this hold are what a yes approves: kept by the held call's hash for the resumed call
+      const heldSite = (a.input as { siteId?: unknown } | null)?.siteId;
+      const readFp = typeof heldSite === "string" ? peekGateFp(a.seed.trace, heldSite) : null;
+      if (readFp) holdGateFp(input["payloadHash"] as string, readFp);
       // what happens, in the capability's own words: its summary up to the first ";" (the rest is for developers)
       if (person)
         input["ask"] = {
@@ -407,13 +415,17 @@ export function createGateHook(d: GateHookDeps): GateHook {
     },
     verify(token, a) {
       const claims = claimsOf(d, token);
-      return (
+      const ok =
         claims !== null &&
         claims.v === 1 &&
         typeof claims.exp === "number" &&
         claims.exp >= d.now() &&
-        claims.hash === payloadHash(a.cap, a.input, a.seed)
-      );
+        claims.hash === payloadHash(a.cap, a.input, a.seed);
+      // the resumed call builds only the files that were read when the hold was made: a yes approves exactly those
+      const site = (a.input as { siteId?: unknown } | null)?.siteId;
+      const held = ok && typeof claims?.hash === "string" && typeof site === "string" ? heldGateFp(claims.hash) : null;
+      if (held && typeof site === "string") noteGateFp(a.seed.trace, site, held);
+      return ok;
     },
   };
 }
@@ -588,10 +600,16 @@ export function moduleWhens(
   const pairsOf = async (
     input: unknown,
     asker: string | undefined,
-    trace?: string,
+    trace?: CtxSeed["trace"],
+    approved = false,
   ): Promise<{ handle: string; host: string | null }[]> => {
+    const siteId = (input as { siteId?: unknown } | null)?.siteId;
+    // a yes records the files the build was held to (what the person approved), never a fresh look at files that may have changed since
+    const approvedFp = approved && typeof siteId === "string" ? usedGateFp(trace, siteId) : null;
     const read = async (s: SiteSource | null): Promise<SiteSource | null> => {
-      if (!s || !(s.folderId || s.fileId) || !asker || !callAs) return s;
+      if (!s || !(s.folderId || s.fileId)) return s;
+      if (approvedFp) return { ...s, fp: approvedFp };
+      if (!asker || !callAs) return s;
       const fp = await uploadFingerprint(s, (cap, i) => callAs(cap, i, asker) as Promise<unknown>);
       return fp ? { ...s, fp } : s;
     };
@@ -599,9 +617,8 @@ export function moduleWhens(
     if (facts) facts = { ...facts, source: await read(facts.source) };
     const given = await read(sourceOfInput(input));
     // what the Gate judged is what the build must read: the fingerprint of the files this call would build is kept for the handler
-    const siteId = (input as { siteId?: unknown } | null)?.siteId;
     const built = given ?? facts?.source ?? null;
-    if (typeof siteId === "string" && built?.fp) noteGateFp(trace, siteId, built.fp);
+    if (!approved && typeof siteId === "string" && built?.fp) noteGateFp(trace, siteId, built.fp);
     const out: { handle: string; host: string | null }[] = [];
     for (const p of siteKeyPairs(input, facts, given))
       out.push({ handle: p.handle, host: p.source === null ? null : await sourceKeyHost(p.source) });
@@ -613,7 +630,7 @@ export function moduleWhens(
     const asker0 = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
     // what gets built for production on a site that stores Vault keys is a person's to change
     if (exposesKeys(input, siteFactsOf(input))) return true;
-    const pairs = await pairsOf(input, asker0, seed.trace?.traceId);
+    const pairs = await pairsOf(input, asker0, seed.trace);
     if (pairs.length > 0) {
       const h = db();
       if (!h || typeof approved !== "function") return true;
@@ -651,7 +668,7 @@ export function moduleWhens(
     const h = db();
     const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
     // the keys that were to reach code from a source: each pair is approved, by the person who pressed yes
-    const pairs = await pairsOf(input, asker, seed.trace?.traceId);
+    const pairs = await pairsOf(input, asker, seed.trace, true);
     if (pairs.length > 0 && h && asker && callAs) {
       const approver = seed.approvedBy?.startsWith("usr_") ? seed.approvedBy : asker;
       for (const pair of pairs) {

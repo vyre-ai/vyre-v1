@@ -12,10 +12,11 @@ import { acceptWebhook, markPushDone, markPushFailed, pendingPushes, signed, fol
 import { createHmac } from "node:crypto";
 import { handlers, siteFacts } from "../impl.ts";
 import { deployHandlers } from "../handlers/deploy.ts";
-import { FIXTURE, h, world, type Fake } from "./deploy-world.ts";
+import { FIXTURE, h, useDatabase, world, type Fake } from "./deploy-world.ts";
 import { FP_DEPTH, exposesKeys, fileLine, noteGateFp, uploadFingerprint } from "../../../lib/key-target.ts";
 import { fetchSource } from "../handlers/source.ts";
 
+useDatabase(DatabaseSync);
 const states = (steps: Array<{ key: string; state: string }>): string =>
   steps.map((s) => `${s.key}:${s.state}`).join(" ");
 
@@ -1601,7 +1602,7 @@ test("a build refuses files other than the ones the deploy was asked for, in pla
     read = "00000000000000000000000000000000";
     const bad = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
     assert.equal(bad.deployment.state, "failed");
-    assert.match(bad.deployment.problem, /files in Files changed after this deploy was asked for/);
+    assert.match(bad.deployment.problem, /The files changed while this waited/);
     assert.equal(bad.deployment.fix, "retry");
     assert.equal(w.seen.builds, 0, "nothing was built from them");
     assert.equal(siteFacts({ db: w.sdb } as never, siteId)!.deployedFp, null);
@@ -1766,10 +1767,10 @@ test("a build checks the files it fetches against the fingerprint the Gate read 
     rows[0]!.version = 2;
     const now = (await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i)))!;
     read = now;
-    noteGateFp(w.ctx.trace.traceId, siteId, judged);
+    noteGateFp(w.ctx.trace, siteId, judged);
     const bad = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
     assert.equal(bad.deployment.state, "failed", "the files are not the ones the Gate judged");
-    assert.match(bad.deployment.problem, /files in Files changed after this deploy was asked for/);
+    assert.match(bad.deployment.problem, /The files changed while this waited/);
     // a call the Gate did not read (a person's): the handler reads for itself, and the build goes on
     const ok = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
     assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
@@ -1859,12 +1860,12 @@ test("an agent's or a push's deploy of uploaded files on a site with a productio
     const pushed = await h["sites.deploy"]!(push, { siteId, wait: true });
     assert.equal(pushed.deployment.state, "failed", "a push's deploy");
     // the Gate's fingerprint, and a fetch that read the same files: it builds
-    noteGateFp(agent.trace.traceId, siteId, fp);
+    noteGateFp(agent.trace, siteId, fp);
     const ok = await h["sites.deploy"]!(agent, { siteId, wait: true });
     assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
     // the fetch says nothing about what it read: refused, not skipped
     read = undefined;
-    noteGateFp(agent.trace.traceId, siteId, fp);
+    noteGateFp(agent.trace, siteId, fp);
     const blind = await h["sites.deploy"]!(agent, { siteId, wait: true });
     assert.equal(blind.deployment.state, "failed");
     assert.match(blind.deployment.problem, /could not be checked/);
@@ -1917,4 +1918,90 @@ test("the fetcher and the Gate stop at the same depth, and a name can never pass
     await uploadFingerprint({ folderId: "f" }, listing(crafted)),
     await uploadFingerprint({ folderId: "f" }, listing(real)),
   );
+});
+
+test("a new webhook secret an agent makes goes into the Vault and the agent is told only where; a person is shown it; turning it on by an agent is the same", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Hooked");
+    const put: unknown[] = [];
+    const base = w.ctx.call;
+    w.ctx.call = async (cap: string, input: unknown) => {
+      if (cap === "vault.folders.list") return { folders: [] };
+      if (cap === "vault.folders.create") return { folder: { id: "vfd_1" } };
+      if (cap === "vault.item.put")
+        return (put.push(input), { item: { id: "vit_1", handle: "#Hooked_webhook_secret" } });
+      return base(cap, input);
+    };
+    const agent = { ...w.ctx, principal: { kind: "agent", id: "agt_x" } } as typeof w.ctx;
+    const on = await h["sites.webhook_set"]!(agent, { siteId, enabled: true });
+    assert.equal(on.secret, undefined, "the agent is not shown it");
+    assert.equal(on.vault, "#Hooked_webhook_secret");
+    assert.equal(on.enabled, true);
+    const field = (put[0] as { fields: { key: string; value: string }[] }).fields[0]!;
+    // the secret the Vault holds is the one the site checks deliveries with
+    const sealed = JSON.parse(
+      String(
+        w.sdb
+          .all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId)
+          .map((r) => (r as { hook_secret: string }).hook_secret)[0],
+      ),
+    );
+    assert.equal(new TextDecoder().decode(w.ctx.seal.unseal(sealed)), field.value);
+    const rotated = await h["sites.webhook_set"]!(agent, { siteId, rotate: true });
+    assert.equal(rotated.secret, undefined);
+    assert.equal(rotated.vault, "#Hooked_webhook_secret");
+    assert.equal(put.length, 2);
+    // a person is shown it, and nothing goes to the Vault
+    const seen = await h["sites.webhook_set"]!(w.ctx, { siteId, rotate: true });
+    assert.match(String(seen.secret), /^[0-9a-f]{64}$/);
+    assert.equal(seen.vault, undefined);
+    assert.equal(put.length, 2);
+    // a Vault that cannot take it changes nothing: the old secret still stands
+    const before = w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId);
+    agent.call = async () => {
+      throw new Error("vault locked");
+    };
+    await assert.rejects(
+      () => h["sites.webhook_set"]!(agent, { siteId, rotate: true }),
+      /could not be put in the Vault/,
+    );
+    assert.deepEqual(w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId), before);
+  } finally {
+    w.done();
+  }
+});
+
+test("a note that is gone (evicted) is a refusal for an agent on a site with a production key, never a read of its own", async () => {
+  const rows = [{ fileId: "fil_a", name: "index.html", version: 1, size: 4 }];
+  const files = (cap: string, input: unknown): unknown =>
+    cap === "files.list" && (input as { folder: string }).folder === "fld_up" ? { files: rows, folders: [] } : null;
+  const fp = await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i));
+  const w = world({ files, fetchFp: () => fp!, values: { K: "v" } });
+  try {
+    const siteId = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site
+      .siteId as string;
+    w.sdb.run(
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
+      siteId,
+      "K",
+      "#Stripe.key",
+      0,
+      null,
+      "production",
+    );
+    const agent = { ...w.ctx, principal: { kind: "agent", id: "agt_x" } } as typeof w.ctx;
+    noteGateFp(agent.trace, siteId, fp!, Date.now() - 11 * 60_000);
+    const gone = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(gone.deployment.state, "failed");
+    assert.match(gone.deployment.problem, /could not be checked/);
+    // two deploys of one trace: each takes its own note
+    const second = { ...agent, trace: { ...agent.trace, spanId: "ffffffffffffffff" } } as typeof w.ctx;
+    noteGateFp(agent.trace, siteId, "other-files");
+    noteGateFp(second.trace, siteId, fp!);
+    const ok = await h["sites.deploy"]!(second, { siteId, wait: true });
+    assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
+  } finally {
+    w.done();
+  }
 });

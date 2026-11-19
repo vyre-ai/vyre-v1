@@ -107,13 +107,13 @@ if ("calendarId" in o274) lf(o274["calendarId"], p + "/calendarId", e, L58);
 
 function d_s_a0fa1183a4(v: unknown, p: string, e: string[]): void {
 {
-const x840 = v;
-const g840 = typeOf(x840);
-const b840: string[] = []; lf(x840, p, b840, L4); if (b840.length) e.push(...b840);
-if (g840 === "array") {
-if (g840 === 'array') { const a840 = x840 as unknown[];
-for (let i840 = 0; i840 < a840.length; i840++) {
-d_s_bb859d4f33(a840[i840], p + '/' + i840, e);
+const x844 = v;
+const g844 = typeOf(x844);
+const b844: string[] = []; lf(x844, p, b844, L4); if (b844.length) e.push(...b844);
+if (g844 === "array") {
+if (g844 === 'array') { const a844 = x844 as unknown[];
+for (let i844 = 0; i844 < a844.length; i844++) {
+d_s_bb859d4f33(a844[i844], p + '/' + i844, e);
 }
 }
 }

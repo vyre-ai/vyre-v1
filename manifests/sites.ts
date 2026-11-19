@@ -57,10 +57,11 @@ const hookOut = {
   enabled: t.bool(),
   url: t.opt(t.str({ description: "The payload URL to give GitHub" })),
   follow: t.arr(t.str(), { description: "Branches that get a preview" }),
-  secret: t.opt(t.str({ description: "Shown once, when it is made. Paste it into GitHub's webhook as the secret" })),
+  secret: t.opt(t.str({ description: "Shown once, to a person. Paste it into GitHub's webhook as the secret" })),
+  vault: t.opt(t.str({ description: "For an agent: the Vault handle that holds the new secret" })),
   lastDeliveryAt: t.opt(t.ts()),
   failed: t.arr(t.obj({ branch: t.str(), action: t.str(), error: t.str(), at: t.ts() }), {
-    description: "Pushes that could not run, newest first. GitHub's redelivery takes them again",
+    description: "Pushes that could not run, newest first",
   }),
 };
 const envScope = t.enm("all", "production", "previews");

@@ -63,13 +63,13 @@ if ("total" in o280) lf(o280["total"], p + "/total", e, L2);
 
 function d_s_73cbbf9330(v: unknown, p: string, e: string[]): void {
 {
-const x602 = v;
-const g602 = typeOf(x602);
-const b602: string[] = []; lf(x602, p, b602, L0); if (b602.length) e.push(...b602);
-if (g602 === "object") {
-if (g602 === 'object') { const o602 = x602 as Record<string, unknown>;
-if (!("record" in o602)) e.push(p + "/record" + ': required');
-if ("record" in o602) d_s_b87b1cfef9(o602["record"], p + "/record", e);
+const x606 = v;
+const g606 = typeOf(x606);
+const b606: string[] = []; lf(x606, p, b606, L0); if (b606.length) e.push(...b606);
+if (g606 === "object") {
+if (g606 === 'object') { const o606 = x606 as Record<string, unknown>;
+if (!("record" in o606)) e.push(p + "/record" + ': required');
+if ("record" in o606) d_s_b87b1cfef9(o606["record"], p + "/record", e);
 }
 }
 }
@@ -77,13 +77,13 @@ if ("record" in o602) d_s_b87b1cfef9(o602["record"], p + "/record", e);
 
 function d_s_96b5c0c5aa(v: unknown, p: string, e: string[]): void {
 {
-const x780 = v;
-const g780 = typeOf(x780);
-const b780: string[] = []; lf(x780, p, b780, L0); if (b780.length) e.push(...b780);
-if (g780 === "object") {
-if (g780 === 'object') { const o780 = x780 as Record<string, unknown>;
-if (!("comment" in o780)) e.push(p + "/comment" + ': required');
-if ("comment" in o780) d_s_cdc7d96e9b(o780["comment"], p + "/comment", e);
+const x784 = v;
+const g784 = typeOf(x784);
+const b784: string[] = []; lf(x784, p, b784, L0); if (b784.length) e.push(...b784);
+if (g784 === "object") {
+if (g784 === 'object') { const o784 = x784 as Record<string, unknown>;
+if (!("comment" in o784)) e.push(p + "/comment" + ': required');
+if ("comment" in o784) d_s_cdc7d96e9b(o784["comment"], p + "/comment", e);
 }
 }
 }
@@ -91,13 +91,13 @@ if ("comment" in o780) d_s_cdc7d96e9b(o780["comment"], p + "/comment", e);
 
 function d_s_a56f3dc8f1(v: unknown, p: string, e: string[]): void {
 {
-const x846 = v;
-const g846 = typeOf(x846);
-const b846: string[] = []; lf(x846, p, b846, L4); if (b846.length) e.push(...b846);
-if (g846 === "array") {
-if (g846 === 'array') { const a846 = x846 as unknown[];
-for (let i846 = 0; i846 < a846.length; i846++) {
-d_s_b87b1cfef9(a846[i846], p + '/' + i846, e);
+const x850 = v;
+const g850 = typeOf(x850);
+const b850: string[] = []; lf(x850, p, b850, L4); if (b850.length) e.push(...b850);
+if (g850 === "array") {
+if (g850 === 'array') { const a850 = x850 as unknown[];
+for (let i850 = 0; i850 < a850.length; i850++) {
+d_s_b87b1cfef9(a850[i850], p + '/' + i850, e);
 }
 }
 }

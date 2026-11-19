@@ -743,8 +743,7 @@ async function runJob(j: Job): Promise<void> {
       return;
     }
     if (j.expectFp && fetched.fp && j.expectFp !== fetched.fp) {
-      const why =
-        "The files in Files changed after this deploy was asked for, so nothing was built from them. Deploy again to build the new files.";
+      const why = "The files changed while this waited, so nothing was built from them. Ask again.";
       log.add(why);
       end("failed", { problem: why, fix: "retry" });
       return;
@@ -1129,7 +1128,7 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
       siteId,
     ).length;
   // uploaded files: the files the Gate judged for this call when it read them, else (a person's call, or a site with no key) what they are now, read as the caller; the build checks what it fetches against it
-  const gateFp = takeGateFp(ctx.trace?.traceId, siteId);
+  const gateFp = takeGateFp(ctx.trace, siteId);
   const expectFp =
     source.folderId || source.fileId
       ? (gateFp ?? (strict ? null : await uploadFingerprint(source, (cap, inp) => ctx.call(cap as never, inp))))

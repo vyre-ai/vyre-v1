@@ -176,8 +176,22 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
   // what gets built for production on a site that stores keys: which pushes build, deploy on push, the settings
   if (cap === "sites.webhook_set") {
     const follow = obj(input)["follow"];
-    if (Array.isArray(follow))
-      return `build previews of pushes to ${follow.filter((x) => typeof x === "string").join(", ") || "no branches"}, with the site's keys`;
+    if (Array.isArray(follow)) {
+      // a branch name is written by whoever wrote the call: control characters are written out and the list is capped, as the Chrome card does
+      const shown = follow
+        .filter((x): x is string => typeof x === "string")
+        .slice(0, 5)
+        .map((x) =>
+          x
+            .replace(
+              /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g,
+              (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+            )
+            .slice(0, 40),
+        );
+      const more = follow.length - shown.length;
+      return `build previews of pushes to ${shown.join(", ") || "no branches"}${more > 0 ? ` and ${more} more` : ""}, with the site's keys`;
+    }
     if (obj(input)["enabled"] === true) return "switch on builds from GitHub pushes for a site with keys";
   }
   if (cap === "sites.update" && obj(input)["autoDeploy"] === true)

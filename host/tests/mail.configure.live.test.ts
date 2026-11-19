@@ -1,15 +1,24 @@
 // The email setup capabilities through the real invoke pipeline: the real definitions from the registry, the real kernel authorize over a real access snapshot, and the real Gate hook.
 // mail.configure routes to these, so they are its whole door: a member without comms.domains is refused, an admin is let in, and when an agent changes the Space's mail server or moves an address the call is held for a person's ok.
 import { wantsFromInput } from "../../lib/hold-words.ts";
-import { sourceKeyHost, takeGateFp, uploadFingerprint } from "../../lib/key-target.ts";
+import {
+  heldGateFp,
+  noteGateFp,
+  peekGateFp,
+  sourceKeyHost,
+  takeGateFp,
+  uploadFingerprint,
+  usedGateFp,
+} from "../../lib/key-target.ts";
 import { siteFacts } from "../../modules/sites/impl.ts";
-import { world as sitesWorld, h as siteH } from "../../modules/sites/tests/deploy-world.ts";
+import { world as sitesWorld, h as siteH, useDatabase } from "../../modules/sites/tests/deploy-world.ts";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
 import { createIdempotency } from "../../kernel/src/idempotency/index.ts";
 import { registry } from "../../generated/registry.ts";
-import { createGateHook, keySendOf, moduleWhens } from "../src/daemon/gate-hook.ts";
+import { createGateHook, keySendOf, moduleWhens, payloadHash } from "../src/daemon/gate-hook.ts";
 import { createInvoke, createRateLimiter, indexCapabilities } from "../src/invoke.ts";
 import type { CtxSeed, Handler, InvokeDeps } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
@@ -175,6 +184,8 @@ function world(sites: readonly string[] = []): AccessSnapshot {
 }
 
 interface RigOptions {
+  /** opens an approval token (a test hands the claims it wants the token to carry) */
+  unseal?: (s: unknown) => Uint8Array;
   /** the real sites a test made: the access snapshot knows them */
   siteIds?: readonly string[];
   /** the Gate's own reads and the reads it makes as a person (the Vault's approved hosts, an agent's right to use an item) */
@@ -211,7 +222,7 @@ function rig(o: RigOptions = {}) {
   const gate = createGateHook({
     call: async (cap, input) =>
       cap === "gate.effective_rule" ? { hold: true } : ((await o.call?.(cap, input)) ?? null),
-    unseal: () => new Uint8Array(),
+    unseal: o.unseal ?? (() => new Uint8Array()),
     now: () => 0,
     hold: () => null,
     evaluators: moduleWhens(
@@ -224,7 +235,8 @@ function rig(o: RigOptions = {}) {
   const park = gate.park;
   gate.park = async (a) => {
     parked.push({ cap: a.cap.name, act: a.act });
-    void park;
+    // the real park keeps what the hold was made over (it then finds no approvals service and refuses: the fake answer stands)
+    await park(a).catch(() => undefined);
     return { taskId: "tsk_1", runId: "run_1" };
   };
   const deps = {
@@ -607,6 +619,7 @@ function keyWorld(access: "allow" | "deny" = "allow") {
 /** The act a capability's own manifest names for its Gate. */
 const actOfCap = (name: string): string =>
   (registry.capabilities.find((c) => c.name === name) as unknown as { gate?: { act?: string } }).gate?.act ?? "";
+useDatabase(DatabaseSync);
 const asAgent = (id = "agt_bot") => seed(id, "agent", { actingFor: "usr_admin" });
 
 test("through the real Gate: an agent sending a Vault key to a new host is held, a person's approval makes that host flow next time, a different host is held again, and a person is one step", async () => {
@@ -1416,15 +1429,15 @@ test("the Gate keeps the fingerprint it read for an agent's call, so the build c
   assert.equal((await r.invoke("sites.deploy", { siteId }, { ...asAgent(), trace } as never)).status, "ok");
   // the files change after the Gate's read: the handler is handed the fingerprint the Gate read
   s.tree.files["fld_up"]![0]!.version = 5;
-  assert.equal(takeGateFp(trace.traceId, siteId), asked);
-  assert.equal(takeGateFp(trace.traceId, siteId), null, "taken once");
+  assert.equal(takeGateFp(trace, siteId), asked);
+  assert.equal(takeGateFp(trace, siteId), null, "taken once");
   // a person's own call is not read by the Gate: nothing is kept, the handler reads for itself
   const t2 = { traceId: "c3".repeat(16), spanId: "d4".repeat(8) };
   assert.equal(
     (await rig(s.opts).invoke("sites.deploy", { siteId }, { ...seed("usr_admin"), trace } as never)).status,
     "ok",
   );
-  assert.equal(takeGateFp(t2.traceId, siteId), null);
+  assert.equal(takeGateFp(t2, siteId), null);
 });
 
 test("a production deploy by an agent or a push on a site that holds a Vault key waits for a person unless the host says the branch is protected; a person's own deploy is one step", async () => {
@@ -1476,4 +1489,68 @@ test("the protection state is read through the site's real stored row: moving th
   assert.equal(await s.agent("sites.deploy", { siteId }), "ok", "protected as a person's deploy found");
   await s.call("sites.update", { siteId, source: { repo: "https://github.com/acme/other.git", branch: "main" } });
   assert.equal(await s.agent("sites.deploy", { siteId }), "held", "a new source is not known to be protected");
+});
+
+test("a hold keeps the files it was made over: the resumed call is handed those, not what the files are by then, and what the yes records is those", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("Up", { folderId: "fld_up" }, false);
+  await s.deployUpload(siteId);
+  s.store(siteId, STORED.name, STORED.handle);
+  const t1 = { traceId: "e5".repeat(16), spanId: "f6".repeat(8) };
+  const t2 = { traceId: "a7".repeat(16), spanId: "b8".repeat(8) };
+  const waited = await s.fp();
+  // an agent replaces a file: the deploy is held over the files as they are now
+  s.tree.files["fld_up"]![0]!.version = 2;
+  const held = await s.fp();
+  assert.notEqual(held, waited);
+  const first = rig(s.opts);
+  const call = { siteId };
+  assert.equal((await first.invoke("sites.deploy", call, { ...asAgent(), trace: t1 } as never)).status, "held");
+  assert.equal(peekGateFp(t1, siteId), held, "the Gate read those files at the hold");
+  // the card waits and the files change again
+  s.tree.files["fld_up"]![0]!.version = 3;
+  // the person says yes: the resumed call, in another trace, is handed the files of the hold
+  // the hold is bound to who will run it: the agent, or the person it asks
+  const who = [asAgent(), seed("usr_admin")];
+  const hash = who.map((x) => payloadHash(first.defOf("sites.deploy"), call, x)).find((x) => heldGateFp(x) !== null);
+  assert.ok(hash, "the hold kept the files it was made over");
+  const runner = who.find((x) => payloadHash(first.defOf("sites.deploy"), call, x) === hash)!;
+  const claims = { v: 1, exp: Date.now() + 60_000, hash };
+  const resumed = rig({ ...s.opts, unseal: () => new TextEncoder().encode(JSON.stringify(claims)) });
+  const token = `apv_${Buffer.from(JSON.stringify({ keyId: "k", nonce: "n", bytes: "b" })).toString("base64url")}`;
+  assert.equal(
+    resumed.gate.verify?.(token, {
+      cap: resumed.defOf("sites.deploy"),
+      input: call,
+      seed: { ...runner, trace: t2 } as never,
+    }),
+    true,
+  );
+  assert.equal(takeGateFp(t2, siteId), held, "not the files as they are by then");
+  assert.notEqual(held, await s.fp());
+  // what the yes records is what the build was held to
+  await resumed.gate.seen?.(
+    resumed.defOf("sites.deploy"),
+    call,
+    {},
+    { ...asAgent(), trace: t2, approval: "apv_u9", approvedBy: "usr_member" } as never,
+    0,
+  );
+  assert.equal(usedGateFp(t2, siteId), held);
+  const recorded = s.w.hosts.filter((h) => h.host !== "").map((h) => h.host);
+  assert.deepEqual(recorded, [await sourceKeyHost(`upload:${JSON.stringify([siteId, held, ""])}`)]);
+  assert.equal(heldGateFp("not a hold"), null);
+});
+
+test("the Gate's note is the call's own: two deploys in one trace do not overwrite each other, and a note that is gone is none", () => {
+  const a = { traceId: "11".repeat(16), spanId: "aa".repeat(8) };
+  const b = { traceId: "11".repeat(16), spanId: "bb".repeat(8) };
+  noteGateFp(a, "sit_1", "fp-a");
+  noteGateFp(b, "sit_1", "fp-b");
+  assert.equal(takeGateFp(a, "sit_1"), "fp-a");
+  assert.equal(takeGateFp(b, "sit_1"), "fp-b");
+  assert.equal(takeGateFp(a, "sit_1"), null, "taken once");
+  noteGateFp(a, "sit_2", "old", Date.now() - 11 * 60_000);
+  assert.equal(takeGateFp(a, "sit_2"), null, "evicted by age");
+  assert.equal(takeGateFp(undefined, "sit_1"), null);
 });

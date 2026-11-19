@@ -5,15 +5,15 @@ import type { Check } from './core.ts';
 
 function d_s_b01f8a6222(v: unknown, p: string, e: string[]): void {
 {
-const x887 = v;
-const g887 = typeOf(x887);
-const b887: string[] = []; lf(x887, p, b887, L0); if (b887.length) e.push(...b887);
-if (g887 === "object") {
-if (g887 === 'object') { const o887 = x887 as Record<string, unknown>;
-if (!("conflictId" in o887)) e.push(p + "/conflictId" + ': required');
-if (!("resolutionId" in o887)) e.push(p + "/resolutionId" + ': required');
-if ("conflictId" in o887) lf(o887["conflictId"], p + "/conflictId", e, L329);
-if ("resolutionId" in o887) lf(o887["resolutionId"], p + "/resolutionId", e, L378);
+const x891 = v;
+const g891 = typeOf(x891);
+const b891: string[] = []; lf(x891, p, b891, L0); if (b891.length) e.push(...b891);
+if (g891 === "object") {
+if (g891 === 'object') { const o891 = x891 as Record<string, unknown>;
+if (!("conflictId" in o891)) e.push(p + "/conflictId" + ': required');
+if (!("resolutionId" in o891)) e.push(p + "/resolutionId" + ': required');
+if ("conflictId" in o891) lf(o891["conflictId"], p + "/conflictId", e, L329);
+if ("resolutionId" in o891) lf(o891["resolutionId"], p + "/resolutionId", e, L378);
 }
 }
 }

@@ -187,13 +187,13 @@ if ("updatedAt" in o240) lf(o240["updatedAt"], p + "/updatedAt", e, L11);
 
 function d_s_a6c1ebd30d(v: unknown, p: string, e: string[]): void {
 {
-const x856 = v;
-const g856 = typeOf(x856);
-const b856: string[] = []; lf(x856, p, b856, L4); if (b856.length) e.push(...b856);
-if (g856 === "array") {
-if (g856 === 'array') { const a856 = x856 as unknown[];
-for (let i856 = 0; i856 < a856.length; i856++) {
-d_s_2d1da53e35(a856[i856], p + '/' + i856, e);
+const x860 = v;
+const g860 = typeOf(x860);
+const b860: string[] = []; lf(x860, p, b860, L4); if (b860.length) e.push(...b860);
+if (g860 === "array") {
+if (g860 === 'array') { const a860 = x860 as unknown[];
+for (let i860 = 0; i860 < a860.length; i860++) {
+d_s_2d1da53e35(a860[i860], p + '/' + i860, e);
 }
 }
 }

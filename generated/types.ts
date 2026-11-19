@@ -38737,6 +38737,7 @@ export type SitesWebhookGetOut = {
   url?: string;
   follow: Array<string>;
   secret?: string;
+  vault?: string;
   lastDeliveryAt?: number;
   failed: Array<{
       branch: string;
@@ -38756,6 +38757,7 @@ export type SitesWebhookSetOut = {
   url?: string;
   follow: Array<string>;
   secret?: string;
+  vault?: string;
   lastDeliveryAt?: number;
   failed: Array<{
       branch: string;

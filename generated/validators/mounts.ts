@@ -35,60 +35,60 @@ if ("mount" in o241) d_s_7a9692316c(o241["mount"], p + "/mount", e);
 
 function d_s_7a9692316c(v: unknown, p: string, e: string[]): void {
 {
-const x627 = v;
-const g627 = typeOf(x627);
-const b627: string[] = []; lf(x627, p, b627, L0); if (b627.length) e.push(...b627);
-if (g627 === "object") {
-if (g627 === 'object') { const o627 = x627 as Record<string, unknown>;
-if (!("mountId" in o627)) e.push(p + "/mountId" + ': required');
-if (!("folderId" in o627)) e.push(p + "/folderId" + ': required');
-if (!("kind" in o627)) e.push(p + "/kind" + ': required');
-if (!("provider" in o627)) e.push(p + "/provider" + ': required');
-if (!("name" in o627)) e.push(p + "/name" + ': required');
-if (!("state" in o627)) e.push(p + "/state" + ': required');
-if (!("mode" in o627)) e.push(p + "/mode" + ': required');
-if (!("reviewChanges" in o627)) e.push(p + "/reviewChanges" + ': required');
-if (!("pendingChanges" in o627)) e.push(p + "/pendingChanges" + ': required');
-if (!("conflicts" in o627)) e.push(p + "/conflicts" + ': required');
-if (!("readOnly" in o627)) e.push(p + "/readOnly" + ': required');
-if ("mountId" in o627) lf(o627["mountId"], p + "/mountId", e, L101);
-if ("folderId" in o627) lf(o627["folderId"], p + "/folderId", e, L51);
-if ("kind" in o627) lf(o627["kind"], p + "/kind", e, L292);
-if ("provider" in o627) lf(o627["provider"], p + "/provider", e, L1);
-if ("ref" in o627) lf(o627["ref"], p + "/ref", e, L1);
-if ("name" in o627) lf(o627["name"], p + "/name", e, L1);
-if ("state" in o627) lf(o627["state"], p + "/state", e, L293);
-if ("mode" in o627) lf(o627["mode"], p + "/mode", e, L294);
-if ("reviewChanges" in o627) lf(o627["reviewChanges"], p + "/reviewChanges", e, L3);
-if ("lagSeconds" in o627) lf(o627["lagSeconds"], p + "/lagSeconds", e, L11);
-if ("lastSyncAt" in o627) lf(o627["lastSyncAt"], p + "/lastSyncAt", e, L11);
-if ("pendingChanges" in o627) lf(o627["pendingChanges"], p + "/pendingChanges", e, L11);
-if ("conflicts" in o627) lf(o627["conflicts"], p + "/conflicts", e, L11);
-if ("readOnly" in o627) lf(o627["readOnly"], p + "/readOnly", e, L3);
-if ("twoWayOffer" in o627) lf(o627["twoWayOffer"], p + "/twoWayOffer", e, L3);
-if ("scanned" in o627) lf(o627["scanned"], p + "/scanned", e, L11);
-if ("fromDevice" in o627) lf(o627["fromDevice"], p + "/fromDevice", e, L1);
-if ("error" in o627) lf(o627["error"], p + "/error", e, L1);
-if ("skippedCount" in o627) lf(o627["skippedCount"], p + "/skippedCount", e, L10);
-if ("skipped" in o627) {
+const x631 = v;
+const g631 = typeOf(x631);
+const b631: string[] = []; lf(x631, p, b631, L0); if (b631.length) e.push(...b631);
+if (g631 === "object") {
+if (g631 === 'object') { const o631 = x631 as Record<string, unknown>;
+if (!("mountId" in o631)) e.push(p + "/mountId" + ': required');
+if (!("folderId" in o631)) e.push(p + "/folderId" + ': required');
+if (!("kind" in o631)) e.push(p + "/kind" + ': required');
+if (!("provider" in o631)) e.push(p + "/provider" + ': required');
+if (!("name" in o631)) e.push(p + "/name" + ': required');
+if (!("state" in o631)) e.push(p + "/state" + ': required');
+if (!("mode" in o631)) e.push(p + "/mode" + ': required');
+if (!("reviewChanges" in o631)) e.push(p + "/reviewChanges" + ': required');
+if (!("pendingChanges" in o631)) e.push(p + "/pendingChanges" + ': required');
+if (!("conflicts" in o631)) e.push(p + "/conflicts" + ': required');
+if (!("readOnly" in o631)) e.push(p + "/readOnly" + ': required');
+if ("mountId" in o631) lf(o631["mountId"], p + "/mountId", e, L101);
+if ("folderId" in o631) lf(o631["folderId"], p + "/folderId", e, L51);
+if ("kind" in o631) lf(o631["kind"], p + "/kind", e, L292);
+if ("provider" in o631) lf(o631["provider"], p + "/provider", e, L1);
+if ("ref" in o631) lf(o631["ref"], p + "/ref", e, L1);
+if ("name" in o631) lf(o631["name"], p + "/name", e, L1);
+if ("state" in o631) lf(o631["state"], p + "/state", e, L293);
+if ("mode" in o631) lf(o631["mode"], p + "/mode", e, L294);
+if ("reviewChanges" in o631) lf(o631["reviewChanges"], p + "/reviewChanges", e, L3);
+if ("lagSeconds" in o631) lf(o631["lagSeconds"], p + "/lagSeconds", e, L11);
+if ("lastSyncAt" in o631) lf(o631["lastSyncAt"], p + "/lastSyncAt", e, L11);
+if ("pendingChanges" in o631) lf(o631["pendingChanges"], p + "/pendingChanges", e, L11);
+if ("conflicts" in o631) lf(o631["conflicts"], p + "/conflicts", e, L11);
+if ("readOnly" in o631) lf(o631["readOnly"], p + "/readOnly", e, L3);
+if ("twoWayOffer" in o631) lf(o631["twoWayOffer"], p + "/twoWayOffer", e, L3);
+if ("scanned" in o631) lf(o631["scanned"], p + "/scanned", e, L11);
+if ("fromDevice" in o631) lf(o631["fromDevice"], p + "/fromDevice", e, L1);
+if ("error" in o631) lf(o631["error"], p + "/error", e, L1);
+if ("skippedCount" in o631) lf(o631["skippedCount"], p + "/skippedCount", e, L10);
+if ("skipped" in o631) {
 {
-const x628 = o627["skipped"];
-const g628 = typeOf(x628);
-const b628: string[] = []; lf(x628, p + "/skipped", b628, L4); if (b628.length) e.push(...b628);
-if (g628 === "array") {
-if (g628 === 'array') { const a628 = x628 as unknown[];
-if (a628.length > 200) e.push(p + "/skipped" + ': too many items');
-for (let i628 = 0; i628 < a628.length; i628++) {
+const x632 = o631["skipped"];
+const g632 = typeOf(x632);
+const b632: string[] = []; lf(x632, p + "/skipped", b632, L4); if (b632.length) e.push(...b632);
+if (g632 === "array") {
+if (g632 === 'array') { const a632 = x632 as unknown[];
+if (a632.length > 200) e.push(p + "/skipped" + ': too many items');
+for (let i632 = 0; i632 < a632.length; i632++) {
 {
-const x629 = a628[i628];
-const g629 = typeOf(x629);
-const b629: string[] = []; lf(x629, p + "/skipped" + '/' + i628, b629, L0); if (b629.length) e.push(...b629);
-if (g629 === "object") {
-if (g629 === 'object') { const o629 = x629 as Record<string, unknown>;
-if (!("name" in o629)) e.push(p + "/skipped" + '/' + i628 + "/name" + ': required');
-if (!("reason" in o629)) e.push(p + "/skipped" + '/' + i628 + "/reason" + ': required');
-if ("name" in o629) lf(o629["name"], p + "/skipped" + '/' + i628 + "/name", e, L1);
-if ("reason" in o629) lf(o629["reason"], p + "/skipped" + '/' + i628 + "/reason", e, L1);
+const x633 = a632[i632];
+const g633 = typeOf(x633);
+const b633: string[] = []; lf(x633, p + "/skipped" + '/' + i632, b633, L0); if (b633.length) e.push(...b633);
+if (g633 === "object") {
+if (g633 === 'object') { const o633 = x633 as Record<string, unknown>;
+if (!("name" in o633)) e.push(p + "/skipped" + '/' + i632 + "/name" + ': required');
+if (!("reason" in o633)) e.push(p + "/skipped" + '/' + i632 + "/reason" + ': required');
+if ("name" in o633) lf(o633["name"], p + "/skipped" + '/' + i632 + "/name", e, L1);
+if ("reason" in o633) lf(o633["reason"], p + "/skipped" + '/' + i632 + "/reason", e, L1);
 }
 }
 }
@@ -97,8 +97,8 @@ if ("reason" in o629) lf(o629["reason"], p + "/skipped" + '/' + i628 + "/reason"
 }
 }
 }
-if ("live" in o627) lf(o627["live"], p + "/live", e, L3);
-if ("liveVia" in o627) lf(o627["liveVia"], p + "/liveVia", e, L295);
+if ("live" in o631) lf(o631["live"], p + "/live", e, L3);
+if ("liveVia" in o631) lf(o631["liveVia"], p + "/liveVia", e, L295);
 }
 }
 }

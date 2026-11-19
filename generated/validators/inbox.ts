@@ -38,13 +38,13 @@ if ("why" in o80) lf(o80["why"], p + '/' + i79 + "/why", e, L1);
 
 function d_s_7da9a4dfc3(v: unknown, p: string, e: string[]): void {
 {
-const x658 = v;
-const g658 = typeOf(x658);
-const b658: string[] = []; lf(x658, p, b658, L4); if (b658.length) e.push(...b658);
-if (g658 === "array") {
-if (g658 === 'array') { const a658 = x658 as unknown[];
-for (let i658 = 0; i658 < a658.length; i658++) {
-d_s_acdf9f65cd(a658[i658], p + '/' + i658, e);
+const x662 = v;
+const g662 = typeOf(x662);
+const b662: string[] = []; lf(x662, p, b662, L4); if (b662.length) e.push(...b662);
+if (g662 === "array") {
+if (g662 === 'array') { const a662 = x662 as unknown[];
+for (let i662 = 0; i662 < a662.length; i662++) {
+d_s_acdf9f65cd(a662[i662], p + '/' + i662, e);
 }
 }
 }
@@ -53,54 +53,54 @@ d_s_acdf9f65cd(a658[i658], p + '/' + i658, e);
 
 function d_s_acdf9f65cd(v: unknown, p: string, e: string[]): void {
 {
-const x878 = v;
-const g878 = typeOf(x878);
-const b878: string[] = []; lf(x878, p, b878, L0); if (b878.length) e.push(...b878);
-if (g878 === "object") {
-if (g878 === 'object') { const o878 = x878 as Record<string, unknown>;
-if (!("id" in o878)) e.push(p + "/id" + ': required');
-if (!("address" in o878)) e.push(p + "/address" + ': required');
-if (!("displayName" in o878)) e.push(p + "/displayName" + ': required');
-if (!("lastMessageAt" in o878)) e.push(p + "/lastMessageAt" + ': required');
-if (!("lastChannel" in o878)) e.push(p + "/lastChannel" + ': required');
-if (!("lastPreview" in o878)) e.push(p + "/lastPreview" + ': required');
-if (!("unreadCount" in o878)) e.push(p + "/unreadCount" + ': required');
-if (!("needsMatch" in o878)) e.push(p + "/needsMatch" + ': required');
-if (!("mailboxIds" in o878)) e.push(p + "/mailboxIds" + ': required');
-if (!("followed" in o878)) e.push(p + "/followed" + ': required');
-if (!("alertOnReplies" in o878)) e.push(p + "/alertOnReplies" + ': required');
-if ("id" in o878) lf(o878["id"], p + "/id", e, L371);
-if ("contactId" in o878) lf(o878["contactId"], p + "/contactId", e, L34);
-if ("address" in o878) lf(o878["address"], p + "/address", e, L1);
-if ("displayName" in o878) lf(o878["displayName"], p + "/displayName", e, L1);
-if ("lastMessageAt" in o878) lf(o878["lastMessageAt"], p + "/lastMessageAt", e, L11);
-if ("lastChannel" in o878) lf(o878["lastChannel"], p + "/lastChannel", e, L372);
-if ("lastPreview" in o878) lf(o878["lastPreview"], p + "/lastPreview", e, L1);
-if ("unreadCount" in o878) lf(o878["unreadCount"], p + "/unreadCount", e, L11);
-if ("needsMatch" in o878) lf(o878["needsMatch"], p + "/needsMatch", e, L3);
-if ("ownerId" in o878) lf(o878["ownerId"], p + "/ownerId", e, L22);
-if ("mailboxIds" in o878) {
+const x882 = v;
+const g882 = typeOf(x882);
+const b882: string[] = []; lf(x882, p, b882, L0); if (b882.length) e.push(...b882);
+if (g882 === "object") {
+if (g882 === 'object') { const o882 = x882 as Record<string, unknown>;
+if (!("id" in o882)) e.push(p + "/id" + ': required');
+if (!("address" in o882)) e.push(p + "/address" + ': required');
+if (!("displayName" in o882)) e.push(p + "/displayName" + ': required');
+if (!("lastMessageAt" in o882)) e.push(p + "/lastMessageAt" + ': required');
+if (!("lastChannel" in o882)) e.push(p + "/lastChannel" + ': required');
+if (!("lastPreview" in o882)) e.push(p + "/lastPreview" + ': required');
+if (!("unreadCount" in o882)) e.push(p + "/unreadCount" + ': required');
+if (!("needsMatch" in o882)) e.push(p + "/needsMatch" + ': required');
+if (!("mailboxIds" in o882)) e.push(p + "/mailboxIds" + ': required');
+if (!("followed" in o882)) e.push(p + "/followed" + ': required');
+if (!("alertOnReplies" in o882)) e.push(p + "/alertOnReplies" + ': required');
+if ("id" in o882) lf(o882["id"], p + "/id", e, L371);
+if ("contactId" in o882) lf(o882["contactId"], p + "/contactId", e, L34);
+if ("address" in o882) lf(o882["address"], p + "/address", e, L1);
+if ("displayName" in o882) lf(o882["displayName"], p + "/displayName", e, L1);
+if ("lastMessageAt" in o882) lf(o882["lastMessageAt"], p + "/lastMessageAt", e, L11);
+if ("lastChannel" in o882) lf(o882["lastChannel"], p + "/lastChannel", e, L372);
+if ("lastPreview" in o882) lf(o882["lastPreview"], p + "/lastPreview", e, L1);
+if ("unreadCount" in o882) lf(o882["unreadCount"], p + "/unreadCount", e, L11);
+if ("needsMatch" in o882) lf(o882["needsMatch"], p + "/needsMatch", e, L3);
+if ("ownerId" in o882) lf(o882["ownerId"], p + "/ownerId", e, L22);
+if ("mailboxIds" in o882) {
 {
-const x879 = o878["mailboxIds"];
-const g879 = typeOf(x879);
-const b879: string[] = []; lf(x879, p + "/mailboxIds", b879, L4); if (b879.length) e.push(...b879);
-if (g879 === "array") {
-if (g879 === 'array') { const a879 = x879 as unknown[];
-for (let i879 = 0; i879 < a879.length; i879++) {
-lf(a879[i879], p + "/mailboxIds" + '/' + i879, e, L30);
+const x883 = o882["mailboxIds"];
+const g883 = typeOf(x883);
+const b883: string[] = []; lf(x883, p + "/mailboxIds", b883, L4); if (b883.length) e.push(...b883);
+if (g883 === "array") {
+if (g883 === 'array') { const a883 = x883 as unknown[];
+for (let i883 = 0; i883 < a883.length; i883++) {
+lf(a883[i883], p + "/mailboxIds" + '/' + i883, e, L30);
 }
 }
 }
 }
 }
-if ("followed" in o878) lf(o878["followed"], p + "/followed", e, L3);
-if ("alertOnReplies" in o878) lf(o878["alertOnReplies"], p + "/alertOnReplies", e, L3);
-if ("starred" in o878) lf(o878["starred"], p + "/starred", e, L3);
-if ("organisation" in o878) lf(o878["organisation"], p + "/organisation", e, L1);
-if ("dnd" in o878) lf(o878["dnd"], p + "/dnd", e, L3);
-if ("bounced" in o878) lf(o878["bounced"], p + "/bounced", e, L3);
-if ("unmatched" in o878) lf(o878["unmatched"], p + "/unmatched", e, L3);
-if ("draftReady" in o878) lf(o878["draftReady"], p + "/draftReady", e, L3);
+if ("followed" in o882) lf(o882["followed"], p + "/followed", e, L3);
+if ("alertOnReplies" in o882) lf(o882["alertOnReplies"], p + "/alertOnReplies", e, L3);
+if ("starred" in o882) lf(o882["starred"], p + "/starred", e, L3);
+if ("organisation" in o882) lf(o882["organisation"], p + "/organisation", e, L1);
+if ("dnd" in o882) lf(o882["dnd"], p + "/dnd", e, L3);
+if ("bounced" in o882) lf(o882["bounced"], p + "/bounced", e, L3);
+if ("unmatched" in o882) lf(o882["unmatched"], p + "/unmatched", e, L3);
+if ("draftReady" in o882) lf(o882["draftReady"], p + "/draftReady", e, L3);
 }
 }
 }

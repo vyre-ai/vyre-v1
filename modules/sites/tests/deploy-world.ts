@@ -2,13 +2,21 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { configureRoutes } from "../handlers/route.ts";
 import { _test } from "../handlers/release.ts";
 import { handlers } from "../impl.ts";
 import { harness as base } from "../fixtures/world.ts";
 
+/** The database the world opens: the test file that uses it gives node:sqlite's (a file that is not a test may not import it). */
+type Sqlite = {
+  exec(sql: string): void;
+  prepare(sql: string): { all(...a: never[]): unknown[]; run(...a: never[]): { changes: number | bigint } };
+};
+let Db: (new (path: string) => Sqlite) | null = null;
+export function useDatabase(ctor: new (path: string) => Sqlite): void {
+  Db = ctor;
+}
 export const FIXTURE = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -36,7 +44,8 @@ export interface Fake {
 
 export function world(o: Fake = {}) {
   const w = base();
-  const db = new DatabaseSync(":memory:");
+  if (!Db) throw new Error("call useDatabase(DatabaseSync) before world()");
+  const db = new Db(":memory:");
   for (const f of [
     "0001_sites_core.sql",
     "0002_promote_tables.sql",

@@ -196,22 +196,53 @@ export async function uploadFingerprint(
 }
 
 /**
- * The fingerprint the Gate read for a call, kept for the handler that runs the same call (in this process, under the same trace), so the build checks the files it fetches against the files the Gate judged, not a later look.
- * A short-lived note: taken once, gone after ten minutes. A call the Gate did not read (a person's) has none, and the handler reads for itself.
+ * The fingerprint the Gate read for a call, kept for the handler that runs the same call (in this process), so the build checks the files it fetches against the files the Gate judged, not a later look. Keyed by the trace, the call's own span and
+ * the site, so nested deploys in one trace never overwrite each other. A short-lived note: taken once (and remembered as used, for recording what a yes approved), gone after ten minutes. A call the Gate did not read (a person's) has none.
  */
-const gateFps = new Map<string, { fp: string; at: number }>();
+type CallId = { traceId: string; spanId?: string } | undefined;
+const gateFps = new Map<string, { fp: string; at: number; used: boolean }>();
 const GATE_FP_TTL_MS = 10 * 60 * 1000;
-export function noteGateFp(trace: string | undefined, siteId: string, fp: string, now: number = Date.now()): void {
-  if (!trace) return;
-  for (const [k, v] of gateFps) if (now - v.at > GATE_FP_TTL_MS || gateFps.size > 1000) gateFps.delete(k);
-  gateFps.set(`${trace}:${siteId}`, { fp, at: now });
+const callKey = (call: CallId, siteId: string): string | null =>
+  call?.traceId ? `${call.traceId}:${call.spanId ?? ""}:${siteId}` : null;
+export function noteGateFp(call: CallId, siteId: string, fp: string, now: number = Date.now()): void {
+  const k = callKey(call, siteId);
+  if (!k) return;
+  for (const [key, v] of gateFps) if (now - v.at > GATE_FP_TTL_MS || gateFps.size > 1000) gateFps.delete(key);
+  gateFps.set(k, { fp, at: now, used: false });
 }
-export function takeGateFp(trace: string | undefined, siteId: string, now: number = Date.now()): string | null {
-  if (!trace) return null;
-  const k = `${trace}:${siteId}`;
-  const v = gateFps.get(k);
-  gateFps.delete(k);
+/** The fingerprint noted for this call, without taking it. */
+export function peekGateFp(call: CallId, siteId: string, now: number = Date.now()): string | null {
+  const k = callKey(call, siteId);
+  const v = k ? gateFps.get(k) : undefined;
   return v && now - v.at <= GATE_FP_TTL_MS ? v.fp : null;
+}
+/** Take the fingerprint noted for this call (once). */
+export function takeGateFp(call: CallId, siteId: string, now: number = Date.now()): string | null {
+  const k = callKey(call, siteId);
+  const v = k ? gateFps.get(k) : undefined;
+  if (!v || v.used || now - v.at > GATE_FP_TTL_MS) return null;
+  v.used = true;
+  return v.fp;
+}
+/** What the build of this call was held to, after it took it: what a yes approved. */
+export function usedGateFp(call: CallId, siteId: string, now: number = Date.now()): string | null {
+  const k = callKey(call, siteId);
+  const v = k ? gateFps.get(k) : undefined;
+  return v?.used && now - v.at <= GATE_FP_TTL_MS ? v.fp : null;
+}
+
+/**
+ * The fingerprint read when a hold was made, kept by the held call's own hash: the person's yes approves exactly those files. When the held call resumes, the Gate hands that fingerprint to the build, which refuses other files. Gone after a day.
+ */
+const heldFps = new Map<string, { fp: string; at: number }>();
+const HELD_FP_TTL_MS = 24 * 60 * 60 * 1000;
+export function holdGateFp(hash: string, fp: string, now: number = Date.now()): void {
+  for (const [k, v] of heldFps) if (now - v.at > HELD_FP_TTL_MS || heldFps.size > 1000) heldFps.delete(k);
+  heldFps.set(hash, { fp, at: now });
+}
+export function heldGateFp(hash: string, now: number = Date.now()): string | null {
+  const v = heldFps.get(hash);
+  return v && now - v.at <= HELD_FP_TTL_MS ? v.fp : null;
 }
 
 /** What the Gate knows about a site the call names: where its code comes from now, its stored Vault env rows, where a preview of a branch was built from, and what the files were when it was last deployed. */

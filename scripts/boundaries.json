@@ -330,13 +330,6 @@
       "until": "2027-01-31"
     },
     {
-      "rule": "B2",
-      "file": "modules/sites/tests/deploy-world.ts",
-      "spec": "node:sqlite",
-      "reason": "test-only: the shared sites test world opens an in-memory database for the real sites handlers; no product code imports it",
-      "until": "2027-01-31"
-    },
-    {
       "rule": "layer",
       "file": "host/tests/mail.configure.live.test.ts",
       "spec": "../../modules/sites/impl.ts",
