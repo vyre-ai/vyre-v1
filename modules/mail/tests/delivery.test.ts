@@ -272,7 +272,7 @@ test("a retry that died after its claim is taken up again once, keyed so the pro
   seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
   await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft" }));
   // the process died after the claim: the row says sending, with the claim time
-  h.ctx.db.run(`UPDATE mail_delivery_retry SET state = ?, attempts = ?, "nextAt" = ?`, "sending", 1, h.ctx.now());
+  h.ctx.db.run(`UPDATE mail_delivery_retry SET state = ?, attempts = ?, "nextAt" = ? WHERE "messageId" = ?`, "sending", 1, h.ctx.now(), "eml_m1");
   assert.equal((await trail(h.ctx, { messageId: "eml_m1" })).state, "retrying"); // never a silent stuck row
   assert.deepEqual(await retryNow(h.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), { outcome: "skipped" }); // too soon
   h.advance(CLAIM_STALE_MS + 1);

@@ -138,7 +138,7 @@ test("hostile text cannot slow the reader: a megabyte of unfinished tokens is re
 });
 
 test("{{constructor}} and other prototype names are blank like any unknown field, in text and in html", async () => {
-  for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+  for (const name of ["constructor", "toString", "hasOwnProperty", "valueOf"]) {
     const f = fillTokens(`a {{${name}}} b`, {});
     assert.deepEqual(f.blanks, [name.toLowerCase()]);
     assert.ok(!f.text.includes("native code"));

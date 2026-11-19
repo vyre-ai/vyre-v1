@@ -48,8 +48,11 @@ function scan(source: string): Piece[] {
       let end = -1;
       if (key.length <= MAX_KEY && source.startsWith("}}", i)) end = i + 2;
       else if (key.length <= MAX_KEY && source.charCodeAt(i) === 124) {
-        const close = source.indexOf("}", i + 1);
-        if (close >= 0 && close - (i + 1) <= MAX_FALLBACK && source.startsWith("}}", close)) {
+        // look for the closing brace only inside the fallback's own size, so a long run of unfinished tokens costs a fixed amount each
+        let close = i + 1;
+        const limit = Math.min(source.length, i + 1 + MAX_FALLBACK + 1);
+        while (close < limit && source.charCodeAt(close) !== 125) close++;
+        if (close < limit && source.startsWith("}}", close)) {
           fallback = source.slice(i + 1, close);
           end = close + 2;
         }
