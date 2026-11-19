@@ -334,7 +334,7 @@ export interface BuildIn {
   me: string;
   now: number;
   offsetMin: number;
-  scope: ScopeKind | "project" | "snoozed";
+  scope: ScopeKind | "project" | "snoozed" | "archived";
   group: GroupKey;
   sort: SortKey;
   filter: Filter;
@@ -378,7 +378,9 @@ export function buildEntries(b: BuildIn): Entry[] {
           ? "In this project"
           : b.scope === "snoozed"
             ? "Snoozed"
-            : "Open",
+            : b.scope === "archived"
+              ? "Archived"
+              : "Open",
       open,
     );
   }
@@ -392,8 +394,12 @@ export function buildEntries(b: BuildIn): Entry[] {
           ? "Nothing on your list."
           : b.scope === "snoozed"
             ? "Nothing is snoozed."
-            : "No tasks here yet.",
+            : b.scope === "archived"
+              ? "Nothing is archived."
+              : "No tasks here yet.",
     });
+  // Archived is what was put away: nothing is added there and nothing in it is done
+  if (b.scope === "archived") return out;
   out.push({ kind: "add", key: "add" });
   if (b.doneCount > 0 || b.doneRows !== null) {
     out.push({ kind: "done", key: "done", count: b.doneCount, open: b.doneRows !== null });
@@ -424,6 +430,12 @@ export function dueLabel(
             ? WEEKDAY[partsIn(due, z.space).dow]!
             : dateIn(due, z.space).replace(/^\w+ /, "");
   return { text, late: days < 0, title: titleOf(due, z) };
+}
+
+/** Why a task is archived, as the second line of its row: the sentence it was put away with, else who put it away. */
+export function archivedLine(a: NonNullable<TaskRow["archived"]>, me: string, nameOf: (id: string) => string): string {
+  if (a.why !== "") return `Archived · ${a.why}`;
+  return a.by === me ? "Archived by you" : a.by.startsWith("svc_") ? "Archived" : `Archived by ${nameOf(a.by)}`;
 }
 
 export const KIND_TITLE: Record<string, string> = {

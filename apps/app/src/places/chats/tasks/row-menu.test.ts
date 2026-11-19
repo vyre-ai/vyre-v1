@@ -1,4 +1,4 @@
-// A task row's menu: the words follow the state (Mark Done or Reopen, Select or Deselect), danger last and alone, and every item does what it says.
+// A task row's menu: the words follow the state (Mark Done or Reopen, Select or Deselect), danger last and alone, and every item does what it says. An open task can be archived; an archived one is put back.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { taskRowEntries } from "./row-menu.ts";
@@ -20,13 +20,15 @@ const d = Object.fromEntries(
     "moveToProject",
     "snooze",
     "duplicate",
+    "archive",
+    "putBack",
     "remove",
   ].map((k) => [k, () => calls.push(k)]),
 ) as unknown as TaskRowDo;
 const shape = (e: readonly MenuEntry[]): string[] =>
   e.map((x) => ("separator" in x ? "-" : "head" in x ? "#" : x.label));
 
-test("an open task: Open, Select, Mark Done, then Status, Assign, Due, Priority, Labels, Move, Snooze, then Duplicate and Delete last", () => {
+test("an open task: Open, Select, Mark Done, then Status, Assign, Due, Priority, Labels, Move, Snooze, then Duplicate, Archive and Delete last", () => {
   const e = taskRowEntries({ done: false, selected: false }, d);
   assert.deepEqual(shape(e), [
     "Open",
@@ -42,6 +44,7 @@ test("an open task: Open, Select, Mark Done, then Status, Assign, Due, Priority,
     "Snooze…",
     "-",
     "Duplicate",
+    "Archive",
     "Delete",
   ]);
   const last = e.at(-1) as MenuItem;
@@ -52,6 +55,16 @@ test("an open task: Open, Select, Mark Done, then Status, Assign, Due, Priority,
 test("a done task offers Reopen, a selected row Deselect", () => {
   const e = shape(taskRowEntries({ done: true, selected: true }, d));
   assert.ok(e.includes("Reopen") && !e.includes("Mark Done") && e.includes("Deselect") && !e.includes("Select"));
+  assert.ok(!e.includes("Archive"), "a closed task is put away already");
+});
+
+test("an archived task: Open, Select, Put Back, and Delete last and alone", () => {
+  const e = taskRowEntries({ done: false, selected: false, archived: true }, d);
+  assert.deepEqual(shape(e), ["Open", "Select", "-", "Put Back", "-", "Delete"]);
+  assert.equal(e.filter((x) => "danger" in x && x.danger).length, 1);
+  calls.length = 0;
+  for (const x of e) if ("onSelect" in x && x.label === "Put Back") x.onSelect?.();
+  assert.deepEqual(calls, ["putBack"]);
 });
 
 test("every item calls its own action", () => {
@@ -69,6 +82,7 @@ test("every item calls its own action", () => {
     "moveToProject",
     "snooze",
     "duplicate",
+    "archive",
     "remove",
   ]);
   calls.length = 0;

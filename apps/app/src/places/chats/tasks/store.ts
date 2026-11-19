@@ -9,6 +9,7 @@ export interface ScopeKey {
   recordId?: string;
   underThread?: string;
   /** only the open tasks that are snoozed */ snoozed?: boolean;
+  /** only the archived tasks, newest put away first */ archived?: boolean;
 }
 
 export interface IndexSnapshot {
@@ -58,6 +59,7 @@ export function createTaskStore(call: Call, key: ScopeKey): TaskStore {
       ...(key.recordId ? { recordId: key.recordId } : {}),
       ...(key.underThread ? { underThread: key.underThread } : {}),
       ...(key.snoozed ? { snoozed: true } : {}),
+      ...(key.archived ? { archived: true } : {}),
       ...(snap.rev !== "" ? { rev: snap.rev } : {}),
     })
       .then(
@@ -139,7 +141,7 @@ export function storeFor(owner: object, call: Call, key: ScopeKey): TaskStore {
     m = new Map();
     stores.set(owner, m);
   }
-  const k = `${key.scope}:${key.recordId ?? ""}:${key.underThread ?? ""}:${key.snoozed ? "z" : ""}`;
+  const k = `${key.scope}:${key.recordId ?? ""}:${key.underThread ?? ""}:${key.snoozed ? "z" : ""}${key.archived ? "a" : ""}`;
   let s = m.get(k);
   if (!s) {
     s = createTaskStore(call, key);

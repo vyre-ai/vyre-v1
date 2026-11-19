@@ -28,6 +28,7 @@ import type { ActEnv } from "./actions.ts";
 import { taskRowEntries } from "./row-menu.ts";
 import {
   bulkAssign,
+  bulkArchive,
   bulkDelete,
   bulkDue,
   bulkLabel,
@@ -38,6 +39,7 @@ import {
   failure,
   keepQuiet,
   letGo,
+  putBack,
   priorityEntries,
   setStatus,
   snoozeQuiet,
@@ -76,7 +78,11 @@ export const TASKS_SCREEN = "tasks.my-work";
 type NeedsOut = CapMap["tasks.needs_you"]["out"];
 type ProjectRow = { projectId: string; recordId: string; title: string };
 type ViewRow = CapMap["views.list"]["out"]["views"][number];
-type Scope = { kind: ScopeKind } | { kind: "snoozed" } | { kind: "project"; recordId: string; title: string };
+type Scope =
+  | { kind: ScopeKind }
+  | { kind: "snoozed" }
+  | { kind: "archived" }
+  | { kind: "project"; recordId: string; title: string };
 
 const VIEWS = [
   { id: "list", label: "List" },
@@ -135,7 +141,9 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
         ? { scope: "everyone" as const, recordId: scope.recordId }
         : scope.kind === "snoozed"
           ? { scope: "mine" as const, snoozed: true }
-          : { scope: scope.kind },
+          : scope.kind === "archived"
+            ? { scope: "mine" as const, archived: true }
+            : { scope: scope.kind },
     [scope],
   );
   const store = useMemo(() => storeFor(rt, rt.call, key), [rt, key]);
@@ -332,7 +340,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
     (row: TaskRow, at: { x: number; y: number }): void => {
       const ids = selected.has(row.id) ? [...selected] : [row.id];
       const items = taskRowEntries(
-        { done: row.state === "done", selected: selected.has(row.id) },
+        { done: row.state === "done", selected: selected.has(row.id), archived: row.archived !== undefined },
         {
           open: () => openTask(row.id),
           toggleSelect: () => pick(row.id, false),
@@ -394,6 +402,8 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
                 () => say("Duplicated"),
                 (e: unknown) => say(failure(e, "It could not be copied.")),
               ),
+          archive: () => void bulkArchive(act, ids),
+          putBack: () => void putBack(act, ids),
           remove: () => void bulkDelete(act, ids),
         },
       );
@@ -728,9 +738,11 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
           ? "Everyone"
           : scope.kind === "snoozed"
             ? "Snoozed"
-            : "title" in scope
-              ? scope.title
-              : "Tasks");
+            : scope.kind === "archived"
+              ? "Archived"
+              : "title" in scope
+                ? scope.title
+                : "Tasks");
   const applySaved = (v: ViewRow): void => {
     const c = (v.config ?? {}) as { scope?: Scope; view?: ViewKind; sort?: SortKey; filter?: Filter };
     if (c.scope) setScope(c.scope);
@@ -750,6 +762,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
       { label: "Given by you", checked: scope.kind === "given", onSelect: () => choose({ kind: "given" }) },
       { label: "Everyone", checked: scope.kind === "everyone", onSelect: () => choose({ kind: "everyone" }) },
       { label: "Snoozed", checked: scope.kind === "snoozed", onSelect: () => choose({ kind: "snoozed" }) },
+      { label: "Archived", checked: scope.kind === "archived", onSelect: () => choose({ kind: "archived" }) },
     ];
     if (projects.length > 0) {
       items.push({ head: "Projects" });
