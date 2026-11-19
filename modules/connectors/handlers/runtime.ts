@@ -27,6 +27,8 @@ import {
   SLOW_DOWN_FIRST_MS,
   checkEgress,
   originKey,
+  recordAllows,
+  recordFor,
   recordHosts,
   fillString,
   fillOptional,
@@ -497,9 +499,9 @@ export async function executeAction(
         "SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?",
         conn.connection_id,
       );
-      if (rec && !(JSON.parse(rec.hosts) as string[]).includes(originKey(url))) {
+      if (rec && !recordAllows(JSON.parse(rec.hosts) as string[], url)) {
         // a connector that gained a host since the person approved: the key does not go there on its own, and the person is told how to allow it
-        const gained = recordHosts(def).includes(originKey(url));
+        const gained = recordAllows(recordFor(def) ?? recordHosts(def), url);
         refuse(
           ctx,
           "permission.no_grant",

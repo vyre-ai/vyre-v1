@@ -6,8 +6,8 @@ import { newPkce, oauthOf, OAUTH_TTL_MS } from "./oauth.ts";
 import {
   checkEgress,
   ensureTables,
-  hostFromInput,
   keyHosts,
+  recordFor,
   recordHosts,
   probeHost,
   probeOf,
@@ -324,12 +324,9 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       );
       // the hosts this connection's key may go to, fixed now: what its actions call, never what the definition says later
       // (an action whose address takes its host from the caller's input has no fixed host to record: such a connection keeps the connector's declared domains as its limit, and the card never connects it)
-      if (!hostFromInput(def) && keyHosts(def).length > 0)
-        tx.run(
-          "INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
-          id,
-          JSON.stringify(recordHosts(def)),
-        );
+      const recorded = recordFor(def);
+      if (recorded !== null)
+        tx.run("INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)", id, JSON.stringify(recorded));
       const row = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", id)!;
       const authUrl = authUrlFor(def, row, input.scopes ?? [], false, ctx);
       // An OAuth connection is made when the sign-in comes back (complete_auth announces it); every other kind exists now.
@@ -557,7 +554,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       if (ctx.callerKind !== "person")
         refuse(ctx, "permission.no_grant", "Only a person can allow where a key is sent.");
       const def = defOf(ctx, r.connector);
-      const hosts = recordHosts(def);
+      const hosts = recordFor(def) ?? recordHosts(def);
       // what the person approves is what they were shown: a connector republished between the card and the press has other addresses, and nothing is recorded
       if (
         [...input.hosts]

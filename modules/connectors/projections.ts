@@ -655,13 +655,26 @@ export function backfillHosts(tx: Tx): void {
   );
   for (const r of rows) {
     const def = JSON.parse(r.def) as ConnectorDef;
-    if (hostFromInput(def) || keyHosts(def).length === 0) continue;
-    tx.run(
-      "INSERT OR IGNORE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
-      r.connection_id,
-      JSON.stringify(recordHosts(def)),
-    );
+    const rec = recordFor(def);
+    if (rec === null) continue;
+    tx.run("INSERT OR IGNORE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)", r.connection_id, JSON.stringify(rec));
   }
+}
+
+/**
+ * What a connection's host record holds, from its connector as it is now: the exact hosts (with ports) its actions call, or, when an action takes its host from the caller's input (a tenant subdomain), the connector's
+ * declared domains as `domain:` entries. Either way a version published later that reaches a host outside the record does not send the key there until a person allows it. Null: no key travels (no record).
+ */
+export function recordFor(def: ConnectorDef): string[] | null {
+  if (hostFromInput(def)) return def.domains.length > 0 ? def.domains.map((d) => `domain:${d.toLowerCase()}`) : null;
+  return keyHosts(def).length > 0 ? recordHosts(def) : null;
+}
+/** May a connection whose record is this send its key to this address? An exact host entry, or a recorded domain pattern. */
+export function recordAllows(record: readonly string[], u: URL): boolean {
+  return (
+    record.includes(originKey(u)) ||
+    record.some((e) => e.startsWith("domain:") && domainAllowed(u.hostname, [e.slice("domain:".length)]))
+  );
 }
 
 /** A host with its port, the default when none is given: what a connection's record holds and what a request is compared with, so the same host on another port gets nothing. */
