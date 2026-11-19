@@ -1,6 +1,13 @@
 {
   "targets": [
     {
+      "id": "R41_01-place-journey",
+      "route": "/m/R41_01?part=place-journey",
+      "waitFor": "body",
+      "note": "A Journey in the Automations place",
+      "proto": "automations,{skin}"
+    },
+    {
       "id": "R41_01-path",
       "route": "/m/R41_01?part=path",
       "waitFor": "body",

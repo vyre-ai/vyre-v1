@@ -37,7 +37,11 @@ const j = (over: Record<string, unknown> = {}): Journey =>
     ],
     ...over,
   }) as unknown as Journey;
-const name = (id: string): string => ({ aut_a: "Greet", usr_maya: "Maya" })[id] ?? "";
+const names: Record<string, { name: string; sentence?: string; state: "on" | "off" | "needs" }> = {
+  aut_a: { name: "Greet", sentence: "When a lead is created, email them hello.", state: "on" },
+  usr_maya: { name: "Maya", state: "off" },
+};
+const name = (id: string) => names[id];
 
 test("columns come in stage order with counts, limits in words and a name for every member, even one that is gone", () => {
   const c = columns(j(), [{ stage: "prop", count: 3, overLimit: 1 }], name);
@@ -55,15 +59,21 @@ test("columns come in stage order with counts, limits in words and a name for ev
     cards: [],
   });
   assert.deepEqual(c[0]!.cards, [
-    { id: "aut_a", name: "Greet" },
-    { id: "aut_gone", name: "An Automation" },
+    { id: "aut_a", name: "Greet", sentence: "When a lead is created, email them hello.", state: "on" },
+    { id: "aut_gone", name: "An Automation", state: "off" },
   ]);
-  assert.equal(c[0]!.limit, "No limit");
+  assert.equal(c[0]!.limit, undefined, "a stage with no limit says nothing about it");
   assert.equal(c[2]!.final, true);
 });
 
 test("the strip says how a record gets in, where it ends and what travels with it", () => {
   assert.deepEqual(strip(j()), { starts: "Records are added by hand", finishes: "Active", carried: "Nothing" });
+  assert.equal(strip(j({ startRule: { event: "lead.created", enabled: true } })).starts, "A lead is created");
+  assert.equal(
+    strip(j({ startRule: { event: "invoice.submitted", enabled: false } })).starts,
+    "An invoice is submitted (off)",
+  );
+  assert.equal(strip(j({ startRule: { event: "thing_happened", enabled: true } })).starts, "Thing happened");
   assert.deepEqual(
     strip(
       j({
@@ -75,7 +85,7 @@ test("the strip says how a record gets in, where it ends and what travels with i
       }),
     ),
     {
-      starts: "record.created",
+      starts: "A record is created",
       finishes: "Active",
       carried: "Plan, Owner",
     },

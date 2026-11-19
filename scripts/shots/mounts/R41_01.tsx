@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
+import { PlaceHashProvider } from "../../../apps/app/src/shell/hash/context.tsx";
+import { ShellRuntimeProvider } from "../../../apps/app/src/shell/providers/runtime.tsx";
+import { sampleRuntime } from "../../../apps/app/src/shell/providers/misc-test-runtime.tsx";
+import AutomationsPlace from "../../../apps/app/src/shell/providers/automations.tsx";
 import { AutomationsDataProvider } from "../../../apps/app/src/places/automations/canvas/data.tsx";
 import { ConfigExtrasProvider } from "../../../apps/app/src/places/automations/config/data.tsx";
 import { createConfigSample } from "../../../apps/app/src/places/automations/config/sample.ts";
@@ -14,7 +18,10 @@ import {
   RecordsStateProvider,
 } from "../../../apps/app/src/places/records/sidebar/index.ts";
 import { RecordViews } from "../../../apps/app/src/places/records/views-a/index.ts";
-import { createViewsSample, northwind as recordsNorthwind } from "../../../apps/app/src/places/records/views-a/sample.ts";
+import {
+  createViewsSample,
+  northwind as recordsNorthwind,
+} from "../../../apps/app/src/places/records/views-a/sample.ts";
 
 export const title = "Journeys: the Path page and the card faces";
 
@@ -25,7 +32,12 @@ function PathPage({ part }: { part: string }): ReactNode {
       ...s.data,
       call: async (cap: string, input: unknown): Promise<unknown> => {
         if (cap === "records.query")
-          return { rows: ["Harbor Co", "Northwind Foods", "Bluebird Studio"].map((n, i) => ({ id: `rec_${i}`, fields: { name: n } })) };
+          return {
+            rows: ["Harbor Co", "Northwind Foods", "Bluebird Studio"].map((n, i) => ({
+              id: `rec_${i}`,
+              fields: { name: n },
+            })),
+          };
         if (cap === "journeys.where")
           return {
             journeyId: "jrn_onboard",
@@ -46,7 +58,11 @@ function PathPage({ part }: { part: string }): ReactNode {
           let n = 0;
           return {
             runs: j.journey.stages.flatMap((st) =>
-              st.automations.map((a) => (++n === 2 ? { stage: st.key, automationId: a, error: "It needs a mailbox." } : { stage: st.key, automationId: a, runId: `run_t${n}` })),
+              st.automations.map((a) =>
+                ++n === 2
+                  ? { stage: st.key, automationId: a, error: "It needs a mailbox." }
+                  : { stage: st.key, automationId: a, runId: `run_t${n}` },
+              ),
             ),
           };
         }
@@ -68,6 +84,36 @@ function PathPage({ part }: { part: string }): ReactNode {
         </View>
       </ConfigExtrasProvider>
     </AutomationsDataProvider>
+  );
+}
+
+/** The Journey inside the Automations place: the sidebar, the page head, the Path. The Journey's row is pressed once the place is up. */
+function PlacePage(): ReactNode {
+  const s = useMemo(() => createConfigSample(northwind), []);
+  const rt = useMemo(() => {
+    const r = sampleRuntime({ screens: s.data.screens, call: s.data.call });
+    const snap = r.principals.getSnapshot();
+    const people = { status: "ready", data: snap.status === "ready" ? (snap as { data: unknown[] }).data : [] };
+    (r as { principals: unknown }).principals = { subscribe: () => () => undefined, getSnapshot: () => people };
+    return r;
+  }, [s]);
+  useEffect(() => {
+    const g = globalThis as { document?: { querySelector(q: string): { click?: () => void } | null } };
+    const t = setInterval(() => {
+      const row = g.document?.querySelector('[data-testid="row-jrn_onboard"]');
+      if (row) {
+        row.click?.();
+        clearInterval(t);
+      }
+    }, 300);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <ShellRuntimeProvider value={rt}>
+      <PlaceHashProvider hash="" opened={() => undefined}>
+        <AutomationsPlace place="automations" />
+      </PlaceHashProvider>
+    </ShellRuntimeProvider>
   );
 }
 
@@ -98,9 +144,13 @@ function FacePage({ preset }: { preset: "simple" | "detail" | "visual" }): React
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => {
-    setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "path");
+    setPart(
+      new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+        "path",
+    );
   }, []);
   if (!part) return null;
+  if (part === "place-journey") return <PlacePage />;
   if (part.startsWith("face-")) return <FacePage preset={part.slice(5) as "simple" | "detail" | "visual"} />;
   return <PathPage part={part} />;
 }
