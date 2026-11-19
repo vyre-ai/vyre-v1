@@ -66,47 +66,103 @@ export interface SiteSource {
   folderId?: string;
   fileId?: string;
   path?: string;
+  /** For uploaded files: a fingerprint of what the files are now (their ids and versions), so replaced files are other code. */
+  fp?: string;
 }
 
 /**
- * Where a site's code comes from, as one DNS-shaped name the approved-host store can keep for a Vault key (the name never resolves: it ends in .invalid). A git repo is name.owner.host.repo.invalid (GitHub when only
- * owner/name is given, lowercase as GitHub reads it); files an agent uploaded are <site id>.uploaded.invalid, or <folder or file id>.uploaded.invalid before the site exists. Null when no source can be named (it holds).
+ * Where a site's code comes from, as one canonical string; the approved-key store keeps its hash (sourceKeyHost). A git repo is its scheme, host, port (the default dropped) and path as written, with ".." resolved and a trailing
+ * ".git" removed; only the host is lowercased, and on github.com the owner and the name too (GitHub is not case-sensitive, other hosts are). Uploaded files are the site (or the folder or file before it exists) and the fingerprint of
+ * the files: replace them and it is another source. Null when no source can be named (it holds).
  */
-export function sourceHost(s: SiteSource | null | undefined, siteId?: string): string | null {
+export function sourceKey(s: SiteSource | null | undefined, siteId?: string): string | null {
   if (!s) return null;
   if (typeof s.repo === "string" && s.repo.trim() !== "") {
     const raw = s.repo.trim();
-    let host = "github.com";
-    let path = raw.replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "");
-    if (/^https:\/\//i.test(raw) && !/^https:\/\/(www\.)?github\.com\//i.test(raw)) {
-      const h = hostOfUrl(raw);
-      if (h === null) return null;
-      host = h;
-      try {
-        path = new URL(raw).pathname;
-      } catch {
-        return null;
-      }
+    const gh = /^(?:(?:https?:\/\/)?(?:www\.)?github\.com\/)?([A-Za-z0-9_-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/i.exec(
+      raw,
+    );
+    if (gh) return `git:https://github.com/${(gh[1] as string).toLowerCase()}/${(gh[2] as string).toLowerCase()}`;
+    if (!/^https:\/\//i.test(raw)) return null;
+    let u: URL;
+    try {
+      u = new URL(raw);
+    } catch {
+      return null;
     }
-    const segs = path
-      .replace(/\.git$/, "")
-      .split("/")
-      .filter(Boolean)
-      .map((x) => x.toLowerCase());
-    if (segs.length < 2 || segs.some((x) => !/^[a-z0-9._-]+$/.test(x))) return null;
-    return approvableHost(`${[...segs].reverse().join(".")}.${host}.repo.invalid`);
+    if (u.username !== "" || u.password !== "" || u.search !== "" || u.hash !== "") return null;
+    const path = u.pathname.replace(/\/+$/, "").replace(/\.git$/i, "");
+    if (path === "" || path === "/") return null;
+    return `git:https://${u.hostname.toLowerCase()}${u.port ? `:${u.port}` : ""}${path}`;
   }
   const id = siteId ?? s.folderId ?? s.fileId;
-  if ((s.folderId || s.fileId || s.path) && id && /^[A-Za-z0-9_]+$/.test(id))
-    return approvableHost(`${id.toLowerCase()}.uploaded.invalid`);
+  if ((s.folderId || s.fileId) && id && /^[A-Za-z0-9_]+$/.test(id) && s.fp) return `upload:${id}:${s.fp}`;
+  if (s.path && siteId && /^[A-Za-z0-9_]+$/.test(siteId)) return `path:${siteId}`;
   return null;
 }
 
-/** What the Gate knows about a site the call names: where its code comes from now, its stored Vault env rows, and where a preview of a branch was built from. */
+/** The name the approved-key store keeps for a source: the SHA-256 of its canonical string in two labels under .invalid (the name never resolves, and two sources never share one). */
+export async function sourceKeyHost(key: string): Promise<string> {
+  const d = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)));
+  const hex = Array.from(d, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 32)}.${hex.slice(32)}.src.invalid`;
+}
+
+/**
+ * A fingerprint of the uploaded files a source names: every file's id, version and size, folders walked in order (a replaced file is a new version). Null when it cannot be read or is too large to read here, which holds.
+ * `call` reads Files as the person the caller works for, in the Gate, and as the deploy's caller when a build records what it built from.
+ */
+export async function uploadFingerprint(
+  s: SiteSource,
+  call: (cap: string, input: unknown) => Promise<unknown>,
+): Promise<string | null> {
+  const lines: string[] = [];
+  try {
+    if (s.fileId) {
+      const f = (
+        (await call("files.get", { fileId: s.fileId })) as {
+          file?: { fileId?: string; version?: number; size?: number };
+        } | null
+      )?.file;
+      if (!f || typeof f.version !== "number") return null;
+      lines.push(`f:${s.fileId}:${f.version}:${f.size ?? 0}`);
+    } else if (s.folderId) {
+      const walk = async (folder: string, depth: number): Promise<boolean> => {
+        let cursor: string | undefined;
+        do {
+          const page = (await call("files.list", { folder, limit: 500, ...(cursor ? { cursor } : {}) })) as {
+            files?: { fileId: string; version?: number; size?: number }[];
+            folders?: { folderId: string }[];
+            next?: string;
+          } | null;
+          if (!page || !Array.isArray(page.files)) return false;
+          for (const f of page.files) lines.push(`f:${f.fileId}:${f.version ?? 0}:${f.size ?? 0}`);
+          if (lines.length > 3000 || depth > 12) return false;
+          for (const sub of page.folders ?? []) if (!(await walk(sub.folderId, depth + 1))) return false;
+          cursor = page.next;
+        } while (cursor);
+        return true;
+      };
+      if (!(await walk(s.folderId, 0))) return null;
+    } else return null;
+  } catch {
+    return null;
+  }
+  const d = new Uint8Array(
+    await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(lines.join("\n"))),
+  );
+  return Array.from(d, (b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 32);
+}
+
+/** What the Gate knows about a site the call names: where its code comes from now, its stored Vault env rows, where a preview of a branch was built from, and what the files were when it was last deployed. */
 export interface SiteFacts {
   source: SiteSource | null;
   env: { name: string; handle: string; scope: string }[];
   builtFrom: SiteSource | null;
+  /** The fingerprint of the uploaded files the live deploy was built from. */
+  deployedFp?: string | null;
 }
 
 const envEntries = (input: unknown): { name: string; handle: string }[] => {
@@ -121,7 +177,8 @@ const envEntries = (input: unknown): { name: string; handle: string }[] => {
   return out;
 };
 
-const sourceOfInput = (input: unknown): SiteSource | null => {
+/** The source a call names, as given (a fingerprint is added by whoever can read the files). */
+export function sourceOfInput(input: unknown): SiteSource | null {
   const src = ((input ?? {}) as Record<string, unknown>)["source"];
   if (src === null || typeof src !== "object") return null;
   const out: SiteSource = {};
@@ -130,36 +187,46 @@ const sourceOfInput = (input: unknown): SiteSource | null => {
     if (typeof v === "string") out[k] = v;
   }
   return out;
-};
+}
 
 /**
  * The (Vault key, source) pairs a call to a site makes new: each is a key that will reach code from that source, and an agent's call waits for a person unless every one is already approved. One rule for every way a key and code meet:
  *   - a key added or changed in the call (sites_env_set, sites_ship env) reaches the code of the site's source, or of the source the call names;
  *   - a call that names another source than the site has (update, deploy, plan, ship) puts every key the site stores, and every key in the call, in front of that code;
+ *   - uploaded files that are not the ones that were deployed (their fingerprint changed) are other code: the same;
  *   - promoting a preview built from somewhere else than the site's source puts the production keys in front of that code (a branch of the site's own repo is the same source).
- * The same source with the same keys is no pair: an agent's redeploy never waits. Null host: a source this cannot name, which holds.
+ * The same source with the same keys is no pair: an agent's redeploy never waits. A null source is one this cannot name, which holds. `given` and the facts carry fingerprints where the caller could read the files.
  */
-export function siteKeyPairs(input: unknown, facts: SiteFacts | null): { handle: string; host: string | null }[] {
+export function siteKeyPairs(
+  input: unknown,
+  facts: SiteFacts | null,
+  given: SiteSource | null = sourceOfInput(input),
+): { handle: string; source: string | null }[] {
   const i = (input ?? {}) as Record<string, unknown>;
   const siteId = typeof i["siteId"] === "string" ? i["siteId"] : undefined;
-  const given = sourceOfInput(input);
   const entries = envEntries(input);
-  const pairs: { handle: string; host: string | null }[] = [];
-  const add = (handle: string, host: string | null): void => {
-    if (!pairs.some((p) => p.handle === handle && p.host === host)) pairs.push({ handle, host });
+  const pairs: { handle: string; source: string | null }[] = [];
+  const add = (handle: string, source: string | null): void => {
+    if (!pairs.some((p) => p.handle === handle && p.source === source)) pairs.push({ handle, source });
   };
   if (siteId === undefined) {
-    for (const e of entries) add(e.handle, sourceHost(given, undefined));
+    for (const e of entries) add(e.handle, sourceKey(given, undefined));
     return pairs;
   }
-  const storedHost = sourceHost(facts?.source ?? null, siteId);
+  const storedKey = sourceKey(facts?.source ?? null, siteId);
   const stored = (facts?.env ?? []).filter((e) => e.handle !== "");
-  const toward = sourceHost(given ?? facts?.source ?? null, siteId);
+  const toward = sourceKey(given ?? facts?.source ?? null, siteId);
   for (const e of entries) if (!stored.some((s) => s.name === e.name && s.handle === e.handle)) add(e.handle, toward);
-  const givenHost = given ? sourceHost(given, siteId) : null;
-  if (given && givenHost !== storedHost) {
-    for (const s of stored) add(s.handle, givenHost);
-    for (const e of entries) add(e.handle, givenHost);
+  const givenKey = given ? sourceKey(given, siteId) : null;
+  if (given && givenKey !== storedKey) {
+    for (const s of stored) add(s.handle, givenKey);
+    for (const e of entries) add(e.handle, givenKey);
+  }
+  // uploaded files replaced since they were deployed, with no source named: the next deploy is other code
+  const fp = facts?.source?.fp;
+  if (!given && fp && facts?.deployedFp && fp !== facts.deployedFp) {
+    for (const s of stored) add(s.handle, storedKey);
+    for (const e of entries) add(e.handle, storedKey);
   }
   const promote =
     typeof i["branch"] === "string" &&
@@ -167,8 +234,8 @@ export function siteKeyPairs(input: unknown, facts: SiteFacts | null): { handle:
     !Array.isArray(i["env"]) &&
     i["source"] === undefined;
   if (promote && facts?.builtFrom) {
-    const builtHost = sourceHost(facts.builtFrom, siteId);
-    if (builtHost !== storedHost) for (const s of stored) if (s.scope !== "previews") add(s.handle, builtHost);
+    const builtKey = sourceKey(facts.builtFrom, siteId);
+    if (builtKey !== storedKey) for (const s of stored) if (s.scope !== "previews") add(s.handle, builtKey);
   }
   return pairs;
 }

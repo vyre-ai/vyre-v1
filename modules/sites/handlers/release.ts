@@ -29,6 +29,7 @@ import {
   reqStr,
   str,
 } from "./deploy.ts";
+import { uploadFingerprint } from "../../../lib/key-target.ts";
 import { looksSecret } from "./secrets.ts";
 import { sitePlan } from "./plan.ts";
 import type { SitePlan } from "./plan.ts";
@@ -713,8 +714,13 @@ async function runJob(j: Job): Promise<void> {
     live();
     // where this build's code came from, without the token: a promoted preview is judged by it
     {
-      const origin: SourceSpec = { ...j.source };
+      const origin: SourceSpec & { fp?: string } = { ...j.source };
       delete origin.tokenHandle;
+      // uploaded files are fingerprinted (ids and versions), so the Gate can tell when they were replaced since
+      if (origin.folderId || origin.fileId) {
+        const fp = await uploadFingerprint(origin, (cap, input) => j.call(cap, input));
+        if (fp) origin.fp = fp;
+      }
       j.db.run("UPDATE sites_deployment SET built_from = ? WHERE id = ?", JSON.stringify(origin), j.depId);
     }
     if (fetched.commit) {

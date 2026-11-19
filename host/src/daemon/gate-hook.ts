@@ -19,9 +19,11 @@ import {
   keyReadHost,
   keySendOf,
   siteKeyPairs,
-  sourceHost,
+  sourceKeyHost,
+  sourceOfInput,
+  uploadFingerprint,
 } from "../../../lib/key-target.ts";
-import type { SiteFacts } from "../../../lib/key-target.ts";
+import type { SiteFacts, SiteSource } from "../../../lib/key-target.ts";
 import { resolveKeyRef } from "../seams/key-ref.ts";
 import { HostError, fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
@@ -134,7 +136,7 @@ async function appliesWhen(
   }
 }
 
-export { KEY_HOST_CAPS, carriesHandle, keySendOf, siteKeyPairs, sourceHost };
+export { KEY_HOST_CAPS, carriesHandle, keySendOf, siteKeyPairs, sourceKeyHost };
 
 interface Claims {
   v?: unknown;
@@ -565,14 +567,33 @@ export function moduleWhens(
       typeof i.branch === "string" ? i.branch : undefined,
     );
   };
+  /** The pairs a call makes new, with the source of each as the name the approved-key store keeps; the uploaded files a source names are read as the person the agent works for. */
+  const pairsOf = async (
+    input: unknown,
+    asker: string | undefined,
+  ): Promise<{ handle: string; host: string | null }[]> => {
+    const read = async (s: SiteSource | null): Promise<SiteSource | null> => {
+      if (!s || !(s.folderId || s.fileId) || !asker || !callAs) return s;
+      const fp = await uploadFingerprint(s, (cap, i) => callAs(cap, i, asker) as Promise<unknown>);
+      return fp ? { ...s, fp } : s;
+    };
+    let facts = siteFactsOf(input);
+    if (facts) facts = { ...facts, source: await read(facts.source) };
+    const given = await read(sourceOfInput(input));
+    const out: { handle: string; host: string | null }[] = [];
+    for (const p of siteKeyPairs(input, facts, given))
+      out.push({ handle: p.handle, host: p.source === null ? null : await sourceKeyHost(p.source) });
+    return out;
+  };
   out["vault.key_host_unapproved"] = async (input, seed) => {
     if (seed.principal.kind === "person") return false;
     // a Vault key that will reach code from a source (a key given to a site as env, a site moved to another source, a preview from elsewhere promoted) goes only where a person approved that key for that source; anything this cannot read holds
-    const pairs = siteKeyPairs(input, siteFactsOf(input));
+    const asker0 = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+    const pairs = await pairsOf(input, asker0);
     if (pairs.length > 0) {
       const h = db();
       if (!h || typeof approved !== "function") return true;
-      const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+      const asker = asker0;
       for (const pair of pairs) {
         if (pair.host === null) return true;
         const ref = resolveKeyRef(h, pair.handle, asker);
@@ -598,7 +619,7 @@ export function moduleWhens(
     const h = db();
     const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
     // the keys that were to reach code from a source: each pair is approved, by the person who pressed yes
-    const pairs = siteKeyPairs(input, siteFactsOf(input));
+    const pairs = await pairsOf(input, asker);
     if (pairs.length > 0 && h && asker && callAs) {
       const approver = seed.approvedBy?.startsWith("usr_") ? seed.approvedBy : asker;
       for (const pair of pairs) {

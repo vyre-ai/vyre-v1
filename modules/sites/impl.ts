@@ -37,7 +37,7 @@ const dormant = registry.capabilities.filter((c) => c.module === "sites" && !(c.
 export const handlers = { ...deferredHandlers(dormant), ...live };
 export const consumers = {};
 export { markPushDone, markPushFailed, pendingPushes };
-type Src = { repo?: string; folderId?: string; fileId?: string; path?: string };
+type Src = { repo?: string; folderId?: string; fileId?: string; path?: string; fp?: string };
 type Reader = { db: { all(sql: string, ...a: unknown[]): unknown[] } };
 function parseSource(raw: unknown): Src | null {
   if (typeof raw !== "string") return null;
@@ -59,11 +59,25 @@ export function siteFacts(
   ctx: Reader,
   siteId: string,
   branch?: string,
-): { source: Src | null; env: { name: string; handle: string; scope: string }[]; builtFrom: Src | null } | null {
-  const site = ctx.db.all("SELECT source FROM sites_site WHERE id = ? AND deleted_at IS NULL", siteId)[0] as
-    | { source?: unknown }
-    | undefined;
+): {
+  source: Src | null;
+  env: { name: string; handle: string; scope: string }[];
+  builtFrom: Src | null;
+  deployedFp: string | null;
+} | null {
+  const site = ctx.db.all(
+    "SELECT source, current_deployment FROM sites_site WHERE id = ? AND deleted_at IS NULL",
+    siteId,
+  )[0] as { source?: unknown; current_deployment?: unknown } | undefined;
   if (!site) return null;
+  // what the uploaded files were when the live deploy was built
+  const live =
+    typeof site.current_deployment === "string"
+      ? (ctx.db.all("SELECT built_from FROM sites_deployment WHERE id = ?", site.current_deployment)[0] as
+          | { built_from?: unknown }
+          | undefined)
+      : undefined;
+  const deployedFp = parseSource(live?.built_from)?.fp ?? null;
   const env = (
     ctx.db.all("SELECT name, vault_handle, scope FROM sites_env WHERE site_id = ? AND plain IS NULL", siteId) as {
       name: string;
@@ -82,7 +96,7 @@ export function siteFacts(
     )[0] as { built_from?: unknown } | undefined;
     builtFrom = parseSource(d?.built_from);
   }
-  return { source: parseSource(site.source), env, builtFrom };
+  return { source: parseSource(site.source), env, builtFrom, deployedFp };
 }
 /** /hooks/sites: GitHub's webhook for a site, checked with the site's own secret (handlers/hook.ts). */
 export const hostCalls = { "sites.accept_webhook": acceptWebhook };
