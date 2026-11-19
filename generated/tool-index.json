@@ -8391,7 +8391,7 @@
     {
       "deferred": false,
       "name": "sites_deploy",
-      "summary": "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers. wait returns when it ends",
+      "summary": "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers",
       "toolset": "sites"
     },
     {
@@ -8577,7 +8577,7 @@
     {
       "deferred": false,
       "name": "sites_webhook_set",
-      "summary": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get a preview",
+      "summary": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get previews",
       "toolset": "sites"
     },
     {

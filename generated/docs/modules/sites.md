@@ -16,7 +16,7 @@ Requires: nothing.
 - [sites.create](../capabilities/sites.create.md): Create a site: where it runs (a computer port or a Files folder) or its source (repo, folder or zip). Nothing is served until published or deployed
 - [sites.db_import](../capabilities/sites.db_import.md): Copy a Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string
 - [sites.delete](../capabilities/sites.delete.md): Delete a site and stop its container
-- [sites.deploy](../capabilities/sites.deploy.md): Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers. wait returns when it ends
+- [sites.deploy](../capabilities/sites.deploy.md): Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers
 - [sites.deploy_cancel](../capabilities/sites.deploy_cancel.md): Cancel the running deploy. The last good build keeps serving
 - [sites.deployments](../capabilities/sites.deployments.md): List deployments with state and URL
 - [sites.domain_add](../capabilities/sites.domain_add.md): Add a custom domain: returns the DNS records to set; TLS is automatic
@@ -49,7 +49,7 @@ Requires: nothing.
 - [sites.tables](../capabilities/sites.tables.md): List site tables of a site
 - [sites.update](../capabilities/sites.update.md): Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it
 - [sites.webhook_get](../capabilities/sites.webhook_get.md): GitHub webhook of a site: on or off, its address, the branches that get a preview. The secret is never shown again
-- [sites.webhook_set](../capabilities/sites.webhook_set.md): Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get a preview
+- [sites.webhook_set](../capabilities/sites.webhook_set.md): Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get previews
 
 ## Events (13)
 

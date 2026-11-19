@@ -330,6 +330,27 @@
       "until": "2027-01-31"
     },
     {
+      "rule": "B2",
+      "file": "modules/sites/tests/deploy-world.ts",
+      "spec": "node:sqlite",
+      "reason": "test-only: the shared sites test world opens an in-memory database for the real sites handlers; no product code imports it",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
+      "file": "host/tests/mail.configure.live.test.ts",
+      "spec": "../../modules/sites/impl.ts",
+      "reason": "test-only: the key-and-source Gate tests must read a stored site through the real siteFacts the Gate reads, not facts written by hand, so a field the real read drops cannot pass unseen",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
+      "file": "host/tests/mail.configure.live.test.ts",
+      "spec": "../../modules/sites/tests/deploy-world.ts",
+      "reason": "test-only: the same Gate tests create, deploy and preview a site with the real sites handlers over a real SQLite (the runner faked) before an agent calls",
+      "until": "2027-01-31"
+    },
+    {
       "rule": "layer",
       "file": "host/tests/mail.configure.live.test.ts",
       "spec": "../../modules/mail/handlers/setup.ts",

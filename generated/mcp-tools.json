@@ -24950,6 +24950,8 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "admit",
+              "access",
               "install",
               "approve",
               "github_approval",
@@ -25045,6 +25047,8 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "admit",
+              "access",
               "install",
               "approve",
               "github_approval",
@@ -25141,6 +25145,8 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "admit",
+              "access",
               "install",
               "approve",
               "github_approval",
@@ -57406,7 +57412,7 @@
       "blocks": [],
       "cap": "sites.deploy",
       "deferred": false,
-      "description": "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers. wait returns when it ends",
+      "description": "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58652,7 +58658,7 @@
       "blocks": [],
       "cap": "sites.webhook_set",
       "deferred": false,
-      "description": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get a preview",
+      "description": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get previews",
       "effects": "write",
       "inputSchema": {
         "properties": {

@@ -180,7 +180,8 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
       return `build previews of pushes to ${follow.filter((x) => typeof x === "string").join(", ") || "no branches"}, with the site's keys`;
     if (obj(input)["enabled"] === true) return "switch on builds from GitHub pushes for a site with keys";
   }
-  if (cap === "sites.update" && obj(input)["autoDeploy"] === true) return "deploy this site on every push, with its keys";
+  if (cap === "sites.update" && obj(input)["autoDeploy"] === true)
+    return "deploy this site on every push, with its keys";
   if (cap === "sites.update" && obj(input)["settings"] !== undefined && obj(input)["settings"] !== null)
     return "change the settings of a site that holds keys";
   if (cap.startsWith("sites.") && obj(obj(input)["source"])["repo"] !== undefined && keySendOf(input) === undefined)

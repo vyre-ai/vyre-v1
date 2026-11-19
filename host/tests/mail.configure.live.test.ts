@@ -3,7 +3,7 @@
 import { wantsFromInput } from "../../lib/hold-words.ts";
 import { sourceKeyHost, takeGateFp, uploadFingerprint } from "../../lib/key-target.ts";
 import { siteFacts } from "../../modules/sites/impl.ts";
-import { world as sitesWorld, h as siteH } from "../../modules/sites/fixtures/deploy-world.ts";
+import { world as sitesWorld, h as siteH } from "../../modules/sites/tests/deploy-world.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
@@ -1386,6 +1386,9 @@ test("the Gate keeps the fingerprint it read for an agent's call, so the build c
   assert.equal(takeGateFp(trace.traceId, siteId), null, "taken once");
   // a person's own call is not read by the Gate: nothing is kept, the handler reads for itself
   const t2 = { traceId: "c3".repeat(16), spanId: "d4".repeat(8) };
-  assert.equal((await rig(s.opts).invoke("sites.deploy", { siteId }, { ...seed("usr_admin"), trace } as never)).status, "ok");
+  assert.equal(
+    (await rig(s.opts).invoke("sites.deploy", { siteId }, { ...seed("usr_admin"), trace } as never)).status,
+    "ok",
+  );
   assert.equal(takeGateFp(t2.traceId, siteId), null);
 });

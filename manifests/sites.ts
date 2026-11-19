@@ -368,7 +368,7 @@ export default defineManifest({
     }),
     write(
       "sites.deploy",
-      "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers. wait returns when it ends",
+      "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers",
       {
         in: { siteId: id.site, source: t.opt(source), wait: t.opt(t.bool()), onlyIfChanged: t.opt(t.bool()) },
         out: { deployment: dep },
@@ -422,7 +422,7 @@ export default defineManifest({
     ),
     write(
       "sites.webhook_set",
-      "Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get a preview",
+      "Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get previews",
       {
         in: {
           siteId: id.site,

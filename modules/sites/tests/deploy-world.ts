@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { configureRoutes } from "../handlers/route.ts";
 import { _test } from "../handlers/release.ts";
 import { handlers } from "../impl.ts";
-import { harness as base } from "./world.ts";
+import { harness as base } from "../fixtures/world.ts";
 
 export const FIXTURE = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

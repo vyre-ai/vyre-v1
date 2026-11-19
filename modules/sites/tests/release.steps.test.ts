@@ -12,7 +12,7 @@ import { acceptWebhook, markPushDone, markPushFailed, pendingPushes, signed, fol
 import { createHmac } from "node:crypto";
 import { handlers, siteFacts } from "../impl.ts";
 import { deployHandlers } from "../handlers/deploy.ts";
-import { FIXTURE, h, world, type Fake } from "../fixtures/deploy-world.ts";
+import { FIXTURE, h, world, type Fake } from "./deploy-world.ts";
 import { exposesKeys, noteGateFp, uploadFingerprint } from "../../../lib/key-target.ts";
 import { fetchSource } from "../handlers/source.ts";
 
@@ -1701,7 +1701,11 @@ test("a Vault key scoped to everything reaches a preview only for a branch a per
     });
     // and a real preview build of an unnamed branch is built with no everywhere-key
     await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "agent-branch", wait: true });
-    const dep = w.sdb.all("SELECT id FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ?", siteId, "agent-branch")[0] as { id: string };
+    const dep = w.sdb.all(
+      "SELECT id FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ?",
+      siteId,
+      "agent-branch",
+    )[0] as { id: string };
     assert.equal(w.seen.envs[dep.id]?.["SECRET_ALL"], undefined);
     assert.equal(w.seen.envs[dep.id]?.["SECRET_PREVIEW"], "s-prev");
   } finally {
@@ -1734,10 +1738,15 @@ test("exposesKeys, read from a real site's facts: what reaches production on a s
     key("previews");
     for (const c of changes) assert.equal(exposesKeys({ siteId, ...c }, facts()), false, "a previews-only key");
     key("all");
-    for (const c of changes) assert.equal(exposesKeys({ siteId, ...c }, facts()), true, `a key for everything: ${JSON.stringify(c)}`);
+    for (const c of changes)
+      assert.equal(exposesKeys({ siteId, ...c }, facts()), true, `a key for everything: ${JSON.stringify(c)}`);
     for (const c of [{ rotate: true }, { enabled: false }, { name: "New" }, { autoDeploy: false }])
       assert.equal(exposesKeys({ siteId, ...c }, facts()), false, `${JSON.stringify(c)} changes nothing that is built`);
-    assert.equal(exposesKeys({ siteId: "sit_nope", follow: ["*"] }, siteFacts({ db: w.sdb } as never, "sit_nope")), true, "a site it cannot read");
+    assert.equal(
+      exposesKeys({ siteId: "sit_nope", follow: ["*"] }, siteFacts({ db: w.sdb } as never, "sit_nope")),
+      true,
+      "a site it cannot read",
+    );
   } finally {
     w.done();
   }
@@ -1750,7 +1759,8 @@ test("a build checks the files it fetches against the fingerprint the Gate read 
   let read: string | undefined;
   const w = world({ files, fetchFp: () => read });
   try {
-    const siteId = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site.siteId as string;
+    const siteId = (await h["sites.create"]!(w.ctx, { name: "Up", source: { folderId: "fld_up" } })).site
+      .siteId as string;
     const judged = (await uploadFingerprint({ folderId: "fld_up" }, async (cap, i) => files(cap, i)))!;
     // between the Gate's read and the handler the files change; the build reads the new ones
     rows[0]!.version = 2;

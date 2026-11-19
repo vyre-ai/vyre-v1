@@ -90,5 +90,9 @@ test("the site's webhook, deploy on push and settings have their own words, and 
     "change the settings of a site that holds keys",
   ]);
   for (const w of said) assert.doesNotMatch(String(w), /sites?\.|webhook_set|hook_follow|autoDeploy/);
-  assert.doesNotMatch(String(wantsFromInput("sites.webhook_set", { siteId: "sit_1", rotate: true })), /previews|switch on/, "a new secret builds nothing");
+  assert.doesNotMatch(
+    String(wantsFromInput("sites.webhook_set", { siteId: "sit_1", rotate: true })),
+    /previews|switch on/,
+    "a new secret builds nothing",
+  );
 });
