@@ -1,0 +1,1 @@
+A page's words are labelled as data at the top of every snapshot an agent reads; tests show a page that tells the agent to send, approve or type a password changes nothing: sends stay held and secret fields refuse text.
