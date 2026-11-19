@@ -1,6 +1,7 @@
 // Records > table (spec 3.4, 2.9): a type's records as a sheet. 100,000 rows open under 100 ms because the table never holds more than a window: it asks the local copy for 200 rows at
 // a time and draws only the rows and the columns that meet the screen, with the title column and the row numbers held at the left. The count in the foot is the cached count(*).
 // Filter, Sort, Group, Fields and Colour are quiet buttons in the header; each opens a menu with checkmarks and counts. Click a header to sort; Enter or Space opens the record.
+import { rememberRecordName } from "../recordpage/name-hint.ts";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject, ReactElement, ReactNode } from "react";
@@ -966,6 +967,18 @@ function Grid({
   if (q.status === "ready" && (kept.current?.rows !== q.data.rows || kept.current.offset !== (v.group ? 0 : offset)))
     kept.current = { offset: v.group ? 0 : offset, rows: q.data.rows };
   const loaded = kept.current;
+  // opening a record from a row remembers the row's name for the page that opens, so its first frame already says it (no "Record" while the record loads)
+  const loadedRef = useRef(loaded);
+  loadedRef.current = loaded;
+  const titleField = def.titleField;
+  const openNamed = useCallback(
+    (id: string): void => {
+      const t = loadedRef.current?.rows.find((x) => x.id === id)?.fields[titleField];
+      if (typeof t === "string") rememberRecordName(id, t);
+      data.nav.openRecord(id);
+    },
+    [data, titleField],
+  );
   // the starred records, for the menu's Star / Remove Star and the S key; a runtime that cannot read stars leaves them all unstarred
   const stars = useLive("stars.list", { type: "record" });
   const starredIds = useMemo(
@@ -1151,7 +1164,7 @@ function Grid({
     makeRecord(data.call, def, name, `new-${type}-${Date.now()}`).then(
       (id) => {
         setAdding(null);
-        if (id) data.nav.openRecord(id);
+        if (id) openNamed(id);
       },
       (e: unknown) => {
         const x = e as { error?: { message?: string }; message?: string };
@@ -1235,7 +1248,7 @@ function Grid({
       },
       {
         open: () => {
-          if (id) data.nav.openRecord(id);
+          if (id) openNamed(id);
         },
         ...(id ? { star: (on: boolean) => toggleStar(id, on) } : {}),
         ...(id && data.share && access.on && access.can.share
@@ -1303,7 +1316,7 @@ function Grid({
       move(-1);
     } else if ((ev.key === "Enter" || ev.key === " ") && selected) {
       ev.preventDefault?.();
-      data.nav.openRecord(selected);
+      openNamed(selected);
     } else if (!cmd && (ev.key === "s" || ev.key === "S") && selected) {
       ev.preventDefault?.();
       toggleStar(selected, !starredIds.has(selected));
@@ -1321,12 +1334,12 @@ function Grid({
       const now = Date.now();
       if (tapped.current.id === id && now - tapped.current.at < 450) {
         tapped.current = { id: "", at: 0 };
-        data.nav.openRecord(id);
+        openNamed(id);
       } else tapped.current = { id, at: now };
     },
-    [data],
+    [data, openNamed],
   );
-  const onOpen = data.nav.openRecord;
+  const onOpen = openNamed;
 
   const idleFaces = useRef<ReturnType<typeof setTimeout> | null>(null);
   const upgradeSoon = useCallback((): void => {
