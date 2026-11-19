@@ -74,11 +74,80 @@ function mark(type: MarkType, href?: string, title?: string): PMMark {
   return type === "link" ? { type, attrs: { href: href ?? "", ...(title === undefined ? {} : { title }) } } : { type };
 }
 
+/**
+ * Searches that remember where they last looked. The text between two searches for the same character is known to hold none, so asking again from a later start costs nothing: a text with thousands
+ * of openers that never close is read in one pass, not once per opener.
+ */
+type SearchCache = Map<string, { from: number; at: number }>;
+function nextIdx(src: string, cache: SearchCache, needle: string, from: number): number {
+  const c = cache.get(needle);
+  if (c && from >= c.from && (c.at === -1 || from <= c.at)) return c.at;
+  const at = src.indexOf(needle, from);
+  cache.set(needle, { from, at });
+  return at;
+}
+function nextRe(src: string, cache: SearchCache, key: string, re: RegExp, from: number): number {
+  const c = cache.get(key);
+  if (c && from >= c.from && (c.at === -1 || from <= c.at)) return c.at;
+  re.lastIndex = from;
+  const m = re.exec(src);
+  const at = m ? m.index : -1;
+  cache.set(key, { from, at });
+  return at;
+}
+const STOP_URL = /[)\s]/g;
+const NOT_SPACE = /\S/g;
+
+/** `[text](href "title")` at `i`, read with the searches above; the same links the old pattern read, in time that does not grow with the openers behind it. */
+function linkAt(
+  src: string,
+  i: number,
+  image: boolean,
+  cache: SearchCache,
+): { len: number; text: string; href: string; title: string | undefined } | null {
+  const close = nextIdx(src, cache, "]", i + 1);
+  const nl = nextIdx(src, cache, "\n", i + 1);
+  if (close < 0 || (nl >= 0 && nl < close)) return null;
+  if (close === i + 1 && !image) return null;
+  if (src.charAt(close + 1) !== "(") return null;
+  const u = close + 2;
+  const stop = nextRe(src, cache, "url", STOP_URL, u);
+  if (stop < 0 || stop === u) return null;
+  const href = src.slice(u, stop);
+  const text = src.slice(i + 1, close);
+  if (src.charAt(stop) === ")") return { len: stop + 1 - i, text, href, title: undefined };
+  // a space after the address: then a quoted title and the closing bracket
+  const q = nextRe(src, cache, "ns", NOT_SPACE, stop);
+  if (q < 0 || src.charAt(q) !== '"') return null;
+  const end = nextIdx(src, cache, '"', q + 1);
+  if (end < 0 || src.charAt(end + 1) !== ")") return null;
+  return { len: end + 2 - i, text, href, title: src.slice(q + 1, end) };
+}
+
 /** Inline markdown to pieces: text with marks, and line breaks. */
 function scan(src: string, marks: readonly PMMark[], out: Piece[], before: string): void {
   let buf = "";
   let i = 0;
-  const prev = (): string => (buf !== "" ? buf.charAt(buf.length - 1) : i === 0 ? before : src.charAt(i - 1));
+  const cache: SearchCache = new Map();
+  const fails = new Map<string, { from: number; until: number }>();
+  const known = (key: string, at: number): boolean => {
+    const f = fails.get(key);
+    return f !== undefined && at >= f.from && at < f.until;
+  };
+  const failed = (key: string, at: number, until: number): void => {
+    fails.set(key, { from: at, until });
+  };
+  /** The first of these characters at or after `from`, or never. */
+  const firstOf = (chars: string[], from: number): number => {
+    let best = Infinity;
+    for (const c of chars) {
+      const k = nextIdx(src, cache, c, from);
+      if (k >= 0 && k < best) best = k;
+    }
+    return best;
+  };
+  // the character before this one: every character put in `buf` is the one just behind `i` in `src` (an escape adds the escaped character), so no read of `buf` is needed
+  const prev = (): string => (i === 0 ? before : src.charAt(i - 1));
   const flush = (): void => {
     if (buf !== "") out.push({ text: buf, marks: [...marks] });
     buf = "";
@@ -140,52 +209,73 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       continue;
     }
     const pv = prev();
+    const c1 = src.charAt(i + 1);
+    // each kind of span that failed to close at some start is remembered, so a text full of openers that never close is read in one pass
     if (
       (ch === "*" || ch === "_") &&
-      rest.charAt(1) === ch &&
-      (m = (
+      c1 === ch &&
+      c1 !== "" &&
+      /\S/.test(src.charAt(i + 2)) &&
+      (ch === "*" || !WORD.test(pv)) &&
+      !known(ch + ch, i)
+    ) {
+      m = (
         ch === "*" ? /^\*\*(?=\S)([\s\S]+?)(?<=\S)\*\*(?!\*)/ : /^__(?=\S)([\s\S]+?)(?<=\S)__(?![\p{L}\p{N}_])/u
-      ).exec(rest)) &&
-      (ch === "*" || !WORD.test(pv))
-    ) {
-      flush();
-      scan(m[1] ?? "", [...marks, mark("bold")], out, "");
-      i += m[0].length;
-      continue;
+      ).exec(rest);
+      if (!m) failed(ch + ch, i, Infinity);
+      else {
+        flush();
+        scan(m[1] ?? "", [...marks, mark("bold")], out, "");
+        i += m[0].length;
+        continue;
+      }
     }
-    if (ch === "~" && (m = /^~~(?=\S)([\s\S]+?)(?<=\S)~~(?!~)/.exec(rest))) {
-      flush();
-      scan(m[1] ?? "", [...marks, mark("strike")], out, "");
-      i += m[0].length;
-      continue;
+    if (ch === "~" && c1 === "~" && /\S/.test(src.charAt(i + 2)) && !known("~~", i)) {
+      m = /^~~(?=\S)([\s\S]+?)(?<=\S)~~(?!~)/.exec(rest);
+      if (!m) failed("~~", i, Infinity);
+      else {
+        flush();
+        scan(m[1] ?? "", [...marks, mark("strike")], out, "");
+        i += m[0].length;
+        continue;
+      }
     }
-    if (ch === "*" && rest.charAt(1) !== "*" && (m = /^\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?!\*)/.exec(rest))) {
-      flush();
-      scan(m[1] ?? "", [...marks, mark("italic")], out, "");
-      i += m[0].length;
-      continue;
+    if (ch === "*" && c1 !== "*" && /[^\s*]/.test(c1) && !known("*", i)) {
+      m = /^\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?!\*)/.exec(rest);
+      if (!m) failed("*", i, firstOf(["*", "\n"], i + 1));
+      else {
+        flush();
+        scan(m[1] ?? "", [...marks, mark("italic")], out, "");
+        i += m[0].length;
+        continue;
+      }
     }
-    if (
-      ch === "_" &&
-      rest.charAt(1) !== "_" &&
-      !WORD.test(pv) &&
-      (m = /^_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?![\p{L}\p{N}_])/u.exec(rest))
-    ) {
-      flush();
-      scan(m[1] ?? "", [...marks, mark("italic")], out, "");
-      i += m[0].length;
-      continue;
+    if (ch === "_" && c1 !== "_" && /[^\s_]/.test(c1) && !WORD.test(pv) && !known("_", i)) {
+      m = /^_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?![\p{L}\p{N}_])/u.exec(rest);
+      if (!m) failed("_", i, firstOf(["_", "\n"], i + 1));
+      else {
+        flush();
+        scan(m[1] ?? "", [...marks, mark("italic")], out, "");
+        i += m[0].length;
+        continue;
+      }
     }
-    if (ch === "!" && (m = /^!\[[^\]\n]*\]\([^)\s]+(?:\s+"[^"]*")?\)/.exec(rest))) {
-      buf += m[0];
-      i += m[0].length;
-      continue;
+    if (ch === "!" && c1 === "[") {
+      const l = linkAt(src, i + 1, true, cache);
+      if (l) {
+        buf += src.slice(i, i + 1 + l.len);
+        i += 1 + l.len;
+        continue;
+      }
     }
-    if (ch === "[" && (m = /^\[([^\]\n]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/.exec(rest))) {
-      flush();
-      scan(m[1] ?? "", [...marks.filter((x) => x.type !== "link"), mark("link", m[2] ?? "", m[3])], out, "");
-      i += m[0].length;
-      continue;
+    if (ch === "[") {
+      const l = linkAt(src, i, false, cache);
+      if (l) {
+        flush();
+        scan(l.text, [...marks.filter((x) => x.type !== "link"), mark("link", l.href, l.title)], out, "");
+        i += l.len;
+        continue;
+      }
     }
     buf += ch;
     i += 1;
@@ -237,11 +327,8 @@ export function nodesText(nodes: readonly PMNode[] | undefined): string {
 
 /** Text that would not read as itself when parsed gets backslashes before its markup characters; everything else is written as typed. */
 function escapeText(text: string): string {
-  const back = (): string => nodesText(inlineNodes(text));
-  const plain = ((): boolean => {
-    const n = inlineNodes(text);
-    return n.length <= 1 && n.every((x) => x.type === "text" && x.marks === undefined) && back() === text;
-  })();
+  const n = inlineNodes(text);
+  const plain = n.length <= 1 && n.every((x) => x.type === "text" && x.marks === undefined) && nodesText(n) === text;
   if (plain) return text;
   return text.replace(DOC ? /([\\`*_~[\]{])/g : /([\\`*_~[\]])/g, "\\$1");
 }
@@ -381,7 +468,7 @@ function inlineText(raw: readonly PMNode[] | undefined): string {
       out += core;
     } else {
       let t = escapeText(core);
-      if (lineStart && out.replace(/^[\s\S]*\n/, "") === "" && BLOCK_START.test(t)) t = `\\${t}`;
+      if (lineStart && (out === "" || out.endsWith("\n")) && BLOCK_START.test(t)) t = `\\${t}`;
       out += t;
     }
     lineStart = false;
@@ -393,29 +480,45 @@ function inlineText(raw: readonly PMNode[] | undefined): string {
 
 /* ---------- blocks: markdown to document ---------- */
 
+const FENCE_RE = /^(\s{0,3})(`{3,}|~{3,})([^`]*)$/;
+/** A code fence line: indent, the fence, and the first word after it (the language). */
+const FENCE = {
+  test: (l: string): boolean => FENCE_RE.test(l),
+  exec: (l: string): RegExpExecArray | null => {
+    const m = FENCE_RE.exec(l);
+    if (!m) return null;
+    return [m[0], m[1] ?? "", m[2] ?? "", /^\s*(\S*)/.exec(m[3] ?? "")?.[1] ?? ""] as unknown as RegExpExecArray;
+  },
+};
+const HEADING_START = /^\s{0,3}(#{1,6})/;
+const HEADING_CLOSE = /\s#+$/;
 /**
- * A block pattern that only looks at a line short enough to be a block start. Several of these patterns can backtrack on a long run of spaces, and a shared document is text anyone may have written:
- * a line past this length is a paragraph's text, whatever it starts with, and costs one pass.
+ * An ATX heading line: up to three spaces, one to six #, then the text, which may end with a closing run of # (after a space). Read from the line's start and end, so a very long
+ * heading costs one pass; the regex this replaces backtracked on a long run of spaces.
  */
-const LINE_CAP = 3000;
-function capped(re: RegExp): { test(s: string): boolean; exec(s: string): RegExpExecArray | null } {
-  return {
-    test: (s) => s.length <= LINE_CAP && re.test(s),
-    exec: (s) => (s.length <= LINE_CAP ? re.exec(s) : null),
-  };
-}
-
-const FENCE = capped(/^(\s{0,3})(`{3,}|~{3,})\s*([^`\s]*)[^`]*$/);
-const HEADING = capped(/^\s{0,3}(#{1,6})(?:\s+(.*?))?\s*(?:\s#+)?\s*$/);
-const RULE = capped(/^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/);
-const BULLET = capped(/^(\s{0,3})([-*+])\s+(.*)$/);
-const ORDERED = capped(/^(\s{0,3})(\d{1,9})([.)])\s+(.*)$/);
-const QUOTE = capped(/^\s{0,3}>\s?(.*)$/);
-const TASK = capped(/^\[([ xX])\]\s+(.*)$/);
-const TABLE_SEP = capped(/^\s*(?:\|\s*)?:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/);
-const HTML_START = capped(/^\s{0,3}<(\/?[A-Za-z][\w-]*[\s>/]|\/?[A-Za-z][\w-]*$|!--|\?)/);
-const REF_DEF = capped(/^\s{0,3}\[[^\]]+\]:\s+\S+/);
-const INDENTED = capped(/^( {4}|\t)\S/);
+const HEADING = {
+  test: (l: string): boolean => HEADING.exec(l) !== null,
+  exec: (l: string): RegExpExecArray | null => {
+    const m = HEADING_START.exec(l);
+    if (!m) return null;
+    const rest = l.slice(m[0].length);
+    if (rest !== "" && !/^\s/.test(rest)) return null;
+    const body = rest.trimEnd();
+    if (body === "") return [l, m[1] ?? "", ""] as unknown as RegExpExecArray;
+    const c = HEADING_CLOSE.exec(body);
+    const text = (c && c.index >= 1 ? body.slice(1, c.index) : body).trim();
+    return [l, m[1] ?? "", text] as unknown as RegExpExecArray;
+  },
+};
+const RULE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
+const BULLET = /^(\s{0,3})([-*+])\s+(.*)$/;
+const ORDERED = /^(\s{0,3})(\d{1,9})([.)])\s+(.*)$/;
+const QUOTE = /^\s{0,3}>\s?(.*)$/;
+const TASK = /^\[([ xX])\]\s+(.*)$/;
+const TABLE_SEP = /^\s*(?:\|\s*)?:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
+const HTML_START = /^\s{0,3}<(\/?[A-Za-z][\w-]*[\s>/]|\/?[A-Za-z][\w-]*$|!--|\?)/;
+const REF_DEF = /^\s{0,3}\[[^\]]+\]:\s+\S+/;
+const INDENTED = /^( {4}|\t)\S/;
 
 const isBlank = (l: string | undefined): boolean => (l ?? "").trim() === "";
 
@@ -599,7 +702,13 @@ function parseList(lines: readonly string[], start: number, tight: boolean): { n
     const { body, end } = itemBody(lines, i + 1, width);
     const t = TASK.exec(text);
     const firstText = t ? (t[2] ?? "") : text;
-    const inner = parseBlocks([firstText, ...body], 0);
+    nest += 1;
+    let inner: PMNode[];
+    try {
+      inner = parseBlocks([firstText, ...body], 0);
+    } finally {
+      nest -= 1;
+    }
     // the item starts with a paragraph: a line the item opens with that is not one becomes an empty paragraph's neighbour
     if (inner.length === 0 || inner[0]?.type !== "paragraph") inner.unshift({ type: "paragraph" });
     items.push({ task: t ? true : null, checked: t ? t[1] !== " " : false, content: inner, gap: gapNext });
@@ -711,6 +820,10 @@ function liveText(a: Record<string, unknown>): string {
 }
 
 /** Markdown lines to blocks. */
+/** How deep lists and quotes are read inside each other: past this a deeper "- " or "> " is text, so a line of a hundred thousand of them costs a pass, not a pass per level. */
+const MAX_NEST = 24;
+let nest = 0;
+
 function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
   const out: PMNode[] = [];
   let i = 0;
@@ -832,20 +945,26 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
       out.push(raw("ref", body.join("\n"), tight));
       continue;
     }
-    if (BULLET.test(line) || ORDERED.test(line)) {
+    if (nest < MAX_NEST && (BULLET.test(line) || ORDERED.test(line))) {
       const r = parseList(lines, i, tight);
       out.push(...r.node);
       i = r.end;
       continue;
     }
-    if (QUOTE.test(line)) {
+    if (nest < MAX_NEST && QUOTE.test(line)) {
       const body: string[] = [];
       while (i < lines.length && QUOTE.test(lines[i] ?? "")) {
         body.push(QUOTE.exec(lines[i] ?? "")?.[1] ?? "");
         i += 1;
       }
       // a quote holds blocks; one plain paragraph is the common case
-      const inner = parseBlocks(body, depth + 1);
+      nest += 1;
+      let inner: PMNode[];
+      try {
+        inner = parseBlocks(body, depth + 1);
+      } finally {
+        nest -= 1;
+      }
       out.push({ type: "blockquote", attrs: { tight }, content: inner.length > 0 ? inner : [{ type: "paragraph" }] });
       continue;
     }
@@ -923,10 +1042,7 @@ function blockText(b: PMNode): string {
     case "paragraph":
       return nodesToInline(b.content);
     case "heading":
-      return `${"#".repeat(Math.min(6, Math.max(1, Number(b.attrs?.["level"] ?? 1))))} ${nodesToInline(b.content)}`.replace(
-        /\s+$/,
-        "",
-      );
+      return `${"#".repeat(Math.min(6, Math.max(1, Number(b.attrs?.["level"] ?? 1))))} ${nodesToInline(b.content)}`.trimEnd();
     case "horizontalRule":
       return String(b.attrs?.["mark"] ?? "---");
     case "rawBlock":

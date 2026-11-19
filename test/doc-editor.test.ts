@@ -406,35 +406,54 @@ test("a large document: 4,000 blocks with chips and suggestions load, come back 
 
 /* ---------- hostile text and the fill engine's grammar ---------- */
 
-test("hostile text costs a pass, not a freeze: unclosed openers, a million spaces, deep nesting", () => {
-  const cases = [
-    "{~~a~>".repeat(20000),
-    "{++".repeat(60000),
-    "{--x".repeat(40000),
-    `a${" ".repeat(200000)}b`,
-    "{{{{".repeat(50000),
-    "{>>".repeat(50000),
-  ];
-  const gap = " ".repeat(40000);
-  cases.push(
-    `# a${gap}b`,
-    `- a${gap}b`,
-    `> a${gap}b`,
-    `1. a${gap}b`,
-    `\`\`\`${gap}x`,
-    `| a |\n| --- |\n| ${gap}x |`,
-    "| " + "- |".repeat(20000),
-  );
-  for (const text of cases) {
-    const t0 = performance.now();
-    const d = markdownToDoc(`${text}\n`, D);
-    docToMarkdown(d, D);
-    countCritic(text);
-    resolveCritic(text, true);
-    const ms = performance.now() - t0;
-    assert.ok(ms < 3000, `${text.slice(0, 8)} took ${Math.round(ms)} ms`);
-  }
-});
+/** Hostile texts: each is about 100 KB of something that looks like the start of markup and never finishes it, or of one very long line. */
+const HOSTILE: Record<string, string> = {
+  "unclosed replacement": "{~~a~>".repeat(17000),
+  "unclosed addition": "{++".repeat(33000),
+  "unclosed removal": "{--x".repeat(25000),
+  "who-and-when never closed": "{++a++}{>>".repeat(10000),
+  braces: "{{{{".repeat(25000),
+  "a long run of spaces": `a${" ".repeat(100000)}b`,
+  "unclosed bold": "**a ".repeat(25000),
+  "unclosed underscore bold": " __a ".repeat(20000),
+  "unclosed strike": "~~a ".repeat(25000),
+  "unclosed italic": "*a ".repeat(33000),
+  "unclosed underscore italic": " _a ".repeat(25000),
+  "unclosed links": "[a".repeat(50000),
+  "links with no end": "[a](x".repeat(20000),
+  "links ending in a space": `${"[a](x".repeat(15000)} `,
+  "images with no end": "![a](x".repeat(15000),
+  "titles never closed": '[a](x "'.repeat(12000),
+  backticks: "`a".repeat(50000),
+  "a long heading": `# a${" ".repeat(100000)}b`,
+  "a long list item": `- a${" ".repeat(100000)}b`,
+  "a long quote": `> a${" ".repeat(100000)}b`,
+  "a long numbered item": `1. a${" ".repeat(100000)}b`,
+  "a long fence line": `\`\`\`${" ".repeat(100000)}x`,
+  "a table cell": `| a |\n| --- |\n| ${" ".repeat(100000)}x |`,
+  "table separators": `| ${"- |".repeat(30000)}`,
+  "a rule": `${"- ".repeat(50000)}x`,
+  pipes: "|".repeat(100000),
+  "a tag with a long gap": `{${" ".repeat(100000)}x}`,
+};
+for (const [label, text] of Object.entries(HOSTILE)) {
+  test(`hostile text, ${label}: read, saved, counted and settled each in under 100 ms`, () => {
+    const body = `${text}\n`;
+    const bound = (what: string, f: () => unknown): void => {
+      const t0 = performance.now();
+      f();
+      const ms = performance.now() - t0;
+      assert.ok(ms < 100, `${what} took ${Math.round(ms)} ms`);
+    };
+    let d = markdownToDoc("x\n", D);
+    bound("reading", () => {
+      d = markdownToDoc(body, D);
+    });
+    bound("saving", () => docToMarkdown(d, D));
+    bound("counting", () => countCritic(body));
+    bound("settling", () => resolveCritic(body, true));
+  });
+}
 
 test("a change with a long or broken who-and-when still reads, and a broken one is plain text", () => {
   assert.equal(countCritic(`{++a++}{>>${"x".repeat(900)}|t<<}`), 1);
@@ -459,4 +478,52 @@ test("the chip grammar is the fill engine's: the tag shapes here are the ones mo
     src.includes("const MARK = /\\{(sign|date):([A-Za-z0-9_]+)\\}/g;"),
     "vdoc.ts changed its signing marks: update CHIP in mdtree.ts",
   );
+});
+
+test("a very long heading, list item, quote and numbered item come back exactly as written", () => {
+  const long = `${"word ".repeat(2000)}end`;
+  for (const t of [
+    `# ${long}\n`,
+    `## ${long}\n`,
+    `- ${long}\n`,
+    `> ${long}\n`,
+    `1. ${long}\n`,
+    `- [ ] ${long}\n`,
+    `${long}\n`,
+  ]) {
+    assert.equal(roundtrip(t), t);
+    const plain = docToMarkdown(markdownToDoc(t));
+    assert.equal(plain, t);
+  }
+  assert.equal(markdownToDoc(`# ${long}\n`, D).content?.[0]?.type, "heading");
+  assert.equal(markdownToDoc(`> ${long}\n`, D).content?.[0]?.type, "blockquote");
+  assert.equal(markdownToDoc(`- ${long}\n`, D).content?.[0]?.type, "bulletList");
+});
+
+test("heading forms still read the way they did: closing marks, empty headings, seven hashes", () => {
+  const cases: Array<[string, string, string]> = [
+    ["# Title\n", "heading", "Title"],
+    ["## Title ##\n", "heading", "Title"],
+    ["###   Title   \n", "heading", "Title"],
+    ["# #\n", "heading", "#"],
+    ["# foo#\n", "heading", "foo#"],
+    ["#######  x\n", "paragraph", "#######  x"],
+    ["#nospace\n", "paragraph", "#nospace"],
+  ];
+  for (const [md, type, text] of cases) {
+    const n = markdownToDoc(md).content?.[0];
+    assert.equal(n?.type, type, md);
+    assert.equal((n?.content ?? []).map((c) => c.text).join(""), text, md);
+  }
+});
+
+test("links and images still read the way they did", () => {
+  const nodes = inlineToNodes(
+    'See [the site](https://example.com "Home") and ![pic](a.png) and [broken](x y) and [a](b',
+    D,
+  );
+  assert.equal(nodes[1]?.marks?.[0]?.type, "link");
+  assert.equal(nodes[1]?.marks?.[0]?.attrs?.["href"], "https://example.com");
+  assert.equal(nodes[1]?.marks?.[0]?.attrs?.["title"], "Home");
+  assert.equal(nodes.map((n) => n.text).join(""), "See the site and ![pic](a.png) and [broken](x y) and [a](b");
 });

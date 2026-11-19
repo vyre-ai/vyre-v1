@@ -74,6 +74,8 @@ export type {
 // a Vyre document page: field chips and suggestions (see doc/)
 export { chipLook, fieldLabel, matchFields, missingTags, tagsIn } from "./doc/fields.ts";
 export type { ChipLook, FieldDef, FieldResolver } from "./doc/fields.ts";
+export { DocController } from "./doc/controller.ts";
+export { SuggestionsPane } from "./doc/SuggestionsPane.tsx";
 export { countCritic, criticAuthors, listCritic, resolveCritic, resolveOneCritic, writeCritic } from "./doc/critic.ts";
 export { Autosaver } from "./autosave.ts";
 export { useAutosavedText } from "./useAutosavedText.ts";

@@ -20,6 +20,7 @@ import type { FieldDef, FieldResolver } from "./doc/fields.ts";
 import { isOwnEcho, mergeRemote, noteSent } from "./doc/merge.ts";
 import { changeAt, freshChange, listChanges, resolveChanges } from "./doc/track.ts";
 import type { Change } from "./doc/track.ts";
+import type { DocController } from "./doc/controller.ts";
 import { belowPhone } from "../SidePane/layout.ts";
 
 export type MarkdownView = "styled" | "raw";
@@ -72,6 +73,8 @@ export interface DocEditing {
   now?: () => string;
   /** The number of suggestions changed. */
   onChanges?: (count: number) => void;
+  /** What a pane beside the page (SuggestionsPane) reads and presses: the page fills it with the suggestions and takes its Accept, Reject and go-to. */
+  controller?: DocController;
 }
 
 export interface MarkdownEditorProps {
@@ -951,6 +954,7 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
               );
               changesRef.current = list;
               setChanges(list);
+              cb.current.doc.controller?.set(list);
               cb.current.doc.onChanges?.(list.length);
             }
             const md = docToMarkdown(e2.getJSON(), mdo());
@@ -1073,6 +1077,7 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
     const list = listChanges(ed.state.doc);
     changesRef.current = list;
     setChanges(list);
+    cb.current.doc.controller?.set(list);
     cb.current.doc.onChanges?.(list.length);
   }, [editor]);
 
@@ -1135,6 +1140,21 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
       .scrollIntoView()
       .run();
   };
+  if (props.doc?.controller)
+    props.doc.controller.actions = {
+      accept: (c) => settle(true, [c]),
+      reject: (c) => settle(false, [c]),
+      acceptAll: () => settle(true),
+      rejectAll: () => settle(false),
+      goTo: (c) => {
+        const ed = editorRef.current;
+        if (!ed) return;
+        (ed.chain().focus() as unknown as { setTextSelection(p: number): { scrollIntoView(): { run(): boolean } } })
+          .setTextSelection(c.from)
+          .scrollIntoView()
+          .run();
+      },
+    };
   const docBar =
     docOn && view === "styled" && editor !== null ? (
       <DocBar
