@@ -27,6 +27,7 @@ import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
 import { HeldCard } from "./held-card.tsx";
 import { HoldNote } from "./hold-note.tsx";
+import { madeByGate } from "../needsyou/model.ts";
 import type { HeldEditor } from "./held-card.tsx";
 import { outwardOf, scheduleLine, verbOfChannel, whenWords } from "../../../../../../lib/outward.ts";
 import type { Outward, Recipient } from "../../../../../../lib/outward.ts";
@@ -490,7 +491,7 @@ export function ApprovalCard({
         title={headline}
         lead={<Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />}
       />
-      {held.note && task.source?.kind === "gate" ? (
+      {held.note && madeByGate(task) ? (
         <HoldNote note={held.note} names={held.noteSigners} testID={`approval-note-${taskId}`} inset={CARD_INSET} />
       ) : null}
       {diff && diff.lines.length > 0 ? (

@@ -563,6 +563,7 @@ test("a held send of a preview copy shows the server's sentence quietly under th
       title: "Approve: Send a document for signature",
       state: "awaiting_approval",
       source: { kind: "gate", id: "gh_1" },
+      payloadHash: "a".repeat(64),
       blocks: [
         {
           type: "file",

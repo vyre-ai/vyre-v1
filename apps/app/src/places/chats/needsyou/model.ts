@@ -299,6 +299,13 @@ const str = (v: unknown): string =>
   typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? String(v) : "";
 const strs = (v: unknown): string[] => (Array.isArray(v) ? v.map(str) : []);
 
+/**
+ * Was this task made by the Gate? Not from its blocks (any author writes those) and not from `source` alone (tasks.create takes a source from its author): the Gate's approve task also carries the payload hash
+ * of the held act, a reserved note only the server writes and never takes from input. A member-written task with a gate-looking source and gate-looking blocks has none.
+ */
+export const madeByGate = (t: { source?: { kind?: string } | null; payloadHash?: string | null }): boolean =>
+  t.source?.kind === "gate" && typeof t.payloadHash === "string" && t.payloadHash !== "";
+
 /** The server's own sentence for a held act (a preview copy that is not the exact one), as a block of its own beside the act's lines; null when the block carries none. */
 export function noteView(b: Task["blocks"][number], gate: boolean): BlockView | null {
   // only a task the Gate made: the data of an ordinary task is whatever its author wrote, and must not wear the Gate's words

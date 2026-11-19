@@ -14,6 +14,7 @@ import {
   arrivedLabel,
   blockView,
   noteView,
+  madeByGate,
   doneLine,
   dueLabel,
   filterCounts,
@@ -756,4 +757,12 @@ test("a held signature send is drawn as its own lines, not as the bare word file
     true,
   );
   assert.match(JSON.stringify(view), /Please sign by Friday/);
+});
+
+test("madeByGate: a gate source with the server's payload hash is the Gate's; a gate-looking source alone, a hash alone, or neither is a member's task", () => {
+  assert.equal(madeByGate({ source: { kind: "gate" }, payloadHash: "abc" }), true);
+  assert.equal(madeByGate({ source: { kind: "gate" } }), false, "a member can name a gate source");
+  assert.equal(madeByGate({ source: { kind: "manual" }, payloadHash: "abc" }), false);
+  assert.equal(madeByGate({ source: { kind: "gate" }, payloadHash: "" }), false);
+  assert.equal(madeByGate({}), false);
 });
