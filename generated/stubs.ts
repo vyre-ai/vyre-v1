@@ -1684,6 +1684,18 @@ export function stubs(ctx: CallCtx) {
       send_preview: call("mail.send_preview"),
       status_update: call("mail.status_update"),
       sync_now: call("mail.sync_now"),
+      template: {
+        for_document: {
+          clear: call("mail.template.for_document.clear"),
+          get: call("mail.template.for_document.get"),
+          set: call("mail.template.for_document.set"),
+        },
+        get: call("mail.template.get"),
+        list: call("mail.template.list"),
+        preview: call("mail.template.preview"),
+        reset: call("mail.template.reset"),
+        save: call("mail.template.save"),
+      },
       thread: {
         get: call("mail.thread.get"),
       },

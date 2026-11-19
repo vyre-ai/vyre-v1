@@ -25915,6 +25915,139 @@ export type MailSyncNowIn = {
 export type MailSyncNowOut = {
   runId: string;
 };
+export type MailTemplateForDocumentClearIn = {
+  documentId: string;
+  key: string;
+};
+export type MailTemplateForDocumentClearOut = {
+  cleared: boolean;
+};
+export type MailTemplateForDocumentGetIn = {
+  documentId: string;
+  key: string;
+};
+export type MailTemplateForDocumentGetOut = {
+  override: boolean;
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateForDocumentSetIn = {
+  documentId: string;
+  key: string;
+  subject: string;
+  text: string;
+  html?: string;
+};
+export type MailTemplateForDocumentSetOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateGetIn = {
+  key: string;
+  documentId?: string;
+};
+export type MailTemplateGetOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateListIn = Record<string, unknown>;
+export type MailTemplateListOut = {
+  templates: Array<{
+      key: string;
+      title: string;
+      subject: string;
+      source: "space" | "builtin";
+      customised: boolean;
+      updatedAt?: number;
+    }>;
+};
+export type MailTemplatePreviewIn = {
+  key?: string;
+  documentId?: string;
+  subject?: string;
+  text?: string;
+  html?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
+};
+export type MailTemplatePreviewOut = {
+  subject: string;
+  text: string;
+  html?: string;
+  source: "document" | "space" | "builtin" | "draft";
+  blanks: Array<string>;
+  fallbacks: Array<string>;
+};
+export type MailTemplateResetIn = {
+  key: string;
+};
+export type MailTemplateResetOut = {
+  reset: boolean;
+};
+export type MailTemplateSaveIn = {
+  key: string;
+  title?: string;
+  subject: string;
+  text: string;
+  html?: string;
+  recordType?: string;
+};
+export type MailTemplateSaveOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
 export type MailThreadGetIn = {
   threadId: string;
   images?: boolean;
@@ -49573,6 +49706,14 @@ export interface CapMap {
   "mail.send_preview": { in: MailSendPreviewIn; out: MailSendPreviewOut };
   "mail.status_update": { in: MailStatusUpdateIn; out: MailStatusUpdateOut };
   "mail.sync_now": { in: MailSyncNowIn; out: MailSyncNowOut };
+  "mail.template.for_document.clear": { in: MailTemplateForDocumentClearIn; out: MailTemplateForDocumentClearOut };
+  "mail.template.for_document.get": { in: MailTemplateForDocumentGetIn; out: MailTemplateForDocumentGetOut };
+  "mail.template.for_document.set": { in: MailTemplateForDocumentSetIn; out: MailTemplateForDocumentSetOut };
+  "mail.template.get": { in: MailTemplateGetIn; out: MailTemplateGetOut };
+  "mail.template.list": { in: MailTemplateListIn; out: MailTemplateListOut };
+  "mail.template.preview": { in: MailTemplatePreviewIn; out: MailTemplatePreviewOut };
+  "mail.template.reset": { in: MailTemplateResetIn; out: MailTemplateResetOut };
+  "mail.template.save": { in: MailTemplateSaveIn; out: MailTemplateSaveOut };
   "mail.thread.get": { in: MailThreadGetIn; out: MailThreadGetOut };
   "mail.unsubscribe": { in: MailUnsubscribeIn; out: MailUnsubscribeOut };
   "mailgun.domains.create": { in: MailgunDomainsCreateIn; out: MailgunDomainsCreateOut };

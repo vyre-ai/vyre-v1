@@ -1,0 +1,62 @@
+# mail.template.for_document.clear
+
+Take a document back to the Space's version of an email template
+
+| | |
+|---|---|
+| Module | mail |
+| Version | 1 (since 1.0.0) |
+| Effects | write |
+| Permission | grant only |
+| Grant level | edit |
+| Risk | medium |
+| Resource | file (/documentId) |
+| Gate | none |
+| Idempotency | natural |
+| Offline | online |
+| Audit | none |
+| Team Space only | no |
+| HTTP | POST /v1/mail/template/for_document/clear |
+| MCP tool | mail_template_for_document_clear (inbox) |
+| CLI | none |
+| Emits | none |
+
+## Input
+
+```ts
+type In = {
+  documentId: string;
+  key: string;
+};
+```
+
+## Output
+
+```ts
+type Out = {
+  cleared: boolean;
+};
+```
+
+## Errors
+
+- internal.unexpected
+- permission.above_clearance
+- permission.no_grant
+- validation.bad_input
+- validation.not_found
+
+## Example
+
+```json
+{
+  "name": "example",
+  "input": {
+    "documentId": "fil_a1b2c3",
+    "key": "signature.request"
+  },
+  "output": {
+    "cleared": true
+  }
+}
+```

@@ -1684,6 +1684,18 @@ export function createClient(transport: Transport) {
       send_preview: call("mail.send_preview", 1),
       status_update: call("mail.status_update", 1),
       sync_now: call("mail.sync_now", 1),
+      template: {
+        for_document: {
+          clear: call("mail.template.for_document.clear", 1),
+          get: call("mail.template.for_document.get", 1),
+          set: call("mail.template.for_document.set", 1),
+        },
+        get: call("mail.template.get", 1),
+        list: call("mail.template.list", 1),
+        preview: call("mail.template.preview", 1),
+        reset: call("mail.template.reset", 1),
+        save: call("mail.template.save", 1),
+      },
       thread: {
         get: call("mail.thread.get", 1),
       },

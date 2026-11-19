@@ -4,7 +4,7 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (41)
+## Capabilities (49)
 
 - [mail.attachment.save](../capabilities/mail.attachment.save.md): Save an attachment into Files
 - [mail.auto_connect_members](../capabilities/mail.auto_connect_members.md): Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)
@@ -45,6 +45,14 @@ Requires: nothing.
 - [mail.send_preview](../capabilities/mail.send_preview.md): Dry run of a send: who would be reached and who is suppressed, without sending
 - [mail.status_update](../capabilities/mail.status_update.md): Apply a provider status (delivered, bounced, complained, opened, clicked, failed); hard bounces and complaints write the suppression list
 - [mail.sync_now](../capabilities/mail.sync_now.md): Sync a mailbox now
+- [mail.template.for_document.clear](../capabilities/mail.template.for_document.clear.md): Take a document back to the Space's version of an email template
+- [mail.template.for_document.get](../capabilities/mail.template.for_document.get.md): The email template a document uses for a key, and whether it keeps its own version
+- [mail.template.for_document.set](../capabilities/mail.template.for_document.set.md): Give a document its own version of an email template
+- [mail.template.get](../capabilities/mail.template.get.md): Read one email template; with a document, the text that document's emails use
+- [mail.template.list](../capabilities/mail.template.list.md): List email templates: the ones that ship with Vyre and the Space's own, with which are changed
+- [mail.template.preview](../capabilities/mail.template.preview.md): Fill a template (a saved key, or a draft subject and text) from a real record and values you pass; says which fields would go out blank
+- [mail.template.reset](../capabilities/mail.template.reset.md): Remove the Space's version of a template; the one that ships with Vyre comes back
+- [mail.template.save](../capabilities/mail.template.save.md): Create or change the Space's email template for a key. Text carries {{field}} or {{field|fallback}} merge fields
 - [mail.thread.get](../capabilities/mail.thread.get.md): Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)
 - [mail.unsubscribe](../capabilities/mail.unsubscribe.md): Inbound: a person pressed the unsubscribe link in an email; writes the Suppression list
 

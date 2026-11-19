@@ -44,6 +44,14 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mail.send_preview": Handler<"mail.send_preview", X>;
   "mail.status_update": Handler<"mail.status_update", X>;
   "mail.sync_now": Handler<"mail.sync_now", X>;
+  "mail.template.for_document.clear": Handler<"mail.template.for_document.clear", X>;
+  "mail.template.for_document.get": Handler<"mail.template.for_document.get", X>;
+  "mail.template.for_document.set": Handler<"mail.template.for_document.set", X>;
+  "mail.template.get": Handler<"mail.template.get", X>;
+  "mail.template.list": Handler<"mail.template.list", X>;
+  "mail.template.preview": Handler<"mail.template.preview", X>;
+  "mail.template.reset": Handler<"mail.template.reset", X>;
+  "mail.template.save": Handler<"mail.template.save", X>;
   "mail.thread.get": Handler<"mail.thread.get", X>;
   "mail.unsubscribe": Handler<"mail.unsubscribe", X>;
 }
