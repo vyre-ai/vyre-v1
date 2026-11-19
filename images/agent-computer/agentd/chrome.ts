@@ -3,7 +3,8 @@
 // What it does not answer yet (none now) and a #Handle.field is filled by main.ts from the host (vault.ts).
 //
 // Outward acts are held, not done: a click on something that sends, posts, pays or deletes answers with a heldId, and only chrome_send (behind the Gate) does it.
-import { createPointerNote } from "./pointer.ts";
+import { createPointerNote, labelOf } from "./pointer.ts";
+import type { LabelInput } from "./pointer.ts";
 import { extensionStatus } from "./extension-state.ts";
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
@@ -393,6 +394,7 @@ export function launchChrome(
       by: number;
       bw: number;
       bh: number;
+      raw: LabelInput;
     } | null>(
       c,
       `(() => {
@@ -401,14 +403,17 @@ export function launchChrome(
       el.scrollIntoView({ block: "center", inline: "center" });
       const b = el.getBoundingClientRect();
       const label = (el.getAttribute("aria-label") || el.innerText || el.value || el.title || el.name || "").trim().slice(0, 120);
+      const raw = { tag: el.tagName || "", type: el.getAttribute("type") || "", aria: el.getAttribute("aria-label") || "", text: el.innerText || "", value: typeof el.value === "string" ? el.value : "", title: el.title || "", name: el.getAttribute("name") || "", placeholder: el.getAttribute("placeholder") || "", id: el.id || "", autocomplete: el.getAttribute("autocomplete") || "" };
       const form = el.closest("form");
       const text = label + " " + (el.getAttribute("type") || "") + " " + (el.getAttribute("name") || "") + " " + (form ? (form.getAttribute("aria-label") || "") : "");
-      return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2), bx: Math.round(b.left), by: Math.round(b.top), bw: Math.round(b.width), bh: Math.round(b.height), outward: new RegExp(${JSON.stringify(OUTWARD)}, "i").test(text), label };
+      return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2), bx: Math.round(b.left), by: Math.round(b.top), bw: Math.round(b.width), bh: Math.round(b.height), outward: new RegExp(${JSON.stringify(OUTWARD)}, "i").test(text), label, raw };
     })()`,
     );
     if (!r) throw notFound(`There is no element ${ref} on this page. Take a new snapshot.`);
-    seen.chose({ x: r.bx, y: r.by, w: r.bw, h: r.bh, label: r.label });
-    return r;
+    // the name is made here from what the page said, never from a field's value (pointer.ts labelOf); the page's own label stays only inside the page for the outward test
+    const safe = labelOf(r.raw);
+    seen.chose({ x: r.bx, y: r.by, w: r.bw, h: r.bh, label: safe });
+    return { x: r.x, y: r.y, outward: r.outward, label: safe };
   };
 
   const mouse = async (c: Cdp, x: number, y: number, button = "left", count = 1): Promise<void> => {

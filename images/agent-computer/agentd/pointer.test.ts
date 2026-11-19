@@ -44,3 +44,64 @@ test("a coordinate press away from the chosen element does not borrow its box; a
   p.at(5, 5);
   assert.equal(p.get()?.label?.length, 60);
 });
+
+import { isSecretField, labelOf } from "./pointer.ts";
+import type { LabelInput } from "./pointer.ts";
+const el = (o: Partial<LabelInput>): LabelInput => ({
+  tag: "input",
+  type: "text",
+  aria: "",
+  text: "",
+  value: "",
+  title: "",
+  name: "",
+  placeholder: "",
+  id: "",
+  autocomplete: "",
+  ...o,
+});
+
+test("a password field is never named by its value, even when the page shows it as plain text; it is named by its own label", () => {
+  assert.equal(labelOf(el({ type: "password", value: "hunter2-secret", aria: "Password" })), "Password");
+  assert.equal(
+    labelOf(el({ type: "password", value: "hunter2-secret" })),
+    "",
+    "no own name: no name at all, never the value",
+  );
+  // 'show password' turned it into a text input: the value is visible text, and still not a name
+  assert.equal(
+    labelOf(el({ type: "text", name: "password", value: "hunter2-secret", text: "hunter2-secret" })),
+    "password",
+  );
+  assert.equal(
+    labelOf(el({ type: "text", id: "login-pass", value: "hunter2-secret", placeholder: "Your password" })),
+    "Your password",
+  );
+  assert.equal(
+    labelOf(el({ tag: "div", name: "", text: "hunter2-secret", aria: "", id: "pwd-revealed" })).includes("hunter2"),
+    false,
+    "a revealed-password element is secret by its name too",
+  );
+});
+
+test("a one-time code field is never named by the code, by type, autocomplete, or what it is called", () => {
+  assert.equal(labelOf(el({ autocomplete: "one-time-code", value: "482913", aria: "Code" })), "Code");
+  assert.equal(labelOf(el({ name: "otp", value: "482913" })), "otp");
+  assert.equal(labelOf(el({ placeholder: "6-digit verification code", value: "482913" })), "6-digit verification code");
+  assert.equal(labelOf(el({ id: "2fa", value: "482913", text: "482913" })).includes("482913"), false);
+  for (const v of [{ type: "password" }, { autocomplete: "one-time-code" }, { name: "token" }, { id: "cvv" }])
+    assert.equal(isSecretField(el(v)), true);
+  assert.equal(isSecretField(el({ name: "email" })), false);
+});
+
+test("no field is ever named by what was typed or filled into it; a button's own value or text is its name; whitespace is folded and the name is cut to 120", () => {
+  assert.equal(
+    labelOf(el({ type: "text", name: "reference", value: "NW-20418", placeholder: "Reference number" })),
+    "Reference number",
+  );
+  assert.equal(labelOf(el({ tag: "textarea", value: "my private note", aria: "" })), "");
+  assert.equal(labelOf(el({ type: "submit", value: "Send request" })), "Send request");
+  assert.equal(labelOf(el({ tag: "button", type: "submit", text: "  Send \n request " })), "Send request");
+  assert.equal(labelOf(el({ tag: "select", value: "private", aria: "Category" })), "Category");
+  assert.equal(labelOf(el({ tag: "a", text: "x".repeat(300) })).length, 120);
+});

@@ -58,3 +58,43 @@ export function createPointerNote(now: () => number = Date.now): {
     get: () => seen,
   };
 }
+
+/** What the page says about the element a tool chose, raw: the label is made from it here, where it can be tested, never in the page. */
+export interface LabelInput {
+  tag: string;
+  type: string;
+  aria: string;
+  text: string;
+  value: string;
+  title: string;
+  name: string;
+  placeholder: string;
+  id: string;
+  autocomplete: string;
+}
+const SENSITIVE =
+  /pass(word|wd|code)?|pwd|otp|one.?time|2fa|mfa|verification|security.?code|token|secret|\bpin\b|cvv|cvc|card.?number|ssn/i;
+/** A field that holds a secret: a password or code by its type, its autocomplete, or by what it is called. */
+export function isSecretField(i: LabelInput): boolean {
+  if (i.type.toLowerCase() === "password") return true;
+  if (/password|one-time-code/i.test(i.autocomplete)) return true;
+  return SENSITIVE.test(`${i.name} ${i.id} ${i.aria} ${i.placeholder}`);
+}
+const FIELD_TAGS = new Set(["input", "textarea", "select"]);
+const BUTTON_TYPES = new Set(["submit", "button", "reset"]);
+/**
+ * The element's visible name for the desk and for a held action's words (at most 120 characters). The text a person has typed or a page has filled into a field is never the name: for any field the name is
+ * its aria-label, placeholder or title, and a field that holds a secret (a password, a one-time code) is named only by its own aria-label, placeholder or name, never by its value or any text on it, even when that
+ * value is shown on the page. A button's value is its name.
+ */
+export function labelOf(i: LabelInput): string {
+  const tag = i.tag.toLowerCase();
+  const field = FIELD_TAGS.has(tag);
+  const clean = (v: string): string => v.trim().replace(/\s+/g, " ");
+  let out: string;
+  if (isSecretField(i)) out = i.aria || i.placeholder || i.name || "";
+  else if (field && BUTTON_TYPES.has(i.type.toLowerCase())) out = i.aria || i.value || i.title || i.name;
+  else if (field) out = i.aria || i.placeholder || i.title || i.name;
+  else out = i.aria || i.text || i.title || i.name;
+  return clean(out).slice(0, 120);
+}
