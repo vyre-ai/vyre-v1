@@ -1,6 +1,6 @@
 # terminal.run
 
-Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns
+Run a command in a session and wait for it; secrets only as #Handle.field; output is scrubbed
 
 | | |
 |---|---|

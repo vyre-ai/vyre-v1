@@ -2409,6 +2409,8 @@ test("r42-runtime: a person's Stop on the node of a command left running interru
     [{ runId: "run_other", to: "stopped" }, "another node's stop"],
   ] as const)
     assert.deepEqual(stop.run(hn.ctx, { name: "run.node_state", payload, at }), [], why);
-  assert.deepEqual(stop.run(hn.ctx, { name: "run.node_state", payload: { runId: "run_node1", to: "stopped" }, at }), ["1"]);
+  assert.deepEqual(stop.run(hn.ctx, { name: "run.node_state", payload: { runId: "run_node1", to: "stopped" }, at }), [
+    "1",
+  ]);
   assert.equal((await cmd).exitCode, 130, "Ctrl-C, and the exit is reported");
 });

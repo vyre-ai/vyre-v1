@@ -52,7 +52,9 @@ export function createBackgroundPort(
           why: outcome.held ? "stopped" : outcome.ok ? "done" : "failed",
           ...(outcome.held ? { stopReason: "held" } : {}),
           summary: outcome.summary,
-          ...(outcome.ok || outcome.held ? {} : { error: { code: outcome.code ?? "failed", message: outcome.summary } }),
+          ...(outcome.ok || outcome.held
+            ? {}
+            : { error: { code: outcome.code ?? "failed", message: outcome.summary } }),
         });
       } catch (e) {
         // already over (a person stopped it): the command's own end changes nothing

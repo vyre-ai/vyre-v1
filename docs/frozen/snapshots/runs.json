@@ -1,6 +1,7 @@
 {
   "module": "runs",
   "capabilities": {
+    "runs.activity.list@1": "d01bf1bafc746207a5b53cf5655f7fde729847f7b49c3fa70c94d55822610f42",
     "runs.count@1": "39fa4eb2bc9b1fc204623bd4811d87e49e7797db402f9750423e5973e10120c7",
     "runs.erase@1": "cea79946854c60344be4bcaab23e07d2efbe75ce55d70519d9820eac27674c79",
     "runs.events.list@1": "af41dd4d45d672e09b7044f9b917ab3f77b86cfc402b13b87d91ce721061fb12",

@@ -60,6 +60,8 @@ export interface ApiTools {
   runner: ToolRunner;
   /** EngineOptions.toolClass: which calls of one step may run together (independent reads). */
   toolClass?: (name: string) => "read" | "other";
+  /** EngineOptions.toolSafety: how safe a call is to ask again after a restart (agent/src/turn-engine/journal.ts). */
+  toolSafety?: (name: string) => "read" | "keyed" | "unsafe";
 }
 
 const view = (t: ToolDef): ApiTool => ({

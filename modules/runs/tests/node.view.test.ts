@@ -8,7 +8,7 @@ import { alice, bob, engine } from "../fixtures/seed.ts";
 const THREAD = `thr_${"a".repeat(32)}`;
 const member = (who: { id: string }, action: { level: string }, res: { type: string; id: string | null }): boolean =>
   who.id === "usr_bob" && action.level === "view" && res.type === "thread" && res.id === THREAD;
-const at0 = (who: { id: string; kind: "person" }) => ({ ...who, depth: 0 });
+const at0 = (who: { id: string; kind?: "person" | "agent" | "actor" | "service" }) => ({ ...who, depth: 0 });
 
 async function built(h: Harness) {
   const root = (
