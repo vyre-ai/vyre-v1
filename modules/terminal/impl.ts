@@ -1,4 +1,4 @@
-import { eraseCmdLogsOfAgent, expireCmdLogs } from "./cmdlog.ts";
+import { eraseCmdLogsOfAgent, eraseCmdLogsOfPerson, expireCmdLogs } from "./cmdlog.ts";
 import { tryAll, tryRun } from "../../lib/erase-agent.ts";
 import { ensure as ensureTerminalTables, forgetAgentSecrets } from "./projections.ts";
 type Row = Record<string, unknown>;
@@ -1582,6 +1582,7 @@ export const hostCalls = {
         "terminal_lease",
         "terminal_key_batch",
         "terminal_tickets",
+        "terminal_cmd_log",
       ])
         tryRun(ctx.db, `DELETE FROM ${t} WHERE terminal_id = ?`, id);
       tryRun(ctx.db, "DELETE FROM terminal_sessions WHERE terminal_id = ?", id);
@@ -1606,6 +1607,14 @@ export const hostCalls = {
 
 /** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
 export const consumers = {
+  /** A person left the Space: what their commands printed (run by them, or by an agent for them) is erased with them (cmdlog.ts). */
+  "terminal.cmdlog_person_left": {
+    on: ["member.removed"],
+    run: (ctx: TermCtx, event: { payload: { personId?: unknown } }): number => {
+      ensureTerminalTables(ctx.db);
+      return typeof event.payload.personId === "string" ? eraseCmdLogsOfPerson(ctx.db, event.payload.personId) : 0;
+    },
+  },
   /** An agent was deleted for good: the output its commands kept goes with it (cmdlog.ts). */
   "terminal.cmdlog_agent_deleted": {
     on: ["agent.deleted"],

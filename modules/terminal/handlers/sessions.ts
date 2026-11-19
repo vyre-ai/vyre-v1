@@ -2141,6 +2141,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
         seq: begun.rowId,
         terminalId: s.terminalId,
         agentId: s.agentId,
+        personId: owner,
         endedAt: ctx.now(),
         // the whole output when the host read it, else what the answer holds; either way scrubbed here, and again on every read
         output: fullText !== undefined ? clean(scope, fullText) : output,
@@ -2168,7 +2169,7 @@ export async function logList(ctx: TermCtx, input: { terminalId: string; limit?:
   needOwnTerminal(ctx, x);
   await needOwnPlace(ctx, x);
   return {
-    commands: listCmdLogs(ctx.db, input.terminalId, input.limit ?? 20).map((c) => ({
+    commands: listCmdLogs(ctx.db, input.terminalId, input.limit ?? 20, ctx.now()).map((c) => ({
       commandId: c.seq,
       command: clean(scopeOf(x), c.command).slice(0, 300),
       exitCode: c.exitCode,
@@ -2214,6 +2215,7 @@ export async function logRead(
       ...(input.to === undefined ? {} : { to: input.to }),
     },
     (text) => clean(scope, text),
+    ctx.now(),
   );
   if (a === null)
     return raise(

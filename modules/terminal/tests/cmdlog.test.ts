@@ -2,7 +2,7 @@
 // takes its logs, a person without access to the terminal is refused, and an answer is never the whole output.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handlers, consumers, periodic } from "../impl.ts";
+import { handlers, consumers, periodic, hostCalls, setTerminalHost } from "../impl.ts";
 import { bindHost, bindValues, ensure } from "../projections.ts";
 import { codeOf, contractErrors, fakeHost, fakeValues, harness, reset } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -14,6 +14,7 @@ import {
   MAX_ANSWER_CHARS,
   MAX_LINES,
   keepCmdLog,
+  readCmdLog,
   setCmdLogCaps,
 } from "../cmdlog.ts";
 
@@ -148,7 +149,14 @@ test("caps hold: a command over its cap keeps its last lines with the cut marked
   try {
     const big = Array.from({ length: 100 }, (_, i) => `row ${String(i).padStart(3, "0")}`).join("\n"); // about 900 bytes... then more
     const huge = `${big}\n${big}\n${big}`;
-    const k = keepCmdLog(hn.db, { seq: 1, terminalId: "trm_a", agentId: "agt_a", endedAt: 1, output: huge });
+    const k = keepCmdLog(hn.db, {
+      seq: 1,
+      terminalId: "trm_a",
+      agentId: "agt_a",
+      personId: "usr_a",
+      endedAt: 1,
+      output: huge,
+    });
     assert.ok(k.cutBytes > 0);
     const body = String(hn.rows("SELECT body FROM terminal_cmd_log WHERE seq = 1")[0]?.["body"]);
     assert.match(body, /^\[earlier output cut: \d+ bytes\]\n/);
@@ -162,7 +170,14 @@ test("caps hold: a command over its cap keeps its last lines with the cut marked
       "whole lines only",
     );
     for (let i = 2; i <= 6; i++)
-      keepCmdLog(hn.db, { seq: i, terminalId: "trm_a", agentId: "agt_a", endedAt: i, output: "z".repeat(900) });
+      keepCmdLog(hn.db, {
+        seq: i,
+        terminalId: "trm_a",
+        agentId: "agt_a",
+        personId: "usr_a",
+        endedAt: i,
+        output: "z".repeat(900),
+      });
     const left = hn
       .rows("SELECT seq FROM terminal_cmd_log WHERE agent_id = 'agt_a' ORDER BY seq")
       .map((r) => Number(r["seq"]));
@@ -171,8 +186,22 @@ test("caps hold: a command over its cap keeps its last lines with the cut marked
     assert.ok(left.includes(6), "the newest is kept");
     assert.ok(!left.includes(1), "the oldest went first");
     // another agent's logs are not touched by this agent's cap
-    keepCmdLog(hn.db, { seq: 50, terminalId: "trm_b", agentId: "agt_b", endedAt: 0, output: "other" });
-    keepCmdLog(hn.db, { seq: 7, terminalId: "trm_a", agentId: "agt_a", endedAt: 9, output: "z".repeat(900) });
+    keepCmdLog(hn.db, {
+      seq: 50,
+      terminalId: "trm_b",
+      agentId: "agt_b",
+      personId: "usr_b",
+      endedAt: 0,
+      output: "other",
+    });
+    keepCmdLog(hn.db, {
+      seq: 7,
+      terminalId: "trm_a",
+      agentId: "agt_a",
+      personId: "usr_a",
+      endedAt: 9,
+      output: "z".repeat(900),
+    });
     assert.equal(hn.rows("SELECT seq FROM terminal_cmd_log WHERE agent_id = 'agt_b'").length, 1);
   } finally {
     setCmdLogCaps(null);
@@ -291,5 +320,123 @@ test("when the host read the whole history, that is what is kept (scrubbed), far
     assert.equal(rd.totalLines, 800);
   } finally {
     bindValues(null);
+  }
+});
+
+// the fake key is made at run time, so no source file holds a string that looks like one
+const STRIPE = ["sk", "live", "abcdefghijklmnopqrstuvwx"].join("_");
+
+test("secret shapes the Vault never knew are not kept either: a key, a bearer header, a password in a URL, a private key; the output otherwise stands", async () => {
+  const out = [
+    "starting",
+    `export STRIPE_SECRET_KEY=${STRIPE}`,
+    "curl -H 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345' https://x.test",
+    "postgres://app:hunter2hunter2@db.internal:5432/app",
+    "-----BEGIN PRIVATE KEY-----",
+    "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC",
+    "-----END PRIVATE KEY-----",
+    "done in 4s",
+  ].join("\n");
+  const { hn } = setup({ env: { exitCode: 0, output: out } });
+  const r = await runIt(hn, "env");
+  const body = String(hn.rows("SELECT body FROM terminal_cmd_log WHERE seq = ?", r.commandId)[0]?.["body"]);
+  for (const leak of [
+    STRIPE,
+    "abcdefghijklmnopqrstuvwxyz012345",
+    "hunter2hunter2",
+    "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC",
+  ])
+    assert.equal(body.includes(leak), false, `${leak} is not stored`);
+  assert.match(body, /^starting\n/);
+  assert.match(body, /done in 4s$/);
+  assert.match(body, /redacted/);
+});
+
+test("a log older than its week reads as gone at once, before the hourly pass: the read refuses, the list says it is not kept", async () => {
+  const { hn } = setup({ one: { exitCode: 0, output: "week old" } });
+  const r = await runIt(hn, "one");
+  hn.advance(KEEP_MS - 1000);
+  assert.equal(
+    (await call(hn, "terminal.log.read", { terminalId: r.terminalId, commandId: r.commandId })).lines[0].text,
+    "week old",
+  );
+  hn.advance(2000);
+  assert.equal(
+    await code(() => h["terminal.log.read"]!(hn.ctx, { terminalId: r.terminalId, commandId: r.commandId })),
+    "validation.not_found",
+  );
+  const l = await call(hn, "terminal.log.list", { terminalId: r.terminalId });
+  assert.equal(l.commands[0].kept, false);
+  assert.equal(
+    hn.rows("SELECT COUNT(*) AS n FROM terminal_cmd_log")[0]?.["n"],
+    1,
+    "the row is still there until the pass deletes it",
+  );
+});
+
+test("a person who leaves the Space takes what their commands printed with them, the ones an agent ran for them included, and no one else's", async () => {
+  const { hn } = setup({ one: { exitCode: 0, output: "dana's" } });
+  const r = await runIt(hn, "one");
+  hn.db.run(
+    "INSERT INTO terminal_cmd_log (seq, terminal_id, agent_id, person_id, ended_at, bytes, cut_bytes, body) VALUES (998, 'trm_o', 'agt_intake', 'usr_omar', 1, 3, 0, 'abc')",
+  );
+  const c = (
+    consumers as Record<string, { run: (c: Harness["ctx"], e: { payload: { personId: string } }) => unknown }>
+  )["terminal.cmdlog_person_left"]!;
+  await c.run(hn.ctx, { payload: { personId: "usr_dana" } });
+  assert.equal(
+    hn
+      .rows("SELECT seq FROM terminal_cmd_log")
+      .map((x) => Number(x["seq"]))
+      .join(),
+    "998",
+  );
+  assert.equal(
+    await code(() => h["terminal.log.read"]!(hn.ctx, { terminalId: r.terminalId, commandId: r.commandId })),
+    "validation.not_found",
+  );
+});
+
+test("erasing an agent's computer erases the kept output of its terminals", async () => {
+  const { hn } = setup({ one: { exitCode: 0, output: "kept" } });
+  await runIt(hn, "one");
+  assert.equal(hn.rows("SELECT COUNT(*) AS n FROM terminal_cmd_log")[0]?.["n"], 1);
+  setTerminalHost(null);
+  await (hostCalls["terminal.erase_agent"] as (ctx: unknown, i: unknown) => Promise<unknown>)(hn.ctx, {
+    agentId: "agt_intake",
+    dry: false,
+  });
+  assert.equal(hn.rows("SELECT COUNT(*) AS n FROM terminal_cmd_log")[0]?.["n"], 0);
+});
+
+test("a huge range or needle costs little: a range over a log of a million short lines answers at once, a word is cut at 200 characters, a cut never lands inside a character", async () => {
+  const { hn } = setup();
+  ensure(hn.db);
+  const many = "x\n".repeat(400_000);
+  keepCmdLog(hn.db, { seq: 1, terminalId: "trm_a", agentId: "agt_a", personId: "usr_a", endedAt: 1, output: many });
+  hn.db.run(
+    "INSERT INTO terminal_commands (seq, terminal_id, command, exit_code, started_at, duration_ms, by_principal) VALUES (1, 'trm_a', 'x', 0, 1, 1, 'usr_a')",
+  );
+  const t0 = Date.now();
+  const a = readCmdLog(hn.db, "trm_a", 1, { from: 1, to: 1_000_000 }, (t) => t, 5);
+  assert.ok(a && a.lines.length <= MAX_LINES && a.more);
+  assert.ok(Date.now() - t0 < 2000);
+  const long = readCmdLog(hn.db, "trm_a", 1, { match: ["q".repeat(100_000)] }, (t) => t, 5);
+  assert.equal(long?.lines.length, 0);
+  // a single huge line with multi-byte characters is cut at a character boundary
+  setCmdLogCaps({ cmd: 1001, agent: 1_000_000 });
+  try {
+    keepCmdLog(hn.db, {
+      seq: 2,
+      terminalId: "trm_a",
+      agentId: "agt_a",
+      personId: "usr_a",
+      endedAt: 1,
+      output: "é".repeat(2000),
+    });
+    const body = String(hn.rows("SELECT body FROM terminal_cmd_log WHERE seq = 2")[0]?.["body"]);
+    assert.equal(body.includes("\ufffd"), false, "no replacement character: the cut did not split a character");
+  } finally {
+    setCmdLogCaps(null);
   }
 });
