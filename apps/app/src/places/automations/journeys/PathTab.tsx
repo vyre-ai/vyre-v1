@@ -383,7 +383,7 @@ const s = StyleSheet.create({
     color: "var(--ink-3)" as string,
   },
   factVal: { marginTop: 2, fontSize: 13, color: "var(--ink)" as string },
-  bar: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 36 },
+  bar: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", rowGap: 8, gap: 12, minHeight: 36 },
   pick: {
     height: 32,
     paddingHorizontal: 12,
