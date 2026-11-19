@@ -8,7 +8,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { ObjectSection } from "../../../../../../ui/src/ObjectPage/index.tsx";
 import { useConsoleData } from "../../shell/data.tsx";
 import { Group, Section } from "../../shell/ui.tsx";
-import { Help, Button, TextBox, Note, ReadState, Select, useAction, useRead } from "../shared.tsx";
+import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
 import { providerName } from "./common.tsx";
 
 type Setup = CapMap["mail.setup.status"]["out"];
@@ -93,6 +93,10 @@ export function EmailPage(): ReactElement {
           onPress={() => data.nav.openPage("domains", { create: "true" })}
         />
       </ObjectSection>
+      {setup.ready ? <TestSend /> : null}
+      {setup.domains.some((d) => d.verified) ? (
+        <AddressSection domains={setup.domains.filter((d) => d.verified)} />
+      ) : null}
       {query.error || action.note ? <Note>{query.error || action.note}</Note> : null}
     </View>
   );
@@ -167,6 +171,231 @@ function SmtpForm({ smtp, onSaved }: { smtp: Setup["smtp"]; onSaved(): void }): 
       />
       {smtp.state === "failed" && smtp.detail && !result ? <Note>{smtp.detail}</Note> : null}
       {result ? <Note testID="smtp-result">{result}</Note> : null}
+    </ObjectSection>
+  );
+}
+
+type Address = CapMap["mail.address.list"]["out"]["addresses"][number];
+const NEW_INBOX = "new";
+
+/** Addresses on the Space's domains: any name, an inbox behind it or an alias into one that exists, and moving one on purpose. Taking a name that is in use is refused in words; moving is its own step that names where it goes now. */
+function AddressSection({ domains }: { domains: Setup["domains"] }): ReactElement {
+  const list = useRead<CapMap["mail.address.list"]["out"]>("mail.address.list", {});
+  const boxes = useRead<CapMap["mail.mailbox.list"]["out"]>("mail.mailbox.list", { scope: "all", limit: 100 });
+  const [adding, setAdding] = useState(false);
+  const [moving, setMoving] = useState<Address | null>(null);
+  const refresh = (): void => {
+    list.refresh();
+    boxes.refresh();
+  };
+  const inboxes = (boxes.data?.mailboxes ?? []).map((b) => ({ key: b.id, title: `${b.title} · ${b.address}` }));
+  return (
+    <Section
+      title="Addresses"
+      count={list.data?.addresses.length ?? 0}
+      right={<Button label="New address" testID="address-new" onPress={() => setAdding(true)} />}
+    >
+      {!list.data ? (
+        <ReadState error={list.error} retry={list.refresh} />
+      ) : list.data.addresses.length === 0 ? (
+        <Help>No addresses yet. Make one, such as billing or support.</Help>
+      ) : (
+        <Group>
+          {list.data.addresses.map((a) => (
+            <Row
+              key={a.address}
+              title={a.address}
+              note={
+                a.receives
+                  ? a.kind === "alias"
+                    ? `Also delivers to ${a.mailboxTitle}`
+                    : `Inbox: ${a.mailboxTitle}`
+                  : "Sends only: mail to it arrives at your own mail server"
+              }
+              {...(a.kind === "alias"
+                ? { noteAction: { label: "Move", onPress: () => setMoving(a), testID: `address-move-${a.address}` } }
+                : {})}
+            />
+          ))}
+        </Group>
+      )}
+      {adding ? (
+        <NewAddress
+          domains={domains}
+          inboxes={inboxes}
+          onDone={() => {
+            setAdding(false);
+            refresh();
+          }}
+        />
+      ) : null}
+      {moving ? (
+        <MoveAddress
+          address={moving}
+          inboxes={inboxes.filter((i) => i.key !== moving.mailboxId)}
+          onDone={() => {
+            setMoving(null);
+            refresh();
+          }}
+        />
+      ) : null}
+    </Section>
+  );
+}
+
+function NewAddress({
+  domains,
+  inboxes,
+  onDone,
+}: {
+  domains: Setup["domains"];
+  inboxes: { key: string; title: string }[];
+  onDone(): void;
+}): ReactElement {
+  const [name, setName] = useState("");
+  const [domainId, setDomainId] = useState(domains.find((d) => d.isDefault)?.id ?? domains[0]?.id ?? "");
+  const [goesTo, setGoesTo] = useState(NEW_INBOX);
+  const [key, setKey] = useState(attempt); // one key per attempt: pressing Create twice is one add, and a retry after a failure finishes it
+  const action = useAction(onDone);
+  const domain = domains.find((d) => d.id === domainId);
+  const sendOnly = domain?.provider === "smtp";
+  const valid = /^[a-z0-9]([a-z0-9._+-]*[a-z0-9])?$/i.test(name.trim()) && domainId !== "";
+  const create = async (): Promise<void> => {
+    const out = await action.run(
+      "mail.address.add",
+      {
+        domainId,
+        localPart: name.trim().toLowerCase(),
+        ...(goesTo !== NEW_INBOX && !sendOnly ? { mailboxId: goesTo } : {}),
+        idempotencyKey: key,
+      },
+      "Address ready",
+    );
+    if (out) setKey(attempt());
+  };
+  return (
+    <View testID="address-new-form">
+      <TextBox
+        label="Name"
+        testID="address-name"
+        value={name}
+        onChange={setName}
+        hint="The part before the @, such as billing."
+      />
+      <Select
+        label="Domain"
+        value={domainId}
+        options={domains.map((d) => ({ key: d.id, title: d.name }))}
+        onChange={setDomainId}
+      />
+      {sendOnly ? (
+        <Help>This domain's mail arrives at your own mail server, so this address can send but not receive here.</Help>
+      ) : (
+        <Select
+          label="Mail goes to"
+          value={goesTo}
+          options={[{ key: NEW_INBOX, title: "A new inbox for this address" }, ...inboxes]}
+          onChange={setGoesTo}
+        />
+      )}
+      <Actions>
+        <Button label="Cancel" onPress={onDone} />
+        <Button
+          label="Create"
+          testID="address-create"
+          primary
+          disabled={!valid || action.busy}
+          onPress={() => void create()}
+        />
+      </Actions>
+      {action.note ? <Note testID="address-note">{action.note}</Note> : null}
+    </View>
+  );
+}
+
+function MoveAddress({
+  address,
+  inboxes,
+  onDone,
+}: {
+  address: Address;
+  inboxes: { key: string; title: string }[];
+  onDone(): void;
+}): ReactElement {
+  const [to, setTo] = useState("");
+  const [key] = useState(attempt);
+  const action = useAction(onDone);
+  const local = address.address.split("@")[0] ?? "";
+  return (
+    <View testID="address-move-form">
+      <Note>
+        {address.address} goes to {address.mailboxTitle} now. Choose where it should go instead; mail to it moves at
+        once.
+      </Note>
+      <Select label="New inbox" value={to} options={inboxes} onChange={setTo} />
+      <Actions>
+        <Button label="Cancel" onPress={onDone} />
+        <Button
+          label="Move"
+          testID="address-move"
+          primary
+          disabled={to === "" || action.busy}
+          onPress={() =>
+            void action.run(
+              "mail.address.move",
+              {
+                domainId: address.domainId,
+                localPart: local,
+                fromMailboxId: address.mailboxId,
+                mailboxId: to,
+                idempotencyKey: key,
+              },
+              (o: CapMap["mail.address.move"]["out"]) => `${address.address} now goes to ${o.to}`,
+            )
+          }
+        />
+      </Actions>
+      {action.note ? <Note testID="address-move-note">{action.note}</Note> : null}
+    </View>
+  );
+}
+
+/** One short test email to an address you type. It goes through the same door as every send, so a held test says it is held. */
+function TestSend(): ReactElement {
+  const [to, setTo] = useState("");
+  const [key, setKey] = useState(attempt);
+  const [result, setResult] = useState("");
+  const action = useAction(() => undefined);
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim());
+  return (
+    <ObjectSection title="Send a test">
+      <TextBox label="Send a test email to" testID="test-to" value={to} onChange={setTo} />
+      <Button
+        label="Send test"
+        testID="test-send"
+        disabled={!valid || action.busy}
+        onPress={() =>
+          void action
+            .run<CapMap["mail.setup.test_send"]["out"]>(
+              "mail.setup.test_send",
+              { to: to.trim(), idempotencyKey: key },
+              (o) =>
+                o.status === "sent" || o.status === "queued"
+                  ? `Sent from ${o.from}. It should arrive in a moment.`
+                  : o.status === "held"
+                    ? (o.note ?? "Held by the Space's rules.")
+                    : "That address is on the do-not-contact list, so nothing was sent.",
+            )
+            .then((out) => {
+              if (out) {
+                setKey(attempt());
+                setResult(out.status);
+              }
+            })
+        }
+      />
+      {action.note ? <Note testID="test-note">{action.note}</Note> : null}
+      {result === "" ? null : <View testID="test-result" />}
     </ObjectSection>
   );
 }

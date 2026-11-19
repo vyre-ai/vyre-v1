@@ -4,7 +4,7 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (46)
+## Capabilities (47)
 
 - [mail.address.add](../capabilities/mail.address.add.md): Make an address on a Space domain. With an inbox it is an alias that delivers there; without one a shared inbox is made for it. Who may send as it is a share on the inbox (access.share)
 - [mail.address.list](../capabilities/mail.address.list.md): Every address on the Space's domains: inbox addresses and aliases, with the inbox each lands in
@@ -45,6 +45,7 @@ Requires: nothing.
 - [mail.send_as](../capabilities/mail.send_as.md): Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from the inbox the thread came in on)
 - [mail.send_preview](../capabilities/mail.send_preview.md): Dry run of a send: who would be reached and who is suppressed, without sending
 - [mail.setup.status](../capabilities/mail.setup.status.md): The Space's email setup in one read: how it sends, what is missing and the next step
+- [mail.setup.test_send](../capabilities/mail.setup.test_send.md): Send one short test email to an address you type, from an address on the default verified domain. It goes through mail.send, so limits, suppression and the Gate apply
 - [mail.smtp.get](../capabilities/mail.smtp.get.md): The Space's mail server (SMTP) and its last test
 - [mail.smtp.set](../capabilities/mail.smtp.set.md): Save the Space's mail server (SMTP); the password stays in the Vault
 - [mail.smtp.verify](../capabilities/mail.smtp.verify.md): Test a mail server: connect and sign in, nothing is sent. No input tests the saved one

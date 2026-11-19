@@ -149,3 +149,109 @@ test("Email setup shows the next step, ticks the finished ones and shows the mai
     true,
   );
 });
+
+test("Email setup lists the addresses with where each goes, offers New address and Move on aliases, and says so when an address only sends", async () => {
+  const { EmailPage } = await import("./Email.tsx");
+  const setup = {
+    provider: "resend",
+    smtp: { configured: false, state: "none" },
+    domains: [
+      {
+        id: "dom_a",
+        name: "northwind.example",
+        provider: "resend",
+        verified: true,
+        isDefault: true,
+        spf: "pass",
+        dkim: "pass",
+        dmarc: "pass",
+      },
+    ],
+    done: ["choose_provider", "add_domain", "publish_dns", "set_default"],
+    step: "ready",
+    next: "Email is ready to send.",
+    ready: true,
+  };
+  const addresses = [
+    {
+      address: "hello@northwind.example",
+      domainId: "dom_a",
+      kind: "mailbox",
+      mailboxId: "mbx_h",
+      mailboxTitle: "Hello",
+      receives: true,
+    },
+    {
+      address: "billing@northwind.example",
+      domainId: "dom_a",
+      kind: "alias",
+      mailboxId: "mbx_h",
+      mailboxTitle: "Hello",
+      routeId: "rte_1",
+      receives: true,
+    },
+    {
+      address: "noreply@northwind.example",
+      domainId: "dom_a",
+      kind: "mailbox",
+      mailboxId: "mbx_n",
+      mailboxTitle: "noreply",
+      receives: false,
+    },
+  ];
+  const html = draw(<EmailPage />, {
+    "mail.setup.status": setup,
+    "mail.address.list": { addresses, total: 3 },
+    "mail.mailbox.list": { mailboxes: [], total: 0 },
+  });
+  assert.match(html, /address-new/);
+  assert.match(html, /Inbox: Hello/);
+  assert.match(html, /Also delivers to Hello/);
+  assert.match(html, /address-move-billing@northwind\.example/);
+  assert.doesNotMatch(html, /address-move-hello@/);
+  assert.match(html, /Sends only: mail to it arrives at your own mail server/);
+  // without a verified domain there is nowhere to make an address yet
+  const none = draw(<EmailPage />, {
+    "mail.setup.status": {
+      ...setup,
+      domains: [],
+      step: "add_domain",
+      ready: false,
+      next: "Add the domain your email comes from.",
+    },
+  });
+  assert.doesNotMatch(none, /address-new/);
+});
+
+test("Email setup offers a test send only when the setup is ready", async () => {
+  const { EmailPage } = await import("./Email.tsx");
+  const base = {
+    provider: "resend",
+    smtp: { configured: false, state: "none" },
+    domains: [
+      {
+        id: "dom_a",
+        name: "northwind.example",
+        provider: "resend",
+        verified: true,
+        isDefault: true,
+        spf: "pass",
+        dkim: "pass",
+        dmarc: "pass",
+      },
+    ],
+    done: ["choose_provider", "add_domain", "publish_dns", "set_default"],
+    step: "ready",
+    next: "Email is ready to send.",
+    ready: true,
+  };
+  const rows = { "mail.address.list": { addresses: [], total: 0 }, "mail.mailbox.list": { mailboxes: [], total: 0 } };
+  assert.match(draw(<EmailPage />, { ...rows, "mail.setup.status": base }), /test-send/);
+  assert.doesNotMatch(
+    draw(<EmailPage />, {
+      ...rows,
+      "mail.setup.status": { ...base, ready: false, step: "publish_dns", next: "Publish the DNS records." },
+    }),
+    /test-send/,
+  );
+});

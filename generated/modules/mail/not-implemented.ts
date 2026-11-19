@@ -44,6 +44,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.send_as": async (ctx) => { throw new VyreErr(notImplemented("mail.send_as", ctx.trace)); },
   "mail.send_preview": async (ctx) => { throw new VyreErr(notImplemented("mail.send_preview", ctx.trace)); },
   "mail.setup.status": async (ctx) => { throw new VyreErr(notImplemented("mail.setup.status", ctx.trace)); },
+  "mail.setup.test_send": async (ctx) => { throw new VyreErr(notImplemented("mail.setup.test_send", ctx.trace)); },
   "mail.smtp.get": async (ctx) => { throw new VyreErr(notImplemented("mail.smtp.get", ctx.trace)); },
   "mail.smtp.set": async (ctx) => { throw new VyreErr(notImplemented("mail.smtp.set", ctx.trace)); },
   "mail.smtp.verify": async (ctx) => { throw new VyreErr(notImplemented("mail.smtp.verify", ctx.trace)); },

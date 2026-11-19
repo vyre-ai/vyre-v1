@@ -37962,6 +37962,40 @@
     },
     {
       "blocks": [],
+      "cap": "mail.setup.test_send",
+      "deferred": false,
+      "description": "Send one short test email to an address you type, from an address on the default verified domain. It goes through mail.send, so limits, suppression and the Gate apply",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mail_setup_test_send",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.smtp.get",
       "deferred": false,
       "description": "The Space's mail server (SMTP) and its last test",

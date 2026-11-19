@@ -277,6 +277,7 @@ test("the handler map covers exactly the capabilities this module has built, eac
     "mail.send_as",
     "mail.send_preview",
     "mail.setup.status",
+    "mail.setup.test_send",
     "mail.smtp.get",
     "mail.smtp.set",
     "mail.smtp.verify",

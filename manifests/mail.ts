@@ -896,6 +896,25 @@ const manifest = defineManifest({
         errors: ["validation.duplicate"],
       },
     ),
+    outward(
+      "mail.setup.test_send",
+      "Send one short test email to an address you type, from an address on the default verified domain. It goes through mail.send, so limits, suppression and the Gate apply",
+      {
+        in: { to: email },
+        out: {
+          messageId: t.opt(emlId),
+          status: t.enm("queued", "sent", "held", "suppressed"),
+          from: email,
+          note: t.opt(t.str()),
+        },
+        perm: "comms.domains",
+        gate: "send",
+        idem: "key",
+        tool: "inbox",
+        offline: "online",
+        errors: ["validation.bad_input", "validation.precondition_failed"],
+      },
+    ),
     // ---- the Space's own mail server (SMTP)
     read("mail.smtp.get", "The Space's mail server (SMTP) and its last test", {
       in: {},

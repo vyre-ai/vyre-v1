@@ -1685,6 +1685,7 @@ export function createClient(transport: Transport) {
       send_preview: call("mail.send_preview", 1),
       setup: {
         status: call("mail.setup.status", 1),
+        test_send: call("mail.setup.test_send", 1),
       },
       smtp: {
         get: call("mail.smtp.get", 1),

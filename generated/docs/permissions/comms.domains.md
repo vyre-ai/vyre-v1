@@ -24,6 +24,7 @@ Area: comms. Risk: medium. Applies to: domain.
 - mail.route.remove
 - mail.route.set
 - mail.setup.status
+- mail.setup.test_send
 - mail.smtp.get
 - mail.smtp.set
 - mail.smtp.verify

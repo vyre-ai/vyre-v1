@@ -5414,6 +5414,12 @@
     },
     {
       "deferred": false,
+      "name": "mail_setup_test_send",
+      "summary": "Send one short test email to an address you type, from an address on the default verified domain. It goes through mail.send, so limits, suppression and the Gate apply",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mail_smtp_get",
       "summary": "The Space's mail server (SMTP) and its last test",
       "toolset": "inbox"

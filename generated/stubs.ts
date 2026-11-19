@@ -1685,6 +1685,7 @@ export function stubs(ctx: CallCtx) {
       send_preview: call("mail.send_preview"),
       setup: {
         status: call("mail.setup.status"),
+        test_send: call("mail.setup.test_send"),
       },
       smtp: {
         get: call("mail.smtp.get"),

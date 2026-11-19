@@ -29,7 +29,7 @@ import {
   smtpSet,
   smtpVerify,
 } from "./handlers/smtp.ts";
-import { setupStatus } from "./handlers/setup.ts";
+import { setupStatus, testSend } from "./handlers/setup.ts";
 import { addressAdd, addressList, addressMove } from "./handlers/address.ts";
 import { setMailLinksHost, unsubscribe } from "./handlers/unsubscribe.ts";
 import type { ImapConfig, ImapMessage, ImapSession, ImapSessionFactory } from "./handlers/ingest.ts";
@@ -50,6 +50,7 @@ export const handlers: Record<string, Handler> = {
   "mail.message.erase": (ctx, input) => messageErase(ctx, input),
   // the Space's own mail server (SMTP): saved, tested, and used by mail.send when the sending provider is smtp
   "mail.setup.status": (ctx) => setupStatus(ctx),
+  "mail.setup.test_send": (ctx, input) => testSend(ctx, input),
   "mail.address.list": (ctx, input) => addressList(ctx, input),
   "mail.address.add": (ctx, input) => addressAdd(ctx, input),
   "mail.address.move": (ctx, input) => addressMove(ctx, input),

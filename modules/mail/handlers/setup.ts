@@ -1,10 +1,12 @@
 // mail.setup.status: the Space's email setup in one read, for the Email page and for agents and MCP (owner, 19 Nov 2026: one place for provider, domain, DNS and a test).
 // It answers three questions in plain words: which way does this Space send, what is still missing, and what is the next step.
 // It reads only: the provider setting, the saved mail server (SMTP), and the sending domains with their DNS state.
+import { ensureAll, preconditionFailed } from "./extra/common.ts";
 import { domainList } from "./extra/domains.ts";
 import type { DomainOut } from "./extra/domains.ts";
 import { smtpGet } from "./smtp.ts";
 import type { SmtpOut } from "./smtp.ts";
+import { bad, can, first, rowsOf, str } from "../projections.ts";
 import type { MailCtx } from "../projections.ts";
 
 export type SetupProvider = "resend" | "mailgun" | "smtp";
@@ -76,4 +78,52 @@ export async function setupStatus(ctx: MailCtx): Promise<SetupOut> {
   const smtp = await smtpGet(ctx);
   const { domains } = await domainList(ctx, {});
   return { provider, smtp, domains, ...planSetup(provider, smtp, domains) };
+}
+
+// ---- mail.setup.test_send
+
+export interface TestSendIn {
+  to: string;
+  idempotencyKey: string;
+}
+export interface TestSendOut {
+  messageId?: string;
+  status: "queued" | "sent" | "held" | "suppressed";
+  from: string;
+  note?: string;
+}
+
+/**
+ * Send one short test message to the address the person typed, from an address on the default verified domain. It goes through mail.send, so the Space's sending limits, the suppression list and the Gate decide
+ * as for any other message: a held test says it is held. Nothing is sent to anyone else, and the message says what it is. Whether it was delivered shows on the message's trail once the provider reports.
+ */
+export async function testSend(ctx: MailCtx, input: TestSendIn): Promise<TestSendOut> {
+  ensureAll(ctx);
+  const to = typeof input.to === "string" ? input.to.trim().toLowerCase() : "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) bad(ctx, "Enter the email address to send the test to.");
+  const status = await setupStatus(ctx);
+  if (!status.ready) preconditionFailed(ctx, status.next);
+  const domain = status.domains.find((d) => d.isDefault && d.verified) ?? status.domains.find((d) => d.verified);
+  if (!domain) preconditionFailed(ctx, "Add and verify a sending domain first.");
+  const host = `@${domain.name}`;
+  const own = rowsOf(ctx.db.all(`SELECT * FROM mail_mailbox WHERE deleted_at IS NULL`)).filter(
+    (m) => str(m, "address").endsWith(host) && can(ctx, "use", { type: "mailbox", id: str(m, "id") }),
+  );
+  const sender = first(own);
+  if (!sender) preconditionFailed(ctx, `Make an address on ${domain.name} first, then send the test from it.`);
+  const out = (await ctx.call("mail.send", {
+    mailboxId: str(sender, "id"),
+    senderId: str(sender, "id"),
+    route: "space_domain",
+    to: [{ address: to }],
+    subject: "A test email from your Space",
+    text: `This is a test message from ${str(sender, "address")}. If you can read it, sending from this address works. Nothing else was sent.`,
+    idempotencyKey: input.idempotencyKey,
+  })) as { messageId?: string; status: TestSendOut["status"]; note?: string };
+  return {
+    ...(out.messageId ? { messageId: out.messageId } : {}),
+    status: out.status,
+    from: str(sender, "address"),
+    ...(out.note ? { note: out.note } : {}),
+  };
 }

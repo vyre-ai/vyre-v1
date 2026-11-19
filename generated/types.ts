@@ -25948,6 +25948,16 @@ export type MailSetupStatusOut = {
   next: string;
   ready: boolean;
 };
+export type MailSetupTestSendIn = {
+  to: string;
+  idempotencyKey: string;
+};
+export type MailSetupTestSendOut = {
+  messageId?: string;
+  status: "queued" | "sent" | "held" | "suppressed";
+  from: string;
+  note?: string;
+};
 export type MailSmtpGetIn = Record<string, unknown>;
 export type MailSmtpGetOut = {
   configured: boolean;
@@ -49667,6 +49677,7 @@ export interface CapMap {
   "mail.send_as": { in: MailSendAsIn; out: MailSendAsOut };
   "mail.send_preview": { in: MailSendPreviewIn; out: MailSendPreviewOut };
   "mail.setup.status": { in: MailSetupStatusIn; out: MailSetupStatusOut };
+  "mail.setup.test_send": { in: MailSetupTestSendIn; out: MailSetupTestSendOut };
   "mail.smtp.get": { in: MailSmtpGetIn; out: MailSmtpGetOut };
   "mail.smtp.set": { in: MailSmtpSetIn; out: MailSmtpSetOut };
   "mail.smtp.verify": { in: MailSmtpVerifyIn; out: MailSmtpVerifyOut };

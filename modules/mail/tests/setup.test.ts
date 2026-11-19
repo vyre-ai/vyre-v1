@@ -83,3 +83,83 @@ test("no state is a dead end: every state has a next sentence and only ready has
     assert.equal(r.ready, r.step === "ready");
   }
 });
+
+// ---- mail.setup.test_send
+
+import { testSend } from "../handlers/setup.ts";
+import { script, seedDomain } from "../handlers/extra/kit.ts";
+import { codeOf, contractErrors, harness, seedMailbox } from "../fixtures/harness.ts";
+
+const sendsTo = (h: ReturnType<typeof harness>) => h.called.filter((c) => c.cap === "mail.send");
+
+test("test send goes through mail.send from an address on the default verified domain, to the address typed and nobody else", async () => {
+  const h = harness();
+  seedDomain(h, {
+    id: "dom_t",
+    name: "northwind.example",
+    provider: "resend",
+    verified: true,
+    isDefault: true,
+    spf: "pass",
+    dkim: "pass",
+    dmarc: "pass",
+  });
+  seedMailbox(h, "mbx_t", "hello@northwind.example", { kind: "shared" });
+  script(h, { "mail.send": () => ({ messageId: "eml_test0001", status: "sent" }) });
+  const out = await testSend(h.ctx, { to: " Maya@Example.com ", idempotencyKey: "idem-ts-1" });
+  assert.deepEqual(contractErrors("mail.setup.test_send", "out", out), []);
+  assert.deepEqual([out.status, out.from], ["sent", "hello@northwind.example"]);
+  const call = sendsTo(h);
+  assert.equal(call.length, 1);
+  assert.deepEqual(call[0]!.input.to, [{ address: "maya@example.com" }]);
+  assert.equal(call[0]!.input.route, "space_domain");
+  assert.equal(call[0]!.input.idempotencyKey, "idem-ts-1");
+});
+
+test("test send says what is missing in words, and sends nothing, when the setup is not ready or there is no address to send from", async () => {
+  const none = harness();
+  await assert.rejects(
+    () => testSend(none.ctx, { to: "maya@example.com", idempotencyKey: "k" }),
+    (e: unknown) => codeOf(e) === "validation.precondition_failed",
+  );
+  const noBox = harness();
+  seedDomain(noBox, {
+    id: "dom_t",
+    name: "northwind.example",
+    provider: "resend",
+    verified: true,
+    isDefault: true,
+    spf: "pass",
+    dkim: "pass",
+    dmarc: "pass",
+  });
+  await assert.rejects(
+    () => testSend(noBox.ctx, { to: "maya@example.com", idempotencyKey: "k" }),
+    (e: unknown) =>
+      codeOf(e) === "validation.precondition_failed" &&
+      /Make an address on northwind\.example/.test((e as { error: { message: string } }).error.message),
+  );
+  await assert.rejects(
+    () => testSend(noBox.ctx, { to: "not an address", idempotencyKey: "k" }),
+    (e: unknown) => codeOf(e) === "validation.bad_input",
+  );
+  assert.equal(sendsTo(none).length + sendsTo(noBox).length, 0);
+});
+
+test("a held or suppressed test is reported as such, not as sent", async () => {
+  const h = harness();
+  seedDomain(h, {
+    id: "dom_t",
+    name: "northwind.example",
+    provider: "resend",
+    verified: true,
+    isDefault: true,
+    spf: "pass",
+    dkim: "pass",
+    dmarc: "pass",
+  });
+  seedMailbox(h, "mbx_t", "hello@northwind.example", { kind: "shared" });
+  script(h, { "mail.send": () => ({ status: "held", note: "Held until 9:00" }) });
+  const out = await testSend(h.ctx, { to: "maya@example.com", idempotencyKey: "k2" });
+  assert.deepEqual([out.status, out.note], ["held", "Held until 9:00"]);
+});
