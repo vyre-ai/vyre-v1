@@ -84,6 +84,8 @@ export function createLink(storage, o = {}) {
   /** @type {string} */
   let lastError = "";
 
+  /** Sockets open now, by Space address: signing out closes them so nothing keeps talking on a session that was given up. @type {Set<{ address: string, close(): void }>} */
+  const open = new Set();
   /** @type {Linked[]} what is kept, for the callers that cannot wait (a port opens at once) */
   let cache = [];
 
@@ -185,9 +187,22 @@ export function createLink(storage, o = {}) {
       return { ok: true, link: { address: link.address, space: link.space, name: link.name } };
     },
 
-    /** Forget this Space's session here (the person signed out of Vyre for Chrome). @param {string} address */
+    /** Sign out of this Space here: the Space ends the session (best effort: it may be unreachable), the sockets close, the session is forgotten. @param {string} address */
     async signOut(address) {
+      const mine = (await links()).find((l) => l.address === address);
       await forget(address, "signed_out");
+      for (const o of [...open]) if (o.address === address) o.close();
+      if (mine) {
+        try {
+          await doFetch(`${mine.address}/v1/identity/sign_out`, {
+            method: "POST",
+            headers: { "content-type": "application/json", authorization: `Bearer ${mine.token}` },
+            body: JSON.stringify({ idempotencyKey: `chrome-out-${randomValue(8)}` }),
+          });
+        } catch {
+          /* the Space is away: the session is forgotten here, and can be signed out in Settings, Sign-in and devices */
+        }
+      }
     },
 
     /** Is there a Space this Chrome should talk to directly? */
@@ -214,12 +229,25 @@ export function createLink(storage, o = {}) {
       let helloTimer = null;
       /** @param {string} message */
       const end = (message) => {
+        open.delete(handle);
         if (ended) return;
         ended = true;
         clearTimer(helloTimer);
         lastError = message;
         for (const c of closers) c();
       };
+      const handle = {
+        address: link.address,
+        close() {
+          try {
+            ws.close();
+          } catch {
+            /* closed already */
+          }
+          end("signed out of the Space here");
+        },
+      };
+      open.add(handle);
       ws.addEventListener("open", () => {
         ws.send(JSON.stringify({ type: "hello", token: link.token }));
         helloTimer = setTimer(() => {
@@ -295,6 +323,7 @@ export function createLink(storage, o = {}) {
           else queue.push(text);
         },
         disconnect() {
+          open.delete(handle);
           ended = true;
           clearTimer(helloTimer);
           try {

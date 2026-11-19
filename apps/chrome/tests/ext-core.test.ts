@@ -702,9 +702,13 @@ test("the manifest asks for the smallest set of powers and one content script gr
   ]);
   assert.equal(m.commands._execute_action.suggested_key.mac, "Command+Shift+L");
   const csp: string = m.content_security_policy.extension_pages;
-  assert.ok(
-    !/connect-src/.test(csp) && /default-src 'none'/.test(csp) && /script-src 'self'/.test(csp),
-    "extension pages can reach no network",
+  // the one network the extension has is the link to a Space (src/worker/link.js, asserted below to be the only file that opens a connection): secure addresses, or this computer's own
+  assert.ok(/default-src 'none'/.test(csp) && /script-src 'self'/.test(csp), "nothing is allowed by default");
+  const connect = /connect-src ([^;]*)/.exec(csp)?.[1].split(" ") ?? [];
+  assert.deepEqual(
+    connect,
+    ["https:", "wss:", "http://localhost:*", "http://127.0.0.1:*", "ws://localhost:*", "ws://127.0.0.1:*"],
+    "connections only over TLS, or to this computer's own loopback",
   );
   assert.ok(!/unsafe-eval|unsafe-inline/.test(csp));
   for (const f of [
@@ -1025,8 +1029,8 @@ test("link.js talks to nothing but the linked Space's own address and writes onl
   const fetches = [...src.matchAll(/\bdoFetch\(\s*([^,]+),/g)].map((m) => m[1].trim());
   assert.deepEqual(
     fetches,
-    ["`${p.origin}/v1/identity/pair_redeem`"],
-    "one request, to the pending Space's pair_redeem",
+    ["`${p.origin}/v1/identity/pair_redeem`", "`${mine.address}/v1/identity/sign_out`"],
+    "two requests, both to the Space's own address: redeem the code, and sign out",
   );
   const sockets = [...src.matchAll(/new WS\((`[^`]*`)\)/g)].map((m) => m[1].trim());
   assert.deepEqual(

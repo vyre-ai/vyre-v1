@@ -1279,3 +1279,39 @@ test("a page cannot use the Vault comparison to try passwords: a site's logins a
     "known",
   );
 });
+
+// ---------- the panel's Connect a Space, through the worker ----------
+
+test("Connect a Space from the panel: the address opens the Space's page, a code from that page alone finishes it, and the panel's state names the Space", async () => {
+  const app = new FakeApp();
+  loginPage(doc);
+  const b = await worker(app);
+  const panelPage = { id: "ext_vyre", url: "chrome-extension://ext_vyre/src/panel/panel.html" };
+  // only the panel's own page may start it
+  assert.equal((await b.w.onMessage({ type: "panel.link.begin", address: "team.example.com" }, sender)).error?.code, "not_allowed");
+  const bad = await b.w.onMessage({ type: "panel.link.begin", address: "not an address" }, panelPage);
+  assert.equal(bad.error?.code, "bad_input");
+  assert.equal(b.created.length, 0, "no tab for a bad address");
+  const began = await b.w.onMessage({ type: "panel.link.begin", address: "team.example.com" }, panelPage);
+  assert.deepEqual(began.data, { origin: "https://team.example.com" });
+  assert.match(b.created[0].url, /^https:\/\/team\.example\.com\/chrome\/connect#challenge=[0-9a-f]{64}$/);
+  assert.deepEqual((await b.w.onMessage({ type: "panel.link.list" }, panelPage)).data.links, []);
+
+  const realFetch = globalThis.fetch;
+  (globalThis as any).fetch = async () => ({ ok: true, json: async () => ({ data: { session: { token: "vst_tok" } } }) });
+  try {
+    const page = (origin: string) => ({ id: "ext_vyre", tab: { id: 9 }, url: `${origin}/chrome/connect`, origin });
+    // a page of another site, or a panel message, cannot hand over a code
+    assert.equal((await b.w.onMessage({ type: "vyre.link.code", code: "K7P2-9QXA" }, page("https://evil.example"))).error?.code, "link_wrong_page");
+    assert.equal((await b.w.onMessage({ type: "vyre.link.code", code: "K7P2-9QXA" }, panelPage)).error?.code, "not_allowed");
+    const ok = await b.w.onMessage({ type: "vyre.link.code", code: "K7P2-9QXA" }, page("https://team.example.com"));
+    assert.deepEqual(ok.data ?? ok, { linked: true });
+  } finally {
+    (globalThis as any).fetch = realFetch;
+  }
+  assert.deepEqual((await b.w.onMessage({ type: "panel.link.list" }, panelPage)).data.links, [{ address: "https://team.example.com", name: "team.example.com" }]);
+  const st = await b.w.onMessage({ type: "panel.state" }, panelPage);
+  assert.deepEqual(st.data.direct, { name: "team.example.com", address: "https://team.example.com" });
+  await b.w.onMessage({ type: "panel.link.signout", address: "https://team.example.com" }, panelPage);
+  assert.deepEqual((await b.w.onMessage({ type: "panel.link.list" }, panelPage)).data.links, []);
+});

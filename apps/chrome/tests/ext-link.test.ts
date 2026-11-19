@@ -363,3 +363,30 @@ test("every request and socket of a whole connect goes to the Space the person t
   assert.deepEqual(Object.keys(w.local.data), ["vyreLinks"]);
   assert.deepEqual(Object.keys(w.session.data), []);
 });
+
+test("signing out here ends the session at the Space, closes the open socket so nothing keeps talking on it, and forgets the link; an unreachable Space changes nothing about that", async () => {
+  const sent: any[] = [];
+  const w = world({
+    fetch: async (url: string, init: any) => {
+      sent.push([url, init.headers.authorization, JSON.parse(init.body)]);
+      return { ok: true, json: async () => ({ data: { session: { token: "vst_tok" } } }) };
+    },
+  });
+  const l = await linked(w);
+  const port = w.link.openPort(l);
+  let closed = 0;
+  port.onDisconnect.addListener(() => closed++);
+  await w.link.signOut(l.address);
+  assert.equal(closed, 1, "the socket the bridge holds is closed");
+  assert.ok(FakeSocket.all[0].closed);
+  assert.equal(w.link.current(), null);
+  const out = sent.at(-1);
+  assert.equal(out[0], "https://team.example.com/v1/identity/sign_out");
+  assert.equal(out[1], "Bearer vst_tok");
+  assert.throws(() => port.postMessage({ id: "x" }), /closed/);
+
+  const down = world({ fetch: async (u: string) => (u.endsWith("pair_redeem") ? { ok: true, json: async () => ({ data: { session: { token: "t" } } }) } : Promise.reject(new TypeError("offline"))) });
+  const dl = await linked(down);
+  await down.link.signOut(dl.address);
+  assert.equal(down.link.current(), null, "forgotten here even when the Space cannot be told");
+});

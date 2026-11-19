@@ -57,7 +57,7 @@ export function createWorker(ext) {
   const views = new Map();
   const artifacts = createArtifacts({ ext, bridge, store });
   artifacts.watchTabs();
-  const panel = createPanel({ ext, bridge, store, privacy, context, views, artifacts });
+  const panel = createPanel({ ext, bridge, store, privacy, context, views, artifacts, link });
   const notes = createNotes({ ext, bridge, privacy, context });
   const menus = createMenus({ ext, notes, panel, views, privacy });
   const recorder = createRecorder({ ext, bridge, privacy });
@@ -465,7 +465,11 @@ export function createWorker(ext) {
           origin = "";
         }
         const done = await link.redeem({ origin, code: String(msg.code ?? "") });
-        if (done.ok && sender.tab.id !== undefined) void ext.tabs.remove(sender.tab.id).catch(() => {});
+        if (done.ok && sender.tab.id !== undefined && typeof ext.tabs.remove === "function") {
+          // the Space's page has shown "Connected" for a moment; the panel is ready, so the tab closes itself
+          const closing = sender.tab.id;
+          setTimeout(() => void Promise.resolve(ext.tabs.remove(closing)).catch(() => {}), 1500);
+        }
         return done.ok ? { data: { linked: true } } : failure(new BridgeFailure("link_" + done.why, ""));
       }
       if (msg.type === "panel.clip" && ownPage) {

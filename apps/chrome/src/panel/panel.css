@@ -521,3 +521,70 @@ body {
 .sheet .opt.on .od {
   color: var(--ink-2);
 }
+
+/* Connect a Space (no Vyre app on this computer) */
+.xcon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 56px 18px 18px;
+  gap: 4px;
+}
+.xcon h2 {
+  margin: 10px 0 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.xaddr {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-top: 18px;
+}
+.xaddr .fld {
+  flex: 1;
+  min-width: 0;
+}
+.xfoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 44px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: 12px;
+  text-align: left;
+}
+.xfoot .ic {
+  width: 14px;
+  height: 14px;
+}
+.xwait {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 26px 0 14px;
+  color: var(--ink-2);
+}
+.xspin {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent, #6e5cf0);
+  animation: xspin 0.9s linear infinite;
+}
+@keyframes xspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xspin {
+    animation: none;
+  }
+}
