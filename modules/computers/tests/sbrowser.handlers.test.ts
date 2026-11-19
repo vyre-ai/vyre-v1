@@ -40,6 +40,8 @@ const PNG_1X1 = Uint8Array.from(
 );
 let sessionsNow: () => Array<{ site: string; since: number; lastSeen: number }> = () => [];
 const signedOut: string[] = [];
+/** Profiles that hold Chrome data in the fake service (an agent that has browsed before). */
+const warmUsed = new Set<string>();
 function rig() {
   const rows = new Map<string, ProfileRow>([
     ["agt_named", row("agt_named")],
@@ -99,8 +101,12 @@ function rig() {
       signedOut.push(site);
       return true;
     },
-    async profileUsed() {
-      return false;
+    async profileUsed(id) {
+      return warmUsed.has(id);
+    },
+    async warm(a) {
+      seen.push(`warm ${a.profileId}`);
+      rows.set(a.profileId, row(a.profileId));
     },
     async importChrome() {
       return { bytes: 0 };
@@ -648,6 +654,51 @@ test("the browser picture fails closed: when the hold look-up itself fails, prev
     );
   } finally {
     void r;
+    off();
+  }
+});
+
+test("warm starts the browser for whoever may watch it, only for an agent that has browsed, and tells the plain truth; a person who may not watch and an agent are refused", async () => {
+  const r = rig();
+  warmUsed.clear();
+  try {
+    r.rows.set("agt_dex", { ...r.rows.get("agt_dex")!, running: false });
+    const dana = as(DANA, false);
+    // never browsed: nothing starts
+    assert.deepEqual(await tool["computers.browser.warm"]!(dana.ctx, { agentId: "agt_dex" }), { state: "skipped" });
+    assert.ok(!r.seen.some((x) => x.startsWith("warm")));
+    // browsed before and asleep: it starts
+    warmUsed.add("agt_dex");
+    assert.deepEqual(await tool["computers.browser.warm"]!(dana.ctx, { agentId: "agt_dex" }), { state: "warming" });
+    assert.deepEqual(
+      r.seen.filter((x) => x.startsWith("warm")),
+      ["warm agt_dex"],
+    );
+    // already up: said so, nothing started again
+    assert.deepEqual(await tool["computers.browser.warm"]!(dana.ctx, { agentId: "agt_dex" }), { state: "up" });
+    assert.equal(r.seen.filter((x) => x.startsWith("warm")).length, 1);
+    // another person's Assistant is its person's alone, and a plain member of the Space does not warm what they may not watch
+    await assert.rejects(
+      () => tool["computers.browser.warm"]!(as(OMAR, true).ctx, { agentId: "agt_dana_ast" }),
+      (e) => codeOf(e) === "permission.no_grant",
+    );
+    await assert.rejects(
+      () => tool["computers.browser.warm"]!(as(OMAR, false).ctx, { agentId: "agt_dex" }),
+      (e) => codeOf(e) === "permission.no_grant" || codeOf(e) === "validation.not_found",
+    );
+    const agent = harness({ principal: { kind: "agent", id: "agt_dex" }, manager: false, respond });
+    await assert.rejects(
+      () => tool["computers.browser.warm"]!(agent.ctx, { agentId: "agt_dex" }),
+      (e) => codeOf(e) === "permission.no_grant",
+    );
+    // a person who has taken the browser over keeps it: no warm
+    r.rows.set("agt_mine", { ...r.rows.get("agt_mine")!, running: false });
+    warmUsed.add("agt_mine");
+    await tool["computers.browser.take_over"]!(dana.ctx, { agentId: "agt_mine" });
+    r.rows.set("agt_mine", { ...r.rows.get("agt_mine")!, running: false });
+    assert.deepEqual(await tool["computers.browser.warm"]!(dana.ctx, { agentId: "agt_mine" }), { state: "skipped" });
+  } finally {
+    warmUsed.clear();
     off();
   }
 });

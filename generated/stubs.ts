@@ -575,6 +575,7 @@ export function stubs(ctx: CallCtx) {
         stream: call("computers.browser.stream"),
         take_over: call("computers.browser.take_over"),
         timeline: call("computers.browser.timeline"),
+        warm: call("computers.browser.warm"),
       },
       chrome: {
         act: call("computers.chrome.act"),

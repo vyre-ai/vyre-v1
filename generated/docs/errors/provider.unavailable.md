@@ -19,6 +19,7 @@ HTTP 502. Retryable: yes.
 - computers.browser.sign_out
 - computers.browser.stream
 - computers.browser.take_over
+- computers.browser.warm
 - computers.chrome.act
 - computers.chrome.api
 - computers.chrome.batch
@@ -30,4 +31,3 @@ HTTP 502. Retryable: yes.
 - computers.chrome.net
 - computers.chrome.open
 - computers.chrome.plan
-- computers.chrome.resume

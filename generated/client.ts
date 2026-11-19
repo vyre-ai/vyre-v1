@@ -575,6 +575,7 @@ export function createClient(transport: Transport) {
         stream: call("computers.browser.stream", 1),
         take_over: call("computers.browser.take_over", 1),
         timeline: call("computers.browser.timeline", 1),
+        warm: call("computers.browser.warm", 1),
       },
       chrome: {
         act: call("computers.chrome.act", 1),

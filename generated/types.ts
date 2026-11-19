@@ -10638,6 +10638,12 @@ export type ComputersBrowserTimelineOut = {
   next?: string;
   total?: number;
 };
+export type ComputersBrowserWarmIn = {
+  agentId: string;
+};
+export type ComputersBrowserWarmOut = {
+  state: "warming" | "up" | "skipped";
+};
 export type ComputersChromeActIn = {
   computerId?: string;
   inMyChrome?: boolean;
@@ -48718,6 +48724,7 @@ export interface CapMap {
   "computers.browser.stream": { in: ComputersBrowserStreamIn; out: ComputersBrowserStreamOut };
   "computers.browser.take_over": { in: ComputersBrowserTakeOverIn; out: ComputersBrowserTakeOverOut };
   "computers.browser.timeline": { in: ComputersBrowserTimelineIn; out: ComputersBrowserTimelineOut };
+  "computers.browser.warm": { in: ComputersBrowserWarmIn; out: ComputersBrowserWarmOut };
   "computers.chrome.act": { in: ComputersChromeActIn; out: ComputersChromeActOut };
   "computers.chrome.api": { in: ComputersChromeApiIn; out: ComputersChromeApiOut };
   "computers.chrome.batch": { in: ComputersChromeBatchIn; out: ComputersChromeBatchOut };

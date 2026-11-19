@@ -13,6 +13,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "computers.browser.stream": async () => ({"expiresAt":1760000000000,"height":1,"transport":"mjpeg","url":"example","width":1,"ws":"example"} as unknown) as never,
   "computers.browser.take_over": async () => ({"note":"example","profile":{"access":"owner","agentId":"agt_a1b2c3","busy":true,"lastActiveAt":1760000000000,"line":"example","paired":true,"running":true,"state":"running","tabs":1,"takeoverBy":"usr_a1b2c3","viewers":1}} as unknown) as never,
   "computers.browser.timeline": async () => ({"next":"example","steps":[{"at":1760000000000,"by":"agent","caption":"example","frameFileId":"fil_a1b2c3","idx":1,"runId":"run_a1b2c3","stepId":"stp_a1b2c3","tool":"example"}],"total":1} as unknown) as never,
+  "computers.browser.warm": async () => ({"state":"warming"} as unknown) as never,
   "computers.chrome.act": async () => ({"downloads":[{"fileId":"fil_a1b2c3","name":"example","note":"example","path":"Downloads/report.pdf"}],"heldId":"example","note":"example","ok":true,"reopened":true,"snapshot":"example"} as unknown) as never,
   "computers.chrome.api": async () => ({"body":{},"headers":{},"note":"example","reopened":true,"status":1} as unknown) as never,
   "computers.chrome.batch": async () => ({"results":[{"heldId":"example","ok":true,"result":{},"tool":"example"}]} as unknown) as never,

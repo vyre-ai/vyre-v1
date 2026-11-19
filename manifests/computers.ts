@@ -510,6 +510,20 @@ export default defineManifest({
         errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
       },
     ),
+    write(
+      "computers.browser.warm",
+      "Start an agent's browser in the background so the Computer tab and the agent find it up; starts nothing for an agent that never browsed and closes nothing. Whoever may watch it may ask",
+      {
+        in: { agentId: id.agent },
+        out: { state: t.enm("warming", "up", "skipped") },
+        perm: "computers.watch",
+        level: "use",
+        audit: "none",
+        idem: "natural",
+        offline: "online",
+        errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
+      },
+    ),
     // The Space browser's own rule decides who takes over, gives back and signs out (sbrowser/policy.ts): a personal agent's browser is its owner's, a team agent's its owner's and the admins'. The capability asks
     // only for the right every member holds to watch, so a plain member can take over their own Assistant's browser; computers.take_over (an agent computer) is not theirs and is not asked for here.
     write(

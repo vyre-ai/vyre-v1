@@ -50,24 +50,22 @@ const within = <T>(ms: number, p: Promise<T>): Promise<T> =>
   });
 
 /** Start the browser of this agent's profile in the background if that is free and useful. Resolves to what it did; never rejects. */
-export async function warmBrowser(ctx: CompCtx, agentId: string): Promise<Warmed> {
+export async function warmBrowser(ctx: CompCtx, agentId: string, profileId?: string): Promise<Warmed> {
   try {
-    return await warmNow(ctx, agentId);
+    return await warmNow(ctx, agentId, profileId);
   } catch (e) {
     ctx.log.info("sbrowser: warm failed", { reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" });
     return "failed";
   }
 }
 
-async function warmNow(ctx: CompCtx, agentId: string): Promise<Warmed> {
+async function warmNow(ctx: CompCtx, agentId: string, profileId?: string): Promise<Warmed> {
   const sb = spaceBrowser();
   if (!sb || !sb.warm) return "no_service";
-  const pid = profileIdOf(agentId);
+  const pid = profileId ?? profileIdOf(agentId);
   if (!pid) return "bad_profile";
   if (inFlight.has(pid)) return "busy";
   const at = ctx.now();
-  const last = lastAt.get(pid);
-  if (last !== undefined && at - last < WARM_EVERY_MS) return "recent";
   if (heldBy(ctx, pid) !== null) return "held";
   inFlight.add(pid);
   // a claim this call made, to be dropped when the warm does not end in a running browser (one that was already there is the real call's and stays)
@@ -80,6 +78,9 @@ async function warmNow(ctx: CompCtx, agentId: string): Promise<Warmed> {
     if (!got) return "failed";
     const mine = got.profiles.find((r) => r.profileId === pid);
     if (mine?.running) return "running";
+    // not running: one that was warmed seconds ago and has gone again is not started over and over
+    const last = lastAt.get(pid);
+    if (last !== undefined && at - last < WARM_EVERY_MS) return "recent";
     if (mine?.takeover) return "held";
     // room without closing anything: the service's own limit, then the host's budget
     const others = got.profiles.filter((r) => r.running && r.profileId !== pid).length;
@@ -103,6 +104,10 @@ async function warmNow(ctx: CompCtx, agentId: string): Promise<Warmed> {
     inFlight.delete(pid);
   }
 }
+
+/** What a person's ask is told: the browser is starting or was started, it was already up, or nothing was started and nothing is owed. */
+export const warmAnswer = (w: Warmed): "warming" | "up" | "skipped" =>
+  w === "warmed" || w === "busy" ? "warming" : w === "running" ? "up" : "skipped";
 
 /** Tests: forget what was warmed. */
 export function resetWarm(): void {

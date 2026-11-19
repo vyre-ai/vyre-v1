@@ -15,6 +15,7 @@ import { currentHold, dropHold, heldBy, setHold, touchHold } from "./hold.ts";
 import { needRoom, roomWaitLine, waitingForRoom, waitingProfiles } from "./room.ts";
 import { signInSites } from "./sites.ts";
 import { fitPngOffLoop } from "../png-fit.ts";
+import { warmAnswer, warmBrowser } from "./warm.ts";
 
 const TICKET_MS = 5 * 60_000;
 
@@ -507,7 +508,21 @@ export async function signOut(ctx: CompCtx, input: { agentId: string; site: stri
   }
 }
 
+/**
+ * The Computer tab was opened (or a person is about to look): start the agent's browser in the background, so the picture and the first step find it up. Whoever may watch this browser may ask; the person's own
+ * profile on a shared agent is the one warmed when they have one. Nothing is started for an agent that never browsed, nothing is closed to make room, and a hold is left alone (warm.ts).
+ */
+export async function warm(ctx: CompCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  browserOrRaise(ctx);
+  const mine = await ownProfile(ctx, input.agentId);
+  if (!mine) await mayWatch(ctx, input.agentId);
+  const state = warmAnswer(await warmBrowser(ctx, input.agentId, mine?.profileId));
+  return { state };
+}
+
 export const sbrowserHandlers = {
+  "computers.browser.warm": warm,
   "computers.browser.sessions": sessions,
   "computers.browser.my_sign_ins": mySignIns,
   "computers.browser.sign_out": signOut,

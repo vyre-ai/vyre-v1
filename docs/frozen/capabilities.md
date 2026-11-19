@@ -743,3 +743,11 @@ Signed: lead, 17 Nov 2026
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: lead, 17 Nov 2026
+
+## 19 Nov 2026: warming an agent's browser (lane r42-computer, lead ruling of 19 Nov)
+
+- `computers.browser.warm` (write, permission computers.watch, level use, natural idempotency, not audited): start an agent's Space browser in the background, so the Computer tab's picture and the agent's first step find it up. Answers `state`: `warming` (a start was begun), `up` (it already ran) or `skipped` (nothing was started: the agent never browsed, there is no room without closing another browser, a person has the controls, or a start is already under way). Who may watch the agent's browser may ask (the live view's own rule); an agent cannot. It starts nothing a person did not already have, and closes nothing.
+- The browser also warms without a call, when the engine starts a turn for an agent that has browsed before (`computers.browser_turns`, sbrowser/warm.ts); that path is an event consumer and adds no capability.
+- Snapshots: docs/frozen/snapshots/computers.json.
+
+Signed: pending, lead

@@ -39,7 +39,15 @@ function fake(o: Partial<Fake> = {}): Fake {
       return true;
     },
     async tool() {
-      return { ok: true, url: "https://x.test/", title: "X", loading: false, connected: false, paused: false, held: [] };
+      return {
+        ok: true,
+        url: "https://x.test/",
+        title: "X",
+        loading: false,
+        connected: false,
+        paused: false,
+        held: [],
+      };
     },
     async downloads() {
       return [];
@@ -287,9 +295,19 @@ test("a real call after a warm is a first look, not a reopened browser: it answe
   const h = agent();
   try {
     assert.equal(await warmBrowser(h.ctx, "agt_dex"), "warmed");
-    const r = await tool["computers.chrome.state"]!(h.ctx, {});
-    assert.ok(r, "it answers");
-    assert.doesNotMatch(JSON.stringify(r), /reopened/i, "and says nothing of a reopened browser");
+    // the answer is the tool's own (computers.chrome.state: url, title, loading, and the reopened notice only when the browser started again since the last step)
+    const r = (await tool["computers.chrome.state"]!(h.ctx, {})) as {
+      url: string;
+      title: string;
+      loading: boolean;
+      reopened?: boolean;
+      note?: string;
+    };
+    assert.equal(r.url, "https://x.test/");
+    assert.equal(r.title, "X");
+    assert.equal(r.loading, false);
+    assert.equal(r.reopened, undefined, "a first look after a warm is not a reopen");
+    assert.equal(r.note, undefined);
     assert.equal(claim(h), "running", "it uses the claim the warm made, and asks for no second");
   } finally {
     clean();
