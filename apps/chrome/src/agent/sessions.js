@@ -6,6 +6,9 @@
 import { overlayCursor, overlayHide, overlayShow } from "./overlay.js";
 import { HELD_TTL_MS, IDLE_MS, OVERLAY_PORT, fail } from "./protocol.js";
 
+/** After the last act of an agent in a tab, a real event is still its own for this long (events arrive a little after the command). */
+const TOUCH_GRACE_MS = 600;
+
 export const BEACON = "●";
 /** Chrome's tab group colours, without grey (grey reads as "no agent"). */
 export const GROUP_COLORS = Object.freeze(["blue", "purple", "cyan", "green", "orange", "pink", "yellow", "red"]);
@@ -82,6 +85,8 @@ export function createSessions({
   const plans = new Map();
   /** @type {Map<number, AgentRef>} tabs that wear a Take over or Stopped bar, and whose agent it is */
   const shown = new Map();
+  /** @type {Map<number, { n: number, last: number }>} tabs an agent is acting in right now (a tool call in flight), and when its last act ended */
+  const acts = new Map();
   /** @type {Map<string, string>} what each agent said it is doing (chrome_plan) */
   const goals = new Map();
 
@@ -207,6 +212,7 @@ export function createSessions({
     clearTimer(d.timer);
     drivers.delete(tabId);
     refs.delete(tabId);
+    acts.delete(tabId);
     for (const [id, h] of held) if (h.tabId === tabId) held.delete(id);
     await undraw(tabId);
     // The person's own tab goes back out of the agent's group when the agent lets go of it.
@@ -254,6 +260,28 @@ export function createSessions({
     },
     release,
     group,
+    /** A tool call starts acting in a tab, or ends. The agent's own clicks and keys reach the page as real events, so a person's touch counts only outside these moments. @param {number} tabId */
+    actStart(tabId) {
+      const a = acts.get(tabId) ?? { n: 0, last: 0 };
+      a.n++;
+      acts.set(tabId, a);
+    },
+    /** @param {number} tabId */
+    actEnd(tabId) {
+      const a = acts.get(tabId);
+      if (!a) return;
+      a.n = Math.max(0, a.n - 1);
+      a.last = now();
+    },
+    /** The page said the person touched it. Hands the tab to the person (the agent pauses and the bar says it is theirs) unless the agent is acting there. @param {number} tabId */
+    async touched(tabId) {
+      const d = drivers.get(tabId);
+      if (!d) return false;
+      const a = acts.get(tabId);
+      if (a && (a.n > 0 || now() - a.last < TOUCH_GRACE_MS)) return false;
+      await this.pause(d.agent.id, "takeover");
+      return true;
+    },
     /**
      * May the debugger go on this tab? In the person's own Chrome only a tab that sits in this agent's own tab group: a person's tab joins the group when they hand it over
      * (begin puts it there), so a tab outside it is never debugged. An agent computer's browser has no groups and no person's tabs. @param {string} agentId @param {number} tabId

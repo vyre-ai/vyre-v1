@@ -231,6 +231,7 @@ export function createAgentControl(ext, o = {}) {
       if (m.type === "stop") void sessions.pause(agent.id, "person");
       else if (m.type === "takeover") void sessions.pause(agent.id, "takeover");
       else if (m.type === "esc") void sessions.pause(agent.id, "esc");
+      else if (m.type === "touch") void sessions.touched(tabId);
     });
   });
   // Chrome's own "stop debugging" bar is a Stop too; a tab that closes simply ends its session.
@@ -240,6 +241,16 @@ export function createAgentControl(ext, o = {}) {
     if (reason === "canceled_by_user") void sessions.pause(agent.id, "person");
     else void sessions.release(tabId, "detached");
   });
+  // A tab dragged out of the agent's group (or into another) is the person's: the agent stops at once and the bar says so.
+  if (ext.tabs.onUpdated)
+    ext.tabs.onUpdated.addListener((/** @type {number} */ tabId, /** @type {any} */ info) => {
+      if (info.groupId === undefined) return;
+      const agent = sessions.driverOf(tabId);
+      if (!agent) return;
+      void sessions.inGroup(agent.id, tabId).then((inside) => {
+        if (!inside) void sessions.pause(agent.id, "takeover");
+      });
+    });
   cdp.onEvent((tabId, method) => {
     if (method === "Page.loadEventFired") void sessions.redraw(tabId);
   });

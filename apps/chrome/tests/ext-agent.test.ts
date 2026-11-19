@@ -459,6 +459,7 @@ function makeWorld(over = {}) {
         for (const f of world.removedListeners) f(id);
       },
       onRemoved: { addListener: (f) => world.removedListeners.push(f) },
+      onUpdated: { addListener: (f) => (world.updatedListeners ??= []).push(f) },
     },
   };
   const transport = {
@@ -2100,4 +2101,105 @@ test("network reading starts only on a site the person put in Browser connection
   assert.equal(open.attached.size, 0);
   await open.call("chrome_snapshot");
   assert.equal(open.control.cdp.isNetworkOn(7), false, "a new session starts closed again");
+});
+
+function framePort(w, tabId = 7) {
+  const port = {
+    name: "vyre.agent.overlay",
+    sender: { id: "ext", tab: { id: tabId } },
+    onMessage: {
+      addListener: (f) => {
+        port.send = f;
+      },
+    },
+  };
+  for (const f of w.connectListeners) f(port);
+  return port;
+}
+
+test("the person's touch hands the tab over; the agent's own real-looking events do not", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const port = framePort(w);
+  // while a call is in flight the page's real events are the agent's own
+  let release;
+  const hold = new Promise((r) => (release = r));
+  const origSend = w.ext.debugger.sendCommand;
+  w.ext.debugger.sendCommand = async (t, m, p) => {
+    if (m === "Input.dispatchMouseEvent") await hold;
+    return origSend(t, m, p);
+  };
+  const inflight = w.call("chrome_click", { x: 5, y: 5 });
+  await w.advance(0);
+  port.send({ type: "touch" });
+  await w.advance(0);
+  assert.equal(w.eventsOf("takeover").length, 0, "the agent is clicking: that event is its own");
+  release();
+  await inflight;
+  w.ext.debugger.sendCommand = origSend;
+  // just after the agent's last act, still its own
+  port.send({ type: "touch" });
+  await w.advance(0);
+  assert.equal(w.eventsOf("takeover").length, 0, "inside the short grace");
+  // later, a touch is the person's: the debugger goes, the bar says the tab is theirs, the agent waits
+  await w.advance(700);
+  port.send({ type: "touch" });
+  await w.advance(0);
+  assert.equal(w.eventsOf("takeover").length, 1);
+  assert.equal(w.overlay.get(7).state, "takeover");
+  assert.equal(w.attached.size, 0, "the tab is the person's again");
+  await w.fails("chrome_snapshot", {}, "paused");
+  // giving it back lets the agent go on
+  port.send({ type: "giveback" });
+  await w.advance(0);
+  assert.match((await w.call("chrome_snapshot")).tree, /Sign in/);
+});
+
+test("a touch on a tab nobody drives, or from a port that is not the frame's, does nothing", async () => {
+  const w = await ready();
+  const port = framePort(w);
+  port.send({ type: "touch" });
+  await w.advance(0);
+  assert.equal(w.eventsOf("takeover").length, 0, "no agent was driving");
+  await w.call("chrome_snapshot");
+  await w.advance(1000);
+  const stranger = framePort(w, 99);
+  stranger.send({ type: "touch" });
+  await w.advance(0);
+  assert.equal(w.eventsOf("takeover").length, 0, "another tab's touch never stops this agent");
+  assert.ok(w.attached.has(7));
+});
+
+test("a tab dragged out of the agent's group stops that agent at once", async () => {
+  const w = withMail(
+    await ready({}).then(async (x) => {
+      await x.optIn("personal");
+      return x;
+    }),
+  );
+  let gid = 500;
+  w.ext.tabs.group = async ({ tabIds, groupId }) => {
+    const g = groupId ?? ++gid;
+    for (const id of tabIds) w.tabs.get(id).groupId = g;
+    return g;
+  };
+  w.ext.tabGroups = { update: async () => {} };
+  w.ext.tabs.update = async (id) => {
+    w.tabs.get(id).active = true;
+    return {};
+  };
+  await w.call("chrome_tabs", { action: "find", site: "mail.test" });
+  await w.call("chrome_tabs", { action: "use", tabId: "8" });
+  await w.call("chrome_snapshot");
+  assert.ok(w.attached.has(8));
+  // Chrome tells the worker the tab's group changed: still ours (the agent's own grouping), nothing happens
+  for (const f of w.updatedListeners) f(8, { groupId: 501 });
+  await w.advance(0);
+  assert.equal(w.eventsOf("takeover").length, 0);
+  // the person drags it out of the group
+  w.tabs.get(8).groupId = -1;
+  for (const f of w.updatedListeners) f(8, { groupId: -1 });
+  await w.advance(0);
+  assert.equal(w.eventsOf("takeover").length, 1);
+  assert.equal(w.attached.size, 0);
 });

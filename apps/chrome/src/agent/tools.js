@@ -359,9 +359,11 @@ export function createTools(kit) {
     const tabId = await tabFor(call, input);
     await sessions.begin(call, tabId);
     await attachDriven(call, tabId);
+    sessions.actStart(tabId);
     try {
       return await fn(tabId);
     } finally {
+      sessions.actEnd(tabId);
       sessions.touch(tabId);
     }
   }
