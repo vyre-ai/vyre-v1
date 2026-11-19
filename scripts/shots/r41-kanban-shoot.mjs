@@ -132,6 +132,7 @@ for (const sc of SCENES) {
         deviceScaleFactor: 1,
         colorScheme: skin === "graphite" ? "dark" : "light",
         reducedMotion: "reduce",
+        ...(size === "phone" ? { hasTouch: true, isMobile: true } : {}),
       });
       const page = await ctx.newPage();
       const errs = [];
