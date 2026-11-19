@@ -66,3 +66,71 @@ test("a log of one failure repeated is named at most 20 times, a cut start is sa
   assert.equal(d.startCut, true);
   assert.ok(d.tail.every((l) => l.length <= 300));
 });
+
+type Shape = {
+  lines: number;
+  omitted: number;
+  cutChars?: number;
+  noExitCode?: string;
+  matchesNotShown?: number;
+  matches: Array<{ line: number; fromEnd: number; text: string }>;
+  tail: string[];
+  read: { tool: string; lines: number; covers: string };
+};
+const shape = (output: string, extra: Record<string, unknown> = {}): Shape =>
+  shapeOutput("terminal.run", { terminalId: "trm_1", exitCode: 1, output, truncated: false, durationMs: 5, ...extra })!
+    .data as Shape;
+
+test("a long line is cut with the cut counted and marked, never silently", () => {
+  const d = shape(`${"z".repeat(50_000)}\nnext`);
+  assert.equal(d.cutChars, 50_000 - 300);
+  assert.match(d.tail[0]!, /\[\+\d+ more characters on this line\]$/);
+  assert.equal(d.omitted, 0);
+});
+
+test("the failure words real tools print are found, clean counts are not, and a real failure after many benign hits is kept", () => {
+  const lines = Array.from({ length: 3_000 }, (_, i) => `ok ${i} ${"x".repeat(40)}`);
+  const real: Array<[number, string]> = [
+    [100, "FAIL src/pay.test.ts"],
+    [200, "npm ERR! code ELIFECYCLE"],
+    [300, "TypeError: x is not a function"],
+    [400, "ModuleNotFoundError: No module named 'foo'"],
+    [500, "bash: foo: command not found"],
+    [600, "Segmentation fault (core dumped)"],
+    [700, "E   assert 3 == 4"],
+  ];
+  for (const [i, t] of real) lines[i] = t;
+  for (let i = 800; i < 825; i++) lines[i] = `compiled with 0 errors, failed: 0 (${i})`;
+  const d = shape(lines.join("\n"));
+  assert.deepEqual(
+    d.matches.map((m) => m.line),
+    real.map(([i]) => i + 1),
+    "every real failure, no clean count",
+  );
+  const many = Array.from({ length: 3_000 }, (_, i) => `ok ${i} ${"x".repeat(40)}`);
+  for (let i = 100; i < 140; i++) many[i] = `warn: error_handler.ts retry ${i}`;
+  many[2_000] = "FATAL: the disk is full";
+  const m = shape(many.join("\n"));
+  assert.equal(m.matches.length, 20);
+  assert.equal(m.matchesNotShown, 41 - 20);
+  assert.ok(
+    m.matches.some((x) => x.line === 2_001),
+    "the real failure is among the last 15, not crowded out by the first hits",
+  );
+});
+
+test("the answer says which terminal_read call reaches the matches, and when none does", () => {
+  const lines = Array.from({ length: 3_000 }, (_, i) => `ok ${i} ${"x".repeat(40)}`);
+  lines[2_000] = "Error: boom";
+  const d = shape(lines.join("\n"));
+  assert.equal(d.matches[0]!.fromEnd, 1_000);
+  assert.equal(d.read.tool, "terminal_read");
+  assert.equal(d.read.lines, 1_003);
+  lines[10] = "Error: very early";
+  const far = shape(
+    Array.from({ length: 9_000 }, (_, i) => (i === 10 ? "Error: very early" : `ok ${i} ${"x".repeat(40)}`)).join("\n"),
+  );
+  assert.equal(far.read.lines, 5_000);
+  assert.match(far.read.covers, /out of its reach/);
+  assert.match(shape("x".repeat(7_000), { exitCode: null }).noExitCode ?? "", /exit code/);
+});

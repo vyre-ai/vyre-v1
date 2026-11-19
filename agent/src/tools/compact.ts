@@ -312,37 +312,72 @@ const RUN_LINE = 300;
 /** The most lines that look like a failure that are named beside the tail. */
 export const RUN_MATCHES = 20;
 const FAILURE =
-  /\b(?:error|errors|failed|failure|fatal|panic|exception|traceback|denied|refused|timed?\s*out|cannot|can't|not ok)\b|✖|✗/i;
+  /\berr(?:or|ors)?\b|[A-Za-z]Error\b|\bFAIL(?:ED|URE|S)?\b|\bfailed\b|\bfatal\b|\bpanic\b|\bexception\b|\btraceback\b|\bdenied\b|\brefused\b|timed?\s*out|\bENOENT\b|\bEACCES\b|not found|no such file|\bkilled\b|segmentation fault|undefined reference|\bnot ok\b|^E\s{2,}|✖|✗/i;
+/** A line that says nothing went wrong ("0 errors", "failed: 0", "no errors"). */
+const CLEAN = /\b(?:0|no|zero)\s+(?:errors?|failed|failures?|failing)\b|\b(?:errors?|failed|failures?)\s*[:=]\s*0\b/i;
+/** Most characters of a line the model keeps; a longer line is cut and the cut is counted. */
+const RUN_LINE_KEEP = RUN_LINE;
+/** The most lines of terminal_read reaches (its own ceiling). */
+const READ_MAX_LINES = 5_000;
 
 /**
  * What a model reads of a long command's output (r42-runtime-tokens, DIRECTION-agent-runtime C: terminal output reaches the model only as a tail, a search or a summary, never whole). A short output is
- * returned as it is. A long one is `{ exitCode, durationMs, lines, bytes, tail (the last 40 lines), matches (up to 20 lines that look like a failure, with their line numbers), omitted }`; the whole log stays in the tab,
- * and terminal_read reads more of it. The people's own views and the hooks see the whole output: this is only the model's copy.
+ * returned as it is. A long one is `{ exitCode, lines, bytes, omitted, cutChars, matches, tail, read }`: the last 40 lines; up to 20 earlier lines that look like a failure (the first 5 and the last 15 when there are
+ * more; lines that only say "0 errors" are not counted), each with its line number and how many lines from the end it is; every line cut for width marked and counted; and `read`, the terminal_read call that reaches
+ * the earliest of them (or the plain statement that it is out of reach). The whole log stays in the tab; the people's own views and the hooks see the whole output, this is only the model's copy.
  */
 function shapeRun(o: Obj): Shaped | null {
   const output = str(o["output"]);
   if (output.length <= RUN_WHOLE) return null;
   const lines = output.split("\n");
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-  const cutLine = (l: string): string => (l.length > RUN_LINE ? `${l.slice(0, RUN_LINE - 1)}…` : l);
+  let cutChars = 0;
+  const cutLine = (l: string): string => {
+    if (l.length <= RUN_LINE_KEEP) return l;
+    cutChars += l.length - RUN_LINE_KEEP;
+    return `${l.slice(0, RUN_LINE_KEEP - 1)}…[+${l.length - RUN_LINE_KEEP + 1} more characters on this line]`;
+  };
   const from = Math.max(0, lines.length - RUN_TAIL);
-  const matches: Array<{ line: number; text: string }> = [];
-  for (let i = 0; i < from && matches.length < RUN_MATCHES; i++)
-    if (FAILURE.test(lines[i]!)) matches.push({ line: i + 1, text: cutLine(lines[i]!) });
+  const hits: number[] = [];
+  for (let i = 0; i < from; i++) if (FAILURE.test(lines[i]!) && !CLEAN.test(lines[i]!)) hits.push(i);
+  const picked =
+    hits.length <= RUN_MATCHES ? hits : [...hits.slice(0, 5), ...hits.slice(hits.length - (RUN_MATCHES - 5))];
+  const matches = picked.map((i) => ({ line: i + 1, fromEnd: lines.length - i, text: cutLine(lines[i]!) }));
+  const tail = lines.slice(from).map(cutLine);
+  const reach =
+    matches.length > 0 ? matches.reduce((n, m) => Math.max(n, m.fromEnd), 0) + 3 : Math.min(lines.length, 200);
   const data = {
     terminalId: str(o["terminalId"]),
     exitCode: typeof o["exitCode"] === "number" ? o["exitCode"] : null,
+    ...(typeof o["exitCode"] === "number"
+      ? {}
+      : { noExitCode: "the command did not report an exit code (it was interrupted or timed out)" }),
     durationMs: num(o["durationMs"]),
     lines: lines.length,
     bytes: output.length,
     ...(o["truncated"] === true ? { startCut: true } : {}),
     omitted: from,
+    ...(hits.length > picked.length ? { matchesNotShown: hits.length - picked.length } : {}),
+    ...(cutChars > 0 ? { cutChars } : {}),
+    note: "Long output: only the end is here. Line numbers count from the first line of this command's output.",
+    read:
+      reach <= READ_MAX_LINES
+        ? {
+            tool: "terminal_read",
+            lines: reach,
+            covers: matches.length > 0 ? "every line named in matches" : "the last lines",
+          }
+        : {
+            tool: "terminal_read",
+            lines: READ_MAX_LINES,
+            covers: "only the last 5000 lines; earlier matches are out of its reach",
+          },
     ...(matches.length > 0 ? { matches } : {}),
-    tail: lines.slice(from).map(cutLine),
+    tail,
   };
   return {
     data,
-    meta: { count: data.tail.length, total: lines.length, bytes: bytesOf(data), omitted: from, read: "terminal_read" },
+    meta: { count: tail.length, total: lines.length, bytes: bytesOf(data), omitted: from, read: "terminal_read" },
   };
 }
 

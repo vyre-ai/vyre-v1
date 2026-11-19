@@ -276,26 +276,36 @@ test("any member of the chat can message a running helper; someone outside it ca
   );
 });
 
-test("a brief that only reads, searches or extracts is a read; one that writes, changes, judges or asks why is not (r42-runtime-tokens)", () => {
-  const reads = [
-    "Read the lease in the Northwind folder and list the renewal dates.",
+test("only a plainly mechanical brief is a read; legal substance, judgement, writing, images and long inputs keep the strong model (r42-runtime-tokens)", () => {
+  const mechanical = [
     "Find every invoice over 5,000 from October and list its number and amount.",
-    "Search the Space for pages that mention the 2025 price sheet.",
-    "Extract the totals from the three spreadsheets and report what they say.",
-    "Count how many open tasks each person has.",
+    "List the open tasks for each person and count them.",
+    "Extract the invoice number, date and total from the three spreadsheets.",
+    "Look up the opening hours of the Fresno office and copy them as a table.",
+    "Count how many matters were opened in March.",
   ];
-  const others = [
+  const strong = [
+    "Summarize the deposition of Ms. Alvarez.",
+    "Find the clause in the lease that says who pays for repairs.",
+    "List the risks in the settlement agreement.",
+    "Find the emails that show the client knew about the defect and tell me whether that hurts us.",
+    "Extract the dates from the medical records and flag any gaps.",
+    "Identify which exhibits are privileged.",
+    "Verify the totals match the invoice.",
+    "Determine who is liable for the damage.",
+    "Find the filing deadline and check whether we are in time.",
+    "Read the agreements and tell me if any are risky.",
+    "List what is in the attached screenshot.",
+    "Extract the text from this PDF.",
     "Draft a reply to Dana about the lease.",
-    "Read the policy and recommend which option we take.",
     "Find the bug in the sync code and fix it.",
     "Why did the invoice total change last week?",
-    "Compare the two quotes and tell me which is better.",
     "Do it.",
     "",
-    `Read ${"all of these files and ".repeat(100)}`,
+    `Find ${"every one of these files and ".repeat(40)}`,
   ];
-  for (const t of reads) assert.equal(briefJob(t), "read", t);
-  for (const t of others) assert.equal(briefJob(t), undefined, t);
+  for (const t of mechanical) assert.equal(briefJob(t), "read", t);
+  for (const t of strong) assert.equal(briefJob(t), undefined, t);
 });
 
 test("a plain read goes to the parent account's fast model by itself and the row says so; a thinking brief, a named model, a cheap parent, an ask-first agent and a crew keep their own rules", async () => {
@@ -316,9 +326,17 @@ test("a plain read goes to the parent account's fast model by itself and the row
     accountLabel: "Claude · Imran",
     provider: "anthropic",
     model: "claude-haiku-5-5",
-    auto: true,
-    why: "reading only, so the faster model",
+    why: "plain lookup, so the faster model",
   });
+  assert.equal(
+    await run(cat("claude-opus-5-5"), { ...reading, why: "cheap reader" }),
+    undefined,
+    "a why of the agent's own is never replaced",
+  );
+  assert.equal(
+    await run(cat("claude-opus-5-5"), { instruction: "Summarize the deposition of Ms. Alvarez." }),
+    undefined,
+  );
   assert.equal(await run(cat("claude-opus-5-5"), { instruction: "Draft a reply to Dana about the lease." }), undefined);
   assert.equal(
     (await run(cat("claude-opus-5-5"), { ...reading, account: "#Mine_Claude", model: "claude-opus-5-5" }))?.["model"],

@@ -865,6 +865,7 @@ async function chooseHelperModel(
     input.model === undefined &&
     input.account === undefined &&
     input.provider === undefined &&
+    input.why === undefined &&
     brief !== undefined &&
     briefJob(brief) === "read"
   ) {
@@ -921,7 +922,7 @@ async function chooseHelperModel(
       accountLabel: account.label,
       provider: account.provider,
       model,
-      ...(auto ? { auto: true, why: "reading only, so the faster model" } : input.why ? { why: input.why } : {}),
+      ...(auto ? { why: "plain lookup, so the faster model" } : input.why ? { why: input.why } : {}),
       ...(fellBackFrom ? { fellBackFrom } : {}),
     },
   };
