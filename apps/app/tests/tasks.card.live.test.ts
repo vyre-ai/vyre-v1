@@ -100,11 +100,6 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
           )?.kept_until ?? null,
       );
     void open;
-    await page.goto(`${web.origin}/chats#screen=tasks.my-work`, { waitUntil: "load" });
-    await page.getByTestId("tasks-still").waitFor({ timeout: 30_000 });
-    assert.match(await page.getByTestId("tasks-still").innerText(), /4 tasks may be finished/);
-    await shot("card-closed-dark-desktop");
-    await page.getByTestId("still-open").click();
     const seenAt = (id: string): number | null =>
       withDb(
         (db) =>
@@ -114,8 +109,27 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
               | undefined
           )?.seen_at ?? null,
       );
+    // a hidden tab never counts as seeing the card: the page says it is hidden for a while, nothing is stamped, then it shows and it is
+    await page.addInitScript(() => {
+      (window as unknown as { __vis: string }).__vis = "hidden";
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => (window as unknown as { __vis: string }).__vis,
+      });
+    });
+    await page.goto(`${web.origin}/chats#screen=tasks.my-work`, { waitUntil: "load" });
+    await page.getByTestId("tasks-still").waitFor({ timeout: 30_000 });
+    await page.waitForTimeout(4000);
+    assert.equal(seenAt(ids[0]!), null, "a hidden page does not stamp the card as seen");
+    await page.evaluate(() => {
+      (window as unknown as { __vis: string }).__vis = "visible";
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
     for (let i = 0; i < 40 && seenAt(ids[0]!) === null; i++) await page.waitForTimeout(250);
     assert.ok(seenAt(ids[0]!) !== null, "showing the card stamps that someone saw it");
+    assert.match(await page.getByTestId("tasks-still").innerText(), /4 tasks may be finished/);
+    await shot("card-closed-dark-desktop");
+    await page.getByTestId("still-open").click();
     await page.getByTestId("tasks-still").getByText("Reply to the vendor", { exact: true }).waitFor();
     await page.getByText(/Its expected date has passed/).waitFor();
     await shot("card-open-dark-desktop");

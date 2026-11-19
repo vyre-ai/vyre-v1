@@ -80,6 +80,8 @@ export async function unarchive(ctx: TasksCtx, input: In): Promise<unknown> {
   if (t.archived === undefined) return { task: out(ctx, t) };
   const was = t.archived;
   clearArchived(ctx.db, t);
+  // a person said it still matters: a rule that meets it again (an event delivered twice, a goal that ended) leaves it alone
+  ctx.db.run("INSERT OR REPLACE INTO tasks_putback (task_id, at) VALUES (?, ?)", t.id, ctx.now());
   // put back after its moment passed: a person says it still matters, so it is not put away again a minute later
   if (was.code === "passed" || was.code === "quiet" || was.code === "asked") clearMoment(ctx.db, t);
   ctx.db.run("DELETE FROM tasks_ask WHERE task_id = ?", t.id);

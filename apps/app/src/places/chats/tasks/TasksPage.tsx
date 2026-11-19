@@ -1093,6 +1093,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
             onChanged={() => store.refresh()}
           />
           <StillCard
+            who={rt.me.id}
             call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
             rev={revValue}
             openTask={openTask}

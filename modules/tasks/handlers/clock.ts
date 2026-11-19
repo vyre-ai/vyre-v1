@@ -20,7 +20,7 @@ import {
 import type { Assignee, Task, TasksCtx } from "../projections.ts";
 import { findStuck } from "./act.ts";
 import { cannotArchive, putAway } from "./archive.ts";
-import { NOT_ASKED, archiveUnanswered, askUntouched, momentWords, putOnCard } from "./still.ts";
+import { NOT_ASKED, archiveUnanswered, askUntouched, momentWords, putOnCard, rotate } from "./still.ts";
 
 type In = Record<string, unknown>;
 const DAY = 86_400_000;
@@ -149,26 +149,30 @@ export function archivePassed(ctx: TasksCtx): number {
   if (!policy.tidy) return 0;
   const now = ctx.now();
   let n = 0;
-  for (const t of allTasks(
-    ctx.db,
-    `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND mo.until IS NOT NULL AND mo.until <= ? ${NOT_ASKED} ORDER BY mo.until`,
-    now - policy.momentGraceDays * DAY,
-    now,
-  ).slice(0, MAX)) {
-    if (t.relevantUntil === undefined || cannotArchive(ctx, t) !== null) continue;
-    if (t.momentStated === false) {
-      putOnCard(ctx, t, "Its expected date has passed.");
-      continue;
-    }
-    const holder = stepHolder(t);
-    const tz = holder.kind === "person" ? tzOf(ctx.db, holder.id) : "UTC";
-    putAway(ctx, t, {
-      code: "passed",
-      why: `It was for ${momentWords(t.relevantUntil, tz)}.`,
-      proof: { relevantUntil: t.relevantUntil },
-    });
-    n += 1;
-  }
+  rotate(
+    ctx,
+    "archive_passed",
+    `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND mo.until IS NOT NULL AND mo.until <= ? ${NOT_ASKED}`,
+    [now - policy.momentGraceDays * DAY, now],
+    "mo.until",
+    (t) => t.relevantUntil ?? 0,
+    (t) => {
+      if (t.relevantUntil === undefined || cannotArchive(ctx, t) !== null) return;
+      if (t.momentStated === false) {
+        putOnCard(ctx, t, "Its expected date has passed.");
+        return;
+      }
+      const holder = stepHolder(t);
+      const tz = holder.kind === "person" ? tzOf(ctx.db, holder.id) : "UTC";
+      putAway(ctx, t, {
+        code: "passed",
+        why: `It was for ${momentWords(t.relevantUntil, tz)}.`,
+        proof: { relevantUntil: t.relevantUntil },
+      });
+      n += 1;
+    },
+    MAX,
+  );
   return n + archiveUnanswered(ctx);
 }
 

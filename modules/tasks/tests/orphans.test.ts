@@ -68,10 +68,34 @@ test("a goal that ended puts away the questions and holds it left open, not its 
   const work = await mk(h, { title: "Write the report", source: { kind: "goal", id: "gol_1" } });
   const other = await mk(h, { kind: "answer", title: "Another goal", source: { kind: "goal", id: "gol_2" } });
   const ended = (): string[] =>
-    onGoalEnded(h.ctxFor("tasks.archive", svc), { name: "goal.ended", payload: { goalId: "gol_1" } });
+    onGoalEnded(h.ctxFor("tasks.archive", svc), {
+      name: "goal.ended",
+      payload: { goalId: "gol_1", outcome: "missed" },
+    });
   assert.deepEqual(ended(), [ask]);
-  assert.equal((await get(h, ask)).archived.why, "The goal it was part of has ended.");
+  assert.equal((await get(h, ask)).archived.why, "The goal it was part of ended (missed).");
   assert.equal((await get(h, work)).archived, undefined);
   assert.equal((await get(h, other)).archived, undefined);
   assert.deepEqual(ended(), [], "a second delivery changes nothing");
+});
+
+test("a request a goal's end put away says why on the task and in what the Space did, and one press puts it back for good: a redelivered event never puts it away again", async () => {
+  const h = harness();
+  const ask = await mk(h, { kind: "answer", title: "Which budget?", source: { kind: "goal", id: "gol_1" } });
+  const ended = (): string[] =>
+    onGoalEnded(h.ctxFor("tasks.archive", svc), {
+      name: "goal.ended",
+      payload: { goalId: "gol_1", outcome: "stopped" },
+    });
+  assert.deepEqual(ended(), [ask]);
+  const news = (await h.call("tasks.changes", { since: 0 }, { id: alice.id })) as {
+    items: { taskId: string; why: string }[];
+  };
+  assert.deepEqual(
+    news.items.map((i) => [i.taskId, i.why]),
+    [[ask, "The goal it was part of ended (stopped)."]],
+  );
+  await h.call("tasks.unarchive", { taskId: ask }, me);
+  assert.deepEqual(ended(), [], "the same event again leaves it alone");
+  assert.equal((await get(h, ask)).archived, undefined);
 });

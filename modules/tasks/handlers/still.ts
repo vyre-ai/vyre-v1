@@ -33,6 +33,37 @@ export function momentWords(at: number, tz: string): string {
   }
 }
 
+/**
+ * Visit the matching tasks a page at a time, round and round: each pass reads the next `size` after where the last one stopped (tasks_cursor) and wraps at the end, so rows that are skipped every time (snoozed, due
+ * later, waited on) never keep the rows behind them from being read, and no pass loads every stale task. `keyCol` is the sorted column and `keyOf` its value on the row.
+ */
+export function rotate(
+  ctx: TasksCtx,
+  name: string,
+  where: string,
+  args: unknown[],
+  keyCol: string,
+  keyOf: (t: Task) => number,
+  visit: (t: Task) => void,
+  size = 200,
+): void {
+  const row = ctx.db.all("SELECT value FROM tasks_cursor WHERE name = ?", name)[0] as { value?: string } | undefined;
+  const [k, id] = (row?.value ?? "").split("|");
+  const after = row?.value ? ` AND (${keyCol} > ? OR (${keyCol} = ? AND c.id > ?))` : "";
+  const rows = allTasks(
+    ctx.db,
+    `${where}${after} ORDER BY ${keyCol}, c.id LIMIT ${size}`,
+    ...args,
+    ...(row?.value ? [Number(k), Number(k), id] : []),
+  );
+  for (const t of rows) visit(t);
+  if (rows.length < size) ctx.db.run("DELETE FROM tasks_cursor WHERE name = ?", name);
+  else {
+    const last = rows[rows.length - 1]!;
+    ctx.db.run("INSERT OR REPLACE INTO tasks_cursor (name, value) VALUES (?, ?)", name, `${keyOf(last)}|${last.id}`);
+  }
+}
+
 /** Not on the card and not kept: rows the clock still has to ask about (one ? is the time now). */
 export const NOT_ASKED =
   "AND NOT EXISTS (SELECT 1 FROM tasks_ask k WHERE k.task_id = c.id AND (k.kept_until IS NULL OR k.kept_until > ?))";
@@ -46,23 +77,26 @@ export function askUntouched(ctx: TasksCtx): number {
   if (!policy.tidy) return 0;
   const now = ctx.now();
   let n = 0;
-  for (const t of allTasks(
-    ctx.db,
-    `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND c.updated_at <= ? ${NOT_ASKED} ORDER BY c.updated_at`,
-    now - policy.askAfterDays * DAY,
-    now,
-  ).slice(0, 200)) {
-    if (t.snoozedUntil !== undefined && t.snoozedUntil > now) continue;
-    if (t.due !== undefined && t.due > now) continue; // something is still coming
-    if (t.relevantUntil !== undefined && t.momentStated !== false) continue; // its stated moment decides
-    if (cannotArchive(ctx, t) !== null) continue; // a held act, a Run or other work waits on it
-    const holder = t.assigned.kind === "person" ? tzOf(ctx.db, t.assigned.id) : "UTC";
-    const why =
-      t.due !== undefined
-        ? `Due ${momentWords(t.due, holder)}, nothing since.`
-        : `Nothing has happened for ${policy.askAfterDays} days.`;
-    if (putOnCard(ctx, t, why)) n += 1;
-  }
+  rotate(
+    ctx,
+    "ask_untouched",
+    `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND c.updated_at <= ? ${NOT_ASKED}`,
+    [now - policy.askAfterDays * DAY, now],
+    "c.updated_at",
+    (t) => t.updatedAt,
+    (t) => {
+      if (t.snoozedUntil !== undefined && t.snoozedUntil > now) return;
+      if (t.due !== undefined && t.due > now) return; // something is still coming
+      if (t.relevantUntil !== undefined && t.momentStated !== false) return; // its stated moment decides
+      if (cannotArchive(ctx, t) !== null) return; // a held act, a Run or other work waits on it
+      const holder = t.assigned.kind === "person" ? tzOf(ctx.db, t.assigned.id) : "UTC";
+      const why =
+        t.due !== undefined
+          ? `Due ${momentWords(t.due, holder)}, nothing since.`
+          : `Nothing has happened for ${policy.askAfterDays} days.`;
+      if (putOnCard(ctx, t, why)) n += 1;
+    },
+  );
   return n;
 }
 

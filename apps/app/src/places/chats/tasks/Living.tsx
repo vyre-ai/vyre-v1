@@ -27,24 +27,37 @@ function Btn({ label, testID, onPress }: { label: string; testID: string; onPres
   );
 }
 
-/** The card stays open across a redraw of the page (a width change draws it again from nothing). */
-let rememberedOpen = false;
+/** True while the card is really in front of someone: the page is visible and the card's box is inside the window. */
+export function cardOnScreen(doc: Document): boolean {
+  if (doc.visibilityState !== "visible") return false;
+  const el = doc.querySelector('[data-testid="tasks-still"]');
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  const w = (doc.defaultView?.innerWidth ?? 0) || 0;
+  const h = (doc.defaultView?.innerHeight ?? 0) || 0;
+  return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < h && r.left < w;
+}
+
+/** The card stays open across a redraw of the page (a width change draws it again from nothing), for the same person only. */
+let remembered: { who: string; open: boolean } = { who: "", open: false };
 
 export function StillCard({
   call,
+  who,
   rev,
   openTask,
   onChanged,
 }: {
   call: Call;
+  who: string;
   rev: string | undefined;
   openTask(id: string): void;
   onChanged(): void;
 }): ReactElement | null {
   const [card, setCard] = useState<Card | null>(null);
-  const [open, setOpenNow] = useState(rememberedOpen);
+  const [open, setOpenNow] = useState(remembered.who === who && remembered.open);
   const setOpen = (v: boolean): void => {
-    rememberedOpen = v;
+    remembered = { who, open: v };
     setOpenNow(v);
   };
   const [busy, setBusy] = useState(false);
@@ -70,11 +83,40 @@ export function StillCard({
       },
     );
   };
-  // the card was in front of the person: the server starts its week of silence from here, never before anyone saw it
+  // the card was in front of the person: the server starts its week of silence from here, never before anyone saw it. Only while the page is visible and the card is on screen, for a full second:
+  // a hidden tab or a page kept alive behind another never counts
   const shownIds = card ? card.items.map((i) => i.task.id).join(",") : "";
   useEffect(() => {
-    if (shownIds !== "")
+    if (shownIds === "") return undefined;
+    const send = (): void =>
       void call("tasks.still_answer", { taskIds: shownIds.split(","), answer: "seen" }).catch(() => undefined);
+    const doc = (globalThis as { document?: Document }).document;
+    if (!doc) {
+      const t = setTimeout(send, 1000);
+      return () => clearTimeout(t);
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const arm = (): void => {
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+      if (!cardOnScreen(doc)) return;
+      timer = setTimeout(() => {
+        timer = undefined;
+        if (cardOnScreen(doc)) {
+          doc.removeEventListener("visibilitychange", arm);
+          send();
+        }
+      }, 1000);
+    };
+    doc.addEventListener("visibilitychange", arm);
+    arm();
+    // the card may be scrolled to or the page shown later: look again now and then until it has been seen
+    const poll = setInterval(arm, 1500);
+    return () => {
+      doc.removeEventListener("visibilitychange", arm);
+      clearInterval(poll);
+      if (timer !== undefined) clearTimeout(timer);
+    };
   }, [call, shownIds]);
   if (!card || card.items.length === 0) return null;
   const ids = card.items.map((i) => i.task.id);

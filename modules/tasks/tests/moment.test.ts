@@ -223,3 +223,29 @@ test("the Space settings move the rules: tidy off stops everything the Space doe
   await tick(h);
   assert.equal((await card(h)).total, 1, "back on: it asks");
 });
+
+test("old rows that are skipped every pass never keep the rows behind them from being read", async () => {
+  const h = harness();
+  // 230 old tasks the pass skips every time (something is still coming), then one that is eligible
+  for (let i = 0; i < 230; i++) await mk(h, { title: `Coming ${i}`, due: h.now() + 400 * DAY });
+  h.advance(DAY);
+  const late = await mk(h, { title: "Behind them" });
+  h.advance(20 * DAY);
+  await tick(h);
+  await tick(h);
+  assert.ok(
+    (await card(h)).items.some((i) => i.task.id === late),
+    "the second pass reaches it",
+  );
+});
+
+test("a task that someone kept keeps its 90 days when it is moved", async () => {
+  const h = harness();
+  const id = await mk(h, { title: "Check the report" });
+  h.advance(15 * DAY);
+  await tick(h);
+  await h.call("tasks.still_answer", { taskIds: [id], answer: "keep" }, me);
+  await h.call("tasks.transition", { taskId: id, to: "doing" }, me);
+  const kept = h.db.all("SELECT kept_until FROM tasks_ask WHERE task_id = ?", id) as { kept_until: number | null }[];
+  assert.equal(kept.length, 1, "the keep mark is still there");
+});

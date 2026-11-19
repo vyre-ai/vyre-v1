@@ -311,7 +311,7 @@ export function commitMove(ctx: TasksCtx, t: Task, to: TaskState, c: Checked): A
   )
     clearMoment(ctx.db, t);
   clearArchived(ctx.db, t);
-  ctx.db.run("DELETE FROM tasks_ask WHERE task_id = ?", t.id);
+  ctx.db.run("DELETE FROM tasks_ask WHERE task_id = ? AND kept_until IS NULL", t.id); // a kept task keeps its 90 days
   let handled = false;
   if (!isOpen(to)) {
     delete t.snoozedUntil;

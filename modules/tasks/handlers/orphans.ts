@@ -5,11 +5,15 @@ import { allTasks, isOpen, isRequest, openIndex, readPolicy } from "../projectio
 import { putAway } from "./archive.ts";
 import type { Task, TasksCtx } from "../projections.ts";
 
-type Ev = { name: string; payload: { threadId?: unknown; taskId?: unknown; to?: unknown; goalId?: unknown } };
+type Ev = {
+  name: string;
+  payload: { threadId?: unknown; taskId?: unknown; to?: unknown; goalId?: unknown; outcome?: unknown };
+};
 
 /** Nothing else may wait on the ask, no held act or Run hangs on it, and it is still open and not yet put away. */
 function orphanable(ctx: TasksCtx, t: Task, waiters: ReadonlyMap<string, string[]>): boolean {
   if (!isOpen(t.state) || t.archived !== undefined) return false;
+  if (ctx.db.all("SELECT 1 FROM tasks_putback WHERE task_id = ?", t.id).length > 0) return false; // put back by a person: it stays
   if (t.source?.kind === "gate" || t.payloadHash !== undefined || t.source?.kind === "run") return false;
   return (waiters.get(t.id) ?? []).length === 0;
 }
@@ -18,6 +22,7 @@ function orphanable(ctx: TasksCtx, t: Task, waiters: ReadonlyMap<string, string[
 export function onGoalEnded(ctx: TasksCtx, event: Ev): string[] {
   if (!readPolicy(ctx.db).tidy) return [];
   const goalId = typeof event.payload.goalId === "string" ? event.payload.goalId : "";
+  const outcome = typeof event.payload.outcome === "string" ? event.payload.outcome : "over";
   if (goalId === "") return [];
   const idx = openIndex(ctx.db);
   const out: string[] = [];
@@ -27,7 +32,7 @@ export function onGoalEnded(ctx: TasksCtx, event: Ev): string[] {
     goalId,
   )) {
     if (!isRequest(t.kind) || !orphanable(ctx, t, idx.waiters)) continue;
-    putAway(ctx, t, { code: "gone", why: "The goal it was part of has ended." });
+    putAway(ctx, t, { code: "gone", why: `The goal it was part of ended (${outcome}).` });
     out.push(t.id);
   }
   return out;
