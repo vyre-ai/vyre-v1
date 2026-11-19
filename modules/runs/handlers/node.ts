@@ -536,3 +536,30 @@ export async function budgetSet(ctx: RunsCtx, input: In): Promise<unknown> {
   );
   return { node: out(ctx, r.node), resumed: r.resumed };
 }
+
+/** The nodes that stand for given threads and idempotency keys, for what the person may see (full or as a watcher): the ids a tile needs to read its node. A thread or key with no node, or none they may see, is left out. */
+export async function nodeFind(ctx: RunsCtx, input: In): Promise<unknown> {
+  const byThread: Record<string, string> = {};
+  const byKey: Record<string, string> = {};
+  for (const t of (input.threadIds as string[] | undefined)?.slice(0, 50) ?? []) {
+    const n = nodesOfThread(ctx.db, t, false, 1)[0];
+    if (!n) continue;
+    try {
+      look(ctx, n.id);
+      byThread[t] = n.id;
+    } catch {
+      /* not theirs to see */
+    }
+  }
+  for (const k of (input.keys as string[] | undefined)?.slice(0, 50) ?? []) {
+    const r = ctx.db.all("SELECT run_id FROM runs_node WHERE idem_key = ?", k) as Array<{ run_id: string }>;
+    if (!r[0]) continue;
+    try {
+      look(ctx, String(r[0].run_id));
+      byKey[k] = String(r[0].run_id);
+    } catch {
+      /* not theirs to see */
+    }
+  }
+  return { byThread, byKey };
+}

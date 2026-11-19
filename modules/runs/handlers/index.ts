@@ -21,6 +21,7 @@ import {
 } from "./engine.ts";
 import { stepIo } from "./step-io.ts";
 import {
+  nodeFind,
   budgetSet,
   nodeLabel,
   treeFind,
@@ -62,6 +63,7 @@ const base = {
   "runs.node.claim": nodeClaim,
   "runs.node.control": nodeControl,
   "runs.node.event": nodeEvent,
+  "runs.node.find": nodeFind,
   "runs.node.get": nodeGet,
   "runs.node.label": nodeLabel,
   "runs.node.move": nodeMove,

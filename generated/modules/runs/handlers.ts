@@ -25,6 +25,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.node.claim": Handler<"runs.node.claim", X>;
   "runs.node.control": Handler<"runs.node.control", X>;
   "runs.node.event": Handler<"runs.node.event", X>;
+  "runs.node.find": Handler<"runs.node.find", X>;
   "runs.node.get": Handler<"runs.node.get", X>;
   "runs.node.label": Handler<"runs.node.label", X>;
   "runs.node.move": Handler<"runs.node.move", X>;

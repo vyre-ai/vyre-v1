@@ -1932,6 +1932,7 @@ export default defineManifest({
             t.obj({
               kind: t.enm("helper", "teammate", "subagent"),
               id: t.str({ description: "A helper or teammate's chat, or a subagent's own id (it has no chat)" }),
+              runId: t.opt(id.run),
               jobId: t.opt(t.str()),
               parentThreadId: id.thread,
               title: t.str(),

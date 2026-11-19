@@ -472,6 +472,17 @@ export default defineManifest({
       on: ["run", "/runId"],
     }),
     read(
+      "runs.node.find",
+      "The nodes that stand for given threads and idempotency keys (for a tile to read its node), only those the person may see",
+      {
+        in: {
+          threadIds: t.opt(t.arr(id.thread, { maxItems: 50 })),
+          keys: t.opt(t.arr(t.str({ maxLength: 200 }), { maxItems: 50 })),
+        },
+        out: { byThread: t.rec(id.run), byKey: t.rec(id.run) },
+      },
+    ),
+    read(
       "runs.tree.find",
       "The trees of agent work that ran in a chat or in a helper's own thread, newest first, with the root of each (only those the person may see; full says whether they see all of it or only that it goes on)",
       {

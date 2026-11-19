@@ -243,3 +243,30 @@ test("tree.find: the trees that ran in a chat, newest first, for people who may 
     "a finished tree is not active",
   ); // eslint-disable-line @typescript-eslint/no-explicit-any
 });
+
+test("node.find: the nodes behind given threads and keys, only those the person may see; others are left out", async () => {
+  const h = harness({ authorize: member });
+  const root = (await h.call("runs.node.start", { kind: "turn", owner: alice.id, threadId: THREAD }, engine)).node;
+  const sub = (
+    await h.call(
+      "runs.node.start",
+      { kind: "subagent", owner: alice.id, parentRun: root.id, threadId: THREAD, idemKey: "sub:a:b", running: true },
+      engine,
+    )
+  ).node;
+  const mine = await h.call(
+    "runs.node.find",
+    { threadIds: [THREAD, `thr_${"0".repeat(32)}`], keys: ["sub:a:b", "sub:none"] },
+    at0(alice),
+  );
+  assert.deepEqual(Object.keys(mine.byThread), [THREAD]);
+  assert.deepEqual(mine.byKey, { "sub:a:b": sub.id });
+  const watcher = await h.call("runs.node.find", { threadIds: [THREAD], keys: ["sub:a:b"] }, at0(bob));
+  assert.equal(Object.keys(watcher.byThread).length, 1, "a person who may watch the chat may know a node is there");
+  const stranger = await h.call(
+    "runs.node.find",
+    { threadIds: [THREAD], keys: ["sub:a:b"] },
+    { id: "usr_carol", kind: "person" as const, depth: 0 },
+  );
+  assert.deepEqual(stranger, { byThread: {}, byKey: {} });
+});

@@ -25,6 +25,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "runs.node.claim": async (ctx) => { throw new VyreErr(notImplemented("runs.node.claim", ctx.trace)); },
   "runs.node.control": async (ctx) => { throw new VyreErr(notImplemented("runs.node.control", ctx.trace)); },
   "runs.node.event": async (ctx) => { throw new VyreErr(notImplemented("runs.node.event", ctx.trace)); },
+  "runs.node.find": async (ctx) => { throw new VyreErr(notImplemented("runs.node.find", ctx.trace)); },
   "runs.node.get": async (ctx) => { throw new VyreErr(notImplemented("runs.node.get", ctx.trace)); },
   "runs.node.label": async (ctx) => { throw new VyreErr(notImplemented("runs.node.label", ctx.trace)); },
   "runs.node.move": async (ctx) => { throw new VyreErr(notImplemented("runs.node.move", ctx.trace)); },

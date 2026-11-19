@@ -8,7 +8,7 @@ import { stopBackground } from "../background.ts";
 import { probePick } from "./extra/models.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, StoppedBy, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
-import { isHostService } from "../../../lib/trust.ts";
+import { isHostService, isSystemCall } from "../../../lib/trust.ts";
 import { activeSubNodes } from "../sub-nodes.ts";
 import { noteHandoff } from "../context.ts";
 import { engineThreadOf } from "../thread-open.ts";
@@ -726,6 +726,9 @@ export async function pause(
   ctx: EngineCtx,
   input: { threadId: string; agentId?: string; reason?: string },
 ): Promise<{ paused: number }> {
+  // for the server only: the person's own handle is runs.node.control (owner or manager of the run), which asks this after checking who is pressing
+  if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
+    raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
   const engine = await open(ctx, input.threadId);
   const own =
     ctx.principal.kind === "agent" && ctx.actingFor === undefined ? await ownsHelper(ctx, input.threadId) : false;
@@ -744,6 +747,10 @@ export async function resumePaused(
   ctx: EngineCtx,
   input: { threadId: string; agentId?: string },
 ): Promise<{ resumed: number; lost: number }> {
+  // for the server only: the person's own handle is runs.node.control (owner or manager of the run), which asks this after checking who is pressing
+  if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
+    raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
+
   const engine = await open(ctx, input.threadId);
   const own =
     ctx.principal.kind === "agent" && ctx.actingFor === undefined ? await ownsHelper(ctx, input.threadId) : false;
@@ -760,6 +767,10 @@ export async function subagentStop(
   ctx: EngineCtx,
   input: { threadId: string; runId: string; reason?: string },
 ): Promise<{ requested: boolean }> {
+  // for the server only: the person's own handle is runs.node.control (owner or manager of the run), which asks this after checking who is pressing
+  if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
+    raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
+
   await open(ctx, input.threadId); // the same check as every control: the chat is open to this person
   return { requested: activeSubNodes()?.requestStop(input.runId, input.reason ?? "it was asked to stop") ?? false };
 }

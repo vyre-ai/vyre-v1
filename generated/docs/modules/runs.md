@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (44)
+## Capabilities (45)
 
 - [runs.activity.list](../capabilities/runs.activity.list.md): Everything of the agent work tree that is running, asleep or paused for the person (or for everyone, for someone who manages runs), newest first
 - [runs.board.answer](../capabilities/runs.board.answer.md): The parent, the owner or a manager answers a question on the board
@@ -26,6 +26,7 @@ Requires: nothing.
 - [runs.node.claim](../capabilities/runs.node.claim.md): Take a queued node for a worker: queued to running with a lease; returns the node, or none when it was not free
 - [runs.node.control](../capabilities/runs.node.control.md): Pause, resume or stop a node and, with subtree, everything under it (the owner or someone who manages runs)
 - [runs.node.event](../capabilities/runs.node.event.md): Add one event to the record of a node, idempotent by key; a usage event adds to the spend of that node once
+- [runs.node.find](../capabilities/runs.node.find.md): The nodes that stand for given threads and idempotency keys (for a tile to read its node), only those the person may see
 - [runs.node.get](../capabilities/runs.node.get.md): Read one node of the agent work tree
 - [runs.node.label](../capabilities/runs.node.label.md): Give a node its name, once the task it was asked is known (the server)
 - [runs.node.move](../capabilities/runs.node.move.md): Move a node to another state; the one way a node changes state (a node already there answers as a no-op, a finished one refuses)

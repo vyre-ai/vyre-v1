@@ -13657,6 +13657,7 @@ export type EngineCrewStatusOut = {
   members: Array<{
       kind: "helper" | "teammate" | "subagent";
       id: string;
+      runId?: string;
       jobId?: string;
       parentThreadId: string;
       title: string;
@@ -35977,6 +35978,14 @@ export type RunsNodeEventOut = {
   seq: number;
   duplicate: boolean;
 };
+export type RunsNodeFindIn = {
+  threadIds?: Array<string>;
+  keys?: Array<string>;
+};
+export type RunsNodeFindOut = {
+  byThread: Record<string, string>;
+  byKey: Record<string, string>;
+};
 export type RunsNodeGetIn = {
   runId: string;
 };
@@ -50865,6 +50874,7 @@ export interface CapMap {
   "runs.node.claim": { in: RunsNodeClaimIn; out: RunsNodeClaimOut };
   "runs.node.control": { in: RunsNodeControlIn; out: RunsNodeControlOut };
   "runs.node.event": { in: RunsNodeEventIn; out: RunsNodeEventOut };
+  "runs.node.find": { in: RunsNodeFindIn; out: RunsNodeFindOut };
   "runs.node.get": { in: RunsNodeGetIn; out: RunsNodeGetOut };
   "runs.node.label": { in: RunsNodeLabelIn; out: RunsNodeLabelOut };
   "runs.node.move": { in: RunsNodeMoveIn; out: RunsNodeMoveOut };

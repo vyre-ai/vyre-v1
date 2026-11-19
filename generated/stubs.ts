@@ -2455,6 +2455,7 @@ export function stubs(ctx: CallCtx) {
         claim: call("runs.node.claim"),
         control: call("runs.node.control"),
         event: call("runs.node.event"),
+        find: call("runs.node.find"),
         get: call("runs.node.get"),
         label: call("runs.node.label"),
         move: call("runs.node.move"),

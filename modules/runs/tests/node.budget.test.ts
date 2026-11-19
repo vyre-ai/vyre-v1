@@ -199,3 +199,23 @@ test("only the owner or a manager sets a limit; a person who only watches, or a 
   assert.ok((await r.h.call("runs.budget.set", { runId: root.id, usdMicros: 1_000_000 }, owner)).node.budget);
   await assert.rejects(() => r.h.call("runs.budget.set", { runId: root.id, usdMicros: -5 }, owner));
 });
+
+test("an agent of another job, a member, and a watcher cannot set a limit or press a control on this job's nodes; the owner can", async () => {
+  const r = rig();
+  const { root, a } = await job(r, { tokens: 100 });
+  const stranger = { id: AGENT("z"), kind: "agent" as const, depth: 0 };
+  for (const who of [stranger, { ...bob, depth: 0 }]) {
+    assert.equal(
+      codeOf(await r.h.call("runs.budget.set", { runId: root.id, tokens: 1_000_000 }, who).catch((e) => e)),
+      "permission.not_found",
+    );
+    for (const action of ["stop", "resume"])
+      assert.equal(
+        codeOf(await r.h.call("runs.node.control", { runId: a.id, action }, who).catch((e) => e)),
+        "permission.not_found",
+        action,
+      );
+  }
+  assert.equal((await r.h.call("runs.node.get", { runId: root.id }, owner)).node.budget.tokens, 100, "nothing changed");
+  assert.ok((await r.h.call("runs.budget.set", { runId: root.id, tokens: 5000 }, owner)).node);
+});

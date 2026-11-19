@@ -36,6 +36,7 @@ type Out = {
   members: Array<{
       kind: "helper" | "teammate" | "subagent";
       id: string;
+      runId?: string;
       jobId?: string;
       parentThreadId: string;
       title: string;
@@ -138,6 +139,7 @@ type Out = {
         "name": "example",
         "parentThreadId": "thr_a1b2c3",
         "provider": "example",
+        "runId": "run_a1b2c3",
         "startedAt": 1760000000000,
         "state": "working",
         "step": "example",
