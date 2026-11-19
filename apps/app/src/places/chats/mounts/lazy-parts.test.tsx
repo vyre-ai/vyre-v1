@@ -30,9 +30,33 @@ const crewCall = async (cap: string): Promise<unknown> =>
   cap === "engine.crew.status"
     ? {
         members: [
-          { kind: "helper", id: "thr_a", parentThreadId: "thr_0", title: "Calendar", name: "Tess", agentId: "agt_tess", state: "working", step: "x", startedAt: 1, elapsedMs: 1, tokensIn: 1, tokensOut: 1, costMicros: 1 },
+          {
+            kind: "helper",
+            id: "thr_a",
+            parentThreadId: "thr_0",
+            title: "Calendar",
+            name: "Tess",
+            agentId: "agt_tess",
+            state: "working",
+            step: "x",
+            startedAt: 1,
+            elapsedMs: 1,
+            tokensIn: 1,
+            tokensOut: 1,
+            costMicros: 1,
+          },
         ],
-        totals: { members: 1, working: 1, done: 0, needsYou: 0, failed: 0, stopped: 0, tokensIn: 1, tokensOut: 1, costMicros: 1 },
+        totals: {
+          members: 1,
+          working: 1,
+          done: 0,
+          needsYou: 0,
+          failed: 0,
+          stopped: 0,
+          tokensIn: 1,
+          tokensOut: 1,
+          costMicros: 1,
+        },
       }
     : {};
 
@@ -91,11 +115,14 @@ test("the agent page's Trash check is in the place's own code: the agent page dr
     assert.equal(AgentInTrash, EagerAgentInTrash);
     const root = await mount(
       () => createRoot(),
-      <AgentInTrash agentId="agt_1" call={() => new Promise(() => undefined)} fallback={<View testID="agent-page" />} />,
+      <AgentInTrash
+        agentId="agt_1"
+        call={() => new Promise(() => undefined)}
+        fallback={<View testID="agent-page" />}
+      />,
     );
     assert.ok(find(root, "agent-page"));
   } finally {
     undo();
   }
 });
-

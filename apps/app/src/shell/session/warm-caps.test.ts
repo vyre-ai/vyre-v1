@@ -63,6 +63,10 @@ test("every way of warming goes through the allow-list: a pointer, a place, a ro
   hooks.warmScope("somewhere");
   hooks.warmLike("kind", "id_2");
   await micro();
-  assert.deepEqual(asked.filter((c) => BAD.includes(c)), [], "none of them is read ahead");
+  assert.deepEqual(
+    asked.filter((c) => BAD.includes(c)),
+    [],
+    "none of them is read ahead",
+  );
   hooks.close();
 });

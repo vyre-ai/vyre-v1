@@ -12,7 +12,12 @@ test("a screen focuses itself when drawn with the keyboard, and when the keyboar
   const undo = installDom();
   const calls: string[] = [];
   let root: ReturnType<typeof createRoot> | null = null;
-  Object.defineProperty(Object.prototype, "focus", { value: () => void calls.push("focus"), configurable: true, enumerable: false, writable: true });
+  Object.defineProperty(Object.prototype, "focus", {
+    value: () => void calls.push("focus"),
+    configurable: true,
+    enumerable: false,
+    writable: true,
+  });
   try {
     const r = createRoot();
     root = r;
