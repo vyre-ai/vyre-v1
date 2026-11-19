@@ -958,7 +958,7 @@ const manifest = defineManifest({
       in: { documentId: id.file, key: tplKey },
       out: { override: t.bool(), template: tplOut },
       on: ["file", "/documentId"],
-      tool: "inbox",
+      // (no MCP tool: mail.template.get with documentId reads it, and a person clears it in the document)
       errors: ["validation.bad_input", "validation.not_found"],
     }),
     write("mail.template.for_document.set", "Give a document its own email template wording", {
@@ -977,7 +977,7 @@ const manifest = defineManifest({
       on: ["file", "/documentId"],
       level: "edit",
       perm: "comms.templates",
-      tool: "inbox",
+      // (no MCP tool: mail.template.get with documentId reads it, and a person clears it in the document)
       idem: "natural",
     }),
     // ---- watching inboxes (lane r42-email-in)
