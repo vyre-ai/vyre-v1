@@ -38,6 +38,8 @@ export interface Made {
   name: string;
   signers: string[];
   layout?: "word" | "simple";
+  /** why a copy is plain: the exact converter is being fetched, failed, or there is none here */
+  converter?: "pulling" | "failed" | "none";
 }
 
 export type DocState =
@@ -113,7 +115,10 @@ export function asked(preview: Preview | null): FieldRow[] {
 
 /** True when the template repeats a list the sheet cannot fill by typing. */
 export const needsList = (preview: Preview | null): boolean =>
-  !!preview && preview.missing.some((m) => preview.fields.some((f) => f.name === m && (f.kind === "loop" || f.kind === "list" || f.loop !== undefined)));
+  !!preview &&
+  preview.missing.some((m) =>
+    preview.fields.some((f) => f.name === m && (f.kind === "loop" || f.kind === "list" || f.loop !== undefined)),
+  );
 
 /** Whether the template uses the signing date at all. */
 export const usesSigningDate = (preview: Preview | null): boolean =>
@@ -128,15 +133,21 @@ export function stillEmpty(s: Extract<DocState, { phase: "fill" }>): FieldRow[] 
 export function whyNot(s: Extract<DocState, { phase: "fill" }>): string | null {
   if (!s.preview) return "The template is still opening.";
   if (s.preview.problems.length > 0) return s.preview.problems[0] ?? "The template has a problem.";
-  if (needsList(s.preview)) return "This template repeats a list. Ask an agent to make it, or fill the list in an Automation.";
+  if (needsList(s.preview))
+    return "This template repeats a list. Ask an agent to make it, or fill the list in an Automation.";
   const empty = stillEmpty(s);
   if (empty.length > 0) return `Still empty: ${empty.map((f) => labelOf(f.name)).join(", ")}.`;
-  if (usesSigningDate(s.preview) && !/^\d{4}-\d{2}-\d{2}$/.test(s.signingDate)) return "The signing date is a day like 2026-11-19.";
+  if (usesSigningDate(s.preview) && !/^\d{4}-\d{2}-\d{2}$/.test(s.signingDate))
+    return "The signing date is a day like 2026-11-19.";
   return null;
 }
 
 export function canMake(s: DocState): boolean {
-  return s.phase === "fill" && (s.status === "ready" || s.status === "failed" || s.status === "checking") && whyNot(s) === null;
+  return (
+    s.phase === "fill" &&
+    (s.status === "ready" || s.status === "failed" || s.status === "checking") &&
+    whyNot(s) === null
+  );
 }
 
 const same = <T extends DocState>(s: T, patch: Partial<T>): T => ({ ...s, ...patch });
@@ -206,7 +217,10 @@ export function step(s: DocState, e: DocEvent): DocState {
 export function offered(list: readonly TemplateRow[], recordType: string): TemplateRow[] {
   return list
     .filter((t) => t.recordType === undefined || t.recordType === recordType)
-    .sort((a, b) => Number(b.recordType === recordType) - Number(a.recordType === recordType) || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) =>
+        Number(b.recordType === recordType) - Number(a.recordType === recordType) || a.name.localeCompare(b.name),
+    );
 }
 
 /** The values to send: a dotted name becomes a group (`client.name` is `{ client: { name } }`), an amount that reads as a number is one, an empty value is left out so the server names it. */
@@ -226,7 +240,10 @@ export function valuesOf(values: Record<string, string>, kinds: ReadonlyMap<stri
       if (i === path.length - 1) at[p] = v;
       else {
         const next = at[p];
-        at = typeof next === "object" && next !== null ? (next as Record<string, unknown>) : (at[p] = {}) as Record<string, unknown>;
+        at =
+          typeof next === "object" && next !== null
+            ? (next as Record<string, unknown>)
+            : ((at[p] = {}) as Record<string, unknown>);
       }
     });
   }
@@ -262,7 +279,9 @@ export function previewOf(fields: unknown, shown: unknown): Preview | null {
     missing: p.missing.filter((m): m is string => typeof m === "string"),
     signers: Array.isArray(f.signers) ? f.signers.filter((m): m is string => typeof m === "string") : [],
     problems: Array.isArray(f.problems)
-      ? f.problems.flatMap((x) => (typeof (x as { message?: unknown }).message === "string" ? [(x as { message: string }).message] : []))
+      ? f.problems.flatMap((x) =>
+          typeof (x as { message?: unknown }).message === "string" ? [(x as { message: string }).message] : [],
+        )
       : [],
   };
 }

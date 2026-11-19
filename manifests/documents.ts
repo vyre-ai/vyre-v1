@@ -118,7 +118,12 @@ export default defineManifest({
           signers,
           layout: t.opt(
             t.enm("word", "simple", {
-              description: "word: the Word page kept; simple: plain page look (no converter)",
+              description: "word: the Word page kept; simple: plain page look, a preview",
+            }),
+          ),
+          converter: t.opt(
+            t.enm("pulling", "failed", "none", {
+              description: "Why a copy is plain: the exact converter is being fetched, failed, or this machine has no engine",
             }),
           ),
         },
@@ -142,7 +147,7 @@ export default defineManifest({
           name: t.opt(t.str()),
           format: t.opt(t.enm("docx", "pdf", "md")),
         },
-        out: { file: savedFile, missing: t.arr(t.str()), signers, layout: t.opt(t.enm("word", "simple")) },
+        out: { file: savedFile, missing: t.arr(t.str()), signers, layout: t.opt(t.enm("word", "simple")), converter: t.opt(t.enm("pulling", "failed", "none")) },
         on: ["record", "/recordId"],
         level: "use",
         emits: ["document.filled", "file.created", "file.version_added"],

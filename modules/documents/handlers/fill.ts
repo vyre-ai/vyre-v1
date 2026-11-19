@@ -69,6 +69,8 @@ function isVyreError(e: unknown): e is { error: { code: string } } {
 export interface DocumentsDrivers {
   /** A filled .docx to a PDF (Gotenberg beside the host). Absent: PDF is refused in plain words. */
   pdf?(docx: Uint8Array): Promise<Uint8Array>;
+  /** how the exact converter stands, for the words when a copy is set in the plain look: ready | pulling | failed | none */
+  state?(): string;
 }
 
 let configured: DocumentsDrivers | null = null;
@@ -963,6 +965,7 @@ export async function documentsFill(
   missing: string[];
   unused: string[];
   layout?: "word" | "simple";
+  converter?: "pulling" | "failed" | "none";
 }> {
   const o = rec(ctx, input);
   const templateFileId = reqStr(ctx, o, "templateFileId");
@@ -984,10 +987,12 @@ export async function documentsFill(
   }
   let out: Uint8Array = made.buffer;
   let layout: "word" | "simple" | undefined;
+  let converter: "pulling" | "failed" | "none" | undefined;
   if (format === "pdf") {
     const got = await wordToPdf(ctx, made.buffer, baseName(templateName));
     out = got.pdf;
     layout = got.layout;
+    converter = got.converter;
   }
   const ext = format === "pdf" ? "pdf" : "docx";
   const wanted = optStr(ctx, o, "name");
@@ -1020,7 +1025,13 @@ export async function documentsFill(
   if (recordId !== undefined) payload.recordId = recordId;
   ctx.emit("document.filled", `file/${fileId}`, payload);
   ctx.log.info("documents.fill", { fileId, templateFileId, fields: made.used.length, format });
-  return { file: { fileId, name: saved.name, versionId }, missing: [], unused, ...(layout ? { layout } : {}) };
+  return {
+    file: { fileId, name: saved.name, versionId },
+    missing: [],
+    unused,
+    ...(layout ? { layout } : {}),
+    ...(converter ? { converter } : {}),
+  };
 }
 
 /**
@@ -1043,7 +1054,12 @@ async function wordToPdf(
   const { TypesetError, typeset } = await import("./typeset.ts");
   try {
     const set = await typeset(docxBlocks(docx), { title });
-    return { pdf: set.pdf, layout: "simple" };
+    const st = configured?.state?.();
+    return {
+      pdf: set.pdf,
+      layout: "simple",
+      ...(st === "pulling" || st === "failed" || st === "none" ? { converter: st } : {}),
+    };
   } catch (e) {
     if (e instanceof TypesetError)
       return fail(

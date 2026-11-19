@@ -249,15 +249,29 @@ test("documents.make: a name that is nowhere or means two is answered with what 
   await handlers["documents.mark_template"](w.ctx, { fileId: a, isTemplate: true });
   await handlers["documents.mark_template"](w.ctx, { fileId: b, isTemplate: true });
   const none = await expectCode("validation.not_found", () =>
-    handlers["documents.make"](w.ctx, { template: "Lease", recordId: "rec_imran", values: VALUES, signingDate: "2026-11-19" }),
+    handlers["documents.make"](w.ctx, {
+      template: "Lease",
+      recordId: "rec_imran",
+      values: VALUES,
+      signingDate: "2026-11-19",
+    }),
   );
   assert.match(none.error.message, /Service agreement/);
   const two = await expectCode("validation.bad_input", () =>
-    handlers["documents.make"](w.ctx, { template: "agreement", recordId: "rec_imran", values: VALUES, signingDate: "2026-11-19" }),
+    handlers["documents.make"](w.ctx, {
+      template: "agreement",
+      recordId: "rec_imran",
+      values: VALUES,
+      signingDate: "2026-11-19",
+    }),
   );
   assert.match(two.error.message, /More than one/);
   const miss = await expectCode("validation.precondition_failed", () =>
-    handlers["documents.make"](w.ctx, { template: "Service agreement", recordId: "rec_imran", signingDate: "2026-11-19" }),
+    handlers["documents.make"](w.ctx, {
+      template: "Service agreement",
+      recordId: "rec_imran",
+      signingDate: "2026-11-19",
+    }),
   );
   assert.match(miss.error.message, /client\.name|firm\.name/);
   const empty = linked();

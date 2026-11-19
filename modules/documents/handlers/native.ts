@@ -54,6 +54,7 @@ interface Filled {
   unused: string[];
   signers?: string[];
   layout?: "word" | "simple";
+  converter?: "pulling" | "failed" | "none";
 }
 
 /** A Vyre document is a Markdown file. */
@@ -264,7 +265,14 @@ async function makePdf(ctx: Ctx, input: unknown): Promise<{ file: Saved; pages: 
 async function signing(
   ctx: Ctx,
   input: unknown,
-): Promise<{ signers: string[]; places: unknown[]; stale?: true; plain?: true; templateFileId?: string; recordId?: string }> {
+): Promise<{
+  signers: string[];
+  places: unknown[];
+  stale?: true;
+  plain?: true;
+  templateFileId?: string;
+  recordId?: string;
+}> {
   const fileId = reqStr(ctx, rec(ctx, input), "fileId");
   mayView(ctx, fileId);
   const row = (ctx.db.all("SELECT * FROM documents_signing WHERE file_id = ?", fileId) as Row[])[0];
@@ -297,8 +305,11 @@ async function templateNamed(ctx: Ctx, wanted: string): Promise<string> {
   const text = wanted.trim();
   if (/^fil_[A-Za-z0-9]+$/.test(text)) return text;
   const list = async (name?: string) =>
-    ((await ctx.call("documents.templates.list", name === undefined ? {} : { name })) as { templates?: { fileId: string; name: string }[] })
-      .templates ?? [];
+    (
+      (await ctx.call("documents.templates.list", name === undefined ? {} : { name })) as {
+        templates?: { fileId: string; name: string }[];
+      }
+    ).templates ?? [];
   const exact = await list(text);
   if (exact.length === 1) return exact[0]!.fileId;
   const all = exact.length > 1 ? exact : await list();
@@ -324,7 +335,9 @@ async function make(ctx: Ctx, input: unknown): Promise<Filled> {
   const templateFileId = await templateNamed(ctx, reqStr(ctx, o, "template"));
   const folder = (await ctx.call("projects.files_folder", { recordId })) as { folderId?: string | null };
   if (typeof folder.folderId !== "string")
-    fail(ctx, "validation.precondition_failed", "That record has no files folder to put the document in.", { recordId });
+    fail(ctx, "validation.precondition_failed", "That record has no files folder to put the document in.", {
+      recordId,
+    });
   const pass: Record<string, unknown> = { templateFileId, intoFolderId: folder.folderId, recordId };
   for (const k of ["values", "signingDate", "name", "format"]) if (o[k] !== undefined) pass[k] = o[k];
   // a retry of the same ask makes the same file: the key is the ask itself

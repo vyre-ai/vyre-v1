@@ -5,8 +5,8 @@ import type { Handlers } from './handlers.ts';
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
   "documents.fields": async () => ({"fields":[{"kind":"text","loop":"example","name":"grantor_name","required":true}],"loops":["example"],"problems":[{"message":"example","tag":"example"}],"signers":["example"]} as unknown) as never,
-  "documents.fill": async () => ({"file":{"fileId":"fil_a1b2c3","name":"example","versionId":"ver_a1b2c3"},"layout":"word","missing":["example"],"signers":["example"],"unused":["example"]} as unknown) as never,
-  "documents.make": async () => ({"file":{"fileId":"fil_a1b2c3","name":"example","versionId":"ver_a1b2c3"},"layout":"word","missing":["example"],"signers":["example"]} as unknown) as never,
+  "documents.fill": async () => ({"converter":"pulling","file":{"fileId":"fil_a1b2c3","name":"example","versionId":"ver_a1b2c3"},"layout":"word","missing":["example"],"signers":["example"],"unused":["example"]} as unknown) as never,
+  "documents.make": async () => ({"converter":"pulling","file":{"fileId":"fil_a1b2c3","name":"example","versionId":"ver_a1b2c3"},"layout":"word","missing":["example"],"signers":["example"]} as unknown) as never,
   "documents.make_pdf": async () => ({"file":{"fileId":"fil_a1b2c3","name":"example","versionId":"ver_a1b2c3"},"pages":1,"signers":["example"]} as unknown) as never,
   "documents.mark_template": async () => ({"ok":true} as unknown) as never,
   "documents.preview_fill": async () => ({"excerpt":[{"filled":[{"field":"example","from":1,"to":1}],"text":"example"}],"missing":["example"],"unused":["example"]} as unknown) as never,

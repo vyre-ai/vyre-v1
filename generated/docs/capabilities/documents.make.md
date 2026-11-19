@@ -46,6 +46,7 @@ type Out = {
   missing: Array<string>;
   signers?: Array<string>;
   layout?: "word" | "simple";
+  converter?: "pulling" | "failed" | "none";
 };
 ```
 
@@ -73,6 +74,7 @@ type Out = {
     "values": {}
   },
   "output": {
+    "converter": "pulling",
     "file": {
       "fileId": "fil_a1b2c3",
       "name": "example",

@@ -13,10 +13,6 @@ test("soffice is found by name, on the PATH, in the usual places, and a machine 
   assert.equal(findSoffice({ PATH: "/a:/b" }, has(["/b/libreoffice"])), "/b/libreoffice");
   assert.equal(findSoffice({ PATH: "" }, has(["/usr/bin/soffice"])), "/usr/bin/soffice");
   assert.equal(findSoffice({ PATH: "/a" }, has([])), null);
-  assert.deepEqual(
-    createDocumentsHost({ soffice: undefined, run: async () => ({ code: 0, stderr: "" }) }).pdf === undefined,
-    findSoffice() === null,
-  );
 });
 
 const base = () => fs.mkdtempSync(path.join(os.tmpdir(), "docpdf-test-"));

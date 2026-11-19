@@ -45,7 +45,9 @@ export function DocumentSheet(p: DocumentSheetProps): ReactElement {
   const folder = useRef<string | null>(p.folderId);
   const list = (): void => {
     send({ t: "reload" });
-    void loadTemplates(p.call).then((r) => send(r.ok ? { t: "templates", list: r.value } : { t: "templates_failed", error: r.error }));
+    void loadTemplates(p.call).then((r) =>
+      send(r.ok ? { t: "templates", list: r.value } : { t: "templates_failed", error: r.error }),
+    );
   };
   useEffect(() => {
     if (!p.start) list();
@@ -77,8 +79,16 @@ export function DocumentSheet(p: DocumentSheetProps): ReactElement {
   useEffect(() => {
     if (s.phase !== "fill") return;
     if (s.status === "loading" || s.status === "checking") {
-      void readTemplate(p.call, s.template, p.recordId, { values: s.values, signingDate: s.signingDate, kinds: kindsOf(s) }).then((r) =>
-        send(r.ok ? { t: "previewed", token: s.token, preview: r.value } : { t: "preview_failed", token: s.token, error: r.error }),
+      void readTemplate(p.call, s.template, p.recordId, {
+        values: s.values,
+        signingDate: s.signingDate,
+        kinds: kindsOf(s),
+      }).then((r) =>
+        send(
+          r.ok
+            ? { t: "previewed", token: s.token, preview: r.value }
+            : { t: "preview_failed", token: s.token, error: r.error },
+        ),
       );
     }
     if (s.status === "making") {
@@ -87,7 +97,8 @@ export function DocumentSheet(p: DocumentSheetProps): ReactElement {
         try {
           if (folder.current === null) {
             const f = (await p.call("projects.files_folder", { recordId: p.recordId })) as { folderId?: string | null };
-            if (typeof f?.folderId !== "string") throw new Error("This record has no files folder to put the document in.");
+            if (typeof f?.folderId !== "string")
+              throw new Error("This record has no files folder to put the document in.");
             folder.current = f.folderId;
           }
         } catch (e) {
@@ -105,7 +116,11 @@ export function DocumentSheet(p: DocumentSheetProps): ReactElement {
           format: sent.format,
           key: keyOf(p.recordId, sent),
         });
-        send(r.ok ? { t: "made", token: sent.token, made: r.value } : { t: "make_failed", token: sent.token, error: r.error });
+        send(
+          r.ok
+            ? { t: "made", token: sent.token, made: r.value }
+            : { t: "make_failed", token: sent.token, error: r.error },
+        );
       })();
     }
   }, [token, status]);
@@ -135,12 +150,18 @@ export function DocumentSheet(p: DocumentSheetProps): ReactElement {
           <Text style={st.said}>It is in this record's files.</Text>
           {m.signers.length > 0 ? (
             <Text style={st.said} testID="doc-made-signers">
-              {m.signers.length === 1 ? "One person signs" : `${m.signers.length} people sign`}: {m.signers.map(labelOf).join(", ")}. Each signs where the document says.
+              {m.signers.length === 1 ? "One person signs" : `${m.signers.length} people sign`}:{" "}
+              {m.signers.map(labelOf).join(", ")}. Each signs where the document says.
             </Text>
           ) : null}
           {m.layout === "simple" ? (
             <Text style={st.quiet} testID="doc-made-layout">
-              The words are set in a plain page look. The Word file keeps your own layout.
+              Letterhead and pictures are missing in this copy.{" "}
+              {m.converter === "pulling"
+                ? "The exact copy is being made ready: make the PDF again in a minute."
+                : m.converter === "failed"
+                  ? "The exact copy could not be made just now. Make the PDF again later."
+                  : "This computer cannot make the exact copy."}
             </Text>
           ) : null}
         </View>
@@ -151,7 +172,14 @@ export function DocumentSheet(p: DocumentSheetProps): ReactElement {
   if (s.phase === "templates") {
     const rows = offered(s.templates, p.recordType);
     return (
-      <Dialog title="New document" onClose={p.onClose} width={520} fill testID="doc-sheet" actions={[{ label: "Cancel", onPress: p.onClose, testID: "doc-cancel" }]}>
+      <Dialog
+        title="New document"
+        onClose={p.onClose}
+        width={520}
+        fill
+        testID="doc-sheet"
+        actions={[{ label: "Cancel", onPress: p.onClose, testID: "doc-cancel" }]}
+      >
         <View style={st.stack}>
           {s.status === "loading" ? (
             <Text style={st.quiet} testID="doc-loading">
@@ -163,14 +191,21 @@ export function DocumentSheet(p: DocumentSheetProps): ReactElement {
               <Text accessibilityRole="alert" role="alert" style={st.problem} testID="doc-error">
                 {s.error}
               </Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Try again" testID="doc-retry" onPress={list} style={st.again}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Try again"
+                testID="doc-retry"
+                onPress={list}
+                style={st.again}
+              >
                 <Text style={st.addText}>Try again</Text>
               </Pressable>
             </View>
           ) : null}
           {s.status === "ready" && rows.length === 0 ? (
             <Text style={st.said} testID="doc-none">
-              There are no templates for this yet. In Files, mark a Word file or a document as a template, and it shows here.
+              There are no templates for this yet. In Files, mark a Word file or a document as a template, and it shows
+              here.
             </Text>
           ) : null}
           {s.status === "ready" ? (

@@ -49,7 +49,8 @@ type Out = {
   missing: Array<string>;
   unused: Array<string>;
   signers?: Array<string>;
-  layout?: "word" | "simple" | {"description":"word: the Word page kept; simple: plain page look (no converter)"};
+  layout?: "word" | "simple" | {"description":"word: the Word page kept; simple: plain page look, a preview"};
+  converter?: "pulling" | "failed" | "none" | {"description":"Why a copy is plain: the exact converter is being fetched, failed, or this machine has no engine"};
 };
 ```
 
@@ -81,6 +82,7 @@ type Out = {
     "values": {}
   },
   "output": {
+    "converter": "pulling",
     "file": {
       "fileId": "fil_a1b2c3",
       "name": "example",

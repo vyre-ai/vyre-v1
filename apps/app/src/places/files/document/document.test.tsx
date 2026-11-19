@@ -35,12 +35,18 @@ const ready = (missing?: string[]): Extract<DocState, { phase: "fill" }> => {
 test("templates for this kind of record come first, then the ones for any; another kind's are not offered", () => {
   const names = offered([AGREEMENT, NDA, OTHER], "customer").map((t) => t.name);
   assert.deepEqual(names, ["Service agreement.md", "Mutual NDA.docx"]);
-  assert.deepEqual(offered([AGREEMENT, NDA, OTHER], "person").map((t) => t.name), ["Offer letter.docx", "Mutual NDA.docx"]);
+  assert.deepEqual(
+    offered([AGREEMENT, NDA, OTHER], "person").map((t) => t.name),
+    ["Offer letter.docx", "Mutual NDA.docx"],
+  );
 });
 
 test("a template opens, asks only for what the record did not give, and Make waits until every field has a value", () => {
   let s = ready();
-  assert.deepEqual(asked(s.preview).map((f) => f.name), ["client.name", "matter.fee"]);
+  assert.deepEqual(
+    asked(s.preview).map((f) => f.name),
+    ["client.name", "matter.fee"],
+  );
   assert.equal(canMake(s), false);
   assert.match(String(whyNot(s)), /Still empty: Client name, Matter fee/);
   s = step(s, { t: "edit", name: "client.name", value: "Imran Ibarra" }) as typeof s;
@@ -51,7 +57,11 @@ test("a template opens, asks only for what the record did not give, and Make wai
   // a bad signing date is named, not sent
   s = step(s, { t: "date", value: "tomorrow" }) as typeof s;
   assert.match(String(whyNot(s)), /signing date/i);
-  assert.equal(step(s, { t: "make" }).phase === "fill" && (step(s, { t: "make" }) as { status: string }).status, "ready", "Make is refused");
+  assert.equal(
+    step(s, { t: "make" }).phase === "fill" && (step(s, { t: "make" }) as { status: string }).status,
+    "ready",
+    "Make is refused",
+  );
 });
 
 test("making: a failure keeps everything typed and the page can be made again; a late answer to a replaced request is ignored", () => {
@@ -70,7 +80,11 @@ test("making: a failure keeps everything typed and the page can be made again; a
   assert.equal(canMake(failed), true, "it can be made again");
   const again = step(failed, { t: "make" }) as typeof s;
   assert.equal(again.status, "making");
-  const done = step(again, { t: "made", token: again.token, made: { fileId: "fil_9", name: "Service agreement (filled).pdf", signers: ["client", "firm"] } });
+  const done = step(again, {
+    t: "made",
+    token: again.token,
+    made: { fileId: "fil_9", name: "Service agreement (filled).pdf", signers: ["client", "firm"] },
+  });
   assert.equal(done.phase, "made");
 });
 
@@ -86,16 +100,17 @@ test("every state has a way out: Back from a template, from a failure and from a
   assert.equal(failedOpen.phase === "fill" && failedOpen.status, "failed");
   assert.equal(step(failedOpen, { t: "back" }).phase, "templates");
   assert.equal(step(ready(), { t: "back" }).phase, "templates");
-  const made = step(
-    step(step(step(ready([]), { t: "make" }), { t: "check" }), { t: "back" }),
-    { t: "pick", template: AGREEMENT, today: "2026-11-19" },
-  );
+  const made = step(step(step(step(ready([]), { t: "make" }), { t: "check" }), { t: "back" }), {
+    t: "pick",
+    template: AGREEMENT,
+    today: "2026-11-19",
+  });
   assert.equal(made.phase, "fill");
 });
 
 test("random moves in any order never leave a dead end and never lose what was typed (300 sequences)", () => {
   let seed = 7;
-  const rnd = (): number => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const rnd = (): number => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
   const pickOf = <X,>(xs: readonly X[]): X => xs[Math.floor(rnd() * xs.length)] as X;
   for (let n = 0; n < 300; n++) {
     let s: DocState = initial();
@@ -132,7 +147,10 @@ test("random moves in any order never leave a dead end and never lose what was t
       if (s.phase === "fill") assert.ok(["pdf", "docx", "md"].includes(s.format));
       // a way out always exists
       const out = step(s, { t: "back" });
-      assert.ok(s.phase === "templates" ? true : out.phase === "templates", `sequence ${n}: no way back from ${s.phase}`);
+      assert.ok(
+        s.phase === "templates" ? true : out.phase === "templates",
+        `sequence ${n}: no way back from ${s.phase}`,
+      );
     }
     void typed;
   }
@@ -149,7 +167,13 @@ test("values: a dotted field is a group, an amount that reads as a number is one
 });
 
 test("a template with a list to repeat is not made from the sheet, and its page says why", () => {
-  const p: Preview = { ...preview(["items.label"]), fields: [{ name: "items", kind: "loop", required: true }, { name: "items.label", kind: "text", required: true, loop: "items" }] };
+  const p: Preview = {
+    ...preview(["items.label"]),
+    fields: [
+      { name: "items", kind: "loop", required: true },
+      { name: "items.label", kind: "text", required: true, loop: "items" },
+    ],
+  };
   let s = step(T(), { t: "pick", template: AGREEMENT, today: "2026-11-19" });
   s = step(s, { t: "previewed", token: (s as { token: number }).token, preview: p });
   assert.match(String(whyNot(s as Extract<DocState, { phase: "fill" }>)), /repeats a list/);
@@ -169,33 +193,100 @@ test("previewOf reads the two answers into one page, and refuses an answer that 
 const noop = (): void => undefined;
 const call = async (): Promise<unknown> => ({});
 const html = (start: DocState): string =>
-  renderToStaticMarkup(<DocumentSheet call={call} recordId="rec_1" recordType="customer" folderId="fld_1" today="2026-11-19" start={start} onClose={noop} onSign={noop} onOpen={noop} />).replaceAll("<!-- -->", "");
+  renderToStaticMarkup(
+    <DocumentSheet
+      call={call}
+      recordId="rec_1"
+      recordType="customer"
+      folderId="fld_1"
+      today="2026-11-19"
+      start={start}
+      onClose={noop}
+      onSign={noop}
+      onOpen={noop}
+    />,
+  ).replaceAll("<!-- -->", "");
 
 test("the sheet: templates, the filled page with its fields, the made state with Send for signature", () => {
   const list = html(T());
-  for (const want of ["New document", "Service agreement", "Mutual NDA", "3 fields", "Cancel"]) assert.ok(list.includes(want), want);
+  for (const want of ["New document", "Service agreement", "Mutual NDA", "3 fields", "Cancel"])
+    assert.ok(list.includes(want), want);
   assert.ok(!list.includes("Offer letter"), "another kind's template is not offered");
-  assert.ok(html(step(initial(), { t: "templates", list: [] })).includes("mark a Word file or a document as a template"));
-  assert.ok(html(step(initial(), { t: "templates_failed", error: "The Space is busy." })).includes("The Space is busy."));
+  assert.ok(
+    html(step(initial(), { t: "templates", list: [] })).includes("mark a Word file or a document as a template"),
+  );
+  assert.ok(
+    html(step(initial(), { t: "templates_failed", error: "The Space is busy." })).includes("The Space is busy."),
+  );
   const fill = html(ready());
-  for (const want of ["Fields to fill", "Client name", "Matter fee", "Signing date", "Make PDF", "Back", "Between", "Northwind", "Signs: Client, Firm", "Still empty"])
+  for (const want of [
+    "Fields to fill",
+    "Client name",
+    "Matter fee",
+    "Signing date",
+    "Make PDF",
+    "Back",
+    "Between",
+    "Northwind",
+    "Signs: Client, Firm",
+    "Still empty",
+  ])
     assert.ok(fill.includes(want), `missing ${want}`);
   assert.ok(!/placeholder|\btag\b/i.test(fill.replace(/<[^>]*>/g, " ")), "the products words: Fields");
   let s = ready();
   s = step(s, { t: "make" }) as typeof s;
-  const made = html({ phase: "made", templates: [AGREEMENT], template: AGREEMENT, made: { fileId: "fil_9", name: "Agreement.pdf", signers: ["client", "firm"], layout: "simple" } });
-  for (const want of ["Document made", "Agreement.pdf", "2 people sign", "Send for signature", "plain page look", "Make another"]) assert.ok(made.includes(want), `missing ${want}`);
-  const word = html({ phase: "made", templates: [], template: NDA, made: { fileId: "fil_9", name: "NDA.docx", signers: [] } });
+  const made = html({
+    phase: "made",
+    templates: [AGREEMENT],
+    template: AGREEMENT,
+    made: {
+      fileId: "fil_9",
+      name: "Agreement.pdf",
+      signers: ["client", "firm"],
+      layout: "simple",
+      converter: "pulling",
+    },
+  });
+  for (const want of [
+    "Document made",
+    "Agreement.pdf",
+    "2 people sign",
+    "Send for signature",
+    "Letterhead and pictures are missing",
+    "make the PDF again in a minute",
+    "Make another",
+  ])
+    assert.ok(made.includes(want), `missing ${want}`);
+  const word = html({
+    phase: "made",
+    templates: [],
+    template: NDA,
+    made: { fileId: "fil_9", name: "NDA.docx", signers: [] },
+  });
   assert.ok(!word.includes("Send for signature") && word.includes("Done"), "a Word file is not sent for signature");
 });
 
 test("the calls: templates list, the page, and Make with one key for one press", async () => {
   const sent: { cap: string; input: Record<string, unknown> }[] = [];
   const server: Record<string, (i: Record<string, unknown>) => unknown> = {
-    "documents.templates.list": () => ({ templates: [{ fileId: "fil_a", name: "Service agreement.md", fields: 3, recordType: "customer" }, { nonsense: true }] }),
-    "documents.fields": () => ({ fields: [{ name: "client.name", kind: "text", required: true }], signers: ["client"], problems: [] }),
+    "documents.templates.list": () => ({
+      templates: [
+        { fileId: "fil_a", name: "Service agreement.md", fields: 3, recordType: "customer" },
+        { nonsense: true },
+      ],
+    }),
+    "documents.fields": () => ({
+      fields: [{ name: "client.name", kind: "text", required: true }],
+      signers: ["client"],
+      problems: [],
+    }),
     "documents.preview_fill": () => ({ excerpt: [{ text: "Hi", filled: [] }], missing: ["client.name"] }),
-    "documents.fill": () => ({ file: { fileId: "fil_9", name: "A.pdf", versionId: "ver_1" }, missing: [], signers: ["client"], layout: "word" }),
+    "documents.fill": () => ({
+      file: { fileId: "fil_9", name: "A.pdf", versionId: "ver_1" },
+      missing: [],
+      signers: ["client"],
+      layout: "word",
+    }),
   };
   const c = async (cap: string, input: unknown): Promise<unknown> => {
     sent.push({ cap, input: input as Record<string, unknown> });
@@ -205,16 +296,38 @@ test("the calls: templates list, the page, and Make with one key for one press",
   };
   const list = await loadTemplates(c);
   assert.deepEqual(list.ok && list.value.map((t) => t.fileId), ["fil_a"]);
-  const page = await readTemplate(c, AGREEMENT, "rec_1", { values: { "client.name": "Imran" }, signingDate: "2026-11-19", kinds: new Map() });
+  const page = await readTemplate(c, AGREEMENT, "rec_1", {
+    values: { "client.name": "Imran" },
+    signingDate: "2026-11-19",
+    kinds: new Map(),
+  });
   assert.ok(page.ok);
   assert.deepEqual(sent.find((x) => x.cap === "documents.preview_fill")!.input.values, { client: { name: "Imran" } });
-  const made = await makeDocument(c, { template: AGREEMENT, recordId: "rec_1", folderId: "fld_1", values: { "client.name": "Imran" }, signingDate: "2026-11-19", kinds: new Map(), format: "pdf", key: "k1" });
+  const made = await makeDocument(c, {
+    template: AGREEMENT,
+    recordId: "rec_1",
+    folderId: "fld_1",
+    values: { "client.name": "Imran" },
+    signingDate: "2026-11-19",
+    kinds: new Map(),
+    format: "pdf",
+    key: "k1",
+  });
   assert.deepEqual(made.ok && made.value, { fileId: "fil_9", name: "A.pdf", signers: ["client"], layout: "word" });
   assert.equal(sent.find((x) => x.cap === "documents.fill")!.input.idempotencyKey, "k1");
   // the server's own sentence comes back untouched
   server["documents.fill"] = () => {
     throw { error: { message: "The document was not made: this value is missing: client.name" } };
   };
-  const bad = await makeDocument(c, { template: AGREEMENT, recordId: "rec_1", folderId: "fld_1", values: {}, signingDate: "2026-11-19", kinds: new Map(), format: "pdf", key: "k2" });
+  const bad = await makeDocument(c, {
+    template: AGREEMENT,
+    recordId: "rec_1",
+    folderId: "fld_1",
+    values: {},
+    signingDate: "2026-11-19",
+    kinds: new Map(),
+    format: "pdf",
+    key: "k2",
+  });
   assert.deepEqual(bad, { ok: false, error: "The document was not made: this value is missing: client.name" });
 });

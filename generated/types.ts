@@ -12846,7 +12846,8 @@ export type DocumentsFillOut = {
   missing: Array<string>;
   unused: Array<string>;
   signers?: Array<string>;
-  layout?: "word" | "simple" | {"description":"word: the Word page kept; simple: plain page look (no converter)"};
+  layout?: "word" | "simple" | {"description":"word: the Word page kept; simple: plain page look, a preview"};
+  converter?: "pulling" | "failed" | "none" | {"description":"Why a copy is plain: the exact converter is being fetched, failed, or this machine has no engine"};
 };
 export type DocumentsMakeIn = {
   template: string;
@@ -12865,6 +12866,7 @@ export type DocumentsMakeOut = {
   missing: Array<string>;
   signers?: Array<string>;
   layout?: "word" | "simple";
+  converter?: "pulling" | "failed" | "none";
 };
 export type DocumentsMakePdfIn = {
   fileId: string;

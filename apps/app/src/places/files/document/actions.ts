@@ -19,7 +19,9 @@ export async function loadTemplates(call: Call): Promise<Result<TemplateRow[]>> 
       const name = str(t.name);
       if (!fileId || !name) return [];
       const type = str(t.recordType);
-      return [{ fileId, name, fields: typeof t.fields === "number" ? t.fields : 0, ...(type ? { recordType: type } : {}) }];
+      return [
+        { fileId, name, fields: typeof t.fields === "number" ? t.fields : 0, ...(type ? { recordType: type } : {}) },
+      ];
     });
     return { ok: true, value: list };
   } catch (e) {
@@ -72,7 +74,9 @@ export async function makeDocument(
       signingDate: input.signingDate,
       format: input.format,
       idempotencyKey: input.key,
-    })) as { file?: { fileId?: unknown; name?: unknown }; signers?: unknown; layout?: unknown } | undefined;
+    })) as
+      | { file?: { fileId?: unknown; name?: unknown }; signers?: unknown; layout?: unknown; converter?: unknown }
+      | undefined;
     const fileId = str(out?.file?.fileId);
     const name = str(out?.file?.name);
     if (!fileId || !name) return { ok: false, error: "That did not go through. Try again." };
@@ -83,6 +87,9 @@ export async function makeDocument(
         name,
         signers: Array.isArray(out?.signers) ? out.signers.filter((x): x is string => typeof x === "string") : [],
         ...(out?.layout === "word" || out?.layout === "simple" ? { layout: out.layout } : {}),
+        ...(out?.converter === "pulling" || out?.converter === "failed" || out?.converter === "none"
+          ? { converter: out.converter }
+          : {}),
       },
     };
   } catch (e) {

@@ -127,16 +127,67 @@ test("a PDF set in the plain page look says so to signing; one the converter mad
   const w = world();
   const id = w.add("Agreement.docx", docx(para("Hello {name}")));
   configureDocuments(null);
-  const plain = await handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: FOLDER, values: { name: "Imran" }, format: "pdf" });
+  const plain = await handlers["documents.fill"](w.ctx, {
+    templateFileId: id,
+    intoFolderId: FOLDER,
+    values: { name: "Imran" },
+    format: "pdf",
+  });
   assert.equal(plain.layout, "simple");
   assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, true);
   w.files.get(plain.file.fileId)!.versions = 2;
   assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, undefined);
   configureDocuments({ pdf: async () => Buffer.from("%PDF-1.7 exact") });
   try {
-    const exact = await handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: FOLDER, values: { name: "Imran" }, format: "pdf", name: "Exact" });
+    const exact = await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      values: { name: "Imran" },
+      format: "pdf",
+      name: "Exact",
+    });
     assert.equal(exact.layout, "word");
     assert.equal((await handlers["documents.signing"](w.ctx, { fileId: exact.file.fileId })).plain, undefined);
+  } finally {
+    configureDocuments(null);
+  }
+});
+
+test("when the exact converter is being fetched the plain copy says why; the exact converter, once ready, makes the exact copy", async () => {
+  const w = world();
+  const id = w.add("Agreement.docx", docx(para("Hello {name}")));
+  let state = "pulling";
+  configureDocuments({
+    pdf: async () => {
+      throw new Error("The converter is being fetched.");
+    },
+    state: () => state,
+  });
+  try {
+    const first = await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      values: { name: "Imran" },
+      format: "pdf",
+    });
+    assert.equal(first.layout, "simple");
+    assert.equal(first.converter, "pulling");
+    assert.equal(
+      (await handlers["documents.signing"](w.ctx, { fileId: first.file.fileId })).plain,
+      true,
+      "held for signature while plain",
+    );
+    state = "ready";
+    configureDocuments({ pdf: async () => Buffer.from("%PDF-1.7 exact"), state: () => "ready" });
+    const exact = await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      values: { name: "Imran" },
+      format: "pdf",
+      name: "Exact copy",
+    });
+    assert.equal(exact.layout, "word");
+    assert.equal(exact.converter, undefined);
   } finally {
     configureDocuments(null);
   }

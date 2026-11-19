@@ -5,9 +5,14 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { findDockerSocket } from "./docker-socket.ts";
+import { converterImage, createDocConverter, socketEngine } from "./doc-converter.ts";
+import type { ConverterState, Engine } from "./doc-converter.ts";
 
 export interface DocumentsHostSeam {
   pdf?(docx: Uint8Array): Promise<Uint8Array>;
+  /** how the exact converter stands: ready, pulling (being fetched), failed, none (no engine, no LibreOffice) */
+  state?(): string;
 }
 export interface DocumentsPdfDeps {
   /** the soffice to run; omitted: VYRE_SOFFICE, then soffice or libreoffice on the PATH, then the usual places */
@@ -16,6 +21,10 @@ export interface DocumentsPdfDeps {
   tmp?: string;
   /** most the converter may take, in ms (default 60 000) */
   timeoutMs?: number;
+  /** the Docker engine, for tests (default: the first socket that answers) */
+  engine?: Engine;
+  image?: string;
+  onState?: (s: ConverterState, why?: string) => void;
   /** a way to run the program, for tests */
   run?: (
     file: string,
@@ -64,7 +73,17 @@ const execRun: NonNullable<DocumentsPdfDeps["run"]> = (file, args, o) =>
 /** The seam: with no soffice on this machine it has no `pdf`, and the module uses its plain page look. */
 export function createDocumentsHost(deps: DocumentsPdfDeps = {}): DocumentsHostSeam {
   const soffice = deps.soffice ?? findSoffice();
-  if (!soffice) return {};
+  if (!soffice) {
+    // no LibreOffice on this machine: the converter image, through a Docker engine, when one answers (fetched on the first Word file)
+    const sock = deps.engine === undefined ? findDockerSocket() : { path: "", runtime: "test" };
+    if (!sock && deps.engine === undefined) return { state: () => "none" };
+    const conv = createDocConverter({
+      engine: deps.engine ?? socketEngine(sock!.path),
+      image: deps.image ?? converterImage(),
+      ...(deps.onState ? { onState: deps.onState } : {}),
+    });
+    return { pdf: (docx) => conv.pdf(docx), state: () => conv.state() };
+  }
   const run = deps.run ?? execRun;
   const timeoutMs = deps.timeoutMs ?? 60_000;
   // one conversion at a time: LibreOffice answers a second call into a busy profile with nothing
