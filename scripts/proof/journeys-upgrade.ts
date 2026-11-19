@@ -265,8 +265,9 @@ if (mode === "old") {
       `Client care learned the stages its clients already had (${j2now.stages.map((s: { key: string }) => s.key).join(", ")})`,
     );
     check(
-      (await counts(state["j2"].id)) === "engaged:1,new:1",
-      `Client care: each client is in the stage it already had (${await counts(state["j2"].id)})`,
+      // Yolanda's Journey record was finished (won) before the upgrade: it stays finished, so only Xavier is in flight, in the stage he already had
+      (await counts(state["j2"].id)) === "new:1",
+      `Client care: the client in flight is in the stage it already had, the finished one stays finished (${await counts(state["j2"].id)})`,
     );
     const runsAfter: Record<string, number> = {};
     for (const [n, id] of Object.entries(state["autos"] as Record<string, string>)) {

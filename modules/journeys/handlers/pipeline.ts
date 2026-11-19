@@ -22,6 +22,7 @@ import {
   saveMigration,
   saveRecord,
   saveVersion,
+  stagesOf,
   countInFlight,
 } from "../projections.ts";
 import type { Journey, JourneysCtx, MigrationRow } from "../projections.ts";
@@ -144,8 +145,10 @@ async function toPipelineNow(ctx: JourneysCtx, input: In, j: Journey): Promise<u
  */
 async function adoptValue(ctx: JourneysCtx, j: Journey, legacyId: string, value: string): Promise<void> {
   const old = findRecord(ctx.db, legacyId);
-  if (!old) return;
+  // the record already stands where its value says: nothing to change, and it keeps the version it was opened under
+  if (!old || old.stage === value) return;
   let stage = j.stages.find((s) => s.key === value);
+  let learned = false;
   if (!stage) {
     const now = await fieldNowTitles(ctx, j);
     stage = {
@@ -161,22 +164,22 @@ async function adoptValue(ctx: JourneysCtx, j: Journey, legacyId: string, value:
     j.updatedAt = ctx.now();
     saveJourney(ctx.db, j);
     saveVersion(ctx, j, `Stage ${stage.title} taken from the records' own values`);
+    learned = true;
   }
+  // the record keeps the version it was opened under (its exit rules, tasks and time limits) when that version has the stage; it moves to the newest only when that is the version that learned it
+  const own = stagesOf(ctx.db, j, old.version);
+  const version = !learned && own?.some((x) => x.key === value) ? old.version : j.version;
+  // a finished record stays finished: its field disagreeing with it never reopens it
   if (stage.final)
     ctx.db.run(
       "UPDATE journeys_records SET stage = ?, version = ?, completed_at = COALESCE(completed_at, ?) WHERE record_id = ?",
       stage.key,
-      j.version,
+      version,
       ctx.now(),
       legacyId,
     );
   else
-    ctx.db.run(
-      "UPDATE journeys_records SET stage = ?, version = ?, completed_at = NULL WHERE record_id = ?",
-      stage.key,
-      j.version,
-      legacyId,
-    );
+    ctx.db.run("UPDATE journeys_records SET stage = ?, version = ? WHERE record_id = ?", stage.key, version, legacyId);
 }
 /** The titles the field gives its options, so an adopted stage has the name people already know it by. */
 async function fieldNowTitles(ctx: JourneysCtx, j: Journey): Promise<Map<string, string>> {
