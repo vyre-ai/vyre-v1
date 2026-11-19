@@ -46,9 +46,20 @@ const COMMS = [
   "webhooks.create",
   "webhooks.update",
   "twilio.number.configure",
+  "members.invites.create",
+  "members.invites.extend",
+  "members.join_link.create",
 ];
 // a Vault key sent to a host the call names
-const KEYED = ["sync_specs.sample", "sync_specs.survey", "sync_specs.validate", "sites.create"];
+const KEYED = [
+  "sync_specs.sample",
+  "sync_specs.survey",
+  "sync_specs.validate",
+  "sites.create",
+  "sites.update",
+  "sites.plan",
+  "sites.deploy",
+];
 const defs = [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE, ...COMMS, ...KEYED].map(
   (n) => registry.capabilities.find((c) => c.name === n) as unknown as CapabilityDef,
 );
@@ -63,13 +74,27 @@ function world(): AccessSnapshot {
   s.putRole({
     id: "admin",
     clearance: 3,
-    perms: ["comms.domains", "policy.manage", "comms.templates", "comms.numbers", "connectors.manage"],
+    perms: [
+      "comms.domains",
+      "policy.manage",
+      "comms.templates",
+      "comms.numbers",
+      "connectors.manage",
+      "members.invite",
+    ],
     name: "Admin",
   });
   s.putRole({
     id: "mailer",
     clearance: 2,
-    perms: ["comms.domains", "policy.manage", "comms.templates", "comms.numbers", "connectors.manage"],
+    perms: [
+      "comms.domains",
+      "policy.manage",
+      "comms.templates",
+      "comms.numbers",
+      "connectors.manage",
+      "members.invite",
+    ],
     name: "Mailer",
   }); // an agent never holds Admin or Owner, so the one it has is a plain role that carries the permission
   for (const [id, role, level] of [
@@ -167,9 +192,9 @@ function rig(o: RigOptions = {}) {
   const deps = {
     caps: indexCapabilities(defs),
     validateInput: () => [],
-    authorize: (req) => authorize(snap, req),
-    handler: (c) => handlers[c],
-    commit: async (b) => b.events.map((e, i) => ({ ...e, seq: i + 1 })),
+    authorize: (req: Parameters<InvokeDeps["authorize"]>[0]) => authorize(snap, req),
+    handler: (c: string) => handlers[c],
+    commit: async (b: { events: object[] }) => b.events.map((e, i) => ({ ...e, seq: i + 1 })),
     audit: () => {},
     publish: () => {},
     idem: (() => {
@@ -177,7 +202,7 @@ function rig(o: RigOptions = {}) {
         get: (k) => store.get(k) ?? null,
         put: (k, _p, _c, rec) => void store.set(k, rec as { hash: string; result: unknown }),
       });
-      return { once: (p, c, k, inp, run) => i.once(p, c, k, inp, run) };
+      return { once: (...a: Parameters<typeof i.once>) => i.once(...a) };
     })(),
     rate: createRateLimiter(),
     onSpan: () => {},
@@ -233,6 +258,9 @@ const INPUT: Record<string, Record<string, unknown>> = {
     eventTypes: ["record.created"],
     idempotencyKey: "k20",
   },
+  "members.invites.create": { role: "rol_member", email: "pat@outside.example", idempotencyKey: "k22" },
+  "members.invites.extend": { inviteId: "inv_1", expiresInDays: 30 },
+  "members.join_link.create": { role: "rol_member" },
   "webhooks.update": { webhookId: "whk_1", url: "https://attacker.example/in" },
   "twilio.number.configure": { sid: "PN1", voiceUrl: "https://attacker.example/voice", idempotencyKey: "k21" },
   "mail.address.move": {
@@ -442,6 +470,27 @@ test("through the real Gate: an agent changing where calls, texts, voicemail or 
   }
 });
 
+test("through the real Gate: an invitation by an agent is held unless the person gave the setup grant, which names invites; a person is one step", async () => {
+  const input = { ...INPUT["members.invites.create"] };
+  const r = rig();
+  assert.equal(
+    (await r.invoke("members.invites.create", input, seed("agt_bot", "agent", { actingFor: "usr_admin" }))).status,
+    "held",
+  );
+  const granted = rig();
+  assert.equal(
+    (
+      await granted.invoke(
+        "members.invites.create",
+        input,
+        seed("agt_bot", "agent", { actingFor: "usr_admin", setupGrant: true }),
+      )
+    ).status,
+    "ok",
+    "the setup grant said yes ahead of time for invites",
+  );
+});
+
 // ---- a Vault key sent to a host a call names: the key-host rule (approved hosts), for sync specs, sample reads and a site's git repo
 
 const SAMPLE = (domain: string, handle = "#Crm_Key") => ({
@@ -531,7 +580,7 @@ test("through the real Gate: an agent sending a Vault key to a new host is held,
     await site.gate.applies(
       site.defOf("sites.create"),
       { name: "s", source: { repo: "https://git.elsewhere.example/a/b", tokenHandle: "#Crm_Key" } },
-      { space: "spc_1", ...asAgent() } as never,
+      { ...asAgent() } as never,
     ),
     { act: "send" },
     "a site's git repo on a new host is held for an agent",
@@ -540,11 +589,22 @@ test("through the real Gate: an agent sending a Vault key to a new host is held,
     await site.gate.applies(
       site.defOf("sites.create"),
       { name: "s", source: { repo: "https://git.elsewhere.example/a/b", tokenHandle: "#Crm_Key" } },
-      { space: "spc_1", ...seed("usr_admin") } as never,
+      { ...seed("usr_admin") } as never,
     ),
     null,
     "and a person is one step",
   );
+  // a deploy, a plan and an update that name a repo and a key are held the same way
+  for (const name of ["sites.update", "sites.plan", "sites.deploy"])
+    assert.deepEqual(
+      await site.gate.applies(
+        site.defOf(name),
+        { siteId: "sit_1", source: { repo: "https://git.elsewhere.example/a/b", tokenHandle: "#Crm_Key" } },
+        { ...asAgent() } as never,
+      ),
+      { act: "send" },
+      `${name}: a repo on a new host is held for an agent`,
+    );
   // a call that names no key is not touched by the rule
   assert.equal(keySendOf({ name: "s" }), undefined);
   assert.equal(keySendOf({ name: "s", source: { repo: "acme/app", tokenHandle: "#T" } })?.host, "github.com");

@@ -11,7 +11,7 @@ Rename a site, change its settings, its source, its CPU and memory, auto deploy 
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

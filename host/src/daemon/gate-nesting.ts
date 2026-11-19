@@ -25,7 +25,13 @@ export function withGateNesting(inner: GateHook): GateHook {
         throw fail("permission.no_grant", "0".repeat(32), { message: "Only Vyre itself runs this." });
       const act = cap.gate?.act;
       if (act && act !== "none" && seed.clearedActs?.includes(act)) return null;
-      if (seed.preAuth && seed.origin === "schedule" && isHostService(seed.principal) && SYSTEM_FOLLOW_UPS.has(cap.name)) return null;
+      if (
+        seed.preAuth &&
+        seed.origin === "schedule" &&
+        isHostService(seed.principal) &&
+        SYSTEM_FOLLOW_UPS.has(cap.name)
+      )
+        return null;
       return inner.applies(cap, input, seed);
     },
     ...(inner.seen

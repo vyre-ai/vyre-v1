@@ -15,7 +15,7 @@ const SQL = ["0012_inbound_watch.sql", "0014_inbound_guard.sql"]
   .join("\n");
 const ready = new WeakSet<object>();
 
-export function ensureInbound(ctx: Pick<MailCtx, "db">): void {
+export function ensureInbound(ctx: Pick<MailCtx, "db" | "now" | "log">): void {
   ensureAll(ctx);
   if (ready.has(ctx.db)) return;
   try {

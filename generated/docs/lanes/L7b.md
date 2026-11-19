@@ -12,7 +12,7 @@ Capabilities:
 - backup.config_get (read, server.backups, level view)
 - backup.config_set (write, server.backups, level manage)
 - backup.delete (write, server.backups, level manage, gate delete)
-- backup.export_start (write, server.backups, level manage)
+- backup.export_start (write, server.backups, level manage, gate send)
 - backup.export_status (read, server.backups, level manage)
 - backup.health (read, grant only, level view)
 - backup.list (read, server.backups, level view)

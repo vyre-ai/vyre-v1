@@ -945,6 +945,7 @@ export default defineManifest({
         in: { ...threadT, email: t.str({ examples: ["sam@example.com"] }), level: t.opt(t.enm("view", "reply")) },
         out: { inviteId: id.invite, link: t.str() },
         on: ["thread", "/threadId"],
+        gate: { act: "send", when: "actor.kind != 'person'" },
         level: "use",
         idem: "key",
         audit: "always",

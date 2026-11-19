@@ -151,6 +151,7 @@ export default defineManifest({
         in: {},
         out: { runId: id.run },
         perm: "server.backups",
+        gate: { act: "send", when: "actor.kind != 'person'" },
         level: "manage",
         risk: "high",
         audit: "always",

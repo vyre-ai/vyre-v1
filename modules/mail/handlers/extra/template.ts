@@ -17,7 +17,7 @@ import { BUILTINS } from "./template-builtins.ts";
 const SQL = readFileSync(fileURLToPath(new URL("../../migrations/0011_templates.sql", import.meta.url)), "utf8");
 const ready = new WeakSet<object>();
 
-export function ensureTemplates(ctx: Pick<MailCtx, "db">): void {
+export function ensureTemplates(ctx: Pick<MailCtx, "db" | "now" | "log">): void {
   ensureAll(ctx);
   if (ready.has(ctx.db)) return;
   try {

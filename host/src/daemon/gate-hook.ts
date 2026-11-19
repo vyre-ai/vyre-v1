@@ -100,7 +100,7 @@ async function appliesWhen(
   d: Pick<GateHookDeps, "evaluators">,
   when: string | undefined,
   input: unknown,
-  seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined },
+  seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined; setupGrant?: boolean | undefined },
 ): Promise<boolean> {
   const fn = when === undefined ? undefined : MODULE_WHEN.exec(when)?.[1];
   const evaluate = fn === undefined ? undefined : d.evaluators?.[fn];
@@ -122,6 +122,9 @@ export const KEY_HOST_CAPS: ReadonlySet<string> = new Set([
   "sync_specs.preview",
   "sync_specs.apply",
   "sites.create",
+  "sites.update",
+  "sites.plan",
+  "sites.deploy",
 ]);
 
 /**
@@ -287,7 +290,11 @@ export function createGateHook(d: GateHookDeps): GateHook {
       // A step of an automation is the automation's act, not a person's, even when the Run runs as its owner: a condition that lets a person's own act through does not let a step through, and an outward
       // act needs a grant. Only a person's press makes one, so an automation an agent made or edited stops here (chat design, hole 1).
       const asked = seed.step ? { principal: { kind: "service" as const, id: seed.step.automationId } } : seed;
-      const held = await appliesWhen(conditions, cap.gate?.when, input, { ...asked, thread: seed.thread });
+      const held = await appliesWhen(conditions, cap.gate?.when, input, {
+        ...asked,
+        thread: seed.thread,
+        setupGrant: seed.setupGrant,
+      });
       // A capability that can go out without saying so (a terminal command) names what this call does. A person's own command is their own act.
       const said = held ? null : (d.outward?.(cap.name, input) ?? null);
       if (!held && (said === null || (seed.principal.kind === "person" && !seed.step))) return null;
@@ -478,6 +485,8 @@ export function moduleWhens(
     seed.principal.kind === "agent" ||
     seed.principal.kind === "actor" ||
     (seed.principal.kind === "service" && String(seed.principal.id).startsWith("aut_"));
+  // an invitation made by an agent or other actor is an access grant: held, unless the person gave this outside agent the setup grant ("Act for me, including setup", owner ruling 3 Nov), which names invites
+  out["members.invite_by_actor"] = (_input, seed) => seed.principal.kind !== "person" && seed.setupGrant !== true;
   out["mail.is_provider_setting"] = (input, seed) =>
     seed.principal.kind !== "person" && (input as { key?: unknown } | null)?.key === "mail.provider";
   // an agent's delete inside work/ on its own computer is its own change; anywhere else asks

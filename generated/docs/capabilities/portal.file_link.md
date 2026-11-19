@@ -11,7 +11,7 @@ Make a short-lived scoped link to a file for an outside account
 | Grant level | manage |
 | Risk | medium |
 | Resource | file (/fileId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | none |

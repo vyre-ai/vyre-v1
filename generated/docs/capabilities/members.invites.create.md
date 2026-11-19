@@ -11,7 +11,7 @@ Invite a person: role, groups, the agents, projects and channels they start in, 
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when members.invite_by_actor(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

@@ -1,7 +1,6 @@
 // mail.setup.status: the Space's email setup in one read, for the Email page and for agents and MCP (owner, 19 Nov 2026: one place for provider, domain, DNS and a test).
 // It answers three questions in plain words: which way does this Space send, what is still missing, and what is the next step.
 // It reads only: the provider setting, the saved mail server (SMTP), and the sending domains with their DNS state.
-import { createHash, randomUUID } from "node:crypto";
 import { ensureAll, preconditionFailed } from "./extra/common.ts";
 import { domainList } from "./extra/domains.ts";
 import type { DomainOut } from "./extra/domains.ts";
@@ -184,12 +183,18 @@ const fieldsOf = (shape: string): { name: string; required: boolean }[] =>
  * The same call asked twice is one call: the key is a hash of the action and its fields in a fixed order (field order and length never change it).
  * A test email is the exception: each call is its own press and really sends, unless the caller gives a `nonce` to say two calls are one.
  */
-function repeatKey(action: string, rest: Record<string, unknown>, nonce: unknown): string {
+async function repeatKey(action: string, rest: Record<string, unknown>, nonce: unknown): Promise<string> {
   const canonical = JSON.stringify(
     Object.fromEntries(Object.entries(rest).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
   );
-  const press = action === "test" ? (typeof nonce === "string" && nonce !== "" ? nonce : randomUUID()) : "";
-  return `tool-${createHash("sha256").update(`${action}|${press}|${canonical}`).digest("hex").slice(0, 40)}`;
+  const press =
+    action === "test" ? (typeof nonce === "string" && nonce !== "" ? nonce : globalThis.crypto.randomUUID()) : "";
+  const digest = new Uint8Array(
+    await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${action}|${press}|${canonical}`)),
+  );
+  return `tool-${Array.from(digest, (b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 40)}`;
 }
 
 /** Routes to the capability behind the screen, so its permission, Gate and audit apply exactly as when a person presses the button. Nothing is decided here. */
@@ -209,7 +214,7 @@ export async function setupTool(ctx: MailCtx, input: SetupToolIn): Promise<{ res
   // a call that needs a key to be safe to repeat gets one made from what it asks, so asking twice is one call
   const { nonce, ...forward } = rest;
   const keyed = ["test", "address_add", "address_move"].includes(input.action)
-    ? { ...forward, idempotencyKey: repeatKey(input.action, forward, nonce) }
+    ? { ...forward, idempotencyKey: await repeatKey(input.action, forward, nonce) }
     : forward;
   return { result: await ctx.call(cap, keyed) };
 }
