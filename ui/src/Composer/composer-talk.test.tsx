@@ -27,6 +27,7 @@ function rig(over: Partial<TalkPort> = {}) {
   const state = { setups: 0, micStopped: 0 };
   const port: TalkPort = {
     on: true,
+    button: true,
     session: async () => SESSION,
     setup: async () => {
       state.setups++;
@@ -368,6 +369,19 @@ test("no mic and no Voice note until voice is set up: a port that is not ready d
     assert.equal(find(root, "plus-voice"), null, "the plus menu offers no Voice note");
     const ready = await mount(createRoot, tree({ ...t.port, ready: true }, <Composer whoWillAnswer="" />));
     assert.ok(find(ready, "composer-talk"), "set up: the mic is there");
+  });
+});
+
+test("no mic button at rest by default: not in the bar, not in the plus menu; while Talk listens (from /voice) a stop button shows", async () => {
+  await withDom(async () => {
+    const t = rig();
+    const { button: _b, ...noButton } = t.port;
+    const root = await mount(createRoot, tree(noButton, <Composer whoWillAnswer="" talkAt={0} />));
+    assert.equal(find(root, "composer-talk"), null, "no mic at rest");
+    await press(find(root, "composer-attach"));
+    await flush();
+    assert.equal(find(root, "plus-voice"), null, "no Voice note row");
+    assert.doesNotMatch(renderToStaticMarkup(tree(noButton, <Composer whoWillAnswer="" />)), /composer-talk/);
   });
 });
 

@@ -7,7 +7,6 @@ import type { Item, ItemKind, LayoutEntry, LayoutInput, SectionId, Shape } from 
 import {
   ErrorView,
   HeadView,
-  HintView,
   ItemRow,
   LessView,
   MoreView,
@@ -161,7 +160,7 @@ test("a working chat's face wears the moving ring; a waiting task's face wears t
   assert.match(html, /waiting/);
 });
 
-test("a Needs you row is one line with its verb; Blocked is amber; a Goals row is two lines only with words under it; others one", () => {
+test("a Needs you row is one line that ends in the mark of what it asks, never the word; Blocked is the amber stop sign; a Goals row is two lines only with words under it; others one", () => {
   const task = mk("task", "task", {
     verb: { label: "Blocked", tone: "warn" },
     sub: "Sol needs a key to continue",
@@ -169,8 +168,40 @@ test("a Needs you row is one line with its verb; Blocked is amber; a Goals row i
   });
   const html = row(task);
   assert.match(html, /Migrate old files/);
-  assert.doesNotMatch(html, /Sol needs a key to continue/, "a Tasks row is one line: the title and its verb");
-  assert.match(html, /data-testid="row-verb"[^>]*>Blocked</);
+  assert.doesNotMatch(html, />Sol needs a key to continue</, "a Tasks row is one line: the title and its mark");
+  assert.doesNotMatch(html, />Blocked</, "the word is not drawn in the row");
+  assert.match(html, /data-state="blocked" data-tone="warn"[^>]*data-testid="row-state"/);
+  assert.match(html, /stroke:var\(--warn\)/, "amber");
+  assert.match(
+    html,
+    /aria-label="Migrate old files, Blocked · Sol needs a key to continue"/,
+    "the row's name says the state and the reason",
+  );
+  assert.equal(tipText(task), "Migrate old files\nBlocked · Sol needs a key to continue", "and so does its tip");
+  // every verb the server sends has its own mark and its own words
+  const WANT: [string, string, string][] = [
+    ["Allow", "allow", "Needs your approval"],
+    ["Review", "review", "Needs your review"],
+    ["Answer", "answer", "Waiting for your answer"],
+    ["Sign", "sign", "Needs your signature"],
+    ["Blocked", "blocked", "Blocked"],
+  ];
+  const seen = new Set<string>();
+  for (const [label, state, words] of WANT) {
+    const t = mk("task", "task", { verb: { label, tone: label === "Blocked" ? "warn" : "accent" }, title: "T" });
+    const h = row(t);
+    assert.match(h, new RegExp(`data-state="${state}"[^>]*data-testid="row-state"`), label);
+    assert.doesNotMatch(h, new RegExp(`>${label}<`), `${label} is not written in the row`);
+    assert.equal(tipOf(t).who, words, label);
+    const d = /data-testid="row-state"[\s\S]*?<path d="([^"]+)"/.exec(h)![1]!;
+    assert.ok(!seen.has(d), `${label} has its own outline`);
+    seen.add(d);
+  }
+  assert.match(
+    row(task, {}, st, { press: () => {}, more: () => {} }),
+    /data-testid="row-more"/,
+    "the row's menu is one hover away",
+  );
   assert.match(html, /height:32px/, "the same pitch as every row");
   const working = mk("chat", "agent", { working: true, sub: "Editing upload.ts", title: "Client portal launch" });
   assert.match(row(working), /Editing upload\.ts/);
@@ -275,9 +306,11 @@ test("a section head's plus: in a hover slot (hidden at rest), shown by hover, f
   // the keyboard cursor on the head forces it on
   assert.match(head("team", "Team", { ...st, cursor: true }), /data-on="1"/);
   // words
-  assert.match(head("chats", "Chats"), /aria-label="New in Chats"/);
-  assert.match(head("channels", "Channels"), /aria-label="New in Channels"/);
-  assert.match(head("team", "Team"), /aria-label="Add to Team"/);
+  assert.match(head("chats", "Chats"), /aria-label="New chat"/);
+  assert.match(head("channels", "Channels"), /aria-label="New channel"/);
+  assert.match(head("team", "Team"), /aria-label="Add teammate"/);
+  assert.match(head("goals", "Goals"), /aria-label="New goal"/);
+  assert.match(head("goals", "Goals"), /title="New goal\n[^"]*G"/, "the tip names it and its key");
   assert.match(head("team", "Agents"), /aria-label="New agent"/);
   assert.doesNotMatch(head("team", "Team"), /More for/);
   // nothing to add: no plus
@@ -355,9 +388,23 @@ test("Tasks has a chevron that folds and a name that opens; folded, the count st
   assert.match(f, /aria-label="Tasks, 2 need you"/);
 });
 
-test("the quiet line of a lived-in Space with no goals", () => {
+test("a lived-in Space with no goals: the Goals head alone, no sentence and no text link; its + is the way to make one", () => {
   const l = layoutOf([mk("chat", "agent")]);
-  const html = renderToStaticMarkup(<HintView entry={entryOf(l, "hint")} onPress={() => {}} />);
-  assert.match(html, /No goals yet/);
-  assert.match(html, /aria-label="New goal"/);
+  const e = entryOf(l, "head", "goals");
+  const html = renderToStaticMarkup(<HeadView entry={e} state={st} on={{ press: () => {}, plus: () => {} }} />);
+  assert.doesNotMatch(html, /No goals yet/);
+  assert.doesNotMatch(html, />New goal</, "New goal is not written: it is the + on the head");
+  assert.match(html, /data-bare="1"/);
+  assert.match(html, /data-testid="head-plus-goals"/);
+  assert.match(
+    html,
+    /aria-label="Goals, empty\. New goal"/,
+    "a screen reader hears that it is empty and what a press does",
+  );
+  assert.doesNotMatch(html, /aria-expanded/, "nothing to fold");
+  const full = renderToStaticMarkup(
+    <HeadView entry={entryOf(layoutOf([mk("goal", "goal")]), "head", "goals")} state={st} on={{ press: () => {} }} />,
+  );
+  assert.doesNotMatch(full, /data-bare/);
+  assert.match(full, /aria-expanded="true"/);
 });
