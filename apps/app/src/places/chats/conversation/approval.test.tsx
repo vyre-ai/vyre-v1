@@ -583,6 +583,10 @@ test("Allow on a held set_secret submits the addresses the card showed, not a la
   const approves = calls.filter((c) => c.cap === "connections.approve_hosts");
   assert.deepEqual(approves[0]?.input, { connectionId: "con_n8n", hosts: shown });
   assert.ok(!calls.some((c) => c.cap === "tasks.act"), "the hold is not answered when the record was refused");
+  assert.ok(
+    !calls.some((c) => c.cap === "automations.key_hosts.allow"),
+    "nothing is saved on the key while the record was refused",
+  );
   assert.match(textOf(root), /changed since you looked/, "the server's wording is shown");
   assert.match(textOf(root), /attacker\.example/, "the new list is shown, so the person sees what changed");
   await press(find(root, "approval-allow-tsk_late"));
@@ -649,6 +653,71 @@ test("a held set_secret whose connection cannot be read is not answered: the car
       `${failing}: nothing was answered or approved`,
     );
   }
+});
+
+test("a connection the person cannot see gets its own words and no retry; and while a failed read is read again, Allow stays off", async () => {
+  const held = {
+    task: {
+      id: "tsk_dn",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
+        },
+      ],
+      actions: [{ key: "approve", label: "Approve" }],
+    },
+  };
+  const make = (getBehaviour: (n: number) => unknown, calls: string[]) => {
+    let gets = 0;
+    return {
+      call: async (cap: string) => {
+        calls.push(cap);
+        if (cap === "tasks.get") return held;
+        if (cap === "automations.key_hosts.pending_bind")
+          return {
+            found: true,
+            items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+            hosts: ["*.app.n8n.cloud"],
+          };
+        if (cap === "connections.get") return getBehaviour(++gets);
+        return {};
+      },
+      nav: { openBeside: () => undefined },
+    } as never;
+  };
+  // denied: its own words, and pressing Allow does not read again, save or answer
+  const calls1: string[] = [];
+  const denied = make(() => Promise.reject({ code: "permission.no_grant", message: "no" }), calls1);
+  const root1 = await mount(createRoot, <ApprovalCard taskId="tsk_dn" agent="Scout" agentId="agt_1" data={denied} />);
+  await flush();
+  assert.match(textOf(root1), /You can't see this connection\. Ask its owner to allow it\./);
+  await press(find(root1, "approval-allow-tsk_dn"));
+  await flush();
+  assert.equal(calls1.filter((c) => c === "connections.get").length, 1, "no retry of a refused read");
+  assert.ok(!calls1.some((c) => ["tasks.act", "automations.key_hosts.allow"].includes(c)));
+  // failed read: the reload on Allow is slow, and a second press while it runs does nothing
+  const calls2: string[] = [];
+  const slow = make((n) => (n === 1 ? Promise.reject(new Error("offline")) : new Promise(() => undefined)), calls2);
+  const root2 = await mount(createRoot, <ApprovalCard taskId="tsk_dn" agent="Scout" agentId="agt_1" data={slow} />);
+  await flush();
+  await press(find(root2, "approval-allow-tsk_dn"));
+  await flush();
+  await press(find(root2, "approval-allow-tsk_dn"));
+  await flush();
+  assert.equal(
+    calls2.filter((c) => c === "connections.get").length,
+    2,
+    "one reload, not one per press: Allow is off while it runs",
+  );
 });
 
 test("a card with no capability, no ask and no question is drawn as its plain words: no Allow, no Deny; a plain question reads as the question", async () => {

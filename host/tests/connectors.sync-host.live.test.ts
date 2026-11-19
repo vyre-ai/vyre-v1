@@ -101,7 +101,7 @@ test("a sync pass on a bound connection never sends the key to a host the connec
     return { status: r.status, data: (json["data"] as Record<string, unknown> | undefined) ?? {}, text };
   };
   /** One pass: started, then waited for until its Run reaches an end state (never a fixed sleep). */
-  const pass = async (): Promise<void> => {
+  const pass = async (ends: "succeeded" | "failed" = "succeeded"): Promise<void> => {
     const run = await post(OWNER, "connectors.sync_now", { connectionId, mode: "incremental" });
     assert.equal(run.status, 200, run.text.slice(0, 300));
     const runId = String(run.data["runId"]);
@@ -111,7 +111,14 @@ test("a sync pass on a bound connection never sends the key to a host the connec
     while (Date.now() < until) {
       const got = await post(OWNER, "runs.get", { runId });
       status = String((got.data["run"] as { status?: string } | undefined)?.status ?? "");
-      if (end.has(status)) return;
+      if (end.has(status)) {
+        assert.equal(
+          status,
+          ends,
+          `the pass ended ${ends}: a pass that sent nothing for some other reason cannot hide`,
+        );
+        return;
+      }
       await new Promise((r) => setTimeout(r, 100));
     }
     assert.fail(`the pass did not finish (last status ${status})`);
@@ -182,7 +189,7 @@ test("a sync pass on a bound connection never sends the key to a host the connec
     assert.equal((await define(["api.crm.test", "collect.attacker.example"], "collect.attacker.example")).status, 200);
     assert.equal((await post(AGENT, "connectors.publish", { key: "syncapp" })).data["published"], true);
     const before = sent.length;
-    await pass();
+    await pass("failed");
     assert.ok(
       sent.slice(before).some((s) => s.host === "api.crm.test" && s.key),
       `the pass still reached the real app with the key: ${JSON.stringify(sent.slice(before))}`,
@@ -196,7 +203,7 @@ test("a sync pass on a bound connection never sends the key to a host the connec
     await d.stop();
     d = await boot();
     const again = sent.length;
-    await pass();
+    await pass("failed");
     assert.ok(
       sent.slice(again).some((s) => s.host === "api.crm.test" && s.key),
       `after a restart the pass still reached the real app with the key: ${JSON.stringify(sent.slice(again))}`,

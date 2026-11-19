@@ -78,6 +78,7 @@ const clock = (at: number, timeZone?: string): string => {
 };
 
 const PENDING_LINE = "Couldn't load where the key may go. Try again.";
+const DENIED_LINE = "You can't see this connection. Ask its owner to allow it.";
 const CHANGED_LINE = "This changed since you looked. Check the list and press Allow again.";
 
 export function ApprovalCard({
@@ -123,14 +124,14 @@ export function ApprovalCard({
     hosts: string[];
   } | null>(null);
   /** A held set_secret's connection: the addresses its record does not allow yet, as they were when the card loaded. This list is what the card names and what Allow submits, never a later read. */
-  const [pending, setPending] = useState<string[] | "failed" | null>(null);
+  const [pending, setPending] = useState<string[] | "failed" | "denied" | null>(null);
   const mounted = useRef(true);
   const described = useRef(false);
 
   // the task on every change; what the held call touches only once, because it does not change
   /** The addresses a connection's record does not allow yet, as the server says them now: a list, null when nothing waits, "failed" when the answer could not be read. */
   const readPending = useCallback(
-    async (connectionId: string): Promise<string[] | "failed" | null> => {
+    async (connectionId: string): Promise<string[] | "failed" | "denied" | null> => {
       try {
         const r = (await data.call("connections.get", { connectionId })) as {
           connection?: { pendingHosts?: string[] };
@@ -138,8 +139,12 @@ export function ApprovalCard({
         if (!r || typeof r !== "object" || !r.connection) return "failed";
         const p = r.connection.pendingHosts;
         return Array.isArray(p) && p.length > 0 ? p : null;
-      } catch {
-        return "failed";
+      } catch (e) {
+        // an invisible or foreign connection is refused for good: a retry would be refused again
+        const code =
+          (e as { code?: unknown; error?: { code?: unknown } } | null)?.code ??
+          (e as { error?: { code?: unknown } } | null)?.error?.code;
+        return typeof code === "string" && /^(permission\.|validation\.not_found)/.test(code) ? "denied" : "failed";
       }
     },
     [data],
@@ -194,6 +199,7 @@ export function ApprovalCard({
       if (mounted.current) {
         setPending(pend);
         if (pend === "failed") setLine(PENDING_LINE);
+        if (pend === "denied") setLine(DENIED_LINE);
         setSubject(s);
         setDiff(d);
         setTheirTz(tz);
@@ -403,27 +409,30 @@ export function ApprovalCard({
     setLine(null);
     // allowing a key binding approves every domain it names for every key it binds, then lets the binding through: the key's page lists them under Sent to
     if (key === "approve" && keyBind?.found) {
-      const saves = keyBind.items.flatMap((i) =>
-        keyBind.hosts.map((host) =>
-          Promise.resolve(data.call("automations.key_hosts.allow", { vaultItemId: i.itemId, host })),
-        ),
-      );
       // the connection's own record of where its key may go is the connector module's, apart from the Vault's list: a held set_secret on a connection allows what was shown there too
       const connectionId = held.cap === "connections.set_secret" ? held.input["connectionId"] : undefined;
-      // where the key may go could not be read: the hold is not answered, and the list is read again so the person can press Allow on what it says
-      if (typeof connectionId === "string" && pending === "failed") {
+      if (typeof connectionId === "string" && pending === "denied") {
+        // not the person's to see: nothing is saved or answered, and a retry would only be refused again
         setBusy(false);
+        setLine(DENIED_LINE);
+        return;
+      }
+      // where the key may go could not be read: the hold is not answered and nothing is saved; the list is read again, and Allow stays off until that ends
+      if (typeof connectionId === "string" && pending === "failed") {
         setLine(PENDING_LINE);
         void readPending(connectionId).then((p) => {
           if (!mounted.current) return;
           setPending(p);
-          if (p !== "failed") setLine(null);
+          setBusy(false);
+          if (p === "denied") setLine(DENIED_LINE);
+          else if (p !== "failed") setLine(null);
         });
         return;
       }
       /** true when the connection's record took the list; false when it was refused (the card shows why and the list as it is now) */
       const record = async (): Promise<boolean> => {
-        if (typeof connectionId !== "string" || pending === null || pending === "failed") return true;
+        if (typeof connectionId !== "string" || pending === null || pending === "failed" || pending === "denied")
+          return true;
         try {
           // the list the card named: approve_hosts refuses when the connector's addresses are no longer exactly these
           await data.call("connections.approve_hosts", { connectionId, hosts: pending });
@@ -438,17 +447,23 @@ export function ApprovalCard({
           return false;
         }
       };
-      void Promise.all(saves)
-        .then(record)
-        .then(
-          (done) => {
-            if (done) answerTask(key, note);
-          },
-          () => {
-            setBusy(false);
-            setLine("Could not save where the key may go. Try again.");
-          },
-        );
+      // the Vault's list is written only after the connection's record took the same list: a refusal or a failed read saves nothing anywhere
+      void record()
+        .then(async (done) => {
+          if (!done) return;
+          await Promise.all(
+            keyBind.items.flatMap((i) =>
+              keyBind.hosts.map((host) =>
+                Promise.resolve(data.call("automations.key_hosts.allow", { vaultItemId: i.itemId, host })),
+              ),
+            ),
+          );
+          answerTask(key, note);
+        })
+        .catch(() => {
+          setBusy(false);
+          setLine("Could not save where the key may go. Try again.");
+        });
       return;
     }
     answerTask(key, note);
