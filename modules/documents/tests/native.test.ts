@@ -6,14 +6,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import { handlers } from "../impl.ts";
-import { world, FOLDER } from "../fixtures/world.ts";
+import { configureDocuments } from "../handlers/fill.ts";
+import { docx, para, world, FOLDER } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
 
 async function expectCode(code: string, run: () => Promise<unknown>): Promise<VyreErr> {
   try {
     await run();
   } catch (e) {
-    assert.ok(e instanceof VyreErr, e instanceof Error ? e.stack : "throw");
+    assert.ok(e instanceof VyreErr, e instanceof Error ? (e.stack ?? "throw") : "throw");
     assert.equal(e.error.code, code, e.error.message);
     return e;
   }
@@ -362,4 +363,69 @@ test("documents.make with no key makes a new ask every call, so an old file is n
   assert.notEqual(none[0], none[1], "no caller key: every call is its own ask");
   const kept = await keys({ idempotencyKey: "retry-1" }, 2);
   assert.equal(kept[0], kept[1], "the caller's key: a retry is the same ask");
+});
+
+test("the plain check answers unchecked for a file it cannot read or that is too big, never 'not plain', and a file found plain is not read again", async () => {
+  const w = world();
+  const id = w.add("Agreement.docx", docx(para("Hello {name}")));
+  configureDocuments(null);
+  const plain = await handlers["documents.fill"](w.ctx, {
+    templateFileId: id,
+    intoFolderId: FOLDER,
+    values: { name: "Imran" },
+    format: "pdf",
+  });
+  const reads = () => w.calls.filter((c) => c.cap === "files.read").length;
+  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, true);
+  const after = reads();
+  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, true);
+  assert.equal(reads(), after, "found plain once, not read again for this version");
+  const big = w.add("Big.pdf", Buffer.alloc(26 * 1024 * 1024, 1));
+  const got = await handlers["documents.signing"](w.ctx, { fileId: big });
+  assert.equal(got.unchecked, true);
+  assert.equal(got.plain, undefined);
+  // unreadable just now: the read throws
+  const inner = w.ctx.call.bind(w.ctx);
+  const flaky = w.add("Flaky.pdf", Buffer.from("%PDF-1.7 x"));
+  w.ctx.call = (async (cap: string, input: unknown) => {
+    if (cap === "files.read" && (input as { fileId?: string }).fileId === flaky) throw new Error("storage hiccup");
+    return inner(cap, input as never);
+  }) as typeof w.ctx.call;
+  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: flaky })).unchecked, true);
+});
+
+test("a key made from what is asked is the full SHA-256: two different asks never share one, the same ask always does", async () => {
+  const { askKey } = await import("../handlers/fill.ts");
+  const a = await askKey([{ client: { name: "Imran" } }, "2026-11-19"]);
+  assert.match(a, /^[0-9a-f]{64}$/);
+  assert.equal(a, await askKey([{ client: { name: "Imran" } }, "2026-11-19"]));
+  assert.notEqual(a, await askKey([{ client: { name: "Imran" } }, "2026-11-20"]));
+  assert.notEqual(a, await askKey([{ client: { name: "Imrar" } }, "2026-11-19"]));
+});
+
+test("a Word fill with no key of its own is keyed by the resolved record values and the template version: a changed record or an edited template is another file", async () => {
+  const w = linked();
+  const id = w.add("Letter.docx", docx(para("Dear {name}, your fee is {matter.fee}.")));
+  const keyOf = async (extra: Record<string, unknown> = {}) => {
+    const n = w.calls.filter((c) => c.cap === "files.create").length;
+    await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      recordId: "rec_imran",
+      mapping: { name: "name" },
+      values: { matter: { fee: 1 } },
+      ...extra,
+    });
+    return String(w.calls.filter((c) => c.cap === "files.create")[n]!.input.idempotencyKey).replace(
+      /:[^:]*\.docx$/,
+      "",
+    );
+  };
+  const base = await keyOf();
+  assert.equal(await keyOf(), base);
+  w.records.set("rec_imran", { name: "Imran Ibarra-Lindahl" });
+  assert.notEqual(await keyOf(), base, "the record changed");
+  const second = await keyOf();
+  w.files.get(id)!.versions = 2;
+  assert.notEqual(await keyOf(), second, "the template was edited");
 });

@@ -691,7 +691,7 @@ test("the plain-copy check fails closed: a failure of documents.signing holds th
   });
   const e = await send(h, [ANDREA]).catch((x) => x);
   assert.equal(e.error.code, "provider.unavailable");
-  assert.match(e.error.message, /Try again in a minute/);
+  assert.match(e.error.message, /try again in a minute/);
   assert.equal(h.rows("esign_envelope").length, 0);
   h.callee("documents.signing", () => {
     throw Object.assign(new Error("no"), { error: { code: "permission.no_grant", message: "no" } });
@@ -832,4 +832,55 @@ test("when a request runs out the sender is mailed through the signature.expired
   await expireDue(n.ctxFor(null, SYSTEM));
   assert.equal(none.length, 0, "no address known: nothing mailed, the sender is told in Needs you");
   assert.equal(n.callsTo("notifications.send").at(-1)!.input.kind, "task.returned");
+});
+
+test("the exact-copy check never blocks a legitimate send for good: a file that could not be checked or a check that failed is held with a plain reason and the sender's explicit choice sends it, logged", async () => {
+  for (const [label, answer] of [
+    ["unchecked", () => ({ signers: [], places: [], unchecked: true })],
+    [
+      "error",
+      () => {
+        throw new Error("socket hang up");
+      },
+    ],
+  ] as const) {
+    const h = await setup();
+    h.callee("documents.signing", answer);
+    const e = await send(h, [ANDREA]).catch((x) => x);
+    assert.equal(e.error.code, "provider.unavailable", label);
+    assert.match(e.error.message, /send this one anyway/, label);
+    assert.equal(h.rows("esign_envelope").length, 0, label);
+    const out = await send(h, [ANDREA], { plainOk: true });
+    assert.match(out.envelopeId, /^env_/, label);
+    assert.match(
+      String(h.rows("esign_event").find((r) => r.kind === "plain_copy_sent")?.detail),
+      new RegExp(label),
+      label,
+    );
+  }
+});
+
+test("the template fallback follows the mail module's contract: a Gate hold or a suppressed address is never answered with a second, plain mail", async () => {
+  for (const [label, answer] of [
+    [
+      "held for approval",
+      () => {
+        throw Object.assign(new Error("held"), { error: { code: "permission.needs_approval", message: "held" } });
+      },
+    ],
+    ["suppressed", () => ({ status: "suppressed", suppressed: ["andrea@northwind.example"] })],
+  ] as const) {
+    const h = await setup();
+    const asks: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+    h.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+    h.callee("mail.send", (i: Record<string, any>) => {
+      // eslint-disable-line @typescript-eslint/no-explicit-any
+      asks.push(i);
+      return answer();
+    });
+    const out = await send(h, [ANDREA]);
+    assert.deepEqual(out.emailed, [], label);
+    assert.equal(asks.length, 1, `${label}: one ask, no plain second mail`);
+    assert.ok(h.warnings.length >= 0);
+  }
 });

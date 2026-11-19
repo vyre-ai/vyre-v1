@@ -76,7 +76,7 @@ export function sendInput(
 
 /** The server's sentence when a copy set in the plain page look is held; the sheet then offers the choice. */
 export const isPlainHold = (error: string | null): boolean =>
-  !!error && /Letterhead and pictures are missing/.test(error);
+  !!error && /Letterhead and pictures are missing|Could not tell whether this copy is the exact one/.test(error);
 
 export type EnvState = "approval" | "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
 

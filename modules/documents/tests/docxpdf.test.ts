@@ -14,7 +14,7 @@ async function expectCode(code: string, run: () => Promise<unknown>): Promise<Vy
   try {
     await run();
   } catch (e) {
-    assert.ok(e instanceof VyreErr, e instanceof Error ? e.stack : "throw");
+    assert.ok(e instanceof VyreErr, e instanceof Error ? (e.stack ?? "throw") : "throw");
     assert.equal(e.error.code, code, e.error.message);
     return e;
   }
@@ -283,21 +283,33 @@ test("hostile input cannot make the readers slow: a tag opened a hundred thousan
     }
   }
   assert.ok(Date.now() - t0 < 2000, `the Word readers took ${Date.now() - t0} ms`);
+  // Markdown: linear means four times the input takes about four times as long; quadratic takes sixteen times. The ratio holds on a loaded machine where an absolute time does not.
   const { parse, inline } = await import("../handlers/vdoc.ts");
-  const t1 = Date.now();
-  for (const md of [
-    "[a".repeat(N),
-    "![".repeat(N),
-    "[a](".repeat(N),
-    "{~~a~>".repeat(N),
-    `# a${" ".repeat(N)}x`,
-    `# ${"a #".repeat(N)}`,
-    `${"# a\n".repeat(N / 10)}`,
-  ]) {
-    parse(md);
-    inline(md);
-  }
-  assert.ok(Date.now() - t1 < 6000, `the Markdown readers took ${Date.now() - t1} ms`);
+  const inputs = (n: number): string[] => [
+    "[a".repeat(n),
+    "![".repeat(n),
+    "[a](".repeat(n),
+    "{~~a~>".repeat(n),
+    `# a${" ".repeat(n)}x`,
+    `# ${"a #".repeat(n)}`,
+    "# a\n".repeat(n / 10),
+  ];
+  const time = (n: number): number => {
+    const t = Date.now();
+    for (const md of inputs(n)) {
+      parse(md);
+      inline(md);
+    }
+    return Math.max(Date.now() - t, 20);
+  };
+  time(5_000); // warm up
+  const small = time(25_000);
+  const large = time(100_000);
+  assert.ok(
+    large / small < 10,
+    `four times the input took ${(large / small).toFixed(1)} times as long (${small} ms, ${large} ms): quadratic`,
+  );
+  assert.ok(large < 30_000, `the Markdown readers took ${large} ms`);
 });
 
 test("headings read as before: closing hashes and spaces are cut, inner hashes stay, and a line of spaces after a heading word is linear", async () => {

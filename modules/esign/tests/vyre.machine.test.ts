@@ -106,7 +106,9 @@ async function runSequence(seed: number): Promise<void> {
   let broken = false;
   const log: string[] = [];
 
-  const asSigner = async (op: () => Promise<unknown>): Promise<{ ok: boolean; code?: string; message?: string }> => {
+  const asSigner = async (
+    op: () => Promise<unknown>,
+  ): Promise<{ ok: boolean; code?: string | undefined; message?: string | undefined }> => {
     try {
       await op();
       return { ok: true };
@@ -147,7 +149,7 @@ async function runSequence(seed: number): Promise<void> {
     const i = Math.floor(rnd() * count);
     const t = live[i] ?? null;
     log.push(`${move}${["view", "doc", "sign", "decline", "remind"].includes(move) ? i : ""}`);
-    let err: { ok: boolean; code?: string; message?: string } = { ok: true };
+    let err: { ok: boolean; code?: string | undefined; message?: string | undefined } = { ok: true };
 
     switch (move) {
       case "view":

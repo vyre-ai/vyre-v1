@@ -37,6 +37,7 @@ type Out = {
   places: Array<unknown>;
   stale?: boolean;
   plain?: boolean;
+  unchecked?: boolean;
   templateFileId?: string;
   recordId?: string;
 };
@@ -68,7 +69,8 @@ type Out = {
       "example"
     ],
     "stale": true,
-    "templateFileId": "fil_a1b2c3"
+    "templateFileId": "fil_a1b2c3",
+    "unchecked": true
   }
 }
 ```

@@ -5,3 +5,10 @@ CREATE TABLE IF NOT EXISTS documents_plain (
   sha256 TEXT PRIMARY KEY,
   made_at INTEGER NOT NULL
 );
+
+-- the files already found to be plain previews, by id and version, so asking again costs no read of the file
+CREATE TABLE IF NOT EXISTS documents_plain_seen (
+  file_id TEXT NOT NULL,
+  version TEXT NOT NULL,
+  PRIMARY KEY (file_id, version)
+);

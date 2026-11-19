@@ -236,10 +236,15 @@ async function sendTemplated(ctx: Ctx, plan: MailPlan, m: TemplatedMail): Promis
     return sent.status === "queued" || sent.status === "sent";
   } catch (e) {
     const code = vyreErrorOf(e)?.code ?? "";
+    // only a refusal before anything was stored or sent falls back to the plain words; a Gate hold (permission.needs_approval: the send waits for a person) or any other failure does not
     if (!code.startsWith("validation.") && code !== "internal.not_implemented") {
-      ctx.log.warn("esign: the email could not be sent", { error: e instanceof Error ? e.message : String(e) });
+      ctx.log.warn("esign: the email could not be sent", { code, error: e instanceof Error ? e.message : String(e) });
       return false;
     }
+    ctx.log.warn("esign: the Space's email template was refused, the plain words go instead", {
+      key: m.templateKey,
+      code,
+    });
   }
   try {
     const sent = (await ctx.call("mail.send", {
@@ -390,18 +395,18 @@ function readPlaces(ctx: Ctx, raw: unknown): Place[] | undefined {
   });
 }
 
-/** A PDF of a Word file set in the plain page look is a preview: true when documents says so for this file. A Space without the documents module, or a file it never made, is not plain. */
-export async function isPlainCopy(ctx: Ctx, fileId: string): Promise<boolean> {
+export type CopyState = "exact" | "plain" | "unchecked" | "error";
+/**
+ * Is this PDF the exact copy? `plain`: a preview set in the plain page look (no letterhead or pictures), known by its bytes. `unchecked`: documents could not read it (too big, unreadable). `error`: the check itself
+ * failed just now. Only a Space with no documents module is `exact` without asking. The send holds for all three, and a person's explicit "send this one anyway" gets past each (and is logged), so a
+ * legitimate send is never blocked for good.
+ */
+export async function copyState(ctx: Ctx, fileId: string): Promise<CopyState> {
   try {
-    return ((await ctx.call("documents.signing", { fileId })) as { plain?: unknown }).plain === true;
+    const got = (await ctx.call("documents.signing", { fileId })) as { plain?: unknown; unchecked?: unknown };
+    return got.plain === true ? "plain" : got.unchecked === true ? "unchecked" : "exact";
   } catch (e) {
-    // only "there is no documents module" means not plain; any other failure (a timeout, a permission, a hiccup) holds the send rather than letting a preview go out
-    if (vyreErrorOf(e)?.code === "internal.not_implemented") return false;
-    return fail(
-      ctx,
-      "provider.unavailable",
-      "Could not check whether this copy is the exact one just now. Try again in a minute.",
-    );
+    return vyreErrorOf(e)?.code === "internal.not_implemented" ? "exact" : "error";
   }
 }
 

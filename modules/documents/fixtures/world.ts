@@ -92,7 +92,7 @@ export interface World {
   marks(): Row[];
 }
 
-function err(code: "validation.duplicate" | "validation.not_found", message: string): VyreErr {
+function err(code: "validation.duplicate" | "validation.not_found" | "validation.bad_input", message: string): VyreErr {
   return new VyreErr({ code, message, retryable: false, traceId: TRACE, next: [] });
 }
 

@@ -1,0 +1,1 @@
+The exact-copy check never blocks a send for good (a file it cannot check is held with a way out), keys of repeated asks are full SHA-256 of what was asked, and the mail-template fallback follows the mail module's contract.

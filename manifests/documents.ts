@@ -104,28 +104,15 @@ export default defineManifest({
           ...fillIn,
           intoFolderId: id.folder,
           name: t.opt(t.str()),
-          format: t.opt(
-            t.enm("docx", "pdf", "md", {
-              description:
-                "A Word template fills to docx or pdf; a Vyre document fills to pdf, or to md to go on editing",
-            }),
-          ),
+          format: t.opt(t.enm("docx", "pdf", "md")),
         },
         out: {
           file: savedFile,
           missing: t.arr(t.str()),
           unused: t.arr(t.str()),
           signers,
-          layout: t.opt(
-            t.enm("word", "simple", {
-              description: "word: the Word page kept; simple: plain page look, a preview",
-            }),
-          ),
-          converter: t.opt(
-            t.enm("pulling", "failed", "none", {
-              description: "Why a copy is plain: the exact converter is being fetched, failed, or this machine has no engine",
-            }),
-          ),
+          layout: t.opt(t.enm("word", "simple")),
+          converter: t.opt(t.enm("pulling", "failed", "none")),
         },
         make: ["file", "/intoFolderId"],
         perm: "files.write",
@@ -143,11 +130,19 @@ export default defineManifest({
           template: t.str({ description: "The template's name, or its file id", examples: ["Service agreement"] }),
           recordId: id.record,
           values: t.opt(t.rec()),
-          signingDate: t.opt(t.str({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "ISO date", examples: ["2026-10-24"] })),
+          signingDate: t.opt(
+            t.str({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "ISO date", examples: ["2026-10-24"] }),
+          ),
           name: t.opt(t.str()),
           format: t.opt(t.enm("docx", "pdf", "md")),
         },
-        out: { file: savedFile, missing: t.arr(t.str()), signers, layout: t.opt(t.enm("word", "simple")), converter: t.opt(t.enm("pulling", "failed", "none")) },
+        out: {
+          file: savedFile,
+          missing: t.arr(t.str()),
+          signers,
+          layout: t.opt(t.enm("word", "simple")),
+          converter: t.opt(t.enm("pulling", "failed", "none")),
+        },
         on: ["record", "/recordId"],
         level: "use",
         emits: ["document.filled", "file.created", "file.version_added"],
@@ -177,7 +172,17 @@ export default defineManifest({
           signers: t.arr(t.str()),
           places: t.arr(t.json()),
           stale: t.opt(t.bool()),
-          plain: t.opt(t.bool({ description: "True for a PDF of a Word file set in the plain page look (no letterhead or pictures)" })),
+          plain: t.opt(
+            t.bool({
+              description: "True for a PDF of a Word file set in the plain page look (no letterhead or pictures)",
+            }),
+          ),
+          unchecked: t.opt(
+            t.bool({
+              description:
+                "True when the file could not be checked (too big, or unreadable just now): sending it asks the sender first",
+            }),
+          ),
           templateFileId: t.opt(id.file),
           recordId: t.opt(id.record),
         },

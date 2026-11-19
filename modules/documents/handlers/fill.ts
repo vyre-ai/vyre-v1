@@ -64,12 +64,9 @@ function isVyreError(e: unknown): e is { error: { code: string } } {
   );
 }
 
-/** A short stable word for what a call asks, so a retry of the same ask is one file and an ask with other values is another. Used when the caller gave no key of its own. */
-export function askKey(parts: unknown): string {
-  const text = JSON.stringify(parts);
-  let h = 5381;
-  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
-  return (h >>> 0).toString(36);
+/** The key of what a call asks, SHA-256 of the ask in full (a short hash could make two different documents share a key, and the second would be answered with the first). Used when the caller gave no key. */
+export async function askKey(parts: unknown): Promise<string> {
+  return sha256Of(new TextEncoder().encode(JSON.stringify(parts)));
 }
 
 /** SHA-256 of some bytes, in hex. */
@@ -1033,7 +1030,7 @@ export async function documentsFill(
     bytes: out,
     mime: format === "pdf" ? "application/pdf" : DOCX_MIME,
     kind: format === "pdf" ? "pdf" : "document",
-    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${askKey([o.values, o.signingDate, o.recordId, o.mapping, o.name, format])}`}`,
+    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, (template.file as { version?: unknown } | undefined)?.version])}`}`,
   });
   const { fileId, versionId } = saved;
   // a PDF set in the plain page look is a preview of the Word file: its bytes are marked, so signing holds it (and any copy of it) until the sender chooses (documents.signing says plain)
@@ -1061,7 +1058,7 @@ async function wordToPdf(
   ctx: Ctx,
   docx: Uint8Array,
   title: string,
-): Promise<{ pdf: Uint8Array; layout: "word" | "simple" }> {
+): Promise<{ pdf: Uint8Array; layout: "word" | "simple"; converter?: "pulling" | "failed" | "none" }> {
   if (configured?.pdf) {
     try {
       return { pdf: await configured.pdf(docx), layout: "word" };
