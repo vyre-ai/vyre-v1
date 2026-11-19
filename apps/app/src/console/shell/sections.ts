@@ -109,7 +109,12 @@ export const SECTIONS: readonly SectionDef[] = [
     tabs: [
       {
         label: "Email",
-        views: [v("email", "Email setup"), v("domains", "Sending domains"), v("inboxes", "Shared inboxes")],
+        views: [
+          v("email", "Email setup"),
+          v("domains", "Sending domains"),
+          v("inboxes", "Shared inboxes"),
+          v("templates", "Email templates"),
+        ],
         extras: { domains: ["def-apps"] },
       },
       { label: "Phone and texting", views: [v("numbers", "Numbers"), v("texting", "Texting registration")] },
@@ -283,6 +288,7 @@ export const OLD_NAMES: readonly (readonly [string, string])[] = [
   ["Sending rules", "sendrules"],
   ["Suppression list", "dnc"],
   ["Shared inboxes", "inboxes"],
+  ["Email templates", "templates"],
   ["Telephony", "numbers"],
   ["Texting registration", "texting"],
   ["Usage", "usage"],

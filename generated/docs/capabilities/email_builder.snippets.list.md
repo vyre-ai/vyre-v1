@@ -1,6 +1,6 @@
 # email_builder.snippets.list
 
-List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space
+List composer snippets (reusable reply text), mine and shared
 
 | | |
 |---|---|

@@ -23,7 +23,7 @@ import { Groups } from "../../console/pages/Groups.tsx";
 import { Checker } from "../../console/pages/Checker.tsx";
 import { AgentsRegister, AgentTemplate, OutsideActors } from "../../console/pages/Agents.tsx";
 import { MachinesPage } from "../../console/pages/Machines.tsx";
-import { DomainsPage, EmailPage, InboxesPage, NumbersPage, TextingPage } from "../../console/pages/Comms.tsx";
+import { DomainsPage, EmailPage, InboxesPage, NumbersPage, TemplatesPage, TextingPage } from "../../console/pages/Comms.tsx";
 import { LabelsPage, SchemaPage } from "../../console/pages/Data.tsx";
 import { ApiKeysPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
 import { SkillsPage } from "../../console/pages/Skills.tsx";
@@ -153,6 +153,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
     );
   if (id === "numbers") return <NumbersPage {...(args["numberId"] ? { initialId: args["numberId"] } : {})} />;
   if (id === "inboxes") return <InboxesPage {...(args["mailboxId"] ? { initialId: args["mailboxId"] } : {})} />;
+  if (id === "templates") return <TemplatesPage {...(args["templateKey"] ? { initialKey: args["templateKey"] } : {})} />;
   if (id === "texting") return <TextingPage />;
   if (id === "company") return <ConnectCompanyPage />;
   if (id === "google") return <GoogleWorkspacePage />;

@@ -2980,6 +2980,7 @@
     "provider": "google",
     "address": "dana@acme.test"
   },
+  "mail_delivery_state": {},
   "mail_domain_add": {
     "name": "Quarterly planning",
     "provider": "resend"
@@ -3071,8 +3072,19 @@
       }
     ]
   },
+  "mail_smtp_get": {},
+  "mail_smtp_set": {
+    "host": "plan.acme.test",
+    "port": 1,
+    "username": "Quarterly planning",
+    "passwordHandle": "#Dana_Lawmatics"
+  },
+  "mail_smtp_verify": {},
   "mail_sync_now": {
     "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_templates": {
+    "action": "list"
   },
   "mail_thread_get": {
     "threadId": "Quarterly planning"

@@ -25189,6 +25189,50 @@ export type MailConnectOut = {
     lastSyncAt?: number;
   };
 };
+export type MailDeliveryRetryIn = {
+  messageId: string;
+  address: string;
+  attempt: number;
+};
+export type MailDeliveryRetryOut = {
+  outcome: "sent" | "skipped" | "gave_up" | "rescheduled" | "held";
+  messageId?: string;
+};
+export type MailDeliveryTrailIn = {
+  messageId: string;
+};
+export type MailDeliveryTrailOut = {
+  messageId: string;
+  state: "waiting" | "sent" | "delivered" | "retrying" | "held" | "bounced" | "complained" | "failed";
+  sentBy?: {
+    kind: string;
+    id: string;
+  };
+  events: Array<{
+      kind: "queued" | "held" | "sent" | "delivered" | "opened" | "clicked" | "soft_bounced" | "bounced" | "complained" | "failed" | "retry_scheduled" | "retried" | "gave_up";
+      at: number;
+      label: string;
+      address?: string;
+      detail?: string;
+    }>;
+  blocked: Array<{
+      address: string;
+      reason: string;
+    }>;
+  retry?: {
+    address: string;
+    attempt: number;
+    of: number;
+    nextAt?: number;
+  };
+};
+export type MailDeliveryStateIn = {
+  messageId?: string;
+  mailboxId?: string;
+};
+export type MailDeliveryStateOut = {
+  result: unknown;
+};
 export type MailDomainAddIn = {
   name: string;
   provider: "resend" | "mailgun" | "smtp";
@@ -25389,6 +25433,32 @@ export type MailHealthOut = {
   state: "healthy" | "degraded" | "down";
   detail?: string;
   latencyMs?: number;
+};
+export type MailInboxMonitorIn = {
+  mailboxId?: string;
+};
+export type MailInboxMonitorOut = {
+  inboxes: Array<{
+      mailboxId: string;
+      address: string;
+      kind: "personal" | "shared" | "agent" | "service";
+      how: "imap" | "google" | "microsoft" | "provider_webhook";
+      state: "ok" | "late" | "failing" | "paused";
+      lastReceivedAt?: number;
+      lastSyncAt?: number;
+      receivedToday: number;
+      problem?: {
+        reason: string;
+        fix: string;
+        at: number;
+      };
+    }>;
+  unrouted: Array<{
+      address: string;
+      reason: string;
+      fix: string;
+      at: number;
+    }>;
 };
 export type MailIngestIn = {
   source: "google" | "microsoft" | "imap" | "resend" | "mailgun";
@@ -25852,13 +25922,17 @@ export type MailSendIn = {
       name?: string;
       contactId?: string;
     }>;
-  subject: string;
+  subject?: string;
   text?: string;
   html?: string;
   attachments?: Array<string>;
   replyToMessageId?: string;
   contactId?: string;
   draftId?: string;
+  templateKey?: string;
+  documentId?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
   sendAt?: number;
   unsubscribe?: boolean;
   idempotencyKey: string;
@@ -26032,6 +26106,152 @@ export type MailSyncNowIn = {
 };
 export type MailSyncNowOut = {
   runId: string;
+};
+export type MailTemplateForDocumentClearIn = {
+  documentId: string;
+  key: string;
+};
+export type MailTemplateForDocumentClearOut = {
+  cleared: boolean;
+};
+export type MailTemplateForDocumentGetIn = {
+  documentId: string;
+  key: string;
+};
+export type MailTemplateForDocumentGetOut = {
+  override: boolean;
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateForDocumentSetIn = {
+  documentId: string;
+  key: string;
+  subject: string;
+  text: string;
+  html?: string;
+};
+export type MailTemplateForDocumentSetOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateGetIn = {
+  key: string;
+  documentId?: string;
+};
+export type MailTemplateGetOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateListIn = Record<string, unknown>;
+export type MailTemplateListOut = {
+  templates: Array<{
+      key: string;
+      title: string;
+      subject: string;
+      source: "space" | "builtin";
+      customised: boolean;
+      updatedAt?: number;
+    }>;
+};
+export type MailTemplatePreviewIn = {
+  key?: string;
+  documentId?: string;
+  subject?: string;
+  text?: string;
+  html?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
+};
+export type MailTemplatePreviewOut = {
+  subject: string;
+  text: string;
+  html?: string;
+  source: "document" | "space" | "builtin" | "draft";
+  blanks: Array<string>;
+  fallbacks: Array<string>;
+};
+export type MailTemplateResetIn = {
+  key: string;
+};
+export type MailTemplateResetOut = {
+  reset: boolean;
+};
+export type MailTemplateSaveIn = {
+  key: string;
+  title?: string;
+  subject: string;
+  text: string;
+  html?: string;
+  recordType?: string;
+};
+export type MailTemplateSaveOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplatesIn = {
+  action: "list" | "get" | "set" | "preview" | "reset";
+  key?: string;
+  documentId?: string;
+  subject?: string;
+  text?: string;
+  recordType?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
+};
+export type MailTemplatesOut = {
+  result: unknown;
 };
 export type MailThreadGetIn = {
   threadId: string;
@@ -36615,6 +36835,14 @@ export type SchemaSetLabelIn = {
   label: "public" | "internal" | "confidential" | "restricted";
 };
 export type SchemaSetLabelOut = {
+  ok: boolean;
+};
+export type SchemaSetMergeableIn = {
+  type: string;
+  field: string;
+  mergeable: boolean;
+};
+export type SchemaSetMergeableOut = {
   ok: boolean;
 };
 export type SchemaTrashListIn = Record<string, unknown>;
@@ -49658,6 +49886,9 @@ export interface CapMap {
   "mail.attachment.save": { in: MailAttachmentSaveIn; out: MailAttachmentSaveOut };
   "mail.auto_connect_members": { in: MailAutoConnectMembersIn; out: MailAutoConnectMembersOut };
   "mail.connect": { in: MailConnectIn; out: MailConnectOut };
+  "mail.delivery.retry": { in: MailDeliveryRetryIn; out: MailDeliveryRetryOut };
+  "mail.delivery.trail": { in: MailDeliveryTrailIn; out: MailDeliveryTrailOut };
+  "mail.delivery_state": { in: MailDeliveryStateIn; out: MailDeliveryStateOut };
   "mail.domain.add": { in: MailDomainAddIn; out: MailDomainAddOut };
   "mail.domain.check": { in: MailDomainCheckIn; out: MailDomainCheckOut };
   "mail.domain.get": { in: MailDomainGetIn; out: MailDomainGetOut };
@@ -49668,6 +49899,7 @@ export interface CapMap {
   "mail.drafts.discard": { in: MailDraftsDiscardIn; out: MailDraftsDiscardOut };
   "mail.drafts.list": { in: MailDraftsListIn; out: MailDraftsListOut };
   "mail.health": { in: MailHealthIn; out: MailHealthOut };
+  "mail.inbox.monitor": { in: MailInboxMonitorIn; out: MailInboxMonitorOut };
   "mail.ingest": { in: MailIngestIn; out: MailIngestOut };
   "mail.mailbox.create": { in: MailMailboxCreateIn; out: MailMailboxCreateOut };
   "mail.mailbox.disconnect": { in: MailMailboxDisconnectIn; out: MailMailboxDisconnectOut };
@@ -49697,6 +49929,15 @@ export interface CapMap {
   "mail.smtp.verify": { in: MailSmtpVerifyIn; out: MailSmtpVerifyOut };
   "mail.status_update": { in: MailStatusUpdateIn; out: MailStatusUpdateOut };
   "mail.sync_now": { in: MailSyncNowIn; out: MailSyncNowOut };
+  "mail.template.for_document.clear": { in: MailTemplateForDocumentClearIn; out: MailTemplateForDocumentClearOut };
+  "mail.template.for_document.get": { in: MailTemplateForDocumentGetIn; out: MailTemplateForDocumentGetOut };
+  "mail.template.for_document.set": { in: MailTemplateForDocumentSetIn; out: MailTemplateForDocumentSetOut };
+  "mail.template.get": { in: MailTemplateGetIn; out: MailTemplateGetOut };
+  "mail.template.list": { in: MailTemplateListIn; out: MailTemplateListOut };
+  "mail.template.preview": { in: MailTemplatePreviewIn; out: MailTemplatePreviewOut };
+  "mail.template.reset": { in: MailTemplateResetIn; out: MailTemplateResetOut };
+  "mail.template.save": { in: MailTemplateSaveIn; out: MailTemplateSaveOut };
+  "mail.templates": { in: MailTemplatesIn; out: MailTemplatesOut };
   "mail.thread.get": { in: MailThreadGetIn; out: MailThreadGetOut };
   "mail.unsubscribe": { in: MailUnsubscribeIn; out: MailUnsubscribeOut };
   "mailgun.domains.create": { in: MailgunDomainsCreateIn; out: MailgunDomainsCreateOut };
@@ -50266,6 +50507,7 @@ export interface CapMap {
   "schema.restore_field": { in: SchemaRestoreFieldIn; out: SchemaRestoreFieldOut };
   "schema.sensitivity.scan": { in: SchemaSensitivityScanIn; out: SchemaSensitivityScanOut };
   "schema.set_label": { in: SchemaSetLabelIn; out: SchemaSetLabelOut };
+  "schema.set_mergeable": { in: SchemaSetMergeableIn; out: SchemaSetMergeableOut };
   "schema.trash.list": { in: SchemaTrashListIn; out: SchemaTrashListOut };
   "schema.types.get": { in: SchemaTypesGetIn; out: SchemaTypesGetOut };
   "schema.types.list": { in: SchemaTypesListIn; out: SchemaTypesListOut };
@@ -52639,6 +52881,7 @@ export type MailReceivedPayload = {
   from: string;
   subject: string;
   contactId?: string;
+  auto?: boolean;
 };
 export type MailDraftDiscardedPayload = {
   draftId: string;

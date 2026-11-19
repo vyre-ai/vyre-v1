@@ -1,6 +1,6 @@
 # mail.smtp.set
 
-Save the Space's mail server (SMTP); the password stays in the Vault
+Save the Space's SMTP server; password stays in the Vault
 
 | | |
 |---|---|

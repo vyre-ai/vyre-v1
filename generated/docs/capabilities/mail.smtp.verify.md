@@ -1,6 +1,6 @@
 # mail.smtp.verify
 
-Test a mail server: connect and sign in, nothing is sent. No input tests the saved one
+Test an SMTP server (sign in only, nothing sent); no input tests the saved one
 
 | | |
 |---|---|

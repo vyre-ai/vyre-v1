@@ -19,6 +19,7 @@ import {
   syncNow,
 } from "./handlers/index.ts";
 import { extraHandlers } from "./handlers/extra/index.ts";
+import { ingestWatched, syncWatched } from "./handlers/extra/inbound.ts";
 import { setDefaultImapSession } from "./handlers/ingest.ts";
 import {
   liveSmtp,
@@ -39,9 +40,10 @@ import type { MailCtx, Party } from "./projections.ts";
 import { codecs, consumers, inline } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = {
-  "mail.ingest": (ctx, input) => ingest(ctx, input),
+  "mail.ingest": (ctx, input) =>
+    ingestWatched(ctx, input as { envelopeTo?: string; mailboxId?: string }, () => ingest(ctx, input)),
   "mail.connect": (ctx, input) => connect(ctx, input),
-  "mail.sync_now": (ctx, input) => syncNow(ctx, input),
+  "mail.sync_now": (ctx, input) => syncWatched(ctx, (watched) => syncNow(watched, input)),
   "mail.draft": (ctx, input) => draft(ctx, input),
   "mail.drafts.list": (ctx, input) => draftsList(ctx, input),
   "mail.drafts.discard": (ctx, input) => draftsDiscard(ctx, input),

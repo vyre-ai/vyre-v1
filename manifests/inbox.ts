@@ -220,88 +220,84 @@ const manifest = defineManifest({
       tool: "inbox",
       label: "filter",
     }),
-    read(
-      "inbox.threads",
-      "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
-      {
-        in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), images: t.opt(t.bool()), ...pageIn },
-        out: {
-          conversation: conversationRow,
-          threads: t.arr(
-            t.obj({
-              threadId: t.str(),
-              subject: t.str(),
-              role: threadRole,
-              participants: t.arr(threadParty),
-              lastAt: t.ts(),
-              messageCount: t.int({ minimum: 0 }),
-              unread: t.int({ minimum: 0 }),
-              messages: t.arr(t.obj({ unread: t.bool(), message: threadMessage })),
-            }),
-          ),
-          ...pageOut,
-        },
-        tool: "inbox",
-        label: "check",
-        errors: ["validation.bad_input"],
-        ex: {
-          input: { contactId: "rec_josh01" },
-          output: {
-            conversation: {
-              id: "cnv_josh01",
-              contactId: "rec_josh01",
-              address: "josh@example.com",
-              displayName: "Josh Cohen",
-              lastMessageAt: 1792857600000,
-              lastChannel: "email",
-              lastPreview: "One more: Rachel is out Wednesday afternoon.",
-              unreadCount: 1,
-              needsMatch: false,
-              mailboxIds: ["mbx_a1b2c3"],
-              followed: false,
-              alertOnReplies: false,
-            },
-            threads: [
-              {
-                threadId: "18c39f7b2d10",
-                subject: "Welcome to Scout, Josh",
-                role: "cc",
-                participants: [
-                  { address: "andrea@example.com", name: "Andrea Volkov" },
-                  { address: "josh@example.com", name: "Josh Cohen" },
-                ],
-                lastAt: 1792857600000,
-                messageCount: 1,
-                unread: 1,
-                messages: [
-                  {
-                    unread: true,
-                    message: {
-                      id: "eml_a1b2c3",
-                      at: 1792857600000,
-                      direction: "in",
-                      mailboxId: "mbx_a1b2c3",
-                      mailboxIds: ["mbx_a1b2c3"],
-                      from: { address: "josh@example.com", name: "Josh Cohen" },
-                      to: [{ address: "andrea@example.com" }],
-                      cc: [{ address: "imran@example.com" }],
-                      subject: "RE: Welcome to Scout, Josh",
-                      body: "Thanks Andrea. I am in and the team is set up.",
-                      quoted: "From: Andrea Volkov <andrea@example.com>",
-                      signature: "Josh Cohen",
-                      reactions: [{ emoji: "❤️", from: { address: "imran@example.com" }, at: 1792857700000 }],
-                      attachments: [],
-                      isPrivate: false,
-                    },
-                  },
-                ],
-              },
-            ],
-            total: 1,
+    read("inbox.threads", "A contact's email threads, newest first, each whole, with what is new and your role", {
+      in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), images: t.opt(t.bool()), ...pageIn },
+      out: {
+        conversation: conversationRow,
+        threads: t.arr(
+          t.obj({
+            threadId: t.str(),
+            subject: t.str(),
+            role: threadRole,
+            participants: t.arr(threadParty),
+            lastAt: t.ts(),
+            messageCount: t.int({ minimum: 0 }),
+            unread: t.int({ minimum: 0 }),
+            messages: t.arr(t.obj({ unread: t.bool(), message: threadMessage })),
+          }),
+        ),
+        ...pageOut,
+      },
+      tool: "inbox",
+      label: "check",
+      errors: ["validation.bad_input"],
+      ex: {
+        input: { contactId: "rec_josh01" },
+        output: {
+          conversation: {
+            id: "cnv_josh01",
+            contactId: "rec_josh01",
+            address: "josh@example.com",
+            displayName: "Josh Cohen",
+            lastMessageAt: 1792857600000,
+            lastChannel: "email",
+            lastPreview: "One more: Rachel is out Wednesday afternoon.",
+            unreadCount: 1,
+            needsMatch: false,
+            mailboxIds: ["mbx_a1b2c3"],
+            followed: false,
+            alertOnReplies: false,
           },
+          threads: [
+            {
+              threadId: "18c39f7b2d10",
+              subject: "Welcome to Scout, Josh",
+              role: "cc",
+              participants: [
+                { address: "andrea@example.com", name: "Andrea Volkov" },
+                { address: "josh@example.com", name: "Josh Cohen" },
+              ],
+              lastAt: 1792857600000,
+              messageCount: 1,
+              unread: 1,
+              messages: [
+                {
+                  unread: true,
+                  message: {
+                    id: "eml_a1b2c3",
+                    at: 1792857600000,
+                    direction: "in",
+                    mailboxId: "mbx_a1b2c3",
+                    mailboxIds: ["mbx_a1b2c3"],
+                    from: { address: "josh@example.com", name: "Josh Cohen" },
+                    to: [{ address: "andrea@example.com" }],
+                    cc: [{ address: "imran@example.com" }],
+                    subject: "RE: Welcome to Scout, Josh",
+                    body: "Thanks Andrea. I am in and the team is set up.",
+                    quoted: "From: Andrea Volkov <andrea@example.com>",
+                    signature: "Josh Cohen",
+                    reactions: [{ emoji: "❤️", from: { address: "imran@example.com" }, at: 1792857700000 }],
+                    attachments: [],
+                    isPrivate: false,
+                  },
+                },
+              ],
+            },
+          ],
+          total: 1,
         },
       },
-    ),
+    }),
     read("inbox.thread", "The whole history of one contact: emails, texts, calls, meetings and record chips", {
       in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), before: t.opt(t.ts()), ...pageIn },
       out: { conversation: conversationRow, items: t.arr(timelineItem), ...pageOut },
@@ -401,46 +397,38 @@ const manifest = defineManifest({
         idem: "natural",
       },
     ),
-    read(
-      "inbox.thread_conversation",
-      "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
-      {
-        in: {
-          threadId: t.str({
-            description: "The provider thread id, as mail_thread_get and the mail search give it",
-            examples: ["18c2a1f04e9b"],
+    read("inbox.thread_conversation", "The conversation of an email thread, from its provider thread id", {
+      in: {
+        threadId: t.str({
+          description: "The provider thread id, as mail_thread_get and the mail search give it",
+          examples: ["18c2a1f04e9b"],
+        }),
+      },
+      out: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), subject: t.opt(t.str()) },
+      tool: "inbox",
+      label: "check",
+    }),
+    read("inbox.counts", "Unread conversation counts per inbox and number, and how many need a match", {
+      in: {},
+      out: {
+        byInbox: t.arr(
+          t.obj({
+            kind: t.enm("mailbox", "number"),
+            id: t.str(),
+            name: t.opt(
+              t.str({
+                description:
+                  "What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id",
+              }),
+            ),
+            unread: t.int(),
           }),
-        },
-        out: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), subject: t.opt(t.str()) },
-        tool: "inbox",
-        label: "check",
+        ),
+        total: t.int(),
+        needsMatch: t.int(),
       },
-    ),
-    read(
-      "inbox.counts",
-      "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
-      {
-        in: {},
-        out: {
-          byInbox: t.arr(
-            t.obj({
-              kind: t.enm("mailbox", "number"),
-              id: t.str(),
-              name: t.opt(
-                t.str({
-                  description:
-                    "What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id",
-                }),
-              ),
-              unread: t.int(),
-            }),
-          ),
-          total: t.int(),
-          needsMatch: t.int(),
-        },
-        tool: "inbox",
-      },
-    ),
+      tool: "inbox",
+    }),
     write("inbox.mark_read", "Mark a conversation read or unread", {
       in: { conversationId: cnvId, read: t.opt(t.bool()) },
       out: { conversation: conversationRow },
@@ -448,19 +436,15 @@ const manifest = defineManifest({
       tool: "inbox",
       offline: "queue",
     }),
-    write(
-      "inbox.follow_set",
-      "Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)",
-      {
-        in: { contactId: id.record, follow: t.bool(), alertOnReplies: t.opt(t.bool()) },
-        out: { following: t.bool(), alertOnReplies: t.bool() },
-        on: ["record", "/contactId"],
-        level: "view",
-        emits: ["conversation.follow_changed"],
-        tool: "inbox",
-        offline: "queue",
-      },
-    ),
+    write("inbox.follow_set", "Follow a contact or set Alert me on replies", {
+      in: { contactId: id.record, follow: t.bool(), alertOnReplies: t.opt(t.bool()) },
+      out: { following: t.bool(), alertOnReplies: t.bool() },
+      on: ["record", "/contactId"],
+      level: "view",
+      emits: ["conversation.follow_changed"],
+      tool: "inbox",
+      offline: "queue",
+    }),
     read("inbox.following", "Contacts that reach your Inbox and why: owner, project, follow or shared inbox", {
       in: { ...pageIn },
       out: {
@@ -499,7 +483,7 @@ const manifest = defineManifest({
     ),
     read(
       "comms.senders.list",
-      "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "Addresses and numbers the caller can send from; one that cannot send now says usable false and why",
       {
         in: { channel: t.opt(senderChannel) },
         out: { senders: t.arr(senderRow) },
