@@ -37253,6 +37253,25 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/tasks/archive",
+    "cap": "tasks.archive",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/ask",
     "cap": "tasks.ask",
     "v": 1,
@@ -37887,6 +37906,25 @@ const routes6: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/tasks/unarchive",
+    "cap": "tasks.unarchive",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
     "teamOnly": false,
     "gate": null
   },
@@ -38638,7 +38676,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/templates/project_starters",
@@ -38674,10 +38715,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/terminal/attach",

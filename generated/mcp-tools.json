@@ -65401,6 +65401,36 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.archive",
+      "deferred": false,
+      "description": "Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "why": {
+            "maxLength": 300,
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_archive",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.assign",
       "deferred": false,
       "description": "Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)",
@@ -66112,6 +66142,9 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "archived": {
+            "type": "boolean"
+          },
           "done": {
             "type": "boolean"
           },
@@ -66591,6 +66624,32 @@
         "type": "object"
       },
       "name": "tasks_transition",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.unarchive",
+      "deferred": false,
+      "description": "Put an archived task back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_unarchive",
       "planMode": "blocked",
       "toolset": "tasks",
       "v": 1

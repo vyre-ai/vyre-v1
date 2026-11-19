@@ -94,6 +94,17 @@ export interface Task {
   createdAt: number;
   updatedAt: number;
   version: number;
+  /** Put away, not deleted (tasks_archive): when, by whom, the rule and the one sentence a person reads. The task keeps its state. */
+  archived?: Archived;
+}
+/** hand: someone archived it. asked: they answered Archive when asked. passed: its moment passed. gone: what it waited for is gone. quiet: nobody answered the ask. */
+export type ArchiveCode = "hand" | "asked" | "passed" | "gone" | "quiet";
+export const ARCHIVE_CODES: readonly ArchiveCode[] = ["hand", "asked", "passed", "gone", "quiet"];
+export interface Archived {
+  at: number;
+  by: string;
+  code: ArchiveCode;
+  why: string;
 }
 
 export interface Db {
@@ -211,8 +222,9 @@ const SELECT = `SELECT c.id AS id, m.kind AS kind, c.title AS title, c.summary A
   m.review_loops AS review_loops, m.snoozed_until AS snoozed_until, m.expires_at AS expires_at, m.decision_id AS decision_id,
   m.payload_hash AS payload_hash, c.handled_by AS handled_by, c.handled_at AS handled_at, c.responsible AS responsible,
   c.created_by AS created_by, c.created_at AS created_at, c.updated_at AS updated_at, m.version AS version,
-  c.key AS key, c.key_no AS key_no, c.priority AS priority, c.labels AS labels, c.start_at AS start_at, c.fields AS fields, c.recur AS recur, c.worker_thread AS worker_thread, c.created_for AS created_for
-  FROM tasks_core c JOIN tasks_meta m ON m.id = c.id`;
+  c.key AS key, c.key_no AS key_no, c.priority AS priority, c.labels AS labels, c.start_at AS start_at, c.fields AS fields, c.recur AS recur, c.worker_thread AS worker_thread, c.created_for AS created_for,
+  a.at AS archived_at, a.by AS archived_by, a.code AS archived_code, a.why AS archived_why
+  FROM tasks_core c JOIN tasks_meta m ON m.id = c.id LEFT JOIN tasks_archive a ON a.task_id = c.id`;
 
 type Raw = Record<string, unknown>;
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
@@ -300,6 +312,14 @@ function rowToTask(r: Raw): Task {
   if (worker !== undefined) t.workerThread = worker;
   const createdFor = str(r.created_for);
   if (createdFor !== undefined) t.createdFor = createdFor;
+  const archivedAt = num(r.archived_at);
+  if (archivedAt !== undefined)
+    t.archived = {
+      at: archivedAt,
+      by: String(r.archived_by ?? ""),
+      code: (str(r.archived_code) ?? "hand") as ArchiveCode,
+      why: typeof r.archived_why === "string" ? r.archived_why : "",
+    };
   return t;
 }
 
@@ -436,6 +456,29 @@ export function allTasks(db: Db, where = "", ...args: unknown[]): Task[] {
   ).map(rowToTask);
 }
 
+/** The SQL that leaves archived tasks out of a read made with allTasks (alias a is the archive mark). */
+export const NOT_ARCHIVED = "a.task_id IS NULL";
+
+/** The archive mark of a task: set it, or take it off. The task row itself does not change; the caller touches it so every list sees the change. */
+export function markArchived(db: Db, t: Task, a: Archived, proof?: unknown): void {
+  db.run(
+    "INSERT OR REPLACE INTO tasks_archive (task_id, at, by, code, why, proof) VALUES (?, ?, ?, ?, ?, ?)",
+    t.id,
+    a.at,
+    a.by,
+    a.code,
+    a.why,
+    proof === undefined ? null : JSON.stringify(proof),
+  );
+  t.archived = a;
+}
+export function clearArchived(db: Db, t: Task): boolean {
+  const had = t.archived !== undefined;
+  db.run("DELETE FROM tasks_archive WHERE task_id = ?", t.id);
+  delete t.archived;
+  return had;
+}
+
 /** Bump version and updatedAt, then write. */
 export function touch(ctx: TasksCtx, db: Db, t: Task): Task {
   t.updatedAt = ctx.now();
@@ -458,7 +501,8 @@ export interface OpenIndex {
 
 export function openIndex(db: Db): OpenIndex {
   const rows = db.all(
-    "SELECT c.id AS id, m.kind AS kind, m.parent_task AS parent_task, m.depends_on AS depends_on FROM tasks_core c JOIN tasks_meta m ON m.id = c.id WHERE c.state NOT IN ('done', 'canceled') AND m.deleted_at IS NULL",
+    // an archived task is put away: it waits on nothing and nothing waits on it
+    "SELECT c.id AS id, m.kind AS kind, m.parent_task AS parent_task, m.depends_on AS depends_on FROM tasks_core c JOIN tasks_meta m ON m.id = c.id WHERE c.state NOT IN ('done', 'canceled') AND m.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM tasks_archive a WHERE a.task_id = c.id)",
   ) as Raw[];
   const idx: OpenIndex = { open: new Set(), unblockParents: new Set(), blocking: new Set(), waiters: new Map() };
   for (const r of rows) idx.open.add(r.id as string);
@@ -527,6 +571,7 @@ export function toOut(t: Task, idx: OpenIndex): Record<string, unknown> {
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     version: t.version,
+    archived: t.archived,
   });
 }
 /** The row a caller reads: the task, and whether the next move is theirs. */
@@ -719,7 +764,7 @@ const sentBack = (t: Task): boolean => t.kind === "approve" && t.state === "doin
  * back to them with fixes; work someone else gave them that nobody has started; a group or role task of theirs nobody took yet. Never a blocked task, and never one that is closed.
  */
 export function isMyTurn(ctx: TasksCtx, t: Task, idx: OpenIndex): boolean {
-  if (!isOpen(t.state) || isBlocked(t, idx) || !actionableByMe(ctx, t)) return false;
+  if (!isOpen(t.state) || t.archived !== undefined || isBlocked(t, idx) || !actionableByMe(ctx, t)) return false;
   if (isRequest(t.kind)) return !sentBack(t);
   if (t.kind !== "work") return false;
   if (t.state === "in_review" || t.state === "awaiting_approval") return true;
@@ -745,7 +790,7 @@ export function needsYou(ctx: TasksCtx): NeedsItem[] {
   const sod = startOfDayIn(now, ctx.principal.kind === "person" ? tzOf(ctx.db, who.actingFor ?? who.id) : undefined);
   const eod = sod + DAY;
   const items: NeedsItem[] = [];
-  for (const t of allTasks(ctx.db, "c.state NOT IN ('done', 'canceled')")) {
+  for (const t of allTasks(ctx.db, `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED}`)) {
     const mine =
       actionableByMe(ctx, t) ||
       (t.assigned.kind !== "group" && t.assigned.kind !== "role" && involved(t, whoOn(ctx, t)));
@@ -810,6 +855,7 @@ export function listTasks(ctx: TasksCtx, f: ListFilter): Task[] {
           ? allTasks(ctx.db, "c.created_by = ?", who.id)
           : allTasks(ctx.db);
   return pool.filter((t) => {
+    if (t.archived !== undefined) return false; // put away: the Archived list is tasks.index with archived
     const w = whoOn(ctx, t);
     if (f.scope === "mine" && !(involved(t, w) || actionableByMe(ctx, t))) return false;
     if (f.scope === "following" && !t.followers.includes(w.id)) return false;
@@ -830,7 +876,9 @@ export function myWork(
   section: Section,
 ): { tasks: Task[]; counts: { open: number; assignedByMe: number; done: number } } {
   const on = (t: Task): Who => whoOn(ctx, t);
-  const all = allTasks(ctx.db).filter((t) => involved(t, on(t)) || t.createdBy === on(t).id || actionableByMe(ctx, t));
+  const all = allTasks(ctx.db, NOT_ARCHIVED).filter(
+    (t) => involved(t, on(t)) || t.createdBy === on(t).id || actionableByMe(ctx, t),
+  );
   const open = all.filter((t) => isOpen(t.state) && (involved(t, on(t)) || actionableByMe(ctx, t)));
   const byMe = all.filter((t) => isOpen(t.state) && t.createdBy === on(t).id && !(t.assigned.id === on(t).id));
   const done = all.filter((t) => !isOpen(t.state) && (involved(t, on(t)) || t.createdBy === on(t).id));

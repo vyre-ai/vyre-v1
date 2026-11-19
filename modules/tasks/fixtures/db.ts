@@ -18,6 +18,7 @@ const migration = readFileSync(new URL("../migrations/0001_tasks_state.sql", imp
 const tickets = readFileSync(new URL("../migrations/0002_ticket_fields.sql", import.meta.url), "utf8");
 const clockSql = readFileSync(new URL("../migrations/0003_clock.sql", import.meta.url), "utf8");
 const createdForSql = readFileSync(new URL("../migrations/0004_created_for.sql", import.meta.url), "utf8");
+const archiveSql = readFileSync(new URL("../migrations/0005_archive.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
 export interface Ev {
@@ -65,6 +66,7 @@ export function harness(o: HarnessOptions = {}) {
   sqlite.exec(tickets);
   sqlite.exec(clockSql);
   sqlite.exec(createdForSql);
+  sqlite.exec(archiveSql);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
     run: (sql, ...args) => ({ changes: Number(sqlite.prepare(sql).run(...(args.map(norm) as never[])).changes) }),

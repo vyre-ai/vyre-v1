@@ -7,6 +7,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "tasks.act": async (ctx) => { throw new VyreErr(notImplemented("tasks.act", ctx.trace)); },
   "tasks.agent_on_it": async (ctx) => { throw new VyreErr(notImplemented("tasks.agent_on_it", ctx.trace)); },
+  "tasks.archive": async (ctx) => { throw new VyreErr(notImplemented("tasks.archive", ctx.trace)); },
   "tasks.ask": async (ctx) => { throw new VyreErr(notImplemented("tasks.ask", ctx.trace)); },
   "tasks.assign": async (ctx) => { throw new VyreErr(notImplemented("tasks.assign", ctx.trace)); },
   "tasks.block": async (ctx) => { throw new VyreErr(notImplemented("tasks.block", ctx.trace)); },
@@ -41,6 +42,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "tasks.submit": async (ctx) => { throw new VyreErr(notImplemented("tasks.submit", ctx.trace)); },
   "tasks.take": async (ctx) => { throw new VyreErr(notImplemented("tasks.take", ctx.trace)); },
   "tasks.transition": async (ctx) => { throw new VyreErr(notImplemented("tasks.transition", ctx.trace)); },
+  "tasks.unarchive": async (ctx) => { throw new VyreErr(notImplemented("tasks.unarchive", ctx.trace)); },
   "tasks.update": async (ctx) => { throw new VyreErr(notImplemented("tasks.update", ctx.trace)); },
   "tasks.withdraw": async (ctx) => { throw new VyreErr(notImplemented("tasks.withdraw", ctx.trace)); },
   "tasks.working_notes.delete": async (ctx) => { throw new VyreErr(notImplemented("tasks.working_notes.delete", ctx.trace)); },

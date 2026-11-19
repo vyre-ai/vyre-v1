@@ -6,6 +6,7 @@ import {
   actionableByMe,
   allTasks,
   clean,
+  clearArchived,
   emitTask,
   ensurePrefix,
   findTask,
@@ -300,6 +301,8 @@ export function commitMove(ctx: TasksCtx, t: Task, to: TaskState, c: Checked): A
     t.takenAt = ctx.now();
     took = true;
   }
+  // a task that moves is not put away any more: the archive mark comes off with the move (a closed task is under Done, an open one is back on its lists)
+  clearArchived(ctx.db, t);
   let handled = false;
   if (!isOpen(to)) {
     delete t.snoozedUntil;

@@ -36,6 +36,14 @@ const action = t.obj({
 });
 
 const priority = t.enm("urgent", "high", "normal", "low");
+// Put away, never deleted (lane r42-alive). hand: someone archived it. asked: they answered Archive when asked. passed: its moment passed. gone: what it waited for is gone. quiet: nobody answered the ask.
+const archiveCode = t.enm("hand", "asked", "passed", "gone", "quiet");
+const archived = t.obj({
+  at: t.ts(),
+  by: t.str({ examples: ["usr_a1b2c3"] }),
+  code: archiveCode,
+  why: t.str({ description: "One sentence a person reads; empty when someone archived it by hand and gave no reason" }),
+});
 const recur = t.obj({ every: t.enm("day", "week", "month"), n: t.opt(t.int({ minimum: 1, maximum: 365 })) });
 const fieldValues = t.rec();
 const taskRow = t.obj({
@@ -83,6 +91,7 @@ const taskRow = t.obj({
   fields: t.opt(fieldValues),
   recur: t.opt(recur),
   workerThread: t.opt(id.thread),
+  archived: t.opt(archived), // put away: the task keeps its state and is left out of every list but Archived and a search
 });
 // One row of a long list: everything a row, a card or a bar draws, and nothing it does not.
 const indexRow = t.obj({
@@ -113,6 +122,7 @@ const indexRow = t.obj({
   createdAt: t.ts(),
   updatedAt: t.ts(),
   yourTurn: t.opt(t.bool()),
+  archived: t.opt(archived),
 });
 const planChild = t.obj({
   key: t.str({ minLength: 1, maxLength: 60, examples: ["draft"] }),
@@ -328,6 +338,18 @@ export default defineManifest({
       vis: "participants",
       label: "subject",
     }),
+    ev("task.archived", "A task was put away with its reason; it is not deleted and can be put back", {
+      p: { taskId: id.task, title: t.str(), code: archiveCode, why: t.opt(t.str()), by: t.str() },
+      subject: ["task", "/taskId"],
+      vis: "participants",
+      label: "subject",
+    }),
+    ev("task.unarchived", "An archived task was put back", {
+      p: { taskId: id.task, code: archiveCode },
+      subject: ["task", "/taskId"],
+      vis: "participants",
+      label: "subject",
+    }),
     ev("task.restored", "A deleted task came back", {
       p: { taskId: id.task },
       subject: ["task", "/taskId"],
@@ -490,6 +512,7 @@ export default defineManifest({
             }),
           ),
           snoozed: t.opt(t.bool()), // only the open tasks that are snoozed
+          archived: t.opt(t.bool()), // only the archived tasks, newest put away first; without it they are left out, except from a search (q), which finds them too
         },
         out: { rev: t.str(), unchanged: t.bool(), rows: t.arr(indexRow), doneThisWeek: t.int(), total: t.int() },
         tool: "tasks",
@@ -850,6 +873,28 @@ export default defineManifest({
         errors: ["validation.precondition_failed"],
       },
     ),
+    write(
+      "tasks.archive",
+      "Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back",
+      {
+        in: { ...target, why: t.opt(t.str({ maxLength: 300 })) },
+        out: { task: taskRow },
+        on: ["task", "/taskId"],
+        level: "use",
+        emits: ["task.archived"],
+        tool: "tasks",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write("tasks.unarchive", "Put an archived task back", {
+      in: target,
+      out: { task: taskRow },
+      on: ["task", "/taskId"],
+      level: "use",
+      emits: ["task.unarchived"],
+      tool: "tasks",
+      errors: ["validation.precondition_failed"],
+    }),
     write("tasks.restore", "Bring a deleted task back", {
       in: target,
       out: { task: taskRow },

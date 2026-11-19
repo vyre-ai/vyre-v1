@@ -5,6 +5,7 @@
 // It only reads and emits; notifications turn task.due and task.nudged into a line for the person, and automations can start on task.due.
 import { isTrustedService } from "../../../lib/trust.ts";
 import {
+  NOT_ARCHIVED,
   actionableSlot,
   allTasks,
   emitTask,
@@ -41,7 +42,8 @@ export function sayDue(ctx: TasksCtx): number {
   // the widest zone is 14 hours ahead, so a task due within a day and a half may already be due "today" somewhere
   for (const t of allTasks(
     ctx.db,
-    "c.state NOT IN ('done', 'canceled') AND m.due IS NOT NULL AND m.due <= ? AND m.due > ?",
+    // an archived task is put away: its due date reminds nobody
+    `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND m.due IS NOT NULL AND m.due <= ? AND m.due > ?`,
     now + DAY + 14 * 3_600_000,
     now - DAY,
   ).slice(0, MAX)) {

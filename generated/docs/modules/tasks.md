@@ -4,10 +4,11 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (40)
+## Capabilities (42)
 
 - [tasks.act](../capabilities/tasks.act.md): Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once
 - [tasks.agent_on_it](../capabilities/tasks.agent_on_it.md): Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads "<Agent> is on it for you". Only that person, or the host, may say so
+- [tasks.archive](../capabilities/tasks.archive.md): Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back
 - [tasks.ask](../capabilities/tasks.ask.md): Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you
 - [tasks.assign](../capabilities/tasks.assign.md): Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)
 - [tasks.block](../capabilities/tasks.block.md): Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits
@@ -42,14 +43,16 @@ Requires: nothing.
 - [tasks.submit](../capabilities/tasks.submit.md): Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done
 - [tasks.take](../capabilities/tasks.take.md): Take a group or role task; the first Take locks it and others see taken by
 - [tasks.transition](../capabilities/tasks.transition.md): Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules
+- [tasks.unarchive](../capabilities/tasks.unarchive.md): Put an archived task back
 - [tasks.update](../capabilities/tasks.update.md): Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)
 - [tasks.withdraw](../capabilities/tasks.withdraw.md): Withdraw open requests whose source chat or run stopped or whose item changed, or let one task go, with a note
 - [tasks.working_notes.delete](../capabilities/tasks.working_notes.delete.md): Delete a working note
 - [tasks.working_notes.set](../capabilities/tasks.working_notes.set.md): Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it
 
-## Events (26)
+## Events (28)
 
 - [task.approved](../events/task.approved.md): A review or approval was granted
+- [task.archived](../events/task.archived.md): A task was put away with its reason; it is not deleted and can be put back
 - [task.assigned](../events/task.assigned.md): A slot (Assigned, Reviewer or Approver) was set or changed
 - [task.children_settled](../events/task.children_settled.md): The children of a task need its holder: all finished, or one is blocked or asks
 - [task.completed](../events/task.completed.md): A task reached Done
@@ -73,5 +76,6 @@ Requires: nothing.
 - [task.snoozed](../events/task.snoozed.md): A request was snoozed until a time
 - [task.taken](../events/task.taken.md): A person took a group or role task; it is locked to them
 - [task.transitioned](../events/task.transitioned.md): A task changed status
+- [task.unarchived](../events/task.unarchived.md): An archived task was put back
 - [task.updated](../events/task.updated.md): Fields of a task changed (title, summary, why, due, effort, blocks, links)
 - [task.withdrawn](../events/task.withdrawn.md): A request or a task was withdrawn because its source chat or run stopped, the item changed or someone let it go

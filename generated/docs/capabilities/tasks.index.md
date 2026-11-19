@@ -33,6 +33,7 @@ type In = {
   rev?: string;
   q?: string;
   snoozed?: boolean;
+  archived?: boolean;
 };
 ```
 
@@ -85,6 +86,12 @@ type Out = {
       createdAt: number;
       updatedAt: number;
       yourTurn?: boolean;
+      archived?: {
+        at: number;
+        by: string;
+        code: "hand" | "asked" | "passed" | "gone" | "quiet";
+        why: string;
+      };
     }>;
   doneThisWeek: number;
   total: number;
@@ -104,6 +111,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "archived": true,
     "done": true,
     "parentTaskId": "tsk_a1b2c3",
     "q": "example",
@@ -121,6 +129,12 @@ type Out = {
         "approver": {
           "id": "usr_a1b2c3",
           "kind": "person"
+        },
+        "archived": {
+          "at": 1760000000000,
+          "by": "usr_a1b2c3",
+          "code": "hand",
+          "why": "example"
         },
         "assigned": {
           "id": "usr_a1b2c3",

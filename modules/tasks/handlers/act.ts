@@ -6,6 +6,7 @@
 // with ctx.seal.unseal, checks the claims (task, hold, decision, hash, device) and expiry, and only then re-invokes the parked capability.
 import { isTrustedService } from "../../../lib/trust.ts";
 import {
+  NOT_ARCHIVED,
   actionableByMe,
   actionableSlot,
   allTasks,
@@ -447,7 +448,7 @@ export const STUCK_IDLE_MS = 24 * 3_600_000;
 export function findStuck(ctx: TasksCtx, o: { idleMs?: number } = {}): Stuck[] {
   const now = ctx.now();
   const idle = o.idleMs ?? STUCK_IDLE_MS;
-  const rows = allTasks(ctx.db, "c.state NOT IN ('done', 'canceled')");
+  const rows = allTasks(ctx.db, `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED}`);
   const idx = openIndex(ctx.db);
   const result: Stuck[] = [];
   for (const t of rows) {

@@ -32,6 +32,7 @@ import { digest } from "./digest.ts";
 import { clock } from "./clock.ts";
 import { plan } from "./plan.ts";
 import { remove, restore } from "./remove.ts";
+import { archive, unarchive } from "./archive.ts";
 import { isAgentId, withReversals } from "../../../lib/reversal.ts";
 import { historyOf } from "../projections.ts";
 import type { TasksCtx } from "../projections.ts";
@@ -45,6 +46,8 @@ const base = {
   "tasks.plan": plan,
   "tasks.restore": restore,
   "tasks.rev": rev,
+  "tasks.archive": archive,
+  "tasks.unarchive": unarchive,
   "tasks.act": act,
   "tasks.ask": ask,
   "tasks.assign": assign,
@@ -88,5 +91,14 @@ export const handlers = withReversals(base, {
     },
     was: (_i: unknown, o: { task?: { title?: string } }) =>
       `deleted the task${o?.task?.title ? ` "${o.task.title}"` : ""}`,
+  },
+  /** The same lesson for a task an agent archived and a person put back. */
+  "tasks.unarchive": {
+    actOf: (ctx: TasksCtx, i: { taskId: string }) => {
+      const put = historyOf(ctx.db, i.taskId).find((h) => h.type.startsWith("archived:"));
+      return put && isAgentId(put.by) ? { agentId: put.by, ref: put.eventId } : null;
+    },
+    was: (_i: unknown, o: { task?: { title?: string } }) =>
+      `archived the task${o?.task?.title ? ` "${o.task.title}"` : ""}`,
   },
 });

@@ -2841,6 +2841,7 @@ export function stubs(ctx: CallCtx) {
     tasks: {
       act: call("tasks.act"),
       agent_on_it: call("tasks.agent_on_it"),
+      archive: call("tasks.archive"),
       ask: call("tasks.ask"),
       assign: call("tasks.assign"),
       block: call("tasks.block"),
@@ -2881,6 +2882,7 @@ export function stubs(ctx: CallCtx) {
       submit: call("tasks.submit"),
       take: call("tasks.take"),
       transition: call("tasks.transition"),
+      unarchive: call("tasks.unarchive"),
       update: call("tasks.update"),
       withdraw: call("tasks.withdraw"),
       working_notes: {

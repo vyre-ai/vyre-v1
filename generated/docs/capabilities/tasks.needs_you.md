@@ -96,6 +96,12 @@ type Out = {
           n?: number;
         };
         workerThread?: string;
+        archived?: {
+          at: number;
+          by: string;
+          code: "hand" | "asked" | "passed" | "gone" | "quiet";
+          why: string;
+        };
       };
       reason: "ready" | "due_today" | "overdue" | "blocking";
       handledBy?: string;
@@ -136,6 +142,12 @@ type Out = {
           "approver": {
             "id": "usr_a1b2c3",
             "kind": "person"
+          },
+          "archived": {
+            "at": 1760000000000,
+            "by": "usr_a1b2c3",
+            "code": "hand",
+            "why": "example"
           },
           "assigned": {
             "id": "usr_a1b2c3",
