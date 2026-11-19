@@ -759,3 +759,77 @@ test("the invitation and the reminder ask the mail module for the Space's own wo
   assert.deepEqual(o.emailed, []);
   assert.equal(fasks.length, 1, "not tried a second time as plain text");
 });
+
+test("when everyone has signed each signer with an email gets the signed copy attached through the template, plain text when the template is refused; nobody without an email or a public address is mailed", async () => {
+  const h = await setup();
+  const asks: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("comms.senders.list", () => ({
+    senders: [{ id: "mbx_space", scope: "space", usable: true, provider: "resend" }],
+  }));
+  h.callee("mail.send", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    asks.push(i);
+    return { status: "queued", suppressed: [] };
+  });
+  const out = await send(h, [ANDREA, { name: "Sam Okafor" }]);
+  await act(h, tokenOf(out.links[0]), "sign", typed());
+  await act(h, tokenOf(out.links[1]), "sign", typed("Sam Okafor"));
+  const before = asks.length;
+  const fetched = await finish(h, out.envelopeId);
+  const copies = asks.slice(before);
+  assert.equal(copies.length, 1, "Sam has no email");
+  assert.equal(copies[0]!.templateKey, "signature.signed_copy");
+  assert.deepEqual(copies[0]!.attachments, [fetched.fileId]);
+  assert.deepEqual(copies[0]!.to, [{ address: "andrea@northwind.example" }]);
+  assert.equal(copies[0]!.vars.signer_name, "Andrea Lindahl");
+  // asking for it again sends nothing more
+  await finish(h, out.envelopeId);
+  assert.equal(asks.length, before + 1);
+  // a template refused before sending: the plain words go instead, with the file attached
+  const p = await setup();
+  const plain: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  p.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+  p.callee("mail.send", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (i.templateKey) throw Object.assign(new Error("x"), { error: { code: "validation.not_found", message: "x" } });
+    plain.push(i);
+    return { status: "sent" };
+  });
+  const o2 = await send(p, [ANDREA]);
+  await act(p, tokenOf(o2.links[0]), "sign", typed());
+  const mark = plain.length;
+  const f2 = await finish(p, o2.envelopeId);
+  assert.equal(plain.length, mark + 1);
+  assert.match(plain.at(-1)!.text, /signed copy is attached/);
+  assert.deepEqual(plain.at(-1)!.attachments, [f2.fileId]);
+});
+
+test("when a request runs out the sender is mailed through the signature.expired template if the Space knows their address; otherwise they are still told in Needs you", async () => {
+  const h = await setup();
+  const asks: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+  h.callee("access.principals.get", () => ({ principal: { name: "Imran Ibarra", email: "imran@northwind.example" } }));
+  h.callee("mail.send", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    asks.push(i);
+    return { status: "queued" };
+  });
+  await send(h, [ANDREA]);
+  asks.length = 0;
+  const { expireDue } = await import("../handlers/vyre.ts");
+  h.advance(31 * 24 * 3600 * 1000);
+  await expireDue(h.ctxFor(null, SYSTEM));
+  assert.equal(asks.length, 1);
+  assert.equal(asks[0]!.templateKey, "signature.expired");
+  assert.deepEqual(asks[0]!.to, [{ address: "imran@northwind.example" }]);
+  const n = await setup();
+  const none: unknown[] = [];
+  n.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+  n.callee("mail.send", (i: unknown) => (none.push(i), { status: "queued" }));
+  await send(n, [ANDREA]);
+  none.length = 0;
+  n.advance(31 * 24 * 3600 * 1000);
+  await expireDue(n.ctxFor(null, SYSTEM));
+  assert.equal(none.length, 0, "no address known: nothing mailed, the sender is told in Needs you");
+  assert.equal(n.callsTo("notifications.send").at(-1)!.input.kind, "task.returned");
+});
