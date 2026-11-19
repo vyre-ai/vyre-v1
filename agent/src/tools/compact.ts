@@ -374,7 +374,7 @@ function shapeRun(o: Obj): Shaped | null {
           tool: "terminal_log_read",
           terminalId: str(o["terminalId"]),
           commandId: str(o["commandId"]),
-          how: "from and to with a line number from matches, or match (up to 5 words) with context, or tail; it never returns the whole log",
+          how: "from and to with a line number from matches, or match (up to 5 words) with context, or tail; it never returns the whole log; if it answers not found (the log is kept for 7 days and may be cut), use terminal_read",
         }
       : reach <= READ_MAX_LINES
         ? {
