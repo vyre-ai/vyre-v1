@@ -13,3 +13,7 @@ export function ignoreTestSwitches(say: (line: string) => void = (l) => process.
   if (gone.length) say(`vyred: ${gone.join(", ")} is a test setting and is ignored outside the test runner\n`);
   return gone;
 }
+
+/** The runtime's own fetch, kept when this file loads (before a test can replace globalThis.fetch with a stand-in vendor). A test that hands in a fetch, or puts a stand-in in globalThis.fetch, reaches no real provider. */
+const nativeFetch = globalThis.fetch;
+export const isNativeFetch = (f: unknown): boolean => f === nativeFetch;

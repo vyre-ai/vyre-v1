@@ -1,7 +1,7 @@
 // ctx.vault for module code (ruling 31/32, ARCH 6.11): `use(handle)` names a handle and `fill(handle, into)` asks the vault module to put the value in a place, through the same invoke pipeline as any
 // caller, so authorize (Use level), audit and the history row are the normal ones and the value never passes through the module that asked. The places (git_credential, container_env, route_auth, env...)
 // are sinks the host registers per kind in DaemonOptions.seams.vaultSinks; a kind with no sink is refused by the vault module ("no place to fill").
-import { inTestRunner } from "../test-mode.ts";
+import { inTestRunner, isNativeFetch } from "../test-mode.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CtxSeed, InvokeResult } from "../invoke.ts";
 import { fail } from "../routes/errors.ts";
@@ -221,7 +221,7 @@ export function createProviderProbe(
     }
     // A test never reaches a real provider by accident: with no fetch handed in, a test process that is not in accept mode (it was started without scripts/test-run.ts) would ask the real one
     // with a made-up key. It stops here, and the refusal names the cause.
-    if (!o.fetch && (process.env["NODE_TEST_CONTEXT"] || inTestRunner()))
+    if (!o.fetch && isNativeFetch(fetchFn) && (process.env["NODE_TEST_CONTEXT"] || inTestRunner()))
       return {
         ok: false,
         models: [],
