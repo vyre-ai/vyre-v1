@@ -10,6 +10,7 @@ import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { Conversation } from "./Conversation.tsx";
+import { draftOf, scopeOf } from "./drafts.ts";
 import { createSample } from "./sample.ts";
 import { CrewProvider } from "../crew/context.tsx";
 
@@ -325,8 +326,16 @@ test("while a steer is still being taken a second send goes nowhere, and a failu
   }
 });
 
-test("words typed while a steer is in flight survive its success", async () => {
+test("words typed while a steer is in flight survive its success: the draft the real composer keeps is what was typed since, not emptied", async () => {
   const restore = installDom();
+  const g = globalThis as { localStorage?: unknown };
+  const had = g.localStorage;
+  const mem = new Map<string, string>();
+  g.localStorage = {
+    getItem: (k: string) => mem.get(k) ?? null,
+    setItem: (k: string, v: string) => void mem.set(k, v),
+    removeItem: (k: string) => void mem.delete(k),
+  };
   try {
     const s = createSample("idle");
     let ok: (v: unknown) => void = () => undefined;
@@ -334,19 +343,52 @@ test("words typed while a steer is in flight survive its success", async () => {
       ...s.data,
       call: (cap: string, input: unknown) => {
         if (cap === "engine.crew.status")
-          return Promise.resolve({ members: [NUMBERS], totals: { members: 1, working: 1, done: 0, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 1 } });
-        if (cap === "chat.helper.steer") return new Promise((r) => (ok = r));
+          return Promise.resolve({
+            members: [NUMBERS],
+            totals: {
+              members: 1,
+              working: 1,
+              done: 0,
+              needsYou: 0,
+              failed: 0,
+              stopped: 0,
+              tokensIn: 0,
+              tokensOut: 0,
+              costMicros: 0,
+              filesChanged: 0,
+              added: 0,
+              deleted: 0,
+              elapsedMs: 1,
+            },
+          });
+        if (cap === "chat.helper.steer") return new Promise((r) => (ok = r)); // held: the steer is in flight
         return s.data.call(cap, input);
       },
     };
-    const root = await mount(createRoot, <CrewProvider call={data.call as never} threadId={data.threadId}><Conversation data={data as never} /></CrewProvider>);
+    const root = await mount(
+      createRoot,
+      <CrewProvider call={data.call as never} threadId={data.threadId}>
+        <Conversation data={data as never} />
+      </CrewProvider>,
+    );
     await flush();
     await send(root, "@Numbers use the 8% rate");
-    await typeInto(find(root, "composer-field"), "my next message");
-    await act(async () => ok({ messageId: "m" }));
+    await typeInto(find(root, "composer-field"), "my next message"); // typed while the first is still being taken
     await flush();
-    assert.equal(find(root, "composer-field")!.props.value, "my next message", "what was typed since is not wiped");
+    assert.equal(
+      draftOf(data.threadId, scopeOf(data.me?.id)),
+      "my next message",
+      "the composer keeps what is typed as the draft",
+    );
+    await act(async () => ok({ messageId: "m" })); // the helper takes the first message
+    await flush();
+    assert.equal(
+      draftOf(data.threadId, scopeOf(data.me?.id)),
+      "my next message",
+      "and the success of the first does not empty it",
+    );
   } finally {
+    g.localStorage = had;
     restore();
   }
 });
