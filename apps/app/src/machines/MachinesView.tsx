@@ -5,7 +5,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { Row } from "../../../../ui/src/Row/index.tsx";
+import { Row, RowActions } from "../../../../ui/src/Row/index.tsx";
+import { StateMark } from "../../../../ui/src/Status/StateMark.tsx";
 import { Segmented } from "../../../../ui/src/Segmented/index.tsx";
 import { TextField } from "../../../../ui/src/TextField/index.tsx";
 import { menuTrigger, useMenu } from "../../../../ui/src/Menu/index.tsx";
@@ -376,27 +377,30 @@ export function MachineList({
                 .filter(Boolean)
                 .join(" \u00b7 ")}
               tall
+              leading={<StateMark state="allow" />}
               trailing={
-                <View style={s.inline}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Deny ${w.name}`}
-                    testID={`waiting-decline-${w.serverId}`}
-                    onPress={() => onDecline?.(w.serverId)}
-                    style={[s.small, pointer]}
-                  >
-                    <Text style={s.smallText}>Deny</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Allow ${w.name}`}
-                    testID={`waiting-approve-${w.serverId}`}
-                    onPress={() => onApprove?.(w.serverId)}
-                    style={[s.primary, pointer]}
-                  >
-                    <Text style={s.primaryText}>Allow</Text>
-                  </Pressable>
-                </View>
+                <RowActions>
+                  <View style={s.inline}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Deny ${w.name}`}
+                      testID={`waiting-decline-${w.serverId}`}
+                      onPress={() => onDecline?.(w.serverId)}
+                      style={[s.small, pointer]}
+                    >
+                      <Text style={s.smallText}>Deny</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Allow ${w.name}`}
+                      testID={`waiting-approve-${w.serverId}`}
+                      onPress={() => onApprove?.(w.serverId)}
+                      style={[s.primary, pointer]}
+                    >
+                      <Text style={s.primaryText}>Allow</Text>
+                    </Pressable>
+                  </View>
+                </RowActions>
               }
             />
           ))}

@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
-import { faceSeed, lineOf, nameOf, roleOf, stateWord } from "./model.ts";
+import { faceSeed, lineOf, nameOf, roleOf } from "./model.ts";
 import type { CrewMember } from "./model.ts";
+import { stateWordOrMark } from "./state-word.tsx";
 
 export const CARD_W = 262;
 export const CARD_GAP = 8;
@@ -117,7 +118,7 @@ function Chip({
               {nameOf(member)} <Text style={st.role}>{roleOf(member)}</Text>
             </Text>
             <Text testID={`cite-${n}-state`} style={st.role}>
-              {stateWord(member.state)}
+              {stateWordOrMark(member.state)}
             </Text>
           </View>
           <Text numberOfLines={3} style={st.line}>
