@@ -7,7 +7,7 @@
 // is asking on a Space or private site. On a server Caddy asks /__vyre/auth (forward auth) and proxies to the site's container itself, WebSockets included; this route answers 2xx with
 // x-vyre-user to let the visitor in, or the sign-in redirect, password form or refusal Caddy sends back. Where no Caddy is in front, this route proxies the request itself (no WebSockets).
 import http from "node:http";
-import { safeUrl } from "../safe-url.ts";
+import { requestTargetOk, safeUrl } from "../safe-url.ts";
 
 export interface HostSite {
   siteId: string;
@@ -269,7 +269,12 @@ export function createSiteHostRoute(d: SiteHostDeps) {
         const asked = safeUrl(req.url, `https://${hostName}`);
         const authOnly = asked.pathname === "/__vyre/auth";
         const fwdUri = String(req.headers["x-forwarded-uri"] ?? "/");
-        const url = authOnly ? safeUrl(fwdUri.startsWith("/") ? fwdUri : "/", `https://${hostName}`) : asked;
+        // the address Caddy forwards is read the way Caddy proxies it: an origin-form path only. "//evil/x" would read as the path "/x" here while Caddy proxies "//evil/x", so forward auth would judge a different page
+        if (authOnly && !requestTargetOk(fwdUri)) {
+          page(res, 400, "Bad request", "<h1>Bad request</h1>");
+          return;
+        }
+        const url = authOnly ? safeUrl(fwdUri, `https://${hostName}`) : asked;
         const method = authOnly
           ? String(req.headers["x-forwarded-method"] ?? "GET").toUpperCase()
           : (req.method ?? "GET").toUpperCase();

@@ -99,8 +99,8 @@ services:
         condition: service_started
     # --resume: the routes vyred wrote come back after a restart; the Caddyfile is only the first start
     # r40: when vyred restarts (a crash, an update) Docker gives it a new network namespace and the one Caddy joined is dead: nothing answers on 443 until Caddy starts again. Docker restarts a container only when it
-    # exits, so this one watches vyred's own port (8420, in this shared namespace) and exits when it has been silent for 30 s; "restart: unless-stopped" then starts it on vyred's new namespace, with no step by hand.
-    # A vyred that is only slow to start costs one extra Caddy restart. (The $$ is compose's escape for one dollar sign.)
+    # exits, so this one exits when its shared namespace has lost its network card (eth0, which Docker removes with the namespace's owner), and "restart: unless-stopped" starts it on vyred's new namespace with no
+    # step by hand. It never exits on silence: a vyred that is slow to start (a big Space, a migration) has its card from its first second, so Caddy keeps serving its routes meanwhile. (The $$ is compose's escape for one dollar sign.)
     command:
       - sh
       - -c
@@ -112,9 +112,9 @@ services:
         while kill -0 $$pid 2>/dev/null; do
           sleep 3 &
           wait $$!
-          if nc -z -w 2 127.0.0.1 8420 2>/dev/null; then miss=0; else miss=$$((miss + 1)); fi
-          if [ $$miss -ge 10 ]; then
-            echo "vyred does not answer in this network namespace; leaving so Docker starts Caddy on the namespace vyred has now" >&2
+          if [ -e /sys/class/net/eth0 ]; then miss=0; else miss=$$((miss + 1)); fi
+          if [ $$miss -ge 5 ]; then
+            echo "vyred's network is gone from this namespace; leaving so Docker starts Caddy on the one vyred has now" >&2
             kill $$pid 2>/dev/null
             wait $$pid
             exit 1
