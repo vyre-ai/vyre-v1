@@ -21275,6 +21275,8 @@ export type GoogleGmailCreateDraftIn = {
   connectionId: string;
   as?: string;
   to: Array<string>;
+  cc?: Array<string>;
+  bcc?: Array<string>;
   subject: string;
   text?: string;
   html?: string;
@@ -40511,7 +40513,8 @@ export type SyncSpecsApplyIn = {
     };
     auth: {
       vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
+      style: "bearer" | "header" | "basic" | "query" | "oauth" | "oauth_refresh";
+      tokenUrl?: string;
       header?: string;
       prefix?: string;
       headers?: Record<string, string>;
@@ -40660,7 +40663,8 @@ export type SyncSpecsGetOut = {
     };
     auth: {
       vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
+      style: "bearer" | "header" | "basic" | "query" | "oauth" | "oauth_refresh";
+      tokenUrl?: string;
       header?: string;
       prefix?: string;
       headers?: Record<string, string>;
@@ -40790,7 +40794,8 @@ export type SyncSpecsPreviewIn = {
     };
     auth: {
       vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
+      style: "bearer" | "header" | "basic" | "query" | "oauth" | "oauth_refresh";
+      tokenUrl?: string;
       header?: string;
       prefix?: string;
       headers?: Record<string, string>;
@@ -41043,7 +41048,8 @@ export type SyncSpecsValidateIn = {
     };
     auth: {
       vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
+      style: "bearer" | "header" | "basic" | "query" | "oauth" | "oauth_refresh";
+      tokenUrl?: string;
       header?: string;
       prefix?: string;
       headers?: Record<string, string>;
@@ -47852,6 +47858,32 @@ export type VaultItemRevealOut = {
       value: string;
     }>;
 };
+export type VaultItemRotateFieldIn = {
+  itemId: string;
+  key: string;
+  value: string;
+};
+export type VaultItemRotateFieldOut = {
+  item: {
+    id: string;
+    name: string;
+    kind: "login" | "api_key" | "env" | "card" | "note" | "totp" | "ssh_key" | "ai_subscription" | "other";
+    folderId: string;
+    owner: string;
+    scope: "mine" | "shared";
+    fieldKeys: Array<string>;
+    handle: string;
+    spaceOnly: boolean;
+    injectIntoDeployments: boolean;
+    rotateEveryDays?: number;
+    lastRotatedAt?: number;
+    lastUsedAt?: number;
+    yourLevel: "view" | "use" | "edit" | "manage";
+    label: number;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
 export type VaultItemUpdateIn = {
   itemId: string;
   name?: string;
@@ -50929,6 +50961,7 @@ export interface CapMap {
   "vault.item.put": { in: VaultItemPutIn; out: VaultItemPutOut };
   "vault.item.restore": { in: VaultItemRestoreIn; out: VaultItemRestoreOut };
   "vault.item.reveal": { in: VaultItemRevealIn; out: VaultItemRevealOut };
+  "vault.item.rotate_field": { in: VaultItemRotateFieldIn; out: VaultItemRotateFieldOut };
   "vault.item.update": { in: VaultItemUpdateIn; out: VaultItemUpdateOut };
   "vault.item.usage": { in: VaultItemUsageIn; out: VaultItemUsageOut };
   "vault.items.export_mine": { in: VaultItemsExportMineIn; out: VaultItemsExportMineOut };
