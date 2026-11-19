@@ -231,14 +231,3 @@ export function resolveChanges(state: EditorState, accept: boolean, which?: read
   tr.setMeta(SKIP, true);
   return tr;
 }
-
-/** "just now", "5 min ago", "3 h ago", "19 Nov": when a suggestion was made, for the card on it. */
-export function whenText(at: string, now: Date = new Date()): string {
-  const t = Date.parse(at);
-  if (Number.isNaN(t)) return "";
-  const s = Math.max(0, Math.round((now.getTime() - t) / 1000));
-  if (s < 45) return "just now";
-  if (s < 3600) return `${Math.max(1, Math.round(s / 60))} min ago`;
-  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
-  return new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}

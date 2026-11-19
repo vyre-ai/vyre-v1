@@ -2,7 +2,7 @@
 // Little text: a count, two arrows and two words. Every press is defined: Field types "{" so the picker opens where the caret is; the arrows move the caret to the next suggestion; the card's buttons resolve that one.
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { whenText } from "./track.ts";
+import { useWhenText } from "../../Time/index.tsx";
 import type { Change } from "./track.ts";
 
 type Hover = { hovered?: boolean };
@@ -100,21 +100,21 @@ export function DocBar(p: DocBarProps): ReactElement | null {
             <>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Reject all suggestions"
+                accessibilityLabel="Discard all suggestions"
                 testID="doc-reject-all"
                 onPress={p.onRejectAll}
                 style={({ hovered }: Hover) => [s.btn, hovered === true && s.hover]}
               >
-                <Text style={s.btnText}>Reject all</Text>
+                <Text style={s.btnText}>Discard all</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Accept all suggestions"
+                accessibilityLabel="Keep all suggestions"
                 testID="doc-accept-all"
                 onPress={p.onAcceptAll}
                 style={({ hovered }: Hover) => [s.btn, s.primary, hovered === true && s.primaryHover]}
               >
-                <Text style={[s.btnText, s.primaryText]}>Accept all</Text>
+                <Text style={[s.btnText, s.primaryText]}>Keep all</Text>
               </Pressable>
             </>
           ) : null}
@@ -139,7 +139,9 @@ export function ChangeCard(p: {
   onReject: () => void;
 }): ReactElement {
   const c = p.change;
-  const when = whenText(c.at);
+  const whenOf = useWhenText();
+  const at = Date.parse(c.at);
+  const when = Number.isNaN(at) ? "" : whenOf(at, Date.now());
   return (
     <View
       style={[s.card, { left: p.left, top: p.top }]}
@@ -163,21 +165,21 @@ export function ChangeCard(p: {
         <View style={s.cardRow}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Reject this suggestion"
+            accessibilityLabel="Discard this suggestion"
             testID="doc-change-reject"
             onPress={p.onReject}
             style={({ hovered }: Hover) => [s.btn, hovered === true && s.hover]}
           >
-            <Text style={s.btnText}>Reject</Text>
+            <Text style={s.btnText}>Discard</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Accept this suggestion"
+            accessibilityLabel="Keep this suggestion"
             testID="doc-change-accept"
             onPress={p.onAccept}
             style={({ hovered }: Hover) => [s.btn, s.primary, hovered === true && s.primaryHover]}
           >
-            <Text style={[s.btnText, s.primaryText]}>Accept</Text>
+            <Text style={[s.btnText, s.primaryText]}>Keep</Text>
           </Pressable>
         </View>
       ) : null}
