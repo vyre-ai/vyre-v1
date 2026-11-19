@@ -227,6 +227,8 @@ export interface MessageActions {
     openPane(): void;
     retry(helperThreadId: string): void;
     merge(jobIds: readonly string[]): void;
+    /** Read the crew again (a held request was answered on a tile). */
+    refresh(): void;
   };
   /** A hook line's Edit or Details: the Hooks tab of the right pane at that hook. */
   openHooks?(hookId: string | undefined): void;
@@ -1637,6 +1639,8 @@ function Theirs({
                 {...(coderMerge ? { merge: coderMerge } : {})}
                 selectedId={c?.selected ?? null}
                 onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))}
+                meId={meId}
+                {...(c ? { onAnswered: c.refresh } : {})}
                 {...(c
                   ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) }
                   : {})}

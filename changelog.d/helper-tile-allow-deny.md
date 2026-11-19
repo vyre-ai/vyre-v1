@@ -1,1 +1,1 @@
-- A helper tile that waits for your yes now has Allow and Deny in the tile; one press answers the held request once.
+- Allow and Deny in a helper tile now show only to someone who could answer the same request on the chat card, Deny asks for a reason as the card does, and the card and the tile follow each other.

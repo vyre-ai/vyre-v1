@@ -40,6 +40,7 @@ const CREW: CrewMember[] = [
     name: "Calendar",
     state: "needs_you",
     step: "Read the Deliveries calendar?",
+    holdTaskId: "tsk_hold",
     model: "glm-5.2",
     tokensIn: 4_000,
     costMicros: 8_000,
@@ -78,6 +79,24 @@ const CREW: CrewMember[] = [
   }),
 ];
 
+/** The held request as the Space serves it: an approval task that carries Allow and Deny, assigned to the person looking. */
+const call = async (cap: string): Promise<unknown> =>
+  cap === "tasks.get"
+    ? {
+        task: {
+          id: "tsk_hold",
+          kind: "approve",
+          state: "awaiting_approval",
+          createdBy: "agt_lead",
+          assigned: { kind: "person", id: "usr_me" },
+          actions: [
+            { key: "approve", label: "Allow", note: "optional" },
+            { key: "reject", label: "Deny", note: "required" },
+          ],
+        },
+      }
+    : {};
+
 export default function Mount(): ReactNode {
   const [view, setView] = useState<"auto" | "rows">("auto");
   useEffect(() => {
@@ -90,6 +109,8 @@ export default function Mount(): ReactNode {
           members={CREW}
           totals={totalsOf(CREW)}
           view={view}
+          call={call}
+          meId="usr_me"
           onPeek={() => undefined}
           onOpenPane={() => undefined}
           onStopAll={() => undefined}

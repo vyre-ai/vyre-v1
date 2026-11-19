@@ -118,6 +118,17 @@ for (const t of targets)
           report.push({ file: path.basename(file) + " " + tab, panelsShown: open.filter(Boolean) });
         }
       }
+      // a tile that waits on a held request: Allow and Deny are there for the person who may answer it
+      if (t.id.endsWith("-tiles") && size === "wide") {
+        const allow = await page.locator("[data-testid='crew-tile-sub_b-allow']").count();
+        const deny = await page.locator("[data-testid='crew-tile-sub_b-deny']").count();
+        report.push({ file: path.basename(file) + " needs-you tile", allow, deny });
+        if (allow > 0) {
+          await page.click("[data-testid='crew-tile-sub_b-deny']");
+          await page.waitForTimeout(300);
+          await page.screenshot({ path: file.replace(".png", "-deny.png") });
+        }
+      }
       // the switch: tiles to rows and back on the same page
       if (t.id.endsWith("-tiles") && sw > 0) {
         await page.click("[data-testid='crew-strip-view']");

@@ -13,6 +13,8 @@ import { stripTone, faceSeed } from "../crew/model.ts";
 import type { CrewMember, CrewTotals } from "../crew/model.ts";
 import { useNow } from "../crew/strip.tsx";
 import { toRunView } from "../crew/run-view.ts";
+import { movesFor } from "../tasks/moves.ts";
+import type { MoveTask } from "../tasks/moves.ts";
 import { CrewTiles } from "./CrewTiles.tsx";
 import { durationWords } from "../../../../../../lib/duration.ts";
 import type { Call } from "../crew/status.ts";
@@ -211,7 +213,13 @@ export function CrewBlock({
   onRetry,
   view: viewProp = "auto",
   width,
+  meId,
+  onAnswered,
 }: {
+  /** The person looking: who may answer a held request is read for them. */
+  meId?: string | undefined;
+  /** A held request was answered here: the crew is read again. */
+  onAnswered?: (() => void) | undefined;
   /** The width of the column when the caller knows it (else this block measures itself). */
   width?: number;
   /** auto: side by side while two or more work and the column is wide, rows otherwise. */
@@ -232,6 +240,35 @@ export function CrewBlock({
   const [picked, setPicked] = useState<"tiles" | "rows" | null>(null);
   // Allow and Deny pressed inside a tile: what was answered for which helper, so a second press cannot answer twice and a failure can be tried again
   const [decided, setDecided] = useState<Record<string, "approve" | "reject" | "failed">>({});
+  // who may answer which held request, read once per request the way the chat card reads it (the task and the moves this person has on it)
+  const [mayByTask, setMayByTask] = useState<Record<string, { approve: boolean; reject: boolean }>>({});
+  const holds = members.flatMap((m) => {
+    const t = toRunView(m).holdTaskId;
+    return t !== undefined ? [{ id: m.id, task: t }] : [];
+  });
+  const holdKey = holds.map((h) => h.task).join(",");
+  useEffect(() => {
+    if (!call || !meId) return undefined;
+    let dead = false;
+    for (const h of holds) {
+      if (mayByTask[h.task] !== undefined) continue;
+      void Promise.resolve(call("tasks.get", { taskId: h.task })).then(
+        (o) => {
+          const t = (o as { task?: MoveTask } | null)?.task;
+          const keys = new Set(t ? movesFor(t, meId).map((x) => x.key) : []);
+          if (!dead)
+            setMayByTask((x) => ({ ...x, [h.task]: { approve: keys.has("approve"), reject: keys.has("reject") } }));
+        },
+        () => {
+          if (!dead) setMayByTask((x) => ({ ...x, [h.task]: { approve: false, reject: false } }));
+        },
+      );
+    }
+    return () => {
+      dead = true;
+    };
+  }, [holdKey, call, meId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mayAnswer = Object.fromEntries(holds.flatMap((h) => (mayByTask[h.task] ? [[h.id, mayByTask[h.task]!]] : [])));
   // the width of this block's own column; the window's until it has been measured (the pane beside the chat narrows it)
   const winW = useWindowDimensions().width;
   const [colW, setColW] = useState<number | null>(null);
@@ -315,20 +352,6 @@ export function CrewBlock({
       {shown === "tiles" ? (
         <CrewTiles
           runs={members.map(toRunView)}
-          decided={decided}
-          onDecide={
-            call
-              ? (id, verdict) => {
-                  const task = toRunView(members.find((x) => x.id === id) ?? members[0]!).holdTaskId;
-                  if (task === undefined || decided[id] === "approve" || decided[id] === "reject") return;
-                  setDecided((d) => ({ ...d, [id]: verdict }));
-                  void Promise.resolve(call("tasks.decide", { taskId: task, verdict })).then(
-                    () => undefined,
-                    () => setDecided((d) => ({ ...d, [id]: "failed" })),
-                  );
-                }
-              : undefined
-          }
           now={now}
           selectedId={selectedId}
           onPress={(id) => {
@@ -340,6 +363,24 @@ export function CrewBlock({
               ? (id) => {
                   const m = members.find((x) => x.id === id);
                   if (m) onRetry(m);
+                }
+              : undefined
+          }
+          decided={decided}
+          may={mayAnswer}
+          onDecide={
+            call && meId
+              ? (id, verdict, note) => {
+                  const task = toRunView(members.find((x) => x.id === id) ?? members[0]!).holdTaskId;
+                  if (task === undefined || decided[id] === "approve" || decided[id] === "reject") return;
+                  setDecided((d) => ({ ...d, [id]: verdict }));
+                  // the held request is a task that carries Allow and Deny: answered where the chat card answers it
+                  void Promise.resolve(
+                    call("tasks.act", { taskId: task, action: verdict, ...(note ? { note } : {}) }),
+                  ).then(
+                    () => onAnswered?.(),
+                    () => setDecided((d) => ({ ...d, [id]: "failed" })),
+                  );
                 }
               : undefined
           }

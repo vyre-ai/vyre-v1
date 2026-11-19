@@ -1872,6 +1872,7 @@ function ConversationView(): ReactElement {
             selected: crew.selected,
             peek: (id: string) => crew.show(id),
             openPane: () => crew.show(null),
+            refresh: () => crew.refresh(),
             stopAll: () => void act.stopHelpers(data).then(() => crew.refresh(), fail("Could not stop the helpers.")),
             retry: (id: string) =>
               void act
