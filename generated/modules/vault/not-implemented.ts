@@ -52,6 +52,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "vault.items.export_mine": async (ctx) => { throw new VyreErr(notImplemented("vault.items.export_mine", ctx.trace)); },
   "vault.items.list": async (ctx) => { throw new VyreErr(notImplemented("vault.items.list", ctx.trace)); },
   "vault.items.match": async (ctx) => { throw new VyreErr(notImplemented("vault.items.match", ctx.trace)); },
+  "vault.login.check": async (ctx) => { throw new VyreErr(notImplemented("vault.login.check", ctx.trace)); },
   "vault.policy.get": async (ctx) => { throw new VyreErr(notImplemented("vault.policy.get", ctx.trace)); },
   "vault.policy.set": async (ctx) => { throw new VyreErr(notImplemented("vault.policy.set", ctx.trace)); },
   "vault.report_scrub_miss": async (ctx) => { throw new VyreErr(notImplemented("vault.report_scrub_miss", ctx.trace)); },

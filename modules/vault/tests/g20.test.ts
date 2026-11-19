@@ -558,3 +558,38 @@ test("the Space policy caps every export link: export_env obeys the same maximum
   );
   assert.equal(out(await exportEnv(h.ctx, { folderId: shared, expiresIn: "1h" })).expiresAt, h.ctx.now() + 3_600_000);
 });
+
+// ---- login.check
+
+test("login.check compares a submitted login inside the Vault: known, changed or new, and never a stored value", async () => {
+  const h = harness();
+  const mine = await folder(h, "mine");
+  const id = await put(h, mine, "Example", login("Dana", "pw-1", "https://example.com/login"));
+  await put(h, mine, "Example other", login("rob", "pw-9", "https://example.com"));
+  await put(h, mine, "Elsewhere", login("dana", "pw-5", "https://other.org"));
+  const check = async (o: { url: string; username?: string; password: string }) => {
+    const res = out(await g.loginCheck(h.ctx, o));
+    assert.deepEqual(contractErrors("vault.login.check", "out", res), []);
+    assert.ok(!JSON.stringify(res).includes("pw-"), "no stored password in the answer");
+    return res;
+  };
+  assert.deepEqual(await check({ url: "https://example.com/login", username: "dana", password: "pw-1" }), {
+    state: "known",
+  });
+  const changed = await check({ url: "https://login.example.com/x", username: "DANA", password: "pw-new" });
+  assert.equal(changed.state, "changed");
+  assert.equal(changed.itemId, id);
+  assert.equal(changed.name, "Example");
+  assert.equal(
+    (await check({ url: "https://example.com", username: "someone", password: "pw-1" })).state,
+    "new",
+    "another username is another account, even with a password that is saved elsewhere",
+  );
+  assert.equal((await check({ url: "https://example.com", username: "carol", password: "zzz" })).state, "new");
+  assert.equal((await check({ url: "https://nowhere.test", username: "dana", password: "pw-1" })).state, "new");
+  assert.equal((await check({ url: "https://lookalikeexample.com", username: "dana", password: "pw-1" })).state, "new");
+  await g.siteRulesSet(h.ctx, { host: "example.com", neverFill: false, neverSave: true });
+  assert.equal((await check({ url: "https://example.com", username: "carol", password: "zzz" })).state, "known", "a site set to never save is never offered");
+  assert.equal(await refusedWith(g.loginCheck(h.ctx, { url: "ftp://x", password: "a" })), "validation.bad_input");
+  assert.equal(await refusedWith(g.loginCheck(h.ctx, { url: "https://example.com", password: "" })), "validation.bad_input");
+});

@@ -40902,6 +40902,24 @@ const routes7: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/vault/login/check",
+    "cap": "vault.login.check",
+    "v": 1,
+    "module": "vault",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/vault/policy/get",
     "cap": "vault.policy.get",
     "v": 1,

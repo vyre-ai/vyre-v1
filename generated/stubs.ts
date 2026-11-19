@@ -3100,6 +3100,9 @@ export function stubs(ctx: CallCtx) {
         list: call("vault.items.list"),
         match: call("vault.items.match"),
       },
+      login: {
+        check: call("vault.login.check"),
+      },
       policy: {
         get: call("vault.policy.get"),
         set: call("vault.policy.set"),

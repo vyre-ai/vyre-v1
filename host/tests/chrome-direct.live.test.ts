@@ -400,3 +400,58 @@ test("a login in the Vault fills a page field: the value is pushed down the sock
     await d.stop();
   }
 });
+
+test("login.check answers known, changed or new for a submitted login, with the password compared inside the Vault and never sent back", async () => {
+  const d = await boot();
+  try {
+    const owner = signIn(d, "usr_olivia", "olivia2");
+    const folder = await call(d, owner, "vault.folders.create", {
+      idempotencyKey: "lc-folder",
+      name: "Tools",
+      scope: "shared",
+    });
+    assert.equal(folder.status, 200, JSON.stringify(folder.error));
+    const put = await call(d, owner, "vault.item.put", {
+      idempotencyKey: "lc-item",
+      folderId: folder.data.folder.id,
+      name: "Fieldbook",
+      kind: "login",
+      fields: [
+        { key: "url", value: "https://app.fieldbook.example" },
+        { key: "username", value: "olivia@northwind.example" },
+        { key: "password", value: "kept-in-the-vault-9", secret: true },
+      ],
+    });
+    assert.equal(put.status, 200, JSON.stringify(put.error));
+    const ext = await connect(d, owner);
+    await ext.next("ready", (m) => m["type"] === "ready");
+    const check = async (input: Record<string, unknown>) => {
+      const r = await ext.rpc({ type: "bridge", op: "login.check", input });
+      assert.equal(JSON.stringify(r).includes("kept-in-the-vault-9"), false, "no stored password comes back");
+      return r;
+    };
+    const known = await check({
+      origin: "https://app.fieldbook.example",
+      username: "olivia@northwind.example",
+      password: "kept-in-the-vault-9",
+      kind: "signin",
+    });
+    assert.deepEqual([known["ok"], known["output"]], [true, { state: "known" }], JSON.stringify(known));
+    const changed = await check({
+      origin: "https://app.fieldbook.example",
+      username: "Olivia@Northwind.example",
+      password: "a-new-one-1",
+      kind: "signin",
+    });
+    assert.equal(changed["output"].state, "changed");
+    assert.equal(changed["output"].itemId, put.data.item.id);
+    assert.equal(changed["output"].name, "Fieldbook");
+    const fresh = await check({ origin: "https://other.example", username: "x", password: "y", kind: "signup" });
+    assert.deepEqual(fresh["output"], { state: "new" });
+    const empty = await check({ origin: "https://app.fieldbook.example", username: "x", password: "" });
+    assert.equal(empty["ok"], false, "an empty password is refused, not guessed");
+    ext.end();
+  } finally {
+    await d.stop();
+  }
+});

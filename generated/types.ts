@@ -47605,6 +47605,16 @@ export type VaultItemsMatchOut = {
       username?: string;
     }>;
 };
+export type VaultLoginCheckIn = {
+  url: string;
+  username?: string;
+  password: string;
+};
+export type VaultLoginCheckOut = {
+  state: "known" | "changed" | "new";
+  itemId?: string;
+  name?: string;
+};
 export type VaultPolicyGetIn = Record<string, unknown>;
 export type VaultPolicyGetOut = {
   policy: {
@@ -50552,6 +50562,7 @@ export interface CapMap {
   "vault.items.export_mine": { in: VaultItemsExportMineIn; out: VaultItemsExportMineOut };
   "vault.items.list": { in: VaultItemsListIn; out: VaultItemsListOut };
   "vault.items.match": { in: VaultItemsMatchIn; out: VaultItemsMatchOut };
+  "vault.login.check": { in: VaultLoginCheckIn; out: VaultLoginCheckOut };
   "vault.policy.get": { in: VaultPolicyGetIn; out: VaultPolicyGetOut };
   "vault.policy.set": { in: VaultPolicySetIn; out: VaultPolicySetOut };
   "vault.report_scrub_miss": { in: VaultReportScrubMissIn; out: VaultReportScrubMissOut };

@@ -443,6 +443,54 @@ export async function itemsMatch(ctx: VaultCtx, input: { url: string }) {
   };
 }
 
+/** A login a page just submitted, compared with what the Vault holds for that site and username. The password is compared inside the Vault and never leaves it:
+ * the answer is only known (same password saved), changed (same username, another password: the item to update) or new. */
+export async function loginCheck(ctx: VaultCtx, input: { url: string; username?: string; password: string }) {
+  ensureG20(ctx);
+  if (typeof input.url !== "string") bad(ctx, "The address is text.");
+  if (typeof input.password !== "string" || input.password.length === 0 || input.password.length > 1024)
+    bad(ctx, "The password is text of 1 to 1024 characters.");
+  const host = pageHost(input.url);
+  if (!host) bad(ctx, "Check needs an http or https address.");
+  const who = personOf(ctx);
+  if (who && siteRule(ctx, who, host as string)?.["neverSave"] === 1) return { state: "known" as const };
+  const username = typeof input.username === "string" ? input.username.trim().toLowerCase() : "";
+  const given = Buffer.from(input.password, "utf8");
+  const same = (value: unknown) => {
+    if (typeof value !== "string") return false;
+    const b = Buffer.from(value, "utf8");
+    // a fixed-size comparison, so the time says nothing about how much of the password matched
+    const h = (x: Buffer) => crypto.createHash("sha256").update(x).digest();
+    return crypto.timingSafeEqual(h(given), h(b)) && given.length === b.length;
+  };
+  let changed: Row | null = null;
+  for (const r of rowsOf(ctx.db.all(`SELECT * FROM vault_meta`))) {
+    if (!visible(ctx, r) || str(r, "kind") === "ai_subscription") continue;
+    const keys = parseJson<string[]>(r["fieldKeys"], []);
+    if (!keys.some((k) => URL_KEYS.includes(k))) continue;
+    let fields: Field[];
+    try {
+      fields = await openFields(ctx, r);
+    } catch {
+      continue;
+    }
+    const hosts = fields
+      .filter((f) => !f.secret && URL_KEYS.includes(f.key))
+      .map((f) => pageHost(f.value))
+      .filter((h): h is string => h !== null && h.includes("."));
+    if (!hosts.some((h) => h === host || (host as string).endsWith(`.${h}`))) continue;
+    const userField = fields.find((f) => USER_KEYS.includes(f.key) && typeof f.value === "string" && f.value.length > 0);
+    // another person's login for the same site is another item; with a username on both sides it must be the same one
+    if (username && userField && String(userField.value).trim().toLowerCase() !== username) continue;
+    const secrets = fields.filter((f) => f.secret);
+    if (secrets.some((f) => same(f.value))) return { state: "known" as const };
+    if (secrets.length > 0 && (!username || userField) && !changed) changed = r;
+  }
+  return changed
+    ? { state: "changed" as const, itemId: str(changed, "id"), name: str(changed, "name") }
+    : { state: "new" as const };
+}
+
 // ---- site rules
 
 export async function siteRulesList(ctx: VaultCtx) {

@@ -71409,6 +71409,42 @@
     },
     {
       "blocks": [],
+      "cap": "vault.login.check",
+      "deferred": false,
+      "description": "Is a login a page just submitted already saved? The password is compared inside the Vault: known, changed or new",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "url": {
+            "examples": [
+              "https://example.com"
+            ],
+            "pattern": "^https?://",
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 320,
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "password"
+        ],
+        "type": "object"
+      },
+      "name": "vault_login_check",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "vault.policy.get",
       "deferred": false,
       "description": "The Space vault policy: who may export, longest pull link, Restricted never exported, reveal reasons",

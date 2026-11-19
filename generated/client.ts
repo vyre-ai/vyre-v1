@@ -3100,6 +3100,9 @@ export function createClient(transport: Transport) {
         list: call("vault.items.list", 1),
         match: call("vault.items.match", 1),
       },
+      login: {
+        check: call("vault.login.check", 1),
+      },
       policy: {
         get: call("vault.policy.get", 1),
         set: call("vault.policy.set", 1),

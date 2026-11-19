@@ -10184,6 +10184,12 @@
     },
     {
       "deferred": false,
+      "name": "vault_login_check",
+      "summary": "Is a login a page just submitted already saved? The password is compared inside the Vault: known, changed or new",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "vault_policy_get",
       "summary": "The Space vault policy: who may export, longest pull link, Restricted never exported, reveal reasons",
       "toolset": "vault"

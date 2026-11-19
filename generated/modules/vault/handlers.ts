@@ -52,6 +52,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "vault.items.export_mine": Handler<"vault.items.export_mine", X>;
   "vault.items.list": Handler<"vault.items.list", X>;
   "vault.items.match": Handler<"vault.items.match", X>;
+  "vault.login.check": Handler<"vault.login.check", X>;
   "vault.policy.get": Handler<"vault.policy.get", X>;
   "vault.policy.set": Handler<"vault.policy.set", X>;
   "vault.report_scrub_miss": Handler<"vault.report_scrub_miss", X>;
