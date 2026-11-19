@@ -179,6 +179,11 @@ test("on a phone address the relay shell's worker carries the page, and the app 
       URLSearchParams,
       URL,
       document: { documentElement: { style: { setProperty() {} }, setAttribute() {} } },
+      XMLHttpRequest: class {
+        open() {}
+        setRequestHeader() {}
+        send() {}
+      },
       navigator: {
         serviceWorker: {
           controller,
@@ -216,10 +221,19 @@ test("a page held by the relay's worker on an origin that answers as a Space ret
         setItem: (k: string, v: string) => void store.set(k, v),
       },
       document: { documentElement: { style: { setProperty() {} }, setAttribute() {} } },
-      fetch: async () => ({
-        ok: info.ok,
-        headers: { get: () => (info.json ? "application/json" : "text/html") },
-      }),
+      XMLHttpRequest: class {
+        status = info.ok ? 200 : 404;
+        onload: () => void = () => {};
+        onerror: () => void = () => {};
+        open() {}
+        setRequestHeader() {}
+        getResponseHeader() {
+          return info.json ? "application/json" : "text/html";
+        }
+        send() {
+          setTimeout(() => this.onload(), 0);
+        }
+      },
       navigator: {
         serviceWorker: {
           controller: { scriptURL: "https://alex.vyre.run/__vyre/sw.js" },
