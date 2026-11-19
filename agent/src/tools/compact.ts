@@ -312,9 +312,11 @@ const RUN_LINE = 300;
 /** The most lines that look like a failure that are named beside the tail. */
 export const RUN_MATCHES = 20;
 const FAILURE =
-  /\berr(?:or|ors)?\b|[A-Za-z]Error\b|\bFAIL(?:ED|URE|S)?\b|\bfailed\b|\bfatal\b|\bpanic\b|\bexception\b|\btraceback\b|\bdenied\b|\brefused\b|timed?\s*out|\bENOENT\b|\bEACCES\b|not found|no such file|\bkilled\b|segmentation fault|undefined reference|\bnot ok\b|^E\s{2,}|✖|✗/i;
+  /\berr(?:or|ors)?\b|[A-Za-z]Error\b|\bFAIL(?:ED|URES?|S)?\b|\bfailed\b|\bfatal\b|\bpanic\b|\bexception\b|\btraceback\b|\bdenied\b|\brefused\b|timed?\s*out|\bENOENT\b|\bEACCES\b|not found|no such file|\bkilled\b|segmentation fault|undefined reference|\bnot ok\b|^E\s{2,}|✖|✗/i;
 /** A line that says nothing went wrong ("0 errors", "failed: 0", "no errors"). */
-const CLEAN = /\b(?:0|no|zero)\s+(?:errors?|failed|failures?|failing)\b|\b(?:errors?|failed|failures?)\s*[:=]\s*0\b/i;
+const CLEAN = /\b(?:0|no|zero)\s+(?:errors?|failed|failures?|failing)\b|\b(?:errors?|failed|failures?)\s*[:=]\s*0\b/gi;
+/** A line is a failure when it still looks like one after every "0 errors" phrase is taken out: "Tests run: 10, Failures: 2, Errors: 0" is one, "compiled with 0 errors" is not. */
+const failing = (line: string): boolean => FAILURE.test(line.replace(CLEAN, " "));
 /** Most characters of a line the model keeps; a longer line is cut and the cut is counted. */
 const RUN_LINE_KEEP = RUN_LINE;
 /** The most lines of terminal_read reaches (its own ceiling). */
@@ -339,7 +341,7 @@ function shapeRun(o: Obj): Shaped | null {
   };
   const from = Math.max(0, lines.length - RUN_TAIL);
   const hits: number[] = [];
-  for (let i = 0; i < from; i++) if (FAILURE.test(lines[i]!) && !CLEAN.test(lines[i]!)) hits.push(i);
+  for (let i = 0; i < from; i++) if (failing(lines[i]!)) hits.push(i);
   const picked =
     hits.length <= RUN_MATCHES ? hits : [...hits.slice(0, 5), ...hits.slice(hits.length - (RUN_MATCHES - 5))];
   const matches = picked.map((i) => ({ line: i + 1, fromEnd: lines.length - i, text: cutLine(lines[i]!) }));
@@ -359,18 +361,22 @@ function shapeRun(o: Obj): Shaped | null {
     omitted: from,
     ...(hits.length > picked.length ? { matchesNotShown: hits.length - picked.length } : {}),
     ...(cutChars > 0 ? { cutChars } : {}),
-    note: "Long output: only the end is here. Line numbers count from the first line of this command's output.",
+    note:
+      o["truncated"] === true
+        ? "Long output: only the end is here, and the start of the command's output was already lost, so line numbers count from the first line that was kept."
+        : "Long output: only the end is here. Line numbers count from the first line of this command's output.",
     read:
       reach <= READ_MAX_LINES
         ? {
             tool: "terminal_read",
             lines: reach,
-            covers: matches.length > 0 ? "every line named in matches" : "the last lines",
+            covers: matches.length > 0 ? "at least every line named in matches" : "the last lines",
           }
         : {
             tool: "terminal_read",
             lines: READ_MAX_LINES,
-            covers: "only the last 5000 lines; earlier matches are out of its reach",
+            covers:
+              "only the last 5000 lines: matches with fromEnd above 5000 are out of its reach, the rest are in it",
           },
     ...(matches.length > 0 ? { matches } : {}),
     tail,

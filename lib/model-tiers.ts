@@ -46,7 +46,7 @@ const NOT_MECHANICAL = new RegExp(
     [
       "summari[sz]\\w*|summary|digest|recap|gist|overview",
       "identify|determine|verify|validate|audit|flag|spot|detect|decide|assess|evaluate|review|analy[sz]\\w*|compare|judge|rank|prioriti[sz]e|recommend|advis\\w*|suggest|propose|plan|design|explain|interpret|infer|conclude|check|confirm|ensure|investigate|diagnose|debug",
-      "whether|should|would|could|likely|probably|risk\\w*|best|better|worst|issues?|problems?|concerns?|why|how\\s+(?:come|do|does|did|should)|tell\\s+me|is\\s+it|are\\s+they|which\\s+(?:is|are|one)",
+      "cause|reason|key\\s+points?|polish\\w*|tone|clients?|e-?mails?|letters?|messages?|failing|out\\s+how|how\\s+(?!many\\b|much\\b)\\w+|works?|handled|whether|should|would|could|likely|probably|risk\\w*|best|better|worst|issues?|problems?|concerns?|why|how\\s+(?:come|do|does|did|should)|tell\\s+me|is\\s+it|are\\s+they|which\\s+(?:is|are|one)",
       "evidence|testimon\\w*|deposition|affidavit|discovery|privilege\\w*|liab\\w*|damages|negligen\\w*|breach\\w*|clause|compl(?:y|ies|iance)|contracts?|agreements?|leases?|terms|obligations?|rights?|legal|law|statute|regulation|court|case\\s+law|settlement|claims?|medical|diagnos\\w*",
       "write|draft|rewrite|compose|edit|change|fix|implement|build|create|make|update|modify|delete|remove|send|publish|post|merge|push|commit|deploy|reply|respond|refactor|migrate|translate|negotiate",
       "image|images|screenshot|photo|picture|scan(?:ned)?|pdf|attached|attachment|diagram|chart|handwrit\\w*|video|audio|recording",

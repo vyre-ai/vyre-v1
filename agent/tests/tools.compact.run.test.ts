@@ -64,7 +64,13 @@ test("a log of one failure repeated is named at most 20 times, a cut start is sa
   const d = s.data as { matches: unknown[]; tail: string[]; startCut?: boolean };
   assert.equal(d.matches.length, RUN_MATCHES);
   assert.equal(d.startCut, true);
-  assert.ok(d.tail.every((l) => l.length <= 360));
+  for (const l of d.tail) {
+    const cut = /^(.{299})…\[\+(\d+) more characters on this line\]$/.exec(l);
+    assert.ok(
+      cut ? Number(cut[2]) === 500 + "line 399: FAILED ".length - 300 + 1 || Number(cut[2]) > 0 : l.length <= 300,
+      l.slice(0, 40),
+    );
+  }
 });
 
 type Shape = {
@@ -125,7 +131,7 @@ test("the answer says which terminal_read call reaches the matches, and when non
   const d = shape(lines.join("\n"));
   assert.equal(d.matches[0]!.fromEnd, 1_000);
   assert.equal(d.read.tool, "terminal_read");
-  assert.equal(d.read.lines, 1_003);
+  assert.equal(d.read.lines, 1_110, "the distance plus a tenth and ten lines, for wrapped rows and later output");
   lines[10] = "Error: very early";
   const far = shape(
     Array.from({ length: 9_000 }, (_, i) => (i === 10 ? "Error: very early" : `ok ${i} ${"x".repeat(40)}`)).join("\n"),
@@ -133,4 +139,28 @@ test("the answer says which terminal_read call reaches the matches, and when non
   assert.equal(far.read.lines, 5_000);
   assert.match(far.read.covers, /out of its reach/);
   assert.match(shape("x".repeat(7_000), { exitCode: null }).noExitCode ?? "", /exit code/);
+});
+
+test("a line with a real count of failures is kept even when it also says 0 errors", () => {
+  const lines = Array.from({ length: 3_000 }, (_, i) => `ok ${i} ${"x".repeat(40)}`);
+  lines[500] = "Tests run: 10, Failures: 2, Errors: 0, Skipped: 0";
+  lines[600] = "1 failed, 0 errors";
+  lines[700] = "failed=2, errors=0";
+  lines[800] = "Tests run: 10, Failures: 0, Errors: 0, Skipped: 0";
+  lines[900] = "compiled with 0 errors";
+  assert.deepEqual(
+    shape(lines.join("\n")).matches.map((m) => m.line),
+    [501, 601, 701],
+  );
+});
+
+test("a cut start is said, so line numbers are not claimed to count from the command's first line", () => {
+  const lines = Array.from({ length: 3_000 }, (_, i) => `ok ${i} ${"x".repeat(40)}`).join("\n");
+  const note = (t: boolean) =>
+    (
+      shapeOutput("terminal.run", { terminalId: "t", exitCode: 0, output: lines, truncated: t, durationMs: 1 })!
+        .data as { note: string }
+    ).note;
+  assert.match(note(true), /start of the command's output was already lost/);
+  assert.match(note(false), /count from the first line of this command's output/);
 });
