@@ -16,7 +16,7 @@ import {
   writeCritic,
 } from "../ui/src/RichEditor/doc/critic.ts";
 import { listChanges, resolveChanges, trackTransaction } from "../ui/src/RichEditor/doc/track.ts";
-import { mergeRemote } from "../ui/src/RichEditor/doc/merge.ts";
+import { isOwnEcho, mergeRemote, noteSent } from "../ui/src/RichEditor/doc/merge.ts";
 
 const D = { doc: true } as const;
 const schema = getSchema(markdownExtensions({ doc: {} }));
@@ -291,14 +291,66 @@ test("the person typed elsewhere: both changes are kept and nothing is a suggest
   assert.equal(mdOf(r2.state), "ONE\n\ntwo\n\nYthree\n");
 });
 
-test("both edited the same block: the person's words stay and the agent's arrive as a suggestion", () => {
+test("both edited the same block: the person's words stay struck-and-kept beside the agent's, never twice", () => {
   const base = "one\n\ntwo\n";
   let s = stateOf(base, false);
   s = s.apply(s.tr.insertText("X", 1));
   const r = merged(s, base, "ONE\n\ntwo\n");
   assert.equal(r.clashed, true);
-  assert.equal(mdOf(r.state), `Xone\n\n{++ONE++}${meta("Agent")}\n\ntwo\n`);
-  assert.equal(mdOf(r.state.apply(resolveChanges(r.state, false) as never)).startsWith("Xone"), true);
+  assert.equal(mdOf(r.state), `{--Xone--}${meta("Agent")}\n\n{++ONE++}${meta("Agent")}\n\ntwo\n`);
+  assert.equal(mdOf(r.state.apply(resolveChanges(r.state, true) as never)), "ONE\n\ntwo\n");
+  assert.equal(mdOf(r.state.apply(resolveChanges(r.state, false) as never)), "Xone\n\ntwo\n");
+});
+
+test("the person edited the top and the bottom, the agent the middle: no clash, all three kept", () => {
+  const base = "a\n\nb\n\nc\n\nd\n\ne\n";
+  let s = stateOf(base, false);
+  s = s.apply(s.tr.insertText("X", 1));
+  s = s.apply(s.tr.insertText("Y", s.doc.content.size - 1));
+  const r = merged(s, base, "a\n\nb\n\nC\n\nd\n\ne\n");
+  assert.equal(r.clashed, false);
+  assert.equal(mdOf(r.state), "Xa\n\nb\n\nC\n\nd\n\neY\n");
+});
+
+test("the agent deletes a block the person is editing: their words stay, struck, and Reject keeps them", () => {
+  const base = "one\n\ntwo\n\nthree\n";
+  let s = stateOf(base, false);
+  s = s.apply(s.tr.insertText("X", 6));
+  const r = merged(s, base, "one\n\nthree\n");
+  assert.equal(r.clashed, true);
+  assert.equal(mdOf(r.state), `one\n\n{--Xtwo--}${meta("Agent")}\n\nthree\n`);
+  assert.equal(mdOf(r.state.apply(resolveChanges(r.state, true) as never)), "one\n\nthree\n");
+  assert.equal(mdOf(r.state.apply(resolveChanges(r.state, false) as never)), "one\n\nXtwo\n\nthree\n");
+});
+
+test("the file giving back the page's own save is recognised and not merged again", () => {
+  const sent: string[] = [];
+  noteSent(sent, "X\n");
+  noteSent(sent, "X more\n");
+  assert.equal(isOwnEcho(sent, "X\n"), true);
+  assert.equal(isOwnEcho(sent, "agent text\n"), false);
+  for (let i = 0; i < 20; i += 1) noteSent(sent, `t${i}\n`);
+  assert.equal(sent.length, 8);
+  assert.equal(isOwnEcho(sent, "X\n"), false);
+});
+
+test("suggesting: text deleted across two paragraphs is struck in each, and the paragraphs stay", () => {
+  let s = stateOf("ab\n\ncd\n");
+  s = s.apply(s.tr.delete(2, 6));
+  assert.equal(mdOf(s), `a{--b--}${meta()}\n\n{--c--}${meta()}d\n`);
+});
+
+test("suggesting: a deleted chip is struck, the break between paragraphs is put back, another author's suggestion is left alone", () => {
+  let s = stateOf("Pay {fee} now\n");
+  s = s.apply(s.tr.delete(5, 6));
+  assert.equal(mdOf(s), `Pay {--{fee}--}${meta()} now\n`);
+  let j = stateOf("ab\n\ncd\n");
+  j = j.apply(j.tr.join(4));
+  assert.equal(mdOf(j), "ab\n\ncd\n");
+  const theirs = `a {++b++}${meta("Agent")} c\n`;
+  let o = stateOf(theirs);
+  o = o.apply(o.tr.delete(3, 4));
+  assert.equal(mdOf(o), theirs);
 });
 
 test("an agent's merge is not turned into the person's suggestion", () => {

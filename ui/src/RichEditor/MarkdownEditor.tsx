@@ -17,8 +17,8 @@ import type { PMNode } from "./mdtree.ts";
 import { ChangeCard, DocBar } from "./doc/DocBar.tsx";
 import { chipNode, matchFields } from "./doc/fields.ts";
 import type { FieldDef, FieldResolver } from "./doc/fields.ts";
-import { mergeRemote } from "./doc/merge.ts";
-import { changeAt, listChanges, resolveChanges } from "./doc/track.ts";
+import { isOwnEcho, mergeRemote, noteSent } from "./doc/merge.ts";
+import { changeAt, freshChange, listChanges, resolveChanges } from "./doc/track.ts";
 import type { Change } from "./doc/track.ts";
 import { belowPhone } from "../SidePane/layout.ts";
 
@@ -700,6 +700,7 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
   const suggestingNow = useRef(suggesting);
   suggestingNow.current = suggesting;
   const changesRef = useRef<Change[]>([]);
+  const sent = useRef<string[]>([]);
   const pending = useRef<{ timer: ReturnType<typeof setTimeout>; run: () => void } | null>(null);
   const flushPending = (): void => {
     const p = pending.current;
@@ -955,7 +956,10 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
             const md = docToMarkdown(e2.getJSON(), mdo());
             if (md === last.current) return;
             last.current = md;
-            if (!clean) cb.current.onChange?.(md);
+            if (!clean) {
+              noteSent(sent.current, md);
+              cb.current.onChange?.(md);
+            }
           };
           // a long document is written out a moment after the last key, not on every key, so typing stays smooth; blur, save, an incoming change and closing write it at once
           if (pending.current) {
@@ -1042,14 +1046,14 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
       view: { dispatch(tr: unknown): void };
     } | null;
     if (cb.current.doc && ed) {
+      // the file giving back what this page just saved is not news; and a person's words are never replaced by setContent
+      if (isOwnEcho(sent.current, props.value)) return;
       const m = mergeRemote(ed.state, was, props.value, {
         author: cb.current.doc.remoteAuthor ?? "Agent",
         now: cb.current.doc.now ?? (() => new Date().toISOString().replace(/\.\d{3}Z$/, "Z")),
       });
-      if (m) {
-        ed.view.dispatch(m.tr);
-        return;
-      }
+      if (m) ed.view.dispatch(m.tr);
+      return;
     }
     last.current = props.value;
     editorRef.current?.commands.setContent(markdownToDoc(props.value, mdo()) as never, false);
@@ -1104,7 +1108,15 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
       view: { dispatch(tr: unknown): void };
     } | null;
     if (!ed) return;
-    const tr = resolveChanges(ed.state, accept, which);
+    // a card may be a moment old: the change it names is looked up again, and a change that is gone is left alone
+    const now = which
+      ?.map((c) => freshChange((ed.state as unknown as { doc: Parameters<typeof freshChange>[0] }).doc, c))
+      .filter((c): c is Change => c !== undefined);
+    if (now && now.length === 0) {
+      setCard(null);
+      return;
+    }
+    const tr = resolveChanges(ed.state, accept, now);
     if (tr) ed.view.dispatch(tr);
     setCard(null);
   };

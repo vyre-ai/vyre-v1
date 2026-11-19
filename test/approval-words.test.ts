@@ -26,6 +26,8 @@ export const NOT_APPROVALS: Readonly<Record<string, string>> = {
     "a person accepts an invitation to join a Space; nothing waits on them for an agent",
   "manifests/esign.ts":
     "Declined is what a signer did with an e-signature envelope, not an answer anyone gives an agent",
+  "ui/src/RichEditor/doc/DocBar.tsx":
+    "Accept and Reject settle a tracked change in a document, the words a lawyer knows from Word; they answer nothing that waits on an agent, and the Gate keeps Allow and Deny",
   "apps/app/src/console/pages/comms/Numbers.tsx":
     "Reject calls is a phone number's routing choice, not an answer to anything",
 };

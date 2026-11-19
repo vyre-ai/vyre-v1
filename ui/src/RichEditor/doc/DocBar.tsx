@@ -100,21 +100,21 @@ export function DocBar(p: DocBarProps): ReactElement | null {
             <>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Discard all suggestions"
+                accessibilityLabel="Reject all suggestions"
                 testID="doc-reject-all"
                 onPress={p.onRejectAll}
                 style={({ hovered }: Hover) => [s.btn, hovered === true && s.hover]}
               >
-                <Text style={s.btnText}>Discard all</Text>
+                <Text style={s.btnText}>Reject all</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Keep all suggestions"
+                accessibilityLabel="Accept all suggestions"
                 testID="doc-accept-all"
                 onPress={p.onAcceptAll}
                 style={({ hovered }: Hover) => [s.btn, s.primary, hovered === true && s.primaryHover]}
               >
-                <Text style={[s.btnText, s.primaryText]}>Keep all</Text>
+                <Text style={[s.btnText, s.primaryText]}>Accept all</Text>
               </Pressable>
             </>
           ) : null}
@@ -165,21 +165,21 @@ export function ChangeCard(p: {
         <View style={s.cardRow}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Discard this suggestion"
+            accessibilityLabel="Reject this suggestion"
             testID="doc-change-reject"
             onPress={p.onReject}
             style={({ hovered }: Hover) => [s.btn, hovered === true && s.hover]}
           >
-            <Text style={s.btnText}>Discard</Text>
+            <Text style={s.btnText}>Reject</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Keep this suggestion"
+            accessibilityLabel="Accept this suggestion"
             testID="doc-change-accept"
             onPress={p.onAccept}
             style={({ hovered }: Hover) => [s.btn, s.primary, hovered === true && s.primaryHover]}
           >
-            <Text style={[s.btnText, s.primaryText]}>Keep</Text>
+            <Text style={[s.btnText, s.primaryText]}>Accept</Text>
           </Pressable>
         </View>
       ) : null}

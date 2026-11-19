@@ -1,8 +1,7 @@
 // Tracked changes on the ProseMirror document: turning a person's edit into a suggestion, listing the suggestions, and accepting or rejecting them.
 // No DOM is touched, so the same code is tested against a plain EditorState.
-import { Fragment } from "@tiptap/pm/model";
-import type { Mark, MarkType, Node as PMNode } from "@tiptap/pm/model";
-import { TextSelection } from "@tiptap/pm/state";
+import type { Mark, MarkType, Node as PMNode, Slice } from "@tiptap/pm/model";
+import { Selection, TextSelection } from "@tiptap/pm/state";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
 import { AddMarkStep, RemoveMarkStep, ReplaceStep } from "@tiptap/pm/transform";
 import { cleanAuthor } from "./critic.ts";
@@ -28,15 +27,17 @@ interface Op {
   /** where the changed range starts and ends in the document after the edit */
   s: number;
   e: number;
-  /** what the edit removed, when it was plain text inside one block */
-  removed: Fragment | null;
+  /** what the edit removed, as it stood (any shape: text, a chip, text across paragraphs) */
+  gone: Slice | null;
   /** where the removed range ended in the document before the edit */
   goneTo: number;
 }
 
 /**
  * The edit a person just made, as a suggestion: the text they typed carries "added", the text they deleted is put back with "removed". The caller runs this as an appended transaction
- * (see the Suggesting extension); it returns null when the edit is one it leaves alone (undo, a mark change, a restructure of blocks).
+ * (see the Suggesting extension); it returns null when the edit is one it leaves alone (undo, a mark change, a restructure it cannot read).
+ * Nothing a person deletes while suggesting is lost: text across paragraphs is struck in each paragraph and the paragraphs stay, a chip is struck, and a deletion that leaves nothing to strike
+ * (the break between two paragraphs, an image) is put back as it was. Only a person's own earlier suggestion is really deleted; another author's pending suggestion is left as it is.
  */
 export function trackTransaction(
   tr: Transaction,
@@ -61,13 +62,12 @@ export function trackTransaction(
     const rest = tr.mapping.slice(i + 1);
     const s = rest.map(step.from, -1);
     const e = rest.map(step.from + step.slice.size, 1);
-    const gone = (tr.docs[i] as PMNode).slice(step.from, step.to);
-    const inline =
-      gone.openStart === 0 &&
-      gone.openEnd === 0 &&
-      gone.content.childCount > 0 &&
-      gone.content.content.every((c) => c.isInline);
-    ops.push({ s, e, removed: step.to > step.from && inline ? gone.content : null, goneTo: step.to });
+    ops.push({
+      s,
+      e,
+      gone: step.to > step.from ? (tr.docs[i] as PMNode).slice(step.from, step.to) : null,
+      goneTo: step.to,
+    });
   }
   if (ops.length === 0) return null;
   const author = cleanAuthor(who.author);
@@ -75,37 +75,54 @@ export function trackTransaction(
   const nt = after.tr;
   let changed = false;
   let struckEnd = -1;
+  const own = (m: Mark): boolean => m.type === t.add && m.attrs["author"] === author;
   for (const op of [...ops].sort((a, b) => b.s - a.s)) {
-    // the struck text to put back: what the person deleted, except their own earlier suggestions (those are really deleted) and what was already struck
-    const keep: PMNode[] = [];
+    // the deleted text goes back first (before what was typed in its place), then is struck
+    let size = 0;
     let fresh = false;
-    op.removed?.forEach((c) => {
-      if (c.marks.some((m) => m.type === t.add)) return;
-      if (c.marks.some((m) => m.type === t.del)) {
-        keep.push(c);
-        return;
+    if (op.gone && op.gone.size > 0) {
+      try {
+        nt.replace(op.s, op.s, op.gone);
+      } catch {
+        return null;
       }
-      fresh = true;
-      keep.push(c.mark(c.marks.concat(t.del.create({ author, at, sub: op.e > op.s }))));
-    });
+      size = op.gone.size;
+      changed = true;
+      const after1 = nt.steps.length;
+      const spans: Array<{ pos: number; node: PMNode }> = [];
+      nt.doc.nodesBetween(op.s, op.s + size, (node, pos) => {
+        if (node.isInline) spans.push({ pos, node });
+        return true;
+      });
+      // from the end back, so a deletion does not move the places still to be read
+      for (const { pos, node } of spans.reverse()) {
+        const from = Math.max(pos, op.s);
+        const to = Math.min(pos + node.nodeSize, op.s + size);
+        if (to <= from) continue;
+        if (node.marks.some(own)) nt.delete(from, to);
+        else if (!node.marks.some((m) => m.type === t.add || m.type === t.del)) {
+          nt.addMark(from, to, t.del.create({ author, at, sub: op.e > op.s }));
+          fresh = true;
+        }
+      }
+      struckEnd = nt.mapping.slice(after1).map(op.s + size, -1);
+    }
     if (op.e > op.s) {
-      const own = (m: Mark): boolean => m.type === t.add && m.attrs["author"] === author;
-      const near = attrsOf(nt.doc.resolve(op.s).nodeBefore?.marks.find(own));
-      const next = attrsOf(nt.doc.resolve(op.e).nodeAfter?.marks.find(own));
-      nt.removeMark(op.s, op.e, t.del);
-      nt.addMark(op.s, op.e, t.add.create(near ?? next ?? { author, at, sub: fresh }));
+      const s2 = op.gone && op.gone.size > 0 ? struckEnd : op.s;
+      const e2 = s2 + (op.e - op.s);
+      const near = attrsOf(nt.doc.resolve(s2).nodeBefore?.marks.find(own));
+      const next = attrsOf(nt.doc.resolve(e2).nodeAfter?.marks.find(own));
+      nt.removeMark(s2, e2, t.del);
+      nt.addMark(s2, e2, t.add.create(near ?? next ?? { author, at, sub: fresh }));
       changed = true;
     }
-    if (keep.length > 0) {
-      nt.insert(op.s, Fragment.from(keep));
-      changed = true;
-      if (op.e === op.s) struckEnd = op.s + keep.reduce((n, c) => n + c.nodeSize, 0);
-    }
+    if (op.e !== op.s) struckEnd = -1;
   }
   if (!changed) return null;
   // the caret: after what was typed; for a plain deletion, Backspace stays before the struck text and Delete moves past it
   const only = ops.length === 1 ? (ops[0] as Op) : null;
-  if (only && only.e === only.s && struckEnd >= 0) {
+  if (nt.doc.eq(before.doc)) nt.setSelection(Selection.fromJSON(nt.doc, before.selection.toJSON()));
+  else if (only && only.e === only.s && only.gone && struckEnd >= 0) {
     const backspace = before.selection.empty && before.selection.head === only.goneTo;
     nt.setSelection(TextSelection.create(nt.doc, backspace ? only.s : struckEnd));
   } else nt.setSelection(after.selection.map(nt.doc, nt.mapping));
@@ -213,21 +230,38 @@ export function resolveChanges(state: EditorState, accept: boolean, which?: read
   const list = which ?? listChanges(state.doc);
   if (list.length === 0) return null;
   const tr = state.tr;
+  // text that fills a whole paragraph takes the paragraph with it (unless it is the last one), so settling a suggestion never leaves an empty line behind
+  const drop = (from: number, to: number): void => {
+    const $f = tr.doc.resolve(from);
+    if ($f.parent.isTextblock && from === $f.start() && to === $f.end() && tr.doc.childCount > 1 && $f.depth === 1)
+      tr.delete($f.before(), $f.after());
+    else tr.delete(from, to);
+  };
   for (const c of [...list].sort((a, b) => b.from - a.from)) {
     if (c.kind === "add") {
       if (accept) tr.removeMark(c.from, c.to, t.add);
-      else tr.delete(c.from, c.to);
+      else drop(c.from, c.to);
     } else if (c.kind === "del") {
-      if (accept) tr.delete(c.from, c.to);
+      if (accept) drop(c.from, c.to);
       else tr.removeMark(c.from, c.to, t.del);
     } else if (accept) {
       tr.removeMark(c.mid, c.to, t.add);
-      tr.delete(c.from, c.mid);
+      drop(c.from, c.mid);
     } else {
       tr.removeMark(c.from, c.mid, t.del);
-      tr.delete(c.mid, c.to);
+      drop(c.mid, c.to);
     }
   }
   tr.setMeta(SKIP, true);
   return tr;
+}
+
+/** The change in the document now that is the one a card was drawn for (the page may have moved since); undefined when it is gone. */
+export function freshChange(doc: PMNode, c: Change): Change | undefined {
+  const same = (x: Change): boolean =>
+    x.kind === c.kind && x.author === c.author && x.at === c.at && x.old === c.old && x.added === c.added;
+  const all = listChanges(doc).filter(same);
+  return (
+    all.find((x) => x.from === c.from) ?? all.sort((x, y) => Math.abs(x.from - c.from) - Math.abs(y.from - c.from))[0]
+  );
 }
