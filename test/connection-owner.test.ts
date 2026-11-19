@@ -9,6 +9,7 @@ const ADMIN = "usr_admin";
 const MEMBER = "usr_member";
 
 test("the admin path: a connection with nobody to tell raises a real task for the admin role, which shows in an admin's Needs you and in no one else's", async () => {
+  // the tasks module is the real one; who holds the admin role is the kernel's answer, here a stand-in that says only ADMIN does (role resolution itself belongs to the access module)
   const tasks = tasksHarness({ authorize: (who) => who.id === ADMIN });
   const k = kit();
   // the connectors module's tasks.create goes to the real tasks module

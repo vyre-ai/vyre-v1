@@ -245,14 +245,16 @@ async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connect
     }) as Promise<{ task?: { id?: string } } | undefined>;
   try {
     let made: { task?: { id?: string } } | undefined;
+    let told = false;
     if (who) {
       try {
         made = await make({ kind: "person", id: who });
+        told = true; // an answer without a task id (a replayed key) is still an answer: no second task for the admins
       } catch {
-        made = undefined; // the person is gone, or cannot be given a task
+        told = false; // the person cannot be given a task
       }
     }
-    if (!made?.task?.id) made = await make({ kind: "role", id: "admin" });
+    if (!told) made = await make({ kind: "role", id: "admin" });
     const taskId = made?.task?.id;
     if (taskId)
       deps.tx.run(
