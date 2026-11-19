@@ -1,0 +1,3 @@
+- A site's page is one page with six tabs (Overview, Deploys, Logs, Variables, Domains, Settings) under a header with its state, address and Deploy. A deploy is four steps (Fetch, Build, Start, Check), each with its time and its own lines of the log, and a row in Deploys opens it beside the list.
+- A deploy that is running can be canceled: the build is cut off, a container that was started is removed, and the last good build keeps serving. A canceled deploy says Canceled and is not counted as a failure. Agents cancel with sites.deploy_cancel.
+- A deploy keeps its commit's first line, so the list reads "Annual pricing on the plans page" and not a hash.

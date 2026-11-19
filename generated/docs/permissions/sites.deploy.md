@@ -24,6 +24,7 @@ Area: sites. Risk: medium. Applies to: site.
 - sites.db_import
 - sites.delete
 - sites.deploy
+- sites.deploy_cancel
 - sites.env_set
 - sites.logs
 - sites.password_set

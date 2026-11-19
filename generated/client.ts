@@ -2577,6 +2577,7 @@ export function createClient(transport: Transport) {
       db_import: call("sites.db_import", 1),
       delete: call("sites.delete", 1),
       deploy: call("sites.deploy", 1),
+      deploy_cancel: call("sites.deploy_cancel", 1),
       deployments: call("sites.deployments", 1),
       domain_add: call("sites.domain_add", 1),
       domain_check: call("sites.domain_check", 1),

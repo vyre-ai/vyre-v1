@@ -26,6 +26,14 @@ const fix = t.enm(
   "free_space",
   "more_memory",
 );
+const stepKey = t.enm("fetch", "build", "start", "check");
+const stepState = t.enm("waiting", "running", "ok", "failed", "skipped");
+const step = t.obj({
+  key: stepKey,
+  state: stepState,
+  ms: t.opt(t.int({ description: "How long it took" })),
+  startedAt: t.opt(t.ts({ description: "When it began, while it is running" })),
+});
 const dep = t.obj({
   deploymentId: t.id("dpl"),
   siteId: id.site,
@@ -34,6 +42,7 @@ const dep = t.obj({
   url: t.opt(t.str()),
   branch: t.opt(t.str()),
   commit: t.opt(t.str()),
+  message: t.opt(t.str({ description: "The commit's first line" })),
   at: t.ts(),
   by: t.opt(t.str({ description: "Who started it: a person or agent id" })),
   note: t.opt(t.str({ description: "What was detected and how it runs, in one line" })),
@@ -41,6 +50,7 @@ const dep = t.obj({
   fix: t.opt(fix),
   current: t.opt(t.bool()),
   finishedAt: t.opt(t.ts()),
+  steps: t.opt(t.arr(step, { description: "Fetch, build, start and check, each with its state and time" })),
 });
 const access = t.enm("public", "password", "space", "private");
 const source = t.obj({
@@ -361,6 +371,18 @@ export default defineManifest({
         errors: ["validation.precondition_failed", "permission.no_grant"],
       },
     ),
+    write(
+      "sites.deploy_cancel",
+      "Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live",
+      {
+        in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")) },
+        out: { deployment: dep },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        tool: "sites",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
     read("sites.deployments", "List deployments with state and URL", {
       in: { siteId: id.site, ...pageIn },
       out: { deployments: t.arr(dep), ...pageOut },
@@ -617,7 +639,22 @@ export default defineManifest({
       "The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content",
       {
         in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")), tail: t.opt(t.int()), build: t.opt(t.bool()) },
-        out: { lines: t.arr(t.str()), state: t.opt(state) },
+        out: {
+          lines: t.arr(t.str()),
+          state: t.opt(state),
+          steps: t.opt(
+            t.arr(
+              t.obj({
+                key: stepKey,
+                state: stepState,
+                ms: t.opt(t.int()),
+                startedAt: t.opt(t.ts()),
+                from: t.opt(t.int({ description: "The index in lines where this step's lines begin" })),
+              }),
+              { description: "With a build log: its steps" },
+            ),
+          ),
+        },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
         tool: "sites",

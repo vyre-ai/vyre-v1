@@ -4,7 +4,7 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (39)
+## Capabilities (40)
 
 - [sites.addon_add](../capabilities/sites.addon_add.md): Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys
 - [sites.addon_remove](../capabilities/sites.addon_remove.md): Remove a site's Postgres or Redis and its data
@@ -17,6 +17,7 @@ Requires: nothing.
 - [sites.db_import](../capabilities/sites.db_import.md): Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)
 - [sites.delete](../capabilities/sites.delete.md): Delete a site and stop its container
 - [sites.deploy](../capabilities/sites.deploy.md): Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends
+- [sites.deploy_cancel](../capabilities/sites.deploy_cancel.md): Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live
 - [sites.deployments](../capabilities/sites.deployments.md): List deployments with state and URL
 - [sites.domain_add](../capabilities/sites.domain_add.md): Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS
 - [sites.domain_check](../capabilities/sites.domain_check.md): The state of a custom domain: waiting for DNS, issuing the certificate, or live

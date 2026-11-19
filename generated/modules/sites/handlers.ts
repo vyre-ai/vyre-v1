@@ -16,6 +16,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.db_import": Handler<"sites.db_import", X>;
   "sites.delete": Handler<"sites.delete", X>;
   "sites.deploy": Handler<"sites.deploy", X>;
+  "sites.deploy_cancel": Handler<"sites.deploy_cancel", X>;
   "sites.deployments": Handler<"sites.deployments", X>;
   "sites.domain_add": Handler<"sites.domain_add", X>;
   "sites.domain_check": Handler<"sites.domain_check", X>;

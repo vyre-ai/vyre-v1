@@ -5,7 +5,10 @@
 //   addons    a Postgres or Redis of the site's own on its network, its address given as DATABASE_URL or REDIS_URL; the password is sealed in sites_addon
 //   failures  every one ends in plain words and one fix (fix: set_env, add_postgres, add_redis, retry, set_start, set_port, open_logs, connect_repo, free_space, more_memory)
 // The work after the call answers (fetch, build, start) runs here in the background on the module's own db handle; the deploy row is how the app, an agent and the build log follow it.
+//   steps     a deploy is four steps (fetch, build, start, check), each with its state, how long it took and where its lines begin in the log, kept beside the log (sites_deployment.steps)
+//   cancel    sites.deploy_cancel stops the deploy that is running: the build is cut off, a container that was started is removed, and the last good build keeps serving
 // @reads ../migrations/0004_deploy.sql
+// @reads ../migrations/0005_deploy_steps.sql
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
 import {
@@ -50,6 +53,7 @@ const LOG_KEEP = 3000;
 const READY_MS = 120_000;
 const KEEP_IMAGES = 5;
 const WAIT_MAX_MS = 20 * 60_000;
+const CANCEL_WAIT_MS = 20_000;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
 const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
 const RESERVED_ENV = new Set(["PORT", "HOST", "HOSTNAME", "PATH", "HOME"]);
@@ -80,10 +84,17 @@ export function depRow(r: Row, currentId: string | null): Record<string, unknown
   if (orphan)
     return {
       ...depRow(
-        { ...r, state: "failed", problem: "The server restarted during this deploy. Deploy again.", fix: "retry" },
+        {
+          ...r,
+          state: "failed",
+          problem: "The server restarted during this deploy. Deploy again.",
+          fix: "retry",
+          steps: JSON.stringify(closedMeta(parseJson<StepMeta | null>(r.steps, null))),
+        },
         currentId,
       ),
     };
+  const steps = stepsOut(parseJson<StepMeta | null>(r.steps, null));
   return {
     deploymentId: str(r.id),
     siteId: str(r.site_id),
@@ -93,13 +104,67 @@ export function depRow(r: Row, currentId: string | null): Record<string, unknown
     ...(isNull(r.url) ? {} : { url: str(r.url) }),
     ...(isNull(r.branch) ? {} : { branch: str(r.branch) }),
     ...(isNull(r.commit_sha) ? {} : { commit: str(r.commit_sha) }),
+    ...(isNull(r.message) || r.message === undefined || str(r.message) === "" ? {} : { message: str(r.message) }),
     by: str(r.created_by),
     ...(isNull(r.note) ? {} : { note: str(r.note) }),
     ...(isNull(r.problem) ? {} : { problem: str(r.problem) }),
     ...(isNull(r.fix) ? {} : { fix: str(r.fix) }),
     current: currentId !== null && r.id === currentId,
     ...(isNull(r.finished_at) ? {} : { finishedAt: num(r.finished_at) }),
+    ...(steps ? { steps } : {}),
   };
+}
+
+// ---- the four steps of a deploy
+
+export type StepKey = "fetch" | "build" | "start" | "check";
+export type StepState = "waiting" | "running" | "ok" | "failed" | "skipped";
+/** A step as it is kept: its state, when it began, how long it took, and the line of the whole log (counted from the first line ever printed) where its lines begin. */
+interface StepRow {
+  k: StepKey;
+  s: StepState;
+  at?: number;
+  ms?: number;
+  line?: number;
+}
+/** What sites_deployment.steps holds: the steps, and how many lines were left out of the front of the kept log. */
+interface StepMeta {
+  d: number;
+  s: StepRow[];
+}
+const STEP_KEYS: readonly StepKey[] = ["fetch", "build", "start", "check"];
+const LEFT_OUT = /^\.\.\. (\d+) earlier lines left out$/;
+
+/** A deploy that will never go on: the step that ran failed, the ones after it never ran. */
+function closedMeta(m: StepMeta | null): StepMeta | null {
+  if (!m) return null;
+  return {
+    d: m.d,
+    s: m.s.map((x) => (x.s === "running" ? { ...x, s: "failed" } : x.s === "waiting" ? { ...x, s: "skipped" } : x)),
+  };
+}
+
+function stepsOut(m: StepMeta | null): Record<string, unknown>[] | null {
+  if (!m || !Array.isArray(m.s)) return null;
+  return m.s.map((x) => ({
+    key: x.k,
+    state: x.s,
+    ...(x.ms !== undefined ? { ms: x.ms } : {}),
+    ...(x.s === "running" && x.at !== undefined ? { startedAt: x.at } : {}),
+  }));
+}
+
+/** The steps with where each one's lines begin in `shown`, the last lines of a kept log of `kept` lines. */
+function stepsIn(m: StepMeta | null, kept: number, shown: number): Record<string, unknown>[] | null {
+  const out = stepsOut(m);
+  if (!m || !out) return null;
+  return out.map((o, i) => {
+    const line = m.s[i]?.line;
+    if (line === undefined) return o;
+    // the kept log starts with one line that says how many were left out, when any were
+    const inKept = Math.max(0, line - m.d) + (m.d > 0 ? 1 : 0);
+    return { ...o, from: Math.min(shown, Math.max(0, inKept - (kept - shown))) };
+  });
 }
 
 export function sourceOf(r: Row): SourceSpec | null {
@@ -159,17 +224,29 @@ export function cleanLimits(ctx: Ctx, raw: unknown): Limits {
 
 // ---- the log of a deploy
 
-/** Lines are kept in memory and written every few hundred milliseconds, so a build that prints fast does not write a row per line, and the app sees them within a second. */
+/** Lines are kept in memory and written every few hundred milliseconds, so a build that prints fast does not write a row per line, and the app sees them within a second. The steps are written with them, so the log and where each step begins in it never disagree. */
 class DeployLog {
   private lines: string[];
+  private dropped = 0;
+  private steps: StepRow[] | null;
   private dirty = false;
   private timer: ReturnType<typeof setInterval> | null = null;
   private db: Db;
   private id: string;
-  constructor(db: Db, id: string, start: string[] = []) {
+  constructor(db: Db, id: string, start: { lines?: string[]; meta?: StepMeta | null; steps?: boolean } = {}) {
     this.db = db;
     this.id = id;
-    this.lines = start;
+    this.lines = start.lines ? [...start.lines] : [];
+    const left = LEFT_OUT.exec(this.lines[0] ?? "");
+    if (left) {
+      this.lines.shift();
+      this.dropped = start.meta?.d ?? Number(left[1]);
+    }
+    this.steps = start.meta?.s
+      ? start.meta.s.map((x) => ({ ...x }))
+      : start.steps
+        ? STEP_KEYS.map((k) => ({ k, s: "waiting" as const }))
+        : null;
     this.timer = setInterval(() => this.flush(), 400);
     this.timer.unref?.();
   }
@@ -182,20 +259,44 @@ class DeployLog {
       if (t === "") continue;
       this.lines.push(t.length > 600 ? `${t.slice(0, 600)}...` : t);
     }
-    if (this.lines.length > LOG_KEEP)
-      this.lines = [`... ${this.lines.length - LOG_KEEP} earlier lines left out`, ...this.lines.slice(-LOG_KEEP)];
+    if (this.lines.length > LOG_KEEP) {
+      const over = this.lines.length - LOG_KEEP;
+      this.dropped += over;
+      this.lines = this.lines.slice(over);
+    }
     this.dirty = true;
   }
   tail(n: number): string[] {
     return this.lines.slice(-n);
   }
+  /** A step begins: the one that ran before it ended well. */
+  begin(k: StepKey): void {
+    if (!this.steps) return;
+    const now = Date.now();
+    for (const x of this.steps) if (x.s === "running") Object.assign(x, { s: "ok", ms: now - (x.at ?? now) });
+    const step = this.steps.find((x) => x.k === k);
+    if (step) Object.assign(step, { s: "running", at: now, line: this.dropped + this.lines.length });
+    this.dirty = true;
+  }
+  /** The deploy ended: the step that ran ended with it, and after a failure the ones that never ran say so. */
+  settle(ok: boolean): void {
+    if (!this.steps) return;
+    const now = Date.now();
+    for (const x of this.steps) {
+      if (x.s === "running") Object.assign(x, { s: ok ? "ok" : "failed", ms: now - (x.at ?? now) });
+      else if (x.s === "waiting") x.s = "skipped";
+    }
+    this.dirty = true;
+  }
   flush(): void {
     if (!this.dirty) return;
     this.dirty = false;
+    const kept = this.dropped > 0 ? [`... ${this.dropped} earlier lines left out`, ...this.lines] : this.lines;
     try {
       this.db.run(
-        "UPDATE sites_deployment SET log = ?, updated_at = ? WHERE id = ?",
-        JSON.stringify(this.lines),
+        "UPDATE sites_deployment SET log = ?, steps = COALESCE(?, steps), updated_at = ? WHERE id = ?",
+        JSON.stringify(kept),
+        this.steps ? JSON.stringify({ d: this.dropped, s: this.steps } satisfies StepMeta) : null,
         Date.now(),
         this.id,
       );
@@ -408,12 +509,17 @@ interface Job {
   contained: boolean;
   by: string;
   publicNeedsPromote: boolean;
+  signal: AbortSignal;
 }
+
+/** The deploys this process is running, by id, with the switch that cancels each. */
+const cancels = new Map<string, AbortController>();
+class Canceled extends Error {}
 
 function finish(
   db: Db,
   depId: string,
-  state: "ready" | "failed",
+  state: "ready" | "failed" | "stopped",
   fields: { problem?: string; fix?: Fix; note?: string },
 ): void {
   const now = Date.now();
@@ -436,11 +542,13 @@ async function waitReady(
   port: number,
   health: string,
   log: DeployLog,
+  signal?: AbortSignal,
 ): Promise<{ ok: true } | { ok: false; oom: boolean; lines: string[] }> {
   const h = routesHost();
   const until = Date.now() + READY_MS;
   let seen = 0;
   while (Date.now() < until) {
+    if (signal?.aborted) throw new Canceled();
     const st = await r.state(containerId);
     const lines = await r.logs(containerId, 300);
     for (const l of lines.slice(seen)) log.add(l);
@@ -459,20 +567,33 @@ async function waitReady(
 async function runJob(j: Job): Promise<void> {
   const r = runner();
   const siteId = str(j.site.id);
-  const log = new DeployLog(j.db, j.depId);
+  const log = new DeployLog(j.db, j.depId, { steps: true });
   const say = (line: string): void => log.add(`==> ${line}`);
+  /** The deploy ends here: its steps close with it. */
+  const end = (state: "ready" | "failed" | "stopped", fields: { problem?: string; fix?: Fix; note?: string }): void => {
+    log.settle(state === "ready");
+    finish(j.db, j.depId, state, fields);
+  };
+  /** Canceled while the last await ran: nothing more is done. */
+  const live = (): void => {
+    if (j.signal.aborted) throw new Canceled();
+  };
   let fetched: Awaited<ReturnType<typeof fetchSource>> | null = null;
   let plan: SitePlan | null = null;
+  let startedId: string | null = null;
   try {
+    live();
     if (!r) {
-      finish(j.db, j.depId, "failed", { problem: deployNeed() ?? "No server can run it.", fix: "retry" });
+      end("failed", { problem: deployNeed() ?? "No server can run it.", fix: "retry" });
       return;
     }
     j.db.run("UPDATE sites_deployment SET state = ?, updated_at = ? WHERE id = ?", "building", Date.now(), j.depId);
+    log.begin("fetch");
     const free = await r.freeMb();
+    live();
     if (free !== null && free < MIN_FREE_MB) {
       say(`Only ${free} MB free on the server's disk.`);
-      finish(j.db, j.depId, "failed", {
+      end("failed", {
         problem: `The server has ${free} MB of disk left, and a build needs ${MIN_FREE_MB} MB. Remove old sites or builds first.`,
         fix: "free_space",
       });
@@ -495,11 +616,13 @@ async function runJob(j: Job): Promise<void> {
         ...(routesHost()?.tmp ? { tmp: routesHost()!.tmp! } : {}),
       });
     } catch (e) {
+      live();
       const why = e instanceof Error ? e.message : String(e);
       log.add(why);
-      finish(j.db, j.depId, "failed", { problem: why, fix: e instanceof SourceError ? e.fix : "retry" });
+      end("failed", { problem: why, fix: e instanceof SourceError ? e.fix : "retry" });
       return;
     }
+    live();
     if (fetched.commit) {
       say(`Commit ${fetched.commit.slice(0, 7)}${fetched.message ? `: ${fetched.message}` : ""}`);
       j.db.run(
@@ -515,9 +638,10 @@ async function runJob(j: Job): Promise<void> {
     } catch (e) {
       const why = e instanceof Error ? e.message : String(e);
       log.add(why);
-      finish(j.db, j.depId, "failed", { problem: why, fix: "set_start" });
+      end("failed", { problem: why, fix: "set_start" });
       return;
     }
+    live();
     say(plan.note);
     const hasPg = "DATABASE_URL" in j.env,
       hasRedis = "REDIS_URL" in j.env;
@@ -544,18 +668,29 @@ async function runJob(j: Job): Promise<void> {
       }),
       j.depId,
     );
+    log.begin("build");
     say("Building");
-    const built = await r.build({ siteId, deploymentId: j.depId, dir: fetched.dir, plan, onLine: (l) => log.add(l) });
+    const built = await r.build({
+      siteId,
+      deploymentId: j.depId,
+      dir: fetched.dir,
+      plan,
+      onLine: (l) => log.add(l),
+      signal: j.signal,
+    });
     fetched.cleanup();
     fetched = null;
+    live();
     if (!built.ok) {
       log.add(built.reason);
       const d = diagnose(log.tail(300), { stage: "build", plan });
-      finish(j.db, j.depId, "failed", d);
+      end("failed", d);
       return;
     }
     j.db.run("UPDATE sites_deployment SET image = ? WHERE id = ?", built.image, j.depId);
     await keepNetwork(j.db, r, siteId);
+    live();
+    log.begin("start");
     say(`Starting it with ${j.limits.cpus} CPU and ${j.limits.memoryMb} MB`);
     const started = await r.run({
       siteId,
@@ -565,9 +700,13 @@ async function runJob(j: Job): Promise<void> {
       env: j.env,
       limits: j.limits,
     });
+    startedId = started.containerId;
     if (started.note) say(started.note);
     j.db.run("UPDATE sites_deployment SET container_id = ? WHERE id = ?", started.containerId, j.depId);
-    const ready = await waitReady(r, started.containerId, plan.port, plan.health, log);
+    live();
+    log.begin("check");
+    const ready = await waitReady(r, started.containerId, plan.port, plan.health, log, j.signal);
+    live();
     if (!ready.ok) {
       const d = diagnose(ready.lines, {
         stage: "start",
@@ -582,16 +721,27 @@ async function runJob(j: Job): Promise<void> {
       await r.remove(started.containerId).catch(() => undefined);
       j.db.run("UPDATE sites_deployment SET container_id = NULL WHERE id = ?", j.depId);
       log.add(d.problem);
-      finish(j.db, j.depId, "failed", d);
+      end("failed", d);
       return;
     }
+    // from here the address changes hands: a cancel that arrives now is too late, and the deploy goes live
     await switchTo(j.db, r, siteId, j.depId, started.containerId, plan.port, j.by, j.publicNeedsPromote);
     say("Live");
-    finish(j.db, j.depId, "ready", {});
+    end("ready", {});
   } catch (e) {
+    if (e instanceof Canceled || j.signal.aborted) {
+      // the last good build keeps serving; what this deploy started is taken away
+      if (startedId && r) {
+        await r.remove(startedId).catch(() => undefined);
+        j.db.run("UPDATE sites_deployment SET container_id = NULL WHERE id = ?", j.depId);
+      }
+      say("Canceled");
+      end("stopped", { problem: "Canceled.", fix: "retry" });
+      return;
+    }
     const why = e instanceof Error ? e.message : String(e);
     log.add(why);
-    finish(j.db, j.depId, "failed", { problem: `The deploy stopped: ${why.slice(0, 200)}`, fix: "retry" });
+    end("failed", { problem: `The deploy stopped: ${why.slice(0, 200)}`, fix: "retry" });
   } finally {
     fetched?.cleanup();
     log.close();
@@ -697,7 +847,8 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     // a push redeploys a site that was deployed; the first deploy is someone's own press
     if (!last) fail(ctx, "validation.precondition_failed", "It has not been deployed yet.");
     const head = await remoteHead(source.repo, source.branch, token);
-    if (last && head && (last.commit_sha === head || (last.state !== "ready" && last.state !== "failed")))
+    // a deploy of this commit that ended (also one a person canceled) is not started again by itself; one that is running is joined
+    if (last && head && (last.commit_sha === head || last.state === "queued" || last.state === "building"))
       return { deployment: depRow(last, current) };
     if (!head) fail(ctx, "validation.precondition_failed", "The repo could not be read just now.");
   }
@@ -750,6 +901,7 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
   // values are filled now, while this is the caller's own call: the Vault checks their access to each key
   const env = await envOf(ctx, siteId, depId);
   const h = routesHost();
+  const ac = new AbortController();
   const job: Job = {
     db: ctx.db,
     site,
@@ -762,9 +914,14 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     contained: h?.contained === true,
     call: (cap, inp) => ctx.call(cap as never, inp),
     publicNeedsPromote: ctx.principal.kind !== "person",
+    signal: ac.signal,
   };
-  const p = enqueue(() => runJob(job)).finally(() => done.delete(depId));
+  const p = enqueue(() => runJob(job)).finally(() => {
+    done.delete(depId);
+    cancels.delete(depId);
+  });
   done.set(depId, p);
+  cancels.set(depId, ac);
   touchActivity(ctx.db, siteId, "site.deployed", now);
   if (optBool(ctx, o, "wait") === true)
     await Promise.race([p, new Promise((res) => setTimeout(res, WAIT_MAX_MS).unref?.())]);
@@ -773,6 +930,48 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     deployment: depRow(
       row,
       isNull(mustSite(ctx, siteId).current_deployment) ? null : str(mustSite(ctx, siteId).current_deployment),
+    ),
+  };
+}
+
+/** Stop the deploy that is running. The last good build keeps serving; a deploy that already changed the address stays live. */
+async function sitesDeployCancel(ctx: Ctx, input: unknown): Promise<{ deployment: unknown }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const wanted = optStr(ctx, o, "deploymentId");
+  const busy = many(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND state IN ('queued', 'building')",
+    site.id,
+    "production",
+  )
+    .filter((d) => wanted === undefined || d.id === wanted)
+    .sort((a, b) => num(b.at) - num(a.at))[0];
+  if (!busy) fail(ctx, "validation.precondition_failed", "No deploy is running.");
+  const id = str(busy.id);
+  const running = done.get(id);
+  cancels.get(id)?.abort();
+  if (running) await Promise.race([running, new Promise((res) => setTimeout(res, CANCEL_WAIT_MS).unref?.())]);
+  const row = one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", id) as Row;
+  if (row.state === "queued" || row.state === "building") {
+    // a deploy this process is not running (the server restarted), or one still inside a step that cannot be cut off: it is closed here, and what it does next is thrown away
+    const now = ctx.now();
+    ctx.db.run(
+      "UPDATE sites_deployment SET state = ?, problem = ?, fix = ?, steps = ?, finished_at = ?, updated_at = ? WHERE id = ?",
+      "stopped",
+      "Canceled.",
+      "retry",
+      isNull(row.steps) ? null : JSON.stringify(closedMeta(parseJson<StepMeta | null>(row.steps, null))),
+      now,
+      now,
+      id,
+    );
+  }
+  const after = mustSite(ctx, str(site.id));
+  return {
+    deployment: depRow(
+      one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", id) as Row,
+      isNull(after.current_deployment) ? null : str(after.current_deployment),
     ),
   };
 }
@@ -846,7 +1045,10 @@ async function sitesRollback(ctx: Ctx, input: unknown): Promise<{ deployment: un
     env,
     limits: limitsOf(site),
   });
-  const log = new DeployLog(ctx.db, str(target.id), parseJson<string[]>(target.log, []));
+  const log = new DeployLog(ctx.db, str(target.id), {
+    lines: parseJson<string[]>(target.log, []),
+    meta: parseJson<StepMeta | null>(target.steps, null),
+  });
   log.add(`==> Rolling back to this build (${ctx.now()})`);
   const ready = await waitReady(r, started.containerId, port, "/", log);
   log.close();
@@ -1269,7 +1471,7 @@ export async function deployedLogs(
   site: Row,
   o: Record<string, unknown>,
   tail: number,
-): Promise<{ lines: string[]; state?: string }> {
+): Promise<{ lines: string[]; state?: string; steps?: Record<string, unknown>[] }> {
   const build = o.build === true;
   const wanted = typeof o.deploymentId === "string" ? o.deploymentId : undefined;
   if (build || wanted) {
@@ -1282,7 +1484,12 @@ export async function deployedLogs(
           "production",
         );
     if (!d) return { lines: [] };
-    return { lines: parseJson<string[]>(d.log, []).slice(-tail), state: str(d.state) };
+    const all = parseJson<string[]>(d.log, []);
+    const lines = all.slice(-tail);
+    const orphan = (d.state === "queued" || d.state === "building") && !done.has(str(d.id));
+    const meta = parseJson<StepMeta | null>(d.steps, null);
+    const steps = stepsIn(orphan ? closedMeta(meta) : meta, all.length, lines.length);
+    return { lines, state: orphan ? "failed" : str(d.state), ...(steps ? { steps } : {}) };
   }
   const r = runner();
   if (!r || isNull(site.container_id)) return { lines: [] };
@@ -1295,6 +1502,7 @@ export async function deployedLogs(
 
 export const releaseHandlers = {
   "sites.deploy": (ctx: Ctx, input: unknown) => sitesDeploy(ctx, input),
+  "sites.deploy_cancel": (ctx: Ctx, input: unknown) => sitesDeployCancel(ctx, input),
   "sites.deployments": (ctx: Ctx, input: unknown) => sitesDeployments(ctx, input),
   "sites.rollback": (ctx: Ctx, input: unknown) => sitesRollback(ctx, input),
   "sites.env_set": (ctx: Ctx, input: unknown) => sitesEnvSet(ctx, input),
@@ -1307,4 +1515,4 @@ export const releaseHandlers = {
   "sites.signin_link": (ctx: Ctx, input: unknown) => sitesSigninLink(ctx, input),
 };
 
-export const _test = { diagnose, enqueue, hexOf };
+export const _test = { diagnose, enqueue, hexOf, DeployLog, stepsIn, closedMeta };

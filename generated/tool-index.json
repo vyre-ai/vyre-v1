@@ -8378,6 +8378,12 @@
     },
     {
       "deferred": false,
+      "name": "sites_deploy_cancel",
+      "summary": "Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_deployments",
       "summary": "List deployments with state and URL",
       "toolset": "sites"

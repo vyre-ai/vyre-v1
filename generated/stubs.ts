@@ -2577,6 +2577,7 @@ export function stubs(ctx: CallCtx) {
       db_import: call("sites.db_import"),
       delete: call("sites.delete"),
       deploy: call("sites.deploy"),
+      deploy_cancel: call("sites.deploy_cancel"),
       deployments: call("sites.deployments"),
       domain_add: call("sites.domain_add"),
       domain_check: call("sites.domain_check"),

@@ -101,6 +101,10 @@ export function createSitesRunner(o: RunnerOptions): {
           for (const [k, v] of Object.entries(r.headers)) if (!HOP.has(k) && v !== undefined) out[k] = v;
           res.writeHead(r.statusCode ?? 502, out);
           r.pipe(res);
+          // the caller went away before the answer ended (a build that was canceled): the call to the engine is closed too, which stops the build there
+          res.on("close", () => {
+            if (!r.complete) up.destroy();
+          });
           r.on("end", () => resolve({ status: r.statusCode ?? 0, body: Buffer.alloc(0) }));
           r.on("error", reject);
           return;

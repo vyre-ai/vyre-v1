@@ -1,9 +1,11 @@
-// A site Vyre builds and runs: its state and address first, then what went wrong with one button to fix it, the build log while a deploy runs, earlier deploys to roll back to, env vars
-// from the Vault, its own Postgres or Redis (and copying an old database in), who may open it, CPU and memory, its domains and the app's log. Plain text that updates in place: nothing blinks.
+// A site Vyre builds and runs, as one page with six tabs under a header that says its state, its address and Deploy: Overview (what is live, what needs a person, what it runs with), Deploys
+// (every deploy, one row each; a row opens that deploy with its four steps and its log beside the list), Logs, Variables (env vars from the Vault), Domains, and Settings (source, database,
+// who may open it, CPU and memory, stop). A failure says why in a sentence with its one button. Plain text that updates in place: nothing blinks.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { Status, TONE_COLOR } from "../../../../../../ui/src/Status/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useAppsData } from "./data.tsx";
 import type { AppsData } from "./data.tsx";
@@ -12,6 +14,20 @@ import { Button, Card, Frame, Select, s as ui, useOnline, useRead } from "./edit
 import { ago } from "./model.ts";
 import { copy, DomainRow } from "./SiteDetail.tsx";
 import { uploadPicked } from "./NewSiteSheet.tsx";
+import { DeployDetail } from "./site/DeployPane.tsx";
+import {
+  FIX_TITLE,
+  attention,
+  depNote,
+  depState,
+  depTitle,
+  findLines,
+  isRunning,
+  missingName,
+  siteWord,
+  sourceLine,
+} from "./site/model.ts";
+import { LogLines, StepMark, markOf } from "./site/parts.tsx";
 
 type Site = CapMap["sites.get"]["out"]["site"];
 type Dep = CapMap["sites.deployments"]["out"]["deployments"][number];
@@ -32,79 +48,24 @@ const MEMORY = [
   { key: "1024", title: "1 GB" },
   { key: "2048", title: "2 GB" },
 ] as const;
-const STATE: Readonly<Record<string, { word: string; color: string }>> = {
-  ready: { word: "Live", color: "var(--ok)" },
-  building: { word: "Deploying", color: "var(--warn)" },
-  queued: { word: "Waiting to deploy", color: "var(--warn)" },
-  failed: { word: "Failed", color: "var(--danger)" },
-  stopped: { word: "Stopped", color: "var(--ink-4)" },
-};
-const FIX_TITLE: Readonly<Record<string, string>> = {
-  set_env: "Add the env var",
-  add_postgres: "Add Postgres and deploy",
-  add_redis: "Add Redis and deploy",
-  retry: "Deploy again",
-  set_start: "Ask an agent to fix it",
-  set_port: "Ask an agent to fix it",
-  open_logs: "Show the whole log",
-  connect_repo: "Change the source",
-  free_space: "Open Settings",
-  more_memory: "Double the memory and deploy",
-};
 
-function sourceLine(src: NonNullable<Site["source"]>): string {
-  if (src.repo)
-    return `${src.repo.replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "")}${src.branch ? ` (${src.branch})` : ""}${src.root ? `, ${src.root}` : ""}`;
-  if (src.fileId) return "An upload in Files";
-  if (src.folderId) return "A folder in Files";
-  return src.path ?? "A folder";
-}
-
-/** The build log of the deploy that is running, read again every second until it ends. */
-function useBuildLog(d: AppsData, siteId: string, on: boolean): { lines: string[]; state?: string } {
-  const [out, setOut] = useState<{ lines: string[]; state?: string }>({ lines: [] });
-  useEffect(() => {
-    if (!on) return undefined;
-    let live = true;
-    const read = (): void => {
-      void (
-        d.call("sites.logs", { siteId, build: true, tail: 400 }) as Promise<{ lines: string[]; state?: string }>
-      ).then(
-        (o) => {
-          if (live) setOut(o);
-        },
-        () => undefined,
-      );
-    };
-    read();
-    const t = setInterval(read, 1000);
-    return () => {
-      live = false;
-      clearInterval(t);
-    };
-  }, [d, siteId, on]);
-  return out;
-}
-
-function LogBlock({ lines, testID, empty }: { lines: readonly string[]; testID: string; empty: string }): ReactElement {
-  const ref = useRef<ScrollView | null>(null);
-  useEffect(() => {
-    ref.current?.scrollToEnd({ animated: false });
-  }, [lines.length]);
-  return (
-    <ScrollView ref={ref} style={s.log} testID={testID}>
-      <Text selectable style={s.logText}>
-        {lines.length ? lines.join("\n") : empty}
-      </Text>
-    </ScrollView>
-  );
-}
+type TabKey = "overview" | "deploys" | "logs" | "variables" | "domains" | "settings";
+const TABS: readonly { key: TabKey; title: string }[] = [
+  { key: "overview", title: "Overview" },
+  { key: "deploys", title: "Deploys" },
+  { key: "logs", title: "Logs" },
+  { key: "variables", title: "Variables" },
+  { key: "domains", title: "Domains" },
+  { key: "settings", title: "Settings" },
+];
+const WIDE = 900;
 
 export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh(): void; back(): void }): ReactElement {
   const d = useAppsData(),
     online = useOnline();
+  const wide = useWindowDimensions().width >= WIDE;
   const id = x.siteId;
-  const deps = useRead<CapMap["sites.deployments"]["out"]>("sites.deployments", { siteId: id, limit: 10 }, "sites");
+  const deps = useRead<CapMap["sites.deployments"]["out"]>("sites.deployments", { siteId: id, limit: 20 }, "sites");
   const env = useRead<CapMap["sites.env_list"]["out"]>("sites.env_list", { siteId: id }, "sites");
   const host = useRead<CapMap["sites.host"]["out"]>("sites.host", {}, "sites");
   const domains = useRead<CapMap["sites.domains_get"]["out"]>("sites.domains_get", { siteId: id }, "sites");
@@ -112,7 +73,11 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
   const [busy, setBusy] = useState<string | null>(null),
     [error, setError] = useState<string | null>(null),
     [note, setNote] = useState<string | null>(null);
-  const [showLog, setShowLog] = useState(false);
+  const [tab, setTab] = useState<TabKey>("overview");
+  // the deploy opened beside the list (or over it on a phone), and a Deploy just pressed whose row is about to appear
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [follow, setFollow] = useState(false);
+  const [find, setFind] = useState("");
   const [envName, setEnvName] = useState(""),
     [envKey, setEnvKey] = useState(""),
     [password, setPassword] = useState(""),
@@ -120,8 +85,8 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
     [importKey, setImportKey] = useState("");
   const [keys, setKeys] = useState<readonly { handle: string; name: string }[]>([]);
   const building = x.state === "building";
-  const build = useBuildLog(d, id, building || showLog);
   const last = x.lastDeploy;
+  const now = d.clock().now;
   const wasBuilding = useRef(building);
   // a deploy that ends refreshes the page once: the address, the list and the env reads follow it
   useEffect(() => {
@@ -131,15 +96,38 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
     }
     wasBuilding.current = building;
   }, [building]); // eslint-disable-line react-hooks/exhaustive-deps
+  // while one runs the site, its list and its steps are read again every second or two
   useEffect(() => {
     if (!building) return undefined;
-    const t = setInterval(refresh, 2000);
+    const t = setInterval(() => {
+      refresh();
+      deps.refresh();
+    }, 1500);
     return () => clearInterval(t);
-  }, [building, refresh]);
+  }, [building, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a deploy that starts (from here, from an agent, or on a push) opens once, so the page shows it moving
+  const autoOpened = useRef(false);
   useEffect(() => {
+    if (building && !autoOpened.current && last) {
+      autoOpened.current = true;
+      setTab("deploys");
+      setOpenId(last.deploymentId);
+    }
+    if (!building) autoOpened.current = false;
+  }, [building, last]);
+  // Deploy was pressed: its deploy opens as soon as it is in the list
+  useEffect(() => {
+    if (follow && last && isRunning(last)) {
+      setOpenId(last.deploymentId);
+      setTab("deploys");
+      setFollow(false);
+    }
+  }, [follow, last]);
+  useEffect(() => {
+    if (tab !== "logs" && tab !== "overview") return undefined;
     let live = true;
     const read = (): void => {
-      void (d.call("sites.logs", { siteId: id, tail: 200 }) as Promise<{ lines: string[] }>).then(
+      void (d.call("sites.logs", { siteId: id, tail: 400 }) as Promise<{ lines: string[] }>).then(
         (o) => {
           if (live) setRunLog(o.lines);
         },
@@ -152,8 +140,9 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
       live = false;
       clearInterval(t);
     };
-  }, [d, id]);
+  }, [d, id, tab]);
   useEffect(() => {
+    if (tab !== "variables" && tab !== "settings") return undefined;
     let live = true;
     void (d.call("vault.items.list", { limit: 200 }) as Promise<CapMap["vault.items.list"]["out"]>).then(
       (o) => {
@@ -164,7 +153,7 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
     return () => {
       live = false;
     };
-  }, [d]);
+  }, [d, tab]);
 
   const run = async (
     label: string,
@@ -194,7 +183,16 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
       setBusy(null);
     }
   };
-  const deploy = (): Promise<unknown> => run("Deploying", "sites.deploy", { siteId: id });
+  const deploy = (): Promise<unknown> => {
+    setFollow(true);
+    return run("Deploying", "sites.deploy", { siteId: id }).then((o) => {
+      if (!o) setFollow(false);
+      return o;
+    });
+  };
+  const cancel = (): void => void run("Canceling", "sites.deploy_cancel", { siteId: id });
+  const rollback = (dep: Dep): void =>
+    void run("Rolling back", "sites.rollback", { siteId: id, toDeploymentId: dep.deploymentId });
   const askAgent = (): void => {
     const first = `My site "${x.name}" does not deploy. Vyre says: ${last?.problem ?? "it failed"}. Look at its build log (sites_logs with build) and fix the project, then deploy it again with sites_deploy.`;
     if (d.nav.ask) d.nav.ask(first);
@@ -219,20 +217,25 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
       }).then((o) => {
         if (o) void deploy();
       });
-    else if (kind === "open_logs") setShowLog(true);
-    else if (kind === "free_space") d.nav.openComputers?.();
+    else if (kind === "open_logs") {
+      setTab("deploys");
+      if (last) setOpenId(last.deploymentId);
+    } else if (kind === "free_space") setTab("settings");
     else if (kind === "set_env") {
-      const m = /because (\w+) is not set/.exec(last?.problem ?? "");
-      if (m) setEnvName(m[1]!);
+      const m = missingName(last?.problem);
+      if (m) setEnvName(m);
+      setTab("variables");
       setNote("Pick the Vault key for it below, then deploy again.");
-    } else if (kind === "connect_repo")
+    } else if (kind === "connect_repo") {
+      setTab("settings");
       setNote(
         "Change the source: make a new site with the right repo or upload, or give the token for a private repo.",
       );
-    else askAgent();
+    } else askAgent();
   };
 
-  const st = STATE[x.state] ?? STATE.stopped!;
+  const word = siteWord(x);
+  const need = attention(x, now);
   const domainRows: ReactElement[] = [];
   for (const row of domains.data?.domains ?? [])
     domainRows.push(<DomainRow key={row.domain} siteId={id} domain={row.domain} online={online} />);
@@ -244,6 +247,10 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
     x.addons?.find((a) => a.kind === kind);
   const pg = addon("postgres"),
     redis = addon("redis");
+  const list = deps.data?.deployments ?? [];
+  const opened = openId ? list.find((r) => r.deploymentId === openId) : undefined;
+  const who = (by: string | undefined): string | null =>
+    by ? (by === d.me?.id ? "you" : (d.nameOf?.(by) ?? "a teammate")) : null;
   // ui-rows-lint: not a list (chips to pick one Vault key)
   const keyChips = (on: string, set: (h: string) => void): ReactElement => (
     <View style={s.chips}>
@@ -266,140 +273,147 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
       )}
     </View>
   );
+  const off = !!busy || !online;
+  const detail = opened ? (
+    <DeployDetail
+      site={x}
+      dep={opened}
+      busy={!!busy}
+      online={online}
+      onCancel={cancel}
+      onRollback={rollback}
+      onRedeploy={() => void deploy()}
+      onFix={fix}
+      inPage={!wide}
+    />
+  ) : null;
 
-  return (
-    <Frame testID="apps-site-detail" title={x.name} back={back} offline={!online} error={error}>
-      <Card title="Status">
-        <View style={s.state}>
-          <View style={[s.dot, { backgroundColor: st.color as string }]} />
-          <Text style={s.stateWord} testID="site-state">
-            {x.blocked
-              ? "Taken down"
-              : building
-                ? busy === "Deploying"
-                  ? "Starting the deploy"
-                  : "Deploying"
-                : st.word}
+  const overview = (
+    <>
+      {need ? (
+        <Status
+          tone={need.tone}
+          label={need.label}
+          note={need.note}
+          testID="site-problem"
+          action={
+            need.kind === "running"
+              ? {
+                  label: "Watch",
+                  onPress: () => {
+                    setTab("deploys");
+                    if (last) setOpenId(last.deploymentId);
+                  },
+                }
+              : last?.fix && last.fix !== "open_logs"
+                ? {
+                    label: FIX_TITLE[last.fix] ?? "Deploy again",
+                    onPress: () => fix(last.fix as string),
+                    disabled: off,
+                  }
+                : { label: "Read the log", onPress: () => fix("open_logs") }
+          }
+        />
+      ) : null}
+      <Card title="Live now">
+        {last && (last.current || x.live) ? (
+          <Text style={ui.text} testID="site-last">
+            {depTitle(deps.data?.deployments.find((r) => r.current) ?? last)}
           </Text>
-        </View>
-        <Text selectable style={ui.text} testID="site-url">
-          {x.live && x.url
-            ? x.url
-            : x.url
-              ? `${x.url} (not published)`
-              : host.data?.sitesDomain
-                ? "It gets its address when the first deploy is live."
-                : "It gets an address of its own when this Space has a sites domain or a custom domain."}
-        </Text>
+        ) : (
+          <Text style={ui.text}>Nothing is live yet.</Text>
+        )}
         {last ? (
-          <Text
-            style={ui.text}
-            testID="site-last"
-          >{`${last.state === "failed" ? "Last deploy failed" : last.state === "ready" ? "Deployed" : "Started"} ${ago(last.finishedAt ?? last.at, d.clock().now)}${last.by ? ` by ${last.by === d.me?.id ? "you" : (d.nameOf?.(last.by) ?? "a teammate")}` : ""}${last.commit ? ` · ${last.commit.slice(0, 7)}` : ""}`}</Text>
+          <Text style={ui.text}>{depNote(last, who(last.by), ago(last.finishedAt ?? last.at, now), now)}</Text>
         ) : null}
         {x.source ? <Text style={ui.text}>{`From ${sourceLine(x.source)}`}</Text> : null}
-        <View style={ui.actions}>
-          {x.live && x.url ? (
-            <Button title="Open" testID="site-open" onPress={() => d.nav.openUrl?.(x.url as string)} />
-          ) : null}
-          {x.url ? <Button title="Copy address" onPress={() => copy(x.url as string)} /> : null}
-          <Button
-            title={building ? "Deploying" : "Deploy now"}
-            primary
-            testID="site-deploy"
-            disabled={!!busy || building || !online}
-            onPress={() => void deploy()}
+      </Card>
+      <Card title="Runs with">
+        <Row id="run-web" title="Web" note={x.live ? "Serving its address" : "Not serving"} />
+        {pg ? (
+          <Row
+            id="run-pg"
+            title="Postgres"
+            note={`${pg.state === "ready" ? "Running" : pg.state === "failed" ? "Failed" : "Starting"} · DATABASE_URL`}
           />
-          {x.live ? (
-            <Button
-              title="Stop"
-              testID="site-stop"
-              disabled={!!busy || !online}
-              onPress={() => void run("Stopping", "sites.stop", { siteId: id })}
-            />
-          ) : x.access === "public" && x.lastDeploy?.current ? (
-            <Button
-              title="Publish"
-              testID="site-publish"
-              disabled={!!busy || !online}
-              onPress={() => void run("Publishing", "sites.promote", { siteId: id })}
-            />
-          ) : !building && x.lastDeploy?.current ? (
-            <Button
-              title="Publish"
-              testID="site-publish"
-              disabled={!!busy || !online}
-              onPress={() => void run("Publishing", "sites.publish", { siteId: id })}
-            />
-          ) : null}
-        </View>
-        {note ? (
-          <Text style={ui.text} testID="site-note">
-            {note}
-          </Text>
+        ) : null}
+        {redis ? (
+          <Row id="run-redis" title="Redis" note={`${redis.state === "ready" ? "Running" : "Starting"} · REDIS_URL`} />
         ) : null}
       </Card>
+      <Card title="App log">
+        <LogLines lines={runLog.slice(-60)} testID="site-logs-peek" empty="Nothing logged yet." height={160} />
+      </Card>
+    </>
+  );
 
-      {last?.state === "failed" && last.problem ? (
-        <View style={s.problem} accessibilityRole="alert" testID="site-problem">
-          <Text style={s.problemText}>{last.problem}</Text>
-          {last.fix ? (
-            <Button
-              title={FIX_TITLE[last.fix] ?? "Deploy again"}
-              primary
-              testID="site-fix"
-              disabled={!!busy || !online}
-              onPress={() => fix(last.fix as string)}
-            />
-          ) : null}
+  const deploysTab = (
+    <View style={wide ? s.split : undefined}>
+      {!wide && opened ? (
+        <View style={s.paneBack}>
+          <Button title="Back to deploys" onPress={() => setOpenId(null)} />
+          {detail}
         </View>
-      ) : null}
-
-      {building || showLog ? (
-        <Card title={building ? "Build log" : "Last build log"}>
-          <LogBlock lines={build.lines} testID="site-build-log" empty="Waiting for the server to start the build." />
-          {!building ? <Button title="Hide the log" onPress={() => setShowLog(false)} /> : null}
-        </Card>
-      ) : null}
-
-      <Card title="Deploys">
-        {(deps.data?.deployments ?? []).length === 0 ? (
-          <Text style={ui.text}>None yet.</Text>
-        ) : (
-          (deps.data?.deployments ?? []).map((dep: Dep) => (
-            <Row
-              key={dep.deploymentId}
-              id={dep.deploymentId}
-              title={
-                dep.current
-                  ? "Live now"
-                  : dep.state === "failed"
-                    ? "Failed"
-                    : dep.state === "building" || dep.state === "queued"
-                      ? "Deploying"
-                      : "Earlier build"
-              }
-              note={`${dep.commit ? `${dep.commit.slice(0, 7)} · ` : ""}${ago(dep.finishedAt ?? dep.at, d.clock().now)}${dep.by ? ` · ${dep.by === d.me?.id ? "you" : (d.nameOf?.(dep.by) ?? "a teammate")}` : ""}${dep.problem ? ` · ${dep.problem}` : ""}`}
-              trailing={
-                !dep.current && dep.state === "ready" ? (
-                  <Button
-                    title="Roll back"
-                    testID={`site-rollback-${dep.deploymentId}`}
-                    disabled={!!busy || !online}
-                    onPress={() =>
-                      void run("Rolling back", "sites.rollback", { siteId: id, toDeploymentId: dep.deploymentId })
+      ) : (
+        <View style={wide ? s.splitList : undefined}>
+          <Card title="Deploys">
+            {list.length === 0 ? (
+              <Text style={ui.text}>None yet.</Text>
+            ) : (
+              list.map((dep: Dep) => {
+                const ds = depState(dep);
+                return (
+                  <Row
+                    key={dep.deploymentId}
+                    id={dep.deploymentId}
+                    title={depTitle(dep)}
+                    note={depNote(dep, who(dep.by), ago(dep.finishedAt ?? dep.at, now), now)}
+                    selected={dep.deploymentId === openId}
+                    leading={<StepMark state={markOf(dep.state)} />}
+                    onPress={() => setOpenId(dep.deploymentId)}
+                    trailing={
+                      <Text style={s.rowWord} testID={`site-dep-${dep.deploymentId}`}>
+                        {ds.word}
+                      </Text>
                     }
                   />
-                ) : dep.state === "failed" ? (
-                  <Button title="Log" onPress={() => setShowLog(true)} />
-                ) : undefined
-              }
-            />
-          ))
-        )}
-        {!building && !showLog && last ? <Button title="Show the build log" onPress={() => setShowLog(true)} /> : null}
-      </Card>
+                );
+              })
+            )}
+          </Card>
+        </View>
+      )}
+      {wide ? (
+        <View style={s.splitPane}>
+          {detail ?? <Text style={ui.text}>Open a deploy to see its steps and log.</Text>}
+        </View>
+      ) : null}
+    </View>
+  );
 
+  const logsTab = (
+    <Card title="App log">
+      <TextInput
+        accessibilityLabel="Search the log"
+        testID="site-log-search"
+        value={find}
+        onChangeText={setFind}
+        placeholder="Search"
+        placeholderTextColor="var(--ink-4)"
+        autoCapitalize="none"
+        style={ui.input}
+      />
+      <LogLines
+        lines={findLines(runLog, find)}
+        testID="site-logs"
+        empty={find.trim() ? "No line has that." : "Nothing logged yet."}
+        height={420}
+      />
+    </Card>
+  );
+
+  const variablesTab = (
+    <>
       <Card title="Env vars">
         <Text style={ui.text}>
           Each one takes its value from a Vault key when it deploys. Values never show here. PORT is set for you.
@@ -474,7 +488,39 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
           }
         />
       </Card>
-
+    </>
+  );
+  const domainsTab = (
+    <>
+      <Card title="Domains">
+        {domainRows}
+        <View style={ui.actions}>
+          <TextInput
+            accessibilityLabel="Domain"
+            value={domain}
+            onChangeText={setDomain}
+            placeholder="cx.example.com"
+            placeholderTextColor="var(--ink-4)"
+            autoCapitalize="none"
+            style={[ui.input, { flex: 1, minWidth: 200 }]}
+          />
+          <Button
+            title="Add domain"
+            testID="site-add-domain"
+            disabled={!!busy || !online || domain.trim() === ""}
+            onPress={() =>
+              void run("Adding", "sites.domain_add", { siteId: id, domain: domain.trim() }, () => setDomain(""))
+            }
+          />
+        </View>
+      </Card>
+    </>
+  );
+  const settingsTab = (
+    <>
+      <Card title="Source">
+        <Text style={ui.text}>{x.source ? sourceLine(x.source) : "Not connected to a repo or folder."}</Text>
+      </Card>
       <Card title="Database">
         <Row
           id="addon-postgres"
@@ -566,7 +612,6 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
           </>
         ) : null}
       </Card>
-
       <Card title="Who can open it">
         <Select
           label="Access"
@@ -603,7 +648,6 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
           </View>
         ) : null}
       </Card>
-
       <Card title="Resources">
         <Text style={ui.text}>
           What it may use on the shared server, so one site cannot slow the others. Takes effect on the next deploy.
@@ -647,33 +691,98 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
           ) : null}
         </View>
       </Card>
-
-      <Card title="Domains">
-        {domainRows}
-        <View style={ui.actions}>
-          <TextInput
-            accessibilityLabel="Domain"
-            value={domain}
-            onChangeText={setDomain}
-            placeholder="cx.example.com"
-            placeholderTextColor="var(--ink-4)"
-            autoCapitalize="none"
-            style={[ui.input, { flex: 1, minWidth: 200 }]}
-          />
+      <Card title="Stop the site">
+        <Text style={ui.text}>
+          It stops serving its address. The code and the deploys stay, and Publish brings it back.
+        </Text>
+        {x.live ? (
           <Button
-            title="Add domain"
-            testID="site-add-domain"
-            disabled={!!busy || !online || domain.trim() === ""}
-            onPress={() =>
-              void run("Adding", "sites.domain_add", { siteId: id, domain: domain.trim() }, () => setDomain(""))
-            }
+            title="Stop"
+            testID="site-stop"
+            disabled={off}
+            onPress={() => void run("Stopping", "sites.stop", { siteId: id })}
           />
-        </View>
+        ) : null}
       </Card>
+    </>
+  );
+  const pages: Record<TabKey, ReactElement> = {
+    overview,
+    deploys: deploysTab,
+    logs: logsTab,
+    variables: variablesTab,
+    domains: domainsTab,
+    settings: settingsTab,
+  };
+  const deployTitle = building ? "Deploying" : "Deploy";
+  const headerBtns = (
+    <View style={ui.actions}>
+      {x.live && x.url ? (
+        <Button title="Open" testID="site-open" onPress={() => d.nav.openUrl?.(x.url as string)} />
+      ) : null}
+      {x.url ? <Button title="Copy address" onPress={() => copy(x.url as string)} /> : null}
+      {building ? <Button title="Cancel" testID="site-deploy-cancel-head" disabled={off} onPress={cancel} /> : null}
+      <Button
+        title={deployTitle}
+        primary
+        testID="site-deploy"
+        disabled={off || building}
+        onPress={() => void deploy()}
+      />
+      {!x.live && !building && x.lastDeploy?.current ? (
+        <Button
+          title="Publish"
+          testID="site-publish"
+          disabled={off}
+          onPress={() =>
+            void run("Publishing", x.access === "public" ? "sites.promote" : "sites.publish", { siteId: id })
+          }
+        />
+      ) : null}
+    </View>
+  );
 
-      <Card title="App log">
-        <LogBlock lines={runLog} testID="site-logs" empty="Nothing logged yet." />
-      </Card>
+  return (
+    <Frame testID="apps-site-detail" title={x.name} back={back} offline={!online} error={error}>
+      <View style={s.headLine}>
+        <View style={[s.dot, { backgroundColor: TONE_COLOR[word.tone] }]} />
+        <Text style={s.stateWord} testID="site-state">
+          {building && busy === "Deploying" ? "Starting the deploy" : word.word}
+        </Text>
+      </View>
+      <Text selectable style={ui.text} testID="site-url">
+        {x.live && x.url
+          ? x.url
+          : x.url
+            ? `${x.url} (not published)`
+            : host.data?.sitesDomain
+              ? "It gets its address when the first deploy is live."
+              : "It gets an address of its own when this Space has a sites domain or a custom domain."}
+      </Text>
+      {headerBtns}
+      <View accessibilityRole="tablist" style={s.tabs}>
+        {/* ui-rows-lint: not a list (the six tabs of the page) */}
+        {TABS.map((tb) => (
+          <Pressable
+            key={tb.key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === tb.key }}
+            testID={`site-tab-${tb.key}`}
+            onPress={() => setTab(tb.key)}
+            style={[s.tab, tab === tb.key && s.tabOn]}
+          >
+            <Text style={[s.tabText, tab === tb.key && s.tabTextOn]}>
+              {tb.key === "variables" && envRows.length ? `${tb.title} ${envRows.length}` : tb.title}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {note ? (
+        <Text style={ui.text} testID="site-note">
+          {note}
+        </Text>
+      ) : null}
+      {pages[tab]}
     </Frame>
   );
 }
@@ -698,6 +807,23 @@ async function pickDump(d: AppsData): Promise<string | null> {
 }
 
 const s = StyleSheet.create({
+  headLine: { flexDirection: "row", alignItems: "center", gap: 8 },
+  tabs: { flexDirection: "row", flexWrap: "wrap", gap: 4, borderBottomWidth: 1, borderColor: "var(--line)" as string },
+  tab: {
+    height: 36,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+    borderBottomWidth: 2,
+    borderColor: "transparent",
+  },
+  tabOn: { borderColor: "var(--accent)" as string },
+  tabText: { fontSize: 13, color: "var(--ink-3)" as string },
+  tabTextOn: { color: "var(--ink)" as string, fontWeight: "600" },
+  split: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
+  splitList: { flex: 1, minWidth: 0 },
+  splitPane: { width: 380, minWidth: 0 },
+  paneBack: { gap: 12 },
+  rowWord: { fontSize: 12, color: "var(--ink-3)" as string },
   state: { flexDirection: "row", alignItems: "center", gap: 8 },
   dot: { width: 9, height: 9, borderRadius: 5 },
   stateWord: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },

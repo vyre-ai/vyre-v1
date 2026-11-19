@@ -57286,6 +57286,39 @@
     },
     {
       "blocks": [],
+      "cap": "sites.deploy_cancel",
+      "deferred": false,
+      "description": "Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "deploymentId": {
+            "examples": [
+              "dpl_a1b2c3"
+            ],
+            "pattern": "^dpl_[a-z0-9]+$",
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_deploy_cancel",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.deployments",
       "deferred": false,
       "description": "List deployments with state and URL",

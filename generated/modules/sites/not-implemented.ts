@@ -16,6 +16,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "sites.db_import": async (ctx) => { throw new VyreErr(notImplemented("sites.db_import", ctx.trace)); },
   "sites.delete": async (ctx) => { throw new VyreErr(notImplemented("sites.delete", ctx.trace)); },
   "sites.deploy": async (ctx) => { throw new VyreErr(notImplemented("sites.deploy", ctx.trace)); },
+  "sites.deploy_cancel": async (ctx) => { throw new VyreErr(notImplemented("sites.deploy_cancel", ctx.trace)); },
   "sites.deployments": async (ctx) => { throw new VyreErr(notImplemented("sites.deployments", ctx.trace)); },
   "sites.domain_add": async (ctx) => { throw new VyreErr(notImplemented("sites.domain_add", ctx.trace)); },
   "sites.domain_check": async (ctx) => { throw new VyreErr(notImplemented("sites.domain_check", ctx.trace)); },
