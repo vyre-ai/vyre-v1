@@ -87,6 +87,8 @@ export function createSessions({
   const shown = new Map();
   /** @type {Map<number, { n: number, last: number }>} tabs an agent is acting in right now (a tool call in flight), and when its last act ended */
   const acts = new Map();
+  /** Agents whose tab the person touched while a call was running: they pause before their next step. @type {Set<string>} */
+  const pausing = new Set();
   /** @type {Map<string, string>} what each agent said it is doing (chrome_plan) */
   const goals = new Map();
 
@@ -155,6 +157,7 @@ export function createSessions({
 
   /** @param {string} agentId */
   const goalText = (agentId) => {
+    if (pausing.has(agentId)) return "Pausing after this step";
     const g = goals.get(agentId) ?? "";
     const p = plans.get(agentId);
     return g && p && p.total > 0 ? `${g} · ${p.done} of ${p.total}` : g;
@@ -271,6 +274,12 @@ export function createSessions({
     },
     release,
     group,
+    /** Before an agent's next step: did the person touch the tab during the last one? Then it stops here, the tab is theirs, and the answer is true. @param {string} agentId */
+    async takePausing(agentId) {
+      if (!pausing.delete(agentId)) return false;
+      await this.pause(agentId, "takeover");
+      return true;
+    },
     /** A tool call starts acting in a tab, or ends. The agent's own clicks and keys reach the page as real events, so a person's touch counts only outside these moments. @param {number} tabId */
     actStart(tabId) {
       const a = acts.get(tabId) ?? { n: 0, last: 0 };
@@ -289,7 +298,15 @@ export function createSessions({
       const d = drivers.get(tabId);
       if (!d) return false;
       const a = acts.get(tabId);
-      if (a && (a.n > 0 || now() - a.last < TOUCH_GRACE_MS)) return false;
+      if (a && (a.n > 0 || now() - a.last < TOUCH_GRACE_MS)) {
+        // not lost: the agent finishes the step it is on, then stops, and the bar says so
+        if (!pausing.has(d.agent.id)) {
+          pausing.add(d.agent.id);
+          await draw(tabId, d.agent);
+        }
+        return false;
+      }
+      pausing.delete(d.agent.id);
       await this.pause(d.agent.id, "takeover");
       return true;
     },
@@ -392,6 +409,7 @@ export function createSessions({
      * @param {string} agentId @param {"person" | "esc" | "tool" | "takeover"} by @param {string} [reason]
      */
     async pause(agentId, by, reason) {
+      pausing.delete(agentId);
       paused.set(agentId, { by, at: now() });
       for (const [tabId, d] of [...drivers]) {
         if (d.agent.id !== agentId) continue;

@@ -2274,3 +2274,29 @@ test("the network gate is asked on every read: a tab that went from a listed sit
   assert.equal(w.control.cdp.isNetworkOn(7), false, "no longer reading");
   await w.fails("chrome_sources", {}, "net_not_allowed");
 });
+
+test("a touch during a call is not lost: the bar says Pausing after this step, the step finishes, and the next one is refused with the tab handed over", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const port = framePort(w);
+  let release;
+  const hold = new Promise((r) => (release = r));
+  const orig = w.ext.debugger.sendCommand;
+  w.ext.debugger.sendCommand = async (t, m, p) => {
+    if (m === "Input.dispatchMouseEvent") await hold;
+    return orig(t, m, p);
+  };
+  const step = w.call("chrome_click", { x: 5, y: 5 });
+  await w.advance(0);
+  port.send({ type: "touch" });
+  await w.advance(0);
+  assert.match(w.overlay.get(7).goal, /Pausing after this step/);
+  assert.equal(w.eventsOf("takeover").length, 0, "the step in flight is not cut off");
+  release();
+  await step;
+  w.ext.debugger.sendCommand = orig;
+  await w.fails("chrome_snapshot", {}, "paused");
+  assert.equal(w.eventsOf("takeover").length, 1, "stopped before the next step");
+  assert.equal(w.overlay.get(7).state, "takeover");
+  assert.equal(w.attached.size, 0);
+});

@@ -792,3 +792,12 @@ Signed: lead, 19 Nov 2026
 - Snapshots: docs/frozen/snapshots/computers.json.
 
 Signed: pending, lead
+
+## 19 Nov 2026: decisions on review r-review for lane r42-chrome
+
+- `search.key` must name a Vault item of the kind API key that the setter may use (checked when it is set, through `vault.use` and `vault.item.get` as the setter), and is read for a search only if the item is a Shared Vault item of the kind API key (checked again when used). Anything else refuses with `validation.bad_input` and saves nothing.
+- `vault.login.check` compares only with items the caller may read (level view or above). An item the caller may merely use answers `new` whatever the password, so it is no guess oracle for them.
+- Not a contract change, pinned by tests: a person's touch during an agent's call queues a pause that takes effect before the agent's next step (the bar says "Pausing after this step"); the extension's pages show page text as text only.
+- Tests: modules/settings/tests/search-key.test.ts, modules/vault/tests/g20.test.ts, apps/chrome/tests/ext-agent.test.ts, ext-text-only.test.ts.
+
+Signed: pending, lead

@@ -6124,7 +6124,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
         // the computers module reads the key of the search service an admin chose, from the Vault by handle, for one call
-        setSearchHost: (d) => ({ secret: (handle: string) => d.vault.secret(handle, d.space) }),
+        // only a Shared Vault item of the kind API key is read for the search service, the same rule the setting was checked with
+        setSearchHost: (d) => ({
+          secret: (handle: string) => {
+            const ref = resolveKeyRef(db!, handle.startsWith("#") ? handle : `#${handle}`);
+            const row = ref ? (db!.all(`SELECT "kind" FROM vault_meta WHERE "id" = ?`, ref.id)[0] as { kind?: unknown } | undefined) : undefined;
+            if (!ref || row?.kind !== "api_key") return Promise.reject(new Error("The search key must be a Shared Vault item of the kind API key."));
+            return d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space);
+          },
+        }),
         setImportHost: (d) => ({
           secret: (_ctx: unknown, handle: string) =>
             d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space),

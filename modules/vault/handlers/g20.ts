@@ -466,6 +466,8 @@ export async function loginCheck(ctx: VaultCtx, input: { url: string; username?:
   let changed: Row | null = null;
   for (const r of rowsOf(ctx.db.all(`SELECT * FROM vault_meta`))) {
     if (!visible(ctx, r) || str(r, "kind") === "ai_subscription") continue;
+    // only an item the caller may read: a password compared with an item the caller may merely use would tell them whether a guess is right
+    if (!atLeast(levelOf(ctx, r), "view")) continue;
     const keys = parseJson<string[]>(r["fieldKeys"], []);
     if (!keys.some((k) => URL_KEYS.includes(k))) continue;
     let fields: Field[];

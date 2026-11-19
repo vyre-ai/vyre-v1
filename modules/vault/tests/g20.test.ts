@@ -600,3 +600,22 @@ test("login.check compares a submitted login inside the Vault: known, changed or
     "validation.bad_input",
   );
 });
+
+test("login.check compares only with items the caller may read: an item the caller may merely use answers new, whatever the password", async () => {
+  const h = harness();
+  const useOnly = await folder(h, "shared");
+  const viewable = await folder(h, "shared");
+  const useId = await put(h, useOnly, "Use only login", login("dana", "pw-secret-1", "https://use-only.example.com"));
+  const viewId = await put(h, viewable, "Viewable login", login("dana", "pw-secret-1", "https://viewable.example.com"));
+  h.grant(ROB, useId, "use");
+  h.grant(ROB, viewId, "view");
+  h.actAs("person", ROB);
+  const guess = (url: string) =>
+    g.loginCheck(h.ctx, { url, username: "dana", password: "pw-secret-1" }).then((r) => out(r).state);
+  assert.equal(
+    await guess("https://use-only.example.com"),
+    "new",
+    "a use-only caller learns nothing about whether the guess is right",
+  );
+  assert.equal(await guess("https://viewable.example.com"), "known", "a caller who may read the item is told");
+});

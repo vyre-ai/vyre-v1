@@ -1246,6 +1246,8 @@ export function createTools(kit) {
     const input = checkInput(call.tool, call.input);
     if (!nested && call.tool !== "chrome_status") {
       await kit.authorize(call);
+      // the person touched the tab during the last step: the agent stops here, before this one
+      if (!ALLOWED_WHILE_PAUSED.has(call.tool) && (await sessions.takePausing(call.agent.id))) fail("paused");
       if (!ALLOWED_WHILE_PAUSED.has(call.tool) && sessions.pausedFor(call.agent.id)) fail("paused");
     }
     if (kit.rights && acts(call.tool, input)) {

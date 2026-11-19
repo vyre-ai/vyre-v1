@@ -152,13 +152,19 @@ export async function setSpace(ctx: SettingsCtx, input: { key: string; value: un
     const m = /^#?([^.\s]+)(?:\.([A-Za-z0-9_]+))?$/.exec(input.value.trim());
     if (!m) raise(ctx, "validation.bad_input", "That is not a Vault handle, such as #Brave_Search.api_key.");
     let fields: unknown;
+    let kind: unknown;
     try {
-      fields = (
-        (await ctx.call("vault.use", { item: m![1], purpose: "web search key" })) as { fields?: unknown } | null
-      )?.fields;
+      const used = (await ctx.call("vault.use", { item: m![1], purpose: "web search key" })) as {
+        fields?: unknown;
+        itemId?: unknown;
+      } | null;
+      fields = used?.fields;
+      kind = ((await ctx.call("vault.item.get", { itemId: used?.itemId })) as { item?: { kind?: unknown } } | null)
+        ?.item?.kind;
     } catch {
       raise(ctx, "validation.bad_input", "You cannot use that Vault item. Choose one you may use.");
     }
+    if (kind !== "api_key") raise(ctx, "validation.bad_input", "Choose a Vault item of the kind API key.");
     if (m![2] !== undefined && !(Array.isArray(fields) && fields.includes(m![2])))
       raise(ctx, "validation.bad_input", "That Vault item has no such field.");
   }
