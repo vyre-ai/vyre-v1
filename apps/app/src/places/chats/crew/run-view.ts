@@ -25,6 +25,8 @@ export interface RunView {
   model: string;
   /** The coder's branch, when there is one. */
   branch?: string;
+  /** The held request (a Gate task) it waits on while it needs a person's yes: Allow and Deny answer it. */
+  holdTaskId?: string;
   /** What it sleeps on, when it sleeps: the one line ("Until the build finishes"), when it wakes, how often it has woken. */
   wake?: { label: string; dueAt?: number; wokeCount: number };
   /** Tokens served from the run's cache, when known (the token report). */
@@ -65,6 +67,11 @@ export function toRunView(m: CrewMember): RunView {
     elapsedMs: m.elapsedMs,
     model: modelTag(m),
     ...(m.branch !== undefined && m.branch !== "" ? { branch: m.branch } : {}),
+    ...(m.state === "needs_you" &&
+    typeof (m as { holdTaskId?: unknown }).holdTaskId === "string" &&
+    (m as { holdTaskId: string }).holdTaskId !== ""
+      ? { holdTaskId: (m as { holdTaskId: string }).holdTaskId }
+      : {}),
   };
 }
 

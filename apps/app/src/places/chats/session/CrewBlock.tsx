@@ -230,6 +230,8 @@ export function CrewBlock({
   const now = useNow(live);
   const [reviewed, setReviewed] = useState(false);
   const [picked, setPicked] = useState<"tiles" | "rows" | null>(null);
+  // Allow and Deny pressed inside a tile: what was answered for which helper, so a second press cannot answer twice and a failure can be tried again
+  const [decided, setDecided] = useState<Record<string, "approve" | "reject" | "failed">>({});
   // the width of this block's own column; the window's until it has been measured (the pane beside the chat narrows it)
   const winW = useWindowDimensions().width;
   const [colW, setColW] = useState<number | null>(null);
@@ -313,6 +315,20 @@ export function CrewBlock({
       {shown === "tiles" ? (
         <CrewTiles
           runs={members.map(toRunView)}
+          decided={decided}
+          onDecide={
+            call
+              ? (id, verdict) => {
+                  const task = toRunView(members.find((x) => x.id === id) ?? members[0]!).holdTaskId;
+                  if (task === undefined || decided[id] === "approve" || decided[id] === "reject") return;
+                  setDecided((d) => ({ ...d, [id]: verdict }));
+                  void Promise.resolve(call("tasks.decide", { taskId: task, verdict })).then(
+                    () => undefined,
+                    () => setDecided((d) => ({ ...d, [id]: "failed" })),
+                  );
+                }
+              : undefined
+          }
           now={now}
           selectedId={selectedId}
           onPress={(id) => {

@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { find, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { CrewBlock } from "./CrewBlock.tsx";
 import { toRunView, toRunViewFromNode } from "../crew/run-view.ts";
 import { totalsOf } from "../crew/model.ts";
@@ -195,4 +195,70 @@ test("a Run node reads as a RunView under the runtime's names: waiting is calm w
   assert.deepEqual(n({ status: "failed", errorMessage: "No tax column" }).lines, ["No tax column"]);
   assert.equal(n({ kind: "crew" }).kind, "coder");
   assert.equal(n({ kind: "mystery" }).kind, "helper");
+});
+
+const HOLD = () => [
+  S({
+    id: "sub_h",
+    title: "Delivery dates",
+    state: "needs_you",
+    steps: undefined as never,
+    step: "Read the Deliveries calendar?",
+    holdTaskId: "tsk_hold",
+  } as never),
+  S({ id: "sub_w", title: "Summary page" }),
+];
+
+test("a tile that waits on a held request offers Allow and Deny, answers it through tasks.decide once, and says what was answered", async () => {
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    return {};
+  };
+  const members = HOLD();
+  const root = await mount(
+    createRoot,
+    <CrewBlock members={members} totals={totalsOf(members)} width={900} call={call} onPeek={() => undefined} />,
+  );
+  assert.ok(find(root, "crew-tile-sub_h-allow") && find(root, "crew-tile-sub_h-deny"));
+  assert.equal(find(root, "crew-tile-sub_w-allow"), null, "a helper that is not waiting has no buttons");
+  await press(find(root, "crew-tile-sub_h-allow"));
+  await flush();
+  assert.deepEqual(
+    calls.filter((c) => c.cap === "tasks.decide").map((c) => c.input),
+    [{ taskId: "tsk_hold", verdict: "approve" }],
+  );
+  assert.match(textOf(find(root, "crew-tile-sub_h-decided")), /Allowed/);
+  assert.equal(find(root, "crew-tile-sub_h-allow"), null, "answered once: no second press");
+});
+
+test("Deny answers with reject; a failed answer says so and the buttons come back; no buttons without a held request or without a way to answer", async () => {
+  const bad = async (): Promise<unknown> => {
+    throw new Error("down");
+  };
+  const members = HOLD();
+  const root = await mount(
+    createRoot,
+    <CrewBlock members={members} totals={totalsOf(members)} width={900} call={bad} onPeek={() => undefined} />,
+  );
+  await press(find(root, "crew-tile-sub_h-deny"));
+  await flush();
+  assert.match(textOf(find(root, "crew-tile-sub_h-decide-failed")), /Could not answer/);
+  assert.ok(find(root, "crew-tile-sub_h-deny"), "tried again");
+  const none = [
+    S({ id: "sub_n", title: "x", state: "needs_you", steps: undefined as never, step: "Needs you" }),
+    S({ id: "sub_m", title: "y" }),
+  ];
+  const r2 = await mount(
+    createRoot,
+    <CrewBlock members={none} totals={totalsOf(none)} width={900} call={bad} onPeek={() => undefined} />,
+  );
+  assert.equal(find(r2, "crew-tile-sub_n-allow"), null, "no held request, no buttons");
+  const noCall = await mount(
+    createRoot,
+    <CrewBlock members={members} totals={totalsOf(members)} width={900} onPeek={() => undefined} />,
+  );
+  assert.equal(find(noCall, "crew-tile-sub_h-allow"), null, "nothing to answer with, no buttons");
+  const rv = toRunView(members[0]!);
+  assert.equal(rv.holdTaskId, "tsk_hold");
 });

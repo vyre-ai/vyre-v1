@@ -16,6 +16,8 @@ export function HelperTile({
   index,
   onPress,
   onRetry,
+  onDecide,
+  decided,
 }: {
   r: RunView;
   now: number;
@@ -23,6 +25,10 @@ export function HelperTile({
   index: number;
   onPress: (id: string) => void;
   onRetry?: ((id: string) => void) | undefined;
+  /** Answer the held request: Allow or Deny, inside the tile. */
+  onDecide?: ((id: string, verdict: "approve" | "reject") => void) | undefined;
+  /** What was pressed for this tile, so it says so and cannot be answered twice. */
+  decided?: "approve" | "reject" | "failed" | undefined;
 }): ReactElement {
   const id = `crew-tile-${r.id}`;
   const live = r.state === "working";
@@ -81,6 +87,39 @@ export function HelperTile({
             {x}
           </Text>
         ))}
+        {r.state === "needs_you" && r.holdTaskId !== undefined && onDecide !== undefined ? (
+          decided === "approve" || decided === "reject" ? (
+            <Text testID={`${id}-decided`} style={st.line}>
+              {decided === "approve" ? "Allowed" : "Denied"}
+            </Text>
+          ) : (
+            <View style={st.decide}>
+              {decided === "failed" ? (
+                <Text testID={`${id}-decide-failed`} style={st.line}>
+                  Could not answer. Try again.
+                </Text>
+              ) : null}
+              <View style={st.decideRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  testID={`${id}-allow`}
+                  onPress={() => onDecide(r.id, "approve")}
+                  style={st.allow}
+                >
+                  <Text style={st.allowText}>Allow</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  testID={`${id}-deny`}
+                  onPress={() => onDecide(r.id, "reject")}
+                  style={st.retry}
+                >
+                  <Text style={st.retryText}>Deny</Text>
+                </Pressable>
+              </View>
+            </View>
+          )
+        ) : null}
         {canRetry ? (
           <Pressable accessibilityRole="button" testID={`${id}-retry`} onPress={() => onRetry!(r.id)} style={st.retry}>
             <Text style={st.retryText}>{r.state === "stopped" ? "Start again" : "Retry"}</Text>
@@ -103,12 +142,16 @@ export function CrewTiles({
   selectedId,
   onPress,
   onRetry,
+  onDecide,
+  decided,
 }: {
   runs: readonly RunView[];
   now: number;
   selectedId?: string | null | undefined;
   onPress: (id: string) => void;
   onRetry?: ((id: string) => void) | undefined;
+  onDecide?: ((id: string, verdict: "approve" | "reject") => void) | undefined;
+  decided?: Readonly<Record<string, "approve" | "reject" | "failed">> | undefined;
 }): ReactElement {
   const cols = Math.min(3, Math.max(1, runs.length));
   return (
@@ -129,6 +172,8 @@ export function CrewTiles({
           selected={selectedId === r.id}
           onPress={onPress}
           onRetry={onRetry}
+          onDecide={onDecide}
+          decided={decided?.[r.id]}
         />
       ))}
     </View>
@@ -166,6 +211,16 @@ const st = StyleSheet.create({
   dim: { color: "var(--ink-4)" as string },
   lineNeed: { color: "var(--ink)" as string },
   lineFail: { color: "var(--ink)" as string },
+  decide: { gap: 4 },
+  decideRow: { flexDirection: "row", gap: 6, marginTop: 6 },
+  allow: {
+    height: 26,
+    paddingHorizontal: 12,
+    borderRadius: 9,
+    justifyContent: "center",
+    backgroundColor: "var(--accent)" as string,
+  },
+  allowText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent-ink)" as string },
   retry: {
     alignSelf: "flex-start",
     marginTop: 6,
