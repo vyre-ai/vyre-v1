@@ -262,7 +262,7 @@ export function AppsPage(): ReactElement {
                 disabled={action.busy}
                 confirmTestID="app-disconnect-confirm"
                 cancelTestID="app-disconnect-cancel"
-                onConfirm={() => void disconnect()}
+                onConfirm={() => disconnect()}
                 onCancel={() => setConfirm("")}
               />
             </>

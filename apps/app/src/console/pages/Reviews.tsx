@@ -172,7 +172,7 @@ export function Reviews({ initialId }: { initialId?: string }): ReactElement {
             confirmLabel="Close selected reviews"
             disabled={action.busy || !bulk.length}
             onConfirm={() =>
-              void (async () => {
+              (async () => {
                 for (const review of bulk) {
                   const out = await action.run("access.reviews.close", { reviewId: review.id }, "Review closed");
                   if (!out) {
@@ -324,7 +324,7 @@ function ReviewObject({ reviewId, onBack }: { reviewId: string; onBack: () => vo
             confirmLabel="Remove selected access"
             disabled={action.busy}
             onConfirm={() =>
-              void (async () => {
+              (async () => {
                 for (const grantId of removing) {
                   const out = await action.run(
                     "access.reviews.decide",
@@ -410,7 +410,7 @@ function ReviewGrant({
             disabled={action.busy}
             confirmTestID={`review-remove-${item.grant.id}`}
             onConfirm={() =>
-              void action
+              action
                 .run(
                   "access.reviews.decide",
                   { reviewId, grantId: item.grant.id, decision: "remove" },

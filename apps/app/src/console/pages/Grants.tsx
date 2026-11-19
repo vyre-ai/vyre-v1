@@ -191,7 +191,7 @@ export function Grants({ initialResource }: { initialResource?: { type: string; 
             disabled={action.busy || !revoke.length}
             confirmTestID="grant-revoke-confirm"
             onConfirm={() =>
-              void (async () => {
+              (async () => {
                 setNotice("");
                 for (const row of revoke) {
                   if (!(await action.run("access.unshare", { grantId: row.id }, "Grant revoked"))) return;
@@ -462,7 +462,7 @@ function GrantEditor({
             danger={false}
             disabled={action.busy}
             confirmTestID="grant-save-confirm"
-            onConfirm={() => void save()}
+            onConfirm={() => save()}
             onCancel={() => setReview(false)}
           />
         </>

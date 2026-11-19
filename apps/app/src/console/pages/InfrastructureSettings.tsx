@@ -155,7 +155,7 @@ export function Updates(): ReactElement {
           }
           confirmLabel={review.kind === "apply" ? "Confirm update" : "Confirm rollback"}
           disabled={action.busy}
-          onConfirm={() => void apply()}
+          onConfirm={() => apply()}
           onCancel={() => setReview(null)}
         />
       ) : null}
@@ -677,7 +677,7 @@ export function SpaceProfile(): ReactElement {
           confirmTestID="infra-space-confirm"
           disabled={action.busy}
           onConfirm={() =>
-            void action
+            action
               .run(
                 "spaces.switch_address",
                 { mode, ...(mode === "own_domain" ? { host: host.trim() } : {}) },

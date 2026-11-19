@@ -106,13 +106,12 @@ export function GithubPage(): ReactElement {
       },
     );
   };
-  const disconnect = (): void => {
-    void Promise.resolve(data.call("github.me.disconnect", {})).then(() => {
+  const disconnect = (): Promise<unknown> =>
+    Promise.resolve(data.call("github.me.disconnect", {})).then(() => {
       setSure(false);
       setStatus({ connected: false, needsReconnect: false });
       saved.saved("GitHub disconnected");
     }, fail);
-  };
   const setLevel = (key: keyof Policy, v: Level): void => {
     const was = policy;
     if (was) setPolicy({ ...was, [key]: v });

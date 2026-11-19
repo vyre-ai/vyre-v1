@@ -139,7 +139,7 @@ export function JoinLinkSection({
               confirmTestID="join-rotate-confirm"
               cancelTestID="join-rotate-cancel"
               onConfirm={() =>
-                void action
+                action
                   .run("members.join_link.rotate", {}, "New link made. The old one no longer works.")
                   .then(() => setRotating(false))
               }

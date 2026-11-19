@@ -176,9 +176,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
       if (id !== null) data.nav.openChat(id);
     });
   };
-  const remove = (): void => {
-    void removeOutside(deps, agentId, name, () => data.nav.closePage());
-  };
+  const remove = (): Promise<unknown> => removeOutside(deps, agentId, name, () => data.nav.closePage());
   const moreMenu = (x: number, y: number): void => {
     menu.show(
       [

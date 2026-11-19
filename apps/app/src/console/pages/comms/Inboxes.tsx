@@ -208,7 +208,7 @@ function InboxObject({ id, onBack }: { id: string; onBack(): void }): ReactEleme
                 disabled={action.busy}
                 confirmTestID="inbox-route-confirm-remove"
                 onConfirm={() =>
-                  void action
+                  action
                     .run(
                       "mail.route.remove",
                       {

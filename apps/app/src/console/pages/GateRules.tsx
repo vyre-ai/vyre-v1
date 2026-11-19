@@ -298,7 +298,7 @@ export function GateRules(): ReactElement {
                   disabled={action.busy || (scope === "floor" && !owner)}
                   confirmTestID="gate-rule-apply"
                   onConfirm={() =>
-                    void action.run("gate.rules.set", preview, async () => {
+                    action.run("gate.rules.set", preview, async () => {
                       const readback = (await data.call("gate.rules.list", {
                         scope,
                         ...(scope === "agent" ? { agentId } : {}),

@@ -167,7 +167,7 @@ function AiAccounts({
             confirmTestID="ai-own-switch-confirm"
             cancelTestID="ai-own-cancel"
             disabled={action.busy}
-            onConfirm={() => void save("company")}
+            onConfirm={() => save("company")}
             onCancel={() => setConfirm(false)}
           />
         ) : null}

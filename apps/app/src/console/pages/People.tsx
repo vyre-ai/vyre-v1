@@ -294,7 +294,7 @@ export function People({
               confirmLabel={`Confirm: ${bulkLabel}`}
               disabled={action.busy || (!bulk.value && bulk.kind !== "suspend")}
               confirmTestID="people-bulk-confirm"
-              onConfirm={() => void applyBulk()}
+              onConfirm={() => applyBulk()}
               onCancel={() => setBulk(null)}
             />
           </Group>
@@ -365,7 +365,7 @@ function PersonRoles({ personId }: { personId: string }): ReactElement {
             disabled={action.busy}
             confirmTestID="console-person-role-confirm"
             onConfirm={() =>
-              void action
+              action
                 .run(
                   pending.held ? "access.roles.unassign" : "access.roles.assign",
                   { subject: { kind: "person", id: personId }, roleId: pending.roleId },

@@ -1607,7 +1607,7 @@ function Grid({
                 confirmLabel="Delete"
                 confirmTestID="records-confirm-delete"
                 cancelTestID="records-confirm-cancel"
-                onConfirm={() => void deleteNow(work.ids, work.every)}
+                onConfirm={() => deleteNow(work.ids, work.every)}
                 onCancel={() => setWork(null)}
               />
             </>

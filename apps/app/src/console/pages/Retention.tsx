@@ -115,10 +115,10 @@ export function Retention(): ReactElement {
                   question={
                     <>
                       {selected.title} will change from {retentionWords(currentValue).toLowerCase()} to{" "}
-                      {retentionWords(reviewed).toLowerCase()}{" "}
+                      {retentionWords(reviewed).toLowerCase()}
                       {recordType
                         ? ` for ${schema.data.types.find((type) => type.key === recordType)?.title ?? recordType}`
-                        : ""}{" "}
+                        : ""}
                       .
                     </>
                   }
@@ -126,7 +126,7 @@ export function Retention(): ReactElement {
                   confirmLabel="Apply rule"
                   disabled={action.busy}
                   onConfirm={() =>
-                    void action
+                    action
                       .run(
                         "governance.retention.set",
                         { kind: selected.key, value: reviewed, ...(recordType ? { recordType } : {}) },
@@ -155,7 +155,7 @@ export function Retention(): ReactElement {
                   confirmLabel="Confirm reset"
                   disabled={action.busy}
                   onConfirm={() =>
-                    void action
+                    action
                       .run(
                         "governance.retention.reset",
                         { kind: selected.key, ...(recordType ? { recordType } : {}) },

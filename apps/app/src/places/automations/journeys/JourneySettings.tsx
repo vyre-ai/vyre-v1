@@ -36,11 +36,10 @@ export function JourneySettings({
       if (!ok) setName(j.name);
     });
   };
-  const del = (): void => {
-    void design.saved.run(`Deleted ${j.name}`, async () => {
+  const del = (): Promise<unknown> | void =>
+    design.saved.run(`Deleted ${j.name}`, async () => {
       await data.call("journeys.delete", { journeyId: j.id });
     });
-  };
 
   return (
     <View testID="journey-settings" accessibilityLabel="Journey settings" style={t.body}>

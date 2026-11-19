@@ -259,7 +259,7 @@ export function OpenInvites({
               disabled={action.busy}
               confirmTestID="console-invite-revoke-confirm"
               onConfirm={() =>
-                void action
+                action
                   .run("members.invites.revoke", { inviteId: confirm.id }, "Invite revoked.")
                   .then(() => setConfirm(null))
               }

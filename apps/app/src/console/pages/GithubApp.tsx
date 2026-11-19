@@ -246,7 +246,7 @@ export function GithubAppPage(): ReactElement {
               cancelTestID="gh-off-cancel"
               disabled={action.busy}
               onConfirm={() =>
-                void action.run("members.sign_in_github.clear", {}, "Members use the Vyre GitHub app").then(() => {
+                action.run("members.sign_in_github.clear", {}, "Members use the Vyre GitHub app").then(() => {
                   setConfirm(false);
                   setWantOwn(false);
                 })

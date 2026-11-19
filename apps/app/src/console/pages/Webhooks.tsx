@@ -396,7 +396,7 @@ function WebhookDeliveries({ id }: { id: string }): ReactElement {
             danger={false}
             disabled={action.busy}
             onConfirm={() =>
-              void action
+              action
                 .run<CapMap["webhooks.replay_delivery"]["out"]>(
                   "webhooks.replay_delivery",
                   { deliveryId: review.id, idempotencyKey: attempt() },

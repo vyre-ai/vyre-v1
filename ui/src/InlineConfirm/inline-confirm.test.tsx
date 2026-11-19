@@ -1,10 +1,13 @@
 // ui/InlineConfirm: the in-place confirmation. The machine is tested pure (every transition), the strip through the fake DOM (a double-press on the button that opened it never deletes; Cancel is focused; Escape cancels).
 import test from "node:test";
 import assert from "node:assert/strict";
+import { act } from "react";
 import { createRoot } from "test-renderer";
 import { renderToStaticMarkup } from "react-dom/server";
-import { find, flush, installDom, mount, press } from "../testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf } from "../testing/dom.ts";
 import { escapeLayers } from "../Overlay/escape.ts";
+import { useState } from "react";
+import { setReportProblemHandler } from "../Menu/index.tsx";
 import { InlineConfirm, step } from "./index.tsx";
 import type { ConfirmEvent, ConfirmState } from "./logic.ts";
 
@@ -119,6 +122,305 @@ test("a delete that failed and left the strip open can be tried again: press, fa
     await flush();
     assert.deepEqual(log, ["delete", "delete", "cancel"], "after Cancel nothing fires, however long it waits");
   } finally {
+    restore();
+  }
+});
+
+test("a slow action never fires twice: with a promise the strip arms again only when it settles", async () => {
+  const restore = installDom();
+  try {
+    const log: string[] = [];
+    const root = await mount(
+      createRoot,
+      <InlineConfirm
+        question="Delete?"
+        confirmLabel="Delete"
+        armMs={40}
+        onConfirm={() => {
+          log.push("delete");
+          return new Promise<void>((r) => setTimeout(r, 250)); // a request that takes much longer than the wait
+        }}
+        onCancel={() => log.push("cancel")}
+        confirmTestID="ic-go"
+        cancelTestID="ic-cancel"
+      />,
+    );
+    await wait(80);
+    await press(find(root, "ic-go"));
+    await wait(120); // past the wait, the request still running
+    await press(find(root, "ic-go"));
+    await press(find(root, "ic-go"));
+    await flush();
+    assert.deepEqual(log, ["delete"], "a second press during the request fires nothing");
+    await wait(300);
+    await press(find(root, "ic-go"));
+    await flush();
+    assert.deepEqual(log, ["delete", "delete"], "the request ended and the strip is still here: it can be tried again");
+  } finally {
+    restore();
+  }
+});
+
+test("a rejected confirm shows its own line, opens nothing by itself, re-arms, and Report is the person's choice with only a safe code in it", async () => {
+  const restore = installDom();
+  const reports: string[] = [];
+  const off = setReportProblemHandler((c) => void reports.push(c.label ?? ""));
+  const thrown: unknown[] = [];
+  const onThrow = (e: unknown): void => void thrown.push(e);
+  process.on("uncaughtException", onThrow);
+  try {
+    const log: string[] = [];
+    const root = await mount(
+      createRoot,
+      <InlineConfirm
+        testID="ic"
+        question="Delete?"
+        confirmLabel="Delete"
+        armMs={30}
+        onConfirm={() => {
+          log.push("delete");
+          // a gateway-shaped rejection: a plain object with a message that names a record
+          return Promise.reject({ error: { code: "access.denied", message: "Cannot delete Ada Lovelace (rec_123)" } });
+        }}
+        onCancel={() => undefined}
+        confirmTestID="ic-go"
+      />,
+    );
+    await wait(60);
+    await press(find(root, "ic-go"));
+    await wait(100);
+    assert.deepEqual(reports, [], "nothing opens by itself");
+    const line = textOf(find(root, "ic-failed"));
+    assert.match(line, /You don't have access to delete this\./, "the person reads what the gateway said");
+    assert.doesNotMatch(line, /object Object/);
+    await press(find(root, "ic-go"));
+    await wait(100);
+    assert.deepEqual(log, ["delete", "delete"], "armed again after the failure");
+    await press(find(root, "ic-report"));
+    assert.deepEqual(
+      reports,
+      ["Delete failed (access.denied)"],
+      "one report, by choice, with the code and no names or ids",
+    );
+    assert.deepEqual(thrown, [], "nothing global is thrown");
+  } finally {
+    process.off("uncaughtException", onThrow);
+    off();
+    restore();
+  }
+});
+
+test("the failure line is plain words chosen from the code, never the server's message", async () => {
+  const restore = installDom();
+  try {
+    for (const [err, want] of [
+      [
+        { error: { code: "access.denied", message: "no grant for rec_9 on 10.0.0.4:5432" } },
+        /^You don't have access to delete this\.\s*$/,
+      ],
+      [
+        { error: { code: "conflict.stale", message: "version 4 != 5 (select * from t)" } },
+        /^It changed first\. Try again\.\s*$/,
+      ],
+      [new Error("connect ECONNREFUSED 10.0.0.4:5432"), /^Couldn't reach the Space\.\s*$/],
+      [new TypeError("Failed to fetch"), /^Couldn't reach the Space\.\s*$/],
+      [{ error: { code: "validation.not_found", message: "No record rec_123" } }, /^It's already gone\.\s*$/],
+      [
+        { error: { code: "validation.shape", message: "field name_9 must not be empty" } },
+        /^That can't be deleted as it is\.\s*$/,
+      ],
+      [
+        { error: { code: "internal.sql", message: "syntax error at or near" } },
+        /^That did not work\. You can try again\.\s*$/,
+      ],
+      ["boom for Ada Lovelace", /^That did not work\. You can try again\.\s*$/],
+    ] as const) {
+      const root = await mount(
+        createRoot,
+        <InlineConfirm
+          testID="ic"
+          question="Delete?"
+          confirmLabel="Delete"
+          armMs={20}
+          onConfirm={() => Promise.reject(err)}
+          onCancel={() => undefined}
+          confirmTestID="ic-go"
+        />,
+      );
+      await wait(50);
+      await press(find(root, "ic-go"));
+      await wait(60);
+      const line = textOf(find(root, "ic-failed")).replace(/Report\s*$/, "");
+      assert.match(line, want);
+      assert.doesNotMatch(
+        line,
+        /10\.0\.0\.4|rec_9|rec_123|name_9|select|Lovelace|object Object/,
+        "no server text reaches the screen",
+      );
+    }
+  } finally {
+    restore();
+  }
+});
+
+test("in the compact row the failure line is one line that gives way (ellipsis), so Delete and Cancel stay on the strip", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  assert.match(
+    src,
+    /compact: \{ flexDirection: "row", flexWrap: "nowrap"/,
+    "the compact row does not wrap its buttons off",
+  );
+  assert.match(src, /<Text numberOfLines=\{1\} style=\{s\.failed\}>/, "one line, ellipsised");
+  assert.match(src, /failedRow: \{[^}]*flexShrink: 1[^}]*minWidth: 0/, "the line shrinks");
+  assert.match(src, /failed: \{ flexShrink: 1, minWidth: 0/);
+});
+
+test("a compact strip shows the failure line too", async () => {
+  const restore = installDom();
+  try {
+    const root = await mount(
+      createRoot,
+      <InlineConfirm
+        compact
+        testID="ic"
+        question="Delete?"
+        confirmLabel="Delete"
+        armMs={20}
+        onConfirm={() => Promise.reject(new Error("x"))}
+        onCancel={() => undefined}
+        confirmTestID="ic-go"
+      />,
+    );
+    await wait(50);
+    await press(find(root, "ic-go"));
+    await wait(60);
+    assert.ok(find(root, "ic-failed"));
+  } finally {
+    restore();
+  }
+});
+
+test("a caller that shows its work with busy holds the strip until busy ends", async () => {
+  const restore = installDom();
+  try {
+    const log: string[] = [];
+    function Host(): ReturnType<typeof InlineConfirm> {
+      const [busy, setBusy] = useState(false);
+      return (
+        <InlineConfirm
+          question="Delete?"
+          confirmLabel="Delete"
+          armMs={40}
+          busy={busy}
+          onConfirm={() => {
+            log.push("delete");
+            setBusy(true);
+            setTimeout(() => setBusy(false), 250);
+          }}
+          onCancel={() => log.push("cancel")}
+          confirmTestID="ic-go"
+        />
+      );
+    }
+    const root = await mount(createRoot, <Host />);
+    await wait(80);
+    await press(find(root, "ic-go"));
+    await wait(120);
+    await press(find(root, "ic-go"));
+    await flush();
+    assert.deepEqual(log, ["delete"], "still busy after the wait: no second delete");
+    await wait(300);
+    await press(find(root, "ic-go"));
+    await flush();
+    assert.deepEqual(log, ["delete", "delete"], "busy ended: armed again");
+  } finally {
+    restore();
+  }
+});
+
+test("Cancel stops the arm timer: afterwards Delete stays disabled however long the strip is left mounted", async () => {
+  const restore = installDom();
+  try {
+    const root = await mount(
+      createRoot,
+      <InlineConfirm
+        question="Delete?"
+        confirmLabel="Delete"
+        armMs={80}
+        onConfirm={() => undefined}
+        onCancel={() => undefined}
+        confirmTestID="ic-go"
+        cancelTestID="ic-cancel"
+      />,
+    );
+    await press(find(root, "ic-cancel")); // cancelled while still wary
+    await wait(200);
+    assert.equal(find(root, "ic-go")?.props["aria-disabled"], true, "Delete never looks live after a cancel");
+  } finally {
+    restore();
+  }
+});
+
+test("when the strip goes, focus returns to the button that opened it, found again by its test id when the strip replaced it (even a hover-only button)", async () => {
+  const restore = installDom();
+  const doc = (globalThis as unknown as { document: Record<string, unknown> }).document;
+  const was = { active: doc["activeElement"], query: doc["querySelector"] };
+  try {
+    const focused: string[] = [];
+    const opener = {
+      tagName: "BUTTON",
+      isConnected: true,
+      getAttribute: () => "row-act",
+      focus: () => focused.push("old"),
+    };
+    doc["activeElement"] = opener; // the press on the opener: it holds focus while the strip renders
+    const again = { focus: () => focused.push("new") };
+    doc["querySelector"] = (q: string) => (q.includes("row-act") ? again : null);
+    const r = createRoot();
+    await act(async () => {
+      r.render(
+        <InlineConfirm
+          question="Delete?"
+          confirmLabel="Delete"
+          armMs={50}
+          onConfirm={() => undefined}
+          onCancel={() => undefined}
+        />,
+      );
+    });
+    opener.isConnected = false; // the strip replaced the opener in the page
+    doc["activeElement"] = { tagName: "BODY" }; // the strip's own Cancel went with it
+    await act(async () => {
+      r.render(<></>);
+    });
+    await wait(30);
+    assert.deepEqual(focused, ["new"], "the button that is there now takes focus, not the old node");
+    // something else holds focus: it is left alone
+    focused.length = 0;
+    doc["activeElement"] = opener;
+    opener.isConnected = true;
+    const r2 = createRoot();
+    await act(async () => {
+      r2.render(
+        <InlineConfirm
+          question="Delete?"
+          confirmLabel="Delete"
+          armMs={50}
+          onConfirm={() => undefined}
+          onCancel={() => undefined}
+        />,
+      );
+    });
+    doc["activeElement"] = { tagName: "INPUT", isConnected: true };
+    await act(async () => {
+      r2.render(<></>);
+    });
+    await wait(30);
+    assert.deepEqual(focused, [], `a person who moved on keeps their place`);
+  } finally {
+    doc["activeElement"] = was.active;
+    doc["querySelector"] = was.query;
     restore();
   }
 });

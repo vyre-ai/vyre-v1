@@ -168,9 +168,8 @@ export function ArtifactView({
   const copy = (): void => {
     copyLinkText(itemLink("site", artifactId)); // the Space's own address (words when there is none)
   };
-  const remove = (): void => {
-    void Promise.resolve(rt.call("sites.delete", { siteId: artifactId })).then(gone, (e: unknown) => setFailed(msg(e)));
-  };
+  const remove = (): Promise<unknown> =>
+    Promise.resolve(rt.call("sites.delete", { siteId: artifactId })).then(gone, (e: unknown) => setFailed(msg(e)));
   const more = (): void => {
     const doc = (
       globalThis as {

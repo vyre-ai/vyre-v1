@@ -415,7 +415,7 @@ function SignInPolicy({ editing = false, onSaved }: { editing?: boolean; onSaved
                 confirmTestID="policy-signin-confirm"
                 disabled={action.busy}
                 onConfirm={() =>
-                  void action.run("members.sign_in_policy.set", { policy }, "Sign-in policy saved").then((result) => {
+                  action.run("members.sign_in_policy.set", { policy }, "Sign-in policy saved").then((result) => {
                     if (result) {
                       setDraft(null);
                       setConfirm(false);
@@ -504,7 +504,7 @@ function ProviderVaultOpen({ editing = false }: { editing?: boolean }): ReactEle
                 confirmTestID="policy-provider-vault-confirm"
                 disabled={action.busy}
                 onConfirm={() =>
-                  void action
+                  action
                     .run(
                       "access.policies.set",
                       { key: PROVIDER_VAULT_POLICY, scope: "space", value: next === "on" },
@@ -583,7 +583,7 @@ function PublicLinks({ editing = false, onSaved }: { editing?: boolean; onSaved?
                 confirmTestID="policy-links-confirm"
                 disabled={action.busy}
                 onConfirm={() =>
-                  void action
+                  action
                     .run(
                       "access.policies.set",
                       { key: "sharing.public_links", scope: "space", value: draft },

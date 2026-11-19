@@ -11,7 +11,11 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useEscapeLayer } from "../Overlay/escape.ts";
 import { Tip } from "../Tip/index.tsx";
+import { reportProblem } from "../Menu/index.tsx";
 import { armDelay, step } from "./logic.ts";
+
+/** The longest a caller's promise holds the strip dimmed. */
+const PENDING_MAX_MS = 30_000;
 import type { ConfirmEvent, ConfirmState } from "./logic.ts";
 export { ARM_MS, armDelay, setArmDelay, step } from "./logic.ts";
 
@@ -22,7 +26,8 @@ export interface InlineConfirmProps {
   note?: ReactNode;
   confirmLabel: string;
   cancelLabel?: string;
-  onConfirm(): void;
+  /** May return a promise: the strip does not arm again until it settles (a slow delete can never fire twice). A caller that returns nothing should pass `busy` while its work runs. */
+  onConfirm(): void | Promise<unknown>;
   onCancel(): void;
   /** False for an ask that does not destroy anything. */
   danger?: boolean;
@@ -34,6 +39,8 @@ export interface InlineConfirmProps {
   why?: string | undefined;
   /** Only the two buttons, for a slot that is already labelled (the end of a settings row): `question` then names them for a screen reader. */
   compact?: boolean;
+  /** A field that belongs to this ask ("type the name to confirm"): drawn inside the strip, and it takes focus in place of Cancel. Only a field inside the strip counts, never one elsewhere in the form. */
+  children?: ReactNode;
   /** Tests shorten the wait. */
   armMs?: number;
   testID?: string;
@@ -41,11 +48,40 @@ export interface InlineConfirmProps {
   cancelTestID?: string;
 }
 
+/** Plain words for a failed confirm, chosen from the error's code: never the server's own message, which can carry hosts, SQL, names or ids. */
+export function wordsFor(code: string, e: unknown): string {
+  if (/^access\./.test(code)) return "You don't have access to delete this.";
+  if (/^conflict\./.test(code)) return "It changed first. Try again.";
+  if (code === "validation.not_found") return "It's already gone.";
+  if (/^validation\./.test(code)) return "That can't be deleted as it is.";
+  const m = (typeof e === "string" ? e : ((e as { message?: unknown } | null)?.message ?? "")) as unknown;
+  if (
+    /^(net|network|offline|unreachable)[._-]?/i.test(code) ||
+    (typeof m === "string" && /failed to fetch|network|econnrefused|timed out|offline/i.test(m))
+  )
+    return "Couldn't reach the Space.";
+  return "That did not work. You can try again.";
+}
+
+/** A short error code from a rejection ("access.denied"), or "": never a message, which can carry a name, an id or a link. */
+function codeOf(e: unknown): string {
+  const o = e as { code?: unknown; error?: { code?: unknown } } | null;
+  const c = typeof o?.error?.code === "string" ? o.error.code : typeof o?.code === "string" ? o.code : "";
+  return /^[a-z0-9_.-]{1,40}$/i.test(c) ? c : "";
+}
+
 const web = Platform.OS === "web";
 type Focusable = { focus?: () => void };
 interface FocusDoc {
-  activeElement?: { isConnected?: boolean; tagName?: string; focus?: () => void } | null;
+  activeElement?: {
+    isConnected?: boolean;
+    tagName?: string;
+    focus?: () => void;
+    getAttribute?: (n: string) => string | null;
+  } | null;
+  querySelector?: (q: string) => Focusable | null;
 }
+type Opener = { el: NonNullable<FocusDoc["activeElement"]>; testid: string | null } | null;
 /** A text-like field: a checkbox, radio, file or hidden input is not one (Space would toggle it). */
 const FIELD =
   "input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]):not([type=button]):not([type=submit]),textarea";
@@ -61,6 +97,7 @@ export function InlineConfirm({
   busy = false,
   disabled = false,
   why,
+  children,
   compact = false,
   armMs = armDelay(),
   testID,
@@ -69,48 +106,124 @@ export function InlineConfirm({
 }: InlineConfirmProps): ReactElement {
   const state = useRef<ConfirmState>("wary");
   const [armed, setArmed] = useState(false);
+  const [failed, setFailed] = useState<{ code: string; text: string } | null>(null);
   const cancelRef = useRef<{ focus?: () => void } | null>(null);
   const calls = useRef({ onConfirm, onCancel });
   calls.current = { onConfirm, onCancel };
   const root = useRef<unknown>(null);
+  // the button that opened the strip: read while rendering the first time, before the strip replaces it in the page
+  const [opener] = useState<Opener>(() => {
+    const a = web ? (globalThis as { document?: FocusDoc }).document?.activeElement : null;
+    return a && a.tagName !== "BODY" ? { el: a, testid: a.getAttribute?.("data-testid") ?? null } : null;
+  });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // the press is spent until three things are true: the wait is over, the caller's promise (if it gave one) has settled, and the caller is not busy
+  const spent = useRef({ waited: true, pending: false });
+  const busyNow = useRef(busy);
+  busyNow.current = busy;
   const arm = (): void => {
+    if (state.current === "gone") return; // a cancel ends it: nothing arms afterwards
     send("arm");
     setArmed(true);
+  };
+  const tryArm = (): void => {
+    if (state.current !== "spent") return;
+    if (spent.current.waited && !spent.current.pending && !busyNow.current) arm();
   };
   const send = (e: ConfirmEvent): void => {
     const r = step(state.current, e);
     state.current = r.state;
     if (r.fire === "confirm") {
-      // the press is spent; if the strip is still here after the wait (the work failed), it arms again
       setArmed(false);
+      setFailed(null);
+      spent.current = { waited: armMs <= 0, pending: false };
       if (timer.current) clearTimeout(timer.current);
-      if (armMs <= 0) arm();
-      else timer.current = setTimeout(arm, armMs);
-      calls.current.onConfirm();
-    } else if (r.fire === "cancel") calls.current.onCancel();
+      if (armMs > 0)
+        timer.current = setTimeout(() => {
+          spent.current.waited = true;
+          tryArm();
+        }, armMs);
+      const out = calls.current.onConfirm();
+      if (out && typeof (out as Promise<unknown>).then === "function") {
+        spent.current.pending = true;
+        let settled = false;
+        const done = (): void => {
+          if (settled) return; // the cap and the real answer may both come
+          settled = true;
+          spent.current.pending = false;
+          tryArm();
+        };
+        // a request that never answers does not hold Delete off for ever: after a long wait the strip arms again. That is a deliberate trade: the request may still be running, so a person
+        // who presses again after that wait starts a second one.
+        const cap = setTimeout(done, PENDING_MAX_MS);
+        (cap as { unref?: () => void }).unref?.();
+        void (out as Promise<unknown>).then(
+          () => {
+            clearTimeout(cap);
+            done();
+          },
+          (e: unknown) => {
+            clearTimeout(cap);
+            const code = codeOf(e);
+            // the gateway's own words only for a user-facing family; anything else (a network error, a stack) gets the plain line
+            setFailed({ code, text: wordsFor(code, e) });
+            done();
+            // the strip says it did not work (inline); a person who wants to tell Vyre presses Report. Nothing opens by itself and nothing is thrown.
+          },
+        );
+      } else tryArm();
+    } else if (r.fire === "cancel") {
+      if (timer.current) clearTimeout(timer.current);
+      calls.current.onCancel();
+    }
   };
+  // a caller that shows its work with `busy` re-arms the strip when the work ends
+  useEffect(() => {
+    if (!busy) tryArm();
+  }, [busy]);
   useEffect(() => {
     const doc = web ? (globalThis as { document?: FocusDoc }).document : undefined;
-    const opener = doc?.activeElement ?? null;
     if (web) {
-      // a text field in the same block takes focus, as in ui/Dialog (the person types at once); else Cancel
-      const near = (root.current as { parentElement?: { querySelector?: (q: string) => Focusable | null } } | null)
-        ?.parentElement;
-      (near?.querySelector?.(FIELD) ?? cancelRef.current)?.focus?.();
+      // a text field inside the strip (a "type the name" box passed as children) takes focus, as in ui/Dialog; else Cancel. Never a field elsewhere in the form.
+      const el = root.current as { querySelector?: (q: string) => Focusable | null } | null;
+      (el?.querySelector?.(FIELD) ?? cancelRef.current)?.focus?.();
     }
     if (armMs <= 0) arm();
     else timer.current = setTimeout(arm, armMs);
     return () => {
       if (timer.current) clearTimeout(timer.current);
-      // focus goes back to what held it, unless something else has taken it since (a person who moved on keeps their place)
-      const now = doc?.activeElement;
-      if (opener && opener.isConnected !== false && (now === null || now === undefined || now.tagName === "BODY"))
-        opener.focus?.();
+      // focus goes back to the button that opened the strip (a new node by then if the strip replaced it: found by its test id), unless something else has taken it since.
+      // A button that shows only on hover is still a button: focus inside its row shows it again.
+      setTimeout(() => {
+        const now = doc?.activeElement;
+        if (!(now === null || now === undefined || now.tagName === "BODY") || !opener) return;
+        const again =
+          opener.el.isConnected !== false
+            ? opener.el
+            : opener.testid
+              ? doc?.querySelector?.(`[data-testid="${opener.testid}"]`)
+              : null;
+        again?.focus?.();
+      }, 0);
     };
   }, []);
   useEscapeLayer(true, () => send("cancel"));
   const fill = danger ? "var(--danger)" : "var(--accent)";
+  const failureLine = failed ? (
+    <View accessibilityRole="alert" testID={testID ? `${testID}-failed` : undefined} style={s.failedRow}>
+      <Text numberOfLines={1} style={s.failed}>
+        {failed.text}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Report this"
+        testID={testID ? `${testID}-report` : undefined}
+        onPress={() => reportProblem({ label: `${confirmLabel} failed${failed.code ? ` (${failed.code})` : ""}` })}
+      >
+        <Text style={s.report}>Report</Text>
+      </Pressable>
+    </View>
+  ) : null;
   return (
     <View
       ref={root as never}
@@ -119,10 +232,17 @@ export function InlineConfirm({
       {...(compact && typeof question === "string" ? { accessibilityLabel: question } : {})}
       style={compact ? s.compact : s.strip}
     >
-      {compact ? null : (
+      {compact ? (
+        <>
+          {children}
+          {failureLine}
+        </>
+      ) : (
         <View style={s.text}>
           <Text style={s.question}>{question}</Text>
           {note ? <Text style={s.note}>{note}</Text> : null}
+          {children}
+          {failureLine}
         </View>
       )}
       <View style={s.buttons}>
@@ -169,9 +289,12 @@ const s = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: "var(--sunk)" as string,
   },
-  compact: { flexDirection: "row", alignItems: "center", gap: 6 },
+  compact: { flexDirection: "row", flexWrap: "nowrap", alignItems: "center", gap: 6 },
   text: { flexGrow: 1, flexShrink: 1, minWidth: 160 },
   question: { fontSize: 13.5, lineHeight: 19, fontWeight: "600", color: "var(--ink)" as string },
+  failedRow: { flexDirection: "row", flexShrink: 1, minWidth: 0, alignItems: "center", gap: 8, marginTop: 4 },
+  failed: { flexShrink: 1, minWidth: 0, fontSize: 12.5, lineHeight: 18, color: "var(--danger)" as string },
+  report: { fontSize: 12.5, lineHeight: 18, fontWeight: "500", color: "var(--accent)" as string },
   note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: 2 },
   buttons: { flexDirection: "row", alignItems: "center", gap: 6 },
   btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, alignItems: "center", justifyContent: "center" },

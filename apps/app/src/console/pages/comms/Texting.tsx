@@ -199,7 +199,7 @@ export function TextingPage(): ReactElement {
               disabled={action.busy}
               confirmTestID="registration-confirm-submit"
               onConfirm={() =>
-                void action
+                action
                   .run(
                     "telephony.registration.submit",
                     { registrationId: registration.id, idempotencyKey: attempt() },

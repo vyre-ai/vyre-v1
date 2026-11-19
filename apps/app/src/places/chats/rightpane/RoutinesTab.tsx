@@ -245,7 +245,7 @@ export function RoutinesTab({
             confirmTestID="routine-delete"
             cancelTestID="routine-delete-cancel"
             onConfirm={() =>
-              void deleteRoutine(deps, r).then((ok) => {
+              deleteRoutine(deps, r).then((ok) => {
                 if (ok) {
                   setOpenId(null);
                   setMode("view");

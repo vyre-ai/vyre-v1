@@ -280,7 +280,7 @@ export function Holds(): ReactElement {
             confirmLabel="Release legal hold"
             disabled={action.busy}
             onConfirm={() =>
-              void action
+              action
                 .run("governance.holds.release", { target: releasePreview.target }, "Legal hold released")
                 .then((out) => {
                   if (out) {
