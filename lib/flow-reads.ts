@@ -20,15 +20,25 @@ export interface Shape {
   required?: string[];
 }
 
-const BODY = /\{\{([\s\S]*?)\}\}/g;
+const MAX_TEXT = 1_000_000;
 const WORDS = new Set(["true", "false", "null", "in", "contains"]);
 /** The roots a `{{ }}` can start with (the same list the expression language reads). */
 export const ROOTS: readonly string[] = ["trigger", "input", "steps", "vars", "item", "index", "run"];
 
-/** The texts between `{{` and `}}`. */
-export function bodiesOf(s: string): string[] {
+/** The texts between `{{` and `}}`. One pass over the text, so a text of nothing but `{{` costs no more than its length. */
+export function bodiesOf(text: string): string[] {
+  // a node's text is never this long in earnest: what is past the cap is not read
+  const s = text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) : text;
   const out: string[] = [];
-  for (const m of s.matchAll(BODY)) out.push(m[1] ?? "");
+  let at = 0;
+  for (;;) {
+    const open = s.indexOf("{{", at);
+    if (open < 0) break;
+    const close = s.indexOf("}}", open + 2);
+    if (close < 0) break; // no `}}` anywhere after this: nothing later can close either
+    out.push(s.slice(open + 2, close));
+    at = close + 2;
+  }
   return out;
 }
 
