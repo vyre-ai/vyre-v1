@@ -52,7 +52,8 @@
         "src/content/artifact.js",
         "src/content/badge.js",
         "src/content/prompt.js",
-        "src/content/select.js"
+        "src/content/select.js",
+        "src/content/link-page.js"
       ],
       "run_at": "document_idle",
       "all_frames": true

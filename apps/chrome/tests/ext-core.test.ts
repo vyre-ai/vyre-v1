@@ -698,6 +698,7 @@ test("the manifest asks for the smallest set of powers and one content script gr
     "src/content/badge.js",
     "src/content/prompt.js",
     "src/content/select.js",
+    "src/content/link-page.js",
   ]);
   assert.equal(m.commands._execute_action.suggested_key.mac, "Command+Shift+L");
   const csp: string = m.content_security_policy.extension_pages;
@@ -729,10 +730,12 @@ test("no passkey interception and no network of its own anywhere in the extensio
       !/navigator\.credentials|PublicKeyCredential|webauthn\.|\.get\(\s*\{\s*publicKey/i.test(bare),
       `${f} touches WebAuthn`,
     );
-    assert.ok(
-      !/\bfetch\s*\(|XMLHttpRequest|new WebSocket|sendBeacon|EventSource/.test(bare),
-      `${f} opens a connection of its own`,
-    );
+    // the one place that may open a connection: the link to a Space the person typed in, which asks that Space's own address for a session and then holds its socket
+    if (!f.endsWith("worker/link.js"))
+      assert.ok(
+        !/\bfetch\s*\(|XMLHttpRequest|new WebSocket|sendBeacon|EventSource/.test(bare),
+        `${f} opens a connection of its own`,
+      );
     assert.ok(
       !/\beval\s*\(|new Function\(|innerHTML\s*=|document\.write/.test(bare),
       `${f} runs or injects text as code`,
@@ -748,9 +751,15 @@ test("no passkey interception and no network of its own anywhere in the extensio
 test("only the guarded store writes to chrome.storage", () => {
   for (const f of sources("src").filter((x) => x.endsWith(".js"))) {
     const bare = read(f).replace(/\/\/.*$/gm, "");
-    if (f.endsWith("store.js")) continue;
+    if (f.endsWith("store.js") || f.endsWith("worker/link.js")) continue;
     assert.ok(!/storage\.(local|session|sync)\.(set|get|remove)/.test(bare), `${f} reaches storage directly`);
   }
+  // the one other writer keeps one thing, under one key with one shape: the session of a Space this Chrome is connected to directly
+  const link = read("src/worker/link.js");
+  assert.deepEqual(
+    [...link.matchAll(/const (KEY|PENDING_KEY) = "([A-Za-z]+)"/g)].map((m) => m[2]),
+    ["vyreLinks", "vyrePendingLink"],
+  );
   const index = read("src/worker/index.js");
   assert.match(index, /createStore\(ext\.storage\.local\)/);
   assert.ok(!/storage\.session|storage\.sync/.test(index), "no value-capable area is touched");

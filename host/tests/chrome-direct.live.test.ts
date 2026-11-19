@@ -582,3 +582,71 @@ test("a pair code dies at its time, and a code with no value bound still works a
     await d.stop();
   }
 });
+
+test("the extension's own link code connects to a real Space end to end: begin, the Space's page makes a bound code, redeem, the socket answers as that person; signed out, it is refused", async () => {
+  const { createLink } = await import("../../apps/chrome/src/worker/link.js");
+  const d = await boot();
+  try {
+    await provisionAccount(
+      {
+        space: "spc_core",
+        trace: { traceId: "t".repeat(32) },
+        now: () => Date.now(),
+        db: d.db,
+        emit: () => undefined,
+      } as unknown as IdentityCtx,
+      { personId: "usr_olivia", username: "pairolivia3", name: "Olivia", secret: "correct horse battery staple 9" },
+    );
+    const owner = signIn(d, "usr_olivia", "olivia5");
+    const mem = () => {
+      const data: Record<string, any> = {};
+      return {
+        get: async (k: string[]) => Object.fromEntries(k.filter((x) => x in data).map((x) => [x, data[x]])),
+        set: async (i: Record<string, any>) => void Object.assign(data, i),
+        remove: async (k: string[]) => void k.forEach((x) => delete data[x]),
+      };
+    };
+    const link = createLink({ local: mem(), session: mem() });
+    // the Space's address is its own origin (the test daemon is plain http on this computer)
+    const began: any = await link.begin(d.url);
+    assert.ok(began.url, JSON.stringify(began));
+    const challenge = /#challenge=([0-9a-f]{64})$/.exec(began.url)![1];
+    // the Space's page, signed in as the person, makes a code bound to that hash
+    const made = await call(d, owner, "identity.pair_create", {
+      purpose: "extension",
+      challenge,
+      idempotencyKey: "e2e-pair",
+    });
+    assert.equal(made.status, 200, JSON.stringify(made.error));
+    // a page of another origin cannot hand it over
+    assert.equal((await link.redeem({ origin: "https://evil.example.com", code: made.data.code })).ok, false);
+    const done = await link.redeem({ origin: began.origin, code: made.data.code });
+    assert.equal(done.ok, true, JSON.stringify(done));
+
+    // the port speaks to the real socket as that person
+    const port = link.openPort(link.current()!);
+    const answered: Record<string, any>[] = [];
+    port.onMessage.addListener((m: Record<string, any>) => answered.push(m));
+    port.postMessage({ id: "e1", type: "bridge", op: "agents.list", input: { section: "personal" } });
+    for (let i = 0; i < 100 && !answered.some((m) => m["id"] === "e1"); i++)
+      await new Promise((r) => setTimeout(r, 50));
+    assert.ok(
+      answered.find((m) => m["type"] === "ready"),
+      "the Space said ready",
+    );
+    assert.equal(answered.find((m) => m["id"] === "e1")?.["ok"], true);
+    assert.equal(link.current()!.space.length > 0, true, "the Space's id is kept for the switcher");
+    port.disconnect();
+
+    // the extension's own session is revoked in the Space (Settings, Sign-in and devices): the socket is refused and the link forgets itself
+    d.db!.run(`UPDATE devices_session SET revoked_at = ? WHERE id != 'ses_olivia5'`, Date.now());
+    const again = link.openPort(link.current()!);
+    let gone = false;
+    again.onDisconnect.addListener(() => (gone = true));
+    for (let i = 0; i < 100 && !gone; i++) await new Promise((r) => setTimeout(r, 50));
+    assert.equal(gone, true);
+    assert.equal(link.current(), null, "a signed out Chrome is told to connect again");
+  } finally {
+    await d.stop();
+  }
+});

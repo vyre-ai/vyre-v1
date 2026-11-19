@@ -19,6 +19,7 @@ import { OVERLAY_PORT, errorOf, fail, parseCommand } from "./protocol.js";
 import { createRights } from "./rights.js";
 import { createSessions } from "./sessions.js";
 import { createTools } from "./tools.js";
+import { linkedExt } from "../worker/link.js";
 import { createTransport } from "./transport.js";
 
 const FILL_WAIT_MS = 3000;
@@ -55,7 +56,7 @@ export function createAgentControl(ext, o = {}) {
 
   const transport =
     o.transport ??
-    createTransport(ext, {
+    createTransport(linkedExt(ext), {
       onMessage: (m) => {
         void onIncoming(m);
       },
