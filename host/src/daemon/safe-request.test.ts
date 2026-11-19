@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { spawnSync } from "node:child_process";
-import { guardRequest, guardUpgrade, installRejectionBackstop } from "./safe-request.ts";
+import { errorLine, guardRequest, guardUpgrade, rejectionCount, scrub } from "./safe-request.ts";
 import { PROOF_HEADER, proofFor, takeVisitor, visitorOfRequest } from "../seams/visitor-proof.ts";
 
 async function serve(handler: (req: http.IncomingMessage, res: http.ServerResponse) => unknown, errors: unknown[]): Promise<{ url: string; close(): Promise<void> }> {
@@ -73,28 +73,63 @@ test("a rejected promise from the handler answers 500 too", async () => {
   }
 });
 
-test("a rejection nobody waits on is logged by the backstop and the process lives; without it Node ends the process", () => {
+const childEnv = (extra: Record<string, string> = {}): NodeJS.ProcessEnv => {
+  const e: NodeJS.ProcessEnv = { ...process.env, ...extra };
+  delete e["NODE_TEST_CONTEXT"];
+  delete e["NODE_ENV"];
+  return e;
+};
+function child(install: boolean, env: Record<string, string> = {}) {
   const url = new URL("./safe-request.ts", import.meta.url).href;
-  const run = (install: boolean) =>
-    spawnSync(
-      process.execPath,
-      [
-        "--input-type=module",
-        "-e",
-        `import { installRejectionBackstop } from ${JSON.stringify(url)};
-         const seen = [];
-         ${install ? "installRejectionBackstop((e) => seen.push(e.message));" : ""}
-         Promise.reject(new Error("nobody waits"));
-         setTimeout(() => { console.log("ALIVE " + seen.join(",")); }, 100);`,
-      ],
-      { encoding: "utf8" },
-    );
-  const with_ = run(true);
-  assert.match(with_.stdout, /ALIVE nobody waits/);
-  assert.equal(with_.status, 0);
-  const without = run(false);
+  return spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import { installRejectionBackstop, rejectionCount } from ${JSON.stringify(url)};
+       const seen = [];
+       ${install ? 'installRejectionBackstop((e) => seen.push(e.message)); installRejectionBackstop((e) => seen.push("second:" + e.message));' : ""}
+       Promise.reject(new Error("nobody waits"));
+       setTimeout(() => { console.log("ALIVE " + seen.join(",") + " count=" + rejectionCount()); }, 100);`,
+    ],
+    { encoding: "utf8", env: childEnv(env) },
+  );
+}
+
+test("a rejection nobody waits on is counted and logged to the newest logger and the process lives; without the backstop Node ends it", () => {
+  const withIt = child(true);
+  assert.match(withIt.stdout, /ALIVE second:nobody waits count=1/, "the newest logger is the one called");
+  assert.equal(withIt.status, 0);
+  const without = child(false);
   assert.notEqual(without.status, 0, "Node's default ends the process");
   assert.doesNotMatch(without.stdout, /ALIVE/);
+});
+
+test("in a test process (or with VYRE_STRICT_REJECTIONS=1) the backstop logs and then fails as Node would, so a stray rejection still fails a test", () => {
+  const strict = child(true, { VYRE_STRICT_REJECTIONS: "1" });
+  assert.notEqual(strict.status, 0);
+  assert.doesNotMatch(strict.stdout, /ALIVE/);
+  assert.equal(rejectionCount(), 0, "this test process saw none");
+});
+
+test("what an error writes to a log is scrubbed: addresses are cut to origin and path, long token-like runs are removed, and the stack is kept", () => {
+  const e = new Error("fetch failed https://api.example.com/v1/x?token=abc123SECRET&k=v key=" + "Qz9".repeat(14));;
+  const l = errorLine(e);
+  assert.ok(!l.error.includes("SECRET") && !l.error.includes("Qz9Qz9Qz9"), l.error);
+  assert.match(l.error, /https:\/\/api\.example\.com\/v1\/x/);
+  assert.match(l.stack ?? "", /Error: fetch failed/);
+  assert.equal(scrub("a".repeat(5000)).length <= 4000, true);
+});
+
+test("an async upgrade handler that rejects closes its socket, like a request's rejection answers 500", async () => {
+  const errors: unknown[] = [];
+  let destroyed = false;
+  guardUpgrade(async () => {
+    throw new Error("async injected");
+  }, (_w, e) => void errors.push(e))({} as http.IncomingMessage, { destroy: () => void (destroyed = true) } as never, Buffer.alloc(0));
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(destroyed, true);
+  assert.equal(errors.length, 1);
 });
 
 test("hostile visitor headers through a real server: a non-ASCII, short, long and non-hex MAC each get an answer and the server stays up", async () => {

@@ -273,7 +273,7 @@ import { sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createMcpRoute } from "../routes/mcp.ts";
 import { takeVisitor } from "../seams/visitor-proof.ts";
-import { guardRequest, guardUpgrade, installRejectionBackstop } from "./safe-request.ts";
+import { errorLine, guardRequest, guardUpgrade, installRejectionBackstop } from "./safe-request.ts";
 import type { OnError } from "./safe-request.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
@@ -7575,7 +7575,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         takeVisitor(req); // the relay's visitor headers are read and removed here too (seams/visitor-proof.ts)
         if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
         else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
-      }, (where, error) => sink.logger({ space: space ?? "-", place: "http" }).error("http.handler_threw", { where, error: error instanceof Error ? error.message : String(error) })));
+      }, (where, error) => sink.logger({ space: space ?? "-", place: "http" }).error("http.handler_threw", { where, ...errorLine(error) })));
     server.removeAllListeners("request");
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
     server.on("connection", (sock) => {
@@ -7618,9 +7618,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const appFiles = createAppFilesRoute({ dir: () => (o.appDir !== undefined ? o.appDir : defaultAppDir()) });
     const httpLog = sink.logger({ space: space ?? "-", place: "http" });
     const onHttpError: OnError = (where, error) =>
-      httpLog.error("http.handler_threw", { where, error: error instanceof Error ? error.message : String(error) });
+      httpLog.error("http.handler_threw", { where, ...errorLine(error) });
     installRejectionBackstop((error) =>
-      httpLog.error("process.unhandled_rejection", { error: error instanceof Error ? error.message : String(error) }),
+      httpLog.error("process.unhandled_rejection", errorLine(error)),
     );
     server.on("request", guardRequest((req, res) => {
       // the visitor the relay vouched for is read once, here, and the two headers that carried it are removed: they exist only on the relay-to-daemon hop (seams/visitor-proof.ts)

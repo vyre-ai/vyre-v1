@@ -10,7 +10,7 @@
 import http from "node:http";
 import crypto from "node:crypto";
 import type { Duplex } from "node:stream";
-import { guardUpgrade } from "./daemon/safe-request.ts";
+import { errorLine, guardUpgrade } from "./daemon/safe-request.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import { HostError } from "./invoke.ts";
 import type { CtxSeed, Invoke } from "./invoke.ts";
@@ -648,7 +648,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   }, (where, error) =>
     o.sink
       ?.logger({ space: "-", place: "ws" })
-      .error("ws.upgrade_threw", { where, error: error instanceof Error ? error.message : String(error) }),
+      .error("ws.upgrade_threw", { where, ...errorLine(error) }),
   ));
 
   // heartbeat and dead-peer detection
