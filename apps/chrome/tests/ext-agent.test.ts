@@ -526,9 +526,10 @@ async function ready(over = {}) {
 
 test("every chrome tool in the computers manifest has a handler, and the capability each executes is the manifest's", () => {
   const manifest = fs.readFileSync(path.join(REPO, "manifests/computers.ts"), "utf8");
-  const found = [
-    ...manifest.matchAll(/["'](computers\.chrome\.[a-z_]+)["'][\s\S]*?mcpName: ["'](chrome_[a-z]+)["']/g),
-  ].map((m) => [m[2], m[1]]);
+  const found = [...manifest.matchAll(/["'](computers\.chrome\.[a-z_]+)["'][\s\S]*?mcpName: ["'](chrome_[a-z]+)["']/g)]
+    .map((m) => [m[2], m[1]])
+    // chrome_read and chrome_search are answered by the Space itself (modules/computers/handlers/tools/chrome.ts through the public reader): no browser is asked, so the extension has no handler for them
+    .filter(([tool]) => tool !== "chrome_read" && tool !== "chrome_search");
   assert.ok(found.length >= 22, `found ${found.length} chrome tools in the manifest`);
   for (const [tool, cap] of found) assert.equal(TOOLS[tool], cap, `${tool} executes ${cap}`);
   assert.deepEqual(
@@ -2234,4 +2235,30 @@ test("a page that tells the agent what to do is shown as data, and even an agent
   const pw = /textbox "Password" \[ref=(e\d+)\]/.exec(snap.tree)?.[1];
   assert.ok(pw, "the page has a password field");
   await w.fails("chrome_type", { ref: pw, text: "hunter2" }, "secret_field");
+});
+
+test("chrome_sources gives the shape of each JSON answer the page's calls got: keys and types, never a value", async () => {
+  const w = await ready();
+  w.emit(7, "Network.requestWillBeSent", {
+    requestId: "j1",
+    request: { method: "GET", url: "https://acme.test/api/rows?secret=1" },
+    type: "XHR",
+    timestamp: 1,
+  });
+  w.emit(7, "Network.responseReceived", {
+    requestId: "j1",
+    response: { status: 200, mimeType: "application/json" },
+  });
+  w.emit(7, "Network.loadingFinished", { requestId: "j1", timestamp: 1.1 });
+  w.emit(7, "Network.requestWillBeSent", {
+    requestId: "j2",
+    request: { method: "GET", url: "https://acme.test/page.html" },
+    type: "Document",
+    timestamp: 2,
+  });
+  const src = await w.call("chrome_sources");
+  const row = src.endpoints.find((e: any) => e.url === "https://acme.test/api/rows");
+  assert.deepEqual(row.shape, { ok: "boolean", password: "string", rows: "number" });
+  assert.ok(!JSON.stringify(src).includes('"p"'), "no value of the answer is in the output");
+  assert.ok(!JSON.stringify(src).includes("secret=1"), "the query string is not kept");
 });

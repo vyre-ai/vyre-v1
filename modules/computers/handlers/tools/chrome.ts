@@ -4,6 +4,10 @@
 // Held items: agentd holds a send, a post or a payment instead of doing it and answers `heldId`. Only chrome_send releases it, and that capability is behind the Gate (the person approves).
 // chrome_batch therefore refuses every tool the Gate or the risk class would treat differently from a plain step (send, api, eval, batch itself, stop, resume): a batch can never do what its parts
 // could not do alone. #Handle.field references go to agentd untouched; it substitutes them on the computer and reports the values it used, which are scrubbed from every answer (common.ts).
+import { lookup } from "node:dns/promises";
+import { documentNetwork } from "../../../../lib/document-network.ts";
+import { LIMIT, createLimiter, readPage, searchWeb } from "../../../../lib/web-read.ts";
+import type { FetchDeps } from "../../../../lib/public-fetch.ts";
 import { maskValue } from "../record.ts";
 import { raise } from "../../projections.ts";
 import type { CompCtx } from "../../projections.ts";
@@ -120,6 +124,50 @@ export async function status(ctx: CompCtx, input: Base) {
 export async function sources(ctx: CompCtx, input: Base) {
   const out = await run(ctx, input, { name: "chrome_sources", caption: null }, defined({ tabId: input.tabId }));
   return shape(ctx, "chrome_sources", out, { scripts: "a", endpoints: "a" });
+}
+
+// ---- the public web (documentation of the site being worked on)
+
+/** Reads and searches per agent, per minute: an agent that loops stops after a few. */
+const webLimit = createLimiter(LIMIT.n, LIMIT.windowMs);
+/** The hosts of this Space's own address: never opened, so a page can never send the reader back at the Space it runs in. */
+async function ownHosts(ctx: CompCtx): Promise<Set<string>> {
+  const hosts = new Set<string>();
+  try {
+    const out = (await ctx.call("spaces.get", {})) as { space?: { address?: unknown } } | null;
+    const a = out?.space?.address;
+    if (typeof a === "string" && a !== "")
+      hosts.add(new URL(/^[a-z]+:\/\//i.test(a) ? a : `https://${a}`).hostname.toLowerCase());
+  } catch {
+    /* no address to refuse: the private-address checks still hold */
+  }
+  return hosts;
+}
+async function webNet(ctx: CompCtx): Promise<FetchDeps> {
+  const own = await ownHosts(ctx);
+  const base: FetchDeps = documentNetwork() ?? {
+    fetch: globalThis.fetch,
+    lookup: async (h) => (await lookup(h, { all: true, verbatim: true })).map((r) => r.address),
+  };
+  return { ...base, refuseHost: (h) => own.has(h) || [...own].some((o) => h.endsWith(`.${o}`)) };
+}
+function webGate(ctx: CompCtx): void {
+  if (!webLimit.take(`${ctx.principal.kind}:${ctx.principal.id}`))
+    raise(ctx, "rate_limit.exceeded", "That is too many reads in a minute. Wait a little, then go on.");
+}
+
+export async function readWeb(ctx: CompCtx, input: { url: string }) {
+  webGate(ctx);
+  const r = await readPage(String(input.url ?? ""), await webNet(ctx));
+  if (!r.ok) raise(ctx, "validation.bad_input", r.reason);
+  return { url: r.url, title: r.title, text: r.text, truncated: r.truncated, source: r.source };
+}
+
+export async function searchWebTool(ctx: CompCtx, input: { query: string; site?: string | undefined }) {
+  webGate(ctx);
+  const r = await searchWeb(String(input.query ?? ""), input.site, await webNet(ctx));
+  if (!r.ok) raise(ctx, "validation.bad_input", r.reason);
+  return { query: r.query, results: r.results, source: r.source };
 }
 
 // ---- acting

@@ -25,8 +25,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "computers.chrome.net": Handler<"computers.chrome.net", X>;
   "computers.chrome.open": Handler<"computers.chrome.open", X>;
   "computers.chrome.plan": Handler<"computers.chrome.plan", X>;
+  "computers.chrome.read": Handler<"computers.chrome.read", X>;
   "computers.chrome.resume": Handler<"computers.chrome.resume", X>;
   "computers.chrome.screenshot": Handler<"computers.chrome.screenshot", X>;
+  "computers.chrome.search": Handler<"computers.chrome.search", X>;
   "computers.chrome.send": Handler<"computers.chrome.send", X>;
   "computers.chrome.snapshot": Handler<"computers.chrome.snapshot", X>;
   "computers.chrome.sources": Handler<"computers.chrome.sources", X>;

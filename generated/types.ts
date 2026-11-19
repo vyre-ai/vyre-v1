@@ -10815,6 +10815,16 @@ export type ComputersChromePlanOut = {
   note?: string;
   ok: boolean;
 };
+export type ComputersChromeReadIn = {
+  url: string;
+};
+export type ComputersChromeReadOut = {
+  url: string;
+  title: string;
+  text: string;
+  truncated: boolean;
+  source: string;
+};
 export type ComputersChromeResumeIn = {
   computerId?: string;
   inMyChrome?: boolean;
@@ -10840,6 +10850,19 @@ export type ComputersChromeScreenshotOut = {
   pageWidth?: number;
   pageHeight?: number;
   scale?: number;
+};
+export type ComputersChromeSearchIn = {
+  query: string;
+  site?: string;
+};
+export type ComputersChromeSearchOut = {
+  query: string;
+  results: Array<{
+      title: string;
+      url: string;
+      snippet: string;
+    }>;
+  source: string;
 };
 export type ComputersChromeSendIn = {
   computerId?: string;
@@ -10886,6 +10909,7 @@ export type ComputersChromeSourcesOut = {
   endpoints: Array<{
       method: string;
       url: string;
+      shape?: unknown;
     }>;
 };
 export type ComputersChromeStateIn = {
@@ -48741,8 +48765,10 @@ export interface CapMap {
   "computers.chrome.net": { in: ComputersChromeNetIn; out: ComputersChromeNetOut };
   "computers.chrome.open": { in: ComputersChromeOpenIn; out: ComputersChromeOpenOut };
   "computers.chrome.plan": { in: ComputersChromePlanIn; out: ComputersChromePlanOut };
+  "computers.chrome.read": { in: ComputersChromeReadIn; out: ComputersChromeReadOut };
   "computers.chrome.resume": { in: ComputersChromeResumeIn; out: ComputersChromeResumeOut };
   "computers.chrome.screenshot": { in: ComputersChromeScreenshotIn; out: ComputersChromeScreenshotOut };
+  "computers.chrome.search": { in: ComputersChromeSearchIn; out: ComputersChromeSearchOut };
   "computers.chrome.send": { in: ComputersChromeSendIn; out: ComputersChromeSendOut };
   "computers.chrome.snapshot": { in: ComputersChromeSnapshotIn; out: ComputersChromeSnapshotOut };
   "computers.chrome.sources": { in: ComputersChromeSourcesIn; out: ComputersChromeSourcesOut };

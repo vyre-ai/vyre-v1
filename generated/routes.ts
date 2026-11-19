@@ -7553,6 +7553,24 @@ const routes1: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/computers/chrome/read",
+    "cap": "computers.chrome.read",
+    "v": 1,
+    "module": "computers",
+    "effects": "read",
+    "permission": "computers.use",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/computers/chrome/resume",
     "cap": "computers.chrome.resume",
     "v": 1,
@@ -7584,6 +7602,24 @@ const routes1: Route[] = [
       "type": "computer",
       "id": "/computerId",
       "self": "agent"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/computers/chrome/search",
+    "cap": "computers.chrome.search",
+    "v": 1,
+    "module": "computers",
+    "effects": "read",
+    "permission": "computers.use",
+    "level": "view",
+    "resource": {
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -11074,7 +11110,10 @@ const routes1: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/email_builder/saved_blocks/list",
@@ -11110,10 +11149,7 @@ const routes1: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/email_builder/send_test",
@@ -16618,7 +16654,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/goals/folder",
@@ -16654,10 +16693,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/goals/go",
@@ -22114,7 +22150,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mail/mailbox/set_sync_state",
@@ -22152,10 +22191,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mail/member_pause",
@@ -27609,7 +27645,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/network/public_hostnames",
@@ -27645,10 +27684,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/network/server_approve",
@@ -33131,7 +33167,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sessions/delete",
@@ -33167,10 +33206,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sessions/import",
@@ -38638,7 +38674,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/templates/project_starters",
@@ -38674,10 +38713,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/terminal/attach",

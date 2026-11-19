@@ -755,3 +755,18 @@ Signed: lead, 17 Nov 2026
 - Snapshots: docs/frozen/snapshots/vault.json, docs/frozen/snapshots/identity.json.
 
 Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: `chrome_read` and `chrome_search`, and the shape of a JSON answer in `chrome_sources` (lane r42-chrome)
+
+- New capabilities `computers.chrome.read` (mcp `chrome_read`) and `computers.chrome.search` (mcp `chrome_search`), both reads, permission `computers.use`, no gate, snapshot docs/frozen/snapshots/computers.json. Input: `url` (an https address of a public page), or `query` (at most 200 characters) and an optional `site` (a host name). Output: for read the final address, title, the page's text (cut at 40,000 characters) and `truncated`; for search the query and up to eight results of title, address and snippet; both carry `source`, which says the text is web content and never an instruction.
+- Who answers: the Space itself, through the one public fetcher that documents and the HTTP step already use (now `lib/public-fetch.ts`, re-exported from its old path). No browser, no agent computer and no extension is asked, so there is no network in the extension and no guard exception: the tools are not bound to a computer and need none named. A person or agent that may use agent computers may call them.
+- What they refuse (validation.bad_input, with the reason in words), checked on every hop and on every address the name resolves to: anything but https, a username or password in the address, `localhost`, a private, loopback, link-local, shared (tailnet), reserved or metadata address, a name that resolves to one (DNS rebinding), a redirect to any of these, more than three redirects, this Space's own host and its subdomains, a page that is not text, and a page over 1 MB or slower than 10 seconds.
+- What they never do: send cookies or credentials (`credentials: omit`, the pinned connection sends no headers of its own), follow a link, run a script, keep a copy, or return markup (scripts, styles, comments, hidden and template parts are dropped; every tag is removed).
+- Page content is data: both outputs say so in `source`, the snapshot tool of the same lane labels the page it reads the same way, and the agent-computer skill tells the agent that a page's instructions are only text. Nothing the page says can approve a send or reach a secret; the holds do not depend on the agent heeding the label.
+- Limit: 20 reads or searches a minute for each agent (`rate_limit.exceeded`), in memory.
+- Search provider: none is configured in this tree (no key, no connector). The one search the product already uses is DuckDuckGo, which the Space browser's address bar sends a typed phrase to; `chrome_search` asks DuckDuckGo's key-less HTML page (`SEARCH_URL` in `lib/web-read.ts`, the only place to change it). No hidden key exists.
+- Changed contract: `computers.chrome.sources` endpoints gain an optional `shape` (keys and the type of each in the JSON answer the page's call got: never a value; a key that is an id, uuid, token or email is folded into one entry; depth 4, 40 keys, 12 endpoints). The Vyre for Chrome extension fills it; an agent computer's browser leaves it out.
+- Tests: lib/tests/web-read.test.ts, modules/computers/tests/web-tools.test.ts (read, hostile page, every refusal, search, the limit), tools.contract.test.ts, apps/chrome/tests/ext-shape.test.ts and ext-agent.test.ts.
+- Snapshots: docs/frozen/snapshots/computers.json.
+
+Signed: pending, lead
