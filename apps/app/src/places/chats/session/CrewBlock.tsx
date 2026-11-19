@@ -1,6 +1,6 @@
 // The crew in a long session (prototype t-session): one compact block instead of a card per helper. A header with how many and how they stand, then one 36 px row per helper: a face, its name, what it was asked, one
 // word of status and a clock. A row opens in place to the helper's last three steps; its name opens the helper's pane. Same data and the same test ids as the crew strip (crew/strip.tsx), no rings and no boxes.
-import { createElement, useEffect, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -215,7 +215,10 @@ export function CrewBlock({
   width,
   meId,
   onAnswered,
+  retryMs = 3000,
 }: {
+  /** How long before a held request whose permission could not be read is read again (a test shortens it). */
+  retryMs?: number;
   /** The person looking: who may answer a held request is read for them. */
   meId?: string | undefined;
   /** A held request was answered here: the crew is read again. */
@@ -238,36 +241,47 @@ export function CrewBlock({
   const now = useNow(live);
   const [reviewed, setReviewed] = useState(false);
   const [picked, setPicked] = useState<"tiles" | "rows" | null>(null);
-  // Allow and Deny pressed inside a tile: what was answered for which helper, so a second press cannot answer twice and a failure can be tried again
+  // Allow and Deny pressed inside a tile: what was answered for which HELD REQUEST (not which helper: the same helper can hold another request later), so a second press cannot answer twice and a failure can be tried again
   const [decided, setDecided] = useState<Record<string, "approve" | "reject" | "failed">>({});
-  // who may answer which held request, read once per request the way the chat card reads it (the task and the moves this person has on it)
+  const inFlight = useRef(new Set<string>());
+  // who may answer which held request, read the way the chat card reads it (the task and the moves this person has on it). A read that fails is never kept as "no": nothing shows, and it is read again
   const [mayByTask, setMayByTask] = useState<Record<string, { approve: boolean; reject: boolean }>>({});
   const holds = members.flatMap((m) => {
     const t = toRunView(m).holdTaskId;
     return t !== undefined ? [{ id: m.id, task: t }] : [];
   });
-  const holdKey = holds.map((h) => h.task).join(",");
+  // read again whenever a request appears or goes, a helper changes state (it was answered elsewhere, it was reassigned), or the person or the way to ask changes
+  const readKey = members.map((m) => `${m.id}:${m.state}:${toRunView(m).holdTaskId ?? ""}`).join("|");
   useEffect(() => {
     if (!call || !meId) return undefined;
     let dead = false;
-    for (const h of holds) {
-      if (mayByTask[h.task] !== undefined) continue;
-      void Promise.resolve(call("tasks.get", { taskId: h.task })).then(
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    const read = (task: string): void => {
+      void Promise.resolve(call("tasks.get", { taskId: task })).then(
         (o) => {
           const t = (o as { task?: MoveTask } | null)?.task;
           const keys = new Set(t ? movesFor(t, meId).map((x) => x.key) : []);
           if (!dead)
-            setMayByTask((x) => ({ ...x, [h.task]: { approve: keys.has("approve"), reject: keys.has("reject") } }));
+            setMayByTask((x) => ({ ...x, [task]: { approve: keys.has("approve"), reject: keys.has("reject") } }));
         },
         () => {
-          if (!dead) setMayByTask((x) => ({ ...x, [h.task]: { approve: false, reject: false } }));
+          if (dead) return;
+          setMayByTask((x) => {
+            const { [task]: _gone, ...rest } = x;
+            return rest;
+          });
+          const t = setTimeout(() => read(task), retryMs);
+          (t as { unref?: () => void }).unref?.();
+          timers.push(t);
         },
       );
-    }
+    };
+    for (const h of holds) read(h.task);
     return () => {
       dead = true;
+      timers.forEach(clearTimeout);
     };
-  }, [holdKey, call, meId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [readKey, call, meId]); // eslint-disable-line react-hooks/exhaustive-deps
   const mayAnswer = Object.fromEntries(holds.flatMap((h) => (mayByTask[h.task] ? [[h.id, mayByTask[h.task]!]] : [])));
   // the width of this block's own column; the window's until it has been measured (the pane beside the chat narrows it)
   const winW = useWindowDimensions().width;
@@ -370,16 +384,28 @@ export function CrewBlock({
           may={mayAnswer}
           onDecide={
             call && meId
-              ? (id, verdict, note) => {
-                  const task = toRunView(members.find((x) => x.id === id) ?? members[0]!).holdTaskId;
-                  if (task === undefined || decided[id] === "approve" || decided[id] === "reject") return;
-                  setDecided((d) => ({ ...d, [id]: verdict }));
+              ? (task, verdict, note) => {
+                  // the tile names its own request: nothing is looked up again, so another helper's request can never be answered by mistake; one answer in flight per request
+                  if (inFlight.current.has(task) || decided[task] === "approve" || decided[task] === "reject") return;
+                  inFlight.current.add(task);
+                  setDecided((d) => ({ ...d, [task]: verdict }));
                   // the held request is a task that carries Allow and Deny: answered where the chat card answers it
                   void Promise.resolve(
                     call("tasks.act", { taskId: task, action: verdict, ...(note ? { note } : {}) }),
                   ).then(
-                    () => onAnswered?.(),
-                    () => setDecided((d) => ({ ...d, [id]: "failed" })),
+                    () => {
+                      inFlight.current.delete(task);
+                      // answered: the view of who may answer it is dropped and the crew is read again
+                      setMayByTask((x) => {
+                        const { [task]: _gone, ...rest } = x;
+                        return rest;
+                      });
+                      onAnswered?.();
+                    },
+                    () => {
+                      inFlight.current.delete(task);
+                      setDecided((d) => ({ ...d, [task]: "failed" }));
+                    },
                   );
                 }
               : undefined

@@ -2,10 +2,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { useState } from "react";
+import { act, useState } from "react";
 import { Pressable } from "react-native";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import { CrewBlock } from "./CrewBlock.tsx";
+import { CrewTiles } from "./CrewTiles.tsx";
 import { toRunView, toRunViewFromNode } from "../crew/run-view.ts";
 import { totalsOf } from "../crew/model.ts";
 import type { CrewMember } from "../crew/model.ts";
@@ -200,7 +201,14 @@ test("a Run node reads as a RunView under the runtime's names: waiting is calm w
 });
 
 const HOLD = (state: CrewMember["state"] = "needs_you") => [
-  S({ id: "sub_h", title: "Delivery dates", state, steps: undefined as never, step: "Read the Deliveries calendar?", holdTaskId: "tsk_hold" } as never),
+  S({
+    id: "sub_h",
+    title: "Delivery dates",
+    state,
+    steps: undefined as never,
+    step: "Read the Deliveries calendar?",
+    holdTaskId: "tsk_hold",
+  } as never),
   S({ id: "sub_w", title: "Summary page" }),
 ];
 /** The held request as the Space serves it: an approval task that carries Allow and Deny, assigned to the person who may answer it. */
@@ -232,14 +240,28 @@ test("a tile that waits on a held request offers Allow and Deny to someone who m
   const { call, calls } = rigCall("usr_me");
   let answered = 0;
   const members = HOLD();
-  const root = await mount(createRoot, <CrewBlock members={members} totals={totalsOf(members)} width={900} call={call} meId="usr_me" onAnswered={() => answered++} onPeek={() => undefined} />);
+  const root = await mount(
+    createRoot,
+    <CrewBlock
+      members={members}
+      totals={totalsOf(members)}
+      width={900}
+      call={call}
+      meId="usr_me"
+      onAnswered={() => answered++}
+      onPeek={() => undefined}
+    />,
+  );
   await flush();
   assert.ok(find(root, "crew-tile-sub_h-allow") && find(root, "crew-tile-sub_h-deny"));
   assert.equal(find(root, "crew-tile-sub_w-allow"), null, "a helper that is not waiting has no buttons");
   assert.equal(calls.filter((c) => c.cap === "tasks.get").length, 1, "the permission is read once for the request");
   await press(find(root, "crew-tile-sub_h-allow"));
   await flush();
-  assert.deepEqual(calls.filter((c) => c.cap === "tasks.act").map((c) => c.input), [{ taskId: "tsk_hold", action: "approve" }]);
+  assert.deepEqual(
+    calls.filter((c) => c.cap === "tasks.act").map((c) => c.input),
+    [{ taskId: "tsk_hold", action: "approve" }],
+  );
   assert.match(textOf(find(root, "crew-tile-sub_h-decided")), /Allowed/);
   assert.equal(find(root, "crew-tile-sub_h-allow"), null, "answered once: no second press");
   assert.equal(answered, 1, "the crew is read again, so the card on the chat shows the answer too");
@@ -248,7 +270,17 @@ test("a tile that waits on a held request offers Allow and Deny to someone who m
 test("Deny asks for a reason, as the card does, and sends it with the reject; an empty reason sends nothing; a failed answer says so and the buttons come back", async () => {
   const ok = rigCall("usr_me");
   const members = HOLD();
-  const root = await mount(createRoot, <CrewBlock members={members} totals={totalsOf(members)} width={900} call={ok.call} meId="usr_me" onPeek={() => undefined} />);
+  const root = await mount(
+    createRoot,
+    <CrewBlock
+      members={members}
+      totals={totalsOf(members)}
+      width={900}
+      call={ok.call}
+      meId="usr_me"
+      onPeek={() => undefined}
+    />,
+  );
   await flush();
   await press(find(root, "crew-tile-sub_h-deny"));
   assert.ok(find(root, "crew-tile-sub_h-deny-reason"));
@@ -257,10 +289,23 @@ test("Deny asks for a reason, as the card does, and sends it with the reject; an
   await typeInto(find(root, "crew-tile-sub_h-deny-reason"), "Not that calendar");
   await press(find(root, "crew-tile-sub_h-deny-go"));
   await flush();
-  assert.deepEqual(ok.calls.filter((c) => c.cap === "tasks.act").map((c) => c.input), [{ taskId: "tsk_hold", action: "reject", note: "Not that calendar" }]);
+  assert.deepEqual(
+    ok.calls.filter((c) => c.cap === "tasks.act").map((c) => c.input),
+    [{ taskId: "tsk_hold", action: "reject", note: "Not that calendar" }],
+  );
   assert.match(textOf(find(root, "crew-tile-sub_h-decided")), /Denied/);
   const bad = rigCall("usr_me", true);
-  const r2 = await mount(createRoot, <CrewBlock members={members} totals={totalsOf(members)} width={900} call={bad.call} meId="usr_me" onPeek={() => undefined} />);
+  const r2 = await mount(
+    createRoot,
+    <CrewBlock
+      members={members}
+      totals={totalsOf(members)}
+      width={900}
+      call={bad.call}
+      meId="usr_me"
+      onPeek={() => undefined}
+    />,
+  );
   await flush();
   await press(find(r2, "crew-tile-sub_h-allow"));
   await flush();
@@ -271,7 +316,17 @@ test("Deny asks for a reason, as the card does, and sends it with the reject; an
 test("someone who could not answer on the card gets no buttons on the tile: another person's request, a request that cannot be read, no person, no held request, no way to answer", async () => {
   const members = HOLD();
   const other = rigCall("usr_else");
-  const a = await mount(createRoot, <CrewBlock members={members} totals={totalsOf(members)} width={900} call={other.call} meId="usr_me" onPeek={() => undefined} />);
+  const a = await mount(
+    createRoot,
+    <CrewBlock
+      members={members}
+      totals={totalsOf(members)}
+      width={900}
+      call={other.call}
+      meId="usr_me"
+      onPeek={() => undefined}
+    />,
+  );
   await flush();
   assert.equal(find(a, "crew-tile-sub_h-allow"), null, "the request is another person's");
   assert.equal(find(a, "crew-tile-sub_h-deny"), null);
@@ -279,15 +334,41 @@ test("someone who could not answer on the card gets no buttons on the tile: anot
     if (cap === "tasks.get") throw new Error("no");
     return {};
   };
-  const b = await mount(createRoot, <CrewBlock members={members} totals={totalsOf(members)} width={900} call={unreadable} meId="usr_me" onPeek={() => undefined} />);
+  const b = await mount(
+    createRoot,
+    <CrewBlock
+      members={members}
+      totals={totalsOf(members)}
+      width={900}
+      call={unreadable}
+      meId="usr_me"
+      onPeek={() => undefined}
+    />,
+  );
   await flush();
   assert.equal(find(b, "crew-tile-sub_h-allow"), null, "a request that cannot be read is not answered blind");
   const mine = rigCall("usr_me");
-  const c = await mount(createRoot, <CrewBlock members={members} totals={totalsOf(members)} width={900} call={mine.call} onPeek={() => undefined} />);
+  const c = await mount(
+    createRoot,
+    <CrewBlock members={members} totals={totalsOf(members)} width={900} call={mine.call} onPeek={() => undefined} />,
+  );
   await flush();
   assert.equal(find(c, "crew-tile-sub_h-allow"), null, "no person known");
-  const nohold = [S({ id: "sub_n", title: "x", state: "needs_you", steps: undefined as never, step: "Needs you" }), S({ id: "sub_m", title: "y" })];
-  const d = await mount(createRoot, <CrewBlock members={nohold} totals={totalsOf(nohold)} width={900} call={mine.call} meId="usr_me" onPeek={() => undefined} />);
+  const nohold = [
+    S({ id: "sub_n", title: "x", state: "needs_you", steps: undefined as never, step: "Needs you" }),
+    S({ id: "sub_m", title: "y" }),
+  ];
+  const d = await mount(
+    createRoot,
+    <CrewBlock
+      members={nohold}
+      totals={totalsOf(nohold)}
+      width={900}
+      call={mine.call}
+      meId="usr_me"
+      onPeek={() => undefined}
+    />,
+  );
   await flush();
   assert.equal(find(d, "crew-tile-sub_n-allow"), null, "no held request");
   assert.equal(toRunView(members[0]!).holdTaskId, "tsk_hold");
@@ -303,7 +384,14 @@ test("answering on the card updates the tile: when the request is answered elsew
         <Pressable testID="answered-on-card" onPress={() => setOn(false)}>
           {null}
         </Pressable>
-        <CrewBlock members={members} totals={totalsOf(members)} width={900} call={call} meId="usr_me" onPeek={() => undefined} />
+        <CrewBlock
+          members={members}
+          totals={totalsOf(members)}
+          width={900}
+          call={call}
+          meId="usr_me"
+          onPeek={() => undefined}
+        />
       </>
     ) as never;
   };
@@ -314,4 +402,218 @@ test("answering on the card updates the tile: when the request is answered elsew
   await flush();
   assert.equal(find(root, "crew-tile-sub_h-allow"), null);
   assert.equal(find(root, "crew-tile-sub_h-deny"), null);
+});
+
+test("a tile names its own request: answering the second of two waiting helpers answers the second's request, never the first's", async () => {
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    if (cap === "tasks.get") return { task: { ...taskFor("usr_me").task, id: (input as { taskId: string }).taskId } };
+    return {};
+  };
+  const members = [
+    S({
+      id: "sub_a",
+      title: "First",
+      state: "needs_you",
+      steps: undefined as never,
+      step: "Q?",
+      holdTaskId: "tsk_a",
+    } as never),
+    S({
+      id: "sub_b",
+      title: "Second",
+      state: "needs_you",
+      steps: undefined as never,
+      step: "Q?",
+      holdTaskId: "tsk_b",
+    } as never),
+  ];
+  const root = await mount(
+    createRoot,
+    <CrewBlock
+      members={members}
+      totals={totalsOf(members)}
+      width={900}
+      call={call}
+      meId="usr_me"
+      onPeek={() => undefined}
+    />,
+  );
+  await flush();
+  await press(find(root, "crew-tile-sub_b-allow"));
+  await flush();
+  assert.deepEqual(
+    calls.filter((c) => c.cap === "tasks.act").map((c) => c.input),
+    [{ taskId: "tsk_b", action: "approve" }],
+  );
+  assert.ok(find(root, "crew-tile-sub_a-allow"), "the first helper's request is still waiting for its own answer");
+});
+
+test("a second request of the same helper gets its own Allow and Deny after the first was answered", async () => {
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    if (cap === "tasks.get") return { task: { ...taskFor("usr_me").task, id: (input as { taskId: string }).taskId } };
+    return {};
+  };
+  const Host = (): ReturnType<typeof CrewBlock> => {
+    const [task, setTask] = useState("tsk_1");
+    const members = [
+      S({
+        id: "sub_h",
+        title: "Delivery dates",
+        state: "needs_you",
+        steps: undefined as never,
+        step: "Q?",
+        holdTaskId: task,
+      } as never),
+      S({ id: "sub_w", title: "Other" }),
+    ];
+    return (
+      <>
+        <Pressable testID="next-request" onPress={() => setTask("tsk_2")}>
+          {null}
+        </Pressable>
+        <CrewBlock
+          members={members}
+          totals={totalsOf(members)}
+          width={900}
+          call={call}
+          meId="usr_me"
+          onPeek={() => undefined}
+        />
+      </>
+    ) as never;
+  };
+  const root = await mount(createRoot, <Host />);
+  await flush();
+  await press(find(root, "crew-tile-sub_h-allow"));
+  await flush();
+  assert.match(textOf(find(root, "crew-tile-sub_h-decided")), /Allowed/);
+  await press(find(root, "next-request"));
+  await flush();
+  assert.equal(find(root, "crew-tile-sub_h-decided"), null, "the new request does not inherit the old answer");
+  await press(find(root, "crew-tile-sub_h-allow"));
+  await flush();
+  assert.deepEqual(
+    calls.filter((c) => c.cap === "tasks.act").map((c) => c.input),
+    [
+      { taskId: "tsk_1", action: "approve" },
+      { taskId: "tsk_2", action: "approve" },
+    ],
+  );
+});
+
+test("two presses in one tick answer once", async () => {
+  const { call, calls } = rigCall("usr_me");
+  const members = HOLD();
+  const root = await mount(
+    createRoot,
+    <CrewBlock
+      members={members}
+      totals={totalsOf(members)}
+      width={900}
+      call={call}
+      meId="usr_me"
+      onPeek={() => undefined}
+    />,
+  );
+  await flush();
+  const allow = find(root, "crew-tile-sub_h-allow")!;
+  const ev = {
+    stopPropagation() {},
+    preventDefault() {},
+    altKey: false,
+    target: { getAttribute: () => null },
+    currentTarget: { getAttribute: () => null },
+    nativeEvent: {},
+  };
+  await act(async () => {
+    (allow.props.onClick as (e: unknown) => void)(ev);
+    (allow.props.onClick as (e: unknown) => void)(ev);
+  });
+  await flush();
+  assert.equal(calls.filter((c) => c.cap === "tasks.act").length, 1);
+});
+
+test("who may answer is read again: a read that failed is retried and never kept as no; a request reassigned or changed since is read afresh", async () => {
+  let n = 0;
+  let who = "usr_me";
+  const calls: string[] = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push(cap);
+    if (cap === "tasks.get") {
+      n++;
+      if (n === 1) throw new Error("slow");
+      void input;
+      return taskFor(who);
+    }
+    return {};
+  };
+  const Host = (): ReturnType<typeof CrewBlock> => {
+    const [state, setState] = useState<CrewMember["state"]>("needs_you");
+    const members = HOLD(state);
+    return (
+      <>
+        <Pressable testID="toggle" onPress={() => setState((x) => (x === "needs_you" ? "working" : "needs_you"))}>
+          {null}
+        </Pressable>
+        <CrewBlock
+          members={members}
+          totals={totalsOf(members)}
+          width={900}
+          call={call}
+          meId="usr_me"
+          retryMs={200}
+          onPeek={() => undefined}
+        />
+      </>
+    ) as never;
+  };
+  const root = await mount(createRoot, <Host />);
+  await flush();
+  assert.equal(find(root, "crew-tile-sub_h-allow"), null, "while it cannot be read nothing shows");
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 400));
+  });
+  await flush();
+  assert.ok(find(root, "crew-tile-sub_h-allow"), "the retry found it");
+  who = "usr_else";
+  await press(find(root, "toggle"));
+  await press(find(root, "toggle"));
+  await flush();
+  assert.equal(
+    find(root, "crew-tile-sub_h-allow"),
+    null,
+    "reassigned meanwhile: read afresh, no buttons that would only fail",
+  );
+});
+
+test("a tile hands its own request to the block when answered, so the block never looks a helper up again", async () => {
+  const got: Array<[string, string, string | undefined]> = [];
+  const runs = [
+    toRunView(
+      S({
+        id: "sub_x",
+        title: "X",
+        state: "needs_you",
+        steps: undefined as never,
+        step: "Q?",
+        holdTaskId: "tsk_x",
+      } as never),
+    ),
+  ];
+  const root = await mount(
+    createRoot,
+    <CrewTiles
+      runs={runs}
+      now={5_000}
+      onPress={() => undefined}
+      onDecide={(task, verdict, note) => got.push([task, verdict, note ?? ""])}
+      may={{ sub_x: { approve: true, reject: true } }}
+    />,
+  );
+  await press(find(root, "crew-tile-sub_x-allow"));
+  assert.deepEqual(got, [["tsk_x", "approve", ""]]);
 });

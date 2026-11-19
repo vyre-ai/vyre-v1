@@ -1,6 +1,6 @@
 // Helpers side by side while they work (lane r42-subagents, prototype sub42, 19 Nov 2026): one tile each, three across, a face in a ring, what it was asked, a three-line live window, tokens and cost, a clock.
 // The same piece of work as a row (CrewBlock) in another shape; both read a RunView, so they never disagree. A tile that needs you turns amber; one that could not finish says why and offers Retry for that one.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -28,16 +28,22 @@ export function HelperTile({
   onPress: (id: string) => void;
   onRetry?: ((id: string) => void) | undefined;
   /** Answer the held request: Allow or Deny, inside the tile. */
-  onDecide?: ((id: string, verdict: "approve" | "reject", note?: string) => void) | undefined;
+  onDecide?: ((task: string, verdict: "approve" | "reject", note?: string) => void) | undefined;
   /** What this person may answer on the held request (the same read as the card): Allow, Deny. */
   may?: { approve: boolean; reject: boolean } | undefined;
   /** What was pressed for this tile, so it says so and cannot be answered twice. */
+  /** What was answered for THIS request (keyed by the request in the grid: a later request of the same helper starts clean). */
   decided?: "approve" | "reject" | "failed" | undefined;
 }): ReactElement {
   const id = `crew-tile-${r.id}`;
   // Deny needs a reason, as it does on the card: pressed once it asks for it
   const [asking, setAsking] = useState(false);
   const [reason, setReason] = useState("");
+  // a new request of the same helper starts clean: no half-typed reason from the last one
+  useEffect(() => {
+    setAsking(false);
+    setReason("");
+  }, [r.holdTaskId]);
   const live = r.state === "working";
   const canRetry = (r.state === "failed" || r.state === "stopped") && onRetry !== undefined;
   const meter = [r.tokens > 0 ? `${tokens(r.tokens)} tokens` : "", r.costMicros > 0 ? money(r.costMicros) : ""]
@@ -98,7 +104,7 @@ export function HelperTile({
         {r.state === "needs_you" &&
         r.holdTaskId !== undefined &&
         onDecide !== undefined &&
-        (may?.approve || may?.reject) ? (
+        (decided === "approve" || decided === "reject" || may?.approve || may?.reject) ? (
           decided === "approve" || decided === "reject" ? (
             <Text testID={`${id}-decided`} style={st.line}>
               {decided === "approve" ? "Allowed" : "Denied"}
@@ -123,7 +129,7 @@ export function HelperTile({
                   <Pressable
                     accessibilityRole="button"
                     testID={`${id}-deny-go`}
-                    onPress={() => reason.trim() !== "" && onDecide(r.id, "reject", reason.trim())}
+                    onPress={() => reason.trim() !== "" && onDecide(r.holdTaskId!, "reject", reason.trim())}
                     style={st.retry}
                   >
                     <Text style={st.retryText}>Deny</Text>
@@ -135,7 +141,7 @@ export function HelperTile({
                     <Pressable
                       accessibilityRole="button"
                       testID={`${id}-allow`}
-                      onPress={() => onDecide(r.id, "approve")}
+                      onPress={() => onDecide(r.holdTaskId!, "approve")}
                       style={st.allow}
                     >
                       <Text style={st.allowText}>Allow</Text>
@@ -187,7 +193,7 @@ export function CrewTiles({
   selectedId?: string | null | undefined;
   onPress: (id: string) => void;
   onRetry?: ((id: string) => void) | undefined;
-  onDecide?: ((id: string, verdict: "approve" | "reject", note?: string) => void) | undefined;
+  onDecide?: ((task: string, verdict: "approve" | "reject", note?: string) => void) | undefined;
   may?: Readonly<Record<string, { approve: boolean; reject: boolean }>> | undefined;
   decided?: Readonly<Record<string, "approve" | "reject" | "failed">> | undefined;
 }): ReactElement {
@@ -212,7 +218,7 @@ export function CrewTiles({
           onRetry={onRetry}
           onDecide={onDecide}
           may={may?.[r.id]}
-          decided={decided?.[r.id]}
+          decided={r.holdTaskId !== undefined ? decided?.[r.holdTaskId] : undefined}
         />
       ))}
     </View>
