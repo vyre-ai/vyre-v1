@@ -114,6 +114,8 @@ function Frame({ active, node }: { active: boolean; node: ReactNode }): ReactEle
         : { ...host, left: host.left ? (left?.el ?? null) : null, right: host.right ? (right?.el ?? null) : null },
     [host, left, right],
   );
+  // Where there is no real page (a part drawn on its own, a test with a stand-in document) the place is drawn where it stands, as it always was.
+  const real = main !== null && (main.el as { nodeType?: number }).nodeType === 1;
   const inner = (
     <SidebarFrame active={active}>
       <Activity mode={active ? "visible" : "hidden"}>{last.current}</Activity>
@@ -122,12 +124,9 @@ function Frame({ active, node }: { active: boolean; node: ReactNode }): ReactEle
   return (
     <>
       <View ref={anchor as never} style={HIDDEN} />
-      {main === null
-        ? null
-        : createPortal(
-            sheets === null ? inner : <SheetHostProvider value={sheets}>{inner}</SheetHostProvider>,
-            main.el,
-          )}
+      {real
+        ? createPortal(sheets === null ? inner : <SheetHostProvider value={sheets}>{inner}</SheetHostProvider>, main.el)
+        : inner}
     </>
   );
 }

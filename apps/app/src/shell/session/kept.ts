@@ -125,7 +125,7 @@ const isLoopback = (baseUrl: string): boolean => {
 
 /** One record per Space and person. A Space on this computer answers on a new port after every restart, so its address is not part of the name; any other Space is named with its address. */
 export function keptKey(s: { baseUrl: string; personId: string; spaceId: string }): string {
-  return `${s.spaceId}\n${s.personId}\n${isLoopback(s.baseUrl) ? "local" : s.baseUrl}`;
+  return [s.spaceId, s.personId, isLoopback(s.baseUrl) ? "local" : s.baseUrl].join("\n");
 }
 
 export const readKey = (cap: string, input: Record<string, unknown>): string => `${cap}\u0000${stableJson(input)}`;
