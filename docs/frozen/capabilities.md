@@ -754,4 +754,4 @@ Signed: lead, 17 Nov 2026
 - Changed contracts: `identity.pair_create` gains an optional `challenge` (64 hex characters, the SHA-256 of a value the extension keeps; allowed only with purpose `extension`), and `identity.pair_redeem` gains an optional `verifier`. A code made with a challenge redeems only with the value that hashes to it, once, for the extension device class, within its 10 minutes; a wrong or missing value spends nothing and counts against the redeem rate limit. Codes without a challenge behave as before. Tests: host/tests/chrome-direct.live.test.ts, modules/vault/tests/g20.test.ts.
 - Snapshots: docs/frozen/snapshots/vault.json, docs/frozen/snapshots/identity.json.
 
-Signed: pending, lead
+Signed: lead, 19 Nov 2026
