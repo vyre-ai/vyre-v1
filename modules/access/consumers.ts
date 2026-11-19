@@ -27,6 +27,10 @@ import {
   setPrivate,
   setDecisionView,
   setGrantAdopter,
+  KIDS,
+  kidsTake,
+  logBreak,
+  logTouch,
   setWriterView,
   setLoadStamp,
   kernelGrant,
@@ -336,11 +340,13 @@ function apply(
   store: AccessStore,
   events: readonly LogEvent[],
   grantAt: number = at,
-): { touched: Set<string>; rebuild: boolean } {
+): { touched: Set<string>; rebuild: boolean; oldParents: Map<string, string | null | undefined> } {
   let cursor = cursorOf(store),
     changed = false,
     onlyResources = true;
   const touched = new Set<string>();
+  /** where each registered resource sat before this batch: undefined when it was new, null when it was a root */
+  const oldParents = new Map<string, string | null | undefined>();
   for (const e of events) {
     if (e.seq >= 0 && e.seq <= cursor) continue;
     // a boot-time registration (seq -1: the host's record types at every start) makes a resource that is missing and never changes one that exists: its label, owner, parent and
@@ -376,6 +382,13 @@ function apply(
         continue;
       }
     }
+    if (e.type === "resource.created") {
+      const id = str(rec(e.payload)["id"]);
+      if (id && !oldParents.has(id)) {
+        const was = store.resources.get(id);
+        oldParents.set(id, was ? was.parentId : undefined);
+      }
+    }
     if (applyEvent(store, e, at, grantAt)) {
       changed = true;
       if (e.type === "resource.created") {
@@ -387,14 +400,14 @@ function apply(
   }
   const moved = cursor !== cursorOf(store);
   if (moved) store.fieldLabels.set(CURSOR, cursor);
-  if (!changed && !moved) return { touched, rebuild: false };
+  if (!changed && !moved) return { touched, rebuild: false, oldParents };
   store.bump();
   if (changed && !onlyResources) {
     store.persist(db);
-    return { touched, rebuild: true };
+    return { touched, rebuild: true, oldParents };
   }
   store.persistResources(db, touched, moved);
-  return { touched, rebuild: false };
+  return { touched, rebuild: false, oldParents };
 }
 
 /**
@@ -488,7 +501,12 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
         }),
       );
     if (!kept) syncCounts.hydrated++;
-    const { touched, rebuild } = apply(db, ctx.now(), store, events, 1);
+    const kidsBefore = kept ? KIDS.get(store.resources) : undefined;
+    const kidsValid =
+      !!kidsBefore &&
+      kidsBefore.version === (store.resources as { version?: number }).version &&
+      kidsBefore.size === store.resources.size;
+    const { touched, rebuild, oldParents } = apply(db, ctx.now(), store, events, 1);
     let out: { snap: AccessSnapshot; rows: Map<string, ResourceRec> };
     let plain = kept?.plain ?? null;
     if (!kept || rebuild) {
@@ -496,6 +514,7 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
       store.invalidate(); // the snapshot readers get through store.snapshot() has no role grants (as a handler's own store never had): it is built apart, when a reader first asks
       plain = null;
       if (kept) syncCounts.rebuilt++;
+      logBreak(store);
     } else {
       out = { snap: kept.snap, rows: kept.rows };
       for (const id of touched) {
@@ -506,6 +525,8 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
         plain?.putResource(kernelResource(r));
       }
       if (plain) store.adoptSnapshot(plain);
+      logTouch(store, touched);
+      if (kidsValid) kidsTake(store.resources, kidsBefore!, touched, oldParents);
       syncCounts.inPlace++;
     }
     // every row write fires one counter step (the triggers are AFTER ... FOR EACH ROW; a write's `changes` counts the same rows), so anything else that wrote meanwhile shows as a difference
@@ -553,11 +574,16 @@ setGrantAdopter((ctx, change) => {
   if (!kept || kept.stamp !== change.loaded) return;
   asKeptWriter(() => {
     for (const id of change.del) {
+      const gone = kept.store.grants.get(id);
+      if (gone && gone.resource.id !== "*" && gone.resource.id !== "") logTouch(kept.store, [gone.resource.id]);
+      else logBreak(kept.store);
       kept.store.grants.delete(id);
       kept.snap.revokeGrant(id);
       kept.plain?.revokeGrant(id);
     }
     for (const g of change.put) {
+      if (g.resource.id !== "*" && g.resource.id !== "") logTouch(kept.store, [g.resource.id]);
+      else logBreak(kept.store);
       kept.store.grants.set(g.id, structuredClone(g));
       kept.snap.putGrant(kernelGrant(g));
       kept.plain?.putGrant(kernelGrant(g));

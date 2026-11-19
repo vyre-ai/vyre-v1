@@ -24,7 +24,7 @@ const timed = async (d: Any, c: string, input: Record<string, unknown>): Promise
 const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
 
 test(
-  "a share and an unshare on a Space of 20,000 records answer within the budget, and so does the first list after each",
+  "a share, an unshare and a change of a share on a Space of 20,000 records answer within the budget, and so does the first list after each and after a sync",
   { timeout: 300_000 },
   async () => {
     const d = await boot(seededDir(), null);
@@ -75,10 +75,45 @@ test(
         unshares.push(Math.round(performance.now() - t));
         readsAfterUnshare.push(await timed(d, "access.lists", lists));
       }
+      // a change of a share's level
+      const updates: number[] = [];
+      const g2 = await cap(d, "access.share", {
+        resource: { type: "folder", id: folder },
+        subject: { kind: "person", id: "usr_noah" },
+        level: "view",
+      });
+      for (let k = 0; k < 4; k++) {
+        const t0 = performance.now();
+        await cap(d, "access.grants.update", {
+          grantId: g2.grant.grantId ?? g2.grant.id,
+          level: k % 2 ? "view" : "edit",
+        });
+        updates.push(Math.round(performance.now() - t0));
+      }
+      // the first list after a sync of 500 records
+      const readsAfterSync: number[] = [];
+      for (let k = 0; k < 5; k++) {
+        await cap(d, "records.bulk_upsert", {
+          type: "rt_big",
+          match: ["name"],
+          rows: Array.from({ length: 500 }, (_, i) => ({ name: `G ${k} ${i}` })),
+          createOnly: true,
+          runAutomations: false,
+        });
+        readsAfterSync.push(await timed(d, "access.lists", lists));
+      }
       process.stderr.write(
-        `[share-call] share ${median(shares)} ms, unshare ${median(unshares)} ms, first list after a share ${median(readsAfterShare)} ms, after an unshare ${median(readsAfterUnshare)} ms\n`,
+        `[share-call] share ${median(shares)} ms, unshare ${median(unshares)} ms, grant update ${median(updates)} ms, first list after a sync of 500 records ${median(readsAfterSync)} ms, first list after a share ${median(readsAfterShare)} ms, after an unshare ${median(readsAfterUnshare)} ms\n`,
       );
       assert.ok(median(shares) <= CALL_BUDGET_MS, `a share took ${median(shares)} ms (budget ${CALL_BUDGET_MS} ms)`);
+      assert.ok(
+        median(updates) <= CALL_BUDGET_MS,
+        `a change of a share took ${median(updates)} ms (budget ${CALL_BUDGET_MS} ms)`,
+      );
+      assert.ok(
+        median(readsAfterSync) <= READ_BUDGET_MS,
+        `the first list after a sync of 500 records took ${median(readsAfterSync)} ms (budget ${READ_BUDGET_MS} ms)`,
+      );
       assert.ok(
         median(unshares) <= CALL_BUDGET_MS,
         `an unshare took ${median(unshares)} ms (budget ${CALL_BUDGET_MS} ms)`,

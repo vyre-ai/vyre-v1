@@ -1,0 +1,1 @@
+Fixed: the first Files read after a sync of 500 records no longer re-compares every resource of the Space (changes are logged by the sync and read from the log), my_access rows are written in batched statements, and access.grants.update runs on the grant view so changing a share level answers fast.

@@ -166,7 +166,7 @@ async function run(
   const anyResource = (): { type: string; id: string } =>
     rnd() < 0.5 ? { type: "folder", id: pick(folders) } : { type: "file", id: pick(files) };
   for (let step = 1; step <= steps; step++) {
-    const op = Math.floor(rnd() * 18);
+    const op = Math.floor(rnd() * 20);
     let what = "";
     try {
       if (op <= 1) {
@@ -275,6 +275,12 @@ async function run(
         const id = logGrants.length ? logGrants.splice(Math.floor(rnd() * logGrants.length), 1)[0]! : "gr_none";
         what = `log revoke ${id}`;
         sync(ctxOf(raw), { events: [ev("grant.revoked", { grantId: id })] });
+      } else if (op === 18 || op === 19) {
+        const ids = [...storeOf(ctxOf(raw)).grants.keys()];
+        if (ids.length) {
+          what = "change a share";
+          await call(raw, "usr_owner", "access.grants.update", { grantId: pick(ids), level: pick(["view", "edit"]) });
+        }
       } else if (op === 15) {
         // someone else writes rows of the cache (a copy from another computer, plain SQL): the kept copy must be refused
         what = "tamper with my_access rows";

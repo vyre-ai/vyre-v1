@@ -7,7 +7,7 @@
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { NeedFullStore, changedGrants, isReader } from "../projections.ts";
+import { NeedFullStore, changedGrants, isReader, kidsOf, logSeqOf, touchesSince } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -151,6 +151,8 @@ interface Kept {
   /** the counters of access_local_my_state when this copy was published: a row of my_access or of the folder tables written by anyone since makes it untrustworthy */
   rows: number;
   folders: number;
+  /** where the log of changes to the kept store of access.sync stood when this copy was published */
+  logSeq: number;
 }
 const KEPT = new WeakMap<object, Kept>();
 const stateOf = (db: Db): { rows: number; folders: number } | null => {
@@ -277,7 +279,9 @@ export function shareOf(ctx: AccessCtx): ShareStore {
           ? null
           : kept.store === store && kept.epoch === store.epoch
             ? []
-            : changedRoots(kept.base, store);
+            : kept.store === store
+              ? (touchesSince(store, kept.logSeq) ?? changedRoots(kept.base, store))
+              : changedRoots(kept.base, store);
       if (roots) {
         if (!reader) KEPT.delete(raw);
         const ss = kept.ss;
@@ -574,23 +578,6 @@ function dropRow(ss: ShareStore, key: string): void {
   if (old) ss.byRes?.get(old.id)?.delete(key);
 }
 
-const KIDS = new WeakMap<object, { version: number; size: number; kids: Map<string, string[]> }>();
-/** The children of each resource, kept for as long as the resources map stands (a sealed map says when it changed). */
-function kidsOf(resources: Map<string, ResourceRec>): Map<string, string[]> {
-  const version = (resources as { version?: number }).version;
-  const had = version === undefined ? undefined : KIDS.get(resources);
-  if (had && had.version === version && had.size === resources.size) return had.kids;
-  const kids = new Map<string, string[]>();
-  for (const r of resources.values()) {
-    if (r.parentId === null) continue;
-    const l = kids.get(r.parentId) ?? [];
-    l.push(r.id);
-    kids.set(r.parentId, l);
-  }
-  if (version !== undefined) KIDS.set(resources, { version, size: resources.size, kids });
-  return kids;
-}
-
 function descendants(store: AccessStore, roots: readonly string[]): Set<string> {
   const kids = kidsOf(store.resources);
   const out = new Set<string>();
@@ -673,18 +660,22 @@ function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: read
   }
   ss.until = until;
   try {
-    for (const g of gone) ctx.db.run("DELETE FROM access_my_access WHERE id = ?", accessId(g.person, g.type, g.id));
-    for (const r of touched) {
+    // many rows go in a few statements: a statement per row parsed and ran the same text thousands of times after a big sync
+    const at = ctx.now();
+    for (let i = 0; i < gone.length; i += 400) {
+      const part = gone.slice(i, i + 400);
       ctx.db.run(
-        "INSERT OR REPLACE INTO access_my_access (id,person,resourceType,resourceId,level,via,version,updated_at) VALUES (?,?,?,?,?,?,?,?)",
-        accessId(r.person, r.type, r.id),
-        r.person,
-        r.type,
-        r.id,
-        r.level,
-        r.via,
-        1,
-        ctx.now(),
+        `DELETE FROM access_my_access WHERE id IN (${part.map(() => "?").join(",")})`,
+        ...part.map((g) => accessId(g.person, g.type, g.id)),
+      );
+    }
+    for (let i = 0; i < touched.length; i += 100) {
+      const part = touched.slice(i, i + 100);
+      const args: Array<string | number> = [];
+      for (const r of part) args.push(accessId(r.person, r.type, r.id), r.person, r.type, r.id, r.level, r.via, 1, at);
+      ctx.db.run(
+        `INSERT OR REPLACE INTO access_my_access (id,person,resourceType,resourceId,level,via,version,updated_at) VALUES ${part.map(() => "(?,?,?,?,?,?,?,?)").join(",")}`,
+        ...args,
       );
     }
   } catch (e) {
@@ -705,7 +696,15 @@ function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
   const raw = rawDbOf(ctx.db);
   const st = raw ? stateOf(ctx.db) : null;
   if (!raw || !st || ss.fresh !== store.epoch || ss.pending.length) return;
-  KEPT.set(raw, { store, epoch: store.epoch, ss, base: baseOf(store), rows: st.rows, folders: st.folders });
+  KEPT.set(raw, {
+    store,
+    epoch: store.epoch,
+    ss,
+    base: baseOf(store),
+    rows: st.rows,
+    folders: st.folders,
+    logSeq: logSeqOf(store),
+  });
 }
 
 function ensureFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {

@@ -429,6 +429,105 @@ const grantVals = (g: GrantRec): unknown[] => [
   1,
 ];
 
+/** The children of each resource, with the version of the resources map it was built for. */
+export interface KidsIdx {
+  version: number;
+  size: number;
+  kids: Map<string, string[]>;
+}
+/** Kept per resources map; a sealed map says when it changed (`version`), so an index that matches it can be used and one that does not is built again. */
+export const KIDS = new WeakMap<object, KidsIdx>();
+export function kidsOf(resources: Map<string, ResourceRec>): Map<string, string[]> {
+  const version = (resources as { version?: number }).version;
+  const had = version === undefined ? undefined : KIDS.get(resources);
+  if (had && had.version === version && had.size === resources.size) return had.kids;
+  const kids = new Map<string, string[]>();
+  for (const r of resources.values()) {
+    if (r.parentId === null) continue;
+    const l = kids.get(r.parentId) ?? [];
+    l.push(r.id);
+    kids.set(r.parentId, l);
+  }
+  if (version !== undefined) KIDS.set(resources, { version, size: resources.size, kids });
+  return kids;
+}
+/** The resources a sync registered, moved into an index that matched the map before they were set: the index then matches it after. `oldParents` holds where each one sat before (undefined: it was new). */
+export function kidsTake(
+  resources: Map<string, ResourceRec>,
+  idx: KidsIdx,
+  touched: Iterable<string>,
+  oldParents: ReadonlyMap<string, string | null | undefined>,
+): void {
+  for (const id of touched) {
+    const r = resources.get(id);
+    if (!r) continue;
+    const old = oldParents.get(id);
+    const now = r.parentId;
+    if (old === now) continue;
+    if (old) {
+      const l = idx.kids.get(old);
+      if (l) {
+        const at = l.indexOf(id);
+        if (at >= 0) l.splice(at, 1);
+      }
+    }
+    if (now !== null) {
+      const l = idx.kids.get(now) ?? [];
+      if (!l.includes(id)) l.push(id);
+      idx.kids.set(now, l);
+    }
+  }
+  idx.size = resources.size;
+  idx.version = (resources as { version?: number }).version ?? idx.version;
+}
+
+/**
+ * What changed in the kept store of access.sync, in order, so a reader that kept its rows can ask "which resources since I last looked" instead of comparing every resource of the Space: a sync that
+ * registered resources, or a grant handler that changed a grant, adds the ids it touched; any other change (a role, a group, a person, a policy, an unscoped grant) is a break, and a reader behind a
+ * break compares as it always did.
+ */
+interface TouchLog {
+  ids: string[];
+  seqs: number[];
+  seq: number;
+  breakSeq: number;
+}
+const TOUCHES = new WeakMap<object, TouchLog>();
+const touchLog = (store: object): TouchLog => {
+  let l = TOUCHES.get(store);
+  if (!l) {
+    l = { ids: [], seqs: [], seq: 0, breakSeq: 0 };
+    TOUCHES.set(store, l);
+  }
+  return l;
+};
+export function logBreak(store: object): void {
+  const l = touchLog(store);
+  l.seq++;
+  l.breakSeq = l.seq;
+  l.ids = [];
+  l.seqs = [];
+}
+export function logTouch(store: object, ids: Iterable<string>): void {
+  const l = touchLog(store);
+  for (const id of ids) {
+    l.seq++;
+    l.ids.push(id);
+    l.seqs.push(l.seq);
+  }
+  if (l.ids.length > 50_000) logBreak(store);
+}
+/** Where the log stands now. */
+export const logSeqOf = (store: object): number => TOUCHES.get(store)?.seq ?? 0;
+/** The ids touched since `seq`, or null when something that cannot be scoped happened since (or the log does not reach back that far). */
+export function touchesSince(store: object, seq: number): string[] | null {
+  const l = TOUCHES.get(store);
+  if (!l || seq < l.breakSeq) return null;
+  const out = new Set<string>();
+  for (let i = l.ids.length - 1; i >= 0 && l.seqs[i]! > seq; i--) out.add(l.ids[i]!);
+  return [...out];
+}
+
 export class AccessStore {
   epoch = 0;
   catalogue = new Set<string>();

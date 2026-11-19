@@ -91,7 +91,7 @@ export const handlers = {
   "access.clears": readOnly(clears),
   "access.provider_check": readOnly(providerCheck),
   "access.grants.list": readOnly(grantsList),
-  "access.grants.update": grantsUpdate,
+  "access.grants.update": grantWriter(grantsUpdate),
   "access.groups.add_member": groupsAddMember,
   "access.groups.create": groupsCreate,
   "access.groups.defaults_get": readOnly(defaultsGet),
