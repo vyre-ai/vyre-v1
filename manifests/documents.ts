@@ -101,11 +101,22 @@ export default defineManifest({
           format: t.opt(
             t.enm("docx", "pdf", "md", {
               description:
-                "A Word template fills to docx (or pdf with the converter app); a Vyre document fills to pdf, or to md to go on editing",
+                "A Word template fills to docx or pdf; a Vyre document fills to pdf, or to md to go on editing",
             }),
           ),
         },
-        out: { file: savedFile, missing: t.arr(t.str()), unused: t.arr(t.str()), signers },
+        out: {
+          file: savedFile,
+          missing: t.arr(t.str()),
+          unused: t.arr(t.str()),
+          signers,
+          layout: t.opt(
+            t.enm("word", "simple", {
+              description:
+                "For a PDF of a Word template: word when the server's converter kept the Word page, simple when the words were set in the plain Vyre page look (a server with no converter)",
+            }),
+          ),
+        },
         make: ["file", "/intoFolderId"],
         perm: "files.write",
         emits: ["document.filled", "file.created", "file.version_added"],

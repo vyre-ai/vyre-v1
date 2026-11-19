@@ -377,15 +377,18 @@ test("a file that is not a Word document, a template that is too big and a templ
   );
 });
 
-test("PDF goes through the converter the host gave; without one it is refused in plain words and no file is made", async () => {
+test("PDF goes through the converter the host gave; without one the words are set in the plain page look, and the answer says which", async () => {
   const w = world();
   const id = w.add("Letter.docx", LETTER());
   configureDocuments(null);
-  const e = await expectCode("validation.unsupported", () =>
-    handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: FOLDER, values: NAMES, format: "pdf" }),
-  );
-  assert.match(e.error.message, /PDF needs a converter/);
-  assert.equal(w.files.size, 1);
+  const plain = await handlers["documents.fill"](w.ctx, {
+    templateFileId: id,
+    intoFolderId: FOLDER,
+    values: NAMES,
+    format: "pdf",
+  });
+  assert.equal(plain.layout, "simple");
+  assert.equal(w.files.get(plain.file.fileId)?.bytes.subarray(0, 5).toString(), "%PDF-");
   let sawDocx = 0;
   configureDocuments({
     pdf: async (docxBytes) => {
@@ -399,12 +402,28 @@ test("PDF goes through the converter the host gave; without one it is refused in
       intoFolderId: FOLDER,
       values: NAMES,
       format: "pdf",
+      name: "Letter converted",
     });
-    assert.equal(out.file.name, "Letter (filled).pdf");
+    assert.equal(out.file.name, "Letter converted.pdf");
+    assert.equal(out.layout, "word");
     assert.equal(sawDocx, 3, "the converter got the filled Word file");
     const stored = w.files.get(out.file.fileId);
     assert.equal(stored?.mime, "application/pdf");
     assert.equal(stored?.bytes.subarray(0, 5).toString(), "%PDF-");
+    // a converter that fails does not lose the document: the plain page look answers, and says so
+    configureDocuments({
+      pdf: async () => {
+        throw new Error("soffice crashed");
+      },
+    });
+    const fell = await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      values: NAMES,
+      format: "pdf",
+      name: "Letter fell back",
+    });
+    assert.equal(fell.layout, "simple");
   } finally {
     configureDocuments(null);
   }

@@ -945,20 +945,18 @@ export async function saveNamed(
 export async function documentsFill(
   ctx: Ctx,
   input: unknown,
-): Promise<{ file: { fileId: string; name: string; versionId: string }; missing: string[]; unused: string[] }> {
+): Promise<{
+  file: { fileId: string; name: string; versionId: string };
+  missing: string[];
+  unused: string[];
+  layout?: "word" | "simple";
+}> {
   const o = rec(ctx, input);
   const templateFileId = reqStr(ctx, o, "templateFileId");
   const intoFolderId = reqStr(ctx, o, "intoFolderId");
   const format = optStr(ctx, o, "format") ?? "docx";
   if (format !== "docx" && format !== "pdf")
     fail(ctx, "validation.bad_input", "The format is docx or pdf.", { field: "format" });
-  if (format === "pdf" && !configured?.pdf) {
-    fail(
-      ctx,
-      "validation.unsupported",
-      "PDF needs a converter: install the PDF converter app from Apps. The Word file works anywhere: ask for that instead.",
-    );
-  }
   const template = (await ctx.call("files.get", { fileId: templateFileId })) as { file?: { name?: unknown } };
   const templateName = typeof template.file?.name === "string" ? template.file.name : "document.docx";
   const bytes = await templateBytes(ctx, templateFileId);
@@ -972,7 +970,12 @@ export async function documentsFill(
     return refuse(ctx, e);
   }
   let out: Uint8Array = made.buffer;
-  if (format === "pdf" && configured?.pdf) out = await configured.pdf(made.buffer);
+  let layout: "word" | "simple" | undefined;
+  if (format === "pdf") {
+    const got = await wordToPdf(ctx, made.buffer, baseName(templateName));
+    out = got.pdf;
+    layout = got.layout;
+  }
   const ext = format === "pdf" ? "pdf" : "docx";
   const wanted = optStr(ctx, o, "name");
   const stem =
@@ -992,7 +995,44 @@ export async function documentsFill(
   if (recordId !== undefined) payload.recordId = recordId;
   ctx.emit("document.filled", `file/${fileId}`, payload);
   ctx.log.info("documents.fill", { fileId, templateFileId, fields: made.used.length, format });
-  return { file: { fileId, name: saved.name, versionId }, missing: [], unused };
+  return { file: { fileId, name: saved.name, versionId }, missing: [], unused, ...(layout ? { layout } : {}) };
+}
+
+/**
+ * A filled Word file as a PDF. The host's converter (LibreOffice) keeps the page exactly; where the host has none, or it fails, the words are set in the plain Vyre page look
+ * (docx.ts and typeset.ts) so a Space with nothing installed still gets a PDF to sign. The answer says which one it was; a person is never told a plain layout is the Word page.
+ */
+async function wordToPdf(
+  ctx: Ctx,
+  docx: Uint8Array,
+  title: string,
+): Promise<{ pdf: Uint8Array; layout: "word" | "simple" }> {
+  if (configured?.pdf) {
+    try {
+      return { pdf: await configured.pdf(docx), layout: "word" };
+    } catch (e) {
+      ctx.log.warn("documents.pdf_converter_failed", { error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  const { docxBlocks } = await import("./docx.ts");
+  const { TypesetError, typeset } = await import("./typeset.ts");
+  try {
+    const set = await typeset(docxBlocks(docx), { title });
+    return { pdf: set.pdf, layout: "simple" };
+  } catch (e) {
+    if (e instanceof TypesetError)
+      return fail(
+        ctx,
+        "validation.unsupported",
+        `The PDF was not made: the document has ${e.letters.length === 1 ? "a letter" : "letters"} the plain PDF cannot draw (${e.letters.join(" ")}). Ask for the Word file instead.`,
+        { letters: e.letters },
+      );
+    return fail(
+      ctx,
+      "validation.unsupported",
+      `The PDF was not made: ${e instanceof Error ? e.message : "the Word file could not be read"}.`,
+    );
+  }
 }
 
 async function templatesList(

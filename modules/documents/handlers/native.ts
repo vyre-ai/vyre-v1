@@ -53,6 +53,7 @@ interface Filled {
   missing: string[];
   unused: string[];
   signers?: string[];
+  layout?: "word" | "simple";
 }
 
 /** A Vyre document is a Markdown file. */

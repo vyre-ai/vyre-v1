@@ -1,0 +1,1 @@
+A filled Word template becomes a PDF on a Space with no converter installed: the server's LibreOffice keeps the Word page when it has one, and without it the words are set in a plain page look. The answer says which.
