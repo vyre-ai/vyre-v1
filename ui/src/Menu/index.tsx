@@ -20,6 +20,7 @@ import {
 } from "./props.ts";
 import type { MenuEntry, MenuItem, MenuProps, MenuSource } from "./props.ts";
 import { MenuPortal } from "./portal.tsx";
+import { askLit, askOrder } from "./entries.ts";
 import { useEscapeLayer } from "../Overlay/escape.ts";
 import { RADIUS } from "../tokens/radius.ts";
 
@@ -294,7 +295,7 @@ const MENU_H = 120;
 
 export function Menu(props: MenuViewProps): ReactElement | null {
   const { onClose, reportContext } = props;
-  const all = useMemo(() => menuEntries(props, reportContext), [props.items, props.source, reportContext]);
+  const all = useMemo(() => askOrder(menuEntries(props, reportContext)), [props.items, props.source, reportContext]);
   const searching = props.search !== undefined;
   const [query, setQuery] = useState("");
   const entries = useMemo(() => (searching ? filterMenuEntries(all, query) : all), [all, searching, query]);
@@ -336,6 +337,9 @@ export function Menu(props: MenuViewProps): ReactElement | null {
     const at = activeRef.current;
     const still = at >= 0 && entries[at] !== undefined && isItem(entries[at]!) && entries[at]!.disabled !== true;
     // a menu opens with nothing lit (the first arrow key or the pointer lights a row); a searchable one lights its first match as the person types
+    // an ask (a head that is a question, and a danger item) opens with its safe item lit, so a stray Enter cancels
+    const safe = at < 0 && !searching ? askLit(entries) : -1;
+    if (safe >= 0) return land(safe);
     if (!still && at < 0 && !searching) return;
     land(still ? at : moveActive(entries, -1, "Home"));
   }, [entries, land]);

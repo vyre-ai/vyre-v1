@@ -111,33 +111,33 @@ export function Retention(): ReactElement {
             {error ? <Note>{error}</Note> : null}
             {reviewed ? (
               <>
-                <Note>
-                  {selected.title} will change from {retentionWords(currentValue).toLowerCase()} to{" "}
-                  {retentionWords(reviewed).toLowerCase()}
-                  {recordType
-                    ? ` for ${schema.data.types.find((type) => type.key === recordType)?.title ?? recordType}`
-                    : ""}
-                  .
-                </Note>
-                <Actions>
-                  <Button label="Back" onPress={() => setReviewed(null)} />
-                  <Button
-                    label="Apply rule"
-                    danger
-                    disabled={action.busy}
-                    onPress={() =>
-                      void action
-                        .run(
-                          "governance.retention.set",
-                          { kind: selected.key, value: reviewed, ...(recordType ? { recordType } : {}) },
-                          () => readback(reviewed),
-                        )
-                        .then((out) => {
-                          if (out) setReviewed(null);
-                        })
-                    }
-                  />
-                </Actions>
+                <InlineConfirm
+                  question={
+                    <>
+                      {selected.title} will change from {retentionWords(currentValue).toLowerCase()} to{" "}
+                      {retentionWords(reviewed).toLowerCase()}{" "}
+                      {recordType
+                        ? ` for ${schema.data.types.find((type) => type.key === recordType)?.title ?? recordType}`
+                        : ""}{" "}
+                      .
+                    </>
+                  }
+                  cancelLabel="Back"
+                  confirmLabel="Apply rule"
+                  disabled={action.busy}
+                  onConfirm={() =>
+                    void action
+                      .run(
+                        "governance.retention.set",
+                        { kind: selected.key, value: reviewed, ...(recordType ? { recordType } : {}) },
+                        () => readback(reviewed),
+                      )
+                      .then((out) => {
+                        if (out) setReviewed(null);
+                      })
+                  }
+                  onCancel={() => setReviewed(null)}
+                />
               </>
             ) : (
               <Actions>

@@ -449,20 +449,22 @@ function GrantEditor({
       <Help>The server refuses changes beyond your own access.</Help>
       {review ? (
         <>
-          <Note>
-            Apply this {level} grant with the selected row, field, sensitivity, time-window and expiry conditions? This
-            changes direct access immediately. An expiring delegation cannot create access that lasts longer than its
-            parent.
-          </Note>
-          <Actions>
-            <Button label="Cancel review" onPress={() => setReview(false)} />
-            <Button
-              label="Confirm access change"
-              testID="grant-save-confirm"
-              disabled={action.busy}
-              onPress={() => void save()}
-            />
-          </Actions>
+          <InlineConfirm
+            question={
+              <>
+                Apply this {level} grant with the selected row, field, sensitivity, time-window and expiry conditions?
+                This changes direct access immediately. An expiring delegation cannot create access that lasts longer
+                than its parent.
+              </>
+            }
+            cancelLabel="Cancel review"
+            confirmLabel="Confirm access change"
+            danger={false}
+            disabled={action.busy}
+            confirmTestID="grant-save-confirm"
+            onConfirm={() => void save()}
+            onCancel={() => setReview(false)}
+          />
         </>
       ) : (
         <Button

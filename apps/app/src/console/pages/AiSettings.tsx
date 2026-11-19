@@ -13,6 +13,7 @@ import { actionWords } from "../../../../../lib/words/actions.ts";
 import { describeError, looksLikeCode } from "../../../../../lib/words/errors.ts";
 import { Choice, Tick } from "./ai-controls.tsx";
 import { reviewSampling } from "./ai-data-values.ts";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type ReviewItem = CapMap["engine.review.list"]["out"]["items"][number];
 export function mergeReviewPages(first: readonly ReviewItem[], second: readonly ReviewItem[]): ReviewItem[] {
@@ -152,26 +153,28 @@ function ReviewList({
           ))}
           {review ? (
             <>
-              <Note>
-                {sampling().percent}% of matching turns will enter human review for{" "}
-                {sampling().labels.join(", ") || "no labels"}.
-              </Note>
-              <Actions>
-                <Button label="Back" onPress={() => setReview(false)} />
-                <Button
-                  label="Apply sampling"
-                  disabled={busy}
-                  onPress={() =>
-                    void onRun(
-                      "settings.set_space",
-                      { key: "engine.review_sampling", value: sampling() },
-                      "Review sampling updated",
-                    ).then((out) => {
-                      if (out) setReview(false);
-                    })
-                  }
-                />
-              </Actions>
+              <InlineConfirm
+                question={
+                  <>
+                    {sampling().percent}% of matching turns will enter human review for{" "}
+                    {sampling().labels.join(", ") || "no labels"}.
+                  </>
+                }
+                cancelLabel="Back"
+                confirmLabel="Apply sampling"
+                danger={false}
+                disabled={busy}
+                onConfirm={() =>
+                  void onRun(
+                    "settings.set_space",
+                    { key: "engine.review_sampling", value: sampling() },
+                    "Review sampling updated",
+                  ).then((out) => {
+                    if (out) setReview(false);
+                  })
+                }
+                onCancel={() => setReview(false)}
+              />
             </>
           ) : (
             <Button
