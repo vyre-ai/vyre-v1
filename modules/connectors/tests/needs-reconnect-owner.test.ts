@@ -163,14 +163,24 @@ test("a connection made by an agent with no person behind it, or by an Automatio
   assert.deepEqual(assigned(k), ["role:admin"]);
 });
 
-test("a task answer without an id does not make a second task for the admins", async () => {
+test("a task answer without an id made no task, so the admins are told; a lookup that cannot be made tells the person and the admins both", async () => {
   const k = kit();
   const call = k.ctx.call;
-  k.ctx.call = async (cap, input) => (cap === "tasks.create" ? (void call(cap, input), {}) : call(cap, input));
+  k.ctx.call = async (cap, input) =>
+    cap === "tasks.create" && (input as { assigned: { kind: string } }).assigned.kind === "person"
+      ? {}
+      : call(cap, input);
   await refused(k);
-  assert.equal(assigned(k).length, 1);
+  assert.deepEqual(assigned(k), ["role:admin"]);
+  const unsure = kit();
+  const base = unsure.ctx.call;
+  unsure.ctx.call = async (cap, input) => {
+    if (cap === "access.principals.get") throw new Error("directory is down");
+    return base(cap, input);
+  };
+  await refused(unsure);
+  assert.deepEqual(assigned(unsure), ["person:usr_dana", "role:admin"]);
 });
-
 test("a connection an agent made on a person's behalf is credited to that person, who is the one told", async () => {
   const k = kit();
   k.install(ACME);

@@ -193,15 +193,16 @@ async function markReconnect(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connec
  * One item on Home for whoever connected the app, not one per failed call: "Your <app> key stopped working". The person who connected a sync spec is its owner; a person's own connection is theirs.
  * It closes by itself when a probe of the connection answers well again (clearReconnectTask). Nothing is lost meanwhile: the outbox keeps every edit and syncing resumes.
  */
-/** Is this person a current member of the Space? Only a lookup that says they are not (gone, removed, suspended, not invited yet) says no: a lookup that cannot be made does not hide someone. */
-async function isCurrentMember(ctx: ConnectorsCtx, id: string): Promise<boolean> {
+/** Is this person a current member of the Space? "no" only when the directory says they are not (gone, removed, suspended, not invited yet); "unknown" when the lookup cannot be made. */
+async function memberState(ctx: ConnectorsCtx, id: string): Promise<"yes" | "no" | "unknown"> {
   try {
     const got = (await ctx.call("access.principals.get", { principal: { kind: "person", id } })) as {
       principal?: { status?: string };
     } | null;
-    return got?.principal?.status === undefined || got.principal.status === "active";
+    const status = got?.principal?.status;
+    return status === undefined ? "unknown" : status === "active" ? "yes" : "no";
   } catch (e) {
-    return (e as { error?: { code?: string } } | null)?.error?.code !== "validation.not_found";
+    return (e as { error?: { code?: string } } | null)?.error?.code === "validation.not_found" ? "no" : "unknown";
   }
 }
 
@@ -222,11 +223,13 @@ async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connect
     created && created !== "system" ? created : undefined,
   ].filter((x): x is string => typeof x === "string" && x !== "");
   let who: string | undefined;
+  let sure = true;
   for (const id of candidates) {
-    if (await isCurrentMember(ctx, id)) {
-      who = id;
-      break;
-    }
+    const m = await memberState(ctx, id);
+    if (m === "no") continue;
+    who = id;
+    sure = m === "yes";
+    break;
   }
   const title =
     deps.tx.get<{ title: string }>("SELECT title FROM cn_connectors WHERE key = ?", c.connector)?.title ?? c.title;
@@ -245,16 +248,20 @@ async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connect
     }) as Promise<{ task?: { id?: string } } | undefined>;
   try {
     let made: { task?: { id?: string } } | undefined;
+    // told only when a task exists: the tasks module answers a replayed key with the same task, so an answer without one made none. A person whose membership could not be looked up is told and so are the admins.
     let told = false;
     if (who) {
       try {
         made = await make({ kind: "person", id: who });
-        told = true; // an answer without a task id (a replayed key) is still an answer: no second task for the admins
+        told = typeof made?.task?.id === "string";
       } catch {
         told = false; // the person cannot be given a task
       }
     }
-    if (!told) made = await make({ kind: "role", id: "admin" });
+    if (!told || !sure) {
+      const forAdmins = await make({ kind: "role", id: "admin" });
+      made = told ? made : forAdmins;
+    }
     const taskId = made?.task?.id;
     if (taskId)
       deps.tx.run(
