@@ -1725,7 +1725,7 @@ export async function audienceSet(
     res.type === "folder" &&
     input.audience !== undefined &&
     isOwnPress(ctx as never) &&
-    (ctx.depth ?? 0) === 0 &&
+    ctx.depth === 0 &&
     res.row?.["audienceChosen"] !== true
   ) {
     res.row = { ...(res.row ?? {}), audienceChosen: true };

@@ -518,7 +518,7 @@ const folderRig = (names: string[]) => {
       row: { name: id, itemType: "file", scope: "space" },
     });
   r.store.bump();
-  const press: ShareCtx = { ...r.ctx, origin: "user" }; // Ada pressing it herself in the app
+  const press: ShareCtx = { ...r.ctx, origin: "user", depth: 0 }; // Ada pressing it herself in the app
   const host: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_host" } };
   const chosen = (id: string): boolean => r.store.resources.get(id)!.row?.["audienceChosen"] === true;
   return { r, press, host, chosen, f: (id: string) => ({ type: "folder", id }) };
@@ -565,6 +565,8 @@ test("only a person's own press is a choice: an agent working under a person's M
   for (const origin of ["engine", "mcp", "hook"])
     await audienceSet({ ...r.ctx, origin }, { resource: f("fld_b"), audience: "added" });
   await audienceSet({ ...r.ctx, origin: "user", depth: 1 }, { resource: f("fld_b"), audience: "added" });
+  // a context that does not say its depth is not taken for a press either (fails closed)
+  await audienceSet({ ...r.ctx, origin: "user" }, { resource: f("fld_b"), audience: "added" });
   assert.ok(
     !chosen("fld_b"),
     "a call made on her behalf, or by another capability (chat's own folder code), is not her press",
