@@ -28,7 +28,7 @@ const at = (s: string, needle: string): number => {
 const nw = (): ConfigSample => createConfigSample(northwind);
 
 test("detail header: the Journey name, its record count and late count, Open board, and the Stages, Fields and Settings tabs with their counts", () => {
-  const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" />);
+  const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />);
   assert.ok(
     has(out, 'data-testid="journey-designer"') &&
       has(out, "Client onboarding") &&
@@ -49,7 +49,7 @@ test("detail header: the Journey name, its record count and late count, Open boa
 });
 
 test("Stages tab: the records-per-stage bar, then the numbered stages with their record counts, tasks and the automations that run on entering", () => {
-  const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" />);
+  const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />);
   assert.ok(
     has(out, "Where the records are now") && has(out, "Records per stage") && has(out, 'data-testid="funnel-intake"'),
   );

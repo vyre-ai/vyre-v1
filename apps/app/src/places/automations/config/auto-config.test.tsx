@@ -96,7 +96,7 @@ const designer = (
   s: ConfigSample,
   id = "jrn_onboard",
   props: Partial<Parameters<typeof JourneyDesigner>[0]> = {},
-): string => page(s, <JourneyDesigner journeyId={id} {...props} />);
+): string => page(s, <JourneyDesigner journeyId={id} initialTab="stages" {...props} />);
 const pane = (
   s: ConfigSample,
   sel: { stage: string; task?: string } | null,

@@ -16,6 +16,7 @@ import { Glyph } from "../config/glyphs.tsx";
 import { useJourney, useDesign } from "./data.ts";
 import { FieldsTab } from "./FieldsTab.tsx";
 import { JourneySettings } from "./JourneySettings.tsx";
+import { PathTab } from "./PathTab.tsx";
 import {
   SLOTS,
   TASK_STATES,
@@ -42,7 +43,7 @@ export interface Selection {
   stage: string;
   task?: string;
 }
-export type DesignerTab = "stages" | "fields" | "settings";
+export type DesignerTab = "path" | "stages" | "fields" | "settings";
 
 export interface JourneyDesignerProps {
   journeyId: string;
@@ -61,7 +62,7 @@ export function JourneyDesigner({
   journeyId,
   selection,
   onSelect,
-  initialTab = "stages",
+  initialTab = "path",
   canDesign = true,
   initialFolded = [],
   ask,
@@ -573,13 +574,16 @@ function Body({
         active={tab}
         onSelect={(k) => setTab(k as DesignerTab)}
         tabs={[
+          { key: "path", label: "Path" },
           { key: "stages", label: "Stages", note: String(stages.length) },
           { key: "fields", label: "Fields", note: String(fieldCount) },
           ...(canDesign ? [{ key: "settings", label: "Settings" }] : []),
         ]}
       />
       <ScrollView style={s.scroll} contentContainerStyle={s.col} keyboardShouldPersistTaps="handled">
-        {tab === "settings" && canDesign ? (
+        {tab === "path" ? (
+          <PathTab journey={j} counts={counts} />
+        ) : tab === "settings" && canDesign ? (
           <JourneySettings journey={j} versions={versions} design={d} />
         ) : tab === "fields" ? (
           <FieldsTab recordType={j.recordType} />

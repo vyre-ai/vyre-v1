@@ -74,7 +74,7 @@ test("task states: Done is the filled check, In review and Blocked are named at 
     ...s.extras,
     taskStates: () => ({ t_confirm: "Done", t_review: "In review", t_conflict: "Blocked" }),
   };
-  const out = page(s, <JourneyDesigner journeyId="jrn_onboard" />, extras);
+  const out = page(s, <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />, extras);
   assert.match(tag(out, "check-t_confirm"), /aria-label="Done"/, "the done task's check says Done");
   assert.match(tag(out, "check-t_id"), /aria-label="Required"/, "a task not done keeps the open check");
   assert.match(tag(out, "state-t_review"), />In review$/);
@@ -86,30 +86,30 @@ test("task states: Done is the filled check, In review and Blocked are named at 
 
 test("task states: a state set through the shell is kept and shows the next time the page opens", () => {
   const s = nw();
-  assert.ok(!has(page(s, <JourneyDesigner journeyId="jrn_onboard" />), 'data-testid="state-t_confirm"'));
+  assert.ok(!has(page(s, <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />), 'data-testid="state-t_confirm"'));
   s.extras.setTaskState?.("jrn_onboard", "t_confirm", "Doing");
   s.extras.setTaskState?.("jrn_onboard", "t_review", "Awaiting approval");
-  const out = page(s, <JourneyDesigner journeyId="jrn_onboard" />);
+  const out = page(s, <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />);
   assert.match(tag(out, "state-t_confirm"), />Doing$/);
   assert.match(tag(out, "state-t_review"), />Awaiting approval$/);
 });
 
 test("On leaving: every stage has the section after On entering with its Add an automation row, and the Automations that run on leaving are rows", () => {
   const s = nw();
-  const plain = page(s, <JourneyDesigner journeyId="jrn_onboard" />);
+  const plain = page(s, <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />);
   assert.equal((plain.match(/>On leaving</g) ?? []).length, 5, "one On leaving per stage");
   assert.equal((plain.match(/>On entering</g) ?? []).length, 5);
   for (const k of ["consult", "intake", "letter", "kickoff", "onboarded"])
     assert.ok(has(plain, `data-testid="add-leave-${k}"`), k);
   assert.ok(plain.indexOf(">On entering<") < plain.indexOf(">On leaving<"));
   s.extras.setLeaving?.("jrn_onboard", "intake", ["aut_intake3"]);
-  const out = page(s, <JourneyDesigner journeyId="jrn_onboard" />);
+  const out = page(s, <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />);
   assert.ok(has(out, 'data-testid="row-leave-intake-aut_intake3"') && has(out, "Welcome and handover"));
   assert.ok(!has(out, 'data-testid="row-leave-consult-aut_intake3"'), "only the stage it was set on");
 });
 
 test("On leaving: a person without the Design Journeys role reads it with None and no add row", () => {
-  const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" canDesign={false} />);
+  const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" canDesign={false} initialTab="stages" />);
   assert.ok(has(out, ">On leaving<") && has(out, ">None<") && !has(out, 'data-testid="add-leave-intake"'));
 });
 
