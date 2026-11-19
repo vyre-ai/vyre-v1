@@ -186,6 +186,21 @@ export function shapeOf(schema: unknown, defs: Record<string, unknown> = {}, dep
   return { props, ...(required.length ? { required } : {}) };
 }
 
+/**
+ * What a Run's `trigger` can hold for one kind of trigger: the trigger's own payload, plus every key the events that start it carry (a real event brings keys the trigger's summary does not list, such as a form's `booking`
+ * or a record change's `prev`; the Insert data menu shows them from a real event, so the check must know them). Only the trigger's own payload says what is always there (`required`).
+ */
+export function triggerShapeOf(
+  payload: unknown,
+  events: readonly unknown[],
+  defs: Record<string, unknown> = {},
+): Shape {
+  const own = shapeOf(payload, defs);
+  const props: Record<string, Shape> = { ...(own.props ?? {}) };
+  for (const e of events) for (const [k, v] of Object.entries(shapeOf(e, defs).props ?? {})) props[k] = props[k] ?? v;
+  return { props, ...(own.required ? { required: own.required } : {}) };
+}
+
 // ---- at run time ----
 
 /** What a Run holds while one step renders its text. */
