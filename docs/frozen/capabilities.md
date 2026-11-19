@@ -761,3 +761,10 @@ Signed: lead, 19 Nov 2026
 - Snapshots: docs/frozen/snapshots/computers.json.
 
 Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: where the agent acted on its page (lane r42-computer, owner-approved desk)
+
+- `computers.browser.pointer` (read, permission computers.watch): where the agent last acted on its browser page, for the desk's cursor and the highlight on the field it works in. Answers `state` (`live`, `asleep`, `held`) and, when live and the agent has acted, `pointer`: `seq` (how many actions it has taken in this browser, so a viewer draws each once), `tool`, `x` and `y` in the page's pixels, `box` (the chosen element's rectangle, when the action named an element), `label` (that element's visible name, at most 60 characters, never a field's text) and `at`. A look: it never starts a browser and is not use. Same rule as the still picture: for whoever may watch; while a person holds the browser only they get it; a failed hold look-up answers `held` with no pointer.
+- Snapshots: docs/frozen/snapshots/computers.json.
+
+Signed: pending, lead

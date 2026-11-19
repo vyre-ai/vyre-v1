@@ -14,6 +14,7 @@ HTTP 502. Retryable: yes.
 - computers.browser.give_back
 - computers.browser.my_sign_ins
 - computers.browser.pause
+- computers.browser.pointer
 - computers.browser.preview
 - computers.browser.profiles
 - computers.browser.resume
@@ -30,4 +31,3 @@ HTTP 502. Retryable: yes.
 - computers.chrome.eval
 - computers.chrome.fill
 - computers.chrome.inspect
-- computers.chrome.net

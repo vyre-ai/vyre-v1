@@ -8,6 +8,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "computers.browser.give_back": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.give_back", ctx.trace)); },
   "computers.browser.my_sign_ins": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.my_sign_ins", ctx.trace)); },
   "computers.browser.pause": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.pause", ctx.trace)); },
+  "computers.browser.pointer": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.pointer", ctx.trace)); },
   "computers.browser.preview": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.preview", ctx.trace)); },
   "computers.browser.profiles": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.profiles", ctx.trace)); },
   "computers.browser.resume": async (ctx) => { throw new VyreErr(notImplemented("computers.browser.resume", ctx.trace)); },

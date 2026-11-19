@@ -6,7 +6,7 @@ import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import { browserStreamInput, browserStreamOpen } from "../sbrowser/handlers.ts";
 import type { ProfileRow, SpaceBrowser } from "../sbrowser/port.ts";
 import { ToolError } from "../handlers/tools/common.ts";
-import { codeOf, DANA, harness, OMAR } from "../fixtures/harness.ts";
+import { asPerson, codeOf, DANA, harness, OMAR } from "../fixtures/harness.ts";
 import { tool } from "./tools.fixture.ts";
 
 const WATCHER = "usr_watcher";
@@ -42,6 +42,8 @@ let sessionsNow: () => Array<{ site: string; since: number; lastSeen: number }> 
 const signedOut: string[] = [];
 /** Profiles that hold Chrome data in the fake service (an agent that has browsed before). */
 const warmUsed = new Set<string>();
+/** What the fake service says the agent last did on its page. */
+let ptr: { seq: number; tool: string; x: number; y: number; at: number; box?: { x: number; y: number; w: number; h: number }; label?: string } | null = null;
 function rig() {
   const rows = new Map<string, ProfileRow>([
     ["agt_named", row("agt_named")],
@@ -103,6 +105,11 @@ function rig() {
     },
     async profileUsed(id) {
       return warmUsed.has(id);
+    },
+    async pointer(id) {
+      seen.push(`pointer ${id}`);
+      const r = rows.get(id);
+      return r?.running ? { pointer: ptr } : { asleep: true as const };
     },
     async warm(a) {
       seen.push(`warm ${a.profileId}`);
@@ -699,6 +706,44 @@ test("warm starts the browser for whoever may watch it, only for an agent that h
     assert.deepEqual(await tool["computers.browser.warm"]!(dana.ctx, { agentId: "agt_mine" }), { state: "skipped" });
   } finally {
     warmUsed.clear();
+    off();
+  }
+});
+
+test("the pointer is a look at where the agent last acted: for whoever may watch, never starts a browser, held for everyone but the person at the controls, refused to a stranger and an agent", async () => {
+  const r = rig();
+  try {
+    ptr = { seq: 3, tool: "chrome_click", x: 410, y: 220, at: 1_760_000_000_000, box: { x: 380, y: 200, w: 120, h: 40 }, label: "Send request" };
+    const dana = as(DANA, false);
+    const live = await tool["computers.browser.pointer"]!(dana.ctx, { agentId: "agt_dex" });
+    assert.equal(live.state, "live");
+    assert.deepEqual(live.pointer, ptr);
+    assert.deepEqual(r.seen, ["pointer agt_dex"]);
+    // none yet: live with no pointer
+    ptr = null;
+    assert.deepEqual(await tool["computers.browser.pointer"]!(dana.ctx, { agentId: "agt_dex" }), { state: "live" });
+    // asleep: nothing is started, nothing drawn
+    r.rows.set("agt_dex", { ...r.rows.get("agt_dex")!, running: false });
+    assert.deepEqual(await tool["computers.browser.pointer"]!(dana.ctx, { agentId: "agt_dex" }), { state: "asleep" });
+    assert.ok(!r.seen.some((x) => /^(stream|screenshot|warm)/.test(x)));
+    // another person holds the browser: only they see where it is
+    r.rows.set("agt_dex", { ...r.rows.get("agt_dex")!, running: true });
+    await tool["computers.browser.take_over"]!(dana.ctx, { agentId: "agt_dex" });
+    const other = asPerson(dana, { kind: "person", id: OMAR }, { manager: true, respond });
+    const held = await tool["computers.browser.pointer"]!(other.ctx, { agentId: "agt_dex" });
+    assert.equal(held.state, "held");
+    assert.equal(held.pointer, undefined);
+    await assert.rejects(
+      () => tool["computers.browser.pointer"]!(as(OMAR, true).ctx, { agentId: "agt_dana_ast" }),
+      (e) => codeOf(e) === "permission.no_grant",
+    );
+    const agent = harness({ principal: { kind: "agent", id: "agt_dex" }, manager: false, respond });
+    await assert.rejects(
+      () => tool["computers.browser.pointer"]!(agent.ctx, { agentId: "agt_dex" }),
+      (e) => codeOf(e) === "permission.no_grant",
+    );
+  } finally {
+    ptr = null;
     off();
   }
 });

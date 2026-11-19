@@ -8,6 +8,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "computers.browser.give_back": Handler<"computers.browser.give_back", X>;
   "computers.browser.my_sign_ins": Handler<"computers.browser.my_sign_ins", X>;
   "computers.browser.pause": Handler<"computers.browser.pause", X>;
+  "computers.browser.pointer": Handler<"computers.browser.pointer", X>;
   "computers.browser.preview": Handler<"computers.browser.preview", X>;
   "computers.browser.profiles": Handler<"computers.browser.profiles", X>;
   "computers.browser.resume": Handler<"computers.browser.resume", X>;

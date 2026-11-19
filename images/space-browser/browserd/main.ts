@@ -5,6 +5,7 @@
 //   configure     { profileId, agentId?, spaceId?, tabLimit?, fillUrl?, fillToken? }   (the Vault channel is held in memory for that profile only)
 //   tool          { profileId, tool, args, timeoutMs, by? }         -> the tool's answer (the chrome_* tools of agentd/chrome.ts)
 //   warm          { profileId, spaceId?, agentName? }               -> { browserStart }   starts the profile's browser with no page asked of it (the module warms an agent's browser when its turn starts)
+//   pointer       { profileId }                                     -> { pointer } | { asleep }   where the agent last acted on its page (a look; never starts a browser)
 //   takeover      { profileId, personId }                           give_back { profileId }
 //   screenshot    { profileId }                                     -> { png, width, height }
 //   stream        { profileId }                                     -> { transport: "mjpeg", url, ws }
@@ -256,6 +257,13 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       if (typeof a["spaceId"] === "string") manager.setSpace(pid, a["spaceId"]);
       const w = await manager.ensure(pid);
       return { browserStart: w.startId };
+    }
+    case "pointer": {
+      // the agent's last action on its page, for the desk's cursor. A look: it never starts a browser and does not count as use (a desk left open keeps nothing awake)
+      const pid = checkProfileId(a["profileId"]);
+      const c = manager.get(pid).chrome;
+      if (!c?.alive()) return { asleep: true };
+      return { pointer: c.pointer?.() ?? null };
     }
     case "tool": {
       // The Vault channel of this profile's agent rides the call that may type a handle, held in memory for this profile only.

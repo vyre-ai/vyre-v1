@@ -578,7 +578,33 @@ export async function resume(ctx: CompCtx, input: { agentId: string; stopped?: b
   return { profile: asAgent(await rowOf(ctx, sb, pid, access), input.agentId) };
 }
 
+/**
+ * Where the agent last acted on its page, for the desk's cursor (lane r42-computer): the point it moved to, the box of the element it chose and its visible name, in the page's pixels, counted by `seq`. The same
+ * rule as the still picture: a look that never starts the browser, for whoever may watch it; while a person holds the browser only they get it, and a look-up that fails answers held (fails closed). Never the
+ * text of a field.
+ */
+export async function pointer(ctx: CompCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  const sb = browserOrRaise(ctx);
+  const mine = await ownProfile(ctx, input.agentId);
+  const person = mine ? mine.person : (await mayWatch(ctx, input.agentId)).person;
+  const pid = mine?.profileId ?? input.agentId;
+  let lookedUp = true;
+  const holder = (await currentHold(ctx, sb, pid).catch(() => ((lookedUp = false), null)))?.personId;
+  if (!lookedUp) return { state: "held" as const };
+  if (holder !== undefined && holder !== person) return { state: "held" as const, by: holder };
+  if (!sb.pointer) return { state: "asleep" as const };
+  try {
+    const r = await sb.pointer(pid);
+    if ("asleep" in r) return { state: "asleep" as const };
+    return r.pointer ? { state: "live" as const, pointer: r.pointer } : { state: "live" as const };
+  } catch (e) {
+    return refuse(ctx, e);
+  }
+}
+
 export const sbrowserHandlers = {
+  "computers.browser.pointer": pointer,
   "computers.browser.pause": pause,
   "computers.browser.resume": resume,
   "computers.browser.warm": warm,

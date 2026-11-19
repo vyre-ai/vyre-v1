@@ -3,6 +3,7 @@
 // What it does not answer yet (none now) and a #Handle.field is filled by main.ts from the host (vault.ts).
 //
 // Outward acts are held, not done: a click on something that sends, posts, pays or deletes answers with a heldId, and only chrome_send (behind the Gate) does it.
+import { createPointerNote } from "./pointer.ts";
 import { extensionStatus } from "./extension-state.ts";
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
@@ -38,7 +39,11 @@ interface Held {
   at: number;
 }
 
+export type { Pointer } from "./pointer.ts";
+
 export interface Chrome {
+  /** The agent's last action on a page, or null when it has not acted since this browser started. */
+  pointer?(): import("./pointer.ts").Pointer | null;
   ready(): Promise<void>;
   alive(): boolean;
   /** The DevTools port of this browser on 127.0.0.1, or null when it talks over its pipe and opens no port. */
@@ -376,8 +381,19 @@ export function launchChrome(
   };
 
   /** The element of a ref, scrolled into view, with where its middle is, and whether acting on it would send something out. */
+  // the agent's last action, for the desk's cursor: the element a tool chose (locate) and the point it pressed (mouse); browserd reads it (pointer)
+  const seen = createPointerNote();
   const locate = async (c: Cdp, ref: string): Promise<{ x: number; y: number; outward: boolean; label: string }> => {
-    const r = await evalIn<{ x: number; y: number; outward: boolean; label: string } | null>(
+    const r = await evalIn<{
+      x: number;
+      y: number;
+      outward: boolean;
+      label: string;
+      bx: number;
+      by: number;
+      bw: number;
+      bh: number;
+    } | null>(
       c,
       `(() => {
       const el = document.querySelector('[data-vyre-ref=${JSON.stringify(ref)}]');
@@ -387,14 +403,16 @@ export function launchChrome(
       const label = (el.getAttribute("aria-label") || el.innerText || el.value || el.title || el.name || "").trim().slice(0, 120);
       const form = el.closest("form");
       const text = label + " " + (el.getAttribute("type") || "") + " " + (el.getAttribute("name") || "") + " " + (form ? (form.getAttribute("aria-label") || "") : "");
-      return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2), outward: new RegExp(${JSON.stringify(OUTWARD)}, "i").test(text), label };
+      return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2), bx: Math.round(b.left), by: Math.round(b.top), bw: Math.round(b.width), bh: Math.round(b.height), outward: new RegExp(${JSON.stringify(OUTWARD)}, "i").test(text), label };
     })()`,
     );
     if (!r) throw notFound(`There is no element ${ref} on this page. Take a new snapshot.`);
+    seen.chose({ x: r.bx, y: r.by, w: r.bw, h: r.bh, label: r.label });
     return r;
   };
 
   const mouse = async (c: Cdp, x: number, y: number, button = "left", count = 1): Promise<void> => {
+    seen.at(x, y);
     await c.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
     await c.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button, clickCount: count });
     await c.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button, clickCount: count });
@@ -512,6 +530,7 @@ export function launchChrome(
     }
     if (state.stopped) throw paused("The browser is stopped. Resume it first.");
     if (name === "chrome_plan") return { ok: true };
+    seen.during(name);
     await start();
     const s = (k: string): string | undefined => (typeof args[k] === "string" ? (args[k] as string) : undefined);
     const tabId = s("tabId");
@@ -889,6 +908,7 @@ export function launchChrome(
       return connect(await pick(undefined));
     },
     heldIds: () => [...held.keys()],
+    pointer: () => seen.get(),
     extension: async () => {
       let workers = 0;
       try {

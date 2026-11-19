@@ -511,6 +511,32 @@ export default defineManifest({
         errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
       },
     ),
+    read(
+      "computers.browser.pointer",
+      "Where the agent last acted on its browser page, for the desk's cursor; a look that never starts the browser. Who may watch may ask; while a person holds the browser only they get it",
+      {
+        in: { agentId: id.agent },
+        out: {
+          state: t.enm("live", "asleep", "held"),
+          by: t.opt(id.user),
+          pointer: t.opt(
+            t.obj({
+              seq: t.int({ description: "How many actions the agent has taken in this browser; a viewer draws each once" }),
+              tool: t.str(),
+              x: t.int({ description: "In the page's pixels" }),
+              y: t.int(),
+              box: t.opt(t.obj({ x: t.int(), y: t.int(), w: t.int(), h: t.int() })),
+              label: t.opt(t.str({ description: "The chosen element's visible name, cut short; never a field's text" })),
+              at: t.ts(),
+            }),
+          ),
+        },
+        perm: "computers.watch",
+        label: "check",
+        offline: "online",
+        errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
+      },
+    ),
     write(
       "computers.browser.pause",
       "Pause an agent's browser: its next browser call waits, spending nothing, until you resume; a take-over, a stop or half an hour also end it. Who may take over may pause",

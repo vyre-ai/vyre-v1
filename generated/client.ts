@@ -569,6 +569,7 @@ export function createClient(transport: Transport) {
         give_back: call("computers.browser.give_back", 1),
         my_sign_ins: call("computers.browser.my_sign_ins", 1),
         pause: call("computers.browser.pause", 1),
+        pointer: call("computers.browser.pointer", 1),
         preview: call("computers.browser.preview", 1),
         profiles: call("computers.browser.profiles", 1),
         resume: call("computers.browser.resume", 1),

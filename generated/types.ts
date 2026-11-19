@@ -10556,6 +10556,27 @@ export type ComputersBrowserPauseOut = {
     access: "owner" | "admin" | "viewer";
   };
 };
+export type ComputersBrowserPointerIn = {
+  agentId: string;
+};
+export type ComputersBrowserPointerOut = {
+  state: "live" | "asleep" | "held";
+  by?: string;
+  pointer?: {
+    seq: number;
+    tool: string;
+    x: number;
+    y: number;
+    box?: {
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    };
+    label?: string;
+    at: number;
+  };
+};
 export type ComputersBrowserPreviewIn = {
   agentId: string;
 };
@@ -48760,6 +48781,7 @@ export interface CapMap {
   "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
   "computers.browser.my_sign_ins": { in: ComputersBrowserMySignInsIn; out: ComputersBrowserMySignInsOut };
   "computers.browser.pause": { in: ComputersBrowserPauseIn; out: ComputersBrowserPauseOut };
+  "computers.browser.pointer": { in: ComputersBrowserPointerIn; out: ComputersBrowserPointerOut };
   "computers.browser.preview": { in: ComputersBrowserPreviewIn; out: ComputersBrowserPreviewOut };
   "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
   "computers.browser.resume": { in: ComputersBrowserResumeIn; out: ComputersBrowserResumeOut };

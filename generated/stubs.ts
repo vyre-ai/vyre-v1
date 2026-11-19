@@ -569,6 +569,7 @@ export function stubs(ctx: CallCtx) {
         give_back: call("computers.browser.give_back"),
         my_sign_ins: call("computers.browser.my_sign_ins"),
         pause: call("computers.browser.pause"),
+        pointer: call("computers.browser.pointer"),
         preview: call("computers.browser.preview"),
         profiles: call("computers.browser.profiles"),
         resume: call("computers.browser.resume"),

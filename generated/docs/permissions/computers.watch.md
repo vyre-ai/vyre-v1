@@ -16,6 +16,7 @@ Area: agents. Risk: low. Applies to: computer.
 
 - computers.browser.give_back
 - computers.browser.pause
+- computers.browser.pointer
 - computers.browser.preview
 - computers.browser.profiles
 - computers.browser.resume

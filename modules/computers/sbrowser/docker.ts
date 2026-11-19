@@ -14,7 +14,7 @@ import { browserService, browserSlots, browserTasks, LIMITS } from "../capacity.
 import { cpus, totalmem } from "node:os";
 import { request as httpRequest } from "node:http";
 import { ToolError } from "../handlers/tools/common.ts";
-import type { BrowserAnswer, BrowserToolCall, ProfileRow, SpaceBrowser } from "./port.ts";
+import type { BrowserAnswer, BrowserPointer, BrowserToolCall, ProfileRow, SpaceBrowser } from "./port.ts";
 
 export const DEFAULT_BROWSER_IMAGE = "vyre/space-browser:1";
 export const BROWSERD_CTL = "/opt/browserd/ctl";
@@ -736,6 +736,12 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         ...(a.seenFrom !== undefined ? { seenFrom: a.seenFrom } : {}),
         ...(a.agent ? { agentName: a.agent.name, ...(a.agent.faceSvg ? { faceSvg: a.agent.faceSvg } : {}) } : {}),
       });
+    },
+    async pointer(profileId) {
+      const r = await call("pointer", { profileId });
+      return r["asleep"] === true
+        ? { asleep: true as const }
+        : { pointer: (r["pointer"] ?? null) as BrowserPointer | null };
     },
     async warm(a) {
       await call("warm", {

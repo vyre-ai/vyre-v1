@@ -4,11 +4,12 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat.
 
-## Capabilities (71)
+## Capabilities (72)
 
 - [computers.browser.give_back](../capabilities/computers.browser.give_back.md): Give an agent's browser back to the agent; the person who has the controls or an admin may
 - [computers.browser.my_sign_ins](../capabilities/computers.browser.my_sign_ins.md): The sites the browser profile your own turns of this agent use is signed in to, by site and when, never a value: a person who does not own a shared agent has a profile of their own on it. Nothing of another person's
 - [computers.browser.pause](../capabilities/computers.browser.pause.md): Pause an agent's browser: its next browser call waits, spending nothing, until you resume; a take-over, a stop or half an hour also end it. Who may take over may pause
+- [computers.browser.pointer](../capabilities/computers.browser.pointer.md): Where the agent last acted on its browser page, for the desk's cursor; a look that never starts the browser. Who may watch may ask; while a person holds the browser only they get it
 - [computers.browser.preview](../capabilities/computers.browser.preview.md): One still picture of an agent's browser for the Computer tab, from the Space; it never wakes the browser (asleep answers no picture). Who may watch the live view may ask; while a person has taken the browser over, only they get a picture
 - [computers.browser.profiles](../capabilities/computers.browser.profiles.md): The agent browsers in this Space's browser that you may watch: running or asleep, tabs, whether the agent is using it, and who has the controls
 - [computers.browser.resume](../capabilities/computers.browser.resume.md): Resume a paused agent browser: the call that waits goes on. Whoever paused it or an admin may
