@@ -57,6 +57,7 @@ const stepRow = t.obj({
   inputRef: t.opt(t.str()),
   outputRef: t.opt(t.str()),
   error: t.opt(t.obj({ code: t.str(), message: t.str() })),
+  notes: t.opt(t.arr(t.str())),
   startedAt: t.opt(t.ts()),
   endedAt: t.opt(t.ts()),
   traceSpan: t.opt(t.str()),

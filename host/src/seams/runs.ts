@@ -39,10 +39,14 @@ interface PlanLink {
   automationId: string;
   scope?: Scope;
   depth?: number;
+  /** a test of a definition: always held to the save check */
+  test?: boolean;
 }
 interface Plan {
   link: PlanLink;
   definition: { nodes: GNode[]; start?: string[] };
+  /** this version was saved after the save check existed */
+  checked?: boolean;
 }
 interface PlanStep {
   id: string;
@@ -73,6 +77,7 @@ interface StepResult {
   next?: string | null;
   wait?: unknown;
   prepare?: { iterations: LoopIteration[] };
+  notes?: string[];
 }
 type Call = Row & { attempt: number; prepare?: boolean; children?: ChildReport[]; item?: unknown; index?: number };
 
@@ -482,6 +487,8 @@ export function createRunsHost(d: {
             trigger:
               typeof p.link.origin === "string" && p.link.origin.startsWith("agent:") ? "agent_run" : p.link.trigger,
             defHash,
+            // a Run of a version saved before the save check existed reads an unknown name as empty, as it always did; tests and anything saved since are held to the check
+            strict: p.link.test === true || p.checked === true,
             ...(typeof p.link.depth === "number" ? { depth: p.link.depth } : {}),
             ...(p.definition.ai && (p.definition.ai.keyId || p.definition.ai.backupKeyId)
               ? { ai: p.definition.ai }
@@ -492,7 +499,7 @@ export function createRunsHost(d: {
       )) as StepResult;
     };
     const finish = (node: GNode, r: StepResult): StepResult => {
-      const rest: StepResult = { output: r.output, next: r.next, wait: r.wait };
+      const rest: StepResult = { output: r.output, next: r.next, wait: r.wait, ...(r.notes ? { notes: r.notes } : {}) };
       if (rest.wait) return rest;
       const chosen = rest.next !== undefined ? rest.next : clippedNext(by, node, planIds);
       if (chosen === undefined) return rest;

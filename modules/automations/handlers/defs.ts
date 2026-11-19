@@ -19,6 +19,7 @@ import {
   isOwner,
   listGroups,
   listVersions,
+  markChecked,
   markDeleted,
   markRestored,
   me,
@@ -1011,6 +1012,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   });
   saveAutomation(ctx.db, a);
   saveVersion(ctx, a, "Created");
+  markChecked(ctx.db, a.id, a.version);
   rememberAccountPicks(ctx.db, owner, def, now);
   await regrant(ctx, a, "save");
   emitAuto(ctx, "automation.created", a.id, { name: a.name, kind: a.kind });
@@ -1073,6 +1075,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   touch(ctx, a);
   if (definitionChanged) {
     saveVersion(ctx, a);
+    markChecked(ctx.db, a.id, a.version); // edited here, so it passed the save check
     rememberAccountPicks(ctx.db, me(ctx), a.definition, ctx.now());
     await regrant(ctx, a, "save", before);
   }

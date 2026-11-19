@@ -46,6 +46,7 @@ type Out = {
         code: string;
         message: string;
       };
+      notes?: Array<string>;
       startedAt?: number;
       endedAt?: number;
       traceSpan?: string;
@@ -85,6 +86,9 @@ type Out = {
           "message": "example"
         },
         "inputRef": "example",
+        "notes": [
+          "example"
+        ],
         "outputRef": "example",
         "startedAt": 1760000000000,
         "state": "pending",

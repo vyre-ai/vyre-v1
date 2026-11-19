@@ -35768,6 +35768,7 @@ export type RunsStepsOut = {
         code: string;
         message: string;
       };
+      notes?: Array<string>;
       startedAt?: number;
       endedAt?: number;
       traceSpan?: string;

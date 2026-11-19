@@ -67,6 +67,7 @@ export const hostCalls = {
         automation?: string;
         trigger?: string;
         defHash?: string;
+        strict?: boolean;
         depth?: number;
         ai?: { keyId?: string; backupKeyId?: string };
       };
