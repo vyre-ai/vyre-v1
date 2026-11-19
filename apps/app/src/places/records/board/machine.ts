@@ -52,6 +52,8 @@ export type MoveEvent =
   | { t: "ok" }
   | { t: "gate"; missing: readonly MissingField[] }
   | { t: "refuse"; reason: string }
+  /** The call never answered in time: the card is put back and the board is free again. */
+  | { t: "timeout" }
   /** The copy shows `id` in `to` now, put there by someone or something that is not this person's current move. */
   | { t: "remote"; id: string; to: string; by: Mover }
   | { t: "fields-saved" }
@@ -108,12 +110,12 @@ export function step(s: MoveState, e: MoveEvent): Step {
       return s.kind === "refused" || s.kind === "conflict" ? { state: IDLE } : { state: s };
     case "drop": {
       if (s.kind !== "lifted") return { state: s };
-      // dropped on nothing, or back where it came from: nothing happens
-      if (!s.over || s.over === s.from) return { state: IDLE };
-      // someone (or an Automation) moved it while it was held: it stays where they put it, whatever lane it was dropped on
-      if (s.moved) {
+      // someone (or an Automation) moved it while it was held: it stays where they put it, whatever it was dropped on (and even on nothing, so they are told)
+      if (s.moved && s.moved.to !== s.from) {
         return { state: { kind: "conflict", id: s.id, by: s.moved.by, at: s.moved.to } };
       }
+      // dropped on nothing, or back where it came from: nothing happens
+      if (!s.over || s.over === s.from) return { state: IDLE };
       if (s.blocked) {
         return {
           state: { kind: "refused", id: s.id, from: s.from, to: s.over, reason: s.blocked },
@@ -126,7 +128,8 @@ export function step(s: MoveState, e: MoveEvent): Step {
       };
     }
     case "start": {
-      if (s.kind === "committing" || s.kind === "needs") return { state: s };
+      if (s.kind === "committing" || s.kind === "needs")
+        return { state: s, effect: { t: "say", text: "One move at a time. Try again in a moment." } };
       if (e.from === e.to) return { state: IDLE };
       if (e.blocked)
         return {
@@ -153,6 +156,7 @@ export function step(s: MoveState, e: MoveEvent): Step {
       return s.kind === "committing" || s.kind === "needs" ? { state: IDLE } : { state: s };
     case "gate":
       if (s.kind !== "committing") return { state: s };
+      if (s.remote) return { state: { kind: "conflict", id: s.id, by: s.remote.by, at: s.remote.to } };
       return { state: { kind: "needs", id: s.id, from: s.from, to: s.to, via: s.via, missing: e.missing } };
     case "refuse":
       if (s.kind !== "committing" && s.kind !== "needs") return { state: s };
@@ -162,6 +166,12 @@ export function step(s: MoveState, e: MoveEvent): Step {
       return {
         state: { kind: "refused", id: s.id, from: s.from, to: s.to, reason: e.reason },
         effect: { t: "say", text: e.reason },
+      };
+    case "timeout":
+      if (s.kind !== "committing" && s.kind !== "needs") return { state: s };
+      return {
+        state: { kind: "refused", id: s.id, from: s.from, to: s.to, reason: "No answer yet. Check the card and try again." },
+        effect: { t: "say", text: "No answer yet. Check the card and try again." },
       };
     case "fields-saved":
       if (s.kind !== "needs") return { state: s };

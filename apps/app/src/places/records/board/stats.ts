@@ -36,13 +36,13 @@ export function daysIn(enteredAt: number, now: number): number {
 
 /** Days past the stage's time limit (0 when on time or no limit). */
 export function daysLate(enteredAt: number, now: number, limitHours: number | undefined): number {
-  if (limitHours === undefined) return 0;
+  if (limitHours === undefined || !(limitHours > 0)) return 0;
   const over = now - enteredAt - limitHours * HOUR_MS;
   return over <= 0 ? 0 : Math.max(1, Math.floor(over / DAY_MS));
 }
 
 export const isLate = (enteredAt: number, now: number, limitHours: number | undefined): boolean =>
-  limitHours !== undefined && now - enteredAt >= limitHours * HOUR_MS;
+  limitHours !== undefined && limitHours > 0 && now - enteredAt > limitHours * HOUR_MS;
 
 /** "5 d" for a limit of 120 hours, "12 h" under two days. */
 export function limitWords(hours: number): string {
@@ -146,7 +146,8 @@ export function windowOf(
   viewH: number,
   overscan = 6,
 ): { from: number; to: number; before: number; after: number } {
-  const from = Math.max(0, Math.floor(scrollTop / rowH) - overscan);
-  const to = Math.min(total, Math.ceil((scrollTop + viewH) / rowH) + overscan);
-  return { from, to, before: from * rowH, after: Math.max(0, (total - to) * rowH) };
+  const h = rowH > 0 ? rowH : 1;
+  const from = Math.min(Math.max(0, total - 1), Math.max(0, Math.floor(scrollTop / h) - overscan));
+  const to = Math.min(total, Math.ceil((scrollTop + viewH) / h) + overscan);
+  return { from, to, before: from * h, after: Math.max(0, (total - to) * h) };
 }

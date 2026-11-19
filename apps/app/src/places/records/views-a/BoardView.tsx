@@ -178,6 +178,27 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     field && swimKey
       ? (ctx.def.fields.find((f) => f.key === swimKey && swimmable(f, field, ctx.def.titleField)) ?? null)
       : null;
+  // when each drawn card entered its stage (journeys.stage_since): asked for in batches, again every half minute; a card with no answer shows no day and no late mark
+  const [since, setSince] = useState<Record<string, number>>({});
+  const asked = useRef(new Set<string>());
+  const jid = ctx.journey?.journeyId;
+  useEffect(() => {
+    if (!jid) return;
+    const t = setInterval(() => asked.current.clear(), 30_000);
+    return () => clearInterval(t);
+  }, [jid]);
+  useEffect(() => {
+    if (!jid) return;
+    const miss = Object.keys(rows.current).filter((id) => !asked.current.has(id));
+    for (let i = 0; i < miss.length; i += 200) {
+      const chunk = miss.slice(i, i + 200);
+      for (const id of chunk) asked.current.add(id);
+      data
+        .call("journeys.stage_since", { journeyId: jid, recordIds: chunk })
+        .then((o) => setSince((c) => ({ ...c, ...(o as { since: Record<string, number> }).since })))
+        .catch(() => undefined);
+    }
+  });
   const ownerField = ctx.def.fields.find((f) => f.type === "person") ?? null;
   // ------------------------------------------------ moves
   const send = useCallback((e: MoveEvent): void => {
@@ -425,7 +446,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       setError(e instanceof Error && e.message ? e.message : "Could not add it. Try again.");
     }
   };
-  const enteredAt = (r: RecordRow): number | undefined => r.updatedAt; // the stage-entry time stands in until the Journey gives it (journeys.stage_since)
+  const enteredAt = (r: RecordRow): number | undefined => since[r.id];
   const toggleFinish = (key: string): void =>
     setExpanded((cur) => {
       const next = new Set(cur);

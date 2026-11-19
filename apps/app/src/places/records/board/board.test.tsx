@@ -115,6 +115,8 @@ function sample(o: { actor?: string; failMove?: string } = {}) {
           ],
         };
       if (cap === "journeys.get") return { journey: { id: "jrn_1", stages: DESIGN } };
+      if (cap === "journeys.stage_since")
+        return { since: { jr_1: NOW - 5 * DAY, jr_2: NOW - DAY, jr_3: NOW - DAY } };
       if (cap === "journeys.stage_counts")
         return {
           stages: [

@@ -132,7 +132,9 @@ test("key, menu, bar and undo moves start without a lift; the same lane is a no-
 test("one move at a time: a lift or start while a move is out is ignored", () => {
   const out = run([{ t: "start", id: "c1", from: "lead", to: "qual", via: "key" }]).state;
   assert.equal(run([lift("c2")], out).state, out);
-  assert.equal(run([{ t: "start", id: "c2", from: "lead", to: "qual", via: "menu" }], out).effects.length, 0);
+  assert.deepEqual(run([{ t: "start", id: "c2", from: "lead", to: "qual", via: "menu" }], out).effects, [
+    { t: "say", text: "One move at a time. Try again in a moment." },
+  ]);
 });
 
 test("holds tells the board which card the machine has", () => {
@@ -168,4 +170,30 @@ test("the mover's name that arrives after the conflict was drawn fills it in", (
     { t: "remote", id: "c1", to: "qual", by: MAYA },
   ]);
   assert.equal(r.state.kind === "conflict" && r.state.by.name, "Maya");
+});
+
+test("a call that never answers frees the board; a stage that asks for fields after someone else moved the card is a conflict; a drop on nothing still tells of a remote move", () => {
+  const out = run([{ t: "start", id: "c1", from: "lead", to: "qual", via: "key" }, { t: "timeout" }]);
+  assert.equal(out.state.kind, "refused");
+  assert.equal(run([lift("c2")], out.state).state.kind, "lifted", "free again after the card's reason is shown");
+  const g = run([
+    { t: "start", id: "c1", from: "lead", to: "qual", via: "key" },
+    { t: "remote", id: "c1", to: "prop", by: MAYA },
+    { t: "gate", missing: [] },
+  ]);
+  assert.equal(g.state.kind, "conflict");
+  const nothing = run([
+    lift(),
+    { t: "remote", id: "c1", to: "qual", by: MAYA },
+    { t: "over", lane: null },
+    { t: "drop" },
+  ]);
+  assert.equal(nothing.state.kind, "conflict");
+  const back = run([lift(), { t: "remote", id: "c1", to: "lead", by: MAYA }, { t: "over", lane: null }, { t: "drop" }]);
+  assert.equal(back.state.kind, "idle", "a move that ended where it began is not a conflict");
+  const busy = run(
+    [{ t: "start", id: "c2", from: "lead", to: "qual", via: "bar" }],
+    run([{ t: "start", id: "c1", from: "lead", to: "qual", via: "key" }]).state,
+  );
+  assert.deepEqual(busy.effects, [{ t: "say", text: "One move at a time. Try again in a moment." }]);
 });
