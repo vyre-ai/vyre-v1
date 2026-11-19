@@ -301,7 +301,9 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
           [...new Set(input.pin.slice(1).map((h) => h.toLowerCase()))].sort().join("\n") !==
             [...new Set(keyHosts(def).map((h) => h.toLowerCase()))].sort().join("\n"))
       )
-        refuse(ctx, "validation.precondition_failed", `${def.title} changed since you looked. Open the card again.`);
+        refuse(ctx, "validation.precondition_failed", `${def.title} changed since you looked. Open the card again.`, {
+          reason: "service_changed",
+        });
       const c = tx.get<{ state: string }>("SELECT state FROM cn_connectors WHERE key = ?", input.connector)!;
       if (c.state === "draft")
         refuse(

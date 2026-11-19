@@ -781,7 +781,7 @@ test("a service republished between the key's try and its keeping: nothing is st
 });
 
 test("connections.create refusing after the key was stored: the key is taken back, nothing stays, and the person is told in plain words", async () => {
-  const w = room({ createRefuses: "Fathom changed since you looked. Open the card again." });
+  const w = room({ createRefuses: "Fathom was published again." });
   const r = await ask(w);
   await assert.rejects(
     submit(w, r.requestId!),

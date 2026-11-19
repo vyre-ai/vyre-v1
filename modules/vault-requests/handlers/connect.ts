@@ -694,9 +694,7 @@ export async function connectSubmit(
     // the service changed between the card and the connecting (connections.create checks the card's pin): the key just stored is taken back above, and the person is told so in these words
     if (
       erased &&
-      /changed since you looked/.test(
-        e instanceof Error ? e.message : String((e as { message?: unknown })?.message ?? ""),
-      )
+      (e as { error?: { details?: { reason?: unknown } } } | null)?.error?.details?.reason === "service_changed"
     )
       raise(
         trace,

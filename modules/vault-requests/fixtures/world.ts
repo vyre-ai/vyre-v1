@@ -201,7 +201,10 @@ export function world(over: Partial<Script> = {}) {
           ...((script.check ?? "ok") === "ok" && script.noProbe !== true ? { tested: "Reached Fathom" } : {}),
         };
       case "connections.create": {
-        if (script.createRefuses) throw new Error(script.createRefuses);
+        if (script.createRefuses)
+          throw Object.assign(new Error(script.createRefuses), {
+            error: { code: "validation.precondition_failed", details: { reason: "service_changed" } },
+          });
         const made = {
           connectionId: "con_new",
           owner: (i["ownerKind"] === "space" ? "space" : "mine") as "space" | "mine",

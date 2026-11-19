@@ -547,6 +547,36 @@ test("a roll back changes the revision, so a card shown before it is refused (th
   );
 });
 
+test("a connector that exists before the revision table gets its own revision at the upgrade, and a state change moves it", async () => {
+  const k = kit();
+  const { ensureTables } = await import("../projections.ts");
+  // rows as an old server left them: connectors and no revision rows, a sequence that never ran
+  k.tx.run("DELETE FROM cn_revisions");
+  k.tx.run("UPDATE cn_revision_seq SET n = 0");
+  const before = k.tx.all<{ key: string }>("SELECT key FROM cn_connectors");
+  assert.ok(before.length > 0, "there are connectors to upgrade");
+  // the migration runs again at the next start
+  const { readFileSync } = await import("node:fs");
+  k.tx.exec(readFileSync(new URL("../migrations/0006_revisions.sql", import.meta.url), "utf8"));
+  void ensureTables;
+  const revs = k.tx.all<{ key: string; rev: number }>("SELECT key, rev FROM cn_revisions");
+  assert.equal(revs.length, before.length, "every connector has a revision");
+  assert.equal(new Set(revs.map((r) => r.rev)).size, revs.length, "each its own");
+  assert.ok(revs.every((r) => r.rev > 0));
+  const top = Math.max(...revs.map((r) => r.rev));
+  assert.equal(
+    k.tx.get<{ n: number }>("SELECT n FROM cn_revision_seq WHERE id = 1")!.n,
+    top,
+    "the sequence is past them all",
+  );
+  // draft to live is a change to what the connector is, even when its definition text is the same
+  const key = before[0]!.key;
+  const was = k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = ?", key)!.rev;
+  k.tx.run("UPDATE cn_connectors SET state = 'draft' WHERE key = ?", key);
+  const now = k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = ?", key)!.rev;
+  assert.ok(now > was, "a state change moves the revision");
+});
+
 test("a connector deleted and made again never repeats an earlier revision, even when the clock and the definition are the same", async () => {
   const k = kit();
   const make = async () => {
