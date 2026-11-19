@@ -6976,6 +6976,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             principal: c.principal.id,
             ...(c.actingFor ? { actingFor: c.actingFor } : {}),
             ...blobReadCheck(r),
+            now: Date.now(),
           }).effect === "allow",
         // the bytes of an upload slot (files.upload_url): the Files module seals them; the slot's one-time token is the authority
         put: async (a) =>
