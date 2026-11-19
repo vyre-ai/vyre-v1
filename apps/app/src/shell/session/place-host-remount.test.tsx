@@ -62,10 +62,13 @@ test("a place whose module fails to load goes to its boundary once, not into a l
   console.error = () => undefined;
   try {
     let tries = 0;
-    registerPlace("zz-fail" as never, (async () => {
-      tries++;
-      throw new Error("Failed to fetch dynamically imported module");
-    }) as never);
+    registerPlace(
+      "zz-fail" as never,
+      (async () => {
+        tries++;
+        throw new Error("Failed to fetch dynamically imported module");
+      }) as never,
+    );
     const Place = placeFor("zz-fail");
     class B extends Component<{ children?: ReactNode }, { bad: boolean }> {
       override state = { bad: false };
