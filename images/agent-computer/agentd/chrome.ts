@@ -403,7 +403,7 @@ export function launchChrome(
       el.scrollIntoView({ block: "center", inline: "center" });
       const b = el.getBoundingClientRect();
       const label = (el.getAttribute("aria-label") || el.innerText || el.value || el.title || el.name || "").trim().slice(0, 120);
-      const raw = { tag: el.tagName || "", type: el.getAttribute("type") || "", aria: el.getAttribute("aria-label") || "", text: el.innerText || "", value: typeof el.value === "string" ? el.value : "", title: el.title || "", name: el.getAttribute("name") || "", placeholder: el.getAttribute("placeholder") || "", id: el.id || "", autocomplete: el.getAttribute("autocomplete") || "" };
+      const raw = { tag: el.tagName || "", type: el.getAttribute("type") || "", aria: el.getAttribute("aria-label") || "", text: el.innerText || "", value: typeof el.value === "string" ? el.value : "", title: el.title || "", name: el.getAttribute("name") || "", placeholder: el.getAttribute("placeholder") || "", id: el.id || "", autocomplete: el.getAttribute("autocomplete") || "", editable: el.isContentEditable === true, role: el.getAttribute("role") || "" };
       const form = el.closest("form");
       const text = label + " " + (el.getAttribute("type") || "") + " " + (el.getAttribute("name") || "") + " " + (form ? (form.getAttribute("aria-label") || "") : "");
       return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2), bx: Math.round(b.left), by: Math.round(b.top), bw: Math.round(b.width), bh: Math.round(b.height), outward: new RegExp(${JSON.stringify(OUTWARD)}, "i").test(text), label, raw };
@@ -508,7 +508,7 @@ export function launchChrome(
       }
       if (Date.now() - t0 > timeoutMs)
         throw new AgentError("timeout", `Waited ${Math.round(timeoutMs / 1000)} seconds for ${until}.`);
-      await sleep(150);
+      await sleep(50);
     }
   };
 
@@ -562,8 +562,17 @@ export function launchChrome(
             active = t.id;
             if (PIPE) toFront(t.id);
             await c.send("Page.enable");
-            await c.send("Page.navigate", { url });
-            await sleep(100);
+            // the page's own load event, not a fixed pause and a poll: the answer comes the moment the page has loaded (the old way slept 100 ms, then looked every 150 ms). A navigation that has no new document
+            // (the same page with a new fragment, a download, a refusal) has no load event to wait for and goes straight to the readyState look below.
+            let loaded = false;
+            c.on("Page.loadEventFired", () => {
+              loaded = true;
+            });
+            const nav = await c.send<{ loaderId?: string; errorText?: string }>("Page.navigate", { url });
+            if (typeof nav.loaderId === "string" && nav.errorText === undefined) {
+              const until = Date.now() + 30_000;
+              while (!loaded && Date.now() < until) await sleep(5);
+            }
             await waitFor(c, "load", undefined, 30_000).catch(() => 0);
             return {
               tabId: t.id,

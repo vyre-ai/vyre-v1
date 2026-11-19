@@ -110,3 +110,39 @@ export async function waitWhilePaused(
   }
   return "go";
 }
+
+/**
+ * Everything a browser call must pass before it reaches the browser service, in the one order that cannot be raced: wait out a pause, then read the hold, and if a pause appeared while the hold was being
+ * read, wait again and read the hold again. So a take-over that ended a pause is seen by the call it let go (it gets the hold, and is refused), a stop that ended it means the call does not run, and no step
+ * between the last pause check and the call can start a pause that the call then ignores. `skip`: a look (status, stop) that runs through a pause and a hold.
+ */
+export async function admitAfterPause<H>(
+  ctx: Db,
+  profileId: string,
+  skip: boolean,
+  readHold: () => Promise<H | null>,
+  waitMs: number = WAIT_MS,
+): Promise<{ ok: true; hold: H | null; readAt: number } | { ok: false; why: "gave_up" | "stopped" }> {
+  for (;;) {
+    if (!skip) {
+      const waited = await waitWhilePaused(ctx, profileId, waitMs);
+      if (waited !== "go") return { ok: false, why: waited };
+    }
+    const readAt = Date.now();
+    const hold = await readHold();
+    if (skip || hold !== null || pauseOf(ctx, profileId) === null) return { ok: true, hold, readAt };
+  }
+}
+
+/** The agent's turn ended by a stop or a failure: every pause on its profiles (its own and its askers') ends, and the calls that wait do not run. A stop never depends on a second call from a browser. */
+export function dropPausesOfAgent(ctx: Pick<CompCtx, "db">, agentId: string): number {
+  ensure(ctx.db);
+  const rows = rowsOf(
+    ctx.db,
+    "SELECT profile_id FROM computers_browser_pause WHERE profile_id = ? OR profile_id LIKE ?",
+    agentId,
+    `${agentId}-%`,
+  );
+  for (const r of rows) dropPause(ctx, String(r["profile_id"]), { stopped: true });
+  return rows.length;
+}

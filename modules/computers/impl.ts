@@ -38,6 +38,7 @@ import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
 import { markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
 import { warmBrowser } from "./sbrowser/warm.ts";
+import { dropPausesOfAgent } from "./sbrowser/pause.ts";
 import { browserOfDeleted, browserOfLeaver, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
 import {
   nodeHomeCheck,
@@ -1059,6 +1060,8 @@ export const consumers = {
         }
         return;
       }
+      // a stop (or a failure) ends a pause on the agent's browsers by itself: whoever pressed Stop, the call that waits behind the pause never runs after it (sbrowser/pause.ts)
+      if ((event.name === "turn.cancelled" || event.name === "turn.failed") && typeof a === "string") dropPausesOfAgent(ctx, a);
       turnEnded(ctx.space, typeof a === "string" ? a : "", t);
     },
   },

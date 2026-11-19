@@ -24,7 +24,8 @@ import type { DeskStep, WorkspaceView } from "./work-model.ts";
 import type { PaneDeps } from "./actions.ts";
 import type { BrowserView } from "./work-model.ts";
 import { Dot } from "./WorkParts.tsx";
-import { keyAction } from "./desk-model.ts";
+import { keyAction, keysMayAct, needsShift } from "./desk-model.ts";
+import type { ActiveKind } from "./desk-model.ts";
 import { drawnAt, showsCursor } from "./desk-pointer.ts";
 import type { Drawn, PointerView } from "./desk-pointer.ts";
 import type { DeskKey, DeskMode, DeskRoom } from "./desk-model.ts";
@@ -87,6 +88,51 @@ function usePolled<T>(ask: () => Promise<T> | undefined, every: number, on: bool
   }, [every, on]);
   return v;
 }
+
+const CONTROL_TAGS = new Set(["BUTTON", "A", "SUMMARY"]);
+const CONTROL_ROLES = new Set([
+  "button",
+  "menuitem",
+  "option",
+  "tab",
+  "link",
+  "checkbox",
+  "switch",
+  "radio",
+  "treeitem",
+]);
+/** Where the focus is, for the keys: a field, a control outside the desk (Space there is its own), a control of the desk, or nowhere in particular. */
+export function activeKindOf(el: unknown): ActiveKind {
+  const e = el as
+    | {
+        tagName?: string;
+        isContentEditable?: boolean;
+        getAttribute?: (n: string) => string | null;
+        closest?: (s: string) => unknown;
+      }
+    | null
+    | undefined;
+  const tag = e?.tagName?.toUpperCase();
+  if (!e || !tag || tag === "BODY" || tag === "HTML") return "none";
+  const role = (e.getAttribute?.("role") ?? "").toLowerCase();
+  if (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    e.isContentEditable === true ||
+    role === "textbox" ||
+    role === "searchbox" ||
+    role === "combobox"
+  )
+    return "field";
+  const control = CONTROL_TAGS.has(tag) || CONTROL_ROLES.has(role);
+  if (!control) return "none";
+  return e.closest?.('[data-testid="desk"]') ? "desk_control" : "outside_control";
+}
+const otherModalOpen = (doc: { querySelector?: (s: string) => unknown }): boolean =>
+  doc.querySelector?.(
+    '[aria-modal="true"]:not([data-testid="desk"]):not([data-testid="desk-mini"]), [role="menu"], [role="listbox"]',
+  ) != null;
 
 const typingIn = (t: unknown): boolean => {
   const el = t as { tagName?: string; isContentEditable?: boolean } | null;
@@ -207,8 +253,8 @@ export function Desk({
   const canPause = view.state === "open" && view.canTakeOver && !busy && data.pause !== undefined;
   const isPaused = view.paused === true;
   // the keys: only while you watch, never while a field has the keyboard
-  const stateRef = useRef({ mine, canTake, canPause, canStop, isPaused, mode });
-  stateRef.current = { mine, canTake, canPause, canStop, isPaused, mode };
+  const stateRef = useRef({ mine, canTake, canPause, canStop, isPaused, mode, busy });
+  stateRef.current = { mine, canTake, canPause, canStop, isPaused, mode, busy };
   useEffect(() => {
     if (Platform.OS !== "web") return undefined;
     const doc = (globalThis as { document?: Document }).document;
@@ -222,11 +268,26 @@ export function Desk({
             ? (ev.key.toLowerCase() as DeskKey)
             : null;
       if (!k) return;
+      // Stop is Shift S, never a bare letter
+      if (needsShift(k) && !ev.shiftKey) return;
+      const active = (doc as unknown as { activeElement?: unknown }).activeElement;
+      if (
+        !keysMayAct({
+          active: activeKindOf(active),
+          modalOpen: otherModalOpen(doc as never),
+          repeat: ev.repeat === true,
+          composing: ev.isComposing === true,
+          prevented: ev.defaultPrevented === true,
+        })
+      )
+        return;
       const cur = stateRef.current;
       const act = keyAction({ mode: cur.mode, prev: cur.mode === "full" ? "dock" : null, room: "browser" }, k, {
         typing: typingIn(ev.target),
         holding: cur.mine,
       });
+      // a call in flight (a take-over under way, a pause being sent) is not stacked on: only the view keys work meanwhile
+      if (cur.busy && act !== "toggle_full") return;
       if (act === "toggle_full") {
         ev.preventDefault();
         deskDispatch({ type: "toggle_full" });
@@ -410,7 +471,7 @@ export function Desk({
                     )
                   ) : null}
                   {live && view.state === "open" && canStop ? (
-                    <Tip icon="stop" tip="Stop (S)" testID="browser-stop" disabled={busy} onPress={stop} />
+                    <Tip icon="stop" tip="Stop (Shift S)" testID="browser-stop" disabled={busy} onPress={stop} />
                   ) : null}
                   {bar.action === "resume" ? (
                     <Pill

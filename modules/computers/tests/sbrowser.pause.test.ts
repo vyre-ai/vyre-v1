@@ -5,7 +5,17 @@ import assert from "node:assert/strict";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import type { ProfileRow, SpaceBrowser } from "../sbrowser/port.ts";
 import { resetRoom } from "../sbrowser/room.ts";
-import { PAUSE_MAX_MS, pausedBy, setWaitMs, waitingOn } from "../sbrowser/pause.ts";
+import {
+  admitAfterPause,
+  dropPause,
+  dropPausesOfAgent,
+  PAUSE_MAX_MS,
+  pausedBy,
+  setPause,
+  setWaitMs,
+  waitingOn,
+} from "../sbrowser/pause.ts";
+import { consumers } from "../impl.ts";
 import { asPerson, codeOf, DANA, harness, OMAR } from "../fixtures/harness.ts";
 import { tool } from "./tools.fixture.ts";
 
@@ -250,6 +260,106 @@ test("the profile row says who paused it, in the list too; looks (status) are no
     assert.equal(list.profiles.find((p: { agentId: string }) => p.agentId === "agt_dex")?.pausedBy, DANA);
     await tool["computers.chrome.status"]!(r.agent.ctx, {});
     assert.deepEqual(r.ran, ["chrome_status"], "status runs while paused");
+  } finally {
+    clean();
+  }
+});
+
+test("a stop by someone who did not pause: the turn's own cancel ends the pause and the waiting call never runs, whoever pressed Stop and whether or not any second call arrives", async () => {
+  const r = rig();
+  try {
+    // Ana pauses; Bo (or anyone) stops the agent: the engine cancels the turn
+    await tool["computers.browser.pause"]!(r.dana.ctx, { agentId: "agt_dex" });
+    const waiting = call(r);
+    const result = assert.rejects(
+      waiting,
+      (e) => codeOf(e) === "provider.unavailable" && /did not run/.test(JSON.stringify(e)),
+    );
+    await tick();
+    await consumers["computers.browser_turns"].run(r.dana.ctx, {
+      name: "turn.cancelled",
+      payload: { agentId: "agt_dex", turnId: "trn_1" },
+    });
+    await result;
+    assert.deepEqual(r.ran, [], "nothing ran after the stop");
+    assert.equal(
+      pausedBy(r.dana.ctx, "agt_dex"),
+      null,
+      "the pause is over, so Ana's later Resume or the half hour cannot let anything run",
+    );
+    await call(r);
+    assert.deepEqual(r.ran, ["chrome_state"], "the next turn's call is not held");
+  } finally {
+    clean();
+  }
+});
+
+test("a failed turn ends the pause too; a turn that completes normally leaves it; every profile of the agent is covered (its askers' too), and no other agent's", async () => {
+  const r = rig();
+  try {
+    setPause(r.dana.ctx, "agt_dex", DANA);
+    setPause(r.dana.ctx, "agt_dex-usr_omar", OMAR);
+    setPause(r.dana.ctx, "agt_other", DANA);
+    await consumers["computers.browser_turns"].run(r.dana.ctx, {
+      name: "turn.completed",
+      payload: { agentId: "agt_dex", turnId: "trn_a" },
+    });
+    assert.equal(pausedBy(r.dana.ctx, "agt_dex"), DANA, "a normal end of a turn is not a stop");
+    await consumers["computers.browser_turns"].run(r.dana.ctx, {
+      name: "turn.failed",
+      payload: { agentId: "agt_dex", turnId: "trn_b" },
+    });
+    assert.equal(pausedBy(r.dana.ctx, "agt_dex"), null);
+    assert.equal(pausedBy(r.dana.ctx, "agt_dex-usr_omar"), null);
+    assert.equal(pausedBy(r.dana.ctx, "agt_other"), DANA, "another agent's pause stays");
+    assert.equal(dropPausesOfAgent(r.dana.ctx, "agt_dex"), 0, "nothing left to end");
+  } finally {
+    clean();
+  }
+});
+
+test("admitting a call: a pause that appears while the hold is being read is waited out, then the hold is read again; a stop in that gap means the call does not run, a take-over in it means the call is refused by the hold", async () => {
+  const r = rig();
+  try {
+    const ctx = r.dana.ctx;
+    // no pause: one hold read, goes at once
+    let reads = 0;
+    const plain = await admitAfterPause(ctx, "agt_dex", false, async () => ((reads += 1), null));
+    assert.deepEqual([plain.ok, reads], [true, 1]);
+    // a look (status) goes through a pause and a hold without reading either
+    setPause(ctx, "agt_dex", DANA);
+    const look = await admitAfterPause(ctx, "agt_dex", true, async () => null);
+    assert.equal(look.ok, true);
+    dropPause(ctx, "agt_dex");
+    // a pause appears during the hold read; Stop comes while the call waits: it does not run
+    let n = 0;
+    const racing = admitAfterPause(ctx, "agt_dex", false, async () => {
+      n += 1;
+      if (n === 1) setPause(ctx, "agt_dex", DANA);
+      return null;
+    });
+    await tick();
+    assert.equal(waitingOn("agt_dex"), 1, "it waits instead of going on");
+    dropPause(ctx, "agt_dex", { stopped: true });
+    assert.deepEqual(await racing, { ok: false, why: "stopped" });
+    // a pause appears during the hold read; a take-over ends it: the hold is read again and the call is given it (so the caller refuses)
+    let m = 0;
+    const taken = admitAfterPause(ctx, "agt_dex", false, async () => {
+      m += 1;
+      if (m === 1) {
+        setPause(ctx, "agt_dex", DANA);
+        return null;
+      }
+      return { personId: OMAR };
+    });
+    await tick();
+    dropPause(ctx, "agt_dex");
+    const got = await taken;
+    assert.ok(got.ok && got.hold?.personId === OMAR, "the hold is seen, not skipped");
+    assert.equal(m, 2);
+    // and a pause that is never lifted gives up with nothing run
+    setPause(ctx, "agt_dex", DANA);
+    assert.deepEqual(await admitAfterPause(ctx, "agt_dex", false, async () => null, 40), { ok: false, why: "gave_up" });
   } finally {
     clean();
   }

@@ -94,3 +94,26 @@ export function keyAction(s: DeskState, key: DeskKey, o: { typing: boolean; hold
   if (key === "space") return "pause";
   return "stop";
 }
+
+/** Where the keyboard focus is when a key is pressed: nowhere in particular, in something you type into, in a control of the page outside the desk, or in a control of the desk itself. */
+export type ActiveKind = "none" | "field" | "outside_control" | "desk_control";
+export interface KeyContext {
+  active: ActiveKind;
+  /** A dialog, menu or list of the app other than the desk is open. */
+  modalOpen: boolean;
+  repeat: boolean;
+  composing: boolean;
+  /** Something already handled this key. */
+  prevented: boolean;
+}
+/**
+ * May a key press be the desk's at all? Never a held-down repeat (holding Space must not flap the pause), never while an input method is composing, never what something else already handled, never while
+ * the focus is in a field or in a button, link or tab of the page outside the desk (Space there is that control's own), and never under another dialog or menu. A control of the desk itself is the desk's.
+ */
+export function keysMayAct(c: KeyContext): boolean {
+  return (
+    !c.repeat && !c.composing && !c.prevented && !c.modalOpen && (c.active === "none" || c.active === "desk_control")
+  );
+}
+/** Stop ends the agent's work and cannot be taken back, so it is Shift S, never a bare letter; every other key is its own. */
+export const needsShift = (key: DeskKey): boolean => key === "s";

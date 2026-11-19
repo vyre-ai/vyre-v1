@@ -58,6 +58,8 @@ const el = (o: Partial<LabelInput>): LabelInput => ({
   placeholder: "",
   id: "",
   autocomplete: "",
+  editable: false,
+  role: "",
   ...o,
 });
 
@@ -104,4 +106,25 @@ test("no field is ever named by what was typed or filled into it; a button's own
   assert.equal(labelOf(el({ tag: "button", type: "submit", text: "  Send \n request " })), "Send request");
   assert.equal(labelOf(el({ tag: "select", value: "private", aria: "Category" })), "Category");
   assert.equal(labelOf(el({ tag: "a", text: "x".repeat(300) })).length, 120);
+});
+
+test("a contenteditable or role=textbox element is a field: what was typed into it is never the name, even a composer, a rich-text editor or a code box made of divs", () => {
+  assert.equal(
+    labelOf(
+      el({ tag: "div", editable: true, text: "Dear Ana, the settlement figure is 41,000", aria: "Message body" }),
+    ),
+    "Message body",
+  );
+  assert.equal(labelOf(el({ tag: "div", editable: true, text: "Dear Ana, the settlement figure is 41,000" })), "");
+  assert.equal(
+    labelOf(el({ tag: "span", editable: true, text: "typed inside an editor", placeholder: "Write a note" })),
+    "Write a note",
+  );
+  assert.equal(labelOf(el({ tag: "div", role: "textbox", text: "482913" })), "");
+  assert.equal(labelOf(el({ tag: "div", role: "combobox", text: "chosen private value", aria: "Client" })), "Client");
+  // a one-time code box made of divs, named as a code
+  assert.equal(labelOf(el({ tag: "div", editable: true, id: "otp-1", text: "482913" })).includes("482913"), false);
+  // an ordinary button and link keep their own words
+  assert.equal(labelOf(el({ tag: "button", text: "Send" })), "Send");
+  assert.equal(labelOf(el({ tag: "a", text: "Open order" })), "Open order");
 });

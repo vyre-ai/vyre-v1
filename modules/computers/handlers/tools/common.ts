@@ -72,7 +72,7 @@ function namesRef(v: unknown, depth = 0): boolean {
   );
 }
 import { currentHold, DURING_HOLD, HELD_LINE, heldBy } from "../../sbrowser/hold.ts";
-import { PAUSED_LINE, STOPPED_LINE, waitWhilePaused } from "../../sbrowser/pause.ts";
+import { admitAfterPause, PAUSED_LINE, STOPPED_LINE } from "../../sbrowser/pause.ts";
 import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
@@ -884,20 +884,22 @@ async function browserCallIn(ctx: CompCtx, profileId: string, spec: ToolSpec, ar
   const sb = spaceBrowser();
   if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
   // a person at the controls: the agent's tools wait here, before the call reaches the browser service, however that service is reached and after it restarts (the hold is the module's own)
-  // a person paused the browser: the call waits here, spending nothing, and runs when they resume (sbrowser/pause.ts). It waits BEFORE the hold is read, so a take-over that ended the pause is seen by the call
-  // it let go (refused with the hold's line, never run); a stop that ended it means the call does not run at all; a pause that outlasts the wait answers one plain line. Nothing ran in any of them.
-  if (!DURING_HOLD.has(spec.name)) {
-    const waited = await waitWhilePaused(ctx, profileId);
-    if (waited === "gave_up") refuse(ctx, new ToolError("unavailable", PAUSED_LINE, "browser_paused"), profileId);
-    if (waited === "stopped") refuse(ctx, new ToolError("unavailable", STOPPED_LINE, "browser_stopped"), profileId);
-  }
-  const readAt = Date.now();
-  const hold = await currentHold(ctx, sb, profileId);
+  // a person paused the browser: the call waits here, spending nothing, and runs when they resume (sbrowser/pause.ts); then the hold is read, and if a pause came while it was read the call waits again. A take-over
+  // that ended the pause is seen by the call it let go (refused with the hold's line, never run); a stop that ended it means the call does not run at all; a pause that outlasts the wait answers one plain line.
+  const admitted = await admitAfterPause(ctx, profileId, DURING_HOLD.has(spec.name), () =>
+    currentHold(ctx, sb, profileId),
+  );
+  if (!admitted.ok)
+    refuse(
+      ctx,
+      admitted.why === "gave_up"
+        ? new ToolError("unavailable", PAUSED_LINE, "browser_paused")
+        : new ToolError("unavailable", STOPPED_LINE, "browser_stopped"),
+      profileId,
+    );
+  const { hold, readAt } = admitted;
   if (hold && !DURING_HOLD.has(spec.name))
     refuse(ctx, new ToolError("paused", HELD_LINE, "profile_held"), profileId, { takeoverBy: hold.personId });
-  // a person paused the browser: the call waits here, spending nothing, and runs when they resume (sbrowser/pause.ts); a pause that outlasts the wait answers one plain line, and nothing ran
-  if (!DURING_HOLD.has(spec.name) && (await waitWhilePaused(ctx, profileId)) === "gave_up")
-    refuse(ctx, new ToolError("unavailable", PAUSED_LINE, "browser_paused"), profileId);
   const binding = boundFill();
   // every call carries the channel, not only the typing ones: Vyre for Chrome in the profile fills logins on its own when a page loads, and asks the Vault through it, as this call's person, during this call.
   // The grant is taken right before each send and dropped right after it, so no Vault authority is held while the call waits for room, and its life always starts from the moment it is used.

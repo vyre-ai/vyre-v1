@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
-import { AgentCursor, DeskHost, MINI, Scrubbed, StepRing, edgesOf } from "./Desk.tsx";
+import { AgentCursor, DeskHost, MINI, Scrubbed, StepRing, activeKindOf, edgesOf } from "./Desk.tsx";
 import { deskDispatch, deskOpen, deskReset, deskSnapshot } from "./desk-store.ts";
 import type { BrowserData, BrowserView } from "./work-model.ts";
 import { createSample } from "./sample.ts";
@@ -292,6 +292,10 @@ const key = (k: string, over: Record<string, unknown> = {}) => ({
   metaKey: false,
   ctrlKey: false,
   altKey: false,
+  shiftKey: k.length === 1 && k !== k.toLowerCase() && k !== " ",
+  repeat: false,
+  isComposing: false,
+  defaultPrevented: false,
   preventDefault() {},
   ...over,
 });
@@ -842,4 +846,92 @@ test("a send waiting for approval: the bar says so with what it is, offers Allow
     deskReset();
     off();
   }
+});
+
+test("Stop is Shift S: a bare s does nothing, so a letter typed by mistake never ends the agent's work", async () => {
+  const off = installDom();
+  deskReset();
+  try {
+    const keys = keysOf();
+    const r = rig(open);
+    deskOpen(r.session);
+    await mount(cr, <DeskHost />);
+    await flush();
+    keys.forEach((f) => f(key("s")));
+    await flush();
+    assert.deepEqual(r.asked, [], "bare s");
+    keys.forEach((f) => f(key("S")));
+    await flush();
+    assert.equal(r.asked.length, 1, "Shift S");
+  } finally {
+    unmountAll();
+    deskReset();
+    off();
+  }
+});
+
+test("the keys leave a press alone when something else has it: a held-down repeat, composing, already handled, a focused button or link outside the desk, a field, another dialog or menu, a call in flight", async () => {
+  const off = installDom();
+  deskReset();
+  try {
+    const keys = keysOf();
+    const r = rig(open);
+    deskOpen(r.session);
+    await mount(cr, <DeskHost />);
+    await flush();
+    const doc = (globalThis as unknown as { document: Record<string, unknown> }).document;
+    const pauses = (): number => r.calls.filter((c) => c.startsWith("pause")).length;
+    const space = (over?: Record<string, unknown>): void => keys.forEach((f) => f(key(" ", over)));
+    space({ repeat: true });
+    space({ isComposing: true });
+    space({ defaultPrevented: true });
+    doc["activeElement"] = { tagName: "BUTTON", closest: () => null, getAttribute: () => null };
+    space();
+    doc["activeElement"] = { tagName: "A", closest: () => null, getAttribute: () => null };
+    space();
+    doc["activeElement"] = { tagName: "DIV", isContentEditable: true, getAttribute: () => null };
+    space();
+    doc["activeElement"] = { tagName: "DIV", getAttribute: (n: string) => (n === "role" ? "textbox" : null) };
+    space();
+    doc["activeElement"] = null;
+    doc["querySelector"] = () => ({});
+    space();
+    doc["querySelector"] = () => null;
+    await flush();
+    assert.equal(pauses(), 0, "none of those is the desk's key");
+    // a control of the desk itself, and nowhere in particular, are the desk's
+    doc["activeElement"] = { tagName: "BUTTON", closest: () => ({}), getAttribute: () => null };
+    space();
+    await flush();
+    assert.equal(pauses(), 1);
+    // a call in flight is not stacked on: a take-over under way ignores Space until it settles
+    r.push(open);
+    await flush();
+    let release: () => void = () => undefined;
+    r.data.takeOver = () => new Promise<void>((ok) => (release = ok));
+    keys.forEach((f) => f(key("t")));
+    await flush();
+    space();
+    await flush();
+    assert.equal(pauses(), 1, "while the take-over is under way");
+    release();
+    await flush();
+  } finally {
+    unmountAll();
+    deskReset();
+    off();
+  }
+});
+
+test("where the focus is, for the keys: nothing, a field, a control outside the desk or a control of it", () => {
+  assert.equal(activeKindOf(null), "none");
+  assert.equal(activeKindOf({ tagName: "BODY" }), "none");
+  assert.equal(activeKindOf({ tagName: "INPUT" }), "field");
+  assert.equal(activeKindOf({ tagName: "TEXTAREA" }), "field");
+  assert.equal(activeKindOf({ tagName: "DIV", isContentEditable: true }), "field");
+  assert.equal(activeKindOf({ tagName: "DIV", getAttribute: () => "searchbox" }), "field");
+  assert.equal(activeKindOf({ tagName: "BUTTON", closest: () => null }), "outside_control");
+  assert.equal(activeKindOf({ tagName: "DIV", getAttribute: () => "tab", closest: () => null }), "outside_control");
+  assert.equal(activeKindOf({ tagName: "BUTTON", closest: () => ({}) }), "desk_control");
+  assert.equal(activeKindOf({ tagName: "DIV", getAttribute: () => null }), "none");
 });

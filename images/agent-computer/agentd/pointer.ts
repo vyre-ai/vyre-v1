@@ -71,6 +71,9 @@ export interface LabelInput {
   placeholder: string;
   id: string;
   autocomplete: string;
+  /** The element, or an ancestor, is editable (contenteditable): a composer, a rich-text editor, a code box built from divs. */
+  editable: boolean;
+  role: string;
 }
 const SENSITIVE =
   /pass(word|wd|code)?|pwd|otp|one.?time|2fa|mfa|verification|security.?code|token|secret|\bpin\b|cvv|cvc|card.?number|ssn/i;
@@ -81,6 +84,7 @@ export function isSecretField(i: LabelInput): boolean {
   return SENSITIVE.test(`${i.name} ${i.id} ${i.aria} ${i.placeholder}`);
 }
 const FIELD_TAGS = new Set(["input", "textarea", "select"]);
+const FIELD_ROLES = new Set(["textbox", "searchbox", "combobox", "spinbutton", "slider"]);
 const BUTTON_TYPES = new Set(["submit", "button", "reset"]);
 /**
  * The element's visible name for the desk and for a held action's words (at most 120 characters). The text a person has typed or a page has filled into a field is never the name: for any field the name is
@@ -89,7 +93,8 @@ const BUTTON_TYPES = new Set(["submit", "button", "reset"]);
  */
 export function labelOf(i: LabelInput): string {
   const tag = i.tag.toLowerCase();
-  const field = FIELD_TAGS.has(tag);
+  // anything a person can type into is a field, whatever it is made of: an input, a contenteditable (or inside one), a role=textbox made from divs
+  const field = FIELD_TAGS.has(tag) || i.editable || FIELD_ROLES.has(i.role.toLowerCase());
   const clean = (v: string): string => v.trim().replace(/\s+/g, " ");
   let out: string;
   if (isSecretField(i)) out = i.aria || i.placeholder || i.name || "";

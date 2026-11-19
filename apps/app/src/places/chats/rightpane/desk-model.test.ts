@@ -1,7 +1,17 @@
 // The desk's state machine (desk-model.ts): every event in every state, the way back from full, the keys, and random orders of events that never reach a state without a way out.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CLOSED, ROOMS, deskStep, dimsApp, keyAction, narrowsChat, shown } from "./desk-model.ts";
+import {
+  CLOSED,
+  ROOMS,
+  deskStep,
+  dimsApp,
+  keyAction,
+  keysMayAct,
+  narrowsChat,
+  needsShift,
+  shown,
+} from "./desk-model.ts";
 import type { DeskEvent, DeskMode, DeskRoom, DeskState } from "./desk-model.ts";
 
 const MODES: DeskMode[] = ["closed", "dock", "full", "mini"];
@@ -167,4 +177,23 @@ test("keys: they act only while you watch; typing and holding the controls leave
   );
   const rooms: DeskRoom[] = [...ROOMS];
   assert.equal(rooms.length, 3);
+});
+
+test("a key press is the desk's only when nothing else has it: not a repeat, not composing, not already handled, not in a field or a control outside the desk, not under another dialog", () => {
+  const ok = { active: "none", modalOpen: false, repeat: false, composing: false, prevented: false } as const;
+  assert.equal(keysMayAct(ok), true);
+  assert.equal(keysMayAct({ ...ok, active: "desk_control" }), true);
+  for (const bad of [
+    { repeat: true },
+    { composing: true },
+    { prevented: true },
+    { modalOpen: true },
+    { active: "field" },
+    { active: "outside_control" },
+  ] as const)
+    assert.equal(keysMayAct({ ...ok, ...bad }), false, JSON.stringify(bad));
+});
+test("only Stop needs Shift: it ends the agent's work and cannot be taken back", () => {
+  assert.equal(needsShift("s"), true);
+  for (const k of ["f", "space", "t", "escape"] as const) assert.equal(needsShift(k), false);
 });
