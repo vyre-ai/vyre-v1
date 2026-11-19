@@ -1,4 +1,5 @@
-// The carry door (rc.17, lead ruling 3 Nov): "I already have a Vyre account" on another Space's web page reaches this Space from a foreign https origin. Only these cross, with CORS:
+// The carry door (rc.17, lead ruling 3 Nov): "I already have a Vyre account" on another Space's web page reaches this Space from a foreign https origin (or a page on the person's own machine, over
+// loopback http: a claim page reached through an SSH tunnel). Only these cross, with CORS:
 //   POST /v1/identity/sign_in_options and /v1/identity/recovery_fetch   anonymous, as they are (recovery_fetch keeps its rate limit)
 //   POST /v1/identity/sign_in            never a session from a foreign origin: a carry token (modules/identity/handlers/carry.ts), 5 minutes, bound to that Origin
 //   POST /v1/identity/keys_get           with the carry token, once
@@ -37,7 +38,15 @@ const TRACE = "0".repeat(32);
 const bearerOf = (h: string | string[] | undefined): string | null =>
   typeof h === "string" && /^Bearer\s+/i.test(h) ? h.replace(/^Bearer\s+/i, "").trim() : null;
 
-/** The Origin of a request from another site's https page: not this Space's own, not the request's own host, not the desktop app. Null for everything else. */
+/** A page on this very machine, over http: what an SSH tunnel (ssh -L 8420:...) to a Space that has no name of its own serves, and what a developer's own server is. Loopback never leaves the machine. */
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * The Origin of a request from another site's https page, or from a page on the person's own machine (loopback over http): not this Space's own, not the request's own host, not the desktop app.
+ * Null for everything else. A claim page opened through an SSH tunnel at http://localhost:8420 is such a page: "Use your Vyre account" there asks another Space, and with no answer for its
+ * origin the browser blocked the call, which read as "Couldn't reach that Space" (r40, 18 Nov 2026). A loopback page is no wider than the any-https-page the door already answers, and the
+ * carry token it gets is still bound to that Origin.
+ */
 export function foreignOrigin(req: http.IncomingMessage, own: string | null): string | null {
   const o = req.headers.origin;
   if (typeof o !== "string" || o === "" || packagedOrigin(o)) return null;
@@ -47,7 +56,8 @@ export function foreignOrigin(req: http.IncomingMessage, own: string | null): st
   } catch {
     return null;
   }
-  if (u.protocol !== "https:" || u.origin !== o) return null;
+  if (u.origin !== o) return null;
+  if (u.protocol !== "https:" && !(u.protocol === "http:" && LOOPBACK.has(u.hostname))) return null;
   if (own && o === own) return null;
   const host = String(req.headers.host ?? "").toLowerCase();
   if (host && (o === `https://${host}` || o === `http://${host}`)) return null;

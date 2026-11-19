@@ -244,6 +244,7 @@ import type { CreateCells, PeerAccessEvent, PeerAccessPort } from "../peers/sync
 import { PEER_ACCESS, accessCheck, sameContent } from "../peers/sync.ts";
 import { applyPeerJoin } from "../peers/join.ts";
 import { createAppFilesRoute, defaultAppDir } from "../routes/app-files.ts";
+import { createRelayWorkerRoute } from "../routes/relay-worker.ts";
 import type { RelayBox } from "../seams/relay.ts";
 import { createSyncLiveBridge, createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
@@ -7626,6 +7627,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       call: (n, i) => (hooks ? hooks.call(n, i) : Promise.reject(new Error("no Space here"))),
     });
     // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
+    const relayWorkerRoute = createRelayWorkerRoute();
     const appFiles = createAppFilesRoute({ dir: () => (o.appDir !== undefined ? o.appDir : defaultAppDir()) });
     const onRequest = (req: http.IncomingMessage, res: http.ServerResponse): void => {
       // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
@@ -7637,6 +7639,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return;
       }
       if (carryDoor.handle(req, res)) return;
+      if (relayWorkerRoute.handle(req, res)) return;
       if (desktopCors(req, res)) return;
       if (bearer(req.headers.authorization)?.startsWith("vas_")) {
         // Do not hand a preview to public share/forms, MCP, sync, uploads,

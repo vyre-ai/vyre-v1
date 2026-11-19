@@ -431,8 +431,8 @@ export function checkSources(
     if (!pkg) continue;
     const isTest = /\.test\.(?:m?js|cjs|tsx?)$/.test(file);
     if (underAny(file, config.rules?.ignoreImports ?? [])) continue;
-    if (!isTest && fetchBanned(pkg, file, config) && /\bfetch\s*\(/.test(stripComments(src))) {
-      out.push(violation("B4", file, `fetch is not allowed in ${pkg}`));
+    if (!isTest && fetchBanned(pkg, file, config) && /\b(?:fetch\s*\(|XMLHttpRequest\b)/.test(stripComments(src))) {
+      out.push(violation("B4", file, `fetch (or XMLHttpRequest) is not allowed in ${pkg}`));
     }
     for (const imp of parseImports(src)) {
       if (!imp.literal && underAny(file, config.rules?.dynamicOk ?? [])) continue;

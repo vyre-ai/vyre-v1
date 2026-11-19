@@ -8,7 +8,8 @@
 // DECISION: a Mine item cannot be shared; to share it, move it into a Shared folder (that re-encrypts it under the filler). A subscription sign-in (kind ai_subscription) stays Mine for ever.
 // DECISION: Trash keeps the sealed row; restore brings it back whole. Deleting a folder, Space policy, export and import are other packets.
 import { agentStanding } from "../../../lib/agent-asker.ts";
-import { COMPANY_FOLDER, isCompanyKey } from "../../../lib/company-keys.ts";
+import { COMPANY_FOLDER, SEALED_FOLDER, isCompanyKey } from "../../../lib/company-keys.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   ENC_MINE,
@@ -32,6 +33,7 @@ import {
   ensure,
   first,
   handleOf,
+  isBackingFolder,
   isId,
   isInt,
   keyOf,
@@ -259,6 +261,8 @@ const ownItem = (ctx: VaultCtx, r: Row): boolean =>
 
 export function visible(ctx: VaultCtx, r: Row): boolean {
   if (!live(r)) return false;
+  // the item behind a sealed record value is the Space's plumbing: it is not in any list or search, and opens only through the field (vault.item.reveal still checks the person's right on it)
+  if (isBackingFolder(ctx, r["folderId"])) return false;
   if (str(r, "scope") === "mine") return str(r, "owner") === ctx.principal.id;
   return ownItem(ctx, r) || levelOn(ctx, "vault_item", str(r, "id")) !== null;
 }
@@ -973,11 +977,18 @@ export async function foldersList(ctx: VaultCtx, input: { scope?: string }) {
   const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).filter(
     (f) =>
       live(f) &&
+      // the server's own folder for sealed values is shown to the server (it finds the folder to put values in), never to a person
+      (isHostService(ctx.principal) || !isBackingFolder(ctx, f["id"])) &&
       (input.scope === undefined || str(f, "scope") === input.scope) &&
       (str(f, "scope") === "mine"
         ? str(f, "owner") === ctx.principal.id
         : str(f, "owner") === ctx.principal.id || levelOn(ctx, "vault_folder", str(f, "id")) !== null),
   );
+  // the server looks the folder up to put sealed values in it: from then on it is the sealing code's folder, however it was made
+  if (isHostService(ctx.principal))
+    for (const f of rows)
+      if (str(f, "name") === SEALED_FOLDER && str(f, "scope") === "shared" && !strOrNull(f, "parentId"))
+        ctx.db.run(`INSERT OR IGNORE INTO vault_backing_folder ("folderId") VALUES (?)`, str(f, "id"));
   rows.sort(
     (a, b) =>
       str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") ||
@@ -1035,6 +1046,9 @@ export async function foldersCreate(
     "[]",
     ctx.now(),
   );
+  // the server making its Sealed fields folder (a person's own folder of that name is a folder like any other)
+  if (isHostService(ctx.principal) && input.scope === "shared" && !input.parentId && name === SEALED_FOLDER)
+    ctx.db.run(`INSERT OR IGNORE INTO vault_backing_folder ("folderId") VALUES (?)`, id);
   ctx.emit("vault.folder_created", `vault_folder/${id}`, { folderId: id, scope: input.scope }, { vis: "participants" });
   return { folder: folderOut(ctx, liveFolder(ctx, id)) };
 }

@@ -263,7 +263,12 @@ test("four relations from one type to one target all apply, each far end shows i
   }
   const before = JSON.stringify((await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type);
   const again = await k.h["schema.diff"](k.ctx, { ops });
-  assert.ok(again.problems.length === 4, "the same four relations are refused as already there, not made twice");
+  assert.deepEqual(
+    again.problems,
+    [],
+    "the same four relations are already there: asking again is not an error (r40), and nothing is made twice",
+  );
+  await k.h["schema.apply"](k.ctx, { ops });
   assert.equal(JSON.stringify((await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type), before);
 });
 
