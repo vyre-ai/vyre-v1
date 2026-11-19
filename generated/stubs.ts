@@ -1640,6 +1640,7 @@ export function stubs(ctx: CallCtx) {
         save: call("mail.attachment.save"),
       },
       auto_connect_members: call("mail.auto_connect_members"),
+      configure: call("mail.configure"),
       connect: call("mail.connect"),
       delivery: {
         retry: call("mail.delivery.retry"),

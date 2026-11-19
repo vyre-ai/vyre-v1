@@ -84,7 +84,10 @@ export interface ApplyHandlers {
     input: { ops: SchemaOp[]; previewToken?: string; confirm?: string[]; reason?: string },
   ): Promise<{ changeId: string; applied: number; items: DiffItem[] }>;
   "schema.set_label"(ctx: SchemaCtx, input: { type: string; field?: string; label: Label }): Promise<{ ok: boolean }>;
-  "schema.set_mergeable"(ctx: SchemaCtx, input: { type: string; field: string; mergeable: boolean }): Promise<{ ok: boolean }>;
+  "schema.set_mergeable"(
+    ctx: SchemaCtx,
+    input: { type: string; field: string; mergeable: boolean },
+  ): Promise<{ ok: boolean }>;
   "schema.infer"(
     ctx: SchemaCtx,
     input: { text?: string; fileId?: string; name?: string; sheet?: string },
@@ -353,7 +356,16 @@ function onlyMergeableDiffers(was: unknown, next: unknown): boolean {
 }
 
 /** Field kinds whose values must never go into an email: sealed (secret), files, signatures, buttons, and relations (they hold ids). */
-const NEVER_IN_EMAILS = new Set(["sealed", "files", "signature", "button", "relation", "person", "created_by", "modified_by"]);
+const NEVER_IN_EMAILS = new Set([
+  "sealed",
+  "files",
+  "signature",
+  "button",
+  "relation",
+  "person",
+  "created_by",
+  "modified_by",
+]);
 // (computed kinds, formula, rollup and lookup, are refused too: they can read a private field and still carry a public label)
 
 function manifestField(deps: SchemaDeps, d: TypeDefT, field: string): boolean {
@@ -411,7 +423,12 @@ function checkField(deps: SchemaDeps, st: Map<string, TypeDefT>, t: TypeDefT, f:
   if (mergeable !== undefined && typeof mergeable !== "boolean") no(`field ${f.key}: mergeable is yes or no`);
   if (mergeable === true) {
     const label = f.label ?? t.label;
-    if (NEVER_IN_EMAILS.has(f.type) || isDerived(deps.registry, f.type) || (label !== "public" && label !== "internal") || (Array.isArray(f.writeOnlyBy) && f.writeOnlyBy.length > 0))
+    if (
+      NEVER_IN_EMAILS.has(f.type) ||
+      isDerived(deps.registry, f.type) ||
+      (label !== "public" && label !== "internal") ||
+      (Array.isArray(f.writeOnlyBy) && f.writeOnlyBy.length > 0)
+    )
       no(`field ${f.key} cannot go in emails: it is private or secret, or its kind cannot be read into text`);
   }
   const o = f.options ?? {};
@@ -666,7 +683,11 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           for (const k of Object.keys(patch)) {
             if (!(FIELD_PATCH as readonly string[]).includes(k))
               no(`${k} cannot be changed with field.update: use field.retype or field.rename`);
-            if (manifestField(deps, t, f.key) && !["title", "label"].includes(k) && !(k === "options" && onlyMergeableDiffers(f.options, patch[k])))
+            if (
+              manifestField(deps, t, f.key) &&
+              !["title", "label"].includes(k) &&
+              !(k === "options" && onlyMergeableDiffers(f.options, patch[k]))
+            )
               no(`${f.key} is part of the ${t.key} system type: only its title and label can change`);
             const v = patch[k];
             if (v === null || v === undefined) delete (f as unknown as Record<string, unknown>)[k];
@@ -1359,7 +1380,9 @@ export function createApplyHandlers(deps: SchemaDeps): ApplyHandlers {
       const options: Record<string, unknown> = { ...(f!.options ?? {}) };
       if (input.mergeable) options["mergeable"] = true;
       else delete options["mergeable"];
-      await execute(deps, ctx, [{ op: "field.update", type: t.key, field: f!.key, def: { options } }], { skipConfirm: true });
+      await execute(deps, ctx, [{ op: "field.update", type: t.key, field: f!.key, def: { options } }], {
+        skipConfirm: true,
+      });
       return { ok: true };
     },
 

@@ -5216,26 +5216,14 @@
     },
     {
       "deferred": false,
-      "name": "mail_address_add",
-      "summary": "Make an address on a Space domain. With an inbox it is an alias that delivers there; without one a shared inbox is made for it. Who may send as it is a share on the inbox (access.share)",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "mail_address_list",
-      "summary": "Every address on the Space's domains: inbox addresses and aliases, with the inbox each lands in",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "mail_address_move",
-      "summary": "Point an address that exists at another inbox. Names the inbox it goes to now and the one it will go to; the person must be able to use the new inbox",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
       "name": "mail_attachment_save",
       "summary": "Save an attachment into Files",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "mail_configure",
+      "summary": "Email setup: status|test|smtp_get|smtp_set|smtp_verify|address_list|address_add|address_move",
       "toolset": "inbox"
     },
     {
@@ -5410,36 +5398,6 @@
       "deferred": false,
       "name": "mail_send_preview",
       "summary": "Dry run of a send: who would be reached and who is suppressed, without sending",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "mail_setup_status",
-      "summary": "The Space's email setup in one read: how it sends, what is missing and the next step",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "mail_setup_test_send",
-      "summary": "Send one short test email to an address you type, from an address on the default verified domain. It goes through mail.send, so limits, suppression and the Gate apply",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "mail_smtp_get",
-      "summary": "The Space's mail server (SMTP) and its last test",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "mail_smtp_set",
-      "summary": "Save the Space's SMTP server; password stays in the Vault",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "mail_smtp_verify",
-      "summary": "Test an SMTP server (sign in only, nothing sent); no input tests the saved one",
       "toolset": "inbox"
     },
     {

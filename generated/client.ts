@@ -1640,6 +1640,7 @@ export function createClient(transport: Transport) {
         save: call("mail.attachment.save", 1),
       },
       auto_connect_members: call("mail.auto_connect_members", 1),
+      configure: call("mail.configure", 1),
       connect: call("mail.connect", 1),
       delivery: {
         retry: call("mail.delivery.retry", 1),

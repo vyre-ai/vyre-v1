@@ -30,7 +30,7 @@ import {
   smtpSet,
   smtpVerify,
 } from "./handlers/smtp.ts";
-import { setupStatus, testSend } from "./handlers/setup.ts";
+import { setupStatus, setupTool, testSend } from "./handlers/setup.ts";
 import { recheckDomains } from "./handlers/recheck.ts";
 import { retryCleanups } from "./handlers/cleanup.ts";
 import { addressAdd, addressList, addressMove } from "./handlers/address.ts";
@@ -53,6 +53,7 @@ export const handlers: Record<string, Handler> = {
   "mail.unsubscribe": (ctx, input) => unsubscribe(ctx, input as { token?: unknown }),
   "mail.message.erase": (ctx, input) => messageErase(ctx, input),
   // the Space's own mail server (SMTP): saved, tested, and used by mail.send when the sending provider is smtp
+  "mail.configure": (ctx, input) => setupTool(ctx, input),
   "mail.setup.status": (ctx) => setupStatus(ctx),
   "mail.setup.test_send": (ctx, input) => testSend(ctx, input),
   "mail.address.list": (ctx, input) => addressList(ctx, input),

@@ -25161,6 +25161,23 @@ export type MailAutoConnectMembersOut = {
   notified: number;
   skipped: number;
 };
+export type MailConfigureIn = {
+  action: "status" | "test" | "smtp_get" | "smtp_set" | "smtp_verify" | "address_list" | "address_add" | "address_move";
+  to?: string;
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  passwordHandle?: string;
+  domainId?: string;
+  localPart?: string;
+  mailboxId?: string;
+  fromMailboxId?: string;
+  title?: string;
+};
+export type MailConfigureOut = {
+  result: unknown;
+};
 export type MailConnectIn = {
   provider: "google" | "microsoft" | "imap";
   address: string;
@@ -49885,6 +49902,7 @@ export interface CapMap {
   "mail.address.move": { in: MailAddressMoveIn; out: MailAddressMoveOut };
   "mail.attachment.save": { in: MailAttachmentSaveIn; out: MailAttachmentSaveOut };
   "mail.auto_connect_members": { in: MailAutoConnectMembersIn; out: MailAutoConnectMembersOut };
+  "mail.configure": { in: MailConfigureIn; out: MailConfigureOut };
   "mail.connect": { in: MailConnectIn; out: MailConnectOut };
   "mail.delivery.retry": { in: MailDeliveryRetryIn; out: MailDeliveryRetryOut };
   "mail.delivery.trail": { in: MailDeliveryTrailIn; out: MailDeliveryTrailOut };

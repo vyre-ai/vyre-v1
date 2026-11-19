@@ -10,6 +10,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mail.address.move": Handler<"mail.address.move", X>;
   "mail.attachment.save": Handler<"mail.attachment.save", X>;
   "mail.auto_connect_members": Handler<"mail.auto_connect_members", X>;
+  "mail.configure": Handler<"mail.configure", X>;
   "mail.connect": Handler<"mail.connect", X>;
   "mail.delivery.retry": Handler<"mail.delivery.retry", X>;
   "mail.delivery.trail": Handler<"mail.delivery.trail", X>;

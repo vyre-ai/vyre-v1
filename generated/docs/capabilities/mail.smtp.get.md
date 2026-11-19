@@ -17,7 +17,7 @@ The Space's mail server (SMTP) and its last test
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/smtp/get |
-| MCP tool | mail_smtp_get (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

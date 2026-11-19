@@ -142,3 +142,33 @@ export async function testSend(ctx: MailCtx, input: TestSendIn): Promise<TestSen
     ...(out.note ? { note: out.note } : {}),
   };
 }
+
+// ---- mail.setup: the one tool a model is shown for email setup
+
+interface SetupToolIn {
+  action: "status" | "test" | "smtp_get" | "smtp_set" | "smtp_verify" | "address_list" | "address_add" | "address_move";
+  [k: string]: unknown;
+}
+const ROUTE: Record<SetupToolIn["action"], string> = {
+  status: "mail.setup.status",
+  test: "mail.setup.test_send",
+  smtp_get: "mail.smtp.get",
+  smtp_set: "mail.smtp.set",
+  smtp_verify: "mail.smtp.verify",
+  address_list: "mail.address.list",
+  address_add: "mail.address.add",
+  address_move: "mail.address.move",
+};
+
+/** Routes to the capability behind the screen, so its permission, Gate and audit apply exactly as when a person presses the button. Nothing is decided here. */
+export async function setupTool(ctx: MailCtx, input: SetupToolIn): Promise<{ result: unknown }> {
+  const cap = ROUTE[input.action];
+  if (!cap)
+    bad(ctx, "action is status, test, smtp_get, smtp_set, smtp_verify, address_list, address_add or address_move.");
+  const { action: _action, ...rest } = input;
+  // a call that needs a key to be safe to repeat gets one made from what it asks, so asking twice is one call
+  const keyed = ["test", "address_add", "address_move"].includes(input.action)
+    ? { ...rest, idempotencyKey: `tool:${input.action}:${JSON.stringify(rest)}`.slice(0, 200) }
+    : rest;
+  return { result: await ctx.call(cap, keyed) };
+}

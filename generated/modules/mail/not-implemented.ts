@@ -10,6 +10,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.address.move": async (ctx) => { throw new VyreErr(notImplemented("mail.address.move", ctx.trace)); },
   "mail.attachment.save": async (ctx) => { throw new VyreErr(notImplemented("mail.attachment.save", ctx.trace)); },
   "mail.auto_connect_members": async (ctx) => { throw new VyreErr(notImplemented("mail.auto_connect_members", ctx.trace)); },
+  "mail.configure": async (ctx) => { throw new VyreErr(notImplemented("mail.configure", ctx.trace)); },
   "mail.connect": async (ctx) => { throw new VyreErr(notImplemented("mail.connect", ctx.trace)); },
   "mail.delivery.retry": async (ctx) => { throw new VyreErr(notImplemented("mail.delivery.retry", ctx.trace)); },
   "mail.delivery.trail": async (ctx) => { throw new VyreErr(notImplemented("mail.delivery.trail", ctx.trace)); },

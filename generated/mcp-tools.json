@@ -36419,146 +36419,6 @@
     },
     {
       "blocks": [],
-      "cap": "mail.address.add",
-      "deferred": false,
-      "description": "Make an address on a Space domain. With an inbox it is an alias that delivers there; without one a shared inbox is made for it. Who may send as it is a share on the inbox (access.share)",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "domainId": {
-            "examples": [
-              "dom_a1b2c3"
-            ],
-            "pattern": "^dom_[a-z0-9]+$",
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "localPart": {
-            "description": "billing, support, hello",
-            "examples": [
-              "billing"
-            ],
-            "type": "string"
-          },
-          "mailboxId": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "domainId",
-          "localPart",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "mail_address_add",
-      "planMode": "blocked",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.address.list",
-      "deferred": false,
-      "description": "Every address on the Space's domains: inbox addresses and aliases, with the inbox each lands in",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "cursor": {
-            "type": "string"
-          },
-          "domainId": {
-            "examples": [
-              "dom_a1b2c3"
-            ],
-            "pattern": "^dom_[a-z0-9]+$",
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 500,
-            "minimum": 1,
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "name": "mail_address_list",
-      "planMode": "allowed",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.address.move",
-      "deferred": false,
-      "description": "Point an address that exists at another inbox. Names the inbox it goes to now and the one it will go to; the person must be able to use the new inbox",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "domainId": {
-            "examples": [
-              "dom_a1b2c3"
-            ],
-            "pattern": "^dom_[a-z0-9]+$",
-            "type": "string"
-          },
-          "fromMailboxId": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "localPart": {
-            "examples": [
-              "billing"
-            ],
-            "type": "string"
-          },
-          "mailboxId": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "domainId",
-          "localPart",
-          "fromMailboxId",
-          "mailboxId",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "mail_address_move",
-      "planMode": "blocked",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "mail.attachment.save",
       "deferred": false,
       "description": "Save an attachment into Files",
@@ -36598,6 +36458,97 @@
         "type": "object"
       },
       "name": "mail_attachment_save",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mail.configure",
+      "deferred": false,
+      "description": "Email setup: status|test|smtp_get|smtp_set|smtp_verify|address_list|address_add|address_move",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "enum": [
+              "status",
+              "test",
+              "smtp_get",
+              "smtp_set",
+              "smtp_verify",
+              "address_list",
+              "address_add",
+              "address_move"
+            ],
+            "type": "string"
+          },
+          "domainId": {
+            "examples": [
+              "dom_a1b2c3"
+            ],
+            "pattern": "^dom_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fromMailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "localPart": {
+            "type": "string"
+          },
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "passwordHandle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "security": {
+            "enum": [
+              "starttls",
+              "tls"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "mail_configure",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
@@ -37997,175 +37948,6 @@
       },
       "name": "mail_send_preview",
       "planMode": "allowed",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.setup.status",
-      "deferred": false,
-      "description": "The Space's email setup in one read: how it sends, what is missing and the next step",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "mail_setup_status",
-      "planMode": "allowed",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.setup.test_send",
-      "deferred": false,
-      "description": "Send one short test email to an address you type, from an address on the default verified domain. It goes through mail.send, so limits, suppression and the Gate apply",
-      "effects": "outward",
-      "inputSchema": {
-        "properties": {
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "to": {
-            "examples": [
-              "maya@example.com"
-            ],
-            "pattern": "^[^@\\s]+@[^@\\s]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "to",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "mail_setup_test_send",
-      "planMode": "blocked",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.smtp.get",
-      "deferred": false,
-      "description": "The Space's mail server (SMTP) and its last test",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "mail_smtp_get",
-      "planMode": "allowed",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.smtp.set",
-      "deferred": false,
-      "description": "Save the Space's SMTP server; password stays in the Vault",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "host": {
-            "examples": [
-              "smtp.example.com"
-            ],
-            "type": "string"
-          },
-          "passwordHandle": {
-            "examples": [
-              "#Dana_Lawmatics"
-            ],
-            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
-            "type": "string"
-          },
-          "port": {
-            "maximum": 65535,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "security": {
-            "enum": [
-              "starttls",
-              "tls"
-            ],
-            "type": "string"
-          },
-          "username": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "host",
-          "port",
-          "username",
-          "passwordHandle"
-        ],
-        "type": "object"
-      },
-      "name": "mail_smtp_set",
-      "planMode": "blocked",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.smtp.verify",
-      "deferred": false,
-      "description": "Test an SMTP server (sign in only, nothing sent); no input tests the saved one",
-      "effects": "outward",
-      "inputSchema": {
-        "properties": {
-          "host": {
-            "examples": [
-              "smtp.example.com"
-            ],
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "passwordHandle": {
-            "examples": [
-              "#Dana_Lawmatics"
-            ],
-            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
-            "type": "string"
-          },
-          "port": {
-            "maximum": 65535,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "security": {
-            "enum": [
-              "starttls",
-              "tls"
-            ],
-            "type": "string"
-          },
-          "username": {
-            "description": "On reads only the first two letters and the domain are returned",
-            "type": "string"
-          }
-        },
-        "required": [
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "mail_smtp_verify",
-      "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
     },

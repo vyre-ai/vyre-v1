@@ -2972,20 +2972,12 @@
   "machines_set": {
     "machineId": "Quarterly planning"
   },
-  "mail_address_add": {
-    "domainId": "dom_a1b2c3",
-    "localPart": "billing"
-  },
-  "mail_address_list": {},
-  "mail_address_move": {
-    "domainId": "dom_a1b2c3",
-    "localPart": "billing",
-    "fromMailboxId": "mbx_a1b2c3",
-    "mailboxId": "mbx_a1b2c3"
-  },
   "mail_attachment_save": {
     "messageId": "eml_a1b2c3",
     "attachmentId": "Quarterly planning"
+  },
+  "mail_configure": {
+    "action": "status"
   },
   "mail_connect": {
     "provider": "google",
@@ -3083,18 +3075,6 @@
       }
     ]
   },
-  "mail_setup_status": {},
-  "mail_setup_test_send": {
-    "to": "dana@acme.test"
-  },
-  "mail_smtp_get": {},
-  "mail_smtp_set": {
-    "host": "plan.acme.test",
-    "port": 1,
-    "username": "Quarterly planning",
-    "passwordHandle": "#Dana_Lawmatics"
-  },
-  "mail_smtp_verify": {},
   "mail_sync_now": {
     "mailboxId": "mbx_a1b2c3"
   },

@@ -9,6 +9,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.address.move": async () => ({"address":{"address":"maya@example.com","domainId":"dom_a1b2c3","kind":"mailbox","mailboxId":"mbx_a1b2c3","mailboxTitle":"example","receives":true,"routeId":"rte_a1b2c3"},"from":"example","to":"example"} as unknown) as never,
   "mail.attachment.save": async () => ({"fileId":"fil_a1b2c3"} as unknown) as never,
   "mail.auto_connect_members": async () => ({"created":1,"notified":1,"skipped":1} as unknown) as never,
+  "mail.configure": async () => ({"result":{}} as unknown) as never,
   "mail.connect": async () => ({"mailbox":{"address":"maya@example.com","agentId":"agt_a1b2c3","id":"mbx_a1b2c3","kind":"personal","lastSyncAt":1760000000000,"ownerId":"usr_a1b2c3","privacy":"private","provider":"google","state":"pending","title":"example"}} as unknown) as never,
   "mail.delivery.retry": async () => ({"messageId":"eml_a1b2c3","outcome":"sent"} as unknown) as never,
   "mail.delivery.trail": async () => ({"blocked":[{"address":"example","reason":"example"}],"events":[{"address":"example","at":1760000000000,"detail":"example","kind":"queued","label":"example"}],"messageId":"eml_a1b2c3","retry":{"address":"example","attempt":1,"nextAt":1760000000000,"of":1},"sentBy":{"id":"example","kind":"example"},"state":"waiting"} as unknown) as never,

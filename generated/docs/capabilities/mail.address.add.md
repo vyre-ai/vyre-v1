@@ -17,7 +17,7 @@ Make an address on a Space domain. With an inbox it is an alias that delivers th
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/mail/address/add |
-| MCP tool | mail_address_add (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | inbound_route.saved, mailbox.created |
 

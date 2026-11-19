@@ -17,7 +17,7 @@ Point an address that exists at another inbox. Names the inbox it goes to now an
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/mail/address/move |
-| MCP tool | mail_address_move (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | inbound_route.saved |
 

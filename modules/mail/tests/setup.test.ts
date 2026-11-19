@@ -163,3 +163,67 @@ test("a held or suppressed test is reported as such, not as sent", async () => {
   const out = await testSend(h.ctx, { to: "maya@example.com", idempotencyKey: "k2" });
   assert.deepEqual([out.status, out.note], ["held", "Held until 9:00"]);
 });
+
+// ---- mail.configure: the one tool a model is shown for email setup
+
+import { setupTool } from "../handlers/setup.ts";
+
+test("mail.configure routes each action to the capability behind the screen, keys the ones that change something, and refuses an action it does not know", async () => {
+  const h = harness();
+  const seen: { cap: string; input: Record<string, unknown> }[] = [];
+  script(
+    h,
+    Object.fromEntries(
+      [
+        "mail.setup.status",
+        "mail.setup.test_send",
+        "mail.smtp.get",
+        "mail.smtp.set",
+        "mail.smtp.verify",
+        "mail.address.list",
+        "mail.address.add",
+        "mail.address.move",
+      ].map((cap) => [cap, (input: Record<string, unknown>) => (seen.push({ cap, input }), { ok: cap })]),
+    ),
+  );
+  const route: [string, string][] = [
+    ["status", "mail.setup.status"],
+    ["test", "mail.setup.test_send"],
+    ["smtp_get", "mail.smtp.get"],
+    ["smtp_set", "mail.smtp.set"],
+    ["smtp_verify", "mail.smtp.verify"],
+    ["address_list", "mail.address.list"],
+    ["address_add", "mail.address.add"],
+    ["address_move", "mail.address.move"],
+  ];
+  for (const [action, cap] of route) {
+    const out = await setupTool(h.ctx, {
+      action: action as never,
+      to: "maya@example.com",
+      domainId: "dom_1",
+      localPart: "billing",
+    });
+    assert.deepEqual(out, { result: { ok: cap } });
+  }
+  assert.deepEqual(
+    seen.map((s) => s.cap),
+    route.map((r) => r[1]),
+  );
+  const keyed = seen.filter((s) => ["mail.setup.test_send", "mail.address.add", "mail.address.move"].includes(s.cap));
+  assert.ok(
+    keyed.every((s) => typeof s.input.idempotencyKey === "string" && (s.input.idempotencyKey as string).length > 0),
+  );
+  assert.ok(seen.filter((s) => !keyed.includes(s)).every((s) => !("idempotencyKey" in s.input)));
+  // asking twice is the same key, so it is one call at the capability
+  const again = await (async () => (
+    (seen.length = 0),
+    await setupTool(h.ctx, { action: "address_add", domainId: "dom_1", localPart: "a" }),
+    await setupTool(h.ctx, { action: "address_add", domainId: "dom_1", localPart: "a" }),
+    seen.map((s) => s.input.idempotencyKey)
+  ))();
+  assert.equal(again[0], again[1]);
+  await assert.rejects(
+    () => setupTool(h.ctx, { action: "nothing" as never }),
+    (e: unknown) => codeOf(e) === "validation.bad_input",
+  );
+});

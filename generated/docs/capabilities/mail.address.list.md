@@ -17,7 +17,7 @@ Every address on the Space's domains: inbox addresses and aliases, with the inbo
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/address/list |
-| MCP tool | mail_address_list (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

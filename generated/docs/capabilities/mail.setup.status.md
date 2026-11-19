@@ -17,7 +17,7 @@ The Space's email setup in one read: how it sends, what is missing and the next 
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mail/setup/status |
-| MCP tool | mail_setup_status (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

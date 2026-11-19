@@ -17,7 +17,7 @@ Save the Space's SMTP server; password stays in the Vault
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/mail/smtp/set |
-| MCP tool | mail_smtp_set (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

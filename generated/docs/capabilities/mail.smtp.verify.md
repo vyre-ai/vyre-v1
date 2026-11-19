@@ -17,7 +17,7 @@ Test an SMTP server (sign in only, nothing sent); no input tests the saved one
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/mail/smtp/verify |
-| MCP tool | mail_smtp_verify (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

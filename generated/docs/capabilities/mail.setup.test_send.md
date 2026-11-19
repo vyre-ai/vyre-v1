@@ -17,7 +17,7 @@ Send one short test email to an address you type, from an address on the default
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/mail/setup/test_send |
-| MCP tool | mail_setup_test_send (inbox) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 
