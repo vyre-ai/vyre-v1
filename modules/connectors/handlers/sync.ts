@@ -1109,6 +1109,13 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
           refuse(ctx, "validation.precondition_failed", `Sync of ${r.type} is paused: resume it first.`);
       }
       const one = rows.length === 1 ? rows[0]! : undefined;
+      // what was already marked live before this ask is not this ask's to clear when it fails: a pass that is running keeps its mark (an apply asks once per type of a connection, so a second ask finds the first's mark by design)
+      const wasLive = new Set(
+        rows.filter((r) => isRunning(tx, r.connection_id, nowOf(deps))).map((r) => r.connection_id),
+      );
+      const release = (): void => {
+        for (const r of rows) if (!wasLive.has(r.connection_id)) clearRunning(tx, r.connection_id);
+      };
       // a pass is on its way: the periodic driver leaves these connections alone until it ends (sync_run clears the mark)
       for (const r of rows) markRunning(tx, r.connection_id, nowOf(deps));
       const started = (await ctx
@@ -1120,7 +1127,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
           subject: one ? { type: "record_type", id: one.type } : { type: "connection", id: rows[0]!.connection_id },
         })
         .catch((e: unknown) => {
-          for (const r of rows) clearRunning(tx, r.connection_id); // no pass is on its way
+          release(); // no pass is on its way
           throw e;
         })) as { runId: string };
       tx.run(
@@ -1134,8 +1141,17 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       );
       // the pass itself runs in the background as the person who asked; where nothing can schedule (a test), the caller runs connectors.sync_run
       if (ctx.schedule)
-        await ctx.schedule(nowOf(deps), "connectors.sync_run", { runId: started.runId }).catch(() => {
-          for (const r of rows) clearRunning(tx, r.connection_id); // nothing will run it: the connection is not busy
+        await ctx.schedule(nowOf(deps), "connectors.sync_run", { runId: started.runId }).catch(async () => {
+          release(); // nothing will run it: the connection is not busy
+          // and the Run does not stay "started" for ever: it ends failed, with the reason
+          await ctx
+            .call("runs.finish", {
+              runId: started.runId,
+              status: "failed",
+              error: { code: "provider.unavailable", message: "The sync could not be queued. Try again." },
+            })
+            .catch(() => undefined);
+          refuse(ctx, "provider.unavailable", "The sync could not be queued. Try again.");
         });
       return { runId: started.runId };
     },

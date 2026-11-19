@@ -137,8 +137,21 @@ export function dueSyncs(d: Pick<CadenceDeps, "tx" | "now">): Due[] {
      FROM cn_synced_types t ORDER BY t.created_at, t.rowid`,
   );
   const staleness = (r: Row): number => Math.max(r.created_at, r.last_run_at ?? 0, r.last_at ?? 0);
-  // the type synced longest ago goes first (a stable sort: ties keep the order they were made in), so the few starts a tick are never always the same oldest types
-  rows.sort((a, b) => staleness(a) - staleness(b));
+  const owes = new Map<string, boolean>();
+  for (const r of rows)
+    owes.set(
+      r.sync_type_id,
+      outbox &&
+        (d.tx.get<{ n: number }>(
+          "SELECT count(*) AS n FROM sy_outbox WHERE sync_type = ? AND status IN ('pending', 'failed')",
+          r.sync_type_id,
+        )?.n ?? 0) > 0,
+    );
+  // a type with a person's change waiting to go out comes before every idle type (a change should not wait behind a long-idle sync); inside each group the one synced longest ago goes first (a stable sort:
+  // ties keep the order they were made in), so the few starts a tick are never always the same oldest types
+  rows.sort(
+    (a, b) => Number(owes.get(b.sync_type_id)) - Number(owes.get(a.sync_type_id)) || staleness(a) - staleness(b),
+  );
   const out: Due[] = [];
   const busy = new Set<string>(); // one pass per connection per tick: types of one connection go one at a time
   for (const r of rows) {
@@ -148,12 +161,7 @@ export function dueSyncs(d: Pick<CadenceDeps, "tx" | "now">): Due[] {
     if (r.poll_at !== null && now < r.poll_at + POLL_GRACE_MS) continue; // the chain is alive: its next poll will run
     if (r.next_at !== null && now < r.next_at) continue; // backing off after failures
     const polling = JSON.parse(r.polling) as Polling;
-    const waiting =
-      outbox &&
-      (d.tx.get<{ n: number }>(
-        "SELECT count(*) AS n FROM sy_outbox WHERE sync_type = ? AND status IN ('pending', 'failed')",
-        r.sync_type_id,
-      )?.n ?? 0) > 0;
+    const waiting = owes.get(r.sync_type_id) === true;
     const every = 1000 * (waiting ? polling.activeSec : polling.idleSec);
     const last = Math.max(r.created_at, r.last_run_at ?? 0, r.last_at ?? 0);
     if (now - last < every) continue;

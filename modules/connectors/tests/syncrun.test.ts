@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { isRunning, markRunning } from "../handlers/cadence.ts";
 import { world } from "../fixtures/crm-world.ts";
 import type { RunReport, SyncEngine } from "../handlers/sync.ts";
+import { SYNC_PASS_TOKEN } from "../projections.ts";
 import type { ConnectorsCtx } from "../projections.ts";
 import { ledgerSpec } from "../fixtures/crm.ts";
 
@@ -230,8 +231,14 @@ test("a pass that cannot be scheduled leaves no running mark, and a mark from a 
       throw new Error("the queue is not there");
     },
   };
-  await w.k.hs["connectors.sync_now"](failing, { type: "person", idempotencyKey: "nomark-1" } as never);
+  await assert.rejects(
+    w.k.hs["connectors.sync_now"](failing, { type: "person", idempotencyKey: "nomark-1" } as never),
+    (e: any) => e.error?.code === "provider.unavailable" && /could not be queued/.test(e.error?.message),
+  );
   assert.equal(w.k.tx.all("SELECT * FROM cn_sync_running").length, 0, "nothing will run the pass: no mark");
+  const ended = finishes(w.calls).at(-1);
+  assert.equal(ended.status, "failed", "the Run does not stay started for ever");
+  assert.match(ended.error.message, /could not be queued/);
   // a process that stopped mid-pass leaves its mark in the database; the next process does not wait for it
   const later = world();
   later.k.tx.exec(
@@ -276,4 +283,28 @@ test("a poll that finds another pass on its way on the same connection waits its
     "SELECT at FROM cn_sync_poll WHERE sync_type_id = (SELECT sync_type_id FROM cn_synced_types WHERE type = 'person')",
   )!;
   assert.ok(next.at > w.k.clock.t && next.at - w.k.clock.t < 30_000, "the poll was planned again soon");
+});
+
+test("a sync that cannot be queued does not clear the mark of a pass that is live on the same connection", async () => {
+  const w = await setup();
+  w.k.tx.run("DELETE FROM cn_sync_running");
+  const conn = w.k.tx.get<{ connection_id: string }>(
+    "SELECT connection_id FROM cn_synced_types WHERE type = 'person'",
+  )!.connection_id;
+  markRunning(w.k.tx, conn, w.k.clock.t); // a pass that is running
+  const failing: ConnectorsCtx = {
+    ...w.ctx,
+    schedule: async () => {
+      throw new Error("the queue is not there");
+    },
+  };
+  await assert.rejects(
+    w.k.hs["connectors.sync_now"](failing, { type: "person", idempotencyKey: "live-1" } as never),
+    (e: any) => e.error?.code === "provider.unavailable",
+  );
+  assert.equal(isRunning(w.k.tx, conn, w.k.clock.t), true, "the live pass keeps its mark");
+});
+
+test("the pass token is made from random bytes, long and not guessable from the time", () => {
+  assert.match(SYNC_PASS_TOKEN, /^sp_[0-9a-f]{48}$/);
 });

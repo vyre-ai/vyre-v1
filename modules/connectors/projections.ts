@@ -5,6 +5,7 @@
 // @reads /modules/connectors/migrations/0003_oauth.sql
 // @reads /modules/connectors/migrations/0004_sync_specs.sql
 // @reads /modules/connectors/migrations/0005_hosts.sql
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { secretForms } from "../../lib/redact.ts";
@@ -722,7 +723,7 @@ export const secretKeyName = (k: string): boolean => {
 };
 
 /** Known only inside this process: the sync engine's own pass says it (in the action's input) to be given the real values of sealed fields, which it seals at once. Nobody else can. */
-export const SYNC_PASS_TOKEN = `sp_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+export const SYNC_PASS_TOKEN = `sp_${randomBytes(24).toString("hex")}`;
 export const SEALED_MASK = "[sealed]";
 /**
  * The real values of sealed fields read by one sync pass, kept in this process only, by the pass's nonce and the row's id. They never travel in an action's answer (the answer is masked): the engine takes them

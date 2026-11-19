@@ -363,3 +363,31 @@ test("when more types are due than a tick may start, the one synced longest ago 
   }
   assert.equal(new Set(order).size, 5, `every type was reached: ${order.join(", ")}`);
 });
+
+test("under cap pressure a type with a change waiting to go out starts before every idle type, however long they have been idle", async () => {
+  const w = await setup();
+  dropChains(w);
+  for (let i = 1; i <= 5; i++) {
+    w.k.tx.exec(
+      `CREATE TEMP TABLE t1 AS SELECT * FROM cn_connections LIMIT 1; UPDATE t1 SET connection_id = 'con_o${i}'; INSERT INTO cn_connections SELECT * FROM t1; DROP TABLE t1;
+       CREATE TEMP TABLE t2 AS SELECT * FROM cn_synced_types WHERE type = 'org'; UPDATE t2 SET sync_type_id = 'syt_o${i}', type = 'org_o${i}', connection_id = 'con_o${i}'; INSERT INTO cn_synced_types SELECT * FROM t2; DROP TABLE t2;`,
+    );
+  }
+  w.k.tx.run("UPDATE cn_synced_types SET paused = 1 WHERE type IN ('person', 'org')");
+  // o1 was synced a moment ago; o5 is the stalest. o1 has a person's change waiting to go out.
+  for (let i = 1; i <= 5; i++)
+    w.k.tx.run(
+      "INSERT INTO cn_sync_guard (sync_type_id, failures, last_at, next_at) VALUES (?, 0, ?, 0) ON CONFLICT(sync_type_id) DO UPDATE SET last_at = excluded.last_at",
+      `syt_o${i}`,
+      NOW + (10 - i) * MIN,
+    );
+  w.k.tx.run(
+    "INSERT INTO sy_outbox (outbox_id, sync_type, local_id, remote_id, op, fields, values_json, idem_key, status, attempts, error, created_at) VALUES ('out_1', 'syt_o1', 'rec_1', 'r1', 'update', '[\"name\"]', '{}', 'k1', 'pending', 0, NULL, ?)",
+    NOW,
+  );
+  w.k.clock.t = NOW + 60 * MIN;
+  const first = dueSyncs({ tx: w.k.tx, now: () => w.k.clock.t })
+    .map((d) => d.syncTypeId)
+    .filter((id) => id.startsWith("syt_o"));
+  assert.deepEqual(first, ["syt_o1", "syt_o5"], "the type with a waiting change first, then the stalest idle one");
+});
