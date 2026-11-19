@@ -12,6 +12,7 @@ import {
   cutTags,
   replaceAnchors,
   replaceTokens,
+  stripEventAttrs,
   stripTags,
 } from "../../../lib/html-text.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
@@ -283,39 +284,6 @@ export function cleanInline(html: string): string {
     i += 1;
   }
   return out;
-}
-
-const EVENT_START = /\son[a-z]+\s*=/gi;
-const EVENT_VALUE = /\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/y;
-const isLetter = (c: number): boolean => (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
-/** Removes every on* attribute from every tag. Each tag's own text is read once, so a long space run inside a tag cannot go quadratic. */
-function stripEventAttrs(s: string): string {
-  let out = "";
-  let i = 0;
-  let from = 0;
-  for (;;) {
-    let at = s.indexOf("<", from);
-    while (at >= 0 && !isLetter(s.charCodeAt(at + 1))) at = s.indexOf("<", at + 1);
-    if (at < 0) break;
-    const gt = s.indexOf(">", at);
-    const limit = gt < 0 ? s.length : gt;
-    const head = s.slice(at, limit);
-    let skipTo = 0;
-    from = limit;
-    EVENT_START.lastIndex = 0;
-    for (let m = EVENT_START.exec(head); m; m = EVENT_START.exec(head)) {
-      if (m.index < skipTo) continue;
-      EVENT_VALUE.lastIndex = at + m.index + m[0].length;
-      const v = EVENT_VALUE.exec(s);
-      if (!v) continue;
-      const stop = at + m.index + m[0].length + v[0].length;
-      out += s.slice(i, at + m.index);
-      i = stop;
-      skipTo = stop - at;
-      from = Math.max(from, stop);
-    }
-  }
-  return out + s.slice(i);
 }
 
 /** Author-written HTML (an HTML block, or the whole body in HTML mode): scripts, frames, forms, event handlers and script URLs are removed. Styles stay. */
