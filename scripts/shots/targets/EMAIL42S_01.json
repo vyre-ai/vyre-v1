@@ -36,7 +36,8 @@
       "waitFor": "[data-testid='console-email']",
       "note": "Move an alias: it names where the address goes now.",
       "steps": [
-        "click|address-move-billing@northwind.example",
+        "click|row-address-billing@northwind.example",
+        "click|address-move-invoices@northwind.example",
         "see|address-move"
       ]
     },

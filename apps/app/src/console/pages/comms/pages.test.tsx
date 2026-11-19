@@ -210,8 +210,8 @@ test("Email setup lists the addresses with where each goes, offers New address a
   });
   assert.match(html, /address-new/);
   assert.match(html, /hello@northwind\.example/);
-  assert.match(html, /Delivers to Hello/);
-  assert.match(html, /address-move-billing@northwind\.example/);
+  assert.match(html, /Delivers to Hello|Also billing@/);
+  assert.match(html, /Also billing@/);
   assert.doesNotMatch(html, /address-move-hello@/);
   assert.match(html, /Send only/);
   // without a verified domain there is nowhere to make an address yet

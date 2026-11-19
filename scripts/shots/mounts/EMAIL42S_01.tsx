@@ -45,7 +45,17 @@ function setupFor(part: string): Record<string, unknown> {
     return {
       ...ready,
       provider: "smtp",
-      smtp: { configured: true, host: "smtp.northwind.example", port: 587, security: "starttls", username: "he…@northwind.example", state: "failed", detail: "This server cannot open port 587. Some hosts, such as Railway, block mail ports. Try port 2525, or send with Mailgun or Resend, which use HTTPS.", checkedAt: T0 - 600_000 },
+      smtp: {
+        configured: true,
+        host: "smtp.northwind.example",
+        port: 587,
+        security: "starttls",
+        username: "he…@northwind.example",
+        state: "failed",
+        detail:
+          "This server cannot open port 587. Some hosts, such as Railway, block mail ports. Try port 2525, or send with Mailgun or Resend, which use HTTPS.",
+        checkedAt: T0 - 600_000,
+      },
       domains: [dom("dom_a", "northwind.example", { provider: "smtp", verified: false, spf: "pass", dkim: "pending" })],
       done: ["choose_provider"],
       step: "connect_server",
@@ -56,8 +66,21 @@ function setupFor(part: string): Record<string, unknown> {
     return {
       ...ready,
       cleanups: [
-        { id: "cln_1", kind: "provider_route", note: "sales@northwind.example: a Mailgun route made by an add that lost a race could not be deleted yet. It is retried until it is gone.", attempts: 3, lastError: "provider.unavailable", createdAt: T0 - 1_800_000 },
-        { id: "cln_2", kind: "duplicate_route", note: "billing@northwind.example had 2 routes. The oldest was kept and the other was removed, so mail goes to one inbox only.", attempts: 0, createdAt: T0 - 86_400_000 },
+        {
+          id: "cln_1",
+          kind: "provider_route",
+          note: "sales@northwind.example: a Mailgun route made by an add that lost a race could not be deleted yet. It is retried until it is gone.",
+          attempts: 3,
+          lastError: "provider.unavailable",
+          createdAt: T0 - 1_800_000,
+        },
+        {
+          id: "cln_2",
+          kind: "duplicate_route",
+          note: "billing@northwind.example had 2 routes. The oldest was kept and the other was removed, so mail goes to one inbox only.",
+          attempts: 0,
+          createdAt: T0 - 86_400_000,
+        },
       ],
     };
   if (part === "stopped")
@@ -76,16 +99,105 @@ function setupFor(part: string): Record<string, unknown> {
   return ready;
 }
 
+const addr = (
+  address: string,
+  mailboxId: string,
+  mailboxTitle: string,
+  kind: "mailbox" | "alias",
+  receives = true,
+) => ({
+  address,
+  domainId: "dom_a",
+  kind,
+  mailboxId,
+  mailboxTitle,
+  receives,
+  ...(kind === "alias" ? { routeId: `rte_${address.split("@")[0]}` } : {}),
+});
 const ADDRESSES = [
-  { address: "hello@northwind.example", domainId: "dom_a", kind: "mailbox", mailboxId: "mbx_hello", mailboxTitle: "Hello", receives: true },
-  { address: "billing@northwind.example", domainId: "dom_a", kind: "alias", mailboxId: "mbx_hello", mailboxTitle: "Hello", routeId: "rte_1", receives: true },
-  { address: "support@northwind.example", domainId: "dom_a", kind: "mailbox", mailboxId: "mbx_support", mailboxTitle: "Support", receives: true },
-  { address: "noreply@northwind.example", domainId: "dom_a", kind: "mailbox", mailboxId: "mbx_noreply", mailboxTitle: "noreply", receives: false },
+  addr("hello@northwind.example", "mbx_hello", "Hello", "mailbox"),
+  addr("hi@northwind.example", "mbx_hello", "Hello", "alias"),
+  addr("info@northwind.example", "mbx_hello", "Hello", "alias"),
+  addr("billing@northwind.example", "mbx_billing", "Billing", "mailbox"),
+  addr("invoices@northwind.example", "mbx_billing", "Billing", "alias"),
+  addr("accounts@northwind.example", "mbx_billing", "Billing", "alias"),
+  addr("support@northwind.example", "mbx_support", "Support", "mailbox"),
+  addr("sign@northwind.example", "mbx_sign", "Signing", "mailbox"),
+  addr("no-reply@northwind.example", "mbx_noreply", "no-reply", "mailbox", false),
 ];
-const MAILBOXES = [
-  { id: "mbx_hello", kind: "shared", address: "hello@northwind.example", title: "Hello", provider: "inbound_only", privacy: "people", state: "syncing" },
-  { id: "mbx_support", kind: "shared", address: "support@northwind.example", title: "Support", provider: "inbound_only", privacy: "people", state: "syncing" },
-];
+const MAILBOXES = ["hello:Hello", "billing:Billing", "support:Support", "sign:Signing"].map((x) => {
+  const [k, title] = x.split(":");
+  return {
+    id: `mbx_${k}`,
+    kind: "shared",
+    address: `${k}@northwind.example`,
+    title,
+    provider: "inbound_only",
+    privacy: "people",
+    state: "syncing",
+  };
+});
+const inbox = (
+  k: string,
+  state: string,
+  ago: number | null,
+  problem?: { reason: string; fix: string; at: number },
+) => ({
+  mailboxId: `mbx_${k}`,
+  address: `${k}@northwind.example`,
+  kind: "shared",
+  how: "provider_webhook",
+  state,
+  ...(ago === null ? {} : { lastReceivedAt: T0 - ago }),
+  receivedToday: 3,
+  ...(problem ? { problem } : {}),
+});
+const MONITOR = {
+  inboxes: [
+    inbox("hello", "ok", 4 * 60_000),
+    inbox("billing", "ok", 60 * 60_000),
+    inbox("support", "failing", null, {
+      reason: "The sign-in expired.",
+      fix: "Reconnect the inbox.",
+      at: T0 - 3_600_000,
+    }),
+    inbox("sign", "ok", 26 * 60 * 60_000),
+  ],
+  unrouted: [],
+};
+const share = (who: string, kind: string, level = "use") => ({
+  grant: {
+    id: `gr_${who}`,
+    subject: { kind, id: who },
+    resource: { type: "mailbox", id: "x" },
+    level,
+    by: "usr_a",
+    createdAt: T0,
+  },
+  through: "direct",
+});
+const SHARES = { shares: [share("usr_maya01", "person"), share("usr_omar01", "person"), share("agt_intake", "agent")] };
+const TEMPLATES = {
+  templates: [
+    {
+      key: "signature.request",
+      title: "Signature request",
+      subject: "{{sender_name}} asked you to sign {{document_title}}",
+      source: "space",
+      customised: true,
+      updatedAt: T0,
+    },
+    {
+      key: "signature.reminder",
+      title: "Signature reminder",
+      subject: "Reminder",
+      source: "builtin",
+      customised: false,
+    },
+    { key: "signature.signed_copy", title: "Signed copy", subject: "Signed", source: "builtin", customised: false },
+    { key: "welcome", title: "Welcome", subject: "Welcome", source: "space", customised: true, updatedAt: T0 },
+  ],
+};
 
 function dataFor(part: string): ConsoleData {
   const base = createSampleConsole().data;
@@ -93,9 +205,13 @@ function dataFor(part: string): ConsoleData {
     "mail.setup.status": setupFor(part),
     "mail.address.list": { addresses: ADDRESSES, total: ADDRESSES.length },
     "mail.mailbox.list": { mailboxes: MAILBOXES, total: MAILBOXES.length },
+    "mail.inbox.monitor": MONITOR,
+    "access.shares_of": SHARES,
+    "mail.template.list": TEMPLATES,
   };
   const call = async (cap: string, input: unknown): Promise<unknown> => {
-    if (cap === "mail.setup.test_send") return { messageId: "eml_test0001", status: "sent", from: "hello@northwind.example" };
+    if (cap === "mail.setup.test_send")
+      return { messageId: "eml_test0001", status: "sent", from: "hello@northwind.example" };
     return base.call(cap as never, input as never);
   };
   return {
@@ -114,7 +230,11 @@ function dataFor(part: string): ConsoleData {
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(
-    () => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "setup"),
+    () =>
+      setPart(
+        new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+          "setup",
+      ),
     [],
   );
   const data = useMemo(() => (part ? dataFor(part) : null), [part]);

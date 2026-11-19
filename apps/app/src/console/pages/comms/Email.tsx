@@ -1,13 +1,17 @@
-// Console, Messaging, Email: the Space's email in one place (owner, 19 Nov 2026). The domain with its marks and a test, the addresses, what needs a look, and how the Space sends.
-// The picture comes from mail.setup.status, the same read agents and MCP use, so a page and an agent never disagree about what is missing. Built from the Console's own pieces (Section, Group, Row, IconTile, Glyph).
-import { useEffect, useState } from "react";
+// Console, Messaging, Email: the Space's email in one place (owner, 19 Nov 2026). The domain with its marks, the addresses with who sends as them and when mail last came, the templates, and how the Space sends.
+// The picture comes from mail.setup.status, the same read agents and MCP use, so a page and an agent never disagree about what is missing. Built from the Console's own pieces (Section, Group, Row, IconTile, Glyph, Avatar, Menu).
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Text, View, useWindowDimensions } from "react-native";
+import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { useObjectNames } from "../../objects/names.ts";
 import { useConsoleData } from "../../shell/data.tsx";
 import { Glyph } from "../../shell/glyphs.tsx";
-import { Group, Section } from "../../shell/ui.tsx";
+import { Group, Section, pointer } from "../../shell/ui.tsx";
 import { IconTile } from "../CiRunners.tsx";
 import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
 
@@ -29,36 +33,91 @@ const PROVIDERS = [
   { key: "smtp", title: "Your own mail server (SMTP)" },
 ] as const;
 const PROVIDER_NAME: Record<Provider, string> = { resend: "Resend", mailgun: "Mailgun", smtp: "Your mail server" };
+const MUTED = "var(--ink-3)" as string;
 
 /** Which steps there are: a mail server step only exists for SMTP. */
 export function visibleSteps(provider: Provider): readonly { key: StepKey; title: string }[] {
   return STEPS.filter((s) => provider === "smtp" || s.key !== "connect_server");
 }
 
-/** One DNS result as a mark: a check when it passes, a warning when it fails, a clock while it is pending. */
-function Mark({ label, state }: { label: string; state: string }): ReactElement {
+/** "4 min ago", "1 h ago", "Yesterday": when mail last came, in the fewest words. */
+export function ago(at: number, now: number): string {
+  const min = Math.max(0, Math.round((now - at) / 60_000));
+  if (min < 1) return "Just now";
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  return d === 1 ? "Yesterday" : `${d} days ago`;
+}
+
+/** One result as a mark: a check when it is good, a warning when it is not, a clock while it is pending. */
+function Mark({ label, state }: { label: string; state: "pass" | "fail" | "pending" }): ReactElement {
   const ok = state === "pass";
   const bad = state === "fail";
+  const color = (ok ? "var(--ok)" : bad ? "var(--warn)" : MUTED) as string;
   return (
     <View testID={`mark-${label}`} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-      <Glyph
-        name={ok ? "check" : bad ? "warn" : "clock"}
-        size={13}
-        color={(ok ? "var(--ok)" : bad ? "var(--warn)" : "var(--ink-3)") as string}
-      />
-      <Text style={{ fontSize: 12.5, color: (ok ? "var(--ok)" : bad ? "var(--warn)" : "var(--ink-3)") as string }}>
-        {label}
-      </Text>
+      <Glyph name={ok ? "check" : bad ? "warn" : "clock"} size={13} color={color} />
+      <Text style={{ fontSize: 12.5, color }}>{label}</Text>
     </View>
   );
 }
 function Marks({ d }: { d: Domain }): ReactElement {
+  const receives = d.provider !== "smtp";
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
       <Mark label="SPF" state={d.spf} />
       <Mark label="DKIM" state={d.dkim} />
       <Mark label="DMARC" state={d.dmarc} />
+      {receives ? <Mark label="Receiving" state={d.verified ? "pass" : "pending"} /> : null}
     </View>
+  );
+}
+
+/** A quiet link in a section head: a plus and a few words, not a button. */
+function QuietLink({ label, onPress, testID }: { label: string; onPress(): void; testID: string }): ReactElement {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      testID={testID}
+      onPress={onPress}
+      style={[
+        { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4, paddingHorizontal: 6 },
+        pointer,
+      ]}
+    >
+      <Glyph name="plus" size={13} color={"var(--ink-2)" as string} />
+      <Text style={{ fontSize: 13, color: "var(--ink-2)" as string }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** The three dots at the end of the domain row: open it, check its DNS now, add another. */
+function MoreButton({ entries, label }: { entries: MenuEntry[]; label: string }): ReactElement {
+  const menu = useMenu();
+  const ref = useRef<unknown>(null);
+  return (
+    <>
+      <Pressable
+        ref={(v) => {
+          ref.current = v;
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={`More about ${label}`}
+        testID="domain-more"
+        onPress={() => {
+          const box = (
+            ref.current as { getBoundingClientRect?: () => { left: number; bottom: number } } | null
+          )?.getBoundingClientRect?.();
+          menu.show(entries, box?.left ?? 0, (box?.bottom ?? 0) + 4, "other", { label });
+        }}
+        style={[{ width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 8 }, pointer]}
+      >
+        <Glyph name="more" size={16} color={"var(--ink-2)" as string} />
+      </Pressable>
+      {menu.element}
+    </>
   );
 }
 
@@ -76,18 +135,24 @@ export function EmailPage(): ReactElement {
     void action.run("settings.set_space", { key: "mail.provider", value }, "Sending provider changed");
   };
   const verified = setup.domains.filter((d) => d.verified);
+  const menuFor = (d: Domain): MenuEntry[] => [
+    { label: "Open", onSelect: () => data.nav.openPage("domains", { domainId: d.id }) },
+    { label: "Check DNS now", onSelect: () => void action.run("mail.domain.check", { domainId: d.id }, "DNS checked") },
+    { label: "Add domain", onSelect: () => data.nav.openPage("domains", { create: "true" }) },
+  ];
   return (
     <View testID="console-email">
       {setup.ready ? null : (
         <Section title="Next">
           <Group>
-            <Row
-              id="email-next"
-              title="Next step"
-              note={setup.next}
-              tall
-              leading={<IconTile icon="warn" tone="warn" />}
-            />
+            {/* ui-rows-lint: not a list (one card with an icon and a sentence that wraps in full: an error must be read) */}
+            <View style={{ flexDirection: "row", gap: 12, padding: 14, alignItems: "flex-start" }} testID="email-next">
+              <IconTile icon="warn" tone="warn" />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ fontSize: 14, color: "var(--ink)" as string }}>Next step</Text>
+                <Text style={{ fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string }}>{setup.next}</Text>
+              </View>
+            </View>
           </Group>
         </Section>
       )}
@@ -108,18 +173,22 @@ export function EmailPage(): ReactElement {
           </Group>
         </Section>
       ) : null}
-      <Section
-        title={setup.domains.length > 1 ? "Domains" : "Domain"}
-        right={
-          <Button
-            label="Add domain"
-            testID="email-add-domain"
-            onPress={() => data.nav.openPage("domains", { create: "true" })}
-          />
-        }
-      >
+      <Section title={setup.domains.length > 1 ? "Domains" : "Domain"}>
         {setup.domains.length === 0 ? (
-          <Help>Add the domain your email comes from.</Help>
+          <Group>
+            <Row
+              id="email-add-domain"
+              leading={<IconTile icon="mail" />}
+              title="Add the domain your email comes from"
+              trailing={
+                <Button
+                  label="Add domain"
+                  testID="email-add-domain"
+                  onPress={() => data.nav.openPage("domains", { create: "true" })}
+                />
+              }
+            />
+          </Group>
         ) : (
           <Group>
             {
@@ -135,9 +204,10 @@ export function EmailPage(): ReactElement {
                   <View key={d.id}>
                     <Row
                       id={`domain-${d.id}`}
+                      mono
                       leading={<IconTile icon="mail" tone={tone} />}
                       title={d.name}
-                      note={`${PROVIDER_NAME[d.provider]}${d.isDefault ? " · Default" : ""}${stopped ? " · Stopped" : ""}`}
+                      note={`${PROVIDER_NAME[d.provider]}${d.provider === "smtp" ? " · Sending only" : d.verified ? " · Sending and receiving" : ""}${d.isDefault ? " · Default" : ""}${stopped ? " · Stopped" : ""}`}
                       tall
                       onPress={() => data.nav.openPage("domains", { domainId: d.id })}
                       trailing={
@@ -150,6 +220,7 @@ export function EmailPage(): ReactElement {
                               onPress={() => setTesting(testing === d.id ? "" : d.id)}
                             />
                           ) : null}
+                          <MoreButton entries={menuFor(d)} label={d.name} />
                         </View>
                       }
                     />
@@ -159,7 +230,7 @@ export function EmailPage(): ReactElement {
                       </View>
                     ) : null}
                     {note ? (
-                      <View style={{ paddingHorizontal: narrow ? 58 : 58, paddingBottom: 12 }}>
+                      <View style={{ paddingHorizontal: 58, paddingBottom: 12 }}>
                         <Text style={{ fontSize: 12.5, lineHeight: 17, color: "var(--warn)" as string }}>{note}</Text>
                       </View>
                     ) : null}
@@ -172,14 +243,15 @@ export function EmailPage(): ReactElement {
         )}
       </Section>
       {verified.length ? <AddressSection domains={verified} /> : null}
+      <TemplatesSection />
       <Section title="Sending provider">
         <Group>
           <Row
             id="email-provider"
             title={PROVIDER_NAME[setup.provider]}
-            note={setup.provider === "smtp" && setup.smtp.state === "failed" ? "The last test failed" : undefined}
+            {...(setup.provider === "smtp" && setup.smtp.state === "failed" ? { note: "The last test failed" } : {})}
             trailing={
-              <Glyph name={provider || setup.provider === "smtp" ? "chevD" : "chevR"} size={12} color="var(--ink-3)" />
+              <Glyph name={provider || setup.provider === "smtp" ? "chevD" : "chevR"} size={12} color={MUTED} />
             }
             onPress={() => setProvider(!provider)}
           />
@@ -287,49 +359,176 @@ function FormCard({ children }: { children: ReactNode }): ReactElement {
 }
 
 type Address = CapMap["mail.address.list"]["out"]["addresses"][number];
+type Inbox = CapMap["mail.inbox.monitor"]["out"]["inboxes"][number];
 const NEW_INBOX = "new";
 
-/** Addresses on the Space's domains: any name, an inbox behind it or an alias into one that exists, and moving one on purpose. Taking a name that is in use is refused in words; moving is its own step that names where it goes now. */
+/** Who may send as an inbox: a small stack of faces from the shares on it (use or more). Nothing is drawn when nobody has been given it. */
+function Senders({ mailboxId }: { mailboxId: string }): ReactElement | null {
+  const shares = useRead<CapMap["access.shares_of"]["out"]>("access.shares_of", {
+    resource: { type: "mailbox", id: mailboxId },
+  });
+  const people = (shares.data?.shares ?? [])
+    .filter(
+      (s) =>
+        ["use", "edit", "manage"].includes(s.grant.level) &&
+        ["person", "agent", "group"].includes(s.grant.subject.kind),
+    )
+    .map((s) => s.grant.subject);
+  const names = useObjectNames({ identities: people, resources: [] });
+  if (people.length === 0) return null;
+  return (
+    <View testID={`senders-${mailboxId}`} style={{ flexDirection: "row", alignItems: "center" }}>
+      {
+        // ui-rows-lint: not a list (overlapping faces in one stack)
+        people.slice(0, 3).map((p, i) => (
+          <View key={`${p.kind}:${p.id}`} style={{ marginLeft: i === 0 ? 0 : -6 }}>
+            <Avatar
+              name={names.identity(p)}
+              seedId={p.id}
+              kind={p.kind === "agent" ? "agent" : p.kind === "group" ? "group" : "person"}
+              size={22}
+            />
+          </View>
+        ))
+      }
+    </View>
+  );
+}
+
+/** What an inbox is doing, at the end of its row: a warning with the one fix when it is broken, the time mail last came when it is fine, nothing loud otherwise. */
+function InboxState({
+  inbox,
+  onFix,
+  now,
+}: {
+  inbox: Inbox | undefined;
+  onFix(): void;
+  now: number;
+}): ReactElement | null {
+  if (!inbox) return null;
+  if (inbox.state === "failing")
+    return (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Glyph name="warn" size={13} color={"var(--warn)" as string} />
+        <Text style={{ fontSize: 12.5, color: "var(--warn)" as string }}>
+          {/sign/i.test(inbox.problem?.reason ?? "") ? "Sign-in expired" : "Not receiving"}
+        </Text>
+        <Button label="Reconnect" testID={`address-fix-${inbox.address}`} onPress={onFix} />
+      </View>
+    );
+  if (inbox.state === "paused") return <Text style={{ fontSize: 12.5, color: MUTED }}>Paused</Text>;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <View
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: 3,
+          backgroundColor: (inbox.state === "late"
+            ? "var(--warn)"
+            : inbox.lastReceivedAt
+              ? "var(--ok)"
+              : "var(--ink-4)") as string,
+        }}
+      />
+      <Text style={{ fontSize: 12.5, color: MUTED }}>
+        {inbox.lastReceivedAt ? ago(inbox.lastReceivedAt, now) : "Nothing yet"}
+      </Text>
+    </View>
+  );
+}
+
+/** Addresses on the Space's domains: an inbox's own address with the names that also reach it, who may send as it, when mail last came, and what is wrong. Taking a name that is in use is refused in words; moving one is its own step. */
 function AddressSection({ domains }: { domains: Setup["domains"] }): ReactElement {
+  const data = useConsoleData();
   const list = useRead<CapMap["mail.address.list"]["out"]>("mail.address.list", {});
   const boxes = useRead<CapMap["mail.mailbox.list"]["out"]>("mail.mailbox.list", { scope: "all", limit: 100 });
+  const monitor = useRead<CapMap["mail.inbox.monitor"]["out"]>("mail.inbox.monitor", {});
   const [adding, setAdding] = useState(false);
   const [moving, setMoving] = useState<Address | null>(null);
+  const [open, setOpen] = useState("");
   const refresh = (): void => {
     list.refresh();
     boxes.refresh();
+    monitor.refresh();
   };
   const inboxes = (boxes.data?.mailboxes ?? []).map((b) => ({ key: b.id, title: `${b.title} · ${b.address}` }));
+  const rows = list.data?.addresses ?? [];
+  const aliasesOf = (mailboxId: string): Address[] =>
+    rows.filter((a) => a.kind === "alias" && a.mailboxId === mailboxId);
+  const own = rows.filter((a) => a.kind === "mailbox");
+  const orphans = rows.filter((a) => a.kind === "alias" && !own.some((o) => o.mailboxId === a.mailboxId));
+  const stateOf = (mailboxId: string): Inbox | undefined =>
+    monitor.data?.inboxes.find((i) => i.mailboxId === mailboxId);
+  const now = data.clock().now;
   return (
     <Section
       title="Addresses"
-      count={list.data?.addresses.length ?? 0}
-      right={<Button label="New address" testID="address-new" onPress={() => setAdding(true)} />}
+      count={rows.length ? own.length + orphans.length : 0}
+      right={<QuietLink label="New address" testID="address-new" onPress={() => setAdding(true)} />}
     >
       {!list.data ? (
         <ReadState error={list.error} retry={list.refresh} />
-      ) : list.data.addresses.length === 0 ? (
+      ) : rows.length === 0 ? (
         <Help>No addresses yet.</Help>
       ) : (
         <Group>
-          {list.data.addresses.map((a) => (
-            <Row
-              key={a.address}
-              leading={<IconTile icon="mail" tone={a.receives ? undefined : undefined} />}
-              title={a.address}
-              note={a.kind === "alias" ? `Delivers to ${a.mailboxTitle}` : a.mailboxTitle}
-              tall
-              trailing={
-                a.receives ? (
-                  a.kind === "alias" ? (
-                    <Button label="Move" testID={`address-move-${a.address}`} onPress={() => setMoving(a)} />
-                  ) : undefined
-                ) : (
-                  <Text style={{ fontSize: 12.5, color: "var(--ink-3)" as string }}>Send only</Text>
-                )
-              }
-            />
-          ))}
+          {
+            // ui-rows-lint: not a list (each address is a ui Row, with the names that also reach it opened under it in the same card)
+            [...own, ...orphans].map((a) => {
+              const aliases = a.kind === "mailbox" ? aliasesOf(a.mailboxId) : [a];
+              const also = a.kind === "mailbox" ? aliases.map((x) => `${x.address.split("@")[0]}@`) : [];
+              return (
+                <View key={a.address}>
+                  <Row
+                    id={`address-${a.address}`}
+                    mono
+                    leading={
+                      <IconTile icon="mail" tone={stateOf(a.mailboxId)?.state === "failing" ? "warn" : undefined} />
+                    }
+                    title={a.address}
+                    note={
+                      a.kind === "alias"
+                        ? `Delivers to ${a.mailboxTitle}`
+                        : also.length
+                          ? `Also ${also.join(", ")}`
+                          : a.mailboxTitle
+                    }
+                    tall
+                    {...(aliases.length ? { onPress: () => setOpen(open === a.address ? "" : a.address) } : {})}
+                    trailing={
+                      a.receives ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                          <Senders mailboxId={a.mailboxId} />
+                          <InboxState
+                            inbox={stateOf(a.mailboxId)}
+                            now={now}
+                            onFix={() => data.nav.openPage("inboxes", { mailboxId: a.mailboxId })}
+                          />
+                        </View>
+                      ) : (
+                        <Text style={{ fontSize: 12.5, color: MUTED }}>Send only</Text>
+                      )
+                    }
+                  />
+                  {open === a.address && aliases.length ? (
+                    <View style={{ paddingLeft: 44, paddingBottom: 6 }}>
+                      {aliases.map((x) => (
+                        <Row
+                          key={x.address}
+                          mono
+                          title={x.address}
+                          trailing={
+                            <Button label="Move" testID={`address-move-${x.address}`} onPress={() => setMoving(x)} />
+                          }
+                        />
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })
+          }
         </Group>
       )}
       {adding ? (
@@ -356,6 +555,34 @@ function AddressSection({ domains }: { domains: Setup["domains"] }): ReactElemen
           />
         </FormCard>
       ) : null}
+    </Section>
+  );
+}
+
+/** The Space's email templates, from the same read the templates page uses: how many, which are changed, and a press opens one. */
+function TemplatesSection(): ReactElement | null {
+  const data = useConsoleData();
+  const list = useRead<CapMap["mail.template.list"]["out"]>("mail.template.list", {});
+  const templates = list.data?.templates ?? [];
+  if (!list.data || templates.length === 0) return null;
+  return (
+    <Section title="Templates" count={templates.length}>
+      <Group>
+        {templates.map((t) => (
+          <Row
+            key={t.key}
+            leading={<IconTile icon="doc" />}
+            title={t.title}
+            onPress={() => data.nav.openPage("templates", { templateKey: t.key })}
+            trailing={
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Text style={{ fontSize: 12.5, color: MUTED }}>{t.customised ? "Changed" : "Built in"}</Text>
+                <Glyph name="chevR" size={12} color={MUTED} />
+              </View>
+            }
+          />
+        ))}
+      </Group>
     </Section>
   );
 }

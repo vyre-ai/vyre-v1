@@ -117,6 +117,7 @@ const TITLE_WRAP_S = {
 } as const;
 const TITLE_IN_LINE_WRAP_S = { ...TITLE_WRAP_S, flex: "0 1 auto", minWidth: 0 } as const;
 /** On a phone a title may run to two lines instead of one clipped one (the Console turns it on below 900 wide). The row grows with it, as it does for a taller trailing slot. */
+const MONO_TITLE = { fontFamily: "var(--mono, ui-monospace, Menlo, monospace)", fontSize: 13 };
 export const RowWrapContext = createContext(false);
 
 const h = createElement;
@@ -159,6 +160,7 @@ function WebRow({
   noteAction,
   tall = false,
   emphasis = false,
+  mono = false,
   quiet = false,
   note,
   selected = false,
@@ -191,7 +193,14 @@ function WebRow({
       : null;
   const titleEl = h(
     "span",
-    { style: { ...(emphasis ? { ...titleBase, ...BOLD } : titleBase), ...inkQuiet, ...inkOn } },
+    {
+      style: {
+        ...(emphasis ? { ...titleBase, ...BOLD } : titleBase),
+        ...(mono ? MONO_TITLE : null),
+        ...inkQuiet,
+        ...inkOn,
+      },
+    },
     title,
   );
   return h(
