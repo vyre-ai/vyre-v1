@@ -105,6 +105,8 @@ export async function nodeStart(ctx: RunsCtx, input: In): Promise<unknown> {
   });
   // a node that was made earlier so others could wait for it: now it waits for what it starts after
   if (!created && deps.length > 0 && node.status === "queued") addDeps(ctx, node.id, deps);
+  // what it starts after has already failed or been stopped: it fails now, not when a sweep comes by, so it is never left queued for ever
+  if (deps.length > 0 && node.status === "queued") settleDeps(ctx);
   return { node: out(ctx, getNode(ctx, node.id)), created };
 }
 export async function nodeMove(ctx: RunsCtx, input: In): Promise<unknown> {

@@ -61,8 +61,16 @@ test("a helper that depends on another waits, then starts; one whose dependency 
         ...(dependsOn ? { dependsOn } : {}),
         idempotencyKey: `hw-${title}`,
       });
-    const nodes = async (): Promise<Array<{ id: string; name?: string; status: string; dependsOn?: string[] }>> =>
-      (await ok(d, "runs.tree.get", { runId: lead.runId })).nodes;
+    const nodes = async (): Promise<
+      Array<{
+        id: string;
+        name?: string;
+        status: string;
+        dependsOn?: string[];
+        errorCode?: string;
+        errorMessage?: string;
+      }>
+    > => (await ok(d, "runs.tree.get", { runId: lead.runId })).nodes;
     const named = async (name: string) => (await nodes()).find((n) => n.name === name);
 
     await start("Alpha", "ALPHA: add the figures");
@@ -91,6 +99,15 @@ test("a helper that depends on another waits, then starts; one whose dependency 
     }, 30_000);
     assert.equal(delta.status, "failed", "a helper whose dependency failed fails with it");
     assert.equal(calls["DELTA"], 0, "and never started");
+    // one asked to wait for work that had already failed is failed at once, naming it
+    await start("Epsilon", "DELTA: after a failed one", ["Gamma"]);
+    const eps = await waitFor(async () => {
+      const n = (await nodes()).find((x) => x.name === "Epsilon");
+      return n?.status === "failed" ? n : null;
+    }, 20_000);
+    assert.equal(eps.errorCode, "dependency_failed");
+    assert.match(String(eps.errorMessage), /Gamma/);
+    assert.equal(calls["DELTA"], 0, "still never started");
   } finally {
     await stop(d);
   }
