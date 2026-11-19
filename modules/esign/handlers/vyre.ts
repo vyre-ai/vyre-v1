@@ -5,6 +5,7 @@
 // @reads ../migrations/0002_esign_vyre.sql
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
+import { vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import {
   PROVIDER_KEYS,
   assigneeOf,
@@ -198,10 +199,79 @@ async function mailPlan(ctx: Ctx): Promise<MailPlan | null> {
   }
 }
 
+interface TemplatedMail {
+  to: string;
+  templateKey: "signature.request" | "signature.reminder" | "signature.signed_copy" | "signature.expired";
+  /** the document the mail is about (the file that was sent): its own email wording is looked for first, then the Space's template */
+  documentId: string;
+  vars: Record<string, string>;
+  /** files to attach (the signed PDF) */
+  attachments?: string[];
+  key: string;
+  /** the plain words, when the mail module refuses the templated ask before sending */
+  subject: string;
+  text: string;
+}
+
+/**
+ * One mail in the Space's own words: the document's own email, else the Space's template for this kind (mail.send templateKey, owned by the email module), else, only when that ask is refused before
+ * anything is sent (the Space has no such template, a value it cannot fill, a mail module that takes no template key), the plain text given. A failure after the ask is a notice and is never tried twice.
+ */
+async function sendTemplated(ctx: Ctx, plan: MailPlan, m: TemplatedMail): Promise<boolean> {
+  const base = {
+    mailboxId: plan.mailboxId,
+    senderId: plan.mailboxId,
+    ...(plan.provider === "resend" || plan.provider === "mailgun" ? { route: "space_domain" } : {}),
+    to: [{ address: m.to }],
+    ...(m.attachments && m.attachments.length > 0 ? { attachments: m.attachments } : {}),
+  };
+  try {
+    const sent = (await ctx.call("mail.send", {
+      ...base,
+      templateKey: m.templateKey,
+      documentId: m.documentId,
+      vars: m.vars,
+      idempotencyKey: `${m.key}-t`,
+    })) as { status?: string };
+    return sent.status === "queued" || sent.status === "sent";
+  } catch (e) {
+    const code = vyreErrorOf(e)?.code ?? "";
+    // only a refusal before anything was stored or sent falls back to the plain words; a Gate hold (permission.needs_approval: the send waits for a person) or any other failure does not
+    if (!code.startsWith("validation.") && code !== "internal.not_implemented") {
+      ctx.log.warn("esign: the email could not be sent", { code, error: e instanceof Error ? e.message : String(e) });
+      return false;
+    }
+    ctx.log.warn("esign: the Space's email template was refused, the plain words go instead", {
+      key: m.templateKey,
+      code,
+    });
+  }
+  try {
+    const sent = (await ctx.call("mail.send", {
+      ...base,
+      subject: m.subject,
+      text: m.text,
+      idempotencyKey: m.key,
+    })) as { status?: string };
+    return sent.status === "queued" || sent.status === "sent";
+  } catch (e) {
+    ctx.log.warn("esign: the email could not be sent", { error: e instanceof Error ? e.message : String(e) });
+    return false;
+  }
+}
+
 async function invite(
   ctx: Ctx,
   plan: MailPlan,
-  env: { id: string; title: string; message: string | null; expiresAt: number; senderName: string },
+  env: {
+    id: string;
+    title: string;
+    message: string | null;
+    expiresAt: number;
+    senderName: string;
+    fileId: string;
+    kind: "request" | "reminder";
+  },
   space: SpaceInfo,
   who: { name: string; email: string },
   link: Link,
@@ -222,20 +292,54 @@ async function invite(
     "",
     `This link is yours; please do not forward it. It stops working on ${until}.`,
   ].join("\n");
-  try {
-    const sent = (await ctx.call("mail.send", {
-      mailboxId: plan.mailboxId,
-      senderId: plan.mailboxId,
-      ...(plan.provider === "resend" || plan.provider === "mailgun" ? { route: "space_domain" } : {}),
-      to: [{ address: who.email }],
-      subject: `${env.senderName} asked you to sign ${env.title}`,
-      text,
-      idempotencyKey: key,
-    })) as { status?: string };
-    return sent.status === "queued" || sent.status === "sent";
-  } catch (e) {
-    ctx.log.warn("esign: the invitation could not be sent", { error: e instanceof Error ? e.message : String(e) });
-    return false;
+  return sendTemplated(ctx, plan, {
+    to: who.email,
+    templateKey: env.kind === "reminder" ? "signature.reminder" : "signature.request",
+    documentId: env.fileId,
+    vars: {
+      signer_name: who.name,
+      document_title: env.title,
+      sign_link: link.url,
+      expires_on: until,
+      sender_name: env.senderName,
+      ...(env.message ? { message: env.message } : {}),
+    },
+    key,
+    subject: `${env.senderName} asked you to sign ${env.title}`,
+    text,
+  });
+}
+
+/** When everyone has signed, each signer who has an email gets the signed copy attached, in the Space's own words. Best effort: nothing here can fail the signature or the saving of the file. */
+async function mailSignedCopies(ctx: Ctx, env: EnvelopeRow, signedFileId: string): Promise<void> {
+  const plan = await mailPlan(ctx);
+  const base = (configured.publicBase?.() ?? "").replace(/\/+$/, "");
+  if (plan === null || base === "") return;
+  const space = await spaceInfo(ctx);
+  const sender = str(one(ctx, "SELECT sender_name FROM esign_envelope WHERE id = ?", env.id)?.sender_name) || "Someone";
+  const signers = many(
+    ctx,
+    "SELECT name, email, signed_name FROM esign_vsigner WHERE envelope_id = ? ORDER BY idx",
+    env.id,
+  );
+  let n = 0;
+  for (const s of signers) {
+    if (isNull(s.email)) continue;
+    const name = str(s.signed_name) || str(s.name);
+    await sendTemplated(ctx, plan, {
+      to: str(s.email),
+      templateKey: "signature.signed_copy",
+      documentId: env.fileId,
+      vars: { signer_name: name, document_title: env.title, sign_link: base, sender_name: sender },
+      attachments: [signedFileId],
+      key: `esign-copy-${env.id}-${n++}`,
+      subject: `${env.title} is signed`,
+      text: [
+        `${sender} at ${space.name} sent "${env.title}" for signature, and everyone has signed it.`,
+        "",
+        "The signed copy is attached.",
+      ].join("\n"),
+    });
   }
 }
 
@@ -291,12 +395,18 @@ function readPlaces(ctx: Ctx, raw: unknown): Place[] | undefined {
   });
 }
 
-/** A PDF of a Word file set in the plain page look is a preview: true when documents says so for this file. A Space without the documents module, or a file it never made, is not plain. */
-export async function isPlainCopy(ctx: Ctx, fileId: string): Promise<boolean> {
+export type CopyState = "exact" | "plain" | "unchecked" | "error";
+/**
+ * Is this PDF the exact copy? `plain`: a preview set in the plain page look (no letterhead or pictures), known by its bytes. `unchecked`: documents could not read it (too big, unreadable). `error`: the check itself
+ * failed just now. Only a Space with no documents module is `exact` without asking. The send holds for all three, and a person's explicit "send this one anyway" gets past each (and is logged), so a
+ * legitimate send is never blocked for good.
+ */
+export async function copyState(ctx: Ctx, fileId: string): Promise<CopyState> {
   try {
-    return ((await ctx.call("documents.signing", { fileId })) as { plain?: unknown }).plain === true;
-  } catch {
-    return false;
+    const got = (await ctx.call("documents.signing", { fileId })) as { plain?: unknown; unchecked?: unknown };
+    return got.plain === true ? "plain" : got.unchecked === true ? "unchecked" : "exact";
+  } catch (e) {
+    return vyreErrorOf(e)?.code === "internal.not_implemented" ? "exact" : "error";
   }
 }
 
@@ -453,7 +563,7 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
       const ok = await invite(
         ctx,
         plan,
-        { id: envelopeId, title, message, expiresAt, senderName: sender },
+        { id: envelopeId, title, message, expiresAt, senderName: sender, fileId, kind: "request" },
         space,
         { name: s.name, email: s.email as string },
         links[i]!,
@@ -578,6 +688,8 @@ export async function remind(ctx: Ctx, input: unknown): Promise<Row> {
         message: isNull(full.message) ? null : str(full.message),
         expiresAt: num(full.expires_at),
         senderName: str(full.sender_name) || "Someone",
+        fileId: str(full.file_id),
+        kind: "reminder",
       },
       space,
       { name: str(s.name), email },
@@ -640,7 +752,7 @@ export async function expireDue(ctx: Ctx): Promise<{ ended: number; told: number
   let told = 0;
   for (const r of many(
     ctx,
-    "SELECT id FROM esign_envelope WHERE provider = ? AND status = ? AND expired_told = 0",
+    "SELECT id, created_by, sender_name FROM esign_envelope WHERE provider = ? AND status = ? AND expired_told = 0",
     "vyre",
     "expired",
   )) {
@@ -648,10 +760,63 @@ export async function expireDue(ctx: Ctx): Promise<{ ended: number; told: number
     // marked first: a second run, or a restart in the middle, never tells twice
     ctx.db.run("UPDATE esign_envelope SET expired_told = 1 WHERE id = ?", envId);
     const env = mustEnvelope(ctx, envId);
-    ctx.emit("signature.expired", subject(envId), { envelopeId: envId, ...(env.recordId !== null ? { recordId: env.recordId } : {}) });
-    await notifySender(ctx, envId, "task.returned", env.fileId, env.title, { from: "no one", note: "the signing links ran out" });
-    await finishTask(ctx, env, "canceled", "The signing links ran out before everyone signed.");
-    await tellThread(ctx, env, `The signature request for ${plain(env.title)} ran out before everyone signed. Send it again to ask again.`, "sig-expired");
+    // each step on its own: one that throws is logged and the rest still run (the notice was marked first, so a step is tried once, not forever)
+    const step = async (what: string, run: () => unknown): Promise<void> => {
+      try {
+        await run();
+      } catch (e) {
+        ctx.log.warn(`esign: telling that a request ran out failed at ${what}`, {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+    await step("the event", () =>
+      ctx.emit("signature.expired", subject(envId), {
+        envelopeId: envId,
+        ...(env.recordId !== null ? { recordId: env.recordId } : {}),
+      }),
+    );
+    await step("the sender", () =>
+      notifySender(ctx, envId, "task.returned", env.fileId, env.title, {
+        from: "no one",
+        note: "the signing links ran out",
+      }),
+    );
+    await step("the sender's email", async () => {
+      // the sender's own address, when the Space can tell it (a person with a work email); the sender is also told in Needs you above
+      const who = (await ctx.call("access.principals.get", {
+        principal: { kind: "person", id: str(r.created_by) },
+      })) as { principal?: { email?: unknown; name?: unknown } };
+      const to = typeof who.principal?.email === "string" ? who.principal.email : "";
+      const plan = await mailPlan(ctx);
+      if (to === "" || plan === null) return;
+      const space = await spaceInfo(ctx);
+      const base = (configured.publicBase?.() ?? "").replace(/\/+$/, "");
+      if (base === "") return;
+      await sendTemplated(ctx, plan, {
+        to,
+        templateKey: "signature.expired",
+        documentId: env.fileId,
+        vars: {
+          signer_name: typeof who.principal?.name === "string" ? who.principal.name : "",
+          document_title: env.title,
+          sign_link: base,
+          sender_name: str(r.sender_name) || "Someone",
+        },
+        key: `esign-expired-${envId}`,
+        subject: `${env.title} was not signed in time`,
+        text: `The signature request for "${env.title}" at ${space.name} ran out before everyone signed. Send it again to ask again.`,
+      });
+    });
+    await step("the task", () => finishTask(ctx, env, "canceled", "The signing links ran out before everyone signed."));
+    await step("the thread", () =>
+      tellThread(
+        ctx,
+        env,
+        `The signature request for ${plain(env.title)} ran out before everyone signed. Send it again to ask again.`,
+        "sig-expired",
+      ),
+    );
     told++;
   }
   return { ended, told };
@@ -1083,6 +1248,7 @@ export async function fetchVyre(ctx: Ctx, envelopeId: string): Promise<{ fileId:
     ...(env.recordId !== null ? { recordId: env.recordId } : {}),
   });
   const first = signers.map((s) => (str(s.signed_name) || str(s.name)).split(/\s+/)[0] as string).join(", ");
+  await soft(ctx, "mailing the signed copies", () => mailSignedCopies(ctx, env, id));
   await notifySender(ctx, envelopeId, "task.finished", id, `${env.title} signed`, { from: first });
   await finishTask(ctx, env, "done", "Everyone signed.");
   await tellThread(

@@ -8,8 +8,5 @@ CREATE TABLE IF NOT EXISTS documents_signing (
   version_id TEXT,
   template_file_id TEXT,
   record_id TEXT,
-  made_at INTEGER NOT NULL,
-  plain INTEGER NOT NULL DEFAULT 0
+  made_at INTEGER NOT NULL
 );
-
--- plain = 1: a PDF of a Word file set in the plain page look (no letterhead, headers or pictures). Sending it for signature is held until the sender chooses.

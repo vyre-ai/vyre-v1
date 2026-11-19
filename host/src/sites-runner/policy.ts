@@ -306,7 +306,7 @@ export function judge(
       isConverterImage(ref)
       ? { ok: true, kind: "plain" }
       : no(
-          `only ${Object.values(ADDON_IMAGES).join(" and ")} and the agent computer and workspace images may be fetched`,
+          `only ${Object.values(ADDON_IMAGES).join(" and ")} and the agent computer, workspace, Space browser and Word converter images may be fetched`,
         );
   }
   const img = /^\/images\/(.+?)(\/json)?$/.exec(p);

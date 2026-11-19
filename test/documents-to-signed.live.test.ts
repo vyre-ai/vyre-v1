@@ -231,6 +231,12 @@ test("a Word template goes from template to signed PDF on a fresh Space: the PDF
       // the plain copy has no letterhead: it is held until the sender says send it anyway
       await assert.rejects(cap(d, "esign.send", { fileId: filled.file.fileId, signers: who }), /Letterhead and pictures are missing in this copy/);
     }
+    if (filled.layout === "simple") {
+      // the mark follows the bytes: the same bytes uploaded again as another file are held too
+      const bytes = (await cap(d, "files.read", { fileId: filled.file.fileId, as: "base64" })).base64 as string;
+      const again = await cap(d, "files.create", { folderId, name: "Re-uploaded agreement.pdf", mime: "application/pdf", content: { base64: bytes } });
+      await assert.rejects(cap(d, "esign.send", { fileId: again.file.fileId, signers: who }), /Letterhead and pictures are missing in this copy/);
+    }
     const sent = await cap(d, "esign.send", { fileId: filled.file.fileId, signers: who, ...(filled.layout === "simple" ? { plainOk: true } : {}) });
     const link = sent.links[0].path as string;
     const doc = await direct(d, "GET", `${link}doc`);

@@ -3,7 +3,7 @@
 // and only on what the account's row rules let it see. Existence is not leaked: anything outside the account's view answers permission.not_found.
 // @reads ../../migrations/0001_portal_accounts.sql
 
-import { ERROR_CODES, VyreErr , vyreErrorOf } from "../../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../../packages/contracts/src/types.ts";
 import { filterRecords } from "../accounts.ts";

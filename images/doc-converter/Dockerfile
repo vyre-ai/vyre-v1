@@ -1,5 +1,5 @@
 # The Word to PDF converter (lane r42-docs, 19 Nov 2026). LibreOffice with no desktop, run one conversion at a time by the documents seam (host/src/seams/doc-converter.ts): the .docx is copied in to /in,
-# the container runs with no network, a read-only root, a tmpfs for its home, no capabilities and a memory limit, and the PDF is copied out of /out. It is fetched the first time a Word file is turned into a
+# the container runs with no network, no capabilities and a memory limit (its root is not read-only: /in and /out are on its writable layer, which the host removes with it), and the PDF is copied out of /out. It is fetched the first time a Word file is turned into a
 # PDF (the way agent images are), and never baked into vyred.
 #   docker build -f images/doc-converter/Dockerfile -t vyre/doc-converter:1 images/doc-converter
 FROM debian:bookworm-slim

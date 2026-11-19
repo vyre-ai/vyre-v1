@@ -10,7 +10,7 @@
 // The run is a Run of kind runbook: ctx.run is the run id when the host made one. The call returns when the run has ended; the run events (run_started, block_finished, run_finished)
 // stream while it goes, and requestStop(runId) makes it stop after the block in progress and interrupts that block.
 
-import { ERROR_CODES, VyreErr , vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 

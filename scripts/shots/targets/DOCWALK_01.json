@@ -1,0 +1,314 @@
+{
+  "targets": [
+    {
+      "id": "DOCWALK_01-tab",
+      "route": "/m/DOCWALK_01?type=clients&id=cl_0&tab=files&pane=1",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='pane-files']",
+      "note": "Files tab on the record with New document beside Attach",
+      "steps": [
+        [
+          "wait",
+          "[data-testid='pane-files']"
+        ]
+      ],
+      "after": "[data-testid='new-document']"
+    },
+    {
+      "id": "DOCWALK_01-templates",
+      "route": "/m/DOCWALK_01?type=clients&id=cl_0&tab=files&pane=1",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='pane-files']",
+      "note": "New document: the templates for this kind of record and for any",
+      "steps": [
+        [
+          "wait",
+          "[data-testid='pane-files']"
+        ],
+        [
+          "click",
+          "[data-testid='new-document']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-templates']"
+        ]
+      ],
+      "after": "[data-testid='doc-templates']"
+    },
+    {
+      "id": "DOCWALK_01-fill",
+      "route": "/m/DOCWALK_01?type=clients&id=cl_0&tab=files&pane=1",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='pane-files']",
+      "note": "The template opened: the page filled from the record, the fields it did not hold",
+      "steps": [
+        [
+          "wait",
+          "[data-testid='pane-files']"
+        ],
+        [
+          "click",
+          "[data-testid='new-document']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-templates']"
+        ],
+        [
+          "click",
+          "[data-testid='doc-template-fil_a']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-asked']"
+        ]
+      ],
+      "after": "[data-testid='doc-asked']"
+    },
+    {
+      "id": "DOCWALK_01-filled",
+      "route": "/m/DOCWALK_01?type=clients&id=cl_0&tab=files&pane=1",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='pane-files']",
+      "note": "Fields typed: Make PDF is ready",
+      "steps": [
+        [
+          "wait",
+          "[data-testid='pane-files']"
+        ],
+        [
+          "click",
+          "[data-testid='new-document']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-templates']"
+        ],
+        [
+          "click",
+          "[data-testid='doc-template-fil_a']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-asked']"
+        ],
+        [
+          "fill",
+          "[data-testid='doc-field-client.name']",
+          "Elena Rivera"
+        ],
+        [
+          "fill",
+          "[data-testid='doc-field-matter.fee']",
+          "1500"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-make']"
+        ]
+      ],
+      "after": "[data-testid='doc-make']"
+    },
+    {
+      "id": "DOCWALK_01-made",
+      "route": "/m/DOCWALK_01?type=clients&id=cl_0&tab=files&pane=1",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='pane-files']",
+      "note": "Made: in the record's files, Send for signature",
+      "steps": [
+        [
+          "wait",
+          "[data-testid='pane-files']"
+        ],
+        [
+          "click",
+          "[data-testid='new-document']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-templates']"
+        ],
+        [
+          "click",
+          "[data-testid='doc-template-fil_a']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-asked']"
+        ],
+        [
+          "fill",
+          "[data-testid='doc-field-client.name']",
+          "Elena Rivera"
+        ],
+        [
+          "fill",
+          "[data-testid='doc-field-matter.fee']",
+          "1500"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-make']"
+        ],
+        [
+          "click",
+          "[data-testid='doc-make']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-sheet-made']"
+        ]
+      ],
+      "after": "[data-testid='doc-sheet-made']"
+    },
+    {
+      "id": "DOCWALK_01-sign",
+      "route": "/m/DOCWALK_01?type=clients&id=cl_0&tab=files&pane=1",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='pane-files']",
+      "note": "Send for signature opens with who signs",
+      "steps": [
+        [
+          "wait",
+          "[data-testid='pane-files']"
+        ],
+        [
+          "click",
+          "[data-testid='new-document']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-templates']"
+        ],
+        [
+          "click",
+          "[data-testid='doc-template-fil_a']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-asked']"
+        ],
+        [
+          "fill",
+          "[data-testid='doc-field-client.name']",
+          "Elena Rivera"
+        ],
+        [
+          "fill",
+          "[data-testid='doc-field-matter.fee']",
+          "1500"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-make']"
+        ],
+        [
+          "click",
+          "[data-testid='doc-make']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-sheet-made']"
+        ],
+        [
+          "click",
+          "[data-testid='doc-sign']"
+        ],
+        [
+          "wait",
+          "[data-testid='sign-sheet']"
+        ],
+        [
+          "fill",
+          "[data-testid='sign-name-0']",
+          "Elena Rivera"
+        ],
+        [
+          "fill",
+          "[data-testid='sign-email-0']",
+          "elena@northwind.example"
+        ]
+      ],
+      "after": "[data-testid='sign-sheet']"
+    },
+    {
+      "id": "DOCWALK_01-sent",
+      "route": "/m/DOCWALK_01?type=clients&id=cl_0&tab=files&pane=1",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='pane-files']",
+      "note": "Sent: a link for each signer and the server's sentence about mail",
+      "steps": [
+        [
+          "wait",
+          "[data-testid='pane-files']"
+        ],
+        [
+          "click",
+          "[data-testid='new-document']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-templates']"
+        ],
+        [
+          "click",
+          "[data-testid='doc-template-fil_a']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-asked']"
+        ],
+        [
+          "fill",
+          "[data-testid='doc-field-client.name']",
+          "Elena Rivera"
+        ],
+        [
+          "fill",
+          "[data-testid='doc-field-matter.fee']",
+          "1500"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-make']"
+        ],
+        [
+          "click",
+          "[data-testid='doc-make']"
+        ],
+        [
+          "wait",
+          "[data-testid='doc-sheet-made']"
+        ],
+        [
+          "click",
+          "[data-testid='doc-sign']"
+        ],
+        [
+          "wait",
+          "[data-testid='sign-sheet']"
+        ],
+        [
+          "fill",
+          "[data-testid='sign-name-0']",
+          "Elena Rivera"
+        ],
+        [
+          "fill",
+          "[data-testid='sign-email-0']",
+          "elena@northwind.example"
+        ],
+        [
+          "click",
+          "[data-testid='sign-send']"
+        ],
+        [
+          "wait",
+          "[data-testid='sign-sheet-sent']"
+        ]
+      ],
+      "after": "[data-testid='sign-sheet-sent']"
+    }
+  ]
+}

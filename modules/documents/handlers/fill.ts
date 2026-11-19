@@ -64,6 +64,17 @@ function isVyreError(e: unknown): e is { error: { code: string } } {
   );
 }
 
+/** The key of what a call asks, SHA-256 of the ask in full (a short hash could make two different documents share a key, and the second would be answered with the first). Used when the caller gave no key. */
+export async function askKey(parts: unknown): Promise<string> {
+  return sha256Of(new TextEncoder().encode(JSON.stringify(parts)));
+}
+
+/** SHA-256 of some bytes, in hex. */
+export async function sha256Of(bytes: Uint8Array): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", bytes as unknown as ArrayBuffer);
+  return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // ---- drivers ----
 
 export interface DocumentsDrivers {
@@ -311,6 +322,18 @@ function open(buf: Buffer): Zip {
   if (names.length > MAX_ENTRIES) throw new FillError("bad_template", "that .docx holds too many parts");
   if (!zip.file("word/document.xml"))
     throw new FillError("bad_input", "that is not a Word (.docx) file: it has no word/document.xml");
+  // a Word file with macros (a .docm renamed, or macros put in a .docx) is never a template: nothing in a template may run
+  const types = String(zip.file("[Content_Types].xml")?.asText() ?? "");
+  if (
+    names.some(
+      (n) => /(^|\/)vbaProject\.bin$|(^|\/)vbaData\.xml$/i.test(n) || /^word\/(activeX|embeddings)\//i.test(n),
+    ) ||
+    /macroEnabled|vbaProject/i.test(types)
+  )
+    throw new FillError(
+      "bad_template",
+      "that Word file has macros or embedded programs; save it as a plain .docx without them",
+    );
   let total = 0;
   for (const n of names) total += zip.files[n]?._data?.uncompressedSize ?? 0;
   if (total > MAX_UNPACKED) throw new FillError("too_big", "that .docx unpacks to more than it may");
@@ -973,7 +996,9 @@ export async function documentsFill(
   const format = optStr(ctx, o, "format") ?? "docx";
   if (format !== "docx" && format !== "pdf")
     fail(ctx, "validation.bad_input", "The format is docx or pdf.", { field: "format" });
-  const template = (await ctx.call("files.get", { fileId: templateFileId })) as { file?: { name?: unknown } };
+  const template = (await ctx.call("files.get", { fileId: templateFileId })) as {
+    file?: { name?: unknown; version?: unknown };
+  };
   const templateName = typeof template.file?.name === "string" ? template.file.name : "document.docx";
   const bytes = await templateBytes(ctx, templateFileId);
   const { values, given } = await valuesOf(ctx, o, asked(bytes));
@@ -1005,21 +1030,12 @@ export async function documentsFill(
     bytes: out,
     mime: format === "pdf" ? "application/pdf" : DOCX_MIME,
     kind: format === "pdf" ? "pdf" : "document",
-    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? templateFileId}`,
+    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, (template.file as { version?: unknown } | undefined)?.version])}`}`,
   });
   const { fileId, versionId } = saved;
-  // a PDF set in the plain page look is a preview of the Word file: signing asks before it goes out (documents.signing says plain)
+  // a PDF set in the plain page look is a preview of the Word file: its bytes are marked, so signing holds it (and any copy of it) until the sender chooses (documents.signing says plain)
   if (layout === "simple")
-    ctx.db.run(
-      "INSERT OR REPLACE INTO documents_signing (file_id, roles, places, version_id, template_file_id, record_id, made_at, plain) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
-      fileId,
-      "[]",
-      "[]",
-      versionId,
-      templateFileId,
-      optStr(ctx, o, "recordId") ?? null,
-      ctx.now(),
-    );
+    ctx.db.run("INSERT OR IGNORE INTO documents_plain (sha256, made_at) VALUES (?, ?)", await sha256Of(out), ctx.now());
   const payload: Record<string, unknown> = { fileId, templateFileId, fields: made.used.length, missing: 0 };
   const recordId = optStr(ctx, o, "recordId");
   if (recordId !== undefined) payload.recordId = recordId;
@@ -1042,7 +1058,7 @@ async function wordToPdf(
   ctx: Ctx,
   docx: Uint8Array,
   title: string,
-): Promise<{ pdf: Uint8Array; layout: "word" | "simple" }> {
+): Promise<{ pdf: Uint8Array; layout: "word" | "simple"; converter?: "pulling" | "failed" | "none" }> {
   if (configured?.pdf) {
     try {
       return { pdf: await configured.pdf(docx), layout: "word" };
@@ -1161,12 +1177,35 @@ async function markTemplate(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> 
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: "isTemplate" });
   const isTemplate = o.isTemplate;
   const recordType = optStr(ctx, o, "recordType");
-  const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown } };
+  const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown; size?: unknown } };
   const name = typeof got.file?.name === "string" ? got.file.name : "";
+  if (isTemplate && typeof got.file?.size === "number" && got.file.size > MAX_BYTES && /\.docx$/i.test(name))
+    fail(
+      ctx,
+      "validation.too_large",
+      `That Word file is ${Math.ceil(got.file.size / 1048576)} MB; a template may be at most ${MAX_BYTES / 1048576} MB.`,
+      { fileId },
+    );
+  if (isTemplate && /\.docm$/i.test(name))
+    fail(
+      ctx,
+      "validation.unsupported",
+      "A Word file with macros (.docm) cannot be a template. Save it as a plain .docx.",
+      { fileId },
+    );
   if (isTemplate && !/\.docx$/i.test(name) && !readerFor(name))
     fail(ctx, "validation.unsupported", "Only a Word (.docx) file or a Vyre document (.md) can be a template.", {
       fileId,
     });
+  // a Word template is checked when it is marked, not only when it is first used: a file that is not a real .docx, is too big, or carries macros is refused here in plain words
+  if (isTemplate && /\.docx$/i.test(name)) {
+    const bytes = await templateBytes(ctx, fileId);
+    try {
+      open(bytes);
+    } catch (e) {
+      return refuse(ctx, e);
+    }
+  }
   if (isTemplate && recordType !== undefined) {
     // the type must be one this Space has: a template for a type that does not exist would never show on any record
     let known = false;

@@ -32,7 +32,7 @@ type In = {
   signingDate?: string;
   intoFolderId: string;
   name?: string;
-  format?: "docx" | "pdf" | "md" | {"description":"A Word template fills to docx or pdf; a Vyre document fills to pdf, or to md to go on editing"};
+  format?: "docx" | "pdf" | "md";
   idempotencyKey: string;
 };
 ```
@@ -49,8 +49,8 @@ type Out = {
   missing: Array<string>;
   unused: Array<string>;
   signers?: Array<string>;
-  layout?: "word" | "simple" | {"description":"word: the Word page kept; simple: plain page look, a preview"};
-  converter?: "pulling" | "failed" | "none" | {"description":"Why a copy is plain: the exact converter is being fetched, failed, or this machine has no engine"};
+  layout?: "word" | "simple";
+  converter?: "pulling" | "failed" | "none";
 };
 ```
 

@@ -6,7 +6,7 @@
 // Build plan notes follow the 0.6 publish builder (core/publish/builder-plan.js): the build runs in a network with no route to the Space data.
 // @reads ../migrations/0001_sites_core.sql
 
-import { ERROR_CODES, VyreErr , vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, Level, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";

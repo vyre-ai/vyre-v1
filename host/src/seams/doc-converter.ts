@@ -39,12 +39,16 @@ export interface DocConverterDeps {
   onState?: (s: ConverterState, why?: string) => void;
 }
 
+/** The most one answer may weigh: a PDF of a Word file is far below it, and a hostile document cannot make the host hold more. */
+const MAX_RESPONSE = 64 * 1024 * 1024;
+
 /** The Engine API over a unix socket (a named pipe on Windows is not covered: the plain copy is used there). Behind a Team server's runner it is the runner's socket and the runner's token (`headers`).. */
 export function socketEngine(socketPath: string, headers?: () => Record<string, string>): Engine {
   return (req) =>
     new Promise((resolve, reject) => {
       const qs = req.query ? `?${new URLSearchParams(req.query).toString()}` : "";
-      const body = req.json !== undefined ? Buffer.from(JSON.stringify(req.json)) : req.body ? Buffer.from(req.body) : undefined;
+      const body =
+        req.json !== undefined ? Buffer.from(JSON.stringify(req.json)) : req.body ? Buffer.from(req.body) : undefined;
       const r = http.request(
         {
           socketPath,
@@ -53,13 +57,24 @@ export function socketEngine(socketPath: string, headers?: () => Record<string, 
           headers: {
             ...(headers ? headers() : {}),
             ...(body ? { "content-length": String(body.length) } : {}),
-            ...(req.json !== undefined ? { "content-type": "application/json" } : req.contentType ? { "content-type": req.contentType } : {}),
+            ...(req.json !== undefined
+              ? { "content-type": "application/json" }
+              : req.contentType
+                ? { "content-type": req.contentType }
+                : {}),
           },
           timeout: req.timeoutMs ?? 30_000,
         },
         (res) => {
           const parts: Buffer[] = [];
-          res.on("data", (d: Buffer) => parts.push(d));
+          let got = 0;
+          res.on("data", (d: Buffer) => {
+            got += d.length;
+            if (got > MAX_RESPONSE)
+              return res.destroy(new Error("the Docker engine answered with more than a converter may send"));
+            parts.push(d);
+          });
+          res.on("error", reject);
           res.on("end", () => resolve({ status: res.statusCode ?? 0, body: new Uint8Array(Buffer.concat(parts)) }));
         },
       );
@@ -100,9 +115,15 @@ export function untarFirst(tar: Uint8Array): Uint8Array | null {
   for (let at = 0; at + 512 <= b.length; ) {
     const name = b.toString("utf8", at, at + 100).replace(/\0.*$/s, "");
     if (name === "") return null;
-    const size = parseInt(b.toString("ascii", at + 124, at + 135).replace(/\0.*$/s, "").trim() || "0", 8);
+    const size = parseInt(
+      b
+        .toString("ascii", at + 124, at + 135)
+        .replace(/\0.*$/s, "")
+        .trim() || "0",
+      8,
+    );
     const type = String.fromCharCode(b[at + 156] ?? 48);
-    if (Number.isNaN(size)) return null;
+    if (Number.isNaN(size) || size < 0 || at + 512 + size > b.length) return null;
     if (type === "0" || type === "\0") return new Uint8Array(b.subarray(at + 512, at + 512 + size));
     at += 512 + Math.ceil(size / 512) * 512;
   }
@@ -116,6 +137,9 @@ export interface DocConverter {
   /** a filled .docx to the PDF the converter makes; throws while the image is being fetched or when it is not available, with the state in `.state` */
   pdf(docx: Uint8Array): Promise<Uint8Array>;
 }
+
+/** One Word file the converter could not turn into a PDF (it stopped with an error, timed out, or left no PDF). The converter itself is fine: the state does not change, and the next file is tried at once. */
+export class ConversionFailed extends Error {}
 
 export class ConverterUnavailable extends Error {
   readonly state: ConverterState;
@@ -141,11 +165,14 @@ export function createDocConverter(d: DocConverterDeps): DocConverter {
   const pull = (): Promise<void> => {
     set("pulling");
     const at = d.image.lastIndexOf(":");
-    const query = d.image.includes("@") ? { fromImage: d.image } : { fromImage: d.image.slice(0, at), tag: d.image.slice(at + 1) };
+    const query = d.image.includes("@")
+      ? { fromImage: d.image }
+      : { fromImage: d.image.slice(0, at), tag: d.image.slice(at + 1) };
     return d
       .engine({ method: "POST", path: "/images/create", query, timeoutMs: 15 * 60_000 })
       .then(async (r) => {
-        if (r.status !== 200 || !(await has())) throw new Error(r.status === 200 ? "the image is not there after the fetch" : text(r.body));
+        if (r.status !== 200 || !(await has()))
+          throw new Error(r.status === 200 ? "the image is not there after the fetch" : text(r.body));
         set("ready");
       })
       .catch((e: unknown) => {
@@ -183,19 +210,37 @@ export function createDocConverter(d: DocConverterDeps): DocConverter {
     const id = (JSON.parse(Buffer.from(made.body).toString("utf8")) as { Id?: string }).Id;
     if (!id) throw new Error("the converter container has no id");
     try {
-      const put = await d.engine({ method: "PUT", path: `/containers/${id}/archive`, query: { path: "/in" }, body: tarOne("in.docx", docx), contentType: "application/x-tar" });
+      const put = await d.engine({
+        method: "PUT",
+        path: `/containers/${id}/archive`,
+        query: { path: "/in" },
+        body: tarOne("in.docx", docx),
+        contentType: "application/x-tar",
+      });
       if (put.status !== 200) throw new Error(`the Word file could not be put in (${put.status}) ${text(put.body)}`);
       const start = await d.engine({ method: "POST", path: `/containers/${id}/start` });
-      if (start.status !== 204 && start.status !== 304) throw new Error(`the converter did not start (${start.status}) ${text(start.body)}`);
-      const done = await d.engine({ method: "POST", path: `/containers/${id}/wait`, timeoutMs: 120_000 });
+      if (start.status !== 204 && start.status !== 304)
+        throw new Error(`the converter did not start (${start.status}) ${text(start.body)}`);
+      // from here a failure belongs to this file (a Word file LibreOffice cannot read, a hang), not to the converter
+      let done: EngineResponse;
+      try {
+        done = await d.engine({ method: "POST", path: `/containers/${id}/wait`, timeoutMs: 120_000 });
+      } catch (e) {
+        throw new ConversionFailed(
+          `the converter did not finish in time (${e instanceof Error ? e.message : String(e)})`,
+        );
+      }
       const code = (JSON.parse(Buffer.from(done.body).toString("utf8") || "{}") as { StatusCode?: number }).StatusCode;
-      if (code !== 0) throw new Error(`the converter stopped with ${String(code)}`);
+      if (code !== 0) throw new ConversionFailed(`the converter stopped with ${String(code)}`);
       const got = await d.engine({ method: "GET", path: `/containers/${id}/archive`, query: { path: "/out/in.pdf" } });
       const pdf = got.status === 200 ? untarFirst(got.body) : null;
-      if (!pdf || Buffer.from(pdf.subarray(0, 5)).toString("latin1") !== "%PDF-") throw new Error("the converter made no PDF");
+      if (!pdf || Buffer.from(pdf.subarray(0, 5)).toString("latin1") !== "%PDF-")
+        throw new ConversionFailed("the converter made no PDF");
       return pdf;
     } finally {
-      await d.engine({ method: "DELETE", path: `/containers/${id}`, query: { force: "true", v: "true" } }).catch(() => undefined);
+      await d
+        .engine({ method: "DELETE", path: `/containers/${id}`, query: { force: "true", v: "true" } })
+        .catch(() => undefined);
     }
   };
 
@@ -205,16 +250,24 @@ export function createDocConverter(d: DocConverterDeps): DocConverter {
   return {
     state: () => state,
     async pdf(docx) {
-      if (state === "none") throw new ConverterUnavailable("none", "No Docker engine answers on this machine, so there is no exact copy here.");
+      if (state === "none")
+        throw new ConverterUnavailable(
+          "none",
+          "No Docker engine answers on this machine, so there is no exact copy here.",
+        );
       if (state === "pulling") throw new ConverterUnavailable("pulling", "The converter is being fetched.");
-      if (state === "failed" && now() - failedAt < retry) throw new ConverterUnavailable("failed", "The converter could not be fetched or run a moment ago.");
+      if (state === "failed" && now() - failedAt < retry)
+        throw new ConverterUnavailable("failed", "The converter could not be fetched or run a moment ago.");
       if (state === "idle" || state === "failed") {
         let there = false;
         try {
           there = await has();
         } catch (e) {
           set("none", e instanceof Error ? e.message : String(e));
-          throw new ConverterUnavailable("none", "No Docker engine answers on this machine, so there is no exact copy here.");
+          throw new ConverterUnavailable(
+            "none",
+            "No Docker engine answers on this machine, so there is no exact copy here.",
+          );
         }
         if (!there) {
           pulling ??= pull();
@@ -227,6 +280,8 @@ export function createDocConverter(d: DocConverterDeps): DocConverter {
       try {
         return await next;
       } catch (e) {
+        // one bad Word file does not take the converter down for everyone: only a failure of the converter itself (no engine answer, the container could not be made or started) does
+        if (e instanceof ConversionFailed) throw e;
         failedAt = now();
         set("failed", e instanceof Error ? e.message : String(e));
         throw e;

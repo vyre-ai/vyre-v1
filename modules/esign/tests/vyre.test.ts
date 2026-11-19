@@ -409,6 +409,11 @@ test("with a sending mailbox the invitation goes through the one send pipeline, 
   }));
   h.callee("mail.send", (i: Record<string, any>) => {
     // eslint-disable-line @typescript-eslint/no-explicit-any
+    // a mail module with no template for this yet refuses the templated ask before sending: the plain text goes instead
+    if (i.templateKey)
+      throw Object.assign(new Error("no template"), {
+        error: { code: "validation.precondition_failed", message: "no template" },
+      });
     sent.push(i);
     return { status: "queued", suppressed: [] };
   });
@@ -598,7 +603,10 @@ test("places the send names win over the document's own, and a send with the wro
   const own = [{ signer: 0, kind: "signature", page: 1, x: 5, y: 5, w: 20, h: 4 }];
   const out = await send(h, [ANDREA], { places: own });
   const { session } = await view(h, tokenOf(out.links[0]));
-  assert.deepEqual(session.places.map((p: { page: number }) => p.page), [1]);
+  assert.deepEqual(
+    session.places.map((p: { page: number }) => p.page),
+    [1],
+  );
 });
 
 test("a document that cannot say where its signers sign (none known, stale, or the documents module not there) gets the signature page as before", async () => {
@@ -606,7 +614,9 @@ test("a document that cannot say where its signers sign (none known, stale, or t
     () => ({ signers: [], places: [] }),
     () => ({ signers: [], places: [], stale: true }),
     () => {
-      throw new Error("documents is not here");
+      throw Object.assign(new Error("not implemented"), {
+        error: { code: "internal.not_implemented", message: "not implemented" },
+      });
     },
   ]) {
     const h = await setup();
@@ -631,7 +641,9 @@ test("an envelope nobody touches again still ends when its time runs out: told o
   assert.equal(h.rows("esign_envelope")[0]!.status, "expired");
   assert.ok(h.rows("esign_vsigner").every((s) => s.status === "expired"));
   assert.deepEqual(
-    h.events.filter((e) => e.name === "signature.expired").map((e) => [e.name, e.payload.envelopeId, e.payload.recordId]),
+    h.events
+      .filter((e) => e.name === "signature.expired")
+      .map((e) => [e.name, e.payload.envelopeId, e.payload.recordId]),
     [["signature.expired", envelopeId, RECORD]],
   );
   const closed = h.callsTo("tasks.transition").at(-1)!.input;
@@ -670,4 +682,205 @@ test("a PDF of a Word file set in the plain page look is held: no send until the
   const h3 = await setup();
   assert.match((await send(h3, [ANDREA])).envelopeId, /^env_/);
   assert.equal(h3.rows("esign_event").filter((r) => r.kind === "plain_copy_sent").length, 0);
+});
+
+test("the plain-copy check fails closed: a failure of documents.signing holds the send with a plain sentence, only a missing documents module counts as not plain", async () => {
+  const h = await setup();
+  h.callee("documents.signing", () => {
+    throw new Error("socket hang up");
+  });
+  const e = await send(h, [ANDREA]).catch((x) => x);
+  assert.equal(e.error.code, "provider.unavailable");
+  assert.match(e.error.message, /try again in a minute/);
+  assert.equal(h.rows("esign_envelope").length, 0);
+  h.callee("documents.signing", () => {
+    throw Object.assign(new Error("no"), { error: { code: "permission.no_grant", message: "no" } });
+  });
+  assert.equal((await send(h, [ANDREA]).catch((x) => x)).error.code, "provider.unavailable");
+  // no documents module in this Space (the host's not_implemented): sent as before
+  const h2 = await setup();
+  assert.match((await send(h2, [ANDREA])).envelopeId, /^env_/);
+});
+
+test("telling that a request ran out does not stop at the first step that fails", async () => {
+  const h = await setup();
+  await send(h, [ANDREA], { recordId: RECORD });
+  h.callee("notifications.send", () => {
+    throw new Error("down");
+  });
+  const { expireDue } = await import("../handlers/vyre.ts");
+  h.advance(31 * 24 * 3600 * 1000);
+  assert.deepEqual(await expireDue(h.ctxFor(null, SYSTEM)), { ended: 1, told: 1 });
+  assert.ok(h.events.some((e) => e.name === "signature.expired"));
+  assert.ok(h.callsTo("tasks.transition").length > 0, "the task is still closed");
+  assert.ok(h.warnings.some((w) => /telling the sender failed/.test(w)));
+});
+
+test("the invitation and the reminder ask the mail module for the Space's own words first (document version, Space template), with every variable; a failure after that is not tried twice", async () => {
+  const h = await setup();
+  const asks: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("comms.senders.list", () => ({
+    senders: [{ id: "mbx_space", scope: "space", usable: true, provider: "resend" }],
+  }));
+  h.callee("mail.send", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    asks.push(i);
+    return { status: "queued", suppressed: [] };
+  });
+  const out = await send(h, [ANDREA], { message: "Please sign by Friday." });
+  assert.deepEqual(out.emailed, ["andrea@northwind.example"]);
+  assert.equal(asks.length, 1, "one mail, no second try");
+  assert.equal(asks[0]!.templateKey, "signature.request");
+  assert.equal(asks[0]!.documentId, FILE);
+  assert.equal(asks[0]!.subject, undefined);
+  assert.deepEqual(Object.keys(asks[0]!.vars).sort(), [
+    "document_title",
+    "expires_on",
+    "message",
+    "sender_name",
+    "sign_link",
+    "signer_name",
+  ]);
+  assert.equal(asks[0]!.vars.sign_link, out.links[0].url);
+  assert.equal(asks[0]!.vars.signer_name, "Andrea Lindahl");
+  const r = await h.call("esign.remind", { envelopeId: out.envelopeId, signer: 0, idempotencyKey: "rr1" }, dana);
+  assert.equal(r.emailed, true);
+  assert.equal(asks[1]!.templateKey, "signature.reminder");
+  // a provider failure after the ask is a notice, and the plain text is not sent behind it
+  const f = await setup();
+  const fasks: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  f.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+  f.callee("mail.send", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    fasks.push(i);
+    throw Object.assign(new Error("down"), { error: { code: "provider.unavailable", message: "down" } });
+  });
+  const o = await send(f, [ANDREA]);
+  assert.deepEqual(o.emailed, []);
+  assert.equal(fasks.length, 1, "not tried a second time as plain text");
+});
+
+test("when everyone has signed each signer with an email gets the signed copy attached through the template, plain text when the template is refused; nobody without an email or a public address is mailed", async () => {
+  const h = await setup();
+  const asks: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("comms.senders.list", () => ({
+    senders: [{ id: "mbx_space", scope: "space", usable: true, provider: "resend" }],
+  }));
+  h.callee("mail.send", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    asks.push(i);
+    return { status: "queued", suppressed: [] };
+  });
+  const out = await send(h, [ANDREA, { name: "Sam Okafor" }]);
+  await act(h, tokenOf(out.links[0]), "sign", typed());
+  await act(h, tokenOf(out.links[1]), "sign", typed("Sam Okafor"));
+  const before = asks.length;
+  const fetched = await finish(h, out.envelopeId);
+  const copies = asks.slice(before);
+  assert.equal(copies.length, 1, "Sam has no email");
+  assert.equal(copies[0]!.templateKey, "signature.signed_copy");
+  assert.deepEqual(copies[0]!.attachments, [fetched.fileId]);
+  assert.deepEqual(copies[0]!.to, [{ address: "andrea@northwind.example" }]);
+  assert.equal(copies[0]!.vars.signer_name, "Andrea Lindahl");
+  // asking for it again sends nothing more
+  await finish(h, out.envelopeId);
+  assert.equal(asks.length, before + 1);
+  // a template refused before sending: the plain words go instead, with the file attached
+  const p = await setup();
+  const plain: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  p.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+  p.callee("mail.send", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (i.templateKey) throw Object.assign(new Error("x"), { error: { code: "validation.not_found", message: "x" } });
+    plain.push(i);
+    return { status: "sent" };
+  });
+  const o2 = await send(p, [ANDREA]);
+  await act(p, tokenOf(o2.links[0]), "sign", typed());
+  const mark = plain.length;
+  const f2 = await finish(p, o2.envelopeId);
+  assert.equal(plain.length, mark + 1);
+  assert.match(plain.at(-1)!.text, /signed copy is attached/);
+  assert.deepEqual(plain.at(-1)!.attachments, [f2.fileId]);
+});
+
+test("when a request runs out the sender is mailed through the signature.expired template if the Space knows their address; otherwise they are still told in Needs you", async () => {
+  const h = await setup();
+  const asks: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+  h.callee("access.principals.get", () => ({ principal: { name: "Imran Ibarra", email: "imran@northwind.example" } }));
+  h.callee("mail.send", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    asks.push(i);
+    return { status: "queued" };
+  });
+  await send(h, [ANDREA]);
+  asks.length = 0;
+  const { expireDue } = await import("../handlers/vyre.ts");
+  h.advance(31 * 24 * 3600 * 1000);
+  await expireDue(h.ctxFor(null, SYSTEM));
+  assert.equal(asks.length, 1);
+  assert.equal(asks[0]!.templateKey, "signature.expired");
+  assert.deepEqual(asks[0]!.to, [{ address: "imran@northwind.example" }]);
+  const n = await setup();
+  const none: unknown[] = [];
+  n.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+  n.callee("mail.send", (i: unknown) => (none.push(i), { status: "queued" }));
+  await send(n, [ANDREA]);
+  none.length = 0;
+  n.advance(31 * 24 * 3600 * 1000);
+  await expireDue(n.ctxFor(null, SYSTEM));
+  assert.equal(none.length, 0, "no address known: nothing mailed, the sender is told in Needs you");
+  assert.equal(n.callsTo("notifications.send").at(-1)!.input.kind, "task.returned");
+});
+
+test("the exact-copy check never blocks a legitimate send for good: a file that could not be checked or a check that failed is held with a plain reason and the sender's explicit choice sends it, logged", async () => {
+  for (const [label, answer] of [
+    ["unchecked", () => ({ signers: [], places: [], unchecked: true })],
+    [
+      "error",
+      () => {
+        throw new Error("socket hang up");
+      },
+    ],
+  ] as const) {
+    const h = await setup();
+    h.callee("documents.signing", answer);
+    const e = await send(h, [ANDREA]).catch((x) => x);
+    assert.equal(e.error.code, "provider.unavailable", label);
+    assert.match(e.error.message, /send this one anyway/, label);
+    assert.equal(h.rows("esign_envelope").length, 0, label);
+    const out = await send(h, [ANDREA], { plainOk: true });
+    assert.match(out.envelopeId, /^env_/, label);
+    assert.match(
+      String(h.rows("esign_event").find((r) => r.kind === "plain_copy_sent")?.detail),
+      new RegExp(label),
+      label,
+    );
+  }
+});
+
+test("the template fallback follows the mail module's contract: a Gate hold or a suppressed address is never answered with a second, plain mail", async () => {
+  for (const [label, answer] of [
+    [
+      "held for approval",
+      () => {
+        throw Object.assign(new Error("held"), { error: { code: "permission.needs_approval", message: "held" } });
+      },
+    ],
+    ["suppressed", () => ({ status: "suppressed", suppressed: ["andrea@northwind.example"] })],
+  ] as const) {
+    const h = await setup();
+    const asks: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+    h.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+    h.callee("mail.send", (i: Record<string, any>) => {
+      // eslint-disable-line @typescript-eslint/no-explicit-any
+      asks.push(i);
+      return answer();
+    });
+    const out = await send(h, [ANDREA]);
+    assert.deepEqual(out.emailed, [], label);
+    assert.equal(asks.length, 1, `${label}: one ask, no plain second mail`);
+    assert.ok(h.warnings.length >= 0);
+  }
 });

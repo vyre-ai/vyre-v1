@@ -14,7 +14,7 @@ async function expectCode(code: string, run: () => Promise<unknown>): Promise<Vy
   try {
     await run();
   } catch (e) {
-    assert.ok(e instanceof VyreErr, e instanceof Error ? e.stack : "throw");
+    assert.ok(e instanceof VyreErr, e instanceof Error ? (e.stack ?? "throw") : "throw");
     assert.equal(e.error.code, code, e.error.message);
     return e;
   }
@@ -135,8 +135,23 @@ test("a PDF set in the plain page look says so to signing; one the converter mad
   });
   assert.equal(plain.layout, "simple");
   assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, true);
+  // the mark follows the bytes: a copy under another id, a move, a re-upload of the same bytes is held too; other bytes are not
+  const bytes = w.files.get(plain.file.fileId)!.bytes;
+  const copy = w.add("Copy of agreement.pdf", Buffer.from(bytes), "fld_other");
+  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: copy })).plain, true, "a copy is held");
+  const edited = w.add("Edited.pdf", Buffer.concat([bytes, Buffer.from("\n%edited")]));
+  assert.equal(
+    (await handlers["documents.signing"](w.ctx, { fileId: edited })).plain,
+    undefined,
+    "other bytes are not held",
+  );
   w.files.get(plain.file.fileId)!.versions = 2;
-  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, undefined);
+  w.files.get(plain.file.fileId)!.bytes = Buffer.from("%PDF-1.7 a new version");
+  assert.equal(
+    (await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain,
+    undefined,
+    "a new version with other bytes is not held",
+  );
   configureDocuments({ pdf: async () => Buffer.from("%PDF-1.7 exact") });
   try {
     const exact = await handlers["documents.fill"](w.ctx, {
@@ -191,4 +206,124 @@ test("when the exact converter is being fetched the plain copy says why; the exa
   } finally {
     configureDocuments(null);
   }
+});
+
+test("a Word template is checked when it is marked: a file that is not a real .docx, one with macros, one with no document part and one that is too big are refused in plain words and nothing is marked", async () => {
+  const w = world();
+  const refuseMark = async (id: string, code: string, words: RegExp, label: string) => {
+    const e = await expectCode(code, () =>
+      handlers["documents.mark_template"](w.ctx, { fileId: id, isTemplate: true }),
+    );
+    assert.match(e.error.message, words, label);
+    assert.equal(w.marks().length, 0, `${label}: nothing marked`);
+  };
+  await refuseMark(
+    w.add("Notes.docx", Buffer.from("hello, not a zip")),
+    "validation.unsupported",
+    /not a Word \(\.docx\) file/,
+    "plain text named .docx",
+  );
+  await refuseMark(w.add("Macro.docm", docx(para("x"))), "validation.unsupported", /macros \(\.docm\)/, "a .docm");
+  await refuseMark(
+    w.add("Hidden.docx", docx(para("x"), { "word/vbaProject.bin": "binary" })),
+    "validation.precondition_failed",
+    /macros or embedded programs/,
+    "macros in a .docx",
+  );
+  await refuseMark(
+    w.add(
+      "Typed.docx",
+      docx(para("x"), {
+        "[Content_Types].xml":
+          '<Types><Override PartName="/word/document.xml" ContentType="application/vnd.ms-word.document.macroEnabled.main+xml"/></Types>',
+      }),
+    ),
+    "validation.precondition_failed",
+    /macros or embedded programs/,
+    "a macro-enabled content type",
+  );
+  await refuseMark(
+    w.add("Empty.docx", docx("", { "word/document.xml": "<x/>" }).subarray(0, 40)),
+    "validation.unsupported",
+    /not a Word \(\.docx\) file/,
+    "a truncated file",
+  );
+  const big = w.add("Big.docx", Buffer.alloc(11 * 1024 * 1024, 1));
+  await refuseMark(big, "validation.too_large", /at most 10 MB/, "too big");
+  // a real one marks; unmarking never reads the file
+  const good = w.add("Good.docx", docx(para("Hello {name}")));
+  assert.deepEqual(await handlers["documents.mark_template"](w.ctx, { fileId: good, isTemplate: true }), { ok: true });
+  assert.equal(w.marks().length, 1);
+  assert.deepEqual(await handlers["documents.mark_template"](w.ctx, { fileId: good, isTemplate: false }), { ok: true });
+});
+
+test("a hostile Word file does not break the plain PDF: impossible character references are dropped and a self-closing text run does not swallow the next one", () => {
+  const xml = `<w:p><w:r><w:t>a&#x110000;b&#xD800;c&#7;d</w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve"/></w:r><w:r><w:t>kept</w:t></w:r></w:p>`;
+  const blocks = docxBlocks(docx(xml));
+  const text = blocks.map((b) => (b.t === "p" ? b.runs.map((r) => r.text).join("") : "")).join("|");
+  assert.equal(text, "abcd|kept");
+});
+
+test("hostile input cannot make the readers slow: a tag opened a hundred thousand times and never closed is read in linear time, in Word and in Markdown", async () => {
+  const N = 100_000;
+  const files = [
+    "<w:r ".repeat(N),
+    "<w:p ".repeat(N),
+    "<w:t ".repeat(N),
+    "<w:tbl><w:tr><w:tc>".repeat(N),
+    "<w:pPr>".repeat(N),
+    "<w:r><w:t ".repeat(N / 2),
+  ].map((b) => docx(b));
+  const t0 = Date.now();
+  for (const f of files) {
+    try {
+      docxBlocks(f);
+    } catch {
+      /* a Word file with nothing to read is refused; what matters is how long it took */
+    }
+  }
+  assert.ok(Date.now() - t0 < 2000, `the Word readers took ${Date.now() - t0} ms`);
+  // Markdown: linear means four times the input takes about four times as long; quadratic takes sixteen times. The ratio holds on a loaded machine where an absolute time does not.
+  const { parse, inline } = await import("../handlers/vdoc.ts");
+  const inputs = (n: number): string[] => [
+    "[a".repeat(n),
+    "![".repeat(n),
+    "[a](".repeat(n),
+    "{~~a~>".repeat(n),
+    `# a${" ".repeat(n)}x`,
+    `# ${"a #".repeat(n)}`,
+    "# a\n".repeat(n / 10),
+  ];
+  const time = (n: number): number => {
+    const t = Date.now();
+    for (const md of inputs(n)) {
+      parse(md);
+      inline(md);
+    }
+    return Math.max(Date.now() - t, 20);
+  };
+  time(5_000); // warm up
+  const small = time(25_000);
+  const large = time(100_000);
+  assert.ok(
+    large / small < 10,
+    `four times the input took ${(large / small).toFixed(1)} times as long (${small} ms, ${large} ms): quadratic`,
+  );
+  assert.ok(large < 30_000, `the Markdown readers took ${large} ms`);
+});
+
+test("headings read as before: closing hashes and spaces are cut, inner hashes stay, and a line of spaces after a heading word is linear", async () => {
+  const { parse } = await import("../handlers/vdoc.ts");
+  const text = (md: string) => {
+    const b = parse(md)[0];
+    return b && b.t === "h" ? `${b.level}:${b.runs.map((r) => r.text).join("")}` : "";
+  };
+  assert.equal(text("# Title"), "1:Title");
+  assert.equal(text("## Title ##"), "2:Title");
+  assert.equal(text("### C# notes #"), "3:C# notes");
+  assert.equal(text("#### Four  \t"), "3:Four");
+  assert.equal(text("# a#"), "1:a");
+  const t0 = Date.now();
+  parse(`# a${" ".repeat(200_000)}x`);
+  assert.ok(Date.now() - t0 < 1500, `a heading of 200 KB took ${Date.now() - t0} ms`);
 });

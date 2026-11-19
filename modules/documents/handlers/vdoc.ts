@@ -52,6 +52,9 @@ export function textOf(bytes: Uint8Array): string {
     throw new FillError("bad_input", "that is not a text file");
   }
   text = text.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  // suggestions an editor left in the text ({++add++} {--delete--} {~~old~>new~~}) are not part of the document until accepted: they would print as letters
+  if (/\{(\+\+|--|~~)/.test(text.replace(/^---\n[\s\S]*?\n---[ \t]*(?:\n|$)/, "")))
+    throw new FillError("bad_template", "the document still has suggested changes in it; accept or reject them first");
   const fm = /^---\n[\s\S]*?\n---[ \t]*(?:\n|$)/.exec(text);
   return fm ? text.slice(fm[0].length) : text;
 }
@@ -348,8 +351,8 @@ export function inline(src: string): Run[] {
     buf = "";
   };
   const s = src
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/!\[([^\]\n]{0,200})\]\([^)\n]{0,500}\)/g, "$1")
+    .replace(/\[([^\]\n]{0,200})\]\([^)\n]{0,500}\)/g, "$1")
     .replace(/~~(.*?)~~/g, "$1");
   for (let k = 0; k < s.length; k++) {
     const c = s[k] as string;
@@ -415,10 +418,16 @@ export function parse(md: string): Block[] {
       endPara();
       continue;
     }
-    const h = /^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*#*$/.exec(line);
+    // a heading: the lazy form of this match was quadratic on a line of spaces; the closing hashes and spaces are cut by hand
+    const h = /^ {0,3}(#{1,6})[ \t]+(.*)$/.exec(line);
     if (h) {
       endPara();
-      out.push({ t: "h", level: Math.min((h[1] as string).length, 3) as 1 | 2 | 3, runs: inline(h[2] as string) });
+      let text = h[2] as string;
+      let e = text.length;
+      while (e > 0 && text[e - 1] === "#") e--;
+      while (e > 0 && (text[e - 1] === " " || text[e - 1] === "\t")) e--;
+      text = text.slice(0, e);
+      out.push({ t: "h", level: Math.min((h[1] as string).length, 3) as 1 | 2 | 3, runs: inline(text) });
       continue;
     }
     if (/^ {0,3}(-{3,}|\*{3,}|_{3,})$/.test(line)) {

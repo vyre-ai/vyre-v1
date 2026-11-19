@@ -7,6 +7,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import {
   FillError,
   addTemplateReader,
+  askKey,
   baseName,
   documentsFill,
   fail,
@@ -19,6 +20,7 @@ import {
   refuse,
   reqStr,
   saveNamed,
+  sha256Of,
   templateBytes,
   unusedFor,
   valuesOf,
@@ -61,6 +63,12 @@ interface Filled {
 export const isVyreDoc = (name: string): boolean => /\.(md|markdown)$/i.test(name);
 
 addTemplateReader({ test: isVyreDoc, asked: (bytes) => mdPlaceholders(textOf(bytes)) });
+
+/** The version of a file now, so a template edited since the last ask is a different ask. */
+async function fileVersion(ctx: Ctx, fileId: string): Promise<unknown> {
+  const got = (await ctx.call("files.get", { fileId })) as { file?: { version?: unknown } };
+  return got.file?.version;
+}
 
 async function fileName(ctx: Ctx, fileId: string): Promise<string> {
   const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown } };
@@ -183,7 +191,7 @@ async function fill(ctx: Ctx, input: unknown): Promise<Filled> {
   const stem =
     wanted !== undefined ? wanted.replace(new RegExp(`\\.${format}$`, "i"), "") : `${baseName(templateName)} (filled)`;
   const recordId = optStr(ctx, o, "recordId");
-  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? templateFileId}`;
+  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, await fileVersion(ctx, templateFileId)])}`}`;
   let saved: Saved;
   let signers: string[] = [];
   if (format === "pdf") {
@@ -254,7 +262,7 @@ async function makePdf(ctx: Ctx, input: unknown): Promise<{ file: Saved; pages: 
     bytes: set.pdf,
     mime: "application/pdf",
     kind: "pdf",
-    key: `docpdf:${optStr(ctx, o, "idempotencyKey") ?? fileId}`,
+    key: `docpdf:${optStr(ctx, o, "idempotencyKey") ?? `${fileId}:${await askKey([o.name, text])}`}`,
   });
   remember(ctx, saved, set.roles, set.places, {});
   ctx.log.info("documents.make_pdf", { fileId: saved.fileId, from: fileId, pages: set.pages });
@@ -262,6 +270,8 @@ async function makePdf(ctx: Ctx, input: unknown): Promise<{ file: Saved; pages: 
 }
 
 /** Where the signers of a PDF made here sign. A file made anywhere else has no places: signing then adds its own signature page. */
+/** The most a file may weigh for the plain check to read it (esign takes 25 MB PDFs at most). */
+const MAX_CHECK_BYTES = 25 * 1024 * 1024;
 async function signing(
   ctx: Ctx,
   input: unknown,
@@ -270,13 +280,45 @@ async function signing(
   places: unknown[];
   stale?: true;
   plain?: true;
+  unchecked?: true;
   templateFileId?: string;
   recordId?: string;
 }> {
   const fileId = reqStr(ctx, rec(ctx, input), "fileId");
   mayView(ctx, fileId);
+  // a preview set in the plain page look is known by its bytes: a copy, a move or a re-upload of them is held too. A file that cannot be checked (too big to read whole, unreadable just now) is
+  // answered `unchecked`, never "not plain": the sender then chooses (make the exact copy again, or send it anyway).
+  let plain = false;
+  let unchecked = false;
+  if ((ctx.db.all("SELECT 1 AS x FROM documents_plain LIMIT 1") as Row[]).length > 0) {
+    try {
+      const got = (await ctx.call("files.get", { fileId })) as { file?: { size?: unknown; version?: unknown } };
+      const size = typeof got.file?.size === "number" ? got.file.size : 0;
+      const ver = String(got.file?.version);
+      const seen =
+        (ctx.db.all("SELECT 1 AS x FROM documents_plain_seen WHERE file_id = ? AND version = ?", fileId, ver) as Row[])
+          .length > 0;
+      if (seen) plain = true;
+      else if (size > MAX_CHECK_BYTES) unchecked = true;
+      else {
+        const sha = await sha256Of(await templateBytes(ctx, fileId));
+        plain = (ctx.db.all("SELECT 1 AS x FROM documents_plain WHERE sha256 = ?", sha) as Row[]).length > 0;
+        // only a "yes" is kept: a "no" can turn into a "yes" when a plain copy of these bytes is made later
+        if (plain)
+          ctx.db.run("INSERT OR IGNORE INTO documents_plain_seen (file_id, version) VALUES (?, ?)", fileId, ver);
+      }
+    } catch {
+      unchecked = true;
+    }
+  }
   const row = (ctx.db.all("SELECT * FROM documents_signing WHERE file_id = ?", fileId) as Row[])[0];
-  if (!row) return { signers: [], places: [] };
+  if (!row)
+    return {
+      signers: [],
+      places: [],
+      ...(plain ? { plain: true as const } : {}),
+      ...(unchecked ? { unchecked: true as const } : {}),
+    };
   // a newer version of the file is a different page: the places belong to the version they were set on
   if (typeof row.version_id === "string") {
     const got = (await ctx.call("files.versions", { fileId })) as { versions?: { versionId?: unknown; n?: unknown }[] };
@@ -292,7 +334,8 @@ async function signing(
     }
   };
   return {
-    ...(Number(row.plain) === 1 ? { plain: true as const } : {}),
+    ...(plain ? { plain: true as const } : {}),
+    ...(unchecked ? { unchecked: true as const } : {}),
     signers: list(row.roles).filter((r): r is string => typeof r === "string"),
     places: list(row.places),
     ...(typeof row.template_file_id === "string" ? { templateFileId: row.template_file_id } : {}),
@@ -341,7 +384,8 @@ async function make(ctx: Ctx, input: unknown): Promise<Filled> {
   const pass: Record<string, unknown> = { templateFileId, intoFolderId: folder.folderId, recordId };
   for (const k of ["values", "signingDate", "name", "format"]) if (o[k] !== undefined) pass[k] = o[k];
   // a retry of the same ask makes the same file: the key is the ask itself
-  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${typeof o.idempotencyKey === "string" ? o.idempotencyKey : ""}`;
+  // with the caller's key a retry is the same file; with none, every call is its own ask (the trace id is new for each), so an old file is never replayed for a new one
+  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${typeof o.idempotencyKey === "string" ? o.idempotencyKey : ctx.trace.traceId}`;
   return (await ctx.call("documents.fill", pass)) as Filled;
 }
 
