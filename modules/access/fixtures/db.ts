@@ -46,6 +46,14 @@ export class MemoryDb implements Db {
         this.tables.set(name, []);
         return { changes: rows.length };
       }
+      const inList = /^("?[A-Za-z0-9_]+"?)\s+IN\s*\(([^)]*)\)$/i.exec(del[2].trim()); // one column against a list: DELETE ... WHERE id IN (?,?,?)
+      if (inList) {
+        const col = unquote(inList[1]!);
+        const gone = new Set(args.slice(0, inList[2]!.split(",").length));
+        const keep = rows.filter((row) => !gone.has(row[col]));
+        this.tables.set(name, keep);
+        return { changes: rows.length - keep.length };
+      }
       const cols = del[2].split(/\s+AND\s+/i).map((c) => unquote(c.split("=")[0]!));
       const keep = rows.filter((row) => !cols.every((c, i) => row[c] === (args[i] ?? null)));
       this.tables.set(name, keep);
@@ -61,20 +69,24 @@ export class MemoryDb implements Db {
       .split(",")
       .map(unquote)
       .filter((c) => c.length > 0);
-    const row: Record<string, unknown> = {};
-    for (let i = 0; i < cols.length; i++) row[cols[i]!] = args[i] ?? null;
     const list = this.tables.get(name) ?? [];
     const pk = PKS[name];
-    const at = pk ? list.findIndex((r) => pk.every((c) => r[c] === row[c])) : -1;
-    if (at >= 0 && ins[6]) {
-      const c = ins[6];
-      list[at]![c] = Math.max(Number(list[at]![c]), Number(row[c]));
-    } // ON CONFLICT DO UPDATE SET c = max(c, excluded.c)
-    else if (at >= 0 && ins[1])
-      list[at] = row; // OR REPLACE
-    else list.push(row);
+    // VALUES (?,?),(?,?): as many rows as there are groups, each taking its columns' worth of the arguments in order
+    const groups = Math.max(1, (/VALUES\s*(\(.*?\)(?:\s*,\s*\(.*?\))*)/is.exec(sql)?.[1]?.match(/\(/g) ?? []).length);
+    for (let g = 0; g < groups; g++) {
+      const row: Record<string, unknown> = {};
+      for (let i = 0; i < cols.length; i++) row[cols[i]!] = args[g * cols.length + i] ?? null;
+      const at = pk ? list.findIndex((r) => pk.every((c) => r[c] === row[c])) : -1;
+      if (at >= 0 && ins[6]) {
+        const c = ins[6];
+        list[at]![c] = Math.max(Number(list[at]![c]), Number(row[c]));
+      } // ON CONFLICT DO UPDATE SET c = max(c, excluded.c)
+      else if (at >= 0 && ins[1])
+        list[at] = row; // OR REPLACE
+      else list.push(row);
+    }
     this.tables.set(name, list);
-    return { changes: 1 };
+    return { changes: groups };
   }
 }
 

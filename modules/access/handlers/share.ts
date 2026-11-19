@@ -107,6 +107,8 @@ export class ShareStore {
   idem = new Map<string, unknown>();
   /** The objects whose rows must be worked out again before this cache is current (what the access tables did since it was built): taken from the kept copy by `shareOf`, worked off by `ensureFresh` or `commit`. */
   pending: string[] = [];
+  /** Set when `pending` came from the sync's change log (not from a comparison): nothing was deleted, and the kept comparison base is brought up to date in place for those objects instead of copied again. */
+  patch: { base: Base; roots: string[] } | null = null;
   /** `access` by resource: which cached rows each resource has, built when first needed and kept in step by `setRow` and `dropRow`. */
   byRes: Map<string, Set<string>> | null = null;
 }
@@ -208,6 +210,17 @@ const baseOf = (store: AccessStore): Base => ({
   rest: restOf(store),
 });
 
+/** The comparison base brought up to the store for the objects that changed, in place (the rest of the Space was not touched, so the 140,000 other entries are not copied again). Grants are few and copied. */
+function patchBase(base: Base, store: AccessStore, roots: readonly string[]): Base {
+  for (const id of roots) {
+    const r = store.resources.get(id);
+    if (r) base.resources.set(id, r);
+    else base.resources.delete(id);
+  }
+  base.grants = new Map(store.grants);
+  return base;
+}
+
 /** The objects whose rows must be worked out again since `base`, or null when the change is not one it can scope (then everything is). */
 export function changedRoots(base: Base, store: AccessStore): string[] | null {
   if (restOf(store) !== base.rest) return null;
@@ -274,18 +287,20 @@ export function shareOf(ctx: AccessCtx): ShareStore {
     const st = kept ? stateOf(ctx.db) : null;
     if (kept && st && st.rows === kept.rows && st.folders === kept.folders && kept.ss.fresh >= 0) {
       const store = storeOf(ctx);
-      const roots =
-        ctx.now() >= kept.ss.until
-          ? null
-          : kept.store === store && kept.epoch === store.epoch
-            ? []
-            : kept.store === store
-              ? (touchesSince(store, kept.logSeq) ?? changedRoots(kept.base, store))
-              : changedRoots(kept.base, store);
+      const sameStore = kept.store === store;
+      const expired = ctx.now() >= kept.ss.until;
+      const logged = sameStore && !expired && kept.epoch !== store.epoch ? touchesSince(store, kept.logSeq) : null;
+      const roots = expired
+        ? null
+        : sameStore && kept.epoch === store.epoch
+          ? []
+          : (logged ?? changedRoots(kept.base, store));
+      const fromLog = logged !== null && logged.length > 0;
       if (roots) {
         if (!reader) KEPT.delete(raw);
         const ss = kept.ss;
         ss.pending = roots;
+        ss.patch = fromLog && reader && roots ? { base: kept.base, roots } : null;
         ss.fresh = store.epoch;
         ss.idem = new Map(); // what a call remembered of its own idempotency keys is that call's, not the next call's
         if (!roots.length) shareKept.hits++;
@@ -612,7 +627,13 @@ function computeRows(
 }
 
 /** Bring my_access up to date. `roots` limits the work to those resources and what sits under them, and is honoured only when the cache was fresh before the change. */
-function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: readonly string[] | "all"): void {
+function rebuild(
+  ctx: AccessCtx,
+  store: AccessStore,
+  ss: ShareStore,
+  roots: readonly string[] | "all",
+  scanGone = true,
+): void {
   // the rows are worked out as a handler's own store always worked them out: without the role grants the host's decisions add to a kept snapshot (what a reader did before this call must not change them)
   let snap = store.snapshot();
   if (hasRoleGrants(snap)) snap = store.buildSnapshot();
@@ -641,7 +662,8 @@ function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: read
     // the rows of what is in scope, and those of a resource that is no longer there (a lookup per resource, not per row)
     const index = rowsByResource(ss);
     const ids = new Set(scope);
-    for (const id of index.keys()) if (!store.resources.has(id)) ids.add(id);
+    // a resource that is gone ends the sync's log (it is not an in-place change), so what is asked of the log never holds one: no walk over every cached row for it
+    if (scanGone) for (const id of index.keys()) if (!store.resources.has(id)) ids.add(id);
     for (const id of ids) for (const key of [...(index.get(id) ?? [])]) dropIfGone(key);
   }
   const touched: AccessRow[] = [];
@@ -696,11 +718,13 @@ function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
   const raw = rawDbOf(ctx.db);
   const st = raw ? stateOf(ctx.db) : null;
   if (!raw || !st || ss.fresh !== store.epoch || ss.pending.length) return;
+  const base = ss.patch ? patchBase(ss.patch.base, store, ss.patch.roots) : baseOf(store);
+  ss.patch = null;
   KEPT.set(raw, {
     store,
     epoch: store.epoch,
     ss,
-    base: baseOf(store),
+    base,
     rows: st.rows,
     folders: st.folders,
     logSeq: logSeqOf(store),
@@ -713,10 +737,11 @@ function ensureFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
     if (!ss.pending.length) return;
     const roots = ss.pending;
     ss.pending = [];
-    rebuild(ctx, store, ss, roots);
+    rebuild(ctx, store, ss, roots, ss.patch === null);
     shareKept.incremental++;
   } else {
     ss.pending = [];
+    ss.patch = null;
     rebuild(ctx, store, ss, "all");
     shareKept.built++;
   }
@@ -735,6 +760,7 @@ function commit(
   if (persistFolderTables) persistFolders(ctx, ss);
   const pending = ss.pending;
   ss.pending = [];
+  ss.patch = null;
   rebuild(ctx, store, ss, wasFresh ? [...new Set([...roots, ...pending])] : "all");
   if (!isReader(ctx)) publish(ctx, store, ss);
 }
