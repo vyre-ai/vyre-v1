@@ -132,19 +132,8 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
       : target.screen === "meetings.closeout"
         ? (target.args["meetingId"] ?? "")
         : null;
-  useEffect(() => {
-    if (meetingHash !== null && state.main !== "meetings") dispatch({ type: "meetings" });
-  }, [meetingHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the tab
-  // a link to the Replies list (the old Threads page redirects here) opens it
-  const repliesHash = target.screen === "inbox.replies";
-  useEffect(() => {
-    if (repliesHash && state.main !== "replies") dispatch({ type: "replies" });
-  }, [repliesHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   // a link to an event (vyre://event/<id>, Copy Link in the event pane) opens the Calendar with that event in its pane
   const eventHash = target.subject?.type === "event" ? target.subject.id : null;
-  useEffect(() => {
-    if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" });
-  }, [eventHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   // Choosing another inbox, view, filter or the Calendar in the sidebar leaves the open conversation and shows the list again.
   const first = useRef(true);
   useEffect(() => {
@@ -295,6 +284,33 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   return <ContactList />;
 }
 
+/**
+ * What a link in the address does to the Inbox's view: a meeting opens the Meetings tab, the Replies list opens Replies, an event opens the Calendar. It lives in the frame, which is mounted for as long
+ * as the Inbox is. It used to sit in the middle pane, which a phone draws only after a sidebar row is tapped: the link was then applied at that tap, and took it away ("By contact" ended on Replies).
+ */
+function useInboxLinks(): void {
+  const { state, dispatch } = useInboxState();
+  const { target } = usePlaceHash();
+  const meetingHash =
+    target.subject?.type === "meeting"
+      ? target.subject.id
+      : target.screen === "meetings.closeout"
+        ? (target.args["meetingId"] ?? "")
+        : null;
+  useEffect(() => {
+    if (meetingHash !== null && state.main !== "meetings") dispatch({ type: "meetings" });
+  }, [meetingHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the tab
+  // a link to the Replies list (the old Threads page redirects here) opens it
+  const repliesHash = target.screen === "inbox.replies";
+  useEffect(() => {
+    if (repliesHash && state.main !== "replies") dispatch({ type: "replies" });
+  }, [repliesHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
+  const eventHash = target.subject?.type === "event" ? target.subject.id : null;
+  useEffect(() => {
+    if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" });
+  }, [eventHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
+}
+
 /** The sidebar and the middle side by side; on a phone one at a time: the list of inboxes first, then what a row opened, with a way back. */
 function InboxFrame({
   rt,
@@ -310,7 +326,9 @@ function InboxFrame({
   const inSlot = useInSidebarSlot();
   const { state } = useInboxState();
   const { target } = usePlaceHash();
-  const [entered, setEntered] = useState(false);
+  useInboxLinks();
+  // a link that opens a view (Replies) is already in the state at the first frame, so a phone draws it at once instead of the list of inboxes for a frame first
+  const [entered, setEntered] = useState(state.main !== "list");
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -419,7 +437,12 @@ function InboxView({ rt }: { rt: ShellRuntime }): ReactElement {
   }
   return (
     <InboxDataProvider value={data}>
-      <InboxStateProvider initial={scopeOfArgs(target.args)}>
+      <InboxStateProvider
+        initial={{
+          ...scopeOfArgs(target.args),
+          ...(target.screen === "inbox.replies" ? { main: "replies" as const } : {}),
+        }}
+      >
         <InboxFrame rt={rt} openId={openId} close={() => setOpenId("")} />
       </InboxStateProvider>
     </InboxDataProvider>
