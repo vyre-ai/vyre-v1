@@ -11,13 +11,13 @@ Add a Browser connection, or change one: where it runs and which agents may Read
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | connection_change when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | sensitive |
 | Team Space only | no |
 | HTTP | POST /v1/browser/sites/set |
-| MCP tool | none |
+| MCP tool | browser_sites_set (agents, deferred) |
 | CLI | none |
 | Emits | browser.site_changed |
 

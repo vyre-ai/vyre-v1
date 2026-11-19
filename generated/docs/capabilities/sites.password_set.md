@@ -11,13 +11,13 @@ Set the password visitors type to open a site whose access is password. Kept onl
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | signin_change when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |
 | Team Space only | no |
 | HTTP | POST /v1/sites/password_set |
-| MCP tool | none |
+| MCP tool | sites_password_set (sites, deferred) |
 | CLI | none |
 | Emits | none |
 

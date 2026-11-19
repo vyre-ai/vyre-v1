@@ -11,13 +11,13 @@ Remove file versions older than a time except the newest of each file and any na
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/files/versions_purge |
-| MCP tool | none |
+| MCP tool | files_versions_purge (files, deferred) |
 | CLI | none |
 | Emits | file_versions.purged |
 

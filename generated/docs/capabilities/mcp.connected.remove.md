@@ -11,13 +11,13 @@ Remove an outside agent: its tokens end at once, a call in flight fails, and the
 | Grant level | member |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | signin_change when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/mcp/connected/remove |
-| MCP tool | none |
+| MCP tool | mcp_connected_remove (meta, deferred) |
 | CLI | none |
 | Emits | mcp.client_removed |
 

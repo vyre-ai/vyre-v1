@@ -2,7 +2,7 @@
   "module": "runs",
   "capabilities": {
     "runs.count@1": "39fa4eb2bc9b1fc204623bd4811d87e49e7797db402f9750423e5973e10120c7",
-    "runs.erase@1": "cea79946854c60344be4bcaab23e07d2efbe75ce55d70519d9820eac27674c79",
+    "runs.erase@1": "34b9c32c003475c3b57b5994f7556661a400081746ff893a39c35c27a23f9da6",
     "runs.finish@1": "7ec04a5014bcbc810e28c3c65ca07683d1e7052e3292581efbb5c8875e237824",
     "runs.get@1": "fec6e404c24e5b2f48d15177ddc180e012c4fb222cb62438f87cbcdc7a829972",
     "runs.list@1": "548ff16f036405ac0c11fd0cc3fcd3d47aa6c3dd0465f1b2a9589957882f09d8",
@@ -10,7 +10,7 @@
     "runs.people_counts@1": "9cbee500e591737ef53ab9721cea4783b039af73a8baba3946368f5a87d54cb9",
     "runs.pin_version@1": "97a4f6d363d827b789bc011e03606e3ec5dcc4e1d47e1adb07cba12b7237b8d8",
     "runs.preview_undo@1": "a3a996524c663a6116c1896eb95ac8b4674471c0f11aad13edddd2294e0e77bd",
-    "runs.purge@1": "13cac0ab618473db7663fc88363b4d8249c7a6c3152bc57ed324f441a2029eda",
+    "runs.purge@1": "3c93c5fa91e513fda49dffc988652f8306a761bd8c4ffcb6ed12320115387e5c",
     "runs.record_key@1": "ca98d17cd25d731e956fec05f7e2e9f4f2cd82ad4c8d5c147559183898adb59c",
     "runs.record_step@1": "ee2166d1ab6b2f888e81b7462e03d47fb538da36ed300eee56a64151f48fade7",
     "runs.replay@1": "5cdb78573d199677ac3815e89b607a7fb9b38e510b60c5335048d17fc982bf69",

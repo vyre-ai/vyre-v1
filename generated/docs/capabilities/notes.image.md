@@ -17,7 +17,7 @@ The image of a note (or a clip screenshot), or with part link its link card pict
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/notes/image |
-| MCP tool | none |
+| MCP tool | notes_image (memory, deferred) |
 | CLI | none |
 | Emits | none |
 

@@ -11,13 +11,13 @@ Console: who may add skills that run scripts or start tool servers (everyone, th
 | Grant level | manage |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | connection_change when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/skills/policy/set |
-| MCP tool | none |
+| MCP tool | skills_policy_set (engineer, deferred) |
 | CLI | none |
 | Emits | skill.policy_changed |
 

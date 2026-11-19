@@ -17,7 +17,7 @@ The outside agents you connected; with all, every outside agent in the Space (ow
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mcp/connected/list |
-| MCP tool | none |
+| MCP tool | mcp_connected_list (meta, deferred) |
 | CLI | none |
 | Emits | none |
 

@@ -541,7 +541,7 @@ test("a file with no version from before the turn began (older ones purged, or m
   assert.equal(r.sent.filter((x) => x.cap === "files.write").length, 0, "nothing was written");
 });
 
-test("no agent tool can change a note's text, title, pin, labels or links today (only notes_create reads or writes one); the tool layer already carries the version for the day one does", async () => {
+test("an agent edits a note through the tool layer's version check: only these note tools exist, and notes_update carries expectedVersion", async () => {
   const { catalog } = loadGenerated();
   const tools = catalog.all
     .filter((t) => t.cap.startsWith("notes."))
@@ -549,7 +549,7 @@ test("no agent tool can change a note's text, title, pin, labels or links today 
     .sort();
   assert.deepEqual(
     tools,
-    ["notes_create", "notes_get", "notes_search"],
+    ["notes_create", "notes_get", "notes_image", "notes_label", "notes_list", "notes_pin", "notes_search", "notes_update"],
     "a new note tool must be added to the kinds in agent/src/tools/versions.ts",
   );
   const { kindOfWrite } = await import("../src/tools/versions.ts");

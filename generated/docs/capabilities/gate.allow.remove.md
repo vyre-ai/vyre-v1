@@ -11,13 +11,13 @@ Take an Always allow rule or an automation's permission back. It stops at the ne
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | approve when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/gate/allow/remove |
-| MCP tool | none |
+| MCP tool | gate_allow_remove (engineer, deferred) |
 | CLI | none |
 | Emits | none |
 

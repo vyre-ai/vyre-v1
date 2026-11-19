@@ -17,7 +17,7 @@ System: did the person give this link, or did a page already read in this chat l
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/gate/links/known |
-| MCP tool | none |
+| MCP tool | gate_links_known (engineer, deferred) |
 | CLI | none |
 | Emits | none |
 

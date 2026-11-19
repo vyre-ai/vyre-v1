@@ -11,13 +11,13 @@ Console: make a skill a member shared Space-wide, so it applies to everyone with
 | Grant level | manage |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | connection_change when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/skills/space/adopt |
-| MCP tool | none |
+| MCP tool | skills_space_adopt (engineer, deferred) |
 | CLI | none |
 | Emits | skill.added |
 

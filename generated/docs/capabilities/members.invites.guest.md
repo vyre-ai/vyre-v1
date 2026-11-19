@@ -11,13 +11,13 @@ System: an email invite as a guest of one chat only, called by threads.invite_gu
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | signin_change when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | yes |
 | HTTP | POST /v1/members/invites/guest |
-| MCP tool | none |
+| MCP tool | members_invites_guest (engineer, deferred) |
 | CLI | none |
 | Emits | member.invited |
 

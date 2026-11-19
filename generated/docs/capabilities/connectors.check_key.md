@@ -17,7 +17,7 @@ Try the key a person typed against the app before it is stored; answers ok, reje
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/connectors/check_key |
-| MCP tool | none |
+| MCP tool | connectors_check_key (engineer, deferred) |
 | CLI | none |
 | Emits | connection.needs_reconnect |
 

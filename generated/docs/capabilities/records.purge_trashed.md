@@ -11,13 +11,13 @@ Hard-delete records that have been in Trash since before a time (retention)
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/records/purge_trashed |
-| MCP tool | none |
+| MCP tool | records_purge_trashed (records, deferred) |
 | CLI | none |
 | Emits | records.trash_purged |
 

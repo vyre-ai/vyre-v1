@@ -11,13 +11,13 @@ Console: fetch a Space skill again from its link or repo
 | Grant level | manage |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | connection_change when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/skills/space/update |
-| MCP tool | none |
+| MCP tool | skills_space_update (engineer, deferred) |
 | CLI | none |
 | Emits | skill.added |
 

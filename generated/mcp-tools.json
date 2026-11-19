@@ -287,6 +287,136 @@
     },
     {
       "blocks": [],
+      "cap": "access.automation_senders",
+      "deferred": true,
+      "description": "A person's press gives a Space Automation use of the mailboxes and numbers its send steps name, inside that person's own access, and takes back what no step names any more",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "give": {
+            "items": {
+              "properties": {
+                "id": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "space",
+                    "record_type",
+                    "record",
+                    "project",
+                    "folder",
+                    "file",
+                    "channel",
+                    "thread",
+                    "inbox",
+                    "mailbox",
+                    "vault_folder",
+                    "vault_item",
+                    "automation_group",
+                    "automation",
+                    "agent",
+                    "connector",
+                    "connection",
+                    "site",
+                    "form",
+                    "kit",
+                    "terminal",
+                    "computer",
+                    "task",
+                    "run",
+                    "number",
+                    "domain",
+                    "calendar",
+                    "skill"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "id"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "keep": {
+            "items": {
+              "properties": {
+                "id": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "space",
+                    "record_type",
+                    "record",
+                    "project",
+                    "folder",
+                    "file",
+                    "channel",
+                    "thread",
+                    "inbox",
+                    "mailbox",
+                    "vault_folder",
+                    "vault_item",
+                    "automation_group",
+                    "automation",
+                    "agent",
+                    "connector",
+                    "connection",
+                    "site",
+                    "form",
+                    "kit",
+                    "terminal",
+                    "computer",
+                    "task",
+                    "run",
+                    "number",
+                    "domain",
+                    "calendar",
+                    "skill"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "id"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "automationId",
+          "give",
+          "keep"
+        ],
+        "type": "object"
+      },
+      "name": "access_automation_senders",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "access.check",
       "deferred": false,
       "description": "Access checker: can principal P do action A on resource R, with each step in plain words",
@@ -1381,6 +1511,106 @@
         "type": "object"
       },
       "name": "access_groups_update",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "access.join_share",
+      "deferred": true,
+      "description": "System: the join step of an invite that picked an agent; the new member gets the level as the inviter's act, while the inviter could still give it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "inviter": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "view",
+              "use",
+              "edit",
+              "manage"
+            ],
+            "type": "string"
+          },
+          "person": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "resource": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "rec_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "space",
+                  "record_type",
+                  "record",
+                  "project",
+                  "folder",
+                  "file",
+                  "channel",
+                  "thread",
+                  "inbox",
+                  "mailbox",
+                  "vault_folder",
+                  "vault_item",
+                  "automation_group",
+                  "automation",
+                  "agent",
+                  "connector",
+                  "connection",
+                  "site",
+                  "form",
+                  "kit",
+                  "terminal",
+                  "computer",
+                  "task",
+                  "run",
+                  "number",
+                  "domain",
+                  "calendar",
+                  "skill"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          },
+          "source": {
+            "examples": [
+              "invite:inv_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource",
+          "person",
+          "level",
+          "inviter",
+          "source"
+        ],
+        "type": "object"
+      },
+      "name": "access_join_share",
       "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
@@ -6751,6 +6981,33 @@
     },
     {
       "blocks": [],
+      "cap": "automations.key_hosts.allow",
+      "deferred": true,
+      "description": "A person who may use a Vault key approves one host it may be sent to. A person only.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "vaultItemId": {
+            "description": "The item id (vit_...) or its handle (#Name or #Name.field)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vaultItemId",
+          "host"
+        ],
+        "type": "object"
+      },
+      "name": "automations_key_hosts_allow",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.key_hosts.list",
       "deferred": false,
       "description": "The hosts a person approved for one Vault key: a key is sent only to these, or to the host of the item's own saved address. Names only, never a value.",
@@ -6768,6 +7025,127 @@
         "type": "object"
       },
       "name": "automations_key_hosts_list",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.key_hosts.pending",
+      "deferred": true,
+      "description": "What a held test read would send: the Vault item (as the server reads the reference, for the person looking) and the host. The card names the key from this. Names only, never a value.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "actionKey": {
+            "type": "string"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "header": {
+            "type": "string"
+          },
+          "markedSafe": {
+            "type": "boolean"
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "vaultItemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "domains",
+          "vaultItemId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_key_hosts_pending",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.key_hosts.pending_bind",
+      "deferred": true,
+      "description": "What a held key binding would do: the Vault keys (as the server reads them, for the person looking) and every domain of the connector. Names only, never a value.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "type": "string"
+          },
+          "connector": {
+            "type": "string"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "ownerKind": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "secrets": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "slot": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "automations_key_hosts_pending_bind",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.key_hosts.remove",
+      "deferred": true,
+      "description": "A person who may use a Vault key removes a host it was approved for. The next use of the key there waits for a person again.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "itemId": {
+            "description": "The item id (vit_...) or its handle",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "host"
+        ],
+        "type": "object"
+      },
+      "name": "automations_key_hosts_remove",
       "planMode": "blocked",
       "toolset": "automations",
       "v": 1
@@ -8887,6 +9265,32 @@
     },
     {
       "blocks": [],
+      "cap": "backup.export_start",
+      "deferred": true,
+      "description": "Start the owner full export as a zip (never secret values, never other people private chats or personal memory)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "backup_export_start",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "backup.export_status",
       "deferred": false,
       "description": "Read current-owner private export readiness and file metadata",
@@ -8932,6 +9336,37 @@
       },
       "name": "backup_list",
       "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "backup.restore",
+      "deferred": true,
+      "description": "Restore from a backup (takes a fresh backup first, replays tombstones before opening for traffic)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "backupId": {
+            "examples": [
+              "bkp_a1b2c3"
+            ],
+            "pattern": "^bkp_[a-z0-9]+$",
+            "type": "string"
+          },
+          "confirm": {
+            "const": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "backupId",
+          "confirm"
+        ],
+        "type": "object"
+      },
+      "name": "backup_restore",
+      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
@@ -9133,6 +9568,60 @@
     },
     {
       "blocks": [],
+      "cap": "browser.cards.post",
+      "deferred": true,
+      "description": "Leave a card in a chat for work in the person's own Chrome: a held send with the page's To, From, Subject and Message, or the \"Using your Chrome\" step with a masked picture. Never routes to an agent",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "block": {
+            "properties": {
+              "data": {
+                "description": "Any JSON value"
+              },
+              "type": {
+                "enum": [
+                  "chrome_held",
+                  "chrome_step"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "data"
+            ],
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "block",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "browser_cards_post",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "browser.sites.list",
       "deferred": false,
       "description": "The Browser connections: sites agents may use, where each runs, and each agent's right (Read only or Act). A person sees their own; an agent sees the sites that name it",
@@ -9144,6 +9633,101 @@
       "name": "browser_sites_list",
       "planMode": "allowed",
       "toolset": "computer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "browser.sites.remove",
+      "deferred": true,
+      "description": "Remove a Browser connection",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "bsi_a1b2c3"
+            ],
+            "pattern": "^bsi_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "browser_sites_remove",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "browser.sites.set",
+      "deferred": true,
+      "description": "Add a Browser connection, or change one: where it runs and which agents may Read only or Act. Sends, posts, payments and deletes are always held for you",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "host": {
+            "examples": [
+              "app.gohighlevel.com"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "rights": {
+            "items": {
+              "properties": {
+                "agentId": {
+                  "examples": [
+                    "agt_a1b2c3"
+                  ],
+                  "pattern": "^agt_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "right": {
+                  "enum": [
+                    "read",
+                    "act"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "agentId",
+                "right"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "runsIn": {
+            "enum": [
+              "chrome",
+              "computers",
+              "both"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "runsIn",
+          "rights",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "browser_sites_set",
+      "planMode": "blocked",
+      "toolset": "agents",
       "v": 1
     },
     {
@@ -10703,6 +11287,40 @@
     },
     {
       "blocks": [],
+      "cap": "channels.erase",
+      "deferred": true,
+      "description": "Erase one channel for good with all its messages (governance erase)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "channels_erase",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "channels.get",
       "deferred": false,
       "description": "Read one channel with members, agents and unread count",
@@ -11104,6 +11722,35 @@
         "type": "object"
       },
       "name": "channels_update",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.agent_dm.mute",
+      "deferred": true,
+      "description": "Mute agent messages from one person for the rest of my day; what their agents send waits until tomorrow and the person is told. undo lifts it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "undo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "personId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_agent_dm_mute",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -13117,6 +13764,56 @@
         "type": "object"
       },
       "name": "chat_thread",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.transcript.purge",
+      "deferred": true,
+      "description": "Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 5000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "skipThreadIds": {
+            "items": {
+              "examples": [
+                "thr_a1b2c3"
+              ],
+              "pattern": "^thr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "before",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_transcript_purge",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -16281,6 +16978,38 @@
     },
     {
       "blocks": [],
+      "cap": "connectors.check_key",
+      "deferred": true,
+      "description": "Try the key a person typed against the app before it is stored; answers ok, rejected, limited (the key works but may not read what the check needs) or unreachable and never repeats the key",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "connector": {
+            "examples": [
+              "hubspot"
+            ],
+            "type": "string"
+          },
+          "secrets": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "connector",
+          "secrets"
+        ],
+        "type": "object"
+      },
+      "name": "connectors_check_key",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "connectors.define",
       "deferred": false,
       "description": "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
@@ -16460,6 +17189,31 @@
         "type": "object"
       },
       "name": "connectors_export",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "connectors.for_service",
+      "deferred": true,
+      "description": "Find the connector for a service named in words (Fathom, Slack), the fields it needs, and whether the caller already has it connected",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "service": {
+            "examples": [
+              "Fathom"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "service"
+        ],
+        "type": "object"
+      },
+      "name": "connectors_for_service",
       "planMode": "allowed",
       "toolset": "engineer",
       "v": 1
@@ -23940,6 +24694,56 @@
     },
     {
       "blocks": [],
+      "cap": "files.versions_purge",
+      "deferred": true,
+      "description": "Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 5000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "skipFileIds": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "before",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "files_versions_purge",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "files.viewer_data",
       "deferred": false,
       "description": "Everything the one viewer needs for any file type: text projection, pages, preview address, sheet info, export snapshot for Google-native files, and what the caller may do",
@@ -25192,6 +25996,111 @@
     },
     {
       "blocks": [],
+      "cap": "gate.allow.list",
+      "deferred": true,
+      "description": "What may go without asking: your Always allow rules and the automations your press gave permission to",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "gate_allow_list",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "gate.allow.remove",
+      "deferred": true,
+      "description": "Take an Always allow rule or an automation's permission back. It stops at the next act",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "gate_allow_remove",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "gate.allow.set",
+      "deferred": true,
+      "description": "Always allow: a rule the Gate reads, for one agent or one chat, one act and one target, with an expiry. Local changes are a person's to allow; an outward act needs an admin; money is never allowed this way",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "act": {
+            "enum": [
+              "send",
+              "post",
+              "pay",
+              "delete",
+              "transfer",
+              "enroll_node",
+              "connection_change",
+              "push_protected",
+              "secret_export",
+              "site_promote",
+              "signature_send",
+              "spend_raise",
+              "signin_change",
+              "install",
+              "approve",
+              "github_approval",
+              "agent_erase"
+            ],
+            "type": "string"
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "days": {
+            "maximum": 90,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "recipient": {
+            "type": "boolean"
+          },
+          "target": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "act",
+          "target"
+        ],
+        "type": "object"
+      },
+      "name": "gate_allow_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "gate.effective_rule",
       "deferred": false,
       "description": "The effective rule for a principal and act: the strictest of Space policy, owner floor and agent.toml",
@@ -25348,6 +26257,40 @@
       "name": "gate_holds_list",
       "planMode": "allowed",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "gate.links.known",
+      "deferred": true,
+      "description": "System: did the person give this link, or did a page already read in this chat link to it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threads": {
+            "items": {
+              "examples": [
+                "thr_a1b2c3"
+              ],
+              "pattern": "^thr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "threads"
+        ],
+        "type": "object"
+      },
+      "name": "gate_links_known",
+      "planMode": "allowed",
+      "toolset": "engineer",
       "v": 1
     },
     {
@@ -32639,6 +33582,173 @@
     },
     {
       "blocks": [],
+      "cap": "hooks.allow_always",
+      "deferred": true,
+      "description": "Always allow: from now on this hook lets the same kind of act (the one its newest stop in this chat was about) go by, in its own scope, and keeps guarding the rest. A person presses it, where they may change the hook",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_allow_always",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "hooks.allow_once",
+      "deferred": true,
+      "description": "Let a hook that stopped something go by, once, in this chat: the next time it would stop the same kind of call it lets it through. A person presses it, never an agent; a Space hook only an admin may let through. The pass ends after one use or ten minutes",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_allow_once",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "hooks.allow_remove",
+      "deferred": true,
+      "description": "Take an always-allow rule away: the hook guards that kind of act again",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_allow_remove",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "hooks.ask_admin",
+      "deferred": true,
+      "description": "Ask the Space admins about a hook that stopped something: one Inbox line for each admin, and a quiet line in the chat saying you asked",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_ask_admin",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "hooks.deny",
+      "deferred": true,
+      "description": "Deny: the stop stands. The stop line is marked for everyone in the chat and the agent is told on its next turn. A person presses it, where they may change the hook",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_deny",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "hooks.list",
       "deferred": false,
       "description": "List hooks: the Space's, yours, and an agent's or one chat's. Each has a plain line, when it runs, what it does and who made it. Use this before you add one",
@@ -32675,6 +33785,76 @@
       "name": "hooks_list",
       "planMode": "allowed",
       "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "hooks.pause",
+      "deferred": true,
+      "description": "Pause a hook, or turn it back on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "paused"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_pause",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "hooks.policy.get",
+      "deferred": true,
+      "description": "Whether agents may make hooks in this Space",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "hooks_policy_get",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "hooks.policy.set",
+      "deferred": true,
+      "description": "Space admins: allow or turn off hooks made by agents for the whole Space. Hooks agents already made stay but do not run while it is off",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentHooks": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agentHooks"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_policy_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
       "v": 1
     },
     {
@@ -33808,6 +34988,39 @@
       },
       "name": "inbox_following",
       "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "inbox.item.erase",
+      "deferred": true,
+      "description": "Erase the conversation entries of one message, text or call for good: previews, subjects and participants go, the conversation keeps only what other items still say (governance erase)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "refId": {
+            "examples": [
+              "sms_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "refId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "inbox_item_erase",
+      "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
     },
@@ -37636,6 +38849,40 @@
     },
     {
       "blocks": [],
+      "cap": "mail.message.erase",
+      "deferred": true,
+      "description": "Erase one mail message for good (governance erase)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mail_message_erase",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.message.get",
       "deferred": false,
       "description": "Read one message with attachments, provider id, DNS check state and trace id",
@@ -38482,6 +39729,51 @@
       },
       "name": "mcp_connected_link",
       "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mcp.connected.list",
+      "deferred": true,
+      "description": "The outside agents you connected; with all, every outside agent in the Space (owners and admins, Console)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "all": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "mcp_connected_list",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mcp.connected.remove",
+      "deferred": true,
+      "description": "Remove an outside agent: its tokens end at once, a call in flight fails, and the agent goes to Trash",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "mcp_connected_remove",
+      "planMode": "blocked",
       "toolset": "meta",
       "v": 1
     },
@@ -39869,6 +41161,68 @@
       "name": "members_invites_extend",
       "planMode": "blocked",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.invites.guest",
+      "deferred": true,
+      "description": "System: an email invite as a guest of one chat only, called by threads.invite_guest as the person inviting. The role is guest and the one place is the channel; a guest reads (view) or also writes (reply). No Everyone group, no home channel, no files or records",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "email": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "view",
+              "reply"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "chn_a1b2c3"
+                ],
+                "pattern": "^chn_[a-z0-9]+$",
+                "type": "string"
+              },
+              "type": {
+                "const": "channel",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "email",
+          "scope",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "members_invites_guest",
+      "planMode": "blocked",
+      "toolset": "engineer",
       "v": 1
     },
     {
@@ -41599,6 +42953,40 @@
       },
       "name": "memory_meaning_status",
       "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.notes.erase",
+      "deferred": true,
+      "description": "Erase one memory note for good, with its graph node and links (governance erase)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "noteId": {
+            "examples": [
+              "not_a1b2c3"
+            ],
+            "pattern": "^not_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "memory_notes_erase",
+      "planMode": "blocked",
       "toolset": "memory",
       "v": 1
     },
@@ -46997,6 +48385,160 @@
     },
     {
       "blocks": [],
+      "cap": "notes.image",
+      "deferred": true,
+      "description": "The image of a note (or a clip screenshot), or with part link its link card picture, for someone who may read it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "noteId": {
+            "examples": [
+              "nte_a1b2c3"
+            ],
+            "pattern": "^nte_[a-z0-9]+$",
+            "type": "string"
+          },
+          "part": {
+            "enum": [
+              "image",
+              "link"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId"
+        ],
+        "type": "object"
+      },
+      "name": "notes_image",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "notes.label",
+      "deferred": true,
+      "description": "Add or remove labels on a note",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "add": {
+            "items": {
+              "examples": [
+                "Lab 8"
+              ],
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "noteId": {
+            "examples": [
+              "nte_a1b2c3"
+            ],
+            "pattern": "^nte_[a-z0-9]+$",
+            "type": "string"
+          },
+          "remove": {
+            "items": {
+              "examples": [
+                "Lab 8"
+              ],
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "noteId"
+        ],
+        "type": "object"
+      },
+      "name": "notes_label",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "notes.list",
+      "deferred": true,
+      "description": "The notes the person reads: their own and those shared with them. Pinned first, newest first, with the labels in use",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "from": {
+            "enum": [
+              "all",
+              "mine",
+              "shared"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "examples": [
+              "Lab 8"
+            ],
+            "maxLength": 40,
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "q": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "notes_list",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "notes.pin",
+      "deferred": true,
+      "description": "Pin or unpin a note",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "noteId": {
+            "examples": [
+              "nte_a1b2c3"
+            ],
+            "pattern": "^nte_[a-z0-9]+$",
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "noteId",
+          "pinned"
+        ],
+        "type": "object"
+      },
+      "name": "notes_pin",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "notes.search",
       "deferred": false,
       "description": "Search the notes the asker may read: title, text, labels, link and clipped page. An agent finds only notes everyone in its chat may read",
@@ -47020,6 +48562,98 @@
       },
       "name": "notes_search",
       "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "notes.update",
+      "deferred": true,
+      "description": "Change a note: title, text, colour, image or link (null removes the image or link)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "maxLength": 100000,
+            "type": "string"
+          },
+          "color": {
+            "enum": [
+              "",
+              "rose",
+              "sand",
+              "sage",
+              "sky",
+              "lilac",
+              "slate"
+            ],
+            "type": "string"
+          },
+          "expectedVersion": {
+            "description": "The version you read; a note saved since then is not replaced, and the change is refused",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "properties": {
+                  "contentType": {
+                    "enum": [
+                      "image/png",
+                      "image/jpeg",
+                      "image/gif",
+                      "image/webp"
+                    ],
+                    "type": "string"
+                  },
+                  "data": {
+                    "description": "The image bytes, base64",
+                    "maxLength": 14000000,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "data",
+                  "contentType"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "noteId": {
+            "examples": [
+              "nte_a1b2c3"
+            ],
+            "pattern": "^nte_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 500,
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId"
+        ],
+        "type": "object"
+      },
+      "name": "notes_update",
+      "planMode": "blocked",
       "toolset": "memory",
       "v": 1
     },
@@ -48771,6 +50405,48 @@
       "name": "plugins_connections_policy",
       "planMode": "allowed",
       "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.connections.policy_set",
+      "deferred": true,
+      "description": "Set who may add Space connections (admins, or whoever manages agents) and the allow-list (registry names, https hosts, packages) for everyone who is not an admin",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "allowList": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "allowListOn": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "spaceAdders": {
+            "enum": [
+              "admins",
+              "managers"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_connections_policy_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
       "v": 1
     },
     {
@@ -53116,6 +54792,88 @@
     },
     {
       "blocks": [],
+      "cap": "records.purge",
+      "deferred": true,
+      "description": "Hard-delete one record for good: its fields, history, search entries and Trash row (governance erase; not Trash)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "records_purge",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.purge_trashed",
+      "deferred": true,
+      "description": "Hard-delete records that have been in Trash since before a time (retention)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 5000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "before",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "records_purge_trashed",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "records.query",
       "deferred": false,
       "description": "Query rows of a record type with filter, sort, group and window",
@@ -54287,6 +56045,40 @@
     },
     {
       "blocks": [],
+      "cap": "runs.erase",
+      "deferred": true,
+      "description": "Erase one Run for good with its steps, waits and alerts (governance erase)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "runId": {
+            "examples": [
+              "run_a1b2c3"
+            ],
+            "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "runs_erase",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "runs.get",
       "deferred": false,
       "description": "Read one Run: status, owner, key and model used, cost, thread, trace",
@@ -54495,6 +56287,46 @@
       },
       "name": "runs_preview_undo",
       "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "runs.purge",
+      "deferred": true,
+      "description": "Remove Runs and step logs older than a time, a batch at a time (retention)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 5000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "before",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "runs_purge",
+      "planMode": "blocked",
       "toolset": "automations",
       "v": 1
     },
@@ -58472,6 +60304,38 @@
     },
     {
       "blocks": [],
+      "cap": "sites.password_set",
+      "deferred": true,
+      "description": "Set the password visitors type to open a site whose access is password. Kept only as a hash",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "password": {
+            "maxLength": 200,
+            "minLength": 8,
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId",
+          "password"
+        ],
+        "type": "object"
+      },
+      "name": "sites_password_set",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.plan",
       "deferred": false,
       "description": "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",
@@ -59596,6 +61460,36 @@
     },
     {
       "blocks": [],
+      "cap": "skills.policy.set",
+      "deferred": true,
+      "description": "Console: who may add skills that run scripts or start tool servers (everyone, the default, or only admins)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "scriptsAdminOnly": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "scriptsAdminOnly",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_policy_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "skills.preview",
       "deferred": false,
       "description": "Read the skills in a link (a SKILL.md, a GitHub repo or folder, a zip), a dropped folder or a zip, with what each can touch. Nothing is saved",
@@ -59825,6 +61719,40 @@
     },
     {
       "blocks": [],
+      "cap": "skills.space.adopt",
+      "deferred": true,
+      "description": "Console: make a skill a member shared Space-wide, so it applies to everyone with no card",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_space_adopt",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "skills.space.install",
       "deferred": false,
       "description": "Console: set a skill for everyone in the Space. It applies to every member and their agents at once, with no card",
@@ -59863,6 +61791,73 @@
       "name": "skills_space_install",
       "planMode": "blocked",
       "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.space.setup",
+      "deferred": true,
+      "description": "Console: give the tool servers of a Space skill their Vault keys",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "setup": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "setup",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_space_setup",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.space.update",
+      "deferred": true,
+      "description": "Console: fetch a Space skill again from its link or repo",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_space_update",
+      "planMode": "blocked",
+      "toolset": "engineer",
       "v": 1
     },
     {
@@ -67735,6 +69730,40 @@
     },
     {
       "blocks": [],
+      "cap": "telephony.call.erase",
+      "deferred": true,
+      "description": "Erase one call for good: its transcript, summary and recording file (governance erase)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "callId": {
+            "examples": [
+              "cal_a1b2c3"
+            ],
+            "pattern": "^cal_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "callId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "telephony_call_erase",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "telephony.call.get",
       "deferred": false,
       "description": "Read one call with transcript, summary and recording",
@@ -68735,6 +70764,40 @@
         "type": "object"
       },
       "name": "telephony_send_sms",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "telephony.sms.erase",
+      "deferred": true,
+      "description": "Erase one text message for good (governance erase)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "smsId": {
+            "examples": [
+              "sms_a1b2c3"
+            ],
+            "pattern": "^sms_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "smsId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "telephony_sms_erase",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
@@ -70039,6 +72102,40 @@
         "type": "object"
       },
       "name": "threads_close",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "threads.erase",
+      "deferred": true,
+      "description": "Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "threads_erase",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1

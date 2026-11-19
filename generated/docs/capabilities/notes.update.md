@@ -17,7 +17,7 @@ Change a note: title, text, colour, image or link (null removes the image or lin
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/notes/update |
-| MCP tool | none |
+| MCP tool | notes_update (memory, deferred) |
 | CLI | none |
 | Emits | notes.updated |
 

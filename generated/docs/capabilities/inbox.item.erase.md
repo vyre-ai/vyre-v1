@@ -11,13 +11,13 @@ Erase the conversation entries of one message, text or call for good: previews, 
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/inbox/item/erase |
-| MCP tool | none |
+| MCP tool | inbox_item_erase (inbox, deferred) |
 | CLI | none |
 | Emits | inbox.item_erased |
 

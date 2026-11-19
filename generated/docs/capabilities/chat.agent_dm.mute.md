@@ -17,7 +17,7 @@ Mute agent messages from one person for the rest of my day; what their agents se
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/chat/agent_dm/mute |
-| MCP tool | none |
+| MCP tool | chat_agent_dm_mute (chats, deferred) |
 | CLI | none |
 | Emits | message.received |
 

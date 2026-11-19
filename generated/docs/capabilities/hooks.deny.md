@@ -11,13 +11,13 @@ Deny: the stop stands. The stop line is marked for everyone in the chat and the 
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | approve when actor.kind != 'person' |
 | Idempotency | none |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/hooks/deny |
-| MCP tool | none |
+| MCP tool | hooks_deny (engineer, deferred) |
 | CLI | none |
 | Emits | hook.changed |
 

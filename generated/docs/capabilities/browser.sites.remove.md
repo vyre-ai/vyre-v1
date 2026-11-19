@@ -11,13 +11,13 @@ Remove a Browser connection
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | connection_change when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |
 | Team Space only | no |
 | HTTP | POST /v1/browser/sites/remove |
-| MCP tool | none |
+| MCP tool | browser_sites_remove (agents, deferred) |
 | CLI | none |
 | Emits | browser.site_changed |
 

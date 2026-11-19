@@ -11,13 +11,13 @@ Hard-delete one record for good: its fields, history, search entries and Trash r
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/records/purge |
-| MCP tool | none |
+| MCP tool | records_purge (records, deferred) |
 | CLI | none |
 | Emits | record.purged |
 
