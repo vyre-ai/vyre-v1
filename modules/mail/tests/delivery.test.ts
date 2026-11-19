@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { statusUpdate } from "../handlers/extra/status.ts";
 import { BACKOFF_MS, CLAIM_STALE_MS, MAX_RETRIES, retry as retryNow, trail } from "../handlers/extra/delivery.ts";
-import { script, seedSent, eventErrors } from "../handlers/extra/kit.ts";
+import { hostError, script, seedSent, eventErrors } from "../handlers/extra/kit.ts";
 import { codeOf, contractErrors, harness, NOW, seedMailbox } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -227,7 +227,7 @@ test("a retry run by someone who may not send from that mailbox gives the attemp
   let deny = true;
   script(h, {
     "mail.send": (i) => {
-      if (deny) throw Object.assign(new Error("no grant"), { code: "permission.no_grant" });
+      if (deny) throw hostError(h, "permission.no_grant");
       sent.push(i);
       return { messageId: "eml_retry9", status: "sent", suppressed: [] };
     },
