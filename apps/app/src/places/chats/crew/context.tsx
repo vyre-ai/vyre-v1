@@ -71,7 +71,25 @@ export function CrewProvider({
   const run = useRunData(call ?? absent, threadId, {
     enabled: shown && call !== undefined && ((status?.members.length ?? 0) > 0 || open),
   });
-  const nodes = run.status === "ready" ? run.nodes : NO_NODES;
+  // a helper that has not had its first turn is a queued stand-in with no name: it takes the name the strip shows for that chat, so "Starts when Numbers is done" says who
+  const titles = useMemo(
+    () => new Map((status?.members ?? []).map((m) => [m.id, (m.name ?? m.title).trim()] as const)),
+    [status],
+  );
+  const runNamed = useMemo(
+    () =>
+      run.status !== "ready"
+        ? run
+        : {
+            ...run,
+            nodes: run.nodes.map((n) => {
+              const t = n.name === undefined && n.threadId !== undefined ? titles.get(n.threadId) : undefined;
+              return t ? { ...n, name: t } : n;
+            }),
+          },
+    [run, titles],
+  );
+  const nodes = runNamed.status === "ready" ? runNamed.nodes : NO_NODES;
   const value = useMemo<CrewCtx>(
     () => ({
       status,
@@ -82,7 +100,7 @@ export function CrewProvider({
       call,
       threadId,
       nodes,
-      run,
+      run: runNamed,
       open,
       close: () => {
         setOpen(false);
@@ -96,7 +114,7 @@ export function CrewProvider({
         onShow?.();
       },
     }),
-    [status, selected, seq, call, threadId, nodes, run, onShow, open, refresh, setLive],
+    [status, selected, seq, call, threadId, nodes, runNamed, onShow, open, refresh, setLive],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

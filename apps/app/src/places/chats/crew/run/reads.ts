@@ -208,6 +208,7 @@ export function nodesOf(out: unknown): RunNode[] {
         startedAt: num(n["startedAt"]) ?? 0,
         ...(str(n["parentRun"]) !== undefined ? { parentRun: str(n["parentRun"])! } : {}),
         ...(str(n["rootRun"]) !== undefined ? { rootRun: str(n["rootRun"])! } : {}),
+        ...(str(n["threadId"]) !== undefined ? { threadId: str(n["threadId"])! } : {}),
         ...(str(n["name"]) !== undefined ? { name: str(n["name"])! } : {}),
         ...(str(n["model"]) !== undefined ? { model: str(n["model"])! } : {}),
         ...(str(n["summary"]) !== undefined ? { summary: str(n["summary"])! } : {}),

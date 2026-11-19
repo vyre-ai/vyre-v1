@@ -1,0 +1,1 @@
+- A helper that waits for others now says who by name ("Starts when Numbers and Calendar are done"), including a helper that has not had its first turn yet.

@@ -6,6 +6,8 @@ import type { NodeLike } from "../run-view.ts";
 export type NodeStatus = NodeLike["status"];
 export interface RunNode extends NodeLike {
   rootRun?: string;
+  /** The helper's own chat: how a queued stand-in for a helper that has not had its first turn is matched to the helper the strip knows by name. */
+  threadId?: string;
   dependsOn?: readonly string[];
   stuck?: { since: number; reason: string };
   whoName?: string;
