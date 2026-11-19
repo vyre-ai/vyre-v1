@@ -25,7 +25,7 @@ const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) =>
-  /^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01|RUNSECTION_01)/.test(t.id),
+  /^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01|RUNSECTION_01|RERUN_01)/.test(t.id),
 );
 const report = [];
 for (const t of targets)
@@ -52,7 +52,7 @@ for (const t of targets)
       const over = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
       const file = path.join(
         out,
-        `${t.id.replace(/^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01|RUNSECTION_01)-/, "")}-${skin}-${size}.png`,
+        `${t.id.replace(/^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01|RUNSECTION_01|RERUN_01)-/, "")}-${skin}-${size}.png`,
       );
       await page.screenshot({ path: file });
       report.push({
@@ -102,6 +102,31 @@ for (const t of targets)
           await page.click(`[data-testid='${close}']`);
           await page.waitForTimeout(300);
         }
+      }
+      // a finished helper: open each form and shoot it, then the compare
+      if (t.id.startsWith("RERUN_01")) {
+        for (const [act, close, name] of [
+          ["crew-save-agent", "save-agent-cancel", "agent"],
+          ["crew-rerun", "rerun-cancel", "rerun"],
+        ]) {
+          await page.click(`[data-testid='${act}']`);
+          await page.waitForTimeout(400);
+          if (name === "rerun") await page.click("[data-testid='rerun-model']").catch(() => undefined);
+          await page.waitForTimeout(300);
+          await page.screenshot({ path: file.replace(".png", `-${name}.png`) });
+          report.push({ file: path.basename(file) + " " + name, closeControlShown: await page.locator(`[data-testid='${close}']`).count() });
+          await page.click(`[data-testid='${close}']`);
+          await page.waitForTimeout(300);
+        }
+        await page.click("[data-testid='crew-peek-tab-compare']");
+        await page.waitForTimeout(400);
+        await page.screenshot({ path: file.replace(".png", "-compare.png") });
+        report.push({
+          file: path.basename(file) + " compare",
+          sides: await page.locator("[data-testid^='compare-side-'][data-testid$='-result']").count(),
+          diff: await page.locator("[data-testid='compare-diff-1']").count(),
+          overflowX: await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1),
+        });
       }
       // a helper's session: press each tab and shoot it
       if (t.id.startsWith("PEEKTABS_01")) {

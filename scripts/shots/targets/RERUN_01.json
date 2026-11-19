@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "RERUN_01-helper",
+      "route": "/m/RERUN_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='rerun-mount']",
+      "note": "A finished helper with Save as an agent and Run again (each opens its form), and the Compare tab with the first run and one started again."
+    }
+  ]
+}
