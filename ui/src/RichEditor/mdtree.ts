@@ -686,7 +686,7 @@ function parseList(lines: readonly string[], start: number, tight: boolean): { n
   const ordered = b0 === null && o0 !== null;
   const marker = ordered ? (o0?.[3] ?? ".") : (b0?.[2] ?? "-");
   const startNum = ordered ? Number(o0?.[2] ?? 1) : 1;
-  const items: { task: boolean | null; checked: boolean; content: PMNode[]; gap: boolean }[] = [];
+  const items: { task: boolean | null; checked: boolean; content: PMNode[]; gap: boolean; sameLine: boolean }[] = [];
   let i = start;
   let gapNext = false;
   while (i < lines.length) {
@@ -710,8 +710,13 @@ function parseList(lines: readonly string[], start: number, tight: boolean): { n
       nest -= 1;
     }
     // the item starts with a paragraph: a line the item opens with that is not one becomes an empty paragraph's neighbour
-    if (inner.length === 0 || inner[0]?.type !== "paragraph") inner.unshift({ type: "paragraph" });
-    items.push({ task: t ? true : null, checked: t ? t[1] !== " " : false, content: inner, gap: gapNext });
+    // ("- - x" and "- > q" open the item's own block on the marker's line: that is remembered, so the file is written back the same way)
+    let sameLine = false;
+    if (inner.length === 0 || inner[0]?.type !== "paragraph") {
+      sameLine = inner.length > 0 && firstText.trim() !== "";
+      inner.unshift({ type: "paragraph" });
+    }
+    items.push({ task: t ? true : null, checked: t ? t[1] !== " " : false, content: inner, gap: gapNext, sameLine });
     gapNext = false;
     i = end;
     // a blank line between two items spaces the list
@@ -754,8 +759,8 @@ function parseList(lines: readonly string[], start: number, tight: boolean): { n
     runKind = it.task === true ? true : null;
     run.push(
       it.task === true
-        ? { type: "taskItem", attrs: { checked: it.checked, gap: it.gap }, content: it.content }
-        : { type: "listItem", attrs: { gap: it.gap }, content: it.content },
+        ? { type: "taskItem", attrs: { checked: it.checked, gap: it.gap, inline: it.sameLine }, content: it.content }
+        : { type: "listItem", attrs: { gap: it.gap, inline: it.sameLine }, content: it.content },
     );
   }
   emit();
@@ -1082,7 +1087,11 @@ function blockText(b: PMNode): string {
           it.type === "taskItem"
             ? `${String(b.attrs?.["marker"] ?? "-")} [${it.attrs?.["checked"] === true ? "x" : " "}] `
             : listMarker(b, n);
-        const inner = blocksToMarkdownBody(it.content ?? []);
+        // an item whose own block opened on the marker's line ("- - x") is written that way again
+        const kids = it.content ?? [];
+        const onMarkerLine =
+          it.attrs?.["inline"] === true && kids.length > 1 && kids[0]?.type === "paragraph" && (kids[0].content ?? []).length === 0;
+        const inner = blocksToMarkdownBody(onMarkerLine ? kids.slice(1) : kids);
         if (n > 0) text += it.attrs?.["gap"] === true ? "\n\n" : "\n";
         text += indentLines(inner, " ".repeat(mk.length), mk);
       }

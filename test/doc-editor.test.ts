@@ -452,8 +452,8 @@ for (const [label, text] of Object.entries(HOSTILE)) {
       assert.ok(best < 100, `${what} took ${Math.round(best)} ms`);
     };
     // what is valid Markdown comes back exactly as it went in
-    // nested lists written on one line ("- - - x") are the one shape the writer has always laid out differently (each level on its own line); everything else comes back exactly
-    if (label !== "a rule") assert.equal(roundtrip(body), body, "round trip");
+    // every hostile case that is valid Markdown comes back exactly as written
+    assert.equal(roundtrip(body), body, "round trip");
     let d = markdownToDoc("x\n", D);
     bound("reading", () => {
       d = markdownToDoc(body, D);
@@ -613,4 +613,14 @@ test("a list nested 300 levels deep, and a quote 5,000 deep, come back exactly a
     assert.equal(roundtrip(t), t);
     assert.ok(performance.now() - t0 < 1000, "read and save in under a second");
   }
+});
+
+test("lists and quotes opened on the marker's line come back as written, at depth 2 and depth 50", () => {
+  for (const n of [2, 3, 50]) for (const mk of ["- ", "1. ", "* ", "> "]) {
+    const t = `${mk.repeat(n)}x\n`;
+    assert.equal(roundtrip(t), t, `${n} x ${mk}`);
+    assert.equal(docToMarkdown(markdownToDoc(t)), t, `plain ${n} x ${mk}`);
+  }
+  for (const t of ["- > q\n", "1. - x\n     more\n", "- [ ] - x\n", "- - a\n  - b\n- c\n", "a\n\n- - x\n\nb\n"]) assert.equal(roundtrip(t), t, t);
+  schema.nodeFromJSON(markdownToDoc(`${"- ".repeat(50)}x\n`, D)).check();
 });
