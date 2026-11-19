@@ -8,6 +8,7 @@ import { cleanClientName, redirectKind, MAX_CLIENTS, MAX_REDIRECTS, UNUSED_CLIEN
 export const MAX_DOC_BYTES = 5 * 1024;
 export const DOC_TIMEOUT_MS = 3000;
 /** A page that has not been used yet is not given up for a newer one until it is this old, and never while an authorize of it is in flight (a request that has not expired): the time between the Allow page and the token exchange is always inside one or the other. */
+/** Longer than a sign-in request and an authorization code live (REQUEST_MS and CODE_MS in oauth.ts), so a page is never given up between its Allow page and its token exchange; modules/mcp/tests/client-doc.test.ts holds that. */
 export const EVICT_GRACE_MS = 15 * 60_000;
 /** The most pages one registered domain may have kept as clients. */
 export const MAX_DOCS_PER_HOST = 10;
@@ -111,13 +112,14 @@ export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectU
     const n = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
     // a full table makes room: the oldest page that nobody has ever used goes (never an app in use), so no actor can lock the others out by filling it; how fast one actor can add pages is the per-source limit in impl.ts
     if (n >= MAX_CLIENTS) {
-      const gone = db.all(
-        "SELECT client_id FROM mcp_oauth_clients WHERE used_at IS NULL AND client_id LIKE 'https://%' AND created_at < ? AND client_id NOT IN (SELECT client_id FROM mcp_oauth_requests WHERE expires_at > ?) ORDER BY created_at ASC LIMIT 1",
+      // one statement, so two callers at the cap cannot pick the same victim
+      db.run(
+        "DELETE FROM mcp_oauth_clients WHERE client_id = (SELECT client_id FROM mcp_oauth_clients WHERE used_at IS NULL AND client_id LIKE 'https://%' AND created_at < ? AND client_id NOT IN (SELECT client_id FROM mcp_oauth_requests WHERE expires_at > ?) ORDER BY created_at ASC LIMIT 1)",
         now - EVICT_GRACE_MS,
         now,
-      ) as Array<Record<string, unknown>>;
-      if (gone.length === 0) return false;
-      db.run("DELETE FROM mcp_oauth_clients WHERE client_id = ?", String(gone[0]!["client_id"]));
+      );
+      const left = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
+      if (left >= MAX_CLIENTS) return false;
     }
   }
   db.run(

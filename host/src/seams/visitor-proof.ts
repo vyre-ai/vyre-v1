@@ -18,3 +18,28 @@ export function provesVisitor(visitor: unknown, proof: unknown): boolean {
   if (typeof visitor !== "string" || typeof proof !== "string" || proof.length !== 64) return false;
   return timingSafeEqual(Buffer.from(mac(visitor)), Buffer.from(proof));
 }
+
+const VISITOR_HEADER = "x-vyre-visitor";
+const verified = new WeakMap<object, string>();
+const isLoopback = (a: string | undefined): boolean => a === "127.0.0.1" || a === "::1" || a === "::ffff:127.0.0.1";
+
+/**
+ * The first thing the daemon does with every request: read the visitor the relay vouched for, then remove both headers, so they exist only on the relay-to-daemon hop and no route, proxy, site or outbound fetch
+ * ever sees or forwards them. The visitor is kept for this request only when it came over the loopback with a MAC that checks out for that exact value; a client-written header, with no MAC or a wrong one, is dropped.
+ */
+export function takeVisitor(req: { headers: Record<string, string | string[] | undefined>; socket: { remoteAddress?: string | undefined } }): void {
+  const said = req.headers[VISITOR_HEADER];
+  const proof = req.headers[PROOF_HEADER];
+  if (isLoopback(req.socket.remoteAddress) && typeof said === "string" && said !== "" && provesVisitor(said, proof))
+    verified.set(req, said.slice(0, 64));
+  delete req.headers[VISITOR_HEADER];
+  delete req.headers[PROOF_HEADER];
+}
+
+/** Who is asking, for the per-visitor limits: the address the relay vouched for, else the connection's own. */
+export function visitorOfRequest(req: { socket: { remoteAddress?: string | undefined } }): string {
+  return verified.get(req) ?? req.socket.remoteAddress ?? "";
+}
+
+/** Did the relay vouch for this request's visitor? */
+export const verifiedVisitor = (req: object): boolean => verified.has(req);

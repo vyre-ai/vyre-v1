@@ -272,6 +272,7 @@ import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createMcpRoute } from "../routes/mcp.ts";
+import { takeVisitor } from "../seams/visitor-proof.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { privateKeyOf, publicKeyOf } from "../seams/person-keys.ts";
@@ -7613,6 +7614,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
     const appFiles = createAppFilesRoute({ dir: () => (o.appDir !== undefined ? o.appDir : defaultAppDir()) });
     server.on("request", (req, res) => {
+      // the visitor the relay vouched for is read once, here, and the two headers that carried it are removed: they exist only on the relay-to-daemon hop (seams/visitor-proof.ts)
+      takeVisitor(req);
       // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
       // decided by where the request comes from (review 12 Nov): a page in an agent's browser may call any address of this host, so the address it arrived on proves nothing
       const onComputerNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());

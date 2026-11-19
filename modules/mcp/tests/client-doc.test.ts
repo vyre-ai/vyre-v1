@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { EVICT_GRACE_MS, fetchDoc, isDocId, keepDoc, readDoc, registeredDomain, MAX_DOC_BYTES, MAX_DOCS_PER_HOST } from "../client-doc.ts";
-import { beginAuthorize, challengeOf, clientBy, serverMetadata, MAX_CLIENTS, UNUSED_CLIENT_MS } from "../oauth.ts";
+import { beginAuthorize, challengeOf, clientBy, serverMetadata, CODE_MS, MAX_CLIENTS, REQUEST_MS, UNUSED_CLIENT_MS } from "../oauth.ts";
 import { ensure } from "../projections.ts";
 import { harness } from "../fixtures/harness.ts";
 
@@ -174,4 +174,8 @@ test("a flood of new pages while one app is mid-authorize cannot evict it: the a
     keepDoc(h.db, { clientId: `https://flood${i}.spam${i}.org/c.json`, name: "x", redirectUris: [`https://flood${i}.spam${i}.org/cb`] }, now + i);
   assert.ok(clientBy(h.db, mid), "the app in flight is still known: its token exchange will find it");
   assert.equal(clientBy(h.db, "https://a.d1.com/c.json") === null, true, "others, the oldest unused and not in flight, were given up for the flood");
+});
+
+test("the eviction grace is longer than a sign-in request and an authorization code live, so no page is given up between its Allow page and its token exchange", () => {
+  assert.ok(EVICT_GRACE_MS > REQUEST_MS + CODE_MS, `${EVICT_GRACE_MS} must exceed ${REQUEST_MS + CODE_MS}`);
 });

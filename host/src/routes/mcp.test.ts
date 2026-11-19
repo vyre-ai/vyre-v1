@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { createMcpRoute, visitorOf } from "./mcp.ts";
-import { PROOF_HEADER, proofFor } from "../seams/visitor-proof.ts";
+import { createMcpRoute } from "./mcp.ts";
+import { PROOF_HEADER, proofFor, takeVisitor, visitorOfRequest, verifiedVisitor } from "../seams/visitor-proof.ts";
 
 type Runtime = ReturnType<Parameters<typeof createMcpRoute>[0]["runtime"]>;
 const SIGN_IN_NOTHING = { oauth: async () => null };
@@ -17,6 +17,7 @@ async function serve(
     origin: () => "https://acme.vyre.run",
   });
   const server = http.createServer((req, res) => {
+    takeVisitor(req); // the daemon does this before any route runs
     if (!route.handle(req, res)) {
       res.writeHead(404);
       res.end();
@@ -144,21 +145,41 @@ test("an app that goes away while the runtime is still answering does not hold i
   }
 });
 
-test("the visitor header is believed only with the relay's proof on a loopback connection; from anywhere else the connection's own address stands", () => {
-  const proof = { [PROOF_HEADER]: proofFor("203.0.113.9") };
-  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", ...proof }, "127.0.0.1"), "203.0.113.9");
-  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", ...proof }, "::1"), "203.0.113.9");
-  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", ...proof }, "198.51.100.7"), "198.51.100.7", "a proof from outside the loopback is not believed");
-  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9" }, "127.0.0.1"), "127.0.0.1", "a loopback connection with a forged header and no proof (a local proxy that passes headers through)");
-  assert.equal(visitorOf({ "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: "x".repeat(64) }, "127.0.0.1"), "127.0.0.1", "a wrong proof");
-  assert.equal(visitorOf({}, "198.51.100.7"), "198.51.100.7");
-  assert.equal(visitorOf({ "x-vyre-visitor": "", ...proof }, "127.0.0.1"), "127.0.0.1");
-  assert.equal(visitorOf({ "x-vyre-visitor": "198.18.0.1", ...proof }, "127.0.0.1"), "127.0.0.1", "a MAC made for another value does not carry this one: a captured proof cannot be reused with a different visitor");
-  const long = "x".repeat(300);
-  assert.equal(visitorOf({ "x-vyre-visitor": long, [PROOF_HEADER]: proofFor(long) }, "127.0.0.1").length, 64);
+type Req = Parameters<typeof takeVisitor>[0];
+const reqOf = (headers: Record<string, string>, remote: string): Req => ({ headers: { ...headers }, socket: { remoteAddress: remote } });
+
+test("the visitor the relay vouched for is read once and both headers are gone: a relayed request carries no proof or visitor header onward", () => {
+  const good = reqOf({ "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: proofFor("203.0.113.9"), accept: "*/*" }, "127.0.0.1");
+  takeVisitor(good);
+  assert.equal(visitorOfRequest(good), "203.0.113.9");
+  assert.equal(verifiedVisitor(good), true);
+  assert.deepEqual(Object.keys(good.headers), ["accept"], "nothing a proxy, a site or an outbound fetch could copy is left");
 });
 
-test("a forged visitor header does not reset a count: every forged value from one outside address is the same visitor", () => {
-  const keys = new Set(Array.from({ length: 50 }, (_, i) => visitorOf({ "x-vyre-visitor": `10.0.0.${i}` }, "198.51.100.7")));
+test("a visitor with no valid MAC is keyed by the connection's address, and the headers are removed either way", () => {
+  for (const [label, headers, remote, want] of [
+    ["forged header, no MAC (a local proxy that passes headers through)", { "x-vyre-visitor": "203.0.113.9" }, "127.0.0.1", "127.0.0.1"],
+    ["a MAC made for another value", { "x-vyre-visitor": "198.18.0.1", [PROOF_HEADER]: proofFor("203.0.113.9") }, "127.0.0.1", "127.0.0.1"],
+    ["a wrong MAC", { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: "x".repeat(64) }, "127.0.0.1", "127.0.0.1"],
+    ["a good MAC from outside the loopback", { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: proofFor("203.0.113.9") }, "198.51.100.7", "198.51.100.7"],
+    ["no visitor at all", {}, "198.51.100.7", "198.51.100.7"],
+  ] as const) {
+    const r = reqOf({ ...headers }, remote);
+    takeVisitor(r);
+    assert.equal(visitorOfRequest(r), want, label);
+    assert.equal(verifiedVisitor(r), false, label);
+    assert.equal(r.headers["x-vyre-visitor"], undefined, `${label}: header removed`);
+    assert.equal(r.headers[PROOF_HEADER], undefined, `${label}: MAC removed`);
+  }
+});
+
+test("forged visitor values from one outside address are one visitor, so a forged header cannot reset a count", () => {
+  const keys = new Set(
+    Array.from({ length: 50 }, (_, i) => {
+      const r = reqOf({ "x-vyre-visitor": `10.0.0.${i}` }, "198.51.100.7");
+      takeVisitor(r);
+      return visitorOfRequest(r);
+    }),
+  );
   assert.deepEqual([...keys], ["198.51.100.7"]);
 });
