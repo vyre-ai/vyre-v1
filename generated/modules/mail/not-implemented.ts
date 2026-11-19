@@ -7,6 +7,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "mail.address.add": async (ctx) => { throw new VyreErr(notImplemented("mail.address.add", ctx.trace)); },
   "mail.address.list": async (ctx) => { throw new VyreErr(notImplemented("mail.address.list", ctx.trace)); },
+  "mail.address.move": async (ctx) => { throw new VyreErr(notImplemented("mail.address.move", ctx.trace)); },
   "mail.attachment.save": async (ctx) => { throw new VyreErr(notImplemented("mail.attachment.save", ctx.trace)); },
   "mail.auto_connect_members": async (ctx) => { throw new VyreErr(notImplemented("mail.auto_connect_members", ctx.trace)); },
   "mail.connect": async (ctx) => { throw new VyreErr(notImplemented("mail.connect", ctx.trace)); },

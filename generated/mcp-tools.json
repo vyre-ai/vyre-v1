@@ -36502,6 +36502,63 @@
     },
     {
       "blocks": [],
+      "cap": "mail.address.move",
+      "deferred": false,
+      "description": "Point an address that exists at another inbox. Names the inbox it goes to now and the one it will go to; the person must be able to use the new inbox",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "domainId": {
+            "examples": [
+              "dom_a1b2c3"
+            ],
+            "pattern": "^dom_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fromMailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "localPart": {
+            "examples": [
+              "billing"
+            ],
+            "type": "string"
+          },
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "domainId",
+          "localPart",
+          "fromMailboxId",
+          "mailboxId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mail_address_move",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.attachment.save",
       "deferred": false,
       "description": "Save an attachment into Files",

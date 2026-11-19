@@ -1634,6 +1634,7 @@ export function createClient(transport: Transport) {
       address: {
         add: call("mail.address.add", 1),
         list: call("mail.address.list", 1),
+        move: call("mail.address.move", 1),
       },
       attachment: {
         save: call("mail.attachment.save", 1),

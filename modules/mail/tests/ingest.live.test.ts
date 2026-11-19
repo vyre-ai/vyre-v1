@@ -266,6 +266,7 @@ test("the handler map covers exactly the capabilities this module has built, eac
   const core = [
     "mail.address.add",
     "mail.address.list",
+    "mail.address.move",
     "mail.connect",
     "mail.draft",
     "mail.drafts.discard",

@@ -4,12 +4,16 @@
 // code as mail.mailbox.create and mail.route.set and keeps its own idempotency key, so a retry after a half-finished add finishes it and never makes a second inbox or route.
 // Who may send as an address is the access module's grant on the mailbox (access.share, the "mailbox" resource): this file does not keep a second list.
 // A domain at your own mail server (SMTP) cannot deliver mail here, so an address on it is send-only and is told so.
-import { bad, first, isId, missing, rowsOf, str } from "../projections.ts";
-import type { MailCtx } from "../projections.ts";
-import { ensureAll, liveMailbox, pageOf, parsePage } from "./extra/common.ts";
+import { fail } from "../../../host/src/routes/errors.ts";
+import { bad, can, first, isId, missing, rowsOf, str, strOrNull } from "../projections.ts";
+import type { MailCtx, Row } from "../projections.ts";
+import { duplicate, ensureAll, idemRef, liveMailbox, pageOf, parsePage } from "./extra/common.ts";
 import type { PageIn } from "./extra/common.ts";
 import { mailboxCreate } from "./extra/mailboxes.ts";
 import { routeSet } from "./extra/routes.ts";
+
+const PRIVATE_TITLE = "A private inbox";
+const seen = (ctx: MailCtx, id: string): boolean => can(ctx, "view", { type: "mailbox", id });
 
 export interface AddressOut {
   address: string;
@@ -49,7 +53,7 @@ export async function addressList(
       domainId: str(dom, "id"),
       kind: "mailbox",
       mailboxId: str(m, "id"),
-      mailboxTitle: str(m, "title"),
+      mailboxTitle: seen(ctx, str(m, "id")) ? str(m, "title") : PRIVATE_TITLE,
       receives: str(dom, "provider") !== "smtp",
     });
   }
@@ -67,7 +71,7 @@ export async function addressList(
       domainId: str(dom, "id"),
       kind: "alias",
       mailboxId: str(box, "id"),
-      mailboxTitle: str(box, "title"),
+      mailboxTitle: seen(ctx, str(box, "id")) ? str(box, "title") : PRIVATE_TITLE,
       routeId: str(r, "id"),
       receives: true,
     });
@@ -82,64 +86,198 @@ export async function addressList(
 export interface AddressAddIn {
   domainId: string;
   localPart: string;
-  /** deliver to this inbox (an alias); left out, a new shared inbox is made for the address */
+  /** deliver to this inbox (an alias); left out, a new inbox is made for the address */
   mailboxId?: string;
   /** the new inbox's name; left out it is the part before the @ */
   title?: string;
   idempotencyKey: string;
 }
 
+function domainRow(ctx: MailCtx, domainId: string): Row {
+  if (!isId("dom", domainId)) bad(ctx, "Domain id is not valid.");
+  const domain = first(ctx.db.all(`SELECT * FROM mail_domain WHERE id = ? AND deleted_at IS NULL`, domainId));
+  return domain ?? missing(ctx, "Sending domain does not exist.");
+}
+function localOf(ctx: MailCtx, value: unknown): string {
+  const localPart = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!LOCAL.test(localPart)) bad(ctx, "The name before the @ is letters, digits, dots, plus or dashes.");
+  return localPart;
+}
+/** The inbox a person may send into: one they can use, and never someone else's personal inbox. */
+function targetBox(ctx: MailCtx, mailboxId: unknown): Row {
+  if (typeof mailboxId !== "string" || !isId("mbx", mailboxId)) bad(ctx, "Mailbox id is not valid.");
+  const box = liveMailbox(ctx, mailboxId);
+  if (!box) missing(ctx, "Mailbox does not exist.");
+  if (
+    !can(ctx, "use", { type: "mailbox", id: mailboxId }) ||
+    (str(box, "kind") === "personal" && strOrNull(box, "ownerId") !== ctx.principal.id)
+  )
+    throw fail("permission.no_grant", ctx.trace.traceId);
+  return box;
+}
+/** Who has this name now, in words: its inbox's title (or "a private inbox"), so a refusal says where the mail goes. */
+function holder(ctx: MailCtx, domain: Row, localPart: string): { box: Row; route: Row | null } | null {
+  const address = `${localPart}@${str(domain, "name")}`;
+  const route = first(
+    ctx.db.all(
+      `SELECT * FROM mail_route WHERE "domainId" = ? AND "localPart" = ? AND deleted_at IS NULL`,
+      str(domain, "id"),
+      localPart,
+    ),
+  );
+  const routed = route ? liveMailbox(ctx, str(route, "mailboxId")) : null;
+  if (routed) return { box: routed, route };
+  const own = first(ctx.db.all(`SELECT * FROM mail_mailbox WHERE address = ? AND deleted_at IS NULL`, address));
+  return own ? { box: own, route: null } : null;
+}
+const where = (ctx: MailCtx, box: Row): string =>
+  seen(ctx, str(box, "id")) ? str(box, "title") : PRIVATE_TITLE.toLowerCase();
+
 export async function addressAdd(ctx: MailCtx, input: AddressAddIn): Promise<{ address: AddressOut }> {
   ensureAll(ctx);
-  if (!isId("dom", input.domainId)) bad(ctx, "Domain id is not valid.");
-  const domain = first(ctx.db.all(`SELECT * FROM mail_domain WHERE id = ? AND deleted_at IS NULL`, input.domainId));
-  if (!domain) missing(ctx, "Sending domain does not exist.");
-  const localPart = typeof input.localPart === "string" ? input.localPart.trim().toLowerCase() : "";
-  if (!LOCAL.test(localPart)) bad(ctx, "The name before the @ is letters, digits, dots, plus or dashes.");
+  const domain = domainRow(ctx, input.domainId);
+  const localPart = localOf(ctx, input.localPart);
   const address = `${localPart}@${str(domain, "name")}`;
   const receives = str(domain, "provider") !== "smtp";
-  let mailboxId: string;
-  if (input.mailboxId !== undefined) {
-    if (!isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
-    if (!liveMailbox(ctx, input.mailboxId)) missing(ctx, "Mailbox does not exist.");
-    mailboxId = input.mailboxId;
-  } else {
-    const made = await mailboxCreate(ctx, {
-      kind: "shared",
-      address,
-      title: (input.title ?? "").trim() || localPart,
-      provider: "inbound_only",
-      privacy: "space",
-      idempotencyKey: `${input.idempotencyKey}:mailbox`,
-    });
-    mailboxId = made.mailbox.id;
-  }
-  let routeId: string | undefined;
-  if (receives) {
-    const set = await routeSet(ctx, {
-      domainId: input.domainId,
-      localPart,
-      mailboxId,
-      idempotencyKey: `${input.idempotencyKey}:route`,
-    });
-    routeId = set.route.id;
-  } else if (input.mailboxId !== undefined) {
+  if (!receives && input.mailboxId !== undefined)
     bad(
       ctx,
       "Mail for this domain arrives at your own mail server, so an address on it cannot deliver to an inbox here.",
     );
+  const target = input.mailboxId !== undefined ? targetBox(ctx, input.mailboxId) : null;
+  // A name that is already taken is never taken over: adding is refused and says where its mail goes. Moving it is mail.address.move.
+  const held = holder(ctx, domain, localPart);
+  let mailboxId: string;
+  let created = false;
+  if (held) {
+    const unfinished =
+      held.route === null &&
+      receives &&
+      (target === null || str(target, "id") === str(held.box, "id")) &&
+      str(held.box, "address") === address;
+    const sameKey =
+      held.route !== null && idemRef(ctx, `${input.idempotencyKey}:route`, "routeset") === str(held.route, "id");
+    if (!unfinished && !sameKey)
+      duplicate(
+        ctx,
+        `${address} already goes to ${where(ctx, held.box)}. Use mail.address.move to point it somewhere else.`,
+      );
+    mailboxId = str(held.box, "id"); // a retry, or an inbox left behind by an add that stopped half way: finish it
+  } else if (target) {
+    mailboxId = str(target, "id");
+  } else {
+    const made = await mailboxCreate(ctx, {
+      kind: receives ? "shared" : "service",
+      address,
+      title: (input.title ?? "").trim() || localPart,
+      provider: "inbound_only",
+      privacy: "people",
+      idempotencyKey: `${input.idempotencyKey}:mailbox`,
+    });
+    mailboxId = made.mailbox.id;
+    created = true;
   }
+  let routeId: string | undefined;
+  if (receives) {
+    try {
+      routeId = (
+        await routeSet(ctx, {
+          domainId: input.domainId,
+          localPart,
+          mailboxId,
+          idempotencyKey: `${input.idempotencyKey}:route`,
+        })
+      ).route.id;
+    } catch (e) {
+      // the inbox made a moment ago must not be left behind: with it gone, the same name can be added again with any key
+      if (created)
+        ctx.db.run(
+          `UPDATE mail_mailbox SET deleted_at = ?, updated_at = ? WHERE id = ?`,
+          ctx.now(),
+          ctx.now(),
+          mailboxId,
+        );
+      throw e;
+    }
+  }
+  return { address: describe(ctx, domain, address, mailboxId, routeId, receives) };
+}
+
+function describe(
+  ctx: MailCtx,
+  domain: Row,
+  address: string,
+  mailboxId: string,
+  routeId: string | undefined,
+  receives: boolean,
+): AddressOut {
   const box = liveMailbox(ctx, mailboxId);
   const own = box !== null && str(box, "address") === address;
   return {
-    address: {
-      address,
-      domainId: input.domainId,
-      kind: own ? "mailbox" : "alias",
-      mailboxId,
-      mailboxTitle: box ? str(box, "title") : localPart,
-      ...(routeId && !own ? { routeId } : {}),
-      receives,
-    },
+    address,
+    domainId: str(domain, "id"),
+    kind: own ? "mailbox" : "alias",
+    mailboxId,
+    mailboxTitle: box && seen(ctx, mailboxId) ? str(box, "title") : PRIVATE_TITLE,
+    ...(routeId && !own ? { routeId } : {}),
+    receives,
+  };
+}
+
+export interface AddressMoveIn {
+  domainId: string;
+  localPart: string;
+  /** the inbox it goes to now; it must be the one the person sees as current, so two people moving one name cannot cross */
+  fromMailboxId: string;
+  mailboxId: string;
+  idempotencyKey: string;
+}
+
+/** Point an address that exists at another inbox. It names the old and the new inbox, and the person must be able to use the new one. */
+export async function addressMove(
+  ctx: MailCtx,
+  input: AddressMoveIn,
+): Promise<{ address: AddressOut; from: string; to: string }> {
+  ensureAll(ctx);
+  const domain = domainRow(ctx, input.domainId);
+  const localPart = localOf(ctx, input.localPart);
+  const address = `${localPart}@${str(domain, "name")}`;
+  if (str(domain, "provider") === "smtp")
+    bad(
+      ctx,
+      "Mail for this domain arrives at your own mail server, so an address on it cannot be moved to an inbox here.",
+    );
+  const route = first(
+    ctx.db.all(
+      `SELECT * FROM mail_route WHERE "domainId" = ? AND "localPart" = ? AND deleted_at IS NULL`,
+      input.domainId,
+      localPart,
+    ),
+  );
+  if (!route) missing(ctx, `${address} does not exist. Add it first.`);
+  const current = liveMailbox(ctx, str(route, "mailboxId"));
+  if (!isId("mbx", input.fromMailboxId)) bad(ctx, "Mailbox id is not valid.");
+  const target = targetBox(ctx, input.mailboxId);
+  if (str(route, "mailboxId") === str(target, "id"))
+    return {
+      address: describe(ctx, domain, address, str(target, "id"), str(route, "id"), true),
+      from: where(ctx, target),
+      to: where(ctx, target),
+    };
+  if (str(route, "mailboxId") !== input.fromMailboxId)
+    duplicate(
+      ctx,
+      `${address} now goes to ${current ? where(ctx, current) : "another inbox"}, not where you saw it. Look again before moving it.`,
+    );
+  const out = await routeSet(ctx, {
+    domainId: input.domainId,
+    localPart,
+    mailboxId: str(target, "id"),
+    idempotencyKey: input.idempotencyKey,
+  });
+  return {
+    address: describe(ctx, domain, address, str(target, "id"), out.route.id, true),
+    from: current ? where(ctx, current) : "another inbox",
+    to: where(ctx, target),
   };
 }

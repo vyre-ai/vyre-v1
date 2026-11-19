@@ -5228,6 +5228,12 @@
     },
     {
       "deferred": false,
+      "name": "mail_address_move",
+      "summary": "Point an address that exists at another inbox. Names the inbox it goes to now and the one it will go to; the person must be able to use the new inbox",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mail_attachment_save",
       "summary": "Save an attachment into Files",
       "toolset": "inbox"

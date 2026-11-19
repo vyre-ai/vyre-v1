@@ -28,6 +28,6 @@ HTTP 422. Retryable: no.
 - journeys.create
 - journeys.start
 - mail.address.add
+- mail.address.move
 - mail.connect
 - mail.domain.add
-- mail.mailbox.create

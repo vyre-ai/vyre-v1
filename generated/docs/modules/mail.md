@@ -4,10 +4,11 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (45)
+## Capabilities (46)
 
 - [mail.address.add](../capabilities/mail.address.add.md): Make an address on a Space domain. With an inbox it is an alias that delivers there; without one a shared inbox is made for it. Who may send as it is a share on the inbox (access.share)
 - [mail.address.list](../capabilities/mail.address.list.md): Every address on the Space's domains: inbox addresses and aliases, with the inbox each lands in
+- [mail.address.move](../capabilities/mail.address.move.md): Point an address that exists at another inbox. Names the inbox it goes to now and the one it will go to; the person must be able to use the new inbox
 - [mail.attachment.save](../capabilities/mail.attachment.save.md): Save an attachment into Files
 - [mail.auto_connect_members](../capabilities/mail.auto_connect_members.md): Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)
 - [mail.connect](../capabilities/mail.connect.md): Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)

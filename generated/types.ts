@@ -25119,6 +25119,26 @@ export type MailAddressListOut = {
   next?: string;
   total?: number;
 };
+export type MailAddressMoveIn = {
+  domainId: string;
+  localPart: string;
+  fromMailboxId: string;
+  mailboxId: string;
+  idempotencyKey: string;
+};
+export type MailAddressMoveOut = {
+  address: {
+    address: string;
+    domainId: string;
+    kind: "mailbox" | "alias";
+    mailboxId: string;
+    mailboxTitle: string;
+    routeId?: string;
+    receives: boolean;
+  };
+  from: string;
+  to: string;
+};
 export type MailAttachmentSaveIn = {
   messageId: string;
   attachmentId: string;
@@ -49610,6 +49630,7 @@ export interface CapMap {
   "machines.set": { in: MachinesSetIn; out: MachinesSetOut };
   "mail.address.add": { in: MailAddressAddIn; out: MailAddressAddOut };
   "mail.address.list": { in: MailAddressListIn; out: MailAddressListOut };
+  "mail.address.move": { in: MailAddressMoveIn; out: MailAddressMoveOut };
   "mail.attachment.save": { in: MailAttachmentSaveIn; out: MailAttachmentSaveOut };
   "mail.auto_connect_members": { in: MailAutoConnectMembersIn; out: MailAutoConnectMembersOut };
   "mail.connect": { in: MailConnectIn; out: MailConnectOut };

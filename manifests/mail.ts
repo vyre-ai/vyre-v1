@@ -875,6 +875,27 @@ const manifest = defineManifest({
         errors: ["validation.duplicate"],
       },
     ),
+    write(
+      "mail.address.move",
+      "Point an address that exists at another inbox. Names the inbox it goes to now and the one it will go to; the person must be able to use the new inbox",
+      {
+        in: {
+          domainId: id.domain,
+          localPart: t.str({ examples: ["billing"] }),
+          fromMailboxId: id.mailbox,
+          mailboxId: id.mailbox,
+        },
+        out: { address: addressRow, from: t.str(), to: t.str() },
+        on: ["domain", "/domainId"],
+        perm: "comms.domains",
+        audit: "always",
+        emits: ["inbound_route.saved"],
+        idem: "key",
+        tool: "inbox",
+        gate: { act: "delete", when: "actor.kind != 'person'" },
+        errors: ["validation.duplicate"],
+      },
+    ),
     // ---- the Space's own mail server (SMTP)
     read("mail.smtp.get", "The Space's mail server (SMTP) and its last test", {
       in: {},

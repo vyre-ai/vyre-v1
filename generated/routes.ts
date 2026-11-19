@@ -21764,6 +21764,25 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/mail/address/move",
+    "cap": "mail.address.move",
+    "v": 1,
+    "module": "mail",
+    "effects": "write",
+    "permission": "comms.domains",
+    "level": "edit",
+    "resource": {
+      "type": "domain",
+      "id": "/domainId"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "delete"
+  },
+  {
+    "method": "POST",
     "path": "/v1/mail/attachment/save",
     "cap": "mail.attachment.save",
     "v": 1,
@@ -22132,7 +22151,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mail/mailbox/set_privacy",
@@ -22151,10 +22173,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mail/mailbox/set_sync_state",
@@ -27628,7 +27647,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/network/peer_server_code",
@@ -27646,10 +27668,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/network/peers",
@@ -33150,7 +33169,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/search/recent/record",
@@ -33168,10 +33190,7 @@ const routes5: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/search/related",
@@ -38657,7 +38676,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/transfer",
@@ -38675,10 +38697,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/voice_token",

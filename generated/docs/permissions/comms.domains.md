@@ -16,6 +16,7 @@ Area: comms. Risk: medium. Applies to: domain.
 
 - mail.address.add
 - mail.address.list
+- mail.address.move
 - mail.domain.add
 - mail.domain.check
 - mail.domain.remove

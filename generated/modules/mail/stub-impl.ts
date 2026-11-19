@@ -6,6 +6,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "mail.address.add": async () => ({"address":{"address":"maya@example.com","domainId":"dom_a1b2c3","kind":"mailbox","mailboxId":"mbx_a1b2c3","mailboxTitle":"example","receives":true,"routeId":"rte_a1b2c3"}} as unknown) as never,
   "mail.address.list": async () => ({"addresses":[{"address":"maya@example.com","domainId":"dom_a1b2c3","kind":"mailbox","mailboxId":"mbx_a1b2c3","mailboxTitle":"example","receives":true,"routeId":"rte_a1b2c3"}],"next":"example","total":1} as unknown) as never,
+  "mail.address.move": async () => ({"address":{"address":"maya@example.com","domainId":"dom_a1b2c3","kind":"mailbox","mailboxId":"mbx_a1b2c3","mailboxTitle":"example","receives":true,"routeId":"rte_a1b2c3"},"from":"example","to":"example"} as unknown) as never,
   "mail.attachment.save": async () => ({"fileId":"fil_a1b2c3"} as unknown) as never,
   "mail.auto_connect_members": async () => ({"created":1,"notified":1,"skipped":1} as unknown) as never,
   "mail.connect": async () => ({"mailbox":{"address":"maya@example.com","agentId":"agt_a1b2c3","id":"mbx_a1b2c3","kind":"personal","lastSyncAt":1760000000000,"ownerId":"usr_a1b2c3","privacy":"private","provider":"google","state":"pending","title":"example"}} as unknown) as never,

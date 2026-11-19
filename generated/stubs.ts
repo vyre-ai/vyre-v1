@@ -1634,6 +1634,7 @@ export function stubs(ctx: CallCtx) {
       address: {
         add: call("mail.address.add"),
         list: call("mail.address.list"),
+        move: call("mail.address.move"),
       },
       attachment: {
         save: call("mail.attachment.save"),
