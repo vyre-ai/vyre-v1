@@ -314,6 +314,14 @@ export const SPACE_ROWS: readonly SpaceRowDef[] = [
     "It goes on the Still need these card, never a notification.",
   ),
   sr(
+    "tasks.assistant_look",
+    "space",
+    "Tasks",
+    "Let a cheap model look at tasks that may be done",
+    { kind: "switch" },
+    "Once a day, one short batch of up to 20 tasks goes to the cheapest model your Space AI accounts allow. It can only suggest; the Still need these card is where you decide.",
+  ),
+  sr(
     "tasks.moment_grace_days",
     "space",
     "Tasks",

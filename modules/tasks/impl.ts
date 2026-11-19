@@ -11,6 +11,7 @@ import { tick } from "./handlers/clock.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import { onChatGone, onGoalEnded, onParentFinished } from "./handlers/orphans.ts";
 import { onEvidence } from "./handlers/evidence.ts";
+import { lookDaily } from "./handlers/look.ts";
 import { onCrewMerged, onRunStopped, onTaskChanged } from "./handlers/schedule.ts";
 import type { TasksCtx } from "./projections.ts";
 export { findStuck, mintApprovalToken, readApprovalToken, ACT_KEYS } from "./handlers/act.ts";
@@ -77,6 +78,8 @@ export const hostCalls = {
 
 /** The clock (handlers/clock.ts): due days and times on each holder's own clock, snoozes that end, steps that sat too long. Once a minute. */
 export const periodic = {
+  /** The daily look at the unclear few (handlers/look.ts): one batched model call, proposals only. Checked hourly, runs at most once a day. */
+  "tasks.look": { everyMs: 3_600_000, run: async (ctx: TasksCtx): Promise<unknown> => lookDaily(ctx) },
   "tasks.clock": { everyMs: 60_000, run: async (ctx: TasksCtx): Promise<unknown> => tick(ctx) },
 };
 

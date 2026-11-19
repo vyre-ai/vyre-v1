@@ -1173,6 +1173,14 @@ export default defineManifest({
       14,
     ),
     setting(
+      "tasks.assistant_look",
+      "space",
+      "Policies",
+      "Once a day, let a cheap model look at tasks that may be done",
+      t.bool(),
+      true,
+    ),
+    setting(
       "tasks.moment_grace_days",
       "space",
       "Policies",

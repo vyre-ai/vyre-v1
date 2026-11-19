@@ -25,6 +25,7 @@ const SPACE_DEFAULTS: Readonly<Record<string, unknown>> = {
   "tasks.tidy": true,
   "tasks.ask_after_days": 14,
   "tasks.moment_grace_days": 1,
+  "tasks.assistant_look": true,
   "access.review_every_days": 90,
   "git.protected_branches": ["main", "master"],
   "files.review_changes": { git: true, cloud_mount: true, plain: false },

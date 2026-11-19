@@ -187,6 +187,8 @@ export interface Policy {
   tidy: boolean;
   askAfterDays: number;
   momentGraceDays: number;
+  /** the daily look: one batched model call over the unclear tasks, proposals only */
+  assistantLook: boolean;
 }
 export const POLICY_DEFAULTS: Policy = {
   reviewLoopLimit: 2,
@@ -195,6 +197,7 @@ export const POLICY_DEFAULTS: Policy = {
   tidy: true,
   askAfterDays: 14,
   momentGraceDays: 1,
+  assistantLook: true,
 };
 
 const POLICY_KEYS: ReadonlySet<string> = new Set([
@@ -204,6 +207,7 @@ const POLICY_KEYS: ReadonlySet<string> = new Set([
   "tasks.tidy",
   "tasks.ask_after_days",
   "tasks.moment_grace_days",
+  "tasks.assistant_look",
 ]);
 export function readPolicy(db: Db): Policy {
   const p: Policy = { ...POLICY_DEFAULTS };
@@ -224,6 +228,7 @@ export function readPolicy(db: Db): Policy {
     if (r.policy_key === "tasks.tidy" && typeof v === "boolean") p.tidy = v;
     if (r.policy_key === "tasks.ask_after_days" && typeof v === "number" && Number.isInteger(v) && v >= 3 && v <= 90)
       p.askAfterDays = v;
+    if (r.policy_key === "tasks.assistant_look" && typeof v === "boolean") p.assistantLook = v;
     if (r.policy_key === "tasks.moment_grace_days" && typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 14)
       p.momentGraceDays = v;
   }
