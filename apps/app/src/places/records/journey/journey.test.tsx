@@ -216,7 +216,13 @@ test("dropping a card on another column calls the stage move, never records.upda
     assert.deepEqual(s.journeyCalls, [
       {
         cap: "journeys.move_stage",
-        input: { journeyId: "jrn_1", recordId: "jr_1", toStage: "stage3", reason: "Moved on the board" },
+        input: {
+          journeyId: "jrn_1",
+          recordId: "jr_1",
+          toStage: "stage3",
+          reason: "Moved on the board",
+          expectedVersion: 1,
+        },
       },
     ]);
     assert.ok(!s.calls.some((c) => c.cap === "records.update"), "the stage field is not written by records.update");

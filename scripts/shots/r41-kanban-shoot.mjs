@@ -245,6 +245,15 @@ let touchBad = 0;
   if (!dragOk) touchBad++;
   console.log(`touch swipe: scrollLeft ${scrolled}, card stays in ${afterSwipe} ${swipeOk ? "PASS" : "FAIL"}`);
   console.log(`touch hold and drag: lifted ${lifted}, board scrolled itself ${scrolledByDrag}px, card now in ${after}, drop handled ${handled} ${dragOk ? "PASS" : "FAIL"}`);
+  // the card's own menu button works with a tap
+  await page.evaluate(() => { const e = document.querySelector('[data-testid="board-lanes"]'); if (e) e.scrollLeft = 0; });
+  await page.waitForTimeout(400);
+  const mb = await page.locator(tid("cardmenu-cl_1")).first().boundingBox();
+  await page.touchscreen.tap(mb.x + mb.width / 2, mb.y + mb.height / 2);
+  await page.waitForTimeout(500);
+  const menuOk = await page.evaluate(() => !!document.querySelector('[data-testid="menu"]'));
+  if (!menuOk) touchBad++;
+  console.log(`touch card menu button: menu opened ${menuOk} ${menuOk ? "PASS" : "FAIL"}`);
   await page.screenshot({ path: path.join(out, "touch-drag-graphite-phone.png") });
   await ctx.close();
 }

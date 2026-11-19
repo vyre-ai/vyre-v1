@@ -302,6 +302,12 @@ test("the board: dropping a card on a stage that wants fields opens the form on 
   const data: RecordsData = {
     ...base.data,
     async call(cap, input) {
+      if (cap === "records.get")
+        return {
+          record: (base.replica.rows(`records:${JOURNEY.key}`) as unknown as RecordRow[]).find(
+            (r) => r.id === (input as { recordId: string }).recordId,
+          ),
+        };
       if (cap === "journeys.list")
         return {
           journeys: [

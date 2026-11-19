@@ -8,7 +8,7 @@ import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { GateFields } from "../journey/GateSheet.tsx";
 import type { Entered } from "../journey/model.ts";
-import { Face, Glyph } from "../sidebar/parts.tsx";
+import { Face, Glyph, pointOf } from "../sidebar/parts.tsx";
 import { cellText, hueOf } from "../table/model.ts";
 import { cardFields, each, laneOfRow } from "../views-a/model.ts";
 import type { Lane, RecordRow } from "../views-a/model.ts";
@@ -244,6 +244,20 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
         <Text numberOfLines={2} style={[k.title, face.preset !== "simple" ? k.titleBold : null]}>
           {title}
         </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Menu for ${title}`}
+          testID={`cardmenu-${row.id}`}
+          focusable={false}
+          onPress={(e) => {
+            const at = pointOf(e);
+            board.setFocus(row.id);
+            board.show(entries(), at.x, at.y);
+          }}
+          style={[k.more, !selected && !multi && !hover && !coarse && k.ckHidden]}
+        >
+          <Glyph name="more" size={14} color="var(--ink-3)" />
+        </Pressable>
         {face.mark && progress && progress.of > 0 ? <Ring filled={progress.filled} of={progress.of} /> : null}
       </View>
       {amt !== null && !lean ? (
@@ -455,6 +469,7 @@ const k = StyleSheet.create({
   } as object,
   ckOn: { backgroundColor: "var(--accent)" as string, boxShadow: "none" } as object,
   ckHidden: { display: "none" },
+  more: { width: 24, height: 24, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   title: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 18, fontWeight: "500", color: "var(--ink)" as string },
   titleBold: { fontSize: 13.5, fontWeight: "600" },
   amount: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string, fontVariant: ["tabular-nums"] },

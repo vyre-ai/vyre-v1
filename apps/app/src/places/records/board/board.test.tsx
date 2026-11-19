@@ -777,3 +777,22 @@ test("pressing a card opens it in the side pane on Details with the Journey's pa
     restore();
   }
 });
+
+test("a button on the card opens the same menu with a tap, so a finger can move a card without a right-click", async () => {
+  const restore = installDom();
+  const s = sample();
+  const b = await mountBoard(s);
+  try {
+    await press(find(b.root, "cardmenu-jr_2"));
+    await press(find(b.root, "menu-item-In review"));
+    await flush();
+    await flush();
+    assert.deepEqual(
+      s.calls.map((c) => [c.input["recordId"], c.input["toStage"]]),
+      [["jr_2", "stage2"]],
+    );
+  } finally {
+    await b.stop();
+    restore();
+  }
+});
