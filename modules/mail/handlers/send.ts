@@ -919,6 +919,7 @@ async function viaSpaceDomain(
     return smtpDeliver(ctx, {
       ...(mail as Omit<Parameters<typeof smtpDeliver>[1], "messageId" | "dkim">),
       messageId: rfcId ?? `<${id}@${domain}>`,
+      rowId: id,
       ...(dkim ? { dkim: { domain, ...dkim } } : {}),
     });
   }

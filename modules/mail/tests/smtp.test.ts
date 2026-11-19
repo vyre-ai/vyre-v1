@@ -27,7 +27,7 @@ interface Wire {
   verified: SmtpConn[];
   sent: { conn: SmtpConn; mail: SmtpMail }[];
   fail: unknown;
-  rejected: string[];
+  rejected: { address: string; code?: number }[];
 }
 /** A recorded socket: it keeps what it was asked to do, and fails once with `fail` when that is set. */
 function wire(ctx: Harness["ctx"]): Wire {
@@ -78,6 +78,8 @@ test.afterEach(() => {
 
 test("smtp.set saves the server and answers what a person entered, never the password or its handle", async () => {
   const h = harness();
+  vault();
+  wire(h.ctx);
   assert.deepEqual(await smtpGet(h.ctx), { configured: false, state: "none" });
   const saved = await smtpSet(h.ctx, SERVER);
   assert.deepEqual(saved, {
@@ -112,6 +114,7 @@ test("smtp.set: port 465 starts secure unless the person chose, and saving again
 
 test("smtp.set refuses a server it cannot use, in a sentence, and saves nothing", async () => {
   const h = harness();
+  vault();
   const refused = async (over: Record<string, unknown>, words: RegExp): Promise<void> => {
     await assert.rejects(
       () => smtpSet(h.ctx, { ...SERVER, ...over }),
@@ -148,9 +151,10 @@ test("smtp.verify signs in to the saved server with the Vault password and recor
       security: "starttls",
       username: "hello@northwind.example",
       password: PASSWORD,
+      ip: "93.184.216.34",
     },
   ]);
-  assert.deepEqual(v.read, ["#Smtp_Password"]);
+  assert.ok(v.read.includes("#Smtp_Password"));
   assert.equal(w.sent.length, 0, "a test sends nothing");
   const got = await smtpGet(h.ctx);
   assert.equal(got.state, "ok");
@@ -183,7 +187,7 @@ test("smtp.verify with other values tries them and leaves the saved server's sta
   await smtpSet(h.ctx, SERVER);
   w.fail = err("ETIMEDOUT");
   await smtpVerify(h.ctx, {});
-  const tried = await smtpVerify(h.ctx, { port: 2525 });
+  const tried = await smtpVerify(h.ctx, { port: 2525, passwordHandle: "#Smtp_Password" });
   assert.equal(tried.ok, true);
   assert.equal(w.verified[0]?.port, 2525);
   assert.equal(w.verified[0]?.host, "smtp.northwind.example", "what was not given falls back to the saved server");
@@ -223,7 +227,7 @@ test("smtp.verify names each failure in words a person can act on, and never rep
     [
       err("EENVELOPE", { response: "554 5.7.1 Relay access denied" }),
       "failed",
-      /answered: 554 5\.7\.1 Relay access denied/,
+      /^The mail server did not accept the connection\.$/,
     ],
   ];
   for (const [thrown, reason, words] of cases) {
@@ -288,6 +292,8 @@ test("domain.add for smtp asks for the mail server first", async () => {
 test("domain.add for smtp makes the domain's own DKIM key: the private half goes to the Vault, the public half is the record", async () => {
   const h = harness();
   const store = vaultCalls(h);
+  vault();
+  wire(h.ctx);
   await smtpSet(h.ctx, SERVER);
   const out = await domainAdd(h.ctx, { name: "Northwind.Example", provider: "smtp", idempotencyKey: "idem-smtp-1" });
   assert.deepEqual(contractErrors("mail.domain.add", "out", out), []);
@@ -372,6 +378,8 @@ test("domain.check for smtp: any published SPF counts, DKIM must be the exact ke
 test("route.set on an smtp domain says where that mail arrives instead of making a route that never receives", async () => {
   const h = harness();
   vaultCalls(h);
+  vault();
+  wire(h.ctx);
   await smtpSet(h.ctx, SERVER);
   const added = await domainAdd(h.ctx, { name: "northwind.example", provider: "smtp", idempotencyKey: "idem-smtp-3" });
   seedMailbox(h, "mbx_hello", "hello@northwind.example", { kind: "shared" });
@@ -438,6 +446,7 @@ test("mail.send with the smtp provider goes out through the Space's mail server,
     security: "starttls",
     username: "hello@vyre.test",
     password: PASSWORD,
+    ip: "93.184.216.34",
   });
   assert.equal(mail.from, "hello@vyre.test");
   assert.deepEqual(mail.to, ["pat@acme.test"]);
@@ -452,7 +461,7 @@ test("mail.send with the smtp provider goes out through the Space's mail server,
     "the Message-ID is written once",
   );
   assert.deepEqual(mail.dkim, { domain: "vyre.test", selector: "vyre", privateKey: DKIM_KEY });
-  assert.deepEqual(v.read.sort(), ["#Smtp_Dkim_vyre_test", "#Smtp_Password"]);
+  assert.deepEqual([...new Set(v.read)].sort(), ["#Smtp_Dkim_vyre_test", "#Smtp_Password"]);
   assert.equal(r.sent().length, 0, "Resend, Mailgun, Gmail and Graph were not called");
 
   const stored = row(r, out.messageId!)!;
@@ -501,7 +510,7 @@ test("mail.send over smtp: a server that says try later is a retry, a wrong pass
         "The mail server did not accept that username and password.",
   );
 
-  w.rejected = ["pat@acme.test"];
+  w.rejected = [{ address: "pat@acme.test" }];
   await assert.rejects(
     () => send(r.ctx, sendIn()),
     (e: unknown) =>
@@ -521,4 +530,188 @@ test("mail.send with the smtp provider and no verified smtp domain is refused in
       (e as { error: { message: string } }).error.message ===
         "No verified SMTP sending domain. Add and verify one in Console, Comms.",
   );
+});
+
+// ---- r-review of d1380bf99: the saved password stays with the saved place, targets are public, no server words, no resend after DATA, partial refusals reported
+
+const moveRefused = async (run: () => Promise<unknown>): Promise<string> =>
+  run().then(
+    () => "",
+    (e: unknown) =>
+      `${codeOf(e)}: ${(e as { error?: { message: string }; message?: string }).error?.message ?? (e as Error).message}`,
+  );
+
+test("changing the server, port or username never reuses the saved password: the handle must be given again, and nothing is read or connected to without it", async () => {
+  const h = harness();
+  const v = vault({ "#Smtp_Password": PASSWORD, "#Smtp_Other": "other password" });
+  const w = wire(h.ctx);
+  await smtpSet(h.ctx, SERVER);
+  v.read.length = 0;
+  for (const over of [{ host: "attacker.example.com" }, { port: 2525 }, { username: "someone@else.example" }]) {
+    assert.match(
+      await moveRefused(() => smtpVerify(h.ctx, over)),
+      /^validation\.bad_input: .*give the password's Vault handle again/,
+    );
+    assert.match(
+      await moveRefused(() => smtpSet(h.ctx, { ...SERVER, ...over, passwordHandle: undefined })),
+      /^validation\.bad_input/,
+    );
+  }
+  assert.deepEqual(v.read, [], "no Vault read happened");
+  assert.equal(w.verified.length, 0, "no connection was made");
+  assert.equal((await smtpGet(h.ctx)).host, "smtp.northwind.example", "the saved server is untouched");
+  // with the handle given anew it works, and the same server and port again needs nothing new
+  assert.equal((await smtpVerify(h.ctx, { host: "smtp.other.example", passwordHandle: "#Smtp_Other" })).ok, true);
+  assert.equal(w.verified[0]?.password, "other password");
+  assert.equal((await smtpVerify(h.ctx, { security: "starttls" })).ok, true);
+});
+
+test("a password handle must name a mail password, and one the person cannot read is refused when the server is saved", async () => {
+  const h = harness();
+  const v = vault({ "#Smtp_Password": PASSWORD, "#Aws_Root_Key": "other secret" });
+  wire(h.ctx);
+  assert.match(
+    await moveRefused(() => smtpSet(h.ctx, { ...SERVER, passwordHandle: "#Aws_Root_Key" })),
+    /^validation\.bad_input: .*#Smtp_Password/,
+  );
+  assert.match(
+    await moveRefused(() => smtpVerify(h.ctx, { ...SERVER, passwordHandle: "#Aws_Root_Key" })),
+    /^validation\.bad_input/,
+  );
+  assert.ok(!v.read.includes("#Aws_Root_Key"), "that item was never read");
+  assert.match(
+    await moveRefused(() => smtpSet(h.ctx, { ...SERVER, passwordHandle: "#Smtp_Missing" })),
+    /Vault has no item/,
+  );
+  assert.equal(h.rows(`SELECT * FROM mail_smtp`).length, 0);
+});
+
+test("a server that is not on the public internet is refused after DNS, for save, test and send, and the connection goes to the address that was checked", async () => {
+  const bad = ["127.0.0.1", "10.0.0.5", "192.168.1.9", "169.254.169.254", "172.16.0.1", "::1", "fd00::1", "100.64.0.1"];
+  for (const ip of bad) {
+    const h = harness();
+    const v = vault();
+    const w = wire(h.ctx);
+    bindSmtp(
+      h.ctx,
+      { verify: async (c) => void w.verified.push(c), send: async () => ({ rejected: [] }) },
+      async () => [ip],
+    );
+    assert.match(await moveRefused(() => smtpSet(h.ctx, SERVER)), /^validation\.bad_input: .*public internet/, ip);
+    const out = await smtpVerify(h.ctx, SERVER);
+    assert.equal(out.ok, false, ip);
+    assert.equal(out.reason, "address", ip);
+    assert.equal(out.message, "A mail server must be on the public internet. That address is not allowed.");
+    assert.equal(w.verified.length, 0, `no connection to ${ip}`);
+    assert.deepEqual(v.read, [], "no password was read for it");
+  }
+  // a name that answers with a public and a private address is refused whole (rebinding)
+  const h = harness();
+  vault();
+  const w = wire(h.ctx);
+  bindSmtp(h.ctx, { verify: async (c) => void w.verified.push(c), send: async () => ({ rejected: [] }) }, async () => [
+    "93.184.216.34",
+    "10.0.0.5",
+  ]);
+  assert.equal((await smtpVerify(h.ctx, SERVER)).reason, "address");
+  // a public answer is connected to by that address
+  bindSmtp(h.ctx, { verify: async (c) => void w.verified.push(c), send: async () => ({ rejected: [] }) }, async () => [
+    "198.51.100.0".replace("198.51.100.0", "93.184.216.34"),
+  ]);
+  assert.equal((await smtpVerify(h.ctx, SERVER)).ok, true);
+  assert.equal(w.verified[0]?.ip, "93.184.216.34");
+  assert.equal(w.verified[0]?.host, "smtp.northwind.example");
+  // a name that does not resolve is told so, not "blocked"
+  bindSmtp(h.ctx, { verify: async () => undefined, send: async () => ({ rejected: [] }) }, async () => {
+    throw err("ENOTFOUND");
+  });
+  assert.equal((await smtpVerify(h.ctx, SERVER)).reason, "unknown_host");
+});
+
+test("mail.send over smtp to a server whose name now answers with a private address fails without connecting", async () => {
+  const { r, w } = await smtpSpace();
+  bindSmtp(
+    r.ctx,
+    { verify: async () => undefined, send: async (c, m) => void w.sent.push({ conn: c, mail: m }) as never },
+    async () => ["10.1.2.3"],
+  );
+  const before = w.sent.length;
+  await assert.rejects(
+    () => send(r.ctx, sendIn()),
+    (e: unknown) =>
+      codeOf(e) === "provider.bad_response" &&
+      /public internet/.test((e as { error: { message: string } }).error.message),
+  );
+  assert.equal(w.sent.length, before);
+});
+
+test("what the server says is never shown: not in a test result, not in the saved detail", async () => {
+  const h = harness();
+  vault();
+  const w = wire(h.ctx);
+  await smtpSet(h.ctx, SERVER);
+  w.fail = err("EPROTOCOL", {
+    message: "HTTP/1.1 200 OK secret-internal-banner",
+    response: "HTTP/1.1 200 OK secret-internal-banner",
+  });
+  const out = await smtpVerify(h.ctx, {});
+  assert.equal(out.reason, "failed");
+  assert.equal(out.message, "The mail server did not accept the connection.");
+  w.fail = err("EPROTOCOL", { responseCode: 554, response: "554 internal-hostname.corp wrote this" });
+  const coded = await smtpVerify(h.ctx, {});
+  assert.equal(coded.message, "The mail server answered with an error (554).");
+  assert.ok(!JSON.stringify(await smtpGet(h.ctx)).includes("internal-hostname"));
+  // a server reply that says "timeout" is not a blocked port
+  w.fail = err("EPROTOCOL", { responseCode: 421, response: "421 connection timed out, try later" });
+  assert.equal((await smtpVerify(h.ctx, {})).reason, "failed");
+});
+
+test("after the message body may have left, a socket failure is an unknown outcome: reported, never retried, never marked as a retry", async () => {
+  const { r, w } = await smtpSpace();
+  for (const command of ["DATA", ""]) {
+    w.fail = err("ESOCKET", { command, message: "Connection closed unexpectedly" });
+    const before = w.sent.length;
+    await assert.rejects(
+      () => send(r.ctx, sendIn()),
+      (e: unknown) => {
+        const x = e as { error: { code: string; message: string } };
+        return (
+          x.error.code === "provider.bad_response" &&
+          /may have been delivered/.test(x.error.message) &&
+          /Vyre did not send it again/.test(x.error.message) &&
+          /<eml_[a-z0-9]+@vyre\.test>/.test(x.error.message)
+        );
+      },
+      command,
+    );
+    assert.equal(w.sent.length, before, "the transport saw one try");
+  }
+  // before the body went out, nothing was delivered: a connection problem says so
+  w.fail = err("ETIMEDOUT", { command: "CONN" });
+  await assert.rejects(
+    () => send(r.ctx, sendIn()),
+    (e: unknown) => /cannot open port 587/.test((e as { error: { message: string } }).error.message),
+  );
+  // a definite 4xx at any step is "try later": the server did not take it
+  w.fail = err("EPROTOCOL", { command: "DATA", responseCode: 451 });
+  await assert.rejects(
+    () => send(r.ctx, sendIn()),
+    (e: unknown) => codeOf(e) === "provider.rate_limited",
+  );
+});
+
+test("when the server refuses some recipients the message is sent and each refused address is reported on its own", async () => {
+  const { r, w } = await smtpSpace();
+  w.rejected = [
+    { address: "lee@acme.test", code: 550 },
+    { address: "kim@acme.test", code: 450 },
+  ];
+  const out = await send(r.ctx, sendIn({ cc: [{ address: "lee@acme.test" }, { address: "kim@acme.test" }] }));
+  assert.equal(out.status, "sent");
+  const bounced = r.h.named("message.bounced");
+  assert.deepEqual(bounced.map((e) => [e.payload.address, e.payload.kind, e.payload.messageId]).sort(), [
+    ["kim@acme.test", "soft", out.messageId],
+    ["lee@acme.test", "hard", out.messageId],
+  ]);
+  assert.ok(bounced.every((e) => e.payload.reason === "The mail server refused this address."));
 });

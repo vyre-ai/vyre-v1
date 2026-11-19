@@ -39,7 +39,7 @@ type In = {
 ```ts
 type Out = {
   ok: boolean;
-  reason?: "blocked" | "refused" | "unknown_host" | "auth" | "tls" | "failed";
+  reason?: "blocked" | "refused" | "unknown_host" | "address" | "auth" | "tls" | "failed";
   message: string;
   ms: number;
 };

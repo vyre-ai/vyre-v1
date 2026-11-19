@@ -8,14 +8,16 @@
 //
 // Vyre signs each message with the domain's own DKIM key (made by mail.domain.add, kept in the Vault), so the DNS record a person publishes is exact whatever the mail server is.
 // SMTP reports no delivery events: a message is "sent" when the server accepts it. A bounce comes back as an email to the sender's inbox.
+import dns from "node:dns/promises";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../../host/src/routes/errors.ts";
+import { blockedAddress } from "../../../lib/net-guard.ts";
 import { bad, ensure, first, num, statements, str, strOrNull } from "../projections.ts";
 import type { MailCtx, Row } from "../projections.ts";
 
 export type Security = "starttls" | "tls";
-export type SmtpReason = "blocked" | "refused" | "unknown_host" | "auth" | "tls" | "failed";
+export type SmtpReason = "blocked" | "refused" | "unknown_host" | "address" | "auth" | "tls" | "failed";
 
 export interface SmtpConn {
   host: string;
@@ -23,6 +25,8 @@ export interface SmtpConn {
   security: Security;
   username: string;
   password: string;
+  /** the address that was checked and is connected to; the name is kept for the certificate */
+  ip?: string;
 }
 export interface SmtpMail {
   /** the RFC Message-ID, with its angle brackets */
@@ -43,7 +47,7 @@ export interface SmtpMail {
 /** The socket. Tests bind a recorded one; production binds nodemailer. */
 export interface SmtpTransport {
   verify(conn: SmtpConn): Promise<void>;
-  send(conn: SmtpConn, mail: SmtpMail): Promise<{ rejected: string[] }>;
+  send(conn: SmtpConn, mail: SmtpMail): Promise<{ rejected: { address: string; code?: number }[] }>;
 }
 /** A Vault value for one use (the mail module's own Vault reader, the one IMAP logs in with). Module code never keeps it. */
 export type SmtpSecret = (ctx: MailCtx, handle: string) => Promise<string>;
@@ -84,9 +88,39 @@ export function setMailFileBytes(fn: MailFileBytes | null): void {
 }
 const bound = new WeakMap<object, SmtpTransport>();
 let defaultTransport: SmtpTransport | null = null;
-/** Tests bind a recorded transport to one context. */
-export function bindSmtp(ctx: MailCtx, t: SmtpTransport): void {
+/** Every address a name answers with. */
+export type SmtpResolve = (host: string) => Promise<string[]>;
+const liveResolve: SmtpResolve = async (host) => (await dns.lookup(host, { all: true })).map((r) => r.address);
+const resolvers = new WeakMap<object, SmtpResolve>();
+/** A public address that names no real place, for tests that bind no resolver of their own. */
+const TEST_ADDRESS = "93.184.216.34";
+/** Tests bind a recorded transport to one context, and by default a resolver that answers a public address. */
+export function bindSmtp(ctx: MailCtx, t: SmtpTransport, resolve: SmtpResolve = async () => [TEST_ADDRESS]): void {
   bound.set(ctx, t);
+  resolvers.set(ctx, resolve);
+}
+
+/** A mail server must be a public place: a name that answers with a loopback, private, link-local or metadata address is refused, checked after DNS, and the connection goes to the address that was checked. */
+class Refused extends Error {
+  readonly reason: "address" | "unknown_host";
+  constructor(reason: "address" | "unknown_host", message: string) {
+    super(message);
+    this.reason = reason;
+  }
+}
+async function vet(ctx: MailCtx, host: string): Promise<string> {
+  const resolve = resolvers.get(ctx) ?? liveResolve;
+  let ips: string[];
+  try {
+    ips = await resolve(host);
+  } catch {
+    throw new Refused("unknown_host", `No mail server answers at ${host}. Check the name.`);
+  }
+  if (!ips.length) throw new Refused("unknown_host", `No mail server answers at ${host}. Check the name.`);
+  for (const ip of ips)
+    if (blockedAddress(ip, false))
+      throw new Refused("address", "A mail server must be on the public internet. That address is not allowed.");
+  return ips[0] as string;
 }
 export function setDefaultSmtp(t: SmtpTransport | null): void {
   defaultTransport = t;
@@ -107,7 +141,7 @@ function secret(ctx: MailCtx, handle: string): Promise<string> {
 
 interface NmTransport {
   verify(): Promise<unknown>;
-  sendMail(m: Record<string, unknown>): Promise<{ rejected?: unknown[] }>;
+  sendMail(m: Record<string, unknown>): Promise<{ rejected?: unknown[]; rejectedErrors?: unknown[] }>;
   close(): void;
 }
 type NmCreate = (o: Record<string, unknown>) => NmTransport;
@@ -121,8 +155,9 @@ async function open(conn: SmtpConn, dkim?: SmtpMail["dkim"]): Promise<NmTranspor
   const create = mod.createTransport ?? mod.default?.createTransport;
   if (!create) throw new Error("nodemailer did not load");
   return create({
-    host: conn.host,
+    host: conn.ip ?? conn.host,
     port: conn.port,
+    tls: { servername: conn.host },
     secure: conn.security === "tls",
     requireTLS: conn.security === "starttls",
     auth: { user: conn.username, pass: conn.password },
@@ -169,7 +204,18 @@ export const liveSmtp: SmtpTransport = {
             }
           : {}),
       });
-      return { rejected: (sent.rejected ?? []).map(String) };
+      const codes = new Map(
+        ((sent as { rejectedErrors?: { recipient?: unknown; responseCode?: unknown }[] }).rejectedErrors ?? []).map(
+          (e) => [String(e.recipient), typeof e.responseCode === "number" ? e.responseCode : undefined] as const,
+        ),
+      );
+      return {
+        rejected: (sent.rejected ?? []).map((a) => {
+          const address = String(a);
+          const code = codes.get(address);
+          return code === undefined ? { address } : { address, code };
+        }),
+      };
     } finally {
       t.close();
     }
@@ -215,7 +261,8 @@ function out(row: Row | null): SmtpOut {
 // ---- what a person may enter
 
 const HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
-const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
+/** A mail password lives in a Vault item whose name starts with Smtp (#Smtp_Password). A mail server can then only ever be given a password saved for mail, never another secret the person can read. */
+const HANDLE = /^#Smtp[A-Za-z0-9_]*(\.[A-Za-z0-9_]+)?$/i;
 
 export interface SmtpIn {
   host?: unknown;
@@ -251,9 +298,19 @@ function clean(ctx: MailCtx, input: SmtpIn, base: Row | null): Clean {
         : bad(ctx, "Security is starttls or tls.");
   const username = (typeof input.username === "string" ? input.username : base ? str(base, "username") : "").trim();
   if (!username || username.length > 320) bad(ctx, "Enter the username the mail server gave you.");
+  // The saved password belongs to the saved place. A different server, port or username never inherits it: the handle is given again, and read as the person asking.
+  const moved =
+    base !== null &&
+    (hostName !== str(base, "host") || port !== num(base, "port") || username !== str(base, "username"));
+  if (moved && typeof input.passwordHandle !== "string")
+    bad(
+      ctx,
+      "You changed the server, port or username, so give the password's Vault handle again. A saved password is never sent to a different place.",
+    );
   const passwordHandle =
     typeof input.passwordHandle === "string" ? input.passwordHandle : base ? str(base, "passwordHandle") : "";
-  if (!HANDLE.test(passwordHandle)) bad(ctx, "Save the password in the Vault and give its handle.");
+  if (!HANDLE.test(passwordHandle))
+    bad(ctx, "Save the password in the Vault in an item named like #Smtp_Password and give that handle.");
   return { host: hostName, port: port as number, security, username, passwordHandle };
 }
 
@@ -268,7 +325,12 @@ export async function smtpSet(ctx: MailCtx, input: SmtpIn): Promise<SmtpOut> {
   ensureSmtp(ctx);
   const base = saved(ctx);
   const c = clean(ctx, input, base);
+  await vet(ctx, c.host).catch((e: unknown) => {
+    if (e instanceof Refused) bad(ctx, e.message);
+    throw e;
+  });
   ctx.vault.use(c.passwordHandle); // the person saving it must be able to use that Vault item now: sends log in later as the server
+  await secret(ctx, c.passwordHandle); // and to read it: the Vault answers as this person, so an item they cannot open cannot be given to a mail server
   const now = ctx.now();
   if (base)
     ctx.db.run(
@@ -338,20 +400,25 @@ export function explain(
           : `The secure connection to ${c.host} failed. If the port is 465, choose TLS.`,
     };
   if (
-    code === "ETIMEDOUT" ||
-    code === "ECONNECTION" ||
-    code === "ESOCKET" ||
-    code === "EHOSTUNREACH" ||
-    code === "ENETUNREACH" ||
-    /timed? ?out|greeting never received/i.test(text)
+    typeof status !== "number" &&
+    (code === "ETIMEDOUT" ||
+      code === "ECONNECTION" ||
+      code === "ESOCKET" ||
+      code === "EHOSTUNREACH" ||
+      code === "ENETUNREACH" ||
+      /timed? ?out|greeting never received/i.test(text))
   )
     return {
       reason: "blocked",
       message: `This server cannot open port ${c.port}. Some hosts, such as Railway, block mail ports. Try port 2525, or send with Mailgun or Resend, which use HTTPS.`,
     };
+  // never the server's own words: a server that is not a mail server could be made to say anything, and the line is stored and shown
   return {
     reason: "failed",
-    message: text ? `The mail server answered: ${text}` : "The mail server did not accept the connection.",
+    message:
+      typeof status === "number"
+        ? `The mail server answered with an error (${status}).`
+        : "The mail server did not accept the connection.",
   };
 }
 
@@ -367,6 +434,7 @@ export async function smtpVerify(ctx: MailCtx, input: SmtpIn): Promise<VerifyOut
   const started = ctx.now();
   let result: VerifyOut;
   try {
+    const ip = await vet(ctx, c.host);
     const password = await secret(ctx, c.passwordHandle);
     await transportFor(ctx).verify({
       host: c.host,
@@ -374,11 +442,16 @@ export async function smtpVerify(ctx: MailCtx, input: SmtpIn): Promise<VerifyOut
       security: c.security,
       username: c.username,
       password,
+      ip,
     });
     result = { ok: true, message: `Connected to ${c.host} and signed in.`, ms: Math.max(0, ctx.now() - started) };
   } catch (e) {
     if (codeOf(e) === "internal.unavailable") throw e;
-    result = { ok: false, ...explain(e, c), ms: Math.max(0, ctx.now() - started) };
+    result = {
+      ok: false,
+      ...(e instanceof Refused ? { reason: e.reason, message: e.message } : explain(e, c)),
+      ms: Math.max(0, ctx.now() - started),
+    };
     ctx.log.warn("mail.smtp.verify failed", {
       host: c.host,
       port: c.port,
@@ -414,6 +487,8 @@ export interface DeliverIn {
   html?: string;
   headers?: Record<string, string>;
   attachments?: { name: string; fileId: string }[];
+  /** the mail.send message row, for the per-recipient report */
+  rowId?: string;
   /** the sending domain and where its DKIM key is kept; absent: the message goes out signed by the mail server alone */
   dkim?: { domain: string; selector: string; handle: string };
 }
@@ -426,8 +501,14 @@ export async function smtpDeliver(ctx: MailCtx, m: DeliverIn): Promise<string> {
     throw fail("validation.precondition_failed", ctx.trace.traceId, {
       message: "No mail server is set up. Add one in Console, Comms.",
     });
+  const host = str(row, "host");
+  const ip = await vet(ctx, host).catch((e: unknown) => {
+    if (e instanceof Refused) throw fail("provider.bad_response", ctx.trace.traceId, { message: e.message });
+    throw fail("provider.network", ctx.trace.traceId, { message: `No mail server answers at ${host}.` });
+  });
   const conn: SmtpConn = {
-    host: str(row, "host"),
+    ip,
+    host,
     port: num(row, "port"),
     security: str(row, "security") === "tls" ? "tls" : "starttls",
     username: str(row, "username"),
@@ -456,21 +537,43 @@ export async function smtpDeliver(ctx: MailCtx, m: DeliverIn): Promise<string> {
   }
   if (m.dkim)
     mail.dkim = { domain: m.dkim.domain, selector: m.dkim.selector, privateKey: await secret(ctx, m.dkim.handle) };
-  let sent: { rejected: string[] };
+  let sent: { rejected: { address: string; code?: number }[] };
   try {
     sent = await transportFor(ctx).send(conn, mail);
   } catch (e) {
+    const status = (e as { responseCode?: unknown } | null)?.responseCode;
+    const command = String((e as { command?: unknown } | null)?.command ?? "");
+    // Once the message body may have left, a socket failure says nothing about whether the server kept it. That is an unknown outcome: never retried (a retry could deliver it twice), and said so.
+    if (typeof status !== "number" && !BEFORE_DATA.test(command)) {
+      ctx.log.warn("mail.send over smtp: outcome unknown", { host: conn.host, traceId: ctx.trace.traceId });
+      throw fail("provider.bad_response", ctx.trace.traceId, {
+        message: `The mail server stopped answering after the message was sent, so it may have been delivered. Vyre did not send it again. Look for ${m.messageId} in the mail server's sent mail before sending it again.`,
+      });
+    }
     const why = explain(e, conn);
     ctx.log.warn("mail.send over smtp failed", { host: conn.host, reason: why.reason, traceId: ctx.trace.traceId });
-    const status = (e as { responseCode?: unknown } | null)?.responseCode;
-    // 4xx from the server is "try again later": the step retries, as with a provider that pushes back
+    // a 4xx from the server is "try again later": it did not take the message, so the step retries, as with a provider that pushes back
     if (typeof status === "number" && status >= 400 && status < 500)
       throw fail("provider.rate_limited", ctx.trace.traceId, { message: why.message });
     throw fail(why.reason === "auth" ? "provider.auth_failed" : "provider.bad_response", ctx.trace.traceId, {
       message: why.message,
     });
   }
-  if (sent.rejected.length >= m.to.length + (m.cc?.length ?? 0) + (m.bcc?.length ?? 0))
+  const total = m.to.length + (m.cc?.length ?? 0) + (m.bcc?.length ?? 0);
+  if (sent.rejected.length >= total)
     throw fail("provider.bad_response", ctx.trace.traceId, { message: "The mail server refused every recipient." });
+  // The others were accepted: the message is sent. Each refused address is reported on its own, as a bounce at the door, so it is never lost.
+  if (m.rowId)
+    for (const r of sent.rejected)
+      ctx.emit("message.bounced", `mail_message/${m.rowId}`, {
+        messageId: m.rowId,
+        channel: "email",
+        address: r.address,
+        kind: r.code !== undefined && r.code >= 500 ? "hard" : "soft",
+        reason: "The mail server refused this address.",
+      });
   return m.messageId.replace(/^<|>$/g, "");
 }
+
+/** The commands before the message body goes out: an error here means nothing was delivered. */
+const BEFORE_DATA = /^(CONN|EHLO|HELO|LHLO|STARTTLS|AUTH.*|MAIL FROM|RCPT TO|RSET)$/;

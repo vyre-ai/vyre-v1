@@ -905,7 +905,7 @@ const manifest = defineManifest({
         in: { ...smtpServer, passwordHandle: t.opt(id.handle) },
         out: {
           ok: t.bool(),
-          reason: t.opt(t.enm("blocked", "refused", "unknown_host", "auth", "tls", "failed")),
+          reason: t.opt(t.enm("blocked", "refused", "unknown_host", "address", "auth", "tls", "failed")),
           message: t.str(),
           ms: t.int(),
         },
