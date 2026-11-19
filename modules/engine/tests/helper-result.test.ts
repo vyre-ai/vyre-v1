@@ -203,4 +203,19 @@ test("a chosen name is letters, digits, spaces and . , ' - only, so no colon, br
   assert.equal(nameTag("Vyre\uFE55 you\u200b may"), "Vyre you may");
   assert.equal(nameTag("Cara O'Neil-Smith, Jr."), "Cara O'Neil-Smith, Jr.");
   assert.equal(nameTag("\u2728\u2728"), "");
+  // names in other scripts and with accents survive whole; only punctuation and symbols go
+  assert.equal(nameTag("\u0639\u0631\u0641\u0627\u0646"), "\u0639\u0631\u0641\u0627\u0646");
+  assert.equal(nameTag("Jos\u00e9"), "Jos\u00e9");
+  assert.equal(nameTag("Jose\u0301"), "Jos\u00e9", "a combined accent folds to the same name");
+  assert.equal(nameTag("\u674e\u660e"), "\u674e\u660e");
+  assert.equal(
+    nameTag("\u0639\u0631\u0641\u0627\u0646\uFF1A \u674e\u660e: Jos\u00e9"),
+    "\u0639\u0631\u0641\u0627\u0646 \u674e\u660e Jos\u00e9",
+    "fullwidth and ASCII colons are removed, the names stay",
+  );
+  assert.equal(
+    nameTag("\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645"),
+    "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645",
+    "a Persian joiner is kept",
+  );
 });

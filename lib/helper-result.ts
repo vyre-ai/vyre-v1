@@ -87,8 +87,8 @@ export function frameCode(): string {
 export const nameTag = (n: string): string =>
   n
     .normalize("NFKC")
-    .replace(/[\u200B-\u200F\u2060\uFEFF\u202A-\u202E\u2066-\u2069\u00AD]/g, "")
-    .replace(/[^\p{L}\p{N} .,'\-]+/gu, " ")
+    .replace(/[\u200B\u200E\u200F\u2060\uFEFF\u202A-\u202E\u2066-\u2069\u00AD]/g, "")
+    .replace(/[^\p{L}\p{M}\p{N} .,'\-\u200C\u200D]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 40);
