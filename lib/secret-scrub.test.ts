@@ -36,6 +36,10 @@ test("a value is removed whatever the spacing, quoting or place: name=value, spa
   gone("ACCESS_TOKEN=abc12", "abc12");
   gone("access_token=abc12", "abc12");
   gone("AUTHTOKEN: x1y2", "x1y2");
+  gone("AWS_SECRET_ACCESS_KEY=abc", "=abc");
+  gone("TOKEN=abcd", "abcd");
+  gone("SECRET=abc", "=abc");
+  gone("DB_PASSWORD=abc", "=abc");
   gone("db.password=hunter2", "hunter2");
   gone('{"ClientSecret":"hunter2","SECRET_KEY":"abc","ok":1}', "hunter2", "abc");
 });
