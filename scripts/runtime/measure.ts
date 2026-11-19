@@ -8,6 +8,9 @@
 // an ASSUMPTION (they do not: each helper opens its own session with its own identity block), switched by FEATURES=prefix.
 //   node scripts/runtime/measure.ts                       the baseline: what the engine does today
 //   FEATURES=prefix,readcache,compact,sleep,tail,tier node scripts/runtime/measure.ts      with the slices that exist switched on
+// Built and measured with real code: prefix (modules/engine/tests/context.siblings.test.ts proves the bytes), tier (g24d.ts chooseHelperModel), tail (the real shapeOutput). NOT built, a ceiling only: `readcache` models a sibling
+// that is served a 60-token line instead of the file, which cannot be true, because a helper must see the file in its own context to use it; the slice that exists (agent/src/tools/repeat-read.ts) shortens only the SAME agent's
+// repeat read inside one turn, and how often agents do that is unmeasured, so there is no job here for it. `compact` is a ceiling too: crew-watch.ts already cuts a helper's answer to 1,500 characters before the parent reads it.
 //   JSON=1 ...                                             one JSON line per job, for diffing runs
 import { estimateTokens } from "../../lib/reply-format.ts";
 import { readFileSync } from "node:fs";
