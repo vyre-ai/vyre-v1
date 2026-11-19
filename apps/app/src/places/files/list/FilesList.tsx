@@ -397,6 +397,12 @@ function List(): ReactElement {
   };
 
   const press = (l: Line): void => {
+    // a phone has no double tap to open and no modifier keys: one tap opens the folder or the file (it used to only select the row, and nothing seemed to happen)
+    if (phone) {
+      last.current = { key: l.key, at: 0 };
+      open(l);
+      return;
+    }
     const now = Date.now();
     const dbl = last.current.key === l.key && now - last.current.at < DOUBLE_MS;
     last.current = { key: l.key, at: now };
