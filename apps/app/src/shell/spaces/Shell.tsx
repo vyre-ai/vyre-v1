@@ -48,7 +48,7 @@ import { TitleBar } from "../titlebar/TitleBar.tsx";
 import { notices } from "../noticeslot/model.ts";
 import { inTerminal } from "../keyboard/useShellKeys.ts";
 import { HubProvider, ShownLocationProvider, useHubState } from "./context.tsx";
-import { KEPT_PLACES, PlaceStack } from "./kept-places.tsx";
+import { KEPT_PLACES, PlaceStack, isKeptPlace, keptRevealed } from "./kept-places.tsx";
 import { titleText } from "./hub.ts";
 import type { HubState, ShellHub, ShellTheme } from "./hub.ts";
 import { shellKey } from "./keys.ts";
@@ -165,11 +165,14 @@ export function Sheets({
   hub,
   shown,
   scope,
+  keptKey,
   children,
 }: {
   tabs: ReactNode;
   toast?: ReactNode;
   hub?: ShellHub;
+  /** The key a place is held under in the kept places (kept-places.tsx), so a press on a tab of a kept place can be told from one that must be made. */
+  keptKey?: ((place: string) => string) | undefined;
   /** The tab whose view is on screen, and what its views belong to (the Space and its sign-in): a view kept for one is never shown for another. */
   shown?: string | undefined;
   scope?: string | undefined;
@@ -179,6 +182,9 @@ export function Sheets({
   // What each of the last tabs showed when it was left. Pressing a tab shows its own last view at once, and the live view takes its place when it is ready: the
   // press is answered in the same frame instead of after the place has been made again (owner, 16 Nov 2026, F97: "switching tab ... takes about 2 seconds").
   const onScreen = useRef<string | undefined>(undefined);
+  // read by the holder when it runs; a ref, so the holder is not taken down and made again (cancelling a copy in flight) each time the shell draws
+  const keptKeyRef = useRef(keptKey);
+  keptKeyRef.current = keptKey;
   const keptViews = useRef<{ scope: string; views: Map<string, Kept> }>({ scope: "", views: new Map() });
   useEffect(() => {
     onScreen.current = shown;
@@ -192,7 +198,20 @@ export function Sheets({
     installMotion((globalThis as { document?: Parameters<typeof installMotion>[0] }).document);
     let held: Swap | null = null;
     let queued: (() => void) | null = null;
-    const hold = (to: string | undefined, then: (() => void) | undefined, from: string | undefined): boolean => {
+    const hold = (
+      to: string | undefined,
+      then: (() => void) | undefined,
+      from: string | undefined,
+      place?: string,
+    ): boolean => {
+      // A place that is still made (kept-places.tsx) is revealed in the frame of the press: nothing is made after it, so no still copy of any page is taken or held in front of it, and the press does not wait a frame.
+      if (
+        to !== undefined &&
+        place !== undefined &&
+        keptKeyRef.current !== undefined &&
+        isKeptPlace(keptKeyRef.current(place))
+      )
+        return false;
       const el0 = main.current as { querySelector?: (q: string) => unknown } | null;
       const body = el0?.querySelector?.('[data-testid="place-body"]') ?? null;
       const views = keptViews.current.views;
@@ -261,7 +280,7 @@ export function Sheets({
       requestAnimationFrame(wait);
       return false;
     };
-    hub.setHolder((to, then, soon) => {
+    hub.setHolder((to, then, soon, place) => {
       if (held !== null || queued !== null) return false;
       const from = onScreen.current;
       // A change the shell draws after the next painted frame (r41): the copy is taken after that frame as well. The frame that answers the press then has only the rail or the tab strip to
@@ -269,11 +288,13 @@ export function Sheets({
       if (soon === true && to === undefined) {
         queued = afterPaint(() => {
           queued = null;
+          // the place on screen came back from the kept ones: it is complete, there is nothing for a copy to stand in for
+          if (keptRevealed()) return;
           hold(undefined, undefined, from);
         });
         return false;
       }
-      return hold(to, then, from);
+      return hold(to, then, from, place);
     });
     return () => {
       queued?.();
@@ -745,9 +766,12 @@ export function Shell(props: ShellProps): ReactElement {
   );
   const scope = `${state.epoch}\n${state.phase}\n${session.def.spaceId}`;
   const address = `${scope}\n${state.place}\n${state.hash}\n${tabKey ?? ""}\n${tabNew ? 1 : 0}`;
-  const [drawn, setDrawn] = useState({ scope, address });
+  const [drawn, setDrawn] = useState({ scope, address, place: state.place });
+  // A place that is still made (the last few: kept-places.tsx) is revealed in the frame of the press: it is already complete, so nothing waits for a frame to answer first.
+  const reveals =
+    !tabNew && drawn.place !== state.place && isKeptPlace(`${state.epoch}:${session.def.spaceId}:${state.place}`);
   // the page on screen is not the one the hub names yet
-  const behind = drawn.scope === scope && drawn.address !== address;
+  const behind = drawn.scope === scope && drawn.address !== address && !reveals;
   // what the stage drew last, kept from the pass that was drawn (an effect, so a pass React threw away never counts)
   const last = useRef(live);
   useEffect(() => {
@@ -756,17 +780,17 @@ export function Shell(props: ShellProps): ReactElement {
   const shown = behind ? last.current : live;
   useEffect(() => {
     if (!behind) {
-      if (drawn.address !== address || drawn.scope !== scope) setDrawn({ scope, address });
+      if (drawn.address !== address || drawn.scope !== scope) setDrawn({ scope, address, place: state.place });
       return undefined;
     }
     // the copy of the old page is kept until the new one is drawn (Sheets), and a pressed row stays lit (ui/theme/pending.ts)
     const release = holdNav();
-    const cancel = afterPaint(() => startTransition(() => setDrawn({ scope, address })));
+    const cancel = afterPaint(() => startTransition(() => setDrawn({ scope, address, place: state.place })));
     return () => {
       cancel();
       release();
     };
-  }, [behind, scope, address, drawn.address, drawn.scope]);
+  }, [behind, scope, address, drawn.address, drawn.scope, state.place]);
   const stage = useMemo(
     () => (
       <ShellStage
@@ -866,6 +890,7 @@ export function Shell(props: ShellProps): ReactElement {
               hub={hub}
               shown={activeTab?.key}
               scope={`${state.epoch}:${ctx.spaceId}`}
+              keptKey={(place) => `${state.epoch}:${ctx.spaceId}:${place}`}
               tabs={
                 <MainTabs
                   controller={session.tabs}

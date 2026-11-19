@@ -135,7 +135,7 @@ export interface ShellHub {
    * `soon`: the change is one the shell draws after the next painted frame (a place from the rail, Back, a closed tab: Shell.tsx), so the still copy can be taken after that frame too, and the
    * frame that answers the press has nothing to copy or repaint.
    */
-  setHolder(fn: ((to?: string, then?: () => void, soon?: boolean) => boolean | void) | null): void;
+  setHolder(fn: ((to?: string, then?: () => void, soon?: boolean, place?: string) => boolean | void) | null): void;
   /** Name a tab for the item it holds (its title arrives after the tab opens). */
   retitle(key: string, title: string, empty?: boolean): void;
   /** The count on a place of the open Space, from what it counts live (the rail reads it, and only redraws when it changes). */
@@ -239,7 +239,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   let refusals = 0;
   const probeLog: SwitchProbe[] = [];
   const listeners = new Set<() => void>();
-  let holder: ((to?: string, then?: () => void, soon?: boolean) => boolean | void) | null = null;
+  let holder: ((to?: string, then?: () => void, soon?: boolean, place?: string) => boolean | void) | null = null;
   /** counts presses on a tab (showTab): a press that waited a frame gives way to any press after it */
   let shows = 0;
   const waiters: (() => void)[] = [];
@@ -514,7 +514,7 @@ export function createShellHub(options: HubOptions): ShellHub {
         s.hash = t.hash ?? "";
         emit();
       };
-      if (holder?.(tab.key, later) === true) return;
+      if (holder?.(tab.key, later, undefined, tab.place) === true) return;
       s.tabs.select(tab.key);
       s.place = tab.place;
       s.hash = tab.hash ?? "";

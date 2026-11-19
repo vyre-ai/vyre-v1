@@ -97,6 +97,8 @@ function probe(): void {
       rows: document.querySelectorAll('[data-testid^="row-c:"], [data-testid^="row-ch:"]').length,
       pending: q("[data-pending]") !== null,
       busy: document.documentElement.hasAttribute("data-nav-busy"),
+      // set in the commit that reveals a place the shell kept made (shell/spaces/kept-places.tsx), cleared by the next press: a frame with it holds a finished page, not the one the press answered
+      kept: document.documentElement.hasAttribute("data-kept-return"),
       text: stage ? (stage.innerText ?? "").replace(/\s+/g, " ").slice(0, 400) : "",
       shell: q('[data-testid="shell"]') !== null,
     };
@@ -131,6 +133,7 @@ function probe(): void {
   addEventListener(
     "pointerdown",
     () => {
+      document.documentElement.removeAttribute("data-kept-return");
       p.on = true;
       p.t0 = performance.now();
       p.frames = [];
@@ -445,7 +448,7 @@ test("instant feel: a press is answered inside 100 ms, the first screen shows th
                 !f.swap &&
                 !f.busy &&
                 !f.loading &&
-                (sawBusy || f.t - t0 > 60) &&
+                (sawBusy || f.kept || f.t - t0 > 60) &&
                 f.text.replace(/\s+/g, "").length >= 12
               )
                 drawn = f.t - t0;

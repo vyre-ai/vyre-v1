@@ -16,6 +16,41 @@ import { RESTORE_EVENT } from "../tabs/view-memory.ts";
 
 /** How many places of the open Space stay made, the one on screen among them. */
 export const KEPT_PLACES = 5;
+
+// What the rest of the shell may ask of the stack (the shell reads it in render and in a frame callback, so it is plain module state, written in a layout effect):
+//   which places are made right now, and whether the place that has just come on screen was one of them (a return: it is revealed, not made).
+const reg: { keys: readonly string[]; shown: string | null; revealed: boolean } = {
+  keys: [],
+  shown: null,
+  revealed: false,
+};
+/** The place of this key (epoch:Space:place) is made and held out of the page: pressing it reveals it. */
+export const isKeptPlace = (key: string): boolean => reg.keys.includes(key) && reg.shown !== key;
+/** The place on screen came back from being kept: nothing is made for it, so no still copy of any page and no waiting frame stand in front of it. */
+export const keptRevealed = (): boolean => reg.revealed;
+/** For tests: forget what the stack told. */
+export function resetKeptRegistryForTests(): void {
+  reg.keys = [];
+  reg.shown = null;
+  reg.revealed = false;
+}
+/** Set on the page for a moment after a place was revealed from the kept ones: a probe (and a person debugging) can tell a return from a place made new. */
+const REVEAL_ATTR = "data-kept-return";
+let revealTimer: ReturnType<typeof setTimeout> | null = null;
+function markReveal(on: boolean): void {
+  const root = (
+    globalThis as {
+      document?: { documentElement?: { setAttribute(k: string, v: string): void; removeAttribute(k: string): void } };
+    }
+  ).document?.documentElement;
+  if (!root) return;
+  if (revealTimer !== null) clearTimeout(revealTimer);
+  revealTimer = null;
+  if (on) {
+    root.setAttribute(REVEAL_ATTR, "1");
+    revealTimer = setTimeout(() => root.removeAttribute(REVEAL_ATTR), 1500);
+  } else root.removeAttribute(REVEAL_ATTR);
+}
 /** A scroll area this close to its end is following it (a chat's feed): it is put back at the end, wherever that is by then. */
 const END_SLACK = 24;
 
@@ -167,6 +202,26 @@ export function PlaceStack({
     keys = keys.filter((k) => !oldest.includes(k));
   }
   const now = keys;
+  // a place that was held before this pass and is the one to show now is revealed, not made
+  // (the very first pass holds its own place from the start: that one was made, not kept)
+  const first = useRef(true);
+  const returned = !first.current && current !== null && held.scope === scope && held.keys.includes(current);
+  useLayoutEffect(() => {
+    first.current = false;
+    reg.keys = now;
+    if (current !== reg.shown) {
+      reg.shown = current;
+      reg.revealed = current !== null && returned;
+      markReveal(reg.revealed);
+    }
+  });
+  useEffect(
+    () => () => {
+      resetKeptRegistryForTests();
+      markReveal(false);
+    },
+    [],
+  );
   useEffect(() => {
     if (current !== null) shownAt.current.set(current, ++tick.current);
     if (held.scope !== scope || held.keys.length !== now.length || held.keys.some((k, i) => k !== now[i])) {
