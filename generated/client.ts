@@ -2448,6 +2448,7 @@ export function createClient(transport: Transport) {
         control: call("runs.node.control", 1),
         event: call("runs.node.event", 1),
         get: call("runs.node.get", 1),
+        label: call("runs.node.label", 1),
         move: call("runs.node.move", 1),
         reclaim: call("runs.node.reclaim", 1),
         start: call("runs.node.start", 1),

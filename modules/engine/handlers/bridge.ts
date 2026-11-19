@@ -144,6 +144,19 @@ export type StreamEvent =
       asker?: string;
       privately?: boolean;
     }
+  /**
+   * What a subagent said or used, for its record in the Run tree (crew-watch only; never sent to the live view). `parent` is the call that started the subagent; `id` is the message's.
+   */
+  | {
+      kind: "sub";
+      threadId: string;
+      turnId: string;
+      agentId: string;
+      id: string;
+      parent: string;
+      said?: string;
+      usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; model?: string };
+    }
   /** A step of the turn (a tool call or its result): what the agent is doing, for the line under its reply. Names only; no input. */
   | {
       kind: "step";
@@ -829,9 +842,32 @@ export function createBridge(o: BridgeOptions): Bridge {
             typeof (ev.payload as { parent?: unknown } | null)?.parent === "string" &&
             (ev.payload as { parent: string }).parent !== ""
           ) {
-            const p = ev.payload as { id?: unknown; name?: unknown; detail?: unknown; ok?: unknown; parent: string };
+            const p = ev.payload as {
+              id?: unknown;
+              name?: unknown;
+              detail?: unknown;
+              ok?: unknown;
+              parent: string;
+              said?: unknown;
+              usage?: unknown;
+            };
             const id = typeof p.id === "string" ? p.id : "";
-            if (id !== "") {
+            if (
+              id !== "" &&
+              ev.kind === "tool_input" &&
+              (typeof p.said === "string" || (p.usage && typeof p.usage === "object"))
+            ) {
+              emit({
+                kind: "sub",
+                threadId: input.threadId,
+                turnId: input.turnId,
+                agentId: input.agent.id,
+                id,
+                parent: p.parent,
+                ...(typeof p.said === "string" ? { said: p.said } : {}),
+                ...(p.usage && typeof p.usage === "object" ? { usage: p.usage as never } : {}),
+              });
+            } else if (id !== "") {
               if (ev.kind === "tool_call" && typeof p.name === "string") {
                 subCalls.set(id, p.name);
                 if (NATIVE_OUTSIDE.has(p.name)) {

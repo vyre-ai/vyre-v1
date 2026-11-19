@@ -35890,6 +35890,13 @@ export type RunsNodeGetOut = {
     updatedAt: number;
   };
 };
+export type RunsNodeLabelIn = {
+  runId: string;
+  name: string;
+};
+export type RunsNodeLabelOut = {
+  ok: boolean;
+};
 export type RunsNodeMoveIn = {
   runId: string;
   to: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
@@ -50653,6 +50660,7 @@ export interface CapMap {
   "runs.node.control": { in: RunsNodeControlIn; out: RunsNodeControlOut };
   "runs.node.event": { in: RunsNodeEventIn; out: RunsNodeEventOut };
   "runs.node.get": { in: RunsNodeGetIn; out: RunsNodeGetOut };
+  "runs.node.label": { in: RunsNodeLabelIn; out: RunsNodeLabelOut };
   "runs.node.move": { in: RunsNodeMoveIn; out: RunsNodeMoveOut };
   "runs.node.reclaim": { in: RunsNodeReclaimIn; out: RunsNodeReclaimOut };
   "runs.node.start": { in: RunsNodeStartIn; out: RunsNodeStartOut };

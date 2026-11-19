@@ -435,3 +435,12 @@ export async function treeFind(ctx: RunsCtx, input: In): Promise<unknown> {
   }
   return { roots: out };
 }
+
+export async function nodeLabel(ctx: RunsCtx, input: In): Promise<unknown> {
+  systemOnly(ctx);
+  const n = getNode(ctx, input.runId);
+  const name = String(input.name).trim();
+  if (name !== "" && n.name === undefined)
+    ctx.db.run("UPDATE runs_node SET name = ?, updated_at = ? WHERE run_id = ?", name, ctx.now(), n.id);
+  return { ok: true };
+}

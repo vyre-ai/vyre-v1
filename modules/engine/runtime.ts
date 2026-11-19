@@ -1062,7 +1062,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           now,
           stream: (e) => {
             if (e.kind === "final" && e.messageId) linkPosted(e);
-            live?.(e);
+            // what a subagent said and used is for its record only: it never reaches the live view
+            if (e.kind !== "sub") live?.(e);
             crewWatch?.(e);
           },
           addressAsker: (threadId, agentId) => {

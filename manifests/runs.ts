@@ -361,6 +361,10 @@ export default defineManifest({
         emits: ["run.node_state", "run.node_ended"],
       },
     ),
+    write("runs.node.label", "Give a node its name, once the task it was asked is known (the server)", {
+      in: { ...nodeTarget, name: t.str({ maxLength: 120 }) },
+      out: { ok: t.bool() },
+    }),
     write(
       "runs.node.move",
       "Move a node to another state; the one way a node changes state (a node already there answers as a no-op, a finished one refuses)",

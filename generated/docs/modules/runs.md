@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (42)
+## Capabilities (43)
 
 - [runs.activity.list](../capabilities/runs.activity.list.md): Everything of the agent work tree that is running, asleep or paused for the person (or for everyone, for someone who manages runs), newest first
 - [runs.board.answer](../capabilities/runs.board.answer.md): The parent, the owner or a manager answers a question on the board
@@ -26,6 +26,7 @@ Requires: nothing.
 - [runs.node.control](../capabilities/runs.node.control.md): Pause, resume or stop a node and, with subtree, everything under it (the owner or someone who manages runs)
 - [runs.node.event](../capabilities/runs.node.event.md): Add one event to the record of a node, idempotent by key; a usage event adds to the spend of that node once
 - [runs.node.get](../capabilities/runs.node.get.md): Read one node of the agent work tree
+- [runs.node.label](../capabilities/runs.node.label.md): Give a node its name, once the task it was asked is known (the server)
 - [runs.node.move](../capabilities/runs.node.move.md): Move a node to another state; the one way a node changes state (a node already there answers as a no-op, a finished one refuses)
 - [runs.node.reclaim](../capabilities/runs.node.reclaim.md): Put nodes whose worker stopped beating back in the queue with the next attempt (the host's sweep)
 - [runs.node.start](../capabilities/runs.node.start.md): Make a node in the agent work tree: a turn, helper, subagent, handoff, ask, watcher, terminal command or job (the engine, chat and terminal call this)
