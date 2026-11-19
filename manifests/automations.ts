@@ -97,13 +97,10 @@ const definition = t.obj({
     t.obj({
       keyId: t.opt(
         t.str({
-          description:
-            "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
+          description: "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
         }),
       ),
-      backupKeyId: t.opt(
-        t.str({ description: "Used when the main account is capped or down" }),
-      ),
+      backupKeyId: t.opt(t.str({ description: "Used when the main account is capped or down" })),
     }),
   ),
 });
@@ -967,15 +964,19 @@ export default defineManifest({
       tool: "automations",
       label: "check",
     }),
-    read("automations.stage_offers", "Space Automations that start on a stage of a Journey's type and are not part of it", {
-      in: {
-        recordType: id.recordType,
-        stageField: t.opt(t.str()),
-        stages: t.arr(t.str(), { maxItems: 100 }),
-        members: t.opt(t.arr(id.automation, { maxItems: 500 })),
+    read(
+      "automations.stage_offers",
+      "Space Automations that start on a stage of a Journey's type and are not part of it",
+      {
+        in: {
+          recordType: id.recordType,
+          stageField: t.opt(t.str()),
+          stages: t.arr(t.str(), { maxItems: 100 }),
+          members: t.opt(t.arr(id.automation, { maxItems: 500 })),
+        },
+        out: { offers: t.arr(t.obj({ automationId: id.automation, name: t.str(), stage: t.str(), on: t.bool() })) },
       },
-      out: { offers: t.arr(t.obj({ automationId: id.automation, name: t.str(), stage: t.str(), on: t.bool() })) },
-    }),
+    ),
     read("automations.why_not", "Why Automations did not run for a record, and what stopped each", {
       in: { type: id.recordType, recordId: id.record, eventId: t.opt(id.event) },
       out: {

@@ -714,7 +714,6 @@ export async function whyNot(ctx: AutoCtx, input: In): Promise<unknown> {
   return { record, changes, eventId: chosen.id, automations: rows.map((r) => r.row) };
 }
 
-
 /**
  * The Automations that already start on a Journey's stages without belonging to it (rc.41): one that watches a change of the type's stage field (or a record entering a Journey stage) and is not among the stages' members.
  * The Path page offers each under the stage it listens for, with one press to add it. A listing is read only, and an Automation that names no one stage is offered nowhere.
@@ -728,7 +727,12 @@ export async function stageOffers(ctx: AutoCtx, input: In): Promise<unknown> {
   for (const a of allAutomations(ctx.db)) {
     if (members.has(a.id) || a.kind !== "space") continue;
     for (const t of a.definition.triggers) {
-      const f = (t.filter ?? {}) as { type?: unknown; fields?: unknown; where?: Record<string, unknown>; stage?: unknown };
+      const f = (t.filter ?? {}) as {
+        type?: unknown;
+        fields?: unknown;
+        where?: Record<string, unknown>;
+        stage?: unknown;
+      };
       let stage: unknown;
       if (t.key === "record_change" && f.type === type) {
         const watches = Array.isArray(f.fields) ? f.fields.includes(field) : f.where !== undefined && field in f.where;

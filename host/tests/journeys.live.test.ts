@@ -321,23 +321,34 @@ test("the move onto the new form starts no Automation, though one listens for ev
       name: "On any company change",
       definition: {
         triggers: [{ key: "record_change", filter: { type: "company" } }],
-        nodes: [{ id: "note", key: "records.create", input: { type: "note_board", fields: { title: "A company changed" } } }],
+        nodes: [
+          { id: "note", key: "records.create", input: { type: "note_board", fields: { title: "A company changed" } } },
+        ],
       },
     });
     const autoId = String((made["automation"] as { id?: string } | undefined)?.id ?? made["automationId"]);
     await ok(d, "/v1/automations/set_enabled", { automationId: autoId, enabled: true });
     const runs = async (): Promise<number> =>
-      ((await ok(d, "/v1/runs/list", { scope: "subject", subject: { type: "automation", id: autoId }, limit: 50 }))["runs"] as unknown[]).length;
+      (
+        (await ok(d, "/v1/runs/list", { scope: "subject", subject: { type: "automation", id: autoId }, limit: 50 }))[
+          "runs"
+        ] as unknown[]
+      ).length;
     const j = await journey(d, "Quiet intake", [stage("start", 0), stage("done", 1, { final: true })]);
     await started(d, j.id, "Acme Quiet");
     await started(d, j.id, "Bolt Quiet");
     // a plain edit of a company is a change: the Automation runs for it (the control, so a silent Automation cannot pass this test)
     const subjectId = await subject(d, "Control Co");
-    await until("the Automation to run for an ordinary change", 8000, async () => ((await runs()) > 0 ? true : undefined));
+    await until("the Automation to run for an ordinary change", 8000, async () =>
+      (await runs()) > 0 ? true : undefined,
+    );
     const before = await runs();
     assert.ok(before > 0);
     await d.hooks!.runPeriodic("journeys.auto_pipeline");
-    assert.equal(((await ok(d, "/v1/journeys/get", { journeyId: j.id }))["journey"] as { mode: string }).mode, "pipeline");
+    assert.equal(
+      ((await ok(d, "/v1/journeys/get", { journeyId: j.id }))["journey"] as { mode: string }).mode,
+      "pipeline",
+    );
     await new Promise((r) => setTimeout(r, 1500));
     assert.equal(await runs(), before, "the migration's writes started nothing");
     void subjectId;
