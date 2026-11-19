@@ -201,6 +201,7 @@ export function PathTab({
   const col = (c: Column): ReactElement => (
     <ColumnView
       key={c.key}
+      fin={c.final}
       col={c}
       here={here === c.key}
       test={test}
@@ -294,7 +295,9 @@ function ColumnView({
   onAdd,
   offers,
   onTake,
+  fin = false,
 }: {
+  fin?: boolean;
   offers: readonly Offer[];
   onTake?: (o: Offer) => void;
   col: Column;
@@ -304,7 +307,7 @@ function ColumnView({
   onAdd?: (e: unknown) => void;
 }): ReactElement {
   return (
-    <View style={s.col} testID={`path-col-${col.key}`}>
+    <View style={fin ? s.colFin : s.col} testID={`path-col-${col.key}`}>
       <View style={s.colHead}>
         <Text style={s.colTitle} numberOfLines={1}>
           {col.title}
@@ -380,7 +383,7 @@ const s = StyleSheet.create({
     color: "var(--ink-3)" as string,
   },
   factVal: { marginTop: 2, fontSize: 13, color: "var(--ink)" as string },
-  bar: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 36 },
+  bar: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", rowGap: 8, gap: 12, minHeight: 36 },
   pick: {
     height: 32,
     paddingHorizontal: 12,
@@ -402,7 +405,8 @@ const s = StyleSheet.create({
   quiet: { fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
   late: { color: "var(--warn)" as string },
   cols: { gap: 12, paddingBottom: 12, alignItems: "flex-start", minWidth: "100%" },
-  col: { flexGrow: 1, flexBasis: 0, minWidth: 190, maxWidth: 300, gap: 8 },
+  col: { flexGrow: 1, flexBasis: 0, minWidth: 180, maxWidth: 210, gap: 8 },
+  colFin: { width: 190, gap: 8 },
   colHead: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4 },
   colTitle: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   colCount: { fontSize: 12, color: "var(--ink-3)" as string },
@@ -429,7 +433,7 @@ const s = StyleSheet.create({
   add: { height: 32, borderRadius: 12, justifyContent: "center", paddingHorizontal: 10 },
   addText: { fontSize: 13, fontWeight: "500", color: "var(--ink-3)" as string },
   finish: {
-    width: 230,
+    width: 200,
     flexShrink: 0,
     gap: 8,
     paddingLeft: 12,

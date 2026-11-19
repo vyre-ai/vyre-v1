@@ -261,7 +261,13 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (n.key === "connector_request" && containsSecret(have["input"]))
       out.push(issue("error", "An authenticated request cannot hold a secret. Use the connection.", n.id));
     if (n.key === "http_request") out.push(...httpIssues(n.id, have));
-    if (n.key === "ai" && n.ai?.mode !== "task" && have["mode"] !== "task" && !(n.ai?.skills?.length ?? 0) && asksForSkill(have["prompt"]))
+    if (
+      n.key === "ai" &&
+      n.ai?.mode !== "task" &&
+      have["mode"] !== "task" &&
+      !(n.ai?.skills?.length ?? 0) &&
+      asksForSkill(have["prompt"])
+    )
       out.push(issue("warning", SKILL_NEEDS_TASK, n.id));
     if (n.key === "loop") {
       const max = have["maxIterations"];
@@ -956,8 +962,13 @@ export async function skillIssues(ctx: AutoCtx, def: Definition): Promise<Issue[
     const agent = n.ai?.agentId ?? "";
     if (!have.has(agent)) {
       try {
-        const r = (await ctx.call("skills.list", agent ? { agentId: agent } : {})) as { skills?: { name: string; shadowedBy?: unknown; broken?: unknown; enabled?: boolean }[] };
-        have.set(agent, new Set((r.skills ?? []).filter((s) => !s.shadowedBy && !s.broken && s.enabled !== false).map((s) => s.name)));
+        const r = (await ctx.call("skills.list", agent ? { agentId: agent } : {})) as {
+          skills?: { name: string; shadowedBy?: unknown; broken?: unknown; enabled?: boolean }[];
+        };
+        have.set(
+          agent,
+          new Set((r.skills ?? []).filter((s) => !s.shadowedBy && !s.broken && s.enabled !== false).map((s) => s.name)),
+        );
       } catch {
         return [];
       }
