@@ -11,7 +11,7 @@ const humanize = (key: string): string => key.replace(/_/g, " ");
 const MAX_KEY = 64;
 const MAX_FALLBACK = 200;
 /** The only schemes a link may carry. `cid:` (an image sent inside the email) is allowed for src only. */
-const SAFE_SCHEMES = new Set(["https", "http", "mailto", "tel", "sms"]);
+const SAFE_SCHEMES = new Set(["https", "http", "mailto", "tel"]);
 const LINK_ATTRS = new Set(["href", "src", "action", "formaction", "xlink:href", "poster", "background", "cite", "data", "srcset", "ping"]);
 
 /** A value as a browser reads it: character references decoded, spaces and control characters dropped. */
@@ -30,7 +30,8 @@ export function unsafeUrl(value: string, attr = "href"): boolean {
   const m = /^([a-z][a-z0-9+.-]*):/i.exec(flat);
   if (m) {
     const scheme = (m[1] ?? "").toLowerCase();
-    return !(SAFE_SCHEMES.has(scheme) || (scheme === "cid" && attr.toLowerCase() === "src"));
+    const a = attr.toLowerCase();
+    return !(SAFE_SCHEMES.has(scheme) || (scheme === "cid" && a === "src") || (scheme === "sms" && a === "href"));
   }
   return flat.startsWith(":"); // a scheme with no name is what two merged pieces can leave
 }

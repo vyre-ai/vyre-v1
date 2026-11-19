@@ -833,7 +833,8 @@ const manifest = defineManifest({
         in: { messageId: emlId },
         out: {
           messageId: emlId,
-          state: t.enm("waiting", "sent", "delivered", "retrying", "bounced", "complained", "failed"),
+          state: t.enm("waiting", "sent", "delivered", "retrying", "held", "bounced", "complained", "failed"),
+          sentBy: t.opt(t.obj({ kind: t.str(), id: t.str() })),
           events: t.arr(
             t.obj({
               kind: t.enm(
@@ -872,7 +873,7 @@ const manifest = defineManifest({
       "Scheduled by Vyre after a soft bounce: send the message again to the one address that bounced, once per attempt, never to a suppressed address",
       {
         in: { messageId: emlId, address: t.str(), attempt: t.int({ minimum: 1, maximum: 3 }) },
-        out: { outcome: t.enm("sent", "skipped", "gave_up", "rescheduled"), messageId: t.opt(emlId) },
+        out: { outcome: t.enm("sent", "skipped", "gave_up", "rescheduled", "held"), messageId: t.opt(emlId) },
         // the retry resends a message that already passed the Gate once; carrying the same act makes the provider call inside it count as cleared, never asked a second time
         gate: "send",
         emits: ["message.sent", "message.suppressed", "message.failed", "message.bounced", "message.delivered"],

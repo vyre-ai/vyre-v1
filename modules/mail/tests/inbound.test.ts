@@ -2,7 +2,7 @@
 // the one thing to do, and mail.inbox.monitor says per inbox how it is fed and whether it works. Addresses end in .test; nothing leaves the process.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AUTO_PER_HOUR, MAX_PROBLEMS, autoReason, ingestWatched, monitor, noteAuto, syncWatched } from "../handlers/extra/inbound.ts";
+import { AUTO_PER_HOUR, MAX_HELD, MAX_PROBLEMS, autoReason, ingestWatched, monitor, noteAuto, syncWatched } from "../handlers/extra/inbound.ts";
 import { isOwnRetry } from "../handlers/extra/delivery.ts";
 import { sendAs } from "../handlers/send.ts";
 import { trail } from "../handlers/extra/delivery.ts";
@@ -216,4 +216,29 @@ test("noteAuto remembers the sender once and moves the time forward", async () =
   r.h.advance(MIN);
   noteAuto(r.ctx, "eml_b", "a mailing list", "news@acme.test");
   assert.equal(r.h.rows(`SELECT address FROM mail_auto_sender`).length, 1);
+});
+
+test("an agent may keep only so many held replies open in one mailbox; past it the reply is refused, naming the oldest, and nothing is dropped", async () => {
+  const r = rig({ origin: "automation" });
+  const auto = await ingest(r.ctx, letter("pat@acme.test", "<c1@acme.test>", "gm_c1", { mailboxId: "mbx_maya", headers: { "Auto-Submitted": "auto-replied" } }));
+  const reply = (n: number) => sendIn({ mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: `Re: ${n}`, replyToMessageId: auto.messageId, idempotencyKey: `held-${n}` });
+  for (let n = 0; n < MAX_HELD; n++) assert.equal((await send(r.ctx, reply(n))).status, "held");
+  await assert.rejects(send(r.ctx, reply(MAX_HELD)), (e) => /50 automatic replies from this sender are already held.*Re: 0 \(eml_/.test(String((e as Error).message)));
+  assert.equal(r.h.rows(`SELECT id FROM mail_message WHERE status = ?`, "draft").length, MAX_HELD); // none lost, none added
+  // sending or deleting one frees a place
+  const first = r.h.rows(`SELECT id FROM mail_message WHERE status = ?`, "draft")[0]!.id as string;
+  r.h.ctx.db.run(`UPDATE mail_message SET status = ? WHERE id = ?`, "sent", first);
+  assert.equal((await send(r.ctx, reply(MAX_HELD))).status, "held");
+  // another sender has its own count
+  (r.ctx as unknown as { principal: { kind: string; id: string } }).principal = { kind: "service", id: "svc_other" };
+  assert.equal((await send(r.ctx, { ...reply(900), idempotencyKey: "other-1" })).status, "held");
+});
+
+test("a send_as that is refused does not count toward the hourly cap", async () => {
+  const r = rig({ origin: "automation", settings: { "send.cap": 1 } });
+  const m = await ingest(r.ctx, letter("kim@acme.test", "<c2@acme.test>", "gm_c2", { mailboxId: "mbx_maya" }));
+  const as = (key: string) => ({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }], subject: "Re", text: "x", replyToMessageId: m.messageId, idempotencyKey: key });
+  await sendAs(r.ctx, as("a-1")); // takes the day's one slot
+  await assert.rejects(sendAs(r.ctx, as("a-2"))); // over the daily limit: refused
+  assert.equal(r.h.rows(`SELECT id FROM mail_auto_send`).length, 1, "only the one that went out is counted");
 });

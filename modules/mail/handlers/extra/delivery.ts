@@ -30,7 +30,9 @@ import { fail } from "../../../../host/src/routes/errors.ts";
 import { isHostService } from "../../../../lib/trust.ts";
 import { ensureAll } from "./common.ts";
 
-const SQL = readFileSync(fileURLToPath(new URL("../../migrations/0010_delivery_trail.sql", import.meta.url)), "utf8");
+const SQL = ["0010_delivery_trail.sql", "0015_sender_and_holds.sql"]
+  .map((f) => readFileSync(fileURLToPath(new URL(`../../migrations/${f}`, import.meta.url)), "utf8"))
+  .join("\n");
 const ready = new WeakSet<object>();
 
 /** Make sure the trail and retry tables exist (one cheap probe per call after the first). */
@@ -39,6 +41,7 @@ export function ensureDelivery(ctx: Pick<MailCtx, "db">): void {
   if (ready.has(ctx.db)) return;
   try {
     ctx.db.all(`SELECT "childId" FROM mail_delivery_child WHERE "childId" = ?`, "probe");
+    ctx.db.all(`SELECT "messageId" FROM mail_sent_by WHERE "messageId" = ?`, "probe");
   } catch {
     for (const statement of statements(SQL)) ctx.db.run(statement);
   }
@@ -111,7 +114,9 @@ const WORDS: Record<TrailKind, string> = {
 
 export interface TrailOut {
   messageId: string;
-  state: "waiting" | "sent" | "delivered" | "retrying" | "bounced" | "complained" | "failed";
+  state: "waiting" | "sent" | "delivered" | "retrying" | "held" | "bounced" | "complained" | "failed";
+  /** Who asked for this message to be sent, whoever has run a retry of it since. */
+  sentBy?: { kind: string; id: string };
   events: { kind: TrailKind; at: number; label: string; address?: string; detail?: string }[];
   /** An address that cannot be sent to until someone fixes or clears it, with the plain reason. */
   blocked: { address: string; reason: string }[];
@@ -149,9 +154,12 @@ export async function trail(ctx: MailCtx, input: { messageId: string }): Promise
 
   const retries = rowsOf(ctx.db.all(`SELECT * FROM mail_delivery_retry WHERE "messageId" = ?`, input.messageId));
   const live = retries.find((r) => ["pending", "sending"].includes(str(r, "state")));
+  const stuck = retries.find((r) => str(r, "state") === "held");
   const status = str(msg, "status");
   const state: TrailOut["state"] = live
     ? "retrying"
+    : stuck
+      ? "held"
     : status === "queued" || status === "draft"
       ? "waiting"
       : status === "delivered"
@@ -187,6 +195,8 @@ export async function trail(ctx: MailCtx, input: { messageId: string }): Promise
   }
 
   const out: TrailOut = { messageId: input.messageId, state, events, blocked };
+  const by = first(ctx.db.all(`SELECT * FROM mail_sent_by WHERE "messageId" = ?`, input.messageId));
+  if (by) out.sentBy = { kind: str(by, "kind"), id: strOrNull(by, "actingFor") ?? str(by, "principal") };
   if (live)
     out.retry = {
       address: str(live, "address"),
@@ -242,7 +252,7 @@ export async function planRetry(
     ctx.db.all(`SELECT * FROM mail_delivery_retry WHERE "messageId" = ? AND address = ?`, rootId, address),
   );
   const attempts = row ? num(row, "attempts") : 0;
-  if (row && (str(row, "state") === "pending" || str(row, "state") === "sending")) return true; // one retry waits already; a second soft bounce event does not add another
+  if (row && (str(row, "state") === "pending" || str(row, "state") === "sending" || str(row, "state") === "held")) return true; // one retry waits already; a second soft bounce event does not add another
   if (attempts >= MAX_RETRIES) {
     markGaveUp(ctx, rootId, address, reason, at);
     return false;
@@ -312,7 +322,7 @@ function markGaveUp(ctx: MailCtx, rootId: string, address: string, reason: strin
   );
 }
 
-export type RetryOutcome = "sent" | "skipped" | "gave_up" | "rescheduled";
+export type RetryOutcome = "sent" | "skipped" | "gave_up" | "rescheduled" | "held";
 
 export interface RetryIn {
   messageId: string;
@@ -439,6 +449,17 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
   } catch (e) {
     // whoever runs this (the host's schedule runs it as whoever scheduled it) may lack the right to send from this mailbox: that is not a failed try, so the attempt is given back untouched
     if (codeOf(e).startsWith("permission.")) {
+      const had = first(ctx.db.all(`SELECT n FROM mail_retry_giveback WHERE "messageId" = ? AND address = ?`, input.messageId, address));
+      const n = (had ? num(had, "n") : 0) + 1;
+      const why = e instanceof Error && e.message ? e.message : "no right to send";
+      if (had) ctx.db.run(`UPDATE mail_retry_giveback SET n = ?, "lastReason" = ? WHERE "messageId" = ? AND address = ?`, n, why, input.messageId, address);
+      else ctx.db.run(`INSERT INTO mail_retry_giveback ("messageId", address, n, "lastReason") VALUES (?, ?, ?, ?)`, input.messageId, address, n, why);
+      if (n >= MAX_GIVEBACKS) {
+        // it will not loop forever: held, with the reason, for a person to send
+        finish(ctx, input.messageId, address, "held");
+        recordTrail(ctx, input.messageId, { kind: "held", at: ctx.now(), address, detail: `Could not be sent again automatically (${why}). Send it again by hand.` }, `held_retry|${input.messageId}|${address}`);
+        return { outcome: "held" };
+      }
       ctx.db.run(
         `UPDATE mail_delivery_retry SET attempts = ?, state = ?, "nextAt" = ? WHERE "messageId" = ? AND address = ? AND state = ?`,
         input.attempt - 1,
@@ -467,6 +488,8 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
     return { outcome: "rescheduled" };
   }
   if (childId) {
+    const origin = first(ctx.db.all(`SELECT * FROM mail_sent_by WHERE "messageId" = ?`, input.messageId));
+    if (origin) recordSentBy(ctx, childId, { kind: str(origin, "kind"), principal: str(origin, "principal"), actingFor: strOrNull(origin, "actingFor") });
     ctx.db.run(`INSERT OR IGNORE INTO mail_delivery_child ("childId", "rootId", address) VALUES (?, ?, ?)`, childId, input.messageId, address);
     ctx.db.run(`UPDATE mail_delivery_retry SET "childId" = ? WHERE "messageId" = ? AND address = ?`, childId, input.messageId, address);
   }
@@ -611,3 +634,16 @@ export function isOwnRetry(ctx: MailCtx, key: string | undefined): boolean {
   const row = first(ctx.db.all(`SELECT state, attempts FROM mail_delivery_retry WHERE "messageId" = ? AND address = ?`, m[1], m[2]));
   return !!row && str(row, "state") === "sending" && num(row, "attempts") === Number(m[3]);
 }
+
+/** Remember who asked for a message to be sent (the person an agent acts for, else the caller). A retry copies the original's, so whoever runs it, the credit stays. */
+export function recordSentBy(ctx: MailCtx, messageId: string, by?: { kind: string; principal: string; actingFor?: string | null }): void {
+  ensureDelivery(ctx);
+  const who = by ?? { kind: ctx.principal.kind, principal: ctx.principal.id, actingFor: ctx.actingFor ?? null };
+  if (first(ctx.db.all(`SELECT "messageId" FROM mail_sent_by WHERE "messageId" = ?`, messageId)))
+    ctx.db.run(`UPDATE mail_sent_by SET kind = ?, principal = ?, "actingFor" = ? WHERE "messageId" = ?`, who.kind, who.principal, who.actingFor ?? null, messageId);
+  else
+    ctx.db.run(`INSERT INTO mail_sent_by ("messageId", kind, principal, "actingFor", at) VALUES (?, ?, ?, ?, ?)`, messageId, who.kind, who.principal, who.actingFor ?? null, ctx.now());
+}
+
+/** A retry handed back this many times for lack of a right is held for a person, with the reason, and stops. */
+export const MAX_GIVEBACKS = 3;

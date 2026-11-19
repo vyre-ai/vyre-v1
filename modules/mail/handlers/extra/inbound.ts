@@ -260,3 +260,38 @@ export async function monitor(ctx: MailCtx, input: { mailboxId?: string }): Prom
         .map((p) => ({ address: str(p, "address"), reason: str(p, "reason"), fix: fixFor("no_inbox", ""), at: num(p, "at") }));
   return { inboxes: out, unrouted };
 }
+
+// ---- held replies
+
+/** The most held replies one sender may have open in one mailbox. */
+export const MAX_HELD = 50;
+
+export function recordHeld(ctx: MailCtx, messageId: string, mailboxId: string, actor: string, reason: string): void {
+  ensureInbound(ctx);
+  ensureHeld(ctx);
+  if (first(ctx.db.all(`SELECT "messageId" FROM mail_held WHERE "messageId" = ?`, messageId))) return;
+  ctx.db.run(`INSERT INTO mail_held ("messageId", "mailboxId", actor, reason, at) VALUES (?, ?, ?, ?, ?)`, messageId, mailboxId, actor, reason.slice(0, 400), ctx.now());
+}
+
+/** A sender's held drafts in a mailbox that are still drafts (not yet sent or deleted), oldest first. */
+export function openHeld(ctx: MailCtx, mailboxId: string, actor: string): { id: string; subject: string; at: number }[] {
+  ensureHeld(ctx);
+  const out: { id: string; subject: string; at: number }[] = [];
+  for (const h of rowsOf(ctx.db.all(`SELECT * FROM mail_held WHERE "mailboxId" = ?`, mailboxId))) {
+    if (str(h, "actor") !== actor) continue;
+    const m = first(ctx.db.all(`SELECT subject, status, deleted_at FROM mail_message WHERE id = ?`, str(h, "messageId")));
+    if (m && str(m, "status") === "draft" && m.deleted_at == null) out.push({ id: str(h, "messageId"), subject: str(m, "subject"), at: num(h, "at") });
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+
+const heldReady = new WeakSet<object>();
+function ensureHeld(ctx: Pick<MailCtx, "db">): void {
+  if (heldReady.has(ctx.db)) return;
+  try {
+    ctx.db.all(`SELECT "messageId" FROM mail_held WHERE "messageId" = ?`, "probe");
+  } catch {
+    for (const statement of statements(readFileSync(fileURLToPath(new URL("../../migrations/0015_sender_and_holds.sql", import.meta.url)), "utf8"))) ctx.db.run(statement);
+  }
+  heldReady.add(ctx.db);
+}

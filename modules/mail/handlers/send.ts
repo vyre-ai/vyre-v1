@@ -55,8 +55,8 @@ import type { MailCtx, Party, Row } from "../projections.ts";
 import { dkimOf } from "./extra/domains.ts";
 import { smtpDeliver } from "./smtp.ts";
 import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
-import { autoReplyGuard, noteAutoSend } from "./extra/inbound.ts";
-import { isOwnRetry, recordTrail } from "./extra/delivery.ts";
+import { MAX_HELD, autoReplyGuard, noteAutoSend, openHeld, recordHeld } from "./extra/inbound.ts";
+import { isOwnRetry, recordSentBy, recordTrail } from "./extra/delivery.ts";
 import { fillSend } from "./extra/template.ts";
 
 // ---- shapes
@@ -577,10 +577,18 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
   const p = await makePlan(ctx, input, composed, input.route, true);
   const now = p.now;
   if (stop) {
+    // at most MAX_HELD open held drafts per sender and mailbox: past it the reply is refused, naming the oldest, and nothing is dropped silently
+    const mine = openHeld(ctx, str(p.box, "id"), ctx.principal.id);
+    if (mine.length >= MAX_HELD)
+      refuse(
+        ctx,
+        `Not sent. ${mine.length} automatic replies from this sender are already held in this mailbox. Send or delete them first. The oldest: ${mine.slice(0, 3).map((h) => `${h.subject || "(no subject)"} (${h.id})`).join(", ")}.`,
+      );
     // never silent: the message is kept as a draft marked held, with the reason on its trail and in the answer (the Automation's run shows it); a person who may use the mailbox sends it with one press
     const held = pending ? str(pending, "id") : newId("eml", now);
     writeRow(ctx, p, composed, parent, pending, held, "draft", now, null);
     recordTrail(ctx, held, { kind: "held", at: now, detail: stop }, `held|${held}|${input.idempotencyKey}`);
+    recordHeld(ctx, held, str(p.box, "id"), ctx.principal.id, stop);
     return remember(ctx, input.idempotencyKey, { messageId: held, status: "held", suppressed: [], note: `Held, not sent. ${stop} Open the draft and send it if it is right.` });
   }
 
@@ -743,6 +751,7 @@ async function deliver(
   const rfcId = p.route === "space_domain" ? `<${id}@${domain}>` : null;
   const now = ctx.now();
   writeRow(ctx, p, final, parent, pending, id, "queued", now, rfcId);
+  recordSentBy(ctx, id); // who asked, kept as data: a retry later credits them whoever runs it
   let providerId: string | null;
   try {
     providerId =
@@ -1108,10 +1117,10 @@ export async function sendAs(ctx: SendCtx, input: SendAsIn): Promise<{ messageId
       refuse(ctx, `Not sent. ${p.suppressed.map((s) => `${s.address} (${s.reason})`).join(", ")} cannot be emailed.`);
     }
     const id = pending ? str(pending, "id") : newId("eml", p.now);
-    noteAutoSend(ctx, asActor, input.replyToMessageId, addressesOf(input));
     // a reply from a member's own mailbox is never held (it has nowhere to wait), but it counts toward the Space's daily limit and is refused over it
     if (!(pending && str(pending, "status") === "queued")) await reserveSlot(ctx, p, p.now, id, false);
     const sent = await deliver(ctx, p, composed, parent, pending, id);
+    noteAutoSend(ctx, asActor, input.replyToMessageId, addressesOf(input)); // counted once it has gone, not when it was merely asked for
     const out = sent.providerId
       ? { messageId: sent.messageId, providerId: sent.providerId }
       : { messageId: sent.messageId };
