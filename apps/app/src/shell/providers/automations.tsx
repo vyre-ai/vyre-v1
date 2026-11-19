@@ -91,7 +91,25 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const [picked, setOpenId] = useState<string | null>(null);
   // Vyre for Chrome opens /automations#screen=watching (the tab hash, so the same link works on the web, the desktop app and the phone)
   const [view, setViewRaw] = useState<StudioView>(() => (watchingHash(target.screen) ? "watching" : "automations"));
-  const [overlay, setOverlay] = useState<Overlay | null>(null);
+  const [overlay, setOverlayRaw] = useState<Overlay | null>(null);
+  // a Journey or a run named by the tab's hash (a task's "From a journey" chip, the Console, a pasted link, a reload) opens the same view a click on its row does; leaving it remembers the id, as `left` does for an Automation
+  const hashedJourney = useOpenedId(["journey"], ["journeyId"]);
+  const hashedRun = useOpenedId(["run"], ["runId"]);
+  const [leftHashed, setLeftHashed] = useState<string | null>(null);
+  const hashedOverlay: Overlay | null =
+    hashedJourney !== null && hashedJourney !== leftHashed
+      ? { kind: "journey", id: hashedJourney }
+      : hashedRun !== null && hashedRun !== leftHashed
+        ? { kind: "run", id: hashedRun }
+        : null;
+  const overlayNow = overlay ?? hashedOverlay;
+  const setOverlay = (next: Overlay | null | ((o: Overlay | null) => Overlay | null)): void => {
+    const value = typeof next === "function" ? next(overlayNow) : next;
+    setOverlayRaw(value);
+    // closing the view of a hash-named Journey or run keeps it closed while the hash still names it
+    if (value === null || value.kind === "failed" || value.kind === "journeyNew")
+      setLeftHashed(hashedJourney ?? hashedRun);
+  };
   const [step, setStep] = useState<string | null>(null);
   const [sideRun, setSideRun] = useState<string | null>(null);
   // a task a run made, beside the run: its thread, brief and baton buttons (the Back button returns to the run)
@@ -110,6 +128,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const [left, setLeft] = useState<string | null>(null);
   const openId = picked ?? (hashed !== null && hashed === left ? null : hashed);
   const goHome = (): void => {
+    setOverlay(null);
     setOpenId(null);
     setLeft(hashed);
     setStep(null);
@@ -203,8 +222,16 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
             opened({ subject: { type: "automation", id } });
           },
           openJourney: (id) => {
+            // Cmd-press, the middle button or "Open in New Tab": the Journey opens as a tab beside this one, as an Automation does
+            const how = takeOpenHow();
+            if (how !== "here") {
+              openIn(how, () => rt.open({ subject: { type: "journey", id } }));
+              return;
+            }
             setViewRaw("automations");
+            setLeftHashed(null);
             setOverlay({ kind: "journey", id });
+            opened({ subject: { type: "journey", id } });
           },
           newJourney: () => {
             setViewRaw("automations");
@@ -386,13 +413,13 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     )
   ) : null;
   const main =
-    overlay?.kind === "failed" ? (
+    overlayNow?.kind === "failed" ? (
       <FailedView selectedRunId={sideRun} />
-    ) : overlay?.kind === "run" ? (
-      <RunView runId={overlay.id} />
-    ) : overlay?.kind === "journey" ? (
-      <JourneyView journeyId={overlay.id} />
-    ) : overlay?.kind === "journeyNew" ? (
+    ) : overlayNow?.kind === "run" ? (
+      <RunView runId={overlayNow.id} />
+    ) : overlayNow?.kind === "journey" ? (
+      <JourneyView journeyId={overlayNow.id} />
+    ) : overlayNow?.kind === "journeyNew" ? (
       <JourneyNewView onClose={() => setOverlay((o) => (o?.kind === "journeyNew" ? null : o))} />
     ) : view === "runs" ? (
       <RunsList />
@@ -405,7 +432,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     ) : canvas ? (
       canvas
     ) : phone ? (
-      <PhoneList view={view} onView={setView} />
+      <PhoneList view={view} onView={(next) => (next === "automations" ? setViewRaw(next) : setView(next))} />
     ) : (
       <FirstPage
         onExamples={() => setView("templates")}
@@ -418,7 +445,14 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       <RunsDataProvider value={runs}>
         <ConfigExtrasProvider value={extras}>
           <View style={s.page} testID="automations-place">
-            {phone ? null : <AutomationsSidebarSlot selectedId={openId} onView={setView} onHome={goHome} />}
+            {phone ? null : (
+              <AutomationsSidebarSlot
+                selectedId={openId}
+                // choosing a row must not close the view the row just opened (a Journey is a view over the body); only the head's Home and the other views close it
+                onView={(next) => (next === "automations" ? setViewRaw(next) : setView(next))}
+                onHome={goHome}
+              />
+            )}
             <View style={s.main}>
               {phone && view !== "automations" && !openId ? (
                 <Pressable
