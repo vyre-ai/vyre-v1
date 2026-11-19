@@ -162,6 +162,7 @@ const SCHEMA = [
   "0019_rewind_state.sql",
   "0020_own_background.sql",
   "0021_turn_journal.sql",
+  "0022_turn_journal_key.sql",
 ]
   .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
   .join("\n")
@@ -185,7 +186,7 @@ export function ensure(db: Db): void {
     db.all("SELECT key FROM engine_step_turns WHERE key = ?", "probe");
     db.all("SELECT task_id FROM engine_task_baton WHERE task_id = ?", "probe");
     db.all("SELECT job_id FROM engine_crew_job WHERE job_id = ?", "probe");
-    db.all("SELECT call_id FROM engine_turn_journal WHERE turn_id = ?", "probe");
+    db.all("SELECT call_key FROM engine_turn_journal WHERE turn_id = ?", "probe");
     db.all("SELECT wait_id FROM engine_crew_wait WHERE wait_id = ?", "probe");
     db.all("SELECT touched FROM engine_thread_queue WHERE thread_id = ?", "probe");
     db.all("SELECT ref FROM engine_paid_ok WHERE thread_id = ?", "probe");
@@ -566,8 +567,8 @@ export function sqlJournal(db: Db, now: () => number): JournalStore {
   return {
     put(e) {
       db.run(
-        `INSERT OR REPLACE INTO engine_turn_journal (turn_id, call_id, thread_id, name, input_json, safety, state, summary, own, at, ended_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO engine_turn_journal (turn_id, call_id, thread_id, name, input_json, safety, state, summary, own, at, ended_at, call_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         e.turnId,
         e.callId,
         e.threadId,
@@ -579,6 +580,7 @@ export function sqlJournal(db: Db, now: () => number): JournalStore {
         e.own ? 1 : 0,
         e.at,
         e.endedAt ?? null,
+        e.callKey ?? null,
       );
       if (e.state === "started") db.run("DELETE FROM engine_turn_journal WHERE at < ?", now() - WEEK);
     },
@@ -600,6 +602,7 @@ export function sqlJournal(db: Db, now: () => number): JournalStore {
           callId: String(r["call_id"]),
           name: String(r["name"]),
           input,
+          ...(r["call_key"] ? { callKey: String(r["call_key"]) } : {}),
           safety: String(r["safety"]) as JournalEntry["safety"],
           state: String(r["state"]) as JournalEntry["state"],
           ...(r["summary"] ? { summary: String(r["summary"]) } : {}),

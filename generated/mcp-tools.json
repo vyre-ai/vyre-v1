@@ -68776,6 +68776,10 @@
             "pattern": "^agt_[a-z0-9]+$",
             "type": "string"
           },
+          "background": {
+            "description": "For a long command: it keeps running in its tab and you get an answer after a few seconds with a run id. Wait for it without spending anything with wait_for on the event run.node_ended and that runId; read what it printed with terminal_read. Use timeoutSec for how long it may run",
+            "type": "boolean"
+          },
           "command": {
             "type": "string"
           },

@@ -73,7 +73,23 @@ export interface CallHooks {
   fire?(ctx: ToolCtx, f: Pick<HookFire, "event" | "tool" | "cap" | "input" | "output" | "ok">): Promise<HookVerdict>;
 }
 
+/**
+ * Long commands that outlive the turn's patience (r42-runtime). A `terminal.run` the model asked to run in the background is waited for a few seconds like any call; if it has not finished by then it is left running
+ * and the model is told at once, with the id of the node that stands for it in the Run tree. That node ends when the call does (done, or failed with the exit code), and a Run that sleeps on `run.node_ended` wakes.
+ * The call itself is the ordinary one: same permissions, same Gate, same Vault scrubbing, same place rules.
+ */
+export interface BackgroundPort {
+  /** How long the call is waited for before it is left running. */
+  graceMs: number;
+  /** Make the node that stands for the running command. Null: none could be made, so the call is simply waited for. */
+  begin(ctx: ToolCtx, t: ToolDef): Promise<{ runId: string } | null>;
+  /** The call ended. */
+  end(runId: string, outcome: { ok: boolean; summary: string; code?: string }): Promise<void>;
+}
+export const BACKGROUND_GRACE_MS = 4000;
+
 export interface CallDeps extends AccessDeps {
+  background?: BackgroundPort;
   /** Which tools a chat has found, kept by the caller so they outlive a session: a CLI engine's process that is started again (another request took its warm slot) goes on with the tools the chat already found. */
   loadedStore?: Map<string, Set<string>>;
   dynamic?: DynamicTools;
@@ -496,7 +512,66 @@ export function createToolSession(deps: CallDeps): ToolSession {
             details: { tool: t.name, errors: extra, reason: "unknown_input" },
           });
       }
-      const res = await deps.invoke(t.cap, body, seed);
+      // a background request is the model's alone: the capability is the ordinary one and is never sent the word
+      let sent = body;
+      let wantsBackground = false;
+      if (
+        t.cap === "terminal.run" &&
+        body !== null &&
+        typeof body === "object" &&
+        !Array.isArray(body) &&
+        "background" in body
+      ) {
+        const { background, ...rest } = body as Record<string, unknown>;
+        wantsBackground = background === true && deps.background !== undefined;
+        sent = rest;
+      }
+      let res: Awaited<ReturnType<typeof deps.invoke>>;
+      if (!wantsBackground) res = await deps.invoke(t.cap, sent, seed);
+      else {
+        const port = deps.background!;
+        const pending = deps.invoke(t.cap, sent, seed);
+        const early = await Promise.race([
+          pending.then(
+            (r) => ({ r }),
+            (e: unknown) => ({ e }),
+          ),
+          new Promise<null>((ok) => setTimeout(() => ok(null), port.graceMs).unref?.()),
+        ]);
+        if (early !== null && "e" in early) throw early.e;
+        if (early !== null) res = early.r;
+        else {
+          const node = await port.begin(ctx, t).catch(() => null);
+          if (!node) res = await pending;
+          else {
+            const finish = (outcome: { ok: boolean; summary: string; code?: string }): void => {
+              void port.end(node.runId, outcome).catch(() => undefined);
+            };
+            pending.then(
+              (r) => finish(backgroundOutcome(r)),
+              (e: unknown) =>
+                finish({
+                  ok: false,
+                  summary: e instanceof HostError ? e.error.message : "The command could not finish.",
+                  code: e instanceof HostError ? e.error.code : "internal.unexpected",
+                }),
+            );
+            return {
+              kind: "result",
+              traceId,
+              result: {
+                ok: true,
+                content: {
+                  started: true,
+                  runId: node.runId,
+                  message:
+                    "It is still running in its tab and will go on. To wait for it without spending anything, use wait_for on the event run.node_ended with this runId; the answer then says how it ended. Read what it printed with terminal_read.",
+                },
+              },
+            };
+          }
+        }
+      }
       if (!isDynamic && res.status === "ok")
         for (const l of learned(t.cap, body, res.output)) seen.set(ctx, l.key, l.version);
       if (!isDynamic && res.status === "ok")
@@ -633,6 +708,24 @@ export function createToolSession(deps: CallDeps): ToolSession {
     },
   };
   return api;
+}
+
+/** How a background command ended, in words for the node: the exit code and how long, or why it did not finish. */
+function backgroundOutcome(r: { status: string; output?: unknown }): { ok: boolean; summary: string; code?: string } {
+  if (r.status !== "ok")
+    return { ok: false, summary: "It was held for a person's approval.", code: "permission.needs_approval" };
+  const o = (r.output ?? {}) as { exitCode?: number | null; durationMs?: number };
+  const mins = typeof o.durationMs === "number" ? Math.max(1, Math.round(o.durationMs / 60_000)) : undefined;
+  const took = mins === undefined ? "" : mins < 2 ? " after about a minute" : ` after ${mins} minutes`;
+  if (o.exitCode === 0) return { ok: true, summary: `Finished, exit 0${took}.` };
+  return {
+    ok: false,
+    summary:
+      o.exitCode === null || o.exitCode === undefined
+        ? `It ended without an exit code${took}.`
+        : `It ended with exit ${o.exitCode}${took}.`,
+    code: "terminal.nonzero_exit",
+  };
 }
 
 /**

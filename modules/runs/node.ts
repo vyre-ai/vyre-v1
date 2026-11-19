@@ -656,7 +656,20 @@ export function reclaimExpired(ctx: RunsCtx): Node[] {
   const out: Node[] = [];
   for (const d of dead) {
     try {
-      const m = moveNode(ctx, String(d["run_id"]), "queued", { why: "worker_lost", by: "svc_host" });
+      const id = String(d["run_id"]);
+      // a node whose worker was only WAITING for something that lives elsewhere (a command in its tab) is not queued again: it cannot be run twice, so it ends and says the thing may still be going
+      const lost = (findNode(ctx.db, id)?.policy as { onLost?: string } | undefined)?.onLost === "fail";
+      const m = lost
+        ? moveNode(ctx, id, "failed", {
+            why: "worker_lost",
+            by: "svc_host",
+            error: {
+              code: "worker_lost",
+              message:
+                "The server stopped while this was running. It may still be going in its tab: look there before starting it again.",
+            },
+          })
+        : moveNode(ctx, id, "queued", { why: "worker_lost", by: "svc_host" });
       if (m.changed) out.push(m.node);
     } catch {
       // another writer got there first; the next sweep looks again

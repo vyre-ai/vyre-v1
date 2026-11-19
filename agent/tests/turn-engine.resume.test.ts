@@ -26,6 +26,7 @@ async function crash(script: DriverEvent[], opts: { toolSafety?: boolean } = {})
   const journal = createMemoryJournal();
   const hold = gate();
   const ranA: string[] = [];
+  const keysA = new Map<string, string | undefined>();
   const pa = scriptedProvider({ script });
   const a = createTurnEngine({
     holder: "host:a",
@@ -35,14 +36,15 @@ async function crash(script: DriverEvent[], opts: { toolSafety?: boolean } = {})
     journal,
     now: clock.now,
     ...(opts.toolSafety === false ? {} : { toolSafety: SAFETY }),
-    callTool: async (c) => {
+    callTool: async (c, ctx) => {
       ranA.push(c.id);
+      keysA.set(c.id, ctx.callKey);
       if (c.id === "c1") return { ok: true, content: { rows: 3 } };
       await hold.wait;
       return { ok: true, content: {} };
     },
   });
-  const ranB: Array<{ id: string; turnId: string; input: unknown }> = [];
+  const ranB: Array<{ id: string; turnId: string; input: unknown; callKey?: string | undefined }> = [];
   const pb = scriptedProvider({ script: ok });
   const b = createTurnEngine({
     holder: "host:b",
@@ -54,7 +56,7 @@ async function crash(script: DriverEvent[], opts: { toolSafety?: boolean } = {})
     ...(opts.toolSafety === false ? {} : { toolSafety: SAFETY }),
     lostTurn: () => a.turns("T")[0]!.id,
     callTool: async (c, ctx) => {
-      ranB.push({ id: c.id, turnId: ctx.turnId, input: c.input });
+      ranB.push({ id: c.id, turnId: ctx.turnId, input: c.input, callKey: ctx.callKey });
       return { ok: true, content: { replayed: c.name } };
     },
   });
@@ -72,6 +74,7 @@ async function crash(script: DriverEvent[], opts: { toolSafety?: boolean } = {})
     pb,
     ranA,
     ranB,
+    keysA,
     journal,
     lost,
     release: async () => {

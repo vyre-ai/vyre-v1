@@ -45477,6 +45477,7 @@ export type TerminalRunIn = {
   cwd?: string;
   timeoutSec?: number;
   env?: Record<string, string>;
+  background?: boolean;
   idempotencyKey: string;
 };
 export type TerminalRunOut = {

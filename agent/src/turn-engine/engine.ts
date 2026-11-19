@@ -53,6 +53,11 @@ export interface ToolContext {
   startedAt?: number;
   /** What the people in the chat said since this agent last spoke: a value a person typed themselves is theirs to ask for, however much it looks like a placeholder (lib/probe.ts). */
   said?: string;
+  /**
+   * What names this call to the server inside the turn (it becomes the call's idempotency key). Made by the engine and kept in the journal, so a call asked again after a restart carries the key it had and the server
+   * answers it once; an engine without a journal leaves it out and the tool layer names the call itself.
+   */
+  callKey?: string;
 }
 /** A tool call parked at the Gate: the task that decides it, and the Run when the call belongs to one. */
 /** Most reads run together in one step. */
@@ -421,6 +426,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   // the tool calls of each turn as they happen, and the plan of a turn a dead host left that is to be resumed, by queue row (journal.ts)
   const toolLog = opts.journal ?? createMemoryJournal();
   const resumes = new Map<string, ResumePlan & { turnId: string }>();
+  const keySeq = new Map<string, number>();
   const rowKey = (threadId: string, qseq: number): string => `${threadId}:${qseq}`;
   const leases = opts.leases ?? createMemoryLeases();
   const messages = opts.messages ?? createMemoryMessages();
@@ -1096,7 +1102,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         const r = await runTool(
           opts.callTool,
           { id: e.callId, name: e.name, input: e.input },
-          { threadId: st.thread.id, turnId: resumePlan.turnId, agentId: item.agentId, asker },
+          {
+            threadId: st.thread.id,
+            turnId: resumePlan.turnId,
+            agentId: item.agentId,
+            asker,
+            ...(e.callKey === undefined ? {} : { callKey: e.callKey }),
+          },
         );
         replayed.push({ entry: e, ok: r.ok, summary: summaryOf(r.content) });
       }
@@ -1911,6 +1923,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           callId: call.id,
           name: call.name,
           input: call.input,
+          ...(callKey === undefined ? {} : { callKey }),
           safety: opts.toolSafety(call.name),
           state,
           at: begun,
@@ -1921,6 +1934,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
     };
     const begun = now();
+    // the call's name for the server: the one it had before a restart when it is being asked again, else the next in this turn
+    const callKey = ctx.callKey ?? (opts.toolSafety ? `j${keySeq.get(ctx.turnId) ?? 0}:${call.id}` : undefined);
+    if (callKey !== undefined && ctx.callKey === undefined) keySeq.set(ctx.turnId, (keySeq.get(ctx.turnId) ?? 0) + 1);
+    if (keySeq.size > 500) keySeq.delete(keySeq.keys().next().value as string);
+    ctx = callKey === undefined ? ctx : { ...ctx, callKey };
     entry("started");
     try {
       const r = await fn(call, ctx);

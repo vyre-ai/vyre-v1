@@ -387,6 +387,12 @@ export default defineManifest({
           cwd: t.opt(t.str()),
           timeoutSec: t.opt(t.int({ minimum: 1, maximum: 3600 })),
           env: t.opt(t.rec(t.str({ description: "Literal or a #Handle.field reference" }))),
+          background: t.opt(
+            t.bool({
+              description:
+                "For a long command: it keeps running in its tab and you get an answer after a few seconds with a run id. Wait for it without spending anything with wait_for on the event run.node_ended and that runId; read what it printed with terminal_read. Use timeoutSec for how long it may run",
+            }),
+          ),
         },
         out: {
           terminalId: id.terminal,

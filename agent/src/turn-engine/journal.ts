@@ -10,6 +10,8 @@ export interface JournalEntry {
   callId: string;
   name: string;
   input: unknown;
+  /** the name the call went to the server under (its idempotency key is made from it); asked again after a restart it goes under the same one */
+  callKey?: string;
   safety: Safety;
   /** started: no answer was seen. done and failed: it answered. held: it waits for a person's yes (the turn parks, it is not lost). */
   state: "started" | "done" | "failed" | "held";

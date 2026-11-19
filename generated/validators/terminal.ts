@@ -788,6 +788,7 @@ lf(o6764[k], p + "/env" + '/' + k, e, L1);
 }
 }
 }
+if ("background" in o6763) lf(o6763["background"], p + "/background", e, L3);
 if ("idempotencyKey" in o6763) lf(o6763["idempotencyKey"], p + "/idempotencyKey", e, L55);
 }
 }

@@ -3,6 +3,7 @@
 // @reads /generated/registry.json
 // @reads /generated/mcp-tools.json
 // @reads /docs/frozen/agent-tools.md
+import { createBackgroundPort } from "./background-jobs.ts";
 import { readFileSync } from "node:fs";
 import { createApiTools } from "../../agent/src/drivers/open/api-tools.ts";
 import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
@@ -96,6 +97,10 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   const levelKey = (asker: string, scope: { type: string; id: string }): string => `${asker}|${scope.type}|${scope.id}`;
   const session = createToolSession({
     nextHints: true,
+    // a long command the model left running is a node of the Run tree (background-jobs.ts); it needs the server's own door to the runs module
+    ...(d.call
+      ? { background: createBackgroundPort({ call: (cap, input) => d.call!(cap, input) }, `host:${d.space}`) }
+      : {}),
     invoke: d.invoke,
     catalog,
     defaults,

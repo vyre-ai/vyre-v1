@@ -33,6 +33,7 @@ type In = {
   cwd?: string;
   timeoutSec?: number;
   env?: Record<string, string>;
+  background?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -69,6 +70,7 @@ type Out = {
   "name": "example",
   "input": {
     "agentId": "agt_a1b2c3",
+    "background": true,
     "command": "example",
     "cwd": "example",
     "env": {},

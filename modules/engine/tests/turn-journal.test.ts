@@ -11,6 +11,7 @@ const entry = (over: Record<string, unknown> = {}) => ({
   callId: "c1",
   name: "read_prices",
   input: { sheet: "A" },
+  callKey: "j0:c1",
   safety: "read" as const,
   state: "started" as const,
   at: 1_000,
@@ -33,6 +34,7 @@ test("a call is one row that is written twice: started, then answered; a second 
     ],
   );
   assert.deepEqual(rows[0]!.input, { sheet: "A" });
+  assert.equal(rows[0]!.callKey, "j0:c1");
   assert.equal(rows[0]!.summary, '{"rows":3}');
   const plan = planResume(rows);
   assert.equal(plan.resumable, false);
