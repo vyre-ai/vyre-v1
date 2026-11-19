@@ -1528,3 +1528,56 @@ test("a captured delete or closed pull request cannot be sent again to take a pr
     w.done();
   }
 });
+
+test("a branch made again at the commit it was deleted at is a new branch: its push is taken, and an old push is still refused", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Same commit");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const Z = "0".repeat(40);
+    const A = "a".repeat(40);
+    const B = "b".repeat(40);
+    const mv = (before: string, after: string, extra: Record<string, unknown> = {}) => ({
+      ref: "refs/heads/feat/same",
+      before,
+      after,
+      ...extra,
+    });
+    await hook(w, secret, "push", mv(Z, A));
+    await hook(w, secret, "push", mv(A, Z, { deleted: true }));
+    // made again at A: not old news
+    assert.equal((await hook(w, secret, "push", mv(Z, A), { delivery: "again0aa-aaaa" })).nudge, true);
+    // and the chain goes on from there
+    assert.equal((await hook(w, secret, "push", mv(A, B))).nudge, true);
+    await assert.rejects(() => hook(w, secret, "push", mv(Z, A), { delivery: "again0bb-aaaa" }), /older than/);
+  } finally {
+    w.done();
+  }
+});
+
+test("rows handled in the same millisecond keep the order they were written in", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Same millisecond");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    // the clock stands still: every delivery below is handled at the same instant
+    w.ctx.now = () => 1_700_000_000_000;
+    const Z = "0".repeat(40);
+    const A = "a".repeat(40);
+    const B = "b".repeat(40);
+    const mv = (before: string, after: string, extra: Record<string, unknown> = {}) => ({
+      ref: "refs/heads/feat/ms",
+      before,
+      after,
+      ...extra,
+    });
+    await hook(w, secret, "push", mv(Z, A));
+    await hook(w, secret, "push", mv(A, B));
+    // a delete of the commit the branch had left (A) is old news, though it carries the same time as the push after it
+    await assert.rejects(() => hook(w, secret, "push", mv(A, Z, { deleted: true }), { delivery: "ms0000aa-aaaa" }), /older than/);
+    // a delete of the current head is taken
+    assert.equal((await hook(w, secret, "push", mv(B, Z, { deleted: true }))).nudge, true);
+  } finally {
+    w.done();
+  }
+});

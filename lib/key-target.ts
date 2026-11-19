@@ -72,6 +72,7 @@ export const KEY_HOST_CAPS: ReadonlySet<string> = new Set([
   "sites.update",
   "sites.plan",
   "sites.deploy",
+  "sites.ship",
 ]);
 
 /**

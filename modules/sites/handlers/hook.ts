@@ -193,21 +193,22 @@ function stale(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>): 
     )
       return true;
     if (rm.tip === "") return false;
+    // rows are ordered by when they were written (their row id), not by their time: two handled in the same millisecond keep their order
     const tip = one(
       ctx,
-      "SELECT MAX(at) AS at FROM sites_hook_head WHERE site_id = ? AND branch = ? AND after_sha = ?",
+      "SELECT MAX(rowid) AS id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND after_sha = ?",
       site.id,
       rm.branch,
       rm.tip,
     );
     if (
-      typeof tip?.at === "number" &&
+      typeof tip?.id === "number" &&
       one(
         ctx,
-        `SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND at > ? AND ${ENDED}`,
+        `SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND rowid > ? AND ${ENDED}`,
         site.id,
         rm.branch,
-        tip.at,
+        tip.id,
       )
     )
       return true;
@@ -223,15 +224,25 @@ function stale(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>): 
   }
   const push = pushOf(event, p);
   if (push === null || push.after === "") return false;
-  const row = one(
+  const seen = one(
     ctx,
-    "SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND (before_sha = ? OR after_sha = ?)",
+    `SELECT MAX(rowid) AS id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND (before_sha = ? OR after_sha = ?) AND ${ENDED}`,
     site.id,
     push.branch,
     push.after,
     push.after,
   );
-  return row !== undefined;
+  if (typeof seen?.id !== "number") return false;
+  // a branch deleted since, then made again at the same commit, is a new branch: that push is not old news
+  return (
+    one(
+      ctx,
+      "SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND rowid > ? AND after_sha LIKE 'deleted:%'",
+      site.id,
+      push.branch,
+      seen.id,
+    ) === undefined
+  );
 }
 
 function remember(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>, delivery: string, now: number): void {

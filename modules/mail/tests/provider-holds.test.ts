@@ -222,6 +222,7 @@ const KEY_HOST_HELD = [
   "sites.create",
   "sites.deploy",
   "sites.plan",
+  "sites.ship",
   "sites.update",
   "sync_specs.apply",
   "sync_specs.preview",

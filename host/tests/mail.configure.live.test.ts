@@ -73,6 +73,7 @@ const KEYED = [
   "sites.update",
   "sites.plan",
   "sites.deploy",
+  "sites.ship",
 ];
 const defs = [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE, ...COMMS, ...KEYED].map(
   (n) => registry.capabilities.find((c) => c.name === n) as unknown as CapabilityDef,
@@ -658,7 +659,7 @@ test("through the real Gate: an agent sending a Vault key to a new host is held,
     "and a person is one step",
   );
   // a deploy, a plan and an update that name a repo and a key are held the same way
-  for (const name of ["sites.update", "sites.plan", "sites.deploy"])
+  for (const name of ["sites.update", "sites.plan", "sites.deploy", "sites.ship"])
     assert.deepEqual(
       await site.gate.applies(
         site.defOf(name),
@@ -705,6 +706,31 @@ test("through a full invoke: sites.create with a repo on a new host is parked an
     (await person.invoke("sites.create", { ...NEW_REPO, idempotencyKey: "site-3" }, seed("usr_admin"))).status,
     "ok",
   );
+});
+
+test("through a full invoke: sites.ship with a repo on a new host is parked; after a person's yes the same host goes through and the card names the key and the host; a person is one step", async () => {
+  const w = keyWorld();
+  const ship = { name: "site", source: { repo: "https://git.elsewhere.example/a/b", tokenHandle: "#Crm_Key" } };
+  const first = rig(w.opts);
+  assert.equal((await first.invoke("sites.ship", { ...ship }, asAgent())).status, "held");
+  assert.deepEqual([first.parked, first.ran], [[{ cap: "sites.ship", act: "send" }], []]);
+  const approved = rig(w.opts);
+  await approved.gate.seen?.(
+    approved.defOf("sites.ship"),
+    ship,
+    {},
+    { ...asAgent(), approval: "apv_ship_yes", approvedBy: "usr_member" } as never,
+    0,
+  );
+  assert.deepEqual(
+    w.hosts.filter((h) => h.host === "git.elsewhere.example").map((h) => [h.item_id, h.by]),
+    [["vit_crm", "usr_member"]],
+    "ship records the approved host like create does",
+  );
+  const next = rig(w.opts);
+  assert.equal((await next.invoke("sites.ship", { ...ship }, asAgent())).status, "ok");
+  assert.deepEqual([next.parked, next.ran], [[], ["sites.ship"]]);
+  assert.equal((await rig(w.opts).invoke("sites.ship", { ...ship }, seed("usr_admin"))).status, "ok");
 });
 
 test("a service a tenant can make (a form, a site, an Automation's own service) is held like an agent; the host's own services are not", async () => {
