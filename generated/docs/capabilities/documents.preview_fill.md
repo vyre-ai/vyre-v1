@@ -47,6 +47,8 @@ type Out = {
     }>;
   missing: Array<string>;
   unused: Array<string>;
+  digest: string;
+  templateVersion?: string;
 };
 ```
 
@@ -71,6 +73,7 @@ type Out = {
     "values": {}
   },
   "output": {
+    "digest": "example",
     "excerpt": [
       {
         "filled": [
@@ -86,6 +89,7 @@ type Out = {
     "missing": [
       "example"
     ],
+    "templateVersion": "example",
     "unused": [
       "example"
     ]

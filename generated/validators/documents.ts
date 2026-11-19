@@ -445,6 +445,7 @@ if (g2752 === 'object') { const o2752 = x2752 as Record<string, unknown>;
 if (!("excerpt" in o2752)) e.push(p + "/excerpt" + ': required');
 if (!("missing" in o2752)) e.push(p + "/missing" + ': required');
 if (!("unused" in o2752)) e.push(p + "/unused" + ': required');
+if (!("digest" in o2752)) e.push(p + "/digest" + ': required');
 if ("excerpt" in o2752) {
 {
 const x2753 = o2752["excerpt"];
@@ -526,6 +527,8 @@ lf(a2758[i2758], p + "/unused" + '/' + i2758, e, L1);
 }
 }
 }
+if ("digest" in o2752) lf(o2752["digest"], p + "/digest", e, L1);
+if ("templateVersion" in o2752) lf(o2752["templateVersion"], p + "/templateVersion", e, L1);
 }
 }
 }
