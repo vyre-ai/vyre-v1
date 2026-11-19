@@ -127,7 +127,10 @@ test("send_as and the preview take a senderId the same way", async () => {
 });
 
 /** The kernel's rules for the part these tests need: a grant on the inbox itself counts when it is use or more and has not expired; without `direct` a Member's Space role reaches every inbox under the Space. */
-function kernel(r: ReturnType<typeof rig>, grants: Record<string, { level: "view" | "use" | "edit"; expired?: boolean }>): void {
+function kernel(
+  r: ReturnType<typeof rig>,
+  grants: Record<string, { level: "view" | "use" | "edit"; expired?: boolean }>,
+): void {
   r.ctx.authorize = (action, resource) => {
     const ok = { effect: "allow", reason: "ok", decisionId: "dec_mailtest01" } as const;
     const no = { effect: "deny", reason: "no_grant", decisionId: "dec_mailtest01" } as const;
@@ -149,10 +152,17 @@ test("a use share of one shared inbox is enough to send as it, and only as it", 
 });
 
 test("a Member with no share of the inbox, a view-only share, and an expired share are all refused, though their Space role reaches the inbox", async () => {
-  for (const grants of [{}, { mbx_hello: { level: "view" as const } }, { mbx_hello: { level: "use" as const, expired: true } }]) {
+  for (const grants of [
+    {},
+    { mbx_hello: { level: "view" as const } },
+    { mbx_hello: { level: "use" as const, expired: true } },
+  ]) {
     const r = rig();
     kernel(r, grants);
-    assert.equal((await refusal(send(r.ctx, sendIn({ mailboxId: "mbx_hello", senderId: "mbx_hello" })))).code, "permission.no_grant");
+    assert.equal(
+      (await refusal(send(r.ctx, sendIn({ mailboxId: "mbx_hello", senderId: "mbx_hello" })))).code,
+      "permission.no_grant",
+    );
     assert.equal(r.sent().length, 0);
   }
 });
