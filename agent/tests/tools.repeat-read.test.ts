@@ -32,7 +32,7 @@ function setup(answer: () => unknown) {
     canEngineer: () => false,
     traceId: () => "t",
   });
-  const tool = loaded.catalog.all().find((x) => x.cap === "files.read")!.name;
+  const tool = loaded.catalog.all.find((x) => x.cap === "files.read")!.name;
   session.preload("T1", [tool]);
   const read = async (c = ctx({ turnId: "trn_1" })): Promise<{ data: Record<string, unknown> }> => {
     const r = await session.call(c, tool, { fileId: "fil_1" });
