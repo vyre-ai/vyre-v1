@@ -43,7 +43,7 @@ const decode = (s: string): string =>
     })
     .replace(/ /g, " ");
 
-const SKIP = new Set(["script", "style", "noscript", "template", "svg", "iframe", "object", "embed", "head"]);
+const SKIP = new Set(["script", "style", "noscript", "template", "svg", "iframe", "object", "head"]);
 const BLOCK = new Set([
   "p",
   "div",
@@ -65,15 +65,33 @@ const BLOCK = new Set([
 /** The most HTML that is looked through: a page is words, and a hostile one cannot make this slow by being long. */
 const HTML_CAP = 1_000_000;
 
+/** Lower case for ASCII letters only, so every position in the folded text is the same position in the original (a full lower-casing can change a string's length). */
+const asciiLower = (s: string): string => s.replace(/[A-Z]+/g, (m) => m.toLowerCase());
+const VOID = new Set([
+  "br",
+  "hr",
+  "img",
+  "input",
+  "meta",
+  "link",
+  "area",
+  "base",
+  "col",
+  "embed",
+  "source",
+  "track",
+  "wbr",
+]);
+
 /**
  * The words of an HTML page: what a person would read, in order. Scripts, styles, comments and hidden or template parts are dropped; tags never survive.
- * One pass over the text with `indexOf` jumps and no backtracking pattern, so a page built to stall a regular expression (thousands of unclosed tags) costs time in proportion to its length only.
+ * One pass over the text: tags are found with `indexOf` jumps and a hidden element is followed by a depth count as the pass goes, never by a search for its end, so no page, however many tags or names it
+ * uses, costs more than time in proportion to its length. The only searches ahead are for a script or style's own end (nine names, and a name not found once is not searched for again).
  */
 export function pageText(input: string): { title: string; text: string } {
   const html = input.length > HTML_CAP ? input.slice(0, HTML_CAP) : input;
-  const low = html.toLowerCase();
-  const same = low.length === html.length; // a few characters change length when lower-cased: then positions are not trusted and the page is read as plain text
-  const ti = same ? low.indexOf("<title") : -1;
+  const low = asciiLower(html);
+  const ti = low.indexOf("<title");
   let title = "";
   if (ti >= 0) {
     const open = low.indexOf(">", ti);
@@ -83,17 +101,18 @@ export function pageText(input: string): { title: string; text: string } {
         .replace(/\s+/g, " ")
         .trim();
   }
-  if (!same) return { title, text: decode(html.replace(/[<>]/g, " ")).replace(/\s+/g, " ").trim() };
   const out: string[] = [];
   const unclosed = new Set<string>();
+  /** The hidden element being skipped: its tag name and how deep inside it the pass is. */
+  let hid: { name: string; depth: number } | null = null;
   let i = 0;
   while (i < html.length) {
     const lt = html.indexOf("<", i);
     if (lt < 0) {
-      out.push(html.slice(i));
+      if (!hid) out.push(html.slice(i));
       break;
     }
-    if (lt > i) out.push(html.slice(i, lt));
+    if (lt > i && !hid) out.push(html.slice(i, lt));
     if (low.startsWith("<!--", lt)) {
       const end = html.indexOf("-->", lt + 4);
       if (end < 0) break;
@@ -108,17 +127,26 @@ export function pageText(input: string): { title: string; text: string } {
     if (!m) continue;
     const closing = m[1] === "/";
     const name = m[2] as string;
-    if (!closing && (SKIP.has(name) || /\shidden(\s|=|\/|$)/.test(tag))) {
-      // drop the whole element: to its closing tag, or, with none, only the tag itself (never the rest of the page, never a rescan)
-      // a name whose closing tag was not found once is not found later either: remember it, so a page of thousands of the same unclosed tag is not searched thousands of times
+    if (hid) {
+      if (name === hid.name && !VOID.has(name)) {
+        if (!closing && !tag.endsWith("/")) hid.depth++;
+        else if (closing && --hid.depth === 0) hid = null;
+      }
+      continue;
+    }
+    if (!closing && SKIP.has(name)) {
+      // a script, style or similar: its content is not tags, so the pass jumps to its closing tag; a name whose closing tag was not found once is not looked for again
       const end = unclosed.has(name) ? -1 : low.indexOf(`</${name}`, i);
       if (end < 0) {
         unclosed.add(name);
-        if (SKIP.has(name)) break; // an unclosed script or style: the rest of the page is inside it
-      } else {
-        const endGt = html.indexOf(">", end);
-        i = endGt < 0 ? html.length : endGt + 1;
+        break; // an unclosed script or style: the rest of the page is inside it
       }
+      const endGt = html.indexOf(">", end);
+      i = endGt < 0 ? html.length : endGt + 1;
+      continue;
+    }
+    if (!closing && !VOID.has(name) && !tag.endsWith("/") && /\shidden(\s|=|\/|$)/.test(tag)) {
+      hid = { name, depth: 1 };
       continue;
     }
     if (!closing && name === "li") out.push("\n- ");

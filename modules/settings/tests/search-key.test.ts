@@ -23,10 +23,16 @@ test("a handle the person may use, with a field that exists, is saved; the Vault
     asked.push([cap, input.item ?? input.itemId]);
     return cap === "vault.use"
       ? { handle: "#Brave_Search", itemId: "vit_1", fields: ["api_key"] }
-      : { item: { id: "vit_1", kind: "api_key" } };
+      : { item: { id: "vit_1", kind: "api_key", scope: "shared" } };
   });
   await setSpace(ctx, "#Brave_Search.api_key");
-  assert.deepEqual(asked, [
+  const row = (
+    await (handlers as unknown as Record<string, (c: SettingsCtx, i: unknown) => Promise<{ row: { value: unknown } }>>)[
+      "settings.get"
+    ]!(ctx, { key: "search.key" })
+  ).row;
+  assert.equal(row.value, "vit_1.api_key", "what is kept is the item's id and field, not its name");
+  assert.deepEqual(asked.slice(0, 2), [
     ["vault.use", "Brave_Search"],
     ["vault.item.get", "vit_1"],
   ]);
@@ -42,13 +48,35 @@ test("a Vault item the person may not use, a field it does not have, and somethi
     () => setSpace(denied, "#Someone_Elses.api_key"),
     (e) => codeOf(e) === "validation.bad_input",
   );
-  const noField = withVault(h, async (cap) => (cap === "vault.use" ? { itemId: "vit_1", fields: ["other"] } : { item: { kind: "api_key" } }));
+  const noField = withVault(h, async (cap) =>
+    cap === "vault.use"
+      ? { itemId: "vit_1", fields: ["other"] }
+      : { item: { id: "vit_1", kind: "api_key", scope: "shared" } },
+  );
   await assert.rejects(
     () => setSpace(noField, "#Brave_Search.api_key"),
     (e) => codeOf(e) === "validation.bad_input",
   );
-  const wrongKind = withVault(h, async (cap) => (cap === "vault.use" ? { itemId: "vit_2", fields: ["password"] } : { item: { kind: "login" } }));
-  await assert.rejects(() => setSpace(wrongKind, "#A_Login.password"), (e) => codeOf(e) === "validation.bad_input", "only an API key item");
+  const wrongKind = withVault(h, async (cap) =>
+    cap === "vault.use"
+      ? { itemId: "vit_2", fields: ["password"] }
+      : { item: { id: "vit_2", kind: "login", scope: "shared" } },
+  );
+  await assert.rejects(
+    () => setSpace(wrongKind, "#A_Login.password"),
+    (e) => codeOf(e) === "validation.bad_input",
+    "only an API key item",
+  );
+  const mine = withVault(h, async (cap) =>
+    cap === "vault.use"
+      ? { itemId: "vit_3", fields: ["api_key"] }
+      : { item: { id: "vit_3", kind: "api_key", scope: "mine" } },
+  );
+  await assert.rejects(
+    () => setSpace(mine, "#My_Key.api_key"),
+    (e) => codeOf(e) === "validation.bad_input",
+    "a private item of the setter is not for the whole Space",
+  );
   const any = withVault(h, async () => ({ fields: [] }));
   await assert.rejects(
     () => setSpace(any, "two words"),

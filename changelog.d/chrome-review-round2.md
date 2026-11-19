@@ -1,0 +1,1 @@
+chrome_read is free only for the exact address a search returned; the page reader is linear for any tags; the search key is saved by id and must be a Shared API-key item; a touch's queued pause belongs to its task; a tab's recorded calls are dropped when it changes site.

@@ -6124,13 +6124,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
         // the computers module reads the key of the search service an admin chose, from the Vault by handle, for one call
-        // only a Shared Vault item of the kind API key is read for the search service, the same rule the setting was checked with
+        // only a Shared Vault item of the kind API key is read for the search service, found by the id the setting saved (a handle is accepted only as the same item's own handle), never by a name that could now mean another item
         setSearchHost: (d) => ({
-          secret: (handle: string) => {
-            const ref = resolveKeyRef(db!, handle.startsWith("#") ? handle : `#${handle}`);
-            const row = ref ? (db!.all(`SELECT "kind" FROM vault_meta WHERE "id" = ?`, ref.id)[0] as { kind?: unknown } | undefined) : undefined;
-            if (!ref || row?.kind !== "api_key") return Promise.reject(new Error("The search key must be a Shared Vault item of the kind API key."));
-            return d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space);
+          secret: (saved: string) => {
+            const ref = resolveKeyRef(db!, saved.trim());
+            const row = ref
+              ? (db!.all(`SELECT "kind", "scope" FROM vault_meta WHERE "id" = ?`, ref.id)[0] as
+                  | { kind?: unknown; scope?: unknown }
+                  | undefined)
+              : undefined;
+            if (!ref || row?.kind !== "api_key" || row?.scope !== "shared")
+              return Promise.reject(new Error("The search key must be a Shared Vault item of the kind API key."));
+            return d.vault.secret(`${ref.handle}${ref.field ? `.${ref.field}` : ""}`, d.space);
           },
         }),
         setImportHost: (d) => ({

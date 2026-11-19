@@ -801,3 +801,12 @@ Signed: lead, 19 Nov 2026
 - Tests: modules/settings/tests/search-key.test.ts, modules/vault/tests/g20.test.ts, apps/chrome/tests/ext-agent.test.ts, ext-text-only.test.ts.
 
 Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: review r-review, second round (lane r42-chrome)
+
+- `computers.chrome.read` is free for an agent only for the exact address a `chrome_search` in the same turn returned (same path and query, no fragment; the memory lasts five minutes per agent and thread), or a host on the person's Browser connections list. Not the host of a result: an agent that names the search's `site` or its words cannot make any host free, and a longer query, another path, a subdomain or a look-alike waits for a person.
+- `search.key` now saves the Vault item's id (and field), never its name, and accepts only a Shared item of the kind API key that the setter may use (a private item of the setter is refused: the Space uses the key for every agent). The host reads it by that id, again only if the item is Shared and an API key.
+- Not contract: the secret check ignores values under 8 characters; a queued pause belongs to its task; a tab's recorded network calls are dropped when it goes to another site; the page reader follows hidden elements by depth in one pass and folds only ASCII case, so no page's length or tag names change its cost or skip its filters.
+- Tests: host/tests/gate.web-read.test.ts, modules/computers/tests/web-tools.test.ts, modules/settings/tests/search-key.test.ts, lib/tests/web-read.test.ts, apps/chrome/tests/ext-agent.test.ts.
+
+Signed: pending, lead

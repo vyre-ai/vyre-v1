@@ -147,30 +147,38 @@ export async function setSpace(ctx: SettingsCtx, input: { key: string; value: un
       "validation.field_locked",
       `${d.title}: the owner floor does not allow anything less strict than ${JSON.stringify(floor)}.`,
     );
-  // the key of the web search service is a Vault handle: the person who sets it must be able to use that item (and the field must exist), so no one can point a Space's search at a secret they cannot use
+  // the key of the web search service names a Vault item: the person who sets it must be able to use it, it must be a Shared item of the kind API key (the Space uses it for every agent, so a private
+  // item of the setter is not one), and what is saved is the item's id (and field), never its name, so a rename or a same-named item cannot change which key is used
+  let value: unknown = input.value;
   if (input.key === "search.key" && typeof input.value === "string" && input.value.trim() !== "") {
-    const m = /^#?([^.\s]+)(?:\.([A-Za-z0-9_]+))?$/.exec(input.value.trim());
-    if (!m) raise(ctx, "validation.bad_input", "That is not a Vault handle, such as #Brave_Search.api_key.");
+    const m = /^(?:#([^.\s]+)|(vit_[a-z0-9]+))(?:\.([A-Za-z0-9_]+))?$/.exec(input.value.trim());
+    if (!m) raise(ctx, "validation.bad_input", "That is not a Vault item, such as #Brave_Search.api_key.");
     let fields: unknown;
-    let kind: unknown;
+    let item: { id?: unknown; kind?: unknown; scope?: unknown } | undefined;
     try {
-      const used = (await ctx.call("vault.use", { item: m![1], purpose: "web search key" })) as {
+      const used = (await ctx.call("vault.use", { item: m![2] ?? m![1], purpose: "web search key" })) as {
         fields?: unknown;
         itemId?: unknown;
       } | null;
       fields = used?.fields;
-      kind = ((await ctx.call("vault.item.get", { itemId: used?.itemId })) as { item?: { kind?: unknown } } | null)
-        ?.item?.kind;
+      item = (
+        (await ctx.call("vault.item.get", { itemId: used?.itemId })) as {
+          item?: { id?: unknown; kind?: unknown; scope?: unknown };
+        } | null
+      )?.item;
     } catch {
       raise(ctx, "validation.bad_input", "You cannot use that Vault item. Choose one you may use.");
     }
-    if (kind !== "api_key") raise(ctx, "validation.bad_input", "Choose a Vault item of the kind API key.");
-    if (m![2] !== undefined && !(Array.isArray(fields) && fields.includes(m![2])))
+    if (item?.kind !== "api_key") raise(ctx, "validation.bad_input", "Choose a Vault item of the kind API key.");
+    if (item?.scope !== "shared")
+      raise(ctx, "validation.bad_input", "Choose a Shared Vault item: the Space uses this key for every agent.");
+    if (m![3] !== undefined && !(Array.isArray(fields) && fields.includes(m![3])))
       raise(ctx, "validation.bad_input", "That Vault item has no such field.");
+    value = `${String(item?.id)}${m![3] !== undefined ? `.${m![3]}` : ""}`;
   }
   const before = stored(ctx, input.key, "space", "")?.value ?? d.default;
-  put(ctx, input.key, "space", "", input.value);
-  changed(ctx, input.key, "space", person, before, input.value);
+  put(ctx, input.key, "space", "", value);
+  changed(ctx, input.key, "space", person, before, value);
   return { row: rowOut(ctx, d, person), previous: before };
 }
 

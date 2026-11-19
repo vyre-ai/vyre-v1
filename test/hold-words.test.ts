@@ -74,13 +74,24 @@ test("a held change of the Space time zone says the zone in words: Pacific Time,
   assert.equal(HOLD_PHRASES["spaces.timezone.set"], "change the Space time zone");
 });
 
-test("a held read of a web page names the host and the full address, so a person sees what would be opened", () => {
+test("a held read of a web page names the host, then the whole address: never cut, control and bidi characters written out, an address that is not a web address is not worded as a host", () => {
   const url = "https://docs.vendor.example/guide/auth?topic=tokens&page=2";
   assert.equal(wantsFromInput("computers.chrome.read", { url }), `read a web page on docs.vendor.example: ${url}`);
-  assert.equal(wantsFromInput("computers.chrome.read", {}), "read a web page it chose itself");
-  assert.ok(
-    wantsFromInput("computers.chrome.read", { url: `https://a.example/${"x".repeat(500)}` })!.length < 400,
-    "a very long address is cut",
-  );
+  const long = `https://a.example/${"x".repeat(1982)}?d=THE-END-OF-THE-ADDRESS`;
+  assert.ok(long.length > 2000);
+  const words = wantsFromInput("computers.chrome.read", { url: long })!;
+  assert.ok(words.endsWith(long), "the whole address, to its last character");
+  assert.ok(words.includes("THE-END-OF-THE-ADDRESS"));
+  const bidi = wantsFromInput("computers.chrome.read", {
+    url: "https://a.example/\u202Egpj.exe?x=1\nnewline\u200Bzero",
+  })!;
+  assert.ok(!/[\u202E\n\u200B]/.test(bidi), "none of them is in the text");
+  assert.ok(bidi.includes("[U+202E]") && bidi.includes("[U+000A]") && bidi.includes("[U+200B]"), bidi);
+  for (const bad of ["", "not a url", "ftp://x.example/", "javascript:alert(1)", "https://"])
+    assert.equal(
+      wantsFromInput("computers.chrome.read", { url: bad }),
+      "read an address that is not a web address",
+      bad,
+    );
   assert.equal(HOLD_PHRASES["computers.chrome.read"], "read a web page it chose itself");
 });

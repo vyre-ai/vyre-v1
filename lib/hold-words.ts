@@ -86,6 +86,14 @@ export function verbPhrase(words: string): string {
 }
 
 /** The address a link points at, as a person says it: "example.com". */
+/** An address as a card shows it: every control, zero-width and bidi-direction character is written out as its code, so it can neither hide nor reorder what is read. */
+export function visibleAddress(raw: string): string {
+  return raw.replace(
+    /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g,
+    (c) => `[U+${c.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}]`,
+  );
+}
+
 export function hostOfLink(raw: string): string {
   try {
     return new URL(raw).hostname.replace(/^www\./, "");
@@ -165,12 +173,20 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
     return url ? `open ${hostOfLink(url)}` : "open a link";
   }
   if (cap === "automations.read_docs") return "read the documentation";
-  // an agent read of a page it chose itself: the card names the host and the whole address, so a person sees exactly what would be opened (and what the path or query says)
+  // an agent read of a page it chose itself: the card names the host, then the WHOLE address, so what a person approves is exactly what would be opened (never cut: whatever was cut could be the payload).
+  // Control and bidi characters are shown as codes, so they cannot change how the card reads. An address that is not a web address is refused by the read itself and never reaches a card.
   if (cap === "computers.chrome.read") {
     const url = str(obj(input)["url"]);
-    return url
-      ? `read a web page on ${hostOfLink(url)}: ${url.length > 300 ? `${url.slice(0, 300)}...` : url}`
-      : "read a web page it chose itself";
+    let host = "";
+    try {
+      const u = new URL(url);
+      if (u.protocol === "https:" || u.protocol === "http:") host = u.hostname.replace(/^www\./, "");
+    } catch {
+      host = "";
+    }
+    return host === ""
+      ? "read an address that is not a web address"
+      : `read a web page on ${host}: ${visibleAddress(url)}`;
   }
   // "Ada wants to change the Space time zone to Pacific Time": the zone is named in the person's words, not as an id
   if (cap === "spaces.timezone.set") {

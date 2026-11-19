@@ -251,7 +251,20 @@ export function createAgentControl(ext, o = {}) {
         if (!inside) void sessions.pause(agent.id, "takeover");
       });
     });
-  cdp.onEvent((tabId, method) => {
+  /** The site each tab was last seen on, so what a tab recorded on one site is dropped when it goes to another and is never handed back later. @type {Map<number, string>} */
+  const siteOf = new Map();
+  cdp.onEvent((tabId, method, params) => {
+    if (method === "Page.frameNavigated" && params && params.frame && !params.frame.parentId) {
+      let host = "";
+      try {
+        host = new URL(String(params.frame.url)).hostname;
+      } catch {
+        host = "";
+      }
+      const before = siteOf.get(tabId);
+      siteOf.set(tabId, host);
+      if (before !== undefined && before !== host) traffic.forget(tabId);
+    }
     if (method === "Page.loadEventFired") void sessions.redraw(tabId);
   });
   ext.tabs.onRemoved.addListener((/** @type {number} */ id) => {

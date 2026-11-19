@@ -6,7 +6,7 @@
 //   verify   the sealed approval token tasks.act minted must carry the hash of exactly this call, for this caller, and not be past its expiry. gate.release then re-invokes the parked
 //            call as its original caller with that token (CallOpts.approvalToken and .onBehalfOf, honoured by the pipeline for gate.release alone).
 // The daemon wraps this hook with withGateNesting, so one approval covers one send and not its provider call.
-import { hostOf, searchShowed, webTurnKey } from "../../../lib/web-turns.ts";
+import { exactUrl, hostOf, searchShowed, webTurnKey } from "../../../lib/web-turns.ts";
 import { CARRIES_MARK, HELD_FROM_AUTOMATION_SET } from "../../../lib/automation-content.ts";
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
@@ -485,13 +485,17 @@ export function moduleWhens(
   };
   // Binding a Vault key to a connector (connections.create, connections.set_secret) sends that key to the connector's domains from then on. An agent's binding waits for a person unless every one of
   // those domains is approved for every key it binds; anything this cannot read (the connector, a domain, a key) holds. A person's own binding is theirs, and records the domains for the key.
-  // chrome_read is an outward read from the Space: an agent opens, without a person, only a host its own search showed it in this turn, or one on the person's Browser connections list. Any other
+  // chrome_read is an outward read from the Space: an agent opens, without a person, only the exact address its own search showed it in this turn, or a host on the person's Browser connections list. Any other
   // address is a place the agent chose itself (and could carry something out in its path), so it waits for a person. A person's own read is theirs. Anything this cannot read holds.
   out["computers.web_read_unapproved"] = async (input, seed) => {
     if (seed.principal.kind === "person") return false;
     const host = hostOf(String((input as { url?: unknown } | null)?.url ?? ""));
-    if (host === null) return true;
-    if (searchShowed(webTurnKey(seed.principal.id, seed.thread), host)) return false;
+    // an address that is not a web address is refused by the read itself with its reason; it is never held for a person to approve
+    if (host === null || exactUrl(String((input as { url?: unknown } | null)?.url ?? "")) === null) return false;
+    if (
+      searchShowed(webTurnKey(seed.principal.id, seed.thread), String((input as { url?: unknown } | null)?.url ?? ""))
+    )
+      return false;
     const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
     if (!asker || !callAs) return true;
     try {

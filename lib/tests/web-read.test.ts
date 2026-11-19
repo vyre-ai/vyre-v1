@@ -286,3 +286,29 @@ test("the reader's one-pass reading still gives a page its words, in order", () 
   assert.ok(p.text.endsWith("tail"));
   for (const gone of ["x()", "y()", "no\n", "<"]) assert.ok(!p.text.includes(gone), gone);
 });
+
+test("a megabyte of hidden tags with different names, of nested hidden divs, and of text that lower-cases to a different length is read in time", () => {
+  const names = Array.from({ length: 60_000 }, (_, i) => `<a${i} hidden>`).join("");
+  const nested = "<div hidden>".repeat(80_000) + "x".repeat(1000);
+  const odd = "İ".repeat(200_000) + "<script>steal()</script>" + "<div hidden>no</div>after";
+  for (const [name, body] of [
+    ["distinct names", names],
+    ["nested hidden", nested],
+    ["length-changing", odd],
+  ] as const) {
+    const t0 = performance.now();
+    pageText(body);
+    const ms = performance.now() - t0;
+    assert.ok(ms < 1500, `${name}: ${Math.round(ms)} ms`);
+  }
+});
+
+test("a hidden div with a div inside ends at its own close, a character that changes length when lower-cased does not skip the filters, and a void embed does not end the page", () => {
+  const p = pageText("<p>a</p><div hidden>no<div>no2</div>no3</div><p>b</p>");
+  assert.ok(p.text.includes("a") && p.text.includes("b"));
+  for (const gone of ["no", "no2", "no3"]) assert.ok(!p.text.includes(gone), gone);
+  const q = pageText("İİİ<script>steal()</script><style>.x{}</style><div hidden>secret</div>visible");
+  assert.ok(!q.text.includes("steal") && !q.text.includes("secret") && !q.text.includes(".x{}"), q.text);
+  assert.ok(q.text.includes("visible"));
+  assert.ok(pageText("<embed src=x><p>still here</p>").text.includes("still here"));
+});

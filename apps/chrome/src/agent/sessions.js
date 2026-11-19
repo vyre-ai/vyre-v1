@@ -227,6 +227,8 @@ export function createSessions({
     drivers.delete(tabId);
     refs.delete(tabId);
     acts.delete(tabId);
+    // a touch that queued a pause belongs to the task it happened in: when the agent lets go of the tab, it does not carry over to the next task
+    pausing.delete(d.agent.id);
     for (const [id, h] of held) if (h.tabId === tabId) held.delete(id);
     await undraw(tabId);
     // The person's own tab goes back out of the agent's group when the agent lets go of it.
@@ -243,6 +245,7 @@ export function createSessions({
       const d = drivers.get(tabId);
       if (d && d.agent.id !== call.agent.id) fail("busy");
       if (!d) {
+        pausing.delete(call.agent.id);
         drivers.set(tabId, { agent: call.agent, space: call.space, since: now(), timer: null, goal: "" });
         /** @type {string} */
         let site = "";

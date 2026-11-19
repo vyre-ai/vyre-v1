@@ -2300,3 +2300,59 @@ test("a touch during a call is not lost: the bar says Pausing after this step, t
   assert.equal(w.overlay.get(7).state, "takeover");
   assert.equal(w.attached.size, 0);
 });
+
+test("a queued pause belongs to its task: when the agent lets go of the tab, the next task is not paused by it", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const port = framePort(w);
+  let release;
+  const hold = new Promise((r) => (release = r));
+  const orig = w.ext.debugger.sendCommand;
+  w.ext.debugger.sendCommand = async (t, m, p) => {
+    if (m === "Input.dispatchMouseEvent") await hold;
+    return orig(t, m, p);
+  };
+  const step = w.call("chrome_click", { x: 5, y: 5 });
+  await w.advance(0);
+  port.send({ type: "touch" });
+  await w.advance(0);
+  release();
+  await step;
+  w.ext.debugger.sendCommand = orig;
+  // the agent makes no further call; it goes idle and lets go of the tab
+  await w.advance(21_000);
+  assert.equal(w.attached.size, 0);
+  // the next task, minutes later, runs
+  assert.match((await w.call("chrome_snapshot")).tree, /Sign in/);
+  assert.equal(w.eventsOf("takeover").length, 0);
+});
+
+test("what a tab recorded on one site is dropped when it goes to another and is never handed back later", async () => {
+  const w = await personal([SITE, { ...SITE, id: "bsi_2", host: "other.test" }]);
+  await w.call("chrome_snapshot");
+  w.emit(7, "Network.requestWillBeSent", {
+    requestId: "n1",
+    request: { method: "GET", url: "https://acme.test/api/a" },
+    type: "XHR",
+    timestamp: 1,
+  });
+  w.emit(7, "Page.frameNavigated", { frame: { id: "f", url: "https://acme.test/" } });
+  w.emit(7, "Network.requestWillBeSent", {
+    requestId: "n2",
+    request: { method: "GET", url: "https://acme.test/api/b" },
+    type: "XHR",
+    timestamp: 2,
+  });
+  assert.equal((await w.call("chrome_sources")).endpoints.length, 2, "same site: kept");
+  // the tab goes to another site, then back
+  w.emit(7, "Page.frameNavigated", { frame: { id: "f", url: "https://other.test/" } });
+  w.emit(7, "Network.requestWillBeSent", {
+    requestId: "n3",
+    request: { method: "GET", url: "https://other.test/api/c" },
+    type: "XHR",
+    timestamp: 3,
+  });
+  w.emit(7, "Page.frameNavigated", { frame: { id: "f", url: "https://acme.test/" } });
+  const urls = (await w.call("chrome_sources")).endpoints.map((e) => e.url);
+  assert.deepEqual(urls, [], "nothing recorded before the last move survives it");
+});

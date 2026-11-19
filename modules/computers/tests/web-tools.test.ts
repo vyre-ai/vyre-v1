@@ -189,8 +189,14 @@ test("the default search being refused answers provider.unavailable with the pla
 
 test("an address or a search that carries a value the Vault handed out is never sent, approved or not", async () => {
   const w = await world();
-  const asked = net({ "https://docs.example.com/a": page("<p>a</p>") });
-  rememberSecrets("cmp_any", [{ itemId: "vit_dana", handle: "#Dana_Key.api_key", value: "sk-live-abcdef123456" }]);
+  const asked = net({
+    "https://docs.example.com/a": page("<p>a</p>"),
+    "https://docs.example.com/a?page=4921": page("<p>a</p>"),
+  });
+  rememberSecrets("cmp_any", [
+    { itemId: "vit_dana", handle: "#Dana_Key.api_key", value: "sk-live-abcdef123456" },
+    { itemId: "vit_pin", handle: "#Door.pin", value: "4921" },
+  ]);
   try {
     const ctx = { ...w.agent().ctx, principal: { kind: "agent" as const, id: "agt_secretive" } };
     for (const url of [
@@ -209,12 +215,17 @@ test("an address or a search that carries a value the Vault handed out is never 
     );
     assert.deepEqual(asked, [], "nothing went out");
     assert.equal((await tool["computers.chrome.read"]!(ctx, { url: "https://docs.example.com/a" })).title, "Docs");
+    // a short value (a PIN) would refuse ordinary addresses: it is not matched
+    assert.equal(
+      (await tool["computers.chrome.read"]!(ctx, { url: "https://docs.example.com/a?page=4921" })).title,
+      "Docs",
+    );
   } finally {
     forgetSecrets("cmp_any");
   }
 });
 
-test("what a search showed the agent is remembered for the turn, so chrome_read of those hosts is not held", async () => {
+test("what a search showed the agent is remembered for the turn as exact addresses, so chrome_read of exactly those is not held", async () => {
   const w = await world();
   net({
     "https://html.duckduckgo.com/html/?q=auth": '<a class="result__a" href="https://docs.shown.example/auth">Auth</a>',
@@ -222,6 +233,27 @@ test("what a search showed the agent is remembered for the turn, so chrome_read 
   const ctx = { ...w.agent().ctx, principal: { kind: "agent" as const, id: "agt_shown" }, thread: "thr_shown" };
   await tool["computers.chrome.search"]!(ctx, { query: "auth" });
   const { searchShowed, webTurnKey } = await import("../../../lib/web-turns.ts");
-  assert.equal(searchShowed(webTurnKey("agt_shown", "thr_shown"), "docs.shown.example"), true);
-  assert.equal(searchShowed(webTurnKey("agt_shown", "thr_shown"), "other.example"), false);
+  assert.equal(searchShowed(webTurnKey("agt_shown", "thr_shown"), "https://docs.shown.example/auth"), true);
+  assert.equal(searchShowed(webTurnKey("agt_shown", "thr_shown"), "https://docs.shown.example/auth?x=1"), false);
+  assert.equal(searchShowed(webTurnKey("agt_shown", "thr_shown"), "https://other.example/"), false);
+});
+
+test("an address that is not a web address is refused with its reason, not held and not read", async () => {
+  const w = await world();
+  const asked = net({});
+  const ctx = { ...w.agent().ctx, principal: { kind: "agent" as const, id: "agt_badurl" } };
+  for (const url of [
+    "not a url",
+    "ftp://docs.example.com/",
+    "javascript:alert(1)",
+    "https://",
+    "//docs.example.com/a",
+    "",
+  ])
+    await assert.rejects(
+      tool["computers.chrome.read"]!(ctx, { url }),
+      (e) => codeOf(e) === "validation.bad_input",
+      url,
+    );
+  assert.deepEqual(asked, []);
 });

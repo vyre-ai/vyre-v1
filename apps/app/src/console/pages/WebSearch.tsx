@@ -19,6 +19,7 @@ export const SEARCH_NOTE =
 export function WebSearchSetting(): ReactElement {
   const provider = useRead<Setting>("settings.get", { key: "search.provider" });
   const key = useRead<Setting>("settings.get", { key: "search.key" });
+  const items = useRead<CapMap["vault.items.list"]["out"]>("vault.items.list", {});
   const refresh = (): void => {
     provider.refresh();
     key.refresh();
@@ -26,7 +27,11 @@ export function WebSearchSetting(): ReactElement {
   const action = useAction(refresh);
   if (!provider.data || !key.data) return <ReadState error={provider.error ?? key.error} retry={refresh} />;
   const chosen = String(provider.data.row.value ?? "default");
-  const handle = String(key.data.row.value ?? "");
+  // the Space keeps the item's id; the picker speaks in handles, so the saved id is shown as the item's handle (and field)
+  const saved = String(key.data.row.value ?? "");
+  const [savedId, savedField] = saved.split(".");
+  const found = items.data?.items.find((item) => item.id === savedId);
+  const handle = found ? `${found.handle}${savedField ? `.${savedField}` : ""}` : saved.startsWith("vit_") ? "" : saved;
   const service = chosen === "bing" ? "Bing" : "Brave Search";
   return (
     <Section title="Web search for agents">

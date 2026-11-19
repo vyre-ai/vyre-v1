@@ -8,7 +8,7 @@ import { documentNetwork } from "../../../../lib/document-network.ts";
 import { LIMIT, PROVIDERS, createLimiter, readPage, searchWeb } from "../../../../lib/web-read.ts";
 import type { Provider } from "../../../../lib/web-read.ts";
 import { searchHost } from "../../search-host.ts";
-import { rememberSearchHosts, webTurnKey } from "../../../../lib/web-turns.ts";
+import { rememberSearchUrls, webTurnKey } from "../../../../lib/web-turns.ts";
 import type { FetchDeps } from "../../../../lib/public-fetch.ts";
 import { holdsHandedOutSecret } from "../../projections.ts";
 import { maskValue } from "../record.ts";
@@ -194,7 +194,7 @@ async function searchProvider(ctx: CompCtx): Promise<Provider> {
   let key = "";
   if (handle !== "" && host) {
     try {
-      key = await host.secret(handle.startsWith("#") ? handle : `#${handle}`);
+      key = await host.secret(handle);
     } catch {
       key = "";
     }
@@ -218,8 +218,8 @@ export async function searchWebTool(ctx: CompCtx, input: { query: string; site?:
     );
   const r = await searchWeb(String(input.query ?? ""), input.site, await webNet(ctx), await searchProvider(ctx));
   if (!r.ok) raise(ctx, r.kind ? "provider.unavailable" : "validation.bad_input", r.reason);
-  // what this search showed the agent in this turn: chrome_read opens these hosts without asking
-  rememberSearchHosts(
+  // what this search showed the agent in this turn: chrome_read opens exactly these addresses without asking (never a host, never with more in the query)
+  rememberSearchUrls(
     webTurnKey(ctx.principal.id, ctx.thread),
     r.results.map((x) => x.url),
   );
