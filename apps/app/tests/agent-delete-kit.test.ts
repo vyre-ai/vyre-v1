@@ -296,6 +296,15 @@ export async function agentDeleteWalk(
             await page.waitForTimeout(250);
           }
           await actText("Move to Trash\u2026");
+          // the ask opens focused on Cancel and Delete is armed a moment later (ui/InlineConfirm): wait for it, then one Tab from Cancel reaches it
+          await page.waitForFunction(
+            () => {
+              const b = document.querySelector('[data-testid="trash-yes"]');
+              return b !== null && b.getAttribute("aria-disabled") !== "true";
+            },
+            null,
+            { timeout: 15_000 },
+          );
           await act("trash-yes");
           await page.waitForFunction(() => !document.querySelector('[data-testid="trash-confirm"]'), null, {
             timeout: 15_000,
