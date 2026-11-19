@@ -115,6 +115,16 @@ const SCENES = [
       await p.waitForTimeout(300);
     },
   },
+  {
+    id: "peek",
+    part: "board",
+    sizes: ["wide", "phone"],
+    run: async (p) => {
+      await click(p, "card-cl_6");
+      await p.waitForSelector(tid("board-peek"), { timeout: 8000 }).catch(() => {});
+      await p.waitForTimeout(400);
+    },
+  },
   { id: "keys", part: "board", sizes: ["wide"], run: async (p) => click(p, "board-keys") },
   { id: "big", part: "big", sizes: ["wide"], run: async () => {} },
 ];
