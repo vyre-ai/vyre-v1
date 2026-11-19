@@ -278,7 +278,6 @@ export function PathTab({
             <Text style={s.finishCap}>Finish lines</Text>
             {/* ui-rows-lint: not a list (finish lines) */}
             {done.map(col)}
-            <Text style={s.quiet}>A record that reaches a finish line has finished the Journey.</Text>
           </View>
         ) : null}
       </ScrollView>
