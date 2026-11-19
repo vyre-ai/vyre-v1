@@ -8,6 +8,10 @@ import type { Node } from "../../../onboarding/test-dom.ts";
 import { act } from "react";
 import { ArtifactsPage } from "../mounts/ArtifactsPage.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
+import { setArmDelay } from "../../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the delete strip arms after a short wait (ui/InlineConfirm); this test presses Delete at once
+setArmDelay(0);
 
 const rightClick = async (root: Node, rowId: string): Promise<void> => {
   const row = find(root, rowId);

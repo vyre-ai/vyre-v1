@@ -518,11 +518,9 @@ function MemberRows({
             disabled={action.busy}
             confirmTestID="group-member-remove-confirm"
             onConfirm={() =>
-              action
-                .run("access.groups.remove_member", { groupId, member: pending }, "Member removed")
-                .then((out) => {
-                  if (out) setPending(null);
-                })
+              action.run("access.groups.remove_member", { groupId, member: pending }, "Member removed").then((out) => {
+                if (out) setPending(null);
+              })
             }
             onCancel={() => setPending(null)}
           />

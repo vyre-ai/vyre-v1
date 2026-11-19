@@ -209,7 +209,9 @@ export function InlineConfirm({
   const fill = danger ? "var(--danger)" : "var(--accent)";
   const failureLine = failed ? (
     <View accessibilityRole="alert" testID={testID ? `${testID}-failed` : undefined} style={s.failedRow}>
-      <Text style={s.failed}>{failed.text ? `That did not work: ${failed.text}` : "That did not work. You can try again."}</Text>
+      <Text style={s.failed}>
+        {failed.text ? `That did not work: ${failed.text}` : "That did not work. You can try again."}
+      </Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Report this"

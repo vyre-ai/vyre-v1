@@ -197,7 +197,11 @@ test("a rejected confirm shows its own line, opens nothing by itself, re-arms, a
     await wait(100);
     assert.deepEqual(log, ["delete", "delete"], "armed again after the failure");
     await press(find(root, "ic-report"));
-    assert.deepEqual(reports, ["Delete failed (access.denied)"], "one report, by choice, with the code and no names or ids");
+    assert.deepEqual(
+      reports,
+      ["Delete failed (access.denied)"],
+      "one report, by choice, with the code and no names or ids",
+    );
     assert.deepEqual(thrown, [], "nothing global is thrown");
   } finally {
     process.off("uncaughtException", onThrow);
