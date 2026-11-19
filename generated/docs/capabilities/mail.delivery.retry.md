@@ -35,7 +35,7 @@ type In = {
 
 ```ts
 type Out = {
-  outcome: "sent" | "skipped" | "gave_up" | "rescheduled";
+  outcome: "sent" | "skipped" | "gave_up" | "rescheduled" | "held";
   messageId?: string;
 };
 ```

@@ -25139,7 +25139,7 @@ export type MailDeliveryRetryIn = {
   attempt: number;
 };
 export type MailDeliveryRetryOut = {
-  outcome: "sent" | "skipped" | "gave_up" | "rescheduled";
+  outcome: "sent" | "skipped" | "gave_up" | "rescheduled" | "held";
   messageId?: string;
 };
 export type MailDeliveryTrailIn = {
@@ -25147,7 +25147,11 @@ export type MailDeliveryTrailIn = {
 };
 export type MailDeliveryTrailOut = {
   messageId: string;
-  state: "waiting" | "sent" | "delivered" | "retrying" | "bounced" | "complained" | "failed";
+  state: "waiting" | "sent" | "delivered" | "retrying" | "held" | "bounced" | "complained" | "failed";
+  sentBy?: {
+    kind: string;
+    id: string;
+  };
   events: Array<{
       kind: "queued" | "held" | "sent" | "delivered" | "opened" | "clicked" | "soft_bounced" | "bounced" | "complained" | "failed" | "retry_scheduled" | "retried" | "gave_up";
       at: number;

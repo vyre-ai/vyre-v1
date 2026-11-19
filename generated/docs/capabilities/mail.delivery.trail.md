@@ -34,7 +34,11 @@ type In = {
 ```ts
 type Out = {
   messageId: string;
-  state: "waiting" | "sent" | "delivered" | "retrying" | "bounced" | "complained" | "failed";
+  state: "waiting" | "sent" | "delivered" | "retrying" | "held" | "bounced" | "complained" | "failed";
+  sentBy?: {
+    kind: string;
+    id: string;
+  };
   events: Array<{
       kind: "queued" | "held" | "sent" | "delivered" | "opened" | "clicked" | "soft_bounced" | "bounced" | "complained" | "failed" | "retry_scheduled" | "retried" | "gave_up";
       at: number;
@@ -93,6 +97,10 @@ type Out = {
       "attempt": 1,
       "nextAt": 1760000000000,
       "of": 1
+    },
+    "sentBy": {
+      "id": "example",
+      "kind": "example"
     },
     "state": "waiting"
   }
