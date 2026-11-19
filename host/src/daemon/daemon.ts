@@ -1972,7 +1972,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   });
 
   // a stall over half a second names the code that held the loop (the stack, written from a watchdog thread)
-  const stall = startStallWatch();
+  const stall = startStallWatch({
+    log: (m) =>
+      sink.log({ space: space ?? "-", level: 40, msg: "scheduler.loop_stalled", place: "scheduler", attrs: m }),
+  });
   closers.push(() => stall.stop());
 
   /** The terminal module's first read of the agent workspaces' subnets, awaited before the server listens (third look T5). */
