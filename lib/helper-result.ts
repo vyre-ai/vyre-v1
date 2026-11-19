@@ -82,7 +82,7 @@ export function frameCode(): string {
  * for this message alone, and Vyre's own lines after it carry the same code. The message says that only a line with that exact code is real, so a forged "Vyre:" line, a forged end marker, spacing, homoglyphs or a
  * guessed code inside the helper's words are all just helper text. Nothing of the helper's is rewritten or quoted. `code` is for tests; callers leave it out.
  */
-/** A title is the parent's own words on the thread, but it is one line in a header: control characters and line breaks become spaces and it is cut. */
+/** A title is the parent's own words on the thread, but it is one quoted line in a header: control characters and line breaks become spaces, a double quote becomes a single one, and it is cut. */
 const oneLineTitle = (t: string): string =>
   t
     .replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, " ")

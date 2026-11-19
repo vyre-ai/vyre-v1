@@ -1,7 +1,7 @@
 // The crew's lifecycle (DESIGN-crew.md, step 2): what a teammate's turns do to its job, and the one result card that reaches the lead's chat when a teammate finishes. The bridge reports every turn start, end and
 // the moment the reply is posted (StreamEvent); this reads those for the threads that are crew jobs and nothing else. A finished teammate has its leftovers committed, its branch summarised, and posts one
 // message in the lead's chat, as itself and mentioning the lead, with a `crew_result` block. That message is the wake: the lead's turn starts from it the ordinary way, so nobody polls and nothing new is routed.
-import { failedBody, parentBody } from "../../lib/helper-result.ts";
+import { failedBody, oneLineTitle, parentBody } from "../../lib/helper-result.ts";
 import { noteSteps } from "./helper-tests.ts";
 import { hangOwn, noteOwn, settleOwn } from "./own-subagents.ts";
 import type { Db } from "./projections.ts";
@@ -88,7 +88,7 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     // the server stopped under it: it may have done part of the work, so the lead hears that and decides, and the result is not "found"
     const body =
       state === "lost"
-        ? `Helper "${title}" was stopped when the server restarted. It may have done part of its work, so look at what is done before you start it again.`
+        ? `Helper "${oneLineTitle(title)}" was stopped when the server restarted. It may have done part of its work, so look at what is done before you start it again.`
         : state === "failed"
           ? failedBody(title, text)
           : parentBody(title, text, e.messageId ? { threadId: e.threadId, messageId: e.messageId } : undefined);
