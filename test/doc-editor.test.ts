@@ -762,18 +762,19 @@ test("what the writer keeps exactly, and what it has always normalised, in ordin
   }
 });
 
-test("sent texts are kept by size: a long document is held as a fingerprint, and its echo is still recognised", () => {
+test("only the latest sent text is kept, whole, and compared whole; the ids are bounded", () => {
   const sent: string[] = [];
   const ids = new Set<string>();
   const big = "x".repeat(150_000);
   noteSent(sent, ids, big, "s1");
-  assert.ok(sent[0] && sent[0].length < 100);
+  assert.equal(sent.length, 1);
   assert.equal(isOwnEcho(big, undefined, ids, sent), true);
   assert.equal(isOwnEcho(`${big}y`, undefined, ids, sent), false);
-  noteSent(sent, ids, "a".repeat(90_000), "s2");
-  noteSent(sent, ids, "b".repeat(90_000), "s3");
-  assert.ok(sent.length <= 2);
-  assert.equal(ids.has("s1"), true);
+  assert.equal(isOwnEcho(`y${big.slice(1)}`, undefined, ids, sent), false, "same length, different text");
+  noteSent(sent, ids, "a", "s2");
+  assert.equal(sent.length, 1);
+  for (let i = 0; i < 100; i += 1) noteSent(sent, ids, `t${i}`, `n${i}`);
+  assert.ok(ids.size <= 64);
 });
 
 test("an unclosed fence followed by a new block is written closed, and reads back as code then paragraph", () => {
