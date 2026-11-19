@@ -46,3 +46,35 @@ test("the admin path: a connection with nobody to tell raises a real task for th
   assert.ok(row, JSON.stringify(listed).slice(0, 300));
   assert.deepEqual(row.assigned, { kind: "role", id: "admin" });
 });
+
+test("a maker who has left the Space is skipped: through the real tasks module the admin gets the task and the removed member gets nothing", async () => {
+  const tasks = tasksHarness({ authorize: (who) => who.id === ADMIN });
+  const k = kit();
+  k.people.left.add("usr_dana");
+  const around = k.ctx.call;
+  const seen: string[] = [];
+  k.ctx.call = async (cap, input) => {
+    if (cap !== "tasks.create") return around(cap, input);
+    seen.push(JSON.stringify((input as { assigned: unknown }).assigned));
+    return tasks.call("tasks.create", input, { id: "usr_dana", kind: "person" } as never);
+  };
+  k.install(ACME);
+  const made = await k.hs["connections.create"](k.ctx, {
+    connector: "acme",
+    title: "Acme",
+    ownerKind: "space",
+    secrets: { Acme_Key: "#AcmeKey", Acme_Hook: "#AcmeHook" },
+  } as never);
+  k.state.reply = () => ({ status: 401, body: {} });
+  await assert.rejects(
+    k.hs["connectors.run"](k.ctx, {
+      key: "acme",
+      action: "ping",
+      connectionId: made.connection.connectionId,
+      input: {},
+    }),
+  );
+  assert.deepEqual(seen, ['{"kind":"role","id":"admin"}'], "no task was made for the person who left");
+  assert.equal((await tasks.call("tasks.count_needs_you", {}, { id: ADMIN, kind: "person" } as never)).count, 1);
+  assert.equal((await tasks.call("tasks.count_needs_you", {}, { id: "usr_dana", kind: "person" } as never)).count, 0);
+});

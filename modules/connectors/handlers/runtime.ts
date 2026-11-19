@@ -193,6 +193,18 @@ async function markReconnect(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connec
  * One item on Home for whoever connected the app, not one per failed call: "Your <app> key stopped working". The person who connected a sync spec is its owner; a person's own connection is theirs.
  * It closes by itself when a probe of the connection answers well again (clearReconnectTask). Nothing is lost meanwhile: the outbox keeps every edit and syncing resumes.
  */
+/** Is this person a current member of the Space? Only a lookup that says they are not (gone, removed, suspended, not invited yet) says no: a lookup that cannot be made does not hide someone. */
+async function isCurrentMember(ctx: ConnectorsCtx, id: string): Promise<boolean> {
+  try {
+    const got = (await ctx.call("access.principals.get", { principal: { kind: "person", id } })) as {
+      principal?: { status?: string };
+    } | null;
+    return got?.principal?.status === undefined || got.principal.status === "active";
+  } catch (e) {
+    return (e as { error?: { code?: string } } | null)?.error?.code !== "validation.not_found";
+  }
+}
+
 async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: ConnectionDb): Promise<void> {
   const by = deps.tx.get<{ applied_by: string | null }>(
     "SELECT applied_by FROM cn_sync_specs WHERE connection_id = ?",
@@ -203,14 +215,19 @@ async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connect
     "SELECT created_by FROM cn_connection_creators WHERE connection_id = ?",
     c.connection_id,
   )?.created_by;
-  const who =
-    c.owner_kind === "person"
-      ? c.owner_id
-      : by && by !== "system"
-        ? by
-        : created && created !== "system"
-          ? created
-          : undefined;
+  // the first of them who is a current member of the Space; one who left, was removed or is suspended is skipped (a task made for them would reach nobody)
+  const candidates = [
+    c.owner_kind === "person" ? c.owner_id : undefined,
+    by && by !== "system" ? by : undefined,
+    created && created !== "system" ? created : undefined,
+  ].filter((x): x is string => typeof x === "string" && x !== "");
+  let who: string | undefined;
+  for (const id of candidates) {
+    if (await isCurrentMember(ctx, id)) {
+      who = id;
+      break;
+    }
+  }
   const title =
     deps.tx.get<{ title: string }>("SELECT title FROM cn_connectors WHERE key = ?", c.connector)?.title ?? c.title;
   const make = (assigned: { kind: "person" | "role"; id: string }) =>

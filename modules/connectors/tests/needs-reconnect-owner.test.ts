@@ -99,3 +99,43 @@ test("the state is on the connection's row, and says it once however many calls 
   const row = (await k.hs["connections.get"](k.ctx, { connectionId: id } as never)).connection;
   assert.equal(row.state, "needs_reconnect");
 });
+
+test("a person who has left the Space, or is suspended, is skipped before any task is made; the next in the chain is tried, then the admins", async () => {
+  const left = kit();
+  left.people.left.add("usr_dana");
+  await refused(left);
+  assert.deepEqual(assigned(left), ["role:admin"], "no task was made for the person who left");
+  const suspended = kit();
+  suspended.people.suspended.add("usr_dana");
+  await refused(suspended);
+  assert.deepEqual(assigned(suspended), ["role:admin"]);
+  // the maker is gone but the person who applied the sync spec is here
+  const k = kit();
+  k.install(ACME);
+  const made = await k.hs["connections.create"](k.ctx, {
+    connector: "acme",
+    title: "Acme",
+    ownerKind: "space",
+    secrets: { Acme_Key: "#AcmeKey", Acme_Hook: "#AcmeHook" },
+  } as never);
+  k.tx.run(
+    "INSERT INTO cn_sync_specs (connector, spec, connection_id, applied_by, applied_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+    "acme",
+    "{}",
+    made.connection.connectionId,
+    "usr_lena",
+    1,
+    1,
+  );
+  k.people.left.add("usr_lena");
+  k.state.reply = () => ({ status: 401, body: {} });
+  await assert.rejects(
+    k.hs["connectors.run"](k.ctx, {
+      key: "acme",
+      action: "ping",
+      connectionId: made.connection.connectionId,
+      input: {},
+    }),
+  );
+  assert.deepEqual(assigned(k), ["person:usr_dana"], "the applier left, the maker is still here");
+});
