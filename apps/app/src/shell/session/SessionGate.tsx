@@ -2,7 +2,7 @@ import { activationUrl, isPackagedOrigin, storedPlace } from "./space-catalog.ts
 // The production session boundary. Signed-out and desktop-link flows stay in the startup chunk;
 // the authenticated application shell is loaded only after a stored or verified session exists.
 import { holdOpen } from "../reach/open-link.ts";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { loadCryptoKeys, loadRecoveryCrypto } from "../../../../../client/src/crypto/load.ts";
@@ -41,7 +41,8 @@ import {
   seenAgo,
 } from "../../join/failure.ts";
 import { InBrowser, NotAnswering, YourSpaces } from "../../join/GettingIn.tsx";
-import { decideEntry, decideLanded } from "./getting-in-machine.ts";
+import { OVERLAY_START, decideEntry, decideLanded, overlayStep } from "./getting-in-machine.ts";
+import type { Overlay } from "./getting-in-machine.ts";
 import { rememberBrowserSpace, rememberSession, yourSpaces } from "./known-spaces.ts";
 import type { SpaceRow } from "./known-spaces.ts";
 import { spaceHost } from "../spaces/space-label.ts";
@@ -1125,12 +1126,12 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const [entry, setEntry] = useState(false);
   const [entryStart, setEntryStart] = useState<"choice" | "join" | "team" | "add">("choice");
   // Getting in (rc.41): Your Spaces (home), a row being reached again quietly, a Space that did not answer (trouble), and a relay Space the app opened in the browser.
-  const [home, setHome] = useState(false);
-  const [reaching, setReaching] = useState<string | null>(null);
-  const [trouble, setTrouble] = useState<Trouble | null>(null);
-  const [troubleBusy, setTroubleBusy] = useState(false);
+  const [gi, giDo] = useReducer(
+    overlayStep<Trouble, { target: EntryTarget; name: string }>,
+    OVERLAY_START as Overlay<Trouble, { target: EntryTarget; name: string }>,
+  );
+  const { home, reaching, trouble, busy: troubleBusy, browser: inBrowser } = gi;
   const [oldData, setOldData] = useState(false);
-  const [inBrowser, setInBrowser] = useState<{ target: EntryTarget; name: string } | null>(null);
   const [signInAs, setSignInAs] = useState<string | undefined>(undefined);
   const [shellTry, setShellTry] = useState(0);
   const shellRetried = useRef(new Set<string>());
@@ -1358,9 +1359,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     }
     if (!activateAddress(chosen, true)) return;
     setEntry(false);
-    setHome(false);
-    setTrouble(null);
-    setInBrowser(null);
+    giDo({ e: "enter" });
     setDesktopRoute(null);
     setConnectedAddress(chosen.baseUrl);
     setPhase({ kind: "shell", stored: chosen });
@@ -1380,9 +1379,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     (stored: StoredSession) => {
       activateAddress(stored, !!returnSession);
       setEntry(false);
-      setHome(false);
-      setTrouble(null);
-      setInBrowser(null);
+      giDo({ e: "enter" });
       setSignInAs(undefined);
       setReturnSession(null);
       setPhase({ kind: "shell", stored });
@@ -1393,9 +1390,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     activateAddress(stored, true);
     consumeBrowserInvite();
     setEntry(false);
-    setHome(false);
-    setTrouble(null);
-    setInBrowser(null);
+    giDo({ e: "enter" });
     setReturnSession(null);
     setDesktopRoute((route) => consumeDesktopRoute(route));
     setPhase({ kind: "shell", stored });
@@ -1420,10 +1415,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     setEntry(false);
     setPersonalClaim(null);
     setDesktopRoute(null);
-    setTrouble(null);
-    setReaching(null);
-    setHome(false);
-    setInBrowser({ target, name });
+    giDo({ e: "browser", browser: { target, name } });
   };
   /** Where a way in goes when its address did not answer as a Space this window can use: the browser for a relay Space that is awake, else the screen that says what happened and carries the fix. */
   const landed = (target: EntryTarget, found: Found, stored?: StoredSession): void => {
@@ -1439,9 +1431,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     }
     if (found.kind === "relay" && found.sure && bridge) rememberBrowserSpace({ address: target.address, name });
     setEntry(false);
-    setReaching(null);
-    setInBrowser(null);
-    setTrouble({ target, name, found, ...(stored ? { stored } : {}) });
+    giDo({ e: "trouble", trouble: { target, name, found, ...(stored ? { stored } : {}) } });
   };
   /** The address answers as a Space: go in. A saved sign-in opens it; an owner link claims it; anything else is its sign-in or its invite. */
   const enterTarget = async (target: EntryTarget, stored?: StoredSession): Promise<void> => {
@@ -1460,16 +1450,14 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           local: false,
         });
         setEntry(false);
-        setHome(false);
+        giDo({ e: "leave-list" });
         return;
       }
       page()?.assign(target.url);
       return;
     }
     setEntry(false);
-    setHome(false);
-    setTrouble(null);
-    setInBrowser(null);
+    giDo({ e: "enter" });
     setConnectedAddress(target.address);
     setDesktopRoute(target);
     setNotice(false);
@@ -1524,14 +1512,14 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const retryTrouble = async (): Promise<void> => {
     const t = trouble;
     if (!t || troubleBusy) return;
-    setTroubleBusy(true);
+    giDo({ e: "busy", on: true });
     const found = await findSpaceQuietly(t.target.address).catch(() => OFFLINE);
-    setTroubleBusy(false);
+    giDo({ e: "busy", on: false });
     if (found.kind !== "direct") {
       landed(t.target, found, t.stored);
       return;
     }
-    setTrouble(null);
+    giDo({ e: "trouble-clear" });
     shellRetried.current.delete(t.target.address);
     setShellTry((n) => n + 1);
     await enterTarget(t.target, t.stored);
@@ -1583,10 +1571,10 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     // a Space that opens in the browser: asked where it is now, since it may have moved to an address of its own
     rowBusy.current = true;
     try {
-      const found = await findSpaceQuietly(row.address, { onRetry: () => setReaching(row.address) }).catch(
+      const found = await findSpaceQuietly(row.address, { onRetry: () => giDo({ e: "reach", address: row.address }) }).catch(
         () => OFFLINE,
       );
-      setReaching(null);
+      giDo({ e: "reach", address: null });
       if (found.kind === "direct") {
         setSignInAs(row.username);
         await enterTarget(target, row.session ?? undefined);
@@ -1717,7 +1705,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   };
   const rows = yourSpaces();
   const addSpace = (): void => {
-    setHome(false);
+    giDo({ e: "leave-list" });
     setEntryStart("add");
     setEntry(true);
   };
@@ -1753,13 +1741,10 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const firstScreen = rows.length > 0 ? spacesScreen : firstLaunch;
   /** Back from a screen about one Space: Your Spaces when there are any, else the doors. */
   const backHome = (): void => {
-    setTrouble(null);
-    setInBrowser(null);
+    const spaces = yourSpaces().length > 0;
+    giDo({ e: "back", spaces });
     setSignInAs(undefined);
-    if (yourSpaces().length > 0) {
-      setHome(true);
-      return;
-    }
+    if (spaces) return;
     setConnectedAddress(null);
     setDesktopRoute(null);
     setPhase({ kind: "signin" });
@@ -1803,7 +1788,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           setDesktopRoute(null);
           if (entryStart === "add") {
             setReturnSession(null);
-            setHome(true);
+            giDo({ e: "list" });
             return;
           }
           const previous = returnSession ?? readStored(undefined, baseUrl ?? undefined);
@@ -2007,7 +1992,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
             void enterSaved(back);
           } else if (yourSpaces().length > 0) {
             setSignInAs(undefined);
-            setHome(true);
+            giDo({ e: "list" });
           } else {
             setEntryStart("choice");
             setEntry(true);

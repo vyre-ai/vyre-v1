@@ -1,4 +1,5 @@
-// Getting in, as one explicit state machine. Pure: no storage, no network, no React. The gate (SessionGate.tsx) asks `decideEntry` and `decideLanded` for the two decisions every way in shares
+// Getting in, as one explicit state machine. The gate runs on it: every decision goes through decideEntry, decideLanded and troubleKind, and the gate's own screen state is the reducer
+// overlayStep at the bottom of this file (SessionGate holds no other flag for it). `step` is the whole-flow model the random test walks; getting-in-walk.test.tsx walks the real gate itself. Pure: no storage, no network, no React. The gate (SessionGate.tsx) asks `decideEntry` and `decideLanded` for the two decisions every way in shares
 // (what an address turned out to be, and where a way in goes when it did not open), and `step` is the whole machine the tests walk in random order to prove two things for every state and every
 // failure: there is no dead end (every state has a move out and a path to a Space), and a saved sign-in is only ever removed by the person (signing out) or by the Space saying so (an expired or
 // revoked session); never by being offline, slow, asleep, moved, opened in two tabs, or by clearing old data.
@@ -217,4 +218,54 @@ export function exits(st: State, ctx: Ctx): Event[] {
     ...ctx.known.map((address): Event => ({ e: "pick", address })),
   ];
   return probes.filter((ev) => JSON.stringify(step(st, ev, ctx).state) !== JSON.stringify(st));
+}
+
+// ---- the gate's own screen state, run by the gate ----
+
+/** What the gate shows over its sign-in and shell phases: Your Spaces, a Space being asked again (`reaching`), the screen for a way in that did not open, or a relay Space handed to the browser.
+ * SessionGate holds exactly this (useReducer(overlayStep)); there is no other flag for any of it. */
+export interface Overlay<T = unknown, B = unknown> {
+  home: boolean;
+  reaching: string | null;
+  trouble: T | null;
+  busy: boolean;
+  browser: B | null;
+}
+export const OVERLAY_START: Overlay = { home: false, reaching: null, trouble: null, busy: false, browser: null };
+
+export type OverlayEvent<T = unknown, B = unknown> =
+  /** Going into a Space or its sign-in: nothing of Getting in stays on screen. */
+  | { e: "enter" }
+  /** Leaving Your Spaces for the address box. */
+  | { e: "leave-list" }
+  | { e: "list" }
+  | { e: "reach"; address: string | null }
+  | { e: "trouble"; trouble: T }
+  | { e: "busy"; on: boolean }
+  | { e: "trouble-clear" }
+  | { e: "browser"; browser: B }
+  /** Back from a screen about one Space. */
+  | { e: "back"; spaces: boolean };
+
+export function overlayStep<T, B>(o: Overlay<T, B>, ev: OverlayEvent<T, B>): Overlay<T, B> {
+  switch (ev.e) {
+    case "enter":
+      return { ...o, home: false, trouble: null, browser: null };
+    case "leave-list":
+      return { ...o, home: false };
+    case "list":
+      return { ...o, home: true };
+    case "reach":
+      return { ...o, reaching: ev.address };
+    case "trouble":
+      return { ...o, reaching: null, browser: null, trouble: ev.trouble };
+    case "busy":
+      return { ...o, busy: ev.on };
+    case "trouble-clear":
+      return { ...o, trouble: null };
+    case "browser":
+      return { ...o, trouble: null, reaching: null, home: false, browser: ev.browser };
+    case "back":
+      return { ...o, trouble: null, browser: null, home: ev.spaces ? true : o.home };
+  }
 }

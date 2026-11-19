@@ -144,3 +144,18 @@ test("two tabs share one store: signing out in one makes the row sign-in-with-us
   for (const k of Object.keys(store.dump())) store.removeItem(k); // storage cleared
   assert.deepEqual(yourSpaces(store), []);
 });
+
+test("two saved sign-ins with one Space id are one row, the one used last; the other stays saved", () => {
+  const store = memory();
+  const old = session({ baseUrl: "http://127.0.0.1:4101", def: { ...personal, spaceId: "spc_me", name: "Personal" } });
+  const now = session({ baseUrl: "http://127.0.0.1:4202", def: { ...personal, spaceId: "spc_me", name: "Personal" } });
+  writeStored(old, store);
+  writeStored(now, store);
+  rememberSession(old, store, 1000);
+  rememberSession(now, store, 2000);
+  const rows = yourSpaces(store);
+  assert.deepEqual(
+    rows.map((r) => r.address),
+    ["http://127.0.0.1:4202"],
+  );
+});

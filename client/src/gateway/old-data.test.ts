@@ -80,9 +80,9 @@ test("clearing old data removes workers and cached pages and nothing else", asyn
 });
 
 test("a stale worker is removed and the page loads again once; a second failure in the same tab does not loop", async () => {
-  const p = page({ worker: "/__vyre/sw.js", caches: ["old"] });
+  const p = page({ worker: "/__vyre/sw.js", caches: ["vyre-old"] });
   assert.equal(await healStaleWorker(p.env, asServer), true);
-  assert.deepEqual(p.gone, ["worker /__vyre/sw.js", "cache old"]);
+  assert.deepEqual(p.gone, ["worker /__vyre/sw.js", "cache vyre-old"]);
   assert.equal(p.reloads(), 1);
   assert.equal(await healStaleWorker(p.env, asServer), false, "once per tab");
   assert.equal(p.reloads(), 1);
@@ -93,4 +93,9 @@ test("a worker that fits is left alone", async () => {
   assert.equal(await healStaleWorker(p.env, asServer), false);
   assert.deepEqual(p.gone, []);
   assert.equal(p.reloads(), 0);
+});
+
+test("only the caches Vyre made are cleared; another cache of the origin stays", async () => {
+  const p = page({ worker: "/sw.js", caches: ["vyre-shell-v2", "someone-else"] });
+  assert.deepEqual(await clearOldData(p.env), { workers: 1, caches: 1 });
 });

@@ -32,6 +32,8 @@ const pathOf = (w: WorkerLike | null | undefined): string => {
     return "";
   }
 };
+/** Only the caches Vyre's own workers made (vyre-shell-v2 and its older names): anything else this origin keeps in Cache Storage is not ours to delete. */
+const ours = (name: string): boolean => /^vyre/i.test(name);
 const env = (): OldDataEnv => globalThis as OldDataEnv;
 
 /** Does this page have anything to clear? True when a service worker is registered for it or it holds cached pages. A desktop app window has neither. */
@@ -39,13 +41,13 @@ export async function hasOldData(e: OldDataEnv = env()): Promise<boolean> {
   try {
     const regs = (await e.navigator?.serviceWorker?.getRegistrations?.()) ?? [];
     if (regs.length > 0) return true;
-    return ((await e.caches?.keys()) ?? []).length > 0;
+    return ((await e.caches?.keys()) ?? []).some(ours);
   } catch {
     return false;
   }
 }
 
-/** Remove every service worker and every cached page of this page's origin. Saved sign-ins (localStorage) are never touched. Answers how many of each went. */
+/** Remove every service worker and every page cache Vyre made for this page's origin (a removed worker also drops a push subscription tied to it). Saved sign-ins (localStorage) are never touched. Answers how many of each went. */
 export async function clearOldData(e: OldDataEnv = env()): Promise<{ workers: number; caches: number }> {
   let workers = 0,
     gone = 0;
@@ -56,7 +58,8 @@ export async function clearOldData(e: OldDataEnv = env()): Promise<{ workers: nu
     /* no worker support here */
   }
   try {
-    for (const k of (await e.caches?.keys()) ?? []) if (await e.caches!.delete(k).catch(() => false)) gone++;
+    for (const k of ((await e.caches?.keys()) ?? []).filter(ours))
+      if (await e.caches!.delete(k).catch(() => false)) gone++;
   } catch {
     /* no cache storage here */
   }

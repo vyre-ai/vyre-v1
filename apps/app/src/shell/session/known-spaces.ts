@@ -7,7 +7,7 @@ import type { KeyValueStore, StoredSession } from "./stored.ts";
 
 const KEY = "vyre.spaces.v1";
 /** A Space picture kept for the list: small ones only, so the list never fills the browser's storage. */
-const IMAGE_MAX = 60_000;
+const IMAGE_MAX = 30_000;
 const LIST_MAX = 24;
 
 export interface KnownSpace {
@@ -142,7 +142,11 @@ export function yourSpaces(store: KeyValueStore | undefined = browserStore()): S
   const known = readKnown(store);
   const rows: SpaceRow[] = [];
   const used = new Set<KnownSpace>();
-  for (const s of readStoredSessions(store)) {
+  // one row for a Space: two saved sign-ins with one Space id (a Personal Space that changed port) list the one used last; the other stays saved, only unlisted
+  const used_ = (s: StoredSession): number => known.find((c) => c.address === s.baseUrl)?.usedAt ?? 0;
+  const sessions = readStoredSessions(store).sort((a, b) => used_(b) - used_(a));
+  for (const s of sessions) {
+    if (s.def.spaceId && rows.some((r) => r.spaceId === s.def.spaceId)) continue;
     const k = known.find((c) => !used.has(c) && same(c, { address: s.baseUrl, spaceId: s.def.spaceId }));
     if (k) used.add(k);
     const browser = k?.via === "browser" && k.address === s.baseUrl;
