@@ -224,8 +224,16 @@ test("the failure line is plain words chosen from the code, never the server's m
       ],
       [new Error("connect ECONNREFUSED 10.0.0.4:5432"), /^Couldn't reach the Space\.\s*$/],
       [new TypeError("Failed to fetch"), /^Couldn't reach the Space\.\s*$/],
-      [{ error: { code: "internal.sql", message: "syntax error at or near" } }, /^That did not work\.\s*$/],
-      ["boom for Ada Lovelace", /^That did not work\.\s*$/],
+      [{ error: { code: "validation.not_found", message: "No record rec_123" } }, /^It's already gone\.\s*$/],
+      [
+        { error: { code: "validation.shape", message: "field name_9 must not be empty" } },
+        /^That can't be deleted as it is\.\s*$/,
+      ],
+      [
+        { error: { code: "internal.sql", message: "syntax error at or near" } },
+        /^That did not work\. You can try again\.\s*$/,
+      ],
+      ["boom for Ada Lovelace", /^That did not work\. You can try again\.\s*$/],
     ] as const) {
       const root = await mount(
         createRoot,
@@ -244,7 +252,11 @@ test("the failure line is plain words chosen from the code, never the server's m
       await wait(60);
       const line = textOf(find(root, "ic-failed")).replace(/Report\s*$/, "");
       assert.match(line, want);
-      assert.doesNotMatch(line, /10\.0\.0\.4|rec_9|select|Lovelace|object Object/, "no server text reaches the screen");
+      assert.doesNotMatch(
+        line,
+        /10\.0\.0\.4|rec_9|rec_123|name_9|select|Lovelace|object Object/,
+        "no server text reaches the screen",
+      );
     }
   } finally {
     restore();

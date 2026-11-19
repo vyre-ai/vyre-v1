@@ -52,13 +52,15 @@ export interface InlineConfirmProps {
 export function wordsFor(code: string, e: unknown): string {
   if (/^access\./.test(code)) return "You don't have access to delete this.";
   if (/^conflict\./.test(code)) return "It changed first. Try again.";
+  if (code === "validation.not_found") return "It's already gone.";
+  if (/^validation\./.test(code)) return "That can't be deleted as it is.";
   const m = (typeof e === "string" ? e : ((e as { message?: unknown } | null)?.message ?? "")) as unknown;
   if (
     /^(net|network|offline|unreachable)[._-]?/i.test(code) ||
     (typeof m === "string" && /failed to fetch|network|econnrefused|timed out|offline/i.test(m))
   )
     return "Couldn't reach the Space.";
-  return "That did not work.";
+  return "That did not work. You can try again.";
 }
 
 /** A short error code from a rejection ("access.denied"), or "": never a message, which can carry a name, an id or a link. */
