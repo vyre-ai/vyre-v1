@@ -191,7 +191,7 @@ export function shapeOf(schema: unknown, defs: Record<string, unknown> = {}, dep
 /** What a Run holds while one step renders its text. */
 export interface Held {
   trigger?: unknown;
-  steps?: Record<string, unknown>;
+  steps?: Record<string, unknown> | undefined;
   /** the shape of what this kind of trigger carries; absent when the kind is not known */
   declared?: Shape;
   /** false for a single step tried by itself, which has no earlier steps to read */
