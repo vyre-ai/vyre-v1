@@ -211,7 +211,7 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
       await shot("1-working");
       await guard.check(`${tag} working`);
 
-      // a row opens to what it is on; a tile already shows it in its own window
+      // a row opens to what it is on; a tile already shows it in its own window (and the same two helpers, as rows, still open to their steps: checked below, once the pane has narrowed the chat to rows)
       if (asTiles) {
         await page.waitForSelector(`${T("subagents-live")} [data-testid$="-window"]`, { timeout: 5_000 });
         assert.ok(
@@ -239,6 +239,13 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
       // what it is on rides the asker's own live frames: the person who asked sees steps in the peek
       await page.waitForSelector(T("crew-step-0"), { timeout: 8_000 });
       await shot("3-peek-working");
+      if (asTiles) {
+        // the pane is open beside the chat now, so the live block is rows again: a row still opens to what it is on, which the wide path used to check before the peek
+        await page.locator(T("crew-strip-view")).first().waitFor({ state: "detached", timeout: 5_000 }).catch(() => undefined);
+        await page.locator(`${T("subagents-live")} [data-testid$="-toggle"]`).first().click({ timeout: 8_000 });
+        await page.waitForSelector(`${T("subagents-live")} [data-testid$="-steps"]`, { timeout: 5_000 });
+        await shot("3b-row-open-after-tiles");
+      }
 
       // on a phone the pane is a screen of its own: closed, the chat is back under it
       if (size === "phone") await page.locator(T("crew-side-close")).click();

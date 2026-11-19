@@ -466,15 +466,12 @@ export const taskTitleOf = (m: Pick<CrewMember, "found" | "title">): string =>
 
 type PeekTab = "transcript" | "files" | "details";
 
-export function CrewPeek({
-  member,
-  call,
-  nameOfId,
-  onBack,
-  onOpenChat,
-  onRefresh,
-  meId,
-}: {
+/** A helper's pane. Keyed by the helper: opening another one starts clean, so a draft, a made task or a saved file of one can never be read, sent or filed under another. */
+export function CrewPeek(props: PeekProps): ReactElement {
+  return <CrewPeekFor key={props.member.id} {...props} />;
+}
+
+interface PeekProps {
   member: CrewMember;
   call: Call;
   nameOfId?: (id: string) => string;
@@ -483,7 +480,17 @@ export function CrewPeek({
   onRefresh: () => void;
   /** The person looking: a finished helper's result can become their task. */
   meId?: string;
-}): ReactElement {
+}
+
+function CrewPeekFor({
+  member,
+  call,
+  nameOfId,
+  onBack,
+  onOpenChat,
+  onRefresh,
+  meId,
+}: PeekProps): ReactElement {
   const [notes, setNotes] = useState<Note[]>([]);
   const [steps, setSteps] = useState<HelperStep[]>([]);
   const [text, setText] = useState("");
@@ -501,6 +508,8 @@ export function CrewPeek({
   const live = member.state === "working" || member.state === "needs_you";
   const now = useNow(live);
   const fileCount = member.files?.length ?? 0;
+  // what a helper returned, in full; nothing to turn into a task, a file or a note when it returned nothing
+  const resultText = (member.answer || member.found || "").trim();
   // only the tabs that have something: the transcript and the details are always there, the files when it touched any or is code
   const tabList: Array<{ key: PeekTab; label: string; count?: number }> = [
     { key: "transcript", label: "Transcript" },
@@ -571,10 +580,10 @@ export function CrewPeek({
     void Promise.resolve(
       call("tasks.create", {
         title: title.slice(0, 120),
-        summary: (member.answer ?? member.found ?? "").slice(0, 4000),
+        summary: resultText.slice(0, 4000),
         assigned: { kind: "person", id: meId },
         source: { kind: "chat", id: member.parentThreadId },
-        idempotencyKey: `helper-task-${member.id}`,
+        idempotencyKey: `helper-task-${member.id}-${meId}`,
       }),
     ).then(
       () => {
@@ -596,9 +605,9 @@ export function CrewPeek({
       call("files.create", {
         folderId,
         name,
-        content: { text: member.answer ?? member.found ?? "" },
+        content: { text: resultText },
         kind: "markdown",
-        idempotencyKey: `helper-file-${member.id}`,
+        idempotencyKey: `helper-file-${member.id}-${folderId}`,
       }),
     ).then(
       () => {
@@ -611,20 +620,16 @@ export function CrewPeek({
       },
     );
   };
-  // the result on a record the person picks: a note (what it found, who found it, a link back to this chat, and the file when it was saved in Files here) and the result as a markdown file in the record's own Files folder
+  // the result on a record the person picks: a note (what it found, who found it, a link back to this chat) and the result as a markdown file in the record's own Files folder
   // (the folder the Space makes for it, the one its Files tab shows); one key per helper and record, so a repeat adds nothing
   const addTo = (r: PickedRecord): void => {
     setPickRecord(false);
     setErr(null);
     const name = `${nameOf(member)} result.md`;
-    const result = member.answer ?? member.found ?? "";
+    const result = resultText;
     let noted = false;
-    const note = [
-      result,
-      "",
-      `From ${nameOf(member)} in vyre://chat/${member.parentThreadId}`,
-      ...(saved !== null ? [`Saved as ${saved}`] : []),
-    ].join("\n");
+    // the note says the same thing every time (no state of this pane in it), so a retry under the same key is the same payload
+    const note = [result, "", `From ${nameOf(member)} in vyre://chat/${member.parentThreadId}`].join("\n");
     void Promise.resolve(
       call("records.comments.add", {
         type: r.type,
@@ -787,7 +792,7 @@ export function CrewPeek({
             <Text testID="crew-peek-answer" style={st.rowLine}>
               {own ? (member.answer ?? member.found) : member.found}
             </Text>
-            {member.state === "done" && meId !== undefined ? (
+            {member.state === "done" && meId !== undefined && resultText !== "" ? (
               <View testID="crew-result-actions" style={st.actions}>
                 {made !== null ? (
                   <Text testID="crew-result-made" style={st.hint}>

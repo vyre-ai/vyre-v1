@@ -178,3 +178,34 @@ export function parseAtSend<T extends Pick<RunNode, "id" | "name" | "kind" | "st
   const hits = atCandidates(nodes, "").filter((n) => first(n.name ?? "").toLowerCase() === m[1]!.toLowerCase());
   return hits.length === 1 ? { node: hits[0]!, body: m[2]! } : null;
 }
+
+export type AtRoute<T> =
+  | { kind: "to"; node: T; body: string }
+  | { kind: "ambiguous"; name: string }
+  | { kind: "finished"; name: string };
+
+/**
+ * Where a message that starts with "@Name" goes. To the one helper at work with that first name, and only then. If a person or agent of the chat has the same first name, or two helpers do, it goes NOWHERE: the person
+ * picks from the @ list ("@Ana (helper)" names the helper outright). A helper that has already finished is not messaged and the words are not posted to the chat as if they were for someone else. Null: not a helper's name at
+ * all, so it is an ordinary message.
+ */
+export function routeAt<T extends Pick<RunNode, "id" | "name" | "kind" | "status">>(
+  text: string,
+  nodes: readonly T[],
+  otherFirstNames: readonly string[],
+): AtRoute<T> | null {
+  const m = /^@(\S+)(\s+\(helper\))?\s+(\S[\s\S]*)$/i.exec(text.trim());
+  if (!m) return null;
+  const first = m[1]!.toLowerCase();
+  const hits = nodes.filter(
+    (n) => (n.kind === "helper" || n.kind === "subagent" || n.kind === "crew") && (n.name ?? "").split(" ")[0]!.toLowerCase() === first,
+  );
+  if (hits.length === 0) return null;
+  const name = hits[0]!.name ?? "Helper";
+  const explicit = m[2] !== undefined && m[2] !== "";
+  if (hits.length > 1 || (!explicit && otherFirstNames.some((o) => o.toLowerCase() === first))) return { kind: "ambiguous", name: name.split(" ")[0]! };
+  const n = hits[0]!;
+  return n.status === "running" || n.status === "queued" || n.status === "waiting"
+    ? { kind: "to", node: n, body: m[3]!.trim() }
+    : { kind: "finished", name: name.split(" ")[0]! };
+}

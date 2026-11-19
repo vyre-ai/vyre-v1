@@ -10,6 +10,7 @@ import {
   dependencyLine,
   messageLines,
   parseAtSend,
+  routeAt,
   sleepLine,
   tokenReport,
 } from "./model.ts";
@@ -242,4 +243,18 @@ test("the @ menu lists who it can go to with what each is on, marks the chosen o
     find(await mount(createRoot, <AtMenu nodes={NODES} query="zz" index={0} onPick={() => undefined} />), "at-menu"),
     null,
   );
+});
+
+test("routeAt: one helper at work gets the words; a name shared with a person or agent, or by two helpers, goes nowhere until picked; a finished helper is never messaged; anything else is ordinary", () => {
+  const to = routeAt("@Numbers use the 8% rate", NODES.map((n) => (n.id === "run_n" ? { ...n, status: "running" as const } : n)), []);
+  assert.deepEqual(to?.kind === "to" ? [to.node.id, to.body] : null, ["run_n", "use the 8% rate"]);
+  assert.deepEqual(routeAt("@Numbers use it", NODES.map((n) => (n.id === "run_n" ? { ...n, status: "running" as const } : n)), ["Numbers"]), { kind: "ambiguous", name: "Numbers" });
+  const picked = routeAt("@Numbers (helper) use it", NODES.map((n) => (n.id === "run_n" ? { ...n, status: "running" as const } : n)), ["Numbers"]);
+  assert.deepEqual(picked?.kind === "to" ? [picked.node.id, picked.body] : null, ["run_n", "use it"]);
+  assert.deepEqual(routeAt("@Numbers use it", [...NODES, { ...NODES[1]!, id: "run_n2", name: "Numbers Two", status: "running" as const }], []), { kind: "ambiguous", name: "Numbers" });
+  assert.deepEqual(routeAt("@Numbers thanks", NODES, []), { kind: "finished", name: "Numbers" });
+  assert.equal(routeAt("@Zed hello", NODES, []), null);
+  assert.equal(routeAt("hello @Numbers", NODES, []), null);
+  assert.equal(routeAt("@Numbers", NODES, []), null, "a name alone is not a message");
+  assert.equal(routeAt("@numbers   spaced   out ", NODES.map((n) => ({ ...n, status: "running" as const })), [])?.kind, "to");
 });

@@ -3,6 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
+import { useState } from "react";
+import { Pressable } from "react-native";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import { CrewPeek } from "./pane.tsx";
 import type { CrewMember } from "./model.ts";
@@ -127,7 +129,7 @@ test("a finished result becomes a task for the person looking: Make a task, a ti
   assert.equal(made.length, 1);
   assert.deepEqual(made[0]!.input.assigned, { kind: "person", id: "usr_me" });
   assert.deepEqual(made[0]!.input.source, { kind: "chat", id: "thr_0" });
-  assert.equal(made[0]!.input.idempotencyKey, "helper-task-thr_a");
+  assert.equal(made[0]!.input.idempotencyKey, "helper-task-thr_a-usr_me");
   assert.match(textOf(find(root, "crew-result-made")), /Task made:\s+Follow up: Harbor Supply fits best/);
   assert.equal(find(root, "crew-result-task"), null, "once made, the button is gone");
 });
@@ -204,7 +206,7 @@ test("Save to Files opens the folder picker, saves the result as a markdown file
   assert.equal(made.length, 1);
   assert.deepEqual(
     [made[0]!.input.folderId, made[0]!.input.name, made[0]!.input.kind, made[0]!.input.idempotencyKey],
-    ["fld_bids", "Tess result.md", "markdown", "helper-file-thr_a"],
+    ["fld_bids", "Tess result.md", "markdown", "helper-file-thr_a-fld_bids"],
   );
   assert.equal((made[0]!.input.content as { text: string }).text, "74 tests pass");
   assert.match(textOf(find(root, "crew-result-saved")), /Saved:\s+Tess result\.md/);
@@ -323,4 +325,43 @@ test("when the record's folder cannot be made the note stays and the person is t
   await flush();
   assert.match(textOf(find(root, "crew-result-added")), /Added to\s+Pine Works/);
   assert.match(textOf(find(root, "crew-peek-error")), /note was added, but the file could not be saved/);
+});
+
+test("opening another helper in the same pane starts clean: a draft, a made task or a saved file of one is never sent or shown under the other", async () => {
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const rec = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    return cap === "chat.helper.notes" ? { notes: [] } : cap === "tasks.create" ? { taskId: "t" } : {};
+  };
+  const A = M({ id: "thr_a", name: "Tess", state: "working", found: undefined as never, step: "x" });
+  const B = M({ id: "thr_b", name: "Orin", state: "working", found: undefined as never, step: "y" });
+  const Host = (): ReturnType<typeof CrewPeek> => {
+    const [on, setOn] = useState<"a" | "b">("a");
+    return (
+      <>
+        <Pressable testID="switch" onPress={() => setOn("b")}>
+          {null}
+        </Pressable>
+        <CrewPeek member={on === "a" ? A : B} call={rec} meId="usr_me" onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />
+      </>
+    ) as never;
+  };
+  const root = await mount(createRoot, <Host />);
+  await typeInto(find(root, "crew-peek-ask"), "words meant for Tess");
+  await press(find(root, "switch"));
+  await flush();
+  assert.equal(find(root, "crew-peek-ask")?.props.value, "", "the draft for Tess is gone");
+  await press(find(root, "crew-peek-send"));
+  await flush();
+  assert.equal(calls.filter((c) => c.cap === "chat.helper.steer").length, 0, "nothing is sent to Orin");
+});
+
+test("a helper that returned nothing has nothing to turn into a task, a file or a note", async () => {
+  const root = await view(M({ found: "   " }));
+  assert.equal(find(root, "crew-result-actions"), null);
+  const withMe = await mount(
+    createRoot,
+    <CrewPeek member={M({ found: "   ", answer: "" })} call={call} meId="usr_me" onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />,
+  );
+  assert.equal(find(withMe, "crew-result-actions"), null);
 });

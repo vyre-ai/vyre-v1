@@ -12,7 +12,7 @@ import { RewindCard, RewindWatch } from "../rewind/RewindCard.tsx";
 import type { ActiveRewind } from "../rewind/model.ts";
 import { SessionPublisher } from "../session/Publisher.tsx";
 import { useCrew } from "../crew/context.tsx";
-import { parseAtSend } from "../crew/run/model.ts";
+import { routeAt } from "../crew/run/model.ts";
 import { LiveSubagents } from "../crew/live.tsx";
 import {
   counts as crewCounts,
@@ -856,16 +856,27 @@ function ConversationView(): ReactElement {
   also.current = alsoOn;
   // the crew of this chat: read again when the chat gets a new message (a helper started or reported)
   const crew = useCrew();
-  // the helpers a person can tell something to by @name while they work (a helper or a coder with a chat of its own): offered in the @ menu, and a message that starts with one goes to that helper alone
-  const atHelpers = (crew?.status?.members ?? [])
-    .filter((m) => (m.kind === "helper" || m.kind === "teammate") && (m.state === "working" || m.state === "needs_you"))
+  // every helper of this chat, by the state it is in: a message that starts with its first name goes to it alone while it works (chat.helper.steer); a name two ways (a helper and a person or agent, or two helpers) goes nowhere
+  // until the person picks one in the @ list; a helper that has finished is not messaged and the words are not posted to the chat as if they were for someone else
+  const atNodes = (crew?.status?.members ?? [])
+    .filter((m) => m.kind === "helper" || m.kind === "teammate")
     .map((m) => ({
       id: m.id,
       name: m.name ?? m.title,
       title: m.title,
       kind: "helper" as const,
-      status: "running" as const,
+      status: (m.state === "working" || m.state === "needs_you"
+        ? "running"
+        : m.state === "done"
+          ? "succeeded"
+          : m.state === "failed"
+            ? "failed"
+            : "stopped") as "running" | "succeeded" | "failed" | "stopped",
     }));
+  const atHelpers = atNodes.filter((h) => h.status === "running");
+  const otherFirsts = data.directory
+    .filter((c) => c.kind === "person" || c.kind === "agent")
+    .map((c) => c.name.split(" ")[0] ?? c.name);
   // a long session: where the person last read to, and when the chat opened (what folds into "While you were away")
   const [readTo, setReadTo] = useState<number | null>(null);
   const openedAt = useRef(Date.now());
@@ -1045,12 +1056,26 @@ function ConversationView(): ReactElement {
     // a slash command is not a message: it runs, and nothing is posted (a name that is not a command is an ordinary message)
     setCard(null); // the next send closes the card; a new command opens its own
     closeAsides();
-    const toHelper = payload.files.length === 0 ? parseAtSend(payload.text, atHelpers) : null;
-    if (toHelper !== null) {
-      unsay();
-      setTyped("");
-      typedRef.current = "";
-      setSeed((x) => (x.value === "" ? x : { value: "", n: x.n }));
+    const route = payload.files.length === 0 ? routeAt(payload.text, atNodes, otherFirsts) : null;
+    // the box empties itself when a message is sent: when nothing was sent, the words are put back, so they are never lost
+    const keepWords = (): void => {
+      typedRef.current = payload.text;
+      setTyped(payload.text);
+      setSeed((sd) => ({ n: sd.n + 1, value: payload.text }));
+    };
+    if (route !== null && route.kind === "ambiguous") {
+      // nothing is sent and nothing is lost: the words stay in the box
+      say(`${route.name} is a helper and also someone else in this chat. Pick one from the @ list`);
+      keepWords();
+      return;
+    }
+    if (route !== null && route.kind === "finished") {
+      say(`${route.name} has finished. Ask in its chat`);
+      keepWords();
+      return;
+    }
+    if (route !== null && route.kind === "to") {
+      const toHelper = route;
       void Promise.resolve(
         data.call("chat.helper.steer", {
           threadId: toHelper.node.id,
@@ -1059,10 +1084,18 @@ function ConversationView(): ReactElement {
         }),
       ).then(
         () => {
+          // the box is emptied only once the helper has taken it
+          unsay();
+          setTyped("");
+          typedRef.current = "";
+          setSeed((x) => (x.value === "" ? x : { value: "", n: x.n }));
           say(`Sent to ${toHelper.node.name}. It reads it after the step it is on`);
           crew?.refresh();
         },
-        () => say(`${toHelper.node.name} could not take that. Ask in its chat`),
+        () => {
+          say(`${toHelper.node.name} could not take that. Your message is still in the box`);
+          keepWords();
+        },
       );
       return;
     }
@@ -1895,7 +1928,16 @@ function ConversationView(): ReactElement {
     agents: (data.lists.agents ?? [])
       .map((x) => noteFor(x, "agent"))
       .filter((x) => mentionable(x, data.me.guest === true, inThread))
-      .concat(atHelpers.map((h) => ({ t: h.name, kind: "Helper", s: h.title, ref: h.id }))),
+      .concat(
+        atHelpers.map((h) => ({
+          t: otherFirsts.some((o) => o.toLowerCase() === h.name.split(" ")[0]!.toLowerCase())
+            ? `${h.name.split(" ")[0]} (helper)`
+            : h.name,
+          kind: "Helper",
+          s: h.title,
+          ref: h.id,
+        })),
+      ),
     people: (data.lists.people ?? []).map((x) => noteFor(x, "person")),
     commands: commandItems(data.pluginCommands?.(), thread.kind === "chat" && thread.agents.length > 0),
   };

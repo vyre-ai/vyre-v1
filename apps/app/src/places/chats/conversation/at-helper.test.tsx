@@ -116,13 +116,13 @@ test("a message that starts with a helper's name goes to that helper alone and i
       false,
       "nothing is posted to the chat",
     );
-    assert.equal(find(root, "composer-field")!.props.value, "", "the box is emptied");
+    assert.equal(find(root, "composer-field")!.props.value, "", "the box is emptied once the helper took it");
   } finally {
     restore();
   }
 });
 
-test("a name that is not at work, a name that is not first, and an ordinary message post as always", async () => {
+test("a name that is not first and a name nobody has post as ordinary words; a helper that has finished is not messaged and nothing is posted for it", async () => {
   const restore = installDom();
   try {
     const { root, calls } = await open([NUMBERS, DONE]);
@@ -134,7 +134,11 @@ test("a name that is not at work, a name that is not first, and an ordinary mess
       0,
       "a finished helper cannot be steered, and a mention elsewhere is just words",
     );
-    assert.equal(calls.filter((c) => c.cap === "chat.post").length, 3);
+    assert.equal(
+      calls.filter((c) => c.cap === "chat.post").length,
+      2,
+      "the two that were not for a helper are posted; the one for the finished helper is not posted to everyone",
+    );
   } finally {
     restore();
   }
@@ -182,6 +186,11 @@ test("a helper that cannot take the message says so and the person's words are n
     await send(root, "@Numbers use the 8% rate");
     assert.ok(calls.includes("chat.helper.steer"));
     assert.equal(calls.includes("chat.post"), false, "a failed steer is not silently posted to everyone");
+    assert.equal(
+      find(root, "composer-field")!.props.value,
+      "@Numbers use the 8% rate",
+      "the person's words are still in the box",
+    );
   } finally {
     restore();
   }
@@ -202,6 +211,59 @@ test("typing @ offers the helper that is at work in the same menu as the agents,
     const text = (n: Node | string): string => (typeof n === "string" ? n : (n.children ?? []).map(text).join(" "));
     assert.match(text(popup!), /Numbers/);
     assert.doesNotMatch(text(popup!), /Calendar/);
+  } finally {
+    restore();
+  }
+});
+
+test("a name that is a helper AND a person of the chat goes nowhere until the person picks: nothing is steered, nothing is posted, the words stay; naming the helper outright sends it", async () => {
+  const restore = installDom();
+  try {
+    const s = createSample("idle");
+    const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+    const data = {
+      ...s.data,
+      directory: [...s.data.directory, { id: "usr_numbers", kind: "person", name: "Numbers Ng" }],
+      call: (cap: string, input: unknown) => {
+        calls.push({ cap, input: input as Record<string, unknown> });
+        if (cap === "engine.crew.status")
+          return Promise.resolve({
+            members: [NUMBERS],
+            totals: {
+              members: 1,
+              working: 1,
+              done: 0,
+              needsYou: 0,
+              failed: 0,
+              stopped: 0,
+              tokensIn: 0,
+              tokensOut: 0,
+              costMicros: 0,
+              filesChanged: 0,
+              added: 0,
+              deleted: 0,
+              elapsedMs: 1,
+            },
+          });
+        if (cap === "chat.helper.steer") return Promise.resolve({ messageId: "m" });
+        return s.data.call(cap, input);
+      },
+    };
+    const root = await mount(
+      createRoot,
+      <CrewProvider call={data.call as never} threadId={data.threadId}>
+        <Conversation data={data as never} />
+      </CrewProvider>,
+    );
+    await flush();
+    await send(root, "@Numbers use the 8% rate");
+    assert.equal(calls.filter((c) => c.cap === "chat.helper.steer").length, 0, "not silently to the helper");
+    assert.equal(calls.filter((c) => c.cap === "chat.post").length, 0, "and not posted either");
+    assert.equal(find(root, "composer-field")!.props.value, "@Numbers use the 8% rate", "the words stay in the box");
+    await send(root, "@Numbers (helper) use the 8% rate");
+    const steer = calls.filter((c) => c.cap === "chat.helper.steer");
+    assert.equal(steer.length, 1);
+    assert.deepEqual([steer[0]!.input.threadId, steer[0]!.input.body], ["thr_numbers", "use the 8% rate"]);
   } finally {
     restore();
   }
