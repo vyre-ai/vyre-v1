@@ -49,7 +49,7 @@ import { TitleBar } from "../titlebar/TitleBar.tsx";
 import { notices } from "../noticeslot/model.ts";
 import { inTerminal } from "../keyboard/useShellKeys.ts";
 import { HubProvider, ShownLocationProvider, useHubState } from "./context.tsx";
-import { KEPT_PLACES, PlaceStack, isKeptPlace, keptRevealed } from "./kept-places.tsx";
+import { KEPT_PLACES, PlaceStack, isKeptPlace } from "./kept-places.tsx";
 import { titleText } from "./hub.ts";
 import type { HubState, ShellHub, ShellTheme } from "./hub.ts";
 import { shellKey } from "./keys.ts";
@@ -289,8 +289,9 @@ export function Sheets({
       if (soon === true && to === undefined) {
         queued = afterPaint(() => {
           queued = null;
-          // the place on screen came back from the kept ones: it is complete, there is nothing for a copy to stand in for
-          if (keptRevealed()) return;
+          // the place the press leads to is still made (kept-places.tsx): it is revealed after this frame, complete, so there is nothing for a still copy to stand in for
+          const dest = hub?.state().place;
+          if (dest !== undefined && keptKeyRef.current !== undefined && isKeptPlace(keptKeyRef.current(dest))) return;
           hold(undefined, undefined, from);
         });
         return false;
@@ -767,12 +768,9 @@ export function Shell(props: ShellProps): ReactElement {
   );
   const scope = `${state.epoch}\n${state.phase}\n${session.def.spaceId}`;
   const address = `${scope}\n${state.place}\n${state.hash}\n${tabKey ?? ""}\n${tabNew ? 1 : 0}`;
-  const [drawn, setDrawn] = useState({ scope, address, place: state.place });
-  // A place that is still made (the last few: kept-places.tsx) is revealed in the frame of the press: it is already complete, so nothing waits for a frame to answer first.
-  const reveals =
-    !tabNew && drawn.place !== state.place && isKeptPlace(`${state.epoch}:${session.def.spaceId}:${state.place}`);
+  const [drawn, setDrawn] = useState({ scope, address });
   // the page on screen is not the one the hub names yet
-  const behind = drawn.scope === scope && drawn.address !== address && !reveals;
+  const behind = drawn.scope === scope && drawn.address !== address;
   // what the stage drew last, kept from the pass that was drawn (an effect, so a pass React threw away never counts)
   const last = useRef(live);
   useEffect(() => {
@@ -781,17 +779,17 @@ export function Shell(props: ShellProps): ReactElement {
   const shown = behind ? last.current : live;
   useEffect(() => {
     if (!behind) {
-      if (drawn.address !== address || drawn.scope !== scope) setDrawn({ scope, address, place: state.place });
+      if (drawn.address !== address || drawn.scope !== scope) setDrawn({ scope, address });
       return undefined;
     }
     // the copy of the old page is kept until the new one is drawn (Sheets), and a pressed row stays lit (ui/theme/pending.ts)
     const release = holdNav();
-    const cancel = afterPaint(() => startTransition(() => setDrawn({ scope, address, place: state.place })));
+    const cancel = afterPaint(() => startTransition(() => setDrawn({ scope, address })));
     return () => {
       cancel();
       release();
     };
-  }, [behind, scope, address, drawn.address, drawn.scope, state.place]);
+  }, [behind, scope, address, drawn.address, drawn.scope]);
   const stage = useMemo(
     () => (
       <ShellStage
