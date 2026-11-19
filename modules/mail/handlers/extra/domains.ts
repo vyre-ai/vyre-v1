@@ -12,6 +12,7 @@ import { duplicate, ensureAll, idemRef, pageOf, parsePage, preconditionFailed, r
 import type { PageIn } from "./common.ts";
 import { ensureSpaceFolder } from "../../../../lib/space-folder.ts";
 import { ensureSmtp } from "../smtp.ts";
+import { clearStrikes } from "../watch.ts";
 import { checkDmarc, checkRecord, checkSpfPublished, dnsFor } from "./dns.ts";
 import type { DnsState, PublishedRecord } from "./dns.ts";
 
@@ -388,6 +389,17 @@ export async function domainCheck(ctx: MailCtx, input: { domainId: string }) {
     // A domain that stops verifying cannot stay the default sender.
     ...(verified ? {} : { isDefault: 0 }),
   });
+  // A pass, by whoever pressed it (a person, the daily check, an agent), ends the failures counted against the domain, so a domain that is verified again never carries a hidden count. If it had been stopped and was the default
+  // sender, it is the default again unless somebody else took the place.
+  if (verified) {
+    const back = clearStrikes(ctx, str(row, "id"));
+    if (
+      back.wasStopped &&
+      back.wasDefault &&
+      !first(ctx.db.all(`SELECT id FROM mail_domain WHERE "isDefault" = ? AND deleted_at IS NULL`, 1))
+    )
+      ctx.db.run(`UPDATE mail_domain SET "isDefault" = ?, updated_at = ? WHERE id = ?`, 1, ctx.now(), str(row, "id"));
+  }
   ctx.emit("sending_domain.checked", `domain/${str(row, "id")}`, { domainId: str(row, "id"), spf, dkim, dmarc });
   return withRecords(liveDomain(ctx, str(row, "id")));
 }

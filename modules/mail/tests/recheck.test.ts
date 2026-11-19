@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { recheckDomains } from "../handlers/recheck.ts";
+import { domainCheck } from "../handlers/extra/domains.ts";
 import { allWatches } from "../handlers/watch.ts";
 import { script, seedDomain } from "../handlers/extra/kit.ts";
 import { bindSmtp, setSmtpSecret } from "../handlers/smtp.ts";
@@ -215,4 +216,29 @@ test("a server test that cannot run (the Vault is unavailable) says nothing abou
     ],
     [1, 1],
   );
+});
+
+test("a stopped domain that a person verifies by hand carries no hidden count: its default place comes back, and the next single failure only warns", async () => {
+  const h = harness();
+  seedDomain(h, { id: "dom_r", name: "northwind.example", provider: "resend", isDefault: true, ...dom });
+  let ok = false;
+  script(h, { "resend.domains.verify": () => ({ domain: { status: ok ? "verified" : "failed" } }) });
+  const row = () => h.rows(`SELECT verified, "isDefault" FROM mail_domain WHERE id = ?`, "dom_r")[0]!;
+  for (let i = 0; i < 2; i++) {
+    h.advance(DAY);
+    await recheckDomains(h.ctx);
+  }
+  assert.deepEqual([Number(row().verified), Number(row().isDefault)], [0, 0]);
+  assert.equal(allWatches(h.ctx)[0]?.failures, 2);
+  // a person presses Check DNS and it passes
+  ok = true;
+  await domainCheck(h.ctx, { domainId: "dom_r" });
+  assert.deepEqual([Number(row().verified), Number(row().isDefault)], [1, 1], "verified and the default sender again");
+  assert.equal(allWatches(h.ctx).length, 0, "no hidden count of 2 is left behind");
+  // the next failure is the first in a row: a warning, not a stop
+  ok = false;
+  h.advance(DAY);
+  await recheckDomains(h.ctx);
+  assert.deepEqual([Number(row().verified), Number(row().isDefault)], [1, 1]);
+  assert.equal(allWatches(h.ctx)[0]?.failures, 1);
 });
