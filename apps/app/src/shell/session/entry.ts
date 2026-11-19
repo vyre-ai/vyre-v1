@@ -155,7 +155,7 @@ export function browserLink(target: EntryTarget): string {
   }
   return target.kind === "join"
     ? `${target.address}/join/${target.code}#fp=${target.fingerprint}`
-    : new URL("/chat", target.address).toString();
+    : new URL("/chat", target.address).href;
 }
 /** The existing desktop join protocol accepts HTTPS Space addresses only, and not a relay phone address, which opens in a browser (browserLink). `relay` is isRelayAddress's answer; the name rule until it arrives. */
 export function inviteAppLink(
