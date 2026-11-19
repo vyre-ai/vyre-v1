@@ -26,6 +26,7 @@ const row = (o: Partial<CrewMember> & { id: string; title: string; state: CrewMe
 const CREW: CrewMember[] = [
   row({
     id: "sub_a",
+    runId: "run_r",
     title: "Compare the bids",
     state: "working",
     steps: ["Opening the first bid", "Reading the price table", "Checking what the bid leaves out"],
@@ -58,6 +59,7 @@ const CREW: CrewMember[] = [
   }),
   row({
     id: "sub_d",
+    runId: "run_d",
     kind: "helper",
     title: "Summary page",
     name: "Docs",
@@ -97,6 +99,33 @@ const call = async (cap: string): Promise<unknown> =>
       }
     : {};
 
+/** What the runtime knows of the two helpers: Docs starts after Research and looks stuck. */
+const sp = { tokensIn: 0, tokensOut: 0, cacheRead: 0, usdMicros: 0 };
+const NODES = [
+  {
+    id: "run_r",
+    kind: "subagent",
+    name: "Research",
+    status: "running",
+    spent: sp,
+    startedAt: 1,
+    step: "Checking what the bid leaves out",
+    stepIcon: "read",
+  },
+  {
+    id: "run_d",
+    kind: "helper",
+    name: "Docs",
+    status: "running",
+    spent: sp,
+    startedAt: 1,
+    dependsOn: ["run_r"],
+    step: "Adding the bids table",
+    stepIcon: "edit",
+    stuck: { since: 5, reason: "the same step four times" },
+  },
+];
+
 export default function Mount(): ReactNode {
   const [view, setView] = useState<"auto" | "rows">("auto");
   useEffect(() => {
@@ -110,6 +139,7 @@ export default function Mount(): ReactNode {
           totals={totalsOf(CREW)}
           view={view}
           call={call}
+          nodes={NODES}
           meId="usr_me"
           onPeek={() => undefined}
           onOpenPane={() => undefined}
