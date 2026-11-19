@@ -750,4 +750,4 @@ Signed: lead, 17 Nov 2026
 - The browser also warms without a call, when the engine starts a turn for an agent that has browsed before (`computers.browser_turns`, sbrowser/warm.ts); that path is an event consumer and adds no capability.
 - Snapshots: docs/frozen/snapshots/computers.json.
 
-Signed: pending, lead
+Signed: lead, 19 Nov 2026
