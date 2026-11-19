@@ -7,6 +7,7 @@
 import { stepWords } from "../../../lib/plain-words.ts";
 import { modelName } from "../../../lib/model-names.ts";
 import { briefJob, tierOf } from "../../../lib/model-tiers.ts";
+import { questionBody } from "../../../lib/helper-result.ts";
 import { readFloor } from "./floor.ts";
 import { createTranscript, redact, refreshSummary, transcriptPath } from "../../../agent/src/transcript/index.ts";
 import type { Part, Turn } from "../../../agent/src/transcript/index.ts";
@@ -1241,7 +1242,7 @@ export async function helperNote(
       const pm = insertMessage(ctx, parent.id, {
         author: by.id,
         kind: "agent",
-        body: `Helper "${title}" asks: ${body}`,
+        body: questionBody(title, body),
         depth,
         blocks: [
           {
