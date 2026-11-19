@@ -25,6 +25,18 @@ test("phone: Vault and Settings open on their list, Back goes list then out; the
     await page.getByTestId("vault-sidebar").waitFor({ timeout: 15_000 });
     await shot("vault-list-first");
     assert.equal(await page.getByTestId("vault-section-page").count(), 0, "no item list yet");
+    // the list's title at every animation frame from the tap: nothing but Logins may ever show under the new row's name (the old selection used to show for a frame or two)
+    await page.evaluate(() => {
+      const w = window as unknown as { __titles: string[]; __rec: boolean };
+      w.__titles = [];
+      w.__rec = true;
+      const tick = (): void => {
+        for (const e of document.querySelectorAll('[data-testid="list-title"]'))
+          w.__titles.push((e as HTMLElement).innerText.trim());
+        if (w.__rec) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
     await page.getByTestId("row-nav-logins").click();
     // the first list-title on the page must be the Logins list's: wait (retrying) until it says so, and fail with what it said if it never does
     const title = page.getByTestId("list-title").first();
@@ -38,6 +50,18 @@ test("phone: Vault and Settings open on their list, Back goes list then out; the
       )
       .catch(() => undefined);
     assert.match(await title.innerText(), /^Logins/, "the row opens its own list");
+    await page.waitForTimeout(500);
+    const seen = await page.evaluate(() => {
+      const w = window as unknown as { __titles: string[]; __rec: boolean };
+      w.__rec = false;
+      return w.__titles;
+    });
+    assert.ok(seen.length > 0, "the title was seen");
+    assert.deepEqual(
+      seen.filter((x) => !/^Logins/.test(x)),
+      [],
+      "no frame showed another list's title after the tap",
+    );
     say(`vault logins: ${await screens(page)}`);
     await shot("vault-logins");
     assert.ok(
