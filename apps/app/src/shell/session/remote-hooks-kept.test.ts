@@ -120,7 +120,7 @@ test("warming is bounded: a few reads at once, a short line, nothing watched or 
     warmAtOnce: 4,
   });
   // a pointer swept down fifty rows
-  for (let i = 0; i < 50; i++) hooks.prefetchCap("chat.thread", { threadId: `t${i}` });
+  for (let i = 0; i < 50; i++) hooks.prefetchCap("threads.get", { threadId: `t${i}` });
   hooks.prefetchCap("vault.items.list", {});
   hooks.prefetchCap("identity.keys_get", {});
   assert.equal(most, 4, "four at once");
@@ -137,7 +137,7 @@ test("warming is bounded: a few reads at once, a short line, nothing watched or 
   // what was just answered is not asked for again; what is being watched is left to the watcher
   const n = asked.length;
   const last = asked[asked.length - 1]!.split(" ")[1]!;
-  hooks.prefetchCap("chat.thread", { threadId: last });
+  hooks.prefetchCap("threads.get", { threadId: last });
   assert.equal(asked.length, n);
   hooks.capQuery("chats.sidebar", {}).subscribe(() => undefined);
   const watched = asked.length;
@@ -145,11 +145,11 @@ test("warming is bounded: a few reads at once, a short line, nothing watched or 
   assert.equal(asked.length, watched);
   // a change in the Space makes the unwatched answer stale; after the quiet time it may be warmed again
   hooks.invalidate();
-  hooks.prefetchCap("chat.thread", { threadId: last });
-  assert.equal(asked.filter((a) => a === `chat.thread ${last}`).length, 1, "not inside 15 s of its last answer");
+  hooks.prefetchCap("threads.get", { threadId: last });
+  assert.equal(asked.filter((a) => a === `threads.get ${last}`).length, 1, "not inside 15 s of its last answer");
   t += 16_000;
-  hooks.prefetchCap("chat.thread", { threadId: last });
-  assert.equal(asked.filter((a) => a === `chat.thread ${last}`).length, 2);
+  hooks.prefetchCap("threads.get", { threadId: last });
+  assert.equal(asked.filter((a) => a === `threads.get ${last}`).length, 2);
   hooks.close();
 });
 

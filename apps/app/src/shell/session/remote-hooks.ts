@@ -7,6 +7,7 @@ import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
 import { resolveInput as resolvePointers } from "../../../../../client/src/fake/live-query.ts";
 export { resolvePointers };
 import { stableJson } from "./stable-json.ts";
+import { mayWarm } from "./warm-caps.ts";
 export { stableJson };
 
 /**
@@ -284,8 +285,7 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     learned.set(learning.kind, list);
   };
   /** Nothing of the Vault, of keys or of sign-in is ever read ahead of the person asking for it. */
-  const mayWarm = (cap: string): boolean =>
-    !/^(vault|vault_requests|identity|providers|devices|members|console|oauth)\./.test(cap);
+  // (warm-caps.ts: an allow-list of pure reads; anything not on it is never fetched speculatively)
 
   // Reads warmed ahead of a press (a pointer resting on a row, a place being focused) never flood the Space: a few at once, a short line behind them (the newest wish wins a full line),
   // and nothing that is already watched, on its way, or was answered a moment ago.
@@ -424,7 +424,7 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     prefetch(screenId, name, state = {}) {
       const screen = opts.screens.get(screenId);
       const q = screen?.queries[name];
-      if (!q || !q.live) return;
+      if (!q || !q.live || !mayWarm(q.cap)) return;
       warm(entryFor(q.cap, resolvePointers(q.input, state)));
     },
     peek(cap, input = {}) {
