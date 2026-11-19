@@ -1,5 +1,5 @@
 // The hub reaches places through context, so a place never imports the shell and a query key always carries the open Space's id (spec 2.1, b15).
-import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { HubState, ShellHub } from "./hub.ts";
 
@@ -22,6 +22,36 @@ export function useOptionalHub(): ShellHub | null {
 
 export function useHubState(hub: ShellHub): HubState {
   return useSyncExternalStore(hub.subscribe, hub.state, hub.state);
+}
+
+/** The place and the item a page is being drawn for. */
+export interface ShownLocation {
+  place: string;
+  hash: string;
+}
+const ShownContext = createContext<ShownLocation | null>(null);
+
+/** The shell puts this around every place it draws: the address that place is drawn for (Shell.tsx). */
+export function ShownLocationProvider({
+  place,
+  hash,
+  children,
+}: ShownLocation & { children?: ReactNode }): ReactElement {
+  const value = useMemo(() => ({ place, hash }), [place, hash]);
+  return <ShownContext.Provider value={value}>{children}</ShownContext.Provider>;
+}
+
+const NEVER = (): (() => void) => () => undefined;
+
+/**
+ * The address the page is drawn for. A place reads this, never the hub's own state: on a press the hub names the next address at once (the rail and the tab strip follow it in the same frame)
+ * while the page is made one pass later (r41), so a place that read the hub would redraw itself for the address of the place that is arriving. Outside the shell's stage (a place drawn alone)
+ * it is the hub's state.
+ */
+export function useShownLocation(hub: ShellHub): ShownLocation {
+  const shown = useContext(ShownContext);
+  const live = useSyncExternalStore(shown ? NEVER : hub.subscribe, hub.state, hub.state);
+  return shown ?? live;
 }
 
 /**

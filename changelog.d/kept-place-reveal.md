@@ -1,0 +1,1 @@
+- Going back to one of the last five places reveals it in the frame of the press (no still copy of a page, no waiting frame); the shell's holder is no longer taken down and made again each time the shell draws.

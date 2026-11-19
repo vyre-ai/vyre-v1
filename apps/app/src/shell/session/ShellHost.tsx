@@ -12,6 +12,7 @@ import { OpenLink } from "../reach/OpenLink.tsx";
 import { subscribeUpdates, updateState, updateWaiting } from "../../startup/update/store.ts";
 import { ConsoleAlone, onConsoleHost } from "../console-host.ts";
 import { speed } from "../../speed/recorder.ts";
+import { PressProbe } from "../../../../../ui/src/theme/pending.ts";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { lazyPart } from "../../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement } from "react";
@@ -43,11 +44,13 @@ import { PHONE_BELOW } from "./mobile-map.ts";
 import { openPhone } from "./phone.ts";
 import { readUrlIntoHub } from "./url.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
-import { PlaceHost } from "./PlaceHost.tsx";
+import { PlaceHost, routeIdOf } from "./PlaceHost.tsx";
+import { loadPlace } from "../../startup/places.ts";
 import { OnboardingHost } from "../../onboarding/OnboardingHost.tsx";
 import { revokeToken } from "./revoke-token.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { readStored, verifyStoredSession, writeStored } from "./stored.ts";
+import { kept as keeper } from "./kept.ts";
 import type { StoredSession } from "./stored.ts";
 import { VaultUnlockHost } from "./VaultUnlockHost.tsx";
 import { SignHost } from "./SignHost.tsx";
@@ -174,6 +177,19 @@ export function ShellHost({
   }, [stored.personId, stored.def.spaceId, activeStored.def.skinDefault]);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // The session opens from what this device kept of the Space (session/kept.ts), unless that was tried and the Space said otherwise: then it opens the plain way, which reports what is wrong.
+  const plainOpen = useRef(false);
+  const reopened = useRef(0);
+  // This device kept this session's first screen: until the session is there (a few ms: it opens from the kept facts) the place is not drawn at all, so the loading frame is never the first
+  // thing under the launch screen. It is given up after a moment, and the place then draws its loading frame as it always did.
+  const [keptComing, setKeptComing] = useState(() =>
+    keeper().has({ baseUrl: stored.baseUrl, personId: stored.personId, spaceId: stored.def.spaceId }),
+  );
+  useEffect(() => {
+    if (!keptComing) return undefined;
+    const t = setTimeout(() => setKeptComing(false), 400);
+    return () => clearTimeout(t);
+  }, [keptComing]);
   const [searchOpen, setSearchOpen] = useState(initialSearchOpen);
   // where new chats run by default in a Team Space: this computer (engine.local_runs on) or the Space (off)
   const [runsOn, setRunsOn] = useState<"device" | "space">("device");
@@ -228,41 +244,153 @@ export function ShellHost({
         else h.flash("Switch Spaces from the tile at the top of the rail");
       },
       onSignedOut: () => signedOutRef.current(),
-    };
-    verifyStoredSession({
-      stored,
-      open: () => open(options),
-      getSpace: async (s) => {
-        const space = ((await s.call("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
-        return { id: space.id, marker: space.fingerprint };
+      warmPlace: (p) => {
+        const id = routeIdOf(p);
+        if (id !== null) void loadPlace(id).catch(() => undefined);
       },
-    })
-      .then((s) => {
-        if (off) {
-          s.close("superseded before it opened");
-          return;
-        }
-        opened = s;
-        writeStored({ ...stored, def: s.def, personId: s.me.id, ...(s.me.name ? { displayName: s.me.name } : {}) });
-        setSession(s);
+    };
+    const whose = { baseUrl: stored.baseUrl, personId: stored.personId, spaceId: stored.def.spaceId };
+    const failedOpen = (e: unknown): void => {
+      if (off) return;
+      if ((e instanceof CapError && e.status === 401) || (e instanceof Error && /no longer matches/i.test(e.message))) {
+        signedOutRef.current();
+        return;
+      }
+      setFailed(e instanceof Error && e.message ? e.message : "The Space did not answer.");
+    };
+    const openPlain = (): void => {
+      setKeptComing(false);
+      void verifyStoredSession({
+        stored,
+        open: () => open({ ...options, kept: keeper().session(whose) }),
+        getSpace: async (s) => {
+          const space = ((await s.call("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
+          return { id: space.id, marker: space.fingerprint };
+        },
       })
-      .catch((e: unknown) => {
-        if (off) return;
-        if (
-          (e instanceof CapError && e.status === 401) ||
-          (e instanceof Error && /no longer matches/i.test(e.message))
-        ) {
-          signedOutRef.current();
-          return;
-        }
-        setFailed(e instanceof Error && e.message ? e.message : "The Space did not answer.");
-      });
+        .then((s) => {
+          if (off) {
+            s.close("superseded before it opened");
+            return;
+          }
+          opened = s;
+          writeStored({ ...stored, def: s.def, personId: s.me.id, ...(s.me.name ? { displayName: s.me.name } : {}) });
+          setSession(s);
+        })
+        .catch(failedOpen);
+    };
+    // What this device kept of the Space for this person: the session opens from it in this frame, the first screen is drawn from it, and the Space is asked behind that screen (r41). The kept
+    // facts must be this saved sign-in's own (the same person, Space and marker); anything else is forgotten and the session opens the plain way.
+    const openKept = (): boolean => {
+      const mine = keeper().session(whose);
+      const boot = mine.boot() as {
+        who?: { principal?: { id?: string } };
+        space?: { id?: string; fingerprint?: string };
+      } | null;
+      if (boot === null) return false;
+      if (
+        boot.who?.principal?.id !== stored.personId ||
+        boot.space?.id !== stored.def.spaceId ||
+        boot.space?.fingerprint !== stored.marker
+      ) {
+        keeper().forget(whose);
+        return false;
+      }
+      void open({
+        ...options,
+        kept: mine,
+        bootFromKept: true,
+        onBootChanged: () => {
+          if (off) return;
+          // a role, the Space's name, Kit or image changed since: open again from what the Space says now (once; a second change in a row opens the plain way)
+          reopened.current += 1;
+          if (reopened.current > 1) plainOpen.current = true;
+          setAttempt((n) => n + 1);
+        },
+      })
+        .then((s) => {
+          if (off) {
+            s.close("superseded before it opened");
+            return;
+          }
+          opened = s;
+          setSession(s);
+          s.confirmed.then(
+            (c) => {
+              if (off) return;
+              if (c.personId !== stored.personId || c.spaceId !== stored.def.spaceId || c.marker !== stored.marker) {
+                keeper().forget(whose);
+                signedOutRef.current();
+                return;
+              }
+              writeStored({
+                ...stored,
+                def: s.def,
+                personId: s.me.id,
+                ...(s.me.name ? { displayName: s.me.name } : {}),
+              });
+            },
+            (e: unknown) => {
+              if (off) return;
+              if (e instanceof CapError && e.status === 401) {
+                signedOutRef.current();
+                return;
+              }
+              // the Space refused in some other way: open the plain way, which says what is wrong
+              plainOpen.current = true;
+              setAttempt((n) => n + 1);
+            },
+          );
+        })
+        .catch(() => {
+          if (off) return;
+          plainOpen.current = true;
+          openPlain();
+        });
+      return true;
+    };
+    // the kept record is read from the browser's store as the page starts (startup/warm.ts); it is waited for a moment at most
+    void Promise.race([
+      plainOpen.current ? Promise.resolve(null) : keeper().warm(whose),
+      new Promise<null>((r) => setTimeout(() => r(null), 150)),
+    ]).then(() => {
+      if (off) return;
+      if (plainOpen.current || !openKept()) openPlain();
+    });
     return () => {
       off = true;
       opened?.close("shell effect cleanup");
       setSession(null);
     };
   }, [open, stored.baseUrl, stored.token, attempt]);
+
+  // the reads a place watches are remembered as that place's, so pointing at it in the rail later brings them up to date (remote-hooks scope)
+  useEffect(() => {
+    session?.shownPlace(location.place);
+  }, [session, location.place]);
+  // Once the Space is open and the first screen has had its time, the code of every other place in the rail is loaded, one after another while nothing else is going on: the first visit to a
+  // place then waits for its data alone (r41: a first visit took 310 to 350 ms, a second 80 to 100).
+  useEffect(() => {
+    if (!session) return undefined;
+    let off = false;
+    const idle =
+      (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number })
+        .requestIdleCallback ?? ((f: () => void) => setTimeout(f, 200) as unknown as number);
+    const places = railPlaces(hub.rail());
+    let at = 0;
+    const next = (): void => {
+      if (off || at >= places.length) return;
+      const id = routeIdOf(places[at++]!);
+      const go = (): void => void idle(next, { timeout: 2000 });
+      if (id === null) go();
+      else loadPlace(id).then(go, go);
+    };
+    const start = setTimeout(() => void idle(next, { timeout: 2000 }), 2500);
+    return () => {
+      off = true;
+      clearTimeout(start);
+    };
+  }, [session, hub]);
 
   useEffect(() => {
     if (!session) return undefined;
@@ -636,6 +764,8 @@ export function ShellHost({
         retryable
         onRetry={() => setAttempt((n) => n + 1)}
       />
+    ) : session === null && keptComing ? (
+      <View testID="place-kept-wait" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />
     ) : (
       <PlaceHost
         place={ctx.place}
@@ -647,6 +777,14 @@ export function ShellHost({
         }}
       />
     );
+  // Pointing at a place, focusing it or pressing down on it starts its code and its first reads, so both are on their way before the press is let go (r41). Both are asked for once however often this runs.
+  const sessionRef = useRef<RealSession | null>(null);
+  sessionRef.current = session;
+  const prefetchPlace = useCallback((place: PlaceId): void => {
+    const id = routeIdOf(place);
+    if (id !== null) void loadPlace(id).catch(() => undefined);
+    sessionRef.current?.prefetchPlace(place);
+  }, []);
   const signOutRef = useRef<() => void>(() => undefined);
   const signOut = (): void => {
     forgetKey(stored.token);
@@ -797,6 +935,8 @@ export function ShellHost({
   // a link held from the address or the desktop acts here, where the open Space's runtime is: reach decides, then the page or the safe peek
   const wrap = (el: ReactElement): ReactElement => (
     <>
+      {/* a pressed row is lit at once and its page is made after that frame (ui/theme/pending.ts) */}
+      <PressProbe />
       {session ? <OpenLink hub={hub} rt={session.runtime} me={session.me.id} spaceId={session.def.spaceId} /> : null}
       <OnboardingHost
         call={session?.call ?? null}
@@ -853,13 +993,19 @@ export function ShellHost({
       <Shell
         hub={hub}
         {...(teamProp ? { team: teamProp } : {})}
-        {...(session ? { me: { id: session.me.id, name: session.me.name } } : {})}
+        // the person's face is at the foot of the rail from the first frame, from the saved sign-in: it does not arrive later and push the button above it up
+        {...(session
+          ? { me: { id: session.me.id, name: session.me.name } }
+          : stored.displayName
+            ? { me: { id: stored.personId, name: stored.displayName } }
+            : {})}
         onOpenMe={() => hub.go("settings", PROFILE_HASH)}
         {...(runsOnProp ? { runsOn: runsOnProp } : {})}
         {...(theme ? { theme } : {})}
         {...(onSwitchSpace ? { onSwitchSpace: selectSpace } : {})}
         renderPlace={renderPlace}
         renderNewTab={renderNewTab}
+        onPrefetchPlace={prefetchPlace}
         onSearch={() => setSearchOpen(true)}
         onSpaceAction={(a) => {
           if (a === "sign-out") signOut();

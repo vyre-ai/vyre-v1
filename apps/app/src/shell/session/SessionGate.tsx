@@ -9,6 +9,7 @@ import { StyleSheet, View } from "react-native";
 import { loadCryptoKeys, loadRecoveryCrypto } from "../../../../../client/src/crypto/load.ts";
 import { forgetKey, keepKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { KeyGate } from "./KeyGate.tsx";
+import { kept } from "./kept.ts";
 import { AfterLoad } from "../../startup/after-load.tsx";
 import { loadShellHost, loadedShellHost } from "../../startup/shell-load.ts";
 import { holdKeyOnOwnNode, isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
@@ -1582,6 +1583,12 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       <KeyGate
         baseUrl={phase.stored.baseUrl}
         token={phase.stored.token}
+        // this device kept this session's first screen: it is drawn at once and the key is handed over behind it (session/kept.ts)
+        drawnBefore={kept().has({
+          baseUrl: phase.stored.baseUrl,
+          personId: phase.stored.personId,
+          spaceId: phase.stored.def.spaceId,
+        })}
         name={lockName(phase.stored)}
         onSignOut={() => signedOut("manual", phase.stored.baseUrl)}
         onForgot={() => setForgot(true)}

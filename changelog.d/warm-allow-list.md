@@ -1,0 +1,1 @@
+- Reads ahead of a press (pointer on a row, a place being focused) come only from an allow-list of pure reads; a write, an outward call, a read that does work and any name not listed is never fetched speculatively.

@@ -185,7 +185,8 @@ test("clearing one Space from a browser leaves every other Space signed in and o
       "and it still opens from the stored list",
     );
     assert.deepEqual(
-      [...store.keys()].sort(),
+      // the marks of the kept first screen (session/kept.ts) are the removed Space's "forget" and hold no one's rows
+      [...store.keys()].filter((k) => !k.startsWith("vyre.kept.")).sort(),
       [
         "other",
         "vyre.appearance.v1:p2:two",

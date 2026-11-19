@@ -3,7 +3,7 @@
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
-import { useCrew } from "./context.tsx";
+import { crewPaneShows, useCrew } from "./context.tsx";
 import { CrewOverview } from "./pane.tsx";
 import { HelperPane } from "../session/HelperPane.tsx";
 import type { TerminalData } from "../terminal/data.ts";
@@ -22,7 +22,7 @@ export function CrewSide({
   /** Where a helper's terminal tab opens; left out where the shell has no terminal */ terminal?: TerminalData;
 }): ReactElement | null {
   const crew = useCrew();
-  if (!crew || !crew.open || !crew.status || crew.status.members.length === 0 || !crew.call) return fallback;
+  if (!crewPaneShows(crew)) return fallback;
   const sel = crew.selected !== null ? crew.status.members.find((m) => m.id === crew.selected) : undefined;
   const body = sel ? (
     <HelperPane

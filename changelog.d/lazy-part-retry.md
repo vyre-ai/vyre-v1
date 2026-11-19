@@ -1,0 +1,1 @@
+- A Chats part whose code fails to load is not remembered as failed: it shows a small Retry in its own place, the rest of the place stays up, and the next use asks again.
