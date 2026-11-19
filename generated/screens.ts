@@ -6336,6 +6336,45 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "mail.templates",
+    "module": "mail",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:EmailTemplates",
+    "caller": "principal",
+    "queries": {
+      "templates": {
+        "cap": "mail.template.list",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "save": {
+        "cap": "mail.template.save",
+        "input": {
+          "key": "/state/key",
+          "subject": "/state/subject",
+          "text": "/state/text"
+        }
+      },
+      "reset": {
+        "cap": "mail.template.reset",
+        "input": {
+          "key": "/state/key"
+        },
+        "confirm": "Use the template that ships with Vyre?"
+      }
+    },
+    "needs": [
+      "comms.templates"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "meetings.closeout",
     "module": "meetings",
     "place": "inbox",
