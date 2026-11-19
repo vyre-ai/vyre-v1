@@ -136,3 +136,17 @@ test("a header word without its colon is prose: auth errors keep their reason, a
   gone("Authorization Bearer sk_short123", "sk_short123");
   gone("Cookie: a=b; c=d", "a=b", "c=d");
 });
+
+test("a header anywhere on a line takes what it carries: every cookie, a quoted curl header to its closing quote, a header after a timestamp, a JSON Basic or Bearer value", () => {
+  gone("error: Cookie: theme=dark; csrf=abcd; userid=42; sid=0123456789abcdef0123456789abcdef", "csrf=abcd", "userid=42", "theme=dark");
+  const curl = scrubLog('curl -H "Cookie: lang=en; uid=12345" https://h/x');
+  assert.ok(!curl.includes("uid=12345") && !curl.includes("lang=en"), curl);
+  assert.match(curl, /https:\/\/h\/x/, "what follows the closing quote stays");
+  gone("2024-01-01T00:00:00Z WARN request Cookie: theme=dark; sid=abc12", "theme=dark", "sid=abc12");
+  gone("xx Set-Cookie: a=1; sid=abc12; Path=/", "a=1", "sid=abc12");
+  gone("request Authorization: Bearer short", "short");
+  gone('{"Authorization":"Basic dXNlcjpwYXNz"}', "dXNlcjpwYXNz");
+  gone('{"authorization":"Bearer short"}', "short");
+  gone('{"cookie":"theme=dark; sid=abc12"}', "theme=dark", "sid=abc12");
+  assert.match(scrubLog("Error parsing cookie: invalid format here"), /format here$/, "prose with a colon keeps its reason");
+});

@@ -185,14 +185,20 @@ const PAIR = /(["'`]?)([A-Za-z0-9_.-]{1,60})\1([:=])("[^"]{0,500}"|'[^']{0,500}'
  * The word with the value of every secret-named pair taken out (name=value, "name":"value", a query or a JSON text in one word); the rest of the word is kept, so a JSON text still reads. Null when no pair
  * in it is secret. A pair whose value is in the next word ("password:" then the value) is the caller's: it sees the word ends in the separator.
  */
-function inlineSecret(word: string): string | null {
+function inlineSecret(word: string): { text: string; open: string; scheme: boolean } | null {
   let hit = false;
+  let open = "";
+  let scheme = false;
   const out = word.replace(PAIR, (m, q: string, name: string, sep: string, value: string) => {
     if (!isSecretName(name) || value === "") return m;
     hit = true;
+    const first = value[0] ?? "";
+    // a quoted value that goes on in the next words ("Basic dXNl...") is removed to its closing quote; a Bearer or Basic value takes the word after it
+    if ((first === '"' || first === "'" || first === "`") && (value.length === 1 || !value.endsWith(first))) open = first;
+    if (SCHEME_WORD.test(value.replace(/^["'`]/, ""))) scheme = true;
     return `${q}${name}${q}${sep}${REMOVED}`;
   });
-  return hit ? out : null;
+  return hit ? { text: out, open, scheme } : null;
 }
 
 /** An address keeps scheme, host and path: no user name or password, no query, no fragment. */
@@ -230,7 +236,9 @@ export function scrubLog(input: unknown, limit = 4000): string {
     let lineStart = true; // a header is a header only at the start of a line
     let userinfo = 0; // a password with a space in it: words until the one that carries the @
     let dbCommand = 0; // words since a database client was named: its -pPASSWORD flag takes the password glued on
-    for (const part of parts) {
+    let stopQuote = ""; // a header inside a quoted string (curl -H "Cookie: ...") ends at the closing quote
+    for (let at = 0; at < parts.length; at++) {
+      const part = parts[at] as string;
       if (part === "" || /^\s+$/.test(part)) {
         out.push(part);
         if (/[\r\n]/.test(part)) {
@@ -256,7 +264,12 @@ export function scrubLog(input: unknown, limit = 4000): string {
         continue;
       }
       if (toNewline) {
-        out.push(REMOVED);
+        const q = stopQuote !== "" ? part.indexOf(stopQuote) : -1;
+        if (q >= 0) {
+          out.push(REMOVED + part.slice(q));
+          toNewline = false;
+          stopQuote = "";
+        } else out.push(REMOVED);
         continue;
       }
       if (quote !== "") {
@@ -283,10 +296,22 @@ export function scrubLog(input: unknown, limit = 4000): string {
         out.push("-p" + REMOVED);
         continue;
       }
-      if (atStart && LINE_HEADER.test(w)) {
-        toNewline = true;
-        out.push(w);
-        continue;
+      // a header is its colon: at the start of a line it takes the line; anywhere else it takes the line when what follows is what a header of that kind carries (a cookie pair, a scheme word or a long value),
+      // so "cookie: invalid format here" stays prose. Inside a quoted string it ends at the closing quote.
+      const bare = w.replace(/^["'`{[(]+/, "");
+      if (LINE_HEADER.test(bare)) {
+        const lead = w.slice(0, w.length - bare.length);
+        let next = "";
+        for (let k = at + 1; k < parts.length && k <= at + 2; k++) if (!/^\s*$/.test(parts[k] as string)) next = parts[k] as string;
+        const cookieLike = /^(?:cookie|set-cookie):$/i.test(bare);
+        const authLike = /^(?:authorization|proxy-authorization):$/i.test(bare);
+        const carries = cookieLike ? next.includes("=") : authLike ? SCHEME_WORD.test(next) || next.length >= 16 : true;
+        if (atStart || carries) {
+          toNewline = true;
+          stopQuote = /["'`]/.test(lead) ? (lead.match(/["'`]/) as RegExpMatchArray)[0] : "";
+          out.push(w);
+          continue;
+        }
       }
       if (SCHEME_WORD.test(w) || FLAG.test(w) || (dbCommand > 0 && SHORT_FLAG.test(w))) {
         hide = 1;
@@ -295,7 +320,9 @@ export function scrubLog(input: unknown, limit = 4000): string {
       }
       const inline = inlineSecret(w);
       if (inline !== null) {
-        out.push(inline);
+        out.push(inline.text);
+        if (inline.open !== "") quote = inline.open;
+        else if (inline.scheme) hide = 1;
         continue;
       }
       // name: or name= with the value in the next word ("password: x", {"token": "x"})
