@@ -102,10 +102,17 @@ export function wordsFor(f: { code: string; transport: boolean }, verb: string, 
   return "That did not work. You can try again.";
 }
 
-/** The three layout rules of the failure line, plain objects so a test can read them: the compact row never wraps and its line is one ellipsised line; the full strip wraps. */
+/** The layout rules of the failure line, plain objects so a test can read them. The reason is always read in full: in a compact row it takes its own full-width line under the buttons (the buttons stay on the strip), in the full strip it wraps beside Report. */
 export const LAYOUT = {
-  compact: { flexDirection: "row", flexWrap: "nowrap", flexShrink: 1, minWidth: 0, alignItems: "center", gap: 6 },
-  failedRowCompact: { flexDirection: "row", flexShrink: 1, minWidth: 0, alignItems: "center", gap: 8, marginTop: 4 },
+  compact: { flexDirection: "row", flexWrap: "wrap", flexShrink: 1, minWidth: 0, alignItems: "center", gap: 6 },
+  failedRowCompact: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    flexBasis: "100%",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 2,
+  },
   failedRowFull: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 4 },
 } as const;
 
@@ -255,9 +262,7 @@ export function InlineConfirm({
       testID={testID ? `${testID}-failed` : undefined}
       style={compact ? LAYOUT.failedRowCompact : LAYOUT.failedRowFull}
     >
-      <Text {...(compact ? { numberOfLines: 1 } : {})} style={s.failed}>
-        {failed.text}
-      </Text>
+      <Text style={s.failed}>{failed.text}</Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Report this"

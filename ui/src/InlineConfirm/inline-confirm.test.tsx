@@ -303,27 +303,23 @@ test("the words use the strip's own verb, and a type-the-name strip says what to
   }
 });
 
-test("layout: the compact row never wraps and its failure line is one line; the full strip wraps", async () => {
-  assert.equal(LAYOUT.compact.flexWrap, "nowrap");
-  assert.equal(LAYOUT.failedRowCompact.flexShrink, 1);
-  assert.equal(LAYOUT.failedRowCompact.minWidth, 0);
+test("layout: the reason is never truncated: in a compact row it takes its own full-width line under the buttons, in the full strip it wraps", async () => {
+  assert.equal(LAYOUT.compact.flexWrap, "wrap", "the compact row lets the reason drop under the buttons");
   assert.equal(
-    (LAYOUT.failedRowCompact as Record<string, unknown>)["flexWrap"],
-    undefined,
-    "the compact failure row does not wrap",
+    LAYOUT.failedRowCompact.flexBasis,
+    "100%",
+    "the reason line takes the whole row, so it is on its own line",
   );
-  assert.equal(
-    LAYOUT.failedRowFull.flexWrap,
-    "wrap",
-    "the full strip lets the line and Report wrap on a narrow screen",
-  );
+  assert.equal(LAYOUT.failedRowCompact.flexWrap, "wrap");
+  assert.equal(LAYOUT.failedRowFull.flexWrap, "wrap");
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
-  assert.match(
+  assert.doesNotMatch(
     src,
-    /\{\.\.\.\(compact \? \{ numberOfLines: 1 \} : \{\}\)\}/,
-    "only compact ellipsises (a source check: the fake DOM has no layout)",
+    /numberOfLines/,
+    "no line of the failure text is ever cut with an ellipsis (a source check: the fake DOM has no layout; the 320 px picture is in shots-rc41/r41-quiet/inlineconfirm)",
   );
+  assert.match(src, /buttons: \{[^}]*flexShrink: 0/, "the buttons never shrink off the strip");
 });
 
 test("a compact strip shows the failure line too", async () => {
