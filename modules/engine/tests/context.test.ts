@@ -906,5 +906,5 @@ test("two people whose names fold to nothing stay apart in the roster", async ()
     },
   });
   const ctx = await createContextBuilder({ call: f.call, skills, now: () => at }).build(input());
-  assert.match(ctx.sections.find((s) => s.id === "where")!.text, /Also here: teammate mar, teammate ena\./);
+  assert.match(ctx.sections.find((s) => s.id === "where")!.text, /Also here: teammate omar, teammate lena\./);
 });
