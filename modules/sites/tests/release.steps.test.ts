@@ -1455,3 +1455,76 @@ test("no migration rewrites the variables a site already has: an old everywhere 
       f,
     );
 });
+
+test("a captured delete or closed pull request cannot be sent again to take a preview away", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Replay removals");
+    const { secret } = await h["sites.webhook_set"]!(w.ctx, { siteId, enabled: true, follow: ["*"] });
+    const Z = "0".repeat(40);
+    const A = "a".repeat(40);
+    const B = "b".repeat(40);
+    const deleted = (branch: string, before: string) => ({
+      ref: `refs/heads/${branch}`,
+      before,
+      after: Z,
+      deleted: true,
+    });
+    const created = (branch: string, before: string, after: string) => ({ ref: `refs/heads/${branch}`, before, after });
+    const done = () =>
+      markPushDone({ db: w.sdb } as never, (pendingPushes({ db: w.sdb } as never)[0] as { id: string }).id);
+
+    // a delete is taken once, and the same delete under a new id is old news
+    await hook(w, secret, "push", created("feat/d", Z, A));
+    done();
+    await hook(w, secret, "push", deleted("feat/d", A));
+    assert.deepEqual(queued(w), ["remove:feat/d"]);
+    done();
+    await assert.rejects(
+      () => hook(w, secret, "push", deleted("feat/d", A), { delivery: "dup0001a-aaaa" }),
+      /older than/,
+    );
+    // the branch is made again; the captured delete cannot remove the new one
+    await hook(w, secret, "push", created("feat/d", Z, B));
+    done();
+    await assert.rejects(
+      () => hook(w, secret, "push", deleted("feat/d", A), { delivery: "dup0002a-aaaa" }),
+      /older than/,
+    );
+    assert.deepEqual(queued(w), []);
+    // a delete of the commit the branch is on now is taken
+    await hook(w, secret, "push", deleted("feat/d", B));
+    assert.deepEqual(queued(w), ["remove:feat/d"]);
+    done();
+
+    // a delete captured before the branch moved on is old news even if it was never seen here
+    await hook(w, secret, "push", created("feat/m", Z, A));
+    await hook(w, secret, "push", created("feat/m", A, B));
+    done();
+    await assert.rejects(
+      () => hook(w, secret, "push", deleted("feat/m", A), { delivery: "dup0003a-aaaa" }),
+      /older than/,
+    );
+
+    // a closed pull request: once per close; closed again after it was reopened is a new event
+    const closed = (n: number, at: string) => ({
+      action: "closed",
+      number: n,
+      pull_request: { number: n, closed_at: at, head: { ref: "feat/pr", sha: A, repo: { full_name: "acme/app" } } },
+    });
+    await hook(w, secret, "pull_request", closed(7, "2026-11-19T10:00:00Z"));
+    assert.deepEqual(queued(w), ["remove:feat/pr"]);
+    done();
+    await assert.rejects(
+      () => hook(w, secret, "pull_request", closed(7, "2026-11-19T10:00:00Z"), { delivery: "dup0004a-aaaa" }),
+      /older than/,
+    );
+    assert.equal(
+      (await hook(w, secret, "pull_request", closed(7, "2026-11-19T12:00:00Z"))).nudge,
+      true,
+      "closed again later",
+    );
+  } finally {
+    w.done();
+  }
+});

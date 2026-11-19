@@ -151,11 +151,76 @@ function pushOf(event: string, p: Record<string, unknown>): { branch: string; be
   return { branch: ref.slice("refs/heads/".length), before: sha(p["before"]), after: sha(p["after"]) };
 }
 
+/** A delete of a branch or the close of a pull request: what it removes, the commit the branch was on, and what makes this one event (a delete names the commit it removed; a close names the pull request and when it closed). */
+function removalOf(event: string, p: Record<string, unknown>): { branch: string; tip: string; key: string } | null {
+  const sha = (v: unknown): string =>
+    typeof v === "string" && /^[0-9a-f]{7,64}$/i.test(v) && !/^0+$/.test(v) ? v.toLowerCase() : "";
+  if (event === "push") {
+    const ref = typeof p["ref"] === "string" ? p["ref"] : "";
+    const after = typeof p["after"] === "string" ? p["after"] : "";
+    if (!ref.startsWith("refs/heads/") || !(p["deleted"] === true || /^0+$/.test(after))) return null;
+    const tip = sha(p["before"]);
+    return tip ? { branch: ref.slice("refs/heads/".length), tip, key: `deleted:${tip}` } : null;
+  }
+  if (event === "pull_request" && p["action"] === "closed") {
+    const pr = (p["pull_request"] ?? {}) as Record<string, unknown>;
+    const head = (pr["head"] ?? {}) as Record<string, unknown>;
+    const branch = typeof head["ref"] === "string" ? head["ref"] : "";
+    const closed = typeof pr["closed_at"] === "string" ? pr["closed_at"] : "";
+    const number = typeof p["number"] === "number" ? p["number"] : typeof pr["number"] === "number" ? pr["number"] : 0;
+    return branch && closed && number ? { branch, tip: sha(head["sha"]), key: `closed:${number}:${closed}` } : null;
+  }
+  return null;
+}
+const ENDED = "after_sha NOT LIKE 'deleted:%' AND after_sha NOT LIKE 'closed:%'";
+
 /**
- * Old news: the push's head is a commit this branch already moved past (a handled push named it as its parent), or one already handled. It follows the chain of commits the pushes name, so no clock decides it:
+ * Old news. A push is old when its head is a commit this branch already moved past (a handled push named it as its parent), or one already handled. It follows the chain of commits the pushes name, so no clock decides it:
  * a commit dated 10:00, a manual deploy at 10:30 and a push at 11:00 deploys, and a commit dated in the future blocks nothing. A branch put back to an earlier commit by force is old news too; deploy it by hand.
+ * A delete or a close is old when this very event was handled (same delete, same pull request and close time), or when the branch has had a push since the commit it removes: a captured delete cannot take a preview away after the branch moved on or was made again.
  */
 function stale(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>): boolean {
+  const rm = removalOf(event, p);
+  if (rm !== null) {
+    if (
+      one(
+        ctx,
+        "SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND after_sha = ?",
+        site.id,
+        rm.branch,
+        rm.key,
+      )
+    )
+      return true;
+    if (rm.tip === "") return false;
+    const tip = one(
+      ctx,
+      "SELECT MAX(at) AS at FROM sites_hook_head WHERE site_id = ? AND branch = ? AND after_sha = ?",
+      site.id,
+      rm.branch,
+      rm.tip,
+    );
+    if (
+      typeof tip?.at === "number" &&
+      one(
+        ctx,
+        `SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND at > ? AND ${ENDED}`,
+        site.id,
+        rm.branch,
+        tip.at,
+      )
+    )
+      return true;
+    return (
+      one(
+        ctx,
+        `SELECT delivery_id FROM sites_hook_head WHERE site_id = ? AND branch = ? AND before_sha = ? AND ${ENDED}`,
+        site.id,
+        rm.branch,
+        rm.tip,
+      ) !== undefined
+    );
+  }
   const push = pushOf(event, p);
   if (push === null || push.after === "") return false;
   const row = one(
@@ -170,15 +235,22 @@ function stale(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>): 
 }
 
 function remember(ctx: Ctx, site: Row, event: string, p: Record<string, unknown>, delivery: string, now: number): void {
-  const push = pushOf(event, p);
-  if (push === null || push.after === "") return;
+  const rm = removalOf(event, p);
+  const push = rm === null ? pushOf(event, p) : null;
+  const row =
+    rm !== null
+      ? { branch: rm.branch, before: rm.tip, after: rm.key }
+      : push !== null && push.after !== ""
+        ? push
+        : null;
+  if (row === null) return;
   ctx.db.run(
     "INSERT OR IGNORE INTO sites_hook_head (site_id, branch, delivery_id, before_sha, after_sha, at) VALUES (?, ?, ?, ?, ?, ?)",
     site.id,
-    push.branch,
+    row.branch,
     delivery,
-    push.before,
-    push.after,
+    row.before,
+    row.after,
     now,
   );
 }
