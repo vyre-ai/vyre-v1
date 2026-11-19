@@ -338,6 +338,36 @@ function settle(b: Block, value: (n: string) => string): Block {
 // ---- the Markdown a document is written in: headings, paragraphs, lists, a quote, a rule, a table, bold and italic ----
 
 /** Bold and italic, links as their words, code as its letters, a backslash before a mark keeps it a letter. */
+/**
+ * Links and pictures keep their text only: `[text](address)` and `![text](address)` become `text`. A linear scan with the nearest closing bracket remembered, so a document of nothing but opening brackets
+ * costs one pass (a regex per start made every `[` read to the end). The text is at most 200 letters on one line and the address at most 500.
+ */
+function stripLinks(src: string): string {
+  if (!src.includes("](")) return src;
+  let out = "";
+  let at = 0;
+  let close = -2; // the nearest "]" at or after the scan position, -1: none left
+  let newline = -2;
+  let paren = -2; // the nearest ")" at or after the address start, -1: none left
+  for (let i = src.indexOf("["); i >= 0; i = src.indexOf("[", i + 1)) {
+    if (i < at) continue;
+    if (close !== -1 && close < i) close = src.indexOf("]", i);
+    if (close === -1) break;
+    if (newline !== -1 && newline < i) newline = src.indexOf("\n", i);
+    const j = close;
+    if (j - i - 1 > 200 || (newline !== -1 && newline < j) || src[j + 1] !== "(") continue;
+    if (paren !== -1 && paren < j + 2) paren = src.indexOf(")", j + 2);
+    if (paren === -1) break;
+    const k = paren;
+    if (k - j - 2 > 500 || src.slice(j + 2, k).includes("\n")) continue;
+    // a picture's "!" goes with it
+    const from = i > at && src[i - 1] === "!" ? i - 1 : i;
+    out += src.slice(at, from) + src.slice(i + 1, j);
+    at = k + 1;
+  }
+  return out + src.slice(at);
+}
+
 export function inline(src: string): Run[] {
   const out: Run[] = [];
   let b = false;
@@ -350,10 +380,7 @@ export function inline(src: string): Run[] {
     else out.push({ text: buf, ...(b ? { b: true } : {}), ...(i ? { i: true } : {}) });
     buf = "";
   };
-  const s = src
-    .replace(/!\[([^\]\n]{0,200})\]\([^)\n]{0,500}\)/g, "$1")
-    .replace(/\[([^\]\n]{0,200})\]\([^)\n]{0,500}\)/g, "$1")
-    .replace(/~~(.*?)~~/g, "$1");
+  const s = stripLinks(src).replace(/~~(.*?)~~/g, "$1");
   for (let k = 0; k < s.length; k++) {
     const c = s[k] as string;
     if (c === "\\" && k + 1 < s.length && /[\\`*_{}\[\]()#+\-.!|>~]/.test(s[k + 1] as string)) {

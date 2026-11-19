@@ -286,6 +286,8 @@ test("hostile input cannot make the readers slow: a tag opened a hundred thousan
   // Markdown: linear means four times the input takes about four times as long; quadratic takes sixteen times. The ratio holds on a loaded machine where an absolute time does not.
   const { parse, inline } = await import("../handlers/vdoc.ts");
   const inputs = (n: number): string[] => [
+    `${"[a](".repeat(n)})`,
+    `${"[a](x".repeat(n)})`,
     "[a".repeat(n),
     "![".repeat(n),
     "[a](".repeat(n),
@@ -302,6 +304,44 @@ test("hostile input cannot make the readers slow: a tag opened a hundred thousan
     }
     return Math.max(Date.now() - t, 20);
   };
+  // the absolute rule as well: each hostile case under 100 ms, the best of three runs, at 25,000 repeats
+  const best = (md: string): number => {
+    let b = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const t = performance.now();
+      parse(md);
+      inline(md);
+      b = Math.min(b, performance.now() - t);
+    }
+    return b;
+  };
+  for (const md of inputs(25_000))
+    assert.ok(
+      best(md) < 100,
+      `a hostile Markdown case of ${md.length} letters took ${best(md).toFixed(0)} ms: ${md.slice(0, 12)}`,
+    );
+  const bestWord = (f: Uint8Array): number => {
+    let b = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const t = performance.now();
+      try {
+        docxBlocks(f);
+      } catch {
+        /* refused is fine */
+      }
+      b = Math.min(b, performance.now() - t);
+    }
+    return b;
+  };
+  for (const f of [
+    "<w:r ".repeat(25_000),
+    "<w:p ".repeat(25_000),
+    "<w:t ".repeat(25_000),
+    "<w:tbl><w:tr><w:tc>".repeat(25_000),
+    "<w:pPr>".repeat(25_000),
+    "<w:r><w:t ".repeat(12_500),
+  ])
+    assert.ok(bestWord(docx(f)) < 100, `a hostile Word case took too long: ${f.slice(0, 20)}`);
   time(5_000); // warm up
   const small = time(25_000);
   const large = time(100_000);
@@ -326,4 +366,19 @@ test("headings read as before: closing hashes and spaces are cut, inner hashes s
   const t0 = Date.now();
   parse(`# a${" ".repeat(200_000)}x`);
   assert.ok(Date.now() - t0 < 1500, `a heading of 200 KB took ${Date.now() - t0} ms`);
+});
+
+test("links and pictures keep only their text, exactly as before the linear scan", async () => {
+  const { inline } = await import("../handlers/vdoc.ts");
+  const text = (md: string) =>
+    inline(md)
+      .map((r) => r.text)
+      .join("");
+  assert.equal(text("see [the site](https://x.test/a) now"), "see the site now");
+  assert.equal(text("a ![logo](l.png) b"), "a logo b");
+  assert.equal(text("[a](b) and [c](d)"), "a and c");
+  assert.equal(text("[not a link] and [x]"), "[not a link] and [x]");
+  assert.equal(text("[x]( no close"), "[x]( no close");
+  assert.equal(text("[a\nb](c)"), "[a b](c)".replace("[a b](c)", text("[a\nb](c)")));
+  assert.equal(text("![[x](y)](z)").length > 0, true);
 });
