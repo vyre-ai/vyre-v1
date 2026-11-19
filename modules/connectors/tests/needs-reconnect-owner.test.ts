@@ -207,3 +207,20 @@ test("a connection an agent made on a person's behalf is credited to that person
   );
   assert.deepEqual(assigned(k), ["person:usr_lena"]);
 });
+
+test("the last resort is the Space's admins, or the Space's owner in a Personal Space and in a Space where nobody holds the admin role", async () => {
+  const team = kit();
+  team.people.left.add("usr_dana");
+  await refused(team);
+  assert.deepEqual(assigned(team), ["role:admin"]);
+  const personal = kit();
+  personal.space.row = { kind: "personal", owner: "usr_owner" };
+  personal.people.left.add("usr_dana");
+  await refused(personal);
+  assert.deepEqual(assigned(personal), ["person:usr_owner"]);
+  const noAdmin = kit();
+  noAdmin.space.adminHolders = 0;
+  noAdmin.people.left.add("usr_dana");
+  await refused(noAdmin);
+  assert.deepEqual(assigned(noAdmin), ["person:usr_owner"]);
+});

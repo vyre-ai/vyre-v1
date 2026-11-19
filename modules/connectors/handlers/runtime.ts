@@ -206,6 +206,25 @@ async function memberState(ctx: ConnectorsCtx, id: string): Promise<"yes" | "no"
   }
 }
 
+/**
+ * Who is told when nobody in the chain can be: the Space's admins; but in a Personal Space, or a Space where no one holds the admin role, that is nobody, so it is the Space's owner. When the Space cannot be read the admins
+ * are asked, as before.
+ */
+async function lastResort(ctx: ConnectorsCtx): Promise<{ kind: "person" | "role"; id: string }> {
+  const admins = { kind: "role" as const, id: "admin" };
+  try {
+    const space = ((await ctx.call("spaces.get", {})) as { space?: { kind?: string; owner?: string } } | null)?.space;
+    const owner = typeof space?.owner === "string" && space.owner !== "" ? space.owner : undefined;
+    if (!owner) return admins;
+    if (space?.kind === "personal") return { kind: "person", id: owner };
+    const roles = (await ctx.call("access.roles.list", {})) as { roles?: { id?: string; holders?: number }[] } | null;
+    const admin = roles?.roles?.find((x) => x.id === "admin");
+    return admin && admin.holders === 0 ? { kind: "person", id: owner } : admins;
+  } catch {
+    return admins;
+  }
+}
+
 async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: ConnectionDb): Promise<void> {
   const by = deps.tx.get<{ applied_by: string | null }>(
     "SELECT applied_by FROM cn_sync_specs WHERE connection_id = ?",
@@ -256,7 +275,7 @@ async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connect
         told = false; // the person cannot be given a task
       }
     }
-    if (!told) made = await make({ kind: "role", id: "admin" });
+    if (!told) made = await make(await lastResort(ctx));
     const taskId = made?.task?.id;
     if (taskId)
       deps.tx.run(

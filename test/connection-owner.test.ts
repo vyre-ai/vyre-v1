@@ -79,3 +79,33 @@ test("a maker who has left the Space is skipped: through the real tasks module t
   assert.equal((await tasks.call("tasks.count_needs_you", {}, { id: ADMIN, kind: "person" } as never)).count, 1);
   assert.equal((await tasks.call("tasks.count_needs_you", {}, { id: "usr_dana", kind: "person" } as never)).count, 0);
 });
+
+test("a Personal Space has no admin to tell: through the real tasks module the Space's owner gets the note when the maker has left", async () => {
+  const tasks = tasksHarness({ authorize: () => false });
+  const k = kit();
+  k.space.row = { kind: "personal", owner: "usr_owner" };
+  k.people.left.add("usr_dana");
+  const around = k.ctx.call;
+  k.ctx.call = async (cap, input) =>
+    cap === "tasks.create"
+      ? tasks.call("tasks.create", input, { id: "usr_dana", kind: "person" } as never)
+      : around(cap, input);
+  k.install(ACME);
+  const made = await k.hs["connections.create"](k.ctx, {
+    connector: "acme",
+    title: "Acme",
+    ownerKind: "space",
+    secrets: { Acme_Key: "#AcmeKey", Acme_Hook: "#AcmeHook" },
+  } as never);
+  k.state.reply = () => ({ status: 401, body: {} });
+  await assert.rejects(
+    k.hs["connectors.run"](k.ctx, {
+      key: "acme",
+      action: "ping",
+      connectionId: made.connection.connectionId,
+      input: {},
+    }),
+  );
+  assert.equal((await tasks.call("tasks.count_needs_you", {}, { id: "usr_owner", kind: "person" } as never)).count, 1);
+  assert.equal((await tasks.call("tasks.count_needs_you", {}, { id: ADMIN, kind: "person" } as never)).count, 0);
+});

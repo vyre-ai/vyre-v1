@@ -53,6 +53,8 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
   /** people a task cannot be given to (they left the Space), as "person:usr_x" */
   const tasksGone = new Set<string>();
   /** people who left the Space (the directory says not found) and people who are suspended */
+  /** the Space as the directory answers it: a team Space with admins, unless a test says otherwise */
+  const space = { row: { kind: "team", owner: "usr_owner" } as { kind: string; owner: string }, adminHolders: 2 };
   const people = { left: new Set<string>(), suspended: new Set<string>() };
   const mk = (actor: string): ConnectorsCtx => ({
     trace: { traceId: "0123456789abcdef0123456789abcdef" },
@@ -65,6 +67,8 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
     call: async (cap, input) => {
       calls.push({ cap, input });
       if (cap === "runs.start") return { runId: "run_abc123" };
+      if (cap === "spaces.get") return { space: space.row };
+      if (cap === "access.roles.list") return { roles: [{ id: "admin", holders: space.adminHolders }] };
       if (cap === "access.principals.get") {
         const pid = (input as { principal: { id: string } }).principal.id;
         if (people.left.has(pid))
@@ -170,6 +174,7 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
     items,
     vaultFault,
     tasksGone,
+    space,
     people,
     folders,
     bound,
