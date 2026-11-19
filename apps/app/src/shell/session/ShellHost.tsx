@@ -651,9 +651,8 @@ export function ShellHost({
     forgetKey(stored.token);
     void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
     void unlinkComputer(stored);
-    // the session may not have opened yet (the shell draws first): the sign-in is revoked with the stored token then
-    if (session) void session.call("identity.sign_out", {}).catch(() => undefined);
-    else void revokeToken(stored);
+    // always through the revoke queue (revoke-token.ts): sent now with the stored token, whether or not the session has opened; if it gets no answer (offline, the Space down, the page closed) it is sent again at the next start
+    void revokeToken(stored);
     onSignedOut("manual");
   };
   signOutRef.current = signOut;
