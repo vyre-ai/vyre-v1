@@ -10,14 +10,16 @@
 //   downloads     { profileId } -> { downloads: [{ name, size, at }] }     download_read { profileId, name } -> { base64 }      download_ack { profileId, name }
 //   stop          { profileId }  (the browser stops, the folder stays)      forget { profileId }  (the folder goes too)
 //   sessions      { profileId }                                     -> { sessions: [{ site, since, lastSeen }] }      sign_out { profileId, site } -> { ok }
+//   channel       {}                                                -> { key, address, port }   the open line: every action above, posted to http://<address>:<port>/control with the key (control.ts)
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
 import type { Socket } from "node:net";
 import { networkInterfaces } from "node:os";
 import type { Cdp } from "../../agent-computer/agentd/cdp.ts";
-import { AgentError, badInput, unavailable } from "../../agent-computer/agentd/errors.ts";
+import { badInput } from "../../agent-computer/agentd/errors.ts";
 import { createRecentSites, startStartServer } from "./start.ts";
 import type { StartServer } from "./start.ts";
+import { createControl, refusalOf } from "./control.ts";
 import { createBridgeHub } from "./bridge.ts";
 import type { BridgeHub } from "./bridge.ts";
 import { createProfileManager, checkProfileId, memoryLimitMb, pidsLimit, slotsFor } from "./profiles.ts";
@@ -138,9 +140,18 @@ async function pageOf(id: string): Promise<Cdp> {
   return p.chrome!.page();
 }
 
+// the open line (control.ts): the same actions as the control socket, posted to the view port by a server that holds a key from `ctl channel`
+const control = createControl({
+  dispatch: (action, args) => dispatch(action, args),
+  asked: () => {
+    lastAsked = Date.now();
+  },
+});
+
 const views = startViewServer({
   port: PORT,
   address,
+  control: (req, res) => control.handle(req, res),
   seen: (id, personId) => manager.personSaw(id, personId),
   viewOf: (id): ViewOf | null => {
     const p = manager.get(id);
@@ -223,6 +234,8 @@ async function dispatch(action: string, a: Args): Promise<Args> {
         maxRunning: MAX_RUNNING,
         viewers: views.viewers(),
       };
+    case "channel":
+      return { key: control.mint(), address: address(), port: PORT };
     case "configure": {
       const p = manager.get(checkProfileId(a["profileId"]));
       const n = a["tabLimit"];
@@ -404,18 +417,7 @@ function serve(c: Socket): void {
     const args = (typeof req.args === "object" && req.args !== null ? req.args : {}) as Args;
     dispatch(String(req.action ?? ""), args).then(
       (result) => c.end(JSON.stringify({ ok: true, result }) + "\n"),
-      (e: unknown) => {
-        const err = e instanceof AgentError ? e : unavailable(e instanceof Error ? e.message : "the browser failed");
-        c.end(
-          JSON.stringify({
-            ok: false,
-            code: err.code,
-            message: err.message,
-            ...(err.reason ? { reason: err.reason } : {}),
-            ...(err.start !== undefined ? { start: err.start } : {}),
-          }) + "\n",
-        );
-      },
+      (e: unknown) => c.end(JSON.stringify(refusalOf(e)) + "\n"),
     );
   });
 }

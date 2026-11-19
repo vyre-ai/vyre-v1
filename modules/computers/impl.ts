@@ -1012,6 +1012,8 @@ export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser {
     // a container of its own (and so a volume of its own) for a test on a machine that may run a real Space browser; behind the runner the name stays vyre-sbrowser, the only one it allows
     ...(c.browser?.name !== undefined && !c.runner ? { name: c.browser.name } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
+    // calls go to browserd's own port, not one `docker exec` each (131 ms a call before); `ctl` stays as the way back wherever the port cannot be reached
+    channel: true,
   });
 }
 

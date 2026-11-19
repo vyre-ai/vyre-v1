@@ -12,6 +12,7 @@ import type { ContainerConfig, DockerApi, DockerHttp } from "../../../sandbox/sr
 import { computerSeccomp, reviewComputerConfig, toolErrorOf } from "../impl.ts";
 import { browserService, browserSlots, browserTasks, LIMITS } from "../capacity.ts";
 import { cpus, totalmem } from "node:os";
+import { request as httpRequest } from "node:http";
 import { ToolError } from "../handlers/tools/common.ts";
 import type { BrowserAnswer, BrowserToolCall, ProfileRow, SpaceBrowser } from "./port.ts";
 
@@ -25,6 +26,119 @@ export const BROWSER_NETWORK = "vyre-sbrowsernet";
 export const browserNetworkOf = (name: string | undefined): string =>
   name === undefined || name === "vyre-sbrowser" ? BROWSER_NETWORK : `${name}net`;
 const MAX_ARG = 125_000;
+
+// ---- the open line to browserd (lane r42-computer, 19 Nov 2026) ----
+// One `docker exec` plus a new Node process for `ctl` cost 131 ms before a call did anything (box C, Bengaluru; perf/computer/measure-browser.ts). With `channel` on, the adapter asks `ctl channel`
+// once for a key and then posts each call to browserd's own port (images/space-browser/browserd/control.ts), the same port the live view is relayed from. The key comes only through `ctl`, so the
+// trust model above does not move. What keeps an act from happening twice stays as it was: a post that made no connection never reached browserd and goes through `ctl` instead; a post that was sent
+// and then lost is an error to the caller, never a repeat. Each post is a connection of its own, so a call is never written to a connection browserd has just closed.
+
+/** A post that made no connection: the call never reached browserd, so asking another way is safe. */
+export class NotSent extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NotSent";
+  }
+}
+export type ChannelPost = (a: {
+  url: string;
+  key: string;
+  body: Record<string, unknown>;
+  timeoutMs: number;
+}) => Promise<{ status: number; body: Record<string, unknown> }>;
+export interface ChannelOptions {
+  /** How a call is posted. Default: node:http, one connection per call. */
+  post?: ChannelPost;
+  now?: () => number;
+  /** How long the channel rests after a post that made no connection, before it is tried again. Doubles with each failure in a row, up to ten minutes. Default one minute. */
+  restMs?: number;
+  /** How long a connection may take before the call goes through `ctl` instead (a Docker whose containers the server cannot reach by address, as on macOS). Default 400 ms. */
+  connectMs?: number;
+}
+
+/** One POST on a connection of its own. Rejects with NotSent when no connection was made; with a plain error when the connection was made and the answer never came. */
+export function httpChannelPost(connectMs = 400): ChannelPost {
+  return (a) =>
+    new Promise((resolve, reject) => {
+      const payload = Buffer.from(JSON.stringify(a.body));
+      let connected = false;
+      let settled = false;
+      const done = (f: () => void): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(connectTimer);
+        f();
+      };
+      const req = httpRequest(a.url, {
+        method: "POST",
+        agent: false,
+        timeout: a.timeoutMs,
+        headers: {
+          "content-type": "application/json",
+          "content-length": payload.length,
+          "x-vyre-control": a.key,
+          connection: "close",
+        },
+      });
+      const connectTimer = setTimeout(() => {
+        if (!connected) req.destroy(new NotSent("no connection to browserd in time"));
+      }, connectMs);
+      req.on("socket", (sock) => {
+        sock.once("connect", () => {
+          connected = true;
+          clearTimeout(connectTimer);
+        });
+      });
+      req.on("timeout", () => req.destroy(new Error("browserd did not answer in time")));
+      req.on("error", (e: Error) => done(() => reject(connected || e instanceof NotSent ? e : new NotSent(e.message))));
+      req.on("response", (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("error", (e: Error) => done(() => reject(e)));
+        res.on("end", () =>
+          done(() => {
+            try {
+              const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+              if (typeof body !== "object" || body === null || Array.isArray(body)) throw new Error("not an object");
+              resolve({ status: res.statusCode ?? 0, body });
+            } catch {
+              reject(new Error("browserd answered with something that is not JSON"));
+            }
+          }),
+        );
+      });
+      req.end(payload);
+    });
+}
+
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+const ipNumber = (ip: string): number | null => {
+  const m = IPV4.exec(ip);
+  if (!m) return null;
+  const p = m.slice(1).map(Number);
+  return p.some((x) => x > 255) ? null : ((p[0]! << 24) | (p[1]! << 16) | (p[2]! << 8) | p[3]!) >>> 0;
+};
+/**
+ * Is this the address of the browser service's own container? browserd names its address in its answer, and what a container says is never taken as it is: the server would post a key to it.
+ * With the service's subnet known (read from the Engine), the address must be in it. Without it, it must at least be a private IPv4 address that is not this computer's loopback.
+ */
+export function channelAddressOk(address: unknown, port: unknown, subnet: string | null): boolean {
+  if (typeof address !== "string" || typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535)
+    return false;
+  const ip = ipNumber(address);
+  if (ip === null) return false;
+  if (subnet !== null) {
+    const [net, bitsText] = subnet.split("/");
+    const base = ipNumber(net ?? "");
+    const bits = Number(bitsText);
+    if (base === null || !Number.isInteger(bits) || bits < 8 || bits > 32) return false;
+    const mask = bits === 32 ? 0xffffffff : ~(0xffffffff >>> bits) >>> 0;
+    return (ip & mask) >>> 0 === (base & mask) >>> 0;
+  }
+  const a = ip >>> 24;
+  const b = (ip >>> 16) & 0xff;
+  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
 
 export interface DockerSpaceBrowserOptions {
   api: DockerApi;
@@ -65,6 +179,8 @@ export interface DockerSpaceBrowserOptions {
   recheckMs?: number;
   /** Where the daemon runs (default: this process's). On macOS and Windows, Docker is a virtual machine that resolves host.docker.internal to the host itself; only on Linux does the name need to be given. */
   platform?: NodeJS.Platform;
+  /** The open line to browserd: calls are posted to its own port instead of one `docker exec` each, with `ctl` as the way back. Off unless asked for; the server's binding asks for it. */
+  channel?: boolean | ChannelOptions;
 }
 
 /** `net`: the service's own network was made, and (without the runner) the address of the host on it, which `host.docker.internal` names so the Vault channel is reached on that network. */
@@ -163,6 +279,11 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   let up: Promise<void> | null = null;
   // the service's network as the Engine reports it: the daemon refuses every route but the Vault channel to a request from it
   let subnet: string | null = null;
+  // the open line to browserd (below): the address and key in use, one asking shared by calls that arrive together, and how long the line rests after it could not be reached
+  let chan: { url: string; key: string } | null = null;
+  let opening: Promise<{ url: string; key: string } | null> | null = null;
+  let restUntil = 0;
+  let failsInARow = 0;
 
   async function exec(action: string, body: Record<string, unknown>): Promise<BrowserAnswer> {
     const arg = JSON.stringify(body);
@@ -453,6 +574,10 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       }
       await engineStep("make its container", () => o.api.containerCreate(name, full), EXISTS);
       await engineStep("start its container", () => o.api.containerStart(name), STARTED);
+      // a new container is a new browserd: it holds no key and may be of a release that has the open line
+      chan = null;
+      restUntil = 0;
+      failsInARow = 0;
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
       for (;;) {
         try {
@@ -483,12 +608,98 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     return up;
   }
 
-  // a container that runs is not always one whose browserd answers: just after it (re)started the control socket is not there yet, and the call waits for it instead of failing. Only a request that
-  // certainly never reached browserd is asked again (ctl says "not up yet": no connection was made); one that was sent and then lost is an error to the caller, never a silent repeat (a click, a send).
+  // a request that certainly never reached browserd (ctl says "not up yet": no connection was made)
   const starting = (e: unknown): boolean =>
     e instanceof ToolError && e.code === "unavailable" && /^browserd is not up yet/.test(e.message);
+  // ---- the open line ----
+  const chanOpt: ChannelOptions | null = o.channel === true ? {} : o.channel ? o.channel : null;
+  const post = chanOpt?.post ?? httpChannelPost(chanOpt?.connectMs);
+  const clock = chanOpt?.now ?? Date.now;
+  const rest = (ms?: number): void => {
+    failsInARow += 1;
+    chan = null;
+    restUntil = clock() + (ms ?? Math.min((chanOpt?.restMs ?? 60_000) * 2 ** (failsInARow - 1), 10 * 60_000));
+  };
+  /** Ask `ctl channel` for a key and the address. Calls that arrive together share one asking. Null: use `ctl` for now. */
+  function openChannel(): Promise<{ url: string; key: string } | null> {
+    opening ??= (async () => {
+      let r: BrowserAnswer;
+      try {
+        r = await exec("channel", {});
+      } catch (e) {
+        // browserd is still starting: the call's own wait (below) handles it, and the channel is asked for again at the next call
+        if (starting(e)) return null;
+        // a browserd of an earlier release has no such action: it is asked again only much later (the container is replaced by this release's at its first quiet moment)
+        rest(10 * 60_000);
+        return null;
+      }
+      if (typeof r["key"] !== "string" || r["key"].length < 32 || !channelAddressOk(r["address"], r["port"], subnet)) {
+        rest(10 * 60_000);
+        return null;
+      }
+      chan = { url: `http://${String(r["address"])}:${Number(r["port"])}/control`, key: r["key"] };
+      return chan;
+    })().finally(() => {
+      opening = null;
+    });
+    return opening;
+  }
+  const VIA_CTL = Symbol("via ctl");
+  /** The call over the open line, or VIA_CTL when it was certainly not done there and `ctl` should carry it. */
+  async function viaChannel(action: string, body: Record<string, unknown>): Promise<BrowserAnswer | typeof VIA_CTL> {
+    if (!chanOpt || clock() < restUntil) return VIA_CTL;
+    if (JSON.stringify(body).length > MAX_ARG)
+      throw new ToolError("bad_input", "That call is too large to send to the browser.");
+    // a tool's own time limit, and a little more for the answer to come back; browserd holds no call longer than 130 seconds
+    const timeoutMs = Math.min(Math.max(Number(body["timeoutMs"] ?? 60_000) || 60_000, 1000), 130_000) + 15_000;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const c = chan ?? (await openChannel());
+      if (!c) return VIA_CTL;
+      let r: { status: number; body: Record<string, unknown> };
+      try {
+        r = await post({ url: c.url, key: c.key, body: { action, args: body }, timeoutMs });
+      } catch (e) {
+        if (e instanceof NotSent) {
+          rest();
+          return VIA_CTL;
+        }
+        // the connection was made and the answer never came: it may have been done, so it is the caller's error and is never sent again (as `ctl` says when browserd stops under a request)
+        chan = null;
+        throw new ToolError(
+          "unavailable",
+          `browserd stopped while it worked on the request: ${e instanceof Error ? e.message.slice(0, 160) : "no answer"}`,
+        );
+      }
+      // browserd started again and holds no key: the call was not done; ask for a new key and send it once more
+      if (r.status === 401) {
+        chan = null;
+        continue;
+      }
+      // refused at the door (not done): this browserd does not take the line; `ctl` carries the call
+      if (r.status === 403 || r.status === 404 || r.status === 405) {
+        rest();
+        return VIA_CTL;
+      }
+      failsInARow = 0;
+      if (r.status === 200 && r.body["ok"] === true) {
+        const result = r.body["result"];
+        if (result === undefined || result === null) return {};
+        if (typeof result !== "object" || Array.isArray(result))
+          throw new ToolError("unavailable", "The Space browser answered with something that is not an object.");
+        return result as BrowserAnswer;
+      }
+      throw toolErrorOf(JSON.stringify(r.body), 1);
+    }
+    rest();
+    return VIA_CTL;
+  }
+
+  // a container that runs is not always one whose browserd answers: just after it (re)started the control socket is not there yet, and the call waits for it instead of failing. Only a request that
+  // certainly never reached browserd is asked again (ctl says "not up yet": no connection was made); one that was sent and then lost is an error to the caller, never a silent repeat (a click, a send).
   const call = async (action: string, body: Record<string, unknown>): Promise<BrowserAnswer> => {
     await ensureUp();
+    const over = await viaChannel(action, body);
+    if (over !== VIA_CTL) return over;
     try {
       return await exec(action, body);
     } catch (e) {
