@@ -148,6 +148,7 @@ const nodeRow = t.obj({
   budget: t.opt(t.json()),
   spent: nodeSpent,
   wake: t.opt(nodeWake),
+  can: t.opt(t.obj({ manage: t.bool() })),
   result: t.opt(t.json()),
   evidence: t.opt(t.json()),
   origin: t.opt(t.json()),
@@ -492,6 +493,12 @@ export default defineManifest({
           ...nodeTarget,
           name: t.opt(t.str({ maxLength: 60 })),
           role: t.opt(t.str({ maxLength: 200 })),
+          instructions: t.opt(
+            t.str({
+              maxLength: 4000,
+              description: "What the person edited: told to the agent instead of the work's own brief",
+            }),
+          ),
           sharing: t.opt(t.enm("me", "everyone")),
         },
         out: { agent: t.json(), runId: id.run },
@@ -521,7 +528,7 @@ export default defineManifest({
     ),
     read(
       "runs.node.compare",
-      "A finished node and everything started again from it, side by side: brief, result, cost and time of each (only for the owner or a manager; not for someone who only watches the chat)",
+      "A finished node and everything started again from it, side by side: brief, result, cost and time of each (only for the owner or a manager of runs; someone who may only view the run is refused)",
       {
         in: nodeTarget,
         out: {

@@ -24,7 +24,7 @@ Requires: nothing.
 - [runs.message.take](../capabilities/runs.message.take.md): The server hands a node what waits for it and marks it delivered, once
 - [runs.node.beat](../capabilities/runs.node.beat.md): A worker's heartbeat on a node it holds; false means the lease is gone and the worker must stop
 - [runs.node.claim](../capabilities/runs.node.claim.md): Take a queued node for a worker: queued to running with a lease; returns the node, or none when it was not free
-- [runs.node.compare](../capabilities/runs.node.compare.md): A finished node and everything started again from it, side by side: brief, result, cost and time of each (only for the owner or a manager; not for someone who only watches the chat)
+- [runs.node.compare](../capabilities/runs.node.compare.md): A finished node and everything started again from it, side by side: brief, result, cost and time of each (only for the owner or a manager of runs; someone who may only view the run is refused)
 - [runs.node.control](../capabilities/runs.node.control.md): Pause, resume or stop a node and, with subtree, everything under it (the owner or someone who manages runs)
 - [runs.node.event](../capabilities/runs.node.event.md): Add one event to the record of a node, idempotent by key; a usage event adds to the spend of that node once
 - [runs.node.find](../capabilities/runs.node.find.md): The nodes that stand for given threads and idempotency keys (for a tile to read its node), only those the person may see

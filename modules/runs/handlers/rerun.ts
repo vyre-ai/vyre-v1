@@ -5,7 +5,8 @@
 import { raise } from "../projections.ts";
 import type { RunsCtx } from "../projections.ts";
 import { canSee, mayManage } from "../projections.ts";
-import { findNode, getNode, isTerminal, nodesOfThread } from "../node.ts";
+import { createHash } from "node:crypto";
+import { findNode, getNode, isTerminal, nodesOfThread, startNode } from "../node.ts";
 import type { Node } from "../node.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -64,18 +65,22 @@ export async function saveAsAgent(ctx: RunsCtx, input: In): Promise<unknown> {
   const n = fullNode(ctx, input.runId, true);
   finished(ctx, n);
   const brief = await briefOf(ctx, n);
-  if (!brief || textOf(brief).trim() === "")
+  // what the person edited in the Save form is what the agent is told; else the work's own brief
+  const edited = typeof input.instructions === "string" ? input.instructions.trim() : "";
+  if (edited === "" && (!brief || textOf(brief).trim() === ""))
     raise(ctx, "validation.precondition_failed", "That work has no written brief to save.", { reason: "no_brief" });
-  const name = String(input.name ?? "").trim() || (n.name ?? brief.goal ?? "").slice(0, 60).trim();
+  const name = String(input.name ?? "").trim() || (n.name ?? brief?.goal ?? "").slice(0, 60).trim();
   if (name === "") raise(ctx, "validation.bad_input", "Give the agent a name.");
   const tools = (n.policy as { tools?: { allowed?: unknown; denied?: unknown } } | undefined)?.tools;
   const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
-  const role = (input.role ? String(input.role) : (brief.goal ?? "").split("\n")[0]!).trim().slice(0, 200);
+  const role = (input.role ? String(input.role) : (brief?.goal ?? n.name ?? "").split("\n")[0]!).trim().slice(0, 200);
   const made = (await ctx.call?.("agents.create", {
     name,
     ...(role !== "" ? { role } : {}),
     ...(n.model ? { model: n.model } : {}),
-    instructions: cut(textOf(brief)),
+    instructions: cut(edited !== "" ? edited : textOf(brief!)),
+    // a second press names the same agent: the key is the work's, so the agents module answers with the one it made
+    idempotencyKey: `save:${n.id}`,
     ...(tools ? { tools: { allowed: strs(tools.allowed), denied: strs(tools.denied) } } : {}),
     ...(input.sharing ? { sharing: input.sharing } : {}),
   })) as { agent?: unknown } | undefined;
@@ -108,6 +113,15 @@ export async function rerun(ctx: RunsCtx, input: In): Promise<unknown> {
     raise(ctx, "validation.bad_input", "Change the brief or the model, or there is nothing to compare.", {
       reason: "nothing_changed",
     });
+  // the same press again (same brief and model from the same work) is the one already started, not another
+  const sig = createHash("sha256")
+    .update(JSON.stringify([next.goal ?? "", next.instructions ?? "", input.model ?? n.model ?? ""]))
+    .digest("hex")
+    .slice(0, 16);
+  const prior = ((n.origin as { reruns?: Array<{ threadId: string; sig?: string }> } | undefined)?.reruns ?? []).find(
+    (r) => r.sig === sig,
+  );
+  if (prior) return { threadId: prior.threadId, rerunOf: n.id };
   const parent = n.parentRun === undefined ? undefined : findNode(ctx.db, n.parentRun);
   const parentThread = parent?.threadId;
   if (parentThread === undefined)
@@ -120,18 +134,53 @@ export async function rerun(ctx: RunsCtx, input: In): Promise<unknown> {
     instruction: next.instructions ?? next.goal ?? "",
     ...(n.whoId ? { agentId: n.whoId } : {}),
     ...((input.model ?? n.model) ? { model: input.model ?? n.model } : {}),
+    idempotencyKey: `rerun:${n.id}:${sig}`,
   })) as { helper?: { threadId?: string } } | undefined;
   const threadId = started?.helper?.threadId;
   if (!threadId) raise(ctx, "internal.unexpected", "The helper was not started.");
   // the link lives on the first node: the threads of what was started again from it, in order
-  const origin = (n.origin as { reruns?: Array<{ threadId: string; at: number }> } | undefined) ?? {};
-  const reruns = [...(origin.reruns ?? []), { threadId: threadId!, at: ctx.now() }].slice(-20);
+  const origin = (n.origin as { reruns?: Array<{ threadId: string; at: number; sig?: string }> } | undefined) ?? {};
+  const reruns = [...(origin.reruns ?? []), { threadId: threadId!, at: ctx.now(), sig }].slice(-20);
   ctx.db.run(
     "UPDATE runs_node SET origin_json = ?, updated_at = ? WHERE run_id = ?",
     JSON.stringify({ ...origin, reruns }),
     ctx.now(),
     n.id,
   );
+  // its node stands from now, with the first one's reach: its tool and approval policy is copied, never widened (this capability takes no tool input, and the agent, chat and account are the first one's), so a re-run has what the first had and no more
+  const have = nodesOfThread(ctx.db, threadId!, false, 1)[0];
+  const carried = { brief: next, policy: n.policy ?? null, origin: { rerunOf: n.id } };
+  if (have) {
+    ctx.db.run(
+      "UPDATE runs_node SET brief_json = COALESCE(brief_json, ?), policy_json = COALESCE(policy_json, ?), origin_json = COALESCE(origin_json, ?) WHERE run_id = ?",
+      JSON.stringify(carried.brief),
+      carried.policy === null ? null : JSON.stringify(carried.policy),
+      JSON.stringify(carried.origin),
+      have.id,
+    );
+  } else {
+    const mk = (parentRun?: string) =>
+      startNode(ctx, {
+        kind: "helper",
+        owner: n.owner,
+        threadId: threadId!,
+        ...(parentRun ? { parentRun } : {}),
+        ...(n.name ? { name: n.name } : {}),
+        whoKind: n.whoKind,
+        ...(n.whoId ? { whoId: n.whoId } : {}),
+        ...(n.whoName ? { whoName: n.whoName } : {}),
+        ...((input.model ?? n.model) ? { model: input.model ?? n.model } : {}),
+        brief: carried.brief,
+        ...(carried.policy === null ? {} : { policy: carried.policy }),
+        origin: carried.origin,
+        idemKey: `helper:${threadId}`,
+      });
+    try {
+      mk(n.parentRun);
+    } catch {
+      mk(); // the chat's turn has ended: it stands as work of its own
+    }
+  }
   return { threadId: threadId!, rerunOf: n.id };
 }
 
@@ -181,7 +230,7 @@ async function sideOf(ctx: RunsCtx, n: Node): Promise<Side> {
 
 /** The first and everything started again from it, side by side. A re-run that has not begun its first turn yet shows as starting. */
 export async function compare(ctx: RunsCtx, input: In): Promise<unknown> {
-  const n = fullNode(ctx, input.runId, false);
+  const n = fullNode(ctx, input.runId, true);
   const reruns = ((n.origin as { reruns?: Array<{ threadId: string }> } | undefined)?.reruns ?? []).slice(0, 20);
   const sides: Side[] = [await sideOf(ctx, n)];
   for (const r of reruns) {

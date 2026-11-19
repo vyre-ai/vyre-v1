@@ -329,9 +329,10 @@ export function redactedOut(n: Node, label: string): Record<string, unknown> {
 
 export async function nodeGet(ctx: RunsCtx, input: In): Promise<unknown> {
   const { node, full } = look(ctx, input.runId);
-  if (full) return { node: out(ctx, node) };
+  // what the caller may do with it, so a screen shows Save, Run again and Compare only to someone who may press them
+  if (full) return { node: { ...out(ctx, node), can: { manage: mayManage(ctx, { id: node.id, owner: node.owner }) } } };
   const labels = labelsOf(treeNodes(ctx.db, node.rootRun));
-  return { node: redactedOut(node, labels.get(node.id) ?? "Work") };
+  return { node: { ...redactedOut(node, labels.get(node.id) ?? "Work"), can: { manage: false } } };
 }
 export async function treeGet(ctx: RunsCtx, input: In): Promise<unknown> {
   const { node: n, full } = look(ctx, input.runId);

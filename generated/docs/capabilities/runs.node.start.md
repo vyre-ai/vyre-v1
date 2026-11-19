@@ -85,6 +85,9 @@ type Out = {
       on?: unknown;
       wokeCount?: number;
     };
+    can?: {
+      manage: boolean;
+    };
     result?: unknown;
     evidence?: unknown;
     origin?: unknown;
@@ -161,6 +164,9 @@ type Out = {
       "attempt": 1,
       "brief": {},
       "budget": {},
+      "can": {
+        "manage": true
+      },
       "dependsOn": [
         "run_a1b2c3"
       ],

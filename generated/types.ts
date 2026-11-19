@@ -35550,6 +35550,9 @@ export type RunsBudgetSetOut = {
       on?: unknown;
       wokeCount?: number;
     };
+    can?: {
+      manage: boolean;
+    };
     result?: unknown;
     evidence?: unknown;
     origin?: unknown;
@@ -35872,6 +35875,9 @@ export type RunsNodeClaimOut = {
       on?: unknown;
       wokeCount?: number;
     };
+    can?: {
+      manage: boolean;
+    };
     result?: unknown;
     evidence?: unknown;
     origin?: unknown;
@@ -35960,6 +35966,9 @@ export type RunsNodeControlOut = {
         on?: unknown;
         wokeCount?: number;
       };
+      can?: {
+        manage: boolean;
+      };
       result?: unknown;
       evidence?: unknown;
       origin?: unknown;
@@ -36045,6 +36054,9 @@ export type RunsNodeGetOut = {
       dueAt?: number;
       on?: unknown;
       wokeCount?: number;
+    };
+    can?: {
+      manage: boolean;
     };
     result?: unknown;
     evidence?: unknown;
@@ -36141,6 +36153,9 @@ export type RunsNodeMoveOut = {
       on?: unknown;
       wokeCount?: number;
     };
+    can?: {
+      manage: boolean;
+    };
     result?: unknown;
     evidence?: unknown;
     origin?: unknown;
@@ -36189,6 +36204,7 @@ export type RunsNodeSaveAsAgentIn = {
   runId: string;
   name?: string;
   role?: string;
+  instructions?: string;
   sharing?: "me" | "everyone";
 };
 export type RunsNodeSaveAsAgentOut = {
@@ -36250,6 +36266,9 @@ export type RunsNodeStartOut = {
       dueAt?: number;
       on?: unknown;
       wokeCount?: number;
+    };
+    can?: {
+      manage: boolean;
     };
     result?: unknown;
     evidence?: unknown;
@@ -36615,6 +36634,9 @@ export type RunsTreeGetOut = {
         dueAt?: number;
         on?: unknown;
         wokeCount?: number;
+      };
+      can?: {
+        manage: boolean;
       };
       result?: unknown;
       evidence?: unknown;

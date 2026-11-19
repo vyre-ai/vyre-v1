@@ -15,7 +15,9 @@ const AGENT = `agt_${"d".repeat(32)}`;
 type Seen = { created: Array<Record<string, unknown>>; started: Array<Record<string, unknown>> };
 function rig(first: string | undefined = "Price the Calder bid from the 2025 sheet. Quote the page.") {
   const seen: Seen = { created: [], started: [] };
-  const h = harness({ authorize: (who) => who.id === alice.id });
+  const h = harness({
+    authorize: (who, action) => who.id === alice.id || (who.id === bob.id && action.level === "view"),
+  });
   h.callee("agents.create", (i: Record<string, unknown>) => {
     seen.created.push(i);
     return { agent: { agentId: AGENT, name: String(i["name"]) } };
@@ -130,6 +132,8 @@ test("re-run: the same helper starts again beside the first in its chat with the
   assert.match(c.sides[0].result, /\$41,200/);
   assert.equal(c.sides[1].status, "queued");
   assert.equal(c.sides[1].threadId, AGAIN);
+  assert.ok(c.sides[1].runId, "its node stands from the start");
+  assert.equal(c.sides[1].brief.instructions, "Use the 2026 sheet. Quote the page.");
 
   // after it ran: its own node, brief, result, cost and time
   h.advance(1);
@@ -141,8 +145,8 @@ test("re-run: the same helper starts again beside the first in its chat with the
         owner: alice.id,
         threadId: AGAIN,
         running: true,
-        model: "claude-sonnet-5-5",
-        brief: { goal: "Price the Calder bid", instructions: "Use the 2026 sheet. Quote the page." },
+        adoptKey: `helper:${AGAIN}`,
+        idemKey: "turn:t9",
       },
       engine,
     )
@@ -159,7 +163,7 @@ test("re-run: the same helper starts again beside the first in its chat with the
     engine,
   );
   c = await h.call("runs.node.compare", { runId: n.id }, owner);
-  assert.equal(c.sides[1].runId, second.id);
+  assert.equal(c.sides[1].runId, second.id, "its first turn took the node over");
   assert.equal(c.sides[1].result, "Calder bid: $39,900 (page 9).");
   assert.equal(c.sides[1].usdMicros, 12_000);
   assert.equal(c.sides[1].tokens, 1000);
@@ -201,6 +205,77 @@ test("re-run is refused when nothing changed, when the work is still going, when
   const w = await h.call("runs.node.rerun", { runId: n.id, instructions: "other" }, watcher).catch((e) => e);
   assert.ok(["permission.not_found", "permission.role_lacks_permission"].includes(codeOf(w) ?? ""));
   const wc = await h.call("runs.node.compare", { runId: n.id }, watcher).catch((e) => e);
-  assert.equal(codeOf(wc), "permission.not_found");
+  assert.ok(["permission.not_found", "permission.role_lacks_permission"].includes(codeOf(wc) ?? ""));
   assert.equal(seen.started.length, 0, "nothing was started");
+});
+
+test("a re-run carries the first one's tool and approval policy and takes no tool input, so it has what the first had and no more; the same press twice starts one", async () => {
+  const { h, seen } = rig();
+  const policy = { tools: { allowed: ["web_search"], denied: ["mail_send"] }, onLost: "fail" };
+  const { n } = await helper(h, { brief: { goal: "g", instructions: "Use the 2025 sheet." }, policy });
+  const out = await h.call("runs.node.rerun", { runId: n.id, instructions: "Use the 2026 sheet." }, owner);
+  const row = h.sqlite.prepare("SELECT policy_json, origin_json FROM runs_node WHERE thread_id = ?").get(AGAIN) as {
+    policy_json: string;
+    origin_json: string;
+  };
+  assert.deepEqual(JSON.parse(row.policy_json), policy, "the same policy, not wider");
+  assert.deepEqual(JSON.parse(row.origin_json), { rerunOf: n.id });
+  assert.equal(seen.started[0]!["agentId"], AGENT, "the same agent");
+  assert.ok(!("tools" in seen.started[0]!), "no tool input of its own");
+  // a tool input on the call is not read: it never reaches the new helper
+  await h.call("runs.node.rerun", { runId: n.id, instructions: "Other.", tools: { allowed: ["everything"] } }, owner);
+  assert.equal(seen.started.length, 2);
+  assert.ok(!JSON.stringify(seen.started[1]).includes("everything"), "no tool the person named is passed on");
+  const again = await h.call("runs.node.rerun", { runId: n.id, instructions: "Use the 2026 sheet." }, owner);
+  assert.equal(again.threadId, out.threadId, "the same press again is the one already started");
+  assert.equal(seen.started.length, 2, "nothing was started twice");
+  assert.equal(
+    (await h.call("runs.node.compare", { runId: n.id }, owner)).sides.length,
+    3,
+    "the first and the two different ones",
+  );
+});
+
+test("save as agent: a second press is the same save (the work's own key), what the person edited is told to the agent, only the asker's own agent is made, and an agents.create refusal makes nothing", async () => {
+  const { h, seen } = rig();
+  const { n } = await helper(h, {
+    brief: { goal: "Price the Calder bid", instructions: "Use the 2025 sheet." },
+    policy: { tools: { allowed: ["web_search"], denied: [] } },
+  });
+  await h.call(
+    "runs.node.save_as_agent",
+    { runId: n.id, name: "Pricer", instructions: "Use the 2026 sheet.", sharing: "everyone" },
+    owner,
+  );
+  await h.call("runs.node.save_as_agent", { runId: n.id, name: "Pricer", sharing: "everyone" }, owner);
+  assert.equal(seen.created[0]!["idempotencyKey"], `save:${n.id}`);
+  assert.equal(seen.created[1]!["idempotencyKey"], `save:${n.id}`, "so the agents module answers with the one it made");
+  assert.equal(seen.created[0]!["instructions"], "Use the 2026 sheet.", "the edit, not the brief");
+  assert.match(String(seen.created[1]!["instructions"]), /2025 sheet/, "the brief when nothing was edited");
+  assert.equal(seen.created[0]!["sharing"], "everyone");
+  assert.ok(!("ownerId" in seen.created[0]!), "owned by whoever asks: it never has more than they do");
+
+  const refusing = rig();
+  refusing.h.callee("agents.create", () => {
+    throw Object.assign(new Error("no"), { code: "permission.role_lacks_permission" });
+  });
+  const f = await helper(refusing.h, { brief: { goal: "g", instructions: "x" } });
+  for (const sharing of ["me", "everyone"]) {
+    const r = await refusing.h
+      .call("runs.node.save_as_agent", { runId: f.n.id, name: "Pricer", sharing }, owner)
+      .catch((e) => e);
+    assert.ok(r instanceof Error, `refused with sharing ${sharing}: no agent was made`);
+  }
+  assert.equal(refusing.seen.created.length, 0);
+});
+
+test("compare is for the owner or a manager of runs: a chat member who may only view the run is refused; runs.node.get says what the caller may do", async () => {
+  const { h } = rig();
+  const { n } = await helper(h, { brief: { goal: "g", instructions: "x" } });
+  const viewer = await h.call("runs.node.compare", { runId: n.id }, watcher).catch((e) => e);
+  assert.ok(viewer instanceof Error, "refused");
+  assert.equal((await h.call("runs.node.get", { runId: n.id }, owner)).node.can.manage, true);
+  const seen = await h.call("runs.node.get", { runId: n.id }, watcher);
+  assert.equal(seen.node.can.manage, false, "a viewer sees the node and is told they cannot press");
+  assert.ok((await h.call("runs.node.compare", { runId: n.id }, owner)).sides.length >= 1);
 });
