@@ -235,6 +235,7 @@ async function reserveSlot(
   wanted: number,
   id: string,
   mayHold = true,
+  ownRetry = false,
 ): Promise<{ at: number; note: string | null }> {
   const zone = await setting<string>(ctx, "profile.timezone", "UTC", zoneOk);
   const ticks: number[] = [];
@@ -248,7 +249,7 @@ async function reserveSlot(
     zone,
     limits: await limitsOf(ctx),
     ticks,
-    bulk: mayHold && p.actor !== "person",
+    bulk: mayHold && !ownRetry && p.actor !== "person", // our own retry of a message that already passed the window is not made to wait again
   });
   if (!plan.ok) {
     throw fail("validation.precondition_failed", ctx.trace.traceId, {
@@ -627,7 +628,7 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
   // the Space's sending limits; a queued message coming back at its time already holds its slot
   let note: string | null = null;
   if (!(pending && str(pending, "status") === "queued")) {
-    const slot = await reserveSlot(ctx, p, when, row);
+    const slot = await reserveSlot(ctx, p, when, row, true, isHostService(ctx.principal) && isOwnRetry(ctx, input.idempotencyKey));
     when = slot.at;
     note = slot.note;
   }
