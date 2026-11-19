@@ -9,7 +9,7 @@ export const SMS_CONSENT = "The send checks SMS consent before it leaves.";
 export const EMAIL_REPLY = "Reply-to stays on the step. The mailbox address is the sender.";
 export const EMAIL_CONSENT = "The builder keeps an unsubscribe line unless the body already has one.";
 
-const TOKEN = /\{\{\s*([\w.]+)\s*(?:\|([^}]*))?\}\}/g;
+const TOKEN = /\{\{\s{0,64}([\w.]{1,200})\s{0,64}(?:\|([^}]{0,512}))?\}\}/g;
 const GSM = new Set(
   `${"@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ"}${String.fromCharCode(167)}${"¿abcdefghijklmnopqrstuvwxyzäöñüà"}`.split(
     "",
