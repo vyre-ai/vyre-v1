@@ -215,6 +215,8 @@ function world(sites: readonly string[] = []): AccessSnapshot {
 }
 
 interface RigOptions {
+  /** what a deploy is parked as (the pin) */
+  pin?: ReturnType<typeof pinnedDeploy>;
   /** real handlers to run in place of the stub for a capability (a test that needs the real code under the real invoke) */
   handlers?: Record<string, Handler>;
   /** opens an approval token (a test hands the claims it wants the token to carry) */
@@ -261,7 +263,7 @@ function rig(o: RigOptions = {}) {
         ? await realGate.call("gate.effective_rule", input, { id: "usr_owner", kind: "person" })
         : ((await o.call?.(cap, input)) ?? null),
     unseal: o.unseal ?? (() => new Uint8Array()),
-    pin: pinnedDeploy(() => o.callAs ?? null),
+    pin: o.pin ?? pinnedDeploy(() => o.callAs ?? null),
     now: () => 0,
     hold: () => null,
     evaluators: moduleWhens(
@@ -275,7 +277,10 @@ function rig(o: RigOptions = {}) {
   gate.park = async (a) => {
     parked.push({ cap: a.cap.name, act: a.act });
     // the real park keeps what the hold was made over (it then finds no approvals service and refuses: the fake answer stands)
-    await park(a).catch(() => undefined);
+    await park(a).catch((e: unknown) => {
+      // a refusal the Gate itself makes (a deploy whose head could not be read) is the answer; the missing approvals service is not
+      if ((e as { error?: { code?: string } })?.error?.code === "validation.precondition_failed") throw e;
+    });
     return { taskId: "tsk_1", runId: "run_1" };
   };
   const deps = {
@@ -910,7 +915,7 @@ function siteWorld() {
     files: { fld_up: [{ fileId: "fil_a", name: "index.html", version: 1, size: 10 }] },
     folders: {},
   };
-  const state = { fetchFp: undefined as string | undefined, readable: true, head: "a".repeat(40) };
+  const state = { fetchFp: undefined as string | undefined, readable: true, head: "a".repeat(40) as string | null };
   const filesAnswer = (cap: string, input: unknown): unknown => {
     if (!state.readable) return null;
     const i = input as { folder?: string; fileId?: string; cursor?: string; limit?: number };
@@ -963,7 +968,9 @@ function siteWorld() {
         : cap === "sites.head_check"
           ? // a repo site has a head; uploaded files have none (the real read answers the same)
             siteFacts({ db: sw.sdb } as never, (input as { siteId: string }).siteId)?.source?.repo
-            ? { head: state.head, changed: true }
+            ? state.head === null
+              ? { changed: true, repo: true, branch: "main" }
+              : { head: state.head, changed: true, repo: true, branch: "main" }
             : { changed: true }
           : w.opts.callAs(cap, input, person),
     exports: new Map<string, Record<string, unknown>>([...w.opts.exports, ["sites", { siteFacts }]]),
@@ -1880,4 +1887,59 @@ test("an agent's own held deploy that names no commit is pinned to the head at h
     }
   ).commit_sha;
   assert.equal(last, X, "the commit the card showed is the one built");
+});
+
+test("a non-person's deploy on a site with keys is refused when the branch head cannot be read, or not within the time, and is never parked unpinned; a person's own deploy is unaffected", async () => {
+  const s = siteWorld();
+  s.github("open");
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
+  s.store(siteId, STORED.name, STORED.handle);
+  const asked = { siteId, wait: true };
+  const before = s.parks.length;
+  // the head cannot be read
+  s.state.head = null;
+  const answer = (r: unknown): { status?: string; error?: { code?: string; message?: string } } => r as never;
+  const refused = answer(
+    await rig(s.opts)
+      .invoke("sites.deploy", asked, asAgent())
+      .catch((e: unknown) => ({ status: "error", ...(e as object) })),
+  );
+  assert.notEqual(refused.status, "held", JSON.stringify(refused).slice(0, 200));
+  assert.equal(refused.error?.code, "validation.precondition_failed");
+  assert.match(String(refused.error?.message), /Couldn't read main to show what would deploy\. Try again\./);
+  assert.equal(s.parks.length, before, "nothing was parked");
+  // a push's deploy (a person's access, not their act) is refused the same way
+  const pushRefused = await rig(s.opts)
+    .invoke("sites.deploy", asked, { ...seed("usr_admin"), origin: "sites-push" } as never)
+    .then(
+      (r) => ((r as { status?: string }).status === "held" ? "parked" : "refused"),
+      () => "refused",
+    );
+  assert.equal(pushRefused, "refused");
+  assert.equal(s.parks.length, before);
+  // the read takes too long: a timeout is an unreadable head
+  const slow = rig({
+    ...s.opts,
+    pin: pinnedDeploy(() => async () => new Promise(() => undefined), 20),
+  });
+  assert.equal(
+    await slow.invoke("sites.deploy", asked, asAgent()).then(
+      (r) => ((r as { status?: string }).status === "held" ? "parked" : "refused"),
+      () => "refused",
+    ),
+    "refused",
+  );
+  assert.equal(s.parks.length, before);
+  // readable again: parked, and pinned
+  s.state.head = "e".repeat(40);
+  assert.equal((await rig(s.opts).invoke("sites.deploy", asked, asAgent())).status, "held");
+  assert.equal((s.parks.at(-1) as unknown as { input: { commit?: string } }).input.commit, "e".repeat(40));
+  // a person's own deploy is not a hold and is never refused for it
+  s.state.head = null;
+  assert.equal((await rig(s.opts).invoke("sites.deploy", asked, seed("usr_admin"))).status, "ok");
+  // and a call that names its own commit does not need the read
+  assert.equal(
+    (await rig(s.opts).invoke("sites.deploy", { ...asked, commit: "f".repeat(40) }, asAgent())).status,
+    "held",
+  );
 });

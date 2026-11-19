@@ -2566,7 +2566,10 @@ export async function deployedLogs(
 }
 
 /** The commit the site's branch is at (read with the site's own token, filled for this one call), and whether it differs from what was last deployed. A head that cannot be read is unknown and counts as changed. */
-async function sitesHeadCheck(ctx: Ctx, input: unknown): Promise<{ head?: string; changed: boolean }> {
+async function sitesHeadCheck(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ head?: string; changed: boolean; repo?: boolean; branch?: string }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const source = sourceOf(site);
@@ -2578,7 +2581,12 @@ async function sitesHeadCheck(ctx: Ctx, input: unknown): Promise<{ head?: string
     "SELECT commit_sha FROM sites_deployment WHERE site_id = ? AND env = 'production' ORDER BY at DESC",
     str(site.id),
   );
-  return { ...(head ? { head } : {}), changed: !(head && last && str(last.commit_sha) === head) };
+  return {
+    ...(head ? { head } : {}),
+    changed: !(head && last && str(last.commit_sha) === head),
+    repo: true,
+    ...(source.branch ? { branch: source.branch } : {}),
+  };
 }
 
 export const releaseHandlers = {

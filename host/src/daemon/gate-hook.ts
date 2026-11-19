@@ -46,7 +46,11 @@ export interface GateHookDeps {
    * What a call is parked as: the call's input with what the hold must pin (a deploy that names no commit is pinned to the branch's head at hold time, so the yes builds exactly what the card showed). The held row keeps it, so it
    * survives a restart. Absent or throwing, the call is parked as it was asked.
    */
-  pin?(cap: string, input: unknown, seed: Pick<CtxSeed, "principal" | "actingFor">): Promise<unknown>;
+  pin?(
+    cap: string,
+    input: unknown,
+    seed: Pick<CtxSeed, "principal" | "actingFor" | "trace" | "origin">,
+  ): Promise<unknown>;
   /** ctx.seal.unseal: opens the approval token. */
   unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array;
   now(): number;
@@ -379,7 +383,8 @@ export function createGateHook(d: GateHookDeps): GateHook {
         ? { principal: { kind: "person", id: person } }
         : a.seed;
       // what the card is made over: the input as asked, with the commit a deploy that named none will build
-      const parked = (await d.pin?.(a.cap.name, a.input, a.seed).catch(() => a.input)) ?? a.input;
+      // a call that cannot be pinned when it must be refuses here (the pin throws): it is never parked unpinned
+      const parked = (await d.pin?.(a.cap.name, a.input, a.seed)) ?? a.input;
       const input: Record<string, unknown> = {
         capName: a.cap.name,
         capVersion: a.cap.v,
@@ -837,27 +842,40 @@ export function moduleWhens(
 }
 
 /**
- * What the Gate parks a deploy as: when a sites.deploy names no commit, the branch's head at hold time is written into the parked input (read as the person the call works for, with the site's own token), so the card shows it and the yes builds exactly it.
- * A head that cannot be read leaves the call as it was asked.
+ * What the Gate parks a deploy as: when a sites.deploy names no commit, the branch's head at hold time is written into the parked input (read as the person the call works for, with the site's own token, within a few seconds), so the card shows it and
+ * the yes builds exactly it. For a deploy that is not a person's own (an agent's, or one a push asked for) on a site that comes from a repo, a head that cannot be read, or not within the time, refuses: parked unpinned, the yes would build whatever the head
+ * is later. A person's own deploy is parked as it was asked.
  */
 export function pinnedDeploy(
   callAs: () => ((cap: string, input: unknown, person: string) => Promise<unknown>) | null,
+  timeoutMs = 5_000,
 ): NonNullable<GateHookDeps["pin"]> {
   return async (cap, input, seed) => {
     const i = (input ?? {}) as { siteId?: unknown; commit?: unknown };
     if (cap !== "sites.deploy" || typeof i.siteId !== "string" || typeof i.commit === "string") return input;
+    const own = seed.principal.kind === "person" && seed.origin !== "sites-push";
     const asker = seed.actingFor?.startsWith("usr_")
       ? seed.actingFor
       : seed.principal.kind === "person"
         ? seed.principal.id
         : undefined;
     const read = callAs();
-    if (!asker || !read) return input;
-    const r = (await read("sites.head_check", { siteId: i.siteId }, asker).catch(() => null)) as {
-      head?: unknown;
-    } | null;
-    return typeof r?.head === "string" && /^[0-9a-f]{40}$/.test(r.head)
-      ? { ...(input as object), commit: r.head }
-      : input;
+    type Head = { head?: unknown; repo?: unknown; branch?: unknown } | null;
+    let r = null as Head;
+    if (asker && read) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      r = (await Promise.race([
+        read("sites.head_check", { siteId: i.siteId }, asker).catch(() => null),
+        new Promise<null>((res) => {
+          timer = setTimeout(() => res(null), timeoutMs);
+        }),
+      ]).finally(() => clearTimeout(timer))) as Head;
+    }
+    if (typeof r?.head === "string" && /^[0-9a-f]{40}$/.test(r.head)) return { ...(input as object), commit: r.head };
+    // not read: a person's own call goes as asked; anything else on a repo site (or one that could not be told) refuses
+    if (own || (r !== null && r.repo !== true)) return input;
+    throw fail("validation.precondition_failed", seed.trace?.traceId ?? "0".repeat(32), {
+      message: `Couldn't read ${typeof r?.branch === "string" && r.branch ? r.branch : "the branch"} to show what would deploy. Try again.`,
+    });
   };
 }

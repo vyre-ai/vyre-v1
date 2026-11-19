@@ -135,7 +135,7 @@ test("a site's GitHub webhook over the real edge route: signed deliveries are ta
   assert.equal(again.status, 200, again.text);
 });
 
-test("on a booted daemon, a push to the production branch of a site that holds a Vault key and deploys on push is held for a person by the real Gate and the real rule, and the site's card says so", async (t) => {
+test("on a booted daemon, a push to the production branch of a site that holds a Vault key is not parked unpinned: when the branch head cannot be read (no network here) the deploy is refused, nothing is held, and the site's card says why", async (t) => {
   const dir = seededDir();
   const d = await boot(dir, null);
   t.after(async () => {
@@ -149,7 +149,6 @@ test("on a booted daemon, a push to the production branch of a site that holds a
   });
   assert.equal(made.status, 200, JSON.stringify(made.data));
   const siteId = made.data.site.siteId as string;
-  // a Vault key the site stores for production
   const folder = await call(d, "vault.folders.create", {
     name: "Keys",
     scope: "shared",
@@ -189,7 +188,7 @@ test("on a booted daemon, a push to the production branch of a site that holds a
     signal: AbortSignal.timeout(8_000),
   });
   assert.equal(r.status, 200);
-  // the tick asks sites.deploy as the person who deployed last, with origin sites-push: the real rule holds it
+  // the tick asks as the person who deployed last, with origin sites-push, and the real Gate and rule judge it; with no head to read the card cannot show what would deploy, so it is refused and never parked
   const failed = await waitFor(
     async () => {
       const f = (await call(d, "sites.webhook_get", { siteId })).data.failed as { action: string; error: string }[];
@@ -199,9 +198,12 @@ test("on a booted daemon, a push to the production branch of a site that holds a
     30_000,
     () => hostLog(d),
   );
-  assert.match(failed[0]!.error, /Waiting for a person/);
+  assert.match(failed[0]!.error, /Couldn't read main to show what would deploy|Waiting for a person/);
   const tasks = await call(d, "tasks.list", { scope: "all", kinds: ["approve"], limit: 20 });
   assert.equal(tasks.status, 200, JSON.stringify(tasks.data).slice(0, 300));
-  const titles = JSON.stringify(tasks.data);
-  assert.match(titles, /anyone who can push to main can use Payments/);
+  assert.doesNotMatch(
+    JSON.stringify(tasks.data),
+    /deploy Keyed app: anyone who can push to main can use Payments(?! at)/,
+    "no card is parked unpinned",
+  );
 });

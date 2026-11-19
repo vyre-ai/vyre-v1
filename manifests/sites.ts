@@ -256,7 +256,7 @@ export default defineManifest({
     // not a tool: the host asks it before it asks for a deploy (the commit the branch is at, with the site's own token, and whether it was deployed)
     read("sites.head_check", "The commit a site's branch is at, and whether it was already deployed", {
       in: deployTarget,
-      out: { head: t.opt(t.str()), changed: t.bool() },
+      out: { head: t.opt(t.str()), changed: t.bool(), repo: t.opt(t.bool()), branch: t.opt(t.str()) },
       on: ["site", "/siteId"],
     }),
     read("sites.get", "Read one site", {
