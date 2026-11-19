@@ -202,8 +202,75 @@ function qpBytes(s: string): Uint8Array {
 }
 
 /** Bytes as text in the part's charset; an unknown charset reads as UTF-8 and bad bytes become U+FFFD rather than an error. */
+// The Windows-1252 characters of bytes 0x80 to 0x9F (the rest of the byte range is the same as Unicode). Node builds differ here: some read
+// the label "windows-1252" as ISO-8859-1 and give the control characters U+0080 to U+009F ("Reunión " plus U+0096 for "Reunión " plus an en dash), so it is done here.
+const CP1252_HIGH = String.fromCodePoint(
+  0x20ac,
+  0x81,
+  0x201a,
+  0x192,
+  0x201e,
+  0x2026,
+  0x2020,
+  0x2021,
+  0x2c6,
+  0x2030,
+  0x160,
+  0x2039,
+  0x152,
+  0x8d,
+  0x17d,
+  0x8f,
+  0x90,
+  0x2018,
+  0x2019,
+  0x201c,
+  0x201d,
+  0x2022,
+  0x2013,
+  0x2014,
+  0x2dc,
+  0x2122,
+  0x161,
+  0x203a,
+  0x153,
+  0x9d,
+  0x17e,
+  0x178,
+);
+// The WHATWG labels that all mean Windows-1252 (ISO-8859-1 and "latin1" included: browsers read them the same way).
+const CP1252_LABELS = new Set([
+  "windows-1252",
+  "cp1252",
+  "x-cp1252",
+  "iso-8859-1",
+  "iso8859-1",
+  "iso_8859-1",
+  "latin1",
+  "l1",
+  "latin-1",
+]);
+
+/** Bytes as Windows-1252 text: runs of ordinary bytes are read as Latin-1 in one go, the bytes 0x80 to 0x9F one by one. */
+export function decodeWindows1252(bytes: Uint8Array): string {
+  const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.length);
+  let out = "";
+  let from = 0;
+  for (let i = 0; i < buf.length; i += 1) {
+    const b = buf[i]!;
+    if (b < 0x80 || b > 0x9f) continue;
+    out += buf.toString("latin1", from, i) + CP1252_HIGH[b - 0x80]!;
+    from = i + 1;
+  }
+  return out + buf.toString("latin1", from);
+}
+
 export function decodeBytes(bytes: Uint8Array, charset?: string): string {
-  const label = (charset ?? "utf-8").toLowerCase().replace(/^(us-ascii|ascii)$/, "utf-8");
+  const label = (charset ?? "utf-8")
+    .toLowerCase()
+    .trim()
+    .replace(/^(us-ascii|ascii)$/, "utf-8");
+  if (CP1252_LABELS.has(label)) return decodeWindows1252(bytes);
   try {
     return new TextDecoder(label, { fatal: false }).decode(bytes);
   } catch {
