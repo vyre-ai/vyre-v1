@@ -9,6 +9,7 @@ import { resumeRunOf, settleFromSource } from "./handlers/resume.ts";
 import { syncPolicy, syncTz } from "./projections.ts";
 import { tick } from "./handlers/clock.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
+import { onChatGone, onParentFinished } from "./handlers/orphans.ts";
 import { onCrewMerged, onRunStopped, onTaskChanged } from "./handlers/schedule.ts";
 import type { TasksCtx } from "./projections.ts";
 export { findStuck, mintApprovalToken, readApprovalToken, ACT_KEYS } from "./handlers/act.ts";
@@ -118,6 +119,15 @@ export const consumers = {
       "vault.request_canceled",
     ],
     run: (ctx: TasksCtx, event: Parameters<typeof settleFromSource>[1]) => settleFromSource(ctx, event),
+  },
+  /** The ask's source is gone: its chat closed or erased, its parent finished (handlers/orphans.ts). */
+  "tasks.orphans_chat": {
+    on: ["thread.closed", "thread.deleted", "thread.erased"],
+    run: (ctx: TasksCtx, event: Parameters<typeof onChatGone>[1]) => onChatGone(ctx, event),
+  },
+  "tasks.orphans_parent": {
+    on: ["task.transitioned"],
+    run: (ctx: TasksCtx, event: Parameters<typeof onParentFinished>[1]) => onParentFinished(ctx, event),
   },
   /** Nothing waits on someone who is gone: what they held moves on, with one line of history. */
   "tasks.person_left": {
