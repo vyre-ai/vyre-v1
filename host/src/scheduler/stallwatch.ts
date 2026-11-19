@@ -17,18 +17,31 @@ const { Session } = require("node:inspector");
 const fs = require("node:fs");
 const beat = new BigInt64Array(workerData.beat);
 const stallMs = workerData.stallMs;
+const mono = () => Number(process.hrtime.bigint() / 1000000n);
 let inStall = false;
 let busy = false;
+let lastTick = mono();
+let lastWall = Date.now();
+let forgiveAt = 0;
 const stamps = [];
 const maxPerMinute = workerData.maxPerMinute;
 setInterval(() => {
-  const last = Number(Atomics.load(beat, 0));
+  const m = mono();
+  const w = Date.now();
+  const gap = m - lastTick;
+  const wallGap = w - lastWall;
+  lastTick = m;
+  lastWall = w;
+  // this thread itself was held back, or the clock on the wall moved differently from the steady one: the whole process was paused (a machine that slept, a container that was stopped), not the loop; what the
+  // loop's heartbeat missed meanwhile is forgiven
+  if (gap > stallMs + 200 || Math.abs(wallGap - gap) > 1000) { forgiveAt = m; inStall = false; return; }
+  const last = Math.max(Number(Atomics.load(beat, 0)), forgiveAt);
   if (!last || busy) return;
-  const late = Date.now() - last;
+  const late = m - last;
   if (late < stallMs) { inStall = false; return; }
   if (inStall) return; // one line per stall
   inStall = true;
-  const nowT = Date.now();
+  const nowT = m;
   while (stamps.length && nowT - stamps[0] > 60000) stamps.shift();
   if (stamps.length >= maxPerMinute) return;
   stamps.push(nowT);
@@ -37,7 +50,7 @@ setInterval(() => {
   const done = (frames, why) => {
     try { s.disconnect(); } catch {}
     busy = false;
-    try { fs.writeSync(2, JSON.stringify({ level: "warn", msg: "scheduler.loop_stalled", lateMs: Date.now() - last, stack: frames, ...(why ? { why } : {}) }) + "\\n"); } catch {}
+    try { fs.writeSync(2, JSON.stringify({ level: "warn", msg: "scheduler.loop_stalled", lateMs: mono() - last, stack: frames, ...(why ? { why } : {}) }) + "\\n"); } catch {}
   };
   try {
     s.connectToMainThread();
@@ -51,8 +64,11 @@ setInterval(() => {
 }, ${HEART_MS});
 `;
 
+const mono = (): bigint => process.hrtime.bigint() / 1000000n;
+
 export interface StallWatch {
-  stop(): void;
+  /** Ends the heartbeat and the thread; resolves when the thread is gone. */
+  stop(): Promise<void>;
 }
 
 /** Start the watchdog (the loop's heartbeat and the thread). Returns a handle to stop both; a platform without worker threads gets a no-op. */
@@ -60,8 +76,8 @@ export function startStallWatch(o: { stallMs?: number; maxPerMinute?: number } =
   try {
     const shared = new SharedArrayBuffer(8);
     const beat = new BigInt64Array(shared);
-    Atomics.store(beat, 0, BigInt(Date.now()));
-    const t = setInterval(() => Atomics.store(beat, 0, BigInt(Date.now())), HEART_MS);
+    Atomics.store(beat, 0, mono());
+    const t = setInterval(() => Atomics.store(beat, 0, mono()), HEART_MS);
     t.unref();
     const w = new Worker(WATCHDOG, {
       eval: true,
@@ -70,12 +86,12 @@ export function startStallWatch(o: { stallMs?: number; maxPerMinute?: number } =
     w.unref();
     w.on("error", () => undefined);
     return {
-      stop() {
+      async stop() {
         clearInterval(t);
-        void w.terminate();
+        await w.terminate();
       },
     };
   } catch {
-    return { stop() {} };
+    return { stop: async () => undefined };
   }
 }

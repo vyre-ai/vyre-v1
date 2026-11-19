@@ -370,3 +370,63 @@ test("a Vault or access change ends what a pass kept at once: the next request a
   );
   vault[handle] = old!;
 });
+
+test("a call waits in line for the budget at most 30 s altogether, then fails with the wait it still needs", async () => {
+  const a = await applied(15);
+  const paced: number[] = [];
+  (a.w.k.deps as { pace?: (ms: number) => Promise<void> }).pace = async (ms) => {
+    paced.push(ms); // the clock does not move: the budget never refills
+  };
+  standIn(a.w, () => undefined);
+  const read = () =>
+    a.call("connectors.read", {
+      key: a.out.connector,
+      action: "list_organizations",
+      connectionId: a.out.connectionId,
+      input: {},
+    });
+  await read();
+  await assert.rejects(
+    read(),
+    (e: any) => e.error?.code === "rate_limit.exceeded" && e.error?.details?.retryAfterMs > 0,
+  );
+  assert.ok(paced.length > 0, "it did wait in line first");
+  assert.ok(paced.reduce((x, y) => x + y, 0) <= 30_000, `waited ${paced.reduce((x, y) => x + y, 0)} ms in all`);
+});
+
+test("a kept key is checked again for every call: a share taken away mid-pass stops the very next call", async () => {
+  const a = await applied();
+  const deps = a.w.k.deps as {
+    recheckSecret?: (h: string, b: unknown) => Promise<boolean | void>;
+  };
+  let allowed = true;
+  let rechecks = 0;
+  deps.recheckSecret = async () => {
+    rechecks++;
+    if (!allowed)
+      throw { error: { code: "permission.no_grant", message: "Vault access changed before this connector request." } };
+  };
+  const app = standIn(a.w, () => undefined);
+  const o = a.store("organizations");
+  await o.page();
+  await o.page("2");
+  assert.ok(rechecks >= 1, "the second page checked access again");
+  const sent = app.seen.length;
+  allowed = false; // the Vault item's share is removed, mid-pass
+  await assert.rejects(o.page("3"), (e: any) => e.error?.code === "permission.no_grant");
+  assert.equal(app.seen.length, sent, "nothing went to the app after the share was removed");
+  // a host that cannot tell (false) reads the key again
+  allowed = true;
+  let reads = 0;
+  const d2 = a.w.k.deps as { resolveSecret?: (h: string, b?: unknown) => Promise<string | undefined> };
+  const real = d2.resolveSecret!;
+  d2.resolveSecret = async (h, b) => {
+    reads++;
+    return real(h, b);
+  };
+  deps.recheckSecret = async () => false;
+  await o.page("2");
+  const r1 = reads;
+  await o.page("3");
+  assert.ok(reads > r1, "no kept key was used when the host could not vouch for it");
+});

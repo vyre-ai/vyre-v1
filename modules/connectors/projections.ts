@@ -160,6 +160,11 @@ export interface ConnectorsDeps {
     handle: string,
     binding?: { connector: string; connectionId: string; slot: string },
   ) => Promise<string | undefined>;
+  /** A kept secret is about to be used again: the host asks the access checks of this very call (connection, Vault item). Throws the refusal; false says it cannot tell, and the value is read again. */
+  recheckSecret?: (
+    handle: string,
+    binding: { connector: string; connectionId: string; slot: string },
+  ) => Promise<boolean | void>;
   /** Waits in line for the connection's budget (the host's timer). Absent in tests, where a call at its limit is refused with the wait. */
   pace?: (ms: number) => Promise<void>;
   /** Store a secret the module obtained (an OAuth token) in the Vault and return its handle. */
@@ -422,6 +427,8 @@ export function takeToken(key: string, rate: { rps: number; burst: number } | un
 }
 /** The longest wait a call serves in line (when the host gives it a way to wait); a longer one is refused with the wait it needs. */
 export const PACE_LONGEST_MS = 5_000;
+/** The most one call waits in line for the budget altogether; then it fails with the wait it still needs and the pass asks again later. */
+export const PACE_TOTAL_MS = 30_000;
 /** What an app's "slow down" still holds this connection for (0: nothing). */
 export function holdMsOf(key: string, nowMs: number): number {
   const held = holds.get(key);

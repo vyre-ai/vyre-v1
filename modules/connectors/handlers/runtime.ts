@@ -27,6 +27,7 @@ import {
   noteServed,
   SLOW_DOWN_FIRST_MS,
   PACE_LONGEST_MS,
+  PACE_TOTAL_MS,
   checkEgress,
   originKey,
   recordHosts,
@@ -311,8 +312,11 @@ async function secretOf(
   const at = nowOf(deps);
   const had = KEPT.get(key);
   if (had && at - had.at >= 0 && at - had.at < SECRET_KEEP_MS) {
-    onKept();
-    return had.value;
+    // what is kept is the value only: the person's access to the connection and to the Vault item is asked again for this very call, so a share taken away stops the next call (false: the host cannot say, read it again)
+    if ((await deps.recheckSecret?.(handle, { connector, connectionId, slot })) !== false) {
+      onKept();
+      return had.value;
+    }
   }
   const value = await deps.resolveSecret!(handle, { connector, connectionId, slot });
   if (typeof value === "string") {
@@ -576,10 +580,11 @@ export async function executeAction(
 
   // the connection's budget: a short wait is served here (in this process, in line) instead of being refused and asked again, which cost a refusal, an access check and a Vault read for every try
   if (conn && !o.dryRun) {
-    for (let tries = 0; !takeToken(conn.connection_id, def.rate, nowOf(deps)); tries++) {
+    let waited = 0;
+    while (!takeToken(conn.connection_id, def.rate, nowOf(deps))) {
       const wait = Math.max(50, tokenWaitMs(conn.connection_id, def.rate, nowOf(deps)));
       const held = holdMsOf(conn.connection_id, nowOf(deps));
-      if (!deps.pace || held > 0 || wait > PACE_LONGEST_MS || tries >= 200)
+      if (!deps.pace || held > 0 || wait > PACE_LONGEST_MS || waited + wait > PACE_TOTAL_MS)
         refuse(
           ctx,
           "rate_limit.exceeded",
@@ -587,6 +592,7 @@ export async function executeAction(
           { retryAfterMs: wait },
         );
       await deps.pace(wait);
+      waited += wait;
     }
   }
 

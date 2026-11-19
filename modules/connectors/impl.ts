@@ -290,6 +290,20 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
               const text = scrubber([value]).text(await res.text());
               return { status: res.status, text, ...(res.link ? { link: res.link } : {}) };
             },
+            recheckSecret: async (
+              secretHandle: string,
+              binding: { connector: string; connectionId: string; slot: string },
+            ) => {
+              const item = ITEM_OF.get(`${binding.connectionId}|${binding.slot}|${secretHandle}`);
+              if (item === undefined) return false;
+              // the same two checks every call makes: the connection (as the caller), and Use on the Vault item the key came from
+              await ctx.call("connections.get", { connectionId: binding.connectionId });
+              if (ctx.authorize({ perm: null, level: "use" }, { type: "vault_item", id: item }).effect !== "allow")
+                return refuse(cc, "permission.no_grant", "Vault access changed before this connector request.");
+              usedVaultItems.add(item);
+              usedBindings.set(`${binding.connectionId}:${binding.slot}`, { ...binding, handle: secretHandle });
+              return true;
+            },
             pace: (ms: number) => new Promise<void>((done) => setTimeout(done, ms)),
             resolveSecret: async (
               secretHandle: string,
@@ -315,7 +329,11 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
                 return refuse(cc, "permission.no_grant", "That connection cannot use this Vault item.");
               await ctx.call("connections.get", { connectionId: selected.connection_id });
               usedBindings.set(`${binding.connectionId}:${binding.slot}`, { ...binding, handle: secretHandle });
-              return port.fill(execution, { ...binding, handle: secretHandle });
+              const before = new Set(usedVaultItems);
+              const value = await port.fill(execution, { ...binding, handle: secretHandle });
+              const made = [...usedVaultItems].filter((id) => !before.has(id));
+              if (made.length === 1) ITEM_OF.set(`${binding.connectionId}|${binding.slot}|${secretHandle}`, made[0]!);
+              return value;
             },
           }
         : {}),
@@ -447,6 +465,8 @@ export const hostCalls = {
   ): Promise<unknown> => acceptWebhook(live(ctx as { db?: unknown }).tx, ctx, a),
 };
 
+/** The Vault item each connection slot's key came from, as the last fill said: what a kept key is checked against on every use. */
+const ITEM_OF = new Map<string, string>();
 export { dueSyncs, runCadence } from "./handlers/cadence.ts";
 
 /**

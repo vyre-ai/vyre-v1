@@ -123,3 +123,35 @@ process.exit(0);
   assert.ok(on.cpuMs - off.cpuMs < 30, `extra cpu over 2 s: ${(on.cpuMs - off.cpuMs).toFixed(1)} ms`);
   assert.ok(on.worst < 25, `the loop was never held: worst lateness ${on.worst.toFixed(1)} ms`);
 });
+
+test("a process that was paused as a whole (a machine that slept) is not reported as a stalled loop", async () => {
+  const script = `
+import { startStallWatch } from ${JSON.stringify(fileURLToPath(new URL("./stallwatch.ts", import.meta.url)))};
+startStallWatch({ stallMs: 300 });
+process.stdout.write("up\\n");
+await new Promise((r) => setTimeout(r, 3500));
+process.exit(0);
+`;
+  const err: string[] = [];
+  const p = run(script);
+  p.stderr.on("data", (d) => err.push(String(d)));
+  await new Promise<void>((r) => p.stdout.once("data", () => r()));
+  await new Promise((r) => setTimeout(r, 400));
+  p.kill("SIGSTOP");
+  await new Promise((r) => setTimeout(r, 1500));
+  p.kill("SIGCONT");
+  await new Promise((r) => p.on("exit", r));
+  assert.ok(
+    !err.join("").includes("loop_stalled"),
+    `a pause of the whole process is not a stall: ${err.join("").slice(0, 300)}`,
+  );
+});
+
+test("stop ends the thread: nothing of the watchdog is left to keep a test or a daemon from closing", async () => {
+  const { startStallWatch } = await import("./stallwatch.ts");
+  const { threadId } = await import("node:worker_threads");
+  assert.equal(threadId, 0);
+  const w = startStallWatch({ stallMs: 300 });
+  await w.stop();
+  await w.stop();
+});
