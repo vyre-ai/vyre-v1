@@ -187,8 +187,8 @@ export function Groups({ initialId }: { initialId?: string }): ReactElement {
             question={<>{bulk.map((item) => groupDeleteImpact(item.group, item.grants.length)).join(" ")}</>}
             confirmLabel="Delete selected teams"
             disabled={action.busy}
-            onConfirm={() => {
-              void (async () => {
+            onConfirm={() =>
+              (async () => {
                 for (const item of bulk) {
                   const out = await action.run("access.groups.delete", { groupId: item.group.id }, "Team deleted");
                   if (!out) {
@@ -199,8 +199,8 @@ export function Groups({ initialId }: { initialId?: string }): ReactElement {
                 }
                 setBulk(null);
                 setPicked(new Set());
-              })();
-            }}
+              })()
+            }
             onCancel={() => setBulk(null)}
           />
         </Section>

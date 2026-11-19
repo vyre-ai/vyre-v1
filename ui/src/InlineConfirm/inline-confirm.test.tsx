@@ -1,6 +1,7 @@
 // ui/InlineConfirm: the in-place confirmation. The machine is tested pure (every transition), the strip through the fake DOM (a double-press on the button that opened it never deletes; Cancel is focused; Escape cancels).
 import test from "node:test";
 import assert from "node:assert/strict";
+import { act } from "react";
 import { createRoot } from "test-renderer";
 import { renderToStaticMarkup } from "react-dom/server";
 import { find, flush, installDom, mount, press } from "../testing/dom.ts";
@@ -216,6 +217,69 @@ test("Cancel stops the arm timer: afterwards Delete stays disabled however long 
     await wait(200);
     assert.equal(find(root, "ic-go")?.props["aria-disabled"], true, "Delete never looks live after a cancel");
   } finally {
+    restore();
+  }
+});
+
+test("when the strip goes, focus returns to the button that opened it, found again by its test id when the strip replaced it (even a hover-only button)", async () => {
+  const restore = installDom();
+  const doc = (globalThis as unknown as { document: Record<string, unknown> }).document;
+  const was = { active: doc["activeElement"], query: doc["querySelector"] };
+  try {
+    const focused: string[] = [];
+    const opener = {
+      tagName: "BUTTON",
+      isConnected: true,
+      getAttribute: () => "row-act",
+      focus: () => focused.push("old"),
+    };
+    doc["activeElement"] = opener; // the press on the opener: it holds focus while the strip renders
+    const again = { focus: () => focused.push("new") };
+    doc["querySelector"] = (q: string) => (q.includes("row-act") ? again : null);
+    const r = createRoot();
+    await act(async () => {
+      r.render(
+        <InlineConfirm
+          question="Delete?"
+          confirmLabel="Delete"
+          armMs={50}
+          onConfirm={() => undefined}
+          onCancel={() => undefined}
+        />,
+      );
+    });
+    opener.isConnected = false; // the strip replaced the opener in the page
+    doc["activeElement"] = { tagName: "BODY" }; // the strip's own Cancel went with it
+    await act(async () => {
+      r.render(<></>);
+    });
+    await wait(30);
+    assert.deepEqual(focused, ["new"], "the button that is there now takes focus, not the old node");
+    // something else holds focus: it is left alone
+    focused.length = 0;
+    doc["activeElement"] = opener;
+    opener.isConnected = true;
+    const r2 = createRoot();
+    await act(async () => {
+      r2.render(
+        <InlineConfirm
+          question="Delete?"
+          confirmLabel="Delete"
+          armMs={50}
+          onConfirm={() => undefined}
+          onCancel={() => undefined}
+        />,
+      );
+    });
+    doc["activeElement"] = { tagName: "INPUT", isConnected: true };
+    await act(async () => {
+      r2.render(<></>);
+    });
+    await wait(30);
+    assert.deepEqual(focused, [], `a person who moved on keeps their place`);
+  } finally {
+    doc["activeElement"] = was.active;
+    doc["querySelector"] = was.query;
     restore();
   }
 });

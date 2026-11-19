@@ -47,8 +47,15 @@ export interface InlineConfirmProps {
 const web = Platform.OS === "web";
 type Focusable = { focus?: () => void };
 interface FocusDoc {
-  activeElement?: { isConnected?: boolean; tagName?: string; focus?: () => void } | null;
+  activeElement?: {
+    isConnected?: boolean;
+    tagName?: string;
+    focus?: () => void;
+    getAttribute?: (n: string) => string | null;
+  } | null;
+  querySelector?: (q: string) => Focusable | null;
 }
+type Opener = { el: NonNullable<FocusDoc["activeElement"]>; testid: string | null } | null;
 /** A text-like field: a checkbox, radio, file or hidden input is not one (Space would toggle it). */
 const FIELD =
   "input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]):not([type=button]):not([type=submit]),textarea";
@@ -77,6 +84,11 @@ export function InlineConfirm({
   const calls = useRef({ onConfirm, onCancel });
   calls.current = { onConfirm, onCancel };
   const root = useRef<unknown>(null);
+  // the button that opened the strip: read while rendering the first time, before the strip replaces it in the page
+  const [opener] = useState<Opener>(() => {
+    const a = web ? (globalThis as { document?: FocusDoc }).document?.activeElement : null;
+    return a && a.tagName !== "BODY" ? { el: a, testid: a.getAttribute?.("data-testid") ?? null } : null;
+  });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // the press is spent until three things are true: the wait is over, the caller's promise (if it gave one) has settled, and the caller is not busy
   const spent = useRef({ waited: true, pending: false });
@@ -123,7 +135,6 @@ export function InlineConfirm({
   }, [busy]);
   useEffect(() => {
     const doc = web ? (globalThis as { document?: FocusDoc }).document : undefined;
-    const opener = doc?.activeElement ?? null;
     if (web) {
       // a text field inside the strip (a "type the name" box passed as children) takes focus, as in ui/Dialog; else Cancel. Never a field elsewhere in the form.
       const el = root.current as { querySelector?: (q: string) => Focusable | null } | null;
@@ -133,10 +144,19 @@ export function InlineConfirm({
     else timer.current = setTimeout(arm, armMs);
     return () => {
       if (timer.current) clearTimeout(timer.current);
-      // focus goes back to what held it, unless something else has taken it since (a person who moved on keeps their place)
-      const now = doc?.activeElement;
-      if (opener && opener.isConnected !== false && (now === null || now === undefined || now.tagName === "BODY"))
-        opener.focus?.();
+      // focus goes back to the button that opened the strip (a new node by then if the strip replaced it: found by its test id), unless something else has taken it since.
+      // A button that shows only on hover is still a button: focus inside its row shows it again.
+      setTimeout(() => {
+        const now = doc?.activeElement;
+        if (!(now === null || now === undefined || now.tagName === "BODY") || !opener) return;
+        const again =
+          opener.el.isConnected !== false
+            ? opener.el
+            : opener.testid
+              ? doc?.querySelector?.(`[data-testid="${opener.testid}"]`)
+              : null;
+        again?.focus?.();
+      }, 0);
     };
   }, []);
   useEscapeLayer(true, () => send("cancel"));
