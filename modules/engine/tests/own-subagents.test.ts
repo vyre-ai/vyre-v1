@@ -329,3 +329,42 @@ test("the crew read says a background helper works, with its step and a clock th
   assert.equal(out.totals.elapsedMs, 62_000, "the real elapsed time of the longest, not 0:08");
   assert.equal(JSON.stringify(out).includes("Async agent launched"), false);
 });
+
+test("crew status says which node of the run tree stands behind each member, for the tile to read; no node, or none the reader may see, leaves it out", async () => {
+  const h = harness();
+  noteOwn(
+    h.ctx.db,
+    e,
+    [
+      { phase: "call", id: "toolu_a", name: "Agent" },
+      { phase: "input", id: "toolu_a", detail: "Compare the bids" },
+    ],
+    10,
+  );
+  const ctx = {
+    ...h.ctx,
+    principal: { kind: "person", id: "usr_asker" },
+    async call(cap: string, input: { threadIds?: string[]; keys?: string[] }) {
+      if (cap === "chat.helpers.list") return { helpers: [] };
+      if (cap === "engine.accounts.list") return { accounts: [] };
+      if (cap === "runs.node.find")
+        return { byThread: {}, byKey: Object.fromEntries((input.keys ?? []).map((k) => [k, `run_${"a".repeat(28)}`])) };
+      return {};
+    },
+  } as unknown as EngineCtx;
+  const out = await crewStatus(ctx, { threadId: "thr_1" });
+  assert.equal(out.members[0]!.runId, `run_${"a".repeat(28)}`);
+  const none = await crewStatus(
+    {
+      ...ctx,
+      call: async (cap: string) =>
+        cap === "runs.node.find"
+          ? Promise.reject(new Error("away"))
+          : cap === "chat.helpers.list"
+            ? { helpers: [] }
+            : { accounts: [] },
+    } as unknown as EngineCtx,
+    { threadId: "thr_1" },
+  );
+  assert.equal(none.members[0]!.runId, undefined);
+});

@@ -1,6 +1,6 @@
 # terminal.run
 
-Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns
+Run a command in a session and wait for it; secrets only as #Handle.field; output is scrubbed
 
 | | |
 |---|---|
@@ -33,6 +33,7 @@ type In = {
   cwd?: string;
   timeoutSec?: number;
   env?: Record<string, string>;
+  background?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -69,6 +70,7 @@ type Out = {
   "name": "example",
   "input": {
     "agentId": "agt_a1b2c3",
+    "background": true,
     "command": "example",
     "cwd": "example",
     "env": {},

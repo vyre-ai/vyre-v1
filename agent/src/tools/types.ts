@@ -102,6 +102,8 @@ export interface ToolCtx {
   /** What identifies this one call of a tool: the model's tool-call id (API engines), or the session and request id of the call (CLI engines over MCP). A transport retry of the call carries the same one. */
   callId?: string;
   runId?: string;
+  /** Set only by the API driver's own tool path, where an earlier result stays in the model's view until the driver compacts (agent/src/tools/repeat-read.ts). Never set for a CLI engine. */
+  repeatSafe?: true;
   trace?: { traceId: string; spanId: string; parent?: string };
   /** What the people in the chat said since this agent last spoke: a value they typed themselves passes the probe guard. */
   said?: string;

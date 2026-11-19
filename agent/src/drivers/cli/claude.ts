@@ -122,6 +122,8 @@ export function createClaudeDecoder(): CliDecoder {
   let model = "";
   /** What the latest request of the turn sent (fresh and cached): the size of the context as the model last saw it. The result line's totals add every request of the turn together. */
   let lastContext = 0;
+  const subSaid = new Set<string>();
+  const subUsed = new Set<string>();
   const sawModel = (m: string): void => {
     if (m !== "" && !m.startsWith("<")) model = m;
   };
@@ -198,10 +200,42 @@ export function createClaudeDecoder(): CliDecoder {
     if (tally.input > 0 && parent === "") lastContext = tally.input;
     if (parent === "") perMessage.set(id, tally); // a subagent's usage is not the main reply's
     const out: CliEvent[] = [];
+    // ...but it is the subagent's own: told once per message, so its row can say what it cost
+    if (parent !== "" && id !== "" && (tally.input > 0 || tally.output > 0) && !subUsed.has(id)) {
+      subUsed.add(id);
+      const u = obj(m["usage"]);
+      out.push({
+        type: "tool",
+        phase: "usage",
+        id,
+        parent,
+        inputTokens: tally.input,
+        outputTokens: tally.output,
+        ...(num(u?.["cache_read_input_tokens"]) > 0 ? { cacheReadTokens: num(u?.["cache_read_input_tokens"]) } : {}),
+        ...(str(m["model"]) !== "" && !str(m["model"]).startsWith("<") ? { model: str(m["model"]) } : {}),
+      });
+    }
     for (const raw of arr(m["content"])) {
       const b = obj(raw);
       if (!b) continue;
       const t = str(b["type"]);
+      if (parent !== "" && t === "text" && str(b["text"]) !== "") {
+        // a subagent's words are its own record: told with the call that started it, redacted and cut, once per message
+        const key = `${id}:${str(b["text"])}`;
+        if (!subSaid.has(key)) {
+          subSaid.add(key);
+          const text = redact(str(b["text"])).text.trim();
+          if (text !== "")
+            out.push({
+              type: "tool",
+              phase: "said",
+              id,
+              parent,
+              text: text.length > 1500 ? `${text.slice(0, 1499)}…` : text,
+            });
+        }
+        continue;
+      }
       if (parent !== "" && t !== "tool_use") continue;
       if (t === "text" && str(b["text"]) !== "" && !streamed.has(id)) {
         sawText = true;

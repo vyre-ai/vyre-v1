@@ -134,6 +134,19 @@ export type CliEvent =
     }
   /** What a call touches, in safe words (a file name, a search query): only for the live line, never saved. */
   | { type: "tool"; phase: "input"; id: string; detail: string; parent?: string }
+  /** What a subagent said, one message of it (redacted, cut): kept for its own record in the Run tree, never in the chat. `id` is the message's. */
+  | { type: "tool"; phase: "said"; id: string; parent: string; text: string }
+  /** What one message of a subagent used. inputTokens counts cache reads and writes too, as for the main agent. */
+  | {
+      type: "tool";
+      phase: "usage";
+      id: string;
+      parent: string;
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens?: number;
+      model?: string;
+    }
   /** inputTokens counts cache reads and writes too. The split, reasoning and the engine's own dollar figure come only when the engine reported them (absent = not reported, never 0 in their place). */
   | {
       type: "usage";

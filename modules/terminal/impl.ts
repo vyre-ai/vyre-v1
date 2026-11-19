@@ -1529,10 +1529,17 @@ export const consumers = {
   },
   /** A turn was stopped: the commands it started in a terminal are interrupted at once (release gate, 12 Nov). */
   "terminal.turn_stopped": {
-    on: ["turn.cancelled", "run.stopped"],
+    on: ["turn.cancelled", "run.stopped", "run.node_state"],
     run: (_ctx: TermCtx, event: { name?: string; payload: Record<string, unknown>; at?: number }): string[] => {
       const p = event.payload ?? {};
       const str = (k: string): string | undefined => (typeof p[k] === "string" ? (p[k] as string) : undefined);
+      // a node of the agent work tree that stands for a command left running was stopped (a person pressed Stop on it): the command is interrupted in its tab
+      if (event.name === "run.node_state") {
+        const runId = str("runId");
+        if (!runId || p["to"] !== "stopped") return [];
+        const n = stopRuns({ runId, ...(typeof event.at === "number" ? { at: event.at } : {}) });
+        return n > 0 ? [String(n)] : [];
+      }
       // a Run stopped: its own commands, matched on the run (its reason is the stopper's free text, never a marker; ninth look Z1)
       if (event.name === "run.stopped") {
         const runId = str("runId");

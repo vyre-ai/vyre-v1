@@ -920,6 +920,7 @@ export function stubs(ctx: CallCtx) {
       models_catalog: call("engine.models_catalog"),
       my_ai: call("engine.my_ai"),
       now: call("engine.now"),
+      pause: call("engine.pause"),
       placement: {
         decide: call("engine.placement.decide"),
         options: call("engine.placement.options"),
@@ -940,6 +941,7 @@ export function stubs(ctx: CallCtx) {
         list: call("engine.queue.list"),
         peek: call("engine.queue.peek"),
       },
+      resume_paused: call("engine.resume_paused"),
       review: {
         list: call("engine.review.list"),
         mark: call("engine.review.mark"),
@@ -976,6 +978,9 @@ export function stubs(ctx: CallCtx) {
       step_turn: call("engine.step_turn"),
       stop: call("engine.stop"),
       stop_all: call("engine.stop_all"),
+      subagent: {
+        stop: call("engine.subagent.stop"),
+      },
       subscription_share: {
         set: call("engine.subscription_share.set"),
       },
@@ -2419,12 +2424,44 @@ export function stubs(ctx: CallCtx) {
       targets: call("runbooks.targets"),
     },
     runs: {
+      activity: {
+        list: call("runs.activity.list"),
+      },
+      board: {
+        answer: call("runs.board.answer"),
+        list: call("runs.board.list"),
+        put: call("runs.board.put"),
+      },
+      budget: {
+        set: call("runs.budget.set"),
+      },
       count: call("runs.count"),
       erase: call("runs.erase"),
+      events: {
+        list: call("runs.events.list"),
+      },
       finish: call("runs.finish"),
       get: call("runs.get"),
       list: call("runs.list"),
       mark_waiting: call("runs.mark_waiting"),
+      message: {
+        list: call("runs.message.list"),
+        seen: call("runs.message.seen"),
+        send: call("runs.message.send"),
+        take: call("runs.message.take"),
+      },
+      node: {
+        beat: call("runs.node.beat"),
+        claim: call("runs.node.claim"),
+        control: call("runs.node.control"),
+        event: call("runs.node.event"),
+        find: call("runs.node.find"),
+        get: call("runs.node.get"),
+        label: call("runs.node.label"),
+        move: call("runs.node.move"),
+        reclaim: call("runs.node.reclaim"),
+        start: call("runs.node.start"),
+      },
       people_counts: call("runs.people_counts"),
       pin_version: call("runs.pin_version"),
       preview_undo: call("runs.preview_undo"),
@@ -2440,6 +2477,10 @@ export function stubs(ctx: CallCtx) {
       step_io: call("runs.step_io"),
       steps: call("runs.steps"),
       stop: call("runs.stop"),
+      tree: {
+        find: call("runs.tree.find"),
+        get: call("runs.tree.get"),
+      },
       undo: call("runs.undo"),
       wait_for: call("runs.wait_for"),
     },

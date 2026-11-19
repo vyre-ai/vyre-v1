@@ -9,6 +9,7 @@ import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { limited, shapeOutput } from "./compact.ts";
 import { turnStartOf } from "./turn-start.ts";
+import { RepeatReads, repeatLine } from "./repeat-read.ts";
 import {
   HIDDEN_FROM_MODEL,
   SeenVersions,
@@ -73,7 +74,23 @@ export interface CallHooks {
   fire?(ctx: ToolCtx, f: Pick<HookFire, "event" | "tool" | "cap" | "input" | "output" | "ok">): Promise<HookVerdict>;
 }
 
+/**
+ * Long commands that outlive the turn's patience (r42-runtime). A `terminal.run` the model asked to run in the background is waited for a few seconds like any call; if it has not finished by then it is left running
+ * and the model is told at once, with the id of the node that stands for it in the Run tree. That node ends when the call does (done, or failed with the exit code), and a Run that sleeps on `run.node_ended` wakes.
+ * The call itself is the ordinary one: same permissions, same Gate, same Vault scrubbing, same place rules.
+ */
+export interface BackgroundPort {
+  /** How long the call is waited for before it is left running. */
+  graceMs: number;
+  /** Make the node that stands for the command, before it starts: the call carries its id, so stopping the node interrupts the command. Null: none could be made, so the call is simply waited for. */
+  begin(ctx: ToolCtx, t: ToolDef): Promise<{ runId: string } | null>;
+  /** The call ended. */
+  end(runId: string, outcome: { ok: boolean; summary: string; code?: string; held?: boolean }): Promise<void>;
+}
+export const BACKGROUND_GRACE_MS = 4000;
+
 export interface CallDeps extends AccessDeps {
+  background?: BackgroundPort;
   /** Which tools a chat has found, kept by the caller so they outlive a session: a CLI engine's process that is started again (another request took its warm slot) goes on with the tools the chat already found. */
   loadedStore?: Map<string, Set<string>>;
   dynamic?: DynamicTools;
@@ -114,6 +131,8 @@ export function createToolSession(deps: CallDeps): ToolSession {
   const newTrace = deps.traceId ?? ((): string => hex(16));
   /** The versions this session's agents have seen of the files, records and tasks they read or wrote (agent/src/tools/versions.ts). */
   const seen = new SeenVersions();
+  /** What each agent has read in its current turn, so the same read again is one line when nothing changed (agent/src/tools/repeat-read.ts). */
+  const repeats = new RepeatReads();
   /** How many times each tool has been called in each turn (the key of a repeat on purpose differs from the key of a replay) and what its last call came to, for the first-call record. */
   const turnCalls = new Map<string, Map<string, { n: number; rejected: boolean }>>();
   const countCall = (
@@ -496,7 +515,69 @@ export function createToolSession(deps: CallDeps): ToolSession {
             details: { tool: t.name, errors: extra, reason: "unknown_input" },
           });
       }
-      const res = await deps.invoke(t.cap, body, seed);
+      // a background request is the model's alone: the capability is the ordinary one and is never sent the word
+      let sent = body;
+      let wantsBackground = false;
+      if (
+        t.cap === "terminal.run" &&
+        body !== null &&
+        typeof body === "object" &&
+        !Array.isArray(body) &&
+        "background" in body
+      ) {
+        const { background, ...rest } = body as Record<string, unknown>;
+        wantsBackground = background === true && deps.background !== undefined;
+        sent = rest;
+      }
+      let res: Awaited<ReturnType<typeof deps.invoke>>;
+      // the node that stands for the command is made first and names the call (seed.run), so a Stop on the node reaches the command in its tab
+      const node = wantsBackground ? await deps.background!.begin(ctx, t).catch(() => null) : null;
+      if (!node) res = await deps.invoke(t.cap, sent, seed);
+      else {
+        const port = deps.background!;
+        const pending = deps.invoke(t.cap, sent, { ...seed, run: node.runId });
+        const early = await Promise.race([
+          pending.then(
+            (r) => ({ r }),
+            (e: unknown) => ({ e }),
+          ),
+          new Promise<null>((ok) => setTimeout(() => ok(null), port.graceMs).unref?.()),
+        ]);
+        const settle = (o: { ok: boolean; summary: string; code?: string; held?: boolean }): void => {
+          void port.end(node.runId, o).catch(() => undefined);
+        };
+        const failure = (e: unknown): { ok: boolean; summary: string; code?: string } => ({
+          ok: false,
+          summary: e instanceof HostError ? e.error.message : "The command could not finish.",
+          code: e instanceof HostError ? e.error.code : "internal.unexpected",
+        });
+        if (early !== null && "e" in early) {
+          settle(failure(early.e));
+          throw early.e;
+        }
+        if (early !== null) {
+          settle(backgroundOutcome(early.r));
+          res = early.r;
+        } else {
+          pending.then(
+            (r) => settle(backgroundOutcome(r)),
+            (e: unknown) => settle(failure(e)),
+          );
+          return {
+            kind: "result",
+            traceId,
+            result: {
+              ok: true,
+              content: {
+                started: true,
+                runId: node.runId,
+                message:
+                  "It is still running in its tab and will go on. To wait for it without spending anything, use wait_for on the event run.node_ended with this runId; the answer then says how it ended. Read what it printed with terminal_read.",
+              },
+            },
+          };
+        }
+      }
       if (!isDynamic && res.status === "ok")
         for (const l of learned(t.cap, body, res.output)) seen.set(ctx, l.key, l.version);
       if (!isDynamic && res.status === "ok")
@@ -528,10 +609,11 @@ export function createToolSession(deps: CallDeps): ToolSession {
       }
       recordWork(ctx.turnId, workCardOf(t.cap, input, res.output));
       // the calendar and mail reads come back to a model as compact rows with a count and a size (compact.ts); the full answer is what the hooks and the work card see
-      const shaped = isDynamic ? null : shapeOutput(t.cap, res.output);
+      const again = isDynamic ? null : repeats.check(ctx, t.name, t.cap, body, res.output);
+      const shaped = isDynamic || again ? null : shapeOutput(t.cap, res.output);
       // times in the person's zone beside the ISO and epoch ones, for the tools that return times people schedule by
       const zone = TIMED.test(t.cap) ? deps.zoneOf?.(ctx) : undefined;
-      const data = shaped ? shaped.data : res.output;
+      const data = again ? repeatLine(t.name, again.bytes) : shaped ? shaped.data : res.output;
       const content: { data: unknown; meta?: unknown; blocks?: string[]; next?: string } = {
         data: zone ? withLocalTimes(data, zone) : data,
         ...(shaped ? { meta: shaped.meta } : {}),
@@ -633,6 +715,29 @@ export function createToolSession(deps: CallDeps): ToolSession {
     },
   };
   return api;
+}
+
+/** How a background command ended, in words for the node: the exit code and how long, or why it did not finish. */
+function backgroundOutcome(r: { status: string; output?: unknown }): {
+  ok: boolean;
+  summary: string;
+  code?: string;
+  held?: boolean;
+} {
+  if (r.status !== "ok")
+    return { ok: false, held: true, summary: "It waits for a person's approval; it starts when allowed." };
+  const o = (r.output ?? {}) as { exitCode?: number | null; durationMs?: number };
+  const mins = typeof o.durationMs === "number" ? Math.max(1, Math.round(o.durationMs / 60_000)) : undefined;
+  const took = mins === undefined ? "" : mins < 2 ? " after about a minute" : ` after ${mins} minutes`;
+  if (o.exitCode === 0) return { ok: true, summary: `Finished, exit 0${took}.` };
+  return {
+    ok: false,
+    summary:
+      o.exitCode === null || o.exitCode === undefined
+        ? `It ended without an exit code${took}.`
+        : `It ended with exit ${o.exitCode}${took}.`,
+    code: "terminal.nonzero_exit",
+  };
 }
 
 /**
