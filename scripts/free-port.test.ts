@@ -16,6 +16,8 @@ export const KEPT: Record<string, string> = {
     "bootFreshSpace(publishLocal): the daemon binds the port itself and must be told its own address before it starts; the boot is tried again on another port when the bind fails (and the failed try's daemon is killed)",
   "host/tests/compute.stream.live.test.ts":
     "the port goes straight into startStreamServer in the next statement (product code that binds a given port and builds its own address from it); the gap is one tick",
+  "modules/computers/tests/images.malformed-request.test.ts":
+    "the port goes straight into startStreamServer and startViewServer (product code that binds a given port on all addresses and builds its own address from it, so it cannot be handed a socket or port 0); the gap is one tick, and a failed bind fails that test loudly",
   "agent/tests/sandbox.net.heavy.test.ts": "the port is handed to a sandboxed program that binds it itself",
   "modules/engine/tests/access.heavy.test.ts": "the port is handed to sshd, which binds it itself",
   "modules/esign/tests/documenso.heavy.test.ts": "the port is handed to a Documenso container, which binds it itself",
