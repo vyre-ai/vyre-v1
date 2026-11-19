@@ -773,6 +773,73 @@ test("when the connection took the list but the Vault's save failed, the card sa
   assert.ok(!calls.includes("tasks.act"), "the hold is still open");
 });
 
+test("after the half-saved line, the second press records the list again, finishes the Vault save and answers the hold", async () => {
+  const calls: string[] = [];
+  let vaultDown = true;
+  let recorded = false;
+  const held = {
+    task: {
+      id: "tsk_s2",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
+        },
+      ],
+      actions: [{ key: "approve", label: "Approve" }],
+    },
+  };
+  const d = {
+    call: async (cap: string) => {
+      calls.push(cap);
+      if (cap === "tasks.get") return held;
+      if (cap === "automations.key_hosts.pending_bind")
+        return {
+          found: true,
+          items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+          hosts: ["*.app.n8n.cloud"],
+        };
+      // once the connection's record took the list nothing is pending any more
+      if (cap === "connections.get")
+        return { connection: recorded ? {} : { pendingHosts: ["domain:*.app.n8n.cloud:443"] } };
+      if (cap === "connections.approve_hosts") {
+        recorded = true;
+        return {};
+      }
+      if (cap === "automations.key_hosts.allow" && vaultDown) throw new Error("vault down");
+      return {};
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_s2" agent="Scout" agentId="agt_1" data={d} />);
+  await flush();
+  await press(find(root, "approval-allow-tsk_s2"));
+  await flush();
+  assert.match(textOf(root), /Where the key may go is saved\. Saving the key's approval failed\. Try again\./);
+  assert.ok(!calls.includes("tasks.act"));
+  vaultDown = false;
+  await press(find(root, "approval-allow-tsk_s2"));
+  await flush();
+  assert.equal(
+    calls.filter((c) => c === "connections.approve_hosts").length,
+    2,
+    "the list is recorded again (the server takes the same list twice)",
+  );
+  assert.equal(calls.filter((c) => c === "tasks.act").length, 1, "the hold is answered once");
+  assert.ok(
+    calls.indexOf("tasks.act") > calls.lastIndexOf("automations.key_hosts.allow"),
+    "after the Vault save finished",
+  );
+});
+
 test("a card with no capability, no ask and no question is drawn as its plain words: no Allow, no Deny; a plain question reads as the question", async () => {
   const make = (blockData: Record<string, unknown>) => ({
     call: async (cap: string) =>
