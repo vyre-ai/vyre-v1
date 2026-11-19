@@ -95,3 +95,84 @@ test("a helper that depends on another waits, then starts; one whose dependency 
     await stop(d);
   }
 });
+
+test("a re-run: a finished helper is started again with another brief; the new node stands at once, its first turn takes it over, and compare reads both", async () => {
+  let runs = 0;
+  const model = scriptedModel(async function* (input) {
+    const body = String(input.trigger?.body ?? "");
+    if (/HOLD/.test(body)) await new Promise<void>(() => undefined);
+    if (body.includes("ALPHA")) {
+      runs += 1;
+      yield { type: "text", text: `answer ${body.includes("two") ? "two" : "one"}` };
+    }
+  });
+  const dir = seededDir();
+  const d = await boot(dir, model);
+  try {
+    await connect(d);
+    const agent = await makeAgent(d, "Lead");
+    const chat = await startChat(d, agent, "rr");
+    await ok(d, "threads.set_mode", { threadId: chat, mode: "auto", idempotencyKey: "rr-auto" });
+    await ok(d, "chat.post", {
+      threadId: chat,
+      body: "HOLD the job",
+      mentions: [{ kind: "agent", id: agent }],
+      idempotencyKey: "rr-hold",
+    });
+    const lead = await waitFor(async () => {
+      const rows = (await ok(d, "runs.activity.list", {})).rows as Array<{
+        runId: string;
+        kind: string;
+        status: string;
+      }>;
+      return rows.find((r) => r.kind === "turn" && r.status === "running") ?? null;
+    }, 20_000);
+    await ok(d, "chat.helper.start", {
+      threadId: chat,
+      title: "Alpha",
+      instruction: "ALPHA one: price it from the 2025 sheet",
+      agentId: agent,
+      idempotencyKey: "rr-alpha",
+    });
+    const nodes = async (): Promise<Array<{ id: string; name?: string; status: string; threadId?: string }>> =>
+      (await ok(d, "runs.tree.get", { runId: lead.runId })).nodes;
+    const first = await waitFor(async () => {
+      const n = (await nodes()).find((x) => x.name === "Alpha" && x.status === "succeeded");
+      return n ?? null;
+    }, 30_000);
+
+    const again = await ok(d, "runs.node.rerun", {
+      runId: first.id,
+      instructions: "ALPHA two: price it from the 2026 sheet",
+    });
+    assert.ok(again.threadId, "a new helper was started");
+    const early = (await ok(d, "runs.node.compare", { runId: first.id })).sides;
+    assert.equal(early.length, 2);
+    assert.ok(early[1].runId, "its node stands from the first moment");
+
+    await waitFor(async () => {
+      const s = (await ok(d, "runs.node.compare", { runId: first.id })).sides;
+      return s[1]?.status === "succeeded" ? true : null;
+    }, 30_000);
+    const sides = (await ok(d, "runs.node.compare", { runId: first.id })).sides;
+    assert.equal(sides[1].runId, early[1].runId, "its first turn took that node over: one node, not two");
+    assert.match(sides[0].brief.instructions, /ALPHA one/);
+    assert.match(sides[1].brief.instructions, /ALPHA two/);
+    assert.match(String(sides[0].result), /answer one/);
+    assert.match(String(sides[1].result), /answer two/);
+    assert.equal(runs, 2);
+    assert.equal(
+      (await ok(d, "runs.node.get", { runId: first.id })).node.status,
+      "succeeded",
+      "the first is as it was",
+    );
+    const same = await ok(d, "runs.node.rerun", {
+      runId: first.id,
+      instructions: "ALPHA two: price it from the 2026 sheet",
+    });
+    assert.equal(same.threadId, again.threadId, "the same press again is the same helper");
+    assert.equal(runs, 2);
+  } finally {
+    await stop(d);
+  }
+});
