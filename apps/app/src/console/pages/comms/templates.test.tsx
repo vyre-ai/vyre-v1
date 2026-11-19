@@ -88,10 +88,10 @@ test("an inbox says whether it works, how mail arrives, and what failed with the
 test("the line under a sent email says only what matters", () => {
   const base = { messageId: "eml_a", blocked: [] as { address: string; reason: string }[] };
   const ev = (kind: string, at: number, extra: object = {}) => ({ kind, at, label: kind, ...extra });
-  assert.equal(trailHeadline({ ...base, state: "delivered", events: [ev("sent", 0), ev("delivered", 9 * 3_600_000 + 12 * 60_000)] } as never, 0), "Delivered 09:12");
-  assert.equal(trailHeadline({ ...base, state: "sent", events: [ev("sent", 0)] } as never, 0), "");
-  assert.equal(trailHeadline({ ...base, state: "bounced", events: [ev("sent", 0), ev("bounced", 5, { detail: "No such user" })] } as never, 0), "Bounced: No such user");
-  assert.match(trailHeadline({ ...base, state: "retrying", events: [], retry: { address: "a@b.test", attempt: 1, of: 3, nextAt: 3_600_000 } } as never, 0), /Trying again at 01:00 \(2 of 3\)/);
+  assert.equal(trailHeadline({ ...base, state: "delivered", events: [ev("sent", 0), ev("delivered", 9 * 3_600_000 + 12 * 60_000)] } as never, "UTC"), "Delivered 9:12 AM");
+  assert.equal(trailHeadline({ ...base, state: "sent", events: [ev("sent", 0)] } as never, "UTC"), "");
+  assert.equal(trailHeadline({ ...base, state: "bounced", events: [ev("sent", 0), ev("bounced", 5, { detail: "No such user" })] } as never, "UTC"), "Bounced: No such user");
+  assert.match(trailHeadline({ ...base, state: "retrying", events: [], retry: { address: "a@b.test", attempt: 1, of: 3, nextAt: 3_600_000 } } as never, "UTC"), /Trying again at 1:00 AM \(2 of 3\)/);
 });
 
 test("the Body box is tall enough for the words in it and grows with them", () => {

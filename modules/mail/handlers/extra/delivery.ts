@@ -219,12 +219,10 @@ interface Scheduler {
 
 /** What a retry sends with. By default the module's own send, called directly (the host holds no grant on a mailbox and the Gate has already had its say on the first send). Tests bind a recorder. */
 export type RetrySend = (ctx: MailCtx, input: Record<string, unknown>) => Promise<{ messageId?: string; status?: string }>;
-let retrySend: RetrySend | null = null;
-export function bindRetrySend(fn: RetrySend | null): void {
-  retrySend = fn;
-}
+/** A test replaces `send` here; production leaves it null. */
+export const retrySender: { send: RetrySend | null } = { send: null };
 async function sendAgain(ctx: MailCtx, input: Record<string, unknown>): Promise<{ messageId?: string; status?: string }> {
-  if (retrySend) return retrySend(ctx, input);
+  if (retrySender.send) return retrySender.send(ctx, input);
   const { send } = await import("../send.ts");
   return (await send(ctx as never, input as never)) as { messageId?: string; status?: string };
 }

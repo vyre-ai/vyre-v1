@@ -859,7 +859,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
                       const i = items.find((x) => x.id === id);
                       return i ? (emailRef(i).chips ?? []) : [];
                     },
-                    trailOf: (id) => <DeliveryTrail key={id} messageId={id} call={data.call} offsetMin={clock.offsetMin} />,
+                    trailOf: (id) => <DeliveryTrail key={id} messageId={id} call={data.call} />,
                     onChip: (title, recordId) => props.onOpenRecord?.(conv.contactId ?? "", recordId ?? title),
                     ...(props.onOpenAttachment ? { onAttachment: props.onOpenAttachment } : {}),
                     ...(landsOn(asked, t.threadId, firstFresh)

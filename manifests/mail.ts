@@ -828,7 +828,7 @@ const manifest = defineManifest({
     // ---- delivery trail and soft-bounce retries (lane r42-email-in)
     read(
       "mail.delivery.trail",
-      "What happened to a sent message: sent, delivered, opened, bounced and why, retries, and any address that is now blocked",
+      "Delivery trail of a sent message: events, retries, blocked addresses",
       {
         in: { messageId: emlId },
         out: {
@@ -870,7 +870,7 @@ const manifest = defineManifest({
     ),
     write(
       "mail.delivery.retry",
-      "Scheduled by Vyre after a soft bounce: send the message again to the one address that bounced, once per attempt, never to a suppressed address",
+      "Vyre-only: resend a soft-bounced message to that address",
       {
         in: { messageId: emlId, address: t.str(), attempt: t.int({ minimum: 1, maximum: 3 }) },
         out: { outcome: t.enm("sent", "skipped", "gave_up", "rescheduled", "held"), messageId: t.opt(emlId) },
@@ -881,7 +881,7 @@ const manifest = defineManifest({
       },
     ),
     // ---- named email templates (lane r42-email-in)
-    read("mail.template.list", "List email templates: the ones that ship with Vyre and the Space's own, with which are changed", {
+    read("mail.template.list", "List email templates", {
       out: {
         templates: t.arr(
           t.obj({
@@ -896,7 +896,7 @@ const manifest = defineManifest({
       },
       tool: "inbox",
     }),
-    read("mail.template.get", "Read one email template; with a document, the text that document's emails use", {
+    read("mail.template.get", "Read an email template (a document's own wording with documentId)", {
       in: { key: tplKey, documentId: t.opt(id.file) },
       out: { template: tplOut },
       tool: "inbox",
@@ -904,7 +904,7 @@ const manifest = defineManifest({
     }),
     write(
       "mail.template.save",
-      "Create or change the Space's email template for a key. Text carries {{field}} or {{field|fallback}} merge fields",
+      "Save the Space's email template; text may hold {{field}} or {{field|fallback}}",
       {
         in: {
           key: tplKey,
@@ -921,7 +921,7 @@ const manifest = defineManifest({
         errors: ["validation.bad_input"],
       },
     ),
-    write("mail.template.reset", "Remove the Space's version of a template; the one that ships with Vyre comes back", {
+    write("mail.template.reset", "Reset a template to the one that ships with Vyre", {
       in: { key: tplKey },
       out: { reset: t.bool() },
       perm: "comms.templates",
@@ -930,7 +930,7 @@ const manifest = defineManifest({
     }),
     read(
       "mail.template.preview",
-      "Fill a template (a saved key, or a draft subject and text) from a real record and values you pass; says which fields would go out blank",
+      "Preview a template or draft filled from a record and values; names blank fields",
       {
         in: {
           key: t.opt(tplKey),
@@ -954,14 +954,14 @@ const manifest = defineManifest({
         errors: ["validation.bad_input", "validation.not_found"],
       },
     ),
-    read("mail.template.for_document.get", "The email template a document uses for a key, and whether it keeps its own version", {
+    read("mail.template.for_document.get", "The template a document uses, and whether it has its own", {
       in: { documentId: id.file, key: tplKey },
       out: { override: t.bool(), template: tplOut },
       on: ["file", "/documentId"],
       tool: "inbox",
       errors: ["validation.bad_input", "validation.not_found"],
     }),
-    write("mail.template.for_document.set", "Give a document its own version of an email template", {
+    write("mail.template.for_document.set", "Give a document its own email template wording", {
       in: { documentId: id.file, key: tplKey, subject: t.str(), text: t.str(), html: t.opt(t.str()) },
       out: { template: tplOut },
       on: ["file", "/documentId"],
@@ -971,7 +971,7 @@ const manifest = defineManifest({
       idem: "natural",
       errors: ["validation.bad_input", "validation.not_found"],
     }),
-    write("mail.template.for_document.clear", "Take a document back to the Space's version of an email template", {
+    write("mail.template.for_document.clear", "Return a document to the Space's template", {
       in: { documentId: id.file, key: tplKey },
       out: { cleared: t.bool() },
       on: ["file", "/documentId"],
@@ -983,7 +983,7 @@ const manifest = defineManifest({
     // ---- watching inboxes (lane r42-email-in)
     read(
       "mail.inbox.monitor",
-      "Each inbox you may see: how it is fed, when it last received, whether it is working, what failed and the one thing to do; and mail that arrived for an address no inbox answers to",
+      "Inbox health: how fed, last received, what failed and the fix; unrouted addresses",
       {
         in: { mailboxId: t.opt(id.mailbox) },
         out: {

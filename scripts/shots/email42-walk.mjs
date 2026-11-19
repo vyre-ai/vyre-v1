@@ -88,7 +88,7 @@ for (const skin of ["paper", "graphite"])
       await walk(part, part, skin, vp, async (page, shot) => {
         await page.waitForSelector(sel("email42-trail"), { timeout: 20000 });
         const head = await text(page, "email42-trail");
-        assert.match(head, part === "trail-delivered" ? /^Delivered \d\d:\d\d/ : part === "trail-bounced" ? /^Bounced: No such user/ : /^Could not be delivered yet\. Trying again at \d\d:\d\d \(2 of 3\)/);
+        assert.match(head, part === "trail-delivered" ? /^Delivered \d{1,2}:\d\d [AP]M/ : part === "trail-bounced" ? /^Bounced: No such user/ : /^Could not be delivered yet\. Trying again at \d{1,2}:\d\d [AP]M \(2 of 3\)/);
         if (part === "trail-bounced") assert.match(head, /will not be emailed again/);
         await shot("closed");
         await page.locator("[data-testid^='trail-toggle:']").click();

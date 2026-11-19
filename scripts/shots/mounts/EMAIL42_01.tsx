@@ -121,7 +121,7 @@ export default function Mount(): ReactNode {
   if (part.startsWith("trail-"))
     return (
       <View style={{ flex: 1, minHeight: 360, padding: 24, backgroundColor: "var(--win)" as string }} testID="email42-trail">
-        <DeliveryTrail messageId="eml_a" offsetMin={0} call={async () => TRAILS[part]} />
+        <DeliveryTrail messageId="eml_a" call={async () => TRAILS[part]} />
       </View>
     );
   return (

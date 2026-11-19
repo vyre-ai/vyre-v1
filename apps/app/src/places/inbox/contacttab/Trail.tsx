@@ -2,17 +2,17 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { clockIn } from "../../../../../../lib/zones.ts";
+import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 
 type Trail = CapMap["mail.delivery.trail"]["out"];
 type Call = (cap: string, input: Record<string, unknown>) => Promise<unknown> | unknown;
 
-const clock = (ms: number, offsetMin: number): string => {
-  const d = new Date(ms + offsetMin * 60_000);
-  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-};
+/** The time of day in the Space's time zone, as the rest of the product writes it. */
+const clock = (ms: number, zone: string): string => clockIn(ms, zone);
 
 /** The headline under a sent email: only a state a person acts on or cares about. */
-export function trailHeadline(t: Trail, offsetMin: number): string {
+export function trailHeadline(t: Trail, zone: string): string {
   const last = [...t.events].reverse();
   const at = (kinds: string[]): Trail["events"][number] | undefined => last.find((e) => kinds.includes(e.kind));
   if (t.state === "bounced") {
@@ -22,17 +22,18 @@ export function trailHeadline(t: Trail, offsetMin: number): string {
   if (t.state === "complained") return "Marked as spam by the recipient";
   if (t.state === "failed") return "Could not be sent";
   if (t.state === "retrying")
-    return t.retry?.nextAt ? `Could not be delivered yet. Trying again at ${clock(t.retry.nextAt, offsetMin)} (${t.retry.attempt + 1} of ${t.retry.of})` : "Could not be delivered yet. Trying again";
+    return t.retry?.nextAt ? `Could not be delivered yet. Trying again at ${clock(t.retry.nextAt, zone)} (${t.retry.attempt + 1} of ${t.retry.of})` : "Could not be delivered yet. Trying again";
   if (t.state === "delivered") {
     const d = at(["delivered"]);
-    return d ? `Delivered ${clock(d.at, offsetMin)}` : "Delivered";
+    return d ? `Delivered ${clock(d.at, zone)}` : "Delivered";
   }
   if (t.state === "waiting") return "Waiting to send";
   return "";
 }
 
 /** What happened to a sent email, one quiet line that opens into the whole trail; a bounce says why and which address is now blocked. */
-export function DeliveryTrail({ messageId, call, offsetMin }: { messageId: string; call: Call; offsetMin: number }): ReactElement | null {
+export function DeliveryTrail({ messageId, call }: { messageId: string; call: Call }): ReactElement | null {
+  const zone = useZones().space;
   const [trail, setTrail] = useState<Trail | null>(null);
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -48,7 +49,7 @@ export function DeliveryTrail({ messageId, call, offsetMin }: { messageId: strin
     };
   }, [call, messageId]);
   if (!trail) return null;
-  const head = trailHeadline(trail, offsetMin);
+  const head = trailHeadline(trail, zone);
   if (!head && trail.events.length <= 1) return null;
   const bad = trail.state === "bounced" || trail.state === "complained" || trail.state === "failed";
   return (
@@ -67,7 +68,7 @@ export function DeliveryTrail({ messageId, call, offsetMin }: { messageId: strin
       ))}
       {open
         ? trail.events.map((e, i) => (
-            <Text key={i} style={st.line}>{`${clock(e.at, offsetMin)}  ${e.label}${e.address ? ` · ${e.address}` : ""}${e.detail ? ` · ${e.detail}` : ""}`}</Text>
+            <Text key={i} style={st.line}>{`${clock(e.at, zone)}  ${e.label}${e.address ? ` · ${e.address}` : ""}${e.detail ? ` · ${e.detail}` : ""}`}</Text>
           ))
         : null}
     </View>

@@ -296,7 +296,7 @@ export default defineManifest({
       emits: ["schema.label_changed", "schema.changed"],
       tool: "engineer",
     }),
-    write("schema.set_mergeable", "Switch \"Can go in emails\" on or off for one field: whether a template may merge its value into an email. Private and secret fields can never be switched on", {
+    write("schema.set_mergeable", "Switch a field's \"Can go in emails\"; private and secret fields never can", {
       in: { type: id.recordType, field: fieldKey, mergeable: t.bool() },
       out: { ok: t.bool() },
       on: ["record_type", "/type"],

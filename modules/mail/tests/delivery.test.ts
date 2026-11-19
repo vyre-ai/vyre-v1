@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { statusUpdate } from "../handlers/extra/status.ts";
-import { BACKOFF_MS, CLAIM_STALE_MS, MAX_RETRIES, bindRetrySend, retry as retryNow, trail } from "../handlers/extra/delivery.ts";
+import { BACKOFF_MS, CLAIM_STALE_MS, MAX_RETRIES, retry as retryNow, retrySender, trail } from "../handlers/extra/delivery.ts";
 import { hostError, script, seedSent, eventErrors } from "../handlers/extra/kit.ts";
 import { codeOf, contractErrors, harness, NOW, seedMailbox } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -32,7 +32,7 @@ function setup(opts: { scheduler?: boolean } = {}): { h: Harness; scheduled: Sch
     };
   }
   let n = 0;
-  bindRetrySend((c, i) => c.call("mail.send", i) as never); // the retry's send is the scripted one below
+  retrySender.send = (c, i) => c.call("mail.send", i) as never; // the retry's send is the scripted one below
   script(h, {
     "contacts.suppression.add": (i) => ({ added: 1, rows: [{ ...i }] }),
     "contacts.suppression.check": () => ({ suppressed: [] }),

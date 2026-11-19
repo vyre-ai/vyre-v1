@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { statusUpdate } from "../handlers/extra/status.ts";
-import { MAX_GIVEBACKS, bindRetrySend, recordSentBy, retry, trail } from "../handlers/extra/delivery.ts";
+import { MAX_GIVEBACKS, recordSentBy, retry, retrySender, trail } from "../handlers/extra/delivery.ts";
 import { hostError, seedSent } from "../handlers/extra/kit.ts";
 import { rig } from "./send.rig.test.ts";
 
@@ -13,7 +13,7 @@ const soft = (r: ReturnType<typeof rig>, providerId: string, at: number) =>
   statusUpdate(r.ctx, { providerId, status: "bounced", kind: "soft", reason: "Mailbox full", address: "pat@acme.test", at });
 
 test("a retry delivers after the person who sent has lost every right, sends only what is stored, and credits the original sender", async () => {
-  bindRetrySend(null); // the module's own send
+  retrySender.send = null; // the module's own send
   const r = rig({ principal: system });
   seedSent(r.h, { id: "eml_m1", mailboxId: "mbx_hello", providerId: "re_1" });
   recordSentBy(r.ctx, "eml_m1", { kind: "person", principal: "usr_gone01" });
@@ -47,9 +47,9 @@ test("a retry handed back for lack of a right is tried again, then held with the
   const r = rig({ principal: system });
   seedSent(r.h, { id: "eml_m1", mailboxId: "mbx_hello", providerId: "re_1" });
   await soft(r, "re_1", r.ctx.now() + 1);
-  bindRetrySend(() => {
+  retrySender.send = () => {
     throw hostError(r.h, "permission.no_grant");
-  });
+  };
   for (let n = 1; n < MAX_GIVEBACKS; n++) {
     r.h.advance(DAY);
     await assert.rejects(retry(r.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }));
@@ -66,11 +66,11 @@ test("a retry handed back for lack of a right is tried again, then held with the
   assert.equal((await retry(r.ctx, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 })).outcome, "skipped");
   await soft(r, "re_1", r.ctx.now() + 5);
   assert.equal(r.h.rows(`SELECT state FROM mail_delivery_retry`)[0]!.state, "held");
-  bindRetrySend(null);
+  retrySender.send = null;
 });
 
 test("a throw after the provider accepted the retry sends nothing new: the attempt counts as gone out, and every attempt shares one provider key", async () => {
-  bindRetrySend(null);
+  retrySender.send = null;
   const r = rig({ principal: system });
   seedSent(r.h, { id: "eml_m1", mailboxId: "mbx_hello", providerId: "re_1" });
   recordSentBy(r.ctx, "eml_m1", { kind: "person", principal: "usr_ask01" });
