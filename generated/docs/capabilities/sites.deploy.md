@@ -1,6 +1,6 @@
 # sites.deploy
 
-Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers
+Build a site from its source and run it (Dockerfile, Node, Vite, Python, static); the last good build serves until the new one answers
 
 | | |
 |---|---|

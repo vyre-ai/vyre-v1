@@ -8337,7 +8337,7 @@
     {
       "deferred": false,
       "name": "sites_addon_add",
-      "summary": "Give a site its own Postgres or Redis (DATABASE_URL or REDIS_URL). Its data survives redeploys",
+      "summary": "Give a site its own Postgres or Redis (DATABASE_URL, REDIS_URL); data survives redeploys",
       "toolset": "sites"
     },
     {
@@ -8349,37 +8349,37 @@
     {
       "deferred": false,
       "name": "sites_artifact_open",
-      "summary": "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
+      "summary": "A short-lived address that opens an artifact for the asker",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_artifact_thumb_set",
-      "summary": "Keep a small picture of an artifact, sent by the Vyre for Chrome extension. Set only when there is none or the artifact changed",
+      "summary": "Keep an artifact's small picture (sent by the Vyre for Chrome extension) only if none exists or it changed",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_build",
-      "summary": "Build the site from its repo (the site agent runs in the repo); test and verify",
+      "summary": "Build the site from its repo; test and verify",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_chat_viewing",
-      "summary": "The app says a chat is open for the person (every 30 s while open). An artifact an agent publishes for that person opens in their app only while this holds",
+      "summary": "The app says a chat is open (every 30 s). An artifact an agent publishes for that person opens in their app only while it does",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_create",
-      "summary": "Create a site: where it runs (a computer port or a Files folder) or its source (repo, folder or zip). Nothing is served until published or deployed",
+      "summary": "Create a site: where it runs (computer port or Files folder) or its source (repo, folder, zip). Nothing is served until published or deployed",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_db_import",
-      "summary": "Copy a Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
+      "summary": "Copy a Postgres into the site's: a pg_dump in Files, or a Vault key with the old connection string",
       "toolset": "sites"
     },
     {
@@ -8391,13 +8391,13 @@
     {
       "deferred": false,
       "name": "sites_deploy",
-      "summary": "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers",
+      "summary": "Build a site from its source and run it (Dockerfile, Node, Vite, Python, static); the last good build serves until the new one answers",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_deploy_cancel",
-      "summary": "Cancel the running deploy. The last good build keeps serving",
+      "summary": "Cancel the running deploy; the last good build keeps serving",
       "toolset": "sites"
     },
     {
@@ -8415,7 +8415,7 @@
     {
       "deferred": false,
       "name": "sites_domain_check",
-      "summary": "The state of a custom domain: waiting for DNS, issuing the certificate, or live",
+      "summary": "A custom domain's state: waiting for DNS, issuing the certificate, or live",
       "toolset": "sites"
     },
     {
@@ -8427,19 +8427,19 @@
     {
       "deferred": false,
       "name": "sites_domains_get",
-      "summary": "Site domains with the DNS check and the Caddy certificate state",
+      "summary": "A site's domains with DNS check and certificate state",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_env_list",
-      "summary": "A site's env var names and sources (never values), and names the app looks for that are not set",
+      "summary": "A site's env var names and sources (never values), plus names the app wants that are unset",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_env_set",
-      "summary": "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews or all",
+      "summary": "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews, all",
       "toolset": "sites"
     },
     {
@@ -8451,13 +8451,13 @@
     {
       "deferred": false,
       "name": "sites_host",
-      "summary": "What this Space can host: its address, whether Vyre can run apps here, the sites address, what a custom domain needs",
+      "summary": "What this Space can host: address, whether Vyre runs apps here, the sites address, custom domain needs",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_list",
-      "summary": "List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder",
+      "summary": "List the sites and artifacts you can see, by section, kind, folder",
       "toolset": "sites"
     },
     {
@@ -8469,25 +8469,25 @@
     {
       "deferred": false,
       "name": "sites_ops",
-      "summary": "Site logs, metrics, jobs, workers, backups. Read the sites skill for actions and args",
+      "summary": "Site ops: logs, metrics, jobs, workers, backups. Read the sites skill",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_plan",
-      "summary": "What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for",
+      "summary": "What a deploy of this source would do: build and start, port, databases and env names it needs",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_preview_promote",
-      "summary": "Serve a preview's build as production without a rebuild, with the production variables",
+      "summary": "Serve a preview's build as production without a rebuild, using production variables",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_preview_rebuild",
-      "summary": "Build a branch of the repo as a preview at its own address behind sign-in. A new build replaces the last",
+      "summary": "Build a repo branch as a preview at its own address behind sign-in; a new build replaces the last",
       "toolset": "sites"
     },
     {
@@ -8499,7 +8499,7 @@
     {
       "deferred": false,
       "name": "sites_previews",
-      "summary": "List previews (one per branch and pull request, on their own staging address)",
+      "summary": "List previews (one per branch and pull request, each at its own address)",
       "toolset": "sites"
     },
     {
@@ -8511,13 +8511,13 @@
     {
       "deferred": false,
       "name": "sites_publish",
-      "summary": "Serve a site that is not public: space or private access, or a password on its own domain",
+      "summary": "Serve a non-public site: space or private access, or a password on its own domain",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_rollback",
-      "summary": "Serve an earlier build again (the previous, or the one named). Nothing is built",
+      "summary": "Serve an earlier build again (the previous or the one named); nothing is built",
       "toolset": "sites"
     },
     {
@@ -8529,19 +8529,19 @@
     {
       "deferred": false,
       "name": "sites_ship",
-      "summary": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix",
+      "summary": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address or the failed step and fix",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_staging_password_set",
-      "summary": "Choose the sealed Vault key that protects staging (shared across a site previews)",
+      "summary": "Choose the sealed Vault key protecting staging (shared by its previews)",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_status",
-      "summary": "Is the port answering? Where it runs, the address, and what is wrong when something is",
+      "summary": "Is the port answering? Where it runs, its address, what is wrong if not",
       "toolset": "sites"
     },
     {
@@ -8565,7 +8565,7 @@
     {
       "deferred": false,
       "name": "sites_tables",
-      "summary": "List site tables of a site",
+      "summary": "List a site's tables",
       "toolset": "sites"
     },
     {
@@ -8577,13 +8577,13 @@
     {
       "deferred": false,
       "name": "sites_webhook_get",
-      "summary": "GitHub webhook of a site: on or off, its address, the branches that get a preview. The secret is never shown again",
+      "summary": "A site's GitHub webhook: on or off, its address, branches that get a preview. The secret is never shown again",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_webhook_set",
-      "summary": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get previews",
+      "summary": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set preview branches",
       "toolset": "sites"
     },
     {

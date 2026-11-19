@@ -1,6 +1,6 @@
 # sites.artifact_thumb_set
 
-Keep a small picture of an artifact, sent by the Vyre for Chrome extension. Set only when there is none or the artifact changed
+Keep an artifact's small picture (sent by the Vyre for Chrome extension) only if none exists or it changed
 
 | | |
 |---|---|

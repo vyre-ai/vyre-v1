@@ -1,6 +1,6 @@
 # sites.previews
 
-List previews (one per branch and pull request, on their own staging address)
+List previews (one per branch and pull request, each at its own address)
 
 | | |
 |---|---|

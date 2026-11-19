@@ -1,6 +1,6 @@
 # sites.addon_add
 
-Give a site its own Postgres or Redis (DATABASE_URL or REDIS_URL). Its data survives redeploys
+Give a site its own Postgres or Redis (DATABASE_URL, REDIS_URL); data survives redeploys
 
 | | |
 |---|---|

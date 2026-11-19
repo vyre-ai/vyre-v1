@@ -1,6 +1,6 @@
 # sites.preview_promote
 
-Serve a preview's build as production without a rebuild, with the production variables
+Serve a preview's build as production without a rebuild, using production variables
 
 | | |
 |---|---|

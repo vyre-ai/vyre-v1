@@ -1,6 +1,6 @@
 # sites.plan
 
-What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for
+What a deploy of this source would do: build and start, port, databases and env names it needs
 
 | | |
 |---|---|

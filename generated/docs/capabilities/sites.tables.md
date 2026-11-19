@@ -1,6 +1,6 @@
 # sites.tables
 
-List site tables of a site
+List a site's tables
 
 | | |
 |---|---|
