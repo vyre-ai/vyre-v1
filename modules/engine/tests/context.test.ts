@@ -160,7 +160,8 @@ test("the context holds identity, where, skills, what the agent can do and the t
   assert.match(text("identity"), /Your AGENT\.md:\n# Intake\nBe brief\./);
   assert.doesNotMatch(text("identity"), /your context folder/, "no context folder, no line");
   assert.match(text("where"), /Space: Northwind \(team\)\./);
-  assert.match(text("where"), /threadId thr_1\. This is a chat called "Intake desk"\./);
+  assert.match(text("here"), /threadId thr_1\. This is a chat called "Intake desk"\./);
+  assert.doesNotMatch(text("where"), /thr_1/, "which thread this is rides outside the shared prefix");
   assert.match(text("where"), /talking with Maya Chen \(usr_maya; /);
   assert.match(text("where"), /Also here: Omar Haddad\./);
   assert.match(

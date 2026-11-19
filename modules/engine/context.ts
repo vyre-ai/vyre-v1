@@ -740,9 +740,8 @@ export function createContextBuilder(d: ContextDeps) {
     const kind = str(th?.["kind"]) ?? "chat";
     const scope = await scopeLine(str(th?.["scopeType"]), str(th?.["scopeId"]), asker);
     const title = str(th?.["title"]);
-    where.push(
-      `threadId ${input.threadId}. This is ${kind === "ask" ? "an Ask thread, private to you and the person" : kind === "channel" ? "a channel" : kind === "thread" ? "a thread" : "a chat"}${title ? ` called "${one(title, 80)}"` : ""}${scope ? `, ${scope}` : ""}.`,
-    );
+    // which thread this is differs between two helpers of one parent, and everything after it in a prefix would then differ too: it is its own section, outside the cached prefix (r42-runtime-tokens)
+    const hereLine = `threadId ${input.threadId}. This is ${kind === "ask" ? "an Ask thread, private to you and the person" : kind === "channel" ? "a channel" : kind === "thread" ? "a thread" : "a chat"}${title ? ` called "${one(title, 80)}"` : ""}${scope ? `, ${scope}` : ""}.`;
     where.push(`You are talking with ${who(asker)} (${asker}; they asked, they pay, and their access limits yours).`);
     const others = people.filter((p) => p !== asker);
     if (others.length > 0) where.push(`Also here: ${others.slice(0, 12).map(who).join(", ")}.`);
@@ -830,9 +829,7 @@ export function createContextBuilder(d: ContextDeps) {
     );
     if (kind === "helper") {
       where.push(
-        "You are a helper: your brief is the first message. Your final words are the result itself, in plain words a person can read (the facts, the answer, what you changed), even when you also hand the work in to a task: never say you submitted, finished or handed in anything, and never name a tool. If you need something from the agent that started you, call helper_note {threadId " +
-          input.threadId +
-          ', kind "question", body}: it answers with its next step, and you carry on with what you can do meanwhile. Use needsPerson only when nobody but the person can say (a choice that is theirs, a secret, a permission); then it becomes a card for them. A message from that agent in your chat is a follow-up to your brief: act on it. Progress notes are optional, one line (helper_note kind "progress").',
+        'You are a helper: your brief is the first message. Your final words are the result itself, in plain words a person can read (the facts, the answer, what you changed), even when you also hand the work in to a task: never say you submitted, finished or handed in anything, and never name a tool. If you need something from the agent that started you, call helper_note {threadId (your own, under This chat), kind "question", body}: it answers with its next step, and you carry on with what you can do meanwhile. Use needsPerson only when nobody but the person can say (a choice that is theirs, a secret, a permission); then it becomes a card for them. A message from that agent in your chat is a follow-up to your brief: act on it. Progress notes are optional, one line (helper_note kind "progress").',
       );
     }
     // a person who joined this chat without the earlier messages: the agent's own session may remember them, so it is told not to quote them
@@ -840,6 +837,7 @@ export function createContextBuilder(d: ContextDeps) {
     if (typeof floor?.["fromAt"] === "number" && floor["fromAt"] > 0)
       where.push(joinedLine(who(asker), floor["fromAt"]));
     add("where", true, where.join("\n"));
+    add("here", false, hereLine);
 
     // the person: their profile as this chat's audience allows (public always, private only when nobody else reads the chat), and the public profile of the others here
     add(
@@ -1006,19 +1004,17 @@ export function createContextBuilder(d: ContextDeps) {
       const zoneName = (shared ? spaceZone : undefined) ?? str((zone?.["row"] as Obj | undefined)?.["value"]) ?? "UTC";
       const isThread = kind === "thread" || str(th?.["parentThreadId"]) !== undefined;
       const listed = await read<Obj>("chat.messages.list", { threadId: roomId, limit: READ_LIMIT }, asker);
-      const all = arr<Obj>(listed?.["messages"]).map(
-        (m): RoomMessage => ({
-          messageId: str(m["messageId"]) ?? "",
-          threadSeq: Number(m["threadSeq"] ?? 0),
-          author: {
-            kind: String((m["author"] as Obj | undefined)?.["kind"] ?? ""),
-            id: str((m["author"] as Obj | undefined)?.["id"]) ?? "",
-          },
-          kind: str(m["kind"]) ?? "text",
-          body: str(m["body"]) ?? "",
-          createdAt: Number(m["createdAt"] ?? 0),
-        }),
-      );
+      const all = arr<Obj>(listed?.["messages"]).map((m): RoomMessage => ({
+        messageId: str(m["messageId"]) ?? "",
+        threadSeq: Number(m["threadSeq"] ?? 0),
+        author: {
+          kind: String((m["author"] as Obj | undefined)?.["kind"] ?? ""),
+          id: str((m["author"] as Obj | undefined)?.["id"]) ?? "",
+        },
+        kind: str(m["kind"]) ?? "text",
+        body: str(m["body"]) ?? "",
+        createdAt: Number(m["createdAt"] ?? 0),
+      }));
       // the cut: what was said before the latest person came in was not said to the room, and what the agent answers is read by the whole room. So for every asker, in every turn of a shared chat,
       // nothing from before the last join is sent to the model (a chat with one person has no join and is read whole)
       const joins = Object.values((roomTh?.["joinedAt"] as Record<string, unknown> | undefined) ?? {}).filter(
