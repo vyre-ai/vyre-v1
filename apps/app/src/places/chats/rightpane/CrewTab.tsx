@@ -124,6 +124,7 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
             onBack={() => crew.show(null)}
             onOpenChat={(id) => data.nav.openHelper(id)}
             onRefresh={crew.refresh}
+            {...(data.me?.id ? { meId: data.me.id } : {})}
           />
         ) : (
           <CrewOverview

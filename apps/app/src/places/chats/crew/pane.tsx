@@ -449,6 +449,13 @@ type Note = {
 };
 const WHO = { brief: "Brief", person: "You", parent: "Agent", helper: "Helper" } as const;
 
+/** The first sentence of what a helper found, as the start of a task title. */
+export const taskTitleOf = (m: Pick<CrewMember, "found" | "title">): string =>
+  `Follow up: ${(m.found ?? m.title)
+    .split(/(?<=[.!?])\s/)[0]!
+    .replace(/[.!?]$/, "")
+    .slice(0, 100)}`;
+
 type PeekTab = "transcript" | "files" | "details";
 
 export function CrewPeek({
@@ -458,6 +465,7 @@ export function CrewPeek({
   onBack,
   onOpenChat,
   onRefresh,
+  meId,
 }: {
   member: CrewMember;
   call: Call;
@@ -465,12 +473,17 @@ export function CrewPeek({
   onBack: () => void;
   onOpenChat: (threadId: string) => void;
   onRefresh: () => void;
+  /** The person looking: a finished helper's result can become their task. */
+  meId?: string;
 }): ReactElement {
   const [notes, setNotes] = useState<Note[]>([]);
   const [steps, setSteps] = useState<HelperStep[]>([]);
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<PeekTab>("transcript");
+  // what a finished result can become: a task for the person looking (a title to confirm, then made once)
+  const [draft, setDraft] = useState<string | null>(null);
+  const [made, setMade] = useState<string | null>(null);
   // a different helper opens on its transcript, never on the tab the last one was left on
   useEffect(() => setTab("transcript"), [member.id]);
   const live = member.state === "working" || member.state === "needs_you";
@@ -537,6 +550,27 @@ export function CrewPeek({
         idempotencyKey: `retry-${member.id}-${Date.now()}`,
       }),
     ).then(onRefresh, () => setErr("It could not start again."));
+  };
+  // the result becomes a task for the person looking: its title is confirmed, the summary is what the helper found, it points back at the chat; one key per helper so a second press never makes a second task
+  const makeTask = (): void => {
+    const title = (draft ?? "").trim();
+    if (title === "" || meId === undefined) return;
+    setErr(null);
+    void Promise.resolve(
+      call("tasks.create", {
+        title: title.slice(0, 120),
+        summary: (member.answer ?? member.found ?? "").slice(0, 4000),
+        assigned: { kind: "person", id: meId },
+        source: { kind: "chat", id: member.parentThreadId },
+        idempotencyKey: `helper-task-${member.id}`,
+      }),
+    ).then(
+      () => {
+        setMade(title);
+        setDraft(null);
+      },
+      () => setErr("The task could not be made. Try again."),
+    );
   };
   const send = (): void => {
     const body = text.trim();
@@ -667,6 +701,52 @@ export function CrewPeek({
             <Text testID="crew-peek-answer" style={st.rowLine}>
               {own ? (member.answer ?? member.found) : member.found}
             </Text>
+            {member.state === "done" && meId !== undefined ? (
+              <View testID="crew-result-actions" style={st.actions}>
+                {made !== null ? (
+                  <Text testID="crew-result-made" style={st.hint}>
+                    Task made: {made}
+                  </Text>
+                ) : draft === null ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    testID="crew-result-task"
+                    onPress={() => setDraft(taskTitleOf(member))}
+                    style={st.pill}
+                  >
+                    <Text style={st.pillText}>Make a task</Text>
+                  </Pressable>
+                ) : (
+                  <View style={st.ask}>
+                    <TextInput
+                      testID="crew-result-task-title"
+                      value={draft}
+                      onChangeText={setDraft}
+                      onSubmitEditing={makeTask}
+                      placeholder="Task"
+                      placeholderTextColor="var(--ink-4)"
+                      style={st.input}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      testID="crew-result-task-go"
+                      onPress={makeTask}
+                      style={st.pill}
+                    >
+                      <Text style={st.pillText}>Make</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      testID="crew-result-task-cancel"
+                      onPress={() => setDraft(null)}
+                      style={st.pill}
+                    >
+                      <Text style={st.pillText}>Cancel</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            ) : null}
           </>
         ) : null}
         {log.length > 0 ? <Text style={st.section}>Notes</Text> : null}

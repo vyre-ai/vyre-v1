@@ -31,7 +31,13 @@ const call = async (cap: string): Promise<unknown> => (cap === "chat.helper.note
 const view = (member: CrewMember) =>
   mount(
     createRoot,
-    <CrewPeek member={member} call={call} onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />,
+    <CrewPeek
+      member={member}
+      call={call}
+      onBack={() => undefined}
+      onOpenChat={() => undefined}
+      onRefresh={() => undefined}
+    />,
   );
 const shown = (root: Awaited<ReturnType<typeof view>>, tab: string): boolean => {
   const p = find(root, `crew-peek-panel-${tab}`);
@@ -44,28 +50,122 @@ test("a helper with no files has two tabs, Transcript and Details; it opens on T
   const root = await view(M());
   assert.ok(find(root, "crew-peek-tab-transcript") && find(root, "crew-peek-tab-details"));
   assert.equal(find(root, "crew-peek-tab-files"), null);
-  assert.deepEqual(["transcript", "details"].map((t) => shown(root, t)), [true, false]);
+  assert.deepEqual(
+    ["transcript", "details"].map((t) => shown(root, t)),
+    [true, false],
+  );
   assert.match(textOf(find(root, "crew-peek-panel-transcript")), /74 tests pass/);
   assert.match(textOf(find(root, "crew-peek-panel-details")), /Cost and time/);
 });
 
 test("a helper that changed files gets a Files tab with the count, and pressing a tab shows that panel only", async () => {
   const root = await view(
-    M({ branch: "crew/tess", added: 86, deleted: 16, files: [{ path: "a.yml", added: 5, deleted: 0 }, { path: "b.sh", added: 81, deleted: 16 }] }),
+    M({
+      branch: "crew/tess",
+      added: 86,
+      deleted: 16,
+      files: [
+        { path: "a.yml", added: 5, deleted: 0 },
+        { path: "b.sh", added: 81, deleted: 16 },
+      ],
+    }),
   );
   assert.match(textOf(find(root, "crew-peek-tab-files")), /Files\s*2/);
   await press(find(root, "crew-peek-tab-files"));
-  assert.deepEqual(["transcript", "files", "details"].map((t) => shown(root, t)), [false, true, false]);
+  assert.deepEqual(
+    ["transcript", "files", "details"].map((t) => shown(root, t)),
+    [false, true, false],
+  );
   await press(find(root, "crew-peek-tab-details"));
-  assert.deepEqual(["transcript", "files", "details"].map((t) => shown(root, t)), [false, false, true]);
+  assert.deepEqual(
+    ["transcript", "files", "details"].map((t) => shown(root, t)),
+    [false, false, true],
+  );
   await press(find(root, "crew-peek-tab-transcript"));
-  assert.deepEqual(["transcript", "files", "details"].map((t) => shown(root, t)), [true, false, false]);
+  assert.deepEqual(
+    ["transcript", "files", "details"].map((t) => shown(root, t)),
+    [true, false, false],
+  );
 });
 
 test("a subagent of the engine has no model to change but keeps both tabs; the actions and the ask box stay under every tab", async () => {
-  const root = await view(M({ kind: "subagent", state: "working", found: undefined as never, step: "Reading page.html" }));
+  const root = await view(
+    M({ kind: "subagent", state: "working", found: undefined as never, step: "Reading page.html" }),
+  );
   assert.ok(find(root, "crew-peek-tab-details"));
   await flush();
   await press(find(root, "crew-peek-tab-details"));
   assert.equal(find(root, "crew-peek-model"), null);
+});
+
+test("a finished result becomes a task for the person looking: Make a task, a title to confirm, one tasks.create, and a second press cannot make another", async () => {
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const rec = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    return cap === "chat.helper.notes" ? { notes: [] } : cap === "tasks.create" ? { taskId: "tsk_1" } : {};
+  };
+  const root = await mount(
+    createRoot,
+    <CrewPeek
+      member={M({ found: "Harbor Supply fits best. It costs more up front." })}
+      call={rec}
+      meId="usr_me"
+      onBack={() => undefined}
+      onOpenChat={() => undefined}
+      onRefresh={() => undefined}
+    />,
+  );
+  await press(find(root, "crew-result-task"));
+  assert.equal(find(root, "crew-result-task-title")?.props.value, "Follow up: Harbor Supply fits best");
+  await press(find(root, "crew-result-task-cancel"));
+  assert.equal(find(root, "crew-result-task-title"), null, "Cancel makes nothing");
+  assert.equal(calls.filter((c) => c.cap === "tasks.create").length, 0);
+  await press(find(root, "crew-result-task"));
+  await press(find(root, "crew-result-task-go"));
+  await flush();
+  const made = calls.filter((c) => c.cap === "tasks.create");
+  assert.equal(made.length, 1);
+  assert.deepEqual(made[0]!.input.assigned, { kind: "person", id: "usr_me" });
+  assert.deepEqual(made[0]!.input.source, { kind: "chat", id: "thr_0" });
+  assert.equal(made[0]!.input.idempotencyKey, "helper-task-thr_a");
+  assert.match(textOf(find(root, "crew-result-made")), /Task made:\s+Follow up: Harbor Supply fits best/);
+  assert.equal(find(root, "crew-result-task"), null, "once made, the button is gone");
+});
+
+test("no Make a task without a person to give it to, and none while it still works or failed; a failing create says so and keeps the sheet", async () => {
+  const none = await view(M());
+  assert.equal(find(none, "crew-result-actions"), null);
+  const rec = async (cap: string): Promise<unknown> => {
+    if (cap === "tasks.create") throw new Error("down");
+    return cap === "chat.helper.notes" ? { notes: [] } : {};
+  };
+  const working = await mount(
+    createRoot,
+    <CrewPeek
+      member={M({ state: "working", found: undefined as never, step: "x" })}
+      call={rec}
+      meId="usr_me"
+      onBack={() => undefined}
+      onOpenChat={() => undefined}
+      onRefresh={() => undefined}
+    />,
+  );
+  assert.equal(find(working, "crew-result-actions"), null);
+  const root = await mount(
+    createRoot,
+    <CrewPeek
+      member={M()}
+      call={rec}
+      meId="usr_me"
+      onBack={() => undefined}
+      onOpenChat={() => undefined}
+      onRefresh={() => undefined}
+    />,
+  );
+  await press(find(root, "crew-result-task"));
+  await press(find(root, "crew-result-task-go"));
+  await flush();
+  assert.match(textOf(find(root, "crew-peek-error")), /could not be made/);
+  assert.ok(find(root, "crew-result-task-title"), "the sheet stays so it can be tried again");
+  assert.equal(find(root, "crew-result-made"), null);
 });
