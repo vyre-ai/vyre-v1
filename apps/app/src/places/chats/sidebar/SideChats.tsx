@@ -316,9 +316,16 @@ export function SideChats({
         personal,
         guest: !canChat,
         loading: q.status === "loading" && failureOf(q) === undefined,
+        // the sections whose head has a "+" for this person: empty, each is its header alone
+        adds: new Set<SectionId>([
+          "goals",
+          ...(canChat ? (["chats"] as const) : []),
+          ...(personal ? [] : (["channels"] as const)),
+          ...(canNewAgent ? (["team"] as const) : []),
+        ]),
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [built, pins, filter, port.folds(), more, openKey, personal, canChat, q.status],
+    [built, pins, filter, port.folds(), more, openKey, personal, canChat, canNewAgent, q.status],
   );
   const reread = useCallback((): void => void refetch(data.screens), [data.screens]);
   const say = (text: string): void => {
@@ -610,7 +617,6 @@ export function SideChats({
             }}
             retry={reread}
             showAll={showAll}
-            newGoal={() => setGoalSheet(true)}
             openPinned={(n) => {
               const key = [...layout.digits.entries()].find(([, d]) => d === n)?.[0];
               const it = key ? built?.items.find((x) => x.key === key) : undefined;

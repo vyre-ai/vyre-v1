@@ -6,6 +6,10 @@ import { find, installDom, mount, press, textOf } from "../../../../../ui/src/te
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { RequestsPage } from "../pages/Requests.tsx";
 import { dataWith } from "./sheet-helper.tsx";
+import { setArmDelay } from "../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const roles = {
   roles: [

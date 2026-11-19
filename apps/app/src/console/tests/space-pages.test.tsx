@@ -8,6 +8,10 @@ import { SpaceDeletePage, deleteDate, deleteName } from "../pages/SpaceDelete.ts
 import { act } from "react";
 import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
+import { setArmDelay } from "../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const SPACE = (owner: string, over: Record<string, unknown> = {}) => ({
   space: {

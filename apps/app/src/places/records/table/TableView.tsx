@@ -80,6 +80,7 @@ import type { Column, FieldDef, GroupItem, RowPick, RecordRow, TableViewState, T
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { copyLinkText, itemLink } from "../../../share/rows.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
@@ -1600,22 +1601,15 @@ function Grid({
                 testID="records-confirm-text"
               >{`Delete ${recordsWord(work.n, def.title.toLowerCase(), def.plural.toLowerCase())}?`}</Text>
               <View style={styles.grow} />
-              <Pressable
-                accessibilityRole="button"
-                testID="records-confirm-delete"
-                onPress={() => void deleteNow(work.ids, work.every)}
-                style={styles.pickLink}
-              >
-                <Text style={[styles.pickLinkText, styles.pickDanger]}>Delete</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                testID="records-confirm-cancel"
-                onPress={() => setWork(null)}
-                style={styles.pickLink}
-              >
-                <Text style={styles.pickLinkText}>Cancel</Text>
-              </Pressable>
+              <InlineConfirm
+                compact
+                question={`Delete ${recordsWord(work.n, def.title.toLowerCase(), def.plural.toLowerCase())}?`}
+                confirmLabel="Delete"
+                confirmTestID="records-confirm-delete"
+                cancelTestID="records-confirm-cancel"
+                onConfirm={() => deleteNow(work.ids, work.every)}
+                onCancel={() => setWork(null)}
+              />
             </>
           ) : work.kind === "busy" ? (
             <Text style={styles.pickBarText} testID="records-work-text">

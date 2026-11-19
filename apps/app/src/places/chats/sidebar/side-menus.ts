@@ -4,7 +4,8 @@ import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/props.ts
 import { sep, tidy } from "../../../../../../ui/src/Menu/entries.ts";
 import { formatCombo } from "../../../shell/keyboard/map.ts";
 import type { Platform } from "../../../shell/keyboard/map.ts";
-import { FILTER_CHOICES } from "./layout.ts";
+import { STATE_MARKS } from "../../../../../../ui/src/Status/states.ts";
+import { FILTER_CHOICES, VERB_STATE } from "./layout.ts";
 import type { FilterId, FilterRow, Item, SectionId } from "./layout.ts";
 
 /** What the sidebar can do with a row. Anything left out is an item left out. */
@@ -57,6 +58,9 @@ const it = (label: string, onSelect: (() => void) | undefined, o: Partial<MenuIt
   onSelect ? { label, onSelect, ...o } : null;
 const some = (x: MenuItem | null): x is MenuItem => x !== null;
 
+/** What a waiting task's verb says in full: the head of its menu, the same words as its mark's tip. */
+export const verbWords = (verb: string): string => STATE_MARKS[VERB_STATE[verb] ?? "review"].words;
+
 const isRead = (x: Item): boolean => x.unread === 0 && x.mentions === 0;
 function openGroup(_x: Item, d: RowDo, label = "Open"): (MenuItem | null)[] {
   return [it(label, d.open, { hint: HINT.open }), it("Open in New Tab", d.openTab, { hint: HINT.tab })];
@@ -73,7 +77,7 @@ function pinItem(_x: Item, d: RowDo, pinned: boolean): MenuItem | null {
  *  project                         Open project, tab | Mark, Pin, Mute | Copy link
  *  agent (Team)                    Message, tab | Pin, Mute | View profile, Add to a chat | Pause, Edit instructions | Delete agent (managers; never the Assistant)
  *  goal                            Open, tab | Pin, Report progress, Mark stuck, Pause | Copy link
- *  waiting task                    Open, tab | Copy link
+ *  waiting task                    (what its state asks, as the menu's head) Open, tab | Copy link
  */
 export function rowMenu(x: Item, pinned: boolean, d: RowDo, can: RowCan = {}): MenuEntry[] {
   const pin = pinItem(x, d, pinned);
@@ -87,7 +91,7 @@ export function rowMenu(x: Item, pinned: boolean, d: RowDo, can: RowCan = {}): M
   const clean = (xs: (MenuEntry | null)[]): MenuEntry[] => tidy(xs.filter((e): e is MenuEntry => e !== null));
   switch (x.kind) {
     case "task":
-      return clean([...openGroup(x, d), sep, link]);
+      return clean([...(x.verb ? [{ head: verbWords(x.verb.label) }] : []), ...openGroup(x, d), sep, link]);
     case "goal":
       return clean([
         ...openGroup(x, d),
@@ -293,6 +297,8 @@ export function plusMenu(section: SectionId, d: HeadDo, keyOf: KeyOf = defaultKe
   const m = (label: string, icon: string, id: string, f?: () => void): MenuItem | null =>
     it(label, f, { icon, hint: keyOf(id) });
   switch (section) {
+    case "goals":
+      return tidy([m("New goal", NEW_ICON.goal, "goal.new", d.newGoal)]);
     case "chats":
       return tidy([m("New chat", NEW_ICON.chat, "chat.new", d.newChat)]);
     case "channels":
@@ -306,12 +312,17 @@ export function plusMenu(section: SectionId, d: HeadDo, keyOf: KeyOf = defaultKe
       return [];
   }
 }
-/** What the "+" of a section head says it does (its tooltip and its label): the Team head reads Agents in a Personal Space, where the plus makes an agent. */
+/** What the "+" of a section head says it does (its tooltip and its label), in the words of the thing it makes: New goal, New chat, New channel, Add teammate. The Team head reads Agents in a Personal Space, where the plus makes an agent. */
 export function plusWords(section: SectionId, label: string): string {
-  if (section === "chats") return "New in Chats";
-  if (section === "channels") return "New in Channels";
-  return label === "Agents" ? "New agent" : "Add to Team";
+  if (section === "goals") return "New goal";
+  if (section === "chats") return "New chat";
+  if (section === "channels") return "New channel";
+  return label === "Agents" ? "New agent" : "Add teammate";
 }
+const PLUS_KEY: Partial<Record<SectionId, string>> = { goals: "goal.new", chats: "chat.new", channels: "channel.new" };
+/** The key the "+" of a section runs, for the second line of its tip; empty where there is none. */
+export const plusKey = (section: SectionId, keyOf: KeyOf = defaultKey): string =>
+  PLUS_KEY[section] ? keyOf(PLUS_KEY[section]!) : "";
 
 export interface FilterDo {
   pick: (f: FilterId) => void;
@@ -358,5 +369,5 @@ export const ENTRY_KINDS_WITH_MENU = [
   "head",
   "more",
 ] as const;
-export const ENTRY_KINDS_WITHOUT_MENU = ["error", "none", "less", "hint"] as const;
+export const ENTRY_KINDS_WITHOUT_MENU = ["error", "none", "less"] as const;
 export const FILTER_IDS = FILTER_CHOICES.map((c) => c.id);

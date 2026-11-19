@@ -1657,7 +1657,7 @@ export function Composer(props: ComposerProps): ReactElement {
         setPlusOpen(false);
         typeSymbol("https://");
       });
-    const voice = talk.port?.on === true && talk.port.ready !== false; // voice is offered only once it is set up (Settings or Console)
+    const voice = talk.port?.on === true && talk.port.ready !== false && talk.port.button === true; // voice is offered only once it is set up (Settings or Console)
     const folder = props.onConnectFolder !== undefined;
     if (voice || folder) plusRows.push(<Sep key="s-more" />);
     if (voice)

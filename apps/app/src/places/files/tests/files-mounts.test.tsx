@@ -487,3 +487,14 @@ test("OneDrive opens its one drive at once, and the crumbs do not say OneDrive t
   const inDocs = walkInto(d, docs.items[0] as BrowseItem);
   assert.deepEqual(crumbs(inDocs), ["OneDrive", "Documents"]);
 });
+
+test("the Unmount sheet never unmounts on a stray Enter: it has no document key handler, and focus opens on Cancel through the Dialog", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../mounts/UnmountSheet.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /onKey=/, "Enter anywhere used to confirm the destructive Unmount");
+  assert.match(
+    src,
+    /label: "Cancel"[\s\S]*danger: true/,
+    "Cancel is the quiet action beside the danger one, so ui/Dialog focuses it",
+  );
+});

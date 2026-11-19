@@ -13,6 +13,7 @@ import { Group, Lead, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Switch } from "../../places/settings/ui.tsx";
 import { Actions, Button, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Account = CapMap["engine.accounts.list"]["out"]["accounts"][number];
 type Policy = CapMap["engine.policy.get"]["out"];
@@ -158,20 +159,17 @@ function AiAccounts({
           }
         />
         {confirm ? (
-          <View testID="ai-own-confirm" style={{ padding: 12, gap: 10 }}>
-            <Text
-              style={{ fontSize: 13, color: "var(--ink)" as string }}
-            >{`${own.length} ${own.length === 1 ? "person" : "people"} will switch to the Space's AI accounts: ${names.join(", ")}. Their agents keep running.`}</Text>
-            <Actions>
-              <Button
-                label="Switch"
-                testID="ai-own-switch-confirm"
-                disabled={action.busy}
-                onPress={() => void save("company")}
-              />
-              <Button label="Cancel" testID="ai-own-cancel" onPress={() => setConfirm(false)} />
-            </Actions>
-          </View>
+          <InlineConfirm
+            testID="ai-own-confirm"
+            danger={false}
+            question={`${own.length} ${own.length === 1 ? "person" : "people"} will switch to the Space's AI accounts: ${names.join(", ")}. Their agents keep running.`}
+            confirmLabel="Switch"
+            confirmTestID="ai-own-switch-confirm"
+            cancelTestID="ai-own-cancel"
+            disabled={action.busy}
+            onConfirm={() => save("company")}
+            onCancel={() => setConfirm(false)}
+          />
         ) : null}
       </Group>
       {space.some((a) => !accountState(a).working) ? (

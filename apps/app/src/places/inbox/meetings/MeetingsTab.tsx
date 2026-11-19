@@ -77,7 +77,7 @@ function Head({ title, meta, children }: { title: string; meta?: string; childre
   );
 }
 
-function StateMark({ state }: { state: MeetingRow["state"] }): ReactElement {
+function MeetingState({ state }: { state: MeetingRow["state"] }): ReactElement {
   return (
     <Text
       testID={`meeting-state-${state}`}
@@ -130,7 +130,7 @@ function MeetingList({ onOpen }: { onOpen: (id: string) => void }): ReactElement
           <Glyph name="cal" size={15} color={m.state === "ready" ? "var(--accent)" : "var(--ink-3)"} />
         </View>
       }
-      {...(slim ? {} : { trailing: <StateMark state={m.state} /> })}
+      {...(slim ? {} : { trailing: <MeetingState state={m.state} /> })}
       onPress={() => {
         setSel(m.meetingId);
         onOpen(m.meetingId);
@@ -749,7 +749,7 @@ function PackageView({
         <Text accessibilityRole="header" aria-level={1} style={[st.h1, st.shrink]} numberOfLines={1}>
           {p.title}
         </Text>
-        {slim ? null : <StateMark state={p.state} />}
+        {slim ? null : <MeetingState state={p.state} />}
         <View style={st.grow} />
         <IconButton icon="more" label="More" testID="meeting-more" onPress={more} />
         {left > 0 ? (

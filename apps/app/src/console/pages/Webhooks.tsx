@@ -12,6 +12,7 @@ import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAc
 import { useIntegrationRows, safeProviderUrl } from "./integration-data.ts";
 import { WebhookFilterEditor } from "./WebhookFilterEditor.tsx";
 import { readWebhookFilter, writeWebhookFilter } from "./webhook-filters.ts";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 type Hook = CapMap["webhooks.list"]["out"]["webhooks"][number];
 type Delivery = CapMap["webhooks.deliveries"]["out"]["deliveries"][number];
 export function WebhooksPage({ initialId }: { initialId?: string } = {}): ReactElement {
@@ -388,25 +389,25 @@ function WebhookDeliveries({ id }: { id: string }): ReactElement {
       />
       {review ? (
         <Group>
-          <Note>Send this event again to the current destination? The receiver may act on it again.</Note>
-          <Actions>
-            <Button label="Cancel replay" onPress={() => setReview(null)} />
-            <Button
-              label="Confirm replay"
-              disabled={action.busy}
-              onPress={() =>
-                void action
-                  .run<CapMap["webhooks.replay_delivery"]["out"]>(
-                    "webhooks.replay_delivery",
-                    { deliveryId: review.id, idempotencyKey: attempt() },
-                    (result) => `Replay ${result.delivery.state}`,
-                  )
-                  .then((out) => {
-                    if (out) setReview(null);
-                  })
-              }
-            />
-          </Actions>
+          <InlineConfirm
+            question={<>Send this event again to the current destination? The receiver may act on it again.</>}
+            cancelLabel="Cancel replay"
+            confirmLabel="Confirm replay"
+            danger={false}
+            disabled={action.busy}
+            onConfirm={() =>
+              action
+                .run<CapMap["webhooks.replay_delivery"]["out"]>(
+                  "webhooks.replay_delivery",
+                  { deliveryId: review.id, idempotencyKey: attempt() },
+                  (result) => `Replay ${result.delivery.state}`,
+                )
+                .then((out) => {
+                  if (out) setReview(null);
+                })
+            }
+            onCancel={() => setReview(null)}
+          />
         </Group>
       ) : null}
       {action.note || list.error ? <Note>{action.note || list.error}</Note> : null}

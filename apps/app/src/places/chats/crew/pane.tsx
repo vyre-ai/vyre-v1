@@ -26,7 +26,6 @@ import {
   shows,
   sorted,
   span,
-  stateWord,
   timeline,
   sideBySide,
   tokenSplit,
@@ -39,6 +38,7 @@ import {
 } from "./model.ts";
 import type { CrewMember, CrewStatusOut, Show, SortKey } from "./model.ts";
 import type { Call } from "./status.ts";
+import { stateWordOrMark } from "./state-word.tsx";
 
 const web = Platform.OS === "web";
 const SHOW: Array<{ key: Show; label: string }> = [
@@ -550,7 +550,7 @@ export function CrewPeek({
             {nameOf(member)}
           </Text>
           <Text testID="crew-peek-state" style={st.sub}>
-            {stateWord(member.state)} · {timeOf(member, now)}
+            {stateWordOrMark(member.state)} · {timeOf(member, now)}
           </Text>
         </View>
       </View>

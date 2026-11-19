@@ -6,6 +6,7 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Help, Actions, Button, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 export const resetLossName = (kind: string): string =>
   ({ vault_mine: "Private Vault items", private_chats: "Private chats", personal_memory: "Personal memory" })[kind] ??
   "Private data";
@@ -122,20 +123,16 @@ export function PersonReset({
             </Group>
             {review ? (
               <>
-                <Note>
-                  Issue a reset for {name}? Their existing sessions end now. Share the code privately; closing this
-                  panel hides the code but does not revoke it.
-                </Note>
-                <Actions>
-                  <Button label="Back to loss preview" onPress={() => setReview(false)} />
-                  <Button
-                    label="Create one-time reset code"
-                    testID="person-reset-confirm"
-                    danger
-                    disabled={action.busy}
-                    onPress={() => void issue()}
-                  />
-                </Actions>
+                <InlineConfirm
+                  question={`Issue a reset for ${name}?`}
+                  note="Their existing sessions end now. Share the code privately; closing this panel hides the code but does not revoke it."
+                  cancelLabel="Back to loss preview"
+                  confirmLabel="Create one-time reset code"
+                  confirmTestID="person-reset-confirm"
+                  disabled={action.busy}
+                  onConfirm={() => issue()}
+                  onCancel={() => setReview(false)}
+                />
               </>
             ) : (
               <Button label="Review reset impact" testID="person-reset-review" danger onPress={() => setReview(true)} />

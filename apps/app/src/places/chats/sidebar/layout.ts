@@ -21,15 +21,24 @@ export * from "../../../../../../lib/sidebar.ts";
 import type { Agent, Channel, ChatRow, MutedFn, NeedsItem } from "./model.ts";
 import type { GoalLine } from "../goals/model.ts";
 import type { ProjectLine } from "../projects/model.ts";
+import type { WorkState } from "../../../../../../ui/src/Status/states.ts";
 
 // ---------------------------------------------------------------- the flat list of entries
 
 export type LayoutEntry = { key: string; y: number; h: number } & (
   | { type: "tasks"; count: number; folded: boolean }
-  /** One quiet line in a section with nothing in it: "No goals yet" with its one action. */
-  | { type: "hint"; section: SectionId; text: string; action: string }
   | { type: "row"; section: SectionId; item: Item; mark: Mark | null; digit?: number }
-  | { type: "head"; section: SectionId; label: string; count: number; folded: boolean; agg: Agg; marks: Mark[] }
+  /** `bare`: a section the person can add to, with nothing in it. It is its header alone (no sentence, nothing to fold); its "+" makes the first one. */
+  | {
+      type: "head";
+      section: SectionId;
+      label: string;
+      count: number;
+      folded: boolean;
+      agg: Agg;
+      marks: Mark[];
+      bare?: true;
+    }
   /** "N more": opens in place, except under Needs you, where it opens Tasks. It carries the marks of what it hides. */
   | { type: "more"; section: SectionId; hidden: number; agg: Agg; marks: Mark[]; opens: "place" | "tasks" }
   | { type: "less"; section: SectionId }
@@ -62,7 +71,11 @@ export interface LayoutInput {
   setup?: { done: number; total: number } | null;
   /** New things in Notes & artifacts (the row's badge). */
   notesNew?: number;
+  /** The sections this person can add to (their head has a "+"): one with nothing in it stays as its header alone. A section they cannot add to is not drawn when empty. Left out: Goals. */
+  adds?: ReadonlySet<SectionId>;
 }
+
+const ADDS_DEFAULT: ReadonlySet<SectionId> = new Set<SectionId>(["goals"]);
 
 export interface Layout {
   entries: readonly LayoutEntry[];
@@ -159,9 +172,10 @@ export function buildLayout(i: LayoutInput): Layout {
         );
       continue;
     }
-    const noGoals = s === "goals" && list.length === 0 && !filtered && !fail;
-    if (list.length === 0 && !fail && !noGoals) continue;
-    const folded = i.folded.has(s) && !filtered;
+    // the one empty rule: no "No goals yet" sentence anywhere. A section the person can add to is its header alone; any other empty section is not drawn
+    const bare = list.length === 0 && !filtered && !fail && (i.adds ?? ADDS_DEFAULT).has(s);
+    if (list.length === 0 && !fail && !bare) continue;
+    const folded = i.folded.has(s) && !filtered && !bare;
     const label = s === "team" && i.personal === true ? "Agents" : SECTION_LABEL[s];
     const agg = aggOf(list);
     push(
@@ -174,14 +188,11 @@ export function buildLayout(i: LayoutInput): Layout {
         folded,
         agg,
         marks: aggMarks(agg),
+        ...(bare ? { bare: true as const } : {}),
       },
       H.head,
     );
-    if (folded) continue;
-    if (noGoals) {
-      push({ key: "hint:goals", type: "hint", section: s, text: "No goals yet", action: "New goal" }, H.row);
-      continue;
-    }
+    if (folded || bare) continue;
     if (fail) {
       push({ key: `e:${s}`, type: "error", section: s, what: SECTION_WHAT[s] }, H.error);
       if (list.length === 0) continue;
@@ -227,7 +238,16 @@ export function buildLayout(i: LayoutInput): Layout {
 
 // ---------------------------------------------------------------- from what the sidebar reads today to Items
 
-/** What a waiting task asks of me: the verb at the right of its row (design 2.2). */
+/** The state a waiting task's verb stands for: the row draws its mark (ui/Status StateMark), never the word. */
+export const VERB_STATE: Readonly<Record<string, WorkState>> = {
+  Allow: "allow",
+  Review: "review",
+  Answer: "answer",
+  Sign: "sign",
+  Blocked: "blocked",
+};
+
+/** What a waiting task asks of me: the word behind the mark at the right of its row (design 2.2; said in the tip, the menu and to a screen reader). */
 export function needsVerb(item: NeedsItem): { label: string; tone: "accent" | "warn" } {
   const t = item.task;
   if (t.kind === "unblock" || t.blocked) return { label: "Blocked", tone: "warn" };
