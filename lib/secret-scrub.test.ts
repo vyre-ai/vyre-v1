@@ -18,6 +18,7 @@ test("a value is removed whatever the spacing, quoting or place: name=value, spa
   gone("--password hunter2", "hunter2");
   gone("curl -u user:pass https://h", "user:pass");
   gone("mysql -p hunter2", "hunter2");
+  gone("mysql -u root -phunter2 db", "hunter2");
   gone('{"password":"hunter2","x":1}', "hunter2");
   gone('{"password": "hunter2", "x": 1}', "hunter2");
   gone('"token": "abc123"', "abc123");

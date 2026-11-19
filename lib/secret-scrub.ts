@@ -1,3 +1,4 @@
+// The credential redactor, shared by the server, the host and the agent (lane r42-mcp, 19 Nov 2026; moved from agent/src/transcript/sanitize.ts, built on the final r40-redos version). agent/src/transcript/sanitize.ts re-exports it.
 // from vyre 0.6.9 lib/sanitize.js@dbd2dfbab and lib/credential-shapes.js@dbd2dfbab (the vendor shapes that matter for a conversation)
 // Keep credentials out of everything built from a transcript. People paste keys into conversations; copying them into a searchable index, a summary or
 // another engine's first message is the mistake. Every piece of text that enters the transcript goes through redact() first.
@@ -27,8 +28,10 @@ const VENDOR: readonly Rule[] = [
 /** Rules found by a secret's NAME or place rather than its prefix. A rule with a group replaces only that group, so the name in front of the value survives. */
 const GENERIC: readonly Rule[] = [
   [
+    // Found by the flag, then the command is looked for in the 130 characters before it on the same line: scanning forward from every
+    // "mysql" with a lazy gap cost 120 steps per start (0.7 s on 5 MB of "mysql ").
     "db-flag-password",
-    /\b(?:mysql|mysqldump|mariadb|psql|mongosh?|redis-cli)\b[^\n]{0,120}?\s-p([^\s]{8,})/g,
+    /\s-p([^\s]{8,})/g,
     "password",
     1,
   ],
@@ -82,7 +85,7 @@ const NEEDS: Readonly<Record<string, readonly string[]>> = {
   npm: ["npm_"],
   jwt: ["eyj"],
   bearer: ["bearer"],
-  "db-flag-password": ["mysql", "psql", "mongo", "mariadb", "redis-cli"],
+  "db-flag-password": ["-p"],
   "curl-userpass": ["-u"],
   pem: ["-----begin"],
   "conn-url": ["://"],
@@ -112,6 +115,13 @@ export function redact(input: unknown): Redacted {
     const before = out;
     out = out.replace(re, (m: string, ...rest: unknown[]) => {
       // For a name/value rule the first group is the NAME, and some names contain a secret word without meaning one.
+      if (name === "db-flag-password") {
+        const off = rest[rest.length - 2] as number;
+        if (
+          !/\b(?:mysql|mysqldump|mariadb|psql|mongosh?|redis-cli)\b[^\n]*$/.test(out.slice(Math.max(0, off - 130), off))
+        )
+          return m;
+      }
       if (group === 2 && NOT_SECRET_NAME.test(String(rest[0] ?? ""))) return m;
       const secret = group ? String(rest[group - 1] ?? m) : m;
       if (!secret || secret.length < 8) return m;
@@ -150,6 +160,7 @@ const SCHEME_WORD = /^(?:bearer|basic)$/i;
 const VENDOR_PREFIX =
   /^(?:sk[-_]|pk_(?:live|test)_|rk_(?:live|test)_|gh[pousr]_|github_pat_|xox[abprs]-|xapp-|AKIA|ASIA|AIza|eyJ|SG\.|npm_|dop_v1_)/;
 const LONG_RUN = /[A-Za-z0-9_\-+/=]{20,}/g;
+const DB_TOOL = /^(?:mysql|mysqldump|mariadb|psql|mongosh?|redis-cli)$/i;
 const MAX_WORD = 2000;
 const WINDOW = 200_000;
 const REMOVED = "[removed]";
@@ -193,6 +204,7 @@ export function scrubLog(input: unknown, limit = 4000): string {
     let toNewline = false; // a header: the rest of the line goes
     let quote = ""; // a quoted value that spans words: removed to its closing quote
     let last = ""; // the word before this one, for a separator that stands alone
+    let dbCommand = 0; // words since a database client was named: its -pPASSWORD flag takes the password glued on
     for (const part of parts) {
       if (part === "" || /^\s+$/.test(part)) {
         out.push(part);
@@ -201,6 +213,8 @@ export function scrubLog(input: unknown, limit = 4000): string {
       }
       const before = last;
       last = part;
+      if (DB_TOOL.test(part)) dbCommand = 24;
+      else if (dbCommand > 0) dbCommand -= 1;
       if (toNewline) {
         out.push(REMOVED);
         continue;
@@ -225,6 +239,10 @@ export function scrubLog(input: unknown, limit = 4000): string {
         continue;
       }
       let w = part;
+      if (dbCommand > 0 && /^-p[^\s=]{3,}$/.test(w)) {
+        out.push("-p" + REMOVED);
+        continue;
+      }
       if (LINE_HEADER.test(w)) {
         toNewline = true;
         out.push(w);
