@@ -43,6 +43,14 @@ const caddyFetch: FetchFn = () =>
     headers: { get: () => null },
     text: () => Promise.resolve('{"apps":{"http":{}}}'),
   });
+// a provider that answers its key check: saving a key asks the provider first (11 Nov), and this test must not reach the real one with a made-up key
+const providerFetch = (() =>
+  Promise.resolve(
+    new Response(JSON.stringify({ data: [{ id: "claude-sonnet-4-5" }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }),
+  )) as never;
 const OWNER = "tok-usr_olivia",
   OTHER = "tok-usr_noah";
 const SECRET = "sk-ant-mine-NEVER-ON-DISK";
@@ -74,6 +82,7 @@ test("vault key (ruling 62): unlock opens the person's Mine provider for their t
         },
       }),
       fetch: caddyFetch,
+      providerFetch,
       session: (h) => {
         const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
         const who = t === OWNER ? "usr_olivia" : t === OTHER ? "usr_noah" : null;
@@ -216,6 +225,7 @@ test("vault key (ruling 62): the key lives only as long as the sessions that unl
       },
     }),
     fetch: caddyFetch,
+    providerFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
   const PERSON = "usr_olivia";

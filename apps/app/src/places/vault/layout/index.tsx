@@ -23,7 +23,7 @@ import {
 } from "./data.tsx";
 import type { VaultData } from "./data.tsx";
 import { ItemList } from "./ItemList.tsx";
-import { ALL, EXPIRY_CHOICES, countItems, expiryLabel, sameSelection, visibleItems } from "./model.ts";
+import { ALL, EXPIRY_CHOICES, countItems, expiryLabel, sameSelection, selectionKey, visibleItems } from "./model.ts";
 import type { Expiry } from "./model.ts";
 import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
 import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
@@ -159,6 +159,14 @@ function Page({
           ? route.select
           : undefined;
   const [selection, setSelection] = useState<Selection>(routeSelection ?? initial ?? ALL);
+  // The row a phone opens is a new address of this same instance (it was the list of sections a moment ago), and the effect below only moves the selection after the first paint: a frame or two
+  // of the old selection ("All 0") showed under the new row's name. So when the address changes the selection follows it in the render itself (React redraws before anything is painted).
+  const routeKey = routeSelection ? selectionKey(routeSelection) : "";
+  const [seenRoute, setSeenRoute] = useState(routeKey);
+  if (routeKey !== seenRoute) {
+    setSeenRoute(routeKey);
+    if (routeSelection) setSelection(routeSelection);
+  }
   const [query, setQuery] = useState("");
   const [sharingFolder, setSharingFolder] = useState<Folder | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(route.surface === "share" ? route.itemId : null);

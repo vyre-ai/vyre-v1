@@ -10,6 +10,7 @@
 import type http from "node:http";
 import { makeError } from "./errors.ts";
 import { sourceOf } from "../daemon/preauth.ts";
+import { safeUrl } from "../safe-url.ts";
 
 export const MAX_WEBHOOK_BYTES = 1024 * 1024;
 const AUTOMATION_PATH = /^\/hooks\/automation\/(aut_[a-z0-9]+)\/([A-Za-z0-9_-]{8,200})$/;
@@ -215,7 +216,7 @@ export function createWebhookRoute(deps: WebhookRouteDeps): {
 
   return {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       const hook = AUTOMATION_PATH.exec(url.pathname);
       if (hook && deps.automation) {
         if ((req.method ?? "GET").toUpperCase() !== "POST") {

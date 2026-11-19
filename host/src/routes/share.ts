@@ -6,6 +6,7 @@
 //   4. the answer is never cached and never indexed, sends no referrer, and runs no script: a page with inline text and one style block under a CSP that allows nothing else
 // GET and HEAD only; anything else is 405. Nothing about a link is logged but a 404.
 import type http from "node:http";
+import { safeUrl } from "../safe-url.ts";
 
 export interface SharedView {
   title: string;
@@ -84,7 +85,7 @@ export function createShareRoute(deps: ShareRouteDeps): {
 } {
   return {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       if (!url.pathname.startsWith("/share/")) return false;
       const method = (req.method ?? "GET").toUpperCase();
       const json = String(req.headers["accept"] ?? "").includes("application/json");

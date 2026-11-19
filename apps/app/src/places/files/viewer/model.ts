@@ -10,6 +10,7 @@ import type {
   ViewerKind,
 } from "../../../../../../ui/src/Viewer/index.tsx";
 import { googleAppOf } from "../google.ts";
+import { isPipeRow, isPipeRule } from "../../../../../../lib/html-text.ts";
 
 export type ViewerData = CapMap["files.viewer_data"]["out"];
 export type FileComment = CapMap["files.comments.list"]["out"]["comments"][number];
@@ -72,9 +73,9 @@ export function viewerKindOf(d: {
 export function docsMarkdown(text: string): string {
   return text
     .split("\n")
-    .filter((l) => !/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(l))
+    .filter((l) => !isPipeRule(l))
     .map((l) =>
-      /^\s*\|.*\|\s*$/.test(l)
+      isPipeRow(l)
         ? l
             .trim()
             .slice(1, -1)
@@ -92,8 +93,6 @@ export function docsMarkdown(text: string): string {
 export const isOffice = (kind: FileKind): boolean => kind === "document" || kind === "presentation";
 
 const SLIDE = /^# Slide (\d+)(?::\s+(.*))?$/;
-const PIPE_ROW = /^\s*\|.*\|\s*$/;
-const PIPE_RULE = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/;
 /** The cells of a pipe-table row; a cell's own pipe is written \| and comes back as |. */
 const pipeCells = (line: string): string[] =>
   line
@@ -131,12 +130,12 @@ export function officeBlocks(text: string): DocBlock[] {
       out.push({ id, tag: "note", text: line });
       continue;
     }
-    if (PIPE_ROW.test(line) && !PIPE_RULE.test(line)) {
-      const head = !PIPE_ROW.test(lines[i - 1] ?? "") && PIPE_RULE.test(lines[i + 1] ?? "");
+    if (isPipeRow(line) && !isPipeRule(line)) {
+      const head = !isPipeRow(lines[i - 1] ?? "") && isPipeRule(lines[i + 1] ?? "");
       out.push({ id, tag: head ? "hrow" : "row", text: pipeCells(line).join("\t") });
       continue;
     }
-    if (PIPE_RULE.test(line) && PIPE_ROW.test(lines[i - 1] ?? "")) continue;
+    if (isPipeRule(line) && isPipeRow(lines[i - 1] ?? "")) continue;
     const heading = /^(#{1,6})\s+(.*)$/.exec(line);
     if (heading) {
       out.push({ id, tag: heading[1]!.length === 1 ? "h1" : "h2", text: heading[2]! });

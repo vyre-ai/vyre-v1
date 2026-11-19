@@ -251,3 +251,15 @@ test("agentSubnetsOf: the guard's networks are the union of what each module exp
   workspaces = [];
   assert.deepEqual(of(), ["172.29.0.0/16"], "read on every call: a network that went is gone");
 });
+
+test("forward auth reads x-forwarded-uri only as an origin-form path: //evil/x, absolute and backslash forms are refused, an encoded slash stays one path", async (t) => {
+  const w = await world("space");
+  t.after(w.close);
+  const owner = { cookie: `__vyre_site=${TOKEN}` };
+  const ask = (uri: string) => w.call("/__vyre/auth", { ...owner, headers: { "x-forwarded-uri": uri } });
+  for (const bad of ["//evil/x", "///x", "http://evil.test/x", "https://cx.space.test/x", "/\\evil/x", "x/y", "/a b"])
+    assert.equal((await ask(bad)).status, 400, JSON.stringify(bad));
+  assert.equal((await ask("/%2F%2Fevil/x")).status, 204, "an encoded slash is part of one path, proxied as it is");
+  assert.equal((await ask("/dash?x=1")).status, 204);
+  assert.equal((await w.call("/__vyre/auth", { ...owner })).status, 204, "no forwarded address is the root");
+});

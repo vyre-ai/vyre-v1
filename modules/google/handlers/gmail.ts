@@ -22,6 +22,7 @@ import {
   text,
 } from "../projections.ts";
 import type { Call, GoogleCtx } from "../projections.ts";
+import { MAX_ADDRESS_PART } from "../../../lib/html-text.ts";
 import { charsetOf, decodePart, REACTION_TYPE, reactionEmoji } from "../../../lib/mail-parse.ts";
 
 export interface Act {
@@ -566,14 +567,33 @@ export function parseAddresses(value: string | undefined): Party[] {
   if (cur.trim()) parts.push(cur);
   const out: Party[] = [];
   for (const p of parts) {
-    const m = /^\s*(?:"?([^"<]*?)"?\s*)?<([^<>\s]+)>\s*$/.exec(p) ?? /^\s*()([^<>\s,;]+)\s*$/.exec(p);
+    if (p.length > MAX_ADDRESS_PART) continue;
+    const m = addressParts(p);
     if (!m) continue;
-    const address = normalizeEmail(m[2] ?? "");
+    const address = normalizeEmail(m.address);
     if (!EMAIL.test(address)) continue;
-    const name = (m[1] ?? "").trim();
+    const name = m.name.trim();
     out.push(name ? { address, name } : { address });
   }
   return out;
+}
+
+/** "Name <a@b>", "\"Name\" <a@b>" or a bare "a@b", read in one pass (the old regex took quadratic time on a long space run). */
+function addressParts(p: string): { name: string; address: string } | null {
+  const t = p.trim();
+  if (t.endsWith(">")) {
+    const lt = t.indexOf("<");
+    if (lt >= 0 && lt === t.lastIndexOf("<")) {
+      const address = t.slice(lt + 1, -1);
+      if (address && !/[<>\s]/.test(address)) {
+        let name = t.slice(0, lt).trimEnd();
+        if (name.startsWith('"')) name = name.slice(1);
+        if (name.endsWith('"')) name = name.slice(0, -1);
+        if (!name.includes('"')) return { name, address };
+      }
+    }
+  }
+  return /^[^<>\s,;]+$/.test(t) ? { name: "", address: t } : null;
 }
 
 /** A part's own header (Content-Type, Content-Transfer-Encoding), lowercased name, first value. */

@@ -13,6 +13,7 @@ import type { BlobResource, BlobStore } from "../ctx/blobs.ts";
 import { makeError } from "./errors.ts";
 import { agentBound } from "../../../lib/redact.ts";
 import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
+import { safeUrl } from "../safe-url.ts";
 
 export interface BlobCaller {
   space: string;
@@ -175,7 +176,7 @@ export function createBlobRoute(deps: BlobRouteDeps): {
 
   return {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       const m = PATH.exec(url.pathname);
       if (!m) {
         // a path under /spaces/<space>/blobs/ that is not a blob id is still this route's to refuse

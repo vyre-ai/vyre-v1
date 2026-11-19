@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
 import { injectHints } from "./app-hints.ts";
+import { safeUrl } from "../safe-url.ts";
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -155,7 +156,7 @@ export function createAppFilesRoute(o: { dir: () => string | null }): {
       if (!dir) return false;
       let url: URL;
       try {
-        url = new URL(req.url ?? "/", "http://app");
+        url = safeUrl(req.url, "http://app");
       } catch {
         return false;
       }

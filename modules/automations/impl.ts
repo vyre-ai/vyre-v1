@@ -44,6 +44,7 @@ import { tick as watchesTick } from "./handlers/watches.ts";
 import {
   findAutomation,
   findRunLink,
+  isChecked,
   listChildLinks,
   listScopedChildren,
   saveRunLink,
@@ -174,7 +175,14 @@ export const hostCalls = {
   /** What the executor needs for a Run of an Automation (P-L6_24): the pinned definition, what started it, who it acts as, the vault names it may use. Nothing when the Run is not an Automation's. */
   "automations.run_plan": (ctx: Ctx, i: { runId: string }) => {
     const p = loadRunPlan(ctx, i.runId);
-    return p ? { link: p.link, definition: p.definition, vault: p.vault } : null;
+    return p
+      ? {
+          link: p.link,
+          definition: p.definition,
+          vault: p.vault,
+          checked: isChecked(ctx.db, p.link.automationId, p.link.version),
+        }
+      : null;
   },
   /** One lane or one loop iteration. Pins the parent's definition version. The same key returns the same Run. */
   "automations.spawn_child": async (

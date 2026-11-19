@@ -24,6 +24,8 @@ export function world() {
   };
   k.deps.probe = probe;
   const types = new Map<string, Set<string>>();
+  const runByKey = new Map<string, string>();
+  let runCount = 0;
   const calls: { cap: string; input: any }[] = [];
   const ctx: ConnectorsCtx = {
     ...k.ctx,
@@ -31,7 +33,15 @@ export function world() {
       calls.push({ cap, input });
       // the Vault's Use check (lib/vault-check.ts): this world's person may use the keys its connections keep, as in the kit (fixtures/kit.ts)
       if (cap === "vault.use") return k.ctx.call("vault.use", input);
-      if (cap === "runs.start") return { runId: `run_${calls.filter((x) => x.cap === "runs.start").length}` };
+      if (cap === "runs.start") {
+        // the same idempotency key is the same Run, as the real Runs module answers it (even when that Run has since failed)
+        const key = String((input as { idempotencyKey?: string })?.idempotencyKey ?? "");
+        const known = key ? runByKey.get(key) : undefined;
+        if (known) return { runId: known };
+        const runId = `run_${++runCount}`;
+        if (key) runByKey.set(key, runId);
+        return { runId };
+      }
       if (cap === "runs.finish") return { run: { id: (input as { runId: string }).runId } };
       if (cap === "schema.diff") return { previewToken: "tok", items: [], additive: 0, destructive: 0, problems: [] };
       if (cap === "schema.describe")

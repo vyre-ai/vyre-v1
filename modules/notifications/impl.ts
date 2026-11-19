@@ -1,4 +1,5 @@
 import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import { scrubShapes } from "../../lib/secret-shapes.ts";
 import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // Notifications module (lane L6). The host loads these handlers once the host/modules.json row is live (ARCH 12.4, ruling 25).
 // setPushPort is the host's door for the APNs/FCM transport and the computer's idle time (call it at boot); the fanout consumer turns events that name a notification kind into rows.
@@ -227,6 +228,19 @@ function toAdmins(ctx: NotifCtx, line: Omit<SendIn, "to">): Promise<SendIn[]> {
 const healthTitle = (key: string): string =>
   (registry.health as ReadonlyArray<{ key: string; title?: string }>).find((h) => h.key === key)?.title ??
   (key || "A service");
+/**
+ * What an error said, as one short plain line for a notice: its first line only (never a stack), long token-like runs and bearer values taken out, at most 160 characters. The error text comes from the
+ * connector runtime, which already scrubs the secrets it holds; this is a second guard for what that did not know.
+ */
+export function plainReason(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const first = (raw.split(/\r?\n/)[0] ?? "").trim();
+  const clean = scrubShapes(first)
+    .replace(/\s+at\s+\S+:\d+(:\d+)?\)?$/, "")
+    .trim()
+    .replace(/[.]+$/, "");
+  return clean.length > 160 ? `${clean.slice(0, 157)}...` : clean;
+}
 /** The events that file sync.attention, and what each names in its line. */
 const SYNC_ATTENTION: Readonly<Record<string, (p: Record<string, unknown>) => string>> = {
   "connection.needs_reconnect": (p) => `the ${String(p.connector ?? "")} connection`.replace("the  ", "a "),
@@ -437,6 +451,23 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
             collapseKey: `sync.attention:${e.name}:${String(p.deviceId ?? "")}`,
           }
         : undefined;
+    // a push that ran out of tries says why, in words a person can act on, and where to look: the line opens the type's Sync page, where the failed push is listed with its error
+    if (e.name === "sync.push_failed") {
+      const reason = plainReason(p.error);
+      const type = typeof p.type === "string" && p.type !== "" ? p.type : undefined;
+      return toAdmins(ctx, {
+        kind: "sync.attention",
+        subject: type ? { type: "record_type", id: type } : { type: "space", id: ctx.space },
+        title: `${device}: the app refused a change${reason ? ` (${reason})` : ""}`,
+        data: {
+          device: `${device}: the app refused a change${reason ? ` (${reason})` : ""}`,
+          ...(reason ? { reason } : {}),
+          ...(typeof p.outboxId === "string" ? { outboxId: p.outboxId } : {}),
+          ...(typeof p.syncTypeId === "string" ? { syncTypeId: p.syncTypeId } : {}),
+        },
+        collapseKey: `sync.attention:${e.name}:${id}`,
+      });
+    }
     return toAdmins(ctx, {
       kind: "sync.attention",
       subject: { type: "space", id: ctx.space },

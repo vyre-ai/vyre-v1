@@ -202,70 +202,28 @@ async function markReconnect(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connec
  * One item on Home for whoever connected the app, not one per failed call: "Your <app> key stopped working". The person who connected a sync spec is its owner; a person's own connection is theirs.
  * It closes by itself when a probe of the connection answers well again (clearReconnectTask). Nothing is lost meanwhile: the outbox keeps every edit and syncing resumes.
  */
-/** Is this person a current member of the Space? "no" only when the directory says they are not (gone, removed, suspended, not invited yet); "unknown" when the lookup cannot be made. */
-async function memberState(ctx: ConnectorsCtx, id: string): Promise<"yes" | "no" | "unknown"> {
-  try {
-    const got = (await ctx.call("access.principals.get", { principal: { kind: "person", id } })) as {
-      principal?: { status?: string };
-    } | null;
-    const status = got?.principal?.status;
-    return status === undefined ? "unknown" : status === "active" ? "yes" : "no";
-  } catch (e) {
-    return (e as { error?: { code?: string } } | null)?.error?.code === "validation.not_found" ? "no" : "unknown";
-  }
-}
-
 async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: ConnectionDb): Promise<void> {
   const by = deps.tx.get<{ applied_by: string | null }>(
     "SELECT applied_by FROM cn_sync_specs WHERE connection_id = ?",
     c.connection_id,
   )?.applied_by;
-  // whoever owns it, else whoever applied its sync spec, else whoever made it; when none of them can be told (nobody is recorded, or they are gone), the Space's admins are: it is never left to fail without a word
-  const created = deps.tx.get<{ created_by: string }>(
-    "SELECT created_by FROM cn_connection_creators WHERE connection_id = ?",
-    c.connection_id,
-  )?.created_by;
-  // the first of them who is a current member of the Space; one who left, was removed or is suspended is skipped (a task made for them would reach nobody)
-  const candidates = [
-    c.owner_kind === "person" ? c.owner_id : undefined,
-    by && by !== "system" ? by : undefined,
-    created && created !== "system" ? created : undefined,
-  ].filter((x): x is string => typeof x === "string" && x !== "");
-  let who: string | undefined;
-  for (const id of candidates) {
-    // fails closed: someone the directory does not vouch for (gone, or the lookup could not be made) is skipped to the next in the chain
-    if ((await memberState(ctx, id)) !== "yes") continue;
-    who = id;
-    break;
-  }
+  const who = c.owner_kind === "person" ? c.owner_id : by && by !== "system" ? by : undefined;
   const title =
     deps.tx.get<{ title: string }>("SELECT title FROM cn_connectors WHERE key = ?", c.connector)?.title ?? c.title;
-  const make = (assigned: { kind: "person" | "role"; id: string }) =>
-    ctx.call("tasks.create", {
+  if (!who) return;
+  try {
+    const made = (await ctx.call("tasks.create", {
       kind: "unblock",
       title: `Your ${title} key stopped working`,
       summary: `${title} refused the key, so nothing syncs from it. Replace the key in the Vault; syncing resumes by itself and nothing was lost.`,
       why: "The app refused the key or sign-in.",
-      assigned,
+      assigned: { kind: "person", id: who },
       source: { kind: "manual", id: c.connection_id },
       blocks: [{ type: "connection_fix", v: 1, data: { connectionId: c.connection_id, title } }],
       // no bare resolve: the task closes when the connection works again (Reconnect, or a replaced key and Check again), never by pressing Done
       actions: [{ key: "cannot", label: "Dismiss", note: "optional" }],
-      idempotencyKey: `needs_reconnect:${c.connection_id}:${assigned.kind}:${nowOf(deps)}`,
-    }) as Promise<{ task?: { id?: string } } | undefined>;
-  try {
-    let made: { task?: { id?: string } } | undefined;
-    // told only when a task exists: the tasks module answers a replayed key with the same task, so an answer without one made none
-    let told = false;
-    if (who) {
-      try {
-        made = await make({ kind: "person", id: who });
-        told = typeof made?.task?.id === "string";
-      } catch {
-        told = false; // the person cannot be given a task
-      }
-    }
-    if (!told) made = await make({ kind: "role", id: "admin" });
+      idempotencyKey: `needs_reconnect:${c.connection_id}:${nowOf(deps)}`,
+    })) as { task?: { id?: string } } | undefined;
     const taskId = made?.task?.id;
     if (taskId)
       deps.tx.run(
@@ -651,13 +609,14 @@ export async function executeAction(
       dryRun: true,
     };
 
-  // the connection's budget: a short wait is served here (in this process, in line) instead of being refused and asked again, which cost a refusal, an access check and a Vault read for every try
+  // the connection's budget: a sync pass (it says so with its own token) waits here for its turn, for 30 s at most, instead of being refused and asked again. A person's own read never queues: it is refused
+  // at once with the wait it needs, as before. A short wait is served here (in this process, in line) instead of being refused and asked again, which cost a refusal, an access check and a Vault read for every try
   if (conn && !o.dryRun) {
     let waited = 0;
     while (!takeToken(conn.connection_id, def.rate, nowOf(deps))) {
       const wait = Math.max(50, tokenWaitMs(conn.connection_id, def.rate, nowOf(deps)));
       const held = holdMsOf(conn.connection_id, nowOf(deps));
-      if (!deps.pace || held > 0 || wait > PACE_LONGEST_MS || waited + wait > PACE_TOTAL_MS)
+      if (!deps.pace || o.keep === undefined || held > 0 || wait > PACE_LONGEST_MS || waited + wait > PACE_TOTAL_MS)
         refuse(
           ctx,
           "rate_limit.exceeded",

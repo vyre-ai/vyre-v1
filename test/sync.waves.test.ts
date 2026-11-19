@@ -9,5 +9,8 @@ test("five types of one connection start together: no read is refused for the co
   process.stderr.write(`[waves-counts] ${JSON.stringify(r)}\n`);
   assert.equal(r.pull.refused + r.due.refused, 0, "no read was refused for the connection's own budget");
   assert.ok(r.pull.reads >= 10, "the pulls read");
-  assert.ok(r.pull.fills <= 20 && r.due.fills <= 4, `the Vault was read ${r.pull.fills} / ${r.due.fills} times for ${r.pull.reads} / ${r.due.reads} reads`);
+  assert.ok(
+    r.pull.fills <= 20 && r.due.fills <= 4,
+    `the Vault was read ${r.pull.fills} / ${r.due.fills} times for ${r.pull.reads} / ${r.due.reads} reads`,
+  );
 });

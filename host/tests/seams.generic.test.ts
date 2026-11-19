@@ -462,17 +462,25 @@ test("seams.generic: a consumer runs once per matching event as the host service
     assert.equal(said[1]!.actor, "svc_host");
     assert.ok(said[1]!.depth > said[0]!.depth, "an event made by a consumer is deeper than the one that woke it");
     head = (await d.log!.currentHead()).seq;
-    assert.equal(
-      Number(
-        (d.db!.all("SELECT seq FROM host_hook_cursor WHERE name = ?", "test.echo_back")[0] as { seq: number }).seq,
-      ),
-      head,
+    // What the cursor promises while the server runs (consumers.ts): an event the consumer took is stored at once, so the stored cursor is at least the last event it took. Moving past events it does not
+    // take is stored at most once a second, so at this moment it may sit behind the head: its exact value is not checked here but after the stop below, which always stores it.
+    const stored = Number(
+      (d.db!.all("SELECT seq FROM host_hook_cursor WHERE name = ?", "test.echo_back")[0] as { seq: number }).seq,
     );
+    assert.ok(stored >= said[1]!.seq, "the event the consumer took last is stored");
+    assert.ok(stored <= head);
   } finally {
     await d.stop();
   }
   const again = await boot(dir, { hooks: hooks() });
   try {
+    assert.equal(
+      Number(
+        (again.db!.all("SELECT seq FROM host_hook_cursor WHERE name = ?", "test.echo_back")[0] as { seq: number }).seq,
+      ),
+      head,
+      "the stop stored (read before this start has run a pass) the cursor exactly at the head",
+    );
     await settle(again);
     assert.equal(seen.length, 2, "nothing is delivered twice after a restart");
     assert.equal((await again.log!.currentHead()).seq, head);

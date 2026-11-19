@@ -125,5 +125,6 @@
   {"file":"test/chat-brain.bench.test.ts","capSec":120,"owner":"L2","reason":"runs all 30 chat benchmark tasks on a seeded Space with the turn context (the side without it is chat-brain.bench.no-context.live.test.ts, slow by rule); over the fast cap on a loaded runner"},
   {"file":"test/personal.walk.live.test.ts","capSec":120,"owner":"personal-walk","reason":"The Personal Space first hour in the real app: claim, AI chat, Vault, Inbox, Files, Records, Automations, theme, Terminal; the production export in Chromium","heavy":true},
   {"file":"test/files.share.live.test.ts","capSec":60,"owner":"files-share","reason":"A folder Share in a Team Space opens the Records ShareSheet on the folder; the production export in Chromium","heavy":true},
-  {"file":"test/theme.firstframe.live.test.ts","capSec":60,"owner":"theme-boot","reason":"The first frame of the web export carries the stored skin and mode, and System follows the device; the production export in Chromium","heavy":true}
+  {"file":"test/theme.firstframe.live.test.ts","capSec":60,"owner":"theme-boot","reason":"The first frame of the web export carries the stored skin and mode, and System follows the device; the production export in Chromium","heavy":true},
+  {"file":"apps/app/tests/automations.journey-open.live.test.ts","capSec":120,"owner":"r40-journey","reason":"a Journey made through the API opens from the Automations list and from its link as a pipeline of its stages: a booted daemon and the production export in Chromium (about 15 s idle)"}
 ]

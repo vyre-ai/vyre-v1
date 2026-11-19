@@ -12,7 +12,8 @@ import { OpenLink } from "../reach/OpenLink.tsx";
 import { subscribeUpdates, updateState, updateWaiting } from "../../startup/update/store.ts";
 import { ConsoleAlone, onConsoleHost } from "../console-host.ts";
 import { speed } from "../../speed/recorder.ts";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { lazyPart } from "../../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
@@ -44,6 +45,7 @@ import { readUrlIntoHub } from "./url.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
 import { OnboardingHost } from "../../onboarding/OnboardingHost.tsx";
+import { revokeToken } from "./revoke-token.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { readStored, verifyStoredSession, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
@@ -59,7 +61,7 @@ import { isMacShell } from "./entry.ts";
 import { anyUnread } from "../../places/chats/sidebar/model.ts";
 import type { RecentOut } from "../../places/chats/sidebar/model.ts";
 
-const PhoneHost = lazy(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
+const PhoneHost = lazyPart(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
 
 const tabsStorage = () => {
   const ls = (
@@ -650,7 +652,8 @@ export function ShellHost({
     forgetKey(stored.token);
     void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
     void unlinkComputer(stored);
-    void session?.call("identity.sign_out", {}).catch(() => undefined);
+    // always through the revoke queue (revoke-token.ts): sent now with the stored token, whether or not the session has opened; if it gets no answer (offline, the Space down, the page closed) it is sent again at the next start
+    void revokeToken({ baseUrl: stored.baseUrl, token: stored.token, spaceId: stored.def.spaceId });
     onSignedOut("manual");
   };
   signOutRef.current = signOut;

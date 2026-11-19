@@ -80,6 +80,7 @@ export function AutomationsList({
               data.nav.openJourney(id);
               onChoose();
             },
+            openTab: () => openIn("tab", () => data.nav.openJourney(id)),
           }),
           { separator: true },
           { label: "Copy Link", onSelect: () => copyToClipboard(vyreLink("journey", id)) },

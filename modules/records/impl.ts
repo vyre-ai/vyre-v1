@@ -52,8 +52,9 @@ export function setRecordsVault(v: RecordsVault | null): void {
 }
 
 /**
- * The sealed path: the one way a plaintext reaches a sealed field is `{ sealed: true, value: "text" }`. The text goes to the Vault and the row keeps the reference only, so no row, event,
- * history entry or log line ever holds it. A reference passes as it is (a record read and written back), and null clears the field.
+ * The sealed path: a value given for a sealed field is plain text (or `{ sealed: true, value: "text" }`) and goes to the Vault; the row keeps the reference only, so no row, event,
+ * history entry or log line ever holds it. A reference passes as it is (a record read and written back), null clears the field, and an empty text is no value. An import (records.bulk_upsert),
+ * a create and an update all land here, so a firm loading dates of birth no longer has to load them as text and retype them (r40, 18 Nov 2026).
  */
 async function sealIn(
   def: TypeDef,
@@ -65,13 +66,23 @@ async function sealIn(
   for (const f of def.fields) {
     if (f.kind !== "sealed" || !Object.prototype.hasOwnProperty.call(out, f.name)) continue;
     const v = out[f.name];
-    if (
-      !v ||
-      typeof v !== "object" ||
-      (v as { sealed?: unknown }).sealed !== true ||
-      typeof (v as { value?: unknown }).value !== "string"
+    let text: string;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+      // no Vault on this store (the kernel conformance suite, a bare Space): a plain value is refused as it always was, never kept
+      if (!vault) continue;
+      text = String(v);
+      if (text === "") {
+        out[f.name] = null;
+        continue;
+      }
+    } else if (
+      v &&
+      typeof v === "object" &&
+      (v as { sealed?: unknown }).sealed === true &&
+      typeof (v as { value?: unknown }).value === "string"
     )
-      continue;
+      text = (v as { value: string }).value;
+    else continue;
     if (!vault)
       throw new StoreError(
         "unavailable",
@@ -82,7 +93,7 @@ async function sealIn(
       type: def.name,
       recordId,
       field: f.name,
-      value: (v as { value: string }).value,
+      value: text,
       ...(isSealedRef(have) ? { ref: (have as { ref: string }).ref } : {}),
     });
     out[f.name] = { sealed: f.name, ref, present: true, set_at: Date.now() };

@@ -3,7 +3,16 @@
 // `{{trigger.record.x}}` on a trigger that carried no record, each of which ran and sent an empty value. Pure: it reads the trigger and step catalogue.
 // DECISION: a name under a record, a body, a header list or a step that returns free-form data is not checked past the part the catalogue names; a record's field names belong to its type, which this does not see.
 import { registry } from "../../generated/registry.ts";
-import { ROOTS, checkAgainst, nearest, readsOf, shapeOf, textsIn, unknownLine } from "../../lib/flow-reads.ts";
+import {
+  ROOTS,
+  checkAgainst,
+  nearest,
+  readsOf,
+  shapeOf,
+  textsIn,
+  triggerShapeOf,
+  unknownLine,
+} from "../../lib/flow-reads.ts";
 import type { Read, Shape } from "../../lib/flow-reads.ts";
 import type { Definition, Node } from "./projections.ts";
 
@@ -67,7 +76,13 @@ export function filterIssues(def: Definition): ReadIssue[] {
 
 // ---- variables ----
 
-/** What the Run's `trigger` holds across this definition's triggers: every part any of them carries. */
+/** The event names that start a trigger. */
+const eventsOf = (key: string): string[] => {
+  const src = TRIGGERS.get(key)?.source as { event?: string; events?: string[] } | undefined;
+  return src?.events ?? (src?.event ? [src.event] : []);
+};
+
+/** What the Run's `trigger` holds across this definition's triggers: every part any of them carries, from the trigger's payload and the events that start it. */
 export function triggerShape(def: Definition): Shape | undefined {
   const props: Record<string, Shape> = {};
   let any = false;
@@ -75,7 +90,12 @@ export function triggerShape(def: Definition): Shape | undefined {
     const d = TRIGGERS.get(t.key);
     if (!d) continue;
     any = true;
-    for (const [k, v] of Object.entries(shapeOf(d.payload, DEFS).props ?? {})) props[k] = props[k] ?? v;
+    const shape = triggerShapeOf(
+      d.payload,
+      eventsOf(t.key).map((n) => EVENTS.get(n)?.payload),
+      DEFS,
+    );
+    for (const [k, v] of Object.entries(shape.props ?? {})) props[k] = props[k] ?? v;
   }
   return any ? { props } : undefined;
 }

@@ -9,6 +9,12 @@ test("a pull that never gets an answer does not hold the queue: the other types 
   const w = await world(true, { hang: { path: "/api/people", times: 1, skip: 1 } }, { scheduleDeadlineMs: 4_000 });
   try {
     assert.equal(w.item.status, 200, JSON.stringify(w.item.data));
+    // the clock below starts when the server is ready to dispatch: the first calls into the connectors and sync modules load them (their code is compiled on first use), and that start-up is not what is timed
+    for (const [cap, input] of [
+      ["connectors.list", {}],
+      ["sync_types.list", {}],
+    ] as const)
+      await call(w.d, cap, input);
     const applied = await call(w.d, "sync_specs.apply", { spec: spec(), idempotencyKey: "apply-hang" });
     assert.equal(applied.status, 200, JSON.stringify(applied.data));
     // the three other types come in with nothing pressed and no manual call to connectors.sync_run

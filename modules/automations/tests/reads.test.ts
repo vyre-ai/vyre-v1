@@ -220,6 +220,7 @@ test("an AI step names its skills: the save refuses one the Space does not have 
   );
 });
 
+
 test("a text of nothing but `{{` is read in linear time (no backtracking on hostile input)", () => {
   const hostile = "{{".repeat(50_000);
   const t0 = Date.now();
@@ -229,4 +230,28 @@ test("a text of nothing but `{{` is read in linear time (no backtracking on host
     { text: "trigger.x", root: "trigger", segs: ["x"], fallback: false },
     { text: "steps.s.out.y", root: "steps", segs: ["s", "out", "y"], fallback: false },
   ]);
+});
+
+
+test("a version the server saved is marked checked; a version saved before the check has no mark, and an edit marks the new one", async () => {
+  const { isChecked } = await import("../projections.ts");
+  const h = harness();
+  const made = await h.call("automations.create", create(), alice);
+  const id = made.automation.id as string;
+  assert.equal(isChecked(h.db, id, made.automation.version), true);
+  h.db.run("DELETE FROM automations_checked WHERE automation_id = ?", id); // what a version saved before the check looks like
+  assert.equal(isChecked(h.db, id, made.automation.version), false);
+  const edited = await h.call(
+    "automations.update",
+    {
+      automationId: id,
+      definition: goodDefinition({
+        nodes: [node("a", "records.update", { type: "contact", recordId: "rec_x", patch: {} })],
+      }),
+    },
+    alice,
+  );
+  assert.equal(edited.automation.version, made.automation.version + 1);
+  assert.equal(isChecked(h.db, id, edited.automation.version), true, "the edit passed the check");
+  assert.equal(isChecked(h.db, id, made.automation.version), false, "the old version stays as it was");
 });

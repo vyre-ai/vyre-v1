@@ -1,6 +1,7 @@
 // The MCP module owns protocol/auth/tool semantics; the host only adapts its structural request/response port to the daemon's shared Node HTTP server, and says which address a request reached: a token is bound to that
 // address, so the answer can never come from the Host header alone (see `origin` in the daemon).
 import type http from "node:http";
+import { safeUrl } from "../safe-url.ts";
 
 export interface McpRuntime {
   handle(req: {
@@ -35,7 +36,7 @@ export function createMcpRoute(deps: McpRouteDeps): {
 } {
   return {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://localhost");
+      const url = safeUrl(req.url, "http://localhost");
       const signIn = SIGN_IN.test(url.pathname);
       if (url.pathname !== "/mcp" && !signIn) return false;
       void (async () => {
