@@ -4717,6 +4717,9 @@
   "sites_deploy": {
     "siteId": "sit_a1b2c3"
   },
+  "sites_deploy_cancel": {
+    "siteId": "sit_a1b2c3"
+  },
   "sites_deployments": {
     "siteId": "sit_a1b2c3"
   },
@@ -4756,6 +4759,10 @@
     "siteId": "sit_a1b2c3"
   },
   "sites_plan": {},
+  "sites_preview_promote": {
+    "siteId": "sit_a1b2c3",
+    "branch": "main"
+  },
   "sites_preview_rebuild": {
     "siteId": "sit_a1b2c3",
     "branch": "main"
@@ -4778,6 +4785,12 @@
   },
   "sites_service_identity": {
     "siteId": "sit_a1b2c3"
+  },
+  "sites_ship": {
+    "name": "Team dashboard",
+    "source": {
+      "repo": "acme/team-dashboard"
+    }
   },
   "sites_staging_password_set": {
     "siteId": "sit_a1b2c3",

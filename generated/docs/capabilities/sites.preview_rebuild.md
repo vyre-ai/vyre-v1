@@ -1,6 +1,6 @@
 # sites.preview_rebuild
 
-Rebuild a preview or bring back a removed one
+Build a branch of the site's repo as a preview at its own address behind sign-in, or build it again. A new build replaces the one before it for that branch. wait returns when it ends
 
 | | |
 |---|---|
@@ -27,6 +27,7 @@ Rebuild a preview or bring back a removed one
 type In = {
   siteId: string;
   branch: string;
+  wait?: boolean;
 };
 ```
 
@@ -42,6 +43,7 @@ type Out = {
     url?: string;
     branch?: string;
     commit?: string;
+    message?: string;
     at: number;
     by?: string;
     note?: string;
@@ -49,6 +51,12 @@ type Out = {
     fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
     current?: boolean;
     finishedAt?: number;
+    steps?: Array<{
+        key: "fetch" | "build" | "start" | "check";
+        state: "waiting" | "running" | "ok" | "failed" | "skipped";
+        ms?: number;
+        startedAt?: number;
+      }>;
   };
 };
 ```
@@ -70,7 +78,8 @@ type Out = {
   "name": "example",
   "input": {
     "branch": "example",
-    "siteId": "sit_a1b2c3"
+    "siteId": "sit_a1b2c3",
+    "wait": true
   },
   "output": {
     "deployment": {
@@ -83,10 +92,19 @@ type Out = {
       "env": "staging",
       "finishedAt": 1760000000000,
       "fix": "set_env",
+      "message": "example",
       "note": "example",
       "problem": "example",
       "siteId": "sit_a1b2c3",
       "state": "queued",
+      "steps": [
+        {
+          "key": "fetch",
+          "ms": 1,
+          "startedAt": 1760000000000,
+          "state": "waiting"
+        }
+      ],
       "url": "example"
     }
   }

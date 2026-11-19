@@ -8378,6 +8378,12 @@
     },
     {
       "deferred": false,
+      "name": "sites_deploy_cancel",
+      "summary": "Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_deployments",
       "summary": "List deployments with state and URL",
       "toolset": "sites"
@@ -8415,7 +8421,7 @@
     {
       "deferred": false,
       "name": "sites_env_set",
-      "summary": "Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them",
+      "summary": "Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them",
       "toolset": "sites"
     },
     {
@@ -8462,8 +8468,14 @@
     },
     {
       "deferred": false,
+      "name": "sites_preview_promote",
+      "summary": "Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_preview_rebuild",
-      "summary": "Rebuild a preview or bring back a removed one",
+      "summary": "Build a branch of the site's repo as a preview at its own address behind sign-in, or build it again. A new build replaces the one before it for that branch. wait returns when it ends",
       "toolset": "sites"
     },
     {
@@ -8500,6 +8512,12 @@
       "deferred": false,
       "name": "sites_service_identity",
       "summary": "The site service identity and its grants (capped by the owner)",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_ship",
+      "summary": "Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on",
       "toolset": "sites"
     },
     {

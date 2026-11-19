@@ -57286,6 +57286,39 @@
     },
     {
       "blocks": [],
+      "cap": "sites.deploy_cancel",
+      "deferred": false,
+      "description": "Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "deploymentId": {
+            "examples": [
+              "dpl_a1b2c3"
+            ],
+            "pattern": "^dpl_[a-z0-9]+$",
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_deploy_cancel",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.deployments",
       "deferred": false,
       "description": "List deployments with state and URL",
@@ -57475,7 +57508,7 @@
       "blocks": [],
       "cap": "sites.env_set",
       "deferred": false,
-      "description": "Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them",
+      "description": "Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57483,6 +57516,18 @@
             "items": {
               "properties": {
                 "name": {
+                  "type": "string"
+                },
+                "scope": {
+                  "enum": [
+                    "all",
+                    "production",
+                    "previews"
+                  ],
+                  "type": "string"
+                },
+                "value": {
+                  "description": "A plain value that is not a secret. Give this or vaultHandle, not both",
                   "type": "string"
                 },
                 "vaultHandle": {
@@ -57494,8 +57539,7 @@
                 }
               },
               "required": [
-                "name",
-                "vaultHandle"
+                "name"
               ],
               "type": "object"
             },
@@ -57833,9 +57877,9 @@
     },
     {
       "blocks": [],
-      "cap": "sites.preview_rebuild",
+      "cap": "sites.preview_promote",
       "deferred": false,
-      "description": "Rebuild a preview or bring back a removed one",
+      "description": "Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57848,6 +57892,42 @@
             ],
             "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
+          },
+          "wait": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "siteId",
+          "branch"
+        ],
+        "type": "object"
+      },
+      "name": "sites_preview_promote",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.preview_rebuild",
+      "deferred": false,
+      "description": "Build a branch of the site's repo as a preview at its own address behind sign-in, or build it again. A new build replaces the one before it for that branch. wait returns when it ends",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "wait": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -58041,6 +58121,172 @@
       },
       "name": "sites_service_identity",
       "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.ship",
+      "deferred": false,
+      "description": "Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "access": {
+            "enum": [
+              "public",
+              "password",
+              "space",
+              "private"
+            ],
+            "type": "string"
+          },
+          "addons": {
+            "items": {
+              "enum": [
+                "postgres",
+                "redis"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "env": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "scope": {
+                  "enum": [
+                    "all",
+                    "production",
+                    "previews"
+                  ],
+                  "type": "string"
+                },
+                "value": {
+                  "description": "A plain value that is not a secret. Give this or vaultHandle, not both",
+                  "type": "string"
+                },
+                "vaultHandle": {
+                  "examples": [
+                    "#Dana_Lawmatics"
+                  ],
+                  "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "site",
+              "app",
+              "api",
+              "worker"
+            ],
+            "type": "string"
+          },
+          "limits": {
+            "properties": {
+              "cpus": {
+                "maximum": 16,
+                "minimum": 0.1,
+                "type": "number"
+              },
+              "diskMb": {
+                "maximum": 1048576,
+                "minimum": 256,
+                "type": "integer"
+              },
+              "memoryMb": {
+                "maximum": 65536,
+                "minimum": 128,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "cpus",
+              "memoryMb"
+            ],
+            "type": "object"
+          },
+          "name": {
+            "description": "Needed when there is no siteId",
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "source": {
+            "properties": {
+              "branch": {
+                "examples": [
+                  "main"
+                ],
+                "type": "string"
+              },
+              "fileId": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "pattern": "^fil_[a-z0-9]+$",
+                "type": "string"
+              },
+              "folderId": {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              "path": {
+                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
+                "type": "string"
+              },
+              "repo": {
+                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
+                "examples": [
+                  "https://github.com/acme/cx-dashboard"
+                ],
+                "type": "string"
+              },
+              "root": {
+                "description": "The folder inside the repo or upload that holds the app",
+                "examples": [
+                  "apps/web"
+                ],
+                "type": "string"
+              },
+              "tokenHandle": {
+                "examples": [
+                  "#Dana_Lawmatics"
+                ],
+                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "wait": {
+            "description": "Default true. False returns as soon as the deploy has started",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "sites_ship",
+      "planMode": "blocked",
       "toolset": "sites",
       "v": 1
     },

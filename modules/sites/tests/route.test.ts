@@ -53,8 +53,8 @@ test("the manifest: going public is held for an agent and a person's press is th
 });
 
 test("what stays dormant refuses, and what ships answers", async () => {
-  // deploy, rollback and env came back with sites Vyre builds and runs (handlers/release.ts); the staging and preview pipeline stays dormant
-  for (const n of ["sites.build", "sites.previews", "sites.table_create", "sites.staging_password_set"])
+  // deploy, rollback and env came back with sites Vyre builds and runs (handlers/release.ts); the staging pipeline stays dormant (previews are live)
+  for (const n of ["sites.build", "sites.table_create", "sites.staging_password_set"])
     await assert.rejects(async () => h[n]!({ trace: { traceId: "0" } }, {}), /Not in this version yet|unavailable/i, n);
 });
 

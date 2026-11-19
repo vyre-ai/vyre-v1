@@ -26,6 +26,14 @@ const fix = t.enm(
   "free_space",
   "more_memory",
 );
+const stepKey = t.enm("fetch", "build", "start", "check");
+const stepState = t.enm("waiting", "running", "ok", "failed", "skipped");
+const step = t.obj({
+  key: stepKey,
+  state: stepState,
+  ms: t.opt(t.int({ description: "How long it took" })),
+  startedAt: t.opt(t.ts({ description: "When it began, while it is running" })),
+});
 const dep = t.obj({
   deploymentId: t.id("dpl"),
   siteId: id.site,
@@ -34,6 +42,7 @@ const dep = t.obj({
   url: t.opt(t.str()),
   branch: t.opt(t.str()),
   commit: t.opt(t.str()),
+  message: t.opt(t.str({ description: "The commit's first line" })),
   at: t.ts(),
   by: t.opt(t.str({ description: "Who started it: a person or agent id" })),
   note: t.opt(t.str({ description: "What was detected and how it runs, in one line" })),
@@ -41,8 +50,16 @@ const dep = t.obj({
   fix: t.opt(fix),
   current: t.opt(t.bool()),
   finishedAt: t.opt(t.ts()),
+  steps: t.opt(t.arr(step, { description: "Fetch, build, start and check, each with its state and time" })),
 });
 const access = t.enm("public", "password", "space", "private");
+const envScope = t.enm("all", "production", "previews");
+const envEntry = t.obj({
+  name: t.str(),
+  vaultHandle: t.opt(id.handle),
+  value: t.opt(t.str({ description: "A plain value that is not a secret. Give this or vaultHandle, not both" })),
+  scope: t.opt(envScope),
+});
 const source = t.obj({
   repo: t.opt(
     t.str({
@@ -385,6 +402,49 @@ export default defineManifest({
         errors: ["validation.precondition_failed", "permission.no_grant"],
       },
     ),
+    write(
+      "sites.ship",
+      "Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on",
+      {
+        in: {
+          siteId: t.opt(id.site),
+          name: t.opt(t.str({ description: "Needed when there is no siteId" })),
+          source: t.opt(source),
+          kind: t.opt(t.enm("site", "app", "api", "worker")),
+          access: t.opt(access),
+          limits: t.opt(limits),
+          env: t.opt(t.arr(envEntry)),
+          addons: t.opt(t.arr(t.enm("postgres", "redis"))),
+          wait: t.opt(t.bool({ description: "Default true. False returns as soon as the deploy has started" })),
+        },
+        out: {
+          ok: t.bool({ description: "True when the site is live, or when the deploy was started with wait false" }),
+          siteId: id.site,
+          address: t.opt(t.str({ description: "Where it is live" })),
+          say: t.str({ description: "The answer in one or two sentences, to give the person" }),
+          failedStep: t.opt(t.enm("setup", "fetch", "build", "start", "check")),
+          problem: t.opt(t.str()),
+          fix: t.opt(fix),
+          deployment: t.opt(dep),
+        },
+        perm: "sites.deploy",
+        tool: "sites",
+        audit: "sensitive",
+        errors: ["validation.bad_input", "validation.precondition_failed", "permission.no_grant"],
+      },
+    ),
+    write(
+      "sites.deploy_cancel",
+      "Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live",
+      {
+        in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")) },
+        out: { deployment: dep },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        tool: "sites",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
     read("sites.deployments", "List deployments with state and URL", {
       in: { siteId: id.site, ...pageIn },
       out: { deployments: t.arr(dep), ...pageOut },
@@ -397,15 +457,32 @@ export default defineManifest({
       on: ["site", "/siteId"],
       tool: "sites",
     }),
-    write("sites.preview_rebuild", "Rebuild a preview or bring back a removed one", {
-      in: { siteId: id.site, branch: t.str() },
-      out: { deployment: dep },
-      on: ["site", "/siteId"],
-      perm: "sites.deploy",
-      emits: ["site.preview_created", "site.build_failed", "site.deployed", "site.preview_removed"],
-      tool: "sites",
-      team: true,
-    }),
+    write(
+      "sites.preview_rebuild",
+      "Build a branch of the site's repo as a preview at its own address behind sign-in, or build it again. A new build replaces the one before it for that branch. wait returns when it ends",
+      {
+        in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
+        out: { deployment: dep },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        emits: ["site.preview_created", "site.build_failed", "site.deployed", "site.preview_removed"],
+        tool: "sites",
+        team: true,
+      },
+    ),
+    write(
+      "sites.preview_promote",
+      "Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback",
+      {
+        in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
+        out: { deployment: dep },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        tool: "sites",
+        audit: "sensitive",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
     write("sites.preview_remove", "Remove a preview", {
       in: { siteId: id.site, branch: t.str() },
       out: { removed: t.bool() },
@@ -474,9 +551,9 @@ export default defineManifest({
     }),
     write(
       "sites.env_set",
-      "Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them",
+      "Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them",
       {
-        in: { siteId: id.site, entries: t.arr(t.obj({ name: t.str(), vaultHandle: id.handle })) },
+        in: { siteId: id.site, entries: t.arr(envEntry) },
         out: { ok: t.bool() },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
@@ -491,7 +568,16 @@ export default defineManifest({
       {
         in: deployTarget,
         out: {
-          entries: t.arr(t.obj({ name: t.str(), vaultName: t.str(), injected: t.bool() })),
+          entries: t.arr(
+            t.obj({
+              name: t.str(),
+              vaultName: t.str({ description: "The Vault key, empty for a plain value" }),
+              injected: t.bool(),
+              kind: t.enm("secret", "plain"),
+              value: t.opt(t.str({ description: "Only for a plain value" })),
+              scope: envScope,
+            }),
+          ),
           wanted: t.opt(t.arr(t.str())),
         },
         on: ["site", "/siteId"],
@@ -641,7 +727,22 @@ export default defineManifest({
       "The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content",
       {
         in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")), tail: t.opt(t.int()), build: t.opt(t.bool()) },
-        out: { lines: t.arr(t.str()), state: t.opt(state) },
+        out: {
+          lines: t.arr(t.str()),
+          state: t.opt(state),
+          steps: t.opt(
+            t.arr(
+              t.obj({
+                key: stepKey,
+                state: stepState,
+                ms: t.opt(t.int()),
+                startedAt: t.opt(t.ts()),
+                from: t.opt(t.int({ description: "The index in lines where this step's lines begin" })),
+              }),
+              { description: "With a build log: its steps" },
+            ),
+          ),
+        },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
         tool: "sites",

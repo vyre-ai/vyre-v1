@@ -140,6 +140,12 @@ const BUILD = [
   " ✓ Compiled successfully in 14.2s",
   "   Collecting page data ...",
 ];
+const STEPS = [
+  { key: "fetch", state: "ok", ms: 3_000 },
+  { key: "build", state: "running", startedAt: SAMPLE_NOW - 40_000 },
+  { key: "start", state: "waiting" },
+  { key: "check", state: "waiting" },
+];
 const APP = [
   "> cx-dashboard@1.4.0 start",
   "> next start",
@@ -212,17 +218,36 @@ export default function Mount(): ReactNode {
       }),
       "sites.domains_get": () => ({ domains: [] }),
       "sites.deployments": () => ({
-        deployments: view === "building" ? [dep("dpl_3", { state: "building" }), ...deps] : deps,
+        deployments:
+          view === "building"
+            ? [
+                dep("dpl_3", {
+                  state: "building",
+                  steps: STEPS,
+                  message: "Show refund requests on the queue",
+                  branch: "main",
+                  commit: "4be1c0a9e2d14b6f8a0c3d5e7f9a1b2c3d4e5f60",
+                }),
+                ...deps,
+              ]
+            : deps,
         total: 2,
       }),
       "sites.env_list": () => ({
         entries: [
-          { name: "GHL_API_KEY", vaultName: "#GHL_CX", injected: true },
-          { name: "SESSION_SECRET", vaultName: "#CX_Session", injected: true },
+          { name: "GHL_API_KEY", vaultName: "#GHL_CX", injected: true, kind: "secret", scope: "all" },
+          { name: "SESSION_SECRET", vaultName: "#CX_Session", injected: true, kind: "secret", scope: "all" },
+          { name: "APP_MODE", vaultName: "", injected: true, kind: "plain", value: "calm", scope: "production" },
         ],
         wanted: view === "failed" ? ["SLACK_WEBHOOK"] : [],
       }),
-      "sites.logs": (i) => ({ lines: i["build"] ? BUILD : APP, state: view === "building" ? "building" : "ready" }),
+      "sites.logs": (i) => ({
+        lines: i["build"] ? BUILD : APP,
+        state: view === "building" ? "building" : "ready",
+        ...(i["build"] && view === "building"
+          ? { steps: STEPS.map((x, n) => ({ ...x, from: [0, 3, 15, 15][n] })) }
+          : {}),
+      }),
       "vault.items.list": () => ({
         items: [
           { handle: "#GHL_CX", name: "GHL CX key" },

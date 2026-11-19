@@ -4,7 +4,7 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (41)
+## Capabilities (44)
 
 - [sites.addon_add](../capabilities/sites.addon_add.md): Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys
 - [sites.addon_remove](../capabilities/sites.addon_remove.md): Remove a site's Postgres or Redis and its data
@@ -17,13 +17,14 @@ Requires: nothing.
 - [sites.db_import](../capabilities/sites.db_import.md): Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)
 - [sites.delete](../capabilities/sites.delete.md): Delete a site and stop its container
 - [sites.deploy](../capabilities/sites.deploy.md): Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends
+- [sites.deploy_cancel](../capabilities/sites.deploy_cancel.md): Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live
 - [sites.deployments](../capabilities/sites.deployments.md): List deployments with state and URL
 - [sites.domain_add](../capabilities/sites.domain_add.md): Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS
 - [sites.domain_check](../capabilities/sites.domain_check.md): The state of a custom domain: waiting for DNS, issuing the certificate, or live
 - [sites.domain_set](../capabilities/sites.domain_set.md): Add or remove a site domain
 - [sites.domains_get](../capabilities/sites.domains_get.md): Site domains with the DNS check and the Caddy certificate state
 - [sites.env_list](../capabilities/sites.env_list.md): List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet
-- [sites.env_set](../capabilities/sites.env_set.md): Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them
+- [sites.env_set](../capabilities/sites.env_set.md): Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them
 - [sites.get](../capabilities/sites.get.md): Read one site
 - [sites.host](../capabilities/sites.host.md): What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs
 - [sites.list](../capabilities/sites.list.md): List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder
@@ -32,13 +33,15 @@ Requires: nothing.
 - [sites.metrics](../capabilities/sites.metrics.md): How a site is running: CPU, memory, requests and response time, one point a minute over the last hour, six hours or day (at most 60 points), and the numbers for right now against the site's limits
 - [sites.password_set](../capabilities/sites.password_set.md): Set the password visitors type to open a site whose access is password. Kept only as a hash
 - [sites.plan](../capabilities/sites.plan.md): What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)
-- [sites.preview_rebuild](../capabilities/sites.preview_rebuild.md): Rebuild a preview or bring back a removed one
+- [sites.preview_promote](../capabilities/sites.preview_promote.md): Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback
+- [sites.preview_rebuild](../capabilities/sites.preview_rebuild.md): Build a branch of the site's repo as a preview at its own address behind sign-in, or build it again. A new build replaces the one before it for that branch. wait returns when it ends
 - [sites.preview_remove](../capabilities/sites.preview_remove.md): Remove a preview
 - [sites.previews](../capabilities/sites.previews.md): List previews (one per branch and pull request, on their own staging address)
 - [sites.promote](../capabilities/sites.promote.md): Put a site on the public internet at its address. Held for approval unless the person asked for it this turn
 - [sites.publish](../capabilities/sites.publish.md): Serve a site that is not public: space or private access, or a password on its own domain
 - [sites.rollback](../capabilities/sites.rollback.md): Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built
 - [sites.service_identity](../capabilities/sites.service_identity.md): The site service identity and its grants (capped by the owner)
+- [sites.ship](../capabilities/sites.ship.md): Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on
 - [sites.signin_link](../capabilities/sites.signin_link.md): A short-lived link that signs the person asking in to a Space-only site at its own address
 - [sites.staging_password_set](../capabilities/sites.staging_password_set.md): Choose the sealed Vault key that protects staging (shared across a site previews)
 - [sites.status](../capabilities/sites.status.md): Is the port answering? Where it runs, the address, and what is wrong when something is
