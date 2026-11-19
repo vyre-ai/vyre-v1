@@ -37320,52 +37320,6 @@ export type SitesBackupRestoreOut = {
   ok: boolean;
   detail: string;
 };
-export type SitesBackupsIn = {
-  siteId: string;
-  action: "list" | "create" | "delete" | "pin" | "download" | "restore";
-  backupId?: string;
-  pinned?: boolean;
-};
-export type SitesBackupsOut = {
-  backups?: Array<{
-      backupId: string;
-      siteId: string;
-      state: "queued" | "running" | "ready" | "failed";
-      by: "schedule" | "person";
-      at: number;
-      endedAt?: number;
-      bytes?: number;
-      note?: string;
-      pinned?: boolean;
-      keepUntil?: number;
-    }>;
-  hasDatabase?: boolean;
-  database?: {
-    bytes?: number;
-    replacedBytes?: number;
-  };
-  backup?: {
-    backupId: string;
-    siteId: string;
-    state: "queued" | "running" | "ready" | "failed";
-    by: "schedule" | "person";
-    at: number;
-    endedAt?: number;
-    bytes?: number;
-    note?: string;
-    pinned?: boolean;
-    keepUntil?: number;
-  };
-  removed?: boolean;
-  ok?: boolean;
-  detail?: string;
-  files?: Array<{
-      name: string;
-      url: string;
-      bytes?: number;
-    }>;
-  note?: string;
-};
 export type SitesBackupsListIn = {
   siteId: string;
 };
@@ -37901,101 +37855,6 @@ export type SitesJobUpdateOut = {
     };
   };
 };
-export type SitesJobsIn = {
-  siteId: string;
-  action: "list" | "create" | "update" | "delete" | "run" | "cancel" | "runs";
-  jobId?: string;
-  runId?: string;
-  name?: string;
-  schedule?: string;
-  command?: string;
-  zone?: string;
-  timeoutSec?: number;
-  enabled?: boolean;
-  limit?: number;
-};
-export type SitesJobsOut = {
-  jobs?: Array<{
-      jobId: string;
-      siteId: string;
-      name: string;
-      schedule: string;
-      when: string;
-      command: string;
-      zone: string;
-      enabled: boolean;
-      timeoutSec: number;
-      nextAt?: number;
-      last?: {
-        runId: string;
-        jobId: string;
-        state: "queued" | "running" | "succeeded" | "failed" | "timed_out" | "canceled" | "skipped" | "interrupted";
-        at: number;
-        startedAt?: number;
-        endedAt?: number;
-        exitCode?: number;
-        note?: string;
-        by: "schedule" | "person";
-      };
-    }>;
-  services?: Array<{
-      serviceId: string;
-      siteId: string;
-      name: string;
-      kind: "worker" | "web";
-      command: string;
-      state: "stopped" | "starting" | "running" | "backoff" | "failed";
-      note?: string;
-      startedAt?: number;
-      restartAt?: number;
-    }>;
-  job?: {
-    jobId: string;
-    siteId: string;
-    name: string;
-    schedule: string;
-    when: string;
-    command: string;
-    zone: string;
-    enabled: boolean;
-    timeoutSec: number;
-    nextAt?: number;
-    last?: {
-      runId: string;
-      jobId: string;
-      state: "queued" | "running" | "succeeded" | "failed" | "timed_out" | "canceled" | "skipped" | "interrupted";
-      at: number;
-      startedAt?: number;
-      endedAt?: number;
-      exitCode?: number;
-      note?: string;
-      by: "schedule" | "person";
-    };
-  };
-  run?: {
-    runId: string;
-    jobId: string;
-    state: "queued" | "running" | "succeeded" | "failed" | "timed_out" | "canceled" | "skipped" | "interrupted";
-    at: number;
-    startedAt?: number;
-    endedAt?: number;
-    exitCode?: number;
-    note?: string;
-    by: "schedule" | "person";
-  };
-  runs?: Array<{
-      runId: string;
-      jobId: string;
-      state: "queued" | "running" | "succeeded" | "failed" | "timed_out" | "canceled" | "skipped" | "interrupted";
-      at: number;
-      startedAt?: number;
-      endedAt?: number;
-      exitCode?: number;
-      note?: string;
-      by: "schedule" | "person";
-    }>;
-  removed?: boolean;
-};
 export type SitesJobsListIn = {
   siteId: string;
 };
@@ -38140,7 +37999,6 @@ export type SitesLogsReadIn = {
   scope?: string;
   level?: "error" | "warn" | "info";
   from?: number;
-  to?: number;
   after?: number;
   limit?: number;
 };
@@ -38193,6 +38051,15 @@ export type SitesMetricsOut = {
   };
   measured: boolean;
   requests: boolean;
+};
+export type SitesOpsIn = {
+  siteId: string;
+  action: string;
+  id?: string;
+  args?: Record<string, unknown>;
+};
+export type SitesOpsOut = {
+  result: Record<string, unknown>;
 };
 export type SitesPasswordSetIn = {
   siteId: string;
@@ -38570,38 +38437,6 @@ export type SitesServiceStopOut = {
     restartAt?: number;
   };
 };
-export type SitesServicesIn = {
-  siteId: string;
-  action: "list" | "add" | "restart" | "stop" | "remove";
-  serviceId?: string;
-  name?: string;
-  command?: string;
-};
-export type SitesServicesOut = {
-  services?: Array<{
-      serviceId: string;
-      siteId: string;
-      name: string;
-      kind: "worker" | "web";
-      command: string;
-      state: "stopped" | "starting" | "running" | "backoff" | "failed";
-      note?: string;
-      startedAt?: number;
-      restartAt?: number;
-    }>;
-  service?: {
-    serviceId: string;
-    siteId: string;
-    name: string;
-    kind: "worker" | "web";
-    command: string;
-    state: "stopped" | "starting" | "running" | "backoff" | "failed";
-    note?: string;
-    startedAt?: number;
-    restartAt?: number;
-  };
-  removed?: boolean;
-};
 export type SitesServicesListIn = {
   siteId: string;
 };
@@ -38630,19 +38465,10 @@ export type SitesShipIn = {
     path?: string;
     root?: string;
   };
-  kind?: "site" | "app" | "api" | "worker";
-  access?: "public" | "password" | "space" | "private";
-  limits?: {
-    cpus: number;
-    memoryMb: number;
-    diskMb?: number;
-  };
   env?: Array<{
       name: string;
       vaultHandle?: string;
       value?: string;
-      scope?: "all" | "production" | "previews";
-      confirmPlain?: boolean;
     }>;
   addons?: Array<"postgres" | "redis">;
   wait?: boolean;
@@ -50983,7 +50809,6 @@ export interface CapMap {
   "sites.backup_download": { in: SitesBackupDownloadIn; out: SitesBackupDownloadOut };
   "sites.backup_pin": { in: SitesBackupPinIn; out: SitesBackupPinOut };
   "sites.backup_restore": { in: SitesBackupRestoreIn; out: SitesBackupRestoreOut };
-  "sites.backups": { in: SitesBackupsIn; out: SitesBackupsOut };
   "sites.backups_list": { in: SitesBackupsListIn; out: SitesBackupsListOut };
   "sites.build": { in: SitesBuildIn; out: SitesBuildOut };
   "sites.chat_viewing": { in: SitesChatViewingIn; out: SitesChatViewingOut };
@@ -51007,12 +50832,12 @@ export interface CapMap {
   "sites.job_run": { in: SitesJobRunIn; out: SitesJobRunOut };
   "sites.job_runs": { in: SitesJobRunsIn; out: SitesJobRunsOut };
   "sites.job_update": { in: SitesJobUpdateIn; out: SitesJobUpdateOut };
-  "sites.jobs": { in: SitesJobsIn; out: SitesJobsOut };
   "sites.jobs_list": { in: SitesJobsListIn; out: SitesJobsListOut };
   "sites.list": { in: SitesListIn; out: SitesListOut };
   "sites.logs": { in: SitesLogsIn; out: SitesLogsOut };
   "sites.logs_read": { in: SitesLogsReadIn; out: SitesLogsReadOut };
   "sites.metrics": { in: SitesMetricsIn; out: SitesMetricsOut };
+  "sites.ops": { in: SitesOpsIn; out: SitesOpsOut };
   "sites.password_set": { in: SitesPasswordSetIn; out: SitesPasswordSetOut };
   "sites.plan": { in: SitesPlanIn; out: SitesPlanOut };
   "sites.preview_promote": { in: SitesPreviewPromoteIn; out: SitesPreviewPromoteOut };
@@ -51027,7 +50852,6 @@ export interface CapMap {
   "sites.service_remove": { in: SitesServiceRemoveIn; out: SitesServiceRemoveOut };
   "sites.service_restart": { in: SitesServiceRestartIn; out: SitesServiceRestartOut };
   "sites.service_stop": { in: SitesServiceStopIn; out: SitesServiceStopOut };
-  "sites.services": { in: SitesServicesIn; out: SitesServicesOut };
   "sites.services_list": { in: SitesServicesListIn; out: SitesServicesListOut };
   "sites.ship": { in: SitesShipIn; out: SitesShipOut };
   "sites.signin_link": { in: SitesSigninLinkIn; out: SitesSigninLinkOut };

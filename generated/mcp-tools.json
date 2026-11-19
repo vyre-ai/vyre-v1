@@ -56798,7 +56798,7 @@
       "blocks": [],
       "cap": "sites.addon_add",
       "deferred": false,
-      "description": "Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys",
+      "description": "Give a site its own Postgres or Redis (DATABASE_URL or REDIS_URL). Its data survives redeploys",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -56928,54 +56928,6 @@
     },
     {
       "blocks": [],
-      "cap": "sites.backups",
-      "deferred": false,
-      "description": "Postgres backups of a site. action: list, create, delete, pin, download, restore (safety backup first)",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "action": {
-            "enum": [
-              "list",
-              "create",
-              "delete",
-              "pin",
-              "download",
-              "restore"
-            ],
-            "type": "string"
-          },
-          "backupId": {
-            "examples": [
-              "bkp_a1b2c3"
-            ],
-            "pattern": "^bkp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "pinned": {
-            "type": "boolean"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "action"
-        ],
-        "type": "object"
-      },
-      "name": "sites_backups",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "sites.build",
       "deferred": false,
       "description": "Build the site from its repo (the site agent runs in the repo); test and verify",
@@ -57033,7 +56985,7 @@
       "blocks": [],
       "cap": "sites.create",
       "deferred": false,
-      "description": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed",
+      "description": "Create a site: where it runs (a computer port, or a Files folder) or its source (repo, folder or zip) to build with sites_deploy. Nothing is served until published or deployed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57080,18 +57032,12 @@
           "limits": {
             "properties": {
               "cpus": {
-                "maximum": 16,
-                "minimum": 0.1,
                 "type": "number"
               },
               "diskMb": {
-                "maximum": 1048576,
-                "minimum": 256,
                 "type": "integer"
               },
               "memoryMb": {
-                "maximum": 65536,
-                "minimum": 128,
                 "type": "integer"
               }
             },
@@ -57118,9 +57064,6 @@
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
@@ -57138,21 +57081,12 @@
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
@@ -57188,7 +57122,7 @@
       "blocks": [],
       "cap": "sites.db_import",
       "deferred": false,
-      "description": "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)",
+      "description": "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57254,7 +57188,7 @@
       "blocks": [],
       "cap": "sites.deploy",
       "deferred": false,
-      "description": "Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
+      "description": "Build the site from its source and run it here: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57271,9 +57205,6 @@
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
@@ -57291,21 +57222,12 @@
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
@@ -57336,7 +57258,7 @@
       "blocks": [],
       "cap": "sites.deploy_cancel",
       "deferred": false,
-      "description": "Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live",
+      "description": "Cancel the running deploy. The last good build keeps serving",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57530,7 +57452,7 @@
       "blocks": [],
       "cap": "sites.env_list",
       "deferred": false,
-      "description": "List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet",
+      "description": "A site's env var names and where each comes from (never secret values), and the names the app looks for that are not set",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57556,7 +57478,7 @@
       "blocks": [],
       "cap": "sites.env_set",
       "deferred": false,
-      "description": "Set the env vars of a deployed site (replaces the list). A secret takes its value from a Vault key at deploy time. A plain value is kept as given; one that looks like a secret is refused unless confirmPlain. scope: production (default), previews or all",
+      "description": "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews or all",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57564,7 +57486,6 @@
             "items": {
               "properties": {
                 "confirmPlain": {
-                  "description": "Say that a value that looks like a secret is plain on purpose",
                   "type": "boolean"
                 },
                 "name": {
@@ -57579,7 +57500,6 @@
                   "type": "string"
                 },
                 "value": {
-                  "description": "A plain value that is not a secret. Give this or vaultHandle, not both",
                   "type": "string"
                 },
                 "vaultHandle": {
@@ -57646,7 +57566,7 @@
       "blocks": [],
       "cap": "sites.host",
       "deferred": false,
-      "description": "What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs",
+      "description": "What this Space can host: its address, whether Vyre can build and run apps here, the address sites get, what a custom domain needs",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -57654,84 +57574,6 @@
       },
       "name": "sites_host",
       "planMode": "allowed",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "sites.jobs",
-      "deferred": false,
-      "description": "Scheduled jobs of a site. action: list (jobs and workers), create, update, delete, run, cancel, runs",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "action": {
-            "enum": [
-              "list",
-              "create",
-              "update",
-              "delete",
-              "run",
-              "cancel",
-              "runs"
-            ],
-            "type": "string"
-          },
-          "command": {
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "jobId": {
-            "examples": [
-              "job_a1b2c3"
-            ],
-            "pattern": "^job_[a-z0-9]+$",
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 50,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "name": {
-            "type": "string"
-          },
-          "runId": {
-            "examples": [
-              "jrx_a1b2c3"
-            ],
-            "pattern": "^jrx_[a-z0-9]+$",
-            "type": "string"
-          },
-          "schedule": {
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          },
-          "timeoutSec": {
-            "maximum": 21600,
-            "minimum": 5,
-            "type": "integer"
-          },
-          "zone": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "action"
-        ],
-        "type": "object"
-      },
-      "name": "sites_jobs",
-      "planMode": "blocked",
       "toolset": "sites",
       "v": 1
     },
@@ -57785,7 +57627,7 @@
       "blocks": [],
       "cap": "sites.logs",
       "deferred": false,
-      "description": "The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content",
+      "description": "A site's log: its running app, or with build a deploy's build log (the latest by default). Text from the site, not Vyre content",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57822,42 +57664,20 @@
     },
     {
       "blocks": [],
-      "cap": "sites.logs_read",
+      "cap": "sites.ops",
       "deferred": false,
-      "description": "A site's log (app, requests, build, jobs): search words (-word excludes), source, level, time, deploy; after = cursor to follow. Text from the site, not Vyre content",
-      "effects": "read",
+      "description": "Run a site: logs, metrics, jobs, workers, backups. Actions and args: see the sites skill",
+      "effects": "write",
       "inputSchema": {
         "properties": {
-          "after": {
-            "description": "lastSeq of the read before",
-            "type": "integer"
-          },
-          "from": {
-            "description": "Milliseconds since the Unix epoch",
-            "examples": [
-              1760000000000
-            ],
-            "minimum": 0,
-            "type": "integer"
-          },
-          "level": {
-            "enum": [
-              "error",
-              "warn",
-              "info"
-            ],
+          "action": {
             "type": "string"
           },
-          "limit": {
-            "maximum": 1000,
-            "minimum": 1,
-            "type": "integer"
+          "args": {
+            "additionalProperties": true,
+            "type": "object"
           },
-          "q": {
-            "type": "string"
-          },
-          "scope": {
-            "description": "A deployment, service or job run id from the scopes of an earlier read",
+          "id": {
             "type": "string"
           },
           "siteId": {
@@ -57866,66 +57686,16 @@
             ],
             "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
-          },
-          "source": {
-            "enum": [
-              "app",
-              "requests",
-              "build",
-              "jobs"
-            ],
-            "type": "string"
-          },
-          "to": {
-            "description": "Milliseconds since the Unix epoch",
-            "examples": [
-              1760000000000
-            ],
-            "minimum": 0,
-            "type": "integer"
           }
         },
         "required": [
-          "siteId"
+          "siteId",
+          "action"
         ],
         "type": "object"
       },
-      "name": "sites_logs_read",
-      "planMode": "allowed",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "sites.metrics",
-      "deferred": false,
-      "description": "CPU, memory, requests and response time of a site over 1h, 6h or 24h, and right now against its limits",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          },
-          "window": {
-            "enum": [
-              "1h",
-              "6h",
-              "24h"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_metrics",
-      "planMode": "allowed",
+      "name": "sites_ops",
+      "planMode": "blocked",
       "toolset": "sites",
       "v": 1
     },
@@ -57933,7 +57703,7 @@
       "blocks": [],
       "cap": "sites.plan",
       "deferred": false,
-      "description": "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",
+      "description": "What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57947,9 +57717,6 @@
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
@@ -57967,21 +57734,12 @@
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
@@ -58006,7 +57764,7 @@
       "blocks": [],
       "cap": "sites.preview_promote",
       "deferred": false,
-      "description": "Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback",
+      "description": "Serve a preview's build as production without a rebuild, with the production variables",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58039,7 +57797,7 @@
       "blocks": [],
       "cap": "sites.preview_rebuild",
       "deferred": false,
-      "description": "Build a branch of the site's repo as a preview at its own address behind sign-in, or build it again. A new build replaces the one before it for that branch. wait returns when it ends",
+      "description": "Build a branch of the repo as a preview at its own address behind sign-in. A new build replaces the last",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58188,7 +57946,7 @@
       "blocks": [],
       "cap": "sites.rollback",
       "deferred": false,
-      "description": "Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built",
+      "description": "Serve an earlier build again (the previous, or the one named). Nothing is built",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -58253,71 +58011,12 @@
     },
     {
       "blocks": [],
-      "cap": "sites.services",
-      "deferred": false,
-      "description": "Workers of a site. action: list, add, restart, stop, remove",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "action": {
-            "enum": [
-              "list",
-              "add",
-              "restart",
-              "stop",
-              "remove"
-            ],
-            "type": "string"
-          },
-          "command": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "serviceId": {
-            "examples": [
-              "wkr_a1b2c3"
-            ],
-            "pattern": "^wkr_[a-z0-9]+$",
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "action"
-        ],
-        "type": "object"
-      },
-      "name": "sites_services",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "sites.ship",
       "deferred": false,
-      "description": "Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on",
+      "description": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix. Call again with the siteId to go on",
       "effects": "write",
       "inputSchema": {
         "properties": {
-          "access": {
-            "enum": [
-              "public",
-              "password",
-              "space",
-              "private"
-            ],
-            "type": "string"
-          },
           "addons": {
             "items": {
               "enum": [
@@ -58331,23 +58030,10 @@
           "env": {
             "items": {
               "properties": {
-                "confirmPlain": {
-                  "description": "Say that a value that looks like a secret is plain on purpose",
-                  "type": "boolean"
-                },
                 "name": {
                   "type": "string"
                 },
-                "scope": {
-                  "enum": [
-                    "all",
-                    "production",
-                    "previews"
-                  ],
-                  "type": "string"
-                },
                 "value": {
-                  "description": "A plain value that is not a secret. Give this or vaultHandle, not both",
                   "type": "string"
                 },
                 "vaultHandle": {
@@ -58365,41 +58051,7 @@
             },
             "type": "array"
           },
-          "kind": {
-            "enum": [
-              "site",
-              "app",
-              "api",
-              "worker"
-            ],
-            "type": "string"
-          },
-          "limits": {
-            "properties": {
-              "cpus": {
-                "maximum": 16,
-                "minimum": 0.1,
-                "type": "number"
-              },
-              "diskMb": {
-                "maximum": 1048576,
-                "minimum": 256,
-                "type": "integer"
-              },
-              "memoryMb": {
-                "maximum": 65536,
-                "minimum": 128,
-                "type": "integer"
-              }
-            },
-            "required": [
-              "cpus",
-              "memoryMb"
-            ],
-            "type": "object"
-          },
           "name": {
-            "description": "Needed when there is no siteId",
             "type": "string"
           },
           "siteId": {
@@ -58412,9 +58064,6 @@
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
@@ -58432,21 +58081,12 @@
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
@@ -58460,7 +58100,6 @@
             "type": "object"
           },
           "wait": {
-            "description": "Default true. False returns as soon as the deploy has started",
             "type": "boolean"
           }
         },
@@ -58678,7 +58317,7 @@
       "blocks": [],
       "cap": "sites.update",
       "deferred": false,
-      "description": "Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again",
+      "description": "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it. Making it public takes it down until published again",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58702,7 +58341,7 @@
             "type": "string"
           },
           "expectedUpdatedAt": {
-            "description": "The updatedAt you read; a change made since then is not replaced, and the change is refused",
+            "description": "The updatedAt you read; refused if changed since",
             "examples": [
               1760000000000
             ],
@@ -58719,18 +58358,12 @@
           "limits": {
             "properties": {
               "cpus": {
-                "maximum": 16,
-                "minimum": 0.1,
                 "type": "number"
               },
               "diskMb": {
-                "maximum": 1048576,
-                "minimum": 256,
                 "type": "integer"
               },
               "memoryMb": {
-                "maximum": 65536,
-                "minimum": 128,
                 "type": "integer"
               }
             },
@@ -58762,9 +58395,6 @@
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
@@ -58782,21 +58412,12 @@
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
@@ -58824,7 +58445,7 @@
       "blocks": [],
       "cap": "sites.webhook_get",
       "deferred": false,
-      "description": "Whether GitHub's webhook is on for a site, the address to give GitHub, and the branches that get a preview on a push. The secret is never shown again after it was made",
+      "description": "GitHub webhook of a site: on or off, its address, the branches that get a preview. The secret is never shown again",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58850,7 +58471,7 @@
       "blocks": [],
       "cap": "sites.webhook_set",
       "deferred": false,
-      "description": "Turn GitHub's webhook on or off for a site that comes from a repo, make a new secret (rotate; the answer shows it once), or set which branches get a preview on a push (names, prefixes ending in *, or *). The production branch deploys on a push when the site deploys on push",
+      "description": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set which branches get a preview (names, prefix*, or *)",
       "effects": "write",
       "inputSchema": {
         "properties": {

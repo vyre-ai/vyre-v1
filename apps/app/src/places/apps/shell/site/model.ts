@@ -171,7 +171,7 @@ export type EnvScope = EnvRow["scope"];
 export type EnvEntry = { name: string; vaultHandle?: string; value?: string; scope?: EnvScope; confirmPlain?: boolean };
 
 export const SCOPE_TITLE: Readonly<Record<EnvScope, string>> = {
-  all: "Everywhere",
+  all: "Production and previews",
   production: "Production",
   previews: "Previews",
 };

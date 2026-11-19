@@ -8319,7 +8319,7 @@
     {
       "deferred": false,
       "name": "sites_addon_add",
-      "summary": "Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys",
+      "summary": "Give a site its own Postgres or Redis (DATABASE_URL or REDIS_URL). Its data survives redeploys",
       "toolset": "sites"
     },
     {
@@ -8342,12 +8342,6 @@
     },
     {
       "deferred": false,
-      "name": "sites_backups",
-      "summary": "Postgres backups of a site. action: list, create, delete, pin, download, restore (safety backup first)",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
       "name": "sites_build",
       "summary": "Build the site from its repo (the site agent runs in the repo); test and verify",
       "toolset": "sites"
@@ -8361,13 +8355,13 @@
     {
       "deferred": false,
       "name": "sites_create",
-      "summary": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed",
+      "summary": "Create a site: where it runs (a computer port, or a Files folder) or its source (repo, folder or zip) to build with sites_deploy. Nothing is served until published or deployed",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_db_import",
-      "summary": "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)",
+      "summary": "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
       "toolset": "sites"
     },
     {
@@ -8379,13 +8373,13 @@
     {
       "deferred": false,
       "name": "sites_deploy",
-      "summary": "Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
+      "summary": "Build the site from its source and run it here: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_deploy_cancel",
-      "summary": "Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live",
+      "summary": "Cancel the running deploy. The last good build keeps serving",
       "toolset": "sites"
     },
     {
@@ -8421,13 +8415,13 @@
     {
       "deferred": false,
       "name": "sites_env_list",
-      "summary": "List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet",
+      "summary": "A site's env var names and where each comes from (never secret values), and the names the app looks for that are not set",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_env_set",
-      "summary": "Set the env vars of a deployed site (replaces the list). A secret takes its value from a Vault key at deploy time. A plain value is kept as given; one that looks like a secret is refused unless confirmPlain. scope: production (default), previews or all",
+      "summary": "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews or all",
       "toolset": "sites"
     },
     {
@@ -8439,13 +8433,7 @@
     {
       "deferred": false,
       "name": "sites_host",
-      "summary": "What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_jobs",
-      "summary": "Scheduled jobs of a site. action: list (jobs and workers), create, update, delete, run, cancel, runs",
+      "summary": "What this Space can host: its address, whether Vyre can build and run apps here, the address sites get, what a custom domain needs",
       "toolset": "sites"
     },
     {
@@ -8457,37 +8445,31 @@
     {
       "deferred": false,
       "name": "sites_logs",
-      "summary": "The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content",
+      "summary": "A site's log: its running app, or with build a deploy's build log (the latest by default). Text from the site, not Vyre content",
       "toolset": "sites"
     },
     {
       "deferred": false,
-      "name": "sites_logs_read",
-      "summary": "A site's log (app, requests, build, jobs): search words (-word excludes), source, level, time, deploy; after = cursor to follow. Text from the site, not Vyre content",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_metrics",
-      "summary": "CPU, memory, requests and response time of a site over 1h, 6h or 24h, and right now against its limits",
+      "name": "sites_ops",
+      "summary": "Run a site: logs, metrics, jobs, workers, backups. Actions and args: see the sites skill",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_plan",
-      "summary": "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",
+      "summary": "What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_preview_promote",
-      "summary": "Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback",
+      "summary": "Serve a preview's build as production without a rebuild, with the production variables",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_preview_rebuild",
-      "summary": "Build a branch of the site's repo as a preview at its own address behind sign-in, or build it again. A new build replaces the one before it for that branch. wait returns when it ends",
+      "summary": "Build a branch of the repo as a preview at its own address behind sign-in. A new build replaces the last",
       "toolset": "sites"
     },
     {
@@ -8517,7 +8499,7 @@
     {
       "deferred": false,
       "name": "sites_rollback",
-      "summary": "Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built",
+      "summary": "Serve an earlier build again (the previous, or the one named). Nothing is built",
       "toolset": "sites"
     },
     {
@@ -8528,14 +8510,8 @@
     },
     {
       "deferred": false,
-      "name": "sites_services",
-      "summary": "Workers of a site. action: list, add, restart, stop, remove",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
       "name": "sites_ship",
-      "summary": "Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on",
+      "summary": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix. Call again with the siteId to go on",
       "toolset": "sites"
     },
     {
@@ -8577,19 +8553,19 @@
     {
       "deferred": false,
       "name": "sites_update",
-      "summary": "Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again",
+      "summary": "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it. Making it public takes it down until published again",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_webhook_get",
-      "summary": "Whether GitHub's webhook is on for a site, the address to give GitHub, and the branches that get a preview on a push. The secret is never shown again after it was made",
+      "summary": "GitHub webhook of a site: on or off, its address, the branches that get a preview. The secret is never shown again",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_webhook_set",
-      "summary": "Turn GitHub's webhook on or off for a site that comes from a repo, make a new secret (rotate; the answer shows it once), or set which branches get a preview on a push (names, prefixes ending in *, or *). The production branch deploys on a push when the site deploys on push",
+      "summary": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set which branches get a preview (names, prefix*, or *)",
       "toolset": "sites"
     },
     {

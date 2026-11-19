@@ -1,6 +1,6 @@
 # sites.webhook_set
 
-Turn GitHub's webhook on or off for a site that comes from a repo, make a new secret (rotate; the answer shows it once), or set which branches get a preview on a push (names, prefixes ending in *, or *). The production branch deploys on a push when the site deploys on push
+Turn the GitHub webhook on or off, rotate its secret (shown once), or set which branches get a preview (names, prefix*, or *)
 
 | | |
 |---|---|

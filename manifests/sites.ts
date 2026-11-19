@@ -56,7 +56,7 @@ const access = t.enm("public", "password", "space", "private");
 const hookOut = {
   enabled: t.bool(),
   url: t.opt(t.str({ description: "The payload URL to give GitHub" })),
-  follow: t.arr(t.str(), { description: "Branch patterns that get a preview on a push" }),
+  follow: t.arr(t.str(), { description: "Branches that get a preview" }),
   secret: t.opt(t.str({ description: "Shown once, when it is made. Paste it into GitHub's webhook as the secret" })),
   lastDeliveryAt: t.opt(t.ts()),
   failed: t.arr(t.obj({ branch: t.str(), action: t.str(), error: t.str(), at: t.ts() }), {
@@ -67,30 +67,24 @@ const envScope = t.enm("all", "production", "previews");
 const envEntry = t.obj({
   name: t.str(),
   vaultHandle: t.opt(id.handle),
-  value: t.opt(t.str({ description: "A plain value that is not a secret. Give this or vaultHandle, not both" })),
+  value: t.opt(t.str()),
   scope: t.opt(envScope),
-  confirmPlain: t.opt(t.bool({ description: "Say that a value that looks like a secret is plain on purpose" })),
+  confirmPlain: t.opt(t.bool()),
 });
+const shipEnv = t.obj({ name: t.str(), vaultHandle: t.opt(id.handle), value: t.opt(t.str()) });
 const source = t.obj({
-  repo: t.opt(
-    t.str({
-      description: "A git address (https://github.com/owner/name) or owner/name on GitHub",
-      examples: ["https://github.com/acme/cx-dashboard"],
-    }),
-  ),
-  branch: t.opt(t.str({ examples: ["main"] })),
+  repo: t.opt(t.str()),
+  branch: t.opt(t.str()),
   tokenHandle: t.opt(id.handle),
   folderId: t.opt(id.folder),
   fileId: t.opt(id.file),
-  path: t.opt(t.str({ description: "A folder on the computer this Vyre runs on (an agent on its own computer)" })),
-  root: t.opt(
-    t.str({ description: "The folder inside the repo or upload that holds the app", examples: ["apps/web"] }),
-  ),
+  path: t.opt(t.str()),
+  root: t.opt(t.str()),
 });
 const limits = t.obj({
-  cpus: t.num({ minimum: 0.1, maximum: 16 }),
-  memoryMb: t.int({ minimum: 128, maximum: 65536 }),
-  diskMb: t.opt(t.int({ minimum: 256, maximum: 1048576 })),
+  cpus: t.num(),
+  memoryMb: t.int(),
+  diskMb: t.opt(t.int()),
 });
 const addon = t.obj({
   kind: t.enm("postgres", "redis"),
@@ -313,7 +307,7 @@ export default defineManifest({
   capabilities: [
     create(
       "sites.create",
-      "Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed",
+      "Create a site: where it runs (a computer port, or a Files folder) or its source (repo, folder or zip) to build with sites_deploy. Nothing is served until published or deployed",
       {
         in: {
           name: t.str(),
@@ -356,7 +350,7 @@ export default defineManifest({
     ),
     write(
       "sites.update",
-      "Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again",
+      "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it. Making it public takes it down until published again",
       {
         in: {
           siteId: id.site,
@@ -367,12 +361,7 @@ export default defineManifest({
           limits: t.opt(limits),
           autoDeploy: t.opt(t.bool()),
           ...target,
-          expectedUpdatedAt: t.opt(
-            t.ts({
-              description:
-                "The updatedAt you read; a change made since then is not replaced, and the change is refused",
-            }),
-          ),
+          expectedUpdatedAt: t.opt(t.ts({ description: "The updatedAt you read; refused if changed since" })),
         },
         out: { site: siteRow },
         on: ["site", "/siteId"],
@@ -410,7 +399,7 @@ export default defineManifest({
     }),
     read(
       "sites.host",
-      "What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs",
+      "What this Space can host: its address, whether Vyre can build and run apps here, the address sites get, what a custom domain needs",
       {
         in: {},
         out: {
@@ -453,7 +442,7 @@ export default defineManifest({
     }),
     write(
       "sites.deploy",
-      "Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
+      "Build the site from its source and run it here: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
       {
         in: { siteId: id.site, source: t.opt(source), wait: t.opt(t.bool()), onlyIfChanged: t.opt(t.bool()) },
         out: { deployment: dep },
@@ -467,24 +456,21 @@ export default defineManifest({
     ),
     write(
       "sites.ship",
-      "Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on",
+      "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix. Call again with the siteId to go on",
       {
         in: {
           siteId: t.opt(id.site),
-          name: t.opt(t.str({ description: "Needed when there is no siteId" })),
+          name: t.opt(t.str()),
           source: t.opt(source),
-          kind: t.opt(t.enm("site", "app", "api", "worker")),
-          access: t.opt(access),
-          limits: t.opt(limits),
-          env: t.opt(t.arr(envEntry)),
+          env: t.opt(t.arr(shipEnv)),
           addons: t.opt(t.arr(t.enm("postgres", "redis"))),
-          wait: t.opt(t.bool({ description: "Default true. False returns as soon as the deploy has started" })),
+          wait: t.opt(t.bool()),
         },
         out: {
-          ok: t.bool({ description: "True when the site is live, or when the deploy was started with wait false" }),
+          ok: t.bool(),
           siteId: id.site,
-          address: t.opt(t.str({ description: "Where it is live" })),
-          say: t.str({ description: "The answer in one or two sentences, to give the person" }),
+          address: t.opt(t.str()),
+          say: t.str({ description: "What to tell the person" }),
           failedStep: t.opt(t.enm("setup", "deploy", "fetch", "build", "start", "check")),
           problem: t.opt(t.str()),
           fix: t.opt(fix),
@@ -498,7 +484,7 @@ export default defineManifest({
     ),
     read(
       "sites.webhook_get",
-      "Whether GitHub's webhook is on for a site, the address to give GitHub, and the branches that get a preview on a push. The secret is never shown again after it was made",
+      "GitHub webhook of a site: on or off, its address, the branches that get a preview. The secret is never shown again",
       {
         in: deployTarget,
         out: hookOut,
@@ -508,7 +494,7 @@ export default defineManifest({
     ),
     write(
       "sites.webhook_set",
-      "Turn GitHub's webhook on or off for a site that comes from a repo, make a new secret (rotate; the answer shows it once), or set which branches get a preview on a push (names, prefixes ending in *, or *). The production branch deploys on a push when the site deploys on push",
+      "Turn the GitHub webhook on or off, rotate its secret (shown once), or set which branches get a preview (names, prefix*, or *)",
       {
         in: {
           siteId: id.site,
@@ -524,19 +510,15 @@ export default defineManifest({
         errors: ["validation.precondition_failed", "validation.bad_input"],
       },
     ),
-    write(
-      "sites.deploy_cancel",
-      "Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live",
-      {
-        in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")) },
-        out: { deployment: dep },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        tool: "sites",
-        audit: "sensitive",
-        errors: ["validation.precondition_failed"],
-      },
-    ),
+    write("sites.deploy_cancel", "Cancel the running deploy. The last good build keeps serving", {
+      in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")) },
+      out: { deployment: dep },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      tool: "sites",
+      audit: "sensitive",
+      errors: ["validation.precondition_failed"],
+    }),
     read("sites.deployments", "List deployments with state and URL", {
       in: { siteId: id.site, ...pageIn },
       out: { deployments: t.arr(dep), ...pageOut },
@@ -551,7 +533,7 @@ export default defineManifest({
     }),
     write(
       "sites.preview_rebuild",
-      "Build a branch of the site's repo as a preview at its own address behind sign-in, or build it again. A new build replaces the one before it for that branch. wait returns when it ends",
+      "Build a branch of the repo as a preview at its own address behind sign-in. A new build replaces the last",
       {
         in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
         out: { deployment: dep },
@@ -564,7 +546,7 @@ export default defineManifest({
     ),
     write(
       "sites.preview_promote",
-      "Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback",
+      "Serve a preview's build as production without a rebuild, with the production variables",
       {
         in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
         out: { deployment: dep },
@@ -598,21 +580,17 @@ export default defineManifest({
         errors: ["validation.precondition_failed"],
       },
     ),
-    outward(
-      "sites.rollback",
-      "Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built",
-      {
-        in: { siteId: id.site, toDeploymentId: t.opt(t.id("dpl")) },
-        out: { deployment: dep },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        level: "edit",
-        gate: { act: "none", reason: "restores a build that was already served" },
-        emits: ["site.rolled_back"],
-        tool: "sites",
-        errors: ["validation.precondition_failed"],
-      },
-    ),
+    outward("sites.rollback", "Serve an earlier build again (the previous, or the one named). Nothing is built", {
+      in: { siteId: id.site, toDeploymentId: t.opt(t.id("dpl")) },
+      out: { deployment: dep },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+      gate: { act: "none", reason: "restores a build that was already served" },
+      emits: ["site.rolled_back"],
+      tool: "sites",
+      errors: ["validation.precondition_failed"],
+    }),
     create(
       "sites.table_create",
       "Create a site table (a site-scoped record type); no schema permission needed for people who can edit the site",
@@ -643,7 +621,7 @@ export default defineManifest({
     }),
     write(
       "sites.env_set",
-      "Set the env vars of a deployed site (replaces the list). A secret takes its value from a Vault key at deploy time. A plain value is kept as given; one that looks like a secret is refused unless confirmPlain. scope: production (default), previews or all",
+      "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews or all",
       {
         in: { siteId: id.site, entries: t.arr(envEntry) },
         out: { ok: t.bool() },
@@ -656,7 +634,7 @@ export default defineManifest({
     ),
     read(
       "sites.env_list",
-      "List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet",
+      "A site's env var names and where each comes from (never secret values), and the names the app looks for that are not set",
       {
         in: deployTarget,
         out: {
@@ -816,7 +794,7 @@ export default defineManifest({
     }),
     read(
       "sites.logs",
-      "The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content",
+      "A site's log: its running app, or with build a deploy's build log (the latest by default). Text from the site, not Vyre content",
       {
         in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")), tail: t.opt(t.int()), build: t.opt(t.bool()) },
         out: {
@@ -853,7 +831,6 @@ export default defineManifest({
           ),
           level: t.opt(t.enm("error", "warn", "info")),
           from: t.opt(t.ts()),
-          to: t.opt(t.ts()),
           after: t.opt(t.int({ description: "lastSeq of the read before" })),
           limit: t.opt(t.int({ minimum: 1, maximum: 1000 })),
         },
@@ -865,7 +842,6 @@ export default defineManifest({
         },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
-        tool: "sites",
       },
     ),
     read(
@@ -887,7 +863,6 @@ export default defineManifest({
           requests: t.bool(),
         },
         on: ["site", "/siteId"],
-        tool: "sites",
       },
     ),
     read(
@@ -1094,87 +1069,23 @@ export default defineManifest({
       },
     ),
     write(
-      "sites.jobs",
-      "Scheduled jobs of a site. action: list (jobs and workers), create, update, delete, run, cancel, runs",
+      "sites.ops",
+      "Run a site: logs, metrics, jobs, workers, backups. Actions and args: see the sites skill",
       {
-        in: {
-          siteId: id.site,
-          action: t.enm("list", "create", "update", "delete", "run", "cancel", "runs"),
-          jobId: t.opt(t.id("job")),
-          runId: t.opt(t.id("jrx")),
-          name: t.opt(t.str()),
-          schedule: t.opt(t.str()),
-          command: t.opt(t.str()),
-          zone: t.opt(t.str()),
-          timeoutSec: t.opt(t.int({ minimum: 5, maximum: 21600 })),
-          enabled: t.opt(t.bool()),
-          limit: t.opt(t.int({ minimum: 1, maximum: 50 })),
-        },
-        out: {
-          jobs: t.opt(t.arr(jobRow)),
-          services: t.opt(t.arr(serviceRow)),
-          job: t.opt(jobRow),
-          run: t.opt(jobRun),
-          runs: t.opt(t.arr(jobRun)),
-          removed: t.opt(t.bool()),
-        },
+        in: { siteId: id.site, action: t.str(), id: t.opt(t.str()), args: t.opt(t.rec()) },
+        out: { result: t.rec() },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
         level: "edit",
         audit: "sensitive",
-        tool: "sites",
-        errors: ["validation.precondition_failed"],
-      },
-    ),
-    write("sites.services", "Workers of a site. action: list, add, restart, stop, remove", {
-      in: {
-        siteId: id.site,
-        action: t.enm("list", "add", "restart", "stop", "remove"),
-        serviceId: t.opt(t.id("wkr")),
-        name: t.opt(t.str()),
-        command: t.opt(t.str()),
-      },
-      out: { services: t.opt(t.arr(serviceRow)), service: t.opt(serviceRow), removed: t.opt(t.bool()) },
-      on: ["site", "/siteId"],
-      perm: "sites.deploy",
-      level: "edit",
-      audit: "sensitive",
-      tool: "sites",
-      errors: ["validation.precondition_failed"],
-    }),
-    write(
-      "sites.backups",
-      "Postgres backups of a site. action: list, create, delete, pin, download, restore (safety backup first)",
-      {
-        in: {
-          siteId: id.site,
-          action: t.enm("list", "create", "delete", "pin", "download", "restore"),
-          backupId: t.opt(t.id("bkp")),
-          pinned: t.opt(t.bool()),
-        },
-        out: {
-          backups: t.opt(t.arr(backupRow)),
-          hasDatabase: t.opt(t.bool()),
-          database: t.opt(t.obj({ bytes: t.opt(t.int()), replacedBytes: t.opt(t.int()) })),
-          backup: t.opt(backupRow),
-          removed: t.opt(t.bool()),
-          ok: t.opt(t.bool()),
-          detail: t.opt(t.str()),
-          files: t.opt(t.arr(t.obj({ name: t.str(), url: t.str(), bytes: t.opt(t.int()) }))),
-          note: t.opt(t.str()),
-        },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        level: "edit",
-        audit: "sensitive",
-        gate: { act: "delete", when: "input.action == 'restore' && actor.kind != 'person'" },
+        gate: { act: "delete", when: "input.action == 'backup_restore' && actor.kind != 'person'" },
         tool: "sites",
         errors: ["validation.precondition_failed"],
       },
     ),
     read(
       "sites.plan",
-      "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",
+      "What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for",
       {
         in: { siteId: t.opt(id.site), source: t.opt(source) },
         out: {
@@ -1194,7 +1105,7 @@ export default defineManifest({
     ),
     create(
       "sites.addon_add",
-      "Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys",
+      "Give a site its own Postgres or Redis (DATABASE_URL or REDIS_URL). Its data survives redeploys",
       {
         in: { siteId: id.site, kind: t.enm("postgres", "redis") },
         out: { addon },
@@ -1218,7 +1129,7 @@ export default defineManifest({
     }),
     write(
       "sites.db_import",
-      "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)",
+      "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
       {
         in: { siteId: id.site, fileId: t.opt(id.file), fromHandle: t.opt(id.handle) },
         out: { ok: t.bool(), detail: t.str() },

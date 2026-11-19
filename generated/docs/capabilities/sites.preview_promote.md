@@ -1,6 +1,6 @@
 # sites.preview_promote
 
-Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback
+Serve a preview's build as production without a rebuild, with the production variables
 
 | | |
 |---|---|

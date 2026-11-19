@@ -84,6 +84,12 @@ export function Webhook({ site, online, busy }: { site: Site; online: boolean; b
           <Text style={ui.text}>
             {cur.lastDeliveryAt ? `Last delivery ${ago(cur.lastDeliveryAt, d.clock().now)}.` : "Nothing received yet."}
           </Text>
+          {/* ui-rows-lint: not a list (the few pushes that could not run, as sentences) */}
+          {cur.failed.map((f) => (
+            <Text key={`${f.branch}${f.at}`} style={ui.text} testID="site-hook-failed">
+              {`A push of ${f.branch} could not ${f.action === "remove" ? "remove its preview" : "build its preview"} ${ago(f.at, d.clock().now)}: ${f.error} GitHub's redelivery takes it again.`}
+            </Text>
+          ))}
           <TextInput
             accessibilityLabel="Branches that get a preview"
             testID="site-hook-follow"

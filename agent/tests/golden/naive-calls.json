@@ -4699,10 +4699,6 @@
     "artifactId": "sit_a1b2c3",
     "thumb": "Quarterly planning"
   },
-  "sites_backups": {
-    "siteId": "sit_a1b2c3",
-    "action": "list"
-  },
   "sites_build": {
     "siteId": "sit_a1b2c3"
   },
@@ -4758,19 +4754,13 @@
     "siteId": "sit_a1b2c3"
   },
   "sites_host": {},
-  "sites_jobs": {
-    "siteId": "sit_a1b2c3",
-    "action": "list"
-  },
   "sites_list": {},
   "sites_logs": {
     "siteId": "sit_a1b2c3"
   },
-  "sites_logs_read": {
-    "siteId": "sit_a1b2c3"
-  },
-  "sites_metrics": {
-    "siteId": "sit_a1b2c3"
+  "sites_ops": {
+    "siteId": "sit_a1b2c3",
+    "action": "Quarterly planning"
   },
   "sites_plan": {},
   "sites_preview_promote": {
@@ -4799,10 +4789,6 @@
   },
   "sites_service_identity": {
     "siteId": "sit_a1b2c3"
-  },
-  "sites_services": {
-    "siteId": "sit_a1b2c3",
-    "action": "list"
   },
   "sites_ship": {
     "name": "Team dashboard",

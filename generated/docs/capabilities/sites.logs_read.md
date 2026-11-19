@@ -17,7 +17,7 @@ A site's log (app, requests, build, jobs): search words (-word excludes), source
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/logs_read |
-| MCP tool | sites_logs_read (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 
@@ -31,7 +31,6 @@ type In = {
   scope?: string;
   level?: "error" | "warn" | "info";
   from?: number;
-  to?: number;
   after?: number;
   limit?: number;
 };
@@ -83,8 +82,7 @@ type Out = {
     "q": "example",
     "scope": "example",
     "siteId": "sit_a1b2c3",
-    "source": "app",
-    "to": 1760000000000
+    "source": "app"
   },
   "output": {
     "lastSeq": 1,

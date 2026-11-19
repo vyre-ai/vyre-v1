@@ -1,6 +1,6 @@
 # sites.deploy_cancel
 
-Stop the deploy that is running. The last good build keeps serving. A deploy that already went live stays live
+Cancel the running deploy. The last good build keeps serving
 
 | | |
 |---|---|

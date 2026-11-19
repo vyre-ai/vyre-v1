@@ -1,6 +1,6 @@
 # sites.deploy
 
-Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends
+Build the site from its source and run it here: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends
 
 | | |
 |---|---|
@@ -89,12 +89,12 @@ type Out = {
     "onlyIfChanged": true,
     "siteId": "sit_a1b2c3",
     "source": {
-      "branch": "main",
+      "branch": "example",
       "fileId": "fil_a1b2c3",
       "folderId": "fld_a1b2c3",
       "path": "example",
-      "repo": "https://github.com/acme/cx-dashboard",
-      "root": "apps/web",
+      "repo": "example",
+      "root": "example",
       "tokenHandle": "#Dana_Lawmatics"
     },
     "wait": true

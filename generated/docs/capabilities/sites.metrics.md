@@ -17,7 +17,7 @@ CPU, memory, requests and response time of a site over 1h, 6h or 24h, and right 
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/metrics |
-| MCP tool | sites_metrics (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

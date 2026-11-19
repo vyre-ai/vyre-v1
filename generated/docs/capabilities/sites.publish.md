@@ -169,8 +169,8 @@ type Out = {
       },
       "limits": {
         "cpus": 1,
-        "diskMb": 256,
-        "memoryMb": 128
+        "diskMb": 1,
+        "memoryMb": 1
       },
       "live": true,
       "name": "example",
@@ -188,12 +188,12 @@ type Out = {
       "siteId": "sit_a1b2c3",
       "slug": "example",
       "source": {
-        "branch": "main",
+        "branch": "example",
         "fileId": "fil_a1b2c3",
         "folderId": "fld_a1b2c3",
         "path": "example",
-        "repo": "https://github.com/acme/cx-dashboard",
-        "root": "apps/web",
+        "repo": "example",
+        "root": "example",
         "tokenHandle": "#Dana_Lawmatics"
       },
       "stagingUrl": "example",

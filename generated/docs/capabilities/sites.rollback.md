@@ -1,6 +1,6 @@
 # sites.rollback
 
-Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built
+Serve an earlier build again (the previous, or the one named). Nothing is built
 
 | | |
 |---|---|

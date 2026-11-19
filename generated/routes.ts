@@ -33895,25 +33895,6 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
-    "path": "/v1/sites/backups",
-    "cap": "sites.backups",
-    "v": 1,
-    "module": "sites",
-    "effects": "write",
-    "permission": "sites.deploy",
-    "level": "edit",
-    "resource": {
-      "type": "site",
-      "id": "/siteId"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": "delete"
-  },
-  {
-    "method": "POST",
     "path": "/v1/sites/backups_list",
     "cap": "sites.backups_list",
     "v": 1,
@@ -34351,25 +34332,6 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
-    "path": "/v1/sites/jobs",
-    "cap": "sites.jobs",
-    "v": 1,
-    "module": "sites",
-    "effects": "write",
-    "permission": "sites.deploy",
-    "level": "edit",
-    "resource": {
-      "type": "site",
-      "id": "/siteId"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
     "path": "/v1/sites/jobs_list",
     "cap": "sites.jobs_list",
     "v": 1,
@@ -34461,6 +34423,25 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/ops",
+    "cap": "sites.ops",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": "sites.deploy",
+    "level": "edit",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "delete"
   },
   {
     "method": "POST",
@@ -34712,25 +34693,6 @@ const routes6: Route[] = [
     "method": "POST",
     "path": "/v1/sites/service_stop",
     "cap": "sites.service_stop",
-    "v": 1,
-    "module": "sites",
-    "effects": "write",
-    "permission": "sites.deploy",
-    "level": "edit",
-    "resource": {
-      "type": "site",
-      "id": "/siteId"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/sites/services",
-    "cap": "sites.services",
     "v": 1,
     "module": "sites",
     "effects": "write",
@@ -38694,10 +38656,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/ingest_sms",
@@ -38733,7 +38692,10 @@ const routes7: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/ingest_voice",

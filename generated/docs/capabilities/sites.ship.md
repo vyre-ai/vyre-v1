@@ -1,6 +1,6 @@
 # sites.ship
 
-Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on
+Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix. Call again with the siteId to go on
 
 | | |
 |---|---|
@@ -36,19 +36,10 @@ type In = {
     path?: string;
     root?: string;
   };
-  kind?: "site" | "app" | "api" | "worker";
-  access?: "public" | "password" | "space" | "private";
-  limits?: {
-    cpus: number;
-    memoryMb: number;
-    diskMb?: number;
-  };
   env?: Array<{
       name: string;
       vaultHandle?: string;
       value?: string;
-      scope?: "all" | "production" | "previews";
-      confirmPlain?: boolean;
     }>;
   addons?: Array<"postgres" | "redis">;
   wait?: boolean;
@@ -107,34 +98,25 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "access": "public",
     "addons": [
       "postgres"
     ],
     "env": [
       {
-        "confirmPlain": true,
         "name": "example",
-        "scope": "all",
         "value": "example",
         "vaultHandle": "#Dana_Lawmatics"
       }
     ],
-    "kind": "site",
-    "limits": {
-      "cpus": 1,
-      "diskMb": 256,
-      "memoryMb": 128
-    },
     "name": "example",
     "siteId": "sit_a1b2c3",
     "source": {
-      "branch": "main",
+      "branch": "example",
       "fileId": "fil_a1b2c3",
       "folderId": "fld_a1b2c3",
       "path": "example",
-      "repo": "https://github.com/acme/cx-dashboard",
-      "root": "apps/web",
+      "repo": "example",
+      "root": "example",
       "tokenHandle": "#Dana_Lawmatics"
     },
     "wait": true
