@@ -14,6 +14,8 @@ import { symbolOf, totalText } from "./face.ts";
 import { columnStats, limitWords } from "./stats.ts";
 import type { StageInfo } from "./stats.ts";
 
+const TOTAL_CAP = 50_000;
+
 /** The first money (else number) field of the type: the one a column totals. */
 function valueFieldOf(board: Board): FieldDef | undefined {
   return board.ctx.def.fields.find((f) => f.type === "money") ?? board.ctx.def.fields.find((f) => f.type === "number");
@@ -24,9 +26,10 @@ export function ColumnHead({ board, lane, width }: { board: Board; lane: Lane; w
   const info: StageInfo | undefined = board.stages[lane.key];
   const value = valueFieldOf(board);
   const n = useLive("records.counts", laneCountSpec(ctx.type, st.v, ctx.def.titleField, field, lane));
-  // the cards the total and the late count are made from: the first 200 of the lane, with only the two fields they need
+  // every card of the column, with only the one field the total needs: the local copy holds them all, so the total is exact (a column past 50,000 cards says "+")
+  const known = n.status === "ready" ? n.data.count : 0;
   const q = useLive("records.query", {
-    ...laneSpec(ctx.type, st.v, ctx.def.titleField, field, lane, 200),
+    ...laneSpec(ctx.type, st.v, ctx.def.titleField, field, lane, Math.min(Math.max(200, known), TOTAL_CAP)),
     fields: [ctx.def.titleField, ...(value ? [value.key] : [])],
   });
   const rows = q.status === "ready" ? q.data.rows : [];
@@ -126,7 +129,11 @@ export function FinishStrip({ board, lane }: { board: Board; lane: Lane }): Reac
     </Pressable>
   );
   if (Platform.OS !== "web") return strip;
-  return createElement("div", { "data-testid": `drop-${lane.key}`, ...dropProps(board, lane) }, strip);
+  return createElement(
+    "div",
+    { "data-testid": `drop-${lane.key}`, "data-lane": lane.key, ...dropProps(board, lane) },
+    strip,
+  );
 }
 
 const h = StyleSheet.create({

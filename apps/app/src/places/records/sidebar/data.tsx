@@ -67,6 +67,8 @@ export interface RecordsData {
   screen?: string;
   /** The name of a person, agent or group by id, for the person fields. */
   nameOf(id: string): string;
+  /** Who an actor id is, from the Space's directory: its kind and name. Null when the directory does not know it (it is then "Someone", never a guess from the id). */
+  actorOf?(id: string): { kind: "person" | "agent" | "group" | "role" | "automation"; name: string } | null;
   nav: RecordsNav;
   /** May this person change record types and fields (the Console's schema.manage; the owner of a Personal Space)? Left out, the editing controls are not drawn. */
   canEditSchema?: boolean;

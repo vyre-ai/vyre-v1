@@ -9,7 +9,19 @@ import type { FieldDef, Lane, RecordRow } from "../views-a/model.ts";
 
 export { GateError };
 
-/** Moves one card. `false` when it was already in that lane (nothing was written). */
+/** The card changed after the copy this person held was made: someone moved it (to `stage`), or edited it. */
+export class StaleError extends Error {
+  readonly kind: "moved" | "changed";
+  readonly stage: string;
+  constructor(kind: "moved" | "changed", stage: string) {
+    super(kind === "moved" ? "It was moved first." : "It changed first. Look at the card and try again.");
+    this.name = "StaleError";
+    this.kind = kind;
+    this.stage = stage;
+  }
+}
+
+/** Moves one card. `false` when it was already in that lane (nothing was written). `version` is the version of the card this person was looking at; a card that is newer is refused. */
 export async function performMove(
   data: RecordsData,
   type: string,
@@ -17,9 +29,20 @@ export async function performMove(
   journey: JourneyBinding | undefined,
   row: RecordRow,
   to: Lane,
+  version: number = row.version,
 ): Promise<boolean> {
   if (journey) {
     if (to.none) return false;
+    // a Journey move carries no version of its own, so the card is read first: newer than the copy held means someone got there first
+    const fresh = await data
+      .call("records.get", { type, recordId: row.id })
+      .then((o) => (o as { record?: RecordRow }).record ?? null)
+      .catch(() => null);
+    if (fresh && fresh.version !== version) {
+      const now = laneOfRow(field, fresh, lanesOf(field)).key;
+      const was = laneOfRow(field, row, lanesOf(field)).key;
+      throw new StaleError(now !== was && now !== to.key ? "moved" : "changed", now);
+    }
     return moveInJourney(data.call, journey.journeyId, row, to.key);
   }
   if (laneOfRow(field, row, lanesOf(field)).key === to.key) return false;

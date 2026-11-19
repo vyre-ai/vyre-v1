@@ -151,3 +151,17 @@ export function windowOf(
   const to = Math.min(total, Math.ceil((scrollTop + viewH) / h) + overscan);
   return { from, to, before: from * h, after: Math.max(0, (total - to) * h) };
 }
+
+export const COL_MIN = 184;
+export const COL_MAX = 280;
+export const STRIP_W = 88;
+export const COL_GAP = 12;
+export const BOARD_PAD = 32;
+
+/** The width of each open column: the board's width shared between the columns and the closed finish strips, between 184 and 280 px. Before the board is measured, the widest. */
+export function columnWidth(boxW: number, columns: number, strips: number): number {
+  if (!(boxW > 0)) return COL_MAX;
+  const open = Math.max(1, columns - strips);
+  const room = boxW - BOARD_PAD - COL_GAP * Math.max(0, columns - 1) - strips * STRIP_W;
+  return Math.max(COL_MIN, Math.min(COL_MAX, Math.floor(room / open)));
+}

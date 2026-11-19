@@ -48,7 +48,7 @@ export type MoveEvent =
   /** The pointer let go of the card (a drag ended, wherever): a held card that was not dropped is put down; a move already out is left alone. */
   | { t: "release" }
   /** A move that never lifts: a key, a menu entry, the bar or an undo. `blocked` is what the stage is known to refuse. */
-  | { t: "start"; id: string; from: string; to: string; via: MoveVia; blocked?: string | null }
+  | { t: "start"; id: string; from: string; to: string; via: MoveVia; version?: number; blocked?: string | null }
   | { t: "ok" }
   | { t: "gate"; missing: readonly MissingField[] }
   | { t: "refuse"; reason: string }
@@ -101,7 +101,7 @@ export function step(s: MoveState, e: MoveEvent): Step {
       };
     case "over":
       if (s.kind !== "lifted") return { state: s };
-      return { state: { ...s, over: e.lane, blocked: e.lane ? (e.blocked ?? null) : null } };
+      return { state: { ...s, over: e.lane, blocked: e.lane !== null ? (e.blocked ?? null) : null } };
     case "cancel":
       return s.kind === "lifted" || s.kind === "refused" || s.kind === "conflict" ? { state: IDLE } : { state: s };
     case "release":
@@ -115,7 +115,7 @@ export function step(s: MoveState, e: MoveEvent): Step {
         return { state: { kind: "conflict", id: s.id, by: s.moved.by, at: s.moved.to } };
       }
       // dropped on nothing, or back where it came from: nothing happens
-      if (!s.over || s.over === s.from) return { state: IDLE };
+      if (s.over === null || s.over === s.from) return { state: IDLE };
       if (s.blocked) {
         return {
           state: { kind: "refused", id: s.id, from: s.from, to: s.over, reason: s.blocked },
@@ -138,7 +138,13 @@ export function step(s: MoveState, e: MoveEvent): Step {
         };
       return {
         state: { kind: "committing", id: e.id, from: e.from, to: e.to, via: e.via, remote: null },
-        effect: { t: "move", id: e.id, to: e.to, via: e.via },
+        effect: {
+          t: "move",
+          id: e.id,
+          to: e.to,
+          via: e.via,
+          ...(e.version !== undefined ? { version: e.version } : {}),
+        },
       };
     }
     case "remote": {
@@ -170,7 +176,13 @@ export function step(s: MoveState, e: MoveEvent): Step {
     case "timeout":
       if (s.kind !== "committing" && s.kind !== "needs") return { state: s };
       return {
-        state: { kind: "refused", id: s.id, from: s.from, to: s.to, reason: "No answer yet. Check the card and try again." },
+        state: {
+          kind: "refused",
+          id: s.id,
+          from: s.from,
+          to: s.to,
+          reason: "No answer yet. Check the card and try again.",
+        },
         effect: { t: "say", text: "No answer yet. Check the card and try again." },
       };
     case "fields-saved":

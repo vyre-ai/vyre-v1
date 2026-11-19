@@ -93,10 +93,17 @@ const DESIGN = [
 ];
 
 function sample(o: { actor?: string; failMove?: string } = {}) {
+  const ahead = { on: false };
   const base = createSampleRecords(space);
   const calls: { cap: string; input: Record<string, unknown> }[] = [];
   const data: RecordsData = {
     ...base.data,
+    actorOf: (id) =>
+      id === "run_abc"
+        ? { kind: "automation", name: "" }
+        : id === "usr_omar"
+          ? { kind: "person", name: "Omar Haddad" }
+          : null,
     async call(cap, input) {
       const i = input as Record<string, unknown>;
       if (cap === "journeys.list")
@@ -115,8 +122,7 @@ function sample(o: { actor?: string; failMove?: string } = {}) {
           ],
         };
       if (cap === "journeys.get") return { journey: { id: "jrn_1", stages: DESIGN } };
-      if (cap === "journeys.stage_since")
-        return { since: { jr_1: NOW - 5 * DAY, jr_2: NOW - DAY, jr_3: NOW - DAY } };
+      if (cap === "journeys.stage_since") return { since: { jr_1: NOW - 5 * DAY, jr_2: NOW - DAY, jr_3: NOW - DAY } };
       if (cap === "journeys.stage_counts")
         return {
           stages: [
@@ -128,7 +134,7 @@ function sample(o: { actor?: string; failMove?: string } = {}) {
         const row = (base.replica.rows(`records:${JOURNEY.key}`) as unknown as RecordRow[]).find(
           (r) => r.id === i["recordId"],
         );
-        return { record: row };
+        return { record: row && ahead.on ? { ...row, version: row.version + 1 } : row };
       }
       if (cap === "records.activity")
         return { entries: [{ id: "e1", kind: "stage", at: NOW, actor: o.actor ?? "usr_omar" }] };
@@ -156,7 +162,7 @@ function sample(o: { actor?: string; failMove?: string } = {}) {
       { ...cur, version: cur.version + 1, fields: { ...cur.fields, stage } } as never,
     ]);
   };
-  return { ...base, data, calls, put };
+  return { ...base, data, calls, put, ahead };
 }
 
 async function mountBoard(s: ReturnType<typeof sample>): Promise<{ root: Node; stop(): Promise<void> }> {
@@ -559,7 +565,11 @@ test("quick add: New at the foot of a column opens a name field; Enter makes the
     await flush();
     assert.equal(made.length, 1);
     assert.deepEqual((made[0]!["fields"] as Record<string, unknown>)["name"], "Orchard rollout");
-    assert.equal((made[0]!["fields"] as Record<string, unknown>)["status"], "planning", "in the column it was typed in");
+    assert.equal(
+      (made[0]!["fields"] as Record<string, unknown>)["status"],
+      "planning",
+      "in the column it was typed in",
+    );
     assert.match(textOf(find(b.root, "board-toast-text")), /Added Orchard rollout to/);
   } finally {
     await b.stop();
@@ -580,9 +590,72 @@ test("Assign on the bar gives the selected cards one owner, or none", async () =
     const updates = s.calls.filter((c) => c.cap === "records.update");
     assert.deepEqual(
       updates.map((c) => [c.input["recordId"], (c.input["patch"] as Record<string, unknown>)["owner"]]),
-      [["jr_1", null], ["jr_2", null]],
+      [
+        ["jr_1", null],
+        ["jr_2", null],
+      ],
     );
     assert.equal(find(b.root, "board-select-bar"), null, "the selection clears");
+  } finally {
+    await b.stop();
+    restore();
+  }
+});
+
+test("a card that is newer than the copy held is refused with a reason on the card, from a drag, a key, the bar and an undo; nothing is lost", async () => {
+  const restore = installDom();
+  const s = sample();
+  const b = await mountBoard(s);
+  try {
+    s.ahead.on = true;
+    // drag
+    await drag(b.root, "jr_2");
+    await over(b.root, "stage2");
+    await drop(b.root, "stage2");
+    await flush();
+    await flush();
+    assert.match(textOf(find(b.root, "card-refused-jr_2")), /It changed first/);
+    await press(find(b.root, "card-refused-dismiss-jr_2"));
+    // bar
+    await press(find(b.root, "tick-jr_2"));
+    await press(find(b.root, "bar-move"));
+    await press(find(b.root, "menu-item-In review"));
+    await flush();
+    await flush();
+    assert.match(textOf(find(b.root, "card-refused-jr_2")), /It changed first/);
+    await press(find(b.root, "card-refused-dismiss-jr_2"));
+    await key(b.root, "Escape");
+    // key
+    await key(b.root, "ArrowDown");
+    await key(b.root, "ArrowRight", { altKey: true });
+    await flush();
+    await flush();
+    assert.ok(
+      find(b.root, "card-refused-jr_1") || find(b.root, "card-refused-jr_2"),
+      "the key move is refused on the card",
+    );
+    assert.deepEqual(s.calls, [], "no move was written");
+    assert.equal(count(b.root, "stage1"), "2", "nothing moved");
+    // undo: a move that went through, then the card changes under it
+    s.ahead.on = false;
+    await key(b.root, "Escape");
+    await drag(b.root, "jr_2");
+    await over(b.root, "stage2");
+    await drop(b.root, "stage2");
+    await flush();
+    await flush();
+    assert.equal(s.calls.length, 1);
+    s.ahead.on = true;
+    await key(b.root, "z");
+    await flush();
+    await flush();
+    assert.equal(s.calls.length, 1, "the undo was refused");
+    s.ahead.on = false;
+    await key(b.root, "z");
+    await flush();
+    await flush();
+    assert.equal(s.calls.length, 2, "the refused undo was kept and works when the card is as it was");
+    assert.equal(s.calls[1]!.input["toStage"], "stage1");
   } finally {
     await b.stop();
     restore();

@@ -100,3 +100,19 @@ test("a money value sums by its amount", async () => {
   assert.equal(numberOf("5"), null);
   assert.equal(numberOf(null), null);
 });
+
+test("column width: the board's width is shared with the finish strips, 184 to 280 px, so the strips are on screen at 1280, 1440 and 1920", async () => {
+  const { columnWidth, STRIP_W, COL_GAP, BOARD_PAD } = await import("./stats.ts");
+  for (const [box, want] of [
+    [1040, 193],
+    [1200, 233],
+    [1680, 280],
+  ] as const) {
+    const w = columnWidth(box, 6, 2);
+    assert.equal(w, want, `${box}`);
+    const total = BOARD_PAD + 4 * w + 2 * STRIP_W + 5 * COL_GAP;
+    if (w < 280) assert.ok(total <= box, `${box}: the strips fit (${total})`);
+  }
+  assert.equal(columnWidth(0, 6, 2), 280, "unmeasured: the widest");
+  assert.equal(columnWidth(500, 6, 0), 184, "never narrower than 184");
+});

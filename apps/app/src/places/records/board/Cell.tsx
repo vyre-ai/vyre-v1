@@ -186,6 +186,7 @@ export function Cell({
     "div",
     {
       "data-testid": `drop-${tid}`,
+      "data-lane": lane.key,
       style: { display: "flex", flexDirection: "column", minHeight: 0, maxHeight: maxHeight ?? "100%", width },
       ...dropProps(board, lane),
     },

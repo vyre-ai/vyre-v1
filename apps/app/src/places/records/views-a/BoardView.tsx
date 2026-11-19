@@ -13,6 +13,7 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { ColumnsSheet } from "./ColumnsSheet.tsx";
 import { useLive, useRecordsData } from "../sidebar/data.tsx";
+import type { RecordsData } from "../sidebar/data.tsx";
 import { useRecordsState } from "../sidebar/state.tsx";
 import { toSaved } from "../table/model.ts";
 import { fillAndMove, GateError } from "../journey/model.ts";
@@ -43,8 +44,8 @@ import { useSlide } from "../board/flip.ts";
 import { ColumnHead, FinishStrip } from "../board/Head.tsx";
 import { IDLE, movedWords, popUndo, pushUndo, step } from "../board/machine.ts";
 import type { MoveEffect, MoveEvent, MoveState, Mover, Undoable } from "../board/machine.ts";
-import { performMove, reasonOf } from "../board/move.ts";
-import { swimKeys } from "../board/stats.ts";
+import { performMove, reasonOf, StaleError } from "../board/move.ts";
+import { columnWidth, swimKeys } from "../board/stats.ts";
 import { cardsWords } from "../board/face.ts";
 import { useBoardStages, wipOf } from "../board/stages.ts";
 
@@ -103,10 +104,14 @@ function ShownCount({ board, keys }: { board: Board; keys: readonly string[] }):
 
 // ---------------------------------------------------------------- the board
 
-const moverOf = (actor: string, nameOf: (id: string) => string): Mover =>
-  /^(svc_|run_|aut)/.test(actor)
-    ? { kind: "automation", name: "" }
-    : { kind: "person", name: nameOf(actor).split(" ")[0] ?? "Someone" };
+/** Who moved a card, read from the Space's directory by the actor's id: an Automation by its kind, never by the look of its id. */
+const moverOf = (actor: string, d: RecordsData): Mover => {
+  const a = d.actorOf?.(actor);
+  if (!a) return { kind: "person", name: "Someone" };
+  return a.kind === "automation"
+    ? { kind: "automation", name: a.name }
+    : { kind: "person", name: a.name.split(" ")[0] ?? a.name };
+};
 
 export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const data = useRecordsData();
@@ -139,6 +144,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const [mv, setMv] = useState<MoveState>(IDLE);
   const [toast, setToast] = useState<ToastLine | null>(null);
   const undo = useRef<Undoable[]>([]);
+  const undoing = useRef<Undoable | null>(null);
   const toastId = useRef(0);
   const say = useCallback((text: string, canUndo = false): void => {
     toastId.current += 1;
@@ -221,7 +227,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
         const e = (o as { entries: { kind: string; actor: string; field?: string }[] }).entries.find(
           (x) => x.kind === "stage" || x.field === ctxRef.current.field?.key,
         );
-        if (e) sendRef.current({ t: "remote", id, to, by: moverOf(e.actor, data.nameOf) });
+        if (e) sendRef.current({ t: "remote", id, to, by: moverOf(e.actor, data) });
       })
       .catch(() => undefined);
   };
@@ -240,46 +246,43 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     }
     const from = laneOfRow(c.field, row, c.lanes);
     const field = c.field;
-    // a Journey move carries no version, so a drop first asks where the card is now: if someone (or an Automation) moved it while it was held, theirs stands
-    const fresh: Promise<{ stage: string } | null> =
-      ef.via === "drag" && c.ctx.journey
-        ? c.data
-            .call("records.get", { type: c.ctx.type, recordId: row.id })
-            .then((o) => {
-              const r = (o as { record?: RecordRow }).record;
-              return r ? { stage: laneOfRow(field, r, c.lanes).key } : null;
-            })
-            .catch(() => null)
-        : Promise.resolve(null);
-    fresh
-      .then((now) => {
-        if (now && now.stage !== from.key && now.stage !== to.key) {
-          sendRef.current({ t: "remote", id: row.id, to: now.stage, by: { kind: "person", name: "Someone" } });
-          resolveMover(row.id, now.stage);
-          sendRef.current({ t: "refuse", reason: "It was moved first." });
-          return null;
-        }
-        return performMove(c.data, c.ctx.type, field, c.ctx.journey, row, to);
-      })
-      .then(
-        (did) => {
-          sendRef.current({ t: "ok" });
-          if (!did) return;
-          c.bs.refresh();
-          if (ef.via !== "undo")
-            undo.current = pushUndo(undo.current, { moves: [{ id: row.id, from: from.key, to: to.key }] });
-          const info = c.bs.by[to.key];
-          const over = info?.wip !== undefined && (counts.current[to.key] ?? 0) >= info.wip;
-          say(
-            `Moved ${titleOf(row)} to ${to.title}${over ? `. ${to.title} is over its limit of ${info?.wip}` : ""}.`,
-            ef.via !== "undo",
-          );
-        },
-        (e: unknown) => {
-          if (e instanceof GateError) sendRef.current({ t: "gate", missing: e.missing });
-          else sendRef.current({ t: "refuse", reason: reasonOf(e) });
-        },
-      );
+    const version = ef.version ?? row.version;
+    const pending = ef.via === "undo" ? undoing.current : null;
+    // an undo only puts a card back from where the move left it
+    if (pending && pending.moves[0] && pending.moves[0].to !== from.key) {
+      undo.current = pushUndo(undo.current, pending);
+      undoing.current = null;
+      sendRef.current({ t: "refuse", reason: "It has moved since. Nothing was put back." });
+      return;
+    }
+    performMove(c.data, c.ctx.type, field, c.ctx.journey, row, to, version).then(
+      (did) => {
+        undoing.current = null;
+        sendRef.current({ t: "ok" });
+        if (!did) return;
+        c.bs.refresh();
+        asked.current.delete(row.id);
+        if (ef.via !== "undo")
+          undo.current = pushUndo(undo.current, { moves: [{ id: row.id, from: from.key, to: to.key }] });
+        const info = c.bs.by[to.key];
+        const over = info?.wip !== undefined && (counts.current[to.key] ?? 0) >= info.wip;
+        say(
+          `Moved ${titleOf(row)} to ${to.title}${over ? `. ${to.title} is over its limit of ${info?.wip}` : ""}.`,
+          ef.via !== "undo",
+        );
+      },
+      (e: unknown) => {
+        // a refused undo is not lost: it goes back on the stack
+        if (pending) undo.current = pushUndo(undo.current, pending);
+        undoing.current = null;
+        if (e instanceof GateError) sendRef.current({ t: "gate", missing: e.missing });
+        else if (e instanceof StaleError && e.kind === "moved") {
+          sendRef.current({ t: "remote", id: row.id, to: e.stage, by: { kind: "person", name: "Someone" } });
+          resolveMover(row.id, e.stage);
+          sendRef.current({ t: "refuse", reason: e.message });
+        } else sendRef.current({ t: "refuse", reason: reasonOf(e) });
+      },
+    );
   };
   runRef.current = run;
   /** Moves from a menu, the bar, or a key: one card goes through the machine, a group goes one after another and stops at the first refusal. */
@@ -288,7 +291,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     setError(null);
     if (list.length === 1) {
       const row = list[0]!;
-      send({ t: "start", id: row.id, from: laneOfRow(field, row, lanes).key, to: to.key, via });
+      send({ t: "start", id: row.id, from: laneOfRow(field, row, lanes).key, to: to.key, via, version: row.version });
       return;
     }
     const done: { id: string; from: string; to: string }[] = [];
@@ -329,7 +332,15 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       .filter((x) => x.row && x.lane);
     if (rowsBack.length === 1) {
       const x = rowsBack[0]!;
-      send({ t: "start", id: x.row!.id, from: laneOfRow(field, x.row!, lanes).key, to: x.lane!.key, via: "undo" });
+      undoing.current = p.top;
+      send({
+        t: "start",
+        id: x.row!.id,
+        from: laneOfRow(field, x.row!, lanes).key,
+        to: x.lane!.key,
+        via: "undo",
+        version: x.row!.version,
+      });
       return;
     }
     void (async () => {
@@ -621,9 +632,9 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const isFinish = (l: Lane): boolean => !l.none && bs.by[l.key]?.final === true && !expanded.has(l.key);
   // columns share the width the board has, between 184 and 280 px each; a phone shows one column and a peek of the next
   const strips = lanes.filter(isFinish).length;
-  const open = Math.max(1, lanes.length - strips);
-  const fit = boxW > 0 ? Math.floor((boxW - 32 - 12 * (lanes.length - 1) - strips * 88) / open) : LANE_W;
-  const laneWidth = isPhoneWidth(width) ? Math.max(220, width - 56) : Math.max(184, Math.min(LANE_W + 4, fit));
+  const laneWidth = isPhoneWidth(width)
+    ? Math.max(220, width - 56)
+    : columnWidth(boxW, lanes.filter((l) => !l.none || (counts.current[l.key] ?? 0) > 0).length, strips);
   const board: Board = {
     ctx,
     st,
@@ -784,7 +795,13 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       ) : null}
       {chosen.length > 0 ? <ShownCount board={board} keys={chosen} /> : null}
       <SelectBar board={board} onAssign={ownerField ? assign : null} />
-      <View ref={root as never} testID="board-sheet" style={s.sheet} {...({ onKeyDown } as object)}>
+      <View
+        ref={root as never}
+        testID="board-sheet"
+        style={s.sheet}
+        onLayout={(e) => setBoxW(e.nativeEvent.layout.width)}
+        {...({ onKeyDown } as object)}
+      >
         <ScrollView horizontal style={s.lanes} contentContainerStyle={s.lanesIn} testID="board-lanes">
           <View style={s.inner}>
             <View style={s.headRow} testID="board-heads">

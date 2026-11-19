@@ -102,6 +102,19 @@ const SCENES = [
           await click(p, `tick-${id}`));
     },
   },
+  {
+    id: "select",
+    part: "board",
+    sizes: ["phone"],
+    run: async (p) => {
+      for (const id of ["cl_0", "cl_1"])
+        await p
+          .locator(tid(`tick-${id}`))
+          .first()
+          .click();
+      await p.waitForTimeout(300);
+    },
+  },
   { id: "keys", part: "board", sizes: ["wide"], run: async (p) => click(p, "board-keys") },
   { id: "big", part: "big", sizes: ["wide"], run: async () => {} },
 ];
@@ -142,6 +155,26 @@ for (const sc of SCENES) {
       await ctx.close();
     }
 }
+// the finish strips are on screen at 1280, 1440 and 1920 (exit 1 if not)
+let bad = 0;
+for (const w of [1280, 1440, 1920]) {
+  const ctx = await browser.newContext({ viewport: { width: w, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(routeUrl(real.origin, "/m/R41_02?part=board", "graphite"), { waitUntil: "load", timeout: 60000 });
+  await page.waitForSelector(tid("records-board"), { timeout: 12000 });
+  await page.waitForTimeout(1500);
+  const r = await page.evaluate(() => {
+    const box = (id) => document.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect();
+    const lost = box("finish-lost");
+    const lead = box("lane-lead");
+    return { right: lost ? Math.round(lost.right) : null, lead: lead ? Math.round(lead.width) : null, win: innerWidth };
+  });
+  const ok = r.right !== null && r.right <= r.win;
+  if (!ok) bad++;
+  console.log(`layout ${w}: strip right edge ${r.right} of ${r.win}, column ${r.lead}px ${ok ? "PASS" : "FAIL"}`);
+  await ctx.close();
+}
 await browser.close();
 real.close();
-process.exit(0);
+if (bad) process.exitCode = 1;
+process.exit(process.exitCode ?? 0);

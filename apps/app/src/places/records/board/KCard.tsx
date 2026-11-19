@@ -16,6 +16,7 @@ import { Value } from "../views-a/parts.tsx";
 import type { Board } from "./ctx.ts";
 import { ageOf, amountOf, needLine, splitFace } from "./face.ts";
 import { holds, movedWords } from "./machine.ts";
+import { beginPointerDrag } from "./pointerdrag.ts";
 import { moneyText } from "../table/model.ts";
 import { requiredProgress } from "./stats.ts";
 
@@ -171,6 +172,11 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
       el.focus();
   }, [focused]);
   const [hover, setHover] = useState(false);
+  // a screen with no hover (a phone, a tablet) has no way to reveal the tick, so it is always drawn there
+  const coarse =
+    Platform.OS === "web" &&
+    (globalThis as { matchMedia?: (q: string) => { matches: boolean } }).matchMedia?.("(hover: none)")?.matches ===
+      true;
   const edge = age?.late === true;
   const card = (
     <Pressable
@@ -220,7 +226,7 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
           testID={`tick-${row.id}`}
           focusable={false}
           onPress={() => board.toggle(row.id)}
-          style={[k.ck, selected && k.ckOn, !selected && !multi && !hover && k.ckHidden]}
+          style={[k.ck, selected && k.ckOn, !selected && !multi && !hover && !coarse && k.ckHidden]}
         >
           {selected ? <Glyph name="check" size={11} color="#fff" width={2} /> : null}
         </Pressable>
@@ -299,10 +305,17 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
   );
   if (Platform.OS !== "web") return card;
   const laneNow = laneOfRow(field, row, board.lanes).key;
+  const lift = (): void => {
+    board.drag.current = row;
+    board.send({ t: "lift", id: row.id, from: laneNow, version: row.version });
+  };
+  const end = (): void => {
+    board.drag.current = null;
+    board.send({ t: "release" });
+  };
   return createElement(
     "div",
     {
-      draggable: !(board.move.kind === "needs" || board.move.kind === "committing"),
       "data-testid": `drag-${row.id}`,
       "data-card-id": row.id,
       onClickCapture: (e: {
@@ -322,56 +335,38 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
           board.toggle(row.id);
         }
       },
-      onDragStart: (e: {
-        dataTransfer?: {
-          setData(t: string, v: string): void;
-          effectAllowed: string;
-          setDragImage?: (el: unknown, x: number, y: number) => void;
-        };
-        currentTarget?: { getBoundingClientRect?: () => { width: number }; cloneNode?: (deep: boolean) => unknown };
+      // one drag for mouse, touch and pen (board/pointerdrag.ts)
+      onPointerDown: (e: {
+        button?: number;
+        pointerType?: string;
+        pointerId: number;
+        clientX: number;
+        clientY: number;
+        target?: { closest?: (s: string) => unknown };
+        currentTarget: { cloneNode(d: boolean): unknown; getBoundingClientRect(): { width: number; height: number } };
       }) => {
-        board.drag.current = row;
-        board.send({ t: "lift", id: row.id, from: laneNow, version: row.version });
-        if (e.dataTransfer) {
-          e.dataTransfer.setData("text/plain", row.id);
-          e.dataTransfer.effectAllowed = "move";
-          liftedImage(e);
-        }
+        if ((e.button ?? 0) !== 0) return;
+        if (board.move.kind === "needs" || board.move.kind === "committing") return;
+        if (e.target?.closest?.('input,textarea,button,a,[role="checkbox"]')) return;
+        beginPointerDrag(
+          { pointerType: e.pointerType ?? "mouse", pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY },
+          e.currentTarget,
+          {
+            lift,
+            over: (l) => board.send({ t: "over", lane: l }),
+            drop: () => board.send({ t: "drop" }),
+            end,
+            cancel: () => board.send({ t: "cancel" }),
+          },
+        );
       },
-      onDragEnd: () => {
-        board.drag.current = null;
-        board.send({ t: "release" });
-      },
-      style: { cursor: "grab", width: "100%" },
+      // the same lift and put-down, for a caller that has no pointer
+      onDragStart: lift,
+      onDragEnd: end,
+      style: { width: "100%", touchAction: "manipulation", userSelect: "none" },
     },
     card,
   );
-}
-
-/** The picture that follows the pointer: a copy of the card, tilted a little, with its shadow. */
-function liftedImage(e: {
-  dataTransfer?: { setDragImage?: (el: unknown, x: number, y: number) => void };
-  currentTarget?: { getBoundingClientRect?: () => { width: number }; cloneNode?: (deep: boolean) => unknown };
-}): void {
-  const doc = (globalThis as { document?: { body?: { appendChild(n: unknown): void; removeChild(n: unknown): void } } })
-    .document;
-  const src = e.currentTarget;
-  if (!doc?.body || !src?.cloneNode || !e.dataTransfer?.setDragImage) return;
-  const clone = src.cloneNode(true) as { style: Record<string, string>; remove?: () => void };
-  const w = src.getBoundingClientRect?.().width ?? 232;
-  Object.assign(clone.style, {
-    position: "fixed",
-    top: "-1000px",
-    left: "-1000px",
-    width: `${w}px`,
-    transform: "rotate(2.2deg) scale(1.03)",
-    boxShadow: "var(--sh-pop)",
-    borderRadius: "12px",
-    opacity: "1",
-  });
-  doc.body.appendChild(clone);
-  e.dataTransfer.setDragImage(clone, w / 2, 24);
-  setTimeout(() => clone.remove?.(), 0);
 }
 
 /** The cards in the selection, as the rows the board last drew. */

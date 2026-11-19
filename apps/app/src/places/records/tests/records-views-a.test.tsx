@@ -290,9 +290,12 @@ test("screen: a board draws a lane per option with its cached count, and every c
   );
 });
 
-test("cards are draggable and every lane is a drop target (web), so a drag needs no handle", () => {
+test("every card is a pointer-drag source and every lane a drop target (web), so a drag needs no handle", () => {
   const out = views("board");
-  assert.equal(count(out, 'draggable="true"'), 12, "one draggable wrapper per card");
+  assert.equal(count(out, "data-card-id="), 12, "one drag wrapper per card");
+  assert.equal(count(out, 'draggable="true"'), 0, "no native drag: one pointer path serves mouse, touch and pen");
+  for (const k of ["planning", "active", "done"])
+    assert.ok(has(out, `data-lane="${k}"`), `${k} is found under the pointer`);
   for (const k of ["planning", "active", "done"]) assert.ok(has(out, `data-testid="drop-${k}"`), `${k} takes drops`);
   assert.ok(has(out, 'data-testid="drag-projects_0"'));
 });
