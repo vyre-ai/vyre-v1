@@ -254,6 +254,8 @@ export function noteApproved(call: CallId, siteId: string, now: number = Date.no
 export function wasApproved(call: CallId, siteId: string, now: number = Date.now()): boolean {
   const k = callKey(call, siteId);
   const at = k ? approvedCalls.get(k) : undefined;
+  // a yes is for one build: it is spent when it is used
+  if (k) approvedCalls.delete(k);
   return at !== undefined && now - at <= GATE_FP_TTL_MS;
 }
 

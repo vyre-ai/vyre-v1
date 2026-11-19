@@ -150,3 +150,17 @@ test("a held production deploy says its own reason, with the site, the branch an
   assert.deepEqual(names.site, { name: "Dash", branch: "release", keys: ["Stripe"], upload: false });
   assert.deepEqual(asked, ["sites.get", "sites.env_list"]);
 });
+
+test("a held deploy's card writes out a branch, site or key name that hides its characters, bidi included", async () => {
+  const names = await holdNamesOf(
+    {
+      call: async (cap: string) =>
+        cap === "sites.get"
+          ? { site: { name: "Da\u202eSH", source: { repo: "a/b", branch: "main\nok" } } }
+          : { entries: [{ name: "K", vaultName: "#Key\u2066x", kind: "secret", scope: "production" }] },
+    } as never,
+    "sites.deploy",
+    { siteId: "sit_1" },
+  );
+  assert.deepEqual(names.site, { name: "Da\\u202eSH", branch: "main\\u000aok", keys: ["Key\\u2066x"], upload: false });
+});

@@ -1076,20 +1076,41 @@ async function refreshProtection(ctx: Ctx, siteId: string, source: SourceSpec, t
   if (token) headers["authorization"] = `Bearer ${token}`;
   let state = "unknown";
   let branch = source.branch ?? "";
+  const get = async (url: string): Promise<{ status: number; body: unknown }> => {
+    const r = await ctx.http(url, { headers });
+    let body: unknown = null;
+    try {
+      body = JSON.parse(await r.text());
+    } catch {
+      body = null;
+    }
+    return { status: r.status, body };
+  };
   try {
     if (!branch) {
-      const repo = await ctx.http(api, { headers });
-      if (repo.status === 200)
-        branch = (JSON.parse(await repo.text()) as { default_branch?: string }).default_branch ?? "";
+      const repo = await get(api);
+      if (repo.status === 200) branch = (repo.body as { default_branch?: string } | null)?.default_branch ?? "";
     }
     if (branch) {
-      const r = await ctx.http(`${api}/branches/${encodeURIComponent(branch)}/protection`, { headers });
-      if (r.status === 404) state = "open";
-      else if (r.status === 200) {
-        const b = JSON.parse(await r.text()) as Record<string, unknown>;
-        const enforced = (b["enforce_admins"] as { enabled?: unknown } | undefined)?.enabled === true;
-        // reviews or restricted pushes only count when they bind admins too: an admin who can push can use the keys
-        state = (b["required_pull_request_reviews"] || b["restrictions"]) && enforced ? "protected" : "open";
+      const name = encodeURIComponent(branch);
+      // the rules that apply to the branch (rulesets) are readable with a token that can read the repo; the classic endpoint needs more. Rules first, the classic one for what they do not say.
+      const rules = await get(`${api}/rules/branches/${name}`);
+      const list = rules.status === 200 && Array.isArray(rules.body) ? (rules.body as Record<string, unknown>[]) : null;
+      const bound = list?.some((r) => {
+        if (r["type"] === "update") return true;
+        const need = (r["parameters"] as { required_approving_review_count?: unknown } | undefined)
+          ?.required_approving_review_count;
+        return r["type"] === "pull_request" && typeof need === "number" && need >= 1;
+      });
+      if (bound) state = "protected";
+      else {
+        const classic = await get(`${api}/branches/${name}/protection`);
+        if (classic.status === 200) {
+          const b = (classic.body ?? {}) as Record<string, unknown>;
+          const enforced = (b["enforce_admins"] as { enabled?: unknown } | undefined)?.enabled === true;
+          // reviews or restricted pushes only count when they bind admins too: an admin who can push can use the keys
+          state = (b["required_pull_request_reviews"] || b["restrictions"]) && enforced ? "protected" : "open";
+        } else if (classic.status === 404) state = list ? "open" : "unknown";
       }
     }
   } catch {
@@ -1193,6 +1214,11 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
   const depId = nid(ctx, "dpl");
   const now = ctx.now();
   const by = ctx.actingFor ?? ctx.principal.id;
+  // a deploy that was waiting for a person is answered by this one
+  ctx.db.run(
+    "DELETE FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error LIKE 'Waiting for a person%'",
+    siteId,
+  );
   ctx.db.run(
     "INSERT INTO sites_deployment (id, site_id, env, state, url, branch, commit_sha, image, container_id, host, upstream, pr_number, log, created_by, at, updated_at, removed_at, merge_pending) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     depId,
@@ -2383,15 +2409,30 @@ export function siteHostOf(site: Row): string | null {
 
 /** For the host's push check: sites that deploy on a push, with whom to run the deploy as. */
 export function autoDeploySites(ctx: Pick<Ctx, "db">): { siteId: string; as: string; branch: string }[] {
+  const waiting = new Set(
+    (
+      ctx.db.all(
+        "SELECT DISTINCT site_id FROM sites_push WHERE action = 'deploy' AND error LIKE ? AND failed_at > ?",
+        "Waiting for a person%",
+        Date.now() - 24 * 60 * 60 * 1000,
+      ) as Row[]
+    ).map((r) => str(r.site_id)),
+  );
   return (
-    ctx.db.all("SELECT * FROM sites_site WHERE auto_deploy = 1 AND deleted_at IS NULL AND source IS NOT NULL") as Row[]
-  )
-    .filter((r) => sourceOf(r)?.repo)
-    .map((r) => ({
-      siteId: str(r.id),
-      as: isNull(r.deployed_by) ? str(r.owner) : str(r.deployed_by),
-      branch: sourceOf(r)?.branch ?? "",
-    }));
+    (
+      ctx.db.all(
+        "SELECT * FROM sites_site WHERE auto_deploy = 1 AND deleted_at IS NULL AND source IS NOT NULL",
+      ) as Row[]
+    )
+      // a deploy that already waits for a person is not asked for again every tick: its card is there
+      .filter((r) => !waiting.has(str(r.id)))
+      .filter((r) => sourceOf(r)?.repo)
+      .map((r) => ({
+        siteId: str(r.id),
+        as: isNull(r.deployed_by) ? str(r.owner) : str(r.deployed_by),
+        branch: sourceOf(r)?.branch ?? "",
+      }))
+  );
 }
 
 /** Containers that should be serving, for the host to start again after a server restart (Docker restarts them itself; this catches one that was removed). */

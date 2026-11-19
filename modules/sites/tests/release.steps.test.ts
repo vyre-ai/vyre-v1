@@ -1803,7 +1803,11 @@ test("a person's deploy finds out what the host says about the production branch
       const asked: string[] = [];
       (w.ctx as { http: unknown }).http = async (url: string) => {
         asked.push(url);
-        const r = url.endsWith("/protection") ? protection : { status: repo, body: { default_branch: "trunk" } };
+        const r = url.includes("/rules/branches/")
+          ? { status: 200, body: [] }
+          : url.endsWith("/protection")
+            ? protection
+            : { status: repo, body: { default_branch: "trunk" } };
         return { status: r.status, text: async () => JSON.stringify(r.body ?? {}) };
       };
       return asked;
@@ -1827,7 +1831,10 @@ test("a person's deploy finds out what the host says about the production branch
     assert.equal((await state())?.state, "open", "protection with no review and no restriction stops nothing");
     const asked = answer({ status: 404 });
     assert.equal((await state())?.state, "open");
-    assert.match(asked[0]!, /repos\/acme\/app\/branches\/main\/protection$/);
+    assert.ok(
+      asked.some((u) => /repos\/acme\/app\/branches\/main\/protection$/.test(u)),
+      asked.join(" "),
+    );
     answer({ status: 403 });
     assert.equal((await state())?.state, "unknown");
     (w.ctx as { http: unknown }).http = async () => {
@@ -2050,8 +2057,11 @@ test("every agent's or push's production deploy looks at the branch again, fresh
     const ctxs: { http: unknown }[] = [];
     const look = (status: number, body: unknown = {}) => {
       const http = async (url: string) => ({
-        status: url.endsWith("/protection") ? status : 200,
-        text: async () => JSON.stringify(url.endsWith("/protection") ? body : { default_branch: "main" }),
+        status: url.includes("/rules/branches/") ? 200 : url.endsWith("/protection") ? status : 200,
+        text: async () =>
+          JSON.stringify(
+            url.includes("/rules/branches/") ? [] : url.endsWith("/protection") ? body : { default_branch: "main" },
+          ),
       });
       for (const c of ctxs) c.http = http;
     };
@@ -2115,6 +2125,88 @@ test("a deploy a push or the auto-deploy asked for that did not run shows on the
     assert.equal(hook.failed[0].branch, "main");
     assert.match(hook.failed[0].error, /Waiting for a person/);
     assert.equal(autoDeploySites(w.ctx).find((a) => a.siteId === siteId)?.branch ?? "main", "main");
+  } finally {
+    w.done();
+  }
+});
+
+test("protection is read with the rulesets a read token can see first, the classic endpoint for what they do not say", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Rules");
+    const asked: string[] = [];
+    const host = (rules: { status: number; body?: unknown }, classic: { status: number; body?: unknown }) => {
+      asked.length = 0;
+      (w.ctx as { http: unknown }).http = async (url: string) => {
+        asked.push(url.replace("https://api.github.com/repos/acme/app", ""));
+        const r = url.includes("/rules/branches/") ? rules : classic;
+        return { status: r.status, text: async () => JSON.stringify(r.body ?? {}) };
+      };
+    };
+    const state = async () => {
+      await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+      return siteFacts({ db: w.sdb } as never, siteId)!.protection?.state;
+    };
+    const review = { type: "pull_request", parameters: { required_approving_review_count: 1 } };
+    // a read-only token: the rules say it, the classic endpoint is not readable
+    host({ status: 200, body: [review] }, { status: 403 });
+    assert.equal(await state(), "protected", "a read-only token on a ruleset-protected branch");
+    assert.deepEqual(asked, ["/rules/branches/main"], "the classic endpoint is not needed");
+    host({ status: 200, body: [{ type: "update" }] }, { status: 403 });
+    assert.equal(await state(), "protected", "updates restricted");
+    host(
+      { status: 200, body: [{ type: "pull_request", parameters: { required_approving_review_count: 0 } }] },
+      { status: 404 },
+    );
+    assert.equal(await state(), "open", "a pull request rule that needs nobody's approval stops nothing");
+    // the rules say nothing: the classic endpoint decides, and what cannot be read is unknown
+    host(
+      { status: 200, body: [] },
+      { status: 200, body: { required_pull_request_reviews: {}, enforce_admins: { enabled: true } } },
+    );
+    assert.equal(await state(), "protected");
+    host({ status: 200, body: [] }, { status: 404 });
+    assert.equal(await state(), "open", "the rules were readable and say nothing, and there is no classic protection");
+    host({ status: 200, body: [] }, { status: 403 });
+    assert.equal(await state(), "unknown", "classic protection that cannot be read may be there");
+    host({ status: 404 }, { status: 404 });
+    assert.equal(await state(), "unknown", "nothing could be read");
+  } finally {
+    w.done();
+  }
+});
+
+test("a deploy that waits for a person is asked for once, not every tick: one row per site and reason, and the tick skips the site until it is answered", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Waiting");
+    w.sdb.run("UPDATE sites_site SET auto_deploy = 1 WHERE id = ?", siteId);
+    const asked = () => autoDeploySites(w.ctx).filter((a) => a.siteId === siteId).length;
+    assert.equal(asked(), 1, "a site that deploys on push is asked for");
+    const why = "Waiting for a person: the site holds keys and its branch is not protected on GitHub.";
+    for (let tick = 0; tick < 10; tick++) {
+      if (asked() > 0) recordDeployFailure(w.ctx, siteId, "main", why);
+    }
+    assert.equal(
+      (
+        w.sdb.all("SELECT COUNT(*) AS n FROM sites_push WHERE site_id = ? AND action = 'deploy'", siteId)[0] as {
+          n: number;
+        }
+      ).n,
+      1,
+      "ten ticks, one row and one ask",
+    );
+    assert.equal(asked(), 0, "the tick does not ask again while the card waits");
+    // a person's own deploy answers it
+    await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(asked(), 1);
+    // another reason is another row
+    recordDeployFailure(w.ctx, siteId, "main", "The deploy could not run. The log says more.");
+    recordDeployFailure(w.ctx, siteId, "main", "The deploy could not run. The log says more.");
+    assert.equal(
+      (w.sdb.all("SELECT COUNT(*) AS n FROM sites_push WHERE site_id = ?", siteId)[0] as { n: number }).n,
+      1,
+    );
   } finally {
     w.done();
   }

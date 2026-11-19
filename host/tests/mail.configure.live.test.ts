@@ -996,7 +996,9 @@ function siteWorld() {
   const github = (state: "protected" | "open" | "unknown" | "admins-not-bound"): void => {
     sw.ctx.http = async (url: string) => {
       const protection = url.endsWith("/protection");
+      const rules = url.includes("/rules/branches/");
       const status = state === "unknown" ? 403 : protection ? (state === "open" ? 404 : 200) : 200;
+      if (rules) return { status, text: async () => "[]" };
       const body = protection
         ? { required_pull_request_reviews: {}, enforce_admins: { enabled: state === "protected" } }
         : { default_branch: "main" };
@@ -1690,4 +1692,40 @@ test("under the real invoke and the real sites.deploy: an agent's upload deploy 
   const again = await resumed.invoke("sites.deploy", call, { ...runner, trace: t4, approval: token } as never);
   assert.equal(out(again)?.state, "ready", JSON.stringify(again).slice(0, 300));
   assert.equal(siteFacts({ db: s.sw.sdb } as never, siteId)!.deployedFp, held);
+});
+
+test("a top-level call with no trace of its own (a push the daemon makes, an agent's first call) still finds the Gate's note and its approval under the real invoke; a person's yes on a push to an unprotected branch ends in the deploy", async () => {
+  const s = siteWorld();
+  // an agent's upload deploy with no trace in its seed
+  const up = await s.site("Up", { folderId: "fld_up" }, false);
+  await s.deployUpload(up);
+  s.store(up, STORED.name, STORED.handle);
+  s.state.fetchFp = await s.fp();
+  const out = (r: unknown) =>
+    (r as { output?: { deployment?: { state?: string; problem?: string } } }).output?.deployment;
+  const upDeploy = await rig(s.opts).invoke("sites.deploy", { siteId: up, wait: true }, asAgent());
+  assert.equal(out(upDeploy)?.state, "ready", String(out(upDeploy)?.problem));
+  // a push to an unprotected branch of a keyed site: held, and the yes lets the build go on although the branch is still open
+  const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
+  s.store(siteId, STORED.name, STORED.handle);
+  s.github("open");
+  await s.call("sites.deploy", { siteId, wait: true });
+  const push = { ...seed("usr_admin"), origin: "sites-push" } as never;
+  const call = { siteId, wait: true };
+  assert.equal((await rig(s.opts).invoke("sites.deploy", call, push)).status, "held");
+  const hash = payloadHash(rig(s.opts).defOf("sites.deploy"), call, seed("usr_admin"));
+  const token = `apv_${Buffer.from(JSON.stringify({ keyId: "k", nonce: "n", bytes: "b" })).toString("base64url")}`;
+  const resumed = rig({
+    ...s.opts,
+    unseal: () => new TextEncoder().encode(JSON.stringify({ v: 1, exp: Date.now() + 60_000, hash })),
+  });
+  const yes = await resumed.invoke("sites.deploy", call, {
+    ...seed("usr_admin"),
+    origin: "sites-push",
+    approval: token,
+  } as never);
+  assert.equal(out(yes)?.state, "ready", String(out(yes)?.problem));
+  // the yes is for that one build
+  const again = await resumed.invoke("sites.deploy", call, { ...seed("usr_admin"), origin: "sites-push" } as never);
+  assert.equal(again.status, "held", "no approval, held again");
 });

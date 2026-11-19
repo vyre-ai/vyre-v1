@@ -1,3 +1,5 @@
+import { protectionHolds } from "../../../lib/key-target.ts";
+import type { SiteFacts } from "../../../lib/key-target.ts";
 import { workspaceInTurn } from "./workspace-turns.ts";
 import { activeCodeBuiltins } from "../../../lib/builtin-connectors.ts";
 import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources.ts";
@@ -5550,16 +5552,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 },
               ).catch((e: unknown) => ({ status: "error", e }));
               if ((r as { status?: string }).status !== "ok") {
-                // the site's card says why a push's deploy did not run, not only the log
+                // the site's card says why a push's deploy did not run, not only the log: in plain words, never an exception's text
+                const e =
+                  (
+                    r as {
+                      e?: { error?: { code?: string; message?: string } };
+                      error?: { code?: string; message?: string };
+                    }
+                  ).e?.error ?? (r as { error?: { code?: string; message?: string } }).error;
+                const facts = (
+                  sitesExports?.["siteFacts"] as ((c: { db: unknown }, id: string) => SiteFacts | null) | undefined
+                )?.({ db: db! }, a.siteId);
                 const reason =
                   (r as { status?: string }).status === "held"
-                    ? "Waiting for a person: the site holds keys and its branch is not protected on GitHub."
-                    : String(
-                        (r as { e?: { error?: { message?: string }; message?: string } }).e?.error?.message ??
-                          (r as { e?: { message?: string } }).e?.message ??
-                          (r as { error?: { message?: string } }).error?.message ??
-                          "It could not run.",
-                      );
+                    ? facts && protectionHolds(facts)
+                      ? "Waiting for a person: the site holds keys and its branch is not protected on GitHub."
+                      : "Waiting for a person to approve it."
+                    : typeof e?.code === "string" && /^(validation|permission|conflict)\./.test(e.code) && e.message
+                      ? e.message
+                      : "The deploy could not run. The log says more.";
                 (
                   sitesExports?.["recordDeployFailure"] as
                     | ((c: { db: unknown }, siteId: string, branch: string, why: string) => void)

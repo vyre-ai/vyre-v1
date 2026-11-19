@@ -4,6 +4,7 @@
 // (tasks.working_notes.set decision_id and payload_hash, once each) and sets two timers: gate.expire at the timeout and one approval.backstop notification at the backstop hour.
 import { isOutsideTrigger, readAutomationMark, triggerWords } from "../../../lib/automation-content.ts";
 import { holdSentence, holdShort, holdTitle } from "../../../lib/hold-words.ts";
+import { visibleText } from "../../../lib/visible-text.ts";
 import type { HoldNames } from "../../../lib/hold-words.ts";
 import { outwardOf } from "../../../lib/outward.ts";
 import { handleOf } from "../../../lib/person-handle.ts";
@@ -179,11 +180,11 @@ export async function holdNamesOf(ctx: GateCtx, cap: string, input: unknown): Pr
         .filter(
           (x) => x.kind === "secret" && typeof x.vaultName === "string" && x.vaultName !== "" && x.scope !== "previews",
         )
-        .map((x) => cut(String(x.vaultName).replace(/^#/, "").replace(/\..*$/, ""), 40));
+        .map((x) => visibleText(String(x.vaultName).replace(/^#/, "").replace(/\..*$/, ""), 40));
       if (g?.site?.name)
         out.site = {
-          name: cut(g.site.name, 60),
-          ...(g.site.source?.branch ? { branch: cut(g.site.source.branch, 60) } : {}),
+          name: visibleText(g.site.name, 60),
+          ...(g.site.source?.branch ? { branch: visibleText(g.site.source.branch, 60) } : {}),
           keys: [...new Set(keys)],
           upload: !!(g.site.source?.folderId || g.site.source?.fileId),
         };

@@ -388,6 +388,20 @@ export function markPushFailed(ctx: Pick<Ctx, "db">, id: string, why: string): v
 /** A deploy a push or the auto-deploy asked for that did not run (held for a person, refused, or failed): kept beside the pushes that could not run, so the site's card shows it with its reason, not only the log. */
 export function recordDeployFailure(ctx: Pick<Ctx, "db">, siteId: string, branch: string, why: string): void {
   const now = Date.now();
+  const reason = why.slice(0, 200);
+  // the same reason for the same site is one row, kept up to date: a tick that finds the same thing again adds nothing
+  const same = (
+    ctx.db.all(
+      "SELECT id FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error = ? AND failed_at > ? LIMIT 1",
+      siteId,
+      reason,
+      now - WAITING_MS,
+    ) as Row[]
+  )[0];
+  if (same) {
+    ctx.db.run("UPDATE sites_push SET at = ?, failed_at = ?, done_at = ? WHERE id = ?", now, now, now, same.id);
+    return;
+  }
   ctx.db.run(
     "INSERT INTO sites_push (id, site_id, branch, sha, action, at, done_at, failed_at, error) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)",
     `psh_${randomHex(8)}`,
@@ -397,9 +411,14 @@ export function recordDeployFailure(ctx: Pick<Ctx, "db">, siteId: string, branch
     now,
     now,
     now,
-    why.slice(0, 200),
+    reason,
   );
 }
+
+/** How long a deploy that waits for a person is not asked for again: the card is still there. */
+export const WAITING_MS = 24 * 60 * 60 * 1000;
+/** The words of a deploy that waits for a person (the site's card, and what the tick looks for before asking again). */
+export const WAITING_PREFIX = "Waiting for a person";
 
 // ---- the site's settings for it
 

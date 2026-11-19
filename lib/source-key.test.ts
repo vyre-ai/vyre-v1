@@ -172,3 +172,11 @@ test("uploaded files with no fingerprint to compare hold: unread now, or no base
   );
   assert.deepEqual(pairs(upload("a"), "a", upload()), [{ handle: "?", source: null }]);
 });
+
+test("a yes is spent when it is used: the build it was for takes it, a second build does not", async () => {
+  const { noteApproved, wasApproved } = await import("./key-target.ts");
+  const call = { traceId: "9f".repeat(16) };
+  noteApproved(call, "sit_1");
+  assert.equal(wasApproved(call, "sit_1"), true);
+  assert.equal(wasApproved(call, "sit_1"), false);
+});

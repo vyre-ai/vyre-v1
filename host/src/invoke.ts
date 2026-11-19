@@ -900,7 +900,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       approved =
         seed.approval !== undefined &&
         deps.gate !== undefined &&
-        deps.gate.verify(seed.approval, { cap: c, input, seed });
+        deps.gate.verify(seed.approval, { cap: c, input, seed: { ...seed, trace } });
       const memberOnly = c.level === "member";
       let req: AuthReq = {
         principal: seed.principal.id,
@@ -1194,7 +1194,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           message: "Approvals are not available right now.",
           details: { cap: c.name, act: c.gate.act },
         });
-      const g = await deps.gate.applies(c, input, seed);
+      // the Gate sees this call's own trace (the handler's ctx.trace carries the same trace id), so what it notes for the handler is found under a key both sides know, also for a top-level call that arrived with no trace
+      const g = await deps.gate.applies(c, input, { ...seed, trace });
       if (g) {
         return park(c, input, seed, traceId, did(), g.act, null);
       }
@@ -1340,7 +1341,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (stored.length) deps.publish?.(stored);
     // Before the answer reaches the model: a failure to mark costs the next outward act nothing it should have, so it is logged and the answer still goes. The grant check reads the mark.
     if (deps.gate?.seen && (depth === 0 || approved))
-      await deps.gate.seen(c, input, output, seed, t).catch((e: unknown) =>
+      await deps.gate.seen(c, input, output, { ...seed, trace }, t).catch((e: unknown) =>
         log.warn("the Gate did not hear what a call brought in", {
           cap: c.name,
           traceId,
@@ -1377,7 +1378,15 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         details: { cap: c.name },
       });
     if (row) await deps.audit?.(row);
-    const p = await deps.gate.park({ cap: c, input, seed, act, decisionId, traceId, ...(runAs ? { runAs } : {}) });
+    const p = await deps.gate.park({
+      cap: c,
+      input,
+      seed: { ...seed, trace: { traceId, spanId: seed.trace?.spanId ?? "0".repeat(16) } },
+      act,
+      decisionId,
+      traceId,
+      ...(runAs ? { runAs } : {}),
+    });
     return { status: "held", taskId: p.taskId, runId: p.runId, traceId };
   }
 
