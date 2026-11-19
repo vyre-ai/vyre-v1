@@ -1,6 +1,7 @@
 // ctx.vault for module code (ruling 31/32, ARCH 6.11): `use(handle)` names a handle and `fill(handle, into)` asks the vault module to put the value in a place, through the same invoke pipeline as any
 // caller, so authorize (Use level), audit and the history row are the normal ones and the value never passes through the module that asked. The places (git_credential, container_env, route_auth, env...)
 // are sinks the host registers per kind in DaemonOptions.seams.vaultSinks; a kind with no sink is refused by the vault module ("no place to fill").
+import { inTestRunner } from "../test-mode.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CtxSeed, InvokeResult } from "../invoke.ts";
 import { fail } from "../routes/errors.ts";
@@ -208,7 +209,7 @@ export function createProviderProbe(
       // lists none. Tests only. Every key's probe models become its account row's models, which the resolver reads (whether a named model fits, the strict no_model refusal, modelFallback.to):
       // so in tests a shared non-OpenRouter key serves only "<provider>-test-model", and a team turn that names another model on such a key takes the fallback path to it. The Space AI key's
       // fitModel reads the same list. It is test-only and the suites are green on it.
-      if (process.env["VYRE_TEST_KEY_CHECK"] === "accept")
+      if (inTestRunner() && process.env["VYRE_TEST_KEY_CHECK"] === "accept")
         return /invalid/i.test(p.apiKey)
           ? { ok: false, models: [], detail: "The provider did not accept this key.", refused: true }
           : {
@@ -218,6 +219,15 @@ export function createProviderProbe(
             };
       ({ url, headers, pick } = make(p.apiKey));
     }
+    // A test never reaches a real provider by accident: with no fetch handed in, a test process that is not in accept mode (it was started without scripts/test-run.ts) would ask the real one
+    // with a made-up key. It stops here, and the refusal names the cause.
+    if (!o.fetch && (process.env["NODE_TEST_CONTEXT"] || inTestRunner()))
+      return {
+        ok: false,
+        models: [],
+        detail: "A test reached a real provider: run it with scripts/test-run.ts or pass providerFetch.",
+        refused: true,
+      };
     try {
       const r = await fetchFn(url, { headers, redirect: "error", signal: AbortSignal.timeout(10_000) });
       if (r.status === 401 || r.status === 403)

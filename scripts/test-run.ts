@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { splitPerf } from "./lib/perf-skip.mjs";
 import { endGroupsOnExit, killGroup, spawnGroup } from "./lib/proc-group.mjs";
 import { withPatternSlow } from "./lib/slow-list.mjs";
@@ -48,6 +48,9 @@ export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {
   delete env.NODE_TEST_CONTEXT;
   // a key is checked with its provider before it is saved; a test that adds a fixture key has no real provider to ask, so the host probe accepts keys unless the test asks for the real answer (host/src/seams/vault.ts)
   env.VYRE_TEST_KEY_CHECK ??= "accept";
+  // the marker product code reads to know it runs in the test runner: the accept mode above is honoured only with it (host/src/test-mode.ts); NODE_OPTIONS so a daemon a test starts as its own process carries it
+  env.NODE_OPTIONS =
+    `${env.NODE_OPTIONS ?? ""} --import=${pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), "lib/test-marker.mjs")).href}`.trim();
   // A test daemon uses the images built on this computer and never asks a registry (no test reaches an outside service). Without a setting, a daemon whose version looks like a release
   // asks ghcr.io/vyre-ai for that version's image (host/src/seams/release-images.ts): test/crew.local.live.test.ts boots version 1.2.3 and its agent computer could not start.
   // The local build names are never fetched (sandbox/src/docker.ts fetchableImage), so a runner without the image fails with a plain line instead of pulling anything.
