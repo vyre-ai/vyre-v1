@@ -193,8 +193,13 @@ export function MountSheet({
   };
 
   // one behaviour everywhere, a phone has no double press: a tap on a folder goes into it, and "Choose this folder" picks the one you are in. A repository or anything that is not a folder is picked by the tap.
+  const walked = useRef(0);
   const press = (it: BrowseItem): void => {
     if (d.source !== "github" && it.isFolder) {
+      // a double click is two presses: the second would land on a row of the folder just entered (a cached list). One walk per half second.
+      const now = Date.now();
+      if (now - walked.current < 500) return;
+      walked.current = now;
       setD((x) => walkInto(x, it));
       return;
     }
@@ -341,7 +346,7 @@ export function MountSheet({
     d.step === 2
       ? [
           { label: "Back", onPress: () => setD((x) => back(x)), testID: "mount-back" },
-          ...(d.source !== "github" && d.path.length > 0
+          ...(d.source !== "github" && d.path.length > (d.source === "onedrive" ? 1 : 0)
             ? [{ label: "Choose this folder", onPress: () => setD((x) => chooseHere(x)), testID: "mount-choose-here" }]
             : []),
           {

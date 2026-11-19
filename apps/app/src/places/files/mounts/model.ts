@@ -147,6 +147,8 @@ export const pick = (d: Draft, item: BrowseItem | null): Draft => ({ ...d, picke
 export function chooseHere(d: Draft): Draft {
   const here = d.path[d.path.length - 1];
   if (d.step !== 2 || d.source === null || d.source === "github" || !here) return d;
+  // OneDrive opens its one drive for you (path [drive]): the bare drive root is not offered, only a folder inside it
+  if (d.source === "onedrive" && d.path.length < 2) return d;
   return { ...d, picked: { ref: here.ref, name: here.name, isFolder: true, kind: here.kind }, step: 3 };
 }
 export const setQuery = (d: Draft, q: string): Draft => ({ ...d, q, picked: null });

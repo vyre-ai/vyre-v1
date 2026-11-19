@@ -138,6 +138,35 @@ test("Choose this folder picks the folder you are in and goes on to its options;
   assert.equal(chooseHere(gh), gh);
 });
 
+test("OneDrive opens its one drive for you: the bare drive root is not offered, a folder inside it is", () => {
+  let d = chooseSource(emptyDraft("fld_github"), "onedrive");
+  d = walkInto(d, item("onedrive", "od:drive", "OneDrive"));
+  assert.equal(chooseHere(d), d, "the drive root alone is not a choice");
+  d = walkInto(d, item("onedrive", "od:drive/Clients", "Clients"));
+  assert.equal(chooseHere(d).picked?.ref, "od:drive/Clients");
+  const s = createSampleMounts();
+  const shown = (path: Draft["path"]): string =>
+    html(
+      s,
+      <MountSheet
+        onClose={noop}
+        onMounted={noop}
+        initial={{ step: 2, source: "onedrive", path }}
+        preload={{ listing: { items: [] } }}
+      />,
+    );
+  assert.ok(!has(shown([{ ref: "od:drive", name: "OneDrive", kind: "onedrive" }]), 'data-testid="mount-choose-here"'));
+  assert.ok(
+    has(
+      shown([
+        { ref: "od:drive", name: "OneDrive", kind: "onedrive" },
+        { ref: "od:drive/Clients", name: "Clients", kind: "onedrive" },
+      ]),
+      'data-testid="mount-choose-here"',
+    ),
+  );
+});
+
 test("the Choose this folder button is in the sheet inside a folder, and not at the root or for GitHub", () => {
   const s = createSampleMounts();
   const items = [item("google_drive", "gd:Marketing", "Marketing", { path: "Shared drive" })];
