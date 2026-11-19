@@ -338,13 +338,14 @@ export function judge(
   }
   if (m === "GET" && p === "/containers/json")
     return workspaceListOk(r.query) ? { ok: true, kind: "plain" } : no("only the list of agent workspaces may be read");
-  const c = /^\/containers\/([A-Za-z0-9_.-]{1,128})(?:\/(json|logs|start|stop|restart|archive|exec|wait))?$/.exec(p);
+  const c = /^\/containers\/([A-Za-z0-9_.-]{1,128})(?:\/(json|logs|stats|start|stop|restart|archive|exec|wait))?$/.exec(p);
   if (c) {
     const action = c[2] ?? (m === "DELETE" ? "remove" : "");
     // the first look is for the methods; which of them a container may be asked is decided once its labels say whether it is a site's or a computer's (siteAllows, computerAllows)
     const ok =
       (action === "json" && m === "GET") ||
       (action === "logs" && m === "GET") ||
+      (action === "stats" && m === "GET") ||
       (["start", "stop", "restart", "wait"].includes(action) && m === "POST") ||
       (action === "remove" && m === "DELETE") ||
       (action === "archive" && ["PUT", "GET", "HEAD"].includes(m)) ||
@@ -353,6 +354,11 @@ export function judge(
     if (action === "logs")
       for (const k of r.query.keys())
         if (!["stdout", "stderr", "tail", "timestamps", "since"].includes(k)) return no(`logs may not set ${k}`);
+    // one reading of CPU and memory: never a stream, so a request cannot hold a connection open
+    if (action === "stats") {
+      if (r.query.get("stream") !== "false") return no("stats are read once: stream=false");
+      for (const k of r.query.keys()) if (k !== "stream") return no(`stats may not set ${k}`);
+    }
     return { ok: true, kind: "container", id: c[1] as string, action };
   }
   const e = /^\/exec\/([a-f0-9]{64})\/(start|json)$/.exec(p);

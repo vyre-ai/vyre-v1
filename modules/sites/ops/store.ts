@@ -137,6 +137,14 @@ export function logScopes(db: OpsDb, siteId: string): ScopeInfo[] {
   ).map((r) => ({ scope: s(r["scope"]), source: s(r["source"]) as LogSource, lines: n(r["lines"]), bytes: n(r["bytes"]), dropped: dropped(db, siteId, s(r["scope"])), lastAt: n(r["lastAt"]) }));
 }
 
+/** A site keeps the lines of its newest `keep` scopes (a deploy, a service, a job run); older ones go whole. */
+export function trimScopes(db: OpsDb, siteId: string, keep: number = LOG_CAPS.scopes): string[] {
+  const all = rows(db, "SELECT scope, MAX(id) AS last FROM sites_log WHERE site_id = ? GROUP BY scope ORDER BY last DESC", siteId);
+  const gone = all.slice(keep).map((r) => s(r["scope"]));
+  for (const g of gone) dropScope(db, siteId, g);
+  return gone;
+}
+
 /** A scope's lines go when the thing they belong to goes (a removed deploy, a deleted job). */
 export function dropScope(db: OpsDb, siteId: string, scope: string): void {
   db.run("DELETE FROM sites_log WHERE site_id = ? AND scope = ?", siteId, scope);
@@ -288,7 +296,7 @@ export const listJobs = (db: OpsDb, siteId?: string): Job[] =>
   rows(db, siteId ? "SELECT * FROM sites_job WHERE site_id = ? AND deleted_at IS NULL ORDER BY created_at" : "SELECT * FROM sites_job WHERE deleted_at IS NULL ORDER BY created_at", ...(siteId ? [siteId] : [])).map(jobOf);
 export const deleteJob = (db: OpsDb, id: string, at: number): void => void db.run("UPDATE sites_job SET deleted_at = ?, enabled = 0 WHERE id = ?", at, id);
 
-const runOf = (r: Row): Run => ({
+const runOf = (r: Row): Run & { containerId?: string } => ({
   id: s(r["id"]),
   jobId: s(r["job_id"]),
   state: s(r["state"]) as RunState,
@@ -299,6 +307,7 @@ const runOf = (r: Row): Run => ({
   ...(opt(r["ended_at"], n) !== undefined ? { endedAt: n(r["ended_at"]) } : {}),
   ...(opt(r["exit_code"], n) !== undefined ? { exitCode: n(r["exit_code"]) } : {}),
   ...(r["note"] ? { note: s(r["note"]) } : {}),
+  ...(r["container_id"] ? { containerId: s(r["container_id"]) } : {}),
 });
 export function insertRun(db: OpsDb, siteId: string, r: Run): void {
   db.run(
@@ -317,15 +326,27 @@ export function insertRun(db: OpsDb, siteId: string, r: Run): void {
   );
 }
 /** Save a run only when it is still in the state it was read in, so two writers (a finish and a timeout) cannot both win. Returns whether it was saved. */
-export function saveRun(db: OpsDb, r: Run, was: RunState): boolean {
-  return db.run("UPDATE sites_job_run SET state = ?, started_at = ?, ended_at = ?, exit_code = ?, note = ? WHERE id = ? AND state = ?", r.state, r.startedAt ?? null, r.endedAt ?? null, r.exitCode ?? null, r.note ?? null, r.id, was).changes === 1;
+export function saveRun(db: OpsDb, r: Run, was: RunState, containerId?: string | null): boolean {
+  return (
+    db.run(
+      "UPDATE sites_job_run SET state = ?, started_at = ?, ended_at = ?, exit_code = ?, note = ?" + (containerId !== undefined ? ", container_id = ?" : "") + " WHERE id = ? AND state = ?",
+      r.state,
+      r.startedAt ?? null,
+      r.endedAt ?? null,
+      r.exitCode ?? null,
+      r.note ?? null,
+      ...(containerId !== undefined ? [containerId] : []),
+      r.id,
+      was,
+    ).changes === 1
+  );
 }
-export const getRun = (db: OpsDb, id: string): (Run & { siteId: string }) | undefined => {
+export const getRun = (db: OpsDb, id: string): (Run & { siteId: string; containerId?: string }) | undefined => {
   const r = rows(db, "SELECT * FROM sites_job_run WHERE id = ?", id)[0];
   return r ? { ...runOf(r), siteId: s(r["site_id"]) } : undefined;
 };
 export const listRuns = (db: OpsDb, jobId: string, limit = KEEP_RUNS): Run[] => rows(db, "SELECT * FROM sites_job_run WHERE job_id = ? ORDER BY queued_at DESC, id DESC LIMIT ?", jobId, limit).map(runOf);
-export const openRuns = (db: OpsDb, siteId?: string): (Run & { siteId: string })[] =>
+export const openRuns = (db: OpsDb, siteId?: string): (Run & { siteId: string; containerId?: string })[] =>
   rows(db, `SELECT * FROM sites_job_run WHERE state IN ('queued','running')${siteId ? " AND site_id = ?" : ""} ORDER BY queued_at`, ...(siteId ? [siteId] : [])).map((r) => ({ ...runOf(r), siteId: s(r["site_id"]) }));
 export const deleteRuns = (db: OpsDb, ids: readonly string[]): void => {
   for (const id of ids) db.run("DELETE FROM sites_job_run WHERE id = ?", id);

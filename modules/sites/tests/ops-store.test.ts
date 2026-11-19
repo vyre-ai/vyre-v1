@@ -1,5 +1,6 @@
 // The database side of site operations, on a real SQLite with the real migration (r42-sites-run).
 // @reads ../migrations/0010_ops.sql
+// @reads ../migrations/0011_ops_runs.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -12,7 +13,7 @@ import { fresh, advance } from "../ops/workers.ts";
 
 function mem(): OpsDb {
   const db = new DatabaseSync(":memory:");
-  db.exec(fs.readFileSync(new URL("../migrations/0010_ops.sql", import.meta.url), "utf8"));
+  for (const f of ["0010_ops.sql", "0011_ops_runs.sql"]) db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   return {
     all: (q, ...a) => db.prepare(q).all(...(a as never[])),
     run: (q, ...a) => ({ changes: Number(db.prepare(q).run(...(a as never[])).changes) }),
@@ -213,4 +214,25 @@ test("deleting a site's operations removes every table's rows for it and no one 
   assert.equal(st.readLogs(db, "s2").lines.length, 1);
   assert.equal(st.listBackups(db, "s1").length, 0);
   assert.equal(st.readSamples(db, "s1", 0, 1e12).length, 0);
+});
+
+test("a site keeps its newest scopes whole and drops the older ones", () => {
+  const db = mem();
+  for (let i = 0; i < 6; i++) st.addLogs(db, "s1", `d${i}`, "app", [{ at: i, text: `l${i}` }]);
+  st.addLogs(db, "s2", "other", "app", [{ at: 1, text: "x" }]);
+  assert.deepEqual(st.trimScopes(db, "s1", 4).sort(), ["d0", "d1"]);
+  assert.deepEqual(st.logScopes(db, "s1").map((x) => x.scope).sort(), ["d2", "d3", "d4", "d5"]);
+  assert.equal(st.logScopes(db, "s2").length, 1);
+  assert.deepEqual(st.trimScopes(db, "s1", 4), []);
+});
+
+test("a run keeps its container so a restart can find it", () => {
+  const db = mem();
+  const run = { id: "r1", jobId: "j1", state: "queued" as const, slot: 1, by: "schedule" as const, queuedAt: 1 };
+  st.insertRun(db, "s1", run);
+  assert.equal(st.saveRun(db, { ...run, state: "running", startedAt: 2 }, "queued", "ctr_9"), true);
+  assert.equal(st.getRun(db, "r1")?.containerId, "ctr_9");
+  assert.equal(st.openRuns(db)[0]?.containerId, "ctr_9");
+  assert.equal(st.saveRun(db, { ...run, state: "succeeded", startedAt: 2, endedAt: 3, exitCode: 0 }, "running"), true);
+  assert.equal(st.getRun(db, "r1")?.containerId, "ctr_9", "ending a run leaves its container id as it was");
 });

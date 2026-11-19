@@ -15,6 +15,7 @@ import path from "node:path";
 import { tarFiles } from "./tar.ts";
 import type { TarEntry } from "./tar.ts";
 import type { SitePlan } from "./plan.ts";
+import type { DockerStats } from "../ops/metrics.ts";
 
 export interface Limits {
   cpus: number;
@@ -78,6 +79,22 @@ export interface Runner {
   /** running, or how it ended: oom when the memory cap stopped it */
   state(containerId: string): Promise<{ running: boolean; exitCode?: number; oom?: boolean } | null>;
   logs(containerId: string, tail: number): Promise<string[]>;
+  /** one reading of a running container's CPU and memory (Docker waits a second to measure it); null when it is not running */
+  stats(containerId: string): Promise<DockerStats | null>;
+  /** what a container printed since a time (whole seconds), at most the last 2000 lines, each led by Docker's own timestamp */
+  logsSince(containerId: string, sinceSec: number): Promise<string[]>;
+  /** the environment a container was started with, which is what a job or a worker of the same site runs with (the Vault is never read again outside a person's call); null when it is gone */
+  envOf(containerId: string): Promise<Record<string, string> | null>;
+  /** a process of the site's image with its own command and no port: a worker or a one-shot job. Docker never restarts it; the supervisor decides (ops/workers.ts, ops/jobs.ts) */
+  startProcess(a: {
+    siteId: string;
+    id: string;
+    kind: "service" | "job";
+    image: string;
+    cmd: string[];
+    env: Record<string, string>;
+    limits: Limits;
+  }): Promise<{ containerId: string; name: string; note?: string }>;
   remove(containerId: string): Promise<void>;
   removeImage(image: string): Promise<void>;
   imageExists(image: string): Promise<boolean>;
@@ -610,6 +627,63 @@ export function dockerRunner(link: RunnerLink): Runner {
         timeoutMs: 15_000,
       });
       return r.status === 200 ? frames(r.body).slice(-n) : [];
+    },
+
+    async stats(containerId) {
+      const r = await call({
+        method: "GET",
+        path: `/containers/${containerId}/stats`,
+        query: { stream: "false" },
+        timeoutMs: 15_000,
+      });
+      return r.status === 200 ? (parse(r.body) as DockerStats | null) : null;
+    },
+
+    async logsSince(containerId, sinceSec) {
+      const r = await call({
+        method: "GET",
+        path: `/containers/${containerId}/logs`,
+        query: {
+          stdout: "1",
+          stderr: "1",
+          timestamps: "1",
+          tail: "2000",
+          since: String(Math.max(0, Math.trunc(sinceSec))),
+        },
+        timeoutMs: 15_000,
+      });
+      return r.status === 200 ? frames(r.body) : [];
+    },
+
+    async envOf(containerId) {
+      const r = await call({ method: "GET", path: `/containers/${containerId}/json` });
+      if (r.status !== 200) return null;
+      const env = (parse(r.body) as { Config?: { Env?: string[] } } | null)?.Config?.Env ?? [];
+      const out: Record<string, string> = {};
+      for (const e of env) {
+        const i = e.indexOf("=");
+        if (i > 0) out[e.slice(0, i)] = e.slice(i + 1);
+      }
+      return out;
+    },
+
+    async startProcess(a) {
+      const net = await ensureNetwork(a.siteId);
+      const name = `vyre-site-${hex(a.siteId).slice(-12)}-${a.kind === "job" ? "job" : "svc"}${hex(a.id).slice(-10)}`;
+      const env = { ...a.env };
+      delete env["PORT"];
+      delete env["HOST"];
+      const made = await create(name, {
+        Image: a.image,
+        Cmd: a.cmd,
+        Env: Object.entries(env).map(([k, v]) => `${k}=${v}`),
+        Labels: { "vyre.site": a.siteId, "vyre.process": a.id, "vyre.kind": "app" },
+        HostConfig: hostConfig(net.name, a.limits, {
+          RestartPolicy: { Name: "no" },
+          Tmpfs: { "/tmp": `rw,nosuid,size=${Math.min(512, Math.max(64, Math.floor(a.limits.memoryMb / 2)))}m` },
+        }),
+      });
+      return { containerId: made.id, name, ...(made.note ? { note: made.note } : {}) };
     },
 
     async remove(containerId) {
