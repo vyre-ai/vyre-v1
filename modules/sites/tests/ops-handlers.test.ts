@@ -226,3 +226,31 @@ test("a key the app printed by mistake is hidden in the log, in the app lines an
   assert.equal(build.lines[0].text, "key •••");
   configureRoutes(null);
 });
+
+test("the real log search returns only the lines that have the words: a word, an excluded word, a quoted phrase, and a word together with a source", async () => {
+  const w = world();
+  st.addLogs(w.db, "sit_a", "dpl_1", "requests", [
+    { at: 1, text: "GET /plans 200 29ms" },
+    { at: 2, text: "POST /api/checkout 500 310ms" },
+    { at: 3, text: "POST /api/cart 201 52ms" },
+  ]);
+  st.addLogs(w.db, "sit_a", "dpl_1", "app", [
+    { at: 4, text: "cart 4135 saved" },
+    { at: 5, text: "Error: card_declined is not handled in /api/checkout" },
+    { at: 6, text: "    at charge (/app/lib/pay.js:41:9)" },
+  ]);
+  const texts = async (input: Record<string, unknown>): Promise<string[]> =>
+    ((await call(w.ctx, "sites.logs_read", { siteId: "sit_a", ...input })).lines as { text: string }[]).map(
+      (l) => l.text,
+    );
+  assert.deepEqual(await texts({ q: "checkout" }), [
+    "POST /api/checkout 500 310ms",
+    "Error: card_declined is not handled in /api/checkout",
+  ]);
+  assert.deepEqual(await texts({ q: "CHECKOUT" }), await texts({ q: "checkout" }), "capitals do not matter");
+  assert.deepEqual(await texts({ q: "api -checkout" }), ["POST /api/cart 201 52ms"]);
+  assert.deepEqual(await texts({ q: '"is not handled"' }), ["Error: card_declined is not handled in /api/checkout"]);
+  assert.deepEqual(await texts({ q: "checkout", source: "requests" }), ["POST /api/checkout 500 310ms"]);
+  assert.deepEqual(await texts({ q: "nothing-has-this" }), []);
+  assert.equal((await texts({})).length, 6, "no words, no narrowing");
+});

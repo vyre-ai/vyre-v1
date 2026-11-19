@@ -99,16 +99,21 @@ function logLines(): unknown[] {
   }
   return out;
 }
+// a real spread: memory climbs, spikes and falls back after a restart; requests have a quiet stretch and a busy one; response time follows the load
 const samples = Array.from({ length: 60 }, (_, i) => {
   const wave = Math.sin(i / 7) + Math.sin(i / 3) * 0.3;
+  const spike = i >= 38 && i <= 44 ? 150 * Math.sin(((i - 38) / 6) * Math.PI) : 0;
+  const quiet = i >= 10 && i <= 24;
+  const busy = i >= 46 && i <= 55;
+  const requests = Math.round(quiet ? 8 + wave * 3 : busy ? 220 + wave * 30 : 100 + wave * 30);
   return {
     at: SAMPLE_NOW - (59 - i) * M,
-    cpu: Math.round((4 + wave * 2.2) * 10) / 10,
-    memMb: Math.round(200 + wave * 8),
-    requests: Math.round(100 + wave * 30),
+    cpu: Math.round((4 + wave * 2.2 + (busy ? 14 : 0) + (spike > 0 ? 6 : 0)) * 10) / 10,
+    memMb: Math.round(190 + i * 0.6 + wave * 6 + spike),
+    requests,
     errors: i % 23 === 0 ? 2 : 0,
-    p50: Math.round(30 + wave * 6),
-    p95: Math.round(46 + wave * 12),
+    p50: Math.round(30 + wave * 6 + (busy ? 20 : 0)),
+    p95: Math.round(46 + wave * 12 + (busy ? 70 : 0) - (quiet ? 15 : 0)),
   };
 });
 const run = (id: string, state: string, ago: number, secs: number, note?: string) => ({
@@ -169,7 +174,15 @@ export default function Mount(): ReactNode {
           : i["after"]
             ? { lines: [], lastSeq: 9999, scopes: [] }
             : {
-                lines: logLines(),
+                lines: logLines().filter((l) => {
+                  const q = String(i["q"] ?? "").toLowerCase();
+                  return (
+                    q === "" ||
+                    String((l as { text: string }).text)
+                      .toLowerCase()
+                      .includes(q)
+                  );
+                }),
                 lastSeq: 9999,
                 scopes: [
                   { scope: "dpl_2", source: "app", title: "Deploy a3f9c12", at: SAMPLE_NOW, lines: 90 },
