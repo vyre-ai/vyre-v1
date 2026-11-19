@@ -10,6 +10,7 @@
 import http from "node:http";
 import crypto from "node:crypto";
 import type { Duplex } from "node:stream";
+import { guardUpgrade } from "./daemon/safe-request.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import { HostError } from "./invoke.ts";
 import type { CtxSeed, Invoke } from "./invoke.ts";
@@ -548,7 +549,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     }
   }
 
-  server.on("upgrade", (req, socket: Duplex) => {
+  server.on("upgrade", guardUpgrade((req, socket: Duplex) => {
     if (o.claims?.(req)) return;
     void (async () => {
       const wsKey = req.headers["sec-websocket-key"];
@@ -644,7 +645,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
         c.closed = true;
       });
     })();
-  });
+  }, () => undefined));
 
   // heartbeat and dead-peer detection
   const timer = setInterval(() => {
