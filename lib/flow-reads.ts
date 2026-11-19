@@ -9,6 +9,8 @@ export interface Read {
   root: string;
   /** the plain parts after the root, in order */
   segs: string[];
+  /** the expression says what to use when the name has nothing (`a ?? "none"`, `a || "none"`, `exists(a)`): a missing name is then no mistake */
+  fallback: boolean;
 }
 
 /** What a place in the scope holds: named parts, or anything (a record, a body, a list of rows). */
@@ -18,21 +20,32 @@ export interface Shape {
   required?: string[];
 }
 
-const BODY = /\{\{([\s\S]*?)\}\}/g;
+const MAX_TEXT = 1_000_000;
 const WORDS = new Set(["true", "false", "null", "in", "contains"]);
 /** The roots a `{{ }}` can start with (the same list the expression language reads). */
 export const ROOTS: readonly string[] = ["trigger", "input", "steps", "vars", "journey", "item", "index", "run"];
 
-/** The texts between `{{` and `}}`. */
-export function bodiesOf(s: string): string[] {
+/** The texts between `{{` and `}}`. One pass over the text, so a text of nothing but `{{` costs no more than its length. */
+export function bodiesOf(text: string): string[] {
+  // a node's text is never this long in earnest: what is past the cap is not read
+  const s = text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) : text;
   const out: string[] = [];
-  for (const m of s.matchAll(BODY)) out.push(m[1] ?? "");
+  let at = 0;
+  for (;;) {
+    const open = s.indexOf("{{", at);
+    if (open < 0) break;
+    const close = s.indexOf("}}", open + 2);
+    if (close < 0) break; // no `}}` anywhere after this: nothing later can close either
+    out.push(s.slice(open + 2, close));
+    at = close + 2;
+  }
   return out;
 }
 
 /** Every name one expression reads. */
 export function readsOfExpr(src: string): Read[] {
   const out: Read[] = [];
+  const fallback = /\|\||\?\?|\b(?:exists|isEmpty)\s*\(/.test(src);
   let i = 0;
   const n = src.length;
   let prev = "";
@@ -72,7 +85,7 @@ export function readsOfExpr(src: string): Read[] {
         break;
       }
       const call = segs.length === 0 && /^\s*\(/.test(src.slice(j));
-      if (!call && !WORDS.has(root)) out.push({ text: src.slice(i, end), root, segs });
+      if (!call && !WORDS.has(root)) out.push({ text: src.slice(i, end), root, segs, fallback });
       i = end;
       prev = "a";
       continue;
@@ -178,7 +191,7 @@ export function shapeOf(schema: unknown, defs: Record<string, unknown> = {}, dep
 /** What a Run holds while one step renders its text. */
 export interface Held {
   trigger?: unknown;
-  steps?: Record<string, unknown>;
+  steps?: Record<string, unknown> | undefined;
   /** the shape of what this kind of trigger carries; absent when the kind is not known */
   declared?: Shape;
   /** false for a single step tried by itself, which has no earlier steps to read */
@@ -197,6 +210,8 @@ export function unresolvedLine(texts: readonly string[], held: Held): string | u
   for (const text of texts)
     for (const r of readsOf(text)) {
       if (!ROOTS.includes(r.root)) return unknownLine(r, 0, ROOTS);
+      // a name with a fallback written beside it renders the fallback when it has nothing, as it always did
+      if (r.fallback) continue;
       if (r.root === "steps" && held.checkSteps && r.segs[0] !== undefined) {
         const have = held.steps ?? {};
         if (!Object.hasOwn(have, r.segs[0]))
@@ -221,4 +236,11 @@ export function unresolvedLine(texts: readonly string[], held: Held): string | u
       }
     }
   return undefined;
+}
+
+const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+/** A sealed field is held as a reference, never as its value. A Run's `trigger.record` leaves those fields out entirely: a Flow cannot template a secret into an email. */
+export function withoutSealed(fields: unknown): Record<string, unknown> {
+  if (!isRec(fields)) return {};
+  return Object.fromEntries(Object.entries(fields).filter(([, v]) => !(isRec(v) && typeof v["sealed"] === "string")));
 }

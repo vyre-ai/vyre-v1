@@ -15,7 +15,7 @@ import { collectItems, groupItems, transformValue } from "./data-steps.ts";
 import { nextOpen } from "./hours.ts";
 import type { OpenHours } from "./hours.ts";
 import { SHEET_STEPS } from "./sheets.ts";
-import { shapeOf, textsIn, unresolvedLine } from "../../../lib/flow-reads.ts";
+import { readsOf, shapeOf, textsIn, unresolvedLine, withoutSealed } from "../../../lib/flow-reads.ts";
 import { clean, durationMs, evalExpr, momentMs, raise, render, stepError, truthy } from "../projections.ts";
 import type { Scope, StepsCtx } from "../projections.ts";
 
@@ -1007,16 +1007,50 @@ async function journeyValues(
   }
 }
 
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+/** Does any text of this step read `trigger.record`? */
+const readsRecord = (node: StepNode): boolean =>
+  textsIn(node.input).some((t) =>
+    readsOf(t).some((r) => (r.root === "trigger" || r.root === "input") && r.segs[0] === "record"),
+  );
+
+/**
+ * The trigger payload with `record` filled in for the triggers that point at a record without carrying it. Read only when a text of this step reads it, through the Run's own ctx. A Journey's record is of the
+ * Journey's own type. Anything that cannot be read leaves the payload as it was, and the step then fails in words (it has nothing to read).
+ */
+async function withRecord(env: StepEnv, node: StepNode, trigger: unknown): Promise<unknown> {
+  const kind = env.run.trigger;
+  if (!isObj(trigger) || isObj(trigger["record"]) || !env.ctx.call || !readsRecord(node)) return trigger;
+  const recordId = trigger["recordId"];
+  let type: unknown = trigger["type"];
+  try {
+    if (kind === "journey_stage_entered" || kind === "journey_stage_left") {
+      const j = (await env.ctx.call("journeys.get", { journeyId: trigger["journeyId"] })) as {
+        journey?: { recordType?: string };
+      } | null;
+      type = j?.journey?.recordType;
+    } else if (kind !== "form_submit" && kind !== "button") return trigger;
+    if (typeof type !== "string" || typeof recordId !== "string") return trigger;
+    const got = (await env.ctx.call("records.get", { type, recordId })) as { record?: { fields?: unknown } } | null;
+    return isObj(got?.record?.fields) ? { ...trigger, record: withoutSealed(got.record.fields) } : trigger;
+  } catch {
+    return trigger;
+  }
+}
+
 /** Run one step. Sandboxes (test mode, replay) answer every step that writes or sends with its sample and run only what reads. */
 export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Promise<StepResult> {
   const def = STEPS.get(node.key);
   if (!def) throw stepError("validation.bad_input", `There is no step called ${node.key}.`, false);
+  // the record a form, a button or a stage move points at is read here, as the principal the Run acts as (the Flow's owner, or its own service), never by the service that noticed the event:
+  // a record that principal may not read does not reach the template (the line below says so), and a field it may not see is not in it
+  const trigger = await withRecord(env, node, call.trigger);
   // the values a Journey carries for the record this Run is about, read only when the step names one ({{journey.plan}})
   const carried = await journeyValues(env, node, call);
-  const scope = scopeOf(env, call, carried?.values);
+  const scope = scopeOf(env, { ...call, trigger }, carried?.values);
   // a name the Run cannot have fails the step in words, instead of the step sending an empty value (r40 audit, gap 4)
   const unresolved = unresolvedLine(textsIn(node.input), {
-    trigger: call.trigger,
+    trigger,
     steps: scope.steps,
     ...(carried ? { journey: carried.values, journeyKeys: carried.keys } : {}),
     declared: shapeOf(TRIGGER_PAYLOADS.get(env.run.trigger ?? ""), DEFS),

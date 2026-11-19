@@ -654,9 +654,11 @@ export async function itemUpdate(
     replaceUnopenable?: boolean;
     expectedUpdatedAt?: number;
   },
+  /** The access the change needs. A connection's own housekeeping (itemRotateField) needs only the use the connection already holds. */
+  level: "edit" | "use" = "edit",
 ) {
   ensure(ctx);
-  const r = reachable(ctx, input.itemId, "edit");
+  const r = reachable(ctx, input.itemId, level);
   // a caller that read the item at updatedAt N is refused when it has changed since (F50); nothing is checked without it
   if (input.expectedUpdatedAt !== undefined && input.expectedUpdatedAt !== num(r, "updatedAt"))
     throw fail("validation.version_conflict", ctx.trace.traceId, {
@@ -723,7 +725,7 @@ export async function itemUpdate(
     // the awaits above let another change land: the same check again, in the same step as the write
     if (
       input.expectedUpdatedAt !== undefined &&
-      input.expectedUpdatedAt !== num(reachable(ctx, input.itemId, "edit"), "updatedAt")
+      input.expectedUpdatedAt !== num(reachable(ctx, input.itemId, level), "updatedAt")
     )
       throw fail("validation.version_conflict", ctx.trace.traceId, {
         message: "This changed after it was read, so this change was not saved. Read it again and redo the change.",
@@ -766,6 +768,30 @@ export async function itemUpdate(
     { vis: "participants" },
   );
   return { item: metaOut(ctx, liveItem(ctx, str(r, "id"))) };
+}
+
+/**
+ * A connection's own housekeeping: an app that rotates its refresh token on every renewal hands back a new one, and the item the connection holds must take it at once or the connection is lost. This asks only for the
+ * use the connection already has, never edit; it changes one existing secret field and nothing else, and leaves the audit line and history of any edit.
+ */
+export async function itemRotateField(ctx: VaultCtx, input: { itemId: string; key: string; value: string }) {
+  ensure(ctx);
+  const r = reachable(ctx, input.itemId, "use");
+  if (
+    typeof input.key !== "string" ||
+    !FIELD_KEY.test(input.key) ||
+    typeof input.value !== "string" ||
+    input.value === ""
+  )
+    bad(ctx, "Name the field and give its new value.");
+  const have = await openFields(ctx, r);
+  if (!have.some((f) => f.key === input.key && f.secret === true))
+    bad(ctx, `This item has no secret field ${input.key} to rotate.`);
+  return itemUpdate(
+    ctx,
+    { itemId: input.itemId, fieldsSet: [{ key: input.key, value: input.value, secret: true }] },
+    "use",
+  );
 }
 
 export async function itemMove(ctx: VaultCtx, input: { itemId: string; folderId: string }) {

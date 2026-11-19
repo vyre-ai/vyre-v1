@@ -14,7 +14,7 @@ export interface ReadIssue {
 
 const TRIGGERS = new Map(registry.triggers.map((t) => [t.key, t] as const));
 const STEPS = new Map(registry.steps.map((s) => [s.key, s] as const));
-const EVENTS = new Map(registry.events.map((e) => [e.name, e] as const));
+const EVENTS = new Map<string, (typeof registry.events)[number]>(registry.events.map((e) => [e.name, e] as const));
 const DEFS = ((registry as unknown as { $defs?: Record<string, unknown> }).$defs ?? {}) as Record<string, unknown>;
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const propsOf = (schema: unknown): string[] => {

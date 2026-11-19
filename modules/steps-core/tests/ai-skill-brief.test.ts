@@ -1,4 +1,4 @@
-// The brief an AI step in Answer mode gets says it has no tools (r40 audit, gap 7); the Flow check that warns about it lives in modules/automations/tests/ai-skill.test.ts.
+// An answer brief tells the model it has no tools, so it does not claim to load a skill (r40 audit, gap 7).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildBrief } from "../handlers/brief.ts";

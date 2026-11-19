@@ -23,6 +23,7 @@ import {
   unflatten,
 } from "../syncspec.ts";
 import type { Compiled, CompiledType, Problem, SpecObject, SyncSpec } from "../syncspec.ts";
+import { forgetGrantOf } from "./grant-port.ts";
 import { createConnectionsHandlers } from "./connections.ts";
 import { diffDefs, executeAction, runCases } from "./runtime.ts";
 import type { TestResult } from "./runtime.ts";
@@ -123,6 +124,9 @@ export function probeRequest(spec: SyncSpec, url: string): ProbeRequest {
       : "bearer";
   return {
     handle: spec.auth.vaultHandle,
+    ...(spec.auth.style === "oauth_refresh" && spec.auth.tokenUrl
+      ? { refreshFrom: { tokenUrl: spec.auth.tokenUrl } }
+      : {}),
     style,
     ...(spec.auth.header ? { header: spec.auth.header } : {}),
     ...(spec.auth.prefix !== undefined ? { prefix: spec.auth.prefix } : {}),
@@ -871,10 +875,20 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       "SELECT connection_id, secrets FROM cn_connections WHERE connector = ? AND owner_kind = 'space' ORDER BY created_at LIMIT 1",
       key,
     );
-    if (conn && (JSON.parse(conn.secrets) as Record<string, string>)[slot] !== spec.auth.vaultHandle) {
+    const held =
+      spec.auth.style === "oauth_refresh"
+        ? {
+            Client_id: `${spec.auth.vaultHandle}.client_id`,
+            Client_secret: `${spec.auth.vaultHandle}.client_secret`,
+            Refresh_token: `${spec.auth.vaultHandle}.refresh_token`,
+          }
+        : { [slot]: spec.auth.vaultHandle };
+    if (conn && JSON.stringify(JSON.parse(conn.secrets)) !== JSON.stringify(held)) {
+      await forgetGrantOf(deps, ctx, conn as never);
+      await forgetGrantOf(deps, ctx, conn as never, held);
       tx.run(
         "UPDATE cn_connections SET secrets = ?, state = 'active' WHERE connection_id = ?",
-        JSON.stringify({ [slot]: spec.auth.vaultHandle }),
+        JSON.stringify(held),
         conn.connection_id,
       );
       conn = tx.get<{ connection_id: string; secrets: string }>(
@@ -889,7 +903,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           connector: key,
           title: spec.app.name,
           ownerKind: "space",
-          secrets: { [slot]: spec.auth.vaultHandle },
+          secrets: held,
         })
       ).connection.connectionId;
 

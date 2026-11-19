@@ -127,6 +127,7 @@ test("agent-optout is exactly the automation plumbing and the provider check, an
     "vault.connect_card.submit",
     // a destructive erase bound to the connect request (item C): never an agent tool, with the card on or off
     "vault.item.discard_new",
+    "vault.item.rotate_field",
   ]); // plugins.connection.checked: the host's record of what a connection last did (l-connections), never an agent's
   const pre = reg.capabilities.filter((c) => c.caller === "anonymous" || c.caller === "pending").map((c) => c.name);
   assert.ok(pre.length >= 10);

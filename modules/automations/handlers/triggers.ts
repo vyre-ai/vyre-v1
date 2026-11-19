@@ -8,6 +8,7 @@ import { isTrustedService } from "../../../lib/trust.ts";
 import { registry } from "../../../generated/registry.ts";
 import { validateDefinition, webhookSecretMatches } from "./defs.ts";
 import { buttonType, noButtonLine } from "../button.ts";
+import { withoutSealed } from "../../../lib/flow-reads.ts";
 import {
   allAutomations,
   clean,
@@ -200,7 +201,7 @@ async function realPayload(
     const ev: LoggedEvent = { id: row.id, type: row.type, payload: row.payload ?? {} };
     const ref = def.triggers.find((t) => eventNames(t.key).includes(ev.type));
     const trigger = ref?.key ?? key;
-    return { trigger, payload: await withRecord(ctx, trigger, triggerPayload(trigger, ev)) };
+    return { trigger, payload: triggerPayload(trigger, ev) };
   }
   // nothing in the log for this record: it is read as it stands, as a change that touched nothing
   if (typeof input.recordType !== "string") gone();
@@ -269,12 +270,11 @@ export async function run(ctx: AutoCtx, input: In): Promise<unknown> {
       ? { startedBy: me(ctx), ...(input.payload ? { input: input.payload } : {}) }
       : { pressedBy: me(ctx), ...(input.payload ?? {}) };
   if (key === "button") await mustHaveButton(ctx, a.definition, (payload as { type?: unknown }).type);
-  const withIt = key === "button" ? await withRecord(ctx, "button", payload) : payload;
   // a Run an agent starts by hand carries what the agent put in its payload, which may be a stranger's text: it counts as from outside (its brief fences it, its task thread is marked)
   const byAgent = ctx.principal.kind === "agent";
   const runId = await startRun(ctx, a, {
     trigger: key,
-    payload: withIt,
+    payload,
     test: false,
     depth: 0,
     key: `run:${a.id}:${input.idempotencyKey}`,
@@ -655,13 +655,6 @@ function recordOp(type: string): "created" | "updated" | "deleted" | undefined {
         : undefined;
 }
 
-const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-/** A sealed field is held as a reference, never as its value. A Run's `trigger.record` leaves those fields out entirely: a Flow cannot template a secret into an email. */
-export function withoutSealed(fields: unknown): Record<string, unknown> {
-  if (!isRec(fields)) return {};
-  return Object.fromEntries(Object.entries(fields).filter(([, v]) => !(isRec(v) && typeof v["sealed"] === "string")));
-}
-
 /** The payload a trigger gives the Run ($trigger): record changes are reshaped, everything else passes through. */
 export function triggerPayload(key: string, ev: LoggedEvent): unknown {
   if (key !== "record_change") return ev.payload;
@@ -683,41 +676,6 @@ export function triggerPayload(key: string, ev: LoggedEvent): unknown {
     changed: op === "updated" ? withoutSealed(p.fields) : undefined,
     version: p.version,
   });
-}
-
-/** The record a trigger points at, as the Run reads it (`trigger.record`): its fields without the sealed ones. Nothing when it cannot be read, and the Run still starts. */
-async function recordOf(
-  ctx: Pick<AutoCtx, "call">,
-  type: unknown,
-  recordId: unknown,
-): Promise<Record<string, unknown> | undefined> {
-  if (typeof type !== "string" || typeof recordId !== "string" || !ctx.call) return undefined;
-  try {
-    const got = (await ctx.call("records.get", { type, recordId })) as { record?: { fields?: unknown } } | null;
-    return isRec(got?.record?.fields) ? withoutSealed(got.record.fields) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** The triggers that point at a record without carrying it: the form, the button and the two stage moves get it read for them. */
-export async function withRecord(ctx: Pick<AutoCtx, "call">, key: string, payload: unknown): Promise<unknown> {
-  if (!isRec(payload) || isRec(payload["record"])) return payload;
-  const recordId = payload["recordId"];
-  let type: unknown = payload["type"];
-  if (key === "journey_stage_entered" || key === "journey_stage_left") {
-    // a Journey's records are of the Journey's own type
-    try {
-      const j = (await ctx.call?.("journeys.get", { journeyId: payload["journeyId"] })) as {
-        journey?: { recordType?: string };
-      } | null;
-      type = j?.journey?.recordType;
-    } catch {
-      return payload;
-    }
-  } else if (key !== "form_submit" && key !== "button") return payload;
-  const record = await recordOf(ctx, type, recordId);
-  return record ? { ...payload, record } : payload;
 }
 
 /** One thing a trigger's filter looked at on an event, and whether the event passed it. */
@@ -834,14 +792,6 @@ async function pauseForBurst(ctx: AutoCtx, a: Automation): Promise<void> {
   }
 }
 
-function payloadFor(ctx: AutoCtx, key: string, ev: LoggedEvent, read: Map<string, Promise<unknown>>): Promise<unknown> {
-  const have = read.get(key);
-  if (have) return have;
-  const made = withRecord(ctx, key, triggerPayload(key, ev));
-  read.set(key, made);
-  return made;
-}
-
 /** One event from the log: start a Run of every enabled Automation it triggers. Importers and sync backfill are skipped unless the Space turned that on. */
 export async function consumeEvent(
   ctx: AutoCtx,
@@ -852,8 +802,6 @@ export async function consumeEvent(
   if (ev.imported && !policy.runOnImport) return out;
   // a write that says it is quiet (a system move, such as a Journey migration) starts nothing, whatever listens for it
   if ((ev.payload as { quiet?: unknown } | undefined)?.quiet === true) return out;
-  // one read of the record per trigger kind, however many Automations listen
-  const read = new Map<string, Promise<unknown>>();
   // a draft or an Automation that is off is not listening; a paused one is, so each event it ignores is reported
   for (const a of allAutomations(ctx.db, "status IN ('on', 'paused')")) {
     for (const ref of a.definition.triggers) {
@@ -877,7 +825,7 @@ export async function consumeEvent(
       const f: Firing = {
         trigger: ref.key,
         eventId: ev.id,
-        payload: await payloadFor(ctx, ref.key, ev, read),
+        payload: triggerPayload(ref.key, ev),
         origin: ev.origin,
         depth: ev.depth ?? 0,
         key: `fire:${a.id}:${ev.id}:${ref.key}`,
