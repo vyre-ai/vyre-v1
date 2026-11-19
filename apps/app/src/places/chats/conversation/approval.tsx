@@ -26,6 +26,7 @@ import {
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
 import { HeldCard } from "./held-card.tsx";
+import { HoldNote } from "./hold-note.tsx";
 import type { HeldEditor } from "./held-card.tsx";
 import { outwardOf, scheduleLine, verbOfChannel, whenWords } from "../../../../../../lib/outward.ts";
 import type { Outward, Recipient } from "../../../../../../lib/outward.ts";
@@ -490,14 +491,7 @@ export function ApprovalCard({
         lead={<Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />}
       />
       {held.note ? (
-        <View testID={`approval-note-${taskId}`} style={st.note}>
-          <Text style={st.noteText}>{held.note}</Text>
-          {held.noteSigners && held.noteSigners.length > 0 ? (
-            <Text testID={`approval-note-signers-${taskId}`} style={st.noteNames}>
-              {`To: ${held.noteSigners.join(", ")}`}
-            </Text>
-          ) : null}
-        </View>
+        <HoldNote note={held.note} names={held.noteSigners} testID={`approval-note-${taskId}`} inset={CARD_INSET} />
       ) : null}
       {diff && diff.lines.length > 0 ? (
         <View testID={`approval-diff-${taskId}`} style={st.excerpt}>
@@ -565,9 +559,6 @@ export function ApprovalCard({
 }
 
 const st = StyleSheet.create({
-  note: { gap: 2, paddingHorizontal: CARD_INSET, paddingBottom: 6 },
-  noteText: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
-  noteNames: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
   quiet: { gap: 4, paddingVertical: 4 },
   quietText: { fontSize: 13.5, lineHeight: 19, color: "var(--ink-2)" as string },
   quietDetail: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },

@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NeedsYou, NeedsYouLoading } from "./NeedsYou.tsx";
+import { NeedsYou, NeedsYouLoading, TaskBlock } from "./NeedsYou.tsx";
 import { act, snooze, take } from "./actions.ts";
 import type { NeedsDeps } from "./actions.ts";
 import {
@@ -13,6 +13,7 @@ import {
   agoLabel,
   arrivedLabel,
   blockView,
+  noteView,
   doneLine,
   dueLabel,
   filterCounts,
@@ -705,4 +706,46 @@ test("Replace key is offered once the Vault item is read and is the person's to 
       `${level}: the reason shows when it is not offered`,
     );
   }
+});
+
+test("a held send of a preview copy shows the server's sentence on the Needs-you detail with the names on a line of their own; a block with no note shows none", () => {
+  const held = {
+    type: "file",
+    v: 1,
+    data: {
+      act: "signature_send",
+      cap: "esign.send",
+      input: { fileId: "fil_1", signers: [{ name: "Andrea Lindahl" }], plainOk: true },
+      note: "This sends a preview copy of the file for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.",
+      noteSigners: ["Andrea Lindahl", "Sam Okafor"],
+    },
+  };
+  const view = noteView(held);
+  assert.deepEqual(view, {
+    type: "note",
+    text: (held.data as { note: string }).note,
+    names: ["Andrea Lindahl", "Sam Okafor"],
+  });
+  const out = renderToStaticMarkup(<TaskBlock view={view!} />).replaceAll("<!-- -->", "");
+  assert.match(
+    out,
+    /preview copy of the file for signature\. It&#x27;s in the plain page look, not the Word template&#x27;s layout\. Allow sends it as it is\./,
+  );
+  assert.match(out, /To: Andrea Lindahl, Sam Okafor/);
+  assert.equal(noteView({ type: "file", v: 1, data: { act: "signature_send", cap: "esign.send", input: {} } }), null);
+  assert.equal(noteView({ type: "table", v: 1, data: { columns: [], rows: [] } }), null);
+});
+
+test("a held signature send is drawn as its own lines, not as the bare word file", () => {
+  const view = blockView({
+    type: "file",
+    v: 1,
+    data: {
+      act: "signature_send",
+      cap: "esign.send",
+      input: { subject: "Service agreement", message: "Please sign by Friday" },
+    },
+  });
+  assert.equal(view.type, "quote");
+  assert.match(JSON.stringify(view), /Please sign by Friday/);
 });

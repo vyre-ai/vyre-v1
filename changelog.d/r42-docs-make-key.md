@@ -6,3 +6,4 @@ The approval card of a held signature send of a preview copy says so (title and 
 documents.make with no key is keyed on every resolved value of the template, headers and footers included, and the template version it was read at (one read), not on the capped excerpt; preview_fill now answers a digest and the template version.
 The approval card of a held send of a preview copy now shows the server's sentence quietly under the title and the names it goes to apart from it (names cleaned, never as sentences). A sign step on a file that is not the exact Word copy stops in the step's own words.
 The keyless key of documents.make folds in a hash of the template's own bytes (read once with the preview), not a version number that may be missing; preview_fill's digest covers it.
+The preview-copy note also shows on the Needs-you detail (one shared note component with the chat card), and a held signature send is drawn as its own lines there.

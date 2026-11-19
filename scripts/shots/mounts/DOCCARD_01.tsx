@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { ApprovalCard } from "../../../apps/app/src/places/chats/conversation/approval.tsx";
+import { TaskBlock } from "../../../apps/app/src/places/chats/needsyou/NeedsYou.tsx";
+import { blockView, noteView } from "../../../apps/app/src/places/chats/needsyou/model.ts";
 
 export const title = "Approval card, preview copy";
 
@@ -45,6 +47,17 @@ export default function Mount(): ReactNode {
     threadId: "thr_1",
     changes: { subscribe: () => () => undefined },
   } as never;
+  if (part === "needs") {
+    // the Needs-you detail draws each block of the task through TaskBlock: the note first, then the act's own lines
+    const block = task(true).task.blocks[0]!;
+    const quiet = noteView(block as never);
+    return (
+      <View style={{ height, padding: 24, gap: 8, backgroundColor: "var(--win)" as string }}>
+        {quiet ? <TaskBlock view={quiet} /> : null}
+        <TaskBlock view={blockView(block as never)} />
+      </View>
+    );
+  }
   return (
     <View style={{ height, padding: 24, backgroundColor: "var(--win)" as string }}>
       {part ? <ApprovalCard key={part} taskId="tsk_9" agent="Intake" agentId="agt_1" data={data} /> : null}

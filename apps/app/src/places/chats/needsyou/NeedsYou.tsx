@@ -13,6 +13,7 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { act, pick, snooze, take } from "./actions.ts";
 import { HeldMailCard } from "./HeldMail.tsx";
+import { HoldNote } from "../conversation/hold-note.tsx";
 import { heldMail, labelOf } from "./heldmail.ts";
 import type { NeedsDeps } from "./actions.ts";
 import { NeedsYouDataProvider, useNeedsData, useOnline, useOptionalNeedsData, useScreenQuery } from "./data.tsx";
@@ -31,6 +32,7 @@ import {
   hasComputer,
   originOf,
   blockView,
+  noteView,
   holder,
   kindWord,
   matchesFilter,
@@ -469,8 +471,11 @@ function Detail({
     );
   else
     for (const [i, b] of t.blocks.entries())
-      if (b.type !== "vault_request" && b.type !== "access_request" && b.type !== "connection_fix")
+      if (b.type !== "vault_request" && b.type !== "access_request" && b.type !== "connection_fix") {
+        const quiet = noteView(b);
+        if (quiet) blockNodes.push(<Block key={`note-${i}`} view={quiet} />);
         blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
+      }
   const question = questionOf(t);
   const picks: ReactElement[] = [];
   for (const o of question?.options ?? [])
@@ -772,6 +777,7 @@ function noteLabel(a: Action): string {
 }
 
 export function TaskBlock({ view }: { view: BlockView }): ReactElement {
+  if (view.type === "note") return <HoldNote note={view.text} names={view.names} testID="block-note" />;
   if (view.type === "table") {
     const head: ReactElement[] = [];
     for (const [i, c] of view.columns.entries())

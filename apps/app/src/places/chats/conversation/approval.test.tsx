@@ -604,7 +604,7 @@ test("a held send of a preview copy shows the server's sentence quietly under th
     textOf(find(root, "approval-note-tsk_9")),
     /preview copy of the file for signature\. It's in the plain page look, not the Word template's layout\. Allow sends it as it is\./,
   );
-  assert.equal(textOf(find(root, "approval-note-signers-tsk_9")), "To: Andrea Lindahl");
+  assert.equal(textOf(find(root, "approval-note-tsk_9-signers")), "To: Andrea Lindahl");
   const plain = await mount(
     createRoot,
     <ApprovalCard taskId="tsk_9" agent="Intake" agentId="agt_1" data={make(held({}))} />,
