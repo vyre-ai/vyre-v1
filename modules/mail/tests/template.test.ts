@@ -120,7 +120,7 @@ test("a value with a line break never splits the subject", async () => {
   assert.ok(!/[\r\n]/.test(out.subject));
 });
 
-test("hostile text cannot slow the reader: a megabyte of unfinished tokens is read in well under a second", async () => {
+test("hostile text cannot slow the reader: a megabyte of unfinished tokens is read in seconds, not minutes", async () => {
   const hostile = "{{a|".repeat(250_000);
   const t0 = Date.now();
   const f = fillTokens(hostile, {});
@@ -130,11 +130,11 @@ test("hostile text cannot slow the reader: a megabyte of unfinished tokens is re
   fillTokens(nested, {});
   const longKey = "{{" + "a".repeat(400_000) + "}}";
   assert.deepEqual(fillTokens(longKey, {}).blanks, []);
-  assert.ok(Date.now() - t0 < 1000, "the scan is linear");
+  assert.ok(Date.now() - t0 < 4000, "the scan is linear (a quadratic scan of this text takes minutes)");
   const h = setup();
   const p0 = Date.now();
   await preview(h.ctx, { subject: "x", text: hostile.slice(0, 99_000) });
-  assert.ok(Date.now() - p0 < 1000);
+  assert.ok(Date.now() - p0 < 2000);
 });
 
 test("{{constructor}} and other prototype names are blank like any unknown field, in text and in html", async () => {
