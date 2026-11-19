@@ -25,6 +25,13 @@ const REVIEWED_LINES: { file: string; line: string; why: string }[] = [
   },
 ];
 
+/** The line as reviewed and nothing else on it: the text itself, after an optional leading `: ` or `? `, before an optional `;` or `,`. Anything appended or prepended is a different line. */
+const isReviewed = (l: string, reviewed: string): boolean =>
+  l
+    .trim()
+    .replace(/^[:?]\s+/, "")
+    .replace(/[;,]$/, "") === reviewed;
+
 /** The tripwire over one file's lines: the lines that take an origin or href and have link-shaped text beside them, minus the reviewed lines of that file. */
 export function badLines(file: string, lines: string[]): string[] {
   const bad: string[] = [];
@@ -37,8 +44,7 @@ export function badLines(file: string, lines: string[]): string[] {
     if (!takesOrigin) return;
     const near = lines.slice(Math.max(0, i - 3), i + 4).join("\n");
     if (!/\/a\/\$\{|\/open\/|#subject=|#screen=|\/join\/|\/callback|plainLink\(/.test(near)) return;
-    if (REVIEWED_LINES.some((r) => file.endsWith(r.file) && l.includes(r.line) && !/location\.|window\./.test(l)))
-      return;
+    if (REVIEWED_LINES.some((r) => file.endsWith(r.file) && isReviewed(l, r.line))) return;
     bad.push(`${file}:${i + 1}`);
   });
   return bad;
@@ -73,6 +79,10 @@ test("the reviewed line is allowed only as written: the same shape from the page
   const otherForm = [ok[0]!, ok[1]!, '    : new URL("/chat", target.address).origin + "/x";'];
   assert.equal(badLines(file, otherForm).length, 1, "another shape of line is caught");
   assert.equal(badLines("apps/app/src/shell/other.ts", ok).length, 1, "the same line in another file is caught");
+  const appended = [ok[0]!, ok[1]!, '    : new URL("/chat", target.address).href + rt.baseUrl + "/a/";'];
+  assert.equal(badLines(file, appended).length, 1, "a payload appended to the reviewed text is caught");
+  const second = [ok[0]!, ok[1]!, '    : new URL("/chat", target.address).href; const u = other.origin;'];
+  assert.equal(badLines(file, second).length, 1, "a second statement on the line is caught");
   const rtBuilt = ["const u = `${rt.baseUrl}/a/${id}`;", "const href = u;"];
   assert.equal(
     badLines("apps/app/src/x.ts", rtBuilt).length,

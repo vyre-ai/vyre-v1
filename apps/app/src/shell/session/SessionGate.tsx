@@ -1533,9 +1533,9 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     const stillHere = (): boolean => troubleNow.current === t;
     giDo({ e: "busy", on: true });
     const found = await findSpaceQuietly(t.target.address).catch(() => OFFLINE);
-    giDo({ e: "busy", on: false });
-    // the person went Back (or on elsewhere) while the Space was being asked: the answer is for a screen that is gone
+    // the person went Back (or on elsewhere) while the Space was being asked: the answer is for a screen that is gone, and moving on already cleared the busy mark (a probe started since owns it now)
     if (!stillHere()) return;
+    giDo({ e: "busy", on: false });
     if (found.kind !== "direct") {
       landed(t.target, found, t.stored);
       return;
