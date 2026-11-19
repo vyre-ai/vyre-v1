@@ -40,6 +40,21 @@ export interface SentenceNames {
   ): string | undefined;
 }
 
+/** The text without a "(...)" at its end (and the spaces before it), as `/\s*\([^)]*\)\s*$/` took off, in one pass: that pattern backtracked in quadratic time over a long run of "(" or spaces. */
+export function withoutTrailingParen(title: string): string {
+  const end = title.trimEnd();
+  if (!end.endsWith(")")) return title;
+  const last = end.length - 1;
+  const open = end.indexOf("(", end.lastIndexOf(")", last - 1) + 1);
+  return open < 0 || open > last ? title : end.slice(0, open).trimEnd();
+}
+/** The text without the characters of `chars` at its end. */
+export function trimEndChars(s: string, chars: string): string {
+  let n = s.length;
+  while (n > 0 && chars.includes(s[n - 1]!)) n--;
+  return n === s.length ? s : s.slice(0, n);
+}
+
 const words = (key: string): string =>
   key
     .replace(/[_\-.]+/g, " ")
@@ -186,21 +201,11 @@ const quiet = (n: SentenceNode): boolean =>
   (n.key === "code" && !(Array.isArray(n.input?.["hosts"]) && n.input["hosts"].length > 0)) ||
   (n.key === "http_request" && /^(GET|HEAD)$/i.test(String(n.input?.["method"] ?? "GET")));
 
-/** A title without a trailing "(...)" with no ")" inside: one scan from the end, and a title is cut to 400 characters first (a pattern for this was quadratic on a long run of "(" : 15 s for 200 KB). */
-export function withoutTrailingParens(title: string): string {
-  let t = title.length > 400 ? title.slice(0, 400) : title;
-  t = t.trimEnd();
-  if (!t.endsWith(")")) return t;
-  const open = t.lastIndexOf("(");
-  if (open < 0 || t.slice(open + 1, -1).includes(")")) return t;
-  return t.slice(0, open).trimEnd();
-}
-
 /** What one step does, as the middle of a sentence: "email the customer", "create a task for Lena". */
 function doOf(n: SentenceNode, names: SentenceNames): string {
   const title = (n.title ?? "").trim();
   if (title !== "" && !idLike(title)) {
-    const short = withoutTrailingParens(title).replace(/[.:;]+$/, "");
+    const short = trimEndChars(withoutTrailingParen(title), ".:;");
     return lower(short.length > 64 ? `${short.slice(0, 61).trimEnd()}…` : short);
   }
   const i = n.input ?? {};
