@@ -322,6 +322,11 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         JSON.stringify(secrets),
         now,
       );
+      tx.run(
+        "INSERT OR REPLACE INTO cn_connection_creators (connection_id, created_by) VALUES (?, ?)",
+        id,
+        actorOf(ctx),
+      );
       // the hosts this connection's key may go to, fixed now: what its actions call, never what the definition says later
       // (an action whose address takes its host from the caller's input has no fixed host to record: such a connection keeps the connector's declared domains as its limit, and the card never connects it)
       if (!hostFromInput(def) && keyHosts(def).length > 0)

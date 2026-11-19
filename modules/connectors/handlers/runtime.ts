@@ -198,23 +198,44 @@ async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connect
     "SELECT applied_by FROM cn_sync_specs WHERE connection_id = ?",
     c.connection_id,
   )?.applied_by;
-  const who = c.owner_kind === "person" ? c.owner_id : by && by !== "system" ? by : undefined;
+  // whoever owns it, else whoever applied its sync spec, else whoever made it; when none of them can be told (nobody is recorded, or they are gone), the Space's admins are: it is never left to fail without a word
+  const created = deps.tx.get<{ created_by: string }>(
+    "SELECT created_by FROM cn_connection_creators WHERE connection_id = ?",
+    c.connection_id,
+  )?.created_by;
+  const who =
+    c.owner_kind === "person"
+      ? c.owner_id
+      : by && by !== "system"
+        ? by
+        : created && created !== "system"
+          ? created
+          : undefined;
   const title =
     deps.tx.get<{ title: string }>("SELECT title FROM cn_connectors WHERE key = ?", c.connector)?.title ?? c.title;
-  if (!who) return;
-  try {
-    const made = (await ctx.call("tasks.create", {
+  const make = (assigned: { kind: "person" | "role"; id: string }) =>
+    ctx.call("tasks.create", {
       kind: "unblock",
       title: `Your ${title} key stopped working`,
       summary: `${title} refused the key, so nothing syncs from it. Replace the key in the Vault; syncing resumes by itself and nothing was lost.`,
       why: "The app refused the key or sign-in.",
-      assigned: { kind: "person", id: who },
+      assigned,
       source: { kind: "manual", id: c.connection_id },
       blocks: [{ type: "connection_fix", v: 1, data: { connectionId: c.connection_id, title } }],
       // no bare resolve: the task closes when the connection works again (Reconnect, or a replaced key and Check again), never by pressing Done
       actions: [{ key: "cannot", label: "Dismiss", note: "optional" }],
-      idempotencyKey: `needs_reconnect:${c.connection_id}:${nowOf(deps)}`,
-    })) as { task?: { id?: string } } | undefined;
+      idempotencyKey: `needs_reconnect:${c.connection_id}:${assigned.kind}:${nowOf(deps)}`,
+    }) as Promise<{ task?: { id?: string } } | undefined>;
+  try {
+    let made: { task?: { id?: string } } | undefined;
+    if (who) {
+      try {
+        made = await make({ kind: "person", id: who });
+      } catch {
+        made = undefined; // the person is gone, or cannot be given a task
+      }
+    }
+    if (!made?.task?.id) made = await make({ kind: "role", id: "admin" });
     const taskId = made?.task?.id;
     if (taskId)
       deps.tx.run(
