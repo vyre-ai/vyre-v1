@@ -729,7 +729,12 @@ export function neutralizeUrlAttrs(s: string): string {
       const css = decodeRefs(s.slice(a.vs, a.ve));
       const clean = neutralizeCssUrls(css);
       if (clean === css) return null;
-      const esc = clean.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const esc = clean
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/'/g, "&#39;");
       return a.quoted ? [a.vs, a.ve, esc] : [a.vs, a.ve, `"${esc}"`];
     }
     return null;

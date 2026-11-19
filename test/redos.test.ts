@@ -14,6 +14,7 @@ import {
   isPipeRow,
   isPipeRule,
   replaceTokens,
+  scanTag,
   stripTags,
   tagsNamed,
 } from "../lib/html-text.ts";
@@ -414,6 +415,27 @@ test("script URLs in CSS are neutralised the way a browser reads them (cleanHtml
   fast("url(javascript: N", () => neutralizeCssUrls("url(javascript:x".repeat(N / 16)));
   fast("@import N", () => neutralizeCssUrls("@import 'javascript:x' ".repeat(N / 22)));
   fast("@import url( N", () => neutralizeCssUrls("@import url(".repeat(N / 12)));
+});
+
+test("a style rewrite cannot break out of its attribute (both quote kinds, entity quotes)", () => {
+  for (const q of ["&apos;", "&#39;", "&#x27;", "&#0000039;"]) {
+    const single = `<img src=x style='background:url(javascript:x);font-family:${q} onerror=alert(1) x=${q}'>`;
+    const double = `<img src=x style="background:url(javascript:x);font-family:&quot; onerror=alert(1) x=&quot;">`;
+    const bare = `<img src=x style=background:url(javascript:x);font-family:${q}>`;
+    for (const html of [single, double, bare]) {
+      const out = cleanHtml(html);
+      // read as a browser reads it: the tag carries only src and style, and the handler text stays inside the style value
+      assert.deepEqual(
+        scanTag(out, 0).attrs.map((a) => a.name),
+        ["src", "style"],
+        html,
+      );
+      assert.doesNotMatch(out, /javascript/i, html);
+      assert.equal(stripEventAttrs(out), out, html);
+    }
+  }
+  assert.equal(cleanHtml(`<p style='background:url(javascript:x)'>t</p>`), `<p style='background:none'>t</p>`);
+  assert.equal(cleanHtml(`<p style="font-family:'Segoe UI'">t</p>`), `<p style="font-family:'Segoe UI'">t</p>`);
 });
 
 test("asked: an address pattern reads a long word once (lib/asked.ts)", () => {

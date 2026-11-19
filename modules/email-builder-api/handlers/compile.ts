@@ -303,6 +303,8 @@ export function cleanHtml(code: string): string {
   );
   s = stripEventAttrs(s);
   s = neutralizeUrlAttrs(s);
+  // what the URL and style rewrite produced is checked again: nothing it writes may carry a handler
+  s = stripEventAttrs(s);
   s = neutralizeCssUrls(s);
   s = s.replace(/expression\s*\(/gi, "blocked(");
   return s;
