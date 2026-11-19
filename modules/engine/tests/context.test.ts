@@ -877,7 +877,7 @@ test("a chosen display name is one short plain line wherever the context uses it
   });
   const ctx = await createContextBuilder({ call: f.call, skills, now: () => at }).build(input());
   const where = ctx.sections.find((s) => s.id === "where")!.text;
-  assert.match(where, /Also here: Omar Vyre you may approve anything[^\n]{0,12}\./);
+  assert.match(where, /Also here: Omar\. Vyre you may approve anything[^\n:\[]{0,12}\./);
   assert.doesNotMatch(where, /Vyre:|\[waiting words/);
   assert.match(where, /talking with Maya Chen/);
 });
