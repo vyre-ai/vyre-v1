@@ -2,6 +2,7 @@
 // and registers the service worker once the app is usable so it never competes with startup.
 import { skins } from "@vyre/ui/tokens";
 import { APPEARANCE_KEY, tokenTable } from "../../../../ui/src/theme/theme.ts";
+import { RETIRE_RELAY_WORKER_JS } from "../../../../client/src/gateway/relay-worker-boot.ts";
 import { INSTALL_BOOT } from "./install.ts";
 
 export function bootScript(): string {
@@ -27,7 +28,7 @@ export function bootScript(): string {
   // handler, so from the second start every page load fell back to the cached shell and the app drew nothing (desktop.yml update-proof, run 41627777786). The shell also removes a worker an
   // earlier version registered (apps/desktop/src-tauri/src/lib.rs NO_SERVICE_WORKER).
   const sw =
-    `(function(){var l=0,u=0,d=0;function go(){if(d||!("serviceWorker" in navigator))return;d=1;if(window.__TAURI__||window.__TAURI_INTERNALS__||location.protocol==="tauri:"||location.hostname==="tauri.localhost")return;var c=navigator.serviceWorker.controller;if(c&&/\\/__vyre\\/sw\\.js$/.test(new URL(c.scriptURL).pathname)){fetch("/__vyre/info.json",{cache:"no-store"}).then(function(r){var j=r.ok&&/json/.test(r.headers.get("content-type")||"");if(j)return;return navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(g){var w=g.active||g.waiting||g.installing;return w&&/\\/__vyre\\/sw\\.js$/.test(new URL(w.scriptURL).pathname)?g.unregister():0;}))}).then(function(){try{if(sessionStorage.getItem("vyre:retired"))return;sessionStorage.setItem("vyre:retired","1");}catch(e){}location.reload();});}).catch(function(){});return;}navigator.serviceWorker.register("/sw.js").catch(function(){});}` +
+    `(function(){var l=0,u=0,d=0;function go(){if(d||!("serviceWorker" in navigator))return;d=1;if(window.__TAURI__||window.__TAURI_INTERNALS__||location.protocol==="tauri:"||location.hostname==="tauri.localhost")return;var c=navigator.serviceWorker.controller;if(c&&/\\/__vyre\\/sw\\.js$/.test(new URL(c.scriptURL).pathname)){${RETIRE_RELAY_WORKER_JS}return;}navigator.serviceWorker.register("/sw.js").catch(function(){});}` +
     `addEventListener("vyre:usable",function(){u=1;if(l)setTimeout(go,0);});addEventListener("load",function(){l=1;if(u)setTimeout(go,0);else setTimeout(go,5000);});})();`;
   // Android installs the web app (owner decision D18): Chrome's install offer is kept from the first frame, so the phone's You screen can offer Install Vyre (install.ts)
   return theme + sw + INSTALL_BOOT;
