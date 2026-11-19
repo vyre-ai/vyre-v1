@@ -251,3 +251,10 @@ test("words splits a typed command the way a person means it", () => {
   assert.deepEqual(words(""), []);
   assert.equal(words('echo "open'), null);
 });
+
+test("a schedule that can never happen is refused with a plain sentence", () => {
+  const base = { command: ["x"], timeoutSec: 60, zone: "UTC" };
+  assert.match(checkJob({ ...base, schedule: "0 0 31 2 *" }, validZone) ?? "", /never happens/);
+  assert.match(checkJob({ ...base, schedule: "0 0 30 2 *" }, validZone) ?? "", /never happens/);
+  assert.equal(checkJob({ ...base, schedule: "0 0 29 2 *" }, validZone), null, "29 February does come");
+});

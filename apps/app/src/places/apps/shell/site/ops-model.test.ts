@@ -3,6 +3,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   RUN_WORD,
+  restoreSentence,
+  confirmOk,
+  databaseLine,
   jobProblem,
   presetOf,
   runMark,
@@ -278,4 +281,28 @@ test("the job form's check is one plain sentence", () => {
   assert.equal(jobProblem({ name: "a", schedule: "", command: "x" }), "Say when it runs.");
   assert.equal(jobProblem({ name: "a", schedule: "@daily", command: " " }), "Give the command to run.");
   assert.equal(jobProblem({ name: "a", schedule: "@daily", command: "x" }), null);
+});
+
+test("the restore confirmation names the backup, its size and the safety copy", () => {
+  const t = restoreSentence("3 h ago", 12 * 1024 * 1024);
+  assert.match(t, /backup from 3 h ago \(12 MB\)/);
+  assert.match(t, /copy of what is in the database now is made first and kept for 7 days/);
+  assert.match(restoreSentence("yesterday", undefined), /backup from yesterday\?/);
+});
+
+test("the name typed must be the site's name", () => {
+  assert.equal(confirmOk("Storefront", "Storefront"), true);
+  assert.equal(confirmOk("  storefront ", "Storefront"), true);
+  assert.equal(confirmOk("Store", "Storefront"), false);
+  assert.equal(confirmOk("", "Storefront"), false);
+  assert.equal(confirmOk("", ""), false);
+});
+
+test("the Backups header says the size, whether there are backups, and the replaced database", () => {
+  assert.equal(databaseLine({ bytes: 48 * 1024 * 1024 }, true), "The database is 48 MB. Kept on this server.");
+  assert.equal(databaseLine(undefined, false), "None yet.");
+  assert.match(
+    databaseLine({ bytes: 1024 * 1024, replacedBytes: 8 * 1024 * 1024 }, true),
+    /before the last restore \(8 MB\) is kept until its backup expires/,
+  );
 });

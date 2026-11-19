@@ -21,6 +21,7 @@ Area: sites. Risk: medium. Applies to: site.
 - sites.addon_remove
 - sites.backup_create
 - sites.backup_delete
+- sites.backup_download
 - sites.backup_pin
 - sites.backup_restore
 - sites.backups_list

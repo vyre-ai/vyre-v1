@@ -256,3 +256,17 @@ test("each runs everything, a few at a time, and one that throws does not stop t
   assert.equal(peak, 3);
   assert.deepEqual(done.sort(), [1, 2, 3, 5, 6, 7]);
 });
+
+test("a request line stamped far in the future is not counted, so it cannot blind the minute meter", async () => {
+  const w = world();
+  site(w.db, "s1", "ctr_a");
+  w.c.access(line("shop.sites.test", T0 + 3_600_000));
+  w.c.access(line("shop.sites.test", T0 + 1000));
+  w.advance(MINUTE + 1000);
+  await w.c.tick();
+  const m = Math.floor(T0 / MINUTE) * MINUTE;
+  assert.equal(
+    st.readSamples(w.db, "s1", m, m + 2 * 3_600_000).reduce((a, x) => a + x.requests, 0),
+    1,
+  );
+});

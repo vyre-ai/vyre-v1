@@ -12,7 +12,7 @@ import fs from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { backupHandlers, runBackup } from "../handlers/ops-backups.ts";
+import { _test, backupHandlers, dueBackupSites, runBackup } from "../handlers/ops-backups.ts";
 import { TooBig } from "../ops/tarread.ts";
 import { configureRoutes } from "../handlers/route.ts";
 import * as st from "../ops/store.ts";
@@ -23,6 +23,7 @@ const DAY = 86_400_000;
 function world(
   o: { dumpCode?: number; dumpOut?: string; dump?: Uint8Array; restoreCode?: number; noPostgres?: boolean } = {},
 ) {
+  _test.clearSizes();
   const raw = new DatabaseSync(":memory:");
   for (const f of [
     "0001_sites_core.sql",
@@ -39,11 +40,20 @@ function world(
     run: (q: string, ...a: unknown[]) => ({ changes: Number(raw.prepare(q).run(...(a as never[])).changes) }),
   };
   const execs: string[][] = [];
+  const drops: string[] = [];
   const put: { dir: string; name: string; n: number }[] = [];
   const runner = {
     exec: async (_c: string, cmd: string[]) => {
       execs.push(cmd);
       const text = cmd.join(" ");
+      if (text.includes("app_old") && cmd.includes("-tAc"))
+        return o.oldBytes === undefined
+          ? { code: 1, out: "ERROR: database app_old does not exist" }
+          : { code: 0, out: `${o.oldBytes}\n` };
+      if (text.includes("DROP DATABASE IF EXISTS app_old") && !text.includes("ALLOW_CONNECTIONS")) {
+        drops.push("app_old");
+        return { code: 0, out: "" };
+      }
       if (cmd[0] === "psql" && cmd.includes("-tAc")) return { code: 0, out: "48234567\n" };
       if (cmd[0] === "stat") return { code: 0, out: `${o.statSize ?? 1234}\n` };
       if (text.includes("pg_dump"))
@@ -57,10 +67,18 @@ function world(
         return { code: o.swapCode ?? 0, out: o.swapCode ? "ERROR: database is being accessed by other users" : "" };
       return { code: 0, out: "" };
     },
-    getFile: async () => {
+    getFileParts: async (
+      _c: string,
+      _p: string,
+      _max: number,
+      part: number,
+      onPart: (p: Uint8Array) => Promise<void>,
+    ) => {
       o.onGetFile?.();
       if (o.getFileThrows) throw o.getFileThrows;
-      return o.dump ?? new Uint8Array(1234);
+      const data = o.dump ?? new Uint8Array(1234);
+      for (let i = 0; i < data.length; i += part) await onPart(data.subarray(i, i + part));
+      return data.length;
     },
     put: async (_c: string, dir: string, name: string, b: Uint8Array) => void put.push({ dir, name, n: b.length }),
   };
@@ -79,7 +97,10 @@ function world(
       return { id, contentType: "application/gzip", size: bytes.length, sha256: "x", createdAt: NOW };
     },
     get: async (id: string) => (store.has(id) ? { meta: { id } as never, bytes: store.get(id) as Uint8Array } : null),
-    stat: async () => null,
+    stat: async (id: string) =>
+      store.has(id)
+        ? { id, contentType: "x", size: (store.get(id) as Uint8Array).length, sha256: "x", createdAt: NOW }
+        : null,
     delete: async (id: string) => store.delete(id),
   };
   const ctx = {
@@ -98,7 +119,7 @@ function world(
     db.run(
       "INSERT INTO sites_addon (site_id, kind, container_id, state, env_name, secret, created_at) VALUES ('sit_a', 'postgres', 'pg1', 'ready', 'DATABASE_URL', '{}', 1)",
     );
-  return { db, ctx, execs, put, store, runner };
+  return { db, ctx, execs, put, store, runner, drops };
 }
 const call = (ctx: Ctx, cap: keyof typeof backupHandlers, input: unknown) =>
   (backupHandlers[cap] as (c: Ctx, i: unknown) => Promise<any>)(ctx, input); // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -232,11 +253,11 @@ test("restore first makes a backup of the live database and keeps it seven days,
   const order = w.execs.map((c) => c.join(" "));
   const iDump = order.findIndex((c) => c.includes("pg_dump"));
   const iNew = order.findIndex((c) => c.includes("CREATE DATABASE app_restore"));
-  const iLoad = order.findIndex((c) => c.includes("gunzip"));
+  const iLoad = order.findIndex((c) => c.includes("app_restore -v"));
   const iSwap = order.findIndex((c) => c.includes("RENAME TO app_old"));
   assert.ok(iDump >= 0 && iDump < iNew && iNew < iLoad && iLoad < iSwap, order.join("\n"));
   assert.ok(!has(w, "DROP DATABASE IF EXISTS app WITH"), "the live database is never dropped");
-  assert.deepEqual(w.put, [{ dir: "/tmp", name: "vyre-restore.gz", n: 77 }]);
+  assert.deepEqual(w.put, [{ dir: "/tmp", name: "vyre-restore.0000.gz", n: 77 }]);
 });
 
 test("restore is refused, and nothing is touched, when the safety backup cannot be made", async () => {
@@ -246,7 +267,7 @@ test("restore is refused, and nothing is touched, when the safety backup cannot 
   assert.equal(r.ok, false);
   assert.match(r.detail, /could not be backed up first.*Nothing changed/);
   assert.equal(has(w, "CREATE DATABASE"), false);
-  assert.equal(has(w, "gunzip"), false);
+  assert.equal(has(w, "app_restore -v"), false);
   assert.equal(has(w, "RENAME"), false);
   assert.equal(w.put.length, 0);
 });
@@ -345,4 +366,144 @@ test("only a finished backup can be restored, and one whose file is gone says so
     await code(call(w.ctx, "sites.backup_restore", { siteId: "sit_a", backupId: "bkp_gone" })),
     "validation.not_found",
   );
+});
+
+test("a dump is kept in parts and a restore sends them in order, one in memory at a time", async () => {
+  _test.setPartBytes(100);
+  try {
+    const dump = new Uint8Array(250).map((_, i) => i % 200);
+    const w = world({ dump });
+    const { backup } = await call(w.ctx, "sites.backup_create", { siteId: "sit_a" });
+    await settle();
+    const b = st.getBackup(w.db, backup.backupId)!;
+    assert.equal(b.bytes, 250);
+    assert.equal(b.fileId?.split(",").length, 3, "100 + 100 + 50");
+    assert.deepEqual(
+      [...w.store.values()].map((x) => x.length),
+      [100, 100, 50],
+    );
+    const r = await call(w.ctx, "sites.backup_restore", { siteId: "sit_a", backupId: backup.backupId });
+    assert.equal(r.ok, true);
+    assert.deepEqual(
+      w.put.map((p) => [p.name, p.n]),
+      [
+        ["vyre-restore.0000.gz", 100],
+        ["vyre-restore.0001.gz", 100],
+        ["vyre-restore.0002.gz", 50],
+      ],
+    );
+    const load = w.execs.map((c) => c.join(" ")).find((c) => c.includes("cat /tmp/vyre-restore"));
+    assert.match(
+      load ?? "",
+      /cat \/tmp\/vyre-restore\.\*\.gz \| gunzip -t && cat .* \| gunzip \| psql/,
+      "the whole dump is tested before it is loaded",
+    );
+  } finally {
+    _test.setPartBytes(32 * 1024 * 1024);
+  }
+});
+
+test("a copy that fails after some parts were kept removes those parts", async () => {
+  _test.setPartBytes(100);
+  try {
+    let n = 0;
+    const w = world({ dump: new Uint8Array(250) });
+    const run = w.runner.getFileParts;
+    w.runner.getFileParts = async (
+      c: string,
+      p: string,
+      m: number,
+      part: number,
+      onPart: (x: Uint8Array) => Promise<void>,
+    ) =>
+      run(c, p, m, part, async (x) => {
+        await onPart(x);
+        if (++n === 2) throw new Error("the engine went away");
+      });
+    const { backup } = await call(w.ctx, "sites.backup_create", { siteId: "sit_a" });
+    await settle();
+    assert.equal(st.getBackup(w.db, backup.backupId)?.state, "failed");
+    assert.equal(w.store.size, 0, "no part is left behind");
+  } finally {
+    _test.setPartBytes(32 * 1024 * 1024);
+  }
+});
+
+test("the dump is made to a file and tested, so a failing dump is the command's failure", async () => {
+  const w = world();
+  await call(w.ctx, "sites.backup_create", { siteId: "sit_a" });
+  await settle();
+  const dumpCmd = w.execs.map((c) => c.join(" ")).find((c) => c.includes("pg_dump"));
+  assert.match(
+    dumpCmd ?? "",
+    /pg_dump -U app -d app --no-owner -Z gzip -f \/tmp\/vyre-backup\.gz && gunzip -t \/tmp\/vyre-backup\.gz/,
+  );
+});
+
+test("at most three backups can be kept for good", async () => {
+  const w = world();
+  for (const id of ["a", "b", "c", "d"]) add(w, { id: `bkp_${id}` });
+  for (const id of ["a", "b", "c"]) await call(w.ctx, "sites.backup_pin", { siteId: "sit_a", backupId: `bkp_${id}` });
+  assert.equal(
+    await code(call(w.ctx, "sites.backup_pin", { siteId: "sit_a", backupId: "bkp_d" })),
+    "validation.precondition_failed",
+  );
+  await call(w.ctx, "sites.backup_pin", { siteId: "sit_a", backupId: "bkp_a", pinned: false });
+  assert.equal((await call(w.ctx, "sites.backup_pin", { siteId: "sit_a", backupId: "bkp_d" })).backup.pinned, true);
+});
+
+test("the replaced database is listed with its size while the safety backup is kept, and dropped once it expires", async () => {
+  const w = world({ oldBytes: 7_800_000 });
+  add(w, { id: "bkp_s", keepUntil: NOW + 3 * DAY });
+  const live = await call(w.ctx, "sites.backups_list", { siteId: "sit_a" });
+  assert.equal(live.database.replacedBytes, 7_800_000);
+  assert.deepEqual(w.drops, []);
+  const gone = world({ oldBytes: 7_800_000 });
+  add(gone, { id: "bkp_s", keepUntil: NOW - 1 });
+  const out = await call(gone.ctx, "sites.backups_list", { siteId: "sit_a" });
+  assert.equal(out.database.replacedBytes, undefined);
+  assert.deepEqual(gone.drops, ["app_old"]);
+});
+
+test("download gives one address per part, for a backup of this site only", async () => {
+  const w = world();
+  const a = await w.ctx.blobs!.put(new Uint8Array(10), "x", { resource: { type: "site", id: "sit_a" } });
+  const b2 = await w.ctx.blobs!.put(new Uint8Array(5), "x", { resource: { type: "site", id: "sit_a" } });
+  add(w, { id: "bkp_one", fileId: a.id, at: Date.parse("2026-11-18T10:00:00Z") });
+  add(w, { id: "bkp_two", fileId: `${a.id},${b2.id}`, at: Date.parse("2026-11-18T10:00:00Z") });
+  const one = await call(w.ctx, "sites.backup_download", { siteId: "sit_a", backupId: "bkp_one" });
+  assert.deepEqual(
+    one.files.map((f: { name: string; bytes: number }) => [f.name, f.bytes]),
+    [["2026-11-18.sql.gz", 10]],
+  );
+  assert.match(one.files[0].url, /^\/spaces\/.*\/blobs\/blb_/);
+  const two = await call(w.ctx, "sites.backup_download", { siteId: "sit_a", backupId: "bkp_two" });
+  assert.deepEqual(
+    two.files.map((f: { name: string }) => f.name),
+    ["2026-11-18.sql.gz.part1", "2026-11-18.sql.gz.part2"],
+  );
+  assert.match(two.note, /cat/);
+  assert.equal(
+    await code(call(w.ctx, "sites.backup_download", { siteId: "sit_b", backupId: "bkp_one" })),
+    "validation.not_found",
+  );
+  add(w, { id: "bkp_run", state: "running" });
+  assert.equal(
+    await code(call(w.ctx, "sites.backup_download", { siteId: "sit_a", backupId: "bkp_run" })),
+    "validation.precondition_failed",
+  );
+});
+
+test("a scheduled backup is marked as the schedule's, and sites with a ready database and no backup for a day are due", async () => {
+  const w = world();
+  const { backup } = await call(w.ctx, "sites.backup_create", { siteId: "sit_a", scheduled: true });
+  assert.equal(backup.by, "schedule");
+  await settle();
+  w.db.run("DELETE FROM sites_backup");
+  assert.deepEqual(dueBackupSites(w.ctx, NOW), [{ siteId: "sit_a", as: "usr_1" }]);
+  add(w, { id: "bkp_new", at: NOW - 3_600_000 });
+  assert.deepEqual(dueBackupSites(w.ctx, NOW), [], "a backup in the last day is enough");
+  add(w, { id: "bkp_fail", state: "failed", at: NOW - 60_000 });
+  w.db.run("DELETE FROM sites_backup WHERE id = 'bkp_new'");
+  assert.deepEqual(dueBackupSites(w.ctx, NOW), [], "a failure waits an hour before it is tried again");
 });

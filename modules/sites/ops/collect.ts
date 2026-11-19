@@ -79,6 +79,8 @@ export class Collector {
     if (!a) return;
     const siteId = this.d.siteOfHost(a.host);
     if (!siteId) return;
+    // a line stamped far ahead would close the minute meter early and blind it for that long: it is not taken
+    if (a.at > this.d.now() + 60_000) return;
     this.recordRequest(siteId, a);
   }
 

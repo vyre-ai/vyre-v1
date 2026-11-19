@@ -89,7 +89,8 @@ test("a scheduled backup is due when none is going and the last ready one is a d
   assert.equal(due([b("ready", { at: NOW - 25 * 3_600_000 })], NOW), true);
   assert.equal(due([b("ready", { at: NOW - 48 * 3_600_000 }), b("running", { id: "x" })], NOW), false);
   assert.equal(due([b("queued")], NOW), false);
-  assert.equal(due([b("failed", { at: NOW - 1000 })], NOW), true);
+  assert.equal(due([b("failed", { at: NOW - 1000 })], NOW), false, "a failure waits an hour");
+  assert.equal(due([b("failed", { at: NOW - 2 * 3_600_000 })], NOW), true);
 });
 
 test("the file name sorts by time and has no unsafe characters", () => {

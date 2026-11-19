@@ -5,7 +5,11 @@ import type { OpsDb } from "../ops/store.ts";
 import { routeByHost, routesHost, siteRunner } from "./route.ts";
 
 const host: OpsHost = {
-  runner: () => siteRunner(),
+  // the supervisor asks the engine "is it there": a failed answer is "unknown" (it throws), only a 404 is "gone"
+  runner: () => {
+    const r = siteRunner();
+    return r ? ({ ...r, state: (c: string) => r.stateStrict(c) } as never) : null;
+  },
   siteOfHost: (db, h) => routeByHost({ db }, h, routesHost()?.sitesDomain?.() ?? null)?.siteId ?? null,
 };
 

@@ -259,5 +259,8 @@ export function checkJob(
   if (!Number.isInteger(j.timeoutSec) || j.timeoutSec < 5 || j.timeoutSec > 6 * 3600)
     return "A job may run between 5 seconds and 6 hours.";
   if (!validZone(j.zone)) return "That time zone is not known.";
+  // a date that never comes (31 February) is refused now rather than scanned for on every tick
+  if (next(parseCron(j.schedule), Date.now(), j.zone) === null)
+    return "That schedule never happens: no day in the next five years matches it.";
   return null;
 }

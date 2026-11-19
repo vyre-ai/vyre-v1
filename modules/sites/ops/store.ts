@@ -333,6 +333,27 @@ export function saveService(db: OpsDb, v: Service, containerId?: string | null):
     v.id,
   );
 }
+/** Save a worker only if its row is still in the state it was read in, so what the supervisor worked out never overwrites a person's Stop or Restart made meanwhile. Returns whether it was saved. */
+export function saveServiceIf(db: OpsDb, v: Service, was: ServiceState, containerId?: string | null): boolean {
+  return (
+    db.run(
+      "UPDATE sites_service SET state = ?, started_at = ?, restart_at = ?, streak = ?, crashes = ?, last_exit = ?, note = ?" +
+        (containerId !== undefined ? ", container_id = ?" : "") +
+        " WHERE id = ? AND state = ? AND deleted_at IS NULL",
+      v.state,
+      v.startedAt ?? null,
+      v.restartAt ?? null,
+      v.streak,
+      JSON.stringify(v.crashes),
+      v.lastExit ? JSON.stringify(v.lastExit) : null,
+      v.note ?? null,
+      ...(containerId !== undefined ? [containerId] : []),
+      v.id,
+      was,
+    ).changes === 1
+  );
+}
+
 /** Record the container a worker was started in, only if the row is still waiting for one (starting, no container). False means it was stopped or removed meanwhile: the caller must remove the container. */
 export function claimService(db: OpsDb, v: Service, containerId: string, deploymentId: string): boolean {
   return (

@@ -4,7 +4,7 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (61)
+## Capabilities (62)
 
 - [sites.addon_add](../capabilities/sites.addon_add.md): Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys
 - [sites.addon_remove](../capabilities/sites.addon_remove.md): Remove a site's Postgres or Redis and its data
@@ -13,9 +13,10 @@ Requires: nothing.
 - [sites.artifact_thumb_set](../capabilities/sites.artifact_thumb_set.md): Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one
 - [sites.backup_create](../capabilities/sites.backup_create.md): Back up the site's Postgres now. It runs in the background: read sites_backups_list to see it finish
 - [sites.backup_delete](../capabilities/sites.backup_delete.md): Delete a backup and its file
+- [sites.backup_download](../capabilities/sites.backup_download.md): Where to fetch a finished backup from: one address per part (a dump over 32 MB is kept in parts: join them in order). Readable by whoever can see the site
 - [sites.backup_pin](../capabilities/sites.backup_pin.md): Keep a backup for good (the clean-up never deletes a pinned one), or let it go again
 - [sites.backup_restore](../capabilities/sites.backup_restore.md): Put a finished backup back, never losing data: the live database is backed up first (kept 7 days, else the restore is refused), the dump loads into a new database, and it is swapped in only if that worked
-- [sites.backups_list](../capabilities/sites.backups_list.md): A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under two weeks old are kept
+- [sites.backups_list](../capabilities/sites.backups_list.md): A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under seven days old are kept, and ones marked Keep (at most three) never go
 - [sites.build](../capabilities/sites.build.md): Build the site from its repo (the site agent runs in the repo); test and verify
 - [sites.chat_viewing](../capabilities/sites.chat_viewing.md): The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds
 - [sites.create](../capabilities/sites.create.md): Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed

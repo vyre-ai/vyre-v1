@@ -26,6 +26,7 @@ Back up the site's Postgres now. It runs in the background: read sites_backups_l
 ```ts
 type In = {
   siteId: string;
+  scheduled?: boolean;
 };
 ```
 
@@ -64,6 +65,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "scheduled": true,
     "siteId": "sit_a1b2c3"
   },
   "output": {

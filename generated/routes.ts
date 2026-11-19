@@ -33838,6 +33838,25 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/sites/backup_download",
+    "cap": "sites.backup_download",
+    "v": 1,
+    "module": "sites",
+    "effects": "read",
+    "permission": "sites.deploy",
+    "level": "view",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/sites/backup_pin",
     "cap": "sites.backup_pin",
     "v": 1,
@@ -38671,7 +38690,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "pay"
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/number/get",
@@ -38690,10 +38712,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/number/import",

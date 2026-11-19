@@ -7,24 +7,26 @@ import { Row } from "../../../../../../../ui/src/Row/index.tsx";
 import { useWhenText } from "../../../../../../../ui/src/Time/index.tsx";
 import { useAppsData } from "../data.tsx";
 import { actionKey, errorMessage, mutate } from "../mutations.ts";
-import { Button, useRead } from "../editor-ui.tsx";
+import { Button, TextBox, useRead } from "../editor-ui.tsx";
 import { MenuButton, StepMark } from "./parts.tsx";
-import { sizeText } from "./ops-model.ts";
+import { confirmOk, databaseLine, restoreSentence, sizeText } from "./ops-model.ts";
 import type { BackupOut } from "./ops-model.ts";
 
 interface Read {
   backups: BackupOut[];
   hasDatabase: boolean;
-  database?: { bytes?: number };
+  database?: { bytes?: number; replacedBytes?: number };
 }
 
-export function Backups({ siteId }: { siteId: string }): ReactElement | null {
+export function Backups({ siteId, siteName }: { siteId: string; siteName: string }): ReactElement | null {
   const d = useAppsData();
   const r = useRead<Read>("sites.backups_list", { siteId }, "sites");
   const when = useWhenText();
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<BackupOut | null>(null);
+  const [typed, setTyped] = useState("");
   const making = (r.data?.backups ?? []).some((b) => b.state === "queued" || b.state === "running");
   useEffect(() => {
     if (!making) return undefined;
@@ -54,8 +56,10 @@ export function Backups({ siteId }: { siteId: string }): ReactElement | null {
         <View style={s.grow}>
           <Text style={s.title}>Backups</Text>
           <Text style={s.hint}>
-            {r.data.database?.bytes !== undefined ? `The database is ${sizeText(r.data.database.bytes)}. ` : ""}
-            {r.data.backups.some((b) => b.state === "ready") ? "Kept on this server." : "None yet."}
+            {databaseLine(
+              r.data.database,
+              r.data.backups.some((b) => b.state === "ready"),
+            )}
           </Text>
         </View>
         <Button
@@ -90,11 +94,17 @@ export function Backups({ siteId }: { siteId: string }): ReactElement | null {
                           label: "Put it back",
                           hint: "Keeps a copy of what is there now for 7 days",
                           danger: true,
+                          onSelect: () => {
+                            setConfirm(b);
+                            setTyped("");
+                          },
+                        },
+                        {
+                          label: "Download",
                           onSelect: () =>
-                            void call("sites.backup_restore", { backupId: b.backupId }).then((o) => {
-                              const out = o as { ok?: boolean; detail?: string } | null;
-                              if (out?.ok === false) setError(out.detail ?? "It stopped part way.");
-                              else if (out?.detail) setNote(out.detail);
+                            void call("sites.backup_download", { backupId: b.backupId }).then((o) => {
+                              const files = (o as { files?: { url: string }[] } | null)?.files ?? [];
+                              for (const f of files) globalThis.open?.(f.url, "_blank");
                             }),
                         },
                         {
@@ -115,6 +125,30 @@ export function Backups({ siteId }: { siteId: string }): ReactElement | null {
           }
         />
       ))}
+      {confirm ? (
+        <View style={s.confirm} testID="site-restore-confirm">
+          <Text style={s.confirmText}>{restoreSentence(when(confirm.at, now), confirm.bytes)}</Text>
+          <TextBox label={`Type ${siteName} to confirm`} value={typed} onChange={setTyped} placeholder={siteName} />
+          <View style={s.actions}>
+            <Button
+              title="Put it back"
+              primary
+              disabled={busy || !confirmOk(typed, siteName)}
+              testID="site-restore-go"
+              onPress={() => {
+                const id = confirm.backupId;
+                setConfirm(null);
+                void call("sites.backup_restore", { backupId: id }).then((o) => {
+                  const out = o as { ok?: boolean; detail?: string } | null;
+                  if (out?.ok === false) setError(out.detail ?? "It stopped part way.");
+                  else if (out?.detail) setNote(out.detail);
+                });
+              }}
+            />
+            <Button title="Cancel" onPress={() => setConfirm(null)} />
+          </View>
+        </View>
+      ) : null}
       {note ? <Text style={s.hint}>{note}</Text> : null}
       {error ? <Text style={s.error}>{error}</Text> : null}
     </View>
@@ -128,4 +162,7 @@ const s = StyleSheet.create({
   title: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   hint: { fontSize: 12, color: "var(--ink-3)" as string },
   error: { fontSize: 12.5, color: "var(--danger)" as string },
+  confirm: { gap: 10, padding: 14, borderRadius: 10, backgroundColor: "var(--sunk)" as string, marginTop: 6 },
+  confirmText: { fontSize: 13, color: "var(--ink)" as string, lineHeight: 19 },
+  actions: { flexDirection: "row", gap: 8 },
 });

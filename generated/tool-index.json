@@ -8354,6 +8354,12 @@
     },
     {
       "deferred": false,
+      "name": "sites_backup_download",
+      "summary": "Where to fetch a finished backup from: one address per part (a dump over 32 MB is kept in parts: join them in order). Readable by whoever can see the site",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_backup_pin",
       "summary": "Keep a backup for good (the clean-up never deletes a pinned one), or let it go again",
       "toolset": "sites"
@@ -8367,7 +8373,7 @@
     {
       "deferred": false,
       "name": "sites_backups_list",
-      "summary": "A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under two weeks old are kept",
+      "summary": "A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under seven days old are kept, and ones marked Keep (at most three) never go",
       "toolset": "sites"
     },
     {

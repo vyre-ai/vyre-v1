@@ -37258,6 +37258,7 @@ export type SitesArtifactThumbSetOut = {
 };
 export type SitesBackupCreateIn = {
   siteId: string;
+  scheduled?: boolean;
 };
 export type SitesBackupCreateOut = {
   backup: {
@@ -37279,6 +37280,18 @@ export type SitesBackupDeleteIn = {
 };
 export type SitesBackupDeleteOut = {
   removed: boolean;
+};
+export type SitesBackupDownloadIn = {
+  siteId: string;
+  backupId: string;
+};
+export type SitesBackupDownloadOut = {
+  files: Array<{
+      name: string;
+      url: string;
+      bytes?: number;
+    }>;
+  note?: string;
 };
 export type SitesBackupPinIn = {
   siteId: string;
@@ -37326,6 +37339,7 @@ export type SitesBackupsListOut = {
   hasDatabase: boolean;
   database?: {
     bytes?: number;
+    replacedBytes?: number;
   };
 };
 export type SitesBuildIn = {
@@ -50745,6 +50759,7 @@ export interface CapMap {
   "sites.artifact_thumb_set": { in: SitesArtifactThumbSetIn; out: SitesArtifactThumbSetOut };
   "sites.backup_create": { in: SitesBackupCreateIn; out: SitesBackupCreateOut };
   "sites.backup_delete": { in: SitesBackupDeleteIn; out: SitesBackupDeleteOut };
+  "sites.backup_download": { in: SitesBackupDownloadIn; out: SitesBackupDownloadOut };
   "sites.backup_pin": { in: SitesBackupPinIn; out: SitesBackupPinOut };
   "sites.backup_restore": { in: SitesBackupRestoreIn; out: SitesBackupRestoreOut };
   "sites.backups_list": { in: SitesBackupsListIn; out: SitesBackupsListOut };

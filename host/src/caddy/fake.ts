@@ -64,7 +64,10 @@ export class FakeCaddy {
       for (const k of keys.slice(0, -1)) node = node?.[k] as Json | undefined;
       const last = keys[keys.length - 1]!;
       if (method === "GET") {
-        const v = node?.[last];
+        // as Caddy answers: 404 when the key is missing, 400 "invalid traversal path" when a parent of it is missing as well
+        if (!node || typeof node !== "object")
+          return reply(400, JSON.stringify({ error: `invalid traversal path at: config/${keys.join("/")}` }));
+        const v = node[last];
         return v === undefined
           ? reply(404, JSON.stringify({ error: "invalid traversal path" }))
           : reply(200, JSON.stringify(v));

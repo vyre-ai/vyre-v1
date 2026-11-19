@@ -56934,6 +56934,10 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "scheduled": {
+            "description": "Made by the daily schedule, not a person",
+            "type": "boolean"
+          },
           "siteId": {
             "examples": [
               "sit_a1b2c3"
@@ -56983,6 +56987,40 @@
       },
       "name": "sites_backup_delete",
       "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.backup_download",
+      "deferred": false,
+      "description": "Where to fetch a finished backup from: one address per part (a dump over 32 MB is kept in parts: join them in order). Readable by whoever can see the site",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "backupId": {
+            "examples": [
+              "bkp_a1b2c3"
+            ],
+            "pattern": "^bkp_[a-z0-9]+$",
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId",
+          "backupId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_backup_download",
+      "planMode": "allowed",
       "toolset": "sites",
       "v": 1
     },
@@ -57061,7 +57099,7 @@
       "blocks": [],
       "cap": "sites.backups_list",
       "deferred": false,
-      "description": "A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under two weeks old are kept",
+      "description": "A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under seven days old are kept, and ones marked Keep (at most three) never go",
       "effects": "read",
       "inputSchema": {
         "properties": {

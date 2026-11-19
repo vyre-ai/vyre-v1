@@ -4706,6 +4706,10 @@
     "siteId": "sit_a1b2c3",
     "backupId": "bkp_a1b2c3"
   },
+  "sites_backup_download": {
+    "siteId": "sit_a1b2c3",
+    "backupId": "bkp_a1b2c3"
+  },
   "sites_backup_pin": {
     "siteId": "sit_a1b2c3",
     "backupId": "bkp_a1b2c3"

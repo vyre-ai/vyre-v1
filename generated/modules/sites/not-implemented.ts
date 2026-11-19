@@ -12,6 +12,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "sites.artifact_thumb_set": async (ctx) => { throw new VyreErr(notImplemented("sites.artifact_thumb_set", ctx.trace)); },
   "sites.backup_create": async (ctx) => { throw new VyreErr(notImplemented("sites.backup_create", ctx.trace)); },
   "sites.backup_delete": async (ctx) => { throw new VyreErr(notImplemented("sites.backup_delete", ctx.trace)); },
+  "sites.backup_download": async (ctx) => { throw new VyreErr(notImplemented("sites.backup_download", ctx.trace)); },
   "sites.backup_pin": async (ctx) => { throw new VyreErr(notImplemented("sites.backup_pin", ctx.trace)); },
   "sites.backup_restore": async (ctx) => { throw new VyreErr(notImplemented("sites.backup_restore", ctx.trace)); },
   "sites.backups_list": async (ctx) => { throw new VyreErr(notImplemented("sites.backups_list", ctx.trace)); },

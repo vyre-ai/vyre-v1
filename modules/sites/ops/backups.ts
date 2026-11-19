@@ -75,7 +75,7 @@ export interface Policy {
   /** and any ready backup younger than this many days */
   days: number;
 }
-export const POLICY: Policy = { keep: 7, days: 14 };
+export const POLICY: Policy = { keep: 7, days: 7 };
 const DAY = 24 * 3_600_000;
 
 /** The ids to delete: ready backups older than `days` and past the newest `keep`; pinned ones, queued, running and the newest ready backup are never deleted. Failed ones go after a day. */
@@ -93,6 +93,8 @@ export function expired(all: readonly Backup[], now: number, p: Policy = POLICY)
 /** Whether a scheduled backup is due: none ready or running in the last `everyHours`. */
 export function due(all: readonly Backup[], now: number, everyHours = 24): boolean {
   if (all.some((b) => b.state === "queued" || b.state === "running")) return false;
+  // a backup that failed is not tried again at once, or a broken database is dumped every minute
+  if (all.some((b) => b.state === "failed" && now - b.at < 3_600_000)) return false;
   const last = all.filter((b) => b.state === "ready").sort((a, b) => b.at - a.at)[0];
   return !last || now - last.at >= everyHours * 3_600_000;
 }

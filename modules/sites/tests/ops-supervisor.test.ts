@@ -24,7 +24,9 @@ interface Box {
   kind: string;
 }
 
-function world(o: { siteRunning?: boolean; afterStart?: (cid: string, db: OpsDb) => void } = {}) {
+function world(
+  o: { siteRunning?: boolean; afterStart?: (cid: string, db: OpsDb) => void; stateThrows?: () => boolean } = {},
+) {
   const raw = new DatabaseSync(":memory:");
   raw.exec(
     "CREATE TABLE sites_site (id TEXT PRIMARY KEY, container_id TEXT, current_deployment TEXT, limits TEXT, deleted_at INTEGER); CREATE TABLE sites_deployment (id TEXT PRIMARY KEY, image TEXT);",
@@ -48,6 +50,7 @@ function world(o: { siteRunning?: boolean; afterStart?: (cid: string, db: OpsDb)
   let failStart = false;
   const runner: SuperRunner = {
     state: async (cid) => {
+      if (o.stateThrows?.()) throw new Error("the engine answered 503");
       const b = boxes.get(cid);
       return b
         ? {
@@ -523,4 +526,84 @@ test("a worker's start is written down as starting before its container is made,
   want(w);
   await w.sup.tick();
   assert.equal(seen, JSON.stringify([{ state: "starting", container_id: null }]));
+});
+
+test("an engine that does not answer is not a crash: a running worker is left alone, never removed, and a running job is neither ended nor lost", async () => {
+  let down = false;
+  const w = world({ stateThrows: () => down });
+  addService(w);
+  want(w);
+  await w.sup.tick();
+  w.advance(11_000);
+  await w.sup.tick();
+  st.insertJob(w.db, job({ timeoutSec: 3600 }), "usr_1", T0);
+  w.at(T0 + 5 * 60_000 + 1000);
+  await w.sup.tick();
+  const run = st.listRuns(w.db, "j1")[0]!;
+  const before = { v: st.getService(w.db, "v1")!, boxes: w.boxes.size, removed: w.removed.length };
+  down = true;
+  for (let i = 0; i < 12; i++) {
+    w.advance(5000);
+    await w.sup.tick();
+  }
+  const v = st.getService(w.db, "v1")!;
+  assert.equal(v.state, "running");
+  assert.equal(v.containerId, before.v.containerId);
+  assert.deepEqual(v.crashes, []);
+  assert.equal(w.removed.length, before.removed, "nothing was removed");
+  assert.equal(st.getRun(w.db, run.id)?.state, "running", "the job is neither interrupted nor ended");
+  assert.equal(w.boxes.size, before.boxes);
+  down = false;
+  w.exit(st.getRun(w.db, run.id)!.containerId!, 0);
+  await w.sup.tick();
+  assert.equal(st.getRun(w.db, run.id)?.state, "succeeded", "and it is read normally once the engine answers");
+});
+
+test("a person's Stop made while the supervisor works is not overwritten by what it worked out", async () => {
+  const w = world({
+    // the person presses Stop just as the new container exists
+    afterStart: (_c, db) => void db.run("UPDATE sites_service SET state = 'stopped' WHERE id = 'v1'"),
+  });
+  addService(w);
+  want(w);
+  await w.sup.tick();
+  assert.equal(st.getService(w.db, "v1")?.state, "stopped");
+  assert.equal(st.getService(w.db, "v1")?.containerId, undefined);
+});
+
+test("a stale pass never overwrites a Stop or Restart handled meanwhile (the save names the state it read)", async () => {
+  const w = world();
+  addService(w);
+  want(w);
+  await w.sup.tick();
+  const v = st.getService(w.db, "v1")!;
+  // the supervisor read `starting`; a person's Stop changed the row; a late save from that read is refused
+  st.saveService(w.db, { ...v, state: "stopped" }, null);
+  assert.equal(st.saveServiceIf(w.db, { ...v, state: "running", note: "late" }, "starting", "ctr_x"), false);
+  assert.equal(st.getService(w.db, "v1")?.state, "stopped");
+  assert.equal(st.saveServiceIf(w.db, { ...v, state: "starting" }, "stopped", null), true);
+});
+
+test("a row that says running with no container is a crash, not a worker the page shows as running for nothing", async () => {
+  const w = world();
+  addService(w);
+  st.saveService(w.db, { ...st.getService(w.db, "v1")!, state: "running", startedAt: T0 - 1000 }, null);
+  await w.sup.tick();
+  const v = st.getService(w.db, "v1")!;
+  assert.notEqual(v.state, "running");
+  assert.equal(v.state === "backoff" || v.state === "starting", true);
+});
+
+test("a start that cannot happen does not count toward the crash loop: it waits and tries again, however often", async () => {
+  const w = world();
+  addService(w);
+  want(w);
+  w.failStart(true);
+  for (let i = 0; i < 12; i++) {
+    await w.sup.tick();
+    const v = st.getService(w.db, "v1")!;
+    assert.notEqual(v.state, "failed");
+    assert.deepEqual(v.crashes, []);
+    w.at(Math.max(w.now, v.restartAt ?? w.now) + 1);
+  }
 });

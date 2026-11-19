@@ -55,11 +55,56 @@ test("a month rolls, a leap day waits, and an impossible date finds nothing", ()
   assert.equal(next(parseCron("0 0 31 2 *"), at("2026-11-19T00:00:00Z"), "UTC"), null);
 });
 
-test("the spring-forward hour that does not exist is skipped, the day still runs", () => {
-  // New York, 2027-03-14: 02:00 jumps to 03:00. A 02:30 job has no 02:30 that day.
+test("spring forward: a slot in the hour that does not exist runs once, shifted by the hour, never lost", () => {
+  // New York, 2027-03-14: 02:00 jumps to 03:00. A 02:30 job has no 02:30 that day: it runs at 03:30.
   const c = parseCron("30 2 * * *");
-  const n = next(c, at("2027-03-14T00:00:00Z"), "America/New_York");
-  assert.equal(n, at("2027-03-15T06:30:00Z")); // the next day's 02:30 (EDT, UTC-4)
+  assert.equal(next(c, at("2027-03-14T00:00:00Z"), "America/New_York"), at("2027-03-14T07:30:00Z"));
+  // and the day after is the plain 02:30 (EDT, UTC-4)
+  assert.equal(next(c, at("2027-03-14T07:30:00Z"), "America/New_York"), at("2027-03-15T06:30:00Z"));
+});
+
+test("spring forward: the Monday after the change still has its 00:00 slot (Berlin and New York)", () => {
+  const c = parseCron("0 0 * * 1");
+  assert.equal(next(c, at("2027-03-08T12:00:00Z"), "America/New_York"), at("2027-03-15T04:00:00Z")); // Monday 15 Mar 00:00 EDT
+  assert.equal(next(c, at("2027-03-22T12:00:00Z"), "Europe/Berlin"), at("2027-03-28T22:00:00Z")); // Monday 29 Mar 00:00 CEST
+});
+
+test("fall back: a slot in the hour that happens twice runs once, at the first, never doubled", () => {
+  // New York, 2027-11-07: 02:00 EDT goes back to 01:00 EST, so 01:30 happens twice. A 01:30 job runs once, at the first 01:30 (05:30Z).
+  const c = parseCron("30 1 * * *");
+  const first = next(c, at("2027-11-07T00:00:00Z"), "America/New_York");
+  assert.equal(first, at("2027-11-07T05:30:00Z"));
+  const after = next(c, first as number, "America/New_York");
+  assert.equal(after, at("2027-11-08T06:30:00Z"), "the next one is the next day's, not the repeated 01:30");
+});
+
+test("every hour across the change neither skips nor doubles a slot", () => {
+  const c = parseCron("0 * * * *");
+  const seen: number[] = [];
+  let t = at("2027-03-14T04:30:00Z");
+  for (let i = 0; i < 6; i++) {
+    t = next(c, t, "America/New_York") as number;
+    seen.push(t);
+  }
+  // 00:00 EST, 01:00 EST, 03:00 EDT, 04:00 EDT ... one an hour on the clock, with the skipped 02:00 not invented
+  assert.deepEqual(
+    seen.map((x) => x - at("2027-03-14T05:00:00Z")),
+    [0, 3600_000, 2 * 3600_000, 3 * 3600_000, 4 * 3600_000, 5 * 3600_000],
+  );
+});
+
+test("an impossible date finds nothing, and quickly: a few thousand additions, not years of minutes", () => {
+  const started = performance.now();
+  for (let i = 0; i < 50; i++)
+    assert.equal(next(parseCron("0 0 31 2 *"), at("2026-11-19T00:00:00Z"), "America/New_York"), null);
+  assert.ok(performance.now() - started < 1500, `50 scans took ${Math.round(performance.now() - started)} ms`);
+});
+
+test("a schedule that fires every minute costs a few zone lookups, not a day of them", () => {
+  const started = performance.now();
+  for (let i = 0; i < 500; i++)
+    next(parseCron("* * * * *"), at("2026-11-19T10:00:30Z") + i * 60_000, "America/New_York");
+  assert.ok(performance.now() - started < 1500, `500 lookups took ${Math.round(performance.now() - started)} ms`);
 });
 
 test("latestBefore finds the newest slot inside the window", () => {

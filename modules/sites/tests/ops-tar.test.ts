@@ -63,3 +63,28 @@ test("streaming: never holds more than the cap, and a cut tar gives null", () =>
   assert.equal(t.done, false);
   assert.equal(t.result(), null);
 });
+
+test("streaming in parts: every part is the size asked but the last, the parts join to the file, and nothing larger is held", () => {
+  for (const step of [1, 100, 512, 4096])
+    for (const n of [0, 1, 299, 300, 301, 1000]) {
+      const data = new Uint8Array(n).map((_, i) => i % 247);
+      const t = new TarFirst(10_000, 300);
+      const parts: Uint8Array[] = [];
+      const tar = tarFiles([{ path: "x", data }]);
+      for (let i = 0; i < tar.length; i += step) {
+        t.push(tar.subarray(i, i + step));
+        parts.push(...t.takeParts());
+      }
+      parts.push(...t.takeParts());
+      const lens = parts.map((p) => p.length);
+      assert.ok(
+        lens.slice(0, -1).every((l) => l === 300),
+        `step ${step} size ${n}: ${lens.join(",")}`,
+      );
+      assert.ok(lens.length === 0 || (lens.at(-1) as number) <= 300);
+      assert.deepEqual(
+        parts.flatMap((p) => Array.from(p)),
+        Array.from(data),
+      );
+    }
+});

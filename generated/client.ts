@@ -2573,6 +2573,7 @@ export function createClient(transport: Transport) {
       artifact_thumb_set: call("sites.artifact_thumb_set", 1),
       backup_create: call("sites.backup_create", 1),
       backup_delete: call("sites.backup_delete", 1),
+      backup_download: call("sites.backup_download", 1),
       backup_pin: call("sites.backup_pin", 1),
       backup_restore: call("sites.backup_restore", 1),
       backups_list: call("sites.backups_list", 1),

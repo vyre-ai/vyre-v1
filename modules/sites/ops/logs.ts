@@ -27,7 +27,9 @@ export interface LogCaps {
 }
 export const LOG_CAPS: LogCaps = { lineChars: 4000, lines: 5000, bytes: 2_000_000, scopes: 40 };
 
-const ANSI = /\u001b\[[0-9;?]*[A-Za-z]/g;
+// every escape sequence (colour, cursor, window title, anything started by ESC), the C1 controls, bell and the other C0 controls except tab: none of it reaches a screen or a clipboard
+const ANSI =
+  /\u001b\[[0-9;?]*[ -\/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)?|\u001b[ -\/]*[@-~]?|[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g;
 
 /** One raw chunk (a Docker frame, a build line) as clean lines: no colour codes, no carriage returns, no blank lines, none longer than the cap. */
 export function cleanLines(raw: string, lineChars: number = LOG_CAPS.lineChars): string[] {

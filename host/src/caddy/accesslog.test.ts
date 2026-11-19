@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import net from "node:net";
 import { test } from "node:test";
 import { CaddyAdmin } from "./admin.ts";
-import { ACCESS_LOG, MAX_LINE, accessLogConfig, ensureAccessLog, startAccessSink } from "./accesslog.ts";
+import {
+  ACCESS_LOG,
+  MAX_CONNECTIONS,
+  MAX_LINE,
+  accessLogConfig,
+  ensureAccessLog,
+  startAccessSink,
+} from "./accesslog.ts";
 import { FakeCaddy } from "./fake.ts";
 
 test("the config sends only finished-request lines to this machine's port, with headers removed", () => {
@@ -82,4 +89,43 @@ test("a line that never ends closes the connection, and a throwing handler does 
     s.on("close", () => setTimeout(resolve, 20));
   });
   assert.deepEqual(got, ["boom", "fine"]);
+});
+
+test("only a few connections are taken, so a local process cannot hold the listener's memory", async (t) => {
+  const got: string[] = [];
+  const sink = await startAccessSink((l) => got.push(l));
+  t.after(() => sink.close());
+  const socks: net.Socket[] = [];
+  for (let i = 0; i < MAX_CONNECTIONS; i++)
+    socks.push(
+      await new Promise<net.Socket>((r) => {
+        const s = net.connect(sink.port, "127.0.0.1", () => r(s));
+      }),
+    );
+  const extra = await new Promise<boolean>((resolve) => {
+    const s = net.connect(sink.port, "127.0.0.1");
+    s.on("close", () => resolve(true));
+    s.on("error", () => resolve(true));
+    setTimeout(() => resolve(false), 1000);
+  });
+  assert.equal(extra, true, "the ninth is closed");
+  for (const s of socks) s.destroy();
+});
+
+test("Caddy hands back its own copy with defaults added: that is still the same, so nothing is rewritten every minute (found against a real Caddy)", async () => {
+  const w = world();
+  await ensureAccessLog(w.admin, 4000);
+  const logs = (w.fake.config?.["logging"] as { logs: Record<string, Record<string, unknown>> }).logs;
+  logs[ACCESS_LOG]!["level"] = "";
+  (logs[ACCESS_LOG]!["writer"] as Record<string, unknown>)["dial_timeout"] = "2s";
+  ((w.fake.config?.["apps"] as any).http.servers.vyre as Record<string, unknown>)["extra_default"] = true; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const writes = w.fake.calls.filter((c) => c.method !== "GET").length;
+  assert.equal(await ensureAccessLog(w.admin, 4000), "same");
+  assert.equal(w.fake.calls.filter((c) => c.method !== "GET").length, writes);
+});
+
+test("a Caddy with no logging at all answers 400 for the missing parent, not 404, and that is read as 'not there'", async () => {
+  const w = world();
+  assert.equal(w.fake.config?.["logging"], undefined);
+  assert.equal(await ensureAccessLog(w.admin, 4000), "set");
 });

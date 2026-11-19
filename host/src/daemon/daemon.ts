@@ -5505,6 +5505,27 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   attrs: { site: a.siteId },
                 });
             }
+            // a database with no backup for a day gets one, as the site's owner (kept seven days, a Keep never goes)
+            const owed =
+              (
+                sitesExports?.["dueBackupSites"] as
+                  | ((c: { db: unknown }, now: number) => { siteId: string; as: string }[])
+                  | undefined
+              )?.({ db: db! }, Date.now()) ?? [];
+            for (const o2 of owed)
+              await invoke(
+                "sites.backup_create",
+                { siteId: o2.siteId, scheduled: true },
+                { space: spaceId, principal: { kind: "person", id: o2.as }, origin: "sites-backup" },
+              ).catch(() =>
+                sink.log({
+                  space: spaceId,
+                  level: 30,
+                  msg: "sites.backup_skipped",
+                  place: "sites",
+                  attrs: { site: o2.siteId },
+                }),
+              );
           };
           // Caddy writes a line for each finished request of a deployed site to a loopback port here; the sites module counts them (CPU is read from Docker, requests only from here)
           let accessSink: AccessSink | null = null;

@@ -593,7 +593,7 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
             )
           }
         />
-        {pg?.state === "ready" ? <Backups siteId={id} /> : null}
+        {pg?.state === "ready" ? <Backups siteId={id} siteName={x.name} /> : null}
         {pg?.state === "ready" ? (
           <>
             <Text style={ui.text}>

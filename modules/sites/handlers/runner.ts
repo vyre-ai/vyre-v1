@@ -109,8 +109,16 @@ export interface Runner {
   removeAddon(siteId: string, kind: AddonKind): Promise<void>;
   /** run a command in a site's container, as its own user; the env values go only through the exec's environment */
   exec(containerId: string, cmd: string[], env: Record<string, string>): Promise<{ code: number; out: string }>;
-  /** one file a command wrote under /tmp/vyre-backup, as its bytes (Docker sends it inside a tar; the first file is returned) */
-  getFile(containerId: string, path: string, maxBytes: number): Promise<Uint8Array>;
+  /** one file a command wrote under /tmp/vyre-backup, handed over in parts as it arrives (Docker sends it inside a tar), and its size; a file over maxBytes is refused at its header */
+  getFileParts(
+    containerId: string,
+    path: string,
+    maxBytes: number,
+    partBytes: number,
+    onPart: (part: Uint8Array) => Promise<void>,
+  ): Promise<number>;
+  /** like state, but a container that is not there (404) is null and any other failure of the engine throws: "unknown" is not "gone" */
+  stateStrict(containerId: string): Promise<{ running: boolean; exitCode?: number; oom?: boolean } | null>;
   /** put one file into a container's folder */
   put(containerId: string, dir: string, name: string, bytes: Uint8Array): Promise<void>;
 }
@@ -773,9 +781,13 @@ export function dockerRunner(link: RunnerLink): Runner {
       await call({ method: "DELETE", path: `/volumes/${name}-data` });
     },
 
-    async getFile(containerId, path, maxBytes) {
-      const tar = new TarFirst(maxBytes);
+    async getFileParts(containerId, path, maxBytes, partBytes, onPart) {
+      const tar = new TarFirst(maxBytes, partBytes);
+      let total = 0;
+      let chain: Promise<void> = Promise.resolve();
+      let chainErr: unknown = null;
       await new Promise<void>((resolve, reject) => {
+        let failed = false;
         const q = http.request(
           {
             socketPath: link.socketPath,
@@ -796,28 +808,75 @@ export function dockerRunner(link: RunnerLink): Runner {
               );
               return;
             }
+            const fail = (e: unknown): void => {
+              failed = true;
+              q.destroy();
+              reject(e);
+            };
+            // parts are handed over one at a time and the connection waits for each: no more than one part and one chunk is ever held
+            const hand = (): void => {
+              const parts = tar.takeParts();
+              if (parts.length === 0) return;
+              res.pause();
+              chain = chain
+                .then(async () => {
+                  for (const p of parts) {
+                    total += p.length;
+                    await onPart(p);
+                  }
+                })
+                .then(
+                  () => res.resume(),
+                  (e) => {
+                    chainErr = e;
+                    fail(e);
+                  },
+                );
+            };
             res.on("data", (c: Buffer) => {
               try {
                 tar.push(c);
-                if (tar.done) q.destroy();
               } catch (e) {
-                q.destroy();
-                reject(e);
+                return fail(e);
               }
+              hand();
+              if (tar.done) q.destroy();
             });
             res.on("end", () => resolve());
-            res.on("error", (e) => (tar.done ? resolve() : reject(e)));
+            res.on("error", (e) => (tar.done && !failed ? resolve() : reject(e)));
           },
         );
         const timer = setTimeout(() => q.destroy(new Error("the copy took longer than 10 minutes")), 10 * 60_000);
         timer.unref?.();
         q.on("close", () => clearTimeout(timer));
-        q.on("error", (e) => (tar.done ? resolve() : reject(e)));
+        q.on("error", (e) => (tar.done && !failed ? resolve() : reject(e)));
         q.end();
       });
-      const file = tar.result();
-      if (!file) throw new Error("The file was not in what the container sent.");
-      return file;
+      await chain;
+      if (chainErr) throw chainErr;
+      for (const p of tar.takeParts()) {
+        total += p.length;
+        await onPart(p);
+      }
+      if (!tar.done) throw new Error("The file was not in what the container sent.");
+      return total;
+    },
+
+    async stateStrict(containerId) {
+      const r = await call({ method: "GET", path: `/containers/${containerId}/json` });
+      if (r.status === 404) return null;
+      if (r.status !== 200) throw new Error(`the engine answered ${r.status}`);
+      const st =
+        (
+          parse(r.body) as {
+            State?: { Running?: boolean; Restarting?: boolean; ExitCode?: number; OOMKilled?: boolean };
+          } | null
+        )?.State ?? {};
+      return {
+        running: st.Running === true && st.Restarting !== true,
+        ...(typeof st.ExitCode === "number" ? { exitCode: st.ExitCode } : {}),
+        ...(st.OOMKilled ? { oom: true } : {}),
+      };
     },
 
     async put(containerId, dir, name, bytes) {

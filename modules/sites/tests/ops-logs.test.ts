@@ -219,3 +219,11 @@ test("secret values of a site's environment are hidden in what is read, plain se
   assert.equal(mask("listening on 3000 in production", secrets), "listening on 3000 in production");
   assert.equal(mask("a", []), "a");
 });
+
+test("every escape sequence and control character is removed from a line, so none reaches a screen or the clipboard", () => {
+  assert.deepEqual(cleanLines("\u001b]0;evil title\u0007text"), ["text"]);
+  assert.deepEqual(cleanLines("\u001b]8;;http://x\u001b\\link\u001b]8;;\u001b\\"), ["link"]);
+  assert.deepEqual(cleanLines("a\u0007b\u0000c\u009bd\u001b[2Je"), ["abcde"]);
+  assert.deepEqual(cleanLines("\u001b[1;31mred\u001b[0m"), ["red"]);
+  assert.deepEqual(cleanLines("tab\there"), ["tab\there"], "a tab is kept");
+});

@@ -49,8 +49,34 @@ export class TarFirst {
   private got = 0;
   private parts: Uint8Array[] = [];
   done = false;
-  constructor(max: number) {
+  /** with a part size, the file is handed over in parts of that size (takeParts) and never held whole */
+  private partBytes: number;
+  private pendingLen = 0;
+  private full: Uint8Array[] = [];
+  constructor(max: number, partBytes = 0) {
     this.max = max;
+    this.partBytes = partBytes;
+  }
+  private join(chunks: Uint8Array[], n: number): Uint8Array {
+    const out = new Uint8Array(n);
+    let o = 0;
+    for (const c of chunks) {
+      out.set(c, o);
+      o += c.length;
+    }
+    return out;
+  }
+  /** The complete parts so far, each exactly the part size; after the end, the last smaller one too. */
+  takeParts(): Uint8Array[] {
+    if (this.partBytes === 0) return [];
+    if (this.done && this.pendingLen > 0) {
+      this.full.push(this.join(this.parts, this.pendingLen));
+      this.parts = [];
+      this.pendingLen = 0;
+    }
+    const out = this.full;
+    this.full = [];
+    return out;
   }
   push(chunk: Uint8Array): void {
     let at = 0;
@@ -85,9 +111,22 @@ export class TarFirst {
         continue;
       }
       const t = Math.min(this.size - this.got, chunk.length - at);
-      this.parts.push(chunk.slice(at, at + t));
+      let piece = chunk.slice(at, at + t);
       this.got += t;
       at += t;
+      if (this.partBytes > 0) {
+        while (this.pendingLen + piece.length >= this.partBytes) {
+          const need = this.partBytes - this.pendingLen;
+          this.full.push(this.join([...this.parts, piece.subarray(0, need)], this.partBytes));
+          this.parts = [];
+          this.pendingLen = 0;
+          piece = piece.subarray(need);
+        }
+        if (piece.length > 0) {
+          this.parts.push(piece);
+          this.pendingLen += piece.length;
+        }
+      } else this.parts.push(piece);
       if (this.got === this.size) this.done = true;
     }
   }

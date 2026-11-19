@@ -30,6 +30,7 @@ import { opsHandlers } from "./handlers/ops.ts";
 import { jobHandlers } from "./handlers/ops-jobs.ts";
 import { backupHandlers } from "./handlers/ops-backups.ts";
 export { refreshDomainRoutes } from "./handlers/route-domains.ts";
+export { dueBackupSites } from "./handlers/ops-backups.ts";
 export { opsTickOf as opsTick, accessLineOf as accessLine } from "./handlers/ops-host.ts";
 
 // A site is a route (owner, 2 Nov): handlers/route.ts is what ships. The build pipeline below it (deploy, previews, staging, promote, site tables) is dormant and deferred: each of its capabilities stays registered and

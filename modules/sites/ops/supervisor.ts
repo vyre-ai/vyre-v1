@@ -107,30 +107,42 @@ export class Supervisor {
 
   // ---- workers
 
-  private apply(v: Service, ev: ServiceEvent, containerId?: string | null): Service {
-    const out = advance(v, ev).service;
-    st.saveService(this.d.db, out, containerId);
-    return out;
-  }
-
   private async service(r: SuperRunner, v0: st.ServiceRow, site: SiteContext | null): Promise<void> {
     const now = this.d.now();
+    const db = this.d.db;
     let v: Service = v0;
     let cid = v0.containerId ?? null;
+    // every save names the state the row was last seen in: a person's Stop or Restart made meanwhile wins, and this pass ends
+    let was = v0.state;
+    const put = (next: Service, c?: string | null): boolean => {
+      const ok = st.saveServiceIf(db, next, was, c);
+      if (ok) was = next.state;
+      return ok;
+    };
     // a service that should not run has no container
     if ((v.state === "stopped" || v.state === "backoff" || v.state === "failed") && cid) {
       await r.remove(cid).catch(() => undefined);
-      st.saveService(this.d.db, v, null);
+      if (!put(v, null)) return;
       cid = null;
     }
-    // it stopped by itself: that is a crash
+    // it stopped by itself: that is a crash. An engine that does not answer is not a crash: nothing is changed and the next tick asks again
     if ((v.state === "starting" || v.state === "running") && cid) {
-      const s = await r.state(cid);
+      let s: Awaited<ReturnType<SuperRunner["state"]>>;
+      try {
+        s = await r.state(cid);
+      } catch {
+        return;
+      }
       if (!s || !s.running) {
         await r.remove(cid).catch(() => undefined);
-        v = this.apply(v, { t: "exited", at: now, code: s?.exitCode ?? 255, ...(s?.oom ? { oom: true } : {}) }, null);
+        v = advance(v, { t: "exited", at: now, code: s?.exitCode ?? 255, ...(s?.oom ? { oom: true } : {}) }).service;
+        if (!put(v, null)) return;
         cid = null;
       }
+    } else if (v.state === "running" && !cid) {
+      // running with no container is a row the page would show as running for nothing: it crashed
+      v = advance(v, { t: "exited", at: now, code: 255 }).service;
+      if (!put(v, null)) return;
     }
     // a newer deploy: restart on its image
     if (
@@ -141,18 +153,19 @@ export class Supervisor {
       v0.deploymentId !== site.deploymentId
     ) {
       await r.remove(cid).catch(() => undefined);
-      v = this.apply(v, { t: "restart", at: now }, null);
+      v = advance(v, { t: "restart", at: now }).service;
+      if (!put(v, null)) return;
       cid = null;
     }
     v = advance(v, { t: "tick", at: now }).service;
     // backoff over, or just wanted: start it
     if (v.state === "starting" && !cid) {
       if (!site) {
-        st.saveService(this.d.db, { ...v, state: "stopped", note: NO_SITE }, null);
+        put({ ...v, state: "stopped", note: NO_SITE }, null);
         return;
       }
       // the row says starting with no container before one is made, so the claim below can tell a row that was stopped meanwhile
-      st.saveService(this.d.db, v, null);
+      if (!put(v, null)) return;
       let made: { containerId: string } | null = null;
       try {
         const env = (await r.envOf(site.containerId)) ?? {};
@@ -166,11 +179,15 @@ export class Supervisor {
           limits: site.limits,
         });
       } catch (e) {
-        v = advance(v, { t: "spawned", at: now }).service;
-        v = advance(v, { t: "exited", at: now, code: 255 }).service;
-        st.saveService(
-          this.d.db,
-          { ...v, note: `It could not start: ${(e instanceof Error ? e.message : String(e)).slice(0, 160)}` },
+        // a start that could not happen is not a crash of the worker: it waits and tries again, and does not count toward the crash loop
+        const before = v.crashes;
+        v = advance(advance(v, { t: "spawned", at: now }).service, { t: "exited", at: now, code: 255 }).service;
+        put(
+          {
+            ...v,
+            crashes: before,
+            note: `It could not start: ${(e instanceof Error ? e.message : String(e)).slice(0, 160)}`,
+          },
           null,
         );
         return;
@@ -178,18 +195,13 @@ export class Supervisor {
       // the container exists: it is written onto the row only if the row still wants one; otherwise (stopped, removed, or the save failed) it is removed, never left running with no row
       let kept = false;
       try {
-        kept = st.claimService(
-          this.d.db,
-          advance(v, { t: "spawned", at: now }).service,
-          made.containerId,
-          site.deploymentId,
-        );
+        kept = st.claimService(db, advance(v, { t: "spawned", at: now }).service, made.containerId, site.deploymentId);
       } finally {
         if (!kept) await r.remove(made.containerId).catch(() => undefined);
       }
       return;
     }
-    st.saveService(this.d.db, v);
+    put(v);
   }
 
   // ---- jobs
@@ -207,7 +219,14 @@ export class Supervisor {
       PARALLEL,
       async (x) => {
         const j = jobs.get(x.jobId);
-        const s = await r.state(x.containerId as string);
+        let s: Awaited<ReturnType<SuperRunner["state"]>>;
+        try {
+          s = await r.state(x.containerId as string);
+        } catch {
+          // the engine did not answer: the run is neither ended nor lost; it is looked at again next tick
+          alive.add(x.id);
+          return;
+        }
         const t: Target = {
           siteId: x.siteId,
           scope: x.id,

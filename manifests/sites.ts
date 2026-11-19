@@ -999,10 +999,23 @@ export default defineManifest({
     }),
     read(
       "sites.backups_list",
-      "A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under two weeks old are kept",
+      "A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under seven days old are kept, and ones marked Keep (at most three) never go",
       {
         in: { siteId: id.site },
-        out: { backups: t.arr(backupRow), hasDatabase: t.bool(), database: t.opt(t.obj({ bytes: t.opt(t.int()) })) },
+        out: {
+          backups: t.arr(backupRow),
+          hasDatabase: t.bool(),
+          database: t.opt(
+            t.obj({
+              bytes: t.opt(t.int()),
+              replacedBytes: t.opt(
+                t.int({
+                  description: "The database a restore replaced, kept until the backup made before the restore expires",
+                }),
+              ),
+            }),
+          ),
+        },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
         tool: "sites",
@@ -1012,11 +1025,23 @@ export default defineManifest({
       "sites.backup_create",
       "Back up the site's Postgres now. It runs in the background: read sites_backups_list to see it finish",
       {
-        in: { siteId: id.site },
+        in: { siteId: id.site, scheduled: t.opt(t.bool({ description: "Made by the daily schedule, not a person" })) },
         out: { backup: backupRow },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
         level: "edit",
+        tool: "sites",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    read(
+      "sites.backup_download",
+      "Where to fetch a finished backup from: one address per part (a dump over 32 MB is kept in parts: join them in order). Readable by whoever can see the site",
+      {
+        in: { siteId: id.site, backupId: t.id("bkp") },
+        out: { files: t.arr(t.obj({ name: t.str(), url: t.str(), bytes: t.opt(t.int()) })), note: t.opt(t.str()) },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
         tool: "sites",
         errors: ["validation.precondition_failed"],
       },

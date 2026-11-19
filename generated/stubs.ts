@@ -2573,6 +2573,7 @@ export function stubs(ctx: CallCtx) {
       artifact_thumb_set: call("sites.artifact_thumb_set"),
       backup_create: call("sites.backup_create"),
       backup_delete: call("sites.backup_delete"),
+      backup_download: call("sites.backup_download"),
       backup_pin: call("sites.backup_pin"),
       backup_restore: call("sites.backup_restore"),
       backups_list: call("sites.backups_list"),

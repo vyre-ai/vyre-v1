@@ -12,6 +12,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.artifact_thumb_set": Handler<"sites.artifact_thumb_set", X>;
   "sites.backup_create": Handler<"sites.backup_create", X>;
   "sites.backup_delete": Handler<"sites.backup_delete", X>;
+  "sites.backup_download": Handler<"sites.backup_download", X>;
   "sites.backup_pin": Handler<"sites.backup_pin", X>;
   "sites.backup_restore": Handler<"sites.backup_restore", X>;
   "sites.backups_list": Handler<"sites.backups_list", X>;

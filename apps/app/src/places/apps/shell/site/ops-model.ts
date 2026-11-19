@@ -420,3 +420,28 @@ export function jobProblem(f: { name: string; schedule: string; command: string 
   if (f.command.trim() === "") return "Give the command to run.";
   return null;
 }
+
+/** The sentence the restore confirmation puts above the name field: which backup, how big, and what happens first. */
+export function restoreSentence(when: string, bytes: number | undefined): string {
+  return `Put back the backup from ${when}${bytes !== undefined ? ` (${sizeText(bytes)})` : ""}? A copy of what is in the database now is made first and kept for 7 days. The site's connections drop for a moment while the new database is switched in.`;
+}
+
+/** The name typed to confirm matches the site's name (capitals and spaces at the ends do not matter). */
+export const confirmOk = (typed: string, siteName: string): boolean =>
+  siteName.trim() !== "" && typed.trim().toLowerCase() === siteName.trim().toLowerCase();
+
+export interface DbOut {
+  bytes?: number;
+  replacedBytes?: number;
+}
+/** What the Backups header says under its title. */
+export function databaseLine(db: DbOut | undefined, hasReady: boolean): string {
+  const parts: string[] = [];
+  if (db?.bytes !== undefined) parts.push(`The database is ${sizeText(db.bytes)}.`);
+  parts.push(hasReady ? "Kept on this server." : "None yet.");
+  if (db?.replacedBytes !== undefined)
+    parts.push(
+      `The database before the last restore (${sizeText(db.replacedBytes)}) is kept until its backup expires.`,
+    );
+  return parts.join(" ");
+}

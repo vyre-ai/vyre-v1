@@ -119,40 +119,67 @@ export function validZone(tz: string): boolean {
 }
 
 const MIN = 60_000;
+const DAY = 24 * 60 * MIN;
 const floorMinute = (t: number): number => Math.floor(t / MIN) * MIN;
 
-function dayOk(c: Cron, l: Local): boolean {
-  const dom = c.days.has(l.d);
-  const dow = c.weekdays.has(l.wd);
+function dayOk(c: Cron, d: number, wd: number): boolean {
+  const dom = c.days.has(d);
+  const dow = c.weekdays.has(wd);
   if (c.anyDay && c.anyWeekday) return true;
   if (c.anyDay) return dow;
   if (c.anyWeekday) return dom;
   return dom || dow;
 }
 
-/** The first matching minute strictly after `after`, or null when none exists in the next 5 years (such as 31 February). */
+/** Minutes the zone is ahead of UTC at an instant (daylight saving included). */
+export function offsetMin(t: number, tz: string): number {
+  const l = localOf(t, tz);
+  return Math.round((Date.UTC(l.y, l.mo - 1, l.d, l.h, l.mi) - floorMinute(t)) / MIN);
+}
+
+/**
+ * The instant a wall-clock time in a zone happens, once and only once. A time that does not exist (the hour skipped when clocks go forward) happens at the same moment shifted by the skipped hour,
+ * so a slot is never lost; a time that happens twice (clocks go back) is the first of them, so a slot is never doubled.
+ */
+export function instantOf(y: number, mo: number, d: number, h: number, mi: number, tz: string): number {
+  const wall = Date.UTC(y, mo - 1, d, h, mi);
+  const offs = [...new Set([offsetMin(wall - DAY, tz), offsetMin(wall + DAY, tz)])];
+  const valid = offs.map((o) => wall - o * MIN).filter((t, i) => offsetMin(t, tz) === offs[i]);
+  if (valid.length > 0) return Math.min(...valid);
+  return wall - Math.min(...offs) * MIN;
+}
+
+/**
+ * The first matching minute strictly after `after`, or null when none exists in the next 5 years (such as 31 February). Days are stepped by date arithmetic, so a schedule that rarely or never
+ * matches costs a few thousand additions and no more; the zone is consulted only for the days that match.
+ */
 export function next(c: Cron, after: number, tz: string): number | null {
-  let t = floorMinute(after) + MIN;
-  const stop = after + 5 * 366 * 24 * 60 * MIN;
-  while (t <= stop) {
-    const l = localOf(t, tz);
-    if (!c.months.has(l.mo)) {
-      t += (24 * 60 - (l.h * 60 + l.mi)) * MIN;
-      continue;
+  const start = localOf(after, tz);
+  const mins = [...c.minutes].sort((a, b) => a - b);
+  const hrs = [...c.hours].sort((a, b) => a - b);
+  let day = Date.UTC(start.y, start.mo - 1, start.d);
+  const stop = day + 5 * 366 * DAY;
+  for (; day <= stop; day += DAY) {
+    const dt = new Date(day);
+    if (!c.months.has(dt.getUTCMonth() + 1)) continue;
+    if (!dayOk(c, dt.getUTCDate(), dt.getUTCDay())) continue;
+    // a day with no change of clocks around it: every slot is the wall time less one offset, and the first one after `after` is the answer
+    const o1 = offsetMin(day - DAY / 2, tz);
+    const o2 = offsetMin(day + DAY + DAY / 2, tz);
+    const plain = o1 === o2;
+    let best: number | null = null;
+    for (const h of hrs) {
+      for (const m of mins) {
+        const t = plain
+          ? Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), h, m) - o1 * MIN
+          : instantOf(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate(), h, m, tz);
+        if (t > after && (best === null || t < best)) best = t;
+        if (plain && best !== null) break;
+      }
+      if (plain && best !== null) break;
     }
-    if (!dayOk(c, l)) {
-      t += (24 * 60 - (l.h * 60 + l.mi)) * MIN;
-      continue;
-    }
-    if (!c.hours.has(l.h)) {
-      t += (60 - l.mi) * MIN;
-      continue;
-    }
-    if (!c.minutes.has(l.mi)) {
-      t += MIN;
-      continue;
-    }
-    return t;
+    // a day's candidates are not always in order of the clock (a shifted slot), so the earliest of the day is taken
+    if (best !== null) return best;
   }
   return null;
 }
