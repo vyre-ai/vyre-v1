@@ -152,15 +152,18 @@ export const scan = (text: unknown): string[] => redact(text).hits;
 // connection string. scrubLog() reads the text one word at a time (no pattern runs over the whole text, so it is linear), removes the value of anything named like a secret in any common spelling, then runs redact()
 // over the result, and cuts to the limit last, at a word boundary, so a key is never split by the cut.
 
+// A secret word ends the name: after the start, a - _ or ., or in camelCase after a lower-case letter (accessToken, secretKey, authToken). Prose that merely ends in such a word is removed too, which a log can afford.
 const SECRET_NAME =
-  /(?:^|[-_.])(?:pass(?:word|wd|phrase)?|pw|secret|token|apikey|api[-_]key|key|auth|authorization|credentials?|session|sid|cookie|signature)$/i;
+  /(?:^|[-_.]|(?<=[a-z0-9]))(?:Pass(?:word|wd|phrase)?|Pw|Secret|Token|Apikey|ApiKey|Key|Auth|Authorization|Credentials?|Session|Sid|Cookie|Signature)$|(?:^|[-_.])(?:pass(?:word|wd|phrase)?|pw|secret|token|apikey|api[-_]key|key|auth|authorization|credentials?|session|sid|cookie|signature)$/;
 const LINE_HEADER = /^(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token|x-amz-security-token):?$/i;
-const FLAG = /^-{1,2}(?:password|passwd|pass|token|secret|api-?key|key|auth|p|u)$/i;
+const FLAG = /^-{1,2}(?:password|passwd|pass|token|secret|api-?key|auth)$/i;
+// -p and -u mean a secret only after a client that takes one (a database client or curl); elsewhere they are "make parents" and "set upstream"
+const SHORT_FLAG = /^-(?:p|u)$/;
 const SCHEME_WORD = /^(?:bearer|basic)$/i;
 const VENDOR_PREFIX =
   /^(?:sk[-_]|pk_(?:live|test)_|rk_(?:live|test)_|gh[pousr]_|github_pat_|xox[abprs]-|xapp-|AKIA|ASIA|AIza|eyJ|SG\.|npm_|dop_v1_)/;
 const LONG_RUN = /[A-Za-z0-9_\-+/=]{20,}/g;
-const DB_TOOL = /^(?:mysql|mysqldump|mariadb|psql|mongosh?|redis-cli)$/i;
+const DB_TOOL = /^(?:mysql|mysqldump|mariadb|psql|mongosh?|redis-cli|curl|wget|http|https)$/i;
 const MAX_WORD = 2000;
 
 const REMOVED = "[removed]";
@@ -172,11 +175,20 @@ function isSecretName(raw: string): boolean {
   return w.length > 0 && w.length <= 60 && SECRET_NAME.test(w);
 }
 
-/** The word with its value taken out when it carries one: name=value, "name":"value", {"name":"value"}; null when it does not. */
+const PAIR = /(["'`]?)([A-Za-z0-9_.-]{1,60})\1([:=])("[^"]{0,500}"|'[^']{0,500}'|[^\s,;&}\])]{0,500})/g;
+
+/**
+ * The word with the value of every secret-named pair taken out (name=value, "name":"value", a query or a JSON text in one word); the rest of the word is kept, so a JSON text still reads. Null when no pair
+ * in it is secret. A pair whose value is in the next word ("password:" then the value) is the caller's: it sees the word ends in the separator.
+ */
 function inlineSecret(word: string): string | null {
-  const m = /^([{[(,]*["'`]?)([A-Za-z0-9_.-]{1,60})(["'`]?)([:=])/.exec(word);
-  if (!m || !isSecretName(m[2] ?? "")) return null;
-  return `${m[1]}${m[2]}${m[3]}${m[4]}${REMOVED}`;
+  let hit = false;
+  const out = word.replace(PAIR, (m, q: string, name: string, sep: string, value: string) => {
+    if (!isSecretName(name) || value === "") return m;
+    hit = true;
+    return `${q}${name}${q}${sep}${REMOVED}`;
+  });
+  return hit ? out : null;
 }
 
 /** An address keeps scheme, host and path: no user name or password, no query, no fragment. */
@@ -193,7 +205,9 @@ function trimAddress(word: string): string {
   return word.slice(0, at + 3) + rest;
 }
 
-/** Remove the secrets from a text before it is written to a log, then cut it to `limit` characters at a word boundary. Never throws; takes time proportional to the text. */
+/**
+ * Not caught, on purpose: a name word followed by a bare value with no separator ("Password hunter2") and user:pass@host with no scheme read as prose; adding them would remove ordinary sentences from every log.
+ * Remove the secrets from a text before it is written to a log, then cut it to `limit` characters at a word boundary. Never throws; takes time proportional to the text. */
 export function scrubLog(input: unknown, limit = 4000): string {
   try {
     let text = String(input ?? "");
@@ -214,7 +228,7 @@ export function scrubLog(input: unknown, limit = 4000): string {
     for (const part of parts) {
       if (part === "" || /^\s+$/.test(part)) {
         out.push(part);
-        if (toNewline && part.includes("\n")) toNewline = false;
+        if (toNewline && /[\r\n]/.test(part)) toNewline = false;
         continue;
       }
       const before = last;
@@ -263,16 +277,20 @@ export function scrubLog(input: unknown, limit = 4000): string {
         out.push(w);
         continue;
       }
-      if (SCHEME_WORD.test(w) || FLAG.test(w)) {
+      if (SCHEME_WORD.test(w) || FLAG.test(w) || (dbCommand > 0 && SHORT_FLAG.test(w))) {
         hide = 1;
         out.push(w);
         continue;
       }
       const inline = inlineSecret(w);
       if (inline !== null) {
-        // name: or name= with the value in the next word ("password: x", {"token": "x"})
-        if (/[:=]$/.test(w)) hide = 1;
-        out.push(inline === `${w}${REMOVED}` && /[:=]$/.test(w) ? w : inline);
+        out.push(inline);
+        continue;
+      }
+      // name: or name= with the value in the next word ("password: x", {"token": "x"})
+      if (/[:=]$/.test(w) && isSecretName(w.replace(/[^A-Za-z0-9_.-]+$/, "").replace(/^[^A-Za-z0-9_.-]+/, ""))) {
+        hide = 1;
+        out.push(w);
         continue;
       }
       if (isSecretName(w) || /^[:=]$/.test(w)) {

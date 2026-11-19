@@ -26,6 +26,11 @@ test("a value is removed whatever the spacing, quoting or place: name=value, spa
   gone("token=abc123&pw=hunter2", "abc123", "hunter2");
   gone("client_secret=abc123", "abc123");
   gone("DATABASE_URL=postgres://u:pass@h/db", "u:pass", "pass@");
+  gone("accessToken=abc123", "abc123");
+  gone('{"accessToken":"abc123"}', "abc123");
+  gone("authToken: abcd1", "abcd1");
+  gone("secretKey=hunter2", "hunter2");
+  gone("clientSecret=hunter2", "hunter2");
 });
 
 test("headers lose the rest of their line: a second cookie, the attributes of a Set-Cookie, a Basic or Bearer credential", () => {
@@ -90,4 +95,15 @@ test("it never throws, whatever it is given", () => {
 test("redact() is unchanged by the move: it is the same function the transcript uses", () => {
   const key = j("sk-", "ant-", "api03-", "A".repeat(24));
   assert.ok(!redact(`x ${key}`).text.includes("AAAAAAAAAAAA"));
+});
+
+test("what is not a secret stays: -p and -u outside a database client or curl, JSON around a removed value, a bare carriage return after a header", () => {
+  assert.equal(scrubLog("mkdir -p /tmp/x"), "mkdir -p /tmp/x");
+  assert.equal(scrubLog("git push -u origin main"), "git push -u origin main");
+  gone("curl -u user:pass https://h", "user:pass");
+  const json = scrubLog('{"secret":"abc","ok":1}');
+  assert.match(json, /"ok":1/, "later keys of the JSON are kept: " + json);
+  assert.ok(!json.includes("abc"));
+  assert.equal(scrubLog('{"password":"hunter2"}').endsWith("}"), true, "the closing brace is kept");
+  assert.match(scrubLog("Cookie: a=b\rnext stays"), /next stays/);
 });
