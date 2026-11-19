@@ -577,6 +577,53 @@ test("a connector that exists before the revision table gets its own revision at
   assert.ok(now > was, "a state change moves the revision");
 });
 
+test("an old database with the first 0006 trigger and no revision rows is upgraded at the restart: the new trigger and the seed are in place, and a roll back after that moves the revision", async () => {
+  const k = kit();
+  const { readFileSync } = await import("node:fs");
+  const def = (secret: string) =>
+    k.hs["connectors.define"](k.ctx, {
+      key: "upg",
+      domains: ["api.upg.test"],
+      auth: { type: "bearer", secret },
+      secrets: [{ name: secret, description: "k" }],
+      actions: [{ name: "ping", url: "https://api.upg.test/ping" }],
+    } as never);
+  await k.hs["connectors.init"](k.ctx, { key: "upg", title: "Upg", mode: "api", source: false } as never);
+  await def("Old_Key");
+  await k.hs["connectors.publish"](k.ctx, { key: "upg" });
+  const first = k.tx.get<{ version: string }>(
+    "SELECT version FROM cn_versions WHERE key = 'upg' ORDER BY at, rowid LIMIT 1",
+  )!.version;
+  await def("New_Key");
+  await k.hs["connectors.publish"](k.ctx, { key: "upg" });
+  // the database as the first 0006 left it: only the definition trigger, no per-connector rows, a sequence at zero
+  k.tx.exec("DROP TRIGGER IF EXISTS cn_revision_changed");
+  k.tx.exec(
+    "CREATE TRIGGER cn_revision_update AFTER UPDATE OF def ON cn_connectors WHEN OLD.def IS NOT NEW.def BEGIN UPDATE cn_revision_seq SET n = n + 1 WHERE id = 1; INSERT OR REPLACE INTO cn_revisions (key, rev) SELECT NEW.key, n FROM cn_revision_seq WHERE id = 1; END;",
+  );
+  k.tx.run("DELETE FROM cn_revisions");
+  k.tx.run("UPDATE cn_revision_seq SET n = 0");
+  // the restart runs the migration again
+  k.tx.exec(readFileSync(new URL("../migrations/0006_revisions.sql", import.meta.url), "utf8"));
+  const names = k.tx
+    .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'cn_connectors'")
+    .map((r) => r.name);
+  assert.ok(names.includes("cn_revision_changed"), "the new trigger is in place");
+  assert.ok(!names.includes("cn_revision_update"), "the old one is gone");
+  const seeded = k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = 'upg'");
+  assert.ok(seeded && seeded.rev > 0, "the connector has its seeded revision");
+  const before = (await k.hs["connectors.for_service"](k.ctx, { service: "upg" })).connector!.revision;
+  await k.hs["connectors.rollback"](k.ctx, { key: "upg", version: first });
+  const after = (await k.hs["connectors.for_service"](k.ctx, { service: "upg" })).connector!.revision;
+  assert.notEqual(after, before, "a roll back after the upgrade moves the revision");
+  // and a state change moves it too, which the old trigger would not have seen
+  k.tx.run("UPDATE cn_connectors SET state = 'draft' WHERE key = 'upg'");
+  assert.notEqual(
+    k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = 'upg'")!.rev,
+    Number(String(after).slice(1)),
+  );
+});
+
 test("a connector deleted and made again never repeats an earlier revision, even when the clock and the definition are the same", async () => {
   const k = kit();
   const make = async () => {
