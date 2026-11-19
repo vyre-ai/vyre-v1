@@ -878,7 +878,10 @@ test("a push that ran out of tries tells the admins why, in a short plain line w
       recordId: "rec_1",
       outboxId: "out_9",
       error:
-        "The app refused the request (422). Bearer sk_live_abcdefghijklmnopqrstuvwxyz0123456789\n    at pushOne (file:///srv/vyre/modules/sources/handlers/sync.ts:870:11)",
+        // secret-scan: fake
+        "The app refused the request (422). Bearer " +
+        ["sk", "live", "abcdefghijklmnopqrstuvwxyz0123456789"].join("_") +
+        "\n    at pushOne (file:///srv/vyre/modules/sources/handlers/sync.ts:870:11)",
       attempts: 3,
     },
   } as never);
