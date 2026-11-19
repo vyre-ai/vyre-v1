@@ -1,12 +1,13 @@
 // What an outside app did, in plain words (lane r42-mcp, 19 Nov 2026): "Added a task", "Read 3 files". Built from the capability name alone, so a title, a field or a value never leaves a record: this is what Connected
 // apps and the activity list show. Pure: no clock, no I/O.
-type Kind = "add" | "read" | "change" | "remove" | "send" | "export";
+type Kind = "add" | "read" | "change" | "remove" | "send" | "export" | "restore";
 const KIND: ReadonlyArray<readonly [RegExp, Kind]> = [
   [/(^|[._])(delete|remove|trash|purge|purge_trashed|erase|cancel|withdraw|archive|revoke|clear)($|[._])/, "remove"],
+  [/(^|[._])(restore)($|[._])/, "restore"],
   [/(^|[._])(export|export_start|download)($|[._])/, "export"],
   [/(^|[._])(send|remind|reply|forward|launch|invite|share|publish|deploy)($|[._])/, "send"],
   [/(^|[._])(create|add|put|make|post|save|upload|start|new|append|import|capture|request)($|[._])/, "add"],
-  [/(^|[._])(update|set|edit|rename|move|label|pin|pause|mute|assign|transition|complete|tick|change|merge|restore|resume|decide|apply|allow|deny|discuss|assist|adopt|setup)($|[._])/, "change"],
+  [/(^|[._])(update|set|edit|rename|move|label|pin|pause|mute|assign|transition|complete|tick|change|merge|resume|decide|apply|allow|deny|discuss|assist|adopt|setup)($|[._])/, "change"],
   [/(^|[._])(get|read|list|query|search|find|recent|history|count|counts|view|describe|types|changes|brief|context|status|check|verify|today|image|policy|for_service|public_of)($|[._])/, "read"],
 ];
 const NOUN: Readonly<Record<string, readonly [string, string]>> = {
@@ -26,6 +27,7 @@ const NOUN: Readonly<Record<string, readonly [string, string]>> = {
   runs: ["a run", "runs"],
   backup: ["everything in this Space", "everything in this Space"],
   hooks: ["a hook", "hooks"],
+  browser: ["a browser connection", "browser connections"],
   telephony: ["a call or text", "calls and texts"],
   plugins: ["a plugin setting", "plugin settings"],
   gate: ["a Gate rule", "Gate rules"],
@@ -42,8 +44,8 @@ const NOUN: Readonly<Record<string, readonly [string, string]>> = {
   search: ["the Space", "the Space"],
   vault: ["a key", "keys"],
 };
-const PAST: Record<Kind, string> = { add: "Added", read: "Read", change: "Changed", remove: "Removed", send: "Sent", export: "Exported" };
-const WANTS: Record<Kind, string> = { add: "add", read: "read", change: "change", remove: "remove", send: "send", export: "export" };
+const PAST: Record<Kind, string> = { add: "Added", read: "Read", change: "Changed", remove: "Removed", send: "Sent", export: "Exported", restore: "Restored" };
+const WANTS: Record<Kind, string> = { add: "add", read: "read", change: "change", remove: "remove", send: "send", export: "export", restore: "restore" };
 
 /** The kind of act a capability is, and the thing it is about; null when neither is known. */
 export function actOf(cap: string | undefined): { kind: Kind; noun: readonly [string, string] | null } | null {

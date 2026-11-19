@@ -17,7 +17,7 @@ The owner updates the number of a goal whose source is a number they keep
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/goals/number/set |
-| MCP tool | goals_number_set (tasks, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | goal.created, goal.started, goal.updated, goal.status_changed, goal.progress, goal.woken, goal.resumed, goal.reported, goal.step_done, goal.budget_warned, goal.ended, goal.extended |
 

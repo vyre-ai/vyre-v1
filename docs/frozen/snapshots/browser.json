@@ -5,7 +5,7 @@
     "browser.chrome.act@1": "e72a61f35fa96b10280a5b139afff1b1fb0bc9fa00dbadcad94f845fefab286f",
     "browser.sites.list@1": "e31fe61d4aaa49f4525b78992fe7555efdc23b1de19fec63c8cdbbf50e36103f",
     "browser.sites.remove@1": "7b546618c0518d56acd9d0e0680a8dcd8a4df9a91dc2af26ff892d738216c659",
-    "browser.sites.set@1": "a9f98d226af14f357339b4624e45b6ab5c07672424cad115b6c2193180a2bb13"
+    "browser.sites.set@1": "e26102919bf0200376ed840f785783cc8ec66e1c291e3d93b38c46815bdd06c1"
   },
   "events": {
     "browser.site_changed": "4457df88c7daa4bc24a4665ad431d7d35b4b5120807649530e6357ff61cf5f9d"

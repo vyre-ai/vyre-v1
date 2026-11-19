@@ -70,6 +70,8 @@ export interface McpServerDeps {
   maxBodyBytes?: number;
   /** How often an open notification stream sends a comment line, so nothing in between closes it for being quiet, and checks its sign-in still stands. Default 20 s. */
   keepAliveMs?: number;
+  /** How long a stream place stays taken when the response never began. Default 10 s. */
+  unstartedMs?: number;
 }
 
 export interface CallDetail {

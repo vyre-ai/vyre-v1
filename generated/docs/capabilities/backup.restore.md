@@ -17,7 +17,7 @@ Restore from a backup (takes a fresh backup first, replays tombstones before ope
 | Audit | always |
 | Team Space only | yes |
 | HTTP | POST /v1/backup/restore |
-| MCP tool | backup_restore (engineer, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | backup.restored |
 

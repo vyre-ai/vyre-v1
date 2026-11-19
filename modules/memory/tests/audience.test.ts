@@ -149,8 +149,6 @@ const NO_CONTENT: Record<string, string> = {
   "memory.upkeep.status": "spend and run counts",
   "memory.meaning.status": "model state",
   "memory.meaning.rank": "ranks text the caller already holds",
-  "memory.chat_learning.get": "one flag: whether this chat is remembered",
-  "memory.learning.today": "the person's own quota numbers, no memory text",
 };
 
 test("every memory read an agent can call is in the table: a new tool cannot skip the audience check", () => {

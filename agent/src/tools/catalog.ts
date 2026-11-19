@@ -63,11 +63,11 @@ export function statesLimits(v: unknown): unknown {
   return out;
 }
 
-/** The tools added for the full set (mcp-coverage.ts) show one plain line: the first sentence, cut at 100 characters. What a model is shown of its tools may only go down (scripts/tool-tokens.test.ts). */
+/** The tools added for the full set (mcp-coverage.ts) show one plain line: the first sentence, cut at 72 characters. What a model is shown of its tools may only go down (scripts/tool-tokens.test.ts). */
 export function oneLine(cap: string, text: string): string {
   if (!(cap in MCP_TOOLS)) return text;
   const first = (text.split(/\.(?:\s|$)|; /)[0] ?? text).replace(/^(Console|System|Space admins): /, "");
-  const cut = first.length <= 100 ? first : `${first.slice(0, 97).replace(/\s+\S*$/, "")}...`;
+  const cut = first.length <= 72 ? first : `${first.slice(0, 69).replace(/\s+\S*$/, "")}...`;
   return cut.charAt(0).toUpperCase() + cut.slice(1);
 }
 

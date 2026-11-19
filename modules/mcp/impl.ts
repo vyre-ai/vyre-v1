@@ -493,7 +493,10 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
       const named = q["client_id"];
       if (named && isDocId(named) && (clientBy(o.db, named) === null || docIsOld(o.db, named, at))) {
         const doc = await fetchDoc(named, o.clientDocGet ?? createGuardedFetch({ own: false }));
-        if (!("refused" in doc)) keepDoc(o.db, doc, at);
+        if (!("refused" in doc) && !keepDoc(o.db, doc, at)) {
+          const full = refusalPage("Too many apps", "This Space has no room for another app right now. Try again later.");
+          return { status: 503, headers: { ...full.headers }, body: full.body };
+        }
       }
       const begun = beginAuthorize(o.db, q, origin, at);
       if (begun.kind === "refuse") {

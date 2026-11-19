@@ -9017,37 +9017,6 @@
     },
     {
       "blocks": [],
-      "cap": "backup.restore",
-      "deferred": true,
-      "description": "Restore from a backup (takes a fresh backup first, replays tombstones before opening for traffic)",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "backupId": {
-            "examples": [
-              "bkp_a1b2c3"
-            ],
-            "pattern": "^bkp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "confirm": {
-            "const": true,
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "backupId",
-          "confirm"
-        ],
-        "type": "object"
-      },
-      "name": "backup_restore",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "backup.restore_preview",
       "deferred": false,
       "description": "Show what a restore would change: sequence range, tombstones to replay, members affected",
@@ -9279,6 +9248,75 @@
         "type": "object"
       },
       "name": "browser_sites_remove",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "browser.sites.set",
+      "deferred": true,
+      "description": "Add a Browser connection, or change one: where it runs and which agents may Read only or Act. Sends, posts, payments and deletes are always held for you",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "host": {
+            "examples": [
+              "app.gohighlevel.com"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "rights": {
+            "items": {
+              "properties": {
+                "agentId": {
+                  "examples": [
+                    "agt_a1b2c3"
+                  ],
+                  "pattern": "^agt_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "right": {
+                  "enum": [
+                    "read",
+                    "act"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "agentId",
+                "right"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "runsIn": {
+            "enum": [
+              "chrome",
+              "computers",
+              "both"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "runsIn",
+          "rights",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "browser_sites_set",
       "planMode": "blocked",
       "toolset": "agents",
       "v": 1
@@ -11281,35 +11319,6 @@
     },
     {
       "blocks": [],
-      "cap": "chat.agent_dm.mute",
-      "deferred": true,
-      "description": "Mute agent messages from one person for the rest of my day; what their agents send waits until tomorrow and the person is told. undo lifts it",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "personId": {
-            "examples": [
-              "usr_a1b2c3"
-            ],
-            "pattern": "^usr_[a-z0-9]+$",
-            "type": "string"
-          },
-          "undo": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "personId"
-        ],
-        "type": "object"
-      },
-      "name": "chat_agent_dm_mute",
-      "planMode": "blocked",
-      "toolset": "chats",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "chat.answer_block",
       "deferred": false,
       "description": "Answer a question or plan block; the answer is queued as a wake so the parked turn continues",
@@ -12729,40 +12738,6 @@
     },
     {
       "blocks": [],
-      "cap": "chat.question.withdraw",
-      "deferred": true,
-      "description": "Take back a question: its turn ended without waiting for it. The card closes as withdrawn and its task leaves the Needs you list. Only the agent that asked, or a person in the chat",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "blockId": {
-            "examples": [
-              "blk_a1b2c3"
-            ],
-            "pattern": "^blk_[a-z0-9]+$",
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "threadId",
-          "blockId"
-        ],
-        "type": "object"
-      },
-      "name": "chat_question_withdraw",
-      "planMode": "blocked",
-      "toolset": "chats",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "chat.react",
       "deferred": false,
       "description": "Add or remove a reaction",
@@ -13024,48 +12999,6 @@
     },
     {
       "blocks": [],
-      "cap": "chat.round.discuss",
-      "deferred": true,
-      "description": "Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts \"Decided:\". The engine's hand-off limits cap it at four turns. Only the person who asked",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "messageId": {
-            "examples": [
-              "msg_a1b2c3"
-            ],
-            "pattern": "^msg_[a-z0-9]+$",
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "threadId",
-          "messageId",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "chat_round_discuss",
-      "planMode": "blocked",
-      "toolset": "chats",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "chat.screen.get",
       "deferred": false,
       "description": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
@@ -13317,6 +13250,56 @@
         "type": "object"
       },
       "name": "chat_thread",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.transcript.purge",
+      "deferred": true,
+      "description": "Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 5000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "skipThreadIds": {
+            "items": {
+              "examples": [
+                "thr_a1b2c3"
+              ],
+              "pattern": "^thr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "before",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_transcript_purge",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -15848,32 +15831,6 @@
     },
     {
       "blocks": [],
-      "cap": "conflicts.assist",
-      "deferred": true,
-      "description": "Start the assistant run that compares both sides of a non-restricted conflict (never started for Restricted fields)",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "conflictId": {
-            "examples": [
-              "cfl_a1b2c3"
-            ],
-            "pattern": "^cfl_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "conflictId"
-        ],
-        "type": "object"
-      },
-      "name": "conflicts_assist",
-      "planMode": "blocked",
-      "toolset": "meta",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "conflicts.confirm",
       "deferred": false,
       "description": "Confirm the assistant proposal on a protected field (the Answer task action in Needs you)",
@@ -16475,38 +16432,6 @@
         "type": "object"
       },
       "name": "connectors_build",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "connectors.check_key",
-      "deferred": true,
-      "description": "Try the key a person typed against the app before it is stored; answers ok, rejected, limited (the key works but may not read what the check needs) or unreachable and never repeats the key",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "connector": {
-            "examples": [
-              "hubspot"
-            ],
-            "type": "string"
-          },
-          "secrets": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          }
-        },
-        "required": [
-          "connector",
-          "secrets"
-        ],
-        "type": "object"
-      },
-      "name": "connectors_check_key",
       "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
@@ -24197,6 +24122,56 @@
     },
     {
       "blocks": [],
+      "cap": "files.versions_purge",
+      "deferred": true,
+      "description": "Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 5000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "skipFileIds": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "before",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "files_versions_purge",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "files.viewer_data",
       "deferred": false,
       "description": "Everything the one viewer needs for any file type: text projection, pages, preview address, sheet info, export snapshot for Google-native files, and what the caller may do",
@@ -28368,36 +28343,6 @@
         "type": "object"
       },
       "name": "goals_mark_stuck",
-      "planMode": "blocked",
-      "toolset": "tasks",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "goals.number.set",
-      "deferred": true,
-      "description": "The owner updates the number of a goal whose source is a number they keep",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "goalId": {
-            "examples": [
-              "gol_a1b2c3"
-            ],
-            "pattern": "^gol_[a-z0-9]+$",
-            "type": "string"
-          },
-          "value": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "goalId",
-          "value"
-        ],
-        "type": "object"
-      },
-      "name": "goals_number_set",
       "planMode": "blocked",
       "toolset": "tasks",
       "v": 1
@@ -38506,6 +38451,174 @@
     },
     {
       "blocks": [],
+      "cap": "mail.send_as",
+      "deferred": true,
+      "description": "Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from the inbox the thread came in on)",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "attachments": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bcc": {
+            "items": {
+              "properties": {
+                "address": {
+                  "examples": [
+                    "maya@example.com"
+                  ],
+                  "pattern": "^[^@\\s]+@[^@\\s]+$",
+                  "type": "string"
+                },
+                "contactId": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "address"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "cc": {
+            "items": {
+              "properties": {
+                "address": {
+                  "examples": [
+                    "maya@example.com"
+                  ],
+                  "pattern": "^[^@\\s]+@[^@\\s]+$",
+                  "type": "string"
+                },
+                "contactId": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "address"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "contactId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "draftId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "replyToMessageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          },
+          "senderId": {
+            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "properties": {
+                "address": {
+                  "examples": [
+                    "maya@example.com"
+                  ],
+                  "pattern": "^[^@\\s]+@[^@\\s]+$",
+                  "type": "string"
+                },
+                "contactId": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "address"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "mailboxId",
+          "to",
+          "subject",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mail_send_as",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.send_preview",
       "deferred": false,
       "description": "Dry run of a send: who would be reached and who is suppressed, without sending",
@@ -40849,32 +40962,6 @@
     },
     {
       "blocks": [],
-      "cap": "memory.chat_learning.get",
-      "deferred": true,
-      "description": "Whether a chat is remembered: off means nothing is learned from it",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "threadId"
-        ],
-        "type": "object"
-      },
-      "name": "memory_chat_learning_get",
-      "planMode": "allowed",
-      "toolset": "memory",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "memory.chat_learning.set",
       "deferred": true,
       "description": "Don't remember this chat: anyone in it turns learning off; who turned it off, or who started the chat, turns it back on",
@@ -41760,21 +41847,6 @@
         "type": "object"
       },
       "name": "memory_learned",
-      "planMode": "allowed",
-      "toolset": "memory",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "memory.learning.today",
-      "deferred": true,
-      "description": "What learning from your chats used today against your daily quota (model passes and input tokens), when it resets, and whether it learns with a model or by rules until then",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "memory_learning_today",
       "planMode": "allowed",
       "toolset": "memory",
       "v": 1
@@ -47265,39 +47337,6 @@
     },
     {
       "blocks": [],
-      "cap": "notes.image",
-      "deferred": true,
-      "description": "The image of a note (or a clip screenshot), or with part link its link card picture, for someone who may read it",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "noteId": {
-            "examples": [
-              "nte_a1b2c3"
-            ],
-            "pattern": "^nte_[a-z0-9]+$",
-            "type": "string"
-          },
-          "part": {
-            "enum": [
-              "image",
-              "link"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "noteId"
-        ],
-        "type": "object"
-      },
-      "name": "notes_image",
-      "planMode": "allowed",
-      "toolset": "memory",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "notes.list",
       "deferred": true,
       "description": "The notes the person reads: their own and those shared with them. Pinned first, newest first, with the labels in use",
@@ -49226,63 +49265,6 @@
     },
     {
       "blocks": [],
-      "cap": "plugins.connections.policy",
-      "deferred": true,
-      "description": "Who may add Space connections, and the allow-list that limits what anyone else may add",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "plugins_connections_policy",
-      "planMode": "allowed",
-      "toolset": "agents",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "plugins.connections.policy_set",
-      "deferred": true,
-      "description": "Set who may add Space connections (admins, or whoever manages agents) and the allow-list (registry names, https hosts, packages) for everyone who is not an admin",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "allowList": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "allowListOn": {
-            "type": "boolean"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "spaceAdders": {
-            "enum": [
-              "admins",
-              "managers"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "plugins_connections_policy_set",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "plugins.get",
       "deferred": false,
       "description": "One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought",
@@ -49303,29 +49285,6 @@
         "type": "object"
       },
       "name": "plugins_get",
-      "planMode": "allowed",
-      "toolset": "agents",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "plugins.hooks.list",
-      "deferred": true,
-      "description": "The hooks of the plugins that apply to this agent. They run only in the sandbox.",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "agentId": {
-            "examples": [
-              "agt_a1b2c3"
-            ],
-            "pattern": "^agt_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "name": "plugins_hooks_list",
       "planMode": "allowed",
       "toolset": "agents",
       "v": 1
@@ -55124,46 +55083,6 @@
     },
     {
       "blocks": [],
-      "cap": "runs.purge",
-      "deferred": true,
-      "description": "Remove Runs and step logs older than a time, a batch at a time (retention)",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "before": {
-            "description": "Milliseconds since the Unix epoch",
-            "examples": [
-              1760000000000
-            ],
-            "minimum": 0,
-            "type": "integer"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 5000,
-            "minimum": 1,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "before",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "runs_purge",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "runs.replay",
       "deferred": false,
       "description": "Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer holds clearance",
@@ -57755,32 +57674,6 @@
         "type": "object"
       },
       "name": "settings_pages",
-      "planMode": "allowed",
-      "toolset": "meta",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "settings.public_of",
-      "deferred": true,
-      "description": "A teammate's time zone, working hours, pronouns, title and a public phone, only when they set them themselves",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "personId": {
-            "examples": [
-              "usr_a1b2c3"
-            ],
-            "pattern": "^usr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "personId"
-        ],
-        "type": "object"
-      },
-      "name": "settings_public_of",
       "planMode": "allowed",
       "toolset": "meta",
       "v": 1

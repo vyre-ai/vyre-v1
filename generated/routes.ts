@@ -4481,7 +4481,7 @@ const routes0: Route[] = [
     "risk": "medium",
     "offline": "online",
     "teamOnly": false,
-    "gate": null
+    "gate": "connection_change"
   },
   {
     "method": "POST",
@@ -6659,7 +6659,7 @@ const routes1: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "delete"
   },
   {
     "method": "POST",
@@ -14430,7 +14430,7 @@ const routes2: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "delete"
   },
   {
     "method": "POST",
@@ -28764,7 +28764,7 @@ const routes5: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
-    "gate": "connection_change"
+    "gate": null
   },
   {
     "method": "POST",
@@ -31925,7 +31925,7 @@ const routes5: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
-    "gate": "delete"
+    "gate": null
   },
   {
     "method": "POST",

@@ -1035,10 +1035,11 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   const refused = new WeakMap<Listener, Map<string, number>>();
   const listeners = new Set<Listener>();
   const keepAliveMs = deps.keepAliveMs ?? KEEP_ALIVE_MS;
+  const unstartedMs = deps.unstartedMs ?? UNSTARTED_MS;
   /** Places taken before a stream starts, so a burst of requests cannot all pass the check and then all open: the check and the taking are one step, with no wait between them. */
   const taken = new WeakMap<Session, number>();
   let takenTotal = 0;
-  function reserve(s: Session): { release(): void } | null {
+  function reserve(s: Session): { release(): void; started(): void } | null {
     if ((taken.get(s) ?? 0) >= MAX_STREAMS || takenTotal >= MAX_TOTAL_STREAMS) return null;
     taken.set(s, (taken.get(s) ?? 0) + 1);
     takenTotal += 1;
@@ -1050,9 +1051,10 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       takenTotal = Math.max(0, takenTotal - 1);
       clearTimeout(timer);
     };
-    const timer = setTimeout(release, UNSTARTED_MS);
+    const timer = setTimeout(release, unstartedMs);
     (timer as { unref?: () => void }).unref?.();
-    return { release };
+    // a stream that has begun keeps its place until it ends: only a response that never began gives it up
+    return { release, started: () => clearTimeout(timer) };
   }
 
 
@@ -1067,7 +1069,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     subId: Id,
     watch: { uris(): ReadonlySet<string>; prompts: boolean },
     ack: Record<string, unknown> | null,
-    slot: { release(): void },
+    slot: { release(): void; started(): void },
   ): McpHttpResponse {
     const tag = subId === null ? {} : { _meta: { [META_SUBSCRIPTION]: subId } };
     return {
@@ -1075,6 +1077,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       headers: { ...SSE_HEADERS },
       body: "",
       stream: async ({ write, closed }) => {
+        slot.started();
         try {
           await run({ write, closed });
         } finally {

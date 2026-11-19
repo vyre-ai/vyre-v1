@@ -6,33 +6,25 @@ import type { Toolset } from "./types.ts";
 /** Capabilities that become tools, with the toolset each lives in. */
 export const MCP_TOOLS: Readonly<Record<string, Toolset>> = {
   "chat.history.search": "chats",
-  "chat.question.withdraw": "chats",
   "chat.round.decide": "chats",
-  "chat.round.discuss": "chats",
   "goals.brief": "tasks",
   "goals.checklist.tick": "tasks",
-  "goals.number.set": "tasks",
   "memory.profile.add": "memory",
-  "memory.chat_learning.get": "memory",
   "memory.chat_learning.set": "memory",
-  "memory.learning.today": "memory",
   "records.changes": "records",
   "records.counts": "records",
   "esign.remind": "files",
   "esign.verify": "files",
-  "settings.public_of": "meta",
-  "plugins.hooks.list": "agents",
-  "plugins.connections.policy": "agents",
+  "mail.send_as": "inbox",
+  "chat.transcript.purge": "chats",
+  "files.versions_purge": "files",
+  "browser.sites.set": "agents",
   "runs.resume": "automations",
-  "conflicts.assist": "meta",
   // Console set-up: admins' tools. What changes access, a connection or a key waits for a person's yes (MCP_HELD).
   "automations.key_hosts.allow": "automations",
   "automations.key_hosts.remove": "automations",
   "browser.sites.remove": "agents",
-  "chat.agent_dm.mute": "chats",
-  "connectors.check_key": "engineer",
   "connectors.for_service": "engineer",
-  "plugins.connections.policy_set": "engineer",
   "skills.policy.set": "engineer",
   "skills.space.adopt": "engineer",
   "skills.space.setup": "engineer",
@@ -51,14 +43,11 @@ export const MCP_TOOLS: Readonly<Record<string, Toolset>> = {
   "records.purge": "records",
   "records.purge_trashed": "records",
   "runs.erase": "automations",
-  "runs.purge": "automations",
   // a person's things that an agent may do for them
   "notes.list": "memory",
   "notes.pin": "memory",
   "notes.update": "memory",
-  "notes.image": "memory",
   "backup.export_start": "engineer",
-  "backup.restore": "engineer",
   "gate.allow.list": "engineer",
   "mcp.connected.list": "meta",
   "sites.password_set": "sites",
@@ -69,7 +58,7 @@ export const MCP_HELD: Readonly<Record<string, string>> = {
   "automations.key_hosts.allow": "connection_change",
   "automations.key_hosts.remove": "connection_change",
   "browser.sites.remove": "connection_change",
-  "plugins.connections.policy_set": "connection_change",
+  "browser.sites.set": "connection_change",
   "skills.policy.set": "connection_change",
   "skills.space.adopt": "connection_change",
   "skills.space.setup": "connection_change",
@@ -77,6 +66,8 @@ export const MCP_HELD: Readonly<Record<string, string>> = {
   "hooks.policy.set": "approve",
   "hooks.pause": "approve",
   "channels.erase": "delete",
+  "chat.transcript.purge": "delete",
+  "files.versions_purge": "delete",
   "threads.erase": "delete",
   "inbox.item.erase": "delete",
   "mail.message.erase": "delete",
@@ -86,7 +77,6 @@ export const MCP_HELD: Readonly<Record<string, string>> = {
   "records.purge": "delete",
   "records.purge_trashed": "delete",
   "runs.erase": "delete",
-  "runs.purge": "delete",
   "backup.export_start": "approve",
   "sites.password_set": "signin_change",
 };
@@ -100,7 +90,7 @@ const PUBLIC = "Public page for a visitor, no sign-in: the visitor's own act.";
 const SEALED = "A sealed value is revealed to a person, one at a time; it never reaches an agent.";
 const PRESS = "Answering a held card, or a card's own button, is the person's press.";
 const NOTES = "A note's labels are the person's own filing; an agent edits the note (notes_update).";
-const CONSOLE = "Retention clean-up of old messages and file versions is a Console job for a person with Manage.";
+const LOW = "A reading no agent needs to write a call (a quota number, a teammate's profile line, a policy it cannot act on): the person sees it in Settings or the Console.";
 const COMPUTER = "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
 /** First match wins; a rule names why a capability has no MCP tool. A capability in MCP_TOOLS has none. */
@@ -111,10 +101,9 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   [/^(identity|devices)\.|^connections\.complete_auth$|^mcp\.(oauth\.|session\.mint|setup\.set|connected\.remove)|^portal\.|^sites\.signin_link$|^access\.actors\.redeem$|^members\.|^vault\./, CREDENTIAL],
   [/^gate\.links\.known$/, SYSTEM],
   [/^gate\.|^hooks\.(allow_|deny|ask_admin)/, GATE],
-  [/^automations\.key_hosts\.pending|^browser\.cards\.post$|^access\.automation_senders$|^browser\.sites\.set$/, PRESS],
-  [/^mail\.send_as$/, PROVIDER],
-  [/^notes\.label$/, NOTES],
-  [/^(chat\.transcript\.purge|files\.versions_purge)$/, CONSOLE],
+  [/^automations\.key_hosts\.pending|^access\.automation_senders$/, PRESS],
+  [/^notes\.(label|image)$/, NOTES],
+  [/^(chat\.agent_dm\.mute|memory\.chat_learning\.get|connectors\.check_key|plugins\.connections\.policy_set|backup\.restore|runs\.purge|goals\.number\.set|browser\.cards\.post|chat\.round\.discuss|chat\.question\.withdraw|memory\.learning\.today|settings\.public_of|conflicts\.assist|plugins\.hooks\.list|plugins\.connections\.policy)$/, LOW],
   [/^(twilio|mailgun|resend|google|microsoft|ms|dropbox|dropbox-sign|dropbox_sign|providers|documenso|docusign|github|stripe|zoom|hubspot)\./, PROVIDER],
   [/^(forms|bookings|esign\.signer_)/, PUBLIC],
   [/^records\.reveal$/, SEALED],

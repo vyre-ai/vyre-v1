@@ -383,4 +383,6 @@ export const HIDDEN_FROM_MODEL: Readonly<Record<string, readonly string[]>> = {
   "calendar.update_event": ["expectedVersion"],
   "sheets.update_row": ["expect"],
   "sheets.upsert_row": ["expect"],
+  // an agent edits a note's words, colour and link; a picture is put in by the person (the schema alone is 350 characters on every call)
+  "notes.update": ["image"],
 };

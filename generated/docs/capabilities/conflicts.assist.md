@@ -17,7 +17,7 @@ Start the assistant run that compares both sides of a non-restricted conflict (n
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/conflicts/assist |
-| MCP tool | conflicts_assist (meta, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | conflict.proposed, conflict.confirmation_needed, conflict.resolved |
 

@@ -23,7 +23,7 @@ const META = {
 };
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function rig(opts: { refuseReads?: boolean; keepAliveMs?: number } = {}) {
+function rig(opts: { refuseReads?: boolean; keepAliveMs?: number; unstartedMs?: number } = {}) {
   const fake = fakeInvoke(g.caps);
   let signedIn = true;
   const reads: string[] = [];
@@ -38,6 +38,7 @@ function rig(opts: { refuseReads?: boolean; keepAliveMs?: number } = {}) {
     info: { name: "vyre", version: "1.0.0" },
     open: async (token) => (token === "out" && signedIn ? imran : null),
     ...(opts.keepAliveMs ? { keepAliveMs: opts.keepAliveMs } : {}),
+    ...(opts.unstartedMs ? { unstartedMs: opts.unstartedMs } : {}),
   });
   /** Open a listen stream; `lines` collects every notification as it is written. */
   async function listen(params: Record<string, unknown>, id = 1) {
@@ -272,4 +273,28 @@ test("a proof read that failed is not repeated for every event: a watcher of a h
   assert.equal(r.reads.length - before, 1, "one read, then it is remembered for a few seconds");
   s.drop();
   await s.finished;
+});
+
+test("a live stream keeps its place for as long as it lives, not for the time a response may take to begin: the ninth is refused after the unstarted time has passed many times over", async () => {
+  const r = rig({ unstartedMs: 40 });
+  const ask = (i: number) =>
+    r.server.handle({
+      method: "POST",
+      headers: { authorization: "Bearer out", "mcp-protocol-version": V, "mcp-method": "subscriptions/listen" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: i + 1, method: "subscriptions/listen", params: { notifications: {}, _meta: META } }),
+    });
+  const eight = await Promise.all(Array.from({ length: 8 }, (_, i) => ask(i)));
+  const live = eight.map((x) => r.open(x));
+  await wait(400);
+  assert.equal(r.server.listeners(), 8);
+  assert.equal((await ask(50)).status, 429, "still full after ten times the unstarted time");
+  // a response that never began gives its place back
+  live[0]!.drop();
+  await live[0]!.finished;
+  const never = await ask(51);
+  assert.equal(never.status, 200);
+  await wait(200);
+  assert.equal((await ask(52)).status, 200, "the place of a response that never began came back");
+  r.server.end(imran.sessionId);
+  await Promise.all(live.map((x) => x.finished));
 });

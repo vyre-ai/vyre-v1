@@ -1,10 +1,10 @@
-// One definition, referenced by many tools (lane r42-mcp, 19 Nov 2026, owner: what a model is shown of its tools only goes down). A large piece of input schema that a few tools carry word for word (the AI
-// settings of a goal or an Automation, a step list) is shown in full in the first tool that holds it, by name; in the others it is one line that names that tool. The capability's own contract and the server's
+// Shared descriptions (lane r42-mcp, 19 Nov 2026, owner: what a model is shown of its tools only goes down). A large piece of input schema that a few tools carry word for word (the AI settings of a goal or an
+// Automation, a step list) keeps its words in the first tool that holds it, by name; in the others the same shape is shown without the descriptions. The capability's own contract and the server's
 // validation are untouched: this is only the copy a model reads. The sync spec tools are left to their own sharing (share.ts of lane r41-automations).
 import type { ToolDef } from "./types.ts";
 
 /** A fragment shorter than this is not worth a pointer. */
-export const MIN_SHARED = 1500;
+export const MIN_SHARED = 250;
 /** The fewest tools that must carry a fragment before it is shared. */
 export const MIN_TOOLS = 3;
 const SKIP = /^sync_specs_/;
@@ -41,15 +41,23 @@ export function shareFragments<T extends Pick<ToolDef, "name" | "inputSchema">>(
   const shared = new Map<string, string>(); // fragment -> the tool that shows it in full
   for (const [s, set] of holders) if (set.size >= MIN_TOOLS) shared.set(s, [...set][0] as string);
   if (shared.size === 0) return [...defs];
+  // a later copy keeps its whole shape (types, enums, required, nesting): only the descriptions go, since the first copy in the catalog carries them. Nothing the server or a model needs to write a valid
+  // call is dropped, so no tool depends on another being listed.
+  const bare = (n: unknown): unknown => {
+    if (n === null || typeof n !== "object") return n;
+    if (Array.isArray(n)) return n.map(bare);
+    return Object.fromEntries(
+      Object.entries(n as Record<string, unknown>)
+        .filter(([k, x]) => !(k === "description" && typeof x === "string"))
+        .map(([k, x]) => [k, bare(x)]),
+    );
+  };
   const rewrite = (n: unknown, owner: string): unknown => {
     if (n === null || typeof n !== "object") return n;
     if (Array.isArray(n)) return n.map((x) => rewrite(x, owner));
     const o = n as Record<string, unknown>;
     const first = shared.get(json(o));
-    if (first !== undefined && first !== owner) {
-      const type = o["type"];
-      return { ...(typeof type === "string" ? { type } : {}), description: `The same as in ${first}: read its shape there.` };
-    }
+    if (first !== undefined && first !== owner) return bare(o);
     return Object.fromEntries(Object.entries(o).map(([k, x]) => [k, rewrite(x, owner)]));
   };
   return defs.map((d) => (SKIP.test(d.name) ? d : { ...d, inputSchema: rewrite(d.inputSchema, d.name) as T["inputSchema"] }));

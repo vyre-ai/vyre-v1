@@ -11,13 +11,13 @@ Remove Runs and step logs older than a time, a batch at a time (retention)
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | delete when actor.kind == 'agent' |
+| Gate | none |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/runs/purge |
-| MCP tool | runs_purge (automations, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | runs.purged |
 

@@ -51,3 +51,7 @@ test("every tool added for the full set, and every held one, reads as a kind of 
     .map((c) => c.name);
   assert.deepEqual(lost, [], "these have no plain words in modules/mcp/words.ts");
 });
+
+test("a restore is a restore, not a change", () => {
+  assert.equal(doneWords("backup.restore", "ok"), "Restored everything in this Space");
+});

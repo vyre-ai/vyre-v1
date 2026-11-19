@@ -17,7 +17,7 @@ Who may add Space connections, and the allow-list that limits what anyone else m
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/plugins/connections/policy |
-| MCP tool | plugins_connections_policy (agents, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

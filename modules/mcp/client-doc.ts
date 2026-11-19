@@ -88,7 +88,7 @@ export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectU
     if (n >= MAX_CLIENTS) return false;
   }
   db.run(
-    "INSERT INTO mcp_oauth_clients (client_id, name, redirect_uris, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET name = excluded.name, redirect_uris = excluded.redirect_uris, created_at = excluded.created_at",
+    "INSERT INTO mcp_oauth_clients (client_id, name, redirect_uris, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET name = excluded.name, redirect_uris = excluded.redirect_uris",
     doc.clientId,
     doc.name,
     JSON.stringify(doc.redirectUris),

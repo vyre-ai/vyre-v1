@@ -17,7 +17,7 @@ The hooks of the plugins that apply to this agent. They run only in the sandbox.
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/plugins/hooks/list |
-| MCP tool | plugins_hooks_list (agents, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

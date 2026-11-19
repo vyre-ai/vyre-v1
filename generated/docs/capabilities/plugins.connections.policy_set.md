@@ -11,13 +11,13 @@ Set who may add Space connections (admins, or whoever manages agents) and the al
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | connection_change when actor.kind == 'agent' |
+| Gate | none |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/plugins/connections/policy_set |
-| MCP tool | plugins_connections_policy_set (engineer, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | plugin.connections_policy_changed |
 

@@ -1117,12 +1117,6 @@
       "toolset": "engineer"
     },
     {
-      "deferred": true,
-      "name": "backup_restore",
-      "summary": "Restore from a backup (takes a fresh backup first, replays tombstones before opening for traffic)",
-      "toolset": "engineer"
-    },
-    {
       "deferred": false,
       "name": "backup_restore_preview",
       "summary": "Show what a restore would change: sequence range, tombstones to replay, members affected",
@@ -1168,6 +1162,12 @@
       "deferred": true,
       "name": "browser_sites_remove",
       "summary": "Remove a Browser connection",
+      "toolset": "agents"
+    },
+    {
+      "deferred": true,
+      "name": "browser_sites_set",
+      "summary": "Add a Browser connection, or change one: where it runs and which agents may Read only or Act. Sends, posts, payments and deletes are always held for you",
       "toolset": "agents"
     },
     {
@@ -1453,12 +1453,6 @@
       "toolset": "chats"
     },
     {
-      "deferred": true,
-      "name": "chat_agent_dm_mute",
-      "summary": "Mute agent messages from one person for the rest of my day; what their agents send waits until tomorrow and the person is told. undo lifts it",
-      "toolset": "chats"
-    },
-    {
       "deferred": false,
       "name": "chat_answer_block",
       "summary": "Answer a question or plan block; the answer is queued as a wake so the parked turn continues",
@@ -1651,12 +1645,6 @@
       "toolset": "chats"
     },
     {
-      "deferred": true,
-      "name": "chat_question_withdraw",
-      "summary": "Take back a question: its turn ended without waiting for it. The card closes as withdrawn and its task leaves the Needs you list. Only the agent that asked, or a person in the chat",
-      "toolset": "chats"
-    },
-    {
       "deferred": false,
       "name": "chat_react",
       "summary": "Add or remove a reaction",
@@ -1699,12 +1687,6 @@
       "toolset": "chats"
     },
     {
-      "deferred": true,
-      "name": "chat_round_discuss",
-      "summary": "Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts \"Decided:\". The engine's hand-off limits cap it at four turns. Only the person who asked",
-      "toolset": "chats"
-    },
-    {
       "deferred": false,
       "name": "chat_screen_get",
       "summary": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
@@ -1732,6 +1714,12 @@
       "deferred": false,
       "name": "chat_thread",
       "summary": "Open or create the inline thread under a message; an @mentioned agent works inside it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": true,
+      "name": "chat_transcript_purge",
+      "summary": "Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)",
       "toolset": "chats"
     },
     {
@@ -2179,12 +2167,6 @@
       "toolset": "computer"
     },
     {
-      "deferred": true,
-      "name": "conflicts_assist",
-      "summary": "Start the assistant run that compares both sides of a non-restricted conflict (never started for Restricted fields)",
-      "toolset": "meta"
-    },
-    {
       "deferred": false,
       "name": "conflicts_confirm",
       "summary": "Confirm the assistant proposal on a protected field (the Answer task action in Needs you)",
@@ -2296,12 +2278,6 @@
       "deferred": false,
       "name": "connectors_build",
       "summary": "Run the build-connector flow: read the app docs, draft the connector, ask for a key through a Vault request, run the harness",
-      "toolset": "engineer"
-    },
-    {
-      "deferred": true,
-      "name": "connectors_check_key",
-      "summary": "Try the key a person typed against the app before it is stored; answers ok, rejected, limited (the key works but may not read what the check needs) or unreachable and never repeats the key",
       "toolset": "engineer"
     },
     {
@@ -3577,6 +3553,12 @@
       "toolset": "files"
     },
     {
+      "deferred": true,
+      "name": "files_versions_purge",
+      "summary": "Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)",
+      "toolset": "files"
+    },
+    {
       "deferred": false,
       "name": "files_viewer_data",
       "summary": "Everything the one viewer needs for any file type: text projection, pages, preview address, sheet info, export snapshot for Google-native files, and what the caller may do",
@@ -4114,12 +4096,6 @@
       "deferred": false,
       "name": "goals_mark_stuck",
       "summary": "Say plainly that the goal cannot move: the reason and two options for the owner. The owner hears once; the goal shows Stuck until the number moves or the owner picks",
-      "toolset": "tasks"
-    },
-    {
-      "deferred": true,
-      "name": "goals_number_set",
-      "summary": "The owner updates the number of a goal whose source is a number they keep",
       "toolset": "tasks"
     },
     {
@@ -5533,6 +5509,12 @@
       "toolset": "inbox"
     },
     {
+      "deferred": true,
+      "name": "mail_send_as",
+      "summary": "Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from the inbox the thread came in on)",
+      "toolset": "inbox"
+    },
+    {
       "deferred": false,
       "name": "mail_send_preview",
       "summary": "Dry run of a send: who would be reached and who is suppressed, without sending",
@@ -5924,12 +5906,6 @@
     },
     {
       "deferred": true,
-      "name": "memory_chat_learning_get",
-      "summary": "Whether a chat is remembered: off means nothing is learned from it",
-      "toolset": "memory"
-    },
-    {
-      "deferred": true,
       "name": "memory_chat_learning_set",
       "summary": "Don't remember this chat: anyone in it turns learning off; who turned it off, or who started the chat, turns it back on",
       "toolset": "memory"
@@ -6052,12 +6028,6 @@
       "deferred": false,
       "name": "memory_learned",
       "summary": "The Learned feed: what memory learned, newest first, with its source and who learned it, for what the reader can see; each row can be undone",
-      "toolset": "memory"
-    },
-    {
-      "deferred": true,
-      "name": "memory_learning_today",
-      "summary": "What learning from your chats used today against your daily quota (model passes and input tokens), when it resets, and whether it learns with a model or by rules until then",
       "toolset": "memory"
     },
     {
@@ -6926,12 +6896,6 @@
     },
     {
       "deferred": true,
-      "name": "notes_image",
-      "summary": "The image of a note (or a clip screenshot), or with part link its link card picture, for someone who may read it",
-      "toolset": "memory"
-    },
-    {
-      "deferred": true,
       "name": "notes_list",
       "summary": "The notes the person reads: their own and those shared with them. Pinned first, newest first, with the labels in use",
       "toolset": "memory"
@@ -7201,27 +7165,9 @@
       "toolset": "agents"
     },
     {
-      "deferred": true,
-      "name": "plugins_connections_policy",
-      "summary": "Who may add Space connections, and the allow-list that limits what anyone else may add",
-      "toolset": "agents"
-    },
-    {
-      "deferred": true,
-      "name": "plugins_connections_policy_set",
-      "summary": "Set who may add Space connections (admins, or whoever manages agents) and the allow-list (registry names, https hosts, packages) for everyone who is not an admin",
-      "toolset": "engineer"
-    },
-    {
       "deferred": false,
       "name": "plugins_get",
       "summary": "One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought",
-      "toolset": "agents"
-    },
-    {
-      "deferred": true,
-      "name": "plugins_hooks_list",
-      "summary": "The hooks of the plugins that apply to this agent. They run only in the sandbox.",
       "toolset": "agents"
     },
     {
@@ -8083,12 +8029,6 @@
       "toolset": "automations"
     },
     {
-      "deferred": true,
-      "name": "runs_purge",
-      "summary": "Remove Runs and step logs older than a time, a batch at a time (retention)",
-      "toolset": "automations"
-    },
-    {
       "deferred": false,
       "name": "runs_replay",
       "summary": "Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer holds clearance",
@@ -8506,12 +8446,6 @@
       "deferred": false,
       "name": "settings_pages",
       "summary": "The settings pages a person has, with row counts",
-      "toolset": "meta"
-    },
-    {
-      "deferred": true,
-      "name": "settings_public_of",
-      "summary": "A teammate's time zone, working hours, pronouns, title and a public phone, only when they set them themselves",
       "toolset": "meta"
     },
     {

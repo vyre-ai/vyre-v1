@@ -17,7 +17,7 @@ A teammate's time zone, working hours, pronouns, title and a public phone, only 
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/settings/public_of |
-| MCP tool | settings_public_of (meta, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 
