@@ -2083,3 +2083,21 @@ test("the debugger goes only on a tab in the agent's own group; a tab outside it
   assert.equal(w.attached.size, 0, "no debugger on the person's tab");
   assert.equal(w.overlay.size, 0, "and no frame on it");
 });
+
+test("network reading starts only on a site the person put in Browser connections; an unlisted site stays closed", async () => {
+  const listed = await personal([SITE]);
+  await listed.call("chrome_snapshot");
+  assert.ok(listed.control.cdp.isNetworkOn(7), "a listed site is read from the first touch");
+  await listed.call("chrome_sources");
+  const open = await personal([]);
+  await open.call("chrome_snapshot");
+  assert.equal(open.control.cdp.isNetworkOn(7), false, "no row: no Network.enable");
+  const err = await open.fails("chrome_net", {}, "net_not_allowed");
+  assert.match(err.message, /Vault > Connections > Browser/);
+  await open.fails("chrome_sources", {}, "net_not_allowed");
+  assert.equal(open.control.cdp.isNetworkOn(7), false);
+  await open.advance(21_000);
+  assert.equal(open.attached.size, 0);
+  await open.call("chrome_snapshot");
+  assert.equal(open.control.cdp.isNetworkOn(7), false, "a new session starts closed again");
+});

@@ -33,11 +33,15 @@ export function createCdp(dbg) {
   });
   dbg.onDetach.addListener((source, reason) => {
     if (source.tabId === undefined || !attached.delete(source.tabId)) return;
+    netOn.delete(source.tabId);
     for (const h of detachHandlers) h(source.tabId, reason);
   });
 
   /** Who may be debugged right now. Set by the agent control to "a tab an agent is driving", so a late call (a picture taken as the agent goes idle, a stopped agent's last read) can never put the debugger back on a tab the person has again. @type {(tabId: number) => boolean} */
   let mayAttach = () => true;
+
+  /** Tabs whose network traffic is being read: only after the person allowed network reading for the site. @type {Set<number>} */
+  const netOn = new Set();
 
   /** @param {number} tabId */
   async function attach(tabId) {
@@ -64,7 +68,7 @@ export function createCdp(dbg) {
         if (!ours) fail("debugger_denied", message.slice(0, 120));
       }
       attached.add(tabId);
-      for (const m of ["Page.enable", "Runtime.enable", "Network.enable"]) await dbg.sendCommand({ tabId }, m, {});
+      for (const m of ["Page.enable", "Runtime.enable"]) await dbg.sendCommand({ tabId }, m, {});
     })().finally(() => attaching.delete(tabId));
     attaching.set(tabId, p);
     return p;
@@ -72,6 +76,14 @@ export function createCdp(dbg) {
 
   return {
     attach,
+    isNetworkOn: (/** @type {number} */ tabId) => netOn.has(tabId),
+    /** Start reading a tab's network calls. Call only once the person allowed it for the site. @param {number} tabId */
+    async enableNetwork(tabId) {
+      if (netOn.has(tabId)) return;
+      await attach(tabId);
+      await dbg.sendCommand({ tabId }, "Network.enable", {});
+      netOn.add(tabId);
+    },
     /** @param {(tabId: number) => boolean} f */
     allowOnly(f) {
       mayAttach = f;
@@ -93,6 +105,7 @@ export function createCdp(dbg) {
         const message = String(/** @type {any} */ (e)?.message ?? e);
         if (/detached|not attached|no tab with given id|target closed/i.test(message)) {
           attached.delete(tabId);
+          netOn.delete(tabId);
           throw new AgentFailure("no_tab", "The tab went away.");
         }
         throw new AgentFailure("error", message.slice(0, 200));
@@ -100,6 +113,7 @@ export function createCdp(dbg) {
     },
     /** @param {number} tabId */
     async detach(tabId) {
+      netOn.delete(tabId);
       if (!attached.delete(tabId)) return;
       try {
         await dbg.detach({ tabId });

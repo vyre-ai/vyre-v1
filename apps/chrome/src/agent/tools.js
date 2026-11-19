@@ -328,10 +328,30 @@ export function createTools(kit) {
     }
     try {
       await cdp.attach(tabId);
+      // reading starts with the first touch on a site the person allowed, so calls made while the agent works are there to learn from
+      if (!cdp.isNetworkOn(tabId) && (await netAllowed(call, tabId))) await cdp.enableNetwork(tabId);
     } catch (e) {
       await sessions.release(tabId, "denied");
       throw e;
     }
+  }
+
+  /** May this tab's network calls be read? Only if the person allowed the site (a row in Vault > Connections > Browser); an agent computer's own browser always. @param {Call} call @param {number} tabId */
+  async function netAllowed(call, tabId) {
+    if (kit.mode() === "computer" || !kit.rights) return true;
+    try {
+      const host = new URL(String((await ext.tabs.get(tabId)).url ?? "")).hostname;
+      return Boolean(host) && (await kit.rights.listed(call, host));
+    } catch {
+      return false;
+    }
+  }
+
+  /** The tools that read network calls need them on; a site the person did not allow stays closed. @param {Call} call @param {number} tabId */
+  async function needNet(call, tabId) {
+    if (cdp.isNetworkOn(tabId)) return;
+    if (!(await netAllowed(call, tabId))) fail("net_not_allowed");
+    await cdp.enableNetwork(tabId);
   }
 
   /** Resolve the tab, put the agent's frame on it, attach, run, and keep the idle clock honest. @template T @param {Call} call @param {Record<string, any>} input @param {(tabId: number) => Promise<T>} fn */
@@ -957,6 +977,7 @@ export function createTools(kit) {
 
     async chrome_net(call, input, note) {
       return drive(call, input, async (tabId) => {
+        await needNet(call, tabId);
         const list = traffic.requests(tabId, { filter: input["filter"], limit: input["limit"] });
         let bodies = 0;
         const requests = [];
@@ -1178,6 +1199,7 @@ export function createTools(kit) {
 
     async chrome_sources(call, input, note) {
       return drive(call, input, async (tabId) => {
+        await needNet(call, tabId);
         const s = traffic.sources(tabId);
         note(`${s.endpoints.length} endpoints`);
         return s;
