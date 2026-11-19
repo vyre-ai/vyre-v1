@@ -89,7 +89,7 @@ export function isPipeRow(line: string): boolean {
 export function replaceTokens(
   s: string,
   fn: (key: string, fallback: string | undefined, whole: string) => string,
-  max = 512,
+  max = 4096,
 ): string {
   let out = "";
   let i = 0;

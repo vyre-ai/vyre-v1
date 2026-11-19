@@ -5,7 +5,15 @@
 // per-change diff. The block shapes follow the prototype's V.email (vyre-v1.html); the HTML it makes is the same family: 600 px card, inline styles, tables.
 // @reads ../migrations/0001_email_builder.sql
 
-import { capHtml, capText, cutBlocks, cutTags, replaceAnchors, stripTags } from "../../../lib/html-text.ts";
+import {
+  capHtml,
+  capText,
+  cutBlocks,
+  cutTags,
+  replaceAnchors,
+  replaceTokens,
+  stripTags,
+} from "../../../lib/html-text.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
@@ -203,14 +211,13 @@ const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"
 export const esc = (s: unknown): string => String(s ?? "").replace(/[&<>"']/g, (c) => ESC[c] ?? c);
 
 const ENTITY = /^&(?:amp|lt|gt|quot|apos|nbsp|#\d{1,6}|#x[0-9a-f]{1,6});/i;
-const TOKEN = /\{\{\s{0,64}([a-z][a-z0-9_]*)\s{0,64}(?:\|([^}]{0,512}))?\}\}/gi;
 const SAFE_URL = /^(?:https?:\/\/|mailto:|tel:|\{\{\s{0,64}[a-z][a-z0-9_]*\s{0,64}(?:\|[^}]{0,4096})?\}\})/i;
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** A URL for an href or src: http, https, mailto, tel or a merge token; anything else (javascript:, data:text/html) becomes "#". */
 export function safeUrl(u: unknown): string {
   const s = String(u ?? "").trim();
-  return SAFE_URL.test(s) && !/[\u0000-\u001f\s"<>]/.test(s.replace(TOKEN, "")) ? s : "#";
+  return SAFE_URL.test(s) && !/[\u0000-\u001f\s"<>]/.test(replaceTokens(s, () => "")) ? s : "#";
 }
 
 function safeImgSrc(u: unknown): string {
@@ -386,7 +393,7 @@ const humanize = (key: string): string => key.replace(/_/g, " ");
 /** Fill merge tokens. With `values` they become the value or the fallback (escaped); without, they stay for the sender to fill. */
 export function fillTokens(html: string, values: Record<string, string> | null): string {
   if (values === null) return html;
-  return html.replace(TOKEN, (_m, key: string, fb: string | undefined) => {
+  return replaceTokens(html, (key, fb) => {
     const k = key.toLowerCase();
     const v = values[k];
     if (v !== undefined && v !== "") return esc(v);
@@ -396,7 +403,7 @@ export function fillTokens(html: string, values: Record<string, string> | null):
 
 /** Fill merge tokens into plain text (a subject, a text part): the value, else the fallback, else the field's name. No escaping. */
 export function fillPlain(text: string, values: Record<string, string>): string {
-  return text.replace(TOKEN, (_m, key: string, fb: string | undefined) => {
+  return replaceTokens(text, (key, fb) => {
     const v = values[key.toLowerCase()];
     return v !== undefined && v !== "" ? v : fb !== undefined ? fb.trim() : humanize(key.toLowerCase());
   });

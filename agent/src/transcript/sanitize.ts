@@ -38,7 +38,7 @@ const GENERIC: readonly Rule[] = [
   ["conn-url", /\b([a-z][a-z0-9+.-]*:\/\/[^\s:@/?#]+):([^\s@/?&=#]{3,})@/gi, "url password", 2],
   [
     "password",
-    /(?:^|[\s{,"'`_-])((?:[A-Za-z0-9_.-]{0,256}[_.-])?pass(?:word|wd)?|passphrase)["']?\s*[:=]\s*["']?((?!\$\{|<|your|xxx|process\.env)[^\s"',;}\n]{8,})/gi,
+    /(?:^|[\s{,"'`_-])((?:[A-Za-z0-9_.-]{0,128}[_.-])?pass(?:word|wd)?|passphrase)["']?\s*[:=]\s*["']?((?!\$\{|<|your|xxx|process\.env)[^\s"',;}\n]{8,})/gi,
     "password",
     2,
   ],
