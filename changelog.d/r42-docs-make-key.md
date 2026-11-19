@@ -8,4 +8,3 @@ The approval card of a held send of a preview copy now shows the server's senten
 The keyless key of documents.make folds in a hash of the template's own bytes (read once with the preview), not a version number that may be missing; preview_fill's digest covers it.
 The preview-copy note also shows on the Needs-you detail (one shared note component with the chat card), and a held signature send is drawn as its own lines there.
 Only the Gate or the server can make a held act: a task naming a gate source, or writing the reserved decision and payload-hash notes, is refused for anyone else (checked by the pipeline's own caller capability). The cards show the Gate's note only on a task made by the Gate (source and payload hash).
-tasks.create refuses the system sources (run, journey, meeting, goal) from a person or an agent at the top of a call; only the server's own modules and services name them.

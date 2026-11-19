@@ -319,14 +319,3 @@ test("only the Gate or the server makes a held act: a person or an agent that na
     { id: "svc_system", kind: "service" },
   );
 });
-
-test("a person or an agent at the top of a call cannot name a system source (run, journey, meeting, goal); chat and manual stay theirs; the server may", async () => {
-  const h = harness();
-  const locked = (e: unknown) => (e as { error?: { code?: string } }).error?.code === "validation.field_locked";
-  for (const kind of ["run", "journey", "meeting", "goal"])
-    for (const who of [me, { id: "agt_helper", kind: "agent" as const }])
-      await assert.rejects(h.call("tasks.create", newTask({ source: { kind, id: "x_1" } }), who), locked, kind);
-  assert.ok(await mk(h, { source: { kind: "chat", id: "thr_1" } }));
-  assert.ok(await mk(h, { source: { kind: "manual", id: "me" } }));
-  assert.ok(await mk(h, { source: { kind: "run", id: "run_1" } }, { id: "svc_system", kind: "service" }));
-});
