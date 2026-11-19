@@ -479,7 +479,9 @@ export async function loginCheck(ctx: VaultCtx, input: { url: string; username?:
       .map((f) => pageHost(f.value))
       .filter((h): h is string => h !== null && h.includes("."));
     if (!hosts.some((h) => h === host || (host as string).endsWith(`.${h}`))) continue;
-    const userField = fields.find((f) => USER_KEYS.includes(f.key) && typeof f.value === "string" && f.value.length > 0);
+    const userField = fields.find(
+      (f) => USER_KEYS.includes(f.key) && typeof f.value === "string" && f.value.length > 0,
+    );
     // another person's login for the same site is another item; with a username on both sides it must be the same one
     if (username && userField && String(userField.value).trim().toLowerCase() !== username) continue;
     const secrets = fields.filter((f) => f.secret);

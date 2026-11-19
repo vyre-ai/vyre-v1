@@ -589,7 +589,14 @@ test("login.check compares a submitted login inside the Vault: known, changed or
   assert.equal((await check({ url: "https://nowhere.test", username: "dana", password: "pw-1" })).state, "new");
   assert.equal((await check({ url: "https://lookalikeexample.com", username: "dana", password: "pw-1" })).state, "new");
   await g.siteRulesSet(h.ctx, { host: "example.com", neverFill: false, neverSave: true });
-  assert.equal((await check({ url: "https://example.com", username: "carol", password: "zzz" })).state, "known", "a site set to never save is never offered");
+  assert.equal(
+    (await check({ url: "https://example.com", username: "carol", password: "zzz" })).state,
+    "known",
+    "a site set to never save is never offered",
+  );
   assert.equal(await refusedWith(g.loginCheck(h.ctx, { url: "ftp://x", password: "a" })), "validation.bad_input");
-  assert.equal(await refusedWith(g.loginCheck(h.ctx, { url: "https://example.com", password: "" })), "validation.bad_input");
+  assert.equal(
+    await refusedWith(g.loginCheck(h.ctx, { url: "https://example.com", password: "" })),
+    "validation.bad_input",
+  );
 });
