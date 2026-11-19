@@ -42,7 +42,28 @@ function withMachineCode(v: unknown): unknown {
     : v;
 }
 
-export const PROTOCOL_VERSIONS: readonly string[] = ["2025-06-18", "2025-03-26", "2024-11-05"];
+/** The revisions a client opens with `initialize` (the handshake era). The first is what a client that asks for one we do not serve is given. */
+export const PROTOCOL_VERSIONS: readonly string[] = ["2025-06-18", "2025-11-25", "2025-03-26", "2024-11-05"];
+/** The revisions with no handshake and no session: every request says its version in `_meta`, and is answered on its own (2026-07-28 and later). */
+export const MODERN_VERSIONS: readonly string[] = ["2026-07-28"];
+/** Every revision this endpoint serves, newest first: what `server/discover` and a version refusal name. */
+export const SUPPORTED_VERSIONS: readonly string[] = [...MODERN_VERSIONS, ...[...PROTOCOL_VERSIONS].sort().reverse()];
+const META_VERSION = "io.modelcontextprotocol/protocolVersion";
+const META_CLIENT = "io.modelcontextprotocol/clientInfo";
+const META_CLIENT_CAPS = "io.modelcontextprotocol/clientCapabilities";
+const META_SERVER = "io.modelcontextprotocol/serverInfo";
+/** Error codes the 2026-07-28 revision defines (its reserved range, -32020 to -32099). */
+export const HEADER_MISMATCH = -32020;
+export const UNSUPPORTED_PROTOCOL_VERSION = -32022;
+/** How long a client may keep a list before asking again. A list differs by caller, so it is never shared between sign-ins. */
+const LIST_TTL_MS = 5 * 60_000;
+const DISCOVER_TTL_MS = 60 * 60_000;
+/** Methods whose `params.name` or `params.uri` is mirrored in the Mcp-Name header. */
+const NAMED: Readonly<Record<string, "name" | "uri">> = {
+  "tools/call": "name",
+  "prompts/get": "name",
+  "resources/read": "uri",
+};
 export const MAX_RESULT_CHARS = 512 * 1024;
 const MAX_BODY = 1024 * 1024;
 const RECHECK_MS = 30_000;
@@ -108,6 +129,8 @@ interface Session {
   clientName: string | undefined;
   /** Asks this session already drew a card for: a repeat returns the same hold, and draws no second card. */
   asked: Set<string>;
+  /** The deferred tools this caller is listed from the start, whatever it searched for since: a stateless client's list never changes because of its own earlier requests. */
+  fixed: ReadonlySet<string>;
   /** Settles when the session ends: a call in flight stops waiting and fails. */
   gone: Promise<"gone">;
   end: () => void;
@@ -232,6 +255,10 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const threadId = caller.threadId ?? caller.sessionId;
     if (caller.preload) tools.preload(threadId, caller.preload);
     tools.preload(threadId, caller.kind === "outside" ? OUTSIDE_PRELOAD : ENGINE_PRELOAD);
+    const fixed = new Set([
+      ...(caller.preload ?? []),
+      ...(caller.kind === "outside" ? OUTSIDE_PRELOAD : ENGINE_PRELOAD),
+    ]);
     const ctx: ToolCtx = {
       space: caller.space,
       agentId: caller.principal.id,
@@ -259,6 +286,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       ctx,
       tokenKey,
       asked: new Set<string>(),
+      fixed,
       checkedAt: now(),
       protocol: PROTOCOL_VERSIONS[0] ?? "2025-06-18",
       clientName,
@@ -310,6 +338,15 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     ...listTools(s).map(toolView),
     ...(s.caller.kind === "outside" || !s.ctx.thread.planMode ? [USE_TOOL_VIEW] : []),
   ];
+  /** The list for a client with no handshake: the same for every request of this caller, in name order, so the client and the model's prompt cache can keep it. What tool_search found is called with use_tool. */
+  function stableToolViews(s: Session): unknown[] {
+    const set = s.tools.toolsFor(s.ctx);
+    const tools = [...set.listed, ...set.searchable.filter((t) => s.fixed.has(t.name))]
+      .filter((t) => allowed(s, t))
+      .map(toolView);
+    if (s.caller.kind === "outside" || !s.ctx.thread.planMode) tools.push(USE_TOOL_VIEW);
+    return tools.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  }
 
   /** The text a model reads. The same data also travels as structuredContent unless it had to be cut: a cut answer is never sent twice. */
   const textResult = (value0: unknown, isError: boolean, structured0?: unknown): Record<string, unknown> => {
@@ -643,9 +680,26 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     return { result: textResult(structured, true, structured) };
   }
 
-  async function dispatch(s: Session | null, req: Request): Promise<Response | null> {
+  /**
+   * One message. `modern` is a request of the 2026-07-28 revision or later: it was not preceded by a handshake, so nothing here reads what an earlier request left behind, and its result says it is complete,
+   * who answered, and (for a list) how long it may be kept.
+   */
+  async function dispatch(s: Session | null, req: Request, modern = false): Promise<Response | null> {
     const id: Id = req.id ?? null;
     const isNote = req.id === undefined;
+    const done = (result: Record<string, unknown>, ttlMs?: number): Response =>
+      ok(
+        id,
+        modern
+          ? {
+              resultType: "complete",
+              ...result,
+              ...(ttlMs === undefined ? {} : { ttlMs, cacheScope: "private" }),
+              _meta: { ...(result["_meta"] as Record<string, unknown> | undefined), [META_SERVER]: info },
+            }
+          : result,
+      );
+    const instructions = s?.caller.kind === "outside" ? OUTSIDE_INSTRUCTIONS : INSTRUCTIONS;
     switch (req.method) {
       case "initialize":
         return isNote
@@ -654,22 +708,31 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
               protocolVersion: s?.protocol,
               capabilities: { tools: { listChanged: false } },
               serverInfo: info,
-              instructions: s?.caller.kind === "outside" ? OUTSIDE_INSTRUCTIONS : INSTRUCTIONS,
+              instructions,
             });
+      case "server/discover":
+        // the handshake's answer for a client that has none: asked for at any time, or never
+        if (!modern) break;
+        return isNote
+          ? null
+          : done({ supportedVersions: SUPPORTED_VERSIONS, capabilities: { tools: {} }, instructions }, DISCOVER_TTL_MS);
       case "notifications/initialized":
       case "notifications/cancelled":
         return null;
       case "ping":
+        // gone from the protocol with the handshake
+        if (modern) break;
         return isNote ? null : ok(id, {});
       case "tools/list":
         if (isNote) return null;
-        return s ? ok(id, { tools: toolViews(s) }) : err(id, INVALID_REQUEST, "No session.");
+        if (!s) return err(id, INVALID_REQUEST, "No session.");
+        return modern ? done({ tools: stableToolViews(s) }, LIST_TTL_MS) : ok(id, { tools: toolViews(s) });
       case "tools/call": {
         if (isNote) return null;
         if (!s) return err(id, INVALID_REQUEST, "No session.");
         try {
           const r = await callTool(s, req.params, `${s.caller.sessionId}:${String(id)}`);
-          return "invalid" in r ? err(id, INVALID_PARAMS, r.invalid) : ok(id, r.result);
+          return "invalid" in r ? err(id, INVALID_PARAMS, r.invalid) : done(r.result);
         } catch {
           return err(id, INTERNAL_ERROR, "Something went wrong on our side.");
         }
@@ -700,8 +763,76 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         return ok(id, { block: v.block ? v.block.reason : null, notes: v.notes });
       }
       default:
-        return isNote ? null : err(id, METHOD_NOT_FOUND, `Method not found: ${req.method}`);
+        break;
     }
+    return isNote ? null : err(id, METHOD_NOT_FOUND, `Method not found: ${req.method}`);
+  }
+
+  /** The value of a mirrored header: as sent, or the text inside the `=?base64?...?=` wrapping a client uses for a name that is not plain ASCII. Null when the wrapping is broken. */
+  const headerValue = (raw: string): string | null => {
+    const m = /^=\?base64\?([A-Za-z0-9+/]*={0,2})\?=$/.exec(raw);
+    if (!m) return raw;
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(
+        Uint8Array.from(atob(m[1] as string), (c) => c.charCodeAt(0)),
+      );
+    } catch {
+      return null;
+    }
+  };
+
+  /**
+   * A request that says its own version (2026-07-28): what is wrong with how it was sent, as the answer to give, or null when it is in order. The headers repeat the body so a proxy can route on them, and
+   * a request whose headers and body disagree is refused, so nothing in between can be told one thing while this server does another.
+   */
+  function modernRefusal(
+    req: Request,
+    meta: Record<string, unknown>,
+    headers: McpHttpRequest["headers"],
+  ): Response | null {
+    const id: Id = req.id ?? null;
+    const version = meta[META_VERSION];
+    const sent = headers["mcp-protocol-version"];
+    if (typeof version !== "string")
+      return err(id, INVALID_PARAMS, `Every request names its protocol version in _meta["${META_VERSION}"].`);
+    if (sent === undefined)
+      return err(id, HEADER_MISMATCH, "Header mismatch: the MCP-Protocol-Version header is missing.");
+    if (sent !== version)
+      return err(
+        id,
+        HEADER_MISMATCH,
+        `Header mismatch: MCP-Protocol-Version header value '${sent}' does not match body value '${version}'`,
+      );
+    if (!MODERN_VERSIONS.includes(version))
+      return err(id, UNSUPPORTED_PROTOCOL_VERSION, "Unsupported protocol version", {
+        supported: SUPPORTED_VERSIONS,
+        requested: version,
+      });
+    const caps = meta[META_CLIENT_CAPS];
+    if (caps === null || typeof caps !== "object" || Array.isArray(caps))
+      return err(
+        id,
+        INVALID_PARAMS,
+        `Every request carries _meta["${META_CLIENT_CAPS}"], an object (empty when there are none).`,
+      );
+    const method = headers["mcp-method"];
+    if (method === undefined) return err(id, HEADER_MISMATCH, "Header mismatch: the Mcp-Method header is missing.");
+    if (method !== req.method)
+      return err(
+        id,
+        HEADER_MISMATCH,
+        `Header mismatch: Mcp-Method header value '${method}' does not match body value '${req.method}'`,
+      );
+    const key = NAMED[req.method];
+    if (key) {
+      const named = (req.params as Record<string, unknown> | null | undefined)?.[key];
+      const raw = headers["mcp-name"];
+      if (raw === undefined) return err(id, HEADER_MISMATCH, "Header mismatch: the Mcp-Name header is missing.");
+      const value = headerValue(raw);
+      if (value === null || value !== named)
+        return err(id, HEADER_MISMATCH, `Header mismatch: Mcp-Name header does not match the ${key} in the body.`);
+    }
+    return null;
   }
 
   /** The session this token belongs to, or null. An outside agent's token is read on every request: it may have expired, or its sign-in may have ended, since the last one. */
@@ -770,10 +901,33 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const tokenKey = await sha256(token);
     const init = items.find((i): i is Request => isRequest(i) && i.method === "initialize");
     const initializing = init !== undefined;
-    const named = (init?.params as { clientInfo?: { name?: unknown } } | null | undefined)?.clientInfo?.name;
+    // which era: a request that names its version in _meta (or in the header alone, which is then a request sent wrong) is answered on its own, with no handshake before it and no session after it
+    const metaOf = (i: unknown): Record<string, unknown> | null => {
+      const m = isRequest(i) ? (i.params as { _meta?: unknown } | null | undefined)?._meta : undefined;
+      return m !== null && typeof m === "object" && !Array.isArray(m) ? (m as Record<string, unknown>) : null;
+    };
+    const modern =
+      !initializing &&
+      (items.some((i) => META_VERSION in (metaOf(i) ?? {})) ||
+        MODERN_VERSIONS.includes(req.headers["mcp-protocol-version"] ?? ""));
+    const meta = modern ? (metaOf(items[0]) ?? {}) : {};
+    const named = modern
+      ? (meta[META_CLIENT] as { name?: unknown } | null | undefined)?.name
+      : (init?.params as { clientInfo?: { name?: unknown } } | null | undefined)?.clientInfo?.name;
     const clientName = typeof named === "string" ? named.slice(0, 120) : undefined;
     const s = await sessionFor(token, tokenKey, clientName, req.origin);
     if (!s) return unauthorized(req.origin, "invalid_token");
+    if (modern) {
+      const item = items[0];
+      if (batch || !isRequest(item)) return json(400, err(null, INVALID_REQUEST, "Send one request in each POST."));
+      const refusal = modernRefusal(item, meta, req.headers);
+      if (refusal) return json(400, refusal);
+      if (clientName !== undefined) s.clientName = clientName;
+      const r = await dispatch(s, item, true);
+      if (!r) return empty(202);
+      // an unknown method is 404 with the JSON-RPC error in the body, which is how a client tells this endpoint from an older server that has no such address
+      return json("error" in r && r.error.code === METHOD_NOT_FOUND ? 404 : 200, r);
+    }
     const header = req.headers["mcp-session-id"];
     if (header !== undefined && header !== s.caller.sessionId && !initializing) return empty(404);
 
