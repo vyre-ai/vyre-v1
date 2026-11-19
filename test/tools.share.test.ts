@@ -1,10 +1,10 @@
 // A large object several tools take is shown to the model once (rc.41): the three SyncSpec tools said the same 6.6 kB spec three times. The first shows it in full, the others point at it, and the server still checks every field of every call.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadGenerated } from "../src/tools/harness.ts";
-import { shareRepeats, SHARE_MIN_CHARS } from "../src/tools/share.ts";
-import { validateInput } from "../../generated/validators.ts";
-import { spec } from "../../test/support/sync-live.ts";
+import { loadGenerated } from "../agent/src/tools/harness.ts";
+import { shareRepeats, SHARE_MIN_CHARS } from "../agent/src/tools/share.ts";
+import { validateInput } from "../generated/validators.ts";
+import { spec } from "./support/sync-live.ts";
 
 const { catalog } = loadGenerated();
 const tool = (n: string) => catalog.byName(n)!;
