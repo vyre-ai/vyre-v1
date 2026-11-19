@@ -126,3 +126,13 @@ test("what is not a secret stays: -p and -u outside a database client or curl, J
   assert.equal(scrubLog('{"password":"hunter2"}').endsWith("}"), true, "the closing brace is kept");
   assert.match(scrubLog("Cookie: a=b\rnext stays"), /next stays/);
 });
+
+test("a header word without its colon is prose: auth errors keep their reason, and only a real header loses its line", () => {
+  assert.equal(scrubLog("Authorization failed for user bob on host"), "Authorization failed for user bob on host");
+  assert.equal(scrubLog("The cookie banner failed to load"), "The cookie banner failed to load");
+  assert.match(scrubLog("Error parsing cookie: invalid format here"), /format here$/, "mid-line it is a name and a value, not a header: only the next word goes, the reason stays");
+  assert.equal(scrubLog("Error parsing cookie invalid format here"), "Error parsing cookie invalid format here");
+  gone("Authorization: Bearer sk_short123", "sk_short123");
+  gone("Authorization Bearer sk_short123", "sk_short123");
+  gone("Cookie: a=b; c=d", "a=b", "c=d");
+});

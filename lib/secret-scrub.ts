@@ -159,7 +159,7 @@ const SECRET_CAMEL = /[a-z0-9](?:Pass(?:word|wd|phrase)?|Pw|Pwd|Jwt|Otp|SessionI
 // run together in one case (AUTHTOKEN, dbpassword): the words that are never anything else need no boundary; "key" does (monkey)
 const SECRET_STRONG = /(?:token|secret|password|passwd|passphrase|apikey|credentials?)$/i;
 const SECRET_NAME = { test: (w: string): boolean => SECRET_SNAKE.test(w) || SECRET_CAMEL.test(w) || SECRET_STRONG.test(w) };
-const LINE_HEADER = /^(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token|x-amz-security-token):?$/i;
+const LINE_HEADER = /^(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token|x-amz-security-token):$/i; // the colon is required: "Authorization failed for bob" and "the cookie banner" are prose
 const FLAG = /^-{1,2}(?:password|passwd|pass|token|secret|api-?key|auth)$/i;
 // -p and -u mean a secret only after a client that takes one (a database client or curl); elsewhere they are "make parents" and "set upstream"
 const SHORT_FLAG = /^-(?:p|u)$/;
@@ -227,18 +227,22 @@ export function scrubLog(input: unknown, limit = 4000): string {
     let toNewline = false; // a header: the rest of the line goes
     let quote = ""; // a quoted value that spans words: removed to its closing quote
     let last = ""; // the word before this one, for a separator that stands alone
+    let lineStart = true; // a header is a header only at the start of a line
     let userinfo = 0; // a password with a space in it: words until the one that carries the @
     let dbCommand = 0; // words since a database client was named: its -pPASSWORD flag takes the password glued on
     for (const part of parts) {
       if (part === "" || /^\s+$/.test(part)) {
         out.push(part);
         if (/[\r\n]/.test(part)) {
+          lineStart = true;
           toNewline = false;
           dbCommand = 0; // -p and -u are read only on the line where the client is named
         }
         continue;
       }
       const before = last;
+      const atStart = lineStart;
+      lineStart = false;
       last = part;
       if (DB_TOOL.test(part)) dbCommand = 24;
       else if (dbCommand > 0) dbCommand -= 1;
@@ -279,7 +283,7 @@ export function scrubLog(input: unknown, limit = 4000): string {
         out.push("-p" + REMOVED);
         continue;
       }
-      if (LINE_HEADER.test(w)) {
+      if (atStart && LINE_HEADER.test(w)) {
         toNewline = true;
         out.push(w);
         continue;
