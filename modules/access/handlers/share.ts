@@ -37,7 +37,6 @@ import {
   isPrivateAgent,
   labelRank,
   nid,
-  page,
   pkey,
   raise,
   storeOf,
@@ -111,6 +110,8 @@ export class ShareStore {
   patch: { base: Base; roots: string[] } | null = null;
   /** `access` by resource: which cached rows each resource has, built when first needed and kept in step by `setRow` and `dropRow`. */
   byRes: Map<string, Set<string>> | null = null;
+  /** `access` by person and type (`person\ntype` -> key -> row): what a list reads, built when first needed and kept in step by `setRow` and `dropRow`, so a list never walks every row of every person. */
+  byPT: Map<string, Map<string, AccessRow>> | null = null;
 }
 
 const SHARES = new WeakMap<Db, ShareStore>();
@@ -581,6 +582,12 @@ function rowsByResource(ss: ShareStore): Map<string, Set<string>> {
 function setRow(ss: ShareStore, key: string, row: AccessRow): void {
   const old = ss.access.get(key);
   ss.access.set(key, row);
+  if (ss.byPT) {
+    const pt = `${row.person}\n${row.type}`;
+    let m = ss.byPT.get(pt);
+    if (!m) ss.byPT.set(pt, (m = new Map()));
+    m.set(key, row);
+  }
   if (!ss.byRes) return;
   if (old && old.id !== row.id) ss.byRes.get(old.id)?.delete(key);
   const keys = ss.byRes.get(row.id) ?? new Set<string>();
@@ -590,6 +597,7 @@ function setRow(ss: ShareStore, key: string, row: AccessRow): void {
 function dropRow(ss: ShareStore, key: string): void {
   const old = ss.access.get(key);
   ss.access.delete(key);
+  if (old && ss.byPT) ss.byPT.get(`${old.person}\n${old.type}`)?.delete(key);
   if (old) ss.byRes?.get(old.id)?.delete(key);
 }
 
@@ -2233,9 +2241,16 @@ function titleOf(ss: ShareStore, res: ResourceRec): string {
 /** Items of one type this person can see, with their section. Section comes from `via` alone, so a replica can compute it from my_access. */
 function mine(ctx: AccessCtx, store: AccessStore, ss: ShareStore, person: string, type: string): AccessRow[] {
   ensureFresh(ctx, store, ss);
-  const out: AccessRow[] = [];
-  for (const row of ss.access.values()) if (row.person === person && row.type === type) out.push(row);
-  return out;
+  if (!ss.byPT) {
+    ss.byPT = new Map();
+    for (const [key, row] of ss.access) {
+      const pt = `${row.person}\n${row.type}`;
+      let m = ss.byPT.get(pt);
+      if (!m) ss.byPT.set(pt, (m = new Map()));
+      m.set(key, row);
+    }
+  }
+  return [...(ss.byPT.get(`${person}\n${type}`)?.values() ?? [])];
 }
 
 export const sectionOfVia = (via: Via): Section =>
@@ -2307,41 +2322,58 @@ export async function lists(
     if (input.folder && folderId !== input.folder) continue;
     picked.push(r);
   }
-  const view = picked
-    .map((r) => {
-      const res = store.resources.get(r.id);
-      const folderId = ss.placement.get(pk(r.type, r.id));
-      const row: {
-        type: string;
-        id: string;
-        title: string;
-        via: Via;
-        level: Level;
-        folderId?: string;
-        starred: boolean;
-        following: boolean;
-      } = {
-        type: r.type,
-        id: r.id,
-        title: res ? titleOf(ss, res) : r.id,
-        via: r.via,
-        level: r.level,
-        starred: starred.has(r.id),
-        following: following.has(r.id),
-      };
-      if (folderId) row.folderId = folderId;
-      return row;
-    })
-    .sort((a, b) =>
-      a.title.toLowerCase() < b.title.toLowerCase()
-        ? -1
-        : a.title.toLowerCase() > b.title.toLowerCase()
-          ? 1
-          : a.id < b.id
-            ? -1
-            : 1,
-    );
-  const p = page(view, input.cursor, input.limit);
+  // only the page asked for is built and ordered: every row gets its sort key once, and a long list keeps just the first `need` of them while it goes (what a person sees is the top of the list)
+  const lim = Math.min(500, Math.max(1, input.limit ?? 50));
+  const start = input.cursor && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0;
+  const need = start + lim;
+  interface Keyed {
+    r: AccessRow;
+    title: string;
+    key: string;
+  }
+  const keyed = (r: AccessRow): Keyed => {
+    const res = store.resources.get(r.id);
+    const title = res ? titleOf(ss, res) : r.id;
+    return { r, title, key: title.toLowerCase() };
+  };
+  const before = (a: Keyed, b: Keyed): number => (a.key < b.key ? -1 : a.key > b.key ? 1 : a.r.id < b.r.id ? -1 : 1);
+  let top: Keyed[] = [];
+  if (picked.length <= need * 3) top = picked.map(keyed).sort(before);
+  else {
+    for (const r of picked) {
+      top.push(keyed(r));
+      if (top.length >= need * 4) {
+        top.sort(before);
+        top.length = need;
+      }
+    }
+    top.sort(before);
+  }
+  const rowsOut = top.slice(start, start + lim).map(({ r, title }) => {
+    const folderId = ss.placement.get(pk(r.type, r.id));
+    const row: {
+      type: string;
+      id: string;
+      title: string;
+      via: Via;
+      level: Level;
+      folderId?: string;
+      starred: boolean;
+      following: boolean;
+    } = {
+      type: r.type,
+      id: r.id,
+      title,
+      via: r.via,
+      level: r.level,
+      starred: starred.has(r.id),
+      following: following.has(r.id),
+    };
+    if (folderId) row.folderId = folderId;
+    return row;
+  });
+  const p: { rows: typeof rowsOut; next?: string; total: number } = { rows: rowsOut, total: picked.length };
+  if (start + rowsOut.length < picked.length) p.next = String(start + rowsOut.length);
   return { rows: p.rows, counts, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
 
