@@ -1676,6 +1676,9 @@ export async function audienceSet(
     if (!rec || rec.type !== "record") raise(trace, "validation.not_found", "no such record");
     // the host's own sweeps (svc_host and the host's other own services, by name) bring old folders in line; any other caller, a tenant's service included, needs Manage on the folder like everyone else
     if (!isHostOwnService(ctx.principal)) must(ctx, store, res, "manage", "attaching the folder to its record");
+    // a person chose who this folder is open to (audience_set by someone with Manage): the host's own sweep and re-attach never undo that choice
+    if (isHostOwnService(ctx.principal) && res.row?.["audienceChosen"] === true)
+      return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
     const wasFresh = isFresh(ctx, store, ss);
     res.parentId = rec.id;
     changed(ctx, store, "assignment");
@@ -1713,6 +1716,8 @@ export async function audienceSet(
       if (g.resource.id === res.id && g.source === AUDIENCE_SOURCE) dropGrant(ctx, store, g);
     if (input.audience === "space") delete row["audience"];
     else row["audience"] = input.audience;
+    // recorded on the folder: somebody with the right chose this, and the host does not change it again (the follow branch above)
+    if (res.type === "folder" && !isHostOwnService(ctx.principal)) row["audienceChosen"] = true;
     if (input.audience === "added")
       for (const role of KEEPERS)
         if (store.roles.has(role)) addGrant(ctx, store, res, { kind: "role", id: role }, "manage");

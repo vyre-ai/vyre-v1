@@ -504,3 +504,30 @@ test("a caller with little right that triggers the refusal does not close the fo
   assert.ok(r.can("usr_dee", folder), "it follows rec_one, which follows the Space: nobody is shut out");
   assert.equal(r.store.resources.get("fld_deal")!.parentId, "rec_one");
 });
+
+test("a folder whose audience a person chose is not re-attached by the host: a manager's narrowing is never undone; a folder nobody chose still follows", async () => {
+  const r = rig();
+  for (const id of ["fld_chosen", "fld_plain"])
+    r.store.resources.set(id, {
+      id,
+      type: "folder",
+      parentId: "spc_test",
+      label: "public",
+      ownerId: "usr_ada",
+      holds: 0,
+      row: { name: id, itemType: "file", scope: "space" },
+    });
+  r.store.bump();
+  const host: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_host" } };
+  // Ada (who manages them) chooses "only people added" for one of them
+  await audienceSet(r.ctx, { resource: { type: "folder", id: "fld_chosen" }, audience: "added" });
+  assert.ok(!r.can("usr_dee", { type: "folder", id: "fld_chosen" }), "closed by the manager's choice");
+  await audienceSet(host, { resource: { type: "folder", id: "fld_chosen" }, follows: "rec_one" });
+  assert.ok(!r.can("usr_dee", { type: "folder", id: "fld_chosen" }), "the host's re-attach left it closed");
+  assert.equal(r.store.resources.get("fld_chosen")!.parentId, "spc_test", "and did not move it");
+  await audienceSet(host, { resource: { type: "folder", id: "fld_plain" }, follows: "rec_one" });
+  assert.equal(r.store.resources.get("fld_plain")!.parentId, "rec_one", "a folder nobody chose follows its record");
+  // the host's own narrowing is not a person's choice: it does not make a folder untouchable
+  await folderNarrow(host, { folderId: "fld_plain" });
+  assert.notEqual(r.store.resources.get("fld_plain")!.row?.["audienceChosen"], true);
+});
