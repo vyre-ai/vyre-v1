@@ -274,3 +274,12 @@ test("the daily re-check is shown on the domain: a first failure as a warning, t
     /^Stopped after two failed daily checks: SPF no longer passes in DNS\.$/,
   );
 });
+
+test("a new template's key comes from its name, starts with a letter, and never takes a key that exists", async () => {
+  const { keyFromTitle } = await import("./Email.tsx");
+  assert.equal(keyFromTitle("Welcome aboard!", []), "welcome_aboard");
+  assert.equal(keyFromTitle("  2nd notice ", []), "t_2nd_notice");
+  assert.equal(keyFromTitle("???", []), "t_template");
+  assert.equal(keyFromTitle("Welcome", ["welcome", "welcome_2"]), "welcome_3");
+  assert.match(keyFromTitle("A".repeat(80), []), /^[a-z][a-z0-9_]{0,59}$/);
+});

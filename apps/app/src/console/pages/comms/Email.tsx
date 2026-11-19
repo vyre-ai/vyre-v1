@@ -560,147 +560,104 @@ function AddressSection({ domains }: { domains: Setup["domains"] }): ReactElemen
   );
 }
 
-/** The Space's email templates, from the same read the templates page uses: how many, which are changed, and a press opens one. */
+/** A template's key from its name: lowercase words joined by underscores, starting with a letter, and never one that is already taken (a name that matches one adds a number). */
+export function keyFromTitle(title: string, taken: readonly string[]): string {
+  const base = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+  const start = /^[a-z]/.test(base) ? base : `t_${base || "template"}`;
+  let key = start;
+  for (let n = 2; taken.includes(key); n++) key = `${start}_${n}`;
+  return key;
+}
+
+/** The Space's email templates, from the same read the templates page uses: how many, which are changed, a press opens one, and a new one is a name, a subject and some words. */
 function TemplatesSection(): ReactElement | null {
   const data = useConsoleData();
   const list = useRead<CapMap["mail.template.list"]["out"]>("mail.template.list", {});
+  const [adding, setAdding] = useState(false);
   const templates = list.data?.templates ?? [];
   if (!list.data || templates.length === 0) return null;
   return (
-    <Section title="Templates" count={templates.length}>
+    <Section
+      title="Templates"
+      count={templates.length}
+      right={<QuietLink label="New template" testID="template-new" onPress={() => setAdding(true)} />}
+    >
       <Group>
         {templates.map((t) => (
           <Row
             key={t.key}
+            id={`template-${t.key}`}
             leading={<IconTile icon="doc" />}
             title={t.title}
+            note={t.customised ? "Changed by your Space" : "Built in"}
+            tall
             onPress={() => data.nav.openPage("templates", { templateKey: t.key })}
-            trailing={
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <Text style={{ fontSize: 12.5, color: MUTED }}>{t.customised ? "Changed" : "Built in"}</Text>
-                <Glyph name="chevR" size={12} color={MUTED} />
-              </View>
-            }
+            trailing={<Glyph name="chevR" size={12} color={MUTED} />}
           />
         ))}
       </Group>
+      {adding ? (
+        <FormCard>
+          <NewTemplate
+            taken={templates.map((t) => t.key)}
+            onDone={(key) => {
+              setAdding(false);
+              list.refresh();
+              if (key) data.nav.openPage("templates", { templateKey: key });
+            }}
+          />
+        </FormCard>
+      ) : null}
     </Section>
   );
 }
 
-function NewAddress({
-  domains,
-  inboxes,
-  onDone,
-}: {
-  domains: Setup["domains"];
-  inboxes: { key: string; title: string }[];
-  onDone(): void;
-}): ReactElement {
-  const [name, setName] = useState("");
-  const [domainId, setDomainId] = useState(domains.find((d) => d.isDefault)?.id ?? domains[0]?.id ?? "");
-  const [goesTo, setGoesTo] = useState(NEW_INBOX);
-  const [key, setKey] = useState(attempt); // one key per attempt: pressing Create twice is one add, and a retry after a failure finishes it
-  const action = useAction(onDone);
-  const domain = domains.find((d) => d.id === domainId);
-  const sendOnly = domain?.provider === "smtp";
-  const valid = /^[a-z0-9]([a-z0-9._+-]*[a-z0-9])?$/i.test(name.trim()) && domainId !== "";
-  const create = async (): Promise<void> => {
-    const out = await action.run(
-      "mail.address.add",
-      {
-        domainId,
-        localPart: name.trim().toLowerCase(),
-        ...(goesTo !== NEW_INBOX && !sendOnly ? { mailboxId: goesTo } : {}),
-        idempotencyKey: key,
-      },
-      "Address ready",
-    );
-    if (out) setKey(attempt());
-  };
+function NewTemplate({ taken, onDone }: { taken: readonly string[]; onDone(key?: string): void }): ReactElement {
+  const [title, setTitle] = useState("");
+  const [subject, setSubject] = useState("");
+  const [text, setText] = useState("");
+  const [id] = useState(attempt); // one key per attempt, so pressing Create twice saves once
+  const action = useAction(() => undefined);
+  const valid = title.trim() !== "" && subject.trim() !== "" && text.trim() !== "";
+  const key = keyFromTitle(title, taken);
   return (
-    <View testID="address-new-form">
+    <View testID="template-new-form" style={{ gap: 8 }}>
+      <TextBox label="Name" testID="template-new-title" value={title} onChange={setTitle} />
+      <TextBox label="Subject" testID="template-new-subject" value={subject} onChange={setSubject} />
       <TextBox
-        label="Name"
-        testID="address-name"
-        value={name}
-        onChange={setName}
-        hint="The part before the @, such as billing."
+        label="Words"
+        testID="template-new-text"
+        value={text}
+        onChange={setText}
+        multiline
+        hint="Put a field in double braces, like {{signer_name|there}}."
       />
-      <Select
-        label="Domain"
-        value={domainId}
-        options={domains.map((d) => ({ key: d.id, title: d.name }))}
-        onChange={setDomainId}
-      />
-      {sendOnly ? (
-        <Help>This domain's mail arrives at your own mail server, so this address can send but not receive here.</Help>
-      ) : (
-        <Select
-          label="Mail goes to"
-          value={goesTo}
-          options={[{ key: NEW_INBOX, title: "A new inbox for this address" }, ...inboxes]}
-          onChange={setGoesTo}
-        />
-      )}
       <Actions>
-        <Button label="Cancel" onPress={onDone} />
+        <Button label="Cancel" onPress={() => onDone()} />
         <Button
           label="Create"
-          testID="address-create"
+          testID="template-create"
           primary
           disabled={!valid || action.busy}
-          onPress={() => void create()}
-        />
-      </Actions>
-      {action.note ? <Note testID="address-note">{action.note}</Note> : null}
-    </View>
-  );
-}
-
-function MoveAddress({
-  address,
-  inboxes,
-  onDone,
-}: {
-  address: Address;
-  inboxes: { key: string; title: string }[];
-  onDone(): void;
-}): ReactElement {
-  const [to, setTo] = useState("");
-  const [key] = useState(attempt);
-  const action = useAction(onDone);
-  const local = address.address.split("@")[0] ?? "";
-  return (
-    <View testID="address-move-form">
-      <Note>
-        {address.address} goes to {address.mailboxTitle} now. Choose where it should go instead; mail to it moves at
-        once.
-      </Note>
-      <Select label="New inbox" value={to} options={inboxes} onChange={setTo} />
-      <Actions>
-        <Button label="Cancel" onPress={onDone} />
-        <Button
-          label="Move"
-          testID="address-move"
-          primary
-          disabled={to === "" || action.busy}
           onPress={() =>
-            void action.run(
-              "mail.address.move",
-              {
-                domainId: address.domainId,
-                localPart: local,
-                fromMailboxId: address.mailboxId,
-                mailboxId: to,
-                idempotencyKey: key,
-              },
-              (o: CapMap["mail.address.move"]["out"]) => `${address.address} now goes to ${o.to}`,
-            )
+            void action
+              .run(
+                "mail.template.save",
+                { key, title: title.trim(), subject: subject.trim(), text, idempotencyKey: id },
+                "Template saved",
+              )
+              .then((out) => {
+                if (out) onDone(key);
+              })
           }
         />
       </Actions>
-      {action.note ? <Note testID="address-move-note">{action.note}</Note> : null}
+      {action.note ? <Note testID="template-new-note">{action.note}</Note> : null}
     </View>
   );
 }
