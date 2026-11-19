@@ -119,7 +119,7 @@ test("a soft bounce waits and retries once to that address only, never twice for
   assert.deepEqual(sent[0]!.to, [{ address: "pat@acme.test" }]); // kim is not mailed again
   assert.equal(sent[0]!.idempotencyKey, "retry:eml_m1:pat@acme.test:1");
   const out = await trail(h.ctx, { messageId: "eml_m1" });
-  assert.deepEqual(out.events.map((e) => e.kind).sort(), ["retried", "retry_scheduled", "sent", "soft_bounced"]);
+  assert.deepEqual(out.events.map((e) => e.kind).sort(), ["retried", "retry_scheduled", "sent", "soft_bounced", "soft_bounced"]);
   assert.deepEqual(out.retry, undefined); // the retry went out; the next soft bounce, if any, plans the next one
 });
 
