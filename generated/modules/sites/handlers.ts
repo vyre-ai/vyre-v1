@@ -15,6 +15,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.backup_download": Handler<"sites.backup_download", X>;
   "sites.backup_pin": Handler<"sites.backup_pin", X>;
   "sites.backup_restore": Handler<"sites.backup_restore", X>;
+  "sites.backups": Handler<"sites.backups", X>;
   "sites.backups_list": Handler<"sites.backups_list", X>;
   "sites.build": Handler<"sites.build", X>;
   "sites.chat_viewing": Handler<"sites.chat_viewing", X>;
@@ -38,6 +39,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.job_run": Handler<"sites.job_run", X>;
   "sites.job_runs": Handler<"sites.job_runs", X>;
   "sites.job_update": Handler<"sites.job_update", X>;
+  "sites.jobs": Handler<"sites.jobs", X>;
   "sites.jobs_list": Handler<"sites.jobs_list", X>;
   "sites.list": Handler<"sites.list", X>;
   "sites.logs": Handler<"sites.logs", X>;
@@ -57,6 +59,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.service_remove": Handler<"sites.service_remove", X>;
   "sites.service_restart": Handler<"sites.service_restart", X>;
   "sites.service_stop": Handler<"sites.service_stop", X>;
+  "sites.services": Handler<"sites.services", X>;
   "sites.services_list": Handler<"sites.services_list", X>;
   "sites.ship": Handler<"sites.ship", X>;
   "sites.signin_link": Handler<"sites.signin_link", X>;
@@ -67,4 +70,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.table_promote": Handler<"sites.table_promote", X>;
   "sites.tables": Handler<"sites.tables", X>;
   "sites.update": Handler<"sites.update", X>;
+  "sites.webhook_get": Handler<"sites.webhook_get", X>;
+  "sites.webhook_set": Handler<"sites.webhook_set", X>;
 }

@@ -60,7 +60,7 @@ export function depNote(d: Dep, who: string | null, when: string, now: number, w
   if (who) parts.push(who);
   if (isRunning(d)) {
     const st = runningStep(d);
-    parts.push(st ? `${STEP_TITLE[st.key]} ${clock(now - (st.startedAt ?? d.at))}` : "Waiting for its turn");
+    parts.push(st ? `${STEP_TITLE[st.key]} ${clock(now - (st.startedAt ?? d.at))}` : "Waiting to start");
     return parts.join(" · ");
   }
   parts.push(when);
@@ -145,7 +145,7 @@ export function attention(
       note: st
         ? `${STEP_TITLE[st.key]} · ${clock(now - (st.startedAt ?? d.at))}`
         : d.state === "queued"
-          ? "Waiting for its turn"
+          ? "Waiting to start"
           : "Starting",
     };
   }
@@ -168,7 +168,7 @@ export function missingName(problem: string | undefined): string | null {
 
 export type EnvRow = CapMap["sites.env_list"]["out"]["entries"][number];
 export type EnvScope = EnvRow["scope"];
-export type EnvEntry = { name: string; vaultHandle?: string; value?: string; scope?: EnvScope };
+export type EnvEntry = { name: string; vaultHandle?: string; value?: string; scope?: EnvScope; confirmPlain?: boolean };
 
 export const SCOPE_TITLE: Readonly<Record<EnvScope, string>> = {
   all: "Everywhere",
@@ -181,42 +181,95 @@ export function entryOf(r: EnvRow): EnvEntry {
   return {
     name: r.name,
     scope: r.scope,
-    ...(r.kind === "plain" ? { value: r.value ?? "" } : { vaultHandle: r.vaultName }),
+    // a plain value that is kept was accepted as plain: saving the list again does not ask again
+    ...(r.kind === "plain" ? { value: r.value ?? "", confirmPlain: true } : { vaultHandle: r.vaultName }),
   };
 }
 
-/** The names that carry a secret by what they say: keys, tokens, passwords, and an address with a login in it. Everything else in a pasted .env is plain. */
-const SECRET_NAME = /(^|_)(KEY|SECRET|TOKEN|PASSWORD|PASSWD|PASS|PWD|PRIVATE|CREDENTIALS?|AUTH|SALT|DSN)(_|$)/i;
-const URL_WITH_LOGIN = /^[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s@]+@/i;
-export const isSecretVar = (name: string, value: string): boolean =>
-  SECRET_NAME.test(name) || URL_WITH_LOGIN.test(value);
+// Does a variable look like a secret? The same rules as modules/sites/handlers/secrets.ts (looksSecret), which the server asks before it keeps a plain value; both are pinned by the same table of cases in their tests.
+const PUBLIC_NAME = /^(NEXT_PUBLIC_|PUBLIC_|VITE_|REACT_APP_|EXPO_PUBLIC_|NUXT_PUBLIC_)/i;
+const SECRET_NAME =
+  /(KEY|SECRET|TOKEN|PASSWORD|PASSWD|PASS|PWD|PRIVATE|CREDENTIAL|AUTH|SALT|DSN|SIGNING|COOKIE|SESSION|WEBHOOK|BEARER|^SK_|_SK$|^JWT|_JWT$|^SENDGRID|^MAILGUN|^TWILIO)/i;
+const PLAIN_SHAPE = /^(true|false|yes|no|on|off|null|\d{1,10}(\.\d+)?)$/i;
+const VALUE_SHAPES: readonly RegExp[] = [
+  /(^|[^A-Za-z0-9])(sk|rk)_(live|test)_[A-Za-z0-9]{8,}/,
+  /(^|[^A-Za-z0-9])(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}/,
+  /github_pat_[A-Za-z0-9_]{20,}/,
+  /xox[abprs]-[A-Za-z0-9-]{10,}/,
+  /AKIA[0-9A-Z]{16}/,
+  /AIza[0-9A-Za-z_-]{30,}/,
+  /^eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*$/,
+  /-----BEGIN [A-Z ]*(PRIVATE KEY|CERTIFICATE|PGP)/,
+  /^[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s@]+@/i,
+  /[?&](password|passwd|pwd|token|secret|key|apikey|api_key|access_token|sig|signature)=[^&\s]{4,}/i,
+  /hooks\.slack\.com\/services\//,
+  /discord(app)?\.com\/api\/webhooks\//,
+];
+const entropy = (s: string): number => {
+  if (s.length === 0) return 0;
+  const n = new Map<string, number>();
+  for (const c of s) n.set(c, (n.get(c) ?? 0) + 1);
+  let h = 0;
+  for (const k of n.values()) h -= (k / s.length) * Math.log2(k / s.length);
+  return h;
+};
+export const isSecretVar = (name: string, value: string): boolean => {
+  if (VALUE_SHAPES.some((r) => r.test(value))) return true;
+  if (value.length >= 24 && !/\s/.test(value) && !value.includes("/") && entropy(value) >= 3.9) return true;
+  if (PUBLIC_NAME.test(name) || PLAIN_SHAPE.test(value.trim())) return false;
+  return SECRET_NAME.test(name);
+};
 
-/** Parse the text of a .env: NAME=value lines, `export NAME=value`, quoted values (a double quote reads \n), a trailing # comment on an unquoted value, blank and # lines skipped. The last of a repeated name wins. Names that cannot be env vars come back in `skipped`. */
+const NAME = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
+const CLOSE: Record<string, RegExp> = { '"': /(?<!\\)"/, "'": /'/, "`": /`/ };
+/** What a double-quoted value means: \n and \r are line breaks, \" and \\ are themselves, any other backslash stays. One pass, so \\n is a backslash and an n. */
+const unescape = (s: string): string =>
+  s.replace(/\\(.)/gs, (m, c: string) => (c === "n" ? "\n" : c === "r" ? "\r" : c === '"' || c === "\\" ? c : m));
+
+/** Parse the text of a .env the way dotenv reads it: NAME=value, `export NAME=value`, values in double, single or back quotes (a quoted value may run over several lines; only a double-quoted one reads escapes), an unquoted value ends at a whitespace and # comment,
+ * blank and # lines skipped, the last of a repeated name wins, a leading byte-order mark ignored. A line that is not an assignment, a name that cannot be an env var, and a quote that never closes are listed by line number in `skipped`, and make no variable. */
 export function parseEnv(text: string): {
   vars: { name: string; value: string; secret: boolean }[];
   skipped: string[];
 } {
   const found = new Map<string, string>();
   const skipped: string[] = [];
-  for (const raw of text.replace(/\r\n?/g, "\n").split("\n")) {
-    const line = raw.trim();
+  const lines = text
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = (lines[i] as string).trim();
     if (line === "" || line.startsWith("#")) continue;
-    const m = /^(?:export\s+)?([^=\s]+)\s*=\s*(.*)$/.exec(line);
-    if (!m) {
-      skipped.push(line.slice(0, 40));
+    const m = /^(?:export\s+)?([^=\s]+)\s*=(.*)$/.exec(line);
+    if (!m || !NAME.test(m[1] as string) || (m[2] as string).startsWith("=")) {
+      skipped.push(`line ${i + 1}`);
       continue;
     }
     const name = m[1] as string;
-    let v = (m[2] as string).trim();
-    if (!/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(name)) {
-      skipped.push(name.slice(0, 40));
-      continue;
+    const rest = (m[2] as string).trimStart();
+    const q = rest[0];
+    let value: string;
+    if (q === '"' || q === "'" || q === "`") {
+      let body = rest.slice(1);
+      let close = body.search(CLOSE[q] as RegExp);
+      let at = i;
+      while (close < 0 && at + 1 < lines.length) {
+        at++;
+        body += `\n${lines[at]}`;
+        close = body.search(CLOSE[q] as RegExp);
+      }
+      if (close < 0) {
+        skipped.push(`line ${i + 1}`);
+        continue;
+      }
+      value = body.slice(0, close);
+      if (q === '"') value = unescape(value);
+      i = at;
+    } else {
+      value = rest.replace(/\s+#.*$/, "").trim();
     }
-    if (v.startsWith('"') && v.lastIndexOf('"') > 0)
-      v = v.slice(1, v.lastIndexOf('"')).replace(/\\n/g, "\n").replace(/\\"/g, '"');
-    else if (v.startsWith("'") && v.lastIndexOf("'") > 0) v = v.slice(1, v.lastIndexOf("'"));
-    else v = v.replace(/\s+#.*$/, "");
-    found.set(name, v);
+    found.set(name, value);
   }
   return { vars: [...found].map(([name, value]) => ({ name, value, secret: isSecretVar(name, value) })), skipped };
 }
@@ -260,4 +313,9 @@ export function foundLines(p: Pick<Plan, "note" | "needs" | "env">): string[] {
   ];
   if (needs.length) out.push(`It looks for ${needs.join(" and ")}. You set them after it is created.`);
   return out;
+}
+
+/** The branches typed in the Settings field: split on commas and spaces, empty ones dropped, each once. */
+export function parseFollow(typed: string): string[] {
+  return [...new Set(typed.split(/[\s,]+/).filter((s) => s !== ""))];
 }

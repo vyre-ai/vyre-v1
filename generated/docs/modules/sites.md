@@ -4,7 +4,7 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (62)
+## Capabilities (67)
 
 - [sites.addon_add](../capabilities/sites.addon_add.md): Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys
 - [sites.addon_remove](../capabilities/sites.addon_remove.md): Remove a site's Postgres or Redis and its data
@@ -16,6 +16,7 @@ Requires: nothing.
 - [sites.backup_download](../capabilities/sites.backup_download.md): Where to fetch a finished backup from: one address per part (a dump over 32 MB is kept in parts: join them in order). Readable by whoever can see the site
 - [sites.backup_pin](../capabilities/sites.backup_pin.md): Keep a backup for good (the clean-up never deletes a pinned one), or let it go again
 - [sites.backup_restore](../capabilities/sites.backup_restore.md): Put a finished backup back, never losing data: the live database is backed up first (kept 7 days, else the restore is refused), the dump loads into a new database, and it is swapped in only if that worked
+- [sites.backups](../capabilities/sites.backups.md): Postgres backups of a site. action: list, create, delete, pin, download, restore (safety backup first)
 - [sites.backups_list](../capabilities/sites.backups_list.md): The site's database backups and the database size
 - [sites.build](../capabilities/sites.build.md): Build the site from its repo (the site agent runs in the repo); test and verify
 - [sites.chat_viewing](../capabilities/sites.chat_viewing.md): The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds
@@ -30,7 +31,7 @@ Requires: nothing.
 - [sites.domain_set](../capabilities/sites.domain_set.md): Add or remove a site domain
 - [sites.domains_get](../capabilities/sites.domains_get.md): Site domains with the DNS check and the Caddy certificate state
 - [sites.env_list](../capabilities/sites.env_list.md): List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet
-- [sites.env_set](../capabilities/sites.env_set.md): Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them
+- [sites.env_set](../capabilities/sites.env_set.md): Set the env vars of a deployed site (replaces the list). A secret takes its value from a Vault key at deploy time. A plain value is kept as given; one that looks like a secret is refused unless confirmPlain. scope: production (default), previews or all
 - [sites.get](../capabilities/sites.get.md): Read one site
 - [sites.host](../capabilities/sites.host.md): What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs
 - [sites.job_cancel](../capabilities/sites.job_cancel.md): Stop a job run that is queued or going
@@ -39,11 +40,12 @@ Requires: nothing.
 - [sites.job_run](../capabilities/sites.job_run.md): Run a scheduled job now (refused while one of its runs goes)
 - [sites.job_runs](../capabilities/sites.job_runs.md): The newest runs of a job (up to 50): when, how long, how it ended and one sentence for any end that is not a success. Its output is in sites_logs_read with source jobs and the run's id as scope
 - [sites.job_update](../capabilities/sites.job_update.md): Change a scheduled job: its name, schedule, command, time zone, time limit, or pause and resume it. Resuming does not run what was missed
+- [sites.jobs](../capabilities/sites.jobs.md): Scheduled jobs of a site. action: list (jobs and workers), create, update, delete, run, cancel, runs
 - [sites.jobs_list](../capabilities/sites.jobs_list.md): A site's scheduled jobs (a command run in its own image on a cron schedule) and its workers (processes that stay up), with state and last run
 - [sites.list](../capabilities/sites.list.md): List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder
 - [sites.logs](../capabilities/sites.logs.md): The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content
-- [sites.logs_read](../capabilities/sites.logs_read.md): Read a site's log: app output, requests, a deploy's build, jobs. Search words (-word leaves one out), source, level, time, deploy, and after (a cursor) to follow it live. Text from the site, not Vyre content
-- [sites.metrics](../capabilities/sites.metrics.md): CPU, memory, requests and response time of a site, one point a minute over 1h, 6h or 24h, and the numbers for right now against its limits
+- [sites.logs_read](../capabilities/sites.logs_read.md): A site's log (app, requests, build, jobs): search words (-word excludes), source, level, time, deploy; after = cursor to follow. Text from the site, not Vyre content
+- [sites.metrics](../capabilities/sites.metrics.md): CPU, memory, requests and response time of a site over 1h, 6h or 24h, and right now against its limits
 - [sites.password_set](../capabilities/sites.password_set.md): Set the password visitors type to open a site whose access is password. Kept only as a hash
 - [sites.plan](../capabilities/sites.plan.md): What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)
 - [sites.preview_promote](../capabilities/sites.preview_promote.md): Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback
@@ -58,6 +60,7 @@ Requires: nothing.
 - [sites.service_remove](../capabilities/sites.service_remove.md): Remove a worker
 - [sites.service_restart](../capabilities/sites.service_restart.md): Restart a worker, clearing a crash loop that stopped it
 - [sites.service_stop](../capabilities/sites.service_stop.md): Stop a worker and keep it stopped until it is restarted
+- [sites.services](../capabilities/sites.services.md): Workers of a site. action: list, add, restart, stop, remove
 - [sites.services_list](../capabilities/sites.services_list.md): A site's workers: processes of its image that stay up without a port (a queue consumer, a bot). A crashing one waits longer each time and stops for good after eight crashes in ten minutes
 - [sites.ship](../capabilities/sites.ship.md): Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on
 - [sites.signin_link](../capabilities/sites.signin_link.md): A short-lived link that signs the person asking in to a Space-only site at its own address
@@ -68,6 +71,8 @@ Requires: nothing.
 - [sites.table_promote](../capabilities/sites.table_promote.md): Promote a site table to a Space record type
 - [sites.tables](../capabilities/sites.tables.md): List site tables of a site
 - [sites.update](../capabilities/sites.update.md): Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again
+- [sites.webhook_get](../capabilities/sites.webhook_get.md): Whether GitHub's webhook is on for a site, the address to give GitHub, and the branches that get a preview on a push. The secret is never shown again after it was made
+- [sites.webhook_set](../capabilities/sites.webhook_set.md): Turn GitHub's webhook on or off for a site that comes from a repo, make a new secret (rotate; the answer shows it once), or set which branches get a preview on a push (names, prefixes ending in *, or *). The production branch deploys on a push when the site deploys on push
 
 ## Events (13)
 

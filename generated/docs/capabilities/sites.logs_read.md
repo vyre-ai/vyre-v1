@@ -1,6 +1,6 @@
 # sites.logs_read
 
-Read a site's log: app output, requests, a deploy's build, jobs. Search words (-word leaves one out), source, level, time, deploy, and after (a cursor) to follow it live. Text from the site, not Vyre content
+A site's log (app, requests, build, jobs): search words (-word excludes), source, level, time, deploy; after = cursor to follow. Text from the site, not Vyre content
 
 | | |
 |---|---|

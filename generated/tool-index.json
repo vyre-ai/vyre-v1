@@ -8342,14 +8342,8 @@
     },
     {
       "deferred": false,
-      "name": "sites_backup_create",
-      "summary": "Back up the site's Postgres now; read sites_backups_list to see it finish",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_backups_list",
-      "summary": "The site's database backups and the database size",
+      "name": "sites_backups",
+      "summary": "Postgres backups of a site. action: list, create, delete, pin, download, restore (safety backup first)",
       "toolset": "sites"
     },
     {
@@ -8433,7 +8427,7 @@
     {
       "deferred": false,
       "name": "sites_env_set",
-      "summary": "Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them",
+      "summary": "Set the env vars of a deployed site (replaces the list). A secret takes its value from a Vault key at deploy time. A plain value is kept as given; one that looks like a secret is refused unless confirmPlain. scope: production (default), previews or all",
       "toolset": "sites"
     },
     {
@@ -8450,20 +8444,8 @@
     },
     {
       "deferred": false,
-      "name": "sites_job_create",
-      "summary": "Add a scheduled job to a deployed site: a command run on a cron schedule in the site's image, with its variables",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_job_run",
-      "summary": "Run a scheduled job now (refused while one of its runs goes)",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_jobs_list",
-      "summary": "A site's scheduled jobs (a command run in its own image on a cron schedule) and its workers (processes that stay up), with state and last run",
+      "name": "sites_jobs",
+      "summary": "Scheduled jobs of a site. action: list (jobs and workers), create, update, delete, run, cancel, runs",
       "toolset": "sites"
     },
     {
@@ -8481,13 +8463,13 @@
     {
       "deferred": false,
       "name": "sites_logs_read",
-      "summary": "Read a site's log: app output, requests, a deploy's build, jobs. Search words (-word leaves one out), source, level, time, deploy, and after (a cursor) to follow it live. Text from the site, not Vyre content",
+      "summary": "A site's log (app, requests, build, jobs): search words (-word excludes), source, level, time, deploy; after = cursor to follow. Text from the site, not Vyre content",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_metrics",
-      "summary": "CPU, memory, requests and response time of a site, one point a minute over 1h, 6h or 24h, and the numbers for right now against its limits",
+      "summary": "CPU, memory, requests and response time of a site over 1h, 6h or 24h, and right now against its limits",
       "toolset": "sites"
     },
     {
@@ -8540,20 +8522,14 @@
     },
     {
       "deferred": false,
-      "name": "sites_service_add",
-      "summary": "Add a worker to a deployed site: a command that stays up in the site's image, restarts itself on a crash, and moves to the newest deploy",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
       "name": "sites_service_identity",
       "summary": "The site service identity and its grants (capped by the owner)",
       "toolset": "sites"
     },
     {
       "deferred": false,
-      "name": "sites_service_restart",
-      "summary": "Restart a worker, clearing a crash loop that stopped it",
+      "name": "sites_services",
+      "summary": "Workers of a site. action: list, add, restart, stop, remove",
       "toolset": "sites"
     },
     {
@@ -8602,6 +8578,18 @@
       "deferred": false,
       "name": "sites_update",
       "summary": "Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_webhook_get",
+      "summary": "Whether GitHub's webhook is on for a site, the address to give GitHub, and the branches that get a preview on a push. The secret is never shown again after it was made",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_webhook_set",
+      "summary": "Turn GitHub's webhook on or off for a site that comes from a repo, make a new secret (rotate; the answer shows it once), or set which branches get a preview on a push (names, prefixes ending in *, or *). The production branch deploys on a push when the site deploys on push",
       "toolset": "sites"
     },
     {

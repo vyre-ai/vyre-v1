@@ -29,6 +29,8 @@ import { releaseHandlers } from "./handlers/release.ts";
 import { opsHandlers } from "./handlers/ops.ts";
 import { jobHandlers } from "./handlers/ops-jobs.ts";
 import { backupHandlers } from "./handlers/ops-backups.ts";
+import { toolHandlers } from "./handlers/ops-tools.ts";
+import { acceptWebhook, hookHandlers, markPushDone, markPushFailed, pendingPushes } from "./handlers/hook.ts";
 export { refreshDomainRoutes } from "./handlers/route-domains.ts";
 export { dueBackupSites } from "./handlers/ops-backups.ts";
 export { opsTickOf as opsTick, accessLineOf as accessLine } from "./handlers/ops-host.ts";
@@ -40,11 +42,16 @@ const live = {
   ...routeHandlers,
   ...domainRouteHandlers,
   ...releaseHandlers,
+  ...hookHandlers,
   ...opsHandlers,
   ...jobHandlers,
   ...backupHandlers,
+  ...toolHandlers,
 };
 const dormant = registry.capabilities.filter((c) => c.module === "sites" && !(c.name in live)).map((c) => c.name);
 export const handlers = { ...deferredHandlers(dormant), ...live };
 export const consumers = {};
+export { markPushDone, markPushFailed, pendingPushes };
+/** /hooks/sites: GitHub's webhook for a site, checked with the site's own secret (handlers/hook.ts). */
+export const hostCalls = { "sites.accept_webhook": acceptWebhook };
 export const hostSeams = { configureRoutes, configureDomainEdge };

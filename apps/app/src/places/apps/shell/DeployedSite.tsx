@@ -33,6 +33,7 @@ import { JobsAndWorkers } from "./site/Jobs.tsx";
 import { Backups } from "./site/Backups.tsx";
 import { MetricCards } from "./site/Metrics.tsx";
 import { Variables } from "./site/Variables.tsx";
+import { Webhook } from "./site/Webhook.tsx";
 import type { EnvEntry } from "./site/model.ts";
 
 type Site = CapMap["sites.get"]["out"]["site"];
@@ -539,6 +540,7 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
       <Card title="Source">
         <Text style={ui.text}>{x.source ? sourceLine(x.source) : "Not connected to a repo or folder."}</Text>
       </Card>
+      <Webhook site={x} online={online} busy={!!busy} />
       <Card title="Database">
         <Row
           id="addon-postgres"

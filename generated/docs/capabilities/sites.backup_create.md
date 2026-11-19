@@ -17,7 +17,7 @@ Back up the site's Postgres now; read sites_backups_list to see it finish
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/backup_create |
-| MCP tool | sites_backup_create (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

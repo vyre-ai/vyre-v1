@@ -17,7 +17,7 @@ The site's database backups and the database size
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/backups_list |
-| MCP tool | sites_backups_list (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

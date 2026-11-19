@@ -17,7 +17,7 @@ A site's scheduled jobs (a command run in its own image on a cron schedule) and 
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/jobs_list |
-| MCP tool | sites_jobs_list (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

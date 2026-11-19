@@ -17,7 +17,7 @@ Restart a worker, clearing a crash loop that stopped it
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/service_restart |
-| MCP tool | sites_service_restart (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

@@ -24,6 +24,7 @@ Area: sites. Risk: medium. Applies to: site.
 - sites.backup_download
 - sites.backup_pin
 - sites.backup_restore
+- sites.backups
 - sites.backups_list
 - sites.build
 - sites.create
@@ -37,6 +38,7 @@ Area: sites. Risk: medium. Applies to: site.
 - sites.job_delete
 - sites.job_run
 - sites.job_update
+- sites.jobs
 - sites.logs
 - sites.logs_read
 - sites.password_set
@@ -51,7 +53,9 @@ Area: sites. Risk: medium. Applies to: site.
 - sites.service_remove
 - sites.service_restart
 - sites.service_stop
+- sites.services
 - sites.ship
 - sites.staging_password_set
 - sites.stop
 - sites.update
+- sites.webhook_set

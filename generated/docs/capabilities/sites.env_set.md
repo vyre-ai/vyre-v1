@@ -1,6 +1,6 @@
 # sites.env_set
 
-Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them
+Set the env vars of a deployed site (replaces the list). A secret takes its value from a Vault key at deploy time. A plain value is kept as given; one that looks like a secret is refused unless confirmPlain. scope: production (default), previews or all
 
 | | |
 |---|---|
@@ -31,6 +31,7 @@ type In = {
       vaultHandle?: string;
       value?: string;
       scope?: "all" | "production" | "previews";
+      confirmPlain?: boolean;
     }>;
 };
 ```
@@ -60,6 +61,7 @@ type Out = {
   "input": {
     "entries": [
       {
+        "confirmPlain": true,
         "name": "example",
         "scope": "all",
         "value": "example",

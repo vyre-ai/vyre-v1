@@ -17,7 +17,7 @@ Add a scheduled job to a deployed site: a command run on a cron schedule in the 
 | Audit | sensitive |
 | Team Space only | no |
 | HTTP | POST /v1/sites/job_create |
-| MCP tool | sites_job_create (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

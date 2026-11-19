@@ -4699,11 +4699,9 @@
     "artifactId": "sit_a1b2c3",
     "thumb": "Quarterly planning"
   },
-  "sites_backup_create": {
-    "siteId": "sit_a1b2c3"
-  },
-  "sites_backups_list": {
-    "siteId": "sit_a1b2c3"
+  "sites_backups": {
+    "siteId": "sit_a1b2c3",
+    "action": "list"
   },
   "sites_build": {
     "siteId": "sit_a1b2c3"
@@ -4760,18 +4758,9 @@
     "siteId": "sit_a1b2c3"
   },
   "sites_host": {},
-  "sites_job_create": {
+  "sites_jobs": {
     "siteId": "sit_a1b2c3",
-    "name": "Quarterly planning",
-    "schedule": "0 2 * * *",
-    "command": "node scripts/sync-stock.js"
-  },
-  "sites_job_run": {
-    "siteId": "sit_a1b2c3",
-    "jobId": "job_a1b2c3"
-  },
-  "sites_jobs_list": {
-    "siteId": "sit_a1b2c3"
+    "action": "list"
   },
   "sites_list": {},
   "sites_logs": {
@@ -4808,17 +4797,12 @@
   "sites_rollback": {
     "siteId": "sit_a1b2c3"
   },
-  "sites_service_add": {
-    "siteId": "sit_a1b2c3",
-    "name": "Quarterly planning",
-    "command": "node worker.js"
-  },
   "sites_service_identity": {
     "siteId": "sit_a1b2c3"
   },
-  "sites_service_restart": {
+  "sites_services": {
     "siteId": "sit_a1b2c3",
-    "serviceId": "wkr_a1b2c3"
+    "action": "list"
   },
   "sites_ship": {
     "name": "Team dashboard",
@@ -4855,6 +4839,12 @@
     "siteId": "sit_a1b2c3"
   },
   "sites_update": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_webhook_get": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_webhook_set": {
     "siteId": "sit_a1b2c3"
   },
   "skill_grant": {

@@ -17,7 +17,7 @@ Add a worker to a deployed site: a command that stays up in the site's image, re
 | Audit | sensitive |
 | Team Space only | no |
 | HTTP | POST /v1/sites/service_add |
-| MCP tool | sites_service_add (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

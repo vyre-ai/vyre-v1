@@ -1,6 +1,6 @@
 # sites.metrics
 
-CPU, memory, requests and response time of a site, one point a minute over 1h, 6h or 24h, and the numbers for right now against its limits
+CPU, memory, requests and response time of a site over 1h, 6h or 24h, and right now against its limits
 
 | | |
 |---|---|

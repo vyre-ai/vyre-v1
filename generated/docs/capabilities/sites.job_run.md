@@ -17,7 +17,7 @@ Run a scheduled job now (refused while one of its runs goes)
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/job_run |
-| MCP tool | sites_job_run (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

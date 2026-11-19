@@ -8,12 +8,12 @@ import type { CapMap } from "../../../../../../../generated/types.ts";
 import { useAppsData } from "../data.tsx";
 import { Button, Card, Select, s as ui } from "../editor-ui.tsx";
 import { errorMessage } from "../mutations.ts";
-import { SCOPE_TITLE, entryOf, mergeEnv, parseEnv } from "./model.ts";
+import { SCOPE_TITLE, entryOf, isSecretVar, mergeEnv, parseEnv } from "./model.ts";
 import type { EnvEntry, EnvRow, EnvScope, Site } from "./model.ts";
 
 type Folders = CapMap["vault.folders.list"]["out"];
 type Put = CapMap["vault.item.put"]["out"];
-const SCOPES = (Object.keys(SCOPE_TITLE) as EnvScope[]).map((key) => ({ key, title: SCOPE_TITLE[key] }));
+const SCOPES = (["production", "previews", "all"] as EnvScope[]).map((key) => ({ key, title: SCOPE_TITLE[key] }));
 
 export interface VariablesProps {
   site: Site;
@@ -34,24 +34,32 @@ export function Variables({ site, rows, wanted, keys, busy, online, save, preset
   const [kind, setKind] = useState<"secret" | "plain">("secret");
   const [value, setValue] = useState("");
   const [key, setKey] = useState("");
-  const [scope, setScope] = useState<EnvScope>("all");
+  // a variable applies to production unless it is set wider: a preview runs any branch's code
+  const [scope, setScope] = useState<EnvScope>("production");
+  const [plainOk, setPlainOk] = useState(false);
   const [paste, setPaste] = useState("");
   const [pasting, setPasting] = useState(false);
   const [say, setSay] = useState<string | null>(null);
   const have = rows.map(entryOf);
   const off = busy || !online || pasting;
   const okName = /^[A-Za-z_][A-Za-z0-9_]*$/.test(name.trim());
+  const secretLooking = kind === "plain" && isSecretVar(name.trim(), value);
   const parsed = paste.trim() === "" ? null : parseEnv(paste);
   const secrets = parsed?.vars.filter((v) => v.secret) ?? [];
   const plain = parsed?.vars.filter((v) => !v.secret) ?? [];
 
   const add = async (): Promise<void> => {
     const n = name.trim();
-    const entry: EnvEntry = { name: n, scope, ...(kind === "plain" ? { value } : { vaultHandle: key }) };
+    const entry: EnvEntry = {
+      name: n,
+      scope,
+      ...(kind === "plain" ? { value, ...(plainOk ? { confirmPlain: true } : {}) } : { vaultHandle: key }),
+    };
     if (await save(mergeEnv(have, [entry]).entries)) {
       setName("");
       setValue("");
       setKey("");
+      setPlainOk(false);
       setSay("Saved. Deploy again to use it.");
     }
   };
@@ -83,7 +91,7 @@ export function Variables({ site, rows, wanted, keys, busy, online, save, preset
       if (await save(merged.entries)) {
         setPaste("");
         setSay(
-          `Added ${added.length - merged.left.length}: ${secrets.length} to the Vault, ${plain.length} as plain values.${merged.left.length ? ` Left out because Vyre sets them: ${merged.left.join(", ")}.` : ""}${parsed.skipped.length ? ` Not read: ${parsed.skipped.join(", ")}.` : ""} Deploy again to use them.`,
+          `Added ${added.length - merged.left.length}: ${secrets.length} to the Vault, ${plain.length} as plain values.${merged.left.length ? ` Left out because Vyre sets them: ${merged.left.join(", ")}.` : ""}${parsed.skipped.length ? ` Not read (not NAME=value): ${parsed.skipped.join(", ")}.` : ""} Deploy again to use them.`,
         );
       }
     } catch (e) {
@@ -192,10 +200,21 @@ export function Variables({ site, rows, wanted, keys, busy, online, save, preset
             ))}
           </View>
         )}
+        {secretLooking ? (
+          <View style={ui.actions} testID="site-env-looks-secret">
+            <Text style={ui.text}>That looks like a secret. Put it in the Vault, or say it is plain.</Text>
+            <Button
+              title={plainOk ? "It is plain" : "It is not a secret"}
+              testID="site-env-plain-ok"
+              disabled={off}
+              onPress={() => setPlainOk(!plainOk)}
+            />
+          </View>
+        ) : null}
         <Button
           title="Add"
           testID="site-env-add"
-          disabled={off || !okName || (kind === "secret" ? key === "" : false)}
+          disabled={off || !okName || (kind === "secret" ? key === "" : secretLooking && !plainOk)}
           onPress={() => void add()}
         />
       </Card>

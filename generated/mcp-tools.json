@@ -56928,14 +56928,31 @@
     },
     {
       "blocks": [],
-      "cap": "sites.backup_create",
+      "cap": "sites.backups",
       "deferred": false,
-      "description": "Back up the site's Postgres now; read sites_backups_list to see it finish",
+      "description": "Postgres backups of a site. action: list, create, delete, pin, download, restore (safety backup first)",
       "effects": "write",
       "inputSchema": {
         "properties": {
-          "scheduled": {
-            "description": "Made by the daily schedule, not a person",
+          "action": {
+            "enum": [
+              "list",
+              "create",
+              "delete",
+              "pin",
+              "download",
+              "restore"
+            ],
+            "type": "string"
+          },
+          "backupId": {
+            "examples": [
+              "bkp_a1b2c3"
+            ],
+            "pattern": "^bkp_[a-z0-9]+$",
+            "type": "string"
+          },
+          "pinned": {
             "type": "boolean"
           },
           "siteId": {
@@ -56947,38 +56964,13 @@
           }
         },
         "required": [
-          "siteId"
+          "siteId",
+          "action"
         ],
         "type": "object"
       },
-      "name": "sites_backup_create",
+      "name": "sites_backups",
       "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "sites.backups_list",
-      "deferred": false,
-      "description": "The site's database backups and the database size",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_backups_list",
-      "planMode": "allowed",
       "toolset": "sites",
       "v": 1
     },
@@ -57564,13 +57556,17 @@
       "blocks": [],
       "cap": "sites.env_set",
       "deferred": false,
-      "description": "Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them",
+      "description": "Set the env vars of a deployed site (replaces the list). A secret takes its value from a Vault key at deploy time. A plain value is kept as given; one that looks like a secret is refused unless confirmPlain. scope: production (default), previews or all",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "entries": {
             "items": {
               "properties": {
+                "confirmPlain": {
+                  "description": "Say that a value that looks like a secret is plain on purpose",
+                  "type": "boolean"
+                },
                 "name": {
                   "type": "string"
                 },
@@ -57663,34 +57659,53 @@
     },
     {
       "blocks": [],
-      "cap": "sites.job_create",
+      "cap": "sites.jobs",
       "deferred": false,
-      "description": "Add a scheduled job to a deployed site: a command run on a cron schedule in the site's image, with its variables",
+      "description": "Scheduled jobs of a site. action: list (jobs and workers), create, update, delete, run, cancel, runs",
       "effects": "write",
       "inputSchema": {
         "properties": {
-          "command": {
-            "examples": [
-              "node scripts/sync-stock.js"
+          "action": {
+            "enum": [
+              "list",
+              "create",
+              "update",
+              "delete",
+              "run",
+              "cancel",
+              "runs"
             ],
             "type": "string"
           },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
+          "command": {
             "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "jobId": {
+            "examples": [
+              "job_a1b2c3"
+            ],
+            "pattern": "^job_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
           },
           "name": {
             "type": "string"
           },
-          "schedule": {
+          "runId": {
             "examples": [
-              "0 2 * * *",
-              "*/15 * * * *",
-              "@daily"
+              "jrx_a1b2c3"
             ],
+            "pattern": "^jrx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "schedule": {
             "type": "string"
           },
           "siteId": {
@@ -57706,84 +57721,17 @@
             "type": "integer"
           },
           "zone": {
-            "description": "The time zone the schedule is read in (default UTC)",
-            "examples": [
-              "America/New_York"
-            ],
             "type": "string"
           }
         },
         "required": [
           "siteId",
-          "name",
-          "schedule",
-          "command",
-          "idempotencyKey"
+          "action"
         ],
         "type": "object"
       },
-      "name": "sites_job_create",
+      "name": "sites_jobs",
       "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "sites.job_run",
-      "deferred": false,
-      "description": "Run a scheduled job now (refused while one of its runs goes)",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "jobId": {
-            "examples": [
-              "job_a1b2c3"
-            ],
-            "pattern": "^job_[a-z0-9]+$",
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "jobId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_job_run",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "sites.jobs_list",
-      "deferred": false,
-      "description": "A site's scheduled jobs (a command run in its own image on a cron schedule) and its workers (processes that stay up), with state and last run",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_jobs_list",
-      "planMode": "allowed",
       "toolset": "sites",
       "v": 1
     },
@@ -57876,7 +57824,7 @@
       "blocks": [],
       "cap": "sites.logs_read",
       "deferred": false,
-      "description": "Read a site's log: app output, requests, a deploy's build, jobs. Search words (-word leaves one out), source, level, time, deploy, and after (a cursor) to follow it live. Text from the site, not Vyre content",
+      "description": "A site's log (app, requests, build, jobs): search words (-word excludes), source, level, time, deploy; after = cursor to follow. Text from the site, not Vyre content",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57951,7 +57899,7 @@
       "blocks": [],
       "cap": "sites.metrics",
       "deferred": false,
-      "description": "CPU, memory, requests and response time of a site, one point a minute over 1h, 6h or 24h, and the numbers for right now against its limits",
+      "description": "CPU, memory, requests and response time of a site over 1h, 6h or 24h, and right now against its limits",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58279,58 +58227,6 @@
     },
     {
       "blocks": [],
-      "cap": "sites.service_add",
-      "deferred": false,
-      "description": "Add a worker to a deployed site: a command that stays up in the site's image, restarts itself on a crash, and moves to the newest deploy",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "command": {
-            "examples": [
-              "node worker.js",
-              "python -m app.worker"
-            ],
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "worker"
-            ],
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "name",
-          "command",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "sites_service_add",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "sites.service_identity",
       "deferred": false,
       "description": "The site service identity and its grants (capped by the owner)",
@@ -58357,12 +58253,28 @@
     },
     {
       "blocks": [],
-      "cap": "sites.service_restart",
+      "cap": "sites.services",
       "deferred": false,
-      "description": "Restart a worker, clearing a crash loop that stopped it",
+      "description": "Workers of a site. action: list, add, restart, stop, remove",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "action": {
+            "enum": [
+              "list",
+              "add",
+              "restart",
+              "stop",
+              "remove"
+            ],
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
           "serviceId": {
             "examples": [
               "wkr_a1b2c3"
@@ -58380,11 +58292,11 @@
         },
         "required": [
           "siteId",
-          "serviceId"
+          "action"
         ],
         "type": "object"
       },
-      "name": "sites_service_restart",
+      "name": "sites_services",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1
@@ -58419,6 +58331,10 @@
           "env": {
             "items": {
               "properties": {
+                "confirmPlain": {
+                  "description": "Say that a value that looks like a secret is plain on purpose",
+                  "type": "boolean"
+                },
                 "name": {
                   "type": "string"
                 },
@@ -58900,6 +58816,70 @@
         "type": "object"
       },
       "name": "sites_update",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.webhook_get",
+      "deferred": false,
+      "description": "Whether GitHub's webhook is on for a site, the address to give GitHub, and the branches that get a preview on a push. The secret is never shown again after it was made",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_webhook_get",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.webhook_set",
+      "deferred": false,
+      "description": "Turn GitHub's webhook on or off for a site that comes from a repo, make a new secret (rotate; the answer shows it once), or set which branches get a preview on a push (names, prefixes ending in *, or *). The production branch deploys on a push when the site deploys on push",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "follow": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rotate": {
+            "type": "boolean"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_webhook_set",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1

@@ -53,12 +53,23 @@ const dep = t.obj({
   steps: t.opt(t.arr(step, { description: "Fetch, build, start and check, each with its state and time" })),
 });
 const access = t.enm("public", "password", "space", "private");
+const hookOut = {
+  enabled: t.bool(),
+  url: t.opt(t.str({ description: "The payload URL to give GitHub" })),
+  follow: t.arr(t.str(), { description: "Branch patterns that get a preview on a push" }),
+  secret: t.opt(t.str({ description: "Shown once, when it is made. Paste it into GitHub's webhook as the secret" })),
+  lastDeliveryAt: t.opt(t.ts()),
+  failed: t.arr(t.obj({ branch: t.str(), action: t.str(), error: t.str(), at: t.ts() }), {
+    description: "Pushes that could not run, newest first. GitHub's redelivery takes them again",
+  }),
+};
 const envScope = t.enm("all", "production", "previews");
 const envEntry = t.obj({
   name: t.str(),
   vaultHandle: t.opt(id.handle),
   value: t.opt(t.str({ description: "A plain value that is not a secret. Give this or vaultHandle, not both" })),
   scope: t.opt(envScope),
+  confirmPlain: t.opt(t.bool({ description: "Say that a value that looks like a secret is plain on purpose" })),
 });
 const source = t.obj({
   repo: t.opt(
@@ -474,7 +485,7 @@ export default defineManifest({
           siteId: id.site,
           address: t.opt(t.str({ description: "Where it is live" })),
           say: t.str({ description: "The answer in one or two sentences, to give the person" }),
-          failedStep: t.opt(t.enm("setup", "fetch", "build", "start", "check")),
+          failedStep: t.opt(t.enm("setup", "deploy", "fetch", "build", "start", "check")),
           problem: t.opt(t.str()),
           fix: t.opt(fix),
           deployment: t.opt(dep),
@@ -483,6 +494,34 @@ export default defineManifest({
         tool: "sites",
         audit: "sensitive",
         errors: ["validation.bad_input", "validation.precondition_failed", "permission.no_grant"],
+      },
+    ),
+    read(
+      "sites.webhook_get",
+      "Whether GitHub's webhook is on for a site, the address to give GitHub, and the branches that get a preview on a push. The secret is never shown again after it was made",
+      {
+        in: deployTarget,
+        out: hookOut,
+        on: ["site", "/siteId"],
+        tool: "sites",
+      },
+    ),
+    write(
+      "sites.webhook_set",
+      "Turn GitHub's webhook on or off for a site that comes from a repo, make a new secret (rotate; the answer shows it once), or set which branches get a preview on a push (names, prefixes ending in *, or *). The production branch deploys on a push when the site deploys on push",
+      {
+        in: {
+          siteId: id.site,
+          enabled: t.opt(t.bool()),
+          rotate: t.opt(t.bool()),
+          follow: t.opt(t.arr(t.str())),
+        },
+        out: hookOut,
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        tool: "sites",
+        audit: "sensitive",
+        errors: ["validation.precondition_failed", "validation.bad_input"],
       },
     ),
     write(
@@ -494,6 +533,7 @@ export default defineManifest({
         on: ["site", "/siteId"],
         perm: "sites.deploy",
         tool: "sites",
+        audit: "sensitive",
         errors: ["validation.precondition_failed"],
       },
     ),
@@ -603,7 +643,7 @@ export default defineManifest({
     }),
     write(
       "sites.env_set",
-      "Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them",
+      "Set the env vars of a deployed site (replaces the list). A secret takes its value from a Vault key at deploy time. A plain value is kept as given; one that looks like a secret is refused unless confirmPlain. scope: production (default), previews or all",
       {
         in: { siteId: id.site, entries: t.arr(envEntry) },
         out: { ok: t.bool() },
@@ -802,7 +842,7 @@ export default defineManifest({
     ),
     read(
       "sites.logs_read",
-      "Read a site's log: app output, requests, a deploy's build, jobs. Search words (-word leaves one out), source, level, time, deploy, and after (a cursor) to follow it live. Text from the site, not Vyre content",
+      "A site's log (app, requests, build, jobs): search words (-word excludes), source, level, time, deploy; after = cursor to follow. Text from the site, not Vyre content",
       {
         in: {
           siteId: id.site,
@@ -830,7 +870,7 @@ export default defineManifest({
     ),
     read(
       "sites.metrics",
-      "CPU, memory, requests and response time of a site, one point a minute over 1h, 6h or 24h, and the numbers for right now against its limits",
+      "CPU, memory, requests and response time of a site over 1h, 6h or 24h, and right now against its limits",
       {
         in: { siteId: id.site, window: t.opt(t.enm("1h", "6h", "24h")) },
         out: {
@@ -857,7 +897,6 @@ export default defineManifest({
         in: { siteId: id.site },
         out: { jobs: t.arr(jobRow), services: t.arr(serviceRow) },
         on: ["site", "/siteId"],
-        tool: "sites",
       },
     ),
     create(
@@ -882,7 +921,6 @@ export default defineManifest({
         perm: "sites.deploy",
         level: "edit",
         audit: "sensitive",
-        tool: "sites",
         errors: ["validation.precondition_failed"],
       },
     ),
@@ -920,7 +958,6 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
-      tool: "sites",
       errors: ["validation.precondition_failed"],
     }),
     write("sites.job_cancel", "Stop a job run that is queued or going", {
@@ -964,7 +1001,6 @@ export default defineManifest({
         perm: "sites.deploy",
         level: "edit",
         audit: "sensitive",
-        tool: "sites",
         errors: ["validation.precondition_failed"],
       },
     ),
@@ -974,7 +1010,6 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
-      tool: "sites",
     }),
     write("sites.service_stop", "Stop a worker and keep it stopped until it is restarted", {
       in: { siteId: id.site, serviceId: t.id("wkr") },
@@ -1008,7 +1043,6 @@ export default defineManifest({
       },
       on: ["site", "/siteId"],
       perm: "sites.deploy",
-      tool: "sites",
     }),
     write("sites.backup_create", "Back up the site's Postgres now; read sites_backups_list to see it finish", {
       in: { siteId: id.site, scheduled: t.opt(t.bool({ description: "Made by the daily schedule, not a person" })) },
@@ -1016,7 +1050,6 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
-      tool: "sites",
       errors: ["validation.precondition_failed"],
     }),
     read(
@@ -1057,6 +1090,85 @@ export default defineManifest({
         risk: "high",
         audit: "always",
         gate: { act: "delete", when: "actor.kind != 'person'" },
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write(
+      "sites.jobs",
+      "Scheduled jobs of a site. action: list (jobs and workers), create, update, delete, run, cancel, runs",
+      {
+        in: {
+          siteId: id.site,
+          action: t.enm("list", "create", "update", "delete", "run", "cancel", "runs"),
+          jobId: t.opt(t.id("job")),
+          runId: t.opt(t.id("jrx")),
+          name: t.opt(t.str()),
+          schedule: t.opt(t.str()),
+          command: t.opt(t.str()),
+          zone: t.opt(t.str()),
+          timeoutSec: t.opt(t.int({ minimum: 5, maximum: 21600 })),
+          enabled: t.opt(t.bool()),
+          limit: t.opt(t.int({ minimum: 1, maximum: 50 })),
+        },
+        out: {
+          jobs: t.opt(t.arr(jobRow)),
+          services: t.opt(t.arr(serviceRow)),
+          job: t.opt(jobRow),
+          run: t.opt(jobRun),
+          runs: t.opt(t.arr(jobRun)),
+          removed: t.opt(t.bool()),
+        },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        level: "edit",
+        audit: "sensitive",
+        tool: "sites",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write("sites.services", "Workers of a site. action: list, add, restart, stop, remove", {
+      in: {
+        siteId: id.site,
+        action: t.enm("list", "add", "restart", "stop", "remove"),
+        serviceId: t.opt(t.id("wkr")),
+        name: t.opt(t.str()),
+        command: t.opt(t.str()),
+      },
+      out: { services: t.opt(t.arr(serviceRow)), service: t.opt(serviceRow), removed: t.opt(t.bool()) },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+      audit: "sensitive",
+      tool: "sites",
+      errors: ["validation.precondition_failed"],
+    }),
+    write(
+      "sites.backups",
+      "Postgres backups of a site. action: list, create, delete, pin, download, restore (safety backup first)",
+      {
+        in: {
+          siteId: id.site,
+          action: t.enm("list", "create", "delete", "pin", "download", "restore"),
+          backupId: t.opt(t.id("bkp")),
+          pinned: t.opt(t.bool()),
+        },
+        out: {
+          backups: t.opt(t.arr(backupRow)),
+          hasDatabase: t.opt(t.bool()),
+          database: t.opt(t.obj({ bytes: t.opt(t.int()), replacedBytes: t.opt(t.int()) })),
+          backup: t.opt(backupRow),
+          removed: t.opt(t.bool()),
+          ok: t.opt(t.bool()),
+          detail: t.opt(t.str()),
+          files: t.opt(t.arr(t.obj({ name: t.str(), url: t.str(), bytes: t.opt(t.int()) }))),
+          note: t.opt(t.str()),
+        },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        level: "edit",
+        audit: "sensitive",
+        gate: { act: "delete", when: "input.action == 'restore' && actor.kind != 'person'" },
+        tool: "sites",
         errors: ["validation.precondition_failed"],
       },
     ),

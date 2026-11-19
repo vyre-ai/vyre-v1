@@ -79,7 +79,7 @@ test("the line under a deploy: who and when and how long; the step and its clock
     ),
     "main · you · Build 0:23",
   );
-  assert.equal(depNote(dep({ state: "queued" }), null, "just now", NOW), "Waiting for its turn");
+  assert.equal(depNote(dep({ state: "queued" }), null, "just now", NOW), "Waiting to start");
   assert.equal(
     depNote(dep({ state: "failed", problem: "It stopped because STRIPE_KEY is not set." }), "you", "2 min ago", NOW),
     "you · 2 min ago · It stopped because STRIPE_KEY is not set.",
@@ -180,40 +180,115 @@ test("the source in a line, and the variable a failure names", () => {
 import { entryOf, isSecretVar, mergeEnv, parseEnv } from "./model.ts";
 import type { EnvRow } from "./model.ts";
 
-test("a pasted .env: lines, quotes, comments and export are read, the last repeat wins, bad names are said", () => {
-  const out = parseEnv(
-    [
-      "# the app",
-      "APP_MODE=calm",
-      "export STRIPE_KEY=sk_live_123 # prod",
-      'GREETING="hello # there"',
-      "NOTE='a b'",
-      'MULTI="a\\nb"',
-      "APP_MODE=loud",
-      "1BAD=x",
-      "not a line",
-      "",
-    ].join("\r\n"),
-  );
-  assert.deepEqual(
-    out.vars.map((v) => `${v.name}=${v.value}:${v.secret}`),
-    [
-      "APP_MODE=loud:false",
-      "STRIPE_KEY=sk_live_123:true",
-      "GREETING=hello # there:false",
-      "NOTE=a b:false",
-      "MULTI=a\nb:false",
-    ],
-  );
-  assert.deepEqual(out.skipped, ["1BAD", "not a line"]);
+// the same table is in modules/sites/tests/secrets.test.ts: the page and the server must agree
+export const SECRET_CASES: readonly (readonly [string, string, boolean])[] = [
+  ["API_KEY", "x", true],
+  ["APIKEY", "x", true],
+  ["STRIPE_SK", "x", true],
+  ["SESSION_SECRET", "x", true],
+  ["GITHUB_TOKEN", "x", true],
+  ["DB_PASSWORD", "x", true],
+  ["SENDGRID", "anything", true],
+  ["JWT", "x", true],
+  ["SLACK_URL", "https://hooks.slack.com/services/T000/B000/XXXX", true],
+  ["DATABASE_URL", "postgres://app:pw@db:5432/app", true],
+  ["DATABASE_URL", "postgres://db:5432/app?password=hunter22", true],
+  ["ANY", "sk_live_51Habcdefghijkl", true],
+  ["ANY", "ghp_abcdefghijklmnopqrstuvwxyz0123456789", true],
+  ["ANY", "AKIAIOSFODNN7EXAMPLE", true],
+  ["ANY", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc123", true],
+  ["CERT", "-----BEGIN PRIVATE KEY-----", true],
+  ["BLOB", "q8Zr2LmN7xYp4VtC9sHd3GjK6wFa5BeU", true],
+  ["NEXT_PUBLIC_API_URL", "https://api.example.com", false],
+  ["NEXT_PUBLIC_KEY", "pk_live_abc", false],
+  ["NEXT_PUBLIC_X", "sk_live_51Habcdefghijkl", true],
+  ["APP_MODE", "calm", false],
+  ["NODE_ENV", "production", false],
+  ["PUBLIC_URL", "https://a.example", false],
+  ["FEATURE_AUTH", "true", false],
+  ["PASS_RATE", "0.95", false],
+  ["REGION", "us-east-1", false],
+  ["LOG_LEVEL", "info", false],
+  ["GREETING", "hello there friend", false],
+];
+
+test("a secret is what its name or its value says; a public name or a plain shape is not", () => {
+  for (const [name, value, want] of SECRET_CASES) assert.equal(isSecretVar(name, value), want, `${name}=${value}`);
 });
 
-test("a secret is what its name or its value says: a key, a token, a password, an address with a login", () => {
-  for (const n of ["API_KEY", "SESSION_SECRET", "GITHUB_TOKEN", "DB_PASSWORD", "PRIVATE_KEY", "SENTRY_DSN"])
-    assert.equal(isSecretVar(n, "x"), true, n);
-  assert.equal(isSecretVar("DATABASE_URL", "postgres://app:pw@db:5432/app"), true);
-  for (const n of ["APP_MODE", "PUBLIC_URL", "KEYBOARD", "MONKEY"])
-    assert.equal(isSecretVar(n, "https://a.example"), false, n);
+test("a pasted .env is read like dotenv: quotes of either kind, multiline values, escapes, export, comments", () => {
+  const read = (text: string) => parseEnv(text).vars.map((v) => [v.name, v.value] as const);
+  assert.deepEqual(read("A=1\nB = 2\nexport C=3"), [
+    ["A", "1"],
+    ["B", "2"],
+    ["C", "3"],
+  ]);
+  assert.deepEqual(read("# c\n\nA=1 # note\nB=a#b"), [
+    ["A", "1"],
+    ["B", "a#b"],
+  ]);
+  assert.deepEqual(read('A="x" # note "y"'), [["A", "x"]]);
+  assert.deepEqual(read("A='x # y'\nB=`b c`"), [
+    ["A", "x # y"],
+    ["B", "b c"],
+  ]);
+  assert.deepEqual(read('A="a\\nb"'), [["A", "a\nb"]], "double quotes read \\n");
+  assert.deepEqual(read("A='a\\nb'"), [["A", "a\\nb"]], "single quotes do not");
+  assert.deepEqual(read('A="a\\\\nb"'), [["A", "a\\nb"]], "an escaped backslash then n stays");
+  assert.deepEqual(read('A="say \\"hi\\""'), [["A", 'say "hi"']]);
+  assert.deepEqual(read("A=1\nA=2"), [["A", "2"]], "the last wins");
+  assert.deepEqual(
+    read("﻿A=1\r\nB=2\r\n"),
+    [
+      ["A", "1"],
+      ["B", "2"],
+    ],
+    "a byte-order mark and CRLF",
+  );
+  assert.deepEqual(
+    read("A=\nB=''"),
+    [
+      ["A", ""],
+      ["B", ""],
+    ],
+    "empty values",
+  );
+});
+
+test("a quoted value runs over lines, and key material never becomes a name", () => {
+  const pem =
+    'KEY="-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSj\nabcDEFgh12==\n-----END PRIVATE KEY-----"\nNEXT=1';
+  const out = parseEnv(pem);
+  assert.deepEqual(
+    out.vars.map((v) => v.name),
+    ["KEY", "NEXT"],
+  );
+  assert.match(out.vars[0]!.value, /^-----BEGIN PRIVATE KEY-----\nMIIE[\s\S]*-----END PRIVATE KEY-----$/);
+  assert.equal(out.vars[0]!.secret, true);
+  // an unquoted block of base64 is not variables
+  const bare = parseEnv("-----BEGIN KEY-----\nabcDEFgh12==\nxyz+/9==\n-----END KEY-----");
+  assert.deepEqual(bare.vars, [], JSON.stringify(bare.vars));
+  assert.equal(bare.skipped.length, 4);
+  assert.ok(
+    bare.skipped.every((s) => /^line \d+$/.test(s)),
+    "skipped names a line, never its text",
+  );
+});
+
+test("a quote that never closes, a bad name and a line that is not an assignment are skipped by line", () => {
+  const out = parseEnv('A=1\nB="never closes\nC=3');
+  assert.deepEqual(
+    out.vars.map((v) => v.name),
+    ["A", "C"],
+    "the line with the open quote is skipped, the rest is read",
+  );
+  assert.deepEqual(out.skipped, ["line 2"]);
+  const bad = parseEnv("1BAD=x\nnot a line\nA-B=1\nOK=1");
+  assert.deepEqual(
+    bad.vars.map((v) => v.name),
+    ["OK"],
+  );
+  assert.deepEqual(bad.skipped, ["line 1", "line 2", "line 3"]);
 });
 
 test("a paste adds names or replaces the ones that exist, and leaves out what Vyre sets itself", () => {
@@ -236,7 +311,7 @@ test("a paste adds names or replaces the ones that exist, and leaves out what Vy
 test("a row of the list goes back as the entry it was", () => {
   const plain: EnvRow = { name: "A", vaultName: "", injected: false, kind: "plain", value: "x", scope: "previews" };
   const secret: EnvRow = { name: "B", vaultName: "#K.b", injected: true, kind: "secret", scope: "all" };
-  assert.deepEqual(entryOf(plain), { name: "A", scope: "previews", value: "x" });
+  assert.deepEqual(entryOf(plain), { name: "A", scope: "previews", value: "x", confirmPlain: true });
   assert.deepEqual(entryOf(secret), { name: "B", scope: "all", vaultHandle: "#K.b" });
 });
 
@@ -257,4 +332,11 @@ test("what was found is one line for what it is, and one for what it needs", () 
   const two = foundLines({ note: "Next.js.", needs: ["postgres", "redis"], env: ["A", "B", "C", "D", "E"] });
   assert.equal(two.length, 2);
   assert.match(two[1]!, /^It looks for a Postgres database and Redis and 5 variables \(A, B, C, D, \.\.\.\)\./);
+});
+
+import { parseFollow } from "./model.ts";
+
+test("the preview branches typed are split on commas and spaces, each once", () => {
+  assert.deepEqual(parseFollow("feat/*, next  next,\n*"), ["feat/*", "next", "*"]);
+  assert.deepEqual(parseFollow("  "), []);
 });
