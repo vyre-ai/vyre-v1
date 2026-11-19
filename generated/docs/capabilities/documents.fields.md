@@ -44,6 +44,7 @@ type Out = {
       message: string;
       tag?: string;
     }>;
+  signers?: Array<string>;
 };
 ```
 
@@ -80,6 +81,9 @@ type Out = {
         "message": "example",
         "tag": "example"
       }
+    ],
+    "signers": [
+      "example"
     ]
   }
 }

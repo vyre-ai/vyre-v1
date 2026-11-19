@@ -2606,14 +2606,26 @@
     },
     {
       "deferred": false,
+      "name": "documents_make_pdf",
+      "summary": "Make a PDF of a Vyre document (.md) in a folder; a blank still in its text stops it and is named",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "documents_mark_template",
-      "summary": "Mark a docx file as a template (optionally for one record type), or unmark it",
+      "summary": "Mark a Word file (.docx) or a Vyre document (.md) as a template, optionally for one record type, or unmark it",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "documents_preview_fill",
       "summary": "Show the filled document as an excerpt with every filled value marked, and what is missing or unused",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "documents_signing",
+      "summary": "Where the signers of a PDF made from a Vyre document sign, and what it was filled from",
       "toolset": "files"
     },
     {

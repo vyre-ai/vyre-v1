@@ -37,7 +37,7 @@ const NEXT: Record<NextStep["kind"], string> = {
   report: "Report a problem",
 };
 
-function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<string, unknown>): never {
+export function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<string, unknown>): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
@@ -116,7 +116,7 @@ export class FillError extends Error {
 // ---- reading a template ----
 
 /** The value of a path like "client.name" or "items.0.label" in the scope stack, innermost first; undefined when any step is not there. */
-function lookup(scopes: unknown[], path: string): unknown {
+export function lookup(scopes: unknown[], path: string): unknown {
   const parts = path.split(".");
   for (let i = scopes.length - 1; i >= 0; i--) {
     const s = scopes[i];
@@ -183,7 +183,7 @@ const MID = "";
 const CLOSE = "";
 
 /** Why a value could not be printed, by tag. The fill is refused with these in plain words. */
-type Problems = Map<string, string>;
+export type Problems = Map<string, string>;
 const SEALED_WORDS = "is a sealed value, and a sealed value is never printed in a document";
 const ID_WORDS = "points to something that cannot be named here (it may be gone, or not yours to open)";
 
@@ -221,7 +221,7 @@ const durationTag = (tag: string): boolean =>
   /(^|_)(duration|effort)$/.test((tag.split(".").pop() ?? tag).toLowerCase());
 
 /** One value as the text a document prints. A value that has no honest printed form is noted in `problems` (the fill is then refused) and prints as nothing. */
-function printed(raw: unknown, tag: string, problems: Problems): string | number {
+export function printed(raw: unknown, tag: string, problems: Problems): string | number {
   if (typeof raw === "string") {
     if (isRawId(raw)) {
       problems.set(tag, ID_WORDS);
@@ -589,7 +589,11 @@ export function preview(
 
 /** Keys the caller gave that no tag reads. */
 function unusedOf(buf: Buffer, given: string[]): string[] {
-  const info = placeholders(buf);
+  return unusedFor(placeholders(buf), given);
+}
+
+/** Keys the caller gave that nothing the template asks for reads. */
+export function unusedFor(info: Placeholders, given: string[]): string[] {
   const read = (k: string): boolean =>
     info.names.includes(k) ||
     info.loops.includes(k) ||
@@ -601,22 +605,22 @@ function unusedOf(buf: Buffer, given: string[]): string[] {
 
 // ---- the capabilities ----
 
-const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const PAGE_MAX = 500;
 
-function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
+export function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
   if (!isPlain(input)) fail(ctx, "validation.bad_input", "The input is not valid.");
   return input;
 }
 
-function reqStr(ctx: Ctx, o: Record<string, unknown>, key: string): string {
+export function reqStr(ctx: Ctx, o: Record<string, unknown>, key: string): string {
   const v = o[key];
   if (typeof v !== "string" || v.length === 0)
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
-function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | undefined {
+export function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
   if (typeof v !== "string" || v.length === 0)
@@ -632,7 +636,7 @@ function optRec(ctx: Ctx, o: Record<string, unknown>, key: string): Record<strin
 }
 
 /** The fill engine's refusals as the catalogue's codes. */
-function refuse(ctx: Ctx, e: unknown): never {
+export function refuse(ctx: Ctx, e: unknown): never {
   if (!(e instanceof FillError)) throw e;
   switch (e.code) {
     case "bad_input":
@@ -650,12 +654,12 @@ function refuse(ctx: Ctx, e: unknown): never {
   }
 }
 
-function mayView(ctx: Ctx, fileId: string): void {
+export function mayView(ctx: Ctx, fileId: string): void {
   const d = ctx.authorize({ perm: null, level: "view" }, { type: "file", id: fileId });
   if (d.effect !== "allow") fail(ctx, "permission.no_grant", "You cannot open that template.", { fileId });
 }
 
-async function templateBytes(ctx: Ctx, fileId: string): Promise<Buffer> {
+export async function templateBytes(ctx: Ctx, fileId: string): Promise<Buffer> {
   mayView(ctx, fileId);
   const got = (await ctx.call("files.read", { fileId, as: "base64" })) as { base64?: unknown; truncated?: unknown };
   if (typeof got.base64 !== "string" || got.truncated === true)
@@ -663,15 +667,27 @@ async function templateBytes(ctx: Ctx, fileId: string): Promise<Buffer> {
   return Buffer.from(got.base64, "base64");
 }
 
+/** A kind of template other than Word: which files it is, and how it reads what a template asks for. The Vyre document registers itself (native.ts). */
+export interface TemplateReader {
+  test(name: string): boolean;
+  asked(bytes: Buffer): Placeholders;
+}
+const readers: TemplateReader[] = [];
+export function addTemplateReader(r: TemplateReader): void {
+  if (!readers.includes(r)) readers.push(r);
+}
+const readerFor = (name: string): TemplateReader | undefined => readers.find((r) => r.test(name));
+
 const cache = new Map<string, number>();
 
-async function fieldCount(ctx: Ctx, fileId: string, version: number): Promise<number> {
+async function fieldCount(ctx: Ctx, fileId: string, version: number, name: string): Promise<number> {
   const key = `${ctx.space}:${fileId}:${version}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   let n = 0;
   try {
-    const info = placeholders(await templateBytes(ctx, fileId));
+    const bytes = await templateBytes(ctx, fileId);
+    const info = (readerFor(name)?.asked ?? placeholders)(bytes);
     n = info.names.length + info.loops.length;
   } catch {
     n = 0;
@@ -681,7 +697,7 @@ async function fieldCount(ctx: Ctx, fileId: string, version: number): Promise<nu
   return n;
 }
 
-async function fieldsOf(
+export async function fieldsOf(
   ctx: Ctx,
   input: unknown,
 ): Promise<{
@@ -801,7 +817,7 @@ async function withLinks(
 }
 
 /** The values to render with, the keys the caller gave itself, and the record they came from. `info` is what the template asks for: it decides which links are followed. */
-async function valuesOf(
+export async function valuesOf(
   ctx: Ctx,
   o: Record<string, unknown>,
   info: Placeholders | null,
@@ -869,7 +885,7 @@ function asked(bytes: Buffer): Placeholders | null {
   }
 }
 
-async function previewFill(
+export async function previewFill(
   ctx: Ctx,
   input: unknown,
 ): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[] }> {
@@ -883,12 +899,50 @@ async function previewFill(
   }
 }
 
-const baseName = (name: string): string => {
+export const baseName = (name: string): string => {
   const i = name.lastIndexOf(".");
   return i > 0 ? name.slice(0, i) : name;
 };
 
-async function documentsFill(
+/** Write a new file under the first free name: "<stem>.<ext>", then "<stem> 2.<ext>" and so on. An existing file is never replaced; a retry with the same key makes the same file once. */
+export async function saveNamed(
+  ctx: Ctx,
+  f: { folderId: string; stem: string; ext: string; bytes: Uint8Array; mime: string; kind: string; key: string },
+): Promise<{ fileId: string; name: string; versionId: string }> {
+  let created: { file?: { fileId?: unknown; name?: unknown } } | undefined;
+  let name = "";
+  for (let n = 1; n <= 50 && created === undefined; n++) {
+    name = `${n === 1 ? f.stem : `${f.stem} ${n}`}.${f.ext}`;
+    try {
+      created = (await ctx.call("files.create", {
+        folderId: f.folderId,
+        name,
+        content: { base64: Buffer.from(f.bytes).toString("base64") },
+        mime: f.mime,
+        kind: f.kind,
+        // the caller's own key and the name tried, so a retry of this fill creates the same file once
+        idempotencyKey: `${f.key}:${name}`,
+      })) as { file?: { fileId?: unknown; name?: unknown } };
+    } catch (e) {
+      if (e instanceof VyreErr && e.error.code === "validation.duplicate") continue;
+      throw e;
+    }
+  }
+  const fileId = created?.file?.fileId;
+  if (typeof fileId !== "string")
+    return fail(ctx, "validation.duplicate", "Too many files with that name are already in the folder.", { name });
+  const versions = (await ctx.call("files.versions", { fileId })) as {
+    versions?: { versionId?: unknown; n?: unknown }[];
+  };
+  const newest = [...(versions.versions ?? [])].sort((a, b) => Number(b.n) - Number(a.n))[0];
+  return {
+    fileId,
+    name: typeof created?.file?.name === "string" ? created.file.name : name,
+    versionId: typeof newest?.versionId === "string" ? newest.versionId : "",
+  };
+}
+
+export async function documentsFill(
   ctx: Ctx,
   input: unknown,
 ): Promise<{ file: { fileId: string; name: string; versionId: string }; missing: string[]; unused: string[] }> {
@@ -923,43 +977,22 @@ async function documentsFill(
   const wanted = optStr(ctx, o, "name");
   const stem =
     wanted !== undefined ? wanted.replace(new RegExp(`\\.${ext}$`, "i"), "") : `${baseName(templateName)} (filled)`;
-  let created: { file?: { fileId?: unknown; name?: unknown } } | undefined;
-  let name = "";
-  for (let n = 1; n <= 50 && created === undefined; n++) {
-    name = `${n === 1 ? stem : `${stem} ${n}`}.${ext}`;
-    try {
-      created = (await ctx.call("files.create", {
-        folderId: intoFolderId,
-        name,
-        content: { base64: Buffer.from(out).toString("base64") },
-        mime: format === "pdf" ? "application/pdf" : DOCX_MIME,
-        kind: format === "pdf" ? "pdf" : "document",
-        // the caller's own key and the name tried, so a retry of this fill creates the same file once
-        idempotencyKey: `docfill:${optStr(ctx, o, "idempotencyKey") ?? templateFileId}:${name}`,
-      })) as { file?: { fileId?: unknown; name?: unknown } };
-    } catch (e) {
-      if (e instanceof VyreErr && e.error.code === "validation.duplicate") continue;
-      throw e;
-    }
-  }
-  const fileId = created?.file?.fileId;
-  if (typeof fileId !== "string")
-    return fail(ctx, "validation.duplicate", "Too many files with that name are already in the folder.", { name });
-  const versions = (await ctx.call("files.versions", { fileId })) as {
-    versions?: { versionId?: unknown; n?: unknown }[];
-  };
-  const newest = [...(versions.versions ?? [])].sort((a, b) => Number(b.n) - Number(a.n))[0];
-  const versionId = typeof newest?.versionId === "string" ? newest.versionId : "";
+  const saved = await saveNamed(ctx, {
+    folderId: intoFolderId,
+    stem,
+    ext,
+    bytes: out,
+    mime: format === "pdf" ? "application/pdf" : DOCX_MIME,
+    kind: format === "pdf" ? "pdf" : "document",
+    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? templateFileId}`,
+  });
+  const { fileId, versionId } = saved;
   const payload: Record<string, unknown> = { fileId, templateFileId, fields: made.used.length, missing: 0 };
   const recordId = optStr(ctx, o, "recordId");
   if (recordId !== undefined) payload.recordId = recordId;
   ctx.emit("document.filled", `file/${fileId}`, payload);
   ctx.log.info("documents.fill", { fileId, templateFileId, fields: made.used.length, format });
-  return {
-    file: { fileId, name: typeof created?.file?.name === "string" ? created.file.name : name, versionId },
-    missing: [],
-    unused,
-  };
+  return { file: { fileId, name: saved.name, versionId }, missing: [], unused };
 }
 
 async function templatesList(
@@ -1031,7 +1064,7 @@ async function templatesList(
       fileId: r.fileId,
       name: r.name,
       folderId: r.folderId,
-      fields: await fieldCount(ctx, r.fileId, r.version),
+      fields: await fieldCount(ctx, r.fileId, r.version, r.name),
       updatedAt: r.updatedAt,
       ...(r.recordType !== undefined ? { recordType: r.recordType } : {}),
     });
@@ -1049,8 +1082,10 @@ async function markTemplate(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> 
   const recordType = optStr(ctx, o, "recordType");
   const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown } };
   const name = typeof got.file?.name === "string" ? got.file.name : "";
-  if (isTemplate && !/\.docx$/i.test(name))
-    fail(ctx, "validation.unsupported", "Only a Word (.docx) file can be a template.", { fileId });
+  if (isTemplate && !/\.docx$/i.test(name) && !readerFor(name))
+    fail(ctx, "validation.unsupported", "Only a Word (.docx) file or a Vyre document (.md) can be a template.", {
+      fileId,
+    });
   if (isTemplate && recordType !== undefined) {
     // the type must be one this Space has: a template for a type that does not exist would never show on any record
     let known = false;
@@ -1087,6 +1122,8 @@ async function markTemplate(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> 
   ctx.log.info("documents.mark_template", { fileId, isTemplate, recordType: recordType ?? null });
   return { ok: true };
 }
+
+export { markTemplate, templatesList };
 
 export const fillHandlers = {
   "documents.fields": fieldsOf,

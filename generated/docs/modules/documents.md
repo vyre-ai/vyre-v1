@@ -4,12 +4,14 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (5)
+## Capabilities (7)
 
 - [documents.fields](../capabilities/documents.fields.md): List the tags a template needs: text, date, money, list, conditions and loops
 - [documents.fill](../capabilities/documents.fill.md): Fill a template into a new file in a folder; missing required tags stop the fill and are listed
-- [documents.mark_template](../capabilities/documents.mark_template.md): Mark a docx file as a template (optionally for one record type), or unmark it
+- [documents.make_pdf](../capabilities/documents.make_pdf.md): Make a PDF of a Vyre document (.md) in a folder; a blank still in its text stops it and is named
+- [documents.mark_template](../capabilities/documents.mark_template.md): Mark a Word file (.docx) or a Vyre document (.md) as a template, optionally for one record type, or unmark it
 - [documents.preview_fill](../capabilities/documents.preview_fill.md): Show the filled document as an excerpt with every filled value marked, and what is missing or unused
+- [documents.signing](../capabilities/documents.signing.md): Where the signers of a PDF made from a Vyre document sign, and what it was filled from
 - [documents.templates.list](../capabilities/documents.templates.list.md): List files marked as templates the caller can open
 
 ## Events (2)

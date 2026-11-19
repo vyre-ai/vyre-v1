@@ -778,8 +778,10 @@ export function createClient(transport: Transport) {
     documents: {
       fields: call("documents.fields", 1),
       fill: call("documents.fill", 1),
+      make_pdf: call("documents.make_pdf", 1),
       mark_template: call("documents.mark_template", 1),
       preview_fill: call("documents.preview_fill", 1),
+      signing: call("documents.signing", 1),
       templates: {
         list: call("documents.templates.list", 1),
       },

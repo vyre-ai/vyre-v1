@@ -32,7 +32,7 @@ type In = {
   signingDate?: string;
   intoFolderId: string;
   name?: string;
-  format?: "docx" | "pdf";
+  format?: "docx" | "pdf" | "md" | {"description":"A Word template fills to docx (or pdf with the converter app); a Vyre document fills to pdf, or to md to go on editing"};
   idempotencyKey: string;
 };
 ```
@@ -48,6 +48,7 @@ type Out = {
   };
   missing: Array<string>;
   unused: Array<string>;
+  signers?: Array<string>;
 };
 ```
 
@@ -60,6 +61,7 @@ type Out = {
 - validation.bad_input
 - validation.not_found
 - validation.precondition_failed
+- validation.unsupported
 
 ## Example
 
@@ -84,6 +86,9 @@ type Out = {
       "versionId": "ver_a1b2c3"
     },
     "missing": [
+      "example"
+    ],
+    "signers": [
       "example"
     ],
     "unused": [

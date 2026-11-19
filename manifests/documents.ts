@@ -4,6 +4,8 @@
 // DECISION: documents.fill checks Edit on the target folder; the handler also checks View on the template file, because a capability binds one resource.
 // DECISION: values are never typed into a date by the model: the signing date is an explicit input, ISO form, and formats come from the template tags.
 // DECISION (r42-docs): a template can be for one record type (mark_template recordType); a tag that reads through a link field ({contact.name}) is fed from the linked record, one step away.
+// DECISION (r42-docs): a Vyre document (a Markdown file) is a template too. It fills by the same rules and comes out as a PDF set in process (no converter app), so a Space with
+// nothing installed goes from a template to a signature. {sign:role} in its text is where a signer signs: the PDF remembers the places and documents.signing answers them.
 // DECISION (r42-docs): making a document is a Flow step (documents.fill): fill, then the sign step, is one Flow. It writes a file and sends nothing, so it is not a Gate act.
 import { create, defineManifest, ev, read, screen, step, t, write } from "../packages/contracts/src/index.ts";
 import { id, pageIn, pageOut } from "./_common.ts";
@@ -33,6 +35,12 @@ const templateRow = t.obj({
     t.str({ description: "Key of the record type this template is for; absent when it is for any record" }),
   ),
 });
+const signers = t.opt(
+  t.arr(t.str(), {
+    description: "Signer roles the document names with {sign:role}, in signing order; absent when it names none",
+  }),
+);
+const savedFile = t.obj({ fileId: id.file, name: t.str(), versionId: id.version });
 const tpl = (d: string) => t.str({ description: `${d}. Templating allowed: {{ trigger.x }}, {{ steps.name.out.y }}` });
 
 export default defineManifest({
@@ -59,6 +67,7 @@ export default defineManifest({
         fields: t.arr(fieldInfo),
         loops: t.arr(t.str()),
         problems: t.arr(t.obj({ message: t.str(), tag: t.opt(t.str()) })),
+        signers,
       },
       on: ["file", "/templateFileId"],
       tool: "files",
@@ -85,18 +94,53 @@ export default defineManifest({
       "documents.fill",
       "Fill a template into a new file in a folder; missing required tags stop the fill and are listed",
       {
-        in: { ...fillIn, intoFolderId: id.folder, name: t.opt(t.str()), format: t.opt(t.enm("docx", "pdf")) },
-        out: {
-          file: t.obj({ fileId: id.file, name: t.str(), versionId: id.version }),
-          missing: t.arr(t.str()),
-          unused: t.arr(t.str()),
+        in: {
+          ...fillIn,
+          intoFolderId: id.folder,
+          name: t.opt(t.str()),
+          format: t.opt(
+            t.enm("docx", "pdf", "md", {
+              description:
+                "A Word template fills to docx (or pdf with the converter app); a Vyre document fills to pdf, or to md to go on editing",
+            }),
+          ),
         },
+        out: { file: savedFile, missing: t.arr(t.str()), unused: t.arr(t.str()), signers },
         make: ["file", "/intoFolderId"],
         perm: "files.write",
         emits: ["document.filled", "file.created", "file.version_added"],
         tool: "files",
         cli: "vyre documents fill",
-        errors: ["validation.precondition_failed", "validation.not_found"],
+        errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
+      },
+    ),
+    create(
+      "documents.make_pdf",
+      "Make a PDF of a Vyre document (.md) in a folder; a blank still in its text stops it and is named",
+      {
+        in: { fileId: id.file, intoFolderId: id.folder, name: t.opt(t.str()) },
+        out: { file: savedFile, pages: t.int({ minimum: 1 }), signers },
+        make: ["file", "/intoFolderId"],
+        perm: "files.write",
+        emits: ["file.created", "file.version_added"],
+        tool: "files",
+        errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
+      },
+    ),
+    read(
+      "documents.signing",
+      "Where the signers of a PDF made from a Vyre document sign, and what it was filled from",
+      {
+        in: { fileId: id.file },
+        out: {
+          signers: t.arr(t.str()),
+          places: t.arr(t.json()),
+          templateFileId: t.opt(id.file),
+          recordId: t.opt(id.record),
+        },
+        on: ["file", "/fileId"],
+        tool: "files",
+        label: "check",
       },
     ),
     read("documents.templates.list", "List files marked as templates the caller can open", {
@@ -110,21 +154,25 @@ export default defineManifest({
       tool: "files",
       label: "filter",
     }),
-    write("documents.mark_template", "Mark a docx file as a template (optionally for one record type), or unmark it", {
-      in: {
-        fileId: id.file,
-        isTemplate: t.bool(),
-        recordType: t.opt(
-          t.str({ description: "Key of the record type this template is for", examples: ["customer"] }),
-        ),
+    write(
+      "documents.mark_template",
+      "Mark a Word file (.docx) or a Vyre document (.md) as a template, optionally for one record type, or unmark it",
+      {
+        in: {
+          fileId: id.file,
+          isTemplate: t.bool(),
+          recordType: t.opt(
+            t.str({ description: "Key of the record type this template is for", examples: ["customer"] }),
+          ),
+        },
+        out: { ok: t.bool() },
+        on: ["file", "/fileId"],
+        perm: "files.write",
+        emits: ["document.template_marked"],
+        tool: "files",
+        errors: ["validation.unsupported", "validation.not_found"],
       },
-      out: { ok: t.bool() },
-      on: ["file", "/fileId"],
-      perm: "files.write",
-      emits: ["document.template_marked"],
-      tool: "files",
-      errors: ["validation.unsupported", "validation.not_found"],
-    }),
+    ),
   ],
   steps: [
     step("documents.fill", "Documents · Make a document from a template", "data", "capability", {
@@ -145,9 +193,9 @@ export default defineManifest({
         values: t.opt(t.rec()),
         signingDate: t.opt(tpl("Signing date, ISO form")),
         name: t.opt(tpl("File name")),
-        format: t.opt(t.enm("docx", "pdf")),
+        format: t.opt(t.enm("docx", "pdf", "md")),
       },
-      out: { file: t.obj({ fileId: id.file, name: t.str(), versionId: id.version }), missing: t.arr(t.str()) },
+      out: { file: savedFile, missing: t.arr(t.str()), signers },
     }),
   ],
   screens: [

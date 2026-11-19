@@ -10,7 +10,7 @@ import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts"
 type Row = Record<string, unknown>;
 
 export const MIGRATION = new URL("../migrations/0001_documents.sql", import.meta.url);
-const MIGRATIONS = ["0001_documents.sql", "0002_documents_bind.sql"].map(
+const MIGRATIONS = ["0001_documents.sql", "0002_documents_bind.sql", "0003_documents_signing.sql"].map(
   (f) => new URL(`../migrations/${f}`, import.meta.url),
 );
 export const FOLDER = "fld_main";

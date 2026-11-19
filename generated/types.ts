@@ -12824,6 +12824,7 @@ export type DocumentsFieldsOut = {
       message: string;
       tag?: string;
     }>;
+  signers?: Array<string>;
 };
 export type DocumentsFillIn = {
   templateFileId: string;
@@ -12833,7 +12834,7 @@ export type DocumentsFillIn = {
   signingDate?: string;
   intoFolderId: string;
   name?: string;
-  format?: "docx" | "pdf";
+  format?: "docx" | "pdf" | "md" | {"description":"A Word template fills to docx (or pdf with the converter app); a Vyre document fills to pdf, or to md to go on editing"};
   idempotencyKey: string;
 };
 export type DocumentsFillOut = {
@@ -12844,6 +12845,22 @@ export type DocumentsFillOut = {
   };
   missing: Array<string>;
   unused: Array<string>;
+  signers?: Array<string>;
+};
+export type DocumentsMakePdfIn = {
+  fileId: string;
+  intoFolderId: string;
+  name?: string;
+  idempotencyKey: string;
+};
+export type DocumentsMakePdfOut = {
+  file: {
+    fileId: string;
+    name: string;
+    versionId: string;
+  };
+  pages: number;
+  signers?: Array<string>;
 };
 export type DocumentsMarkTemplateIn = {
   fileId: string;
@@ -12871,6 +12888,15 @@ export type DocumentsPreviewFillOut = {
     }>;
   missing: Array<string>;
   unused: Array<string>;
+};
+export type DocumentsSigningIn = {
+  fileId: string;
+};
+export type DocumentsSigningOut = {
+  signers: Array<string>;
+  places: Array<unknown>;
+  templateFileId?: string;
+  recordId?: string;
 };
 export type DocumentsTemplatesListIn = {
   folder?: string;
@@ -48882,8 +48908,10 @@ export interface CapMap {
   "documenso.status": { in: DocumensoStatusIn; out: DocumensoStatusOut };
   "documents.fields": { in: DocumentsFieldsIn; out: DocumentsFieldsOut };
   "documents.fill": { in: DocumentsFillIn; out: DocumentsFillOut };
+  "documents.make_pdf": { in: DocumentsMakePdfIn; out: DocumentsMakePdfOut };
   "documents.mark_template": { in: DocumentsMarkTemplateIn; out: DocumentsMarkTemplateOut };
   "documents.preview_fill": { in: DocumentsPreviewFillIn; out: DocumentsPreviewFillOut };
+  "documents.signing": { in: DocumentsSigningIn; out: DocumentsSigningOut };
   "documents.templates.list": { in: DocumentsTemplatesListIn; out: DocumentsTemplatesListOut };
   "docusign.cancel": { in: DocusignCancelIn; out: DocusignCancelOut };
   "docusign.create": { in: DocusignCreateIn; out: DocusignCreateOut };

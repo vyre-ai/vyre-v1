@@ -18313,7 +18313,11 @@
           "format": {
             "enum": [
               "docx",
-              "pdf"
+              "pdf",
+              "md",
+              {
+                "description": "A Word template fills to docx (or pdf with the converter app); a Vyre document fills to pdf, or to md to go on editing"
+              }
             ],
             "type": "string"
           },
@@ -18382,9 +18386,54 @@
     },
     {
       "blocks": [],
+      "cap": "documents.make_pdf",
+      "deferred": false,
+      "description": "Make a PDF of a Vyre document (.md) in a folder; a blank still in its text stops it and is named",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "intoFolderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "intoFolderId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "documents_make_pdf",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "documents.mark_template",
       "deferred": false,
-      "description": "Mark a docx file as a template (optionally for one record type), or unmark it",
+      "description": "Mark a Word file (.docx) or a Vyre document (.md) as a template, optionally for one record type, or unmark it",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18465,6 +18514,32 @@
         "type": "object"
       },
       "name": "documents_preview_fill",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "documents.signing",
+      "deferred": false,
+      "description": "Where the signers of a PDF made from a Vyre document sign, and what it was filled from",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "documents_signing",
       "planMode": "allowed",
       "toolset": "files",
       "v": 1
