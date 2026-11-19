@@ -25174,6 +25174,7 @@ export type MailConfigureIn = {
   mailboxId?: string;
   fromMailboxId?: string;
   title?: string;
+  nonce?: string;
 };
 export type MailConfigureOut = {
   result: unknown;

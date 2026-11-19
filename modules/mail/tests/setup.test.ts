@@ -254,7 +254,7 @@ test("mail.configure answers a wrong or short call with that action's exact shap
   );
   assert.equal(
     await said({ action: "test", address: "maya@example.com" }),
-    "validation.bad_input: mail.configure test takes {to}; missing to; not used: address.",
+    "validation.bad_input: mail.configure test takes {to, nonce?}; missing to; not used: address.",
   );
   assert.equal(
     await said({ action: "status", host: "x" }),
@@ -292,7 +292,7 @@ test("a deliberately wrong first call to mail.configure is answered with the sha
   assert.deepEqual(out, { result: { address: { address: "billing@northwind.example" } } });
 });
 
-test("the key a repeated call gets is the same whatever the field order or length, differs when the call differs, and a test email's changes with the hour", async () => {
+test("the key a repeated call gets is the same whatever the field order or length and differs when the call differs; a test email sends on every call unless the caller gives a nonce", async () => {
   const h = harness();
   const keys: string[] = [];
   script(
@@ -312,10 +312,9 @@ test("the key a repeated call gets is the same whatever the field order or lengt
   assert.notEqual(keys[0], keys[2], "two long calls that differ late do not share a key");
   assert.ok(keys.every((k) => k.length < 60));
   await setupTool(h.ctx, { action: "test", to: "maya@example.com" });
-  const first = keys.at(-1);
   await setupTool(h.ctx, { action: "test", to: "maya@example.com" });
-  assert.equal(keys.at(-1), first, "the same hour is the same test");
-  h.advance(2 * 3_600_000);
-  await setupTool(h.ctx, { action: "test", to: "maya@example.com" });
-  assert.notEqual(keys.at(-1), first, "a test asked for later is sent again");
+  assert.notEqual(keys.at(-1), keys.at(-2), "each test call is its own press and really sends");
+  await setupTool(h.ctx, { action: "test", to: "maya@example.com", nonce: "press-1" });
+  await setupTool(h.ctx, { action: "test", nonce: "press-1", to: "maya@example.com" });
+  assert.equal(keys.at(-1), keys.at(-2), "the same nonce says two calls are one");
 });

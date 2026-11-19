@@ -36510,6 +36510,9 @@
             "pattern": "^mbx_[a-z0-9]+$",
             "type": "string"
           },
+          "nonce": {
+            "type": "string"
+          },
           "passwordHandle": {
             "examples": [
               "#Dana_Lawmatics"

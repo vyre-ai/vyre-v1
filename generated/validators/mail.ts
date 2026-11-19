@@ -670,6 +670,7 @@ if ("localPart" in o4366) lf(o4366["localPart"], p + "/localPart", e, L1);
 if ("mailboxId" in o4366) lf(o4366["mailboxId"], p + "/mailboxId", e, L30);
 if ("fromMailboxId" in o4366) lf(o4366["fromMailboxId"], p + "/fromMailboxId", e, L30);
 if ("title" in o4366) lf(o4366["title"], p + "/title", e, L1);
+if ("nonce" in o4366) lf(o4366["nonce"], p + "/nonce", e, L1);
 }
 }
 }

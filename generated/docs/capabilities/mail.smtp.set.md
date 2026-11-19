@@ -11,7 +11,7 @@ Save the Space's SMTP server; password stays in the Vault
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

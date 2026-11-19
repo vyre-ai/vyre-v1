@@ -21779,7 +21779,7 @@ const routes3: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": "delete"
+    "gate": "send"
   },
   {
     "method": "POST",
@@ -22601,7 +22601,7 @@ const routes4: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",

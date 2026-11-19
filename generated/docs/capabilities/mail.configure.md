@@ -37,6 +37,7 @@ type In = {
   mailboxId?: string;
   fromMailboxId?: string;
   title?: string;
+  nonce?: string;
 };
 ```
 
@@ -72,6 +73,7 @@ type Out = {
     "host": "example",
     "localPart": "example",
     "mailboxId": "mbx_a1b2c3",
+    "nonce": "example",
     "passwordHandle": "#Dana_Lawmatics",
     "port": 1,
     "security": "starttls",

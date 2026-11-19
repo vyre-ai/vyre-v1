@@ -11,7 +11,7 @@ Point an address that exists at another inbox. Names the inbox it goes to now an
 | Grant level | edit |
 | Risk | medium |
 | Resource | domain (/domainId) |
-| Gate | delete when actor.kind != 'person' |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
