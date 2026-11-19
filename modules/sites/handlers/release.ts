@@ -54,7 +54,7 @@ const LOG_KEEP = 3000;
 const READY_MS = 120_000;
 const KEEP_IMAGES = 5;
 const WAIT_MAX_MS = 20 * 60_000;
-const CANCEL_WAIT_MS = 20_000;
+let CANCEL_WAIT_MS = 20_000;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
 const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
 const ENV_SCOPES = new Set(["all", "production", "previews"]);
@@ -494,6 +494,36 @@ async function envOf(
   return out;
 }
 
+/** The variables of a deploy that is already a row. Its cancel switch is registered first, so a cancel that arrives while the Vault is read is recorded and nothing starts after it; a failure here ends the row instead of leaving it queued. Null: it was canceled. */
+async function envForNew(
+  ctx: Ctx,
+  siteId: string,
+  depId: string,
+  kind: "production" | "preview",
+  ac: AbortController,
+): Promise<Record<string, string> | null> {
+  cancels.set(depId, ac);
+  try {
+    const env = await envOf(ctx, siteId, depId, kind);
+    if (!ac.signal.aborted) return env;
+  } catch (e) {
+    cancels.delete(depId);
+    finish(ctx.db, depId, ac.signal.aborted ? "stopped" : "failed", {
+      problem: ac.signal.aborted
+        ? "Canceled."
+        : e instanceof Error
+          ? e.message.slice(0, 200)
+          : "Its variables could not be read.",
+      fix: ac.signal.aborted ? "retry" : "set_env",
+    });
+    throw e;
+  }
+  cancels.delete(depId);
+  // the cancel that got here closes the row itself when the job never began (it could not wait for one)
+  finish(ctx.db, depId, "stopped", { problem: "Canceled.", fix: "retry" });
+  return null;
+}
+
 // ---- the background part of a deploy
 
 const queue: Array<() => Promise<void>> = [];
@@ -548,8 +578,9 @@ function finish(
   fields: { problem?: string; fix?: Fix; note?: string },
 ): void {
   const now = Date.now();
+  // a deploy that was closed from outside (a cancel that could not wait) stays as it was closed: nothing the job does later rewrites it
   db.run(
-    "UPDATE sites_deployment SET state = ?, problem = ?, fix = ?, note = COALESCE(?, note), finished_at = ?, updated_at = ? WHERE id = ?",
+    "UPDATE sites_deployment SET state = ?, problem = ?, fix = ?, note = COALESCE(?, note), finished_at = ?, updated_at = ? WHERE id = ? AND state IN ('queued', 'building')",
     state,
     fields.problem ?? null,
     fields.fix ?? null,
@@ -557,6 +588,24 @@ function finish(
     now,
     now,
     depId,
+  );
+}
+
+/** The deploy is still the job's to finish: it was not closed from outside. Read right before the address changes hands, with nothing awaited in between. */
+function isOpen(db: Db, depId: string): boolean {
+  const row = (db.all("SELECT state FROM sites_deployment WHERE id = ?", depId) as Row[])[0];
+  return row !== undefined && (row.state === "queued" || row.state === "building");
+}
+
+/** The deploy row goes from queued to building only if it is still queued: a deploy canceled before the job began never starts. */
+function begin(db: Db, depId: string): boolean {
+  return (
+    db.run(
+      "UPDATE sites_deployment SET state = ?, updated_at = ? WHERE id = ? AND state = 'queued'",
+      "building",
+      Date.now(),
+      depId,
+    ).changes > 0
   );
 }
 
@@ -606,13 +655,15 @@ async function runJob(j: Job): Promise<void> {
   let fetched: Awaited<ReturnType<typeof fetchSource>> | null = null;
   let plan: SitePlan | null = null;
   let startedId: string | null = null;
+  // set when the address starts changing hands: from there a cancel is too late and an error is a failure, never "Canceled"
+  let switched = false;
   try {
     live();
     if (!r) {
       end("failed", { problem: deployNeed() ?? "No server can run it.", fix: "retry" });
       return;
     }
-    j.db.run("UPDATE sites_deployment SET state = ?, updated_at = ? WHERE id = ?", "building", Date.now(), j.depId);
+    if (!begin(j.db, j.depId)) return;
     log.begin("fetch");
     const free = await r.freeMb();
     live();
@@ -750,11 +801,17 @@ async function runJob(j: Job): Promise<void> {
       return;
     }
     // from here the address changes hands: a cancel that arrives now is too late, and the deploy goes live
+    if (!isOpen(j.db, j.depId)) throw new Canceled();
+    switched = true;
     if (j.preview) await switchPreview(j.db, r, siteId, j.depId, started.containerId, j.preview);
     else await switchTo(j.db, r, siteId, j.depId, started.containerId, plan.port, j.by, j.publicNeedsPromote);
     say("Live");
     end("ready", {});
   } catch (e) {
+    if (switched) {
+      await afterSwitchError(j.db, r, siteId, j.depId, startedId, !!j.preview, e, log, end);
+      return;
+    }
     if (e instanceof Canceled || j.signal.aborted) {
       // the last good build keeps serving; what this deploy started is taken away
       if (startedId && r) {
@@ -772,6 +829,35 @@ async function runJob(j: Job): Promise<void> {
     fetched?.cleanup();
     log.close();
   }
+}
+
+/** An error after the address began to change hands. If the site serves this deploy it is live (what failed was the clean-up after it, which is only said); if not, it failed, and its container is removed, since nothing serves it. Never "Canceled", and the live container is never removed. */
+async function afterSwitchError(
+  db: Db,
+  r: Runner | undefined,
+  siteId: string,
+  depId: string,
+  startedId: string | null,
+  preview: boolean,
+  e: unknown,
+  log: DeployLog,
+  end: (state: "ready" | "failed" | "stopped", fields: { problem?: string; fix?: Fix; note?: string }) => void,
+): Promise<void> {
+  const why = e instanceof Error ? e.message : String(e);
+  log.add(why);
+  const site = (db.all("SELECT current_deployment FROM sites_site WHERE id = ?", siteId) as Row[])[0];
+  const serving = preview
+    ? ((db.all("SELECT host FROM sites_deployment WHERE id = ?", depId) as Row[])[0]?.host ?? null) !== null
+    : site !== undefined && site.current_deployment === depId;
+  if (serving) {
+    end("ready", { note: `It is live. Tidying up after it stopped: ${why.slice(0, 160)}` });
+    return;
+  }
+  if (startedId && r) {
+    await r.remove(startedId).catch(() => undefined);
+    db.run("UPDATE sites_deployment SET container_id = NULL WHERE id = ?", depId);
+  }
+  end("failed", { problem: `The deploy stopped before it went live: ${why.slice(0, 200)}`, fix: "retry" });
 }
 
 /** The address now serves the new container; the one before is removed, its image kept for a rollback, and images older than the last few are removed. */
@@ -965,9 +1051,11 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     0,
   );
   // values are filled now, while this is the caller's own call: the Vault checks their access to each key
-  const env = await envOf(ctx, siteId, depId);
-  const h = routesHost();
   const ac = new AbortController();
+  const env = await envForNew(ctx, siteId, depId, "production", ac);
+  if (env === null)
+    return { deployment: depRow(one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", depId) as Row, null) };
+  const h = routesHost();
   const job: Job = {
     db: ctx.db,
     site,
@@ -987,7 +1075,6 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     cancels.delete(depId);
   });
   done.set(depId, p);
-  cancels.set(depId, ac);
   touchActivity(ctx.db, siteId, "site.deployed", now);
   if (optBool(ctx, o, "wait") === true)
     await Promise.race([p, new Promise((res) => setTimeout(res, WAIT_MAX_MS).unref?.())]);
@@ -1023,7 +1110,7 @@ async function sitesDeployCancel(ctx: Ctx, input: unknown): Promise<{ deployment
     // a deploy this process is not running (the server restarted), or one still inside a step that cannot be cut off: it is closed here, and what it does next is thrown away
     const now = ctx.now();
     ctx.db.run(
-      "UPDATE sites_deployment SET state = ?, problem = ?, fix = ?, steps = ?, finished_at = ?, updated_at = ? WHERE id = ?",
+      "UPDATE sites_deployment SET state = ?, problem = ?, fix = ?, steps = ?, finished_at = ?, updated_at = ? WHERE id = ? AND state IN ('queued', 'building')",
       "stopped",
       "Canceled.",
       "retry",
@@ -1246,8 +1333,10 @@ async function sitesPreviewRebuild(ctx: Ctx, input: unknown): Promise<{ deployme
     null,
     0,
   );
-  const env = await envOf(ctx, siteId, depId, "preview");
   const ac = new AbortController();
+  const env = await envForNew(ctx, siteId, depId, "preview", ac);
+  if (env === null)
+    return { deployment: depRow(one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", depId) as Row, null) };
   const job: Job = {
     db: ctx.db,
     site,
@@ -1268,7 +1357,6 @@ async function sitesPreviewRebuild(ctx: Ctx, input: unknown): Promise<{ deployme
     cancels.delete(depId);
   });
   done.set(depId, p);
-  cancels.set(depId, ac);
   if (optBool(ctx, o, "wait") === true)
     await Promise.race([p, new Promise((res) => setTimeout(res, WAIT_MAX_MS).unref?.())]);
   return { deployment: depRow(one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", depId) as Row, null) };
@@ -1376,8 +1464,10 @@ async function sitesPreviewPromote(ctx: Ctx, input: unknown): Promise<{ deployme
     by,
     now,
   );
-  const env = await envOf(ctx, siteId, depId);
   const ac = new AbortController();
+  const env = await envForNew(ctx, siteId, depId, "production", ac);
+  if (env === null)
+    return { deployment: depRow(one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", depId) as Row, null) };
   const p = enqueue(() =>
     runPromote({
       db: ctx.db,
@@ -1396,7 +1486,6 @@ async function sitesPreviewPromote(ctx: Ctx, input: unknown): Promise<{ deployme
     cancels.delete(depId);
   });
   done.set(depId, p);
-  cancels.set(depId, ac);
   if (optBool(ctx, o, "wait") === true)
     await Promise.race([p, new Promise((res) => setTimeout(res, WAIT_MAX_MS).unref?.())]);
   const after = mustSite(ctx, siteId);
@@ -1430,13 +1519,14 @@ async function runPromote(j: {
     finish(j.db, j.depId, state, fields);
   };
   let startedId: string | null = null;
+  let switched = false;
   try {
     if (j.signal.aborted) throw new Canceled();
     if (!r) {
       end("failed", { problem: deployNeed() ?? "No server can run it.", fix: "retry" });
       return;
     }
-    j.db.run("UPDATE sites_deployment SET state = ?, updated_at = ? WHERE id = ?", "building", Date.now(), j.depId);
+    if (!begin(j.db, j.depId)) return;
     log.skip("fetch", "build");
     say("Promoting the build of the preview. It is not built again.");
     await keepNetwork(j.db, r, siteId);
@@ -1472,10 +1562,16 @@ async function runPromote(j: {
       end("failed", d);
       return;
     }
+    if (!isOpen(j.db, j.depId)) throw new Canceled();
+    switched = true;
     await switchTo(j.db, r, siteId, j.depId, started.containerId, j.port, j.by, j.publicNeedsPromote);
     say("Live");
     end("ready", {});
   } catch (e) {
+    if (switched) {
+      await afterSwitchError(j.db, r, siteId, j.depId, startedId, false, e, log, end);
+      return;
+    }
     if (e instanceof Canceled || j.signal.aborted) {
       if (startedId && r) {
         await r.remove(startedId).catch(() => undefined);
@@ -2081,6 +2177,10 @@ export const _test = {
   closedMeta,
   envOf,
   previewLabel,
+  cancels,
+  cancelWait: (ms: number | null): void => {
+    CANCEL_WAIT_MS = ms ?? 20_000;
+  },
   useFetcher: (f: typeof fetchSource | null): void => {
     fetcher = f ?? fetchSource;
   },

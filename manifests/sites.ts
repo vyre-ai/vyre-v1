@@ -418,6 +418,7 @@ export default defineManifest({
         on: ["site", "/siteId"],
         perm: "sites.deploy",
         tool: "sites",
+        audit: "sensitive",
         errors: ["validation.precondition_failed"],
       },
     ),

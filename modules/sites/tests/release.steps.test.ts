@@ -26,6 +26,8 @@ interface Fake {
   /** how long the build takes; a cancel ends it at once */
   buildMs?: number;
   failBuild?: boolean;
+  /** a build that does not stop when it is canceled (a step the engine cannot cut off) */
+  uncuttable?: boolean;
 }
 
 function world(o: Fake = {}) {
@@ -62,13 +64,15 @@ function world(o: Fake = {}) {
     droppedImages: [] as string[],
   };
   const fake = { ...o };
+  const hooks = { hostRoute: (async () => undefined) as (...a: unknown[]) => Promise<void> };
   const runner = {
     ping: async () => true,
     freeMb: async () => 50_000,
     async build(a: { deploymentId: string; onLine(l: string): void; signal?: AbortSignal }) {
       seen.builds++;
       a.onLine("Step 1/2 : FROM caddy:2-alpine");
-      if (fake.buildMs)
+      if (fake.uncuttable) await new Promise<void>((res) => setTimeout(res, fake.buildMs ?? 300));
+      else if (fake.buildMs)
         await new Promise<void>((res) => {
           const t = setTimeout(res, fake.buildMs);
           a.signal?.addEventListener(
@@ -81,7 +85,7 @@ function world(o: Fake = {}) {
             { once: true },
           );
         });
-      if (a.signal?.aborted) return { ok: false as const, reason: "The build was canceled." };
+      if (a.signal?.aborted && !fake.uncuttable) return { ok: false as const, reason: "The build was canceled." };
       if (fake.failBuild) {
         a.onLine('npm ERR! Missing script: "build"');
         return { ok: false as const, reason: "The command returned a non-zero code: 1" };
@@ -115,7 +119,7 @@ function world(o: Fake = {}) {
     tmp: os.tmpdir(),
     sitesDomain: () => "sites.test",
     domainOf: () => null,
-    hostRoute: async () => undefined,
+    hostRoute: (...a: unknown[]) => hooks.hostRoute(...a),
     take: () => undefined,
   } as never);
   const make = async (name: string): Promise<string> =>
@@ -137,6 +141,7 @@ function world(o: Fake = {}) {
     sdb,
     seen,
     fake,
+    hooks,
     make,
     makeRepo,
     done: () => {
@@ -595,6 +600,105 @@ test("a preview that is building can be canceled by its id, and leaves nothing r
     assert.equal(out.deployment.state, "stopped");
     assert.equal(w.seen.running.length, 0);
     assert.equal(route(w, "slow--shop6.sites.test"), null);
+  } finally {
+    w.done();
+  }
+});
+
+const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+test("a cancel that arrives while the variables are read is recorded before anything starts, and the deploy never goes live", async () => {
+  const w = world();
+  try {
+    const siteId = await w.make("Early cancel");
+    // both calls start in the same turn: the cancel runs while the deploy is still reading its variables
+    const deploy = h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    const cancel = await h["sites.deploy_cancel"]!(w.ctx, { siteId });
+    assert.equal(cancel.deployment.state, "stopped");
+    const out = await deploy;
+    assert.equal(out.deployment.state, "stopped", "the deploy answers as canceled");
+    await settle(100);
+    const row = (await h["sites.deployments"]!(w.ctx, { siteId })).deployments[0];
+    assert.equal(row.state, "stopped", "nothing later rewrote it");
+    assert.equal(w.seen.builds, 0, "nothing was built");
+    assert.equal(w.seen.running.length, 0, "nothing was started");
+    assert.equal((await h["sites.get"]!(w.ctx, { siteId })).site.live, false);
+    // and a deploy after it is a normal one
+    const again = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(again.deployment.state, "ready");
+  } finally {
+    w.done();
+  }
+});
+
+test("a deploy that was closed by a cancel that could not wait never turns ready or switches the site", async () => {
+  const w = world({ uncuttable: true, buildMs: 400 });
+  _test.cancelWait(30);
+  try {
+    const siteId = await w.make("Stuck step");
+    const started = await h["sites.deploy"]!(w.ctx, { siteId });
+    await settle(50);
+    // the job never sees the abort (the switch is not reachable from this call): only the row is closed
+    _test.cancels.clear();
+    const out = await h["sites.deploy_cancel"]!(w.ctx, { siteId });
+    assert.equal(out.deployment.state, "stopped", "closed after the short wait");
+    // the step ends by itself later: it must not go on
+    await settle(900);
+    const row = (await h["sites.deployments"]!(w.ctx, { siteId })).deployments[0];
+    assert.equal(row.deploymentId, started.deployment.deploymentId);
+    assert.equal(row.state, "stopped", "still stopped");
+    assert.equal(row.problem, "Canceled.");
+    const site = (await h["sites.get"]!(w.ctx, { siteId })).site;
+    assert.equal(site.live, false, "the site was not switched");
+    assert.equal(
+      w.seen.running.every((c: string) => w.seen.removed.includes(c)),
+      true,
+      "whatever it started is gone",
+    );
+  } finally {
+    _test.cancelWait(null);
+    w.done();
+  }
+});
+
+test("an error after the address changed hands is not a cancel: the deploy is live, and its container stays", async () => {
+  const w = world();
+  try {
+    const siteId = await w.make("After switch");
+    const first = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(first.deployment.state, "ready");
+    // the route write fails after the site row changed, and a cancel arrives at the same moment
+    w.hooks.hostRoute = () => {
+      for (const ac of _test.cancels.values()) ac.abort();
+      throw new Error("the proxy refused");
+    };
+    const second = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    const id = second.deployment.deploymentId as string;
+    assert.equal(second.deployment.state, "ready", second.deployment.problem);
+    assert.notEqual(second.deployment.problem, "Canceled.");
+    assert.match(second.deployment.note, /It is live\. Tidying up after it stopped: the proxy refused/);
+    assert.equal(w.seen.removed.includes(`c-${id}`), false, "the container that serves is not removed");
+    const site = (await h["sites.get"]!(w.ctx, { siteId })).site;
+    assert.equal(site.lastDeploy.deploymentId, id);
+    assert.equal(site.lastDeploy.current, true);
+  } finally {
+    w.done();
+  }
+});
+
+test("a failure before the address changes hands, with a cancel arriving, still ends as a cancel and leaves the last good build", async () => {
+  const w = world();
+  try {
+    const siteId = await w.make("Before switch");
+    const first = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    w.fake.buildMs = 30_000;
+    const started = await h["sites.deploy"]!(w.ctx, { siteId });
+    await settle(30);
+    const out = await h["sites.deploy_cancel"]!(w.ctx, { siteId });
+    assert.equal(out.deployment.state, "stopped");
+    const site = (await h["sites.get"]!(w.ctx, { siteId })).site;
+    assert.equal(site.lastDeploy.deploymentId === started.deployment.deploymentId, true);
+    assert.equal(w.seen.removed.includes(`c-${first.deployment.deploymentId}`), false, "the serving container stays");
   } finally {
     w.done();
   }

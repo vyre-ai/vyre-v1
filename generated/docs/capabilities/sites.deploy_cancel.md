@@ -14,7 +14,7 @@ Stop the deploy that is running. The last good build keeps serving. A deploy tha
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |
-| Audit | none |
+| Audit | sensitive |
 | Team Space only | no |
 | HTTP | POST /v1/sites/deploy_cancel |
 | MCP tool | sites_deploy_cancel (sites) |

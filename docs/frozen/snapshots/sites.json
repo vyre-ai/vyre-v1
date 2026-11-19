@@ -12,7 +12,7 @@
     "sites.db_import@1": "80134960582f2dc69f189b1ee43afc133bc79641c9fd4f38d68a26257348ed2b",
     "sites.delete@1": "1aed8d85d8710d8bbfbad7af4183cd1a102126a63946690aad76284444ee0f94",
     "sites.deploy@1": "ee8ca75f15c952efe0a9da926a30611835dc4e64a006e15759db27a83c434b1b",
-    "sites.deploy_cancel@1": "727cd186141966aaa4629d795ac93449000745053e63422de3235cd91391d14e",
+    "sites.deploy_cancel@1": "d149df86d6ff9fd75bdab1c59ed7c41785a09cf68e5f6e560471d7ea67f73aba",
     "sites.deployments@1": "d25246f01c076817eb1b0dea95a1c22d20a29a2a49ef08528d1075d9cf6173bc",
     "sites.domain_add@1": "3c54f338c59c5ff0e9f594c5131c5038f5b425a4a64461917f62a48fcdb14aa5",
     "sites.domain_check@1": "06f598780c0a98defcb278bba54685a9a70f7b7abdd7407a0d608facd4341644",
