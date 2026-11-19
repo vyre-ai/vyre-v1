@@ -681,16 +681,29 @@ export function createContextBuilder(d: ContextDeps) {
     if (m && words(m) !== "")
       out.push(`This thread hangs off this message by ${speaker(m)}:\n${cutTo(str(m["body"]) ?? "", 2_000)}`);
     // the parent chat is a room: its roster, digest and recent messages come in the room pack, which keeps to what was said after the latest join; the loose lines here would not
-    if (roomPack) return out.join("\n\n");
+    let cutAny = m !== undefined && (str(m["body"]) ?? "").length > 2_000;
+    const framed = (): string =>
+      out.length === 0
+        ? ""
+        : labelFrame(
+            "parent",
+            "This chat is a thread of another chat; what was said there follows.",
+            out.join("\n\n"),
+            undefined,
+            cutAny ? "some of the text above was cut here; the transcript has all of it." : undefined,
+          );
+    if (roomPack) return framed();
     const older = str(summary?.["summary"]);
-    if (older) out.push(`The conversation it came from, in short:\n${cutTo(older, 1_500)}`);
-    else {
+    if (older) {
+      cutAny = cutAny || older.length > 1_500;
+      out.push(`The conversation it came from, in short:\n${cutTo(older, 1_500)}`);
+    } else {
       const lines = arr(recent?.["messages"])
         .filter((x) => words(x) !== "" && str(x["messageId"]) !== messageId)
         .map((x) => `${speaker(x)}: ${words(x)}`);
       if (lines.length > 0) out.push(`The conversation it came from, most recent lines:\n${lines.join("\n")}`);
     }
-    return out.join("\n\n");
+    return framed();
   }
 
   async function build(input: TurnInput): Promise<TurnContext> {
@@ -1121,7 +1134,11 @@ export function createContextBuilder(d: ContextDeps) {
       );
     const taken = d.handoff?.(input.threadId);
     if (taken) add("handoff", false, taken);
-    add("screen", false, screenText(screen));
+    {
+      const shown = screenText(screen);
+      // page titles, object names, filters and row text come from the client and from whoever wrote the records: labels, framed
+      if (shown !== "") add("screen", false, labelFrame("screen", "What is on the person's screen follows.", shown));
+    }
     add(
       "now",
       false,
