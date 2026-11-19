@@ -655,8 +655,9 @@ const NAMED_CHARS: Record<string, string> = {
  * A URL as a browser reads it before it looks at the scheme: character references decoded, ASCII tab, LF and CR removed from anywhere,
  * leading control characters and spaces removed. Lowercased for the scheme test.
  */
-export function urlForScheme(v: string): string {
-  const decoded = v.replace(
+/** Character references decoded: &#106; &#x6A; and the few names that matter inside a URL or style value. */
+function decodeRefs(v: string): string {
+  return v.replace(
     /&(?:#x([0-9a-f]{1,6})|#(\d{1,7})|([a-z]{2,8}));?/gi,
     (m, hex?: string, dec?: string, name?: string) => {
       if (hex !== undefined || dec !== undefined) {
@@ -666,8 +667,15 @@ export function urlForScheme(v: string): string {
       return NAMED_CHARS[lc(name ?? "")] ?? m;
     },
   );
+}
+
+export function urlForScheme(v: string): string {
   // eslint-disable-next-line no-control-regex
-  return lc(decoded.replace(/[\t\n\r\0]/g, "").replace(/^[\u0000-\u0020]+/, ""));
+  return lc(
+    decodeRefs(v)
+      .replace(/[\t\n\r\0]/g, "")
+      .replace(/^[\u0000-\u0020]+/, ""),
+  );
 }
 
 /** True for a URL a page must not carry: a script scheme, or an HTML document in a data: URL. */
@@ -676,16 +684,58 @@ export function isScriptUrl(v: string): boolean {
   return /^(?:javascript|vbscript|livescript|mocha):/.test(u) || /^data:\s*(?:text\/html|application\/xhtml)/.test(u);
 }
 
+/** A CSS string or url() with its backslash escapes decoded ("\\6a avascript" is "javascript"). */
+const cssUnescape = (v: string): string =>
+  v.replace(/\\([0-9a-f]{1,6})[ \t\n\r\f]?|\\([^\n])/gi, (_m, hex?: string, ch?: string) =>
+    hex !== undefined ? String.fromCodePoint(Math.min(parseInt(hex, 16) || 0xfffd, 0x10ffff)) : (ch ?? ""),
+  );
+
+/**
+ * Removes script URLs from CSS: `url(javascript:...)` becomes `none`, `@import "javascript:..."` and `@import url(...)` become `@import "#"`.
+ * The target is decoded as a browser does (CSS escapes, character references, tabs and newlines, leading spaces) before its scheme is tested.
+ * The closing ")" or ";" is searched once and reused, so a long run of rules is read in one pass.
+ */
+export function neutralizeCssUrls(s: string): string {
+  const heads = /url\(\s{0,16}["']?([^)"']{0,128})|@import\s{0,16}(?:url\(\s{0,16})?["']?([^"');]{0,128})/gi;
+  let out = "";
+  let i = 0;
+  let paren = -2;
+  let semi = -2;
+  for (let m = heads.exec(s); m; m = heads.exec(s)) {
+    if (!isScriptUrl(cssUnescape(m[1] ?? m[2] ?? ""))) continue;
+    const imp = m[0].charCodeAt(0) === 64;
+    const from = heads.lastIndex;
+    let e = imp ? semi : paren;
+    if (e !== -1 && e < from) e = s.indexOf(imp ? ";" : ")", from);
+    if (imp) semi = e;
+    else paren = e;
+    const end = e < 0 ? from : imp ? e : e + 1;
+    out += s.slice(i, m.index) + (imp ? '@import "#"' : "none");
+    i = end;
+    heads.lastIndex = end;
+  }
+  return i === 0 ? s : out + s.slice(i);
+}
+
 /**
  * Replaces the value of every URL attribute (href, src, action, ...) that holds a script URL with "#", quoted or not, however the scheme
  * is spelled (tabs, newlines, control characters and character references inside it). Linear; read the way stripEventAttrs reads.
  */
 export function neutralizeUrlAttrs(s: string): string {
-  const pick = (a: TagAttr): Edit | null =>
-    a.hasValue && URL_ATTRS.has(lc(a.name)) && isScriptUrl(s.slice(a.vs, a.ve))
-      ? a.quoted
-        ? [a.vs, a.ve, "#"]
-        : [a.vs, a.ve, '"#"']
-      : null;
+  const pick = (a: TagAttr): Edit | null => {
+    if (!a.hasValue) return null;
+    const name = lc(a.name);
+    if (URL_ATTRS.has(name) && isScriptUrl(s.slice(a.vs, a.ve)))
+      return a.quoted ? [a.vs, a.ve, "#"] : [a.vs, a.ve, '"#"'];
+    if (name === "style") {
+      // a style attribute is read as CSS after its character references are decoded
+      const css = decodeRefs(s.slice(a.vs, a.ve));
+      const clean = neutralizeCssUrls(css);
+      if (clean === css) return null;
+      const esc = clean.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return a.quoted ? [a.vs, a.ve, esc] : [a.vs, a.ve, `"${esc}"`];
+    }
+    return null;
+  };
   return applyEdits(s, tagEdits(s, lc(s), true, pick), tagEdits(s, lc(s), false, pick));
 }

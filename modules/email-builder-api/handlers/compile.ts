@@ -11,6 +11,7 @@ import {
   cutBlocks,
   cutTags,
   replaceAnchors,
+  neutralizeCssUrls,
   neutralizeUrlAttrs,
   replaceTokens,
   stripEventAttrs,
@@ -302,7 +303,7 @@ export function cleanHtml(code: string): string {
   );
   s = stripEventAttrs(s);
   s = neutralizeUrlAttrs(s);
-  s = s.replace(/url\(\s*["']?\s*(?:javascript|vbscript)[^)]*\)/gi, "none");
+  s = neutralizeCssUrls(s);
   s = s.replace(/expression\s*\(/gi, "blocked(");
   return s;
 }

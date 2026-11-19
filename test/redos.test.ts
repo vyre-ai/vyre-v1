@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import {
   isScriptUrl,
   lc,
+  neutralizeCssUrls,
   neutralizeUrlAttrs,
   replaceAnchors,
   stripEventAttrs,
@@ -371,6 +372,40 @@ test("script URLs are neutralised however the scheme is spelled, quoted or not (
   fast("href=javascript N", () => cleanHtml('<a href="javascript:x">'.repeat(N / 24)));
   fast("href=java&#9; N", () => cleanHtml("<a href=java&#9;script:x>".repeat(N / 25)));
   fast("long value", () => cleanHtml('<a href="' + "java&Tab;".repeat(N / 9) + '">'));
+});
+
+test("script URLs in CSS are neutralised the way a browser reads them (cleanHtml, neutralizeCssUrls)", () => {
+  for (const css of [
+    "background:url(javascript:alert(1))",
+    "background:url( 'javascript:alert(1)' )",
+    'background:url("java\tscript:alert(1)")',
+    "background:url(\\6a avascript:alert(1))",
+    "background:url(&#106;avascript:alert(1))",
+    "background:URL(vbscript:x)",
+    "background:url(data:text/html,<b>)",
+  ])
+    assert.equal(cleanHtml(`<p style="${css.replace(/"/g, "&quot;")}">x</p>`).includes("alert"), false, css);
+  assert.equal(neutralizeCssUrls("a{background:url(javascript:x)}b{c:d}"), "a{background:none}b{c:d}");
+  assert.equal(neutralizeCssUrls("@import 'javascript:x';p{c:d}"), '@import "#";p{c:d}');
+  assert.equal(neutralizeCssUrls('@import url("java\tscript:x");p{c:d}'), '@import "#";p{c:d}');
+  assert.equal(neutralizeCssUrls("@import url(\\6a avascript:x);p{c:d}"), '@import "#";p{c:d}');
+  assert.equal(neutralizeCssUrls('@IMPORT "JavaScript:x";'), '@import "#";');
+  assert.equal(
+    cleanHtml("<style>@import 'javascript:alert(1)';p{color:red}</style>"),
+    '<style>@import "#";p{color:red}</style>',
+  );
+  // ordinary rules are left alone
+  for (const ok of [
+    "a{background:url(https://northwind.example/a.png)}",
+    "@import 'https://northwind.example/a.css';",
+    "a{background:url(data:image/png;base64,iVBORw0=)}",
+    "p{color:red}",
+  ])
+    assert.equal(neutralizeCssUrls(ok), ok, ok);
+  fast("url( N", () => neutralizeCssUrls("url(".repeat(N / 4)));
+  fast("url(javascript: N", () => neutralizeCssUrls("url(javascript:x".repeat(N / 16)));
+  fast("@import N", () => neutralizeCssUrls("@import 'javascript:x' ".repeat(N / 22)));
+  fast("@import url( N", () => neutralizeCssUrls("@import url(".repeat(N / 12)));
 });
 
 test("asked: an address pattern reads a long word once (lib/asked.ts)", () => {
