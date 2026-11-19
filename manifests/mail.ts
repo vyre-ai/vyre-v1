@@ -1174,6 +1174,15 @@ const manifest = defineManifest({
       primary: "New shared inbox",
       needs: ["connectors.manage"],
     }),
+    screen("mail.templates", "console", "ui:EmailTemplates", {
+      q: { templates: ["mail.template.list", {}, true] },
+      a: {
+        save: ["mail.template.save", { key: "/state/key", subject: "/state/subject", text: "/state/text" }],
+        reset: ["mail.template.reset", { key: "/state/key" }, "Use the template that ships with Vyre?"],
+      },
+      empty: "No templates yet",
+      needs: ["comms.templates"],
+    }),
     screen("mail.connections", "settings", "ui:MailConnections", {
       q: { mailboxes: ["mail.mailbox.list", { scope: "/state/scope" }, true] },
       a: {

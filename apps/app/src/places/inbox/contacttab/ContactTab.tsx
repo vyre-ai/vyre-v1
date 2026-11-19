@@ -46,6 +46,7 @@ import {
 import type { AskRequest } from "./ask.ts";
 import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
+import { DeliveryTrail } from "./Trail.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import type { IconName } from "./icons.tsx";
 import { followMenuEntries, templateEntries, threadMenuEntries } from "./menus.ts";
@@ -858,6 +859,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
                       const i = items.find((x) => x.id === id);
                       return i ? (emailRef(i).chips ?? []) : [];
                     },
+                    trailOf: (id) => <DeliveryTrail key={id} messageId={id} call={data.call} offsetMin={clock.offsetMin} />,
                     onChip: (title, recordId) => props.onOpenRecord?.(conv.contactId ?? "", recordId ?? title),
                     ...(props.onOpenAttachment ? { onAttachment: props.onOpenAttachment } : {}),
                     ...(landsOn(asked, t.threadId, firstFresh)

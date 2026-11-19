@@ -105,6 +105,7 @@ function InboxObject({ id, onBack }: { id: string; onBack(): void }): ReactEleme
   const query = useRead<CapMap["mail.mailbox.get"]["out"]>("mail.mailbox.get", { mailboxId: id });
   const routes = useRead<CapMap["mail.route.list"]["out"]>("mail.route.list", { limit: 100 });
   const domains = useRead<CapMap["mail.domain.list"]["out"]>("mail.domain.list", { limit: 100 });
+  const watch = useRead<CapMap["mail.inbox.monitor"]["out"]>("mail.inbox.monitor", { mailboxId: id });
   const [sheet, setSheet] = useState(false),
     [removeRoute, setRemoveRoute] = useState("");
   const action = useAction(() => {
@@ -172,6 +173,9 @@ function InboxObject({ id, onBack }: { id: string; onBack(): void }): ReactEleme
             />
           </Group>
           <Help>Privacy applies to new mail. Existing messages keep theirs.</Help>
+        </ObjectSection>
+        <ObjectSection title="Watching">
+          {watch.data?.inboxes[0] ? <InboxHealth row={watch.data.inboxes[0]} /> : <ReadState error={watch.error} retry={watch.refresh} />}
         </ObjectSection>
         <ObjectSection title="Inbound routes">
           {routes.data ? (
@@ -310,6 +314,31 @@ function RouteEditor({ mailboxId, refresh }: { mailboxId: string; refresh(): voi
         <ReadState error={domains.error} retry={domains.refresh} />
       )}{" "}
       {action.note ? <Note>{action.note}</Note> : null}
+    </View>
+  );
+}
+
+const HOW: Record<string, string> = {
+  imap: "Reads the mailbox over IMAP",
+  google: "Reads the Google mailbox",
+  microsoft: "Reads the Microsoft mailbox",
+  provider_webhook: "Mail arrives from the sending provider",
+};
+const STATE: Record<string, string> = { ok: "Working", late: "Running late", failing: "Not working", paused: "Paused" };
+const when = (ms?: number): string => (ms ? new Date(ms).toLocaleString() : "Nothing yet");
+/** One inbox, as a person needs it: how it is fed, whether it works, when mail last came, and if not, what failed and the one thing to do. */
+function InboxHealth({ row }: { row: CapMap["mail.inbox.monitor"]["out"]["inboxes"][number] }): ReactElement {
+  return (
+    <View testID="inbox-health">
+      <Group>
+        <Row title="Status" note={STATE[row.state] ?? row.state} />
+        <Row title="How mail arrives" note={HOW[row.how] ?? row.how} />
+        <Row title="Last mail received" note={when(row.lastReceivedAt)} />
+        <Row title="Received today" note={String(row.receivedToday)} />
+      </Group>
+      {row.problem ? (
+        <Note testID="inbox-problem">{`${row.problem.reason} ${row.problem.fix}`}</Note>
+      ) : null}
     </View>
   );
 }

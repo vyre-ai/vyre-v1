@@ -3,3 +3,4 @@ export { DomainsPage } from "./comms/Domains.tsx";
 export { NumbersPage } from "./comms/Numbers.tsx";
 export { InboxesPage } from "./comms/Inboxes.tsx";
 export { TextingPage } from "./comms/Texting.tsx";
+export { TemplatesPage } from "./comms/Templates.tsx";

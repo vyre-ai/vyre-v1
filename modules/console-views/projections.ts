@@ -515,6 +515,7 @@ export const NAV: readonly NavGroup[] = [
       { key: "mail.domains", title: "Sending domains", perm: "comms.domains" },
       { key: "telephony.numbers", title: "Numbers", perm: "comms.numbers" },
       { key: "mail.shared-inboxes", title: "Shared inboxes", perm: "comms.shared_send" },
+      { key: "mail.templates", title: "Email templates", perm: "comms.templates" },
       { key: "telephony.registration", title: "Texting registration", perm: "comms.numbers" },
     ],
   },
