@@ -369,6 +369,14 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
     const theirs = (await olivia("vault.connect_card.get", { requestId })).data.card;
     assert.deepEqual([theirs.state, theirs.mayFill], ["ask", true]);
     const itemsBefore = ((await olivia("vault.items.list", {})).data.items as unknown[]).length;
+    // an app bundle from before the card pinned a revision sends none: what the person sees
+    const oldBundle = await olivia("vault.connect_card.submit", {
+      hosts: ["api.crmapp.example"],
+      requestId,
+      fields: [{ key: "api_key", value: "bad-admin-key" }],
+    });
+    assert.ok(oldBundle.status >= 400 && oldBundle.status < 500, "an old bundle is refused");
+    assert.match(JSON.stringify(oldBundle.data), /changed since this card was shown\. Open it again\./);
     const wrong = await olivia("vault.connect_card.submit", {
       revision: (
         (await olivia("vault.connect_card.get", { requestId })).data as { card: { service: { revision: string } } }

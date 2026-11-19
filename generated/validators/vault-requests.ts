@@ -385,7 +385,6 @@ if (g6883 === "object") {
 if (g6883 === 'object') { const o6883 = x6883 as Record<string, unknown>;
 if (!("requestId" in o6883)) e.push(p + "/requestId" + ': required');
 if (!("hosts" in o6883)) e.push(p + "/hosts" + ': required');
-if (!("revision" in o6883)) e.push(p + "/revision" + ': required');
 if ("requestId" in o6883) lf(o6883["requestId"], p + "/requestId", e, L59);
 if ("fields" in o6883) d_s_5a34561c27(o6883["fields"], p + "/fields", e);
 if ("useSaved" in o6883) lf(o6883["useSaved"], p + "/useSaved", e, L3);

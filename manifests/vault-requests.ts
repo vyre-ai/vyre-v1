@@ -261,7 +261,7 @@ export default defineManifest({
             description:
               "The addresses the card showed the key would be sent to; refused when the service's addresses are no longer exactly these",
           }),
-          revision: t.str(),
+          revision: t.opt(t.str()),
         },
         out: { result: t.enm("connected", "wrong", "offline"), card: connectCard },
         emits: ["vault.request_fulfilled"],

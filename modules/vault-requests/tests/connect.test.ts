@@ -790,3 +790,17 @@ test("connections.create refusing after the key was stored: the key is taken bac
   assert.equal(w.called("vault.item.put").length, 1, "the key was stored for the try");
   assert.equal(w.called("vault.item.discard_new").length, 1, "and taken back: no orphan key");
 });
+
+test("a submit without the revision (an app bundle from before the pin) is refused in the words of a changed service, and nothing is tried", async () => {
+  const w = room();
+  const r = await ask(w);
+  await assert.rejects(
+    handlers["vault.connect_card.submit"](person(w), {
+      hosts: ["api.fathom.ai"],
+      requestId: r.requestId,
+      fields: [{ key: "api_key", value: KEY }],
+    } as never),
+    /changed since this card was shown\. Open it again\./,
+  );
+  assert.equal(w.called("connectors.check_key").length, 0);
+});

@@ -480,8 +480,8 @@ export async function connectSubmit(
     folderId?: string;
     audience?: KeyAudience;
     hosts: string[];
-    /** the service revision the card showed */
-    revision: string;
+    /** the service revision the card showed; a call without it is refused in the same words as a stale one (the schema leaves it optional so an old bundle hears those words, not "not right") */
+    revision?: string;
     /** the option the person picked for the service's choice (a region); the first one when left out */
     choice?: string;
   },
@@ -518,7 +518,7 @@ export async function connectSubmit(
     )
   )
     raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
-  if (input.revision !== svc.revision)
+  if (input.revision === undefined || input.revision !== svc.revision)
     raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
   const card = await cardOf(ctx, row.id);
   if (!card.mayFill)

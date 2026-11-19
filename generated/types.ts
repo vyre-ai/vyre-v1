@@ -47111,7 +47111,7 @@ export type VaultConnectCardSubmitIn = {
   audience?: "asker" | "anyone";
   choice?: string;
   hosts: Array<string>;
-  revision: string;
+  revision?: string;
 };
 export type VaultConnectCardSubmitOut = {
   result: "connected" | "wrong" | "offline";
