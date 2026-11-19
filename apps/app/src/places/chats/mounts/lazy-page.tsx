@@ -12,21 +12,27 @@ interface Attempt {
   error: unknown;
 }
 
-class Boundary extends Component<
-  { onRetry: () => void; children?: ReactNode },
-  { failed: boolean }
-> {
-  override state = { failed: false };
-  static getDerivedStateFromError(): { failed: boolean } {
-    return { failed: true };
+/** The one error this part's own boundary answers: the code of the part could not be fetched. Anything else a page throws is the page's own crash and goes on to the place's boundary, as it always did. */
+class LoadFailure extends Error {
+  constructor(cause: unknown) {
+    super(`part failed to load: ${cause instanceof Error ? cause.message.slice(0, 160) : String(cause).slice(0, 160)}`);
+    this.name = "LoadFailure";
   }
-  override componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error(
-      `vyre part failed to load: ${error.message.slice(0, 160)} in${(info.componentStack ?? "").replace(/\s+/g, " ").slice(0, 300)}`,
-    );
+}
+
+class Boundary extends Component<{ onRetry: () => void; children?: ReactNode }, { error: unknown }> {
+  override state: { error: unknown } = { error: null };
+  static getDerivedStateFromError(error: unknown): { error: unknown } {
+    return { error };
+  }
+  override componentDidCatch(error: unknown, info: ErrorInfo): void {
+    if (error instanceof LoadFailure)
+      console.error(`vyre ${error.message} in${(info.componentStack ?? "").replace(/\s+/g, " ").slice(0, 300)}`);
   }
   override render(): ReactNode {
-    if (!this.state.failed) return this.props.children;
+    const { error } = this.state;
+    if (error === null) return this.props.children;
+    if (!(error instanceof LoadFailure)) throw error; // the page's own crash: the place's boundary reports it
     return (
       <View testID="lazy-part-failed" style={st.box}>
         <Text style={st.line}>Couldn't load this part.</Text>
@@ -35,7 +41,7 @@ class Boundary extends Component<
           testID="lazy-part-retry"
           onPress={() => {
             this.props.onRetry();
-            this.setState({ failed: false });
+            this.setState({ error: null });
           }}
           style={(state) => [st.btn, (state as { hovered?: boolean }).hovered === true ? st.btnOver : null]}
         >
@@ -74,7 +80,7 @@ export function lazyPage<P extends object>(
       attempt.wait ??= get().then(
         () => undefined,
         (e: unknown) => {
-          attempt.error = e ?? new Error("part failed to load");
+          attempt.error = new LoadFailure(e);
         },
       );
       throw attempt.wait;
