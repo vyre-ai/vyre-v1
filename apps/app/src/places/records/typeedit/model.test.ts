@@ -1,3 +1,6 @@
+// Can go in emails (lane r42-email-in): the field editor switch and what can never be switched on.
+import test from "node:test";
+import assert from "node:assert/strict";
 
 import { isMergeable, mergeableBlocked, mergeableOps } from "./model.ts";
 test("Can go in emails: the op keeps the field's other options, and private, secret, id and computed fields can never be switched on", () => {
