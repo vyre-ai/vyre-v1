@@ -1,8 +1,8 @@
 // What it does not do: it opens no inspector port and no socket (the session is in-process, worker to main thread: `inspector.url()` stays undefined), it asks for call frames only (function, file, line;
-// never scopes, locals or arguments, so no secret that a variable holds), it writes at most one line per stall and MAX_PER_MINUTE a minute, and when the loop is healthy it does nothing but a heartbeat store.
+// never scopes, locals or arguments, so no secret that a variable holds), it hands the caller's log at most one line per stall and MAX_PER_MINUTE a minute (it never writes to stderr or a file itself), and when the loop is healthy it does nothing but a heartbeat store.
 // A stall that names itself (rc.40). The loop-lag sampler says how long the event loop was blocked and which jobs were running; it cannot say what code held it. This is a watchdog on its own
 // thread: the loop writes a heartbeat every HEART_MS; when the beat is older than STALL_MS the watchdog asks the blocked thread (through the inspector) to pause at the next point it can,
-// reads the call stack there, lets it carry on, and writes one line with the stack straight to stderr (the loop that would log it is the one that is blocked). Costs one idle thread and a
+// reads the call stack there, lets it carry on, and posts one message with the stack to the main thread; the caller's log gets it as soon as the loop runs again. Costs one idle thread and a
 // timer; the inspector is attached only while a stall is being looked at.
 import { Worker } from "node:worker_threads";
 
@@ -14,7 +14,7 @@ export const MAX_PER_MINUTE = 6;
 const WATCHDOG = `
 const { workerData } = require("node:worker_threads");
 const { Session } = require("node:inspector");
-const fs = require("node:fs");
+const { parentPort } = require("node:worker_threads");
 const beat = new BigInt64Array(workerData.beat);
 const stallMs = workerData.stallMs;
 const mono = () => Number(process.hrtime.bigint() / 1000000n);
@@ -50,7 +50,7 @@ setInterval(() => {
   const done = (frames, why) => {
     try { s.disconnect(); } catch {}
     busy = false;
-    try { fs.writeSync(2, JSON.stringify({ level: "warn", msg: "scheduler.loop_stalled", lateMs: mono() - last, stack: frames, ...(why ? { why } : {}) }) + "\\n"); } catch {}
+    try { parentPort.postMessage({ lateMs: mono() - last, stack: frames, ...(why ? { why } : {}) }); } catch {}
   };
   try {
     s.connectToMainThread();
@@ -72,7 +72,13 @@ export interface StallWatch {
 }
 
 /** Start the watchdog (the loop's heartbeat and the thread). Returns a handle to stop both; a platform without worker threads gets a no-op. */
-export function startStallWatch(o: { stallMs?: number; maxPerMinute?: number } = {}): StallWatch {
+export function startStallWatch(
+  o: {
+    stallMs?: number;
+    maxPerMinute?: number;
+    log?: (stall: { lateMs: number; stack: string[]; why?: string }) => void;
+  } = {},
+): StallWatch {
   try {
     const shared = new SharedArrayBuffer(8);
     const beat = new BigInt64Array(shared);
@@ -85,6 +91,14 @@ export function startStallWatch(o: { stallMs?: number; maxPerMinute?: number } =
     });
     w.unref();
     w.on("error", () => undefined);
+    // the line is handed to the caller's own log once the loop runs again (the thread cannot write while the loop is held, and it never writes to stderr itself)
+    w.on("message", (m: { lateMs: number; stack: string[]; why?: string }) => {
+      try {
+        o.log?.(m);
+      } catch {
+        /* a log that throws costs nothing */
+      }
+    });
     return {
       async stop() {
         clearInterval(t);

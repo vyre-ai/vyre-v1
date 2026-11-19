@@ -15,7 +15,7 @@ const run = (script: string) => {
 
 const SCRIPT = `
 import { startStallWatch } from ${JSON.stringify(fileURLToPath(new URL("./stallwatch.ts", import.meta.url)))};
-startStallWatch({ stallMs: 300 });
+startStallWatch({ stallMs: 300, log: (m) => process.stderr.write(JSON.stringify({ level: "warn", msg: "scheduler.loop_stalled", ...m }) + "\\n") });
 await new Promise((r) => setTimeout(r, 400));
 function holdTheLoopForAWhile() { const t = Date.now(); while (Date.now() - t < 1500) { /* busy */ } }
 holdTheLoopForAWhile();
@@ -74,7 +74,7 @@ test("the watchdog opens no inspector port or socket, logs frames only (no local
 test("a loop that stalls again and again is logged at most the limit a minute", async () => {
   const script = `
 import { startStallWatch } from ${JSON.stringify(fileURLToPath(new URL("./stallwatch.ts", import.meta.url)))};
-startStallWatch({ stallMs: 150, maxPerMinute: 2 });
+startStallWatch({ stallMs: 150, maxPerMinute: 2, log: (m) => process.stderr.write(JSON.stringify({ level: "warn", msg: "scheduler.loop_stalled", ...m }) + "\\n") });
 const hold = (ms) => { const t = Date.now(); while (Date.now() - t < ms) {} };
 for (let i = 0; i < 5; i++) { await new Promise((r) => setTimeout(r, 300)); hold(500); }
 await new Promise((r) => setTimeout(r, 300));
@@ -96,7 +96,7 @@ process.exit(0);
 test("a healthy loop costs nothing measurable: the same idle second burns the same cpu with the watchdog on", async () => {
   const script = (on: boolean) => `
 import { startStallWatch } from ${JSON.stringify(fileURLToPath(new URL("./stallwatch.ts", import.meta.url)))};
-${on ? "startStallWatch();" : ""}
+${on ? "startStallWatch({ log: () => {} });" : ""}
 await new Promise((r) => setTimeout(r, 300));
 const c0 = process.cpuUsage();
 const t0 = performance.now();
@@ -127,7 +127,7 @@ process.exit(0);
 test("a process that was paused as a whole (a machine that slept) is not reported as a stalled loop", async () => {
   const script = `
 import { startStallWatch } from ${JSON.stringify(fileURLToPath(new URL("./stallwatch.ts", import.meta.url)))};
-startStallWatch({ stallMs: 300 });
+startStallWatch({ stallMs: 300, log: (m) => process.stderr.write(JSON.stringify({ level: "warn", msg: "scheduler.loop_stalled", ...m }) + "\\n") });
 process.stdout.write("up\\n");
 await new Promise((r) => setTimeout(r, 3500));
 process.exit(0);
@@ -151,7 +151,20 @@ test("stop ends the thread: nothing of the watchdog is left to keep a test or a 
   const { startStallWatch } = await import("./stallwatch.ts");
   const { threadId } = await import("node:worker_threads");
   assert.equal(threadId, 0);
-  const w = startStallWatch({ stallMs: 300 });
+  const w = startStallWatch({
+    stallMs: 300,
+    log: (m) => process.stderr.write(JSON.stringify({ level: "warn", msg: "scheduler.loop_stalled", ...m }) + "\\n"),
+  });
   await w.stop();
   await w.stop();
+});
+
+test("the watchdog never writes to stderr or stdout itself: with no log handed to it, a stall prints nothing", async () => {
+  const script = SCRIPT.replace(/startStallWatch\(\{[^;]*\}\);/, "startStallWatch({ stallMs: 300 });");
+  const out: string[] = [];
+  const p = run(script);
+  p.stderr.on("data", (d) => out.push(String(d)));
+  p.stdout.on("data", (d) => out.push(String(d)));
+  await new Promise((r) => p.on("exit", r));
+  assert.equal(out.join(""), "");
 });
