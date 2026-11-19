@@ -11,7 +11,7 @@ Create a custom role, usually by cloning a built-in one
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | access_change when gate.by_actor(input) |
+| Gate | access when gate.by_actor(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

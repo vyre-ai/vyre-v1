@@ -21,7 +21,7 @@ const actKey = t.enm(
   "spend_raise",
   "signin_change",
   "admit",
-  "access_change",
+  "access",
   "install",
   "approve",
   "github_approval",
@@ -124,7 +124,7 @@ export default defineManifest({
       approvers: { default: "asker", peopleOnly: true },
     }),
     // Changing the rules of access itself (a role's permissions, an exception, a Space policy, an outside actor, an approved plan): stops for a person every time, in every mode. Signed: pending, lead.
-    gateAct("access_change", "Change the rules of access", "high", "record_card", {
+    gateAct("access", "Change the rules of access", "high", "record_card", {
       approvers: { default: "asker", peopleOnly: true },
     }),
     // A session's use of the person's own GitHub (a push to the default branch, a merge, a delete of it): only the person it acts for lifts it, once. No Space rule, Always allow, goal or turn can.
