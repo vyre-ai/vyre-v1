@@ -218,6 +218,15 @@ export function createProviderProbe(
             };
       ({ url, headers, pick } = make(p.apiKey));
     }
+    // A test never reaches a real provider by accident: with no fetch handed in, a test process that is not in accept mode (it was started without scripts/test-run.ts) would ask the real one
+    // with a made-up key. It stops here, and the refusal names the cause.
+    if (!o.fetch && (process.env["NODE_TEST_CONTEXT"] || process.env["VYRE_TEST_KEY_CHECK"]))
+      return {
+        ok: false,
+        models: [],
+        detail: "A test reached a real provider: run it with scripts/test-run.ts or pass providerFetch.",
+        refused: true,
+      };
     try {
       const r = await fetchFn(url, { headers, redirect: "error", signal: AbortSignal.timeout(10_000) });
       if (r.status === 401 || r.status === 403)
