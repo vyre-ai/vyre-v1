@@ -9,6 +9,20 @@ export const DOC_TIMEOUT_MS = 3000;
 /** The most pages one registered domain may have kept as clients. */
 export const MAX_DOCS_PER_HOST = 10;
 
+/** Suffixes under which strangers register their own names (shared hosts and two-part country domains): the registered domain keeps one more label there. A short built-in list, not the whole public suffix list. */
+const SHARED_SUFFIXES: ReadonlySet<string> = new Set([
+  "co.uk", "org.uk", "ac.uk", "com.au", "net.au", "co.nz", "co.jp", "co.in", "co.za", "com.br", "com.mx", "com.tr",
+  "github.io", "gitlab.io", "pages.dev", "workers.dev", "vercel.app", "netlify.app", "herokuapp.com", "onrender.com",
+  "fly.dev", "web.app", "firebaseapp.com", "appspot.com", "azurewebsites.net", "cloudfront.net", "s3.amazonaws.com",
+  "blogspot.com", "wordpress.com", "glitch.me", "repl.co", "replit.app", "ngrok.io", "ngrok-free.app", "trycloudflare.com",
+]);
+/** The name a person or company registered, so one source cannot spread over subdomains and a shared host's users stay apart. */
+export function registeredDomain(hostname: string): string {
+  const labels = hostname.toLowerCase().split(".");
+  const two = labels.slice(-2).join(".");
+  return SHARED_SUFFIXES.has(two) && labels.length > 2 ? labels.slice(-3).join(".") : two;
+}
+
 /** Is this client_id an address that names a document? https, no user name, no fragment, a real path (so that it names one thing), a short address. */
 export function isDocId(id: string): boolean {
   if (id.length > 512) return false;
@@ -88,8 +102,7 @@ export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectU
     db.run("DELETE FROM mcp_oauth_clients WHERE used_at IS NULL AND created_at < ?", now - UNUSED_CLIENT_MS);
     // one host cannot fill the table: a few pages per host
     // counted per registered domain (the last two labels), so a wildcard of subdomains is one source; and half the table is kept for clients that have been used
-    const labels = new URL(doc.clientId).hostname.toLowerCase().split(".");
-    const domain = labels.slice(-2).join(".");
+    const domain = registeredDomain(new URL(doc.clientId).hostname);
     const mine = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients WHERE lower(client_id) LIKE ? ESCAPE '\\'", `https://%${domain.replace(/[%_\\]/g, (c) => `\\${c}`)}/%`) as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
     if (mine >= MAX_DOCS_PER_HOST) return false;
     const unused = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients WHERE used_at IS NULL") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);

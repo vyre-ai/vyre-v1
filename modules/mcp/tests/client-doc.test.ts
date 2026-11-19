@@ -1,7 +1,7 @@
 // Client metadata documents (lane r42-mcp): an app names itself by an https address; what its page says is checked, read once with every failure a refusal, and kept as an ordinary client.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fetchDoc, isDocId, keepDoc, readDoc, MAX_DOC_BYTES, MAX_DOCS_PER_HOST } from "../client-doc.ts";
+import { fetchDoc, isDocId, keepDoc, readDoc, registeredDomain, MAX_DOC_BYTES, MAX_DOCS_PER_HOST } from "../client-doc.ts";
 import { clientBy, serverMetadata, MAX_CLIENTS, UNUSED_CLIENT_MS } from "../oauth.ts";
 import { ensure } from "../projections.ts";
 import { harness } from "../fixtures/harness.ts";
@@ -105,4 +105,17 @@ test("a wildcard of subdomains is one source: the domain's few pages are shared 
     assert.equal(keepDoc(h.db, { clientId: `https://s${i}.evil.example/c.json`, name: "x", redirectUris: ["https://s0.evil.example/cb"] }, 1000), true);
   assert.equal(keepDoc(h.db, { clientId: "https://s99.evil.example/c.json", name: "x", redirectUris: ["https://s0.evil.example/cb"] }, 1000), false);
   assert.equal(keepDoc(h.db, { clientId: "https://app.fine.example/c.json", name: "x", redirectUris: ["https://app.fine.example/cb"] }, 1000), true);
+});
+
+test("the registered domain keeps one more label under a shared host or a country suffix, so one user of a shared host cannot take every place", () => {
+  assert.equal(registeredDomain("a.b.evil.example"), "evil.example");
+  assert.equal(registeredDomain("alice.github.io"), "alice.github.io");
+  assert.equal(registeredDomain("x.alice.github.io"), "alice.github.io");
+  assert.equal(registeredDomain("shop.example.co.uk"), "example.co.uk");
+  const h = harness();
+  ensure(h.db);
+  for (let i = 0; i < MAX_DOCS_PER_HOST; i++)
+    assert.equal(keepDoc(h.db, { clientId: `https://alice.github.io/${i}.json`, name: "x", redirectUris: ["https://alice.github.io/cb"] }, 1000), true);
+  assert.equal(keepDoc(h.db, { clientId: "https://alice.github.io/extra.json", name: "x", redirectUris: ["https://alice.github.io/cb"] }, 1000), false);
+  assert.equal(keepDoc(h.db, { clientId: "https://bob.github.io/app.json", name: "x", redirectUris: ["https://bob.github.io/cb"] }, 1000), true, "another user of the same shared host is not refused");
 });
