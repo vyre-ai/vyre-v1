@@ -232,3 +232,32 @@ export function mergeEnv(
   const names = new Set(keep.map((e) => e.name));
   return { entries: [...have.filter((e) => !names.has(e.name)), ...keep], left };
 }
+
+// ---- the New site sheet: what Vyre read from the source, before anything runs
+
+export type Plan = CapMap["sites.plan"]["out"];
+
+/** A repo as the sheet's field takes it: owner/name, with or without the address, a trailing .git or slash. Null while it is not one yet. */
+export function repoOf(typed: string): string | null {
+  const r = typed
+    .trim()
+    .replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "")
+    .replace(/\.git$/, "")
+    .replace(/\/+$/, "");
+  return /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/.test(r) ? r : null;
+}
+
+/** What was found, in one or two lines: what it is and how it builds (the plan's own note), then what it needs. */
+export function foundLines(p: Pick<Plan, "note" | "needs" | "env">): string[] {
+  const out = [p.note];
+  const needs = [
+    ...p.needs.map((n) => (n === "postgres" ? "a Postgres database" : "Redis")),
+    ...(p.env.length
+      ? [
+          `${p.env.length} variable${p.env.length === 1 ? "" : "s"} (${p.env.slice(0, 4).join(", ")}${p.env.length > 4 ? ", ..." : ""})`,
+        ]
+      : []),
+  ];
+  if (needs.length) out.push(`It looks for ${needs.join(" and ")}. You set them after it is created.`);
+  return out;
+}

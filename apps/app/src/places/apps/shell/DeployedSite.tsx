@@ -81,6 +81,8 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
   // the deploy opened beside the list (or over it on a phone), and a Deploy just pressed whose row is about to appear
   const [openId, setOpenId] = useState<string | null>(null);
   const [follow, setFollow] = useState(false);
+  // after a rollback the build it replaced can be put back with one press
+  const [undo, setUndo] = useState<{ id: string; title: string } | null>(null);
   const [find, setFind] = useState("");
   const [envName, setEnvName] = useState(""),
     [password, setPassword] = useState(""),
@@ -174,6 +176,7 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
     setBusy(label);
     setError(null);
     setNote(null);
+    if (cap !== "sites.rollback") setUndo(null);
     try {
       const out = await mutate(d, cap, input, actionKey());
       if ((out as { status?: string })?.status === "held") {
@@ -215,8 +218,18 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
       previews.refresh();
       setOpenId(null);
     });
-  const rollback = (dep: Dep): void =>
-    void run("Rolling back", "sites.rollback", { siteId: id, toDeploymentId: dep.deploymentId });
+  const rollback = (dep: Dep): void => {
+    const was = list.find((r) => r.current);
+    void run("Rolling back", "sites.rollback", { siteId: id, toDeploymentId: dep.deploymentId }).then((o) => {
+      if (o && was) setUndo({ id: was.deploymentId, title: depTitle(was) });
+    });
+  };
+  const undoRollback = (): void => {
+    const back = undo;
+    if (!back) return;
+    setUndo(null);
+    void run("Rolling back", "sites.rollback", { siteId: id, toDeploymentId: back.id });
+  };
   const askAgent = (): void => {
     const first = `My site "${x.name}" does not deploy. Vyre says: ${last?.problem ?? "it failed"}. Look at its build log (sites_logs with build) and fix the project, then deploy it again with sites_deploy.`;
     if (d.nav.ask) d.nav.ask(first);
@@ -797,6 +810,12 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
           </Pressable>
         ))}
       </View>
+      {undo ? (
+        <View style={ui.actions} testID="site-undo">
+          <Text style={ui.text}>{`Rolled back. ${undo.title} was serving before.`}</Text>
+          <Button title="Undo" testID="site-undo-press" disabled={off} onPress={undoRollback} />
+        </View>
+      ) : null}
       {note ? (
         <Text style={ui.text} testID="site-note">
           {note}

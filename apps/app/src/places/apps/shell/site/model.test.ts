@@ -239,3 +239,22 @@ test("a row of the list goes back as the entry it was", () => {
   assert.deepEqual(entryOf(plain), { name: "A", scope: "previews", value: "x" });
   assert.deepEqual(entryOf(secret), { name: "B", scope: "all", vaultHandle: "#K.b" });
 });
+
+import { foundLines, repoOf } from "./model.ts";
+
+test("a repo is read from what was typed, and only when it is one", () => {
+  assert.equal(repoOf("github.com/acme/cx-dashboard"), "acme/cx-dashboard");
+  assert.equal(repoOf("https://github.com/acme/cx.git"), "acme/cx");
+  assert.equal(repoOf(" acme/cx/ "), "acme/cx");
+  for (const bad of ["", "acme", "acme/", "github.com/acme", "a b/c", "https://example.com/a/b/c"])
+    assert.equal(repoOf(bad), null, bad);
+});
+
+test("what was found is one line for what it is, and one for what it needs", () => {
+  assert.deepEqual(foundLines({ note: "Node: npm ci, npm run build, then npm start.", needs: [], env: [] }), [
+    "Node: npm ci, npm run build, then npm start.",
+  ]);
+  const two = foundLines({ note: "Next.js.", needs: ["postgres", "redis"], env: ["A", "B", "C", "D", "E"] });
+  assert.equal(two.length, 2);
+  assert.match(two[1]!, /^It looks for a Postgres database and Redis and 5 variables \(A, B, C, D, \.\.\.\)\./);
+});
