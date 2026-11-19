@@ -293,7 +293,7 @@ async function ingressFinding(host: string, f: FetchFn | null, adminUrl: string)
     return {
       key,
       state: "degraded",
-      detail: `Could not check the route for ${host}: the Caddy admin API does not answer.`,
+      detail: `Could not check the route for ${host}: the Caddy admin API does not answer. Caddy restarts by itself within a minute of vyred restarting; if it stays down, run vyre-server restart on the server.`,
       next: NEXT.caddy,
     };
   }

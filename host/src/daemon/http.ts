@@ -1,6 +1,7 @@
 // The daemon's HTTP face on node:http: `GET /healthz` (no auth, no secrets) and everything else through the gateway. The live socket upgrades on the same server (ws.ts owns the upgrade).
 import http from "node:http";
 import type { GatewayReq, GatewayRes } from "../gateway.ts";
+import { safeUrl } from "../safe-url.ts";
 
 export const MAX_BODY_BYTES = 5 * 1024 * 1024;
 
@@ -46,7 +47,7 @@ export function requestListener(d: HttpDeps): http.RequestListener {
   return (req, res) => {
     void (async () => {
       try {
-        const url = new URL(req.url ?? "/", "http://vyred");
+        const url = safeUrl(req.url, "http://vyred");
         const method = (req.method ?? "GET").toUpperCase();
         if (url.pathname === "/healthz" && (method === "GET" || method === "HEAD")) {
           send(res, 200, d.health());

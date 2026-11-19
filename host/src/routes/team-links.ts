@@ -7,6 +7,7 @@
 //
 // Local only, like /local/daemon/stop: a loopback socket and this daemon's own admin token, which only the shell holds. A daemon that hosts a Space never links out (its own Space is here).
 import type http from "node:http";
+import { safeUrl } from "../safe-url.ts";
 
 export interface TeamLink {
   id: string;
@@ -86,7 +87,7 @@ export function createTeamLinksRoute(d: TeamLinksDeps): {
       await Promise.all([...links.keys()].map((id) => drop(id)));
     },
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://x");
+      const url = safeUrl(req.url, "http://x");
       if (url.pathname !== PATH) return false;
       const auth = String(req.headers["authorization"] ?? "");
       if (

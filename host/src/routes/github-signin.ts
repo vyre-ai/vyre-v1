@@ -5,6 +5,7 @@
 import http from "node:http";
 import { NO_ADDRESS } from "./own-origin.ts";
 import type { GithubOAuth } from "../seams/people.ts";
+import { safeUrl } from "../safe-url.ts";
 
 const COOKIE = "vyre_gh_state";
 const STATE_MS = 10 * 60_000;
@@ -51,7 +52,7 @@ export function createGithubSignInRoute(deps: GithubSignInRouteDeps): {
   };
   return {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       if (url.pathname !== `${PATH}/start` && url.pathname !== `${PATH}/callback`) return false;
       if (req.method !== "GET") {
         page(res, 405, "Not a way in.");

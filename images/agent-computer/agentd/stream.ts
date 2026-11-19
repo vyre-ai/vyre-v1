@@ -9,6 +9,7 @@ import type { Server } from "node:http";
 import type { FrameHub } from "./frames.ts";
 import type { Injector } from "./x11.ts";
 import { acceptWebSocket } from "./ws.ts";
+import { requestTargetOk, safeUrl } from "./safe-url.ts";
 
 const TOKEN_TTL_MS = 5 * 60_000;
 const BOUNDARY = "vyreframe";
@@ -48,7 +49,11 @@ export function startStreamServer(d: StreamDeps): StreamServer {
   };
 
   const server: Server = createServer((req, res) => {
-    const url = new URL(req.url ?? "/", "http://agentd");
+    if (!requestTargetOk(req.url)) {
+      res.writeHead(400, { "content-type": "text/plain", connection: "close" }).end("Bad request.\n");
+      return;
+    }
+    const url = safeUrl(req.url, "http://agentd");
     if (url.pathname === "/stream") {
       if (!valid(url.searchParams.get("t"))) {
         res.writeHead(401, { "content-type": "text/plain" }).end("This view needs a ticket.\n");
@@ -81,7 +86,11 @@ export function startStreamServer(d: StreamDeps): StreamServer {
   });
 
   server.on("upgrade", (req, socket, head) => {
-    const url = new URL(req.url ?? "/", "http://agentd");
+    if (!requestTargetOk(req.url)) {
+      socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
+      return;
+    }
+    const url = safeUrl(req.url, "http://agentd");
     if (url.pathname !== "/ws" || !valid(url.searchParams.get("t"))) {
       socket.end("HTTP/1.1 401 Unauthorized\r\nconnection: close\r\n\r\n");
       return;

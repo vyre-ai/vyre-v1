@@ -4,6 +4,7 @@
 import type http from "node:http";
 import { makeError } from "./errors.ts";
 import { sourceOf } from "../daemon/preauth.ts";
+import { safeUrl } from "../safe-url.ts";
 
 const TRACE = "0".repeat(32);
 const MAX_BODY = 16 * 1024;
@@ -186,7 +187,7 @@ export function createComputeRoute(deps: ComputeRouteDeps): {
       return send(res, 401, {
         error: makeError("auth.unauthenticated" as never, TRACE, { message: "This computer is not admitted." }),
       }); // before any of the body is read
-    const q = new URL(req.url ?? "/", "http://x").searchParams;
+    const q = safeUrl(req.url, "http://x").searchParams;
     const token = q.get("token") ?? "",
       computerId = q.get("computerId") ?? "",
       url = q.get("url") ?? "";
@@ -233,7 +234,7 @@ export function createComputeRoute(deps: ComputeRouteDeps): {
   };
   return {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://x");
+      const url = safeUrl(req.url, "http://x");
       if (url.pathname === "/compute/recording") {
         if (req.method !== "POST") {
           send(res, 405, { error: makeError("validation.bad_input" as never, TRACE, { message: "Use POST." }) });

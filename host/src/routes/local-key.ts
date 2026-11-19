@@ -8,6 +8,7 @@ import type http from "node:http";
 import { httpOf, makeError } from "./errors.ts";
 import type { Keyring } from "../seams/keyring.ts";
 import { linkIsSecure } from "./compute-stream.ts";
+import { safeUrl } from "../safe-url.ts";
 
 export interface LocalKeyDeps {
   /** who the request's bearer token belongs to, and the device session it is (none for the local admin token), or null */
@@ -164,7 +165,7 @@ export function createLocalKeyRoute(deps: LocalKeyDeps): {
   }
   return {
     handle(req, res) {
-      const m = PATH.exec(new URL(req.url ?? "/", "http://vyred").pathname);
+      const m = PATH.exec(safeUrl(req.url, "http://vyred").pathname);
       if (!m) return false;
       if ((req.method ?? "GET").toUpperCase() !== "POST") {
         send(res, 405, { error: makeError("validation.bad_input", TRACE, { message: "POST only." }) });

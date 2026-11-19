@@ -32,6 +32,7 @@ import {
 } from "../../../lib/git-proxy.ts";
 import type { RefNeed, Update } from "../../../lib/git-proxy.ts";
 import type { CtxSeed, InvokeResult } from "../invoke.ts";
+import { safeUrl } from "../safe-url.ts";
 
 export const GIT_PATH = "/git/github/";
 export const PARK_MS = 10 * 60_000;
@@ -863,7 +864,7 @@ export function createGitProxy(d: GitProxyDeps): {
 
   const handle = (req: http.IncomingMessage, res: http.ServerResponse): boolean => handleFrom(req, res, false);
   function handleFrom(req: http.IncomingMessage, res: http.ServerResponse, local: boolean): boolean {
-    const url = new URL(req.url ?? "/", "http://localhost");
+    const url = safeUrl(req.url, "http://localhost");
     if (!url.pathname.startsWith(GIT_PATH)) return false;
     void (async () => {
       const found = repoOfPath(decodeURIComponent(url.pathname.slice(GIT_PATH.length)));
