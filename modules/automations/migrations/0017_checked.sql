@@ -1,0 +1,2 @@
+-- The versions the server saved after the save check existed (rc.40): their `{{ }}` and filters passed it, and their Runs fail a step on a name that is not there. A version with no row here was saved before, and its Runs keep reading such a name as empty, as they always did.
+CREATE TABLE IF NOT EXISTS automations_checked (automation_id TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (automation_id, n));

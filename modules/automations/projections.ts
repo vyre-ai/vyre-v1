@@ -403,6 +403,13 @@ export function saveVersion(ctx: AutoCtx, a: Automation, reason?: string): Versi
   );
   return row;
 }
+/** This version was saved after the save check existed. */
+export function markChecked(db: Db, automationId: string, n: number): void {
+  db.run("INSERT OR IGNORE INTO automations_checked (automation_id, n) VALUES (?, ?)", automationId, n);
+}
+export function isChecked(db: Db, automationId: string, n: number): boolean {
+  return db.all("SELECT 1 FROM automations_checked WHERE automation_id = ? AND n = ?", automationId, n).length > 0;
+}
 export function listVersions(db: Db, id: string): VersionRow[] {
   return (
     db.all(

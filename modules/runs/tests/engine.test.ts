@@ -638,3 +638,13 @@ test("a test run sends a step with a catalogue key through the step runner, so a
   assert.deepEqual(seen, ["make:true"]);
   assert.equal((await runOf(h, id)).status, "failed");
 });
+
+test("a step's notes are kept with the step and come back on runs.steps, once, in plain words", async () => {
+  const h = harness();
+  const id = await started(h);
+  const exec: Executor = async (s) => (s.id === "a" ? { output: 1, notes: ["{{trigger.email}} isn't set when this runs by hand."] } : { output: 2 });
+  await h.engineRun(engine, (ctx) => drive(ctx, id, [step("a"), step("b")], exec));
+  const rows = (await h.call("runs.steps", { runId: id }, engine)).steps as { step: string; notes?: string[] }[];
+  assert.deepEqual(rows.find((r) => r.step === "a")?.notes, ["{{trigger.email}} isn't set when this runs by hand."]);
+  assert.equal(rows.find((r) => r.step === "b")?.notes, undefined);
+});
