@@ -28,6 +28,7 @@ type In = {
   runId: string;
   name?: string;
   role?: string;
+  instructions?: string;
   sharing?: "me" | "everyone";
 };
 ```
@@ -57,6 +58,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "instructions": "example",
     "name": "example",
     "role": "example",
     "runId": "run_a1b2c3",

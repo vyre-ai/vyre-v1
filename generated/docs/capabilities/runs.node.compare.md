@@ -1,6 +1,6 @@
 # runs.node.compare
 
-A finished node and everything started again from it, side by side: brief, result, cost and time of each (only for the owner or a manager; not for someone who only watches the chat)
+A finished node and everything started again from it, side by side: brief, result, cost and time of each (only for the owner or a manager of runs; someone who may only view the run is refused)
 
 | | |
 |---|---|
