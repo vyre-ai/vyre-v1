@@ -318,3 +318,27 @@ test("the stored session has one shape: a stored value of any other shape is not
   assert.deepEqual(await w.link.links(), []);
   assert.equal(w.link.current(), null);
 });
+
+test("the extension updates or the worker sleeps mid-session: a pairing in progress and a linked Space both survive the restart", async () => {
+  const w = world();
+  await w.link.begin("team.example.com");
+  // a new worker over the same storage (an update, or the worker slept and woke): the unfinished pairing is still there and can finish
+  const woke = createLink(
+    { local: w.local, session: w.session },
+    {
+      WebSocket: FakeSocket,
+      now: () => 1_000_000,
+      fetch: async () => ({ ok: true, json: async () => ({ data: { session: { token: "vst_after" } } }) }) as any,
+    },
+  );
+  assert.equal((await woke.redeem({ origin: "https://team.example.com", code: "AAAA-BBBB" })).ok, true);
+  // and a worker that wakes later finds the linked Space before anything asks
+  const later = createLink({ local: w.local, session: w.session }, { WebSocket: FakeSocket });
+  assert.equal(later.current(), null, "memory is empty until it reads");
+  await later.refresh();
+  assert.equal(later.current()?.token, "vst_after");
+  // storage cleared by the person (site data cleared): not linked, and nothing throws
+  await w.local.remove(["vyreLinks"]);
+  await later.refresh();
+  assert.equal(later.current(), null);
+});
