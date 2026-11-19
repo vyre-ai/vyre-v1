@@ -43,7 +43,6 @@ function world(o: Fake = {}) {
     "0005_deploy_steps.sql",
     "0006_env_plain.sql",
     "0007_webhook.sql",
-    "0008_env_scope.sql",
     "0009_hook_failures.sql",
   ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
@@ -1015,24 +1014,19 @@ test("a variable applies to production unless it is scoped wider, and a preview 
     );
     assert.deepEqual(await _test.envOf(w.ctx, siteId, "d", "preview"), { B: "2" });
     assert.deepEqual(await _test.envOf(w.ctx, siteId, "d", "production"), { A: "1" });
-    // the ones kept before the default changed are production too
+    // a variable kept with the old default (everywhere) keeps working as it did: nothing flips it
     w.sdb.run(
-      "INSERT INTO sites_env (site_id, name, vault_handle, injected, scope) VALUES (?, 'OLD', '#K', 0, 'all')",
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, 'OLD', '', 0, 'x', 'all')",
       siteId,
     );
-    w.sdb.run(require_migration("0008_env_scope.sql"));
-    assert.equal(
-      (w.sdb.all("SELECT scope FROM sites_env WHERE name = 'OLD'")[0] as { scope: string }).scope,
-      "production",
-    );
+    const again = (await h["sites.env_list"]!(w.ctx, { siteId })).entries as { name: string; scope: string }[];
+    assert.equal(again.find((e) => e.name === "OLD")?.scope, "all");
+    assert.deepEqual(await _test.envOf(w.ctx, siteId, "d", "preview"), { B: "2", OLD: "x" });
+    assert.deepEqual(await _test.envOf(w.ctx, siteId, "d", "production"), { A: "1", OLD: "x" });
   } finally {
     w.done();
   }
 });
-
-function require_migration(file: string): string {
-  return fs.readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8").replace(/^--.*$/gm, "");
-}
 
 test("a plain value that looks like a secret is refused unless it is confirmed plain; a kept plain value is saved again without asking", async () => {
   const w = world();
@@ -1331,4 +1325,77 @@ test("an event that asks for nothing does not wake the server", async () => {
   } finally {
     w.done();
   }
+});
+
+test("an agent cannot say a secret-looking value is plain; a person can; ship refuses it before it makes a site", async () => {
+  const w = world();
+  try {
+    const siteId = await w.make("Agent plain");
+    const agent = { ...w.ctx, principal: { kind: "agent", id: "agt_x" } };
+    const entry = { name: "STRIPE_API_KEY", value: "abc", confirmPlain: true };
+    await assert.rejects(
+      () => h["sites.env_set"]!(agent, { siteId, entries: [entry] }),
+      /an agent cannot say it is plain/,
+    );
+    assert.equal((await h["sites.env_list"]!(w.ctx, { siteId })).entries.length, 0);
+    // a harmless plain value is the agent's own to set; a person's confirm is one step
+    await h["sites.env_set"]!(agent, { siteId, entries: [{ name: "APP_MODE", value: "calm" }] });
+    await h["sites.env_set"]!(w.ctx, { siteId, entries: [entry] });
+    // ship: refused up front, so no site is left behind
+    const before = (await h["sites.list"]!(w.ctx, {})).sites.length;
+    await assert.rejects(
+      () => h["sites.ship"]!(agent, { name: "Agent ship", source: { path: FIXTURE }, env: [entry] }),
+      /an agent cannot say it is plain/,
+    );
+    await assert.rejects(
+      () =>
+        h["sites.ship"]!(w.ctx, {
+          name: "Person ship",
+          source: { path: FIXTURE },
+          env: [{ name: "DB_PASSWORD", value: "x" }],
+        }),
+      /looks like a secret/,
+    );
+    assert.equal((await h["sites.list"]!(w.ctx, {})).sites.length, before, "no site was made by either");
+  } finally {
+    w.done();
+  }
+});
+
+test("sites_ship under a name that is taken by another app is refused, never deployed over it", async () => {
+  const w = world();
+  try {
+    const first = await h["sites.ship"]!(w.ctx, { name: "My app", source: { repo: "acme/one" } });
+    const siteId = first.siteId as string;
+    // the same app again (any branch, the address written another way) goes on with the same site
+    const again = await h["sites.ship"]!(w.ctx, {
+      name: "my APP",
+      source: { repo: "https://github.com/ACME/one.git", branch: "dev" },
+    });
+    assert.equal(again.siteId, siteId);
+    // another app under the same name is refused, and nothing was deployed or changed
+    const deploys = (await h["sites.deployments"]!(w.ctx, { siteId })).deployments.length;
+    await assert.rejects(
+      () => h["sites.ship"]!(w.ctx, { name: "My app", source: { repo: "acme/two" } }),
+      /A site named My app already deploys ACME\/one\. Pass its siteId/,
+    );
+    assert.equal((await h["sites.deployments"]!(w.ctx, { siteId })).deployments.length, deploys);
+    assert.match(((await h["sites.get"]!(w.ctx, { siteId })).site.source as { repo: string }).repo, /acme\/one/i);
+    // a different app folder of the same repo is another app too
+    await assert.rejects(
+      () => h["sites.ship"]!(w.ctx, { name: "My app", source: { repo: "acme/one", root: "apps/web" } }),
+      /already deploys/,
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("no migration rewrites the variables a site already has: an old everywhere stays everywhere", () => {
+  for (const f of fs.readdirSync(new URL("../migrations/", import.meta.url)))
+    assert.doesNotMatch(
+      fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8").replace(/^--.*$/gm, ""),
+      /UPDATE\s+sites_env/i,
+      f,
+    );
 });

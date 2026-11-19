@@ -108,6 +108,22 @@ test("a site's GitHub webhook over the real edge route: signed deliveries are ta
   );
   assert.equal(failed[0]!.branch, "feat/e2e");
   assert.ok(failed[0]!.error.length > 0);
+  // a pull request closed from the site's own repo is taken (it asks for the preview of its branch to go); one from a fork is taken and asks for nothing
+  const closed = (repo: string): string =>
+    JSON.stringify({
+      action: "closed",
+      repository: { full_name: "acme/app", default_branch: "main" },
+      pull_request: { head: { ref: "feat/e2e", repo: { full_name: repo } } },
+    });
+  const prDelivery = async (body: string, id: string): Promise<{ status: number; text: string }> =>
+    post(body, {
+      "content-type": "application/json",
+      "x-github-event": "pull_request",
+      "x-github-delivery": id,
+      "x-hub-signature-256": await sign(secret, body),
+    });
+  assert.equal((await prDelivery(closed("stranger/app"), "e2e0000b-aaaa")).status, 200, "a fork's pull request");
+  assert.equal((await prDelivery(closed("acme/app"), "e2e0000c-aaaa")).status, 200, "its own pull request");
   // and GitHub's redelivery of the same delivery is taken again
   const again = await delivery(body, "e2e00001-aaaa");
   assert.equal(again.status, 200, again.text);

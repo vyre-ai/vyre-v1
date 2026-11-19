@@ -1190,11 +1190,62 @@ async function sitesDeployCancel(ctx: Ctx, input: unknown): Promise<{ deployment
   };
 }
 
+/** What makes two sources the same app: the same repo (any branch) or the same folder, file or path, and the same app folder inside it. */
+function sourceKey(s: SourceSpec): string {
+  const what = s.repo
+    ? `repo:${s.repo
+        .trim()
+        .replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "")
+        .replace(/\.git$/, "")
+        .replace(/\/+$/, "")
+        .toLowerCase()}`
+    : s.folderId
+      ? `folder:${s.folderId}`
+      : s.fileId
+        ? `file:${s.fileId}`
+        : `path:${s.path ?? ""}`;
+  return `${what}|${s.root ?? ""}`;
+}
+const sourceWords = (s: SourceSpec): string =>
+  s.repo
+    ? s.repo
+        .trim()
+        .replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "")
+        .replace(/\.git$/, "")
+    : s.folderId
+      ? "a folder in Files"
+      : s.fileId
+        ? "an upload in Files"
+        : (s.path ?? "a folder");
+
+/** Plain values that look like secrets are refused before anything is written, unless a person says they are plain. An agent cannot say that for itself: it keeps the value in the Vault, or asks a person. */
+function checkPlain(ctx: Ctx, name: string, value: string, confirmed: boolean): void {
+  if (!looksSecret(name, value)) return;
+  if (!confirmed)
+    fail(
+      ctx,
+      "validation.bad_input",
+      `${name} looks like a secret. Keep it in the Vault (vaultHandle), or say it is plain on purpose (confirmPlain).`,
+      { field: "entries.value", name },
+    );
+  if (ctx.principal.kind !== "person")
+    fail(
+      ctx,
+      "permission.no_grant",
+      `${name} looks like a secret, and an agent cannot say it is plain. Put it in the Vault and give its vaultHandle, or ask a person to add it on the site's Variables page.`,
+      { field: "entries.confirmPlain", name },
+    );
+}
+
 /** One call for an agent: create the site (or take the one named), set its env, add its databases, deploy, and say how it ended in words to hand on. A step that fails after the site exists comes back with the siteId, so calling again goes on from there. */
 async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unknown>> {
   const o = rec(ctx, input);
   const wait = optBool(ctx, o, "wait") !== false;
   const named = optStr(ctx, o, "siteId");
+  // what the caller passes as plain is checked now, before a site is made: a refusal later would leave a site behind
+  if (Array.isArray(o["env"]))
+    for (const e of o["env"] as { name?: unknown; value?: unknown; confirmPlain?: unknown }[])
+      if (typeof e?.value === "string") checkPlain(ctx, String(e.name ?? ""), e.value, e.confirmPlain === true);
   let siteId: string;
   // a site this caller made by this name before is the one meant (a retry that has only the name finds it; it does not make a second)
   let reused = false;
@@ -1207,6 +1258,18 @@ async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unkno
       ctx.actingFor ?? ctx.principal.id,
     );
     if (mine) {
+      // a retry that has only the name, or the same source, goes on with that site; another app under the same name is not deployed over it
+      if (o["source"] !== undefined) {
+        const have = sourceOf(mustSite(ctx, str(mine.id)));
+        const given = cleanSource(ctx, o["source"]);
+        if (have && sourceKey(have) !== sourceKey(given))
+          fail(
+            ctx,
+            "validation.precondition_failed",
+            `A site named ${name.trim()} already deploys ${sourceWords(have)}. Pass its siteId to redeploy it, or give this one another name.`,
+            { field: "name" },
+          );
+      }
       siteId = str(mine.id);
       reused = true;
     } else {
@@ -1836,13 +1899,7 @@ async function sitesEnvSet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
         field: "entries.vaultHandle",
         name,
       });
-    if (value !== undefined && row["confirmPlain"] !== true && looksSecret(name, value))
-      fail(
-        ctx,
-        "validation.bad_input",
-        `${name} looks like a secret. Keep it in the Vault (vaultHandle), or say it is plain on purpose (confirmPlain).`,
-        { field: "entries.value", name },
-      );
+    if (value !== undefined) checkPlain(ctx, name, value, row["confirmPlain"] === true);
     if (value !== undefined && value.length > 8192)
       fail(ctx, "validation.too_large", `The value of ${name} is over 8 KB. Put it in the Vault as a secret.`, {
         field: "entries.value",
