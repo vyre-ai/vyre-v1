@@ -661,3 +661,30 @@ test("person and agent each add a block at the same place: both stay, the agent'
   assert.equal(r.clashed, true);
   assert.equal(mdOf(r.state), `A\n\nmine\n\n{++theirs++}${meta("Agent")}\n\nB\n`);
 });
+
+test("the person deletes one block and the agent rewrites its neighbour, in both orders: the right block changes, nothing is lost", () => {
+  const base = "A\n\nB\n\nC\n";
+  const del = (index: number): EditorState => {
+    const s = stateOf(base, false);
+    let from = 0;
+    for (let i = 0; i < index; i += 1) from += s.doc.child(i).nodeSize;
+    return s.apply(s.tr.delete(from, from + s.doc.child(index).nodeSize));
+  };
+  // person deletes B, agent rewrites A, then C
+  assert.equal(mdOf(merged(del(1), base, "A2\n\nB\n\nC\n").state), "A2\n\nC\n");
+  assert.equal(mdOf(merged(del(1), base, "A\n\nB\n\nC2\n").state), "A\n\nC2\n");
+  // person deletes A, agent rewrites B, then C
+  assert.equal(mdOf(merged(del(0), base, "A\n\nB2\n\nC\n").state), "B2\n\nC\n");
+  assert.equal(mdOf(merged(del(0), base, "A\n\nB\n\nC2\n").state), "B\n\nC2\n");
+  // person deletes C, agent rewrites B
+  assert.equal(mdOf(merged(del(2), base, "A\n\nB2\n\nC\n").state), "A\n\nB2\n");
+});
+
+test("the person deletes a block and the agent rewrites the same one: the rewrite is a suggestion, and a neighbour is not struck", () => {
+  const base = "A\n\nB\n\nC\n";
+  const s0 = stateOf(base, false);
+  const s = s0.apply(s0.tr.delete(s0.doc.child(0).nodeSize, s0.doc.child(0).nodeSize + s0.doc.child(1).nodeSize));
+  const r = merged(s, base, "A\n\nB2\n\nC\n");
+  assert.equal(r.clashed, true);
+  assert.equal(mdOf(r.state), `A\n\n{++B2++}${meta("Agent")}\n\nC\n`);
+});
