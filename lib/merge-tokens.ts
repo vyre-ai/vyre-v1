@@ -11,7 +11,7 @@ const humanize = (key: string): string => key.replace(/_/g, " ");
 const MAX_KEY = 64;
 const MAX_FALLBACK = 200;
 /** The only schemes a link may carry. `cid:` (an image sent inside the email) is allowed for src only. */
-const SAFE_SCHEMES = new Set(["https", "http", "mailto", "tel"]);
+const SAFE_SCHEMES = new Set(["https", "http", "mailto", "tel", "sms"]);
 const LINK_ATTRS = new Set(["href", "src", "action", "formaction", "xlink:href", "poster", "background", "cite", "data", "srcset", "ping"]);
 
 /** A value as a browser reads it: character references decoded, spaces and control characters dropped. */

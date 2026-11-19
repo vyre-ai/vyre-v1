@@ -220,16 +220,25 @@ test("trail refuses a bad id and a message the caller may not see answers as mis
   await assert.rejects(retry(h, { messageId: "eml_m1", address: "a@b.test", attempt: 9 }), (e) => codeOf(e) === "validation.bad_input");
 });
 
-test("a person or an agent holding the message id cannot run a retry", async () => {
-  const { h } = setup();
+test("a retry run by someone who may not send from that mailbox gives the attempt back, so it is not burned", async () => {
+  const { h, sent } = setup();
   seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
   await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft" }));
-  for (const kind of ["person", "agent"] as const) {
-    const other = { ...h.ctx, principal: { kind, id: "usr_x" } };
-    h.advance(86_400_000);
-    await assert.rejects(retryNow(other, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), (e) => codeOf(e) === "permission.no_grant");
-  }
+  let deny = true;
+  script(h, {
+    "mail.send": (i) => {
+      if (deny) throw Object.assign(new Error("no grant"), { code: "permission.no_grant" });
+      sent.push(i);
+      return { messageId: "eml_retry9", status: "sent", suppressed: [] };
+    },
+  });
+  await assert.rejects(retry(h, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 }), (e) => codeOf(e) === "permission.no_grant");
   assert.equal(status(h, "eml_m1"), "sent");
+  assert.equal(h.rows(`SELECT attempts, state FROM mail_delivery_retry`)[0]!.state, "pending");
+  assert.equal(h.rows(`SELECT attempts FROM mail_delivery_retry`)[0]!.attempts, 0);
+  deny = false; // the scheduler's own run, a moment later, as someone who may
+  assert.equal((await retry(h, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 })).outcome, "sent");
+  assert.equal(sent.length, 1);
 });
 
 test("a hard bounce or a complaint on a retry reaches the message the person sent, once, and closes the retry", async () => {

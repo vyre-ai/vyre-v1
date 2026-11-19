@@ -15,6 +15,7 @@ function withRecords(r: Rig): Rig {
   r.ctx.call = async (cap, input) => {
     const body = input as Record<string, unknown>;
     if (cap === "schema.types.list") return { types: [{ key: "contact" }] };
+    if (cap === "schema.types.get") return { type: { key: "contact", fields: [{ key: "signer_name", options: { mergeable: true } }] } };
     if (cap === "records.get") return { record: { id: body.recordId, fields: { signer_name: "Sam Rivers" } } };
     return base(cap, input);
   };

@@ -11,10 +11,18 @@ import type { Harness } from "../fixtures/harness.ts";
 const DOC = "fil_doc0001";
 const REC = "rec_signer01";
 
+/** The contact type's fields as the schema holds them: only those marked options.mergeable may go into an email. A test changes this list to add a field later. */
+const TYPE_FIELDS: { key: string; options?: { mergeable: boolean } }[] = [];
+function resetType(): void {
+  TYPE_FIELDS.length = 0;
+  TYPE_FIELDS.push({ key: "signer_name", options: { mergeable: true } }, { key: "company", options: { mergeable: true } }, { key: "ssn" }, { key: "card_number" });
+}
 function setup(fields: Record<string, unknown> = { signer_name: "Sam Rivers", company: "Acme" }): Harness {
+  resetType();
   const h = harness();
   script(h, {
     "schema.types.list": () => ({ types: [{ key: "contact" }] }),
+    "schema.types.get": () => ({ type: { key: "contact", fields: TYPE_FIELDS } }),
     "records.get": (i) => {
       if (i.recordId !== REC) throw Object.assign(new Error("none"), { code: "validation.not_found" });
       return { record: { id: REC, fields } };
@@ -147,8 +155,8 @@ test("{{constructor}} and other prototype names are blank like any unknown field
   const h = setup();
   const out = await preview(h.ctx, { subject: "{{constructor}}", text: "x", vars: { constructor: "Pat" } });
   assert.equal(out.subject, "Pat");
-  const bare = await preview(h.ctx, { subject: "{{constructor}}", text: "x" });
-  assert.deepEqual(bare.blanks, ["constructor"]);
+  // with no value passed it is not a field the draft may name at all
+  await assert.rejects(preview(h.ctx, { subject: "{{constructor}}", text: "x" }), (e) => codeOf(e) === "validation.bad_input");
 });
 
 test("a document the caller cannot open is not read through get or preview, and free-text preview needs comms.templates", async () => {
@@ -209,15 +217,25 @@ test("a link is judged on the value as rendered: a > inside a quoted attribute, 
   assert.equal(f("<p>1 < 2 and {{u}}</p>", { u: "javascript:x" }), "<p>1 < 2 and javascript:x</p>");
 });
 
-test("a template cannot merge a private field, and a record's value under such a name is never merged", async () => {
+test("a template may use only the fields it is made for or its record type marks mergeable; a new private field is refused with no change to any list", async () => {
   const h = setup({ signer_name: "Sam", ssn: "123-45-6789", card_number: "4111" });
-  await assert.rejects(save(h.ctx, { key: "a.b", subject: "x", text: "Your {{ssn}}" }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(save(h.ctx, { key: "a.b", subject: "x {{password|}}", text: "y" }), (e) => codeOf(e) === "validation.bad_input");
-  const out = await preview(h.ctx, { subject: "x", text: "{{signer_name}} {{company|none}}", recordId: REC });
-  assert.equal(out.text, "Sam none"); // the record also holds ssn and card_number; neither is ever read into the values
-  assert.ok(!JSON.stringify(out).includes("123-45"));
-  // a field that only looks private is not blocked
-  await save(h.ctx, { key: "a.b", subject: "Your {{cardinal_direction|north}}", text: "y" });
+  const bad = (p: Promise<unknown>) => assert.rejects(p, (e) => codeOf(e) === "validation.bad_input");
+  await bad(save(h.ctx, { key: "a.b", subject: "x", text: "{{signer_name}}" })); // no record type: nothing is mergeable yet
+  await save(h.ctx, { key: "a.b", subject: "x {{signer_name}}", text: "{{company|none}}", recordType: "contact" });
+  await bad(save(h.ctx, { key: "a.b", subject: "x", text: "Your {{ssn}}", recordType: "contact" })); // the type does not mark it
+  await bad(save(h.ctx, { key: "signature.request", subject: "x", text: "{{company}}" })); // a built-in takes its own fields, not the type's unless a type is named
+  // a field added to the type later: refused until the type marks it, with no change here
+  TYPE_FIELDS.push({ key: "secret_note" });
+  await bad(save(h.ctx, { key: "a.b", subject: "x", text: "{{secret_note}}", recordType: "contact" }));
+  // its value is never read into an email either, whatever the template says
+  const out = await preview(h.ctx, { subject: "x", text: "{{signer_name}}", recordId: REC });
+  assert.equal(out.text, "Sam");
+  assert.ok(!JSON.stringify(out).includes("123-45") && !JSON.stringify(out).includes("4111"));
+  // the type marks it mergeable: now it is allowed, by the type alone
+  TYPE_FIELDS[TYPE_FIELDS.length - 1]!.options = { mergeable: true };
+  await save(h.ctx, { key: "a.b", subject: "x", text: "{{secret_note}}", recordType: "contact" });
+  // the system fields are always allowed
+  await save(h.ctx, { key: "a.c", subject: "x", text: "Stop mail: {{unsubscribe_url}}" });
 });
 
 test("document wording needs edit on the file and comms.templates; reading needs view", async () => {

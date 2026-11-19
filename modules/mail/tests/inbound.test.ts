@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { AUTO_PER_HOUR, MAX_PROBLEMS, autoReason, ingestWatched, monitor, noteAuto, syncWatched } from "../handlers/extra/inbound.ts";
 import { isOwnRetry } from "../handlers/extra/delivery.ts";
 import { sendAs } from "../handlers/send.ts";
+import { trail } from "../handlers/extra/delivery.ts";
 import { ingest } from "../handlers/ingest.ts";
 import { send } from "../handlers/send.ts";
 import { codeOf, contractErrors, letter, NOW } from "../fixtures/harness.ts";
@@ -29,18 +30,40 @@ test("machine-made mail is recognised by its headers and sender, and mail from a
   assert.equal(autoReason(undefined, "reply@acme.test"), null);
 });
 
-test("an auto-reply is stored, announced as auto, and an Automation or agent may not answer it; a person may", async () => {
+test("an auto-reply is stored and announced as auto; an Automation's reply to it is held with the reason, and a person sends it with one press", async () => {
   const r = rig({ origin: "automation" });
   const auto = await ingest(r.ctx, letter("pat@acme.test", "<a1@acme.test>", "gm_a1", { mailboxId: "mbx_maya", headers: { "Auto-Submitted": "auto-replied" } }));
   const human = await ingest(r.ctx, letter("kim@acme.test", "<h1@acme.test>", "gm_h1", { mailboxId: "mbx_maya" }));
-  const got = r.h.named("mail.received");
-  assert.deepEqual(got.map((e) => e.payload.auto), [true, undefined]);
-  const reply = (to: string, id: string) => sendIn({ mailboxId: "mbx_maya", to: [{ address: to }], subject: "Re: Hello", text: "Thanks", replyToMessageId: id });
-  await assert.rejects(send(r.ctx, reply("pat@acme.test", auto.messageId)), (e) => /automatic reply to it could start a loop/.test(String((e as Error).message ?? "")) || codeOf(e) !== "");
+  assert.deepEqual(r.h.named("mail.received").map((e) => e.payload.auto), [true, undefined]);
+  const reply = (to: string, id: string, extra: object = {}) => sendIn({ mailboxId: "mbx_maya", to: [{ address: to }], subject: "Re: Hello", text: "Thanks", replyToMessageId: id, ...extra });
+  const held = await send(r.ctx, reply("pat@acme.test", auto.messageId));
+  assert.equal(held.status, "held");
+  assert.match(held.note ?? "", /Held, not sent\. That message is an automatic reply; an automatic reply to it could start a loop/);
+  assert.equal(r.sent().length, 0);
+  const row = r.h.rows(`SELECT status FROM mail_message WHERE id = ?`, held.messageId ?? "")[0]!;
+  assert.equal(row.status, "draft"); // kept, never dropped
+  assert.ok((await trail(r.ctx, { messageId: held.messageId ?? "" })).events.some((e) => e.kind === "held" && /loop/.test(e.detail ?? "")));
+  // a person opens the draft and sends it: one press
+  const person = r.ctx as unknown as { principal: { kind: string; id: string }; origin?: string };
+  person.principal = { kind: "person", id: "usr_maya01" };
+  person.origin = "user";
+  const sent = await send(r.ctx, reply("pat@acme.test", auto.messageId, { draftId: held.messageId }));
+  assert.equal(sent.status, "sent");
+  // an ordinary reply from an Automation goes
+  person.principal = { kind: "service", id: "svc_flow" };
+  person.origin = "automation";
   assert.equal((await send(r.ctx, reply("kim@acme.test", human.messageId))).status, "sent");
-  const byHand = rig();
-  const auto2 = await ingest(byHand.ctx, letter("pat@acme.test", "<a2@acme.test>", "gm_a2", { mailboxId: "mbx_maya", headers: { Precedence: "bulk" } }));
-  assert.equal((await send(byHand.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Re: Hello", text: "Hi", replyToMessageId: auto2.messageId }))).status, "sent");
+});
+
+test("a client's out-of-office never holds up the paperwork: a signature request from an Automation still goes", async () => {
+  const r = rig({ origin: "automation" });
+  await ingest(r.ctx, letter("sam@client.test", "<ooo@client.test>", "gm_ooo", { mailboxId: "mbx_maya", headers: { "Auto-Submitted": "auto-replied", Precedence: "bulk" } }));
+  const fresh = sendIn({ mailboxId: "mbx_maya", to: [{ address: "sam@client.test" }], subject: "Please sign", text: "Link" }); // answers nothing
+  assert.equal((await send(r.ctx, fresh)).status, "sent");
+  assert.equal(r.sent().length, 1);
+  // a no-reply sender is the same: a fresh message is not stopped
+  await ingest(r.ctx, letter("noreply@acme.test", "<n1@acme.test>", "gm_n1", { mailboxId: "mbx_maya" }));
+  assert.equal((await send(r.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "noreply@acme.test" }] }))).status, "sent");
 });
 
 test("mail for an address no inbox answers to is kept as a problem with the fix, once, and moves forward when it repeats", async () => {
@@ -121,47 +144,56 @@ test("the unrouted-address list is for people who manage sending domains, and it
   assert.ok((await monitor(r.ctx, {})).inboxes.length > 0);
 });
 
-test("a fresh message to an address that sent machine-made mail is refused to an Automation, not to a person", async () => {
+test("an automatic reply to someone who sent machine-made mail this week is held; a person's is not", async () => {
   const r = rig({ origin: "automation" });
-  await ingest(r.ctx, letter("noreply@acme.test", "<n1@acme.test>", "gm_n1", { mailboxId: "mbx_maya" })); // a no-reply sender
-  const fresh = (to: string) => sendIn({ mailboxId: "mbx_maya", to: [{ address: to }], subject: "Hello", text: "Hi" }); // no replyToMessageId at all
-  await assert.rejects(send(r.ctx, fresh("noreply@acme.test")), (e) => /could start a loop/.test(String((e as Error).message)));
-  assert.equal((await send(r.ctx, fresh("kim@acme.test"))).status, "sent");
+  await ingest(r.ctx, letter("noreply@acme.test", "<n2@acme.test>", "gm_n2", { mailboxId: "mbx_maya" }));
+  const human = await ingest(r.ctx, letter("kim@acme.test", "<h2@acme.test>", "gm_h2", { mailboxId: "mbx_maya" }));
+  // kim's message is from a person, but the reply goes to an address that is a known machine sender
+  const toAuto = sendIn({ mailboxId: "mbx_maya", to: [{ address: "noreply@acme.test" }], replyToMessageId: human.messageId });
+  assert.equal((await send(r.ctx, toAuto)).status, "held");
   const person = rig();
-  await ingest(person.ctx, letter("noreply@acme.test", "<n2@acme.test>", "gm_n2", { mailboxId: "mbx_maya" }));
-  assert.equal((await send(person.ctx, fresh("noreply@acme.test"))).status, "sent");
+  await ingest(person.ctx, letter("noreply@acme.test", "<n3@acme.test>", "gm_n3", { mailboxId: "mbx_maya" }));
+  const h2 = await ingest(person.ctx, letter("kim@acme.test", "<h3@acme.test>", "gm_h3", { mailboxId: "mbx_maya" }));
+  assert.equal((await send(person.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "noreply@acme.test" }], replyToMessageId: h2.messageId }))).status, "sent");
 });
 
-test("an Automation may send one address only so many automatic emails an hour, and a person is never counted", async () => {
+test("an Automation may send one address only so many automatic replies an hour; fresh sends are not counted, nor a person's", async () => {
   const r = rig({ origin: "automation" });
-  for (let n = 0; n < AUTO_PER_HOUR; n++)
-    assert.equal((await send(r.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }] }))).status, "sent");
-  await assert.rejects(send(r.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }] })), (e) => /automatic emails in the last hour/.test(String((e as Error).message)));
+  const m = await ingest(r.ctx, letter("kim@acme.test", "<h4@acme.test>", "gm_h4", { mailboxId: "mbx_maya" }));
+  const reply = () => sendIn({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }], replyToMessageId: m.messageId });
+  for (let n = 0; n < AUTO_PER_HOUR; n++) assert.equal((await send(r.ctx, reply())).status, "sent");
+  const held = await send(r.ctx, reply());
+  assert.equal(held.status, "held");
+  assert.match(held.note ?? "", /already sent kim@acme.test 5 automatic replies in the last hour/);
+  // six document emails to one client from one run are fresh sends: never counted
+  for (let n = 0; n < 8; n++) assert.equal((await send(r.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }] }))).status, "sent");
   r.h.advance(61 * MIN);
-  assert.equal((await send(r.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }] }))).status, "sent");
+  assert.equal((await send(r.ctx, reply())).status, "sent");
   const person = rig();
-  for (let n = 0; n < AUTO_PER_HOUR + 2; n++) await send(person.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }] }));
+  const pm = await ingest(person.ctx, letter("kim@acme.test", "<h5@acme.test>", "gm_h5", { mailboxId: "mbx_maya" }));
+  for (let n = 0; n < AUTO_PER_HOUR + 2; n++) await send(person.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }], replyToMessageId: pm.messageId }));
   assert.equal(person.sent().length, AUTO_PER_HOUR + 2);
 });
 
-test("our own retry in flight is never refused by the guard; a forged retry key is", async () => {
+test("our own retry in flight is never held by the guard; a forged retry key is", async () => {
   const r = rig({ origin: "automation" });
-  await ingest(r.ctx, letter("noreply@acme.test", "<n3@acme.test>", "gm_n3", { mailboxId: "mbx_maya" }));
+  const auto = await ingest(r.ctx, letter("pat@acme.test", "<n5@acme.test>", "gm_n5", { mailboxId: "mbx_maya", headers: { "Auto-Submitted": "auto-replied" } }));
   const { ensureDelivery } = await import("../handlers/extra/delivery.ts");
   ensureDelivery(r.ctx);
-  const key = "retry:eml_orig0001:noreply@acme.test:1";
-  const mk = () => sendIn({ mailboxId: "mbx_maya", to: [{ address: "noreply@acme.test" }], idempotencyKey: key });
+  const key = "retry:eml_orig0001:pat@acme.test:1";
+  const mk = () => sendIn({ mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], replyToMessageId: auto.messageId, idempotencyKey: key });
   assert.equal(isOwnRetry(r.ctx, key), false);
-  await assert.rejects(send(r.ctx, mk()), (e) => /could start a loop/.test(String((e as Error).message))); // a forged key
-  r.h.ctx.db.run(`INSERT INTO mail_delivery_retry ("messageId", address, attempts, "nextAt", state) VALUES (?, ?, ?, ?, ?)`, "eml_orig0001", "noreply@acme.test", 1, r.ctx.now(), "sending");
+  assert.equal((await send(r.ctx, mk())).status, "held"); // a forged key
+  r.h.ctx.db.run(`INSERT INTO mail_delivery_retry ("messageId", address, attempts, "nextAt", state) VALUES (?, ?, ?, ?, ?)`, "eml_orig0001", "pat@acme.test", 1, r.ctx.now(), "sending");
   assert.equal(isOwnRetry(r.ctx, key), true);
+  r.h.ctx.db.run(`DELETE FROM mail_idem WHERE "idemKey" = ?`, key);
   assert.equal((await send(r.ctx, mk())).status, "sent");
 });
 
-test("a person's scheduled message keeps the person as the actor when it comes due", async () => {
+test("a person's scheduled reply keeps the person as the actor when it comes due", async () => {
   const person = rig();
-  await ingest(person.ctx, letter("noreply@acme.test", "<n4@acme.test>", "gm_n4", { mailboxId: "mbx_maya" }));
-  const out = await send(person.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "noreply@acme.test" }], sendAt: person.ctx.now() + 3_600_000 }));
+  const auto = await ingest(person.ctx, letter("noreply@acme.test", "<n4@acme.test>", "gm_n4", { mailboxId: "mbx_maya" }));
+  const out = await send(person.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "noreply@acme.test" }], replyToMessageId: auto.messageId, sendAt: person.ctx.now() + 3_600_000 }));
   assert.equal(out.status, "queued");
   person.h.advance(2 * 3_600_000);
   person.ctx.origin = "automation"; // the scheduler's call at due time

@@ -56,7 +56,7 @@ import { dkimOf } from "./extra/domains.ts";
 import { smtpDeliver } from "./smtp.ts";
 import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
 import { autoReplyGuard, noteAutoSend } from "./extra/inbound.ts";
-import { isOwnRetry } from "./extra/delivery.ts";
+import { isOwnRetry, recordTrail } from "./extra/delivery.ts";
 import { fillSend } from "./extra/template.ts";
 
 // ---- shapes
@@ -567,13 +567,20 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
   // Exempt: our own retry in flight (a resend of what a person or Automation already sent), and a held message coming back at its time (the guard ran, with the real actor, when it was composed).
   const actor = actorOf(ctx.principal.kind, ctx.origin);
   const comingBack = pending !== null && str(pending, "status") === "queued";
+  let stop: string | null = null;
   if (!comingBack && !isOwnRetry(ctx, input.idempotencyKey)) {
-    const stop = autoReplyGuard(ctx, input.replyToMessageId, actor, addressesOf(input));
-    if (stop) refuse(ctx, stop);
+    stop = autoReplyGuard(ctx, input.replyToMessageId, actor, addressesOf(input));
   }
   const composed = compose(ctx, input, pending);
   const p = await makePlan(ctx, input, composed, input.route, true);
   const now = p.now;
+  if (stop) {
+    // never silent: the message is kept as a draft marked held, with the reason on its trail and in the answer (the Automation's run shows it); a person who may use the mailbox sends it with one press
+    const held = pending ? str(pending, "id") : newId("eml", now);
+    writeRow(ctx, p, composed, parent, pending, held, "draft", now, null);
+    recordTrail(ctx, held, { kind: "held", at: now, detail: stop }, `held|${held}|${input.idempotencyKey}`);
+    return remember(ctx, input.idempotencyKey, { messageId: held, status: "held", suppressed: [], note: `Held, not sent. ${stop} Open the draft and send it if it is right.` });
+  }
 
   // everyone suppressed: nothing is sent, nothing is stored; the refusal is an event per address
   for (const s of p.suppressed) {
@@ -613,7 +620,7 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     });
   }
 
-  if (!comingBack && !isOwnRetry(ctx, input.idempotencyKey)) noteAutoSend(ctx, actor, p.allowed.map((a) => a.address));
+  if (!comingBack && !isOwnRetry(ctx, input.idempotencyKey)) noteAutoSend(ctx, actor, input.replyToMessageId, p.allowed.map((a) => a.address));
   let when = Math.max(now, input.sendAt ?? now);
   const row = pending ? str(pending, "id") : newId("eml", now);
   // the Space's sending limits; a queued message coming back at its time already holds its slot
@@ -1090,8 +1097,8 @@ export async function sendAs(ctx: SendCtx, input: SendAsIn): Promise<{ messageId
     const parent =
       input.replyToMessageId === undefined ? null : loadParent(ctx, input.replyToMessageId, input.mailboxId);
     const asActor = actorOf(ctx.principal.kind, ctx.origin);
-    const stop = autoReplyGuard(ctx, input.replyToMessageId, asActor, addressesOf(input));
-    if (stop) refuse(ctx, stop);
+    const asStop = autoReplyGuard(ctx, input.replyToMessageId, asActor, addressesOf(input));
+    if (asStop) refuse(ctx, `Not sent. ${asStop}`);
     const composed = compose(ctx, input, pending);
     const p = await makePlan(ctx, input, composed, "mailbox", true);
     if (p.suppressed.length > 0) {
@@ -1099,6 +1106,7 @@ export async function sendAs(ctx: SendCtx, input: SendAsIn): Promise<{ messageId
       refuse(ctx, `Not sent. ${p.suppressed.map((s) => `${s.address} (${s.reason})`).join(", ")} cannot be emailed.`);
     }
     const id = pending ? str(pending, "id") : newId("eml", p.now);
+    noteAutoSend(ctx, asActor, input.replyToMessageId, addressesOf(input));
     // a reply from a member's own mailbox is never held (it has nowhere to wait), but it counts toward the Space's daily limit and is refused over it
     if (!(pending && str(pending, "status") === "queued")) await reserveSlot(ctx, p, p.now, id, false);
     const sent = await deliver(ctx, p, composed, parent, pending, id);

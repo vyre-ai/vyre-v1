@@ -25,7 +25,6 @@ import {
   strOrNull,
 } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
-import { fail } from "../../../../host/src/routes/errors.ts";
 import { readAttachments } from "./messages.ts";
 import { ensureAll } from "./common.ts";
 
@@ -310,8 +309,8 @@ export interface RetryIn {
 /** How long a claimed attempt may stay unfinished before the recovery call takes it up again. */
 export const CLAIM_STALE_MS = 10 * 60_000;
 
-/** Only Vyre's own scheduler (a service or an actor) runs a retry; a person or an agent holding the message id cannot. */
-const isSystem = (ctx: MailCtx): boolean => ctx.principal.kind === "service" || ctx.principal.kind === "actor";
+const codeOf = (e: unknown): string =>
+  (e as { error?: { code?: string }; code?: string } | null)?.error?.code ?? (e as { code?: string } | null)?.code ?? "";
 
 /**
  * The scheduled retry. Safe to call twice for the same attempt: only the first one sends.
@@ -320,7 +319,6 @@ const isSystem = (ctx: MailCtx): boolean => ctx.principal.kind === "service" || 
  */
 export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: RetryOutcome; messageId?: string }> {
   ensureDelivery(ctx);
-  if (!isSystem(ctx)) throw fail("permission.no_grant", ctx.trace.traceId, { message: "Retries are run by Vyre itself." });
   if (!isId("eml", input.messageId)) bad(ctx, "Message id is not valid.");
   if (typeof input.address !== "string" || input.address.trim() === "") bad(ctx, "Address is required.");
   if (!Number.isSafeInteger(input.attempt) || input.attempt < 1 || input.attempt > MAX_RETRIES)
@@ -423,6 +421,19 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
     }
     held = sent.status === "held" || sent.status === "queued";
   } catch (e) {
+    // whoever runs this (the host's schedule runs it as whoever scheduled it) may lack the right to send from this mailbox: that is not a failed try, so the attempt is given back untouched
+    if (codeOf(e).startsWith("permission.")) {
+      ctx.db.run(
+        `UPDATE mail_delivery_retry SET attempts = ?, state = ?, "nextAt" = ? WHERE "messageId" = ? AND address = ? AND state = ?`,
+        input.attempt - 1,
+        "pending",
+        ctx.now(),
+        input.messageId,
+        address,
+        "sending",
+      );
+      throw e;
+    }
     ctx.log.warn("mail.delivery.retry failed", { messageId: input.messageId, attempt: input.attempt });
     // the attempt counted; the next one waits longer, or the tries are used up and the message is bounced
     ctx.db.run(

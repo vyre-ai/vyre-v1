@@ -63,9 +63,32 @@ const readableDocument = (ctx: MailCtx, v: unknown): string => {
   return id;
 };
 
-/** Field names that hold something private. A template may not merge them, and a record's value under such a name is never merged into an email. */
-const PRIVATE_FIELD = /(^|_)(ssn|password|passwd|secret|token|apikey|api_key|private_key|tax_id|ein|dob|birth|birthday|card|cvv|iban|account_number|routing)(_|$)/;
-export const isPrivateField = (key: string): boolean => PRIVATE_FIELD.test(key.toLowerCase());
+/** Fields every email may carry whatever it is about. */
+export const SYSTEM_FIELDS = ["unsubscribe_url", "preferences_url", "owner_name"];
+
+/** The fields a built-in template is written to take: whatever its shipped words name. */
+const builtinFields = (key: string): string[] => {
+  const b = BUILTINS.find((x) => x.key === key);
+  return b ? [...tokensIn(b.subject), ...tokensIn(b.text)].map((t) => t.key) : [];
+};
+
+/**
+ * The fields of a record type that may be merged into an email: those the type marks `options.mergeable: true`. An allowlist, so a field added to the type later
+ * (a new private one) is left out until someone marks it, and nothing in this module needs to change for that.
+ */
+async function mergeable(ctx: MailCtx, type: string | undefined): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (!type) return out;
+  const got = (await ctx.call("schema.types.get", { type })) as { type?: { fields?: { key?: unknown; options?: { mergeable?: unknown } }[] } } | null;
+  for (const f of got?.type?.fields ?? [])
+    if (typeof f.key === "string" && f.options?.mergeable === true) out.add(f.key.toLowerCase());
+  return out;
+}
+
+/** What a template for `key` (about `recordType`) may name: its own shipped fields, the system ones, and the type's mergeable ones. */
+async function allowedFor(ctx: MailCtx, key: string | undefined, recordType: string | undefined, extra: string[] = []): Promise<Set<string>> {
+  return new Set([...SYSTEM_FIELDS, ...(key ? builtinFields(key) : []), ...extra, ...(await mergeable(ctx, recordType))]);
+}
 
 interface Body {
   subject: string;
@@ -73,7 +96,7 @@ interface Body {
   html?: string;
 }
 
-function bodyOf(ctx: MailCtx, input: Record<string, unknown>): Body {
+function bodyOf(ctx: MailCtx, input: Record<string, unknown>, allowed: Set<string>): Body {
   const subject = typeof input.subject === "string" ? input.subject.trim() : "";
   if (subject === "") bad(ctx, "A template needs a subject.");
   if (subject.length > MAX_SUBJECT) bad(ctx, `A subject is at most ${MAX_SUBJECT} characters.`);
@@ -85,7 +108,9 @@ function bodyOf(ctx: MailCtx, input: Record<string, unknown>): Body {
   if (html !== undefined && typeof html !== "string") bad(ctx, "The html body is text.");
   if (typeof html === "string" && html.length > MAX_HTML) bad(ctx, "The html body is over 1 MB.");
   for (const part of [subject, text, typeof html === "string" ? html : ""])
-    for (const t of tokensIn(part)) if (isPrivateField(t.key)) bad(ctx, `A template cannot merge ${t.key.replace(/_/g, " ")}: it holds something private.`);
+    for (const t of tokensIn(part))
+      if (!allowed.has(t.key))
+        bad(ctx, `A template cannot use ${t.key.replace(/_/g, " ")}: it is not a field this template is made for, or its record type does not mark it as mergeable.`);
   return { subject, text, ...(typeof html === "string" && html !== "" ? { html } : {}) };
 }
 
@@ -171,7 +196,8 @@ export async function save(
 ): Promise<{ template: TemplateOut }> {
   ensureTemplates(ctx);
   const key = keyOf(ctx, input.key);
-  const body = bodyOf(ctx, input as unknown as Record<string, unknown>);
+  if (input.recordType !== undefined && !/^[a-z][a-z0-9_]*$/.test(input.recordType)) bad(ctx, "Record type is not valid.");
+  const body = bodyOf(ctx, input as unknown as Record<string, unknown>, await allowedFor(ctx, key, input.recordType));
   const builtin = BUILTINS.find((b) => b.key === key);
   const title = (typeof input.title === "string" ? input.title.trim() : "") || builtin?.title || key;
   if (title.length > 120) bad(ctx, "A title is at most 120 characters.");
@@ -234,7 +260,8 @@ export async function forDocumentSet(
   const key = keyOf(ctx, input.key);
   const documentId = mayChangeDocument(ctx, input.documentId);
   if (!BUILTINS.some((b) => b.key === key) && !spaceRow(ctx, key)) return missing(ctx, "There is no template with that key.");
-  const body = bodyOf(ctx, input as unknown as Record<string, unknown>);
+  const spaceType = strOrNull(spaceRow(ctx, key), "recordType") ?? undefined;
+  const body = bodyOf(ctx, input as unknown as Record<string, unknown>, await allowedFor(ctx, key, spaceType));
   const by = ctx.actingFor ?? ctx.principal.id;
   if (docRow(ctx, documentId, key))
     ctx.db.run(
@@ -269,11 +296,11 @@ export interface Rendered {
   fallbacks: string[];
 }
 
-function valuesOf(fields: unknown): Record<string, string> {
+function valuesOf(fields: unknown, allowed: Set<string>): Record<string, string> {
   const out: Record<string, string> = Object.create(null) as Record<string, string>;
   if (typeof fields !== "object" || fields === null) return out;
   for (const [k, v] of Object.entries(fields as Record<string, unknown>))
-    if ((typeof v === "string" || typeof v === "number" || typeof v === "boolean") && !isPrivateField(k)) out[k.toLowerCase()] = String(v);
+    if ((typeof v === "string" || typeof v === "number" || typeof v === "boolean") && allowed.has(k.toLowerCase())) out[k.toLowerCase()] = String(v);
   return out;
 }
 
@@ -287,11 +314,12 @@ export async function render(
 ): Promise<Rendered> {
   ensureTemplates(ctx);
   let source: Rendered["source"];
-  let body: Body;
+  let body: Body | undefined;
   if (input.key !== undefined && (input.subject !== undefined || input.text !== undefined || input.html !== undefined))
     bad(ctx, "Preview a saved template or a draft, not both.");
+  let key: string | undefined;
   if (input.key !== undefined) {
-    const key = keyOf(ctx, input.key);
+    key = keyOf(ctx, input.key);
     const documentId = input.documentId === undefined ? undefined : readableDocument(ctx, input.documentId);
     const t = resolve(ctx, key, documentId);
     if (!t) return missing(ctx, "There is no template with that key.");
@@ -302,15 +330,19 @@ export async function render(
     const d = ctx.authorize({ perm: "comms.templates", level: "use" }, { type: "space", id: ctx.space });
     if (d.effect !== "allow") throw fail("permission.no_grant", ctx.trace.traceId);
     source = "draft";
-    body = bodyOf(ctx, input as unknown as Record<string, unknown>);
   }
   const values: Record<string, string> = Object.create(null) as Record<string, string>;
+  let recordFields: Set<string> = new Set();
   if (input.recordId !== undefined) {
     if (typeof input.recordId !== "string" || !/^rec_[a-z0-9]+$/.test(input.recordId)) bad(ctx, "Record id is not valid.");
     const found = await findRecord((cap, i) => ctx.call(cap, i), input.recordId);
     if (!found) return missing(ctx, "That record does not exist.");
-    Object.assign(values, valuesOf(found.record.fields));
+    // only the fields its type marks mergeable are read into the email
+    recordFields = await mergeable(ctx, found.type);
+    Object.assign(values, valuesOf(found.record.fields, recordFields));
   }
+  if (body === undefined)
+    body = bodyOf(ctx, input as unknown as Record<string, unknown>, new Set([...SYSTEM_FIELDS, ...recordFields, ...Object.keys(input.vars ?? {}).map((k) => k.toLowerCase())]));
   if (input.vars !== undefined) {
     if (typeof input.vars !== "object" || input.vars === null || Array.isArray(input.vars)) bad(ctx, "Vars is a list of names and values.");
     if (Object.keys(input.vars).length > 100) bad(ctx, "Too many values.");

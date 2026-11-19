@@ -69,13 +69,17 @@ export function autoOf(ctx: MailCtx, messageId: string): string | null {
 
 const AUTO_SENDER_MS = 7 * 86_400_000;
 const AUTO_HOUR_MS = 3_600_000;
-/** The most automatic emails one address may get from this Space in an hour; a loop between two auto-responders stops here. */
+/** The most automatic REPLIES one address may get from this Space in an hour; a loop between two auto-responders stops here. */
 export const AUTO_PER_HOUR = 5;
 
 /**
- * Refuse an automatic message that could start or feed a loop. A person writing by hand is never stopped. An Automation or an agent is stopped when
- * (a) it answers machine-made mail (an auto-reply, a delivery report, a list, a no-reply sender), or (b) it writes, reply or fresh, to an address that sent us
- * machine-made mail in the last week, or (c) it has already sent that address AUTO_PER_HOUR automatic emails in the last hour. The refusal says why.
+ * Stop an automatic reply that could start or feed a loop, and say why. Only an automatic REPLY is looked at: a message an Automation or an agent sends
+ * in answer to mail that came in (replyToMessageId). A person writing by hand, and every send that answers nothing (a signature request, a reminder, a
+ * receipt), is never stopped by it, so a client's out-of-office never holds up the paperwork. An automatic reply is stopped when
+ * (a) it answers machine-made mail (an auto-reply, a delivery report, a list, a no-reply sender), or
+ * (b) it is addressed to someone who sent us machine-made mail in the last week, or
+ * (c) that address already got AUTO_PER_HOUR automatic replies in the last hour.
+ * The caller does not drop the message: it is kept as a draft marked held, with this sentence, and a person sends it with one press.
  */
 export function autoReplyGuard(
   ctx: MailCtx,
@@ -83,32 +87,35 @@ export function autoReplyGuard(
   actor: "person" | "agent" | "automation",
   recipients: string[] = [],
 ): string | null {
-  if (actor === "person") return null;
-  if (replyToMessageId) {
-    const why = autoOf(ctx, replyToMessageId);
-    if (why) return `Not sent. That message is ${why}; an automatic reply to it could start a loop.`;
-  }
+  if (actor === "person" || !replyToMessageId) return null;
+  const why = autoOf(ctx, replyToMessageId);
+  if (why) return `That message is ${why}; an automatic reply to it could start a loop.`;
   ensureInbound(ctx);
   const now = ctx.now();
   for (const raw of recipients) {
     const address = raw.trim().toLowerCase();
     const known = first(ctx.db.all(`SELECT * FROM mail_auto_sender WHERE address = ?`, address));
     if (known && now - num(known, "at") < AUTO_SENDER_MS)
-      return `Not sent. ${address} sent this Space ${str(known, "why")} recently; writing to it automatically could start a loop.`;
+      return `${address} sent this Space ${str(known, "why")} recently; replying to it automatically could start a loop.`;
     const recent = rowsOf(ctx.db.all(`SELECT at FROM mail_auto_send WHERE address = ?`, address)).filter((r) => now - num(r, "at") < AUTO_HOUR_MS);
     if (recent.length >= AUTO_PER_HOUR)
-      return `Not sent. This Space has already sent ${address} ${recent.length} automatic emails in the last hour.`;
+      return `This Space has already sent ${address} ${recent.length} automatic replies in the last hour.`;
   }
   return null;
 }
 
-/** An automatic send went out to these addresses: counted, and anything older than a day forgotten. */
-export function noteAutoSend(ctx: MailCtx, actor: "person" | "agent" | "automation", recipients: string[]): void {
-  if (actor === "person") return;
+/** An automatic reply went out to these addresses: counted, and anything older than a day forgotten (for everyone, so the table stays small). */
+export function noteAutoSend(
+  ctx: MailCtx,
+  actor: "person" | "agent" | "automation",
+  replyToMessageId: string | undefined,
+  recipients: string[],
+): void {
+  if (actor === "person" || !replyToMessageId) return;
   ensureInbound(ctx);
   const now = ctx.now();
   for (const raw of recipients) ctx.db.run(`INSERT INTO mail_auto_send (id, address, at) VALUES (?, ?, ?)`, newId("aus", now), raw.trim().toLowerCase(), now);
-  for (const r of rowsOf(ctx.db.all(`SELECT id, at FROM mail_auto_send WHERE address = ?`, recipients[0]?.trim().toLowerCase() ?? "")))
+  for (const r of rowsOf(ctx.db.all(`SELECT id, at FROM mail_auto_send`)))
     if (now - num(r, "at") > 86_400_000) ctx.db.run(`DELETE FROM mail_auto_send WHERE id = ?`, str(r, "id"));
 }
 
