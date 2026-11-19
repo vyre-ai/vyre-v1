@@ -752,3 +752,53 @@ test("a tile whose node sleeps says what it waits on with the moon, and a finish
   );
   assert.equal(find(ended, "crew-tile-sub_s-sleep"), null);
 });
+
+test("a helper whose node already runs keeps its step lines and mark even if a stale read lists an unmet dependency; a failed dependency says it cannot start", async () => {
+  const sp = { tokensIn: 0, tokensOut: 0, cacheRead: 0, usdMicros: 0 };
+  const running = [
+    { id: "run_r", kind: "subagent", name: "Research", status: "running", spent: sp, startedAt: 1 },
+    {
+      id: "run_d",
+      kind: "helper",
+      name: "Docs",
+      status: "running",
+      dependsOn: ["run_r"],
+      step: "Adding the bids table",
+      stepIcon: "edit",
+      spent: sp,
+      startedAt: 1,
+    },
+  ];
+  const members = [
+    S({ id: "sub_d", title: "Summary page", runId: "run_d" } as never),
+    S({ id: "sub_n", title: "Other" }),
+  ];
+  const root = await mount(
+    createRoot,
+    <CrewBlock
+      members={members}
+      totals={totalsOf(members)}
+      width={900}
+      nodes={running as never}
+      onPeek={() => undefined}
+    />,
+  );
+  assert.equal(find(root, "crew-tile-sub_d-depends"), null, "it is running: no dependency line");
+  assert.ok(find(root, "crew-tile-sub_d-step-icon"), "its step mark stays");
+  assert.ok(find(root, "crew-tile-sub_d-line-0"), "and its step lines");
+  const failed = [
+    { ...running[0]!, status: "failed" },
+    { ...running[1]!, status: "queued" },
+  ];
+  const f = await mount(
+    createRoot,
+    <CrewBlock
+      members={members}
+      totals={totalsOf(members)}
+      width={900}
+      nodes={failed as never}
+      onPeek={() => undefined}
+    />,
+  );
+  assert.match(textOf(find(f, "crew-tile-sub_d-depends")), /Can't start:\s+Research\s+failed/);
+});

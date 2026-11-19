@@ -64,8 +64,8 @@ test("messages between helpers: the last two, newest last, by first names, with 
   );
 });
 
-test("a dependency line only while something it waits for is not done, and never once it ended", () => {
-  const d = NODES.find((n) => n.id === "run_d")!;
+test("a dependency line only while the node has not started and something it waits for is not done; a failed or stopped dependency says it cannot start; a running node shows none", () => {
+  const d = { ...NODES.find((n) => n.id === "run_d")!, status: "queued" as const };
   assert.equal(dependencyLine(d, NODES), "Starts when Research is done");
   const ready = NODES.map((n) => (n.id === "run_r" ? { ...n, status: "succeeded" as const } : n));
   assert.equal(dependencyLine(d, ready), null);
@@ -77,7 +77,25 @@ test("a dependency line only while something it waits for is not done, and never
     "Starts when Research and Numbers are done",
   );
   assert.equal(dependencyLine({ ...d, status: "stopped" }, NODES), null);
-  assert.equal(dependencyLine({ status: "running" }, NODES), null);
+  assert.equal(dependencyLine({ status: "queued" }, NODES), null);
+  // the node itself already runs (a stale read still lists an unmet dependency): nothing is said
+  assert.equal(dependencyLine({ ...d, status: "running" }, NODES), null);
+  assert.equal(dependencyLine({ ...d, status: "waiting" }, NODES), null);
+  // a dependency that failed or stopped: it will not start
+  assert.equal(
+    dependencyLine(
+      d,
+      NODES.map((n) => (n.id === "run_r" ? { ...n, status: "failed" as const } : n)),
+    ),
+    "Can't start: Research failed",
+  );
+  assert.equal(
+    dependencyLine(
+      d,
+      NODES.map((n) => (n.id === "run_r" ? { ...n, status: "stopped" as const } : n)),
+    ),
+    "Can't start: Research stopped",
+  );
 });
 
 test("a sleeping run is one calm line: what it waits on, how often it woke, and that it costs nothing; a running one has none", () => {
@@ -183,7 +201,7 @@ test("message lines, the dependency line, the sleeping line and the token report
   assert.match(say(find(lines, "message-line-m3")), /Pine's bid ends 30 November/);
   assert.equal(find(lines, "message-line-m1"), null, "only the last two");
   assert.equal(find(await mount(createRoot, <MessageLines messages={[]} nodes={NODES} />), "message-lines"), null);
-  const dep = await mount(createRoot, <DependencyLine node={NODES[3]!} nodes={NODES} />);
+  const dep = await mount(createRoot, <DependencyLine node={{ ...NODES[3]!, status: "queued" }} nodes={NODES} />);
   assert.match(say(find(dep, "dependency-line")), /Starts when Research is done/);
   assert.equal(
     find(await mount(createRoot, <DependencyLine node={NODES[1]!} nodes={NODES} />), "dependency-line"),

@@ -101,14 +101,20 @@ export function dependencyLine(
   node: Pick<RunNode, "dependsOn" | "status">,
   nodes: readonly Pick<RunNode, "id" | "name" | "status">[],
 ): string | null {
-  if (node.status === "succeeded" || node.status === "failed" || node.status === "stopped") return null;
+  // only a node that has not started: one that runs, sleeps, paused or ended shows nothing of what it once waited for (a stale read may still list an unmet dependency)
+  if (node.status !== "queued") return null;
   const name = byId(nodes);
-  const pending = (node.dependsOn ?? []).filter((id) => {
+  const deps = (node.dependsOn ?? []).flatMap((id) => {
     const n = nodes.find((x) => x.id === id);
-    return n !== undefined && n.status !== "succeeded";
+    return n === undefined ? [] : [n];
   });
+  // a dependency that failed or was stopped means it will not start: said so, never "starts when" forever
+  const dead = deps.find((n) => n.status === "failed" || n.status === "stopped");
+  if (dead !== undefined)
+    return `Can't start: ${first(name(dead.id))} ${dead.status === "failed" ? "failed" : "stopped"}`;
+  const pending = deps.filter((n) => n.status !== "succeeded");
   if (pending.length === 0) return null;
-  const names = pending.map((id) => first(name(id)));
+  const names = pending.map((n) => first(name(n.id)));
   return `Starts when ${names.join(" and ")} ${names.length > 1 ? "are" : "is"} done`;
 }
 
