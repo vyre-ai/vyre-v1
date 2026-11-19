@@ -875,7 +875,7 @@ const manifest = defineManifest({
         out: { outcome: t.enm("sent", "skipped", "gave_up", "rescheduled"), messageId: t.opt(emlId) },
         // the retry resends a message that already passed the Gate once; carrying the same act makes the provider call inside it count as cleared, never asked a second time
         gate: "send",
-        emits: ["message.bounced", "message.delivered"],
+        emits: ["message.sent", "message.suppressed", "message.failed", "message.bounced", "message.delivered"],
         idem: "natural",
       },
     ),

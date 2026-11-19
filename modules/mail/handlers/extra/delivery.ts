@@ -459,7 +459,7 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
       input.messageId,
       address,
     );
-    const again = await planRetry(ctx, input.messageId, address, `The server could not send the retry. [${e instanceof Error ? e.message : String(e)} :: ${(e as { cause?: unknown; stack?: string }).stack?.split("\n").slice(1, 5).join(" | ") ?? ""} :: ${JSON.stringify((e as { error?: unknown }).error ?? "").slice(0, 300)}]`, ctx.now());
+    const again = await planRetry(ctx, input.messageId, address, "The server could not send the retry.", ctx.now());
     if (!again) {
       await giveUp(ctx, msg, address, "The server could not send the retry.");
       return { outcome: "gave_up" };
