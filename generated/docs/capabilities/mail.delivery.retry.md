@@ -11,7 +11,7 @@ Scheduled by Vyre after a soft bounce: send the message again to the one address
 | Grant level | edit |
 | Risk | medium |
 | Resource | entity (/messageId) |
-| Gate | none |
+| Gate | send |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
@@ -19,7 +19,7 @@ Scheduled by Vyre after a soft bounce: send the message again to the one address
 | HTTP | POST /v1/mail/delivery/retry |
 | MCP tool | none |
 | CLI | none |
-| Emits | message.bounced, message.delivered |
+| Emits | message.sent, message.suppressed, message.failed, message.bounced, message.delivered |
 
 ## Input
 

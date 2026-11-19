@@ -21799,7 +21799,7 @@ const routes3: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "send"
   },
   {
     "method": "POST",
