@@ -119,6 +119,8 @@ export function ApprovalCard({
     items: { itemId: string; handle: string; name: string }[];
     hosts: string[];
   } | null>(null);
+  /** A held set_secret's connection: the addresses its record does not allow yet, as they were when the card loaded. This list is what the card names and what Allow submits, never a later read. */
+  const [pending, setPending] = useState<string[] | null>(null);
   const mounted = useRef(true);
   const described = useRef(false);
 
@@ -166,7 +168,15 @@ export function ApprovalCard({
               () => ({ found: false, items: [], hosts: [] }),
             )
           : null;
+      const pend =
+        h.cap === "connections.set_secret" && typeof h.input["connectionId"] === "string"
+          ? await Promise.resolve(data.call("connections.get", { connectionId: h.input["connectionId"] })).then(
+              (r) => (r as { connection?: { pendingHosts?: string[] } } | null)?.connection?.pendingHosts ?? null,
+              () => null,
+            )
+          : null;
       if (mounted.current) {
+        setPending(Array.isArray(pend) && pend.length > 0 ? pend : null);
         setSubject(s);
         setDiff(d);
         setTheirTz(tz);
@@ -384,12 +394,9 @@ export function ApprovalCard({
       // the connection's own record of where its key may go is the connector module's, apart from the Vault's list: a held set_secret on a connection allows what was shown there too
       const connectionId = held.cap === "connections.set_secret" ? held.input["connectionId"] : undefined;
       const record = async (): Promise<void> => {
-        if (typeof connectionId !== "string") return;
-        const got = (await data.call("connections.get", { connectionId })) as {
-          connection?: { pendingHosts?: string[] };
-        } | null;
-        const hosts = got?.connection?.pendingHosts;
-        if (Array.isArray(hosts) && hosts.length > 0) await data.call("connections.approve_hosts", { connectionId, hosts });
+        if (typeof connectionId !== "string" || pending === null) return;
+        // the list the card named: approve_hosts refuses when the connector's addresses are no longer exactly these
+        await data.call("connections.approve_hosts", { connectionId, hosts: pending });
       };
       void Promise.all(saves).then(record).then(
         () => answerTask(key, note),
@@ -441,7 +448,7 @@ export function ApprovalCard({
   const both = (xs: readonly string[]): string =>
     xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : (xs[0] ?? "");
   const bindLine = keyBind?.found
-    ? `${agent} wants to use ${both(keyBind.items.map((i) => i.handle))} with ${both(keyBind.hosts.map(hostWords))}`
+    ? `${agent} wants to use ${both(keyBind.items.map((i) => i.handle))} with ${both([...new Set([...keyBind.hosts, ...(pending ?? [])].map(hostWords))])}`
     : null;
   const keyLine =
     bindLine ??
