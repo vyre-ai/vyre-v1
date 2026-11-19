@@ -151,13 +151,13 @@ if ("limit" in o854) lf(o854["limit"], p + "/limit", e, L122);
 
 function d_s_b6005b0c6a(v: unknown, p: string, e: string[]): void {
 {
-const x905 = v;
-const g905 = typeOf(x905);
-const b905: string[] = []; lf(x905, p, b905, L4); if (b905.length) e.push(...b905);
-if (g905 === "array") {
-if (g905 === 'array') { const a905 = x905 as unknown[];
-for (let i905 = 0; i905 < a905.length; i905++) {
-d_s_193ebba03a(a905[i905], p + '/' + i905, e);
+const x901 = v;
+const g901 = typeOf(x901);
+const b901: string[] = []; lf(x901, p, b901, L4); if (b901.length) e.push(...b901);
+if (g901 === "array") {
+if (g901 === 'array') { const a901 = x901 as unknown[];
+for (let i901 = 0; i901 < a901.length; i901++) {
+d_s_193ebba03a(a901[i901], p + '/' + i901, e);
 }
 }
 }
@@ -166,13 +166,13 @@ d_s_193ebba03a(a905[i905], p + '/' + i905, e);
 
 function d_s_f1aa180d5c(v: unknown, p: string, e: string[]): void {
 {
-const x1228 = v;
-const g1228 = typeOf(x1228);
-const b1228: string[] = []; lf(x1228, p, b1228, L0); if (b1228.length) e.push(...b1228);
-if (g1228 === "object") {
-if (g1228 === 'object') { const o1228 = x1228 as Record<string, unknown>;
-if (!("booking" in o1228)) e.push(p + "/booking" + ': required');
-if ("booking" in o1228) d_s_62563ce16a(o1228["booking"], p + "/booking", e);
+const x1224 = v;
+const g1224 = typeOf(x1224);
+const b1224: string[] = []; lf(x1224, p, b1224, L0); if (b1224.length) e.push(...b1224);
+if (g1224 === "object") {
+if (g1224 === 'object') { const o1224 = x1224 as Record<string, unknown>;
+if (!("booking" in o1224)) e.push(p + "/booking" + ': required');
+if ("booking" in o1224) d_s_62563ce16a(o1224["booking"], p + "/booking", e);
 }
 }
 }

@@ -128,6 +128,8 @@ export function ConnectCardLive({
         requestId,
         // the addresses this card said the key goes to: the server refuses when they are no longer the service's
         hosts: hostsNow,
+        // the service version this card showed: the server refuses when a newer one is published
+        version: option ? option.version : card.service.version,
         ...(option ? { choice: option.value } : {}),
         ...(useSaved
           ? { useSaved: true }

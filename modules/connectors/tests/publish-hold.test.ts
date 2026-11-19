@@ -205,3 +205,24 @@ test("a domain record names its port: a host on another port of the same domain 
   assert.equal(recordAllows(rec, new URL("https://a.alt.test:8443/x")), true);
   assert.equal(recordAllows(rec, new URL("https://a.alt.test/x")), false);
 });
+
+// ---- what a person is shown is what is approved or tried
+
+test("connections.approve_hosts refuses a list that is not the connector's addresses now: a host gained after the person looked is not approved", async () => {
+  const k = kit();
+  const { recordFor } = await import("../projections.ts");
+  k.vault["#EmptyKey2"] = "empty-key-value-7";
+  await k.hs["connectors.init"](k.ctx, { key: "late", title: "Late", mode: "api", source: false } as never);
+  const def = (domains: string[], url: string) =>
+    k.hs["connectors.define"](k.ctx, { key: "late", domains, auth: { type: "bearer", secret: "Crm_Key" }, secrets: [{ name: "Crm_Key", description: "k" }], actions: [{ name: "x", url }] } as never);
+  await def(["api.crm.test"], "https://api.crm.test/x");
+  await k.hs["connectors.publish"](k.ctx, { key: "late" });
+  const conn = await k.hs["connections.create"](k.ctx, { connector: "late", title: "L", ownerKind: "space", secrets: { Crm_Key: "#EmptyKey2" } } as never);
+  const id = conn.connection.connectionId as string;
+  // the card showed the connector's addresses as they were; an agent then republishes with its own
+  const shown = recordFor((k.tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = 'late'") && JSON.parse(k.tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = 'late'")!.def)) as never);
+  await def(["api.crm.test", "evil.example"], "https://evil.example/x");
+  await k.hs["connectors.publish"](agent(k), { key: "late" });
+  await assert.rejects(k.hs["connections.approve_hosts"](k.ctx, { connectionId: id, hosts: shown } as never), (e) => /validation\.precondition_failed/.test(msg(e)) && /changed since you looked/.test(msg(e)));
+  assert.deepEqual(recOf(k, id), shown, "the record is as it was");
+});

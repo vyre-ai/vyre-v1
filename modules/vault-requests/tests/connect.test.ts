@@ -100,7 +100,7 @@ test("an agent names the service and gets a short answer; the person gets one ca
   assert.equal(c.state, "ask");
   assert.equal(c.mayFill, true);
   assert.deepEqual(c.fields, FATHOM.fathom.fields);
-  assert.deepEqual(c.service, { key: "fathom", title: "Fathom", site: "https://fathom.video" });
+  assert.deepEqual(c.service, { key: "fathom", version: "1.0.0", title: "Fathom", site: "https://fathom.video" });
 });
 
 test("asking again for the same service answers with the same card; a service that is already connected needs none", async () => {
@@ -745,3 +745,13 @@ for (const def of OFFERED) {
       assert.equal(JSON.stringify([lim.events, lim.warnings, lim.db.dump(), l.out]).includes(t.value), false, def.key);
   });
 }
+
+test("the card pins the service version it showed: a republished service is refused before any key is tried, and the version goes on to the try", async () => {
+  const w = room();
+  const r = await ask(w);
+  assert.equal((await card(w, r.requestId!)).service.version, "1.0.0");
+  await assert.rejects(submit(w, r.requestId!, undefined, "usr_asker", { version: "0.9.0" }), /changed since this card was shown/);
+  assert.equal(w.called("connectors.check_key").length, 0, "nothing was tried, so no key left");
+  await submit(w, r.requestId!, undefined, "usr_asker", { version: "1.0.0" });
+  assert.equal(w.called("connectors.check_key").length, 1, "the version the card showed goes through");
+});

@@ -34,12 +34,12 @@ const connectField = t.obj({ name: t.str(), label: t.str(), optional: t.bool() }
 const connectChoice = t.obj({
   name: t.str(),
   label: t.str(),
-  options: t.arr(t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()) })),
+  options: t.arr(t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()), version: t.str() })),
 });
 const connectCard = t.obj({
   requestId: reqId,
   state: connectState,
-  service: t.obj({ key: id.connector, title: t.str(), site: t.opt(t.str()) }),
+  service: t.obj({ key: id.connector, version: t.str(), title: t.str(), site: t.opt(t.str()) }),
   fields: t.arr(connectField),
   choice: t.opt(connectChoice),
   /** a wrong try: the key itself, or a key that works but may not read what the check needs */
@@ -259,6 +259,7 @@ export default defineManifest({
             description:
               "The addresses the card showed the key would be sent to; refused when the service's addresses are no longer exactly these",
           }),
+          version: t.opt(t.str({ description: "The service version the card showed; refused when a newer one is published" })),
         },
         out: { result: t.enm("connected", "wrong", "offline"), card: connectCard },
         emits: ["vault.request_fulfilled"],

@@ -90,10 +90,11 @@ const connectionRow = t.obj({
 const serviceChoice = t.obj({
   name: t.str(),
   label: t.str(),
-  options: t.arr(t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()) })),
+  options: t.arr(t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()), version: t.str() })),
 });
 const serviceRow = t.obj({
   key: id.connector,
+  version: t.str(),
   title: t.str(),
   scope: t.enm("person", "space"),
   mode,

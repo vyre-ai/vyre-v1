@@ -22,6 +22,7 @@ interface Field {
 }
 interface Service {
   key: string;
+  version: string;
   title: string;
   scope: "person" | "space";
   fields: Field[];
@@ -32,7 +33,7 @@ interface Service {
   choice?: {
     name: string;
     label: string;
-    options: { value: string; label: string; connector: string; hosts: string[] }[];
+    options: { value: string; label: string; connector: string; hosts: string[]; version: string }[];
   };
   builtin: boolean;
   checks: boolean;
@@ -58,6 +59,7 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
   const conn = asRow(got["connection"]);
   return {
     key: String(c["key"]),
+    version: String(c["version"] ?? ""),
     title: String(c["title"]),
     scope: c["scope"] === "space" ? "space" : "person",
     fields: (Array.isArray(c["fields"]) ? (c["fields"] as unknown[]) : []).map((f) => {
@@ -82,6 +84,7 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
                 label: String(o["label"]),
                 connector: String(o["connector"]),
                 hosts: Array.isArray(o["hosts"]) ? (o["hosts"] as unknown[]).map(String) : [],
+                version: String(o["version"] ?? ""),
               };
             }),
           },
@@ -180,6 +183,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
   if (!row.service) raise(ctx.trace.traceId, "validation.not_found", "No such request.");
   const svc = (await serviceOf(ctx, row.service)) ?? {
     key: row.service,
+    version: "",
     title: row.service,
     scope: "person" as const,
     fields: [],
@@ -242,7 +246,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
   return {
     requestId: row.id,
     state,
-    service: { key: svc.key, title: svc.title, ...(svc.site ? { site: svc.site } : {}) },
+    service: { key: svc.key, version: svc.version, title: svc.title, ...(svc.site ? { site: svc.site } : {}) },
     fields: svc.fields,
     ...(row.requester_kind === "agent" ? { agentId: row.requester_id } : {}),
     mayFill,
@@ -475,6 +479,8 @@ export async function connectSubmit(
     folderId?: string;
     audience?: KeyAudience;
     hosts: string[];
+    /** the service version the card showed */
+    version?: string;
     /** the option the person picked for the service's choice (a region); the first one when left out */
     choice?: string;
   },
@@ -510,6 +516,8 @@ export async function connectSubmit(
       svc.hosts.map((h) => h.toLowerCase()),
     )
   )
+    raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
+  if (input.version !== undefined && input.version !== svc.version)
     raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
   const card = await cardOf(ctx, row.id);
   if (!card.mayFill)

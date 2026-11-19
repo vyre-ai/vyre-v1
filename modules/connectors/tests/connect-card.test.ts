@@ -70,6 +70,7 @@ test("it says whether the caller already has the service connected, and whose co
   await k.hs["connections.test"](k.ctx, { connectionId: made.connection.connectionId });
   const r = await k.hs["connectors.for_service"](k.ctx, { service: "fathom" });
   assert.deepEqual(r.connection, { connectionId: made.connection.connectionId, owner: "mine", state: "active" });
+  assert.equal(r.connector?.version, FATHOM.version, "the card is told the version it shows");
   const other = await k.hs["connectors.for_service"](k.mk("usr_other"), { service: "fathom" });
   assert.equal(other.connection, undefined, "someone else's own connection is not theirs");
 });

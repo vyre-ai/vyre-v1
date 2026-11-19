@@ -6,13 +6,13 @@ export type CardState = "ask" | "have" | "admin" | "asked" | "connected" | "wron
 export interface ConnectCardData {
   requestId: string;
   state: CardState;
-  service: { key: string; title: string; site?: string };
+  service: { key: string; version: string; title: string; site?: string };
   fields: ConnectField[];
   /** a choice the person makes (a region): each option names its own exact hosts */
   choice?: {
     name: string;
     label: string;
-    options: { value: string; label: string; connector: string; hosts: string[] }[];
+    options: { value: string; label: string; connector: string; hosts: string[]; version: string }[];
   };
   /** a wrong try that was not the key itself: it works, but may not read what the check needs */
   problem?: "permission";

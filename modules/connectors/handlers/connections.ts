@@ -106,7 +106,7 @@ export interface ForService {
     choice?: {
       name: string;
       label: string;
-      options: { value: string; label: string; connector: string; hosts: string[] }[];
+      options: { value: string; label: string; connector: string; hosts: string[]; version: string }[];
     };
     site?: string;
     host?: string;
@@ -659,6 +659,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
                 label: x.o.label,
                 connector: x.o.connector,
                 hosts: keyHosts(x.def!),
+                version: x.def!.version,
               })),
             }
           : undefined;
@@ -680,6 +681,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         found: true,
         connector: {
           key: hit.key,
+          version: hit.version,
           title: hit.title,
           scope: hit.scope,
           mode: hit.mode,

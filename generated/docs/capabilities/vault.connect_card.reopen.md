@@ -38,6 +38,7 @@ type Out = {
     state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
     service: {
       key: string;
+      version: string;
       title: string;
       site?: string;
     };
@@ -54,6 +55,7 @@ type Out = {
           label: string;
           connector: string;
           hosts: Array<string>;
+          version: string;
         }>;
     };
     problem?: "permission";
@@ -119,7 +121,8 @@ type Out = {
               "example"
             ],
             "label": "example",
-            "value": "example"
+            "value": "example",
+            "version": "example"
           }
         ]
       },
@@ -145,7 +148,8 @@ type Out = {
       "service": {
         "key": "hubspot",
         "site": "example",
-        "title": "example"
+        "title": "example",
+        "version": "example"
       },
       "state": "ask",
       "tested": "example",

@@ -174,6 +174,7 @@ export function world(over: Partial<Script> = {}) {
           found: true,
           connector: {
             key,
+            version: "1.0.0",
             title: c.title,
             scope: c.scope,
             mode: "api",

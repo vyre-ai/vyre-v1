@@ -290,17 +290,17 @@ if ("number" in o845) lf(o845["number"], p + "/number", e, L12);
 
 function d_s_b6adf71f06(v: unknown, p: string, e: string[]): void {
 {
-const x906 = v;
-const g906 = typeOf(x906);
-const b906: string[] = []; lf(x906, p, b906, L0); if (b906.length) e.push(...b906);
-if (g906 === "object") {
-if (g906 === 'object') { const o906 = x906 as Record<string, unknown>;
-if (!("repo" in o906)) e.push(p + "/repo" + ': required');
-if (!("number" in o906)) e.push(p + "/number" + ': required');
-if (!("idempotencyKey" in o906)) e.push(p + "/idempotencyKey" + ': required');
-if ("repo" in o906) lf(o906["repo"], p + "/repo", e, L92);
-if ("number" in o906) lf(o906["number"], p + "/number", e, L12);
-if ("idempotencyKey" in o906) lf(o906["idempotencyKey"], p + "/idempotencyKey", e, L55);
+const x902 = v;
+const g902 = typeOf(x902);
+const b902: string[] = []; lf(x902, p, b902, L0); if (b902.length) e.push(...b902);
+if (g902 === "object") {
+if (g902 === 'object') { const o902 = x902 as Record<string, unknown>;
+if (!("repo" in o902)) e.push(p + "/repo" + ': required');
+if (!("number" in o902)) e.push(p + "/number" + ': required');
+if (!("idempotencyKey" in o902)) e.push(p + "/idempotencyKey" + ': required');
+if ("repo" in o902) lf(o902["repo"], p + "/repo", e, L92);
+if ("number" in o902) lf(o902["number"], p + "/number", e, L12);
+if ("idempotencyKey" in o902) lf(o902["idempotencyKey"], p + "/idempotencyKey", e, L55);
 }
 }
 }

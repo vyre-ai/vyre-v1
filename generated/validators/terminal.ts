@@ -178,74 +178,74 @@ if ("hidden" in o835) lf(o835["hidden"], p + "/hidden", e, L3);
 
 function d_s_e2f0a14e04(v: unknown, p: string, e: string[]): void {
 {
-const x1137 = v;
+const x1133 = v;
+const g1133 = typeOf(x1133);
+const b1133: string[] = []; lf(x1133, p, b1133, L0); if (b1133.length) e.push(...b1133);
+if (g1133 === "object") {
+if (g1133 === 'object') { const o1133 = x1133 as Record<string, unknown>;
+if (!("rules" in o1133)) e.push(p + "/rules" + ': required');
+if ("rules" in o1133) {
+{
+const x1134 = o1133["rules"];
+const g1134 = typeOf(x1134);
+const b1134: string[] = []; lf(x1134, p + "/rules", b1134, L0); if (b1134.length) e.push(...b1134);
+if (g1134 === "object") {
+if (g1134 === 'object') { const o1134 = x1134 as Record<string, unknown>;
+if (!("allow" in o1134)) e.push(p + "/rules" + "/allow" + ': required');
+if (!("ask" in o1134)) e.push(p + "/rules" + "/ask" + ': required');
+if (!("deny" in o1134)) e.push(p + "/rules" + "/deny" + ': required');
+if (!("folders" in o1134)) e.push(p + "/rules" + "/folders" + ': required');
+if ("allow" in o1134) {
+{
+const x1135 = o1134["allow"];
+const g1135 = typeOf(x1135);
+const b1135: string[] = []; lf(x1135, p + "/rules" + "/allow", b1135, L4); if (b1135.length) e.push(...b1135);
+if (g1135 === "array") {
+if (g1135 === 'array') { const a1135 = x1135 as unknown[];
+for (let i1135 = 0; i1135 < a1135.length; i1135++) {
+lf(a1135[i1135], p + "/rules" + "/allow" + '/' + i1135, e, L1);
+}
+}
+}
+}
+}
+if ("ask" in o1134) {
+{
+const x1136 = o1134["ask"];
+const g1136 = typeOf(x1136);
+const b1136: string[] = []; lf(x1136, p + "/rules" + "/ask", b1136, L4); if (b1136.length) e.push(...b1136);
+if (g1136 === "array") {
+if (g1136 === 'array') { const a1136 = x1136 as unknown[];
+for (let i1136 = 0; i1136 < a1136.length; i1136++) {
+lf(a1136[i1136], p + "/rules" + "/ask" + '/' + i1136, e, L1);
+}
+}
+}
+}
+}
+if ("deny" in o1134) {
+{
+const x1137 = o1134["deny"];
 const g1137 = typeOf(x1137);
-const b1137: string[] = []; lf(x1137, p, b1137, L0); if (b1137.length) e.push(...b1137);
-if (g1137 === "object") {
-if (g1137 === 'object') { const o1137 = x1137 as Record<string, unknown>;
-if (!("rules" in o1137)) e.push(p + "/rules" + ': required');
-if ("rules" in o1137) {
+const b1137: string[] = []; lf(x1137, p + "/rules" + "/deny", b1137, L4); if (b1137.length) e.push(...b1137);
+if (g1137 === "array") {
+if (g1137 === 'array') { const a1137 = x1137 as unknown[];
+for (let i1137 = 0; i1137 < a1137.length; i1137++) {
+lf(a1137[i1137], p + "/rules" + "/deny" + '/' + i1137, e, L1);
+}
+}
+}
+}
+}
+if ("folders" in o1134) {
 {
-const x1138 = o1137["rules"];
+const x1138 = o1134["folders"];
 const g1138 = typeOf(x1138);
-const b1138: string[] = []; lf(x1138, p + "/rules", b1138, L0); if (b1138.length) e.push(...b1138);
-if (g1138 === "object") {
-if (g1138 === 'object') { const o1138 = x1138 as Record<string, unknown>;
-if (!("allow" in o1138)) e.push(p + "/rules" + "/allow" + ': required');
-if (!("ask" in o1138)) e.push(p + "/rules" + "/ask" + ': required');
-if (!("deny" in o1138)) e.push(p + "/rules" + "/deny" + ': required');
-if (!("folders" in o1138)) e.push(p + "/rules" + "/folders" + ': required');
-if ("allow" in o1138) {
-{
-const x1139 = o1138["allow"];
-const g1139 = typeOf(x1139);
-const b1139: string[] = []; lf(x1139, p + "/rules" + "/allow", b1139, L4); if (b1139.length) e.push(...b1139);
-if (g1139 === "array") {
-if (g1139 === 'array') { const a1139 = x1139 as unknown[];
-for (let i1139 = 0; i1139 < a1139.length; i1139++) {
-lf(a1139[i1139], p + "/rules" + "/allow" + '/' + i1139, e, L1);
-}
-}
-}
-}
-}
-if ("ask" in o1138) {
-{
-const x1140 = o1138["ask"];
-const g1140 = typeOf(x1140);
-const b1140: string[] = []; lf(x1140, p + "/rules" + "/ask", b1140, L4); if (b1140.length) e.push(...b1140);
-if (g1140 === "array") {
-if (g1140 === 'array') { const a1140 = x1140 as unknown[];
-for (let i1140 = 0; i1140 < a1140.length; i1140++) {
-lf(a1140[i1140], p + "/rules" + "/ask" + '/' + i1140, e, L1);
-}
-}
-}
-}
-}
-if ("deny" in o1138) {
-{
-const x1141 = o1138["deny"];
-const g1141 = typeOf(x1141);
-const b1141: string[] = []; lf(x1141, p + "/rules" + "/deny", b1141, L4); if (b1141.length) e.push(...b1141);
-if (g1141 === "array") {
-if (g1141 === 'array') { const a1141 = x1141 as unknown[];
-for (let i1141 = 0; i1141 < a1141.length; i1141++) {
-lf(a1141[i1141], p + "/rules" + "/deny" + '/' + i1141, e, L1);
-}
-}
-}
-}
-}
-if ("folders" in o1138) {
-{
-const x1142 = o1138["folders"];
-const g1142 = typeOf(x1142);
-const b1142: string[] = []; lf(x1142, p + "/rules" + "/folders", b1142, L4); if (b1142.length) e.push(...b1142);
-if (g1142 === "array") {
-if (g1142 === 'array') { const a1142 = x1142 as unknown[];
-for (let i1142 = 0; i1142 < a1142.length; i1142++) {
-lf(a1142[i1142], p + "/rules" + "/folders" + '/' + i1142, e, L47);
+const b1138: string[] = []; lf(x1138, p + "/rules" + "/folders", b1138, L4); if (b1138.length) e.push(...b1138);
+if (g1138 === "array") {
+if (g1138 === 'array') { const a1138 = x1138 as unknown[];
+for (let i1138 = 0; i1138 < a1138.length; i1138++) {
+lf(a1138[i1138], p + "/rules" + "/folders" + '/' + i1138, e, L47);
 }
 }
 }
