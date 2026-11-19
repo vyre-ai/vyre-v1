@@ -1163,6 +1163,23 @@ export default defineManifest({
       t.int({ minimum: 1, maximum: 10 }),
       2,
     ),
+    setting("tasks.tidy", "space", "Policies", "Ask about, and put away, tasks that no longer matter", t.bool(), true),
+    setting(
+      "tasks.ask_after_days",
+      "space",
+      "Policies",
+      "Days a task may sit untouched before the Space asks about it",
+      t.int({ minimum: 3, maximum: 90 }),
+      14,
+    ),
+    setting(
+      "tasks.moment_grace_days",
+      "space",
+      "Policies",
+      "Days after a task's moment passes before it is put away",
+      t.int({ minimum: 0, maximum: 14 }),
+      1,
+    ),
     setting(
       "tasks.allow_self_review",
       "space",

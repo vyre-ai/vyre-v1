@@ -183,13 +183,27 @@ export interface Policy {
   reviewLoopLimit: number;
   allowSelfReview: boolean;
   requireHumanApprover: boolean;
+  /** living tasks: ask about and put away what no longer matters; days untouched before asking; days after a moment before putting away */
+  tidy: boolean;
+  askAfterDays: number;
+  momentGraceDays: number;
 }
-export const POLICY_DEFAULTS: Policy = { reviewLoopLimit: 2, allowSelfReview: false, requireHumanApprover: false };
+export const POLICY_DEFAULTS: Policy = {
+  reviewLoopLimit: 2,
+  allowSelfReview: false,
+  requireHumanApprover: false,
+  tidy: true,
+  askAfterDays: 14,
+  momentGraceDays: 1,
+};
 
 const POLICY_KEYS: ReadonlySet<string> = new Set([
   "tasks.review_loop_limit",
   "tasks.allow_self_review",
   "tasks.require_human_approver",
+  "tasks.tidy",
+  "tasks.ask_after_days",
+  "tasks.moment_grace_days",
 ]);
 export function readPolicy(db: Db): Policy {
   const p: Policy = { ...POLICY_DEFAULTS };
@@ -207,6 +221,11 @@ export function readPolicy(db: Db): Policy {
       p.reviewLoopLimit = v;
     if (r.policy_key === "tasks.allow_self_review" && typeof v === "boolean") p.allowSelfReview = v;
     if (r.policy_key === "tasks.require_human_approver" && typeof v === "boolean") p.requireHumanApprover = v;
+    if (r.policy_key === "tasks.tidy" && typeof v === "boolean") p.tidy = v;
+    if (r.policy_key === "tasks.ask_after_days" && typeof v === "number" && Number.isInteger(v) && v >= 3 && v <= 90)
+      p.askAfterDays = v;
+    if (r.policy_key === "tasks.moment_grace_days" && typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 14)
+      p.momentGraceDays = v;
   }
   return p;
 }

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { harness } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, owner, newTask } from "../fixtures/seed.ts";
-import { onChatGone, onParentFinished } from "../handlers/orphans.ts";
+import { onChatGone, onGoalEnded, onParentFinished } from "../handlers/orphans.ts";
 
 const me = { id: owner.id };
 const svc = { id: "svc_host", kind: "service" as const };
@@ -60,4 +60,18 @@ test("a held act is never put away by its chat closing: the Gate decides that", 
   const asked = await mk(h, { kind: "approve", title: "A plan", source: { kind: "chat", id: "thr_9" } });
   assert.deepEqual(await chat(h, "thread.closed", "thr_9"), [asked]);
   assert.equal((await get(h, held)).archived, undefined);
+});
+
+test("a goal that ended puts away the questions and holds it left open, not its work, and not another goal's", async () => {
+  const h = harness();
+  const ask = await mk(h, { kind: "answer", title: "Which budget?", source: { kind: "goal", id: "gol_1" } });
+  const work = await mk(h, { title: "Write the report", source: { kind: "goal", id: "gol_1" } });
+  const other = await mk(h, { kind: "answer", title: "Another goal", source: { kind: "goal", id: "gol_2" } });
+  const ended = (): string[] =>
+    onGoalEnded(h.ctxFor("tasks.archive", svc), { name: "goal.ended", payload: { goalId: "gol_1" } });
+  assert.deepEqual(ended(), [ask]);
+  assert.equal((await get(h, ask)).archived.why, "The goal it was part of has ended.");
+  assert.equal((await get(h, work)).archived, undefined);
+  assert.equal((await get(h, other)).archived, undefined);
+  assert.deepEqual(ended(), [], "a second delivery changes nothing");
 });

@@ -10,6 +10,7 @@ import {
   outFor,
   openIndex,
   raise,
+  readPolicy,
   visibleTo,
   whoIs,
 } from "../projections.ts";
@@ -23,23 +24,23 @@ const DAY = 86_400_000;
 export const CARD_MAX = 7;
 export const UNANSWERED_MS = 7 * DAY;
 export const KEEP_MS = 90 * DAY;
-/** Days a task may sit untouched before the Space asks (the Space setting "days before asking" will move this). */
-export const UNTOUCHED_DAYS = 14;
 
 /** What nobody has touched for two weeks goes on the card, once: the Space cannot tell if it still matters, and the person is asked (never told) instead of finding it on top of Needs you forever. Returns how many were added. */
 export function askUntouched(ctx: TasksCtx): number {
+  const policy = readPolicy(ctx.db);
+  if (!policy.tidy) return 0;
   const now = ctx.now();
   let n = 0;
   for (const t of allTasks(
     ctx.db,
     `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND c.updated_at <= ?`,
-    now - UNTOUCHED_DAYS * DAY,
+    now - policy.askAfterDays * DAY,
   ).slice(0, 200)) {
     if (t.snoozedUntil !== undefined && t.snoozedUntil > now) continue;
     if (t.due !== undefined && t.due > now) continue; // something is still coming
     if (t.relevantUntil !== undefined && t.momentStated !== false) continue; // its stated moment decides
     if (cannotArchive(ctx, t) !== null) continue; // a held act, a Run or other work waits on it
-    if (putOnCard(ctx, t, `Nothing has happened here for ${UNTOUCHED_DAYS} days.`)) n += 1;
+    if (putOnCard(ctx, t, `Nothing has happened here for ${policy.askAfterDays} days.`)) n += 1;
   }
   return n;
 }
@@ -61,6 +62,7 @@ export function putOnCard(ctx: TasksCtx, t: Task, why: string): boolean {
 
 /** A row nobody answered for a week archives itself, once, with that sentence. Returns how many. */
 export function archiveUnanswered(ctx: TasksCtx): number {
+  if (!readPolicy(ctx.db).tidy) return 0;
   let n = 0;
   const rows = ctx.db.all(
     "SELECT task_id FROM tasks_ask WHERE kept_until IS NULL AND at <= ? ORDER BY at LIMIT 200",

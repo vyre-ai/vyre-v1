@@ -149,3 +149,32 @@ test("a closed task is left alone, and a task someone is waiting on is not put a
   assert.equal((await get(h, waited)).archived, undefined);
   assert.equal((await get(h, waiter)).archived, undefined);
 });
+
+const announce = (h: Harness, key: string, after: unknown): Promise<string[]> =>
+  import("../impl.ts").then((m) =>
+    m.consumers["tasks.settings_sync"].run({ db: h.db } as never, { payload: { key, scope: "space", after } }),
+  );
+
+test("the Space settings move the rules: tidy off stops everything the Space does by itself; the days before asking and the grace after a moment are the Space's", async () => {
+  const h = harness();
+  const moment = await mk(h, { title: "Join the call", relevantUntil: h.now() + 1000 });
+  const idle = await mk(h, { title: "Check the report" });
+  await announce(h, "tasks.moment_grace_days", 3);
+  h.advance(DAY + 2000);
+  assert.equal(await tick(h), 0, "three days of grace, only one has passed");
+  h.advance(2 * DAY);
+  assert.equal(await tick(h), 1, "now the moment is three days behind");
+  assert.equal((await get(h, moment)).archived.code, "passed");
+  await announce(h, "tasks.ask_after_days", 30);
+  h.advance(20 * DAY);
+  await tick(h);
+  assert.equal((await card(h)).total, 0, "untouched for 23 days is under the Space's 30");
+  await announce(h, "tasks.tidy", false);
+  h.advance(40 * DAY);
+  assert.equal(await tick(h), 0);
+  assert.equal((await card(h)).total, 0, "tidy is off: nothing is asked and nothing is put away");
+  assert.equal((await get(h, idle)).archived, undefined);
+  await announce(h, "tasks.tidy", true);
+  await tick(h);
+  assert.equal((await card(h)).total, 1, "back on: it asks");
+});

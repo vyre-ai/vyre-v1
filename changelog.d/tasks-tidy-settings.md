@@ -1,0 +1,1 @@
+Three Space settings steer the tidying of tasks: tidy by itself (on), days a task may sit untouched before Vyre asks (14), and days after a task's moment before it is put away (1). A closed goal puts away the questions it left open, and a notice about a put-away task clears.

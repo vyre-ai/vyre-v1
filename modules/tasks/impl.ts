@@ -9,7 +9,7 @@ import { resumeRunOf, settleFromSource } from "./handlers/resume.ts";
 import { syncPolicy, syncTz } from "./projections.ts";
 import { tick } from "./handlers/clock.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
-import { onChatGone, onParentFinished } from "./handlers/orphans.ts";
+import { onChatGone, onGoalEnded, onParentFinished } from "./handlers/orphans.ts";
 import { onEvidence } from "./handlers/evidence.ts";
 import { onCrewMerged, onRunStopped, onTaskChanged } from "./handlers/schedule.ts";
 import type { TasksCtx } from "./projections.ts";
@@ -130,6 +130,10 @@ export const consumers = {
   "tasks.orphans_chat": {
     on: ["thread.closed", "thread.deleted", "thread.erased"],
     run: (ctx: TasksCtx, event: Parameters<typeof onChatGone>[1]) => onChatGone(ctx, event),
+  },
+  "tasks.orphans_goal": {
+    on: ["goal.ended"],
+    run: (ctx: TasksCtx, event: Parameters<typeof onGoalEnded>[1]) => onGoalEnded(ctx, event),
   },
   "tasks.orphans_parent": {
     on: ["task.transitioned"],

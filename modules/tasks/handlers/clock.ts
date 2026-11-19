@@ -5,8 +5,8 @@
 // It only reads and emits; notifications turn task.due and task.nudged into a line for the person, and automations can start on task.due.
 import { isTrustedService } from "../../../lib/trust.ts";
 import {
-  MOMENT_GRACE_MS,
   NOT_ARCHIVED,
+  readPolicy,
   actionableSlot,
   allTasks,
   emitTask,
@@ -156,12 +156,14 @@ export function momentWords(at: number, tz: string): string {
  * Put back undoes it, a task a held act, a Run or other work waits on is skipped, and an archived or asked task is out of the next pass, so each sentence is said once. Returns how many were put away.
  */
 export function archivePassed(ctx: TasksCtx): number {
+  const policy = readPolicy(ctx.db);
+  if (!policy.tidy) return 0;
   const now = ctx.now();
   let n = 0;
   for (const t of allTasks(
     ctx.db,
     `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND mo.until IS NOT NULL AND mo.until <= ?`,
-    now - MOMENT_GRACE_MS,
+    now - policy.momentGraceDays * DAY,
   ).slice(0, MAX)) {
     if (t.relevantUntil === undefined || cannotArchive(ctx, t) !== null) continue;
     if (t.momentStated === false) {

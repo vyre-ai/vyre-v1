@@ -689,9 +689,9 @@ export const consumers = {
       return out;
     },
   },
-  /** A request that closed is nothing to be told about any more: its notification stops counting, whoever decided it and wherever. */
+  /** A request that closed, or was put away (task.archived), is nothing to be told about any more: its notification stops counting, whoever decided it and wherever. */
   "notifications.task_closed": {
-    on: ["task.transitioned", "task.withdrawn"],
+    on: ["task.transitioned", "task.withdrawn", "task.archived"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const to = event.payload.to;
       if (event.name === "task.transitioned" && to !== "done" && to !== "canceled") return [];
