@@ -1,1 +1,0 @@
-- The Crew pane now has What they know together: the board the helpers of the chat write to, the last words they sent each other, and what the run cost; it is read only when you open it and is absent for a chat that has run nothing.

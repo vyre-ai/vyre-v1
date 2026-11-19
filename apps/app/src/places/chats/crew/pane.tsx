@@ -12,8 +12,7 @@ import { blockLine } from "../helper/model.ts";
 import { HelperHooksSection } from "../helper/HelperHooks.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { FolderMovePicker } from "../../files/tree/FolderMovePicker.tsx";
-import { ActivitySection } from "./run/ActivitySection.tsx";
-import { RunSection } from "./run/RunSection.tsx";
+import { CrewTabs } from "./run/CrewTabs.tsx";
 import { RecordPicker } from "../../records/RecordPicker.tsx";
 import type { PickedRecord } from "../../records/RecordPicker.tsx";
 import { HelperChip, MemberRing, timeOf, useNow } from "./strip.tsx";
@@ -143,6 +142,12 @@ export function CrewOverview({
       <Text accessibilityRole="header" style={st.title}>
         Crew
       </Text>
+      <CrewTabs
+        call={call}
+        threadId={threadId}
+        {...(onOpenThread ? { onOpenThread } : {})}
+        helpers={
+          <>
       <Text testID="crew-overview-totals" style={st.sub}>
         {/* ui-rows-lint: not a list (the totals are one sentence; each part is a word you press to sort) */}
         {totalsParts(status.totals).map((p, i) => (
@@ -274,11 +279,12 @@ export function CrewOverview({
           </Text>
         </View>
       ) : null}
-      <RunSection call={call} threadId={threadId} />
-      <ActivitySection call={call} {...(onOpenThread ? { onOpenThread } : {})} />
       <Text testID="crew-keys" style={st.keys}>
         ⌘ . stops all · ⌥ 1 to ⌥ 9 jump to a helper
       </Text>
+          </>
+        }
+      />
     </View>
   );
 }

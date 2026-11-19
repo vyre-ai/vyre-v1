@@ -63,18 +63,29 @@ for (const t of targets)
         overflowX: over,
         errs: errs.slice(0, 2),
       });
-      // the runtime sections: open both and shoot
+      // the Crew pane's three tabs: shoot each
       if (t.id.startsWith("RUNSECTION_01")) {
-        await page.click("[data-testid='crew-run-toggle']");
-        await page.click("[data-testid='crew-activity-toggle']");
-        await page.waitForTimeout(700);
-        await page.screenshot({ path: file.replace(".png", "-open.png") });
+        await page.waitForSelector("[data-testid='crew-tab-tab-board']", { timeout: 8000 }).catch(() => undefined);
+        await page.waitForTimeout(500);
+        await page.screenshot({ path: file.replace(".png", "-helpers.png") });
         report.push({
-          file: path.basename(file) + " open",
-          board: await page.locator("[data-testid='board']").count(),
-          messages: await page.locator("[data-testid='message-lines']").count(),
+          file: path.basename(file) + " helpers",
+          tabs: await page.locator("[data-testid^='crew-tab-tab-']").count(),
           activity: await page.locator("[data-testid='activity']").count(),
         });
+        for (const tab of ["board", "tokens"]) {
+          await page.click(`[data-testid='crew-tab-tab-${tab}']`);
+          await page.waitForTimeout(400);
+          if (tab === "tokens") await page.click("[data-testid='token-report-line']").catch(() => undefined);
+          await page.waitForTimeout(200);
+          await page.screenshot({ path: file.replace(".png", `-${tab}.png`) });
+          report.push({
+            file: path.basename(file) + " " + tab,
+            board: await page.locator("[data-testid='board']").count(),
+            messages: await page.locator("[data-testid='message-lines']").count(),
+            tokens: await page.locator("[data-testid='token-report']").count(),
+          });
+        }
       }
       // a finished result: press each action, shoot the sheet it opens, close it
       if (t.id.startsWith("PEEKRESULT_01")) {

@@ -2,10 +2,11 @@
 // the real components over a fake runtime that answers in the shapes of manifests/runs.ts.
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
-import { ActivitySection } from "../../../apps/app/src/places/chats/crew/run/ActivitySection.tsx";
-import { RunSection } from "../../../apps/app/src/places/chats/crew/run/RunSection.tsx";
+import { CrewOverview } from "../../../apps/app/src/places/chats/crew/pane.tsx";
+import { totalsOf } from "../../../apps/app/src/places/chats/crew/model.ts";
+import type { CrewMember, CrewStatusOut } from "../../../apps/app/src/places/chats/crew/model.ts";
 
-export const title = "Crew pane: runtime sections";
+export const title = "Crew pane: Helpers, Board, Tokens";
 
 const T0 = Date.now() - 60_000;
 const spent = (i: number, o: number, c: number, u: number) => ({
@@ -147,12 +148,66 @@ const call = async (cap: string): Promise<unknown> => {
   return {};
 };
 
+const row = (o: Partial<CrewMember> & { id: string; title: string; state: CrewMember["state"] }): CrewMember =>
+  ({
+    kind: "helper",
+    parentThreadId: "thr_0",
+    agentId: "agt_lead",
+    startedAt: T0,
+    elapsedMs: 40_000,
+    tokensIn: 0,
+    tokensOut: 0,
+    costMicros: 0,
+    ...o,
+  }) as CrewMember;
+const MEMBERS: CrewMember[] = [
+  row({
+    id: "thr_n",
+    name: "Numbers",
+    title: "Three-year cost",
+    state: "done",
+    found: "Harbor $12,540, Pine $12,660, Calder $13,105.",
+    endedAt: T0 + 20_000,
+    tokensIn: 31_000,
+    tokensOut: 9_000,
+    costMicros: 110_000,
+  }),
+  row({
+    id: "thr_c",
+    name: "Calendar",
+    title: "Delivery dates",
+    state: "done",
+    found: "The dock is free the weeks of the 14th and 28th.",
+    endedAt: T0 + 15_000,
+    tokensIn: 17_000,
+    tokensOut: 4_000,
+    costMicros: 22_000,
+  }),
+  row({
+    id: "thr_d",
+    name: "Docs",
+    title: "Summary page",
+    state: "working",
+    step: "Adding the bids table",
+    tokensIn: 19_000,
+    tokensOut: 3_000,
+    costMicros: 90_000,
+  }),
+];
+const status = { members: MEMBERS, totals: totalsOf(MEMBERS) } as CrewStatusOut;
+
 export default function Mount(): ReactNode {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
-      <View testID="runsection-mount" style={{ padding: 14, maxWidth: 440 }}>
-        <RunSection call={call} threadId="thr_0" />
-        <ActivitySection call={call} />
+      <View testID="runsection-mount" style={{ padding: 14, maxWidth: 460 }}>
+        <CrewOverview
+          status={status}
+          call={call}
+          threadId="thr_0"
+          onPeek={() => undefined}
+          onRefresh={() => undefined}
+          onOpenThread={() => undefined}
+        />
       </View>
     </ScrollView>
   );

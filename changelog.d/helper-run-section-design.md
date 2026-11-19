@@ -1,1 +1,0 @@
-- The Board and Running sections of the Crew pane are now plain heads with a chevron, a title and a count; helper messages show two faces instead of names, a running one wears the live mark, a sleeping one the moon and what it waits on.

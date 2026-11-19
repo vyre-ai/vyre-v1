@@ -1,8 +1,10 @@
 // The reads behind the run views (lane r42-subagents): the runtime's rows become the shapes the views draw, a server without a read shows nothing and never an error, and "Running and asleep" in the Crew pane asks only
 // when opened, opens a run's own chat on a press and says so when it has none.
-import test from "node:test";
+import test, { mock } from "node:test";
+import { act } from "react";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
+import { Text } from "react-native";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../../ui/src/testing/dom.ts";
 import {
   activityRowsOf,
@@ -15,9 +17,7 @@ import {
   readMessages,
   threadOfRun,
 } from "./reads.ts";
-import { RunSection } from "./RunSection.tsx";
-import { ActivitySection } from "./ActivitySection.tsx";
-import { CrewOverview } from "../pane.tsx";
+import { CrewTabs } from "./CrewTabs.tsx";
 
 installDom();
 
@@ -121,72 +121,6 @@ test("a server without these reads answers nothing, never throws; a run's chat i
   assert.equal(await threadOfRun(async () => ({ node: {} }), "run_a"), null);
 });
 
-test("Running and asleep asks nothing until it is opened, groups what it reads, opens a run's chat on a press and says so when it has none", async () => {
-  const asked: string[] = [];
-  const opened: string[] = [];
-  const call = async (cap: string, input: unknown): Promise<unknown> => {
-    asked.push(cap);
-    if (cap === "runs.activity.list") return ROWS;
-    if (cap === "runs.node.get")
-      return { node: (input as { runId: string }).runId === "run_a" ? { threadId: "thr_a" } : {} };
-    return {};
-  };
-  const root = await mount(createRoot, <ActivitySection call={call} onOpenThread={(t) => opened.push(t)} />);
-  assert.deepEqual(asked, [], "nothing is read while it is shut");
-  await press(find(root, "crew-activity-toggle"));
-  await flush();
-  assert.deepEqual(asked, ["runs.activity.list"]);
-  assert.match(textOf(find(root, "activity-asleep")), /New files in Bids/);
-  assert.ok(find(root, "activity-needs"), "a paused run needs the person");
-  await press(find(root, "activity-row-run_a"));
-  await flush();
-  assert.deepEqual(opened, ["thr_a"]);
-  await press(find(root, "activity-row-run_b"));
-  await flush();
-  assert.match(textOf(find(root, "crew-activity-note")), /no chat to open/);
-  await press(find(root, "crew-activity-toggle"));
-  assert.equal(find(root, "activity"), null, "shut again");
-});
-
-test("a server that cannot list activity shows no section at all in the Crew pane, and one that can shows the button", async () => {
-  const status = {
-    members: [],
-    totals: {
-      members: 0,
-      working: 0,
-      done: 0,
-      needsYou: 0,
-      failed: 0,
-      stopped: 0,
-      tokensIn: 0,
-      tokensOut: 0,
-      costMicros: 0,
-      filesChanged: 0,
-      added: 0,
-      deleted: 0,
-      elapsedMs: 0,
-    },
-  } as never;
-  const ok = await mount(
-    createRoot,
-    <CrewOverview
-      status={status}
-      call={async () => ({})}
-      threadId="thr_0"
-      onPeek={() => undefined}
-      onRefresh={() => undefined}
-    />,
-  );
-  assert.ok(find(ok, "crew-activity-toggle"));
-  const down = async (): Promise<unknown> => {
-    throw new Error("unknown capability");
-  };
-  const root = await mount(createRoot, <ActivitySection call={down} />);
-  await press(find(root, "crew-activity-toggle"));
-  await flush();
-  assert.equal(find(root, "crew-activity"), null, "nothing is drawn when the server cannot say");
-});
-
 const TREE = {
   nodes: [
     {
@@ -243,101 +177,53 @@ test("the root of a chat's work and its nodes: a tree with no root, an unknown s
   );
 });
 
-test("What they know together reads the newest tree of this chat only when opened, shows the board, the last words between helpers and the token report, and shows nothing when the chat has no tree, the server cannot say, or the person only watches", async () => {
+const HELP = <Text testID="the-helpers">helpers as they were</Text>;
+const ROWS_OK = ROWS;
+function rig(over: Record<string, (i: unknown) => unknown> = {}) {
   const asked: string[] = [];
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     asked.push(cap);
+    if (over[cap]) return over[cap]!(input);
+    if (cap === "runs.activity.list") return ROWS_OK;
     if (cap === "runs.tree.find") return { roots: [{ rootRun: "run_r", runId: "run_r", full: true }] };
-    if (cap === "runs.board.list")
-      return {
-        entries: [{ id: "b1", kind: "fact", text: "Harbor is $4,180", byRun: "run_r", evidence: ["bid.pdf"], at: 5 }],
-      };
-    if (cap === "runs.message.list")
-      return { messages: [{ id: "m1", fromRun: "run_n", toRun: "run_r", body: "Calder is $13,105", at: 6 }] };
+    if (cap === "runs.board.list") return { entries: [{ id: "b1", kind: "fact", text: "Harbor is $4,180", byRun: "run_r", evidence: ["bid.pdf"], at: 5 }] };
+    if (cap === "runs.message.list") return { messages: [{ id: "m1", fromRun: "run_n", toRun: "run_r", body: "Calder is $13,105", at: 6 }] };
     if (cap === "runs.tree.get") return TREE;
-    void input;
     return {};
   };
-  const root = await mount(createRoot, <RunSection call={call} threadId="thr_0" />);
-  assert.deepEqual(asked, [], "nothing is read while it is shut");
-  await press(find(root, "crew-run-toggle"));
+  return { call, asked };
+}
+
+test("the Crew pane is Helpers / Board / Tokens as the shared tab strip when the chat has a tree of work: Helpers keeps the pane and lists what the Space runs or sleeps, Board has the board and the faces-and-words lines, Tokens the quiet line", async () => {
+  const { call, asked } = rig();
+  const opened: string[] = [];
+  const root = await mount(createRoot, <CrewTabs call={call} threadId="thr_0" helpers={HELP} onOpenThread={(t) => opened.push(t)} />);
   await flush();
-  assert.deepEqual([...new Set(asked)].sort(), [
-    "runs.board.list",
-    "runs.message.list",
-    "runs.tree.find",
-    "runs.tree.get",
-  ]);
+  assert.ok(find(root, "the-helpers"), "Helpers is the pane as it was");
+  assert.ok(find(root, "activity-asleep"), "with what is running or asleep under it");
+  assert.match(textOf(find(root, "crew-tab-tab-board")), /Board\s*1/);
+  assert.ok(find(root, "crew-tab-tab-helpers") && find(root, "crew-tab-tab-tokens"));
+  assert.equal(find(root, "board"), null, "the board is not on the Helpers tab");
+  await press(find(root, "crew-tab-tab-board"));
   assert.match(textOf(find(root, "board-entry-b1")), /Harbor is \$4,180[\s\S]*Research/);
   assert.match(textOf(find(root, "message-line-m1")), /Calder is \$13,105/);
-  assert.match(String(find(root, "message-line-m1")?.props["aria-label"]), /Numbers to Research/);
+  assert.equal(find(root, "the-helpers"), null);
+  await press(find(root, "crew-tab-tab-tokens"));
   assert.match(textOf(find(root, "token-report-line")), /3,400\s+tokens/);
-  const none = await mount(createRoot, <RunSection call={async () => ({ roots: [] })} threadId="thr_0" />);
-  await press(find(none, "crew-run-toggle"));
-  await flush();
-  assert.equal(find(none, "crew-run"), null, "a chat with no tree shows nothing");
-  const watch = await mount(
-    createRoot,
-    <RunSection
-      call={async (cap) => (cap === "runs.tree.find" ? { roots: [{ rootRun: "run_r", full: false }] } : {})}
-      threadId="thr_0"
-    />,
-  );
-  await press(find(watch, "crew-run-toggle"));
-  await flush();
-  assert.equal(find(watch, "crew-run"), null, "a person who only watches gets no board");
-  const down = await mount(
-    createRoot,
-    <RunSection
-      call={async () => {
-        throw new Error("unknown capability");
-      }}
-      threadId="thr_0"
-    />,
-  );
-  await press(find(down, "crew-run-toggle"));
-  await flush();
-  assert.equal(find(down, "crew-run"), null, "a server without the reads shows nothing");
+  assert.equal(find(root, "token-report-rows"), null, "details on a press");
+  await press(find(root, "token-report-line"));
+  assert.ok(find(root, "token-row-run_r"));
+  await press(find(root, "crew-tab-tab-helpers"));
+  assert.ok(find(root, "the-helpers"));
+  assert.ok(asked.includes("runs.tree.find") && asked.includes("runs.activity.list"));
+  assert.deepEqual(opened, []);
 });
 
-test("one failed refresh keeps what was shown and says so quietly; a non-object row never throws", async () => {
-  let n = 0;
-  const call = async (cap: string): Promise<unknown> => {
-    if (cap !== "runs.activity.list") return {};
-    n++;
-    if (n === 1) return ROWS;
-    throw new Error("network down");
-  };
-  const root = await mount(createRoot, <ActivitySection call={call} />);
-  await press(find(root, "crew-activity-toggle"));
-  await flush();
-  assert.ok(find(root, "activity-asleep"));
-  await press(find(root, "crew-activity-toggle"));
-  await press(find(root, "crew-activity-toggle"));
-  await flush();
-  assert.ok(find(root, "activity-asleep"), "the rows stay");
-  assert.match(textOf(find(root, "crew-activity-stale")), /Could not refresh/);
-  assert.ok(find(root, "crew-activity-toggle"), "and the person can still close it");
-  assert.deepEqual(
-    activityRowsOf({ rows: [null, 3, "x", ROWS.rows[0]] }).map((r) => r.runId),
-    ["run_a"],
-  );
-  assert.deepEqual(
-    [boardOf({ entries: [null, 5] }), messagesOf({ messages: [null] }), nodesOf({ nodes: [null] })],
-    [[], [], []],
-  );
-});
-
-test("two quick presses open only the later one, however the answers arrive", async () => {
+test("a press on a run opens its own chat, says so when it has none, and of two quick presses only the later one opens", async () => {
   const opened: string[] = [];
   const waits: Record<string, (v: unknown) => void> = {};
-  const call = async (cap: string, input: unknown): Promise<unknown> => {
-    if (cap === "runs.activity.list") return ROWS;
-    if (cap === "runs.node.get") return new Promise((r) => (waits[(input as { runId: string }).runId] = r));
-    return {};
-  };
-  const root = await mount(createRoot, <ActivitySection call={call} onOpenThread={(t) => opened.push(t)} />);
-  await press(find(root, "crew-activity-toggle"));
+  const { call } = rig({ "runs.node.get": (i) => new Promise((r) => (waits[(i as { runId: string }).runId] = r)) });
+  const root = await mount(createRoot, <CrewTabs call={call} threadId="thr_0" helpers={HELP} onOpenThread={(t) => opened.push(t)} />);
   await flush();
   await press(find(root, "activity-row-run_a"));
   await press(find(root, "activity-row-run_b"));
@@ -346,29 +232,55 @@ test("two quick presses open only the later one, however the answers arrive", as
   waits["run_a"]!({ node: { threadId: "thr_a" } });
   await flush();
   assert.deepEqual(opened, ["thr_b"], "the earlier answer that arrives last does not take over");
+  await press(find(root, "activity-row-run_c"));
+  waits["run_c"]!({ node: {} });
+  await flush();
+  assert.match(textOf(find(root, "crew-activity-note")), /no chat to open/);
 });
 
-test("a failed refresh of the board keeps the board; only no tree, a server without the read, or a person who only watches makes it go", async () => {
-  let n = 0;
-  const call = async (cap: string): Promise<unknown> => {
-    if (cap === "runs.tree.find") {
-      n++;
-      if (n > 1) throw new Error("network down");
-      return { roots: [{ rootRun: "run_r", runId: "run_r", full: true }] };
-    }
-    if (cap === "runs.board.list")
-      return { entries: [{ id: "b1", kind: "fact", text: "Harbor is $4,180", byRun: "run_r", at: 5 }] };
-    if (cap === "runs.message.list") return { messages: [] };
-    if (cap === "runs.tree.get") return TREE;
-    return {};
+test("no tree of work in the chat, a person who only watches, or a server without the reads: no tab strip, the pane is just Helpers; a server without the activity read lists nothing", async () => {
+  const none = rig({ "runs.tree.find": () => ({ roots: [] }) });
+  const a = await mount(createRoot, <CrewTabs call={none.call} threadId="thr_0" helpers={HELP} />);
+  await flush();
+  assert.ok(find(a, "the-helpers"));
+  assert.equal(find(a, "crew-tab-tab-board"), null);
+  const watch = rig({ "runs.tree.find": () => ({ roots: [{ rootRun: "run_r", full: false }] }) });
+  const b = await mount(createRoot, <CrewTabs call={watch.call} threadId="thr_0" helpers={HELP} />);
+  await flush();
+  assert.equal(find(b, "crew-tab-tab-board"), null, "a person who only watches gets no board");
+  const down = async (): Promise<unknown> => {
+    throw new Error("unknown capability");
   };
-  const root = await mount(createRoot, <RunSection call={call} threadId="thr_0" />);
-  await press(find(root, "crew-run-toggle"));
+  const c = await mount(createRoot, <CrewTabs call={down} threadId="thr_0" helpers={HELP} />);
   await flush();
-  assert.ok(find(root, "board-entry-b1"));
-  await press(find(root, "crew-run-toggle"));
-  await press(find(root, "crew-run-toggle"));
-  await flush();
-  assert.ok(find(root, "board-entry-b1"), "the board stays");
-  assert.match(textOf(find(root, "crew-run-stale")), /Could not refresh/);
+  assert.ok(find(c, "the-helpers"));
+  assert.equal(find(c, "crew-tab-tab-board"), null);
+  assert.equal(find(c, "activity"), null);
+});
+
+test("a refresh that fails keeps the board and the rows and says so quietly; the next good one clears it", async () => {
+  mock.timers.enable({ apis: ["setInterval"] });
+  try {
+    let n = 0;
+    const { call } = rig({
+      "runs.tree.find": () => {
+        n++;
+        if (n === 2) throw new Error("network down");
+        return { roots: [{ rootRun: "run_r", runId: "run_r", full: true }] };
+      },
+    });
+    const root = await mount(createRoot, <CrewTabs call={call} threadId="thr_0" helpers={HELP} />);
+    await flush();
+    await press(find(root, "crew-tab-tab-board"));
+    assert.ok(find(root, "board-entry-b1"));
+    await act(async () => mock.timers.tick(5000));
+    await flush();
+    assert.ok(find(root, "board-entry-b1"), "the board stays");
+    assert.match(textOf(find(root, "crew-tabs-stale")), /Could not refresh/);
+    await act(async () => mock.timers.tick(5000));
+    await flush();
+    assert.equal(find(root, "crew-tabs-stale"), null, "and the next good refresh clears it");
+  } finally {
+    mock.timers.reset();
+  }
 });

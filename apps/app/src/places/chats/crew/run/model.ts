@@ -82,6 +82,8 @@ export function messageLines(
       id: m.id,
       from: first(name(m.fromRun)),
       to: first(name(m.toRun)),
+      fromId: m.fromRun,
+      toId: m.toRun,
       body: m.body,
       seen: m.seenAt !== undefined,
     }));
