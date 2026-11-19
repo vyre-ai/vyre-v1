@@ -185,9 +185,12 @@ test("a > inside a quoted value does not hide an event handler (stripEventAttrs,
     `<a title="a>b" data-x='c>d' onmouseover=alert(1)>k</a>`,
     `<img src=x title='>' onerror='alert(">")'>`,
     `<img/onerror=alert(1) src=x>`,
+    `<svg/onload=x>`,
+    `<a title=">" onclick=x>k</a>`,
+    `<img/onerror=x>`,
     `<a ${"x ".repeat(5000)}title=">" onclick=alert(1)>k</a>`,
   ];
-  for (const h of bad) assert.doesNotMatch(cleanHtml(h), /on(click|error|mouseover)\s*=/i, h);
+  for (const h of bad) assert.doesNotMatch(cleanHtml(h), /on(click|error|mouseover|load)\s*=/i, h);
   assert.equal(cleanHtml(`<a title='>' onclick=alert(1) href=x>k</a>`), `<a title='>' href=x>k</a>`);
   assert.equal(cleanHtml(`<p title="o'k" class=a>t</p>`), `<p title="o'k" class=a>t</p>`);
   assert.equal(cleanHtml(`<input title='>' name=a>x`), "x");
