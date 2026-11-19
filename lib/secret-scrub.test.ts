@@ -38,6 +38,13 @@ test("a value is removed whatever the spacing, quoting or place: name=value, spa
   gone("AUTHTOKEN: x1y2", "x1y2");
   gone("AWS_SECRET_ACCESS_KEY=abc", "=abc");
   gone("TOKEN=abcd", "abcd");
+  gone("sessionId=abc", "=abc");
+  gone("session_id=abc", "=abc");
+  gone("SESSION_ID=abc", "=abc");
+  gone("jwt=abc", "=abc");
+  gone("otp=123456", "123456");
+  gone("userOtp: 123456", "123456");
+  gone("pwd=abc", "=abc");
   gone("SECRET=abc", "=abc");
   gone("DB_PASSWORD=abc", "=abc");
   gone("db.password=hunter2", "hunter2");

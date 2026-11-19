@@ -153,9 +153,9 @@ export const scan = (text: unknown): string[] => redact(text).hits;
 // over the result, and cuts to the limit last, at a word boundary, so a key is never split by the cut.
 
 // A secret word ends the name. snake_case, kebab-case and dotted names in any letter case (api_key, API_KEY, x-api-key, db.password); camelCase after a lower-case letter or digit (accessToken, authToken, secretKey, clientSecret, apiKey).
-const SECRET_WORDS = "pass(?:word|wd|phrase)?|pw|secret|token|apikey|api[-_]?key|key|auth|authorization|credentials?|session|sid|cookie|signature";
+const SECRET_WORDS = "pass(?:word|wd|phrase)?|pw|pwd|jwt|otp|session[-_]?id|secret|token|apikey|api[-_]?key|key|auth|authorization|credentials?|session|sid|cookie|signature";
 const SECRET_SNAKE = new RegExp(`(?:^|[-_.])(?:${SECRET_WORDS})$`, "i");
-const SECRET_CAMEL = /[a-z0-9](?:Pass(?:word|wd|phrase)?|Pw|Secret|Token|Apikey|ApiKey|Key|Auth|Authorization|Credentials?|Session|Sid|Cookie|Signature)$/;
+const SECRET_CAMEL = /[a-z0-9](?:Pass(?:word|wd|phrase)?|Pw|Pwd|Jwt|Otp|SessionId|Secret|Token|Apikey|ApiKey|Key|Auth|Authorization|Credentials?|Session|Sid|Cookie|Signature)$/;
 // run together in one case (AUTHTOKEN, dbpassword): the words that are never anything else need no boundary; "key" does (monkey)
 const SECRET_STRONG = /(?:token|secret|password|passwd|passphrase|apikey|credentials?)$/i;
 const SECRET_NAME = { test: (w: string): boolean => SECRET_SNAKE.test(w) || SECRET_CAMEL.test(w) || SECRET_STRONG.test(w) };
