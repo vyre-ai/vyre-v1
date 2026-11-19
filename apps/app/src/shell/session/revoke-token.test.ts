@@ -27,7 +27,8 @@ function backing(): Backing & { held: { iv: Uint8Array; ct: ArrayBuffer } | null
   };
   return b;
 }
-const S = { baseUrl: "https://northwind.example", token: "tok_secret_value_1" };
+const S = { baseUrl: "https://northwind.example", token: "tok_secret_value_1", spaceId: "spc_north" };
+const here = async (): Promise<string | null> => "spc_north";
 const refused = (status: number): CapCall =>
   (async () => {
     throw new CapError({ code: "auth.refused", message: "refused", traceId: "t", status });
@@ -47,7 +48,7 @@ test("sends identity.sign_out with the stored token and strikes it out when the 
   const bk = backing();
   const queue = createRevokeQueue(bk);
   const seen: unknown[] = [];
-  const made: { baseUrl: string; token: string }[] = [];
+  const made: { baseUrl: string; token: string; spaceId: string }[] = [];
   await revokeToken(S, { queue, make: (s) => (made.push(s), ok(seen)) });
   assert.deepEqual(made, [S]);
   assert.deepEqual(seen, [["identity.sign_out", {}]]);
@@ -88,10 +89,10 @@ test("the desktop app: an origin the Space refuses (403) or a Space that cannot 
     const queue = createRevokeQueue(backing());
     await revokeToken(S, { queue, make: () => failing });
     assert.equal((await queue.list()).length, 1, "still queued");
-    await retryPendingRevokes({ queue, make: () => failing });
+    await retryPendingRevokes({ queue, make: () => failing, probe: here });
     assert.equal((await queue.list()).length, 1, "still refused: still queued");
     const seen: unknown[] = [];
-    await retryPendingRevokes({ queue, make: () => ok(seen) });
+    await retryPendingRevokes({ queue, make: () => ok(seen), probe: here });
     assert.deepEqual(seen, [["identity.sign_out", {}]]);
     assert.equal((await queue.list()).length, 0, "sent at the next start, and gone");
   }
@@ -106,7 +107,7 @@ test("a token the Space says is already invalid (401) is struck out at once; an 
   await old.add({ ...S, at: t });
   t += REVOKE_MAX_AGE_MS + 1;
   const seen: unknown[] = [];
-  await retryPendingRevokes({ queue: old, make: () => ok(seen) });
+  await retryPendingRevokes({ queue: old, make: () => ok(seen), probe: here });
   assert.deepEqual(seen, [], "too old: not sent, not kept");
 });
 
@@ -116,4 +117,33 @@ test("a browser with no store keeps nothing and Sign Out still sends the revoke 
   await revokeToken(S, { queue, make: () => ok(seen) });
   assert.equal(seen.length, 1);
   assert.deepEqual(await queue.list(), []);
+});
+
+test("a retry goes only to an address that still answers as the Space that issued the token", async () => {
+  // the address now answers as another Space (a loopback port reused, a name moved): nothing is sent and the entry goes
+  let queue = createRevokeQueue(backing());
+  await revokeToken(S, { queue, make: () => unreachable });
+  let seen: unknown[] = [];
+  await retryPendingRevokes({ queue, make: () => ok(seen), probe: async () => "spc_someone_else" });
+  assert.deepEqual(seen, [], "the token was not sent to another Space");
+  assert.deepEqual(await queue.list(), [], "and it is not kept for it");
+  // nothing answers there at the moment: nothing is sent, the entry waits for the next start
+  queue = createRevokeQueue(backing());
+  await revokeToken(S, { queue, make: () => unreachable });
+  seen = [];
+  await retryPendingRevokes({ queue, make: () => ok(seen), probe: async () => null });
+  assert.deepEqual(seen, []);
+  assert.equal((await queue.list()).length, 1);
+});
+
+test("only what the revoke needs is stored: address, token, Space id and time, nothing of the saved session", async () => {
+  const queue = createRevokeQueue(backing());
+  const whole = {
+    ...S,
+    def: { name: "Northwind", image: "data:image/png;base64,AAAA" },
+    username: "imran",
+  } as typeof S;
+  await revokeToken(whole, { queue, make: () => unreachable });
+  const [e] = await queue.list();
+  assert.deepEqual(Object.keys(e!).sort(), ["at", "baseUrl", "spaceId", "token"]);
 });

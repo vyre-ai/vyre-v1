@@ -105,3 +105,35 @@ export async function probeDirectSpace(address: string, o: ProbeOptions = {}): P
     return false;
   }
 }
+
+/**
+ * The Space id the address answers with (its /healthz), or null when nothing there answers as a Space server (a timeout, another kind of server, an answer of the wrong shape, an older server whose /healthz a
+ * desktop app cannot read). Asked before a stored token is sent anywhere again: a token goes only to the Space that issued it.
+ */
+export async function spaceIdAt(address: string, o: ProbeOptions = {}): Promise<string | null> {
+  let base: string;
+  try {
+    const u = new URL(address);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    base = u.origin;
+  } catch {
+    return null;
+  }
+  const doFetch = o.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
+  try {
+    return await withTimeout(o.timeoutMs ?? PROBE_TIMEOUT_MS, async (signal) => {
+      const res = await doFetch(`${base}/healthz`, {
+        method: "GET",
+        headers: { accept: "application/json" },
+        cache: "no-store",
+        redirect: "error",
+        signal,
+      });
+      if (res.status !== 200 || !/^application\/json\b/i.test(res.headers.get("content-type") ?? "")) return null;
+      const body = await res.json();
+      return spaceHealth(body) ? (body as { space: string }).space : null;
+    });
+  } catch {
+    return null;
+  }
+}

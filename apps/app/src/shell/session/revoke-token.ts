@@ -4,7 +4,7 @@
 // A revoke is never only a promise: it is written down (sealed: revoke-queue.ts) as it is sent and struck out when the Space has answered, so a page that is left or reloaded in the middle of it, a Space that cannot be
 // reached, or an origin the Space refuses leaves it queued, and the next start sends it again (retryPendingRevokes). It goes the moment it succeeds or the Space says the token is already invalid (401), and never
 // stays a day.
-import { CapError, createCapCaller } from "./caps.ts";
+import { CapError, createCapCaller, spaceIdAt } from "./caps.ts";
 import type { CapCall } from "./caps.ts";
 import { browserBacking, createRevokeQueue } from "./revoke-queue.ts";
 import type { RevokeQueue } from "./revoke-queue.ts";
@@ -24,20 +24,41 @@ async function sent(call: CapCall): Promise<boolean> {
   }
 }
 
+/** What a revoke needs, and nothing of the saved session beyond it: where it goes, the token, and the Space that issued it. */
+export interface Revoke {
+  baseUrl: string;
+  token: string;
+  spaceId: string;
+}
+type Probe = (address: string) => Promise<string | null>;
+
 export async function revokeToken(
-  s: { baseUrl: string; token: string },
+  s: Revoke,
   o: { make?: Maker; queue?: RevokeQueue; now?: () => number } = {},
 ): Promise<void> {
   const queue = o.queue ?? queueOf();
+  const entry = { baseUrl: s.baseUrl, token: s.token, spaceId: s.spaceId };
   // written down as it is sent, not after: a reload in the middle of the call leaves it to the next start
-  const written = queue.add({ ...s, at: (o.now ?? Date.now)() });
-  const done = await sent((o.make ?? make)(s));
+  const written = queue.add({ ...entry, at: (o.now ?? Date.now)() });
+  const done = await sent((o.make ?? make)(entry));
   await written.catch(() => undefined);
-  if (done) await queue.remove(s).catch(() => undefined);
+  if (done) await queue.remove(entry).catch(() => undefined);
 }
 
-/** At start: send again every revoke that did not get its answer. */
-export async function retryPendingRevokes(o: { make?: Maker; queue?: RevokeQueue } = {}): Promise<void> {
+/**
+ * At start: send again every revoke that did not get its answer, but only to an address that still answers as the Space that issued the token (a Personal Space on this computer comes back on a new port, a Space can
+ * move to a name another server now answers to): the token goes nowhere else. An address that answers as another Space drops the entry; one that does not answer keeps it until it is a day old.
+ */
+export async function retryPendingRevokes(o: { make?: Maker; queue?: RevokeQueue; probe?: Probe } = {}): Promise<void> {
   const queue = o.queue ?? queueOf();
-  for (const p of await queue.list()) if (await sent((o.make ?? make)(p))) await queue.remove(p).catch(() => undefined);
+  const probe: Probe = o.probe ?? ((address) => spaceIdAt(address));
+  for (const p of await queue.list()) {
+    const there = await probe(p.baseUrl);
+    if (there === null) continue; // nothing answers there now: asked again at the next start
+    if (there !== p.spaceId) {
+      await queue.remove(p).catch(() => undefined); // another Space lives at that address now: the token is not sent to it
+      continue;
+    }
+    if (await sent((o.make ?? make)(p))) await queue.remove(p).catch(() => undefined);
+  }
 }

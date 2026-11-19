@@ -4,6 +4,8 @@
 export interface Pending {
   baseUrl: string;
   token: string;
+  /** The Space that issued the token: a retry goes only to an address that still answers as this one. */
+  spaceId: string;
   at: number;
 }
 
@@ -47,7 +49,11 @@ export function createRevokeQueue(backing: Backing | null, now: () => number = D
       const j: unknown = JSON.parse(new TextDecoder().decode(plain));
       return Array.isArray(j)
         ? (j as Pending[]).filter(
-            (p) => typeof p?.baseUrl === "string" && typeof p.token === "string" && now() - p.at < REVOKE_MAX_AGE_MS,
+            (p) =>
+              typeof p?.baseUrl === "string" &&
+              typeof p.token === "string" &&
+              typeof p.spaceId === "string" &&
+              now() - p.at < REVOKE_MAX_AGE_MS,
           )
         : [];
     } catch {

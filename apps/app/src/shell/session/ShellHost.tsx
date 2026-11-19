@@ -652,7 +652,7 @@ export function ShellHost({
     void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
     void unlinkComputer(stored);
     // always through the revoke queue (revoke-token.ts): sent now with the stored token, whether or not the session has opened; if it gets no answer (offline, the Space down, the page closed) it is sent again at the next start
-    void revokeToken(stored);
+    void revokeToken({ baseUrl: stored.baseUrl, token: stored.token, spaceId: stored.def.spaceId });
     onSignedOut("manual");
   };
   signOutRef.current = signOut;
