@@ -40,6 +40,7 @@ type Out = {
       tool: string;
       cap?: string;
       outcome: "ok" | "error" | "held";
+      did: string;
       threadId?: string;
       taskId?: string;
       at: number;
@@ -73,6 +74,7 @@ type Out = {
       {
         "at": 1760000000000,
         "cap": "example",
+        "did": "example",
         "id": "mca_a1b2c3",
         "outcome": "ok",
         "taskId": "tsk_a1b2c3",

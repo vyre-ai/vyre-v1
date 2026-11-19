@@ -17,7 +17,7 @@ Pin or unpin a note
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/notes/pin |
-| MCP tool | none |
+| MCP tool | notes_pin (memory, deferred) |
 | CLI | none |
 | Emits | notes.updated |
 

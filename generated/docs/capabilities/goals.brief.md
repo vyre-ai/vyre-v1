@@ -17,7 +17,7 @@ What the lead agent of a goal reads at each wake-up: the finish line and where i
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/goals/brief |
-| MCP tool | none |
+| MCP tool | goals_brief (tasks, deferred) |
 | CLI | none |
 | Emits | none |
 

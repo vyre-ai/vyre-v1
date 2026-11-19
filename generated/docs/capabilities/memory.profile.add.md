@@ -17,7 +17,7 @@ Add a fact about yourself to your public or private profile
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/memory/profile/add |
-| MCP tool | none |
+| MCP tool | memory_profile_add (memory, deferred) |
 | CLI | none |
 | Emits | memory.fact_proposed, memory.fact_accepted, memory.learned |
 

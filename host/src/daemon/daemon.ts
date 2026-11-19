@@ -273,6 +273,9 @@ import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createMcpRoute } from "../routes/mcp.ts";
+import { takeVisitor } from "../seams/visitor-proof.ts";
+import { errorLine, guardRequest, guardUpgrade, installRejectionBackstop } from "./safe-request.ts";
+import type { OnError } from "./safe-request.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { privateKeyOf, publicKeyOf } from "../seams/person-keys.ts";
@@ -7632,11 +7635,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     syncLive.setHost(h);
     const server = h.server;
     if (hubFactory)
-      server.on("upgrade", (req, socket, head) => {
+      server.on("upgrade", guardUpgrade((req, socket, head) => {
+        takeVisitor(req); // the relay's visitor headers are read and removed here too (seams/visitor-proof.ts)
         if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
         else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
         else if (chromeDirect.claims(req)) chromeDirect.upgrade(req, socket, head);
-      });
+      }, (where, error) => sink.logger({ space: space ?? "-", place: "http" }).error("http.handler_threw", { where, ...errorLine(error) })));
     server.removeAllListeners("request");
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
     server.on("connection", (sock) => {
@@ -7677,7 +7681,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     });
     // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
     const appFiles = createAppFilesRoute({ dir: () => (o.appDir !== undefined ? o.appDir : defaultAppDir()) });
-    server.on("request", (req, res) => {
+    const httpLog = sink.logger({ space: space ?? "-", place: "http" });
+    const onHttpError: OnError = (where, error) =>
+      httpLog.error("http.handler_threw", { where, ...errorLine(error) });
+    const detachBackstop = installRejectionBackstop((error) =>
+      httpLog.error("process.unhandled_rejection", errorLine(error)),
+    );
+    server.once("close", detachBackstop);
+    server.on("request", guardRequest((req, res) => {
+      // the visitor the relay vouched for is read once, here, and the two headers that carried it are removed: they exist only on the relay-to-daemon hop (seams/visitor-proof.ts)
+      takeVisitor(req);
       // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
       // decided by where the request comes from (review 12 Nov): a page in an agent's browser may call any address of this host, so the address it arrived on proves nothing
       const onComputerNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
@@ -7747,8 +7760,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         appFiles.handle(req, res)
       )
         return;
-      listener(req, res);
-    });
+      return listener(req, res);
+    }, onHttpError));
     // the agent workspaces' subnets are read before the first call, so the guard refuses one left running by the process before this one at once (third look T5); a Docker that does not answer
     // within 5 s does not hold the start, and they are read again at the first sweep
     await Promise.race([

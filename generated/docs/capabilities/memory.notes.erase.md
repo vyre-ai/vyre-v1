@@ -11,13 +11,13 @@ Erase one memory note for good, with its graph node and links (governance erase)
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/memory/notes/erase |
-| MCP tool | none |
+| MCP tool | memory_notes_erase (memory, deferred) |
 | CLI | none |
 | Emits | note.erased |
 

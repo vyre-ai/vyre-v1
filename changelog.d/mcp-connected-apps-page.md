@@ -1,0 +1,1 @@
+Connected apps in Settings now shows, for each app, what it did last in plain words and when, a green dot while it is working, and when it joined if it has not acted yet. Press a row to see what it did lately, turn setup on or off, or remove it.

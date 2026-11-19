@@ -1,0 +1,1 @@
+A hostile email, address header, page or chat message of about 100 KB can no longer freeze the server or a browser tab for seconds: the patterns that read mail HTML, addresses, merge fields, links and tables now run in one pass.

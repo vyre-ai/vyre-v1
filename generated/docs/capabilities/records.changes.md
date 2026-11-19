@@ -17,7 +17,7 @@ Change feed of a record type since a sequence number (RecordStore.changes)
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/records/changes |
-| MCP tool | none |
+| MCP tool | records_changes (records, deferred) |
 | CLI | none |
 | Emits | none |
 

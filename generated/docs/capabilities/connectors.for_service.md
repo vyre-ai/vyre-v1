@@ -17,7 +17,7 @@ Find the connector for a service named in words (Fathom, Slack), the fields it n
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/connectors/for_service |
-| MCP tool | none |
+| MCP tool | connectors_for_service (engineer, deferred) |
 | CLI | none |
 | Emits | none |
 

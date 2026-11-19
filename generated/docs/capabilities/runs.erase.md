@@ -11,13 +11,13 @@ Erase one Run for good with its steps, waits and alerts (governance erase)
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/runs/erase |
-| MCP tool | none |
+| MCP tool | runs_erase (automations, deferred) |
 | CLI | none |
 | Emits | run.erased |
 

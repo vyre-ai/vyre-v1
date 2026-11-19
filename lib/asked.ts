@@ -87,7 +87,8 @@ const NOT_A_NAME = new Set([
   "every",
 ]);
 
-const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
+// the lookbehind starts a match only at the start of a run, so a long run of word characters is read once, not once per start
+const EMAIL = /(?<![\w.+-])[\w.+-]{1,200}@[\w-]{1,100}(?:\.[\w-]{1,100}){1,10}/g;
 const URL_RE = /https?:\/\/[^\s)>\]]+/g;
 const PHONE = /\+\d[\d\s().-]{6,}\d/g;
 const REPO = /(?<![\w./@-])[A-Za-z0-9][\w.-]*\/[A-Za-z0-9][\w.-]*\b/g;
@@ -121,7 +122,8 @@ function namesIn(rest: string, loose: boolean): string[] {
 /** What a clause names after its verb. A push names its branch or remote with a plain "to main"; a send names a person directly after the verb ("email Sarah"). */
 function targetsIn(rest: string, act: string): string[] {
   const out = new Set<string>();
-  let text = rest;
+  // a chat body is cut before any pattern reads it (rc.40: the patterns below are linear, the cut is the second guard)
+  let text = rest.length > 20_000 ? rest.slice(0, 20_000) : rest;
   for (const m of text.matchAll(URL_RE)) {
     try {
       out.add(new URL(m[0]).hostname.toLowerCase());

@@ -11,7 +11,7 @@ import { searchHost } from "../../search-host.ts";
 import { rememberSearchUrls, webTurnKey } from "../../../../lib/web-turns.ts";
 import type { FetchDeps } from "../../../../lib/public-fetch.ts";
 import { holdsHandedOutSecret } from "../../projections.ts";
-import { secretShape } from "../../../../lib/secret-shapes.ts";
+import { scan } from "../../../../lib/secret-scrub.ts";
 import { maskValue } from "../record.ts";
 import { raise } from "../../projections.ts";
 import type { CompCtx } from "../../projections.ts";

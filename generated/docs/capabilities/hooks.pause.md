@@ -11,13 +11,13 @@ Pause a hook, or turn it back on
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | approve when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/hooks/pause |
-| MCP tool | none |
+| MCP tool | hooks_pause (engineer, deferred) |
 | CLI | none |
 | Emits | hook.changed |
 

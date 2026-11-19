@@ -6,6 +6,8 @@
 // DECISION: the open message is never shortened. Only a one-line preview is cut, and it stops at a word and ends in "…".
 // DECISION: a forwarded message ("---------- Forwarded message ---------") is the content, so it is not folded; a reply's history is.
 
+import { mailTagAt, newMailScan } from "./html-text.ts";
+
 export interface Cleaned {
   /** What the sender wrote this time. */
   body: string;
@@ -99,7 +101,7 @@ function signatureStart(lines: string[], sender?: string): number {
 const tidy = (lines: string[]): string =>
   lines
     .join("\n")
-    .replace(/[ \t]+$/gm, "")
+    .replace(/(?<![ \t])[ \t]+$/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
@@ -278,29 +280,37 @@ interface Tok {
   text: string;
   self: boolean;
 }
-const TAG =
-  /<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?\]\]>|<![^>]*>|<\?[^>]*>|<\/?([a-zA-Z][a-zA-Z0-9:-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*(\/?)>/g;
 const ATTR = /([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
 
+// No length cap here: the open message is never shortened (see the header). The scan has its own linear budget (newMailScan).
 function tokens(html: string): Tok[] {
   const out: Tok[] = [];
+  const scan = newMailScan(html);
   let last = 0;
-  TAG.lastIndex = 0;
-  for (let m = TAG.exec(html); m; m = TAG.exec(html)) {
-    if (m.index > last) out.push({ kind: "text", name: "", attrs: {}, text: html.slice(last, m.index), self: false });
-    last = TAG.lastIndex;
-    const name = (m[1] ?? "").toLowerCase();
+  let from = 0;
+  for (;;) {
+    const lt = html.indexOf("<", from);
+    if (lt < 0) break;
+    const t = mailTagAt(html, lt, scan);
+    if (!t) {
+      from = lt + 1;
+      continue;
+    }
+    if (lt > last) out.push({ kind: "text", name: "", attrs: {}, text: html.slice(last, lt), self: false });
+    last = t.end;
+    from = t.end;
+    const name = t.name.toLowerCase();
     if (!name) {
       out.push({ kind: "comment", name: "", attrs: {}, text: "", self: false });
       continue;
     }
     const attrs: Record<string, string> = {};
     ATTR.lastIndex = 0;
-    for (let a = ATTR.exec(m[2] ?? ""); a; a = ATTR.exec(m[2] ?? "")) {
+    for (let a = ATTR.exec(t.attrs); a; a = ATTR.exec(t.attrs)) {
       const k = (a[1] ?? "").toLowerCase();
       if (k && !(k in attrs)) attrs[k] = decodeEntities(a[2] ?? a[3] ?? a[4] ?? "");
     }
-    out.push({ kind: m[0][1] === "/" ? "close" : "open", name, attrs, text: "", self: m[3] === "/" });
+    out.push({ kind: t.close ? "close" : "open", name, attrs, text: "", self: t.self });
   }
   if (last < html.length) out.push({ kind: "text", name: "", attrs: {}, text: html.slice(last), self: false });
   return out;
@@ -442,7 +452,7 @@ export function htmlToText(html: string): string {
     if (t.kind === "text") {
       const x = decodeEntities(t.text.replace(/\s+/g, " "));
       if (x.trim() || !out.endsWith("\n")) out += x;
-    } else if (t.name === "br") out = out.replace(/[ \t]+$/, "") + "\n";
+    } else if (t.name === "br") out = out.replace(/(?<![ \t])[ \t]+$/, "") + "\n";
     else if (t.name === "li" && t.kind === "open") {
       soft();
       out += "- ";
@@ -453,7 +463,7 @@ export function htmlToText(html: string): string {
     } else if (BLOCK.has(t.name)) soft();
   }
   return out
-    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/(?<![ \t])[ \t]*\n[ \t]*/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/[ \t]{2,}/g, " ")
     .trim();

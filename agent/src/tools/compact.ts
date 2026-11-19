@@ -1,3 +1,4 @@
+import { capText, cutBlocks, stripTags } from "../../../lib/html-text.ts";
 // What an agent reads back from the calendar and mail tools (Andrea's rc.20 report: "what is on my calendar this week and what needs a reply" took minutes and hundreds of thousands of tokens,
 // because a list tool returned every raw description, HTML body, quoted history and attendee blob). The people's own views (the app) call the capabilities directly and are unchanged; this is only
 // the shape the model gets, as `{ data, meta }`:
@@ -69,10 +70,13 @@ const bytesOf = (v: unknown): number => new TextEncoder().encode(JSON.stringify(
 const cut = (s: string, n: number): { text: string; cut?: number } =>
   s.length > n ? { text: s.slice(0, n), cut: s.length - n } : { text: s };
 const strip = (html: string): string =>
-  html
-    .replace(/<(style|script)[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<br\s*\/?>|<\/p>|<\/div>|<\/li>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
+  stripTags(
+    cutBlocks(capText(html, 2_000_000), ["style", "script"], { repl: " " }).replace(
+      /<br\s{0,16}\/?>|<\/p>|<\/div>|<\/li>/gi,
+      "\n",
+    ),
+    " ",
+  )
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")

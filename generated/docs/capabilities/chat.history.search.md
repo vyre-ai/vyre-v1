@@ -17,7 +17,7 @@ Word-for-word search over the chat messages and transcript rows (turns, tool cal
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/chat/history/search |
-| MCP tool | none |
+| MCP tool | chat_history_search (chats, deferred) |
 | CLI | none |
 | Emits | none |
 

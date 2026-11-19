@@ -17,7 +17,7 @@ Don't remember this chat: anyone in it turns learning off; who turned it off, or
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/memory/chat_learning/set |
-| MCP tool | none |
+| MCP tool | memory_chat_learning_set (memory, deferred) |
 | CLI | none |
 | Emits | memory.chat_learning_changed |
 

@@ -269,14 +269,14 @@ test("a search or an address that looks like a secret is refused with what it lo
   ])
     await assert.rejects(
       tool["computers.chrome.search"]!(ctx, { query }),
-      (e: any) => codeOf(e) === "validation.bad_input" && /looks like it contains/.test(e?.error?.message ?? ""),
+      (e: any) => codeOf(e) === "validation.bad_input" && /looks like it contains a secret/.test(e?.error?.message ?? ""),
       query,
     );
   await assert.rejects(
     tool["computers.chrome.read"]!(ctx, {
       url: "https://docs.example.com/a?token=ghp_abcdefghijklmnopqrstuvwxyz0123456789",
     }),
-    (e: any) => codeOf(e) === "validation.bad_input" && /looks like it carries/.test(e?.error?.message ?? ""),
+    (e: any) => codeOf(e) === "validation.bad_input" && /looks like it carries a secret/.test(e?.error?.message ?? ""),
   );
   assert.deepEqual(asked, []);
 });
