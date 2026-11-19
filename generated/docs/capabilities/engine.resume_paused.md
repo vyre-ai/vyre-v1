@@ -36,6 +36,7 @@ type In = {
 type Out = {
   resumed: number;
   lost: number;
+  released: number;
 };
 ```
 
@@ -58,6 +59,7 @@ type Out = {
   },
   "output": {
     "lost": 1,
+    "released": 1,
     "resumed": 1
   }
 }

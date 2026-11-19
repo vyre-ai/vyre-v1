@@ -686,11 +686,12 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         const inside =
           typeof body["agent_id"] === "string" && body["agent_id"] !== "" ? (body["agent_id"] as string) : undefined;
         let told: string[] = [];
-        if (inside !== undefined && event === "tool.before" && subagentGateHolder.gate) {
+        if (event === "tool.before" && subagentGateHolder.gate) {
           try {
             const g = await subagentGateHolder.gate({
               threadId: s.ctx.thread.threadId,
-              subagent: inside,
+              agentId: s.ctx.agentId,
+              ...(inside ? { subagent: inside } : {}),
               ...(tool ? { tool } : {}),
             });
             if (g.block) return ok(id, { block: g.block, notes: g.notes });

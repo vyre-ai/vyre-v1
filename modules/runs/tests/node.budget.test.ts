@@ -151,8 +151,8 @@ test("raising the limit past what was used lets the paused work go on; raising i
   assert.equal(r.resumed.length, 0);
   assert.equal(status(r.h, a.id), "paused");
   const enough = await r.h.call("runs.budget.set", { runId: root.id, usdMicros: 5_000_000 }, owner);
-  assert.equal(enough.resumed, 2);
-  assert.deepEqual(r.resumed.map((x) => x.agentId).sort(), [AGENT("a"), AGENT("b")].sort());
+  assert.ok(enough.resumed >= 2);
+  for (const k of ["a", "b"]) assert.ok(r.resumed.some((x) => x.agentId === AGENT(k)));
   assert.equal(status(r.h, a.id), "stopped", "its turn goes on as a new turn of its own");
   // the same limit reached again acts again: a new limit is a new decision
   const again = await job(r, { usdMicros: 1_000_000 });
@@ -299,4 +299,72 @@ test("a member who is not the owner, even one who may spend the Space's money, i
   );
   may.add("usr_admin");
   assert.ok((await h.call("runs.budget.set", { runId: space.root.id, tokens: 10_000 }, admin)).node);
+});
+
+test("under a reached limit: a queued node is not taken, one that wakes waits paused with its wake, one started now starts paused; raising the limit puts them back in the queue", async () => {
+  const r = rig();
+  const { root, a } = await job(r, { tokens: 100 }, "own");
+  const queued = (await r.h.call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: root.id }, engine))
+    .node;
+  const sleeper = (await r.h.call("runs.node.start", { kind: "wait", owner: alice.id, parentRun: root.id }, engine))
+    .node;
+  await r.h.call("runs.node.claim", { runId: sleeper.id, holder: "host:a" }, engine);
+  await r.h.call(
+    "runs.node.move",
+    {
+      ...hold(r.h, sleeper.id),
+      runId: sleeper.id,
+      to: "waiting",
+      why: "slept",
+      wake: { kind: "event", label: "the build finishes" },
+    },
+    engine,
+  );
+  for (const n of [queued, sleeper])
+    await r.h.call("runs.node.event", { runId: n.id, type: "account", payload: { space: false } }, engine);
+  await use(r, a.id, "u1", { tokensIn: 500 }); // the limit is reached
+  assert.equal(
+    (await r.h.call("runs.node.claim", { runId: queued.id, holder: "host:a" }, engine)).node,
+    undefined,
+    "not taken under a reached limit",
+  );
+  await r.h.call("runs.node.move", { ...hold(r.h, sleeper.id), runId: sleeper.id, to: "queued", why: "woke" }, engine);
+  assert.equal(status(r.h, sleeper.id), "paused", "woke into a reached limit: it waits");
+  assert.equal(
+    ((await r.h.call("runs.node.get", { runId: sleeper.id }, owner)).node.wake ?? {}).label,
+    "the build finishes",
+  );
+  const fresh = (await r.h.call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: root.id }, engine))
+    .node;
+  assert.equal(fresh.status, "paused", "started now: it does not start");
+  await r.h.call("runs.node.event", { runId: fresh.id, type: "account", payload: { space: false } }, engine);
+  const refused = await r.h
+    .call("runs.node.move", { ...hold(r.h, queued.id), runId: queued.id, to: "running", why: "claimed" }, engine)
+    .catch((e) => e);
+  assert.equal(reasonOf(refused), "over_limit");
+  await r.h.call("runs.budget.set", { runId: root.id, tokens: 1_000_000 }, owner);
+  assert.equal(status(r.h, sleeper.id), "queued");
+  assert.equal(status(r.h, fresh.id), "queued");
+  assert.equal(
+    (await r.h.call("runs.node.claim", { runId: queued.id, holder: "host:a" }, engine)).node.status,
+    "running",
+    "and it goes on",
+  );
+});
+
+test("a limit reached while a command-line turn runs: it cannot be paused, so it is held at its next call; the Needs you task says so; raising the limit lets it go", async () => {
+  const r = rig();
+  r.h.callee("engine.pause", () => ({ paused: 0, held: 1 }));
+  const calls: string[] = [];
+  r.h.callee("engine.resume_paused", (i: { agentId: string }) => {
+    calls.push(i.agentId);
+    return { resumed: 0, lost: 0, released: 1 };
+  });
+  const { root, a } = await job(r, { tokens: 100 });
+  await use(r, a.id, "u1", { tokensIn: 500 });
+  assert.match(r.tasks[0]!.summary, /held at its next step/);
+  assert.doesNotMatch(r.tasks[0]!.summary, /paused where it can go on/);
+  const out = await r.h.call("runs.budget.set", { runId: root.id, tokens: 1_000_000 }, owner);
+  assert.ok(out.resumed >= 1, "the hold is released");
+  assert.ok(calls.includes(AGENT("b")), "asked the engine to release it");
 });

@@ -10,6 +10,7 @@ import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, StoppedBy, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { isHostService, isSystemCall } from "../../../lib/trust.ts";
 import { activeSubNodes } from "../sub-nodes.ts";
+import { holdOff, holdOn } from "../spend-hold.ts";
 import { noteHandoff } from "../context.ts";
 import { engineThreadOf } from "../thread-open.ts";
 import type { ThreadGet } from "../thread-open.ts";
@@ -725,7 +726,7 @@ export function incidentNote(ctx: EngineCtx, input: { incidentId: string; text: 
 export async function pause(
   ctx: EngineCtx,
   input: { threadId: string; agentId?: string; reason?: string },
-): Promise<{ paused: number }> {
+): Promise<{ paused: number; held: number }> {
   // for the server only: the person's own handle is runs.node.control (owner or manager of the run), which asks this after checking who is pressing
   if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
     raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
@@ -733,20 +734,20 @@ export async function pause(
   const own =
     ctx.principal.kind === "agent" && ctx.actingFor === undefined ? await ownsHelper(ctx, input.threadId) : false;
   const { none, ...reach } = stopReach(ctx, input.agentId, false, input.agentId === undefined, own);
-  if (none) return { paused: 0 };
-  return {
-    paused: engine.pause(input.threadId, {
-      ...(reach.agentId === undefined ? {} : { agentId: reach.agentId }),
-      reason: input.reason ?? "a limit was reached",
-    }),
-  };
+  if (none) return { paused: 0, held: 0 };
+  const who = { ...(reach.agentId === undefined ? {} : { agentId: reach.agentId }) };
+  const paused = engine.pause(input.threadId, { ...who, reason: input.reason ?? "a limit was reached" });
+  // a turn on an engine that runs its own tools is not paused between calls: its next call, and every one after, is refused at the hook until the limit is raised or the turn ends
+  const cli = engine.cliRunning(input.threadId, who);
+  for (const a of cli) holdOn(input.threadId, a);
+  return { paused, held: cli.length };
 }
 
 /** Go on with the turns paused in a thread: each starts again as a turn of its own, told what it had done. */
 export async function resumePaused(
   ctx: EngineCtx,
   input: { threadId: string; agentId?: string },
-): Promise<{ resumed: number; lost: number }> {
+): Promise<{ resumed: number; lost: number; released: number }> {
   // for the server only: the person's own handle is runs.node.control (owner or manager of the run), which asks this after checking who is pressing
   if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
     raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
@@ -755,8 +756,13 @@ export async function resumePaused(
   const own =
     ctx.principal.kind === "agent" && ctx.actingFor === undefined ? await ownsHelper(ctx, input.threadId) : false;
   const { none, ...reach } = stopReach(ctx, input.agentId, false, input.agentId === undefined, own);
-  if (none) return { resumed: 0, lost: 0 };
-  return engine.resumePaused(input.threadId, reach.agentId === undefined ? undefined : { agentId: reach.agentId });
+  if (none) return { resumed: 0, lost: 0, released: 0 };
+  // the limit is raised: what it held at the hook goes on, and what it paused starts again
+  const released = holdOff(input.threadId, reach.agentId);
+  return {
+    ...engine.resumePaused(input.threadId, reach.agentId === undefined ? undefined : { agentId: reach.agentId }),
+    released,
+  };
 }
 
 /**

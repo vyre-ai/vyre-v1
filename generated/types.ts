@@ -14257,6 +14257,7 @@ export type EnginePauseIn = {
 };
 export type EnginePauseOut = {
   paused: number;
+  held: number;
 };
 export type EnginePlacementDecideIn = {
   threadId: string;
@@ -14400,6 +14401,7 @@ export type EngineResumePausedIn = {
 export type EngineResumePausedOut = {
   resumed: number;
   lost: number;
+  released: number;
 };
 export type EngineReviewListIn = {
   state?: "waiting" | "ok" | "flagged";

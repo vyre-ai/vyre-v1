@@ -33,7 +33,7 @@ export function iconOf(
 export interface SubControl {
   requestStop(nodeId: string, reason: string): boolean;
   bindTask(threadId: string, taskId: string, callId: string): void;
-  gate(c: { threadId: string; subagent: string }): Promise<{ block: string | null; notes: string[] }>;
+  gate(c: { threadId: string; subagent?: string }): Promise<{ block: string | null; notes: string[] }>;
 }
 let active: SubControl | null = null;
 export const activeSubNodes = (): SubControl | null => active;
@@ -98,10 +98,13 @@ export function createSubNodes(h: {
       names.set(key(e.threadId, e.id), e.name);
       if (names.size > 5000) names.delete(names.keys().next().value as string);
       await stepLine(e, e.name, undefined);
+      await toolEvent(e, "call");
     } else if (e.phase === "input" && e.title !== true && typeof e.detail === "string" && e.detail !== "") {
       const n = names.get(key(e.threadId, e.id));
       if (n) await stepLine(e, n, e.detail);
     }
+    // a call that has come back is no longer in flight (a long one is not stuck while it runs: node.ts detectStuck)
+    if (e.phase === "result" && names.has(key(e.threadId, e.id))) await toolEvent(e, "result");
     const id = ids.get(key(e.threadId, e.id));
     if (!id) return;
     if (e.phase === "input" && e.title === true && typeof e.detail === "string" && e.detail !== "") {
@@ -131,6 +134,18 @@ export function createSubNodes(h: {
     }
   }
 
+  async function toolEvent(e: Step, phase: "call" | "result"): Promise<void> {
+    const owner = e.parent ? ids.get(key(e.threadId, e.parent)) : h.nodeFor?.(e.turnId);
+    if (!owner) return;
+    await h.call("runs.node.event", {
+      runId: owner,
+      type: "tool",
+      key: `tool-${phase}:${e.id}`,
+      actor: e.agentId,
+      payload: { phase, id: e.id },
+    });
+  }
+
   async function stepLine(e: Step, tool: string, detail: string | undefined): Promise<void> {
     const owner = e.parent ? ids.get(key(e.threadId, e.parent)) : h.nodeFor?.(e.turnId);
     if (!owner) return;
@@ -138,7 +153,12 @@ export function createSubNodes(h: {
       runId: owner,
       type: "step",
       actor: e.agentId,
-      payload: { icon: iconOf(tool), text: stepWords(tool, detail) },
+      payload: {
+        icon: iconOf(tool),
+        text: stepWords(tool, detail),
+        // the tool and what it touched, stable: the same step again is the same string (only when the target is known: a call alone says too little)
+        ...(detail ? { detail: `${tool.replace(/^mcp__.+?__/, "")}:${detail}`.slice(0, 200) } : {}),
+      },
     });
   }
 
@@ -190,7 +210,8 @@ export function createSubNodes(h: {
       return false;
     },
     /** What a call inside a subagent is told: refused if it was asked to stop; else the notes other nodes sent it, once, framed and signed with the real name of whoever sent them. */
-    async gate(c: { threadId: string; subagent: string }): Promise<{ block: string | null; notes: string[] }> {
+    async gate(c: { threadId: string; subagent?: string }): Promise<{ block: string | null; notes: string[] }> {
+      if (c.subagent === undefined) return { block: null, notes: [] };
       const id = nodeOfTask(c.threadId, c.subagent);
       if (id === undefined) return { block: null, notes: [] };
       const why = stopAsked.get(id);

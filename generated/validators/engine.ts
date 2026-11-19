@@ -2736,7 +2736,9 @@ const b2980: string[] = []; lf(x2980, p, b2980, L0); if (b2980.length) e.push(..
 if (g2980 === "object") {
 if (g2980 === 'object') { const o2980 = x2980 as Record<string, unknown>;
 if (!("paused" in o2980)) e.push(p + "/paused" + ': required');
+if (!("held" in o2980)) e.push(p + "/held" + ': required');
 if ("paused" in o2980) lf(o2980["paused"], p + "/paused", e, L2);
+if ("held" in o2980) lf(o2980["held"], p + "/held", e, L2);
 }
 }
 }
@@ -3343,8 +3345,10 @@ if (g3021 === "object") {
 if (g3021 === 'object') { const o3021 = x3021 as Record<string, unknown>;
 if (!("resumed" in o3021)) e.push(p + "/resumed" + ': required');
 if (!("lost" in o3021)) e.push(p + "/lost" + ': required');
+if (!("released" in o3021)) e.push(p + "/released" + ': required');
 if ("resumed" in o3021) lf(o3021["resumed"], p + "/resumed", e, L2);
 if ("lost" in o3021) lf(o3021["lost"], p + "/lost", e, L2);
+if ("released" in o3021) lf(o3021["released"], p + "/released", e, L2);
 }
 }
 }

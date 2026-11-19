@@ -457,7 +457,9 @@ export function startNode(ctx: RunsCtx, i: StartInput): { node: Node; created: b
     raise(ctx, "validation.bad_input", "A node that is already running cannot wait for another.", {
       reason: "running_with_dependency",
     });
-  const status: NodeStatus = i.running === true ? "running" : "queued";
+  // work that is not already running does not start under a limit that is reached: it waits paused, and goes on when the limit is raised
+  const limitedAbove = parentRun !== undefined && i.running !== true && overLimit(ctx, findNode(ctx.db, parentRun)!);
+  const status: NodeStatus = i.running === true ? "running" : limitedAbove ? "paused" : "queued";
   ctx.db.run(
     `INSERT INTO runs_node (run_id, root_run, parent_run, depth, kind, name, owner, started_by, who_kind, who_id, engine, model, thread_id, status, version, attempt,
        brief_json, budget_json, spent_json, origin_json, policy_json, idem_key, started_at, updated_at, who_name)
@@ -552,6 +554,8 @@ export function moveNode(ctx: RunsCtx, id: string, to: NodeStatus, o: MoveOpts):
       version: cur.version,
     });
   if (to === "succeeded" && o.result !== undefined) acceptResult(ctx, cur.brief, o.result);
+  if (cur.status === "queued" && to === "running" && overLimit(ctx, cur))
+    raise(ctx, "validation.precondition_failed", "A limit above it is reached.", { reason: "over_limit" });
   if (cur.status === "queued" && to === "running" && unmetDeps(ctx.db, id).length > 0)
     raise(ctx, "validation.precondition_failed", "It starts after other work that is not done yet.", {
       reason: "dependency_unmet",
@@ -570,6 +574,9 @@ export function moveNode(ctx: RunsCtx, id: string, to: NodeStatus, o: MoveOpts):
   // a node that wakes while something above it is paused does not run: it is paused on wake
   if (cur.status === "waiting" && to === "queued" && ancestorPaused(ctx.db, cur))
     return moveNode(ctx, id, "paused", { ...o, why: "parent_paused" });
+  // the same when a spending limit above it is reached: it waits, keeping its wake
+  if (cur.status === "waiting" && to === "queued" && overLimit(ctx, cur))
+    return moveNode(ctx, id, "paused", { ...o, why: "budget" });
   const now = ctx.now();
   const ending = isTerminal(to);
   const leaving = to !== "running";
@@ -686,6 +693,7 @@ export function claimNode(ctx: RunsCtx, id: string, holder: string): Node | unde
   const cur = findNode(ctx.db, id);
   if (!cur || cur.status !== "queued") return undefined;
   if (unmetDeps(ctx.db, id).length > 0) return undefined; // not before the work it starts after is done
+  if (overLimit(ctx, cur)) return undefined; // not while a limit above it is reached
   const now = ctx.now();
   if (cur.leaseUntil !== undefined && cur.leaseUntil > now && cur.leaseHolder !== holder) return undefined;
   const r = ctx.db.run(
@@ -846,6 +854,8 @@ export function settleDeps(ctx: RunsCtx): Node[] {
 
 export const STEP_ICONS = ["read", "web", "term", "edit", "find", "think", "send", "cal", "wait", "kid"] as const;
 const STUCK_IDLE_MS = 10 * 60_000;
+/** A call that is still in flight (a build, a big read) is given as long as the longest a call may run before it is called stuck: the terminal allows an hour. */
+const STUCK_INFLIGHT_MS = 60 * 60_000;
 const SAME_STEP_TIMES = 4;
 
 /**
@@ -912,7 +922,17 @@ export async function detectStuck(ctx: RunsCtx): Promise<Node[]> {
         ],
       ) ?? n.startedAt;
     let reason: string | undefined;
-    if (now - last >= STUCK_IDLE_MS) reason = `Nothing new for ${Math.floor((now - last) / 60_000)} minutes.`;
+    // calls that went out and have not come back: while one is in flight the node is on a long step, not stuck, until that call has had its own time
+    const calls = (
+      ctx.db.all(
+        "SELECT payload_json FROM runs_event WHERE run_id = ? AND type = 'tool' ORDER BY seq DESC LIMIT 200",
+        n.id,
+      ) as Row[]
+    ).map((x) => parse<{ phase?: string; id?: string }>(x["payload_json"]));
+    const back = new Set(calls.filter((c) => c?.phase === "result").map((c) => c?.id));
+    const inFlight = calls.some((c) => c?.phase === "call" && !back.has(c.id));
+    const idleLimit = inFlight ? STUCK_INFLIGHT_MS : STUCK_IDLE_MS;
+    if (now - last >= idleLimit) reason = `Nothing new for ${Math.floor((now - last) / 60_000)} minutes.`;
     else {
       // the same thing four times: steps that say what they touched, so four calls of one tool on four files are four steps
       const touched = (
@@ -957,3 +977,43 @@ export async function detectStuck(ctx: RunsCtx): Promise<Node[]> {
   }
   return out;
 }
+
+// ---- limits (the rest of what a limit does is in budget.ts) ----
+
+export interface Budget {
+  usdMicros?: number;
+  tokens?: number;
+}
+export const budgetOf = (n: Node): Budget => {
+  const b = (n.budget ?? {}) as Record<string, unknown>;
+  const num = (v: unknown): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : undefined;
+  return clean({ usdMicros: num(b["usdMicros"]), tokens: num(b["tokens"]) }) as Budget;
+};
+
+/** Which limit of a node the tree under it has reached, if any: what was used and what the limit was. */
+export function reached(db: Db, n: Node): { what: "money" | "tokens"; used: number; limit: number } | undefined {
+  const b = budgetOf(n);
+  if (b.usdMicros === undefined && b.tokens === undefined) return undefined;
+  const s = subtreeSpent(db, n.id);
+  if (b.usdMicros !== undefined && s.usdMicros >= b.usdMicros)
+    return { what: "money", used: s.usdMicros, limit: b.usdMicros };
+  const tokens = s.tokensIn + s.tokensOut;
+  if (b.tokens !== undefined && tokens >= b.tokens) return { what: "tokens", used: tokens, limit: b.tokens };
+  return undefined;
+}
+
+/** The nodes above and including this one that carry a limit, nearest first. */
+export function limited(ctx: RunsCtx, n: Node): Node[] {
+  const out: Node[] = [];
+  let at: Node | undefined = n;
+  for (let i = 0; at && i < 64; i++) {
+    if (at.budget !== undefined) out.push(at);
+    at = at.parentRun ? findNode(ctx.db, at.parentRun) : undefined;
+  }
+  return out;
+}
+
+/** Is any limit above this node (or on it) reached? Such a node does not start, and one that wakes waits paused. */
+export const overLimit = (ctx: RunsCtx, n: Node): boolean =>
+  limited(ctx, n).some((a) => reached(ctx.db, a) !== undefined);

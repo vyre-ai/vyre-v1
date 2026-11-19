@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "../modules/runs/fixtures/db.ts";
 import { createSubNodes, iconOf } from "../modules/engine/sub-nodes.ts";
+import { detectStuck } from "../modules/runs/node.ts";
 
 const host = { id: "svc_host", kind: "service" as const };
 const THREAD = `thr_${"a".repeat(32)}`;
@@ -218,4 +219,85 @@ test("a subagent is known by the task id its hooks call agent_id: a stop asked o
     notes: [],
   });
   assert.equal(f.requestStop(`run_${"0".repeat(28)}`, "x"), false);
+});
+
+test("the same thing four times is found through the real step line (tool and target); four different targets are not; a call still in flight is a long step, not a stuck node, until it has had an hour", async () => {
+  const w = await world();
+  const f = createSubNodes({
+    call: async (cap, input) =>
+      cap === "runs.node.start" ? (w.h.advance(1), w.h.call(cap, input, host)) : w.h.call(cap, input, host),
+    nodeFor: (turnId) => (turnId === "trn_1" ? w.turn.id : undefined),
+    nameOf: async () => "Calder",
+  });
+  const read = async (id: string, target: string) => {
+    await f.feed({ kind: "step", phase: "call", id, name: "Read", ...base });
+    await f.feed({ kind: "step", phase: "input", id, detail: target, ...base });
+    await f.feed({ kind: "step", phase: "result", id, ok: true, ...base });
+  };
+  for (const i of [1, 2, 3, 4]) await read(`r${i}`, "prices.xlsx");
+  const details = (
+    w.h.sqlite
+      .prepare("SELECT payload_json FROM runs_event WHERE run_id = ? AND type = 'step' ORDER BY seq")
+      .all(w.turn.id) as Array<{ payload_json: string }>
+  )
+    .map((x) => JSON.parse(x.payload_json).detail)
+    .filter(Boolean);
+  assert.deepEqual(details, ["Read:prices.xlsx", "Read:prices.xlsx", "Read:prices.xlsx", "Read:prices.xlsx"]);
+  w.h.advance(60_000);
+  const marked = await w.h.engineRun(host, async (ctx) => detectStuck(ctx));
+  assert.deepEqual(
+    marked.map((n) => n.id),
+    [w.turn.id],
+  );
+  assert.match(
+    JSON.parse(
+      String(
+        (
+          w.h.sqlite.prepare("SELECT stuck_json FROM runs_node WHERE run_id = ?").get(w.turn.id) as {
+            stuck_json: string;
+          }
+        ).stuck_json,
+      ),
+    ).reason,
+    /same step 4 times/,
+  );
+  // four different files: not the same step
+  const w2 = await world();
+  const f2 = createSubNodes({
+    call: async (cap, input) => w2.h.call(cap, input, host),
+    nodeFor: (t) => (t === "trn_1" ? w2.turn.id : undefined),
+  });
+  for (const [i, file] of ["a", "b", "c", "d"].entries()) {
+    await f2.feed({ kind: "step", phase: "call", id: `q${i}`, name: "Read", ...base });
+    await f2.feed({ kind: "step", phase: "input", id: `q${i}`, detail: `${file}.xlsx`, ...base });
+  }
+  assert.deepEqual(await w2.h.engineRun(host, async (ctx) => detectStuck(ctx)), []);
+  // a call in flight: 30 minutes is a long step; after an hour it is stuck; once it has come back, ten idle minutes are
+  const w3 = await world();
+  const f3 = createSubNodes({
+    call: async (cap, input) => w3.h.call(cap, input, host),
+    nodeFor: (t) => (t === "trn_1" ? w3.turn.id : undefined),
+  });
+  await f3.feed({ kind: "step", phase: "call", id: "long", name: "Bash", ...base });
+  w3.h.advance(30 * 60_000);
+  assert.deepEqual(
+    await w3.h.engineRun(host, async (ctx) => detectStuck(ctx)),
+    [],
+    "a build that has been running 30 minutes is not stuck",
+  );
+  w3.h.advance(31 * 60_000);
+  assert.equal((await w3.h.engineRun(host, async (ctx) => detectStuck(ctx))).length, 1, "an hour with nothing back is");
+  const w4 = await world();
+  const f4 = createSubNodes({
+    call: async (cap, input) => w4.h.call(cap, input, host),
+    nodeFor: (t) => (t === "trn_1" ? w4.turn.id : undefined),
+  });
+  await f4.feed({ kind: "step", phase: "call", id: "short", name: "Bash", ...base });
+  await f4.feed({ kind: "step", phase: "result", id: "short", ok: true, ...base });
+  w4.h.advance(11 * 60_000);
+  assert.equal(
+    (await w4.h.engineRun(host, async (ctx) => detectStuck(ctx))).length,
+    1,
+    "back and then quiet: ten minutes is stuck",
+  );
 });
