@@ -135,8 +135,15 @@ test("a PDF set in the plain page look says so to signing; one the converter mad
   });
   assert.equal(plain.layout, "simple");
   assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, true);
+  // the mark follows the bytes: a copy under another id, a move, a re-upload of the same bytes is held too; other bytes are not
+  const bytes = w.files.get(plain.file.fileId)!.bytes;
+  const copy = w.add("Copy of agreement.pdf", Buffer.from(bytes), "fld_other");
+  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: copy })).plain, true, "a copy is held");
+  const edited = w.add("Edited.pdf", Buffer.concat([bytes, Buffer.from("\n%edited")]));
+  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: edited })).plain, undefined, "other bytes are not held");
   w.files.get(plain.file.fileId)!.versions = 2;
-  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, undefined);
+  w.files.get(plain.file.fileId)!.bytes = Buffer.from("%PDF-1.7 a new version");
+  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, undefined, "a new version with other bytes is not held");
   configureDocuments({ pdf: async () => Buffer.from("%PDF-1.7 exact") });
   try {
     const exact = await handlers["documents.fill"](w.ctx, {

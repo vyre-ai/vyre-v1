@@ -20,6 +20,7 @@ import {
   refuse,
   reqStr,
   saveNamed,
+  sha256Of,
   templateBytes,
   unusedFor,
   valuesOf,
@@ -282,8 +283,14 @@ async function signing(
 }> {
   const fileId = reqStr(ctx, rec(ctx, input), "fileId");
   mayView(ctx, fileId);
+  // a preview set in the plain page look is known by its bytes: a copy, a move or a re-upload of them is held too
+  let plain = false;
+  if ((ctx.db.all("SELECT 1 AS x FROM documents_plain LIMIT 1") as Row[]).length > 0) {
+    const sha = await sha256Of(await templateBytes(ctx, fileId));
+    plain = (ctx.db.all("SELECT 1 AS x FROM documents_plain WHERE sha256 = ?", sha) as Row[]).length > 0;
+  }
   const row = (ctx.db.all("SELECT * FROM documents_signing WHERE file_id = ?", fileId) as Row[])[0];
-  if (!row) return { signers: [], places: [] };
+  if (!row) return { signers: [], places: [], ...(plain ? { plain: true as const } : {}) };
   // a newer version of the file is a different page: the places belong to the version they were set on
   if (typeof row.version_id === "string") {
     const got = (await ctx.call("files.versions", { fileId })) as { versions?: { versionId?: unknown; n?: unknown }[] };
@@ -299,7 +306,7 @@ async function signing(
     }
   };
   return {
-    ...(Number(row.plain) === 1 ? { plain: true as const } : {}),
+    ...(plain ? { plain: true as const } : {}),
     signers: list(row.roles).filter((r): r is string => typeof r === "string"),
     places: list(row.places),
     ...(typeof row.template_file_id === "string" ? { templateFileId: row.template_file_id } : {}),

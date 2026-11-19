@@ -72,6 +72,12 @@ export function askKey(parts: unknown): string {
   return (h >>> 0).toString(36);
 }
 
+/** SHA-256 of some bytes, in hex. */
+export async function sha256Of(bytes: Uint8Array): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", bytes as unknown as ArrayBuffer);
+  return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // ---- drivers ----
 
 export interface DocumentsDrivers {
@@ -1030,18 +1036,8 @@ export async function documentsFill(
     key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${askKey([o.values, o.signingDate, o.recordId, o.mapping, o.name, format])}`}`,
   });
   const { fileId, versionId } = saved;
-  // a PDF set in the plain page look is a preview of the Word file: signing asks before it goes out (documents.signing says plain)
-  if (layout === "simple")
-    ctx.db.run(
-      "INSERT OR REPLACE INTO documents_signing (file_id, roles, places, version_id, template_file_id, record_id, made_at, plain) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
-      fileId,
-      "[]",
-      "[]",
-      versionId,
-      templateFileId,
-      optStr(ctx, o, "recordId") ?? null,
-      ctx.now(),
-    );
+  // a PDF set in the plain page look is a preview of the Word file: its bytes are marked, so signing holds it (and any copy of it) until the sender chooses (documents.signing says plain)
+  if (layout === "simple") ctx.db.run("INSERT OR IGNORE INTO documents_plain (sha256, made_at) VALUES (?, ?)", await sha256Of(out), ctx.now());
   const payload: Record<string, unknown> = { fileId, templateFileId, fields: made.used.length, missing: 0 };
   const recordId = optStr(ctx, o, "recordId");
   if (recordId !== undefined) payload.recordId = recordId;
