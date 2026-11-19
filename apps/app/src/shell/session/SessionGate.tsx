@@ -133,6 +133,8 @@ interface Trouble {
 const OFFLINE: Found = { kind: "offline" };
 
 type Phase = GatePhase<StoredSession>;
+/** A host for a button: long ones are cut for display only. */
+const shortHost = (h: string): string => (h.length > 40 ? `${h.slice(0, 39)}\u2026` : h);
 const noHub = (): void => undefined;
 const hostOf = (baseUrl: string): string => baseUrl.replace(/^https?:\/\//, "").split(":")[0] ?? baseUrl;
 
@@ -1390,6 +1392,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const signedIn = useCallback(
     (stored: StoredSession) => {
       activateAddress(stored, !!returnSession);
+      setUnproven(null);
       setEntry(false);
       giDo({ e: "enter" });
       setSignInAs(undefined);
@@ -1609,9 +1612,14 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     if (!home) setUnderShell(null);
   }, [home]);
   /** A Space saved at two addresses whose used-last one is not answering: the person may press the other. Its own sign-in opens (the address named on the button; no username typed for them), never the saved token, and only when that address answers as a Space naming the same id. (A Space id is public, so this guards an accident, not an attack; the person decides and sees the address.) */
-  const useNearby = async (from: StoredSession, other: StoredSession): Promise<void> => {
+  const useNearby = async (from: StoredSession, other: StoredSession, on: Trouble): Promise<void> => {
+    if (troubleBusy) return;
+    giDo({ e: "busy", on: true });
     const found = await findSpaceQuietly(other.baseUrl).catch(() => OFFLINE);
     const named = found.kind === "direct" ? await spaceIdAt(other.baseUrl) : null;
+    giDo({ e: "busy", on: false });
+    // the person went Back or on elsewhere while the other address was asked: the answer is for a screen that is gone
+    if (troubleNow.current !== on) return;
     if (found.kind === "direct" && named === from.def.spaceId && named === other.def.spaceId) {
       setSignInAs(undefined);
       await enterTarget({ kind: "signin", address: other.baseUrl }, undefined, true);
@@ -1889,8 +1897,8 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           {...(oldData ? { onClear: () => void clearOld() } : {})}
           {...(trouble.stored && siblingSessions(trouble.stored)[0]
             ? {
-                onOther: () => void useNearby(trouble.stored!, siblingSessions(trouble.stored!)[0]!),
-                otherLabel: `Sign in at ${spaceHost(siblingSessions(trouble.stored)[0]!.baseUrl)}`,
+                onOther: () => void useNearby(trouble.stored!, siblingSessions(trouble.stored!)[0]!, trouble),
+                otherLabel: `Sign in at ${shortHost(spaceHost(siblingSessions(trouble.stored)[0]!.baseUrl))}`,
               }
             : {})}
           {...(bridge && !isLoopbackUrl(trouble.target.address)
@@ -2051,6 +2059,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         }
         onUnreachable={(found) => landed({ kind: "signin", address: activeAddress }, found)}
         onBack={() => {
+          setUnproven(null);
           if (returnSession) {
             const back = returnSession;
             setReturnSession(null);

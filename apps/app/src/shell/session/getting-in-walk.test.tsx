@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { act } from "react";
-import { installDom, find, flush, press, textOf, typeInto } from "../../onboarding/test-dom.ts";
+import { installDom, find, flush, press, typeInto } from "../../onboarding/test-dom.ts";
 import type { Node } from "../../../../../ui/src/testing/dom.ts";
 import { setQuietWaitsForTests } from "../../../../../client/src/gateway/find-space.ts";
 import { SessionGate } from "./SessionGate.tsx";
@@ -94,9 +94,6 @@ async function mountGate(): Promise<{ root: Node; stop: () => Promise<void> }> {
     },
   };
 }
-
-/** What an input node holds. */
-const textOrValue = (n: Node): string => String((n as unknown as { props?: { value?: string } }).props?.value ?? "");
 
 function rng(seed: number): () => number {
   let x = seed >>> 0 || 1;
@@ -316,169 +313,6 @@ test("a saved Space that answers its health check but fails its calls: Your Spac
     assert.equal(JSON.stringify(readStoredSessions(kv)), before, "the saved sign-in is untouched");
   } finally {
     await stopSecond();
-    restore();
-    g.fetch = realFetch;
-    delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
-    delete g.localStorage;
-  }
-});
-
-test("one Space saved at two addresses, the used-last one dead: the list shows it, the failed screen offers the other address by name; pressing it opens that address's own sign-in (no username typed, no saved token sent), and both sign-ins stay saved", async () => {
-  const realFetch = g.fetch;
-  const restore = setQuietWaitsForTests([1, 1]);
-  let stop: () => Promise<void> = async () => undefined;
-  try {
-    installDom();
-    const m = new Map<string, string>([
-      [
-        "vyre.spaces.v1",
-        JSON.stringify({
-          spaces: [
-            {
-              address: "https://old.example",
-              name: "Northwind",
-              spaceId: "spc_01NORTH",
-              kind: "team",
-              via: "app",
-              usedAt: 5000,
-            },
-          ],
-        }),
-      ],
-    ]);
-    g.localStorage = {
-      getItem: (k: string) => m.get(k) ?? null,
-      setItem: (k: string, v: string) => void m.set(k, v),
-      removeItem: (k: string) => void m.delete(k),
-    };
-    const kv = g.localStorage as Parameters<typeof writeStored>[1];
-    writeStored({ ...SAVED_SESSION, baseUrl: "https://old.example", token: "vds_old" }, kv);
-    writeStored({ ...SAVED_SESSION, baseUrl: "https://new.example", token: "vds_new" }, kv);
-    const before = JSON.stringify(readStoredSessions(kv));
-    const asked: string[] = [];
-    const authed: string[] = [];
-    g.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = new URL(String(input));
-      asked.push(url.origin + url.pathname);
-      if (
-        url.origin === "https://new.example" &&
-        JSON.stringify(init?.headers ?? {})
-          .toLowerCase()
-          .includes("authorization")
-      )
-        authed.push(url.pathname);
-      if (url.origin === "https://new.example" && url.pathname === "/healthz") return json(200, HEALTH);
-      if (url.origin === "https://new.example" && url.pathname.endsWith("sign_in_options")) return json(200, OPTIONS);
-      throw new TypeError("Failed to fetch");
-    }) as typeof fetch;
-    const gate = await mountGate();
-    stop = gate.stop;
-    const root = gate.root;
-    const until = async (id: string): Promise<Node> => {
-      const end = Date.now() + 10000;
-      for (;;) {
-        const n = find(root, id);
-        if (n) return n;
-        if (Date.now() > end) throw new Error(`${id} never showed; asked ${asked.join(" ")}`);
-        await flush();
-      }
-    };
-    await press(await until("your-space-0"));
-    const other = await until("not-answering-other");
-    assert.match(textOf(other), /new\.example/, "the button names the address");
-    assert.equal(
-      asked.filter((u) => u.startsWith("https://new.example")).length,
-      0,
-      "nothing is sent to the other address until the person presses it",
-    );
-    await press(other);
-    await until("si-user");
-    assert.equal(textOrValue(find(root, "si-user")!), "", "no username is typed for them there");
-    // an address nothing proves to be the Space does not borrow its look: the plain host, no name from the saved Space or from the address, no picture asked for, no username
-    const screen = textOf(root);
-    assert.match(screen, /Sign in to new\.example/, "the host is the title");
-    assert.ok(!screen.includes("Northwind"), "no Space name on it");
-    assert.deepEqual(
-      asked.filter((u) => u.startsWith("https://new.example") && /image/.test(u)),
-      [],
-      "no Space picture was asked of it",
-    );
-    assert.deepEqual(authed, [], "no saved sign-in went to the other address");
-    assert.equal(JSON.stringify(readStoredSessions(kv)), before, "both sign-ins are still saved, unchanged");
-  } finally {
-    await stop();
-    restore();
-    g.fetch = realFetch;
-    delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
-    delete g.localStorage;
-  }
-});
-
-test("the other address now answers as a different Space: its saved sign-in is not sent there, and the person gets the dead Space's own screen", async () => {
-  const realFetch = g.fetch;
-  const restore = setQuietWaitsForTests([1, 1]);
-  let stop: () => Promise<void> = async () => undefined;
-  try {
-    installDom();
-    const m = new Map<string, string>([
-      [
-        "vyre.spaces.v1",
-        JSON.stringify({
-          spaces: [
-            {
-              address: "https://old.example",
-              name: "Northwind",
-              spaceId: "spc_01NORTH",
-              kind: "team",
-              via: "app",
-              usedAt: 5000,
-            },
-          ],
-        }),
-      ],
-    ]);
-    g.localStorage = {
-      getItem: (k: string) => m.get(k) ?? null,
-      setItem: (k: string, v: string) => void m.set(k, v),
-      removeItem: (k: string) => void m.delete(k),
-    };
-    const kv = g.localStorage as Parameters<typeof writeStored>[1];
-    writeStored({ ...SAVED_SESSION, baseUrl: "https://old.example", token: "vds_old" }, kv);
-    writeStored({ ...SAVED_SESSION, baseUrl: "https://new.example", token: "vds_new" }, kv);
-    const before = JSON.stringify(readStoredSessions(kv));
-    const asked: string[] = [];
-    g.fetch = (async (input: RequestInfo | URL) => {
-      const url = new URL(String(input));
-      asked.push(url.origin + url.pathname);
-      if (url.origin === "https://new.example" && url.pathname === "/healthz")
-        return json(200, { ...HEALTH, space: "spc_other" });
-      throw new TypeError("Failed to fetch");
-    }) as typeof fetch;
-    const gate = await mountGate();
-    stop = gate.stop;
-    const root = gate.root;
-    const until = async (id: string): Promise<Node> => {
-      const end = Date.now() + 10000;
-      for (;;) {
-        const n = find(root, id);
-        if (n) return n;
-        if (Date.now() > end) throw new Error(`${id} never showed; asked ${asked.join(" ")}`);
-        await flush();
-      }
-    };
-    await press(await until("your-space-0"));
-    await press(await until("not-answering-other"));
-    for (let i = 0; i < 40; i++) await flush();
-    assert.equal(find(root, "si-user"), null, "an address that names another Space gets no sign-in");
-    assert.ok(find(root, "step-not-answering"), "the person stays on a screen with a way on");
-    assert.deepEqual(
-      asked.filter((u) => u.startsWith("https://new.example") && !u.endsWith("/healthz")),
-      [],
-      "only the identity question went to the other address",
-    );
-    assert.equal(JSON.stringify(readStoredSessions(kv)), before, "both sign-ins are still saved, unchanged");
-  } finally {
-    await stop();
     restore();
     g.fetch = realFetch;
     delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
