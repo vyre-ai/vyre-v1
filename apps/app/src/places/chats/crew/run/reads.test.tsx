@@ -269,12 +269,8 @@ test("What they know together reads the newest tree of this chat only when opene
     "runs.tree.get",
   ]);
   assert.match(textOf(find(root, "board-entry-b1")), /Harbor is \$4,180[\s\S]*Research/);
-  assert.match(
-    textOf(find(root, "message-line-m1"))
-      .replace(/\s+/g, " ")
-      .replace(/ ([:.,])/g, "$1"),
-    /Numbers to Research: Calder is \$13,105/,
-  );
+  assert.match(textOf(find(root, "message-line-m1")), /Calder is \$13,105/);
+  assert.match(String(find(root, "message-line-m1")?.props["aria-label"]), /Numbers to Research/);
   assert.match(textOf(find(root, "token-report-line")), /3,400\s+tokens/);
   const none = await mount(createRoot, <RunSection call={async () => ({ roots: [] })} threadId="thr_0" />);
   await press(find(none, "crew-run-toggle"));

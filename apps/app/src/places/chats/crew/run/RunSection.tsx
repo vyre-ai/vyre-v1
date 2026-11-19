@@ -3,8 +3,8 @@
 // who only watches the chat gets no section at all: never an empty box and never an error.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { BoardView, MessageLines, TokenReport } from "./views.tsx";
+import { StyleSheet, Text, View } from "react-native";
+import { BoardView, MessageLines, SectionHead, TokenReport } from "./views.tsx";
 import { findRoot, readBoard, readMessages, readTree } from "./reads.ts";
 import type { BoardEntry, NodeMessage, RunNode } from "./model.ts";
 
@@ -68,15 +68,13 @@ export function RunSection({ call, threadId }: { call: Call; threadId: string })
   if (gone) return null;
   return (
     <View testID="crew-run" style={st.wrap}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
+      <SectionHead
         testID="crew-run-toggle"
+        title="Board"
+        open={open}
+        count={data?.board.length}
         onPress={() => setOpen((o) => !o)}
-        style={st.toggle}
-      >
-        <Text style={st.toggleText}>{open ? "Hide board" : "Board"}</Text>
-      </Pressable>
+      />
       {open && data ? (
         <View testID="crew-run-body" style={st.body}>
           <BoardView entries={data.board} nodes={data.nodes} />
@@ -101,14 +99,5 @@ export function RunSection({ call, threadId }: { call: Call; threadId: string })
 const st = StyleSheet.create({
   wrap: { marginTop: 14, gap: 6 },
   body: { gap: 4 },
-  toggle: {
-    alignSelf: "flex-start",
-    height: 28,
-    paddingHorizontal: 10,
-    borderRadius: 9,
-    justifyContent: "center",
-    backgroundColor: "var(--hover)" as string,
-  },
-  toggleText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   note: { fontSize: 12, color: "var(--ink-3)" as string },
 });

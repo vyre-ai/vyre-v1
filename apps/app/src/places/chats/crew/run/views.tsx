@@ -3,6 +3,8 @@
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../../ui/src/Avatar/index.tsx";
+import { WorkingMark } from "../../../../../../../ui/src/WorkingMark/index.tsx";
+import { Glyph } from "../../conversation/parts.tsx";
 import { modelName } from "../../../../../../../lib/model-names.ts";
 import { money, tokens } from "../model.ts";
 import {
@@ -12,6 +14,7 @@ import {
   dependencyLine,
   messageLines,
   sleepLine,
+  wakeCondition,
   tokenReport,
 } from "./model.ts";
 import type { ActivityRow, BoardEntry, NodeMessage, RunNode } from "./model.ts";
@@ -85,7 +88,7 @@ export function BoardView({
   );
 }
 
-/** The last two messages between helpers, under the tiles: "Numbers to Docs: ...", with Seen once the receiver has read it. */
+/** The last two messages between helpers, under the tiles: who to whom as two faces, then the words; a quiet check once the receiver has read it. */
 export function MessageLines({
   messages,
   nodes,
@@ -97,12 +100,22 @@ export function MessageLines({
   if (lines.length === 0) return null;
   return (
     <View testID="message-lines" style={st.lines}>
-      {/* ui-rows-lint: not a list (the last two lines said between helpers: plain text, nothing to press) */}
+      {/* ui-rows-lint: not a list (the last two lines said between helpers: two faces and plain text, nothing to press) */}
       {lines.map((l) => (
-        <Text key={l.id} testID={`message-line-${l.id}`} numberOfLines={1} style={st.line}>
-          <Text style={st.lineName}>{l.from}</Text> to <Text style={st.lineName}>{l.to}</Text>: {l.body}
-          {l.seen ? <Text style={st.seen}> · Seen</Text> : null}
-        </Text>
+        <View
+          key={l.id}
+          testID={`message-line-${l.id}`}
+          accessibilityLabel={`${l.from} to ${l.to}: ${l.body}`}
+          style={st.msg}
+        >
+          <Avatar name={l.from} seedId={l.fromId} kind="agent" size={16} />
+          <Glyph name="chev" size={10} color="var(--ink-4)" />
+          <Avatar name={l.to} seedId={l.toId} kind="agent" size={16} />
+          <Text numberOfLines={1} style={st.msgText}>
+            {l.body}
+          </Text>
+          {l.seen ? <Glyph name="check" size={11} color="var(--ink-4)" /> : null}
+        </View>
       ))}
     </View>
   );
@@ -124,7 +137,7 @@ export function DependencyLine({
   );
 }
 
-/** A run that sleeps is one calm line, never a spinner. */
+/** A run that sleeps is one calm line, never a spinner: the moon, what it waits on, how often it has woken. */
 export function SleepLine({
   node,
   when,
@@ -135,17 +148,31 @@ export function SleepLine({
   onOpen?: () => void;
 }): ReactElement | null {
   const s = sleepLine(node, when);
-  if (s === null) return null;
-  return (
-    <View testID="sleep-line" style={st.sleep}>
-      <Text style={st.sleepText}>
-        <Text style={st.sleepHead}>{s.head}</Text> · {s.tail}
+  if (s === null || node.wake === undefined) return null;
+  const cond = wakeCondition(node.wake, when);
+  const woke = node.wake.wokeCount ?? 0;
+  const body = (
+    <>
+      <Glyph name="moon" size={15} color="var(--ink-3)" />
+      <Text style={st.sleepText} numberOfLines={1}>
+        {cond === "" ? "Asleep" : cond}
       </Text>
-      {onOpen ? (
-        <Pressable accessibilityRole="button" testID="sleep-open" onPress={onOpen} style={st.pill}>
-          <Text style={st.pillText}>Everything running</Text>
-        </Pressable>
-      ) : null}
+      {woke > 0 ? <Text style={st.sleepN}>{`${woke}×`}</Text> : null}
+    </>
+  );
+  return onOpen ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={s.head}
+      testID="sleep-line"
+      onPress={onOpen}
+      style={st.sleep}
+    >
+      {body}
+    </Pressable>
+  ) : (
+    <View accessibilityLabel={s.head} testID="sleep-line" style={st.sleep}>
+      {body}
     </View>
   );
 }
@@ -192,7 +219,38 @@ export function TokenReport({
   );
 }
 
-/** Everything running or asleep in the Space: Needs you, Running, Asleep; one press opens its session. */
+/** A section's head: a disclosure chevron, a short title, a quiet count. One press opens or shuts it. */
+export function SectionHead({
+  title,
+  count,
+  open,
+  onPress,
+  testID,
+}: {
+  title: string;
+  count?: number | undefined;
+  open: boolean;
+  onPress: () => void;
+  testID: string;
+}): ReactElement {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      testID={testID}
+      onPress={onPress}
+      style={st.head}
+    >
+      <View style={open ? st.chevOpen : undefined}>
+        <Glyph name="chev" size={12} color="var(--ink-3)" />
+      </View>
+      <Text style={st.headTitle}>{title}</Text>
+      {count !== undefined && count > 0 ? <Text style={st.headCount}>{count}</Text> : null}
+    </Pressable>
+  );
+}
+
+/** Everything running or asleep in the Space: Needs you, Running, Asleep. A running one wears the live mark, a sleeping one the moon and what it waits on; one press opens its session. */
 export function ActivityList({
   rows,
   when,
@@ -207,9 +265,6 @@ export function ActivityList({
   const groups = activityGroups(rows);
   return (
     <View testID="activity">
-      <Text style={st.actHead}>
-        Running and asleep <Text style={st.count}>{rows.length}</Text>
-      </Text>
       {groups.length === 0 ? (
         <Text testID="activity-empty" style={st.note}>
           Nothing is running or asleep.
@@ -222,44 +277,61 @@ export function ActivityList({
             {g.title} <Text style={st.count}>{g.rows.length}</Text>
           </Text>
           {/* ui-rows-lint: not a list (the runs of one group of the Space's activity, each a line with what it is on and a time) */}
-          {g.rows.map((r) => (
-            <Pressable
-              key={r.runId}
-              accessibilityRole="button"
-              testID={`activity-row-${r.runId}`}
-              onPress={() => onOpen(r.runId)}
-              style={st.actRow}
-            >
-              <Avatar name={r.name} seedId={r.runId} kind="agent" size={26} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={st.actName} numberOfLines={1}>
-                  {r.name}
-                </Text>
-                <Text style={st.actLine} numberOfLines={1}>
-                  {r.stuck
-                    ? `Looks stuck: ${r.stuck.reason}`
-                    : r.status === "waiting"
-                      ? (sleepLine({ status: "waiting", ...(r.wake ? { wake: r.wake } : {}) }, when)?.head ?? "Asleep")
-                      : (r.step ?? "Working")}
-                </Text>
-              </View>
-              {r.stuck && onNudge ? (
-                <Pressable
-                  accessibilityRole="button"
-                  testID={`activity-nudge-${r.runId}`}
-                  onPress={() => onNudge(r.runId)}
-                >
-                  <Text style={st.actNudge}>Nudge it</Text>
-                </Pressable>
-              ) : (
-                <Text style={st.actMeta}>
-                  {r.status === "waiting" && (r.wake?.wokeCount ?? 0) > 0
-                    ? `woke ${r.wake!.wokeCount} times`
-                    : (r.whoName ?? "")}
-                </Text>
-              )}
-            </Pressable>
-          ))}
+          {g.rows.map((r) => {
+            const cond = r.status === "waiting" && r.wake ? wakeCondition(r.wake, when) : "";
+            const woke = r.status === "waiting" ? (r.wake?.wokeCount ?? 0) : 0;
+            return (
+              <Pressable
+                key={r.runId}
+                accessibilityRole="button"
+                accessibilityLabel={`${r.name}, ${r.stuck ? `looks stuck: ${r.stuck.reason}` : r.status === "waiting" ? `asleep ${cond}` : (r.step ?? "working")}`}
+                testID={`activity-row-${r.runId}`}
+                onPress={() => onOpen(r.runId)}
+                style={st.actRow}
+              >
+                <Avatar name={r.name} seedId={r.runId} kind="agent" size={26} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={st.actName} numberOfLines={1}>
+                    {r.name}
+                  </Text>
+                  <View style={st.actState}>
+                    {r.stuck ? (
+                      <Text style={st.actLine} numberOfLines={1}>
+                        Looks stuck: {r.stuck.reason}
+                      </Text>
+                    ) : r.status === "waiting" ? (
+                      <>
+                        <Glyph name="moon" size={12} color="var(--ink-3)" />
+                        <Text style={st.actLine} numberOfLines={1}>
+                          {cond}
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <WorkingMark state="thinking" size={14} testID={`activity-live-${r.runId}`} />
+                        {r.step ? (
+                          <Text style={st.actLine} numberOfLines={1}>
+                            {r.step}
+                          </Text>
+                        ) : null}
+                      </>
+                    )}
+                  </View>
+                </View>
+                {r.stuck && onNudge ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    testID={`activity-nudge-${r.runId}`}
+                    onPress={() => onNudge(r.runId)}
+                  >
+                    <Text style={st.actNudge}>Nudge it</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={st.actMeta}>{woke > 0 ? `${`${woke}×`}` : (r.whoName ?? "")}</Text>
+                )}
+              </Pressable>
+            );
+          })}
         </View>
       ))}
     </View>
@@ -326,9 +398,16 @@ const st = StyleSheet.create({
   answer: { fontSize: 12, color: "var(--ok)" as string },
   open: { fontSize: 12, color: "var(--warn)" as string },
   note: { marginTop: 12, fontSize: 12, lineHeight: 17, color: "var(--ink-4)" as string },
-  lines: { gap: 1, marginHorizontal: 8, marginVertical: 3 },
+  lines: { gap: 3, marginHorizontal: 8, marginVertical: 4 },
+  msg: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 22 },
+  msgText: { flex: 1, minWidth: 0, fontSize: 12, color: "var(--ink-3)" as string },
+  head: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 32 },
+  headTitle: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
+  headCount: { fontSize: 12, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
+  chevOpen: { transform: [{ rotate: "90deg" }] },
+  actState: { flexDirection: "row", alignItems: "center", gap: 5 },
+  sleepN: { fontSize: 12, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
   line: { fontSize: 12, lineHeight: 22, color: "var(--ink-3)" as string },
-  lineName: { fontWeight: "500", color: "var(--ink-2)" as string },
   seen: { color: "var(--ink-4)" as string },
   dep: { fontSize: 11.5, color: "var(--accent)" as string },
   sleep: {

@@ -2,9 +2,9 @@
 // while it is shut). A server that has no such read shows nothing at all. A press opens the run's own chat when it has one and says so when it has not.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useDueText } from "../../../../../../../ui/src/Time/index.tsx";
-import { ActivityList } from "./views.tsx";
+import { ActivityList, SectionHead } from "./views.tsx";
 import { readActivity, threadOfRun } from "./reads.ts";
 import type { ActivityRow } from "./model.ts";
 
@@ -64,15 +64,13 @@ export function ActivitySection({
   };
   return (
     <View testID="crew-activity" style={st.wrap}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
+      <SectionHead
         testID="crew-activity-toggle"
+        title="Running"
+        open={open}
+        count={rows?.length}
         onPress={() => setOpen((o) => !o)}
-        style={st.toggle}
-      >
-        <Text style={st.toggleText}>{open ? "Hide running and asleep" : "Running and asleep"}</Text>
-      </Pressable>
+      />
       {open && rows ? <ActivityList rows={rows} when={when} onOpen={press} /> : null}
       {open && rows === undefined && !stale ? (
         <Text testID="crew-activity-reading" style={st.note}>
@@ -95,14 +93,5 @@ export function ActivitySection({
 
 const st = StyleSheet.create({
   wrap: { marginTop: 14, gap: 6 },
-  toggle: {
-    alignSelf: "flex-start",
-    height: 28,
-    paddingHorizontal: 10,
-    borderRadius: 9,
-    justifyContent: "center",
-    backgroundColor: "var(--hover)" as string,
-  },
-  toggleText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   note: { fontSize: 12, color: "var(--ink-3)" as string },
 });

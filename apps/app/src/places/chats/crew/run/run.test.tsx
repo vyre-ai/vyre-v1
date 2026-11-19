@@ -174,7 +174,13 @@ test("the board view draws its sections, who wrote each entry, its source chip, 
 
 test("message lines, the dependency line, the sleeping line and the token report draw only what is true", async () => {
   const lines = await mount(createRoot, <MessageLines messages={MESSAGES} nodes={NODES} />);
-  assert.match(say(find(lines, "message-line-m3")), /Research to Docs: Pine's bid ends 30 November/);
+  assert.match(
+    String(
+      find(lines, "message-line-m3")?.props["aria-label"] ?? find(lines, "message-line-m3")?.props.accessibilityLabel,
+    ),
+    /Research to Docs: Pine's bid ends 30 November/,
+  );
+  assert.match(say(find(lines, "message-line-m3")), /Pine's bid ends 30 November/);
   assert.equal(find(lines, "message-line-m1"), null, "only the last two");
   assert.equal(find(await mount(createRoot, <MessageLines messages={[]} nodes={NODES} />), "message-lines"), null);
   const dep = await mount(createRoot, <DependencyLine node={NODES[3]!} nodes={NODES} />);
@@ -192,11 +198,13 @@ test("message lines, the dependency line, the sleeping line and the token report
       onOpen={() => opened++}
     />,
   );
-  assert.match(
+  assert.match(say(find(sleep, "sleep-line")), /until the export finishes\s*3×/);
+  assert.doesNotMatch(
     say(find(sleep, "sleep-line")),
-    /Asleep until the export finishes · woke 3 times · no tokens while asleep/,
+    /woke|times|Asleep/,
+    "the moon and a number carry what words said",
   );
-  await press(find(sleep, "sleep-open"));
+  await press(find(sleep, "sleep-line"));
   assert.equal(opened, 1);
   assert.equal(
     find(await mount(createRoot, <SleepLine node={{ status: "running" }} when={when} />), "sleep-line"),
@@ -219,8 +227,8 @@ test("the activity list opens a session on press, offers Nudge on a stuck run on
     <ActivityList rows={ACTIVITY} when={when} onOpen={(id) => opened.push(id)} onNudge={(id) => nudged.push(id)} />,
   );
   assert.match(say(find(root, "activity-needs")), /Import contacts[\s\S]*Looks stuck: the same step six times/);
-  assert.match(say(find(root, "activity-asleep")), /Asleep until the export finishes woke 3 times/);
-  assert.match(say(find(root, "activity-asleep")), /Asleep until day 3/);
+  assert.match(say(find(root, "activity-asleep")), /until the export finishes 3×/);
+  assert.match(say(find(root, "activity-asleep")), /until day 3/);
   assert.equal(find(root, "activity-nudge-run_r"), null);
   await press(find(root, "activity-nudge-run_x1"));
   await press(find(root, "activity-row-run_x2"));

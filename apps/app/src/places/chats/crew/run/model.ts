@@ -73,7 +73,7 @@ export function messageLines(
   messages: readonly NodeMessage[],
   nodes: readonly Pick<RunNode, "id" | "name">[],
   limit = 2,
-): Array<{ id: string; from: string; to: string; body: string; seen: boolean }> {
+): Array<{ id: string; from: string; to: string; fromId: string; toId: string; body: string; seen: boolean }> {
   const name = byId(nodes);
   return [...messages]
     .sort((a, b) => a.at - b.at)
@@ -103,25 +103,27 @@ export function dependencyLine(
   return `Starts when ${names.join(" and ")} ${names.length > 1 ? "are" : "is"} done`;
 }
 
-/** The one calm line for a run that sleeps: what it waits on, how often it has woken, and that waiting costs nothing. `when` words a time in the Space's time zone. */
+/** What a sleeping run waits on, as the words after "Asleep": "until the export finishes", "until Monday 09:00"; empty when it says nothing. `when` words a time in the Space's time zone. */
+export function wakeCondition(w: NonNullable<RunNode["wake"]>, when: (ts: number) => string): string {
+  if (w.kind === "time" && w.dueAt !== undefined) return `until ${when(w.dueAt)}`;
+  const label = w.label ?? "";
+  if (label === "") return "";
+  const lower = `${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+  return lower.startsWith("until ") || lower.startsWith("wakes ") ? lower : `until ${lower}`;
+}
+
+/** The one calm line for a run that sleeps: what it waits on, how often it has woken, and that waiting costs nothing. */
 export function sleepLine(
   n: Pick<RunNode, "status" | "wake">,
   when: (ts: number) => string,
 ): { head: string; tail: string } | null {
   if (n.status !== "waiting" || n.wake === undefined) return null;
-  const w = n.wake;
-  const label = w.label ?? "";
-  const lower = label === "" ? "" : `${label.charAt(0).toLowerCase()}${label.slice(1)}`;
-  const head =
-    w.kind === "time" && w.dueAt !== undefined
-      ? `Asleep until ${when(w.dueAt)}`
-      : lower !== ""
-        ? lower.startsWith("until ") || lower.startsWith("wakes ")
-          ? `Asleep ${lower}`
-          : `Asleep until ${lower}`
-        : "Asleep";
-  const woke = w.wokeCount ?? 0;
-  return { head, tail: `${woke > 0 ? `woke ${woke === 1 ? "once" : `${woke} times`} · ` : ""}no tokens while asleep` };
+  const cond = wakeCondition(n.wake, when);
+  const woke = n.wake.wokeCount ?? 0;
+  return {
+    head: cond === "" ? "Asleep" : `Asleep ${cond}`,
+    tail: `${woke > 0 ? `woke ${woke === 1 ? "once" : `${woke} times`} · ` : ""}no tokens while asleep`,
+  };
 }
 
 /** The token report: tokens, cost, how much was read from the run's cache (the runtime counts cacheRead inside tokensIn), and each node's share. */
