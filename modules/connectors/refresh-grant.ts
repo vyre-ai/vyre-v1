@@ -43,10 +43,12 @@ const unsaved = new Map<string, { from: string; to: string }>();
 
 /** The key of an item for the three tables: the Space (any object that is one per Space's store) and the handle without its field. */
 const spaces = new WeakMap<object, number>();
+let spacesSeen = 0;
 export function grantKey(space: object, handle: string): string {
   let n = spaces.get(space);
   if (n === undefined) {
-    n = spaces.size + 1;
+    spacesSeen += 1;
+    n = spacesSeen;
     spaces.set(space, n);
   }
   return `${n}:${handle.replace(/\.[A-Za-z0-9_]+$/, "")}`;
