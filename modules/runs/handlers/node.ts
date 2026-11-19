@@ -2,6 +2,16 @@
 // runs.node.control (pause, resume, stop) and the three reads. Who may see a tree: whoever may see its root (its owner, who started it, a Manage holder).
 import { isSystemCall } from "../../../lib/trust.ts";
 import { stop } from "./engine.ts";
+import {
+  boardAnswer,
+  boardList,
+  boardPut,
+  markSeen,
+  messageSend,
+  messagesInTree,
+  messagesOf,
+  takeMessages,
+} from "../board.ts";
 import { canSee, mayManage, raise } from "../projections.ts";
 import type { RunsCtx } from "../projections.ts";
 import {
@@ -10,6 +20,7 @@ import {
   eventsSince,
   findNode,
   getNode,
+  isTerminal,
   liveNodes,
   moveNode,
   pauseSubtree,
@@ -36,6 +47,8 @@ export function nodeOut(n: Node): Record<string, unknown> {
   return rest as Record<string, unknown>;
 }
 
+/** Nodes an agent turn of the engine stands behind: a stop reaches the engine. */
+const ENGINE_KINDS = new Set(["turn", "helper", "crew"]);
 const systemOnly = (ctx: RunsCtx): void => {
   if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
     raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
@@ -122,11 +135,28 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
         reason: "run_finished",
         status: n.status,
       });
-    else
+    else {
+      // what really works behind a node is stopped first: an agent's turn through the engine's own Stop; only then does the node say stopped (a node that says stopped while its work goes on is worse than none)
+      const scope = input.subtree === false ? [n] : subtreeOf(ctx.db, n.id);
+      for (const x of scope) {
+        if (isTerminal(x.status) || !ENGINE_KINDS.has(x.kind) || x.threadId === undefined || x.whoId === undefined)
+          continue;
+        if (!ctx.call)
+          raise(ctx, "internal.unavailable", "That cannot be stopped from here right now.", { reason: "no_engine" });
+        try {
+          await ctx.call("engine.stop", { threadId: x.threadId, agentId: x.whoId });
+        } catch {
+          raise(ctx, "internal.unavailable", "It could not be stopped just now. Try again.", {
+            reason: "stop_failed",
+            runId: x.id,
+          });
+        }
+      }
       moved =
         input.subtree === false
           ? [moveNode(ctx, n.id, "stopped", { why: "stopped", stopReason: reason, by }).node]
           : stopSubtree(ctx, n.id, reason, by);
+    }
   } else if (input.action === "pause") {
     if (n.status === "paused") moved = [n];
     else if (n.status === "succeeded" || n.status === "failed" || n.status === "stopped")
@@ -135,10 +165,10 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
         status: n.status,
       });
     else
-      moved =
-        input.subtree === false
-          ? [moveNode(ctx, n.id, "paused", { why: "paused", by }).node]
-          : pauseSubtree(ctx, n.id, by);
+      // nothing behind a node holds still when it says paused yet (the turn engine has no pause), so a person is not offered one that does nothing; a budget limit pauses a node by its own rule when that lands
+      raise(ctx, "validation.precondition_failed", "That one cannot be paused yet. Stop it instead.", {
+        reason: "not_pausable",
+      });
   } else {
     if (n.status !== "paused")
       raise(ctx, "validation.precondition_failed", "That run is not paused.", {
@@ -291,4 +321,69 @@ export async function activityList(ctx: RunsCtx, input: In): Promise<unknown> {
 export const NODE_SWEEP_MS = 5_000;
 export function nodeSweep(ctx: RunsCtx): void {
   reclaimExpired(ctx);
+}
+
+// ---- the board and the messages of a tree (board.ts) ----
+
+/** Who may speak as a node: the server, the node's own agent, and the owner or a manager of the work. */
+function speaksFor(ctx: RunsCtx, n: Node): void {
+  if (isSystemCall(ctx as Parameters<typeof isSystemCall>[0])) return;
+  if (n.whoKind === "agent" && n.whoId !== undefined && n.whoId === ctx.principal.id) return;
+  if (mayManage(ctx, { id: n.id, owner: n.owner })) return;
+  raise(ctx, "permission.not_found", "That run is not available.");
+}
+const fullOnly = (ctx: RunsCtx, id: string): Node => {
+  const { node, full } = look(ctx, id);
+  if (!full) raise(ctx, "permission.not_found", "That run is not available.");
+  return node;
+};
+
+export async function boardPutCap(ctx: RunsCtx, input: In): Promise<unknown> {
+  const n = getNode(ctx, input.runId);
+  speaksFor(ctx, n);
+  if (n.status === "succeeded" || n.status === "failed" || n.status === "stopped")
+    raise(ctx, "validation.precondition_failed", "That run has already finished.", {
+      reason: "run_finished",
+      status: n.status,
+    });
+  return boardPut(ctx, n, input as Parameters<typeof boardPut>[2]);
+}
+export async function boardAnswerCap(ctx: RunsCtx, input: In): Promise<unknown> {
+  const n = getNode(ctx, input.runId);
+  const root = findNode(ctx.db, n.rootRun) ?? n;
+  // the node that asked may not answer itself: its parent's agent, the owner, a manager, or the server
+  const parent = n.parentRun ? findNode(ctx.db, n.parentRun) : undefined;
+  const parentAgent = parent?.whoKind === "agent" && parent.whoId !== undefined && parent.whoId === ctx.principal.id;
+  if (
+    !isSystemCall(ctx as Parameters<typeof isSystemCall>[0]) &&
+    !parentAgent &&
+    !mayManage(ctx, { id: root.id, owner: root.owner })
+  )
+    raise(ctx, "permission.not_found", "That run is not available.");
+  return { entry: boardAnswer(ctx, input.entryId, ctx.actingFor ?? ctx.principal.id, input.text) };
+}
+export async function boardListCap(ctx: RunsCtx, input: In): Promise<unknown> {
+  const n = look(ctx, input.runId);
+  // another person in the chat is not told what the nodes know
+  return { entries: n.full ? boardList(ctx.db, n.node.rootRun, input.all === true) : [] };
+}
+export async function messageSendCap(ctx: RunsCtx, input: In): Promise<unknown> {
+  const from = getNode(ctx, input.runId);
+  speaksFor(ctx, from);
+  return messageSend(ctx, from, input.to, input.body, input.key);
+}
+export async function messageTakeCap(ctx: RunsCtx, input: In): Promise<unknown> {
+  if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
+    raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
+  getNode(ctx, input.runId);
+  return { messages: takeMessages(ctx, input.runId) };
+}
+export async function messageSeenCap(ctx: RunsCtx, input: In): Promise<unknown> {
+  if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
+    raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
+  return { marked: markSeen(ctx, input.messageIds) };
+}
+export async function messageListCap(ctx: RunsCtx, input: In): Promise<unknown> {
+  const n = fullOnly(ctx, input.runId);
+  return { messages: input.tree === true ? messagesInTree(ctx.db, n.rootRun) : messagesOf(ctx.db, n.id) };
 }

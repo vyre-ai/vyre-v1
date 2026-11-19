@@ -2422,6 +2422,11 @@ export function stubs(ctx: CallCtx) {
       activity: {
         list: call("runs.activity.list"),
       },
+      board: {
+        answer: call("runs.board.answer"),
+        list: call("runs.board.list"),
+        put: call("runs.board.put"),
+      },
       count: call("runs.count"),
       erase: call("runs.erase"),
       events: {
@@ -2431,6 +2436,12 @@ export function stubs(ctx: CallCtx) {
       get: call("runs.get"),
       list: call("runs.list"),
       mark_waiting: call("runs.mark_waiting"),
+      message: {
+        list: call("runs.message.list"),
+        seen: call("runs.message.seen"),
+        send: call("runs.message.send"),
+        take: call("runs.message.take"),
+      },
       node: {
         beat: call("runs.node.beat"),
         claim: call("runs.node.claim"),

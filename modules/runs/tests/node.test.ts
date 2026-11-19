@@ -279,21 +279,64 @@ test("stop takes the whole subtree, parents first, and leaves a finished child a
   assert.equal(again.nodes.length, 1, "a second stop of the same node is a no-op");
 });
 
-test("pause and resume: a paused node is not claimed, resuming puts it back in the queue, a person pauses one node alone with subtree false", async () => {
+test("a node cannot be paused yet (nothing behind it would hold still); resume works on a node that a rule paused", async () => {
   const h = harness();
   const root = await start(h, { kind: "turn" });
-  const a = await start(h, { parentRun: root.id });
   await h.call("runs.node.claim", { runId: root.id, holder: "host:a" }, host);
-  await h.call("runs.node.claim", { runId: a.id, holder: "host:a" }, host);
-  const p = await h.call("runs.node.control", { runId: root.id, action: "pause" }, alice);
-  assert.equal(p.nodes.length, 2);
-  assert.equal(statusOf(h, a.id), "paused");
-  assert.equal((await h.call("runs.node.claim", { runId: a.id, holder: "host:b" }, host)).node, undefined);
-  const r = await h.call("runs.node.control", { runId: a.id, action: "resume", subtree: false }, alice);
+  const e = await h.call("runs.node.control", { runId: root.id, action: "pause" }, alice).catch((x) => x);
+  assert.equal(reasonOf(e), "not_pausable");
+  assert.equal(statusOf(h, root.id), "running", "a refused pause changes nothing");
+  // a budget rule (later) pauses a node by the engine's own move; a person resumes it
+  await move(h, root.id, "paused", "budget");
+  assert.equal(
+    (await h.call("runs.node.claim", { runId: root.id, holder: "host:b" }, host)).node,
+    undefined,
+    "a paused node is not claimed",
+  );
+  const r = await h.call("runs.node.control", { runId: root.id, action: "resume", subtree: false }, alice);
   assert.equal(r.nodes[0].status, "queued");
-  assert.equal(statusOf(h, root.id), "paused");
-  const e = await h.call("runs.node.control", { runId: a.id, action: "resume" }, alice).catch((x) => x);
-  assert.equal(reasonOf(e), "not_paused");
+  const again = await h.call("runs.node.control", { runId: root.id, action: "resume" }, alice).catch((x) => x);
+  assert.equal(reasonOf(again), "not_paused");
+});
+
+test("stop reaches the engine first: a helper's turn is stopped through engine.stop, and a node whose stop failed does not claim to be stopped", async () => {
+  const h = harness();
+  const calls: unknown[] = [];
+  h.callee("engine.stop", (input) => {
+    calls.push(input);
+    return { stopped: 1 };
+  });
+  const root = await start(h, {
+    kind: "turn",
+    threadId: `thr_${"a".repeat(32)}`,
+    whoKind: "agent",
+    whoId: `agt_${"b".repeat(32)}`,
+  });
+  const kid = await start(h, {
+    parentRun: root.id,
+    threadId: `thr_${"c".repeat(32)}`,
+    whoKind: "agent",
+    whoId: `agt_${"d".repeat(32)}`,
+  });
+  await h.call("runs.node.control", { runId: root.id, action: "stop" }, { ...alice, depth: 0 });
+  assert.deepEqual(calls, [
+    { threadId: `thr_${"a".repeat(32)}`, agentId: `agt_${"b".repeat(32)}` },
+    { threadId: `thr_${"c".repeat(32)}`, agentId: `agt_${"d".repeat(32)}` },
+  ]);
+  assert.deepEqual([statusOf(h, root.id), statusOf(h, kid.id)], ["stopped", "stopped"]);
+  const h2 = harness();
+  h2.callee("engine.stop", () => {
+    throw new Error("down");
+  });
+  const n = await start(h2, {
+    kind: "helper",
+    threadId: `thr_${"a".repeat(32)}`,
+    whoKind: "agent",
+    whoId: `agt_${"b".repeat(32)}`,
+  });
+  const e = await h2.call("runs.node.control", { runId: n.id, action: "stop" }, { ...alice, depth: 0 }).catch((x) => x);
+  assert.equal(reasonOf(e), "stop_failed");
+  assert.equal(statusOf(h2, n.id), "queued", "still what it was");
 });
 
 test("who may do what: a person at the gateway cannot move or claim; the owner controls their own; another person cannot even see it; a manager can", async () => {
@@ -314,9 +357,11 @@ test("who may do what: a person at the gateway cannot move or claim; the owner c
     codeOf(await h.call("runs.node.control", { runId: n.id, action: "stop" }, { ...bob, depth: 0 }).catch((x) => x)),
     "permission.not_found",
   );
-  await h.call("runs.node.control", { runId: n.id, action: "pause" }, { ...alice, depth: 0 });
-  await h.call("runs.node.control", { runId: n.id, action: "stop" }, { id: "usr_admin", kind: "person", depth: 0 });
+  await h.call("runs.node.control", { runId: n.id, action: "stop" }, { ...alice, depth: 0 }).catch(() => undefined); // the owner may stop their own
   assert.equal(statusOf(h, n.id), "stopped");
+  const m = await start(h);
+  await h.call("runs.node.control", { runId: m.id, action: "stop" }, { id: "usr_admin", kind: "person", depth: 0 });
+  assert.equal(statusOf(h, m.id), "stopped");
 });
 
 test("every kind the contract names can be started", async () => {

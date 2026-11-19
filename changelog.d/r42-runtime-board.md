@@ -1,0 +1,1 @@
+The helpers of one job can now keep a shared board of what they found, with the evidence for each thing, ask a question the parent or a person answers, and send each other short messages that arrive once at the next step.

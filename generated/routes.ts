@@ -31762,6 +31762,63 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/runs/board/answer",
+    "cap": "runs.board.answer",
+    "v": 1,
+    "module": "runs",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "run",
+      "id": "/runId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/runs/board/list",
+    "cap": "runs.board.list",
+    "v": 1,
+    "module": "runs",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "run",
+      "id": "/runId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/runs/board/put",
+    "cap": "runs.board.put",
+    "v": 1,
+    "module": "runs",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "run",
+      "id": "/runId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/runs/count",
     "cap": "runs.count",
     "v": 1,
@@ -31883,6 +31940,80 @@ const routes5: Route[] = [
     "resource": {
       "type": "run",
       "id": "/runId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/runs/message/list",
+    "cap": "runs.message.list",
+    "v": 1,
+    "module": "runs",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "run",
+      "id": "/runId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/runs/message/seen",
+    "cap": "runs.message.seen",
+    "v": 1,
+    "module": "runs",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/runs/message/send",
+    "cap": "runs.message.send",
+    "v": 1,
+    "module": "runs",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "run",
+      "id": "/runId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/runs/message/take",
+    "cap": "runs.message.take",
+    "v": 1,
+    "module": "runs",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -33045,7 +33176,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/schema/types/list",
@@ -33171,10 +33305,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/search/index/rebuild",
@@ -38548,7 +38679,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/number/set_hours",
@@ -38677,10 +38811,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/registration/submit",

@@ -2422,6 +2422,11 @@ export function createClient(transport: Transport) {
       activity: {
         list: call("runs.activity.list", 1),
       },
+      board: {
+        answer: call("runs.board.answer", 1),
+        list: call("runs.board.list", 1),
+        put: call("runs.board.put", 1),
+      },
       count: call("runs.count", 1),
       erase: call("runs.erase", 1),
       events: {
@@ -2431,6 +2436,12 @@ export function createClient(transport: Transport) {
       get: call("runs.get", 1),
       list: call("runs.list", 1),
       mark_waiting: call("runs.mark_waiting", 1),
+      message: {
+        list: call("runs.message.list", 1),
+        seen: call("runs.message.seen", 1),
+        send: call("runs.message.send", 1),
+        take: call("runs.message.take", 1),
+      },
       node: {
         beat: call("runs.node.beat", 1),
         claim: call("runs.node.claim", 1),
