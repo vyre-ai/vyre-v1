@@ -25,7 +25,13 @@ test("a call is one row that is written twice: started, then answered; a second 
   a.put(entry({ callId: "c2", name: "send_email", safety: "unsafe", at: 1_600 }));
   const b = sqlJournal(h.ctx.db, () => 2_000); // another host over the same database
   const rows = b.list("trn_1");
-  assert.deepEqual(rows.map((r) => [r.callId, r.state, r.safety]), [["c1", "done", "read"], ["c2", "started", "unsafe"]]);
+  assert.deepEqual(
+    rows.map((r) => [r.callId, r.state, r.safety]),
+    [
+      ["c1", "done", "read"],
+      ["c2", "started", "unsafe"],
+    ],
+  );
   assert.deepEqual(rows[0]!.input, { sheet: "A" });
   assert.equal(rows[0]!.summary, '{"rows":3}');
   const plan = planResume(rows);
@@ -55,5 +61,8 @@ test("held and own-tool calls say why the turn is not resumed", () => {
   assert.equal(planResume([]).why, "no_record");
   const ok = planResume([entry({ state: "done" }), entry({ callId: "c2", state: "started", safety: "keyed" })]);
   assert.equal(ok.resumable, true);
-  assert.deepEqual(ok.replay.map((e) => e.callId), ["c2"]);
+  assert.deepEqual(
+    ok.replay.map((e) => e.callId),
+    ["c2"],
+  );
 });

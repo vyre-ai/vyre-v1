@@ -161,6 +161,7 @@ const SCHEMA = [
   "0018_rewind_undo.sql",
   "0019_rewind_state.sql",
   "0020_own_background.sql",
+  "0021_turn_journal.sql",
 ]
   .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
   .join("\n")
