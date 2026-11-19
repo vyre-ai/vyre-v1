@@ -51,6 +51,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.models_catalog": Handler<"engine.models_catalog", X>;
   "engine.my_ai": Handler<"engine.my_ai", X>;
   "engine.now": Handler<"engine.now", X>;
+  "engine.pause": Handler<"engine.pause", X>;
   "engine.placement.decide": Handler<"engine.placement.decide", X>;
   "engine.placement.options": Handler<"engine.placement.options", X>;
   "engine.placement.set": Handler<"engine.placement.set", X>;
@@ -61,6 +62,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.providers.list": Handler<"engine.providers.list", X>;
   "engine.queue.list": Handler<"engine.queue.list", X>;
   "engine.queue.peek": Handler<"engine.queue.peek", X>;
+  "engine.resume_paused": Handler<"engine.resume_paused", X>;
   "engine.review.list": Handler<"engine.review.list", X>;
   "engine.review.mark": Handler<"engine.review.mark", X>;
   "engine.reviewer.get": Handler<"engine.reviewer.get", X>;

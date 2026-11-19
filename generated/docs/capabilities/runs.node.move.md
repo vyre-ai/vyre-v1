@@ -46,6 +46,8 @@ type In = {
     wokeCount?: number;
   };
   checkpoint?: unknown;
+  holder?: string;
+  attempt: number;
 };
 ```
 
@@ -131,6 +133,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "attempt": 1,
     "checkpoint": {},
     "error": {
       "code": "example",
@@ -139,6 +142,7 @@ type Out = {
     "evidence": {},
     "expectedFrom": "queued",
     "expectedVersion": 1,
+    "holder": "example",
     "result": {},
     "runId": "run_a1b2c3",
     "stopReason": "example",

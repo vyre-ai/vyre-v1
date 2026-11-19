@@ -394,9 +394,15 @@ export default defineManifest({
           wake: t.opt(nodeWake),
           checkpoint: t.opt(t.json()),
           holder: t.opt(
-            t.str({ description: "The lease a worker holds: a move by a worker that no longer holds it is refused; none when the node holds none" }),
+            t.str({
+              description:
+                "The lease a worker holds: a move by a worker that no longer holds it is refused; none when the node holds none",
+            }),
           ),
-          attempt: t.int({ minimum: 1, description: "The attempt the worker holds: a move of an older attempt is refused" }),
+          attempt: t.int({
+            minimum: 1,
+            description: "The attempt the worker holds: a move of an older attempt is refused",
+          }),
         },
         out: { node: nodeRow, changed: t.bool() },
         emits: ["run.node_state", "run.node_ended"],
@@ -522,18 +528,22 @@ export default defineManifest({
         },
       },
     ),
-    write("runs.budget.set", "Set, raise or clear the limit of a node and everything under it (money, tokens or both); raising it past what was used lets the work it paused go on", {
-      in: {
-        ...nodeTarget,
-        usdMicros: t.opt(t.int({ minimum: 1 })),
-        tokens: t.opt(t.int({ minimum: 1 })),
-        clear: t.opt(t.bool()),
+    write(
+      "runs.budget.set",
+      "Set, raise or clear the limit of a node and everything under it (money, tokens or both); raising it past what was used lets the work it paused go on",
+      {
+        in: {
+          ...nodeTarget,
+          usdMicros: t.opt(t.int({ minimum: 1 })),
+          tokens: t.opt(t.int({ minimum: 1 })),
+          clear: t.opt(t.bool()),
+        },
+        out: { node: nodeRow, resumed: t.int({ minimum: 0 }) },
+        on: ["run", "/runId"],
+        level: "manage",
+        offline: "online",
       },
-      out: { node: nodeRow, resumed: t.int({ minimum: 0 }) },
-      on: ["run", "/runId"],
-      level: "manage",
-      offline: "online",
-    }),
+    ),
     write(
       "runs.board.put",
       "A node writes to the board of its tree: a fact or decision with what it stands on, or a question",

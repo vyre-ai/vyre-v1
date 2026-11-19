@@ -71,7 +71,8 @@ export function planResume(entries: readonly JournalEntry[]): ResumePlan {
 }
 
 // names that mean a credential; not "tokens" (a count), "sealed" (a flag) or "cookie_count"
-const SECRET_KEY = /^(pass(word|wd|phrase)?|secret|client[-_]?secret|(api|access|auth|bearer|refresh|session)[-_]?(key|token)|token|authorization|credentials?|cookie|set[-_]?cookie|private[-_]?key)$/i;
+const SECRET_KEY =
+  /^(pass(word|wd|phrase)?|secret|client[-_]?secret|(api|access|auth|bearer|refresh|session)[-_]?(key|token)|token|authorization|credentials?|cookie|set[-_]?cookie|private[-_]?key)$/i;
 /**
  * The input of a call as it may be kept: a field whose name says it is a secret, a held token, and anything that reads like a key or a certificate are replaced by [secret]. A Vault reference (#Handle.field) is not a
  * value and stays. `changed` says something was taken out; such a call is never asked again after a restart, since what would be sent is not what was sent.

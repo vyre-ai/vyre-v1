@@ -26,7 +26,8 @@ function rig(opts: { pauseFails?: boolean } = {}): Rig {
     r.resumed.push({ threadId: i.threadId, agentId: i.agentId });
     return { resumed: 1, lost: 0 };
   });
-  h.callee("tasks.create", (i: Record<string, any>) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("tasks.create", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     r.tasks.push(i);
     return { task: { id: `tsk_${r.tasks.length}` } };
   });
@@ -35,32 +36,68 @@ function rig(opts: { pauseFails?: boolean } = {}): Rig {
 async function job(r: Rig, budget?: Record<string, number>) {
   const h = r.h;
   h.advance(1);
-  const root = (await h.call("runs.node.start", { kind: "turn", owner: alice.id, threadId: THREAD("a"), whoKind: "agent", whoId: AGENT("a"), running: true, name: "Supplier review", ...(budget ? { budget } : {}) }, engine)).node;
+  const root = (
+    await h.call(
+      "runs.node.start",
+      {
+        kind: "turn",
+        owner: alice.id,
+        threadId: THREAD("a"),
+        whoKind: "agent",
+        whoId: AGENT("a"),
+        running: true,
+        name: "Supplier review",
+        ...(budget ? { budget } : {}),
+      },
+      engine,
+    )
+  ).node;
   const mk = async (c: string) => {
     h.advance(1);
-    return (await h.call("runs.node.start", { kind: "helper", owner: alice.id, parentRun: root.id, threadId: THREAD(c), whoKind: "agent", whoId: AGENT(c), running: true }, engine)).node;
+    return (
+      await h.call(
+        "runs.node.start",
+        {
+          kind: "helper",
+          owner: alice.id,
+          parentRun: root.id,
+          threadId: THREAD(c),
+          whoKind: "agent",
+          whoId: AGENT(c),
+          running: true,
+        },
+        engine,
+      )
+    ).node;
   };
   return { root, a: await mk("b"), b: await mk("c") };
 }
 const use = (r: Rig, runId: string, key: string, over: Record<string, number>) =>
   r.h.call("runs.node.event", { runId, type: "usage", key, payload: { tokensIn: 0, tokensOut: 0, ...over } }, engine);
-const status = (h: Harness, id: string): string => String((h.sqlite.prepare("SELECT status FROM runs_node WHERE run_id = ?").get(id) as { status: string }).status);
+const status = (h: Harness, id: string): string =>
+  String((h.sqlite.prepare("SELECT status FROM runs_node WHERE run_id = ?").get(id) as { status: string }).status);
 
 test("under the limit nothing happens; the call that reaches it is counted whole, and every live node under the limit is paused, with one Needs you for the owner", async () => {
   const r = rig();
   const { root, a, b } = await job(r, { usdMicros: 2_000_000 });
   await use(r, a.id, "u1", { usdMicros: 900_000, tokensIn: 1000 });
   await use(r, b.id, "u2", { usdMicros: 900_000 });
-  assert.deepEqual(r.paused, []);
+  assert.equal(r.paused.length, 0);
   await use(r, a.id, "u3", { usdMicros: 600_000 }); // 2.4 of 2.0: the call in flight finished and is counted as it was
-  assert.deepEqual(r.paused.map((p) => p.agentId).sort(), [AGENT("a"), AGENT("b"), AGENT("c")].sort(), "the lead and both helpers");
+  assert.deepEqual(
+    r.paused.map((p) => p.agentId).sort(),
+    [AGENT("a"), AGENT("b"), AGENT("c")].sort(),
+    "the lead and both helpers",
+  );
   const tree = await r.h.call("runs.tree.get", { runId: root.id }, owner);
   assert.equal(tree.spent.usdMicros, 2_400_000, "the number shown is what was really used");
   assert.equal(r.tasks.length, 1);
   assert.match(r.tasks[0]!.title, /Supplier review reached its limit/);
   assert.match(r.tasks[0]!.summary, /\$2\.40 of the \$2\.00/);
   assert.equal(r.tasks[0]!.assigned.id, alice.id);
-  const ev = (await r.h.call("runs.events.list", { runId: root.id }, owner)).events.filter((e: any) => e.type === "budget"); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const ev = (await r.h.call("runs.events.list", { runId: root.id }, owner)).events.filter(
+    (e: any) => e.type === "budget",
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal(ev.length, 1);
 });
 
@@ -80,9 +117,13 @@ test("a limit on a helper holds for it and what it started, not for its siblings
   const { root, a, b } = await job(r);
   await r.h.call("runs.budget.set", { runId: a.id, usdMicros: 500_000 }, owner);
   await use(r, b.id, "b1", { usdMicros: 5_000_000 });
-  assert.deepEqual(r.paused, [], "the sibling spent a lot; nobody limited it or the job");
+  assert.equal(r.paused.length, 0, "the sibling spent a lot; nobody limited it or the job");
   await use(r, a.id, "a1", { usdMicros: 600_000 });
-  assert.deepEqual(r.paused.map((p) => p.agentId), [AGENT("b")], "only the helper under the limit");
+  assert.deepEqual(
+    r.paused.map((p) => p.agentId),
+    [AGENT("b")],
+    "only the helper under the limit",
+  );
   void root;
 });
 
@@ -91,10 +132,15 @@ test("raising the limit past what was used lets the paused work go on; raising i
   const { root, a } = await job(r, { usdMicros: 1_000_000 });
   await use(r, a.id, "u1", { usdMicros: 1_200_000 });
   // what the engine does at the safe point: the turn's node says paused
-  for (const id of [root.id, a.id]) await r.h.call("runs.node.move", { ...hold(h, id), runId: id, to: "paused", why: "budget", ...hold(r.h, id) }, engine);
+  for (const id of [root.id, a.id])
+    await r.h.call(
+      "runs.node.move",
+      { ...hold(r.h, id), runId: id, to: "paused", why: "budget", ...hold(r.h, id) },
+      engine,
+    );
   const little = await r.h.call("runs.budget.set", { runId: root.id, usdMicros: 1_100_000 }, owner);
   assert.equal(little.resumed, 0);
-  assert.deepEqual(r.resumed, []);
+  assert.equal(r.resumed.length, 0);
   assert.equal(status(r.h, a.id), "paused");
   const enough = await r.h.call("runs.budget.set", { runId: root.id, usdMicros: 5_000_000 }, owner);
   assert.equal(enough.resumed, 2);
@@ -103,7 +149,11 @@ test("raising the limit past what was used lets the paused work go on; raising i
   // the same limit reached again acts again: a new limit is a new decision
   const again = await job(r, { usdMicros: 1_000_000 });
   await use(r, again.a.id, "z1", { usdMicros: 2_000_000 });
-  await r.h.call("runs.node.move", { ...hold(h, again.root.id), runId: again.root.id, to: "paused", why: "budget", ...hold(r.h, again.root.id) }, engine);
+  await r.h.call(
+    "runs.node.move",
+    { ...hold(r.h, again.root.id), runId: again.root.id, to: "paused", why: "budget", ...hold(r.h, again.root.id) },
+    engine,
+  );
   const cleared = await r.h.call("runs.budget.set", { runId: again.root.id, clear: true }, owner);
   assert.ok(cleared.resumed >= 1);
 });
@@ -112,8 +162,15 @@ test("resume from the tile is refused while a limit above is still reached, and 
   const r = rig();
   const { root, a } = await job(r, { tokens: 100 });
   await use(r, a.id, "u1", { tokensIn: 150 });
-  await r.h.call("runs.node.move", { ...hold(h, a.id), runId: a.id, to: "paused", why: "budget", ...hold(r.h, a.id) }, engine);
-  assert.equal(reasonOf(await r.h.call("runs.node.control", { runId: a.id, action: "resume" }, owner).catch((e) => e)), "over_budget");
+  await r.h.call(
+    "runs.node.move",
+    { ...hold(r.h, a.id), runId: a.id, to: "paused", why: "budget", ...hold(r.h, a.id) },
+    engine,
+  );
+  assert.equal(
+    reasonOf(await r.h.call("runs.node.control", { runId: a.id, action: "resume" }, owner).catch((e) => e)),
+    "over_budget",
+  );
   assert.equal(status(r.h, a.id), "paused");
   await r.h.call("runs.budget.set", { runId: root.id, tokens: 10_000 }, owner);
   assert.equal(status(r.h, a.id), "stopped", "the raise already took it on");
@@ -124,14 +181,21 @@ test("when the engine cannot pause, the node says so on its record and the owner
   const { root, a } = await job(r, { tokens: 10 });
   await use(r, a.id, "u1", { tokensIn: 50 });
   assert.equal(r.tasks.length, 1);
-  const ev = (await r.h.call("runs.events.list", { runId: root.id }, owner)).events.filter((e: any) => e.type === "budget"); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const ev = (await r.h.call("runs.events.list", { runId: root.id }, owner)).events.filter(
+    (e: any) => e.type === "budget",
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.ok(ev.some((e: any) => e.payload.problem === "pause_failed")); // eslint-disable-line @typescript-eslint/no-explicit-any
 });
 
 test("only the owner or a manager sets a limit; a person who only watches, or a stranger, cannot; a bad value is refused", async () => {
   const r = rig();
   const { root } = await job(r);
-  assert.equal(codeOf(await r.h.call("runs.budget.set", { runId: root.id, usdMicros: 1_000 }, { ...bob, depth: 0 }).catch((e) => e)), "permission.not_found");
+  assert.equal(
+    codeOf(
+      await r.h.call("runs.budget.set", { runId: root.id, usdMicros: 1_000 }, { ...bob, depth: 0 }).catch((e) => e),
+    ),
+    "permission.not_found",
+  );
   assert.ok((await r.h.call("runs.budget.set", { runId: root.id, usdMicros: 1_000_000 }, owner)).node.budget);
   await assert.rejects(() => r.h.call("runs.budget.set", { runId: root.id, usdMicros: -5 }, owner));
 });

@@ -90,7 +90,10 @@ export async function nodeMove(ctx: RunsCtx, input: In): Promise<unknown> {
   // move of the old worker is refused, whether it names a lease or not
   const cur = getNode(ctx, input.runId);
   if (input.attempt !== cur.attempt)
-    raise(ctx, "validation.precondition_failed", "That run has started again since.", { reason: "stale_attempt", attempt: cur.attempt });
+    raise(ctx, "validation.precondition_failed", "That run has started again since.", {
+      reason: "stale_attempt",
+      attempt: cur.attempt,
+    });
   if (cur.leaseHolder !== undefined ? input.holder !== cur.leaseHolder : input.holder !== undefined)
     raise(ctx, "validation.precondition_failed", "That run belongs to another worker now.", { reason: "not_holder" });
   const { node, changed } = moveNode(ctx, input.runId, input.to as NodeStatus, {
@@ -199,12 +202,17 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
     // paused at a limit: it goes on only when no limit above it is reached (raise it first); the turn then starts again as a turn of its own and this node has done its part
     if (ENGINE_KINDS.has(n.kind) && n.threadId !== undefined && n.whoId !== undefined) {
       if (limited(ctx, n).some((a) => reached(ctx.db, a)))
-        raise(ctx, "validation.precondition_failed", "It is at its limit. Raise the limit first, or stop it.", { reason: "over_budget" });
-      if (!ctx.call) raise(ctx, "internal.unavailable", "That cannot be resumed from here right now.", { reason: "no_engine" });
+        raise(ctx, "validation.precondition_failed", "It is at its limit. Raise the limit first, or stop it.", {
+          reason: "over_budget",
+        });
+      if (!ctx.call)
+        raise(ctx, "internal.unavailable", "That cannot be resumed from here right now.", { reason: "no_engine" });
       try {
         await ctx.call("engine.resume_paused", { threadId: n.threadId, agentId: n.whoId });
       } catch {
-        raise(ctx, "internal.unavailable", "It could not be started again just now. Try again.", { reason: "resume_failed" });
+        raise(ctx, "internal.unavailable", "It could not be started again just now. Try again.", {
+          reason: "resume_failed",
+        });
       }
       return { nodes: [out(ctx, moveNode(ctx, n.id, "stopped", { why: "stopped", stopReason: "resumed", by }).node)] };
     }
@@ -396,7 +404,11 @@ export async function boardAnswerCap(ctx: RunsCtx, input: In): Promise<unknown> 
   const n = getNode(ctx, input.runId);
   const root = findNode(ctx.db, n.rootRun) ?? n;
   // the entry is looked up on this tree only; who asked it is the node that wrote it
-  const entry = (ctx.db.all("SELECT by_run FROM runs_board WHERE id = ? AND root_run = ?", input.entryId, n.rootRun) as Array<{ by_run: string }>)[0];
+  const entry = (
+    ctx.db.all("SELECT by_run FROM runs_board WHERE id = ? AND root_run = ?", input.entryId, n.rootRun) as Array<{
+      by_run: string;
+    }>
+  )[0];
   if (!entry) raise(ctx, "permission.not_found", "That run is not available.");
   const asker = findNode(ctx.db, String(entry.by_run)) ?? n;
   // the node that asked may not answer itself, even when its parent runs as the same agent: its parent's agent (another agent), the owner, a manager, or the server
@@ -477,7 +489,11 @@ export async function nodeLabel(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
   const n = getNode(ctx, input.runId);
   // one plain line, as short as a name: whatever a model wrote about its task is cut and cleaned here, not trusted to have been
-  const name = String(input.name).replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+  const name = String(input.name)
+    .replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
   if (name !== "" && n.name === undefined)
     ctx.db.run("UPDATE runs_node SET name = ?, updated_at = ? WHERE run_id = ?", name, ctx.now(), n.id);
   return { ok: true };
@@ -487,6 +503,15 @@ export async function nodeLabel(ctx: RunsCtx, input: In): Promise<unknown> {
 export async function budgetSet(ctx: RunsCtx, input: In): Promise<unknown> {
   const n = manageNode(ctx, input.runId);
   const clear = input.clear === true || (input.usdMicros === undefined && input.tokens === undefined);
-  const r = await setBudget(ctx, n.id, clear ? null : { ...(input.usdMicros === undefined ? {} : { usdMicros: input.usdMicros }), ...(input.tokens === undefined ? {} : { tokens: input.tokens }) });
+  const r = await setBudget(
+    ctx,
+    n.id,
+    clear
+      ? null
+      : {
+          ...(input.usdMicros === undefined ? {} : { usdMicros: input.usdMicros }),
+          ...(input.tokens === undefined ? {} : { tokens: input.tokens }),
+        },
+  );
   return { node: out(ctx, r.node), resumed: r.resumed };
 }

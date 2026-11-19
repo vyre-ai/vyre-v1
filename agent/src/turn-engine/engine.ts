@@ -2357,7 +2357,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         const turnId = opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`;
         const plan = opts.toolSafety ? planResume(toolLog.list(turnId)) : undefined;
         if (plan?.resumable || (opts.toolSafety && toolLog.list(turnId).length === 0 && row.touched !== true)) {
-          resumes.set(rowKey(threadId, row.qseq), { ...(plan ?? { resumable: true, done: [], replay: [] }), turnId, paused: "a limit was reached" });
+          resumes.set(rowKey(threadId, row.qseq), {
+            ...(plan ?? { resumable: true, done: [], replay: [] }),
+            turnId,
+            paused: "a limit was reached",
+          });
           queue.setState(threadId, row.qseq, "queued");
           resumed += 1;
         } else {

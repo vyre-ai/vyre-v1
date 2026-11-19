@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (98)
+## Capabilities (100)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
@@ -52,6 +52,7 @@ Requires: nothing.
 - [engine.models_catalog](../capabilities/engine.models_catalog.md): Every AI account the asker can use with its models, what each can do (tools, images, context), a cost tier (cheap, standard or strong) and whether the probe found it available; for helpers that pick a model across accounts. Reads saved lists and the probe's marks only
 - [engine.my_ai](../capabilities/engine.my_ai.md): What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage
 - [engine.now](../capabilities/engine.now.md): Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it
+- [engine.pause](../capabilities/engine.pause.md): Pause one agent's turn in a thread at its next safe point, keeping everything it did (a limit was reached)
 - [engine.placement.decide](../capabilities/engine.placement.decide.md): Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)
 - [engine.placement.options](../capabilities/engine.placement.options.md): What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)
 - [engine.placement.set](../capabilities/engine.placement.set.md): Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate's machine. once with space runs the next turn on the Space once
@@ -62,6 +63,7 @@ Requires: nothing.
 - [engine.providers.list](../capabilities/engine.providers.list.md): AI providers and engines (API and CLI) with whether each is connected and allowed for the open labels
 - [engine.queue.list](../capabilities/engine.queue.list.md): Messages waiting in a thread queue (steering, wakes, handoffs)
 - [engine.queue.peek](../capabilities/engine.queue.peek.md): Steering check between tool calls: the next queued messages for a running turn
+- [engine.resume_paused](../capabilities/engine.resume_paused.md): Go on with the turns paused in a thread: each starts again as a turn of its own, told what it had already done
 - [engine.review.list](../capabilities/engine.review.list.md): Sampled turns waiting for human review
 - [engine.review.mark](../capabilities/engine.review.mark.md): Mark a sampled turn reviewed: fine, or flagged (which opens an incident)
 - [engine.reviewer.get](../capabilities/engine.reviewer.get.md): The reviewer of a chat, if one is set

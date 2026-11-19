@@ -283,7 +283,14 @@ test("a call that had a secret in its input and was in flight is not asked again
 });
 
 test("a count or a flag is not a secret, whatever it is called: a call with max_tokens or a sealed flag is kept whole and can still be asked again", () => {
-  const out = scrubInput({ max_tokens: 1000, tokens: 12, sealed: true, cookie_count: 3, title: "Call", authorization_notes: "none" });
+  const out = scrubInput({
+    max_tokens: 1000,
+    tokens: 12,
+    sealed: true,
+    cookie_count: 3,
+    title: "Call",
+    authorization_notes: "none",
+  });
   assert.equal(out.changed, false);
   assert.equal(scrubInput({ authorization: "Bearer abc" }).changed, true);
   assert.equal(scrubInput({ token: "abc" }).changed, true);

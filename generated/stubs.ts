@@ -920,6 +920,7 @@ export function stubs(ctx: CallCtx) {
       models_catalog: call("engine.models_catalog"),
       my_ai: call("engine.my_ai"),
       now: call("engine.now"),
+      pause: call("engine.pause"),
       placement: {
         decide: call("engine.placement.decide"),
         options: call("engine.placement.options"),
@@ -940,6 +941,7 @@ export function stubs(ctx: CallCtx) {
         list: call("engine.queue.list"),
         peek: call("engine.queue.peek"),
       },
+      resume_paused: call("engine.resume_paused"),
       review: {
         list: call("engine.review.list"),
         mark: call("engine.review.mark"),
@@ -2426,6 +2428,9 @@ export function stubs(ctx: CallCtx) {
         answer: call("runs.board.answer"),
         list: call("runs.board.list"),
         put: call("runs.board.put"),
+      },
+      budget: {
+        set: call("runs.budget.set"),
       },
       count: call("runs.count"),
       erase: call("runs.erase"),

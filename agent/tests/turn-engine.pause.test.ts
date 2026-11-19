@@ -10,8 +10,13 @@ import { gate, until } from "../src/turn-engine/harness.ts";
 const person = (id: string) => ({ kind: "person" as const, id });
 const agents = (): EngineAgent[] => [{ id: "intake", mode: "lead" }];
 const thread = (id: string): OpenThread => ({ id, kind: "chat", starter: "dana", agents: agents() });
-const ok: DriverEvent[] = [{ type: "text", text: "Done." }, { type: "usage", inputTokens: 10, outputTokens: 2 }, { type: "done" }];
-const SAFETY = (n: string): "read" | "keyed" | "unsafe" => (n.startsWith("read_") ? "read" : n.startsWith("keyed_") ? "keyed" : "unsafe");
+const ok: DriverEvent[] = [
+  { type: "text", text: "Done." },
+  { type: "usage", inputTokens: 10, outputTokens: 2 },
+  { type: "done" },
+];
+const SAFETY = (n: string): "read" | "keyed" | "unsafe" =>
+  n.startsWith("read_") ? "read" : n.startsWith("keyed_") ? "keyed" : "unsafe";
 const calls = (): DriverEvent[] => [
   { type: "tool_call", id: "c1", name: "read_prices", input: {} },
   { type: "tool_call", id: "c2", name: "read_policy", input: {} },
@@ -63,7 +68,14 @@ test("a pause waits for the call the turn is on, stops at that safe point, keeps
   assert.equal(a.e.paused("T").length, 1);
   const ev = a.e.events("T").find((e) => e.type === "turn.cancelled");
   assert.ok(ev && ev.type === "turn.cancelled" && ev.reason === "paused");
-  assert.deepEqual(r.journal.list(t.id).map((j) => [j.callId, j.state]), [["c1", "done"], ["c2", "done"]], "its place is kept");
+  assert.deepEqual(
+    r.journal.list(t.id).map((j) => [j.callId, j.state]),
+    [
+      ["c1", "done"],
+      ["c2", "done"],
+    ],
+    "its place is kept",
+  );
 });
 
 test("going on is a turn of its own, told what was done: nothing finished is run again", async () => {
@@ -83,7 +95,11 @@ test("going on is a turn of its own, told what was done: nothing finished is run
   assert.match(String(input.notice), /paused at a safe point/);
   assert.match(String(input.notice), /Done: read_prices answered/);
   assert.match(String(input.notice), /Done: read_policy answered/);
-  assert.deepEqual(r.ran.filter((x) => x === "c1" || x === "c2"), ["c1", "c2"], "c1 and c2 ran once");
+  assert.deepEqual(
+    r.ran.filter((x) => x === "c1" || x === "c2"),
+    ["c1", "c2"],
+    "c1 and c2 ran once",
+  );
   assert.equal(b.e.turns("T").at(-1)?.state, "completed");
   assert.equal(b.e.paused("T").length, 0);
   assert.deepEqual(b.e.resumePaused("T"), { resumed: 0, lost: 0 }, "nothing left to go on with");

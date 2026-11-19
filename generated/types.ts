@@ -14249,6 +14249,14 @@ export type EngineNowOut = {
       kind?: string;
     }>;
 };
+export type EnginePauseIn = {
+  threadId: string;
+  agentId?: string;
+  reason?: string;
+};
+export type EnginePauseOut = {
+  paused: number;
+};
 export type EnginePlacementDecideIn = {
   threadId: string;
   agentId: string;
@@ -14383,6 +14391,14 @@ export type EngineQueuePeekIn = {
 };
 export type EngineQueuePeekOut = {
   messages: Array<string>;
+};
+export type EngineResumePausedIn = {
+  threadId: string;
+  agentId?: string;
+};
+export type EngineResumePausedOut = {
+  resumed: number;
+  lost: number;
 };
 export type EngineReviewListIn = {
   state?: "waiting" | "ok" | "flagged";
@@ -35481,6 +35497,76 @@ export type RunsBoardPutOut = {
     };
   };
 };
+export type RunsBudgetSetIn = {
+  runId: string;
+  usdMicros?: number;
+  tokens?: number;
+  clear?: boolean;
+};
+export type RunsBudgetSetOut = {
+  node: {
+    id: string;
+    rootRun: string;
+    parentRun?: string;
+    depth: number;
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    whoKind: string;
+    whoId?: string;
+    engine?: string;
+    model?: string;
+    threadId?: string;
+    status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+    version: number;
+    attempt: number;
+    brief?: unknown;
+    budget?: unknown;
+    spent: {
+      tokensIn: number;
+      tokensOut: number;
+      cacheRead: number;
+      usdMicros: number;
+      calls: number;
+    };
+    wake?: {
+      kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+      label?: string;
+      dueAt?: number;
+      on?: unknown;
+      wokeCount?: number;
+    };
+    result?: unknown;
+    evidence?: unknown;
+    origin?: unknown;
+    summary?: string;
+    step?: {
+      icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+      text: string;
+    };
+    need?: {
+      requestId: string;
+      what: string;
+      why: string;
+    };
+    stuck?: {
+      since: number;
+      reason: string;
+    };
+    whoName?: string;
+    dependsOn?: Array<string>;
+    errorCode?: string;
+    errorMessage?: string;
+    stopReason?: string;
+    leaseHolder?: string;
+    leaseUntil?: number;
+    startedAt: number;
+    endedAt?: number;
+    updatedAt: number;
+  };
+  resumed: number;
+};
 export type RunsCountIn = {
   scope: "mine" | "all";
   statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
@@ -35978,6 +36064,8 @@ export type RunsNodeMoveIn = {
     wokeCount?: number;
   };
   checkpoint?: unknown;
+  holder?: string;
+  attempt: number;
 };
 export type RunsNodeMoveOut = {
   node: {
@@ -49669,6 +49757,7 @@ export interface CapMap {
   "engine.models_catalog": { in: EngineModelsCatalogIn; out: EngineModelsCatalogOut };
   "engine.my_ai": { in: EngineMyAiIn; out: EngineMyAiOut };
   "engine.now": { in: EngineNowIn; out: EngineNowOut };
+  "engine.pause": { in: EnginePauseIn; out: EnginePauseOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
   "engine.placement.options": { in: EnginePlacementOptionsIn; out: EnginePlacementOptionsOut };
   "engine.placement.set": { in: EnginePlacementSetIn; out: EnginePlacementSetOut };
@@ -49679,6 +49768,7 @@ export interface CapMap {
   "engine.providers.list": { in: EngineProvidersListIn; out: EngineProvidersListOut };
   "engine.queue.list": { in: EngineQueueListIn; out: EngineQueueListOut };
   "engine.queue.peek": { in: EngineQueuePeekIn; out: EngineQueuePeekOut };
+  "engine.resume_paused": { in: EngineResumePausedIn; out: EngineResumePausedOut };
   "engine.review.list": { in: EngineReviewListIn; out: EngineReviewListOut };
   "engine.review.mark": { in: EngineReviewMarkIn; out: EngineReviewMarkOut };
   "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
@@ -50750,6 +50840,7 @@ export interface CapMap {
   "runs.board.answer": { in: RunsBoardAnswerIn; out: RunsBoardAnswerOut };
   "runs.board.list": { in: RunsBoardListIn; out: RunsBoardListOut };
   "runs.board.put": { in: RunsBoardPutIn; out: RunsBoardPutOut };
+  "runs.budget.set": { in: RunsBudgetSetIn; out: RunsBudgetSetOut };
   "runs.count": { in: RunsCountIn; out: RunsCountOut };
   "runs.erase": { in: RunsEraseIn; out: RunsEraseOut };
   "runs.events.list": { in: RunsEventsListIn; out: RunsEventsListOut };

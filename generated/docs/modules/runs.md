@@ -4,12 +4,13 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (43)
+## Capabilities (44)
 
 - [runs.activity.list](../capabilities/runs.activity.list.md): Everything of the agent work tree that is running, asleep or paused for the person (or for everyone, for someone who manages runs), newest first
 - [runs.board.answer](../capabilities/runs.board.answer.md): The parent, the owner or a manager answers a question on the board
 - [runs.board.list](../capabilities/runs.board.list.md): The board of a tree: what its nodes know together, newest last
 - [runs.board.put](../capabilities/runs.board.put.md): A node writes to the board of its tree: a fact or decision with what it stands on, or a question
+- [runs.budget.set](../capabilities/runs.budget.set.md): Set, raise or clear the limit of a node and everything under it (money, tokens or both); raising it past what was used lets the work it paused go on
 - [runs.count](../capabilities/runs.count.md): Count Runs by status for badges (failed runs in Needs you, running now)
 - [runs.erase](../capabilities/runs.erase.md): Erase one Run for good with its steps, waits and alerts (governance erase)
 - [runs.events.list](../capabilities/runs.events.list.md): A tree's events since a cursor, in order (one node's with runId)

@@ -479,7 +479,8 @@ export function startNode(ctx: RunsCtx, i: StartInput): { node: Node; created: b
     now,
     nul(i.whoName),
   );
-  for (const d of [...new Set(i.dependsOn ?? [])]) ctx.db.run("INSERT OR IGNORE INTO runs_dep (run_id, on_run) VALUES (?, ?)", id, d);
+  for (const d of [...new Set(i.dependsOn ?? [])])
+    ctx.db.run("INSERT OR IGNORE INTO runs_dep (run_id, on_run) VALUES (?, ?)", id, d);
   const node = getNode(ctx, id);
   writeEvent(ctx, id, {
     type: "state",
@@ -544,7 +545,9 @@ export function moveNode(ctx: RunsCtx, id: string, to: NodeStatus, o: MoveOpts):
       version: cur.version,
     });
   if (cur.status === "queued" && to === "running" && unmetDeps(ctx.db, id).length > 0)
-    raise(ctx, "validation.precondition_failed", "It starts after other work that is not done yet.", { reason: "dependency_unmet" });
+    raise(ctx, "validation.precondition_failed", "It starts after other work that is not done yet.", {
+      reason: "dependency_unmet",
+    });
   if (!legalEdge(cur.status, to))
     raise(
       ctx,
@@ -817,7 +820,10 @@ export function settleDeps(ctx: RunsCtx): Node[] {
           by: "svc_host",
           error: {
             code: "dependency_failed",
-            message: `It was to start after ${(bad.name ?? "other work").replace(/\s+/g, " ").replace(/["\u201c\u201d:]/g, "'").slice(0, 60)}, which ${bad.status === "stopped" ? "was stopped" : "did not finish"}.`,
+            message: `It was to start after ${(bad.name ?? "other work")
+              .replace(/\s+/g, " ")
+              .replace(/["\u201c\u201d:]/g, "'")
+              .slice(0, 60)}, which ${bad.status === "stopped" ? "was stopped" : "did not finish"}.`,
           },
         }).node,
       );
@@ -846,13 +852,31 @@ export async function detectStuck(ctx: RunsCtx): Promise<Node[]> {
   for (const r of rows) {
     const n = nodeOf(r);
     // its helpers are working for it: it is waiting on them, not stuck
-    const busy = (ctx.db.all("SELECT 1 AS x FROM runs_node WHERE parent_run = ? AND status IN ('queued','running','waiting','paused') LIMIT 1", n.id) as Row[]).length > 0;
+    const busy =
+      (
+        ctx.db.all(
+          "SELECT 1 AS x FROM runs_node WHERE parent_run = ? AND status IN ('queued','running','waiting','paused') LIMIT 1",
+          n.id,
+        ) as Row[]
+      ).length > 0;
     if (busy) continue;
     if (n.stuck) {
       // marked and nudged: as long again without progress, and the person hears of it, once
       if (!n.stuck.escalatedAt && now - n.stuck.since >= STUCK_IDLE_MS) {
-        ctx.db.run("UPDATE runs_node SET stuck_json = ? WHERE run_id = ? AND stuck_json IS NOT NULL", JSON.stringify({ ...n.stuck, escalatedAt: now }), n.id);
-        appendEvent(ctx.db, { rootRun: n.rootRun, runId: n.id, at: now, type: "stuck", actor: "svc_host", key: `stuck-told:${n.stuck.since}`, payload: { told: true } });
+        ctx.db.run(
+          "UPDATE runs_node SET stuck_json = ? WHERE run_id = ? AND stuck_json IS NOT NULL",
+          JSON.stringify({ ...n.stuck, escalatedAt: now }),
+          n.id,
+        );
+        appendEvent(ctx.db, {
+          rootRun: n.rootRun,
+          runId: n.id,
+          at: now,
+          type: "stuck",
+          actor: "svc_host",
+          key: `stuck-told:${n.stuck.since}`,
+          payload: { told: true },
+        });
         try {
           await ctx.call?.(
             "tasks.create",
@@ -873,22 +897,44 @@ export async function detectStuck(ctx: RunsCtx): Promise<Node[]> {
       }
       continue;
     }
-    const last = int((ctx.db.all("SELECT MAX(at) AS m FROM runs_event WHERE run_id = ? AND type != 'state'", n.id) as Row[])[0]?.["m"]) ?? n.startedAt;
+    const last =
+      int(
+        (ctx.db.all("SELECT MAX(at) AS m FROM runs_event WHERE run_id = ? AND type != 'state'", n.id) as Row[])[0]?.[
+          "m"
+        ],
+      ) ?? n.startedAt;
     let reason: string | undefined;
     if (now - last >= STUCK_IDLE_MS) reason = `Nothing new for ${Math.floor((now - last) / 60_000)} minutes.`;
     else {
       // the same thing four times: steps that say what they touched, so four calls of one tool on four files are four steps
       const touched = (
-        ctx.db.all("SELECT payload_json FROM runs_event WHERE run_id = ? AND type = 'step' ORDER BY seq DESC LIMIT 40", n.id) as Row[]
+        ctx.db.all(
+          "SELECT payload_json FROM runs_event WHERE run_id = ? AND type = 'step' ORDER BY seq DESC LIMIT 40",
+          n.id,
+        ) as Row[]
       )
         .map((x) => parse<{ detail?: string }>(x["payload_json"])?.detail)
         .filter((d): d is string => typeof d === "string" && d !== "")
         .slice(0, SAME_STEP_TIMES);
-      if (touched.length === SAME_STEP_TIMES && new Set(touched).size === 1) reason = `The same step ${SAME_STEP_TIMES} times in a row.`;
+      if (touched.length === SAME_STEP_TIMES && new Set(touched).size === 1)
+        reason = `The same step ${SAME_STEP_TIMES} times in a row.`;
     }
     if (!reason) continue;
-    ctx.db.run("UPDATE runs_node SET stuck_json = ?, updated_at = ? WHERE run_id = ? AND stuck_json IS NULL", JSON.stringify({ since: now, reason }), now, n.id);
-    appendEvent(ctx.db, { rootRun: n.rootRun, runId: n.id, at: now, type: "stuck", actor: "svc_host", key: `stuck:${now}`, payload: { since: now, reason } });
+    ctx.db.run(
+      "UPDATE runs_node SET stuck_json = ?, updated_at = ? WHERE run_id = ? AND stuck_json IS NULL",
+      JSON.stringify({ since: now, reason }),
+      now,
+      n.id,
+    );
+    appendEvent(ctx.db, {
+      rootRun: n.rootRun,
+      runId: n.id,
+      at: now,
+      type: "stuck",
+      actor: "svc_host",
+      key: `stuck:${now}`,
+      payload: { since: now, reason },
+    });
     ctx.db.run(
       "INSERT INTO runs_message (id, root_run, from_run, to_run, body, at, msg_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
       `msg_${newRunId().slice(4)}`,

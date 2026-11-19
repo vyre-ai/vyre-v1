@@ -9,6 +9,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.board.answer": Handler<"runs.board.answer", X>;
   "runs.board.list": Handler<"runs.board.list", X>;
   "runs.board.put": Handler<"runs.board.put", X>;
+  "runs.budget.set": Handler<"runs.budget.set", X>;
   "runs.count": Handler<"runs.count", X>;
   "runs.erase": Handler<"runs.erase", X>;
   "runs.events.list": Handler<"runs.events.list", X>;

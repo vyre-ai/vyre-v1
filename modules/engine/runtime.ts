@@ -1262,7 +1262,10 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         const r = (await h.call("runs.message.take", { runId: id })) as {
           messages?: Array<{ body: string; fromName?: string }>;
         };
-        return (r.messages ?? []).map((m) => ({ from: nameTag(m.fromName ?? "A helper") || "A helper", body: nodeNoteBody(m.fromName ?? "A helper", m.body) }));
+        return (r.messages ?? []).map((m) => ({
+          from: nameTag(m.fromName ?? "A helper") || "A helper",
+          body: nodeNoteBody(m.fromName ?? "A helper", m.body),
+        }));
       },
       newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),

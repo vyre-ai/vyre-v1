@@ -35,7 +35,13 @@ export function createBackgroundPort(
       if (!got.node && started.node.status !== "running") {
         // no node is left queued for ever when the command is simply waited for instead
         await h
-          .call("runs.node.move", { runId: id, attempt: started.node.attempt, to: "stopped", why: "stopped", stopReason: "not_started" })
+          .call("runs.node.move", {
+            runId: id,
+            attempt: started.node.attempt,
+            to: "stopped",
+            why: "stopped",
+            stopReason: "not_started",
+          })
           .catch(() => undefined);
         return null;
       }

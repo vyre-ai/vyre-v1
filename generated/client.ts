@@ -920,6 +920,7 @@ export function createClient(transport: Transport) {
       models_catalog: call("engine.models_catalog", 1),
       my_ai: call("engine.my_ai", 1),
       now: call("engine.now", 1),
+      pause: call("engine.pause", 1),
       placement: {
         decide: call("engine.placement.decide", 1),
         options: call("engine.placement.options", 1),
@@ -940,6 +941,7 @@ export function createClient(transport: Transport) {
         list: call("engine.queue.list", 1),
         peek: call("engine.queue.peek", 1),
       },
+      resume_paused: call("engine.resume_paused", 1),
       review: {
         list: call("engine.review.list", 1),
         mark: call("engine.review.mark", 1),
@@ -2426,6 +2428,9 @@ export function createClient(transport: Transport) {
         answer: call("runs.board.answer", 1),
         list: call("runs.board.list", 1),
         put: call("runs.board.put", 1),
+      },
+      budget: {
+        set: call("runs.budget.set", 1),
       },
       count: call("runs.count", 1),
       erase: call("runs.erase", 1),

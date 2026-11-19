@@ -21,7 +21,15 @@ async function tree(h: Harness) {
     const n = (
       await h.call(
         "runs.node.start",
-        { kind: "helper", owner: alice.id, parentRun: root.id, name, whoKind: "agent", whoId: who },
+        {
+          kind: "helper",
+          owner: alice.id,
+          parentRun: root.id,
+          name: `${name} task as the model wrote it`,
+          whoName: name,
+          whoKind: "agent",
+          whoId: who,
+        },
         engine,
       )
     ).node;
@@ -30,7 +38,7 @@ async function tree(h: Harness) {
   };
   return { root, a: await mk(CALDER, "Calder"), b: await mk(PINE, "Pine") };
 }
-const put = (h: Harness, who: object, runId: string, over: Record<string, unknown>) =>
+const put = (h: Harness, who: Parameters<Harness["call"]>[2], runId: string, over: Record<string, unknown>) =>
   h.call("runs.board.put", { runId, kind: "fact", text: "x", evidence: ["vyre://file/f1"], ...over }, who);
 
 test("a fact or a decision needs what it stands on; a question needs nothing; a node writes only as itself", async () => {
@@ -207,9 +215,14 @@ test("a question of another tree cannot be answered from this one: the same id i
   const two = await tree(h);
   const q = (await put(h, calder, two.a.id, { kind: "question", text: "Include delivery?", evidence: [] })).entry;
   const admin = { id: "usr_admin", kind: "person" as const, depth: 0 };
-  const e = await h.call("runs.board.answer", { runId: one.root.id, entryId: q.id, text: "Injected answer" }, admin).catch((x) => x);
+  const e = await h
+    .call("runs.board.answer", { runId: one.root.id, entryId: q.id, text: "Injected answer" }, admin)
+    .catch((x) => x);
   assert.equal(codeOf(e), "permission.not_found");
-  assert.equal((await h.call("runs.board.list", { runId: two.root.id }, admin)).entries.find((x: any) => x.id === q.id).answer, undefined); // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.equal(
+    (await h.call("runs.board.list", { runId: two.root.id }, admin)).entries.find((x: any) => x.id === q.id).answer,
+    undefined,
+  ); // eslint-disable-line @typescript-eslint/no-explicit-any
   const fine = await h.call("runs.board.answer", { runId: two.root.id, entryId: q.id, text: "Yes" }, admin);
   assert.equal(fine.entry.answer.text, "Yes");
 });
@@ -220,6 +233,10 @@ test("a note is signed with the real name of who works, never the label a model 
   await h.call("runs.message.send", { runId: a.id, to: b.id, body: "Price changed" }, calder);
   const got = (await h.call("runs.message.take", { runId: b.id }, engine)).messages[0];
   assert.equal(got.fromName, "Calder");
-  assert.equal(JSON.stringify(got).includes("task as the model wrote it"), true, "the label stays on the node");
+  assert.match(
+    (await h.call("runs.node.get", { runId: a.id }, owner)).node.name,
+    /task as the model wrote it/,
+    "the label stays on the node",
+  );
   assert.notEqual(got.fromName, "Calder task as the model wrote it");
 });

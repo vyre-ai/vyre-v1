@@ -9,6 +9,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "runs.board.answer": async (ctx) => { throw new VyreErr(notImplemented("runs.board.answer", ctx.trace)); },
   "runs.board.list": async (ctx) => { throw new VyreErr(notImplemented("runs.board.list", ctx.trace)); },
   "runs.board.put": async (ctx) => { throw new VyreErr(notImplemented("runs.board.put", ctx.trace)); },
+  "runs.budget.set": async (ctx) => { throw new VyreErr(notImplemented("runs.budget.set", ctx.trace)); },
   "runs.count": async (ctx) => { throw new VyreErr(notImplemented("runs.count", ctx.trace)); },
   "runs.erase": async (ctx) => { throw new VyreErr(notImplemented("runs.erase", ctx.trace)); },
   "runs.events.list": async (ctx) => { throw new VyreErr(notImplemented("runs.events.list", ctx.trace)); },
