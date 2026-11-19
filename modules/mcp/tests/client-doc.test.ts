@@ -119,3 +119,13 @@ test("the registered domain keeps one more label under a shared host or a countr
   assert.equal(keepDoc(h.db, { clientId: "https://alice.github.io/extra.json", name: "x", redirectUris: ["https://alice.github.io/cb"] }, 1000), false);
   assert.equal(keepDoc(h.db, { clientId: "https://bob.github.io/app.json", name: "x", redirectUris: ["https://bob.github.io/cb"] }, 1000), true, "another user of the same shared host is not refused");
 });
+
+test("two sites under the same country suffix are two sources: example.co.uk and other.co.uk do not share ten places", () => {
+  assert.notEqual(registeredDomain("www.example.co.uk"), registeredDomain("other.co.uk"));
+  const h = harness();
+  ensure(h.db);
+  for (let i = 0; i < MAX_DOCS_PER_HOST; i++)
+    assert.equal(keepDoc(h.db, { clientId: `https://www.example.co.uk/${i}.json`, name: "x", redirectUris: ["https://www.example.co.uk/cb"] }, 1000), true);
+  assert.equal(keepDoc(h.db, { clientId: "https://www.example.co.uk/x.json", name: "x", redirectUris: ["https://www.example.co.uk/cb"] }, 1000), false);
+  assert.equal(keepDoc(h.db, { clientId: "https://other.co.uk/app.json", name: "x", redirectUris: ["https://other.co.uk/cb"] }, 1000), true);
+});
