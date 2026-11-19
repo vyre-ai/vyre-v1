@@ -21,7 +21,7 @@ test("the desk: full view, back, minimise and return, pause and resume, take ove
     // press the picture: the desk grows to the full view over the dimmed app
     await page.getByTestId("browser-picture").click();
     await page.getByTestId("desk").waitFor({ timeout: 10_000 });
-    await page.getByTestId("browser-live").waitFor({ timeout: 10_000 });
+    await page.getByTestId("desk-live").waitFor({ timeout: 10_000 });
     await shoot(page, DIR, "full");
     const box = await page.getByTestId("desk").boundingBox();
     const win = page.viewportSize();
@@ -61,12 +61,12 @@ test("the desk: full view, back, minimise and return, pause and resume, take ove
     await page.getByTestId("desk-room-term").click();
     await page.getByTestId("terminal-popup").waitFor({ timeout: 15_000 });
     await shoot(page, DIR, "terminal");
-    assert.equal(await page.getByTestId("browser-live").count(), 0);
+    assert.equal(await page.getByTestId("desk-live").count(), 0);
     await page.getByTestId("desk-room-files").click();
     await page.getByTestId("files-room").waitFor({ timeout: 15_000 });
     await shoot(page, DIR, "files");
     await page.getByTestId("desk-room-browser").click();
-    await page.getByTestId("browser-live").waitFor({ timeout: 10_000 });
+    await page.getByTestId("desk-live").waitFor({ timeout: 10_000 });
     await page.getByTestId("desk-close").click();
     await page.getByTestId("desk").waitFor({ state: "detached", timeout: 10_000 });
     await k.guard.check();

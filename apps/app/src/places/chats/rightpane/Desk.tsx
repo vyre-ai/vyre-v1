@@ -394,7 +394,7 @@ export function Desk({
             {room === "browser" || !session.pane ? (
               <>
                 <View
-                  testID="browser-live"
+                  testID="desk-live"
                   style={[st.stage, mine && st.stageMine]}
                   onLayout={(ev) =>
                     setStage({ width: ev.nativeEvent.layout.width, height: ev.nativeEvent.layout.height })

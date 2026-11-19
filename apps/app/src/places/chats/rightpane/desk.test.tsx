@@ -629,13 +629,13 @@ test("the rooms: Browser, Terminal and Files are one desk; the strip shows only 
     const root = await mount(cr, <DeskHost />);
     await flush();
     assert.ok(find(root, "desk-room-browser") && find(root, "desk-room-term") && find(root, "desk-room-files"));
-    assert.ok(find(root, "browser-live"), "the browser room is first");
+    assert.ok(find(root, "desk-live"), "the browser room is first");
     await press(find(root, "desk-room-term"));
     await flush();
     assert.equal(deskSnapshot().state.room, "term");
     assert.equal(deskSnapshot().state.mode, "full", "switching a room never changes the shape");
     assert.ok(find(root, "terminal-popup"), "the terminal draws inside the desk");
-    assert.equal(find(root, "browser-live"), null);
+    assert.equal(find(root, "desk-live"), null);
     assert.equal(find(root, "terminal-popup-close"), null, "it has no Close of its own; the desk has it");
     await press(find(root, "desk-room-files"));
     await flush();
@@ -644,7 +644,7 @@ test("the rooms: Browser, Terminal and Files are one desk; the strip shows only 
     assert.equal(find(root, "terminal-popup"), null);
     await press(find(root, "desk-room-browser"));
     await flush();
-    assert.ok(find(root, "browser-live"));
+    assert.ok(find(root, "desk-live"));
     assert.deepEqual(
       r.calls.filter((c) => c.startsWith("open")),
       [],
