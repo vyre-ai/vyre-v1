@@ -121,6 +121,8 @@ export interface MarkdownEditorProps {
 }
 
 const web = Platform.OS === "web";
+/** A document longer than this (ProseMirror size, about this many characters) is written out a moment after the last key. */
+const BIG_DOC = 60_000;
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (web ? props : {});
 
 /* ---------- the page's look (skin tokens, so a skin switch repaints with no re-render) ---------- */
@@ -698,6 +700,14 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
   const suggestingNow = useRef(suggesting);
   suggestingNow.current = suggesting;
   const changesRef = useRef<Change[]>([]);
+  const pending = useRef<{ timer: ReturnType<typeof setTimeout>; run: () => void } | null>(null);
+  const flushPending = (): void => {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    p.run();
+  };
   const { element: menu, show } = useMenu();
 
   const say = useCallback((s: string) => {
@@ -903,6 +913,7 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
             }
             if ((k.metaKey || k.ctrlKey) && k.key.toLowerCase() === "s") {
               k.preventDefault();
+              flushPending();
               cb.current.onSave?.();
               return true;
             }
@@ -928,20 +939,40 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
           readTrigger(ed);
           ed.view.dom.setAttribute("data-empty", ed.state.doc.content.size <= 2 ? "true" : "false");
           if (!transaction.docChanged) return;
-          if (cb.current.doc) {
-            const list = listChanges(
-              (ed as unknown as { state: { doc: Parameters<typeof listChanges>[0] } }).state.doc,
-            );
-            changesRef.current = list;
-            setChanges(list);
-            cb.current.doc.onChanges?.(list.length);
-          }
-          const md = docToMarkdown(ed.getJSON(), mdo());
-          if (md === last.current) return;
-          last.current = md;
           // text that came in from outside onto an untouched page is the file's own text: it is not an edit to report
-          if (transaction.getMeta("vyre-remote-clean") === true) return;
-          cb.current.onChange?.(md);
+          const clean = transaction.getMeta("vyre-remote-clean") === true;
+          const settle = (): void => {
+            const e2 = editorRef.current;
+            if (!e2) return;
+            if (cb.current.doc) {
+              const list = listChanges(
+                (e2 as unknown as { state: { doc: Parameters<typeof listChanges>[0] } }).state.doc,
+              );
+              changesRef.current = list;
+              setChanges(list);
+              cb.current.doc.onChanges?.(list.length);
+            }
+            const md = docToMarkdown(e2.getJSON(), mdo());
+            if (md === last.current) return;
+            last.current = md;
+            if (!clean) cb.current.onChange?.(md);
+          };
+          // a long document is written out a moment after the last key, not on every key, so typing stays smooth; blur, save, an incoming change and closing write it at once
+          if (pending.current) {
+            clearTimeout(pending.current.timer);
+            pending.current = null;
+          }
+          if (cb.current.doc && !clean && ed.state.doc.content.size > BIG_DOC) {
+            pending.current = {
+              timer: setTimeout(() => {
+                pending.current = null;
+                settle();
+              }, 200),
+              run: settle,
+            };
+            return;
+          }
+          settle();
         },
         onSelectionUpdate: () => {
           const ed = editorRef.current;
@@ -972,6 +1003,7 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
           });
         },
         onBlur: () => {
+          flushPending();
           setBubble(null);
           cb.current.onBlur?.();
         },
@@ -986,6 +1018,7 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
     })();
     return () => {
       gone = true;
+      flushPending();
       made?.destroy();
       editorRef.current = null;
       setEditor(null);
@@ -1000,6 +1033,7 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
 
   // text that came in from outside replaces what the page shows; on a document page it is merged in by blocks, so the person's place and unsaved words stay
   useEffect(() => {
+    flushPending();
     const was = base.current;
     base.current = props.value;
     if (props.value === last.current) return;

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MarkdownEditor, ViewSwitch } from "../../../../../../ui/src/RichEditor/index.tsx";
-import type { MarkdownView } from "../../../../../../ui/src/RichEditor/index.tsx";
+import type { DocEditing, MarkdownView } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { useFileAutosave } from "../review/useFileAutosave.ts";
 import { statusWords } from "../review/AgentFileEditor.tsx";
 
@@ -20,6 +20,8 @@ export interface FileMarkdownEditorProps {
   say?: (e: unknown) => void;
   /** Where the editor opens (a mount, a test). */
   startView?: MarkdownView;
+  /** A Vyre document: field chips and suggestions. With `author` the page offers Editing and Suggesting, and a version saved while suggesting says so in its history. */
+  doc?: DocEditing;
 }
 
 export function FileMarkdownEditor({
@@ -30,8 +32,17 @@ export function FileMarkdownEditor({
   version,
   onText,
   startView = "styled",
+  doc,
 }: FileMarkdownEditorProps): ReactElement {
-  const fa = useFileAutosave({ call, fileId, saved: text, version, reason: "Edited in the viewer" });
+  const [suggesting, setSuggesting] = useState(false);
+  const on = doc?.suggesting ?? suggesting;
+  const fa = useFileAutosave({
+    call,
+    fileId,
+    saved: text,
+    version,
+    reason: doc === undefined ? "Edited in the viewer" : on ? "Suggested changes" : "Edited in the document",
+  });
   const [view, setView] = useState<MarkdownView>(startView);
   useEffect(() => {
     onText?.(fa.base.text);
@@ -77,6 +88,18 @@ export function FileMarkdownEditor({
         onSave={fa.flush}
         testID="file-md-text"
         placeholder="Write"
+        {...(doc
+          ? {
+              doc: {
+                ...doc,
+                suggesting: on,
+                onSuggesting: (v: boolean) => {
+                  setSuggesting(v);
+                  doc.onSuggesting?.(v);
+                },
+              },
+            }
+          : {})}
       />
     </View>
   );
