@@ -86,7 +86,8 @@ const capabilities = [
     in: { name: t.str(), region: t.opt(t.enm("us", "eu")) },
     out: { domain: domainRow, records: t.arr(dnsRecord) },
     perm: "comms.domains",
-    gate: quiet("Adds a domain to the Space Mailgun account; nothing is sent to anyone"),
+    // adds a sending domain: held for an agent, like the mail capabilities that call it (an agent cannot reroute or add a sender around them)
+    gate: { act: "send", when: "actor.kind != 'person'" },
   }),
   outward("mailgun.domains.verify", "Ask Mailgun to verify the published DNS records", {
     in: { name: t.str() },
@@ -113,7 +114,8 @@ const capabilities = [
     },
     out: { route: routeRow },
     perm: "comms.domains",
-    gate: quiet("Adds an inbound route in the Space Mailgun account; nothing is sent to anyone"),
+    // adds an inbound route: where mail goes, so held for an agent
+    gate: { act: "send", when: "actor.kind != 'person'" },
   }),
   outward("mailgun.routes.delete", "Delete a Mailgun route", {
     in: { routeId: t.str() },

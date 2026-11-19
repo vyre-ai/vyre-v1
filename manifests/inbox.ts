@@ -499,6 +499,8 @@ const manifest = defineManifest({
         out: { channel: senderChannel, senderId: t.str() },
         level: "view",
         tool: "inbox",
+        // who a person's mail goes out as: an agent changing it is held for the person
+        gate: { act: "send", when: "actor.kind != 'person'" },
         offline: "queue",
         idem: "natural",
         errors: ["validation.bad_input", "validation.precondition_failed"],

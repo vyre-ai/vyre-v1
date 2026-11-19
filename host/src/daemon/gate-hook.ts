@@ -425,6 +425,9 @@ export function moduleWhens(
   handlesOf?: (connectionId: string) => { connector: string; handles: string[] } | null,
 ): NonNullable<GateHookDeps["evaluators"]> {
   const out: NonNullable<GateHookDeps["evaluators"]> = {};
+  // How the Space sends email is set by one setting (mail.provider). An agent changing it, or putting it back to its default, waits for a person; every other setting, and a person's own change, goes straight through.
+  out["mail.is_provider_setting"] = (input, seed) =>
+    seed.principal.kind !== "person" && (input as { key?: unknown } | null)?.key === "mail.provider";
   // an agent's delete inside work/ on its own computer is its own change; anywhere else asks
   out["computers.deletes_outside_work"] = (input, seed) =>
     seed.principal.kind !== "person" &&

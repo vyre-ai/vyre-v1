@@ -319,10 +319,10 @@ Capabilities:
 - settings.pages (read, grant only, level member)
 - settings.public_of (read, grant only, level view)
 - settings.reset (write, grant only, level view)
-- settings.reset_space (write, policy.manage, level view)
+- settings.reset_space (write, policy.manage, level view, gate send)
 - settings.search (read, grant only, level view)
 - settings.set (write, grant only, level view)
-- settings.set_space (write, policy.manage, level view)
+- settings.set_space (write, policy.manage, level view, gate send)
 
 Events:
 - settings.changed

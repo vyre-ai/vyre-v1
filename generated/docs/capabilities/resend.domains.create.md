@@ -11,7 +11,7 @@ Create a domain in Resend and return the DNS records for SPF, DKIM and DMARC
 | Grant level | use |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

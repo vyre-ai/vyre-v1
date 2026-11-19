@@ -2,7 +2,7 @@
   "module": "inbox",
   "capabilities": {
     "comms.senders.list@1": "cd19ee7dbabcdc88ed547f6ec9510d249dacbf73b18549d0225348b6b605267c",
-    "comms.senders.set_default@1": "dd6a2d9477a3926f37f8727541a9fe7b3c5efd4efa072670e9d65ed55a1980b2",
+    "comms.senders.set_default@1": "481ab7dc685c955d811c3d5900edbb114b0ed2e4dfe26538f17a65b527cb006d",
     "inbox.counts@1": "7cc0dc03b95e51147d1d64ed8ab16df5a4b2b9842b8dccd147031c6d56379d3b",
     "inbox.follow_set@1": "bfa341164269d930e09a0837addbd644053b73827314a05057be3bade820b9ea",
     "inbox.following@1": "b68ddeada535395f13eda15233a5110ad395034ed234f52c3d309bd4ac0d47d0",
