@@ -996,7 +996,13 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
             const at = changeAt(changesRef.current, from);
             if (at) {
               const pt = ed.view.coordsAtPos(from);
-              setCard({ change: at, left: Math.max(4, pt.left - box.left), top: pt.bottom - box.top + 6 });
+              // the card stays inside the page: it is up to 296 wide
+              const room = (wrap.current as unknown as { offsetWidth?: number } | null)?.offsetWidth ?? 9999;
+              setCard({
+                change: at,
+                left: Math.max(4, Math.min(pt.left - box.left, room - 296)),
+                top: pt.bottom - box.top + 6,
+              });
             } else setCard(null);
           }
           if (empty || !box) {
