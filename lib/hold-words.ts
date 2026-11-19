@@ -203,8 +203,7 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
       .replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "")
       .replace(/\.git$/, "")}`;
   // a production deploy of a site that holds keys, with no new source: the branch is not protected, so anyone who can push to it can use the keys
-  if (cap === "sites.deploy")
-    return "deploy a site that holds keys, which anyone who can push to its branch can use; protect the branch to deploy without asking";
+  if (cap === "sites.deploy") return "deploy a site that holds keys";
   // a call that sends a Vault key to a place it names: the card says which key goes to which host (the key's name, never its value)
   if (KEY_HOST_CAPS.has(cap)) {
     const use = keySendOf(input);
@@ -250,6 +249,8 @@ export interface HoldNames {
   /** The Vault key a share hands over, by its name (never a value), and who gets it. */
   key?: string;
   recipient?: string;
+  /** The site a deploy is held for, read as the Space: its name, the branch it builds and the keys it holds (names, never values), and whether its files are uploaded. */
+  site?: { name: string; branch?: string; keys: string[]; upload?: boolean };
 }
 
 const listNames = (xs: string[]): string =>
@@ -287,6 +288,13 @@ export function holdShort(cap: string, input: unknown, n: HoldNames = {}): strin
     const res = str(obj(obj(input)["resource"])["type"]);
     if (res === "vault_item" || res === "vault_folder")
       return `share ${res === "vault_folder" ? "a Vault folder" : n.key ? `the key ${n.key}` : "a Vault key"} with ${who}`;
+  }
+  // a production deploy held for a person: the reason for this hold, with the site's branch and the keys' names. Uploaded files are held for being other files; a repo for the branch that anyone who can push to can use.
+  if (cap === "sites.deploy" && n.site && !obj(obj(input)["source"])["repo"]) {
+    const keys = n.site.keys.length > 0 ? listNames(n.site.keys) : "its keys";
+    return n.site.upload
+      ? `deploy the files now in ${n.site.name}, which holds ${keys}`
+      : `deploy ${n.site.name}: anyone who can push to ${n.site.branch || "its branch"} can use ${keys}. Protect the branch to deploy without asking`;
   }
   if (cap === "files.share_external") return `share ${n.file ?? "a file"} with a link for someone outside the Space`;
   const w =

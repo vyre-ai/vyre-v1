@@ -30,7 +30,7 @@ import {
   reqStr,
   str,
 } from "./deploy.ts";
-import { takeGateFp, uploadFingerprint } from "../../../lib/key-target.ts";
+import { takeGateFp, uploadFingerprint, wasApproved } from "../../../lib/key-target.ts";
 import { looksSecret } from "./secrets.ts";
 import { sitePlan } from "./plan.ts";
 import type { SitePlan } from "./plan.ts";
@@ -1060,16 +1060,17 @@ function githubRepo(raw: string): { owner: string; name: string } | null {
   const m = /^(?:(?:https?:\/\/)?(?:www\.)?github\.com\/)?([A-Za-z0-9_-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/i.exec(
     raw.trim(),
   );
-  return m ? { owner: m[1]!, name: m[2]! } : null;
+  if (!m || /^\.+$/.test(m[1]!) || /^\.+$/.test(m[2]!)) return null;
+  return { owner: m[1]!, name: m[2]! };
 }
 
 /**
  * What the host says about the production branch: protected (required reviews or restricted pushes), open, or unknown (anything that could not be read, a repo that is not on GitHub). Recorded on the site for the Gate, which holds a deploy by
  * anything but a person while the branch is not protected: anyone who can push to it can use the site's keys. Never throws.
  */
-async function refreshProtection(ctx: Ctx, siteId: string, source: SourceSpec, token: string | null): Promise<void> {
+async function refreshProtection(ctx: Ctx, siteId: string, source: SourceSpec, token: string | null): Promise<string> {
   const gh = source.repo ? githubRepo(source.repo) : null;
-  if (!gh) return;
+  if (!gh) return "unknown";
   const api = `https://api.github.com/repos/${gh.owner}/${gh.name}`;
   const headers: Record<string, string> = { accept: "application/vnd.github+json", "user-agent": "vyre-sites" };
   if (token) headers["authorization"] = `Bearer ${token}`;
@@ -1086,7 +1087,9 @@ async function refreshProtection(ctx: Ctx, siteId: string, source: SourceSpec, t
       if (r.status === 404) state = "open";
       else if (r.status === 200) {
         const b = JSON.parse(await r.text()) as Record<string, unknown>;
-        state = b["required_pull_request_reviews"] || b["restrictions"] ? "protected" : "open";
+        const enforced = (b["enforce_admins"] as { enabled?: unknown } | undefined)?.enabled === true;
+        // reviews or restricted pushes only count when they bind admins too: an admin who can push can use the keys
+        state = (b["required_pull_request_reviews"] || b["restrictions"]) && enforced ? "protected" : "open";
       }
     }
   } catch {
@@ -1097,6 +1100,7 @@ async function refreshProtection(ctx: Ctx, siteId: string, source: SourceSpec, t
     JSON.stringify({ state, branch, at: ctx.now() }),
     siteId,
   );
+  return state;
 }
 
 async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unknown }> {
@@ -1158,7 +1162,16 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     site = mustSite(ctx, siteId);
   }
   // what the host says about the production branch, for the Gate (a person's deploy, or one a person approved, keeps it current)
-  if (source.repo) await refreshProtection(ctx, siteId, source, token);
+  if (source.repo) {
+    const seen = await refreshProtection(ctx, siteId, source, token);
+    // the Gate's own look is only a pre-filter: this one is fresh. A deploy by an agent or a push where the branch is not protected now (or cannot be told) goes on only when a person approved it
+    if (strict && githubRepo(source.repo) && seen !== "protected" && !wasApproved(ctx.trace, siteId))
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        `Anyone who can push to ${source.branch || "the production branch"} can use this site's keys, and it is not protected on GitHub right now. Protect the branch, or ask a person to deploy.`,
+      );
+  }
   const busy = one(
     ctx,
     "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND state IN ('queued', 'building')",
@@ -2369,12 +2382,16 @@ export function siteHostOf(site: Row): string | null {
 }
 
 /** For the host's push check: sites that deploy on a push, with whom to run the deploy as. */
-export function autoDeploySites(ctx: Pick<Ctx, "db">): { siteId: string; as: string }[] {
+export function autoDeploySites(ctx: Pick<Ctx, "db">): { siteId: string; as: string; branch: string }[] {
   return (
     ctx.db.all("SELECT * FROM sites_site WHERE auto_deploy = 1 AND deleted_at IS NULL AND source IS NOT NULL") as Row[]
   )
     .filter((r) => sourceOf(r)?.repo)
-    .map((r) => ({ siteId: str(r.id), as: isNull(r.deployed_by) ? str(r.owner) : str(r.deployed_by) }));
+    .map((r) => ({
+      siteId: str(r.id),
+      as: isNull(r.deployed_by) ? str(r.owner) : str(r.deployed_by),
+      branch: sourceOf(r)?.branch ?? "",
+    }));
 }
 
 /** Containers that should be serving, for the host to start again after a server restart (Docker restarts them itself; this catches one that was removed). */
@@ -2478,6 +2495,7 @@ export const _test = {
   cancelWait: (ms: number | null): void => {
     CANCEL_WAIT_MS = ms ?? 20_000;
   },
+  githubRepo,
   useFetcher: (f: typeof fetchSource | null): void => {
     fetcher = f ?? fetchSource;
   },

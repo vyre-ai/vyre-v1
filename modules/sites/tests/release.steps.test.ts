@@ -7,13 +7,28 @@ import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { configureRoutes, routeByHost } from "../handlers/route.ts";
-import { _test, servingContainers } from "../handlers/release.ts";
-import { acceptWebhook, markPushDone, markPushFailed, pendingPushes, signed, follows } from "../handlers/hook.ts";
+import { _test, autoDeploySites, servingContainers } from "../handlers/release.ts";
+import {
+  acceptWebhook,
+  markPushDone,
+  markPushFailed,
+  pendingPushes,
+  recordDeployFailure,
+  signed,
+  follows,
+} from "../handlers/hook.ts";
 import { createHmac } from "node:crypto";
 import { handlers, siteFacts } from "../impl.ts";
 import { deployHandlers } from "../handlers/deploy.ts";
 import { FIXTURE, h, useDatabase, world, type Fake } from "./deploy-world.ts";
-import { FP_DEPTH, exposesKeys, fileLine, noteGateFp, uploadFingerprint } from "../../../lib/key-target.ts";
+import {
+  FP_DEPTH,
+  exposesKeys,
+  fileLine,
+  noteApproved,
+  noteGateFp,
+  uploadFingerprint,
+} from "../../../lib/key-target.ts";
 import { fetchSource } from "../handlers/source.ts";
 
 useDatabase(DatabaseSync);
@@ -1797,10 +1812,16 @@ test("a person's deploy finds out what the host says about the production branch
       await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
       return siteFacts({ db: w.sdb } as never, siteId)!.protection;
     };
-    answer({ status: 200, body: { required_pull_request_reviews: { required_approving_review_count: 1 } } });
+    const rev = {
+      required_pull_request_reviews: { required_approving_review_count: 1 },
+      enforce_admins: { enabled: true },
+    };
+    answer({ status: 200, body: rev });
     assert.equal((await state())?.state, "protected");
+    answer({ status: 200, body: { ...rev, enforce_admins: { enabled: false } } });
+    assert.equal((await state())?.state, "open", "reviews an admin can walk past are not protection");
     assert.equal((await state())?.branch, "main");
-    answer({ status: 200, body: { restrictions: { users: [] } } });
+    answer({ status: 200, body: { restrictions: { users: [] }, enforce_admins: { enabled: true } } });
     assert.equal((await state())?.state, "protected", "pushes restricted");
     answer({ status: 200, body: { enforce_admins: { enabled: true } } });
     assert.equal((await state())?.state, "open", "protection with no review and no restriction stops nothing");
@@ -1818,7 +1839,10 @@ test("a person's deploy finds out what the host says about the production branch
       name: "Default",
       source: { repo: "https://github.com/acme/trunk.git" },
     });
-    const asked2 = answer({ status: 200, body: { required_pull_request_reviews: {} } });
+    const asked2 = answer({
+      status: 200,
+      body: { required_pull_request_reviews: {}, enforce_admins: { enabled: true } },
+    });
     await h["sites.deploy"]!(w.ctx, { siteId: def.site.siteId, wait: true });
     assert.ok(
       asked2.some((u) => u.endsWith("/branches/trunk/protection")),
@@ -2001,6 +2025,92 @@ test("a note that is gone (evicted) is a refusal for an agent on a site with a p
     noteGateFp(second.trace, siteId, fp!);
     const ok = await h["sites.deploy"]!(second, { siteId, wait: true });
     assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
+  } finally {
+    w.done();
+  }
+});
+
+test("every agent's or push's production deploy looks at the branch again, fresh: what the Gate remembered is only a pre-filter; a person's approval, or a protected branch, lets it build", async () => {
+  const w = world({ values: { K: "v" } });
+  try {
+    const siteId = await w.makeRepo("Fresh");
+    w.sdb.run(
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
+      siteId,
+      "K",
+      "#Stripe.key",
+      0,
+      null,
+      "production",
+    );
+    const ctxs: { http: unknown }[] = [];
+    const look = (status: number, body: unknown = {}) => {
+      const http = async (url: string) => ({
+        status: url.endsWith("/protection") ? status : 200,
+        text: async () => JSON.stringify(url.endsWith("/protection") ? body : { default_branch: "main" }),
+      });
+      for (const c of ctxs) c.http = http;
+    };
+    const agent = { ...w.ctx, principal: { kind: "agent", id: "agt_x" } } as typeof w.ctx;
+    const push = { ...w.ctx, origin: "sites-push" } as typeof w.ctx;
+    ctxs.push(w.ctx as never, agent as never, push as never);
+    // the Gate remembered "protected", but the branch is open now
+    w.sdb.run(
+      "UPDATE sites_site SET protection = ? WHERE id = ?",
+      JSON.stringify({ state: "protected", branch: "main", at: Date.now() }),
+      siteId,
+    );
+    look(404);
+    for (const who of [agent, push])
+      await assert.rejects(
+        () => h["sites.deploy"]!(who, { siteId, wait: true }),
+        /not protected on GitHub right now/,
+        "an agent's and a push's deploy",
+      );
+    assert.equal(siteFacts({ db: w.sdb } as never, siteId)!.protection?.state, "open", "and the site now knows");
+    // a look that fails is unknown, which refuses
+    look(403);
+    await assert.rejects(() => h["sites.deploy"]!(agent, { siteId, wait: true }), /not protected on GitHub right now/);
+    // a person approved it: it builds, and a person's own deploy never asks
+    noteApproved(agent.trace, siteId);
+    const ok = await h["sites.deploy"]!(agent, { siteId, wait: true });
+    assert.equal(ok.deployment.state, "ready", ok.deployment.problem);
+    const person = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(person.deployment.state, "ready", person.deployment.problem);
+    // protected, and binding admins: free for both
+    look(200, { required_pull_request_reviews: {}, enforce_admins: { enabled: true } });
+    for (const who of [agent, push]) {
+      const out = await h["sites.deploy"]!(who, { siteId, wait: true });
+      assert.equal(out.deployment.state, "ready", out.deployment.problem);
+    }
+  } finally {
+    w.done();
+  }
+});
+
+test("a repo named with dots only is no GitHub repo, so nothing is asked of GitHub for it", () => {
+  assert.equal(_test.githubRepo("acme/app")?.name, "app");
+  assert.equal(_test.githubRepo("https://github.com/acme/app.git")?.owner, "acme");
+  for (const bad of ["acme/..", "../app", "./x", "acme/.", "https://github.com/../x", "https://evil.example/acme/app"])
+    assert.equal(_test.githubRepo(bad), null, bad);
+});
+
+test("a deploy a push or the auto-deploy asked for that did not run shows on the site's card with its reason", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Pushed");
+    recordDeployFailure(
+      w.ctx,
+      siteId,
+      "main",
+      "Waiting for a person: the site holds keys and its branch is not protected on GitHub.",
+    );
+    const hook = await h["sites.webhook_get"]!(w.ctx, { siteId });
+    assert.equal(hook.failed.length, 1);
+    assert.equal(hook.failed[0].action, "deploy");
+    assert.equal(hook.failed[0].branch, "main");
+    assert.match(hook.failed[0].error, /Waiting for a person/);
+    assert.equal(autoDeploySites(w.ctx).find((a) => a.siteId === siteId)?.branch ?? "main", "main");
   } finally {
     w.done();
   }

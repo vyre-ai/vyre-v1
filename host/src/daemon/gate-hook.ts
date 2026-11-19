@@ -21,6 +21,7 @@ import {
   heldGateFp,
   holdGateFp,
   keySendOf,
+  noteApproved,
   noteGateFp,
   peekGateFp,
   protectionHolds,
@@ -322,8 +323,13 @@ export function createGateHook(d: GateHookDeps): GateHook {
         const g = (await d.call("gate.grants.take", { act, targets, step: seed.step })) as { granted?: unknown } | null;
         if (g?.granted !== true) return { act };
       }
+      // a deploy a push asked for runs as the person who last deployed (their access, their Vault keys), but it is not their act: the Gate judges it as anything else that is not a person
       const r = (await d.call("gate.effective_rule", {
-        principal: { kind: seed.principal.kind, id: seed.principal.id },
+        principal: {
+          kind:
+            seed.origin === "sites-push" && held && seed.principal.kind === "person" ? "service" : seed.principal.kind,
+          id: seed.principal.id,
+        },
         act,
         ...(seed.gateMode === "admin_only" ? { adminOnly: true } : {}),
       })) as { hold?: unknown; adminRule?: unknown } | null;
@@ -430,6 +436,7 @@ export function createGateHook(d: GateHookDeps): GateHook {
       const site = (a.input as { siteId?: unknown } | null)?.siteId;
       const held = ok && typeof claims?.hash === "string" && typeof site === "string" ? heldGateFp(claims.hash) : null;
       if (held && typeof site === "string") noteGateFp(a.seed.trace, site, held);
+      if (ok && typeof site === "string") noteApproved(a.seed.trace, site);
       return ok;
     },
   };

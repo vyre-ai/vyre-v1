@@ -384,6 +384,22 @@ export function markPushFailed(ctx: Pick<Ctx, "db">, id: string, why: string): v
   }
 }
 
+/** A deploy a push or the auto-deploy asked for that did not run (held for a person, refused, or failed): kept beside the pushes that could not run, so the site's card shows it with its reason, not only the log. */
+export function recordDeployFailure(ctx: Pick<Ctx, "db">, siteId: string, branch: string, why: string): void {
+  const now = Date.now();
+  ctx.db.run(
+    "INSERT INTO sites_push (id, site_id, branch, sha, action, at, done_at, failed_at, error) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)",
+    `psh_${randomHex(8)}`,
+    siteId,
+    branch,
+    "deploy",
+    now,
+    now,
+    now,
+    why.slice(0, 200),
+  );
+}
+
 // ---- the site's settings for it
 
 interface HookInfo {

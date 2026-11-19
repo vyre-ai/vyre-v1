@@ -231,6 +231,21 @@ export function usedGateFp(call: CallId, siteId: string, now: number = Date.now(
   return v?.used && now - v.at <= GATE_FP_TTL_MS ? v.fp : null;
 }
 
+/** Calls a person approved (the Gate verified the token on the resume): the build of such a call may go on where an agent's own would refuse. Keyed like the fingerprint note. */
+const approvedCalls = new Map<string, number>();
+export function noteApproved(call: CallId, siteId: string, now: number = Date.now()): void {
+  const k = callKey(call, siteId);
+  if (!k) return;
+  for (const [key, at] of approvedCalls)
+    if (now - at > GATE_FP_TTL_MS || approvedCalls.size > 1000) approvedCalls.delete(key);
+  approvedCalls.set(k, now);
+}
+export function wasApproved(call: CallId, siteId: string, now: number = Date.now()): boolean {
+  const k = callKey(call, siteId);
+  const at = k ? approvedCalls.get(k) : undefined;
+  return at !== undefined && now - at <= GATE_FP_TTL_MS;
+}
+
 /**
  * The fingerprint read when a hold was made, kept by the held call's own hash: the person's yes approves exactly those files. When the held call resumes, the Gate hands that fingerprint to the build, which refuses other files. Gone after a day.
  */
@@ -349,19 +364,17 @@ export function siteKeyPairs(
   return pairs;
 }
 
-/** How long a look at the production branch's protection is believed. */
-export const PROTECTION_TTL_MS = 6 * 60 * 60 * 1000;
-
 /**
  * A deploy to production by anything but a person, on a site whose production env holds Vault keys and whose code is a git repo: anyone who can push to that branch can use the keys, so the deploy waits for a person unless the branch is protected on the host
- * (required reviews or restricted pushes), as last seen by a person's own deploy, an approved one, or a check within the last six hours. A branch that is open, unknown, another than the one that was checked, or a look that is old holds.
+ * (required reviews or restricted pushes, and enforced on admins too), as the site last found out. That is only the Gate's pre-filter: every such deploy looks again, fresh, when it runs, and a look that fails or finds it open refuses
+ * the build unless a person approved it (modules/sites/handlers/release.ts). A branch that is open, unknown, never looked at, or another than the one that was looked at holds.
  */
-export function protectionHolds(facts: SiteFacts | null, now: number = Date.now()): boolean {
+export function protectionHolds(facts: SiteFacts | null): boolean {
   if (facts === null) return true;
   const keyed = facts.env.some((e) => e.handle !== "" && e.scope !== "previews");
   if (!keyed || !facts.source?.repo) return false;
   const p = facts.protection;
-  if (!p || p.state !== "protected" || typeof p.at !== "number" || now - p.at > PROTECTION_TTL_MS) return true;
+  if (!p || p.state !== "protected") return true;
   return !!facts.source.branch && p.branch !== facts.source.branch;
 }
 

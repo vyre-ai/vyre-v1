@@ -100,8 +100,14 @@ test("a site's GitHub webhook over the real edge route: signed deliveries are ta
   // the tick runs the queued preview as the site's owner; there is no runner here, so it is recorded as failed
   const failed = await waitFor(
     async () => {
-      const f = (await call(d, "sites.webhook_get", { siteId })).data.failed as { branch: string; error: string }[];
-      return f.length ? f : null;
+      const f = (await call(d, "sites.webhook_get", { siteId })).data.failed as {
+        branch: string;
+        action: string;
+        error: string;
+      }[];
+      // the auto-deploy a push asked for may sit beside it (it shows on the card with its reason too): the push's own is the one asked about
+      const mine = f.filter((x) => x.branch === "feat/e2e");
+      return mine.length ? mine : null;
     },
     20_000,
     () => hostLog(d),

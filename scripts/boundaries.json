@@ -331,6 +331,20 @@
     },
     {
       "rule": "layer",
+      "file": "host/tests/gate.module-when.test.ts",
+      "spec": "../../modules/gate/projections.ts",
+      "reason": "test-only: the Gate's module conditions are asked through the real effectiveRule, not a stub that holds everyone",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
+      "file": "host/tests/mail.configure.live.test.ts",
+      "spec": "../../modules/gate/projections.ts",
+      "reason": "test-only: the Gate tests must ask the real effectiveRule who is held, not a stub that holds everyone, so a call that runs as a person but is not their act cannot pass unseen",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
       "file": "host/tests/mail.configure.live.test.ts",
       "spec": "../../modules/sites/impl.ts",
       "reason": "test-only: the key-and-source Gate tests must read a stored site through the real siteFacts the Gate reads, not facts written by hand, so a field the real read drops cannot pass unseen",

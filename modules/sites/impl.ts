@@ -26,7 +26,14 @@ import { registry } from "../../generated/registry.ts";
 import { configureDomainEdge, configureRoutes, routeHandlers } from "./handlers/route.ts";
 import { domainRouteHandlers } from "./handlers/route-domains.ts";
 import { releaseHandlers } from "./handlers/release.ts";
-import { acceptWebhook, hookHandlers, markPushDone, markPushFailed, pendingPushes } from "./handlers/hook.ts";
+import {
+  acceptWebhook,
+  hookHandlers,
+  markPushDone,
+  markPushFailed,
+  pendingPushes,
+  recordDeployFailure,
+} from "./handlers/hook.ts";
 export { refreshDomainRoutes } from "./handlers/route-domains.ts";
 
 // A site is a route (owner, 2 Nov): handlers/route.ts is what ships. The build pipeline below it (deploy, previews, staging, promote, site tables) is dormant and deferred: each of its capabilities stays registered and
@@ -36,7 +43,7 @@ const live = { ...routeHandlers, ...domainRouteHandlers, ...releaseHandlers, ...
 const dormant = registry.capabilities.filter((c) => c.module === "sites" && !(c.name in live)).map((c) => c.name);
 export const handlers = { ...deferredHandlers(dormant), ...live };
 export const consumers = {};
-export { markPushDone, markPushFailed, pendingPushes };
+export { markPushDone, markPushFailed, pendingPushes, recordDeployFailure };
 type Src = {
   repo?: string;
   folderId?: string;

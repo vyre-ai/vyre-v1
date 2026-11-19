@@ -5536,7 +5536,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             const autos =
               (
                 sitesExports?.["autoDeploySites"] as
-                  | ((c: { db: unknown }) => { siteId: string; as: string }[])
+                  | ((c: { db: unknown }) => { siteId: string; as: string; branch: string }[])
                   | undefined
               )?.({ db: db! }) ?? [];
             for (const a of autos) {
@@ -5549,14 +5549,30 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   origin: "sites-push",
                 },
               ).catch((e: unknown) => ({ status: "error", e }));
-              if ((r as { status?: string }).status !== "ok")
+              if ((r as { status?: string }).status !== "ok") {
+                // the site's card says why a push's deploy did not run, not only the log
+                const reason =
+                  (r as { status?: string }).status === "held"
+                    ? "Waiting for a person: the site holds keys and its branch is not protected on GitHub."
+                    : String(
+                        (r as { e?: { error?: { message?: string }; message?: string } }).e?.error?.message ??
+                          (r as { e?: { message?: string } }).e?.message ??
+                          (r as { error?: { message?: string } }).error?.message ??
+                          "It could not run.",
+                      );
+                (
+                  sitesExports?.["recordDeployFailure"] as
+                    | ((c: { db: unknown }, siteId: string, branch: string, why: string) => void)
+                    | undefined
+                )?.({ db: db! }, a.siteId, a.branch, reason);
                 sink.log({
                   space: spaceId,
                   level: 30,
                   msg: "sites.push_check_skipped",
                   place: "sites",
-                  attrs: { site: a.siteId },
+                  attrs: { site: a.siteId, why: reason },
                 });
+              }
             }
           };
           const made = createSitesHost({

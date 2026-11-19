@@ -19,6 +19,8 @@ import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
 import { createIdempotency } from "../../kernel/src/idempotency/index.ts";
 import { registry } from "../../generated/registry.ts";
 import { createGateHook, keySendOf, markRefusal, moduleWhens, payloadHash } from "../src/daemon/gate-hook.ts";
+import { effectiveRule } from "../../modules/gate/projections.ts";
+import type { PrincipalRef } from "../../modules/gate/projections.ts";
 import { createInvoke, createRateLimiter, indexCapabilities } from "../src/invoke.ts";
 import type { CtxSeed, Handler, InvokeDeps } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
@@ -220,6 +222,8 @@ interface RigOptions {
   call?: (cap: string, input: unknown) => Promise<unknown>;
   callAs?: (cap: string, input: unknown, person: string) => Promise<unknown>;
 }
+/** An empty gate rule table: the Space's default rule applies. */
+const NO_RULES = { all: (): unknown[] => [], run: () => ({ changes: 0 }) };
 function rig(o: RigOptions = {}) {
   const snap = world(o.siteIds);
   const ran: string[] = [];
@@ -243,8 +247,13 @@ function rig(o: RigOptions = {}) {
     )) as unknown as Handler;
   const store = new Map<string, { hash: string; result: unknown }>();
   const gate = createGateHook({
-    call: async (cap, input) =>
-      cap === "gate.effective_rule" ? { hold: true } : ((await o.call?.(cap, input)) ?? null),
+    // the real rule, over an empty rule table (the default: the Space asks): an agent, a service or an outside actor is held, a person is not unless the act is one that stops people too
+    call: async (cap, input) => {
+      if (cap !== "gate.effective_rule") return (await o.call?.(cap, input)) ?? null;
+      const i = input as { principal: PrincipalRef; act: string; adminOnly?: boolean };
+      const e = effectiveRule(NO_RULES, i.principal, i.act, undefined, i.adminOnly === true);
+      return { hold: e.hold, adminRule: e.adminRule, reason: e.reason, approvers: e.approvers };
+    },
     unseal: o.unseal ?? (() => new Uint8Array()),
     now: () => 0,
     hold: () => null,
@@ -967,14 +976,15 @@ function siteWorld() {
   const protect = (siteId: string, state = "protected", branch = "main", at = Date.now()): void =>
     void sw.sdb.run("UPDATE sites_site SET protection = ? WHERE id = ?", JSON.stringify({ state, branch, at }), siteId);
   /** What GitHub answers about the branch (a person's deploy asks it). */
-  const github = (state: "protected" | "open" | "unknown"): void => {
-    sw.ctx.http = async (url: string) => ({
-      status: state === "unknown" ? 403 : url.endsWith("/protection") ? (state === "open" ? 404 : 200) : 200,
-      text: async () =>
-        JSON.stringify(
-          url.endsWith("/protection") ? { required_pull_request_reviews: {} } : { default_branch: "main" },
-        ),
-    });
+  const github = (state: "protected" | "open" | "unknown" | "admins-not-bound"): void => {
+    sw.ctx.http = async (url: string) => {
+      const protection = url.endsWith("/protection");
+      const status = state === "unknown" ? 403 : protection ? (state === "open" ? 404 : 200) : 200;
+      const body = protection
+        ? { required_pull_request_reviews: {}, enforce_admins: { enabled: state === "protected" } }
+        : { default_branch: "main" };
+      return { status, text: async () => JSON.stringify(body) };
+    };
   };
   const keysOff = (siteId: string): void => void sw.sdb.run("DELETE FROM sites_env WHERE site_id = ?", siteId);
   const fp = async (folder = "fld_up"): Promise<string> =>
@@ -1394,7 +1404,11 @@ test("a marked refusal passes through the Gate whatever class the error is; an u
   const def = { name: "x.y", effects: "write", gate: { act: "send", when: "x.y(input)" } } as unknown as CapabilityDef;
   const gateWith = (thrown: unknown) =>
     createGateHook({
-      call: async (cap: string) => (cap === "gate.effective_rule" ? { hold: true } : null),
+      call: async (cap: string, input?: unknown) => {
+        if (cap !== "gate.effective_rule") return null;
+        const i = input as { principal: PrincipalRef; act: string };
+        return { hold: effectiveRule(NO_RULES, i.principal, i.act).hold };
+      },
       unseal: () => new Uint8Array(),
       now: () => 1,
       evaluators: {
@@ -1503,14 +1517,17 @@ test("a production deploy by an agent or a push on a site that holds a Vault key
   s.github("unknown");
   await s.call("sites.deploy", { siteId, wait: true });
   assert.equal(await s.agent("sites.deploy", { siteId }), "held", "unknown holds");
+  // reviews that do not bind admins stop nobody who can push as one: still held
+  s.github("admins-not-bound");
+  await s.call("sites.deploy", { siteId, wait: true });
+  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "required reviews, admins not bound");
+  assert.equal(await asPush(), "held");
   // protected: free for an agent and for a push
   s.github("protected");
   await s.call("sites.deploy", { siteId, wait: true });
   assert.equal(await s.agent("sites.deploy", { siteId }), "ok");
   assert.equal(await asPush(), "ok");
-  // the look is old, or it was of another branch, or the site moved: held again
-  s.protect(siteId, "protected", "main", Date.now() - 7 * 3600_000);
-  assert.equal(await s.agent("sites.deploy", { siteId }), "held", "a look more than six hours old");
+  // it was a look at another branch, or never made: held
   s.protect(siteId, "protected", "release");
   assert.equal(await s.agent("sites.deploy", { siteId }), "held", "another branch than the site's");
   s.protect(siteId);
@@ -1521,11 +1538,8 @@ test("a production deploy by an agent or a push on a site that holds a Vault key
   assert.equal(await s.agent("sites.deploy", { siteId }), "ok");
   s.store(siteId, "P", "#Crm_Key.p", "previews");
   assert.equal(await s.agent("sites.deploy", { siteId }), "ok");
-  // the card says why, in words
-  assert.match(
-    String(wantsFromInput("sites.deploy", { siteId })),
-    /anyone who can push to its branch can use; protect the branch/,
-  );
+  // the card says what is held, in words
+  assert.equal(wantsFromInput("sites.deploy", { siteId }), "deploy a site that holds keys");
 });
 
 test("the protection state is read through the site's real stored row: moving the site to another source forgets it", async () => {
