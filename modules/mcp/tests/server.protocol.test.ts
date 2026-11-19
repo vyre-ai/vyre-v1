@@ -137,7 +137,16 @@ test("initialize negotiates the protocol version, names the server, opens a sess
   assert.equal(res.status, 200);
   assert.equal(res.headers["mcp-session-id"], "ses_out");
   assert.equal(res.json.result.protocolVersion, "2025-06-18");
-  assert.deepEqual(res.json.result.capabilities, { tools: { listChanged: false } });
+  // an app connected from outside is also offered the Space's things as resources and its skills as prompts (lane r42-mcp); a CLI engine the host runs is offered tools only
+  assert.deepEqual(res.json.result.capabilities, {
+    tools: { listChanged: false },
+    resources: {},
+    prompts: {},
+    completions: {},
+  });
+  assert.deepEqual((await rig().rpc("drv", "initialize", INIT)).json.result.capabilities, {
+    tools: { listChanged: false },
+  });
   assert.equal(res.json.result.serverInfo.name, "vyre");
   assert.match(res.json.result.instructions, /tool_search/);
   const older = await rig().rpc("out", "initialize", { ...INIT, protocolVersion: "2024-11-05" });
@@ -152,7 +161,8 @@ test("notifications get 202 and nothing else; ping answers {}; unknown methods a
   const note = await r.post("out", { jsonrpc: "2.0", method: "notifications/initialized" });
   assert.deepEqual([note.status, note.body], [202, ""]);
   assert.deepEqual((await r.rpc("out", "ping")).json.result, {});
-  assert.equal((await r.rpc("out", "resources/list")).json.error.code, -32601);
+  assert.equal((await r.rpc("out", "sampling/createMessage")).json.error.code, -32601);
+  assert.equal((await r.rpc("drv", "resources/list")).json.error.code, -32601, "resources are for apps from outside");
   assert.equal((await r.post("out", { jsonrpc: "2.0", method: "whatever" })).status, 202);
 });
 

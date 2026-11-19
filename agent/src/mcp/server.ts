@@ -33,6 +33,19 @@ import { searchTools } from "../tools/access.ts";
 import { HostError } from "../../../host/src/routes/errors.ts";
 import { heldCard, workCardOf } from "../tools/work-cards.ts";
 import type { McpCaller, McpHttpRequest, McpHttpResponse, McpServer, McpServerDeps } from "./types.ts";
+import {
+  LIST_READS,
+  RESOURCE_TEMPLATES,
+  asBytes,
+  completionsOf,
+  contentsOf,
+  isSkillName,
+  listedResources,
+  needsBytes,
+  promptOf,
+  promptsOf,
+  routeOf,
+} from "./resources.ts";
 
 /** structuredContent for a machine: the error as a model reads it, plus `code` (the same value as supportCode). */
 function withMachineCode(v: unknown): unknown {
@@ -58,6 +71,8 @@ export const UNSUPPORTED_PROTOCOL_VERSION = -32022;
 /** How long a client may keep a list before asking again. A list differs by caller, so it is never shared between sign-ins. */
 const LIST_TTL_MS = 5 * 60_000;
 const DISCOVER_TTL_MS = 60 * 60_000;
+/** "Resource not found" as the handshake revisions say it; 2026-07-28 says it as invalid params. */
+const RESOURCE_NOT_FOUND = -32002;
 /** Methods whose `params.name` or `params.uri` is mirrored in the Mcp-Name header. */
 const NAMED: Readonly<Record<string, "name" | "uri">> = {
   "tools/call": "name",
@@ -681,6 +696,30 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   }
 
   /**
+   * A read made for a resource or a prompt: the named read tool, through this caller's tool session, so the access check, what stays with people and the audit are a tool call's. Null when it was refused,
+   * failed or is not there: the caller is never told which. `note` puts it on the app's activity, as a tool call is; the reads a list is built from are not noted one by one.
+   */
+  async function readFor(
+    s: Session,
+    tool: string,
+    args: Record<string, unknown>,
+    note: boolean,
+  ): Promise<{ data: unknown } | null> {
+    const t = deps.catalog.byName(tool);
+    if (!t || t.effects !== "read" || !allowed(s, t)) return null;
+    s.tools.preload(s.ctx.thread.threadId, [t.name]);
+    let data: { data: unknown } | null = null;
+    try {
+      const out = await Promise.race([s.tools.call(s.ctx, t.name, args), s.gone]);
+      if (out !== "gone" && out.kind === "result") data = { data: (out.result.content as { data?: unknown }).data };
+    } catch {
+      /* a read that failed adds nothing */
+    }
+    if (note) deps.onCall?.(s.caller, t.name, data ? "ok" : "error", { cap: t.cap, threadId: s.ctx.thread.threadId });
+    return data;
+  }
+
+  /**
    * One message. `modern` is a request of the 2026-07-28 revision or later: it was not preceded by a handshake, so nothing here reads what an earlier request left behind, and its result says it is complete,
    * who answered, and (for a list) how long it may be kept.
    */
@@ -700,13 +739,16 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
           : result,
       );
     const instructions = s?.caller.kind === "outside" ? OUTSIDE_INSTRUCTIONS : INSTRUCTIONS;
+    // an app connected from outside also gets the Space's things as resources and its skills as prompts; a CLI engine the host runs has both through its own tools, and is offered tools only
+    const more = s?.caller.kind === "outside" ? { resources: {}, prompts: {}, completions: {} } : {};
+    const params = (req.params ?? {}) as Record<string, unknown>;
     switch (req.method) {
       case "initialize":
         return isNote
           ? null
           : ok(id, {
               protocolVersion: s?.protocol,
-              capabilities: { tools: { listChanged: false } },
+              capabilities: { tools: { listChanged: false }, ...more },
               serverInfo: info,
               instructions,
             });
@@ -715,7 +757,73 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         if (!modern) break;
         return isNote
           ? null
-          : done({ supportedVersions: SUPPORTED_VERSIONS, capabilities: { tools: {} }, instructions }, DISCOVER_TTL_MS);
+          : done(
+              { supportedVersions: SUPPORTED_VERSIONS, capabilities: { tools: {}, ...more }, instructions },
+              DISCOVER_TTL_MS,
+            );
+      case "resources/list": {
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        if (params["cursor"] !== undefined) return err(id, INVALID_PARAMS, "That cursor is not one this server gave.");
+        const [types, files, templates] = await Promise.all(
+          (["types", "files", "templates"] as const).map((k) =>
+            readFor(s, LIST_READS[k].tool, LIST_READS[k].args, false),
+          ),
+        );
+        return done(
+          { resources: listedResources({ types: types?.data, files: files?.data, templates: templates?.data }) },
+          LIST_TTL_MS,
+        );
+      }
+      case "resources/templates/list":
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        if (params["cursor"] !== undefined) return err(id, INVALID_PARAMS, "That cursor is not one this server gave.");
+        return done({ resourceTemplates: RESOURCE_TEMPLATES }, LIST_TTL_MS);
+      case "resources/read": {
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        const uri = params["uri"];
+        // a thing the caller may not see and a thing that is not there are the same answer
+        const missing = (): Response =>
+          err(id, modern ? INVALID_PARAMS : RESOURCE_NOT_FOUND, "Resource not found", {
+            uri: typeof uri === "string" ? uri.slice(0, 512) : null,
+          });
+        const route = routeOf(uri);
+        if (!route) return missing();
+        let got = await readFor(s, route.tool, route.args, true);
+        if (got && needsBytes(route, got.data)) got = (await readFor(s, route.tool, asBytes(route).args, false)) ?? got;
+        if (!got) return missing();
+        return done({ contents: contentsOf(route, uri as string, got.data) }, 0);
+      }
+      case "prompts/list": {
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        if (params["cursor"] !== undefined) return err(id, INVALID_PARAMS, "That cursor is not one this server gave.");
+        const skills = await readFor(s, "skills_list", { agentId: s.caller.principal.id }, false);
+        return done({ prompts: promptsOf(skills?.data) }, LIST_TTL_MS);
+      }
+      case "prompts/get": {
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        const name = params["name"];
+        const loaded = isSkillName(name)
+          ? await readFor(s, "load_skill", { name, agentId: s.caller.principal.id }, true)
+          : null;
+        const prompt = promptOf(
+          loaded?.data,
+          (params["arguments"] as Record<string, unknown> | undefined)?.["request"],
+        );
+        return prompt
+          ? done(prompt)
+          : err(id, INVALID_PARAMS, `Unknown prompt: ${typeof name === "string" ? name.slice(0, 64) : ""}`);
+      }
+      case "completion/complete": {
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        const types = await readFor(s, LIST_READS.types.tool, LIST_READS.types.args, false);
+        return done({ completion: completionsOf(params["ref"], params["argument"], types?.data) });
+      }
       case "notifications/initialized":
       case "notifications/cancelled":
         return null;
