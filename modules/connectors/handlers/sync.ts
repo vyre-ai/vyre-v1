@@ -1111,13 +1111,18 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       const one = rows.length === 1 ? rows[0]! : undefined;
       // a pass is on its way: the periodic driver leaves these connections alone until it ends (sync_run clears the mark)
       for (const r of rows) markRunning(tx, r.connection_id, nowOf(deps));
-      const started = (await ctx.call("runs.start", {
-        idempotencyKey: `connectors.sync_now:${input.idempotencyKey}`,
-        kind: "connector_sync",
-        name: one ? `Sync ${one.type}` : `Sync ${rows.length} types`,
-        owner: actorOf(ctx),
-        subject: one ? { type: "record_type", id: one.type } : { type: "connection", id: rows[0]!.connection_id },
-      })) as { runId: string };
+      const started = (await ctx
+        .call("runs.start", {
+          idempotencyKey: `connectors.sync_now:${input.idempotencyKey}`,
+          kind: "connector_sync",
+          name: one ? `Sync ${one.type}` : `Sync ${rows.length} types`,
+          owner: actorOf(ctx),
+          subject: one ? { type: "record_type", id: one.type } : { type: "connection", id: rows[0]!.connection_id },
+        })
+        .catch((e: unknown) => {
+          for (const r of rows) clearRunning(tx, r.connection_id); // no pass is on its way
+          throw e;
+        })) as { runId: string };
       tx.run(
         "INSERT OR REPLACE INTO cn_sync_requests (run_id, sync_types, mode, run_automations, requested_by, at) VALUES (?, ?, ?, ?, ?, ?)",
         started.runId,
@@ -1129,7 +1134,9 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       );
       // the pass itself runs in the background as the person who asked; where nothing can schedule (a test), the caller runs connectors.sync_run
       if (ctx.schedule)
-        await ctx.schedule(nowOf(deps), "connectors.sync_run", { runId: started.runId }).catch(() => undefined);
+        await ctx.schedule(nowOf(deps), "connectors.sync_run", { runId: started.runId }).catch(() => {
+          for (const r of rows) clearRunning(tx, r.connection_id); // nothing will run it: the connection is not busy
+        });
       return { runId: started.runId };
     },
 
@@ -1208,6 +1215,10 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
           : false;
         if (gave === true) return { ok: true, summary: "Handed to the person who set the sync up." };
         if (typeof gave === "string") {
+          for (const id of req.syncTypeIds) {
+            const r = tx.get<SyncDb>("SELECT connection_id FROM cn_synced_types WHERE sync_type_id = ?", id);
+            if (r) clearRunning(tx, r.connection_id); // the pass ended here: nothing is running on the connection
+          }
           await ctx.call("runs.finish", {
             runId: input.runId,
             status: "failed",

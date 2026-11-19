@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { isRunning, markRunning } from "../handlers/cadence.ts";
 import { world } from "../fixtures/crm-world.ts";
 import type { RunReport, SyncEngine } from "../handlers/sync.ts";
 import type { ConnectorsCtx } from "../projections.ts";
@@ -213,6 +214,37 @@ test("a run queued as the server is handed over the same way; one nobody can run
     error: { code: "provider.unavailable", message: sorry },
   });
   assert.equal(w.passes.length, before);
+  assert.equal(
+    w.k.tx.all("SELECT * FROM cn_sync_running").length,
+    0,
+    "a pass that ended here leaves no running mark: the connection's polls are not held for 30 minutes",
+  );
+});
+
+test("a pass that cannot be scheduled leaves no running mark, and a mark from a stopped process is gone at the first use after the start", async () => {
+  const w = await setup();
+  w.k.tx.run("DELETE FROM cn_sync_running");
+  const failing: ConnectorsCtx = {
+    ...w.ctx,
+    schedule: async () => {
+      throw new Error("the queue is not there");
+    },
+  };
+  await w.k.hs["connectors.sync_now"](failing, { type: "person", idempotencyKey: "nomark-1" } as never);
+  assert.equal(w.k.tx.all("SELECT * FROM cn_sync_running").length, 0, "nothing will run the pass: no mark");
+  // a process that stopped mid-pass leaves its mark in the database; the next process does not wait for it
+  const later = world();
+  later.k.tx.exec(
+    "CREATE TABLE IF NOT EXISTS cn_sync_running (connection_id TEXT PRIMARY KEY, started_at INTEGER NOT NULL)",
+  );
+  later.k.tx.run("INSERT INTO cn_sync_running VALUES ('con_dead', ?)", later.k.clock.t);
+  assert.equal(
+    isRunning(later.k.tx, "con_dead", later.k.clock.t),
+    false,
+    "a mark from before this start is not waited for",
+  );
+  markRunning(later.k.tx, "con_live", later.k.clock.t);
+  assert.equal(isRunning(later.k.tx, "con_live", later.k.clock.t), true, "a mark made in this process still counts");
 });
 
 test("a poll the server cannot hand to anyone ends its chain and says why, instead of failing every few minutes", async () => {

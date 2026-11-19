@@ -36,6 +36,8 @@ export function ensureCadenceTables(tx: Tx): void {
   if (ready.has(tx)) return;
   tx.exec(CADENCE_SQL);
   ready.add(tx);
+  // the first use in this process: a pass that was running when the last process stopped is not running now, so its mark is not waited for (it would hold the connection's polls for up to 30 minutes)
+  tx.run("DELETE FROM cn_sync_running");
 }
 
 /** The wait after `failures` failures in a row: the idle interval, doubled each time, never more than an hour. */
@@ -134,6 +136,9 @@ export function dueSyncs(d: Pick<CadenceDeps, "tx" | "now">): Due[] {
        (SELECT c.state FROM cn_connections c WHERE c.connection_id = t.connection_id) AS conn_state
      FROM cn_synced_types t ORDER BY t.created_at, t.rowid`,
   );
+  const staleness = (r: Row): number => Math.max(r.created_at, r.last_run_at ?? 0, r.last_at ?? 0);
+  // the type synced longest ago goes first (a stable sort: ties keep the order they were made in), so the few starts a tick are never always the same oldest types
+  rows.sort((a, b) => staleness(a) - staleness(b));
   const out: Due[] = [];
   const busy = new Set<string>(); // one pass per connection per tick: types of one connection go one at a time
   for (const r of rows) {

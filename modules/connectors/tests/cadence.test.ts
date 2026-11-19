@@ -327,3 +327,39 @@ test("seven types due on seven connections: the driver starts a few a tick and t
   assert.equal(seen.size, 7, "every type got its pass");
   assert.ok(ticks >= 4, `spread over ${ticks} ticks`);
 });
+
+test("when more types are due than a tick may start, the one synced longest ago goes first and every type is reached", async () => {
+  const w = await setup();
+  dropChains(w);
+  for (let i = 1; i <= 5; i++) {
+    w.k.tx.exec(
+      `CREATE TEMP TABLE t1 AS SELECT * FROM cn_connections LIMIT 1; UPDATE t1 SET connection_id = 'con_s${i}'; INSERT INTO cn_connections SELECT * FROM t1; DROP TABLE t1;
+       CREATE TEMP TABLE t2 AS SELECT * FROM cn_synced_types WHERE type = 'org'; UPDATE t2 SET sync_type_id = 'syt_s${i}', type = 'org_s${i}', connection_id = 'con_s${i}'; INSERT INTO cn_synced_types SELECT * FROM t2; DROP TABLE t2;`,
+    );
+  }
+  w.k.tx.run("UPDATE cn_synced_types SET paused = 1 WHERE type IN ('person', 'org')");
+  // the newest-made types were last synced longest ago (s5 first); the oldest-made were synced a moment ago
+  for (let i = 1; i <= 5; i++)
+    w.k.tx.run(
+      "INSERT INTO cn_sync_guard (sync_type_id, failures, last_at, next_at) VALUES (?, 0, ?, 0) ON CONFLICT(sync_type_id) DO UPDATE SET last_at = excluded.last_at",
+      `syt_s${i}`,
+      NOW + (10 - i) * MIN,
+    );
+  w.k.clock.t = NOW + 60 * MIN;
+  const order: string[] = [];
+  for (let tick = 0; tick < 10; tick++) {
+    const due = dueSyncs({ tx: w.k.tx, now: () => w.k.clock.t }).filter((d) => d.syncTypeId.startsWith("syt_s"));
+    if (!due.length) break;
+    if (tick === 0)
+      assert.deepEqual(
+        due.map((d) => d.syncTypeId),
+        ["syt_s5", "syt_s4"],
+        "the two synced longest ago start first",
+      );
+    for (const d of due) {
+      order.push(d.syncTypeId);
+      noteResult(w.k.tx, d.syncTypeId, { activeSec: 120, idleSec: 900, dormantSec: 3600 }, true, w.k.clock.t);
+    }
+  }
+  assert.equal(new Set(order).size, 5, `every type was reached: ${order.join(", ")}`);
+});

@@ -378,12 +378,13 @@ test("a call waits in line for the budget at most 30 s altogether, then fails wi
     paced.push(ms); // the clock does not move: the budget never refills
   };
   standIn(a.w, () => undefined);
+  // a sync pass (its reads carry the process's own token) waits in line; a person's own read does not
   const read = () =>
     a.call("connectors.read", {
       key: a.out.connector,
       action: "list_organizations",
       connectionId: a.out.connectionId,
-      input: {},
+      input: { __keep: `${SYNC_PASS_TOKEN}:pass-x` },
     });
   await read();
   await assert.rejects(
@@ -429,4 +430,26 @@ test("a kept key is checked again for every call: a share taken away mid-pass st
   const r1 = reads;
   await o.page("3");
   assert.ok(reads > r1, "no kept key was used when the host could not vouch for it");
+});
+
+test("a person's own read never waits in line for the connection's budget: it is refused at once with the wait it needs", async () => {
+  const a = await applied(15);
+  let paced = 0;
+  (a.w.k.deps as { pace?: (ms: number) => Promise<void> }).pace = async () => {
+    paced++;
+  };
+  standIn(a.w, () => undefined);
+  const read = () =>
+    a.call("connectors.read", {
+      key: a.out.connector,
+      action: "list_organizations",
+      connectionId: a.out.connectionId,
+      input: {},
+    });
+  await read();
+  await assert.rejects(
+    read(),
+    (e: any) => e.error?.code === "rate_limit.exceeded" && e.error?.details?.retryAfterMs > 0,
+  );
+  assert.equal(paced, 0, "it did not wait in line");
 });
