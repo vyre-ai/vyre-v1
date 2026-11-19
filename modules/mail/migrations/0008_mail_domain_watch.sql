@@ -3,5 +3,6 @@ CREATE TABLE IF NOT EXISTS mail_domain_watch (
   "domainId" TEXT PRIMARY KEY,
   strikes INTEGER NOT NULL,
   why TEXT,
+  "wasDefault" INTEGER NOT NULL DEFAULT 0,
   "checkedAt" INTEGER NOT NULL
 );

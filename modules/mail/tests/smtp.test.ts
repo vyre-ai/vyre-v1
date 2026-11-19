@@ -789,6 +789,11 @@ test("a domain whose mail server fails stops saying verified on the second failu
   w.fail = err("ECONNREFUSED");
   assert.equal((await smtpVerify(r.ctx, {})).ok, false);
   assert.deepEqual([verified(), strikes()], [1, 1]);
+  // a second failure moments later is the same bad moment: not counted again
+  w.fail = err("ECONNREFUSED");
+  assert.equal((await smtpVerify(r.ctx, {})).ok, false);
+  assert.deepEqual([verified(), strikes()], [1, 1]);
+  r.h.advance(2 * 60 * 60_000);
   w.fail = err("ECONNREFUSED");
   assert.equal((await smtpVerify(r.ctx, {})).ok, false);
   assert.deepEqual([verified(), strikes()], [0, 2]);
