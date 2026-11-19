@@ -125,11 +125,9 @@ export async function trail(ctx: MailCtx, input: { messageId: string }): Promise
   if (!msg || !doors.some((id) => can(ctx, "view", { type: "mailbox", id })))
     return missing(ctx, "Message does not exist.");
 
-  const rows = rowsOf(
-    ctx.db.all(
-      `SELECT * FROM mail_delivery_event WHERE "messageId" = ? ORDER BY at ASC, "recordedAt" ASC, id ASC`,
-      input.messageId,
-    ),
+  // oldest first by the provider's own time, then by when we heard (sorted here: the same on every database)
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM mail_delivery_event WHERE "messageId" = ?`, input.messageId)).sort(
+    (a, b) => num(a, "at") - num(b, "at") || num(a, "recordedAt") - num(b, "recordedAt") || str(a, "id").localeCompare(str(b, "id")),
   );
   const events = rows.map((r) => {
     const kind = str(r, "kind") as TrailKind;
