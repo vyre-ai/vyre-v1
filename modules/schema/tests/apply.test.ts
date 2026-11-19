@@ -970,6 +970,10 @@ test("Can go in emails: a switch per field, for fields that are fine to read out
     k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "boss", mergeable: true }),
     code("validation.precondition_failed"),
   );
+  // a computed field can read a private one and still carry a public label: never mergeable
+  await k.h["schema.apply"](k.ctx, { ops: [{ op: "field.add", type: "acme_person", def: { key: "made_at", type: "created_time", title: "Made at" } }] });
+  await assert.rejects(k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "made_at", mergeable: true }), code("validation.precondition_failed"));
+  await assert.rejects(k.h["schema.apply"](k.ctx, { ops: [{ op: "field.update", type: "acme_person", field: "made_at", def: { options: { mergeable: true } } }] }), code("validation.precondition_failed"));
   // a sealed (secret) field kind can never be switched on
   await k.h["schema.apply"](k.ctx, {
     ops: [{ op: "field.add", type: "acme_person", def: { key: "secret_note", type: "text", title: "Secret note" } }],

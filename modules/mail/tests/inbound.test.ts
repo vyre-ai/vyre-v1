@@ -1,6 +1,7 @@
 // Watching inboxes (lane r42-email-in): machine-made mail is recognised and never answered automatically, failures on the way in are kept and shown with
 // the one thing to do, and mail.inbox.monitor says per inbox how it is fed and whether it works. Addresses end in .test; nothing leaves the process.
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import {
   AUTO_PER_HOUR,
@@ -428,4 +429,22 @@ test("a send_as that is refused does not count toward the hourly cap", async () 
   await sendAs(r.ctx, as("a-1")); // takes the day's one slot
   await assert.rejects(sendAs(r.ctx, as("a-2"))); // over the daily limit: refused
   assert.equal(r.h.rows(`SELECT id FROM mail_auto_send`).length, 1, "only the one that went out is counted");
+});
+
+test("the held list reads only the sender's own rows and forgets the ones whose draft is gone, so it stays the size of what is open", async () => {
+  const r = rig({ origin: "automation" });
+  const auto = await ingest(r.ctx, letter("pat@acme.test", "<p1@acme.test>", "gm_p1", { mailboxId: "mbx_maya", headers: { "Auto-Submitted": "auto-replied" } }));
+  const reply = (n: number) => sendIn({ mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: `Re: ${n}`, replyToMessageId: auto.messageId, idempotencyKey: `prune-${n}` });
+  for (let n = 0; n < 5; n++) await send(r.ctx, reply(n));
+  const ids = r.h.rows(`SELECT "messageId" FROM mail_held`).map((x) => x.messageId as string);
+  assert.equal(ids.length, 5);
+  // two are sent or deleted by people; one belongs to another sender
+  r.h.ctx.db.run(`UPDATE mail_message SET status = ? WHERE id = ?`, "sent", ids[0]);
+  r.h.ctx.db.run(`UPDATE mail_message SET deleted_at = ? WHERE id = ?`, r.ctx.now(), ids[1]);
+  r.h.ctx.db.run(`UPDATE mail_held SET actor = ? WHERE "messageId" = ?`, "svc_other", ids[2]);
+  const mine = openHeld(r.ctx, "mbx_maya", r.ctx.principal.id);
+  assert.deepEqual(mine.map((m) => m.id).sort(), [ids[3], ids[4]].sort());
+  const left = r.h.rows(`SELECT "messageId" FROM mail_held`).map((x) => x.messageId as string).sort();
+  assert.deepEqual(left, [ids[2], ids[3], ids[4]].sort(), "the two finished rows are forgotten; the other sender's row is untouched");
+  assert.ok(readFileSync(new URL("../migrations/0015_sender_and_holds.sql", import.meta.url), "utf8").includes('mail_held ("mailboxId", actor)'), "the lookup by mailbox and sender has its index");
 });
