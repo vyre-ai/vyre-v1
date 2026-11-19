@@ -294,7 +294,9 @@ export function taskSection(
     turn === "assigned" &&
     mine.length === 0 &&
     ((t["assigned"] as Who | undefined)?.kind === "group" || (t["assigned"] as Who | undefined)?.kind === "role");
-  const out: string[] = [`${one(t["title"], 120)} (taskId ${String(t["id"])}, ${state.replace("_", " ")}).`];
+  // anyone can write a title, so it is among the task's own words below, one line of at most 120 characters; this line is Vyre's and calls it "the task above"
+  const out: string[] = [`The task below (taskId ${String(t["id"])}, ${state.replace("_", " ")}).`];
+  words.push(`Title: ${one(t["title"], 120)}`);
   const seat = mine.includes(turn) ? turn : undefined;
   // the person who is asking is the Assigned: their own Assistant, or any agent acting for them, does the work as them (the Gate still holds what leaves Vyre)
   const forAsker =
