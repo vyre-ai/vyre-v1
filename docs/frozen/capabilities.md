@@ -779,4 +779,4 @@ Signed: lead, 19 Nov 2026
 - The admin who sets the handle chooses which Vault secret is sent to the service's fixed host; nothing else can name a destination.
 - Tests: lib/tests/web-read.test.ts (both services, header and redirect, refusals), modules/computers/tests/web-tools.test.ts.
 
-Signed: pending, lead
+Signed: lead, 19 Nov 2026
