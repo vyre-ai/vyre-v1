@@ -484,7 +484,7 @@ function cleanFollow(ctx: Ctx, raw: unknown): string[] {
  * Put a webhook secret in the Vault for this site alone: a folder and an item made for it, found by their ids (kept on the site) and never by a name another member could have taken first. They are shared at View with the site's owner and the person
  * the call works for, and with nobody else (not Everyone). The item is written first, its ids are kept at once, the shares are made on every call (they are the same each time), and only then does the caller seal the site with the same secret: so a retry
  * after a failure at any step takes the update path and leaves the item and the site agreeing. The item's key carries a digest of the secret, so a replay never brings back another secret.
- * The owner is asked, in a task, to paste it into GitHub: reading a shared value takes the Reveal permission, which the owner and the admins hold. The handle comes back.
+ * The handle comes back.
  */
 async function keepSecret(ctx: Ctx, site: Row, secret: string, _now: number): Promise<string> {
   const siteId = str(site.id);
@@ -547,21 +547,52 @@ async function keepSecret(ctx: Ctx, site: Row, secret: string, _now: number): Pr
         level: "view",
         idempotencyKey: `site-hook-share:${siteId}:${person}`,
       });
-    // someone has to give GitHub the new secret: the owner can open the item and read it
-    if (str(site.owner).startsWith("usr_"))
-      await call("tasks.create", {
-        title: `Paste the new webhook secret into GitHub for ${visibleText(str(site.name), 60)}`,
-        summary: `An agent set up the webhook for this site. Open the Vault item "${visibleText(str(site.name), 60)} webhook secret", copy the secret, and paste it into the webhook's settings on GitHub.`,
-        assigned: { kind: "person", id: str(site.owner) },
-        source: { kind: "manual", id: siteId },
-        idempotencyKey: `site-hook-task:${siteId}:${hex(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret)))).slice(0, 16)}`,
-      }).catch(() => undefined);
     return handle as string;
   } catch {
     return fail(
       ctx,
       "validation.precondition_failed",
       "The new secret could not be kept in the Vault for this site. Nothing was turned on. Try again, or ask a person to make it.",
+    );
+  }
+}
+
+/**
+ * Someone has to give GitHub the new secret: the owner is asked, in a task, to open the Vault item and paste it (reading a shared value takes the Reveal permission, which the owner and the admins hold). Made only after the site is sealed with
+ * the secret. A task that could not be made is logged and kept in the site's failed list with its reason: the secret is kept, and the owner has to be told another way.
+ */
+async function askOwnerToPaste(ctx: Ctx, site: Row, secret: string): Promise<void> {
+  const owner = str(site.owner);
+  if (!owner.startsWith("usr_")) return;
+  const siteId = str(site.id);
+  const host = routesHost()?.asHost;
+  const name = visibleText(str(site.name), 60);
+  const digest = hex(
+    new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret))),
+  ).slice(0, 16);
+  const input = {
+    title: `Paste the new webhook secret into GitHub for ${name}`,
+    summary: `An agent set up the webhook for this site. Open the Vault item "${name} webhook secret", copy the secret, and paste it into the webhook's settings on GitHub.`,
+    assigned: { kind: "person", id: owner },
+    source: { kind: "manual", id: siteId },
+    idempotencyKey: `site-hook-task:${siteId}:${digest}`,
+  };
+  try {
+    if (host) await host("tasks.create", input);
+    else await ctx.call("tasks.create" as never, input as never);
+  } catch (e) {
+    ctx.log.warn("sites.hook_task_failed", { site: siteId, error: e instanceof Error ? e.message : String(e) });
+    const now = Date.now();
+    ctx.db.run(
+      "INSERT INTO sites_push (id, site_id, branch, sha, action, at, done_at, failed_at, error) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)",
+      `psh_${randomHex(8)}`,
+      siteId,
+      "",
+      "hook",
+      now,
+      now,
+      now,
+      "The task asking the owner to paste the new secret into GitHub could not be made. The secret is in the Vault item; tell the owner.",
     );
   }
 }
@@ -605,6 +636,8 @@ async function webhookSet(ctx: Ctx, input: unknown): Promise<HookInfo> {
       now,
       siteId,
     );
+  // the site is sealed with the secret now: only then is the owner asked to give it to GitHub
+  if (vault !== undefined && secret !== undefined) await askOwnerToPaste(ctx, site, secret);
   return info(ctx, mustSite(ctx, siteId), shown, vault);
 }
 

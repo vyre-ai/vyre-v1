@@ -2472,9 +2472,19 @@ test("a failure at any step of keeping the webhook secret leaves the Vault item 
   const items: Record<string, string> = {};
   let failAt: string | null = null;
   let putKeys: string[] = [];
+  const sealedAtTask: boolean[] = [];
   const w = world({
     asHost: async (cap, input) => {
       const i = input as Record<string, unknown>;
+      if (cap === "tasks.create")
+        sealedAtTask.push(
+          (
+            w.sdb.all(
+              "SELECT hook_secret FROM sites_site WHERE id = ?",
+              String((i["source"] as { id: string }).id),
+            )[0] as { hook_secret: unknown }
+          ).hook_secret !== null,
+        );
       if (failAt === cap) {
         failAt = null;
         throw new Error(`${cap} failed`);
@@ -2517,6 +2527,16 @@ test("a failure at any step of keeping the webhook secret leaves the Vault item 
         () => "failed",
       );
       assert.equal(first, step === "tasks.create" ? "ok" : "failed", step);
+      if (step === "tasks.create") {
+        // the secret is kept and the site is on; the task that did not get made is told, not swallowed
+        const failed = (
+          (await h["sites.webhook_get"]!(w.ctx, { siteId })) as { failed: { action: string; error: string }[] }
+        ).failed;
+        assert.ok(
+          failed.some((f) => f.action === "hook" && /could not be made/.test(f.error)),
+          JSON.stringify(failed),
+        );
+      }
       if (first === "failed")
         assert.equal(
           (w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId)[0] as { hook_secret: unknown })
@@ -2612,6 +2632,47 @@ test("a named commit is built only when it is on the branch, against a real git 
     ] as const)
       if (v === undefined) delete process.env[k];
       else process.env[k] = v;
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("a whole clone (the dumb-HTTP fallback takes the branch whole) is held to the same newest-200 rule: a commit from long before cannot be named", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { pinCommit } = await import("../handlers/source.ts");
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-pin-full-"));
+  const env = {
+    ...process.env,
+    GIT_AUTHOR_NAME: "t",
+    GIT_AUTHOR_EMAIL: "t@e.x",
+    GIT_COMMITTER_NAME: "t",
+    GIT_COMMITTER_EMAIL: "t@e.x",
+  };
+  const git = (cwd: string, ...a: string[]): string => execFileSync("git", a, { cwd, encoding: "utf8", env }).trim();
+  try {
+    const origin = path.join(base, "origin");
+    fs.mkdirSync(origin);
+    git(origin, "init", "-b", "main", ".");
+    for (let n = 0; n < 260; n++) git(origin, "commit", "--allow-empty", "-m", `c${n}`);
+    const shas = git(origin, "rev-list", "--reverse", "main").split("\n");
+    const whole = (name: string): string => {
+      const dir = path.join(base, name);
+      git(base, "clone", "-q", "--no-single-branch", origin, dir);
+      assert.equal(git(dir, "rev-parse", "--is-shallow-repository"), "false", "a whole clone");
+      return dir;
+    };
+    // 159 commits back: within the newest 200, built
+    const near = whole("near");
+    await pinCommit(near, shas[100]!, "main", null);
+    assert.equal(git(near, "rev-parse", "HEAD"), shas[100]);
+    // 249 commits back, from long before: refused
+    await assert.rejects(() => pinCommit(whole("far"), shas[10]!, "main", null), /too far back/);
+    // a commit of another branch
+    git(origin, "checkout", "-q", "-b", "side", shas[250]!);
+    git(origin, "commit", "--allow-empty", "-m", "side only");
+    const side = git(origin, "rev-parse", "HEAD");
+    git(origin, "checkout", "-q", "main");
+    await assert.rejects(() => pinCommit(whole("other"), side, "main", null), /not on the branch/);
+  } finally {
     fs.rmSync(base, { recursive: true, force: true });
   }
 });

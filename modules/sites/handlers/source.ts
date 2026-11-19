@@ -127,6 +127,46 @@ function gitWhy(out: string): string {
   return `git could not fetch it: ${out.trim().split("\n").slice(-2).join(" ").slice(0, 200)}`;
 }
 
+/** How far back from a branch's head a named commit may be: its newest 200 commits. */
+const PIN_DEPTH = 200;
+
+/**
+ * Check out the commit a call names, if it is on the branch within its newest 200 commits: a commit of another branch, of a pull request, or from before the branch was protected is not the reviewed code of this one, and the production keys do not go
+ * to it. A shallow clone is deepened to 200 commits first; a whole clone (the dumb-HTTP fallback takes the branch whole) is held to the same 200, counted from the head.
+ */
+export async function pinCommit(
+  dir: string,
+  commit: string,
+  branch: string | undefined,
+  token: string | null,
+): Promise<void> {
+  const have = (await git(["rev-parse", "HEAD"], dir, null, 10_000)).out.trim();
+  if (have === commit) return;
+  const shallow = (await git(["rev-parse", "--is-shallow-repository"], dir, null, 10_000)).out.trim() === "true";
+  let on: boolean;
+  if (shallow) {
+    const deep = await git(
+      ["fetch", "--depth", String(PIN_DEPTH), "origin", branch ? `refs/heads/${branch}` : "HEAD"],
+      dir,
+      token,
+    );
+    on =
+      deep.code === 0 &&
+      (await git(["cat-file", "-e", `${commit}^{commit}`], dir, null, 10_000)).code === 0 &&
+      (await git(["merge-base", "--is-ancestor", commit, "FETCH_HEAD"], dir, null, 10_000)).code === 0;
+  } else {
+    const ahead = await git(["rev-list", "--count", `${commit}..HEAD`], dir, null, 10_000);
+    on =
+      (await git(["cat-file", "-e", `${commit}^{commit}`], dir, null, 10_000)).code === 0 &&
+      (await git(["merge-base", "--is-ancestor", commit, "HEAD"], dir, null, 10_000)).code === 0 &&
+      ahead.code === 0 &&
+      Number(ahead.out.trim()) < PIN_DEPTH;
+  }
+  if (!on) throw new SourceError("That commit is not on the branch, or is too far back to build. Ask again.");
+  const c = await git(["checkout", "--detach", commit], dir, null, 30_000);
+  if (c.code !== 0) throw new SourceError("That commit could not be built. Ask again.");
+}
+
 async function fromRepo(
   dir: string,
   s: SourceSpec,
@@ -145,25 +185,7 @@ async function fromRepo(
     r = await git(["clone", "--single-branch", ...(branch ? ["--branch", branch] : []), "--", url, "."], dir, token);
   }
   if (r.code !== 0) throw new SourceError(gitWhy(r.out));
-  // a commit the call names (the one a card was made over, which a person approved): the branch may have moved on since. It is built only if it is on the branch, within its newest 200 commits: a commit of another branch, or of a pull request, is not
-  // the reviewed code of this one, and the production keys do not go to it.
-  if (s.commit) {
-    const have = (await git(["rev-parse", "HEAD"], dir, null, 10_000)).out.trim();
-    if (have !== s.commit) {
-      const deep = await git(
-        ["fetch", "--depth", "200", "origin", branch ? `refs/heads/${branch}` : "HEAD"],
-        dir,
-        token,
-      );
-      const on =
-        deep.code === 0 &&
-        (await git(["cat-file", "-e", `${s.commit}^{commit}`], dir, null, 10_000)).code === 0 &&
-        (await git(["merge-base", "--is-ancestor", s.commit, "FETCH_HEAD"], dir, null, 10_000)).code === 0;
-      if (!on) throw new SourceError("That commit is not on the branch, or is too far back to build. Ask again.");
-      const c = await git(["checkout", "--detach", s.commit], dir, null, 30_000);
-      if (c.code !== 0) throw new SourceError("That commit could not be built. Ask again.");
-    }
-  }
+  if (s.commit) await pinCommit(dir, s.commit, branch, token);
   const head = await git(["log", "-1", "--format=%H%n%s"], dir, null, 10_000);
   const [commit, ...msg] = head.out.trim().split("\n");
   const cur = branch ?? (await git(["rev-parse", "--abbrev-ref", "HEAD"], dir, null, 10_000)).out.trim();
