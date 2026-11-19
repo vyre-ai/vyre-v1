@@ -210,7 +210,7 @@ test("a typed signature completes the envelope: the final file lands beside the 
     emitted.map((e) => e.name),
     ["signature.signed"],
   );
-  assert.deepEqual(emitted[0]!.payload, { envelopeId, fileId: "fil_cert1" });
+  assert.deepEqual(emitted[0]!.payload, { envelopeId, fileId: "fil_cert1", recordId: RECORD });
   assert.deepEqual((await finish(h, envelopeId)).fileId, "fil_cert1", "saying it twice is fine and saves one file");
   assert.equal(h.created.length, 1);
   assert.equal(h.callsTo("tasks.transition").at(-1)?.input.to, "done");
@@ -614,4 +614,40 @@ test("a document that cannot say where its signers sign (none known, stale, or t
     await send(h, [ANDREA]);
     assert.match(textOf(h.rows("esign_doc")[0]!.sent as Uint8Array), /Signature page/);
   }
+});
+
+test("an envelope nobody touches again still ends when its time runs out: told once, the signature task closed, the sender and the thread told, a Flow can start from it", async () => {
+  const h = await setup();
+  const { envelopeId } = await h.call(
+    "esign.send",
+    { fileId: FILE, signers: [ANDREA, SAM], recordId: RECORD, idempotencyKey: "exp1" },
+    { ...dana, thread: "thr_run" },
+  );
+  const { expireDue } = await import("../handlers/vyre.ts");
+  const run = () => expireDue(h.ctxFor(null, SYSTEM));
+  assert.deepEqual(await run(), { ended: 0, told: 0 }, "nothing is due yet");
+  h.advance(31 * 24 * 3600 * 1000);
+  assert.deepEqual(await run(), { ended: 1, told: 1 });
+  assert.equal(h.rows("esign_envelope")[0]!.status, "expired");
+  assert.ok(h.rows("esign_vsigner").every((s) => s.status === "expired"));
+  assert.deepEqual(
+    h.events.filter((e) => e.name === "signature.expired").map((e) => [e.name, e.payload.envelopeId, e.payload.recordId]),
+    [["signature.expired", envelopeId, RECORD]],
+  );
+  const closed = h.callsTo("tasks.transition").at(-1)!.input;
+  assert.equal(closed.to, "canceled");
+  assert.match(String(h.callsTo("chat.post").at(-1)!.input.body), /ran out before everyone signed/);
+  assert.equal(h.callsTo("notifications.send").at(-1)!.input.kind, "task.returned");
+  // a second run, or a restart, tells no one twice
+  const calls = h.calls.length;
+  assert.deepEqual(await run(), { ended: 0, told: 0 });
+  assert.equal(h.calls.length, calls);
+  // one that ran out when someone touched it is told by the next run, once
+  const h2 = await setup();
+  const two = await send(h2, [ANDREA]);
+  h2.advance(31 * 24 * 3600 * 1000);
+  assert.equal((await h2.call("esign.status", { envelopeId: two.envelopeId }, dana)).status, "expired");
+  const again = await expireDue(h2.ctxFor(null, SYSTEM));
+  assert.deepEqual(again, { ended: 0, told: 1 });
+  assert.deepEqual(await expireDue(h2.ctxFor(null, SYSTEM)), { ended: 0, told: 0 });
 });

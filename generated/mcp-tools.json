@@ -18280,7 +18280,7 @@
       "blocks": [],
       "cap": "documents.fields",
       "deferred": false,
-      "description": "List the tags a template needs: text, date, money, list, conditions and loops",
+      "description": "List the fields a template needs (the {blanks} in it): text, date, money, lists and conditions",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -18306,7 +18306,7 @@
       "blocks": [],
       "cap": "documents.fill",
       "deferred": false,
-      "description": "Fill a template into a new file in a folder; missing required tags stop the fill and are listed",
+      "description": "Fill a template into a new file in a folder; missing required fields stop the fill and are listed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18316,7 +18316,7 @@
               "pdf",
               "md",
               {
-                "description": "A Word template fills to docx (or pdf with the converter app); a Vyre document fills to pdf, or to md to go on editing"
+                "description": "A Word template fills to docx or pdf; a Vyre document fills to pdf, or to md to go on editing"
               }
             ],
             "type": "string"
@@ -18337,7 +18337,7 @@
           },
           "mapping": {
             "additionalProperties": {
-              "description": "Record field key that feeds the template tag",
+              "description": "Record field key that feeds the template field",
               "type": "string"
             },
             "type": "object"
@@ -18476,7 +18476,7 @@
         "properties": {
           "mapping": {
             "additionalProperties": {
-              "description": "Record field key that feeds the template tag",
+              "description": "Record field key that feeds the template field",
               "type": "string"
             },
             "type": "object"

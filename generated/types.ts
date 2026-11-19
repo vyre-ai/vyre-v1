@@ -12834,7 +12834,7 @@ export type DocumentsFillIn = {
   signingDate?: string;
   intoFolderId: string;
   name?: string;
-  format?: "docx" | "pdf" | "md" | {"description":"A Word template fills to docx (or pdf with the converter app); a Vyre document fills to pdf, or to md to go on editing"};
+  format?: "docx" | "pdf" | "md" | {"description":"A Word template fills to docx or pdf; a Vyre document fills to pdf, or to md to go on editing"};
   idempotencyKey: string;
 };
 export type DocumentsFillOut = {
@@ -12846,6 +12846,7 @@ export type DocumentsFillOut = {
   missing: Array<string>;
   unused: Array<string>;
   signers?: Array<string>;
+  layout?: "word" | "simple" | {"description":"word: the Word page kept; simple: plain page look (no converter)"};
 };
 export type DocumentsMakePdfIn = {
   fileId: string;
@@ -12895,6 +12896,7 @@ export type DocumentsSigningIn = {
 export type DocumentsSigningOut = {
   signers: Array<string>;
   places: Array<unknown>;
+  stale?: boolean;
   templateFileId?: string;
   recordId?: string;
 };
@@ -53897,11 +53899,17 @@ export type SheetRowUpdatedPayload = {
 };
 export type SignatureCancelledPayload = {
   envelopeId: string;
+  recordId?: string;
 };
 export type SignatureDeclinedPayload = {
   envelopeId: string;
   signer: string;
   reason?: string;
+  recordId?: string;
+};
+export type SignatureExpiredPayload = {
+  envelopeId: string;
+  recordId?: string;
 };
 export type SignatureSentPayload = {
   envelopeId: string;
@@ -53911,10 +53919,12 @@ export type SignatureSentPayload = {
 export type SignatureSignedPayload = {
   envelopeId: string;
   fileId: string;
+  recordId?: string;
 };
 export type SignatureViewedPayload = {
   envelopeId: string;
   signer: string;
+  recordId?: string;
 };
 export type SigninFailedPayload = {
   username: string;
@@ -55570,6 +55580,7 @@ export interface EventMap {
   "sheet.row_updated": SheetRowUpdatedPayload;
   "signature.cancelled": SignatureCancelledPayload;
   "signature.declined": SignatureDeclinedPayload;
+  "signature.expired": SignatureExpiredPayload;
   "signature.sent": SignatureSentPayload;
   "signature.signed": SignatureSignedPayload;
   "signature.viewed": SignatureViewedPayload;

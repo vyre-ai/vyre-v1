@@ -20,5 +20,6 @@ All signers signed; the signed PDF and audit certificate were saved as a new ver
 type Payload = {
   envelopeId: string;
   fileId: string;
+  recordId?: string;
 };
 ```

@@ -35,6 +35,7 @@ type In = {
 type Out = {
   signers: Array<string>;
   places: Array<unknown>;
+  stale?: boolean;
   templateFileId?: string;
   recordId?: string;
 };
@@ -64,6 +65,7 @@ type Out = {
     "signers": [
       "example"
     ],
+    "stale": true,
     "templateFileId": "fil_a1b2c3"
   }
 }

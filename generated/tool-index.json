@@ -2595,13 +2595,13 @@
     {
       "deferred": false,
       "name": "documents_fields",
-      "summary": "List the tags a template needs: text, date, money, list, conditions and loops",
+      "summary": "List the fields a template needs (the {blanks} in it): text, date, money, lists and conditions",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "documents_fill",
-      "summary": "Fill a template into a new file in a folder; missing required tags stop the fill and are listed",
+      "summary": "Fill a template into a new file in a folder; missing required fields stop the fill and are listed",
       "toolset": "files"
     },
     {

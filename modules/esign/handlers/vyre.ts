@@ -611,6 +611,43 @@ function expire(ctx: Ctx, env: { id: string }): void {
   event(ctx, env.id, null, "expired");
 }
 
+/**
+ * The clock, on its own: every open envelope past its time ends, and each is told once (the event a Flow can start from, the sender's Needs you and their run thread, the signature task closed).
+ * Until now an envelope ended only when someone touched it, so a request nobody opened again stayed "waiting" in the sender's task list for ever.
+ */
+export async function expireDue(ctx: Ctx): Promise<{ ended: number; told: number }> {
+  let ended = 0;
+  for (const r of many(
+    ctx,
+    "SELECT id FROM esign_envelope WHERE provider = ? AND status IN (?, ?) AND expires_at < ?",
+    "vyre",
+    "sent",
+    "viewed",
+    ctx.now(),
+  )) {
+    expire(ctx, { id: str(r.id) });
+    ended++;
+  }
+  let told = 0;
+  for (const r of many(
+    ctx,
+    "SELECT id FROM esign_envelope WHERE provider = ? AND status = ? AND expired_told = 0",
+    "vyre",
+    "expired",
+  )) {
+    const envId = str(r.id);
+    // marked first: a second run, or a restart in the middle, never tells twice
+    ctx.db.run("UPDATE esign_envelope SET expired_told = 1 WHERE id = ?", envId);
+    const env = mustEnvelope(ctx, envId);
+    ctx.emit("signature.expired", subject(envId), { envelopeId: envId, ...(env.recordId !== null ? { recordId: env.recordId } : {}) });
+    await notifySender(ctx, envId, "task.returned", env.fileId, env.title, { from: "no one", note: "the signing links ran out" });
+    await finishTask(ctx, env, "canceled", "The signing links ran out before everyone signed.");
+    await tellThread(ctx, env, `The signature request for ${plain(env.title)} ran out before everyone signed. Send it again to ask again.`, "sig-expired");
+    told++;
+  }
+  return { ended, told };
+}
+
 function isWaiting(ctx: Ctx, envelopeId: string, order: number): boolean {
   return many(ctx, "SELECT status FROM esign_vsigner WHERE envelope_id = ? AND order_no < ?", envelopeId, order).some(
     (r) => str(r.status) !== "signed",
@@ -657,7 +694,11 @@ export async function signerView(ctx: Ctx, input: unknown): Promise<{ session: R
     );
     if (str(env.status) === "sent")
       ctx.db.run("UPDATE esign_envelope SET status = ?, updated_at = ? WHERE id = ?", "viewed", ctx.now(), envId);
-    ctx.emit("signature.viewed", subject(envId), { envelopeId: envId, signer: str(signer.name) });
+    ctx.emit("signature.viewed", subject(envId), {
+      envelopeId: envId,
+      signer: str(signer.name),
+      ...(isNull(env.record_id) ? {} : { recordId: str(env.record_id) }),
+    });
   }
   const space = await spaceInfo(ctx);
   const base = {
@@ -758,7 +799,11 @@ export async function signerAct(ctx: Ctx, input: unknown): Promise<{ result: Row
     event(ctx, envId, idx, "declined", v, reason || undefined);
     const env = mustEnvelope(ctx, envId);
     // the reason is the signer's own words: the status read returns it, but it stays out of the event and sits in the thread only as labelled plain text
-    ctx.emit("signature.declined", subject(envId), { envelopeId: envId, signer: plain(str(hit.signer.name)) });
+    ctx.emit("signature.declined", subject(envId), {
+      envelopeId: envId,
+      signer: plain(str(hit.signer.name)),
+      ...(env.recordId !== null ? { recordId: env.recordId } : {}),
+    });
     await notifySender(ctx, envId, "task.returned", env.fileId, env.title, {
       from: plain(str(hit.signer.name)),
       note: reason ? plain(reason, 120) : "declined",
@@ -1000,7 +1045,10 @@ export async function cancelVyre(ctx: Ctx, envelopeId: string): Promise<{ cancel
   );
   ctx.db.run("UPDATE esign_vsigner SET token_hash = NULL WHERE envelope_id = ? AND status != ?", envelopeId, "signed");
   event(ctx, envelopeId, null, "cancelled");
-  ctx.emit("signature.cancelled", subject(envelopeId), { envelopeId });
+  ctx.emit("signature.cancelled", subject(envelopeId), {
+    envelopeId,
+    ...(env.recordId !== null ? { recordId: env.recordId } : {}),
+  });
   await finishTask(ctx, env, "canceled", "The envelope was cancelled.");
   await tellThread(ctx, env, `Cancelled the signature request for ${env.title}.`, "sig-cancel");
   return { cancelled: true };
@@ -1020,7 +1068,11 @@ export async function fetchVyre(ctx: Ctx, envelopeId: string): Promise<{ fileId:
     "SELECT name, signed_name FROM esign_vsigner WHERE envelope_id = ? ORDER BY idx",
     envelopeId,
   );
-  ctx.emit("signature.signed", subject(envelopeId), { envelopeId, fileId: id });
+  ctx.emit("signature.signed", subject(envelopeId), {
+    envelopeId,
+    fileId: id,
+    ...(env.recordId !== null ? { recordId: env.recordId } : {}),
+  });
   const first = signers.map((s) => (str(s.signed_name) || str(s.name)).split(/\s+/)[0] as string).join(", ");
   await notifySender(ctx, envelopeId, "task.finished", id, `${env.title} signed`, { from: first });
   await finishTask(ctx, env, "done", "Everyone signed.");

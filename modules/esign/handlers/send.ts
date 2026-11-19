@@ -529,7 +529,11 @@ export async function saveSigned(ctx: Ctx, env: EnvelopeRow): Promise<string> {
     env.id,
     "signed",
   );
-  ctx.emit("signature.signed", subject(env.id), { envelopeId: env.id, fileId });
+  ctx.emit("signature.signed", subject(env.id), {
+    envelopeId: env.id,
+    fileId,
+    ...(env.recordId !== null ? { recordId: env.recordId } : {}),
+  });
   await finishTask(ctx, env, "done", "Everyone signed.");
   await tellThread(
     ctx,

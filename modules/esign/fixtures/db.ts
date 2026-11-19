@@ -24,7 +24,7 @@ import { configureSigning } from "../handlers/vyre.ts";
 
 // Boundary B2 keeps the node:sqlite import out of modules; a test still needs a real SQL engine behind the host's table guard.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
-const migrations = ["0001_esign.sql", "0002_esign_vyre.sql", "0003_esign_seal.sql"].map((f) =>
+const migrations = ["0001_esign.sql", "0002_esign_vyre.sql", "0003_esign_seal.sql", "0004_esign_expired.sql"].map((f) =>
   readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"),
 );
 

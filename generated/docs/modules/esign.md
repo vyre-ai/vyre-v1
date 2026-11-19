@@ -21,10 +21,11 @@ Requires: nothing.
 - [esign.status](../capabilities/esign.status.md): Envelope status and signers
 - [esign.verify](../capabilities/esign.verify.md): Is this file sealed, unchanged since, and sealed by this Space
 
-## Events (5)
+## Events (6)
 
 - [signature.cancelled](../events/signature.cancelled.md): The sender cancelled an envelope; every link stopped working
 - [signature.declined](../events/signature.declined.md): A signer declined
+- [signature.expired](../events/signature.expired.md): An envelope was not signed in time; every link stopped working
 - [signature.sent](../events/signature.sent.md): An envelope was sent for signature
 - [signature.signed](../events/signature.signed.md): All signers signed; the signed PDF and audit certificate were saved as a new version
 - [signature.viewed](../events/signature.viewed.md): A signer opened the envelope

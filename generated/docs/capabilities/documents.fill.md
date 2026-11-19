@@ -1,6 +1,6 @@
 # documents.fill
 
-Fill a template into a new file in a folder; missing required tags stop the fill and are listed
+Fill a template into a new file in a folder; missing required fields stop the fill and are listed
 
 | | |
 |---|---|
@@ -32,7 +32,7 @@ type In = {
   signingDate?: string;
   intoFolderId: string;
   name?: string;
-  format?: "docx" | "pdf" | "md" | {"description":"A Word template fills to docx (or pdf with the converter app); a Vyre document fills to pdf, or to md to go on editing"};
+  format?: "docx" | "pdf" | "md" | {"description":"A Word template fills to docx or pdf; a Vyre document fills to pdf, or to md to go on editing"};
   idempotencyKey: string;
 };
 ```
@@ -49,6 +49,7 @@ type Out = {
   missing: Array<string>;
   unused: Array<string>;
   signers?: Array<string>;
+  layout?: "word" | "simple" | {"description":"word: the Word page kept; simple: plain page look (no converter)"};
 };
 ```
 
@@ -85,6 +86,7 @@ type Out = {
       "name": "example",
       "versionId": "ver_a1b2c3"
     },
+    "layout": "word",
     "missing": [
       "example"
     ],

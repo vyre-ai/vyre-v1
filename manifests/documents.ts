@@ -14,14 +14,14 @@ const fieldInfo = t.obj({
   name: t.str({ examples: ["grantor_name"] }),
   kind: t.enm("text", "date", "money", "list", "condition", "loop"),
   required: t.bool(),
-  loop: t.opt(t.str({ description: "Name of the loop this tag sits in" })),
+  loop: t.opt(t.str({ description: "Name of the list this field sits in" })),
 });
 
 const fillIn = {
   templateFileId: id.file,
   values: t.opt(t.rec()),
   recordId: t.opt(id.record),
-  mapping: t.opt(t.rec(t.str({ description: "Record field key that feeds the template tag" }))),
+  mapping: t.opt(t.rec(t.str({ description: "Record field key that feeds the template field" }))),
   signingDate: t.opt(t.str({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "ISO date", examples: ["2026-10-24"] })),
 };
 
@@ -61,18 +61,24 @@ export default defineManifest({
     }),
   ],
   capabilities: [
-    read("documents.fields", "List the tags a template needs: text, date, money, list, conditions and loops", {
-      in: { templateFileId: id.file },
-      out: {
-        fields: t.arr(fieldInfo),
-        loops: t.arr(t.str()),
-        problems: t.arr(t.obj({ message: t.str(), tag: t.opt(t.str()) })),
-        signers,
+    read(
+      "documents.fields",
+      "List the fields a template needs (the {blanks} in it): text, date, money, lists and conditions",
+      {
+        in: { templateFileId: id.file },
+        out: {
+          fields: t.arr(fieldInfo),
+          loops: t.arr(t.str()),
+          problems: t.arr(
+            t.obj({ message: t.str(), tag: t.opt(t.str({ description: "The field the problem is about" })) }),
+          ),
+          signers,
+        },
+        on: ["file", "/templateFileId"],
+        tool: "files",
+        label: "check",
       },
-      on: ["file", "/templateFileId"],
-      tool: "files",
-      label: "check",
-    }),
+    ),
     read(
       "documents.preview_fill",
       "Show the filled document as an excerpt with every filled value marked, and what is missing or unused",
@@ -92,7 +98,7 @@ export default defineManifest({
     ),
     create(
       "documents.fill",
-      "Fill a template into a new file in a folder; missing required tags stop the fill and are listed",
+      "Fill a template into a new file in a folder; missing required fields stop the fill and are listed",
       {
         in: {
           ...fillIn,
@@ -112,8 +118,7 @@ export default defineManifest({
           signers,
           layout: t.opt(
             t.enm("word", "simple", {
-              description:
-                "For a PDF of a Word template: word when the server's converter kept the Word page, simple when the words were set in the plain Vyre page look (a server with no converter)",
+              description: "word: the Word page kept; simple: plain page look (no converter)",
             }),
           ),
         },
