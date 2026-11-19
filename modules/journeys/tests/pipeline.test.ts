@@ -731,3 +731,85 @@ test("move_stage with expectedVersion: a card that changed first is refused with
     "without a version it is as before",
   );
 });
+
+// ---- a record's own stage value is never replaced (lead, 19 Nov) ----
+
+test("a record that already has a stage value keeps it: the Journey takes it as the record's stage, learns a stage for a value it has none for, and writes nothing to that record", async () => {
+  const h = harness();
+  const { j, ids } = await old(h, 3);
+  // the subject records already carry their own values in the stage field: one the Journey knows, one it does not, one empty
+  const values: Record<string, string | undefined> = { rec_s0: "review", rec_s1: "dormant", rec_s2: undefined };
+  h.callee("records.get", (i) => ({ record: { version: 1, fields: { journey_stage: values[i.recordId] } } }));
+  h.callee("schema.types.get", (i) => ({
+    type: {
+      key: i.type,
+      fields: [
+        {
+          key: "journey_stage",
+          type: "status",
+          writeOnlyBy: [
+            "journeys.move_stage",
+            "journeys.advance",
+            "journeys.migrate",
+            "journeys.start",
+            "journeys.to_pipeline",
+          ],
+          options: {
+            stages: [
+              { key: "review", title: "Review" },
+              { key: "dormant", title: "Dormant (ours)" },
+            ],
+          },
+        },
+      ],
+    },
+  }));
+  const r = await h.call("journeys.to_pipeline", { journeyId: j.id }, alice);
+  assert.equal(r.finished, true);
+  const writes = h.only("records.update").filter((c) => c.input.type === "contact");
+  assert.deepEqual(
+    writes.map((w) => w.input.recordId),
+    ["rec_s2"],
+    "only the record with no value was given one",
+  );
+  const rows = h.db.all("SELECT record_id, stage, version FROM journeys_records ORDER BY record_id") as any[];
+  assert.deepEqual(
+    rows.map((x) => [x.record_id, x.stage]),
+    [
+      ["rec_s0", "review"],
+      ["rec_s1", "dormant"],
+      ["rec_s2", "lead"],
+    ],
+    "the records' own values are the stages",
+  );
+  const g = (await h.call("journeys.get", { journeyId: j.id }, alice)).journey;
+  assert.deepEqual(
+    g.stages.map((s: any) => s.key),
+    ["lead", "won", "review", "dormant"],
+    "the stages it had, then one for each value it had none for, in the order they were met",
+  );
+  assert.ok(
+    g.stages.some((s: any) => s.key === "dormant" && s.title === "Dormant (ours)"),
+    "the stage has the name the field gave it",
+  );
+  assert.equal(g.version, 3, "one new version for each stage the Journey learned");
+  assert.equal(rows.find((x) => x.record_id === "rec_s1").version, 3);
+  void ids;
+});
+
+test("a finished Journey record whose subject has an open value is open again, and one whose value is the final stage stays finished", async () => {
+  const h = harness();
+  const { j, ids } = await old(h, 2);
+  await h.call("journeys.move_stage", { journeyId: j.id, recordId: ids[0], toStage: "won", reason: "done" }, alice);
+  const values: Record<string, string> = { rec_s0: "lead", rec_s1: "won" };
+  h.callee("records.get", (i) => ({ record: { version: 1, fields: { journey_stage: values[i.recordId] } } }));
+  await h.call("journeys.to_pipeline", { journeyId: j.id }, alice);
+  const rows = h.db.all("SELECT record_id, stage, completed_at FROM journeys_records ORDER BY record_id") as any[];
+  assert.deepEqual(
+    rows.map((x) => [x.record_id, x.stage, x.completed_at !== null]),
+    [
+      ["rec_s0", "lead", false],
+      ["rec_s1", "won", true],
+    ],
+  );
+});

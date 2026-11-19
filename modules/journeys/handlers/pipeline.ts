@@ -21,6 +21,7 @@ import {
   saveJourney,
   saveMigration,
   saveRecord,
+  saveVersion,
   countInFlight,
 } from "../projections.ts";
 import type { Journey, JourneysCtx, MigrationRow } from "../projections.ts";
@@ -137,6 +138,55 @@ async function toPipelineNow(ctx: JourneysCtx, input: In, j: Journey): Promise<u
   return { journey: out(j, countInFlight(ctx.db, j.id)), ...st, finished };
 }
 
+/**
+ * The Journey takes the record's own value as its stage. A value the Journey has no stage for becomes a stage of the Journey (a new version, after the others, not final), and the record's Journey row moves onto that version, so
+ * nothing the person had is replaced and nothing is left without a place. Each statement can run again with the same result.
+ */
+async function adoptValue(ctx: JourneysCtx, j: Journey, legacyId: string, value: string): Promise<void> {
+  const old = findRecord(ctx.db, legacyId);
+  if (!old) return;
+  let stage = j.stages.find((s) => s.key === value);
+  if (!stage) {
+    const now = await fieldNowTitles(ctx, j);
+    stage = {
+      key: value,
+      title: now.get(value) ?? value,
+      order: Math.max(-1, ...j.stages.map((s) => s.order)) + 1,
+      exit: { requireTasks: false },
+      tasks: [],
+      automations: [],
+    };
+    j.stages = [...j.stages, stage];
+    j.version += 1;
+    j.updatedAt = ctx.now();
+    saveJourney(ctx.db, j);
+    saveVersion(ctx, j, `Stage ${stage.title} taken from the records' own values`);
+  }
+  if (stage.final)
+    ctx.db.run(
+      "UPDATE journeys_records SET stage = ?, version = ?, completed_at = COALESCE(completed_at, ?) WHERE record_id = ?",
+      stage.key,
+      j.version,
+      ctx.now(),
+      legacyId,
+    );
+  else
+    ctx.db.run(
+      "UPDATE journeys_records SET stage = ?, version = ?, completed_at = NULL WHERE record_id = ?",
+      stage.key,
+      j.version,
+      legacyId,
+    );
+}
+/** The titles the field gives its options, so an adopted stage has the name people already know it by. */
+async function fieldNowTitles(ctx: JourneysCtx, j: Journey): Promise<Map<string, string>> {
+  const got = (await ctx.call!("schema.types.get", { type: j.subjectType })) as {
+    type?: { fields?: { key: string; options?: { stages?: { key: string; title: string }[] } }[] };
+  } | null;
+  const f = got?.type?.fields?.find((x) => x.key === stageFieldOf(j));
+  return new Map((f?.options?.stages ?? []).map((o) => [o.key, o.title]));
+}
+
 /** Advance one record as far as it goes; a failure is kept on its row and does not stop the others. */
 async function step(ctx: JourneysCtx, j: Journey, m: MigrationRow): Promise<void> {
   let cur: MigrationRow = m.state === "failed" ? { ...m, state: "planned" } : m;
@@ -152,13 +202,20 @@ async function step(ctx: JourneysCtx, j: Journey, m: MigrationRow): Promise<void
       const moved = findRecord(ctx.db, cur.subjectRecordId);
       if (!old && moved?.legacyRecordId === cur.legacyRecordId) return keep("done");
       if (!old) throw new Error("The Journey record is gone.");
-      await ctx.call!("records.update", {
-        type: j.subjectType,
-        recordId: cur.subjectRecordId,
-        patch: { [stageFieldOf(j)]: old.stage },
-        // a system move: no Automation starts for it, however many listen for a record change
-        quiet: true,
-      });
+      // a record that already has a value in the stage field keeps it: the Journey adopts that value as the record's stage (and learns a stage for it when it has none). Only a record with no value is given one.
+      const got = (await ctx.call!("records.get", { type: j.subjectType, recordId: cur.subjectRecordId })) as {
+        record?: { fields?: Record<string, unknown> };
+      } | null;
+      const had = got?.record?.fields?.[stageFieldOf(j)];
+      if (typeof had === "string" && had !== "") await adoptValue(ctx, j, cur.legacyRecordId, had);
+      else
+        await ctx.call!("records.update", {
+          type: j.subjectType,
+          recordId: cur.subjectRecordId,
+          patch: { [stageFieldOf(j)]: old.stage },
+          // a system move: no Automation starts for it, however many listen for a record change
+          quiet: true,
+        });
       keep("wrote_stage");
     }
     if (cur.state === "wrote_stage") {

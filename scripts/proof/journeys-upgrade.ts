@@ -99,7 +99,11 @@ if (mode === "old") {
     const control: Record<string, number> = {};
     for (const [n, id] of Object.entries(autos)) control[n] = await runsOf(d, id);
     const options = ((await call(d, "/v1/schema/types/get", { type: "pg_client" }))["type"].fields as any[]).find((f) => f.key === "stage").options.stages;
-    Object.assign(state, { j1, j2, subj, legacy, autos, runsBefore: control, optionsBefore: options });
+    // every client's own value before the upgrade
+    const valuesBefore: Record<string, unknown> = {};
+    for (const n of ["Xavier", "Yolanda"]) valuesBefore[n] = (await call(d, "/v1/records/get", { type: "pg_client", recordId: subj[n] }))["record"].fields.stage;
+    Object.assign(state, { j1, j2, subj, legacy, autos, runsBefore: control, optionsBefore: options, valuesBefore });
+    say(`clients' own stage values before: ${JSON.stringify(valuesBefore)}`);
     say(`rc.39 Space made: Journeys ${j1.id} (${j1.recordType}), ${j2.id} (${j2.recordType}); runs before the upgrade (control edits): ${JSON.stringify(control)}`);
     say(`stage field options before: ${JSON.stringify(options)}`);
     fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
@@ -125,12 +129,15 @@ if (mode === "old") {
     }
     const counts = async (id: string) => ((await call(d, "/v1/journeys/stage_counts", { journeyId: id }))["stages"] as any[]).filter((c) => c.count > 0).map((c) => `${c.stage}:${c.count}`).sort().join(",");
     check((await counts(state["j1"].id)) === "review:1,start:2", `Intake: records kept their stages (${await counts(state["j1"].id)})`);
-    // a finished record ("won") is no longer in flight, so the field itself says where each one is
+    // nothing a person had is replaced: every client's own value before the upgrade is the value after it, and the Journey took that value as the client's stage
     const stageOfClient = async (n: string): Promise<unknown> => (await call(d, "/v1/records/get", { type: "pg_client", recordId: state["subj"][n] }))["record"].fields.stage;
-    const xs = await stageOfClient("Xavier");
-    const ys = await stageOfClient("Yolanda");
-    check(xs === "lead" && ys === "won", `Client care: each client's own stage field says where its Journey record was (Xavier ${xs}, Yolanda ${ys}; their old values new/engaged were the Journey's to overwrite)`);
-    check((await counts(state["j2"].id)) === "lead:1", `Client care: the one still in flight is counted (${await counts(state["j2"].id)})`);
+    for (const n of ["Xavier", "Yolanda"]) {
+      const after = await stageOfClient(n);
+      check(after === state["valuesBefore"][n], `${n}'s own stage value is unchanged: before ${state["valuesBefore"][n]}, after ${after}`);
+    }
+    const j2now = (await call(d, "/v1/journeys/get", { journeyId: state["j2"].id }))["journey"];
+    check(["new", "engaged"].every((key) => j2now.stages.some((s: { key: string }) => s.key === key)), `Client care learned the stages its clients already had (${j2now.stages.map((s: { key: string }) => s.key).join(", ")})`);
+    check((await counts(state["j2"].id)) === "engaged:1,new:1", `Client care: each client is in the stage it already had (${await counts(state["j2"].id)})`);
     const runsAfter: Record<string, number> = {};
     for (const [n, id] of Object.entries(state["autos"] as Record<string, string>)) {
       runsAfter[n] = await runsOf(d, id);
