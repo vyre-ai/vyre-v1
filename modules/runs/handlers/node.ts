@@ -20,6 +20,7 @@ import {
   eventsSince,
   findNode,
   getNode,
+  isTerminal,
   liveNodes,
   moveNode,
   pauseSubtree,
@@ -46,6 +47,8 @@ export function nodeOut(n: Node): Record<string, unknown> {
   return rest as Record<string, unknown>;
 }
 
+/** Nodes an agent turn of the engine stands behind: a stop reaches the engine. */
+const ENGINE_KINDS = new Set(["turn", "helper", "crew"]);
 const systemOnly = (ctx: RunsCtx): void => {
   if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
     raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
@@ -132,11 +135,28 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
         reason: "run_finished",
         status: n.status,
       });
-    else
+    else {
+      // what really works behind a node is stopped first: an agent's turn through the engine's own Stop; only then does the node say stopped (a node that says stopped while its work goes on is worse than none)
+      const scope = input.subtree === false ? [n] : subtreeOf(ctx.db, n.id);
+      for (const x of scope) {
+        if (isTerminal(x.status) || !ENGINE_KINDS.has(x.kind) || x.threadId === undefined || x.whoId === undefined)
+          continue;
+        if (!ctx.call)
+          raise(ctx, "internal.unavailable", "That cannot be stopped from here right now.", { reason: "no_engine" });
+        try {
+          await ctx.call("engine.stop", { threadId: x.threadId, agentId: x.whoId });
+        } catch {
+          raise(ctx, "internal.unavailable", "It could not be stopped just now. Try again.", {
+            reason: "stop_failed",
+            runId: x.id,
+          });
+        }
+      }
       moved =
         input.subtree === false
           ? [moveNode(ctx, n.id, "stopped", { why: "stopped", stopReason: reason, by }).node]
           : stopSubtree(ctx, n.id, reason, by);
+    }
   } else if (input.action === "pause") {
     if (n.status === "paused") moved = [n];
     else if (n.status === "succeeded" || n.status === "failed" || n.status === "stopped")
@@ -145,10 +165,10 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
         status: n.status,
       });
     else
-      moved =
-        input.subtree === false
-          ? [moveNode(ctx, n.id, "paused", { why: "paused", by }).node]
-          : pauseSubtree(ctx, n.id, by);
+      // nothing behind a node holds still when it says paused yet (the turn engine has no pause), so a person is not offered one that does nothing; a budget limit pauses a node by its own rule when that lands
+      raise(ctx, "validation.precondition_failed", "That one cannot be paused yet. Stop it instead.", {
+        reason: "not_pausable",
+      });
   } else {
     if (n.status !== "paused")
       raise(ctx, "validation.precondition_failed", "That run is not paused.", {
