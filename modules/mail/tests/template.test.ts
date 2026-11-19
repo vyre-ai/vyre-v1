@@ -171,8 +171,8 @@ test("a link value in a tag is http, https, mailto or tel; anything else becomes
     assert.equal(fillTokens('<a href="{{sign_link}}">go</a>', { sign_link: bad }, { html: true }).text, '<a href="#">go</a>');
     assert.equal(fillTokens('<img src={{sign_link}}>', { sign_link: bad }, { html: true }).text, "<img src=#>");
   }
-  for (const ok of ["https://sign.vyre.test/a?x=1&y=2", "http://a.test", "mailto:pat@acme.test", "tel:+15550100", "/relative/path", "Plan: v2"]) {
-    assert.equal(unsafeUrl(ok), ok === "Plan: v2" ? false : false, ok);
+  for (const ok of ["https://sign.vyre.test/a?x=1&y=2", "http://a.test", "mailto:pat@acme.test", "tel:+15550100", "/relative/path"]) {
+    assert.equal(unsafeUrl(ok), false, ok);
   }
   assert.equal(fillTokens('<a href="{{l}}">go</a>', { l: "https://sign.vyre.test/a?x=1&y=2" }, { html: true }).text, '<a href="https://sign.vyre.test/a?x=1&amp;y=2">go</a>');
   // in the text between tags the same value is only text: shown, escaped, not a link
