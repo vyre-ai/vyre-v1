@@ -27,6 +27,9 @@ function Btn({ label, testID, onPress }: { label: string; testID: string; onPres
   );
 }
 
+/** The card stays open across a redraw of the page (a width change draws it again from nothing). */
+let rememberedOpen = false;
+
 export function StillCard({
   call,
   rev,
@@ -39,7 +42,11 @@ export function StillCard({
   onChanged(): void;
 }): ReactElement | null {
   const [card, setCard] = useState<Card | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpenNow] = useState(rememberedOpen);
+  const setOpen = (v: boolean): void => {
+    rememberedOpen = v;
+    setOpenNow(v);
+  };
   const [busy, setBusy] = useState(false);
   const load = useCallback((): void => {
     void call("tasks.still_needed", {}).then(
@@ -63,6 +70,12 @@ export function StillCard({
       },
     );
   };
+  // the card was in front of the person: the server starts its week of silence from here, never before anyone saw it
+  const shownIds = card ? card.items.map((i) => i.task.id).join(",") : "";
+  useEffect(() => {
+    if (shownIds !== "")
+      void call("tasks.still_answer", { taskIds: shownIds.split(","), answer: "seen" }).catch(() => undefined);
+  }, [call, shownIds]);
   if (!card || card.items.length === 0) return null;
   const ids = card.items.map((i) => i.task.id);
   return (

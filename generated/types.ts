@@ -43831,7 +43831,7 @@ export type TasksSnoozeOut = {
 };
 export type TasksStillAnswerIn = {
   taskIds: Array<string>;
-  answer: "keep" | "archive";
+  answer: "keep" | "archive" | "seen";
 };
 export type TasksStillAnswerOut = {
   kept: number;

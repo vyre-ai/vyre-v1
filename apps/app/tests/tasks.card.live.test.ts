@@ -68,10 +68,10 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     for (const title of titles) ids.push(await make(title));
     const open = await make("A task that stays on the list");
     const why = [
-      "Nothing has happened here for 14 days.",
-      "Nothing said when it stops mattering, and the day it was guessed for has passed.",
-      "Nothing has happened here for 14 days.",
-      "Nothing has happened here for 14 days.",
+      "Nothing has happened for 14 days.",
+      "Its expected date has passed.",
+      "Nothing has happened for 14 days.",
+      "Nothing has happened for 14 days.",
     ];
     const withDb = <T>(f: (db: DatabaseSync) => T): T => {
       const db = new DatabaseSync(path.join(space.dir, "modules.db"));
@@ -105,8 +105,19 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     assert.match(await page.getByTestId("tasks-still").innerText(), /4 tasks may be finished/);
     await shot("card-closed-dark-desktop");
     await page.getByTestId("still-open").click();
+    const seenAt = (id: string): number | null =>
+      withDb(
+        (db) =>
+          (
+            db.prepare("SELECT seen_at FROM tasks_ask WHERE task_id = ?").get(id) as
+              | { seen_at: number | null }
+              | undefined
+          )?.seen_at ?? null,
+      );
+    for (let i = 0; i < 40 && seenAt(ids[0]!) === null; i++) await page.waitForTimeout(250);
+    assert.ok(seenAt(ids[0]!) !== null, "showing the card stamps that someone saw it");
     await page.getByTestId("tasks-still").getByText("Reply to the vendor", { exact: true }).waitFor();
-    await page.getByText(/Nothing said when it stops mattering/).waitFor();
+    await page.getByText(/Its expected date has passed/).waitFor();
     await shot("card-open-dark-desktop");
     await page.emulateMedia({ colorScheme: "light" });
     await page.waitForTimeout(400);
@@ -119,7 +130,7 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     );
     // the page redraws at phone width: open the card there
     await page.getByTestId("tasks-still").waitFor({ timeout: 10_000 });
-    if ((await page.getByTestId("still-keep").count()) === 0) await page.getByTestId("still-open").click();
+    assert.ok((await page.getByTestId("still-keep").count()) > 0, "the card stayed open across the width change");
     await page.waitForTimeout(300);
     await shot("card-open-light-phone");
     await page.emulateMedia({ colorScheme: "dark" });
@@ -130,7 +141,7 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     await page.waitForTimeout(800);
     // a resize may redraw the page: open the card again if it closed
     await page.getByTestId("tasks-still").waitFor({ timeout: 10_000 });
-    if ((await page.getByTestId("still-keep").count()) === 0) await page.getByTestId("still-open").click();
+    assert.ok((await page.getByTestId("still-keep").count()) > 0, "the card stayed open across the width change");
 
     // Keep the first: the server remembers it for 90 days and the row goes
     await page.getByTestId("still-keep").first().click();

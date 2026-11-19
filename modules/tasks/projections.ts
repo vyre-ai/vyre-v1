@@ -503,7 +503,8 @@ export function getTask(ctx: TasksCtx, id: string): Task {
 export function allTasks(db: Db, where = "", ...args: unknown[]): Task[] {
   return (
     db.all(
-      `${SELECT} WHERE m.deleted_at IS NULL${where ? ` AND ${where}` : ""} ORDER BY c.created_at DESC, c.id DESC`,
+      // a where that names its own ORDER BY (the clock's passes take the oldest first) keeps it; the default is newest first
+      `${SELECT} WHERE m.deleted_at IS NULL${where ? ` AND ${where}` : ""}${/\sORDER BY\s/i.test(where) ? "" : " ORDER BY c.created_at DESC, c.id DESC"}`,
       ...args,
     ) as Raw[]
   ).map(rowToTask);

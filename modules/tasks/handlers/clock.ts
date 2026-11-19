@@ -20,7 +20,7 @@ import {
 import type { Assignee, Task, TasksCtx } from "../projections.ts";
 import { findStuck } from "./act.ts";
 import { cannotArchive, putAway } from "./archive.ts";
-import { archiveUnanswered, askUntouched, putOnCard } from "./still.ts";
+import { NOT_ASKED, archiveUnanswered, askUntouched, momentWords, putOnCard } from "./still.ts";
 
 type In = Record<string, unknown>;
 const DAY = 86_400_000;
@@ -139,17 +139,6 @@ export function nudgeStuck(ctx: TasksCtx, o: { idleMs?: number } = {}): number {
 }
 
 /** One pass of the clock. */
-/** The words a person reads for a moment: "Thu 5 Nov", on the clock of whoever holds the task. */
-export function momentWords(at: number, tz: string): string {
-  try {
-    return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: tz })
-      .format(at)
-      .replace(",", "");
-  } catch {
-    return new Date(at).toISOString().slice(0, 10);
-  }
-}
-
 /**
  * Moments pass. A moment someone STATED (a person, or an agent that named one) puts the task away a grace period after it: "It was for Thu 5 Nov." A moment the Space only guessed (the default an agent gets)
  * never does that: the task goes on the weekly "Still need these?" card (tasks_ask), and archives itself only when nobody answers for a week (code quiet). A due date alone does neither. Nothing is deleted,
@@ -162,12 +151,13 @@ export function archivePassed(ctx: TasksCtx): number {
   let n = 0;
   for (const t of allTasks(
     ctx.db,
-    `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND mo.until IS NOT NULL AND mo.until <= ?`,
+    `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND mo.until IS NOT NULL AND mo.until <= ? ${NOT_ASKED} ORDER BY mo.until`,
     now - policy.momentGraceDays * DAY,
+    now,
   ).slice(0, MAX)) {
     if (t.relevantUntil === undefined || cannotArchive(ctx, t) !== null) continue;
     if (t.momentStated === false) {
-      putOnCard(ctx, t, "Nothing said when it stops mattering, and the day it was guessed for has passed.");
+      putOnCard(ctx, t, "Its expected date has passed.");
       continue;
     }
     const holder = stepHolder(t);

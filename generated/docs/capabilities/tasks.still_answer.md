@@ -26,7 +26,7 @@ Answer the card for one or several tasks: keep (not asked again for 90 days) or 
 ```ts
 type In = {
   taskIds: Array<string>;
-  answer: "keep" | "archive";
+  answer: "keep" | "archive" | "seen";
 };
 ```
 

@@ -77,12 +77,16 @@ test("an agent that names no moment gets a guessed one (due plus a day, else 14 
   assert.equal((await card(h)).total, total, "asked once, not again");
 });
 
-test("nobody answers the card for a week: the task archives itself, with that reason, and Put back drops the guess", async () => {
+const seen = (h: Harness, ids: string[]): Promise<unknown> =>
+  h.call("tasks.still_answer", { taskIds: ids, answer: "seen" }, me);
+
+test("nobody answers the card for a week after it was in front of someone: the task archives itself, and Put back drops the guess", async () => {
   const h = harness();
   const id = await mk(h, { title: "Check the report" }, agent);
   h.advance(15 * DAY);
   await tick(h);
   assert.equal((await card(h)).total, 1);
+  await seen(h, [id]);
   h.advance(6 * DAY);
   assert.equal(await tick(h), 0, "still inside the week");
   h.advance(2 * DAY);
@@ -98,7 +102,48 @@ test("nobody answers the card for a week: the task archives itself, with that re
     0,
     "put back means it still matters: its moment is gone, so not asked or archived on that account",
   );
-  assert.equal((await card(h)).total, 0);
+});
+
+test("a row nobody had in front of them is never archived for silence, and owed work (a due date that passed) never is either", async () => {
+  const h = harness();
+  const unseen = await mk(h, { title: "Never shown" }, agent);
+  const owed = await mk(h, { title: "Due long ago", due: h.now() - 20 * DAY });
+  h.advance(15 * DAY);
+  await tick(h);
+  assert.equal((await card(h)).total, 2, "both are asked");
+  h.advance(60 * DAY);
+  assert.equal(await tick(h), 0, "nobody saw the card: nothing is put away");
+  await seen(h, [unseen, owed]);
+  h.advance(30 * DAY);
+  assert.equal(await tick(h), 1, "seen for a month: the agent's guess goes");
+  assert.equal((await get(h, unseen)).archived.code, "quiet");
+  assert.equal((await get(h, owed)).archived, undefined, "owed work stays until a person answers");
+  assert.equal((await card(h)).total, 1);
+  assert.match((await card(h)).items[0]!.why, /^Due \w{3} \d+ \w{3,4}, nothing since\.$/);
+});
+
+test("a task that was moved or put back is not put away again a minute later", async () => {
+  const h = harness();
+  const id = await mk(h, { title: "Join the call", relevantUntil: h.now() + 1000 });
+  h.advance(DAY + 2000);
+  assert.equal(await tick(h), 1);
+  await h.call("tasks.transition", { taskId: id, to: "doing" }, me);
+  const t = await get(h, id);
+  assert.equal(t.archived, undefined, "the move took the mark off");
+  assert.equal(t.relevantUntil, undefined, "and the moment that already passed");
+  h.advance(DAY);
+  assert.equal(await tick(h), 0);
+});
+
+test("an id the caller cannot see is skipped like one that does not exist: the others are still answered", async () => {
+  const h = harness();
+  const mine = await mk(h, { title: "Mine" }, agent);
+  h.advance(15 * DAY);
+  await tick(h);
+  const r = (await h.call("tasks.still_answer", { taskIds: ["tsk_missing", mine], answer: "keep" }, me)) as {
+    kept: number;
+  };
+  assert.equal(r.kept, 1);
 });
 
 test("Keep stops the question for 90 days; Archive puts the task away with the person's own words", async () => {

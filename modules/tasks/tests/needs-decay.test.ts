@@ -49,7 +49,7 @@ test("a task nobody touched for 14 days goes on the card and leaves Needs you; K
   };
   assert.deepEqual(
     card.items.map((i) => [i.task.id, i.why]),
-    [[stale, "Nothing has happened here for 14 days."]],
+    [[stale, "Nothing has happened for 14 days."]],
   );
   await h.call("tasks.still_answer", { taskIds: [stale], answer: "keep" }, { id: alice.id });
   assert.equal(

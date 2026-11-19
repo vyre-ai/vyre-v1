@@ -7,6 +7,7 @@ import {
   allTasks,
   clean,
   clearArchived,
+  clearMoment,
   emitTask,
   ensurePrefix,
   findTask,
@@ -303,7 +304,14 @@ export function commitMove(ctx: TasksCtx, t: Task, to: TaskState, c: Checked): A
     took = true;
   }
   // a task that moves is not put away any more: the archive mark comes off with the move (a closed task is under Done, an open one is back on its lists)
+  // a moved task matters, so it is not asked about or put away for the moment it already passed a minute later (Put back does the same)
+  if (
+    t.archived !== undefined &&
+    (t.archived.code === "passed" || t.archived.code === "quiet" || t.archived.code === "asked")
+  )
+    clearMoment(ctx.db, t);
   clearArchived(ctx.db, t);
+  ctx.db.run("DELETE FROM tasks_ask WHERE task_id = ?", t.id);
   let handled = false;
   if (!isOpen(to)) {
     delete t.snoozedUntil;
