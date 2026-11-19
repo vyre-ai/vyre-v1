@@ -356,6 +356,8 @@ test("moving on from a screen clears the busy mark, so the next screen is not le
   assert.equal(overlayStep(busy, { e: "browser", browser: 2 }).busy, false);
   assert.equal(overlayStep(busy, { e: "trouble", trouble: 3 }).busy, false);
   assert.equal(overlayStep(busy, { e: "enter" }).busy, false);
+  assert.equal(overlayStep(busy, { e: "list" }).busy, false);
+  assert.equal(overlayStep(busy, { e: "reach", address: "x" }).busy, false);
   // trouble-clear belongs to the flow that set busy (retryTrouble clears its own mark first); it does not touch another flow's probe
   assert.equal(overlayStep(busy, { e: "trouble-clear" }).busy, true);
 });
