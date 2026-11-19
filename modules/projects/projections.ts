@@ -142,23 +142,45 @@ export async function tolerant<T>(ctx: ProjectsCtx, cap: string, input: unknown,
  * its record, and the caller's own rights cannot narrow it either (the same Manage is needed). So the refusal is written as an event, and the host's own consumer (projects.folder_unfollowed, which
  * runs as svc_host) narrows the folder, names the original caller in its log line, and tells the owner. Returns whether it follows.
  */
-export async function followRecord(ctx: ProjectsCtx, folderId: string, recordId: string): Promise<boolean> {
+export const FOLLOW_BACKOFF_MS: number[] = [50, 250];
+export async function followRecord(
+  ctx: ProjectsCtx,
+  folderId: string,
+  recordId: string,
+  opts: { sweep?: boolean } = {},
+): Promise<boolean> {
   if (!ctx.call) return false;
-  try {
-    await ctx.call("access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId });
-    return true;
-  } catch (e) {
-    const why = e instanceof Error ? e.message.slice(0, 200) : codeOf(e);
-    ctx.log.warn("projects: a folder could not follow its record", { folderId, recordId, error: why });
-    // only a refusal of rights is a reason to close the folder: a neighbour that was down, a busy database or a record that is gone is tried again later and narrows nothing
-    if (!codeOf(e).startsWith("permission.")) return false;
-    ctx.emit("project.folder_unfollowed", `folder/${folderId}`, {
-      folderId,
-      recordId,
-      by: ctx.principal.id,
-      why: `${codeOf(e)}: ${why}`.slice(0, 200),
-    });
-    return false;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await ctx.call("access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId });
+      return true;
+    } catch (e) {
+      const code = codeOf(e);
+      const why = e instanceof Error ? e.message.slice(0, 200) : code;
+      // anything but a refusal of rights (a neighbour down, a busy database, a record gone) is tried again with a short backoff, then left for the next sweep: the folder is never changed for it
+      if (!code.startsWith("permission.")) {
+        const wait = FOLLOW_BACKOFF_MS[attempt];
+        if (wait !== undefined) {
+          await new Promise((r) => setTimeout(r, wait));
+          continue;
+        }
+        ctx.log.warn(
+          "projects: a folder could not follow its record yet (not a refusal of rights); it is tried again",
+          { folderId, recordId, error: why },
+        );
+        return false;
+      }
+      ctx.log.warn("projects: a folder could not follow its record", { folderId, recordId, error: why });
+      // the boot sweep only tries again: it never closes a folder; the host's consumer acts on the event of a real refusal made by a person's or a service's own call
+      if (opts.sweep) return false;
+      ctx.emit("project.folder_unfollowed", `folder/${folderId}`, {
+        folderId,
+        recordId,
+        by: ctx.principal.id,
+        why: `${code}: ${why}`.slice(0, 200),
+      });
+      return false;
+    }
   }
 }
 /** The code of an error thrown by a call, if it has one. */

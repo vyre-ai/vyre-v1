@@ -481,3 +481,26 @@ test("an agent changes who a type is open to on behalf of an admin, and is refus
   r.store.bump();
   assert.ok(!r.can("agt_helper", deal, "manage"), "the agent holds no manage of its own now");
 });
+
+test("a caller with little right that triggers the refusal does not close the folder: the host attaches it to its record itself and it then follows the record", async () => {
+  const r = rig();
+  r.store.resources.set("fld_deal", {
+    id: "fld_deal",
+    type: "folder",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+    row: { name: "Acme files", itemType: "file", scope: "space" },
+  });
+  r.store.bump();
+  const folder = { type: "folder", id: "fld_deal" };
+  const tenant: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_form_x" } };
+  assert.equal(await code(audienceSet(tenant, { resource: folder, follows: "rec_one" })), "permission.no_grant");
+  await audienceSet(
+    { ...r.ctx, principal: { kind: "service", id: "svc_host" } },
+    { resource: folder, follows: "rec_one" },
+  );
+  assert.ok(r.can("usr_dee", folder), "it follows rec_one, which follows the Space: nobody is shut out");
+  assert.equal(r.store.resources.get("fld_deal")!.parentId, "rec_one");
+});

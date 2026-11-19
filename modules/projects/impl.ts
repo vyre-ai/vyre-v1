@@ -36,8 +36,8 @@ export const consumers = {
    */
   "projects.folder_unfollowed": {
     on: ["project.folder_unfollowed"],
-    async run(ctx: Ctx, event: { payload: Record<string, unknown> }): Promise<void> {
-      await onFolderUnfollowed(ctx as never, event.payload);
+    async run(ctx: Ctx, event: { id?: string; payload: Record<string, unknown> }): Promise<void> {
+      await onFolderUnfollowed(ctx as never, event.payload, (event as { id?: string }).id);
     },
   },
   /** Every project record has its folder in Files > Projects: made with the record, renamed and trashed with it (handlers/folders.ts). */

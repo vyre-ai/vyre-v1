@@ -77,7 +77,7 @@ export function fakeWorld(clock: { t: number }) {
   ]);
   const down = new Set<string>();
   /** access.audience_set refuses the follows branch (a caller without Manage on the folder). */
-  const refuse = { follows: false, code: "permission.no_grant" };
+  const refuse: { follows: boolean; code: string; times?: number } = { follows: false, code: "permission.no_grant" };
   /** Principals and groups the Space does not know: access.principals.get and access.groups.get refuse them, as the real module does. */
   const unknown = new Set<string>();
   let n = 0;
@@ -348,7 +348,7 @@ export function fakeWorld(clock: { t: number }) {
     },
     "access.folder_narrow": () => ({ audience: "added" }),
     "access.audience_set": (i) => {
-      if (i.follows !== undefined && refuse.follows)
+      if (i.follows !== undefined && refuse.follows && (refuse.times === undefined || refuse.times-- > 0))
         fail(refuse.code, "only a manager attaches a folder to its record");
       return {};
     },
