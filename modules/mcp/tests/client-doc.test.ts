@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { EVICT_GRACE_MS, fetchDoc, isDocId, keepDoc, readDoc, registeredDomain, MAX_DOC_BYTES, MAX_DOCS_PER_HOST } from "../client-doc.ts";
-import { clientBy, serverMetadata, MAX_CLIENTS, UNUSED_CLIENT_MS } from "../oauth.ts";
+import { beginAuthorize, challengeOf, clientBy, serverMetadata, MAX_CLIENTS, UNUSED_CLIENT_MS } from "../oauth.ts";
 import { ensure } from "../projections.ts";
 import { harness } from "../fixtures/harness.ts";
 
@@ -148,4 +148,30 @@ test("the cap is counted on the parsed host: a path that names another domain, o
     assert.equal(keepDoc(h.db, { clientId: `https://port.example:8443/${i}.json`, name: "x", redirectUris: ["https://port.example/cb"] }, 1000), true);
   assert.equal(keepDoc(h.db, { clientId: "https://port.example/x.json", name: "x", redirectUris: ["https://port.example/cb"] }, 1000), true);
   assert.equal(keepDoc(h.db, { clientId: "https://port.example:9000/y.json", name: "x", redirectUris: ["https://port.example/cb"] }, 1000), false, "a port does not dodge the cap");
+});
+
+test("a flood of new pages while one app is mid-authorize cannot evict it: the app still completes its sign-in", () => {
+  const h = harness();
+  ensure(h.db);
+  const now = 10 * UNUSED_CLIENT_MS;
+  const mid = "https://a.d0.com/c.json";
+  for (let i = 0; i < MAX_CLIENTS; i++)
+    h.db.run(
+      "INSERT INTO mcp_oauth_clients (client_id, name, redirect_uris, created_at, used_at) VALUES (?, ?, ?, ?, NULL)",
+      `https://a.d${i}.com/c.json`,
+      "App",
+      JSON.stringify([`https://a.d${i}.com/cb`]),
+      now - 2 * EVICT_GRACE_MS + i, // the oldest, and long past the grace
+    );
+  const begun = beginAuthorize(
+    h.db,
+    { client_id: mid, redirect_uri: "https://a.d0.com/cb", response_type: "code", code_challenge: challengeOf("v".repeat(60)), code_challenge_method: "S256" },
+    "https://acme.vyre.run",
+    now,
+  );
+  assert.equal(begun.kind, "page", "the app is mid-authorize");
+  for (let i = 0; i < 300; i++)
+    keepDoc(h.db, { clientId: `https://flood${i}.spam${i}.org/c.json`, name: "x", redirectUris: [`https://flood${i}.spam${i}.org/cb`] }, now + i);
+  assert.ok(clientBy(h.db, mid), "the app in flight is still known: its token exchange will find it");
+  assert.equal(clientBy(h.db, "https://a.d1.com/c.json") === null, true, "others, the oldest unused and not in flight, were given up for the flood");
 });

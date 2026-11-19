@@ -143,3 +143,8 @@ test("the visitor header is believed only from the relay's loopback connection; 
   assert.equal(visitorOf({ "x-vyre-visitor": "" }, "127.0.0.1"), "127.0.0.1");
   assert.equal(visitorOf({ "x-vyre-visitor": "x".repeat(300) }, "127.0.0.1").length, 64);
 });
+
+test("a forged visitor header does not reset a count: every forged value from one outside address is the same visitor", () => {
+  const keys = new Set(Array.from({ length: 50 }, (_, i) => visitorOf({ "x-vyre-visitor": `10.0.0.${i}` }, "198.51.100.7")));
+  assert.deepEqual([...keys], ["198.51.100.7"]);
+});
