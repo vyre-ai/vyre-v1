@@ -805,3 +805,18 @@ test("the text a block was read from is never taken from pasted or dropped HTML"
   assert.ok(got["src"] === undefined || got["src"] === null, `src read from HTML: ${String(got["src"])}`);
   assert.ok(got["ck"] === undefined || got["ck"] === null);
 });
+
+test("an unclosed fence that ends a list item or a quote, followed by a sibling, reads back as it did", () => {
+  for (const md of ["- a\n  ```js\n  x\n- b\n", "> ```js\n> x\n\n> next\n", "- ```\n  x\n\n- b\n"]) {
+    const once = roundtrip(md);
+    assert.equal(roundtrip(once), once, JSON.stringify(md));
+    const d = markdownToDoc(once, D);
+    const dd = markdownToDoc(md, D);
+    assert.equal(JSON.stringify(d.content?.map((b) => b.type)), JSON.stringify(dd.content?.map((b) => b.type)), md);
+  }
+  const forged = schema.nodeFromJSON({
+    type: "doc",
+    content: [{ type: "paragraph", attrs: { src: "{++x++}", ck: "abc" }, content: [{ type: "text", text: "plain" }] }],
+  });
+  assert.equal(docToMarkdown(forged.toJSON(), D), "plain\n");
+});

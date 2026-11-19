@@ -495,9 +495,11 @@ function marksKey(marks: readonly PMMark[] | undefined): string {
     .join(";");
 }
 /** A fingerprint of inline content: the same for what the reader produced and what the editor holds after the same words were typed. */
+const PAGE_SALT: [number, number] = [(Math.random() * 0xffffffff) >>> 0, (Math.random() * 0xffffffff) >>> 0];
 export function contentKey(nodes: readonly PMNode[] | undefined): string {
-  let h1 = 0x811c9dc5;
-  let h2 = 0x01000193;
+  // salted with a value made when this page loaded and never written anywhere: only a fingerprint this page's reader made can match, so JSON from elsewhere cannot carry a forged one
+  let h1 = (0x811c9dc5 ^ PAGE_SALT[0]) >>> 0;
+  let h2 = (0x01000193 ^ PAGE_SALT[1]) >>> 0;
   const add = (str: string): void => {
     for (let i = 0; i < str.length; i += 1) {
       const c = str.charCodeAt(i);
