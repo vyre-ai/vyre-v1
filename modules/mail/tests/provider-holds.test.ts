@@ -28,16 +28,12 @@ const NOT_HELD: [RegExp, string][] = [
     "writes the person's own digest or alert line in the Space (alerts_notify is host only); no new destination",
   ],
   [
-    /^(access\.(share|unshare|join_share)|chat\.share|notes\.share|files\.share|vault\.(share|unshare)|skills\.(share|shared\.decide)|automations\.connector_share|meetings\.closeout\.share)$/,
-    "a grant inside the Space: an agent acts for a person and is never wider than that person (kernel/tests/authorize.agent.test.ts, the property over 200 worlds), it needs Manage on the thing (modules/access/handlers/share.ts:904), a guest or an agent for a guest never shares with Everyone (share.ts:1001), and in a thread an outside-started Run marked, these are held for a yes (lib/automation-content.ts:42). Sharing outside the Space is held separately",
+    /^(access\.(share|unshare|join_share|audience_set)|chat\.share|notes\.share|files\.share|vault\.(share|unshare)|skills\.(share|shared\.decide)|automations\.connector_share|meetings\.closeout\.share)$/,
+    "a grant inside the Space: an agent acts for a person and is never wider than that person (kernel/tests/authorize.agent.test.ts, the property over 200 worlds), it needs Manage on the thing (modules/access/handlers/share.ts:904), audience_set needs Manage (share.ts:1699), vault.share needs manage (modules/vault/handlers/items.ts:910) and then calls access.share, skills.share only offers a card the recipient accepts (manifests/_agents-skills.ts:279), a guest or an agent for a guest never shares with Everyone (share.ts:1001), and in a thread an outside-started Run marked, these are held for a yes (lib/automation-content.ts:42). Sharing outside the Space is held separately",
   ],
   [
     /^(threads|channels)\.members\.add$/,
     "the product's own flows add people to a chat as the agent or the Automation step that makes it (a goal's helpers, a task's assignee: test/goals.helpers.live.test.ts, test/automations.rc28.live.test.ts), and what the newcomer reads is set by the adder's own floor (modules/chat/tests/chat-acts.live.test.ts); an agent that adds someone to a chat the person can see is the person's own chat work",
-  ],
-  [
-    /^changesets\.approve$/,
-    "the reviewer's own yes on a changeset, with its own Gate for a push to a protected branch; it gives nobody access (an open question for the lead: should an agent approve its own changeset?)",
   ],
   [/^projects\.unshare_out$/, "takes outside access away"],
   [

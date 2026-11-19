@@ -380,4 +380,7 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "memory.promotion.approve": "approve moving a memory to the Space",
   "meetings.closeout.approve": "approve a meeting's wrap-up",
   "access.roles.create": "create a role",
+  "access.exceptions.set": "make an exception to someone's access",
+  "access.policies.set": "change a Space policy",
+  "spaces.transfer_ownership": "hand the Space to someone else",
 };

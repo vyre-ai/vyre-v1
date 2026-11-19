@@ -297,6 +297,7 @@ export default defineManifest({
       level: "manage",
       in: { to: id.user },
       out: ok,
+      gate: { act: "send", when: "gate.by_actor(input)" },
       emits: ["space.ownership_transferred", "access.changed"],
       audit: "always",
       risk: "high",
