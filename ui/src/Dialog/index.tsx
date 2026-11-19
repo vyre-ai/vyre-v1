@@ -76,11 +76,29 @@ export function focusedAction(actions: readonly DialogAction[]): DialogAction | 
   return actions.find((a) => a.primary !== true && a.danger !== true && a.disabled !== true);
 }
 
-function ActionButton({ a, focus }: { a: DialogAction; focus: boolean }): ReactElement {
+/** What takes focus when a dialog opens: its first field when it has one (a type-the-name ask, a rename, a reason: the person types at once), else its safe action. */
+export function pickFocus<T>(field: T | null | undefined, safe: T | null | undefined): T | null {
+  return field ?? safe ?? null;
+}
+
+type Focusable = { focus?: () => void };
+
+/** `hold` is given when the dialog itself chooses what takes focus (it knows whether a field is inside): the button then only offers itself. */
+function ActionButton({
+  a,
+  focus,
+  hold,
+}: {
+  a: DialogAction;
+  focus: boolean;
+  hold?: { current: unknown } | undefined;
+}): ReactElement {
   const fill = a.primary || a.danger;
   const self = useRef<unknown>(null);
   useEffect(() => {
-    if (web && focus) (self.current as { focus?: () => void } | null)?.focus?.();
+    if (!web || !focus) return;
+    if (hold) hold.current = self.current;
+    else (self.current as Focusable | null)?.focus?.();
   }, []);
   return (
     <Tip help={a.disabled === true ? a.why : undefined}>
@@ -131,6 +149,7 @@ export function Dialog({
   onPressOutside,
 }: DialogProps): ReactElement {
   const card = useRef<unknown>(null);
+  const safe = useRef<unknown>(null);
   const win = useWindowDimensions();
   const winW = win.width;
   const winH = win.height;
@@ -183,8 +202,8 @@ export function Dialog({
     if (!web || captureKeys || anchor !== undefined) return;
     ensureCss();
     // the first field inside the card takes focus (a dialog with only buttons keeps none, so no button wears a focus ring before a key is pressed), so the keyboard works at once
-    const el = card.current as { querySelector?: (q: string) => { focus?: () => void } | null } | null;
-    el?.querySelector?.("input,textarea,select")?.focus?.();
+    const el = card.current as { querySelector?: (q: string) => Focusable | null } | null;
+    pickFocus<Focusable>(el?.querySelector?.("input,textarea,select"), safe.current as Focusable | null)?.focus?.();
   }, []);
   if (anchor !== undefined)
     return (
@@ -220,10 +239,11 @@ export function Dialog({
   // quiet buttons first, then the primary or danger one, each built in a loop (not a list of rows)
   const buttons: ReactElement[] = [];
   const first = focusedAction(actions);
+  const hold = !captureKeys && anchor === undefined ? safe : undefined;
   for (const a of actions)
-    if (!a.primary && !a.danger) buttons.push(<ActionButton key={a.label} a={a} focus={a === first} />);
+    if (!a.primary && !a.danger) buttons.push(<ActionButton key={a.label} a={a} focus={a === first} hold={hold} />);
   for (const a of actions)
-    if (a.primary || a.danger) buttons.push(<ActionButton key={a.label} a={a} focus={a === first} />);
+    if (a.primary || a.danger) buttons.push(<ActionButton key={a.label} a={a} focus={a === first} hold={hold} />);
   return (
     <Overlay>
       <View

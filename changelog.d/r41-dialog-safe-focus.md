@@ -1,1 +1,2 @@
 - Every ask that destroys something opens with focus on its Cancel button, in every dialog (it was set by hand in two). A stray Enter or Space never confirms a delete.
+- A dialog with a field puts focus in the field, even beside a delete button; the Unmount sheet no longer unmounts on a stray Enter; the phone "Delete this message?" and the recording's "Delete this recording?" open focused on Cancel.
