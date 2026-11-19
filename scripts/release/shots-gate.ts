@@ -15,6 +15,7 @@ export const WALK_JOBS: readonly string[] = [
   "release-evidence",
   "release-evidence-walks",
   "release-evidence-walks-b",
+  "release-evidence-walks-c",
   "release-evidence-clicks (team)",
   "release-evidence-clicks (personal)",
 ];

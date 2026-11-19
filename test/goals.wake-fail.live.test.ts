@@ -145,7 +145,15 @@ async function dailyGoal(w: { d: Daemon }) {
     40_000,
     () => hostLog(w.d),
   );
-  const turnsBefore = (await goalOf(w.d, goalId)).turns as number;
+  // the reported check-in ran one turn that completed; the goals module counts it from the event log a moment after the row says reported, so the starting count is taken once that turn is in it
+  const turnsBefore = await waitFor(
+    async () => {
+      const n = (await goalOf(w.d, goalId)).turns as number;
+      return n >= 1 ? n : null;
+    },
+    15_000,
+    () => hostLog(w.d),
+  );
   return {
     goalId,
     turnsBefore,
