@@ -5235,7 +5235,7 @@
     {
       "deferred": false,
       "name": "mail_domain_add",
-      "summary": "Add a sending domain at Resend or Mailgun and return the DNS records to publish",
+      "summary": "Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish",
       "toolset": "inbox"
     },
     {
@@ -5398,6 +5398,24 @@
       "deferred": false,
       "name": "mail_send_preview",
       "summary": "Dry run of a send: who would be reached and who is suppressed, without sending",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "mail_smtp_get",
+      "summary": "The Space's mail server (SMTP) and its last test",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "mail_smtp_set",
+      "summary": "Save the Space's mail server (SMTP); the password stays in the Vault",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "mail_smtp_verify",
+      "summary": "Test a mail server: connect and sign in, nothing is sent. No input tests the saved one",
       "toolset": "inbox"
     },
     {

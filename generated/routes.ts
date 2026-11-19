@@ -22441,6 +22441,60 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/mail/smtp/get",
+    "cap": "mail.smtp.get",
+    "v": 1,
+    "module": "mail",
+    "effects": "read",
+    "permission": "comms.domains",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mail/smtp/set",
+    "cap": "mail.smtp.set",
+    "v": 1,
+    "module": "mail",
+    "effects": "write",
+    "permission": "comms.domains",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mail/smtp/verify",
+    "cap": "mail.smtp.verify",
+    "v": 1,
+    "module": "mail",
+    "effects": "outward",
+    "permission": "comms.domains",
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": "none"
+  },
+  {
+    "method": "POST",
     "path": "/v1/mail/status_update",
     "cap": "mail.status_update",
     "v": 1,
@@ -27598,7 +27652,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/network/my_computers",
@@ -27652,10 +27709,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/network/peer_decline",
@@ -33120,7 +33174,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/search/embed/run",
@@ -33174,10 +33231,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/search/index/rebuild",
@@ -38626,7 +38680,10 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/registration/get",
@@ -38680,10 +38737,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/registration/submit",

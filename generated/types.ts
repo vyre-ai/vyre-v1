@@ -25168,14 +25168,14 @@ export type MailDeliveryTrailOut = {
 };
 export type MailDomainAddIn = {
   name: string;
-  provider: "resend" | "mailgun";
+  provider: "resend" | "mailgun" | "smtp";
   idempotencyKey: string;
 };
 export type MailDomainAddOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25198,7 +25198,7 @@ export type MailDomainCheckOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25221,7 +25221,7 @@ export type MailDomainGetOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25245,7 +25245,7 @@ export type MailDomainListOut = {
   domains: Array<{
       id: string;
       name: string;
-      provider: "resend" | "mailgun";
+      provider: "resend" | "mailgun" | "smtp";
       spf: "pass" | "fail" | "pending";
       dkim: "pass" | "fail" | "pending";
       dmarc: "pass" | "fail" | "pending";
@@ -25269,7 +25269,7 @@ export type MailDomainSetDefaultOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25809,7 +25809,7 @@ export type MailRouteListOut = {
       domainId: string;
       localPart: string;
       mailboxId: string;
-      provider: "resend" | "mailgun";
+      provider: "resend" | "mailgun" | "smtp";
     }>;
   next?: string;
   total?: number;
@@ -25833,7 +25833,7 @@ export type MailRouteSetOut = {
     domainId: string;
     localPart: string;
     mailboxId: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
   };
 };
 export type MailSendIn = {
@@ -25925,6 +25925,48 @@ export type MailSendPreviewOut = {
       reason: string;
     }>;
   providerRoute: "mailbox" | "space_domain";
+};
+export type MailSmtpGetIn = Record<string, unknown>;
+export type MailSmtpGetOut = {
+  configured: boolean;
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  state: "none" | "unchecked" | "ok" | "failed";
+  detail?: string;
+  checkedAt?: number;
+};
+export type MailSmtpSetIn = {
+  host: string;
+  port: number;
+  security?: "starttls" | "tls";
+  username: string;
+  passwordHandle: string;
+};
+export type MailSmtpSetOut = {
+  configured: boolean;
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  state: "none" | "unchecked" | "ok" | "failed";
+  detail?: string;
+  checkedAt?: number;
+};
+export type MailSmtpVerifyIn = {
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  passwordHandle?: string;
+  idempotencyKey: string;
+};
+export type MailSmtpVerifyOut = {
+  ok: boolean;
+  reason?: "blocked" | "refused" | "unknown_host" | "auth" | "tls" | "failed";
+  message: string;
+  ms: number;
 };
 export type MailStatusUpdateIn = {
   providerId: string;
@@ -49735,6 +49777,9 @@ export interface CapMap {
   "mail.send": { in: MailSendIn; out: MailSendOut };
   "mail.send_as": { in: MailSendAsIn; out: MailSendAsOut };
   "mail.send_preview": { in: MailSendPreviewIn; out: MailSendPreviewOut };
+  "mail.smtp.get": { in: MailSmtpGetIn; out: MailSmtpGetOut };
+  "mail.smtp.set": { in: MailSmtpSetIn; out: MailSmtpSetOut };
+  "mail.smtp.verify": { in: MailSmtpVerifyIn; out: MailSmtpVerifyOut };
   "mail.status_update": { in: MailStatusUpdateIn; out: MailStatusUpdateOut };
   "mail.sync_now": { in: MailSyncNowIn; out: MailSyncNowOut };
   "mail.template.for_document.clear": { in: MailTemplateForDocumentClearIn; out: MailTemplateForDocumentClearOut };
@@ -53973,7 +54018,7 @@ export type SearchReindexedPayload = {
 export type SendingDomainAddedPayload = {
   domainId: string;
   name: string;
-  provider: "resend" | "mailgun";
+  provider: "resend" | "mailgun" | "smtp";
 };
 export type SendingDomainCheckedPayload = {
   domainId: string;
