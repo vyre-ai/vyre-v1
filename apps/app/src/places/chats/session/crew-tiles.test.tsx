@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { CrewBlock } from "./CrewBlock.tsx";
-import { toRunView } from "../crew/run-view.ts";
+import { toRunView, toRunViewFromNode } from "../crew/run-view.ts";
 import { totalsOf } from "../crew/model.ts";
 import type { CrewMember } from "../crew/model.ts";
 
@@ -162,4 +162,37 @@ test("a person's choice stays when the work ends, and view='rows' keeps rows eve
     <CrewBlock members={members} totals={totalsOf(members)} width={480} view="tiles" onPeek={() => undefined} />,
   );
   assert.equal(find(forced, "crew-tiles"), null, "even a forced view never tiles a narrow column");
+});
+
+test("a Run node reads as a RunView under the runtime's names: waiting is calm work, paused is a hold, succeeded is done", () => {
+  const n = (o: Record<string, unknown>) =>
+    toRunViewFromNode(
+      {
+        id: "run_1",
+        kind: "helper",
+        name: "Numbers",
+        status: "running",
+        spent: { tokensIn: 3000, tokensOut: 400, cacheRead: 1200, usdMicros: 25_000 },
+        startedAt: 1_000,
+        ...o,
+      } as never,
+      "Running the totals",
+      11_000,
+    );
+  const run = n({});
+  assert.deepEqual(
+    [run.state, run.lines, run.tokens, run.costMicros, run.elapsedMs, run.cacheRead],
+    ["working", ["Running the totals"], 3400, 25_000, 10_000, 1200],
+  );
+  const asleep = n({ status: "waiting", wake: { kind: "process", label: "Until the build finishes", wokeCount: 3 } });
+  assert.deepEqual(
+    [asleep.state, asleep.lines, asleep.wake?.wokeCount],
+    ["working", ["Asleep until the build finishes"], 3],
+  );
+  assert.equal(n({ status: "paused" }).state, "needs_you");
+  assert.deepEqual(n({ status: "succeeded", summary: "Done it", endedAt: 5_000 }).lines, ["Done it"]);
+  assert.equal(n({ status: "succeeded", summary: "x", endedAt: 5_000 }).elapsedMs, 4_000);
+  assert.deepEqual(n({ status: "failed", errorMessage: "No tax column" }).lines, ["No tax column"]);
+  assert.equal(n({ kind: "crew" }).kind, "coder");
+  assert.equal(n({ kind: "mystery" }).kind, "helper");
 });

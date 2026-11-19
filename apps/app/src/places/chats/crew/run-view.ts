@@ -25,6 +25,10 @@ export interface RunView {
   model: string;
   /** The coder's branch, when there is one. */
   branch?: string;
+  /** What it sleeps on, when it sleeps: the one line ("Until the build finishes"), when it wakes, how often it has woken. */
+  wake?: { label: string; dueAt?: number; wokeCount: number };
+  /** Tokens served from the run's cache, when known (the token report). */
+  cacheRead?: number;
 }
 
 const kindOf = (m: CrewMember): RunKind =>
@@ -61,5 +65,80 @@ export function toRunView(m: CrewMember): RunView {
     elapsedMs: m.elapsedMs,
     model: modelTag(m),
     ...(m.branch !== undefined && m.branch !== "" ? { branch: m.branch } : {}),
+  };
+}
+
+/** The Run node as the runtime serves it (manifests/runs.ts nodeRow, 84176c17c): only the fields a tile reads, under the runtime's own names. */
+export interface NodeLike {
+  id: string;
+  parentRun?: string;
+  kind: string;
+  name?: string;
+  status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+  model?: string;
+  summary?: string;
+  errorMessage?: string;
+  stopReason?: string;
+  spent: { tokensIn: number; tokensOut: number; cacheRead: number; usdMicros: number };
+  wake?: { kind: string; label?: string; dueAt?: number; wokeCount?: number };
+  startedAt: number;
+  endedAt?: number;
+}
+
+const KIND: Record<string, RunKind> = { subagent: "subagent", helper: "helper", crew: "coder" };
+
+/** One Run node as a RunView. Waiting is still working to a person (a calm line says what it waits on); paused is a hold that needs the person; succeeded is done. `step` is the node's last step line. */
+export function toRunViewFromNode(n: NodeLike, step?: string, now: number = Date.now()): RunView {
+  const state: MemberState =
+    n.status === "succeeded"
+      ? "done"
+      : n.status === "failed"
+        ? "failed"
+        : n.status === "stopped"
+          ? "stopped"
+          : n.status === "paused"
+            ? "needs_you"
+            : "working";
+  const sleeping = n.status === "waiting" && n.wake?.label !== undefined;
+  const lines =
+    state === "done"
+      ? n.summary !== undefined
+        ? [n.summary]
+        : []
+      : state === "failed"
+        ? [n.errorMessage ?? n.summary ?? "Could not finish"]
+        : state === "stopped"
+          ? n.stopReason !== undefined
+            ? [n.stopReason]
+            : []
+          : sleeping
+            ? [`Asleep ${n.wake!.label!.charAt(0).toLowerCase()}${n.wake!.label!.slice(1)}`]
+            : step !== undefined
+              ? [step]
+              : [];
+  const end = n.endedAt;
+  return {
+    id: n.id,
+    kind: KIND[n.kind] ?? "helper",
+    name: n.name ?? "Helper",
+    task: "",
+    state,
+    lines,
+    tokens: n.spent.tokensIn + n.spent.tokensOut,
+    costMicros: n.spent.usdMicros,
+    startedAt: n.startedAt,
+    ...(end !== undefined ? { endedAt: end } : {}),
+    elapsedMs: Math.max(0, (end ?? now) - n.startedAt),
+    model: n.model ?? "",
+    ...(n.wake?.label !== undefined
+      ? {
+          wake: {
+            label: n.wake.label,
+            ...(n.wake.dueAt !== undefined ? { dueAt: n.wake.dueAt } : {}),
+            wokeCount: n.wake.wokeCount ?? 0,
+          },
+        }
+      : {}),
+    cacheRead: n.spent.cacheRead,
   };
 }
