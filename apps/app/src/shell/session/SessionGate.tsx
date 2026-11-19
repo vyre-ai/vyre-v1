@@ -1612,10 +1612,11 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     if (!home) setUnderShell(null);
   }, [home]);
   /** A Space saved at two addresses whose used-last one is not answering: the person may press the other. Its own sign-in opens (the address named on the button; no username typed for them), never the saved token, and only when that address answers as a Space naming the same id. (A Space id is public, so this guards an accident, not an attack; the person decides and sees the address.) */
-  const nearbyBusy = useRef(false);
+  /** The trouble screen an askNearby probe is out for: tied to the screen, so after Back a press on another address is not blocked by a probe that has not timed out yet. */
+  const nearbyFor = useRef<Trouble | null>(null);
   const askNearby = async (from: StoredSession, other: StoredSession, on: Trouble): Promise<void> => {
-    if (nearbyBusy.current || troubleBusy) return;
-    nearbyBusy.current = true;
+    if ((nearbyFor.current !== null && nearbyFor.current === troubleNow.current) || troubleBusy) return;
+    nearbyFor.current = on;
     giDo({ e: "busy", on: true });
     let found: Found;
     let named: string | null = null;
@@ -1623,7 +1624,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       found = await findSpaceQuietly(other.baseUrl).catch(() => OFFLINE);
       named = found.kind === "direct" ? await spaceIdAt(other.baseUrl) : null;
     } finally {
-      nearbyBusy.current = false;
+      if (nearbyFor.current === on) nearbyFor.current = null;
     }
     // the person went Back or on elsewhere while the other address was asked: the answer is for a screen that is gone (moving on already cleared the busy mark)
     if (troubleNow.current !== on) return;

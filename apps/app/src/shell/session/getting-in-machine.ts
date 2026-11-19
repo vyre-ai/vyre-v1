@@ -295,7 +295,7 @@ export function overlayStep<T, B>(o: Overlay<T, B>, ev: OverlayEvent<T, B>): Ove
     case "busy":
       return { ...o, busy: ev.on };
     case "trouble-clear":
-      return { ...o, trouble: null, busy: false };
+      return { ...o, trouble: null };
     case "browser":
       return { ...o, trouble: null, reaching: null, busy: false, home: false, browser: ev.browser };
     case "back":
