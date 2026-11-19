@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
+import { BuilderPage } from "../../../apps/app/src/places/automations/screens/BuilderPage.tsx";
+import { createSampleAutomations } from "../../../apps/app/src/places/automations/sidebar/sample.ts";
+import { AutomationsList } from "../../../apps/app/src/places/automations/sidebar/AutomationsList.tsx";
 import { AutomationsDataProvider } from "../../../apps/app/src/places/automations/canvas/data.tsx";
 import { ConfigExtrasProvider } from "../../../apps/app/src/places/automations/config/data.tsx";
 import { createConfigSample } from "../../../apps/app/src/places/automations/config/sample.ts";
@@ -14,7 +17,10 @@ import {
   RecordsStateProvider,
 } from "../../../apps/app/src/places/records/sidebar/index.ts";
 import { RecordViews } from "../../../apps/app/src/places/records/views-a/index.ts";
-import { createViewsSample, northwind as recordsNorthwind } from "../../../apps/app/src/places/records/views-a/sample.ts";
+import {
+  createViewsSample,
+  northwind as recordsNorthwind,
+} from "../../../apps/app/src/places/records/views-a/sample.ts";
 
 export const title = "Journeys: the Path page and the card faces";
 
@@ -25,7 +31,12 @@ function PathPage({ part }: { part: string }): ReactNode {
       ...s.data,
       call: async (cap: string, input: unknown): Promise<unknown> => {
         if (cap === "records.query")
-          return { rows: ["Harbor Co", "Northwind Foods", "Bluebird Studio"].map((n, i) => ({ id: `rec_${i}`, fields: { name: n } })) };
+          return {
+            rows: ["Harbor Co", "Northwind Foods", "Bluebird Studio"].map((n, i) => ({
+              id: `rec_${i}`,
+              fields: { name: n },
+            })),
+          };
         if (cap === "journeys.where")
           return {
             journeyId: "jrn_onboard",
@@ -46,7 +57,11 @@ function PathPage({ part }: { part: string }): ReactNode {
           let n = 0;
           return {
             runs: j.journey.stages.flatMap((st) =>
-              st.automations.map((a) => (++n === 2 ? { stage: st.key, automationId: a, error: "It needs a mailbox." } : { stage: st.key, automationId: a, runId: `run_t${n}` })),
+              st.automations.map((a) =>
+                ++n === 2
+                  ? { stage: st.key, automationId: a, error: "It needs a mailbox." }
+                  : { stage: st.key, automationId: a, runId: `run_t${n}` },
+              ),
             ),
           };
         }
@@ -67,6 +82,56 @@ function PathPage({ part }: { part: string }): ReactNode {
           />
         </View>
       </ConfigExtrasProvider>
+    </AutomationsDataProvider>
+  );
+}
+
+/** The Journey next to the Automations list, as the place lays it out: the list on the left with its Journeys, the page on the right. */
+function PlacePage(): ReactNode {
+  const s = useMemo(() => createConfigSample(northwind), []);
+  return (
+    <AutomationsDataProvider value={s.data}>
+      <ConfigExtrasProvider value={s.extras}>
+        <View
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            minHeight: 0,
+            backgroundColor: "var(--rail)" as string,
+            gap: 8,
+            paddingRight: 8,
+            paddingBottom: 8,
+          }}
+        >
+          <View style={{ width: 256, backgroundColor: "var(--side)" as string, borderRadius: 12, padding: 8 }}>
+            <AutomationsList selectedId="jrn_onboard" query="" onChoose={() => undefined} />
+          </View>
+          <View
+            style={{
+              flex: 1,
+              minHeight: 0,
+              minWidth: 0,
+              backgroundColor: "var(--win)" as string,
+              borderRadius: 12,
+              overflow: "hidden",
+            }}
+          >
+            <JourneyDesigner journeyId="jrn_onboard" initialTab="path" canDesign />
+          </View>
+        </View>
+      </ConfigExtrasProvider>
+    </AutomationsDataProvider>
+  );
+}
+
+/** The AI step's form with its Skills field: the sample's "Ask an agent" step. */
+function AiStepPage(): ReactNode {
+  const sample = useMemo(() => createSampleAutomations(northwind), []);
+  return (
+    <AutomationsDataProvider value={sample.data}>
+      <View style={{ flex: 1, width: "100%", maxWidth: 1180, alignSelf: "center" }}>
+        <BuilderPage automationId="aut_lead" initialSelected="draft" />
+      </View>
     </AutomationsDataProvider>
   );
 }
@@ -98,9 +163,14 @@ function FacePage({ preset }: { preset: "simple" | "detail" | "visual" }): React
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => {
-    setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "path");
+    setPart(
+      new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+        "path",
+    );
   }, []);
   if (!part) return null;
+  if (part === "ai-step") return <AiStepPage />;
+  if (part === "place-journey") return <PlacePage />;
   if (part.startsWith("face-")) return <FacePage preset={part.slice(5) as "simple" | "detail" | "visual"} />;
   return <PathPage part={part} />;
 }

@@ -1591,6 +1591,7 @@ export function stubs(ctx: CallCtx) {
         set: call("journeys.rules.set"),
       },
       stage_counts: call("journeys.stage_counts"),
+      stage_since: call("journeys.stage_since"),
       start: call("journeys.start"),
       tasks: call("journeys.tasks"),
       test_path: call("journeys.test_path"),

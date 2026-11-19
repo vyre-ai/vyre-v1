@@ -24475,6 +24475,13 @@ export type JourneysStageCountsOut = {
       overLimit: number;
     }>;
 };
+export type JourneysStageSinceIn = {
+  journeyId: string;
+  recordIds: Array<string>;
+};
+export type JourneysStageSinceOut = {
+  since: Record<string, unknown>;
+};
 export type JourneysStartIn = {
   journeyId: string;
   subjectRecordId: string;
@@ -49779,6 +49786,7 @@ export interface CapMap {
   "journeys.rename": { in: JourneysRenameIn; out: JourneysRenameOut };
   "journeys.rules.set": { in: JourneysRulesSetIn; out: JourneysRulesSetOut };
   "journeys.stage_counts": { in: JourneysStageCountsIn; out: JourneysStageCountsOut };
+  "journeys.stage_since": { in: JourneysStageSinceIn; out: JourneysStageSinceOut };
   "journeys.start": { in: JourneysStartIn; out: JourneysStartOut };
   "journeys.tasks": { in: JourneysTasksIn; out: JourneysTasksOut };
   "journeys.test_path": { in: JourneysTestPathIn; out: JourneysTestPathOut };

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useAutomationsData } from "../canvas/data.tsx";
@@ -16,6 +17,7 @@ import { Glyph } from "../config/glyphs.tsx";
 import { useJourney, useDesign } from "./data.ts";
 import { FieldsTab } from "./FieldsTab.tsx";
 import { JourneySettings } from "./JourneySettings.tsx";
+import { MigrationBanner } from "./MigrationBanner.tsx";
 import { PathTab } from "./PathTab.tsx";
 import {
   SLOTS,
@@ -559,6 +561,19 @@ function Body({
           {over ? `  ·  ${over} late` : ""}
         </Text>
         <View style={{ flex: 1 }} />
+        {j.startRule ? (
+          <View style={s.onRow} testID="journey-on">
+            <Text style={s.meta}>{j.startRule.enabled ? "On" : "Off"}</Text>
+            <Switch
+              on={j.startRule.enabled}
+              label="Start records on this Journey"
+              disabled={!canDesign}
+              onChange={(on) =>
+                void d.design(j.stages, on ? "Turned on" : "Turned off", { ...j.startRule!, enabled: on })
+              }
+            />
+          </View>
+        ) : null}
         {canDesign ? null : (
           <View testID="view-only" style={s.viewOnly}>
             <Glyph name="lock" size={13} color="var(--ink-3)" />
@@ -575,6 +590,7 @@ function Body({
         />
         {ask}
       </View>
+      <MigrationBanner journey={j} canDesign={canDesign} />
       <SubTabs
         label="Journey"
         active={tab}
@@ -592,7 +608,13 @@ function Body({
         keyboardShouldPersistTaps="handled"
       >
         {tab === "path" ? (
-          <PathTab journey={j} counts={counts} {...(pathStart ? { start: pathStart } : {})} />
+          <PathTab
+            journey={j}
+            counts={counts}
+            design={d}
+            canDesign={canDesign}
+            {...(pathStart ? { start: pathStart } : {})}
+          />
         ) : tab === "settings" && canDesign ? (
           <JourneySettings journey={j} versions={versions} design={d} />
         ) : tab === "fields" ? (
@@ -772,6 +794,7 @@ const s = StyleSheet.create({
   viewOnlyDim: { fontSize: 12.5, color: "var(--ink-4)" as string },
   scroll: { flex: 1, minHeight: 0 },
   col: { width: "100%", maxWidth: 820, alignSelf: "center", paddingHorizontal: 28, paddingTop: 22, paddingBottom: 64 },
+  onRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   colWide: { width: "100%", paddingHorizontal: 28, paddingTop: 22, paddingBottom: 64 },
   lab: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   labDim: { fontSize: 11.5, color: "var(--ink-4)" as string, marginLeft: 6, flexShrink: 1 },

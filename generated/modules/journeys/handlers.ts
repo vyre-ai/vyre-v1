@@ -20,6 +20,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "journeys.rename": Handler<"journeys.rename", X>;
   "journeys.rules.set": Handler<"journeys.rules.set", X>;
   "journeys.stage_counts": Handler<"journeys.stage_counts", X>;
+  "journeys.stage_since": Handler<"journeys.stage_since", X>;
   "journeys.start": Handler<"journeys.start", X>;
   "journeys.tasks": Handler<"journeys.tasks", X>;
   "journeys.test_path": Handler<"journeys.test_path", X>;

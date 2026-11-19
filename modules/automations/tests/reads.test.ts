@@ -167,3 +167,23 @@ test("a {{journey.x}} has to be a value some Journey carries: refused at save an
   );
   await h.call("automations.create", create({ definition: flow("{{journey.plan}}") }), alice);
 });
+
+test("an AI step names its skills: the save refuses one the Space does not have and says which it has; naming skills clears the 'switch to Task' warning", async () => {
+  const h = harness();
+  h.callee("skills.list", () => ({ skills: [{ name: "intake", enabled: true }, { name: "letters", enabled: true }, { name: "old", enabled: false }] }));
+  const flow = (skills: string[]) =>
+    goodDefinition({
+      triggers: [{ key: "manual" }],
+      nodes: [{ id: "a", key: "ai", input: { prompt: "Draft the welcome email with the intake skill." }, ai: { skills } } as never],
+    });
+  const ok = await h.call("automations.validate", { definition: flow(["intake"]) }, alice);
+  assert.equal(ok.issues.some((i: { message: string }) => /skill/.test(i.message)), false, "no warning, no refusal");
+  const bad = await h.call("automations.validate", { definition: flow(["intake", "nope", "old"]) }, alice);
+  const lines = bad.issues.map((i: { message: string }) => i.message).join("\n");
+  assert.match(lines, /The skill "nope" is not in this Space\. Skills: intake, letters\./);
+  assert.match(lines, /The skill "old" is not in this Space/, "a switched-off skill is not there");
+  await assert.rejects(h.call("automations.create", create({ definition: flow(["nope"]) }), alice), (e) => codeOf(e) === "validation.bad_input");
+  await h.call("automations.create", create({ definition: flow(["intake"]) }), alice);
+  const plain = await h.call("automations.validate", { definition: goodDefinition({ triggers: [{ key: "manual" }], nodes: [{ id: "a", key: "ai", input: { prompt: "Use the intake skill." } } as never] }) }, alice);
+  assert.ok(plain.issues.some((i: { message: string }) => /cannot load a skill/.test(i.message)), "without skills the warning stays");
+});

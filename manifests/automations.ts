@@ -46,6 +46,7 @@ const aiBlock = t.obj({
   escalateTo: t.opt(assignee),
   mode: t.opt(t.enm("answer", "task")),
   doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
+  skills: t.opt(t.arr(t.str())),
 });
 const anyJson = t.json();
 // HTTP request step (spec 2.12): the same request shape for a read and for a send. The secret is a Vault handle; the host fills it for one call and it never reaches the definition, the log or the output.
@@ -70,7 +71,7 @@ const httpIn = {
 const httpOut = { status: t.int(), ok: t.bool(), headers: t.rec(t.str()), body: t.json() };
 const node = t.obj({
   id: t.str({ examples: ["step_1"] }),
-  key: t.str({ description: "A StepDef key", examples: ["records.update"] }),
+  key: t.str({ description: "Step key", examples: ["records.update"] }),
   title: t.opt(t.str()),
   input: t.rec(),
   next: t.opt(t.arr(t.str())),
@@ -97,11 +98,11 @@ const definition = t.obj({
       keyId: t.opt(
         t.str({
           description:
-            "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+            "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
         }),
       ),
       backupKeyId: t.opt(
-        t.str({ description: "Takes over when the main account is capped, out of credits or not answering" }),
+        t.str({ description: "Used when the main account is capped or down" }),
       ),
     }),
   ),

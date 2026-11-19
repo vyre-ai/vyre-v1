@@ -6,6 +6,17 @@ type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-expl
 const message = (e: unknown): string =>
   (e as { error?: { message?: string } } | null)?.error?.message ?? (e instanceof Error ? e.message : "it failed");
 
+/** When each of these records entered the stage it is in now (ms): a board draws "day 3 of 7" from it, which the record's own updatedAt cannot give (any edit moves that). Records not on this Journey are left out. */
+export async function stageSince(ctx: JourneysCtx, input: In): Promise<unknown> {
+  const j = getJourney(ctx, input.journeyId);
+  const since: Record<string, number> = {};
+  for (const id of input.recordIds as string[]) {
+    const rec = findRecord(ctx.db, id);
+    if (rec && rec.journeyId === j.id) since[id] = rec.enteredAt;
+  }
+  return { since };
+}
+
 /** Where a record is on its Journey: the path with the stage it is in, how long it has been there against the stage's limit, and the Automations of each stage. */
 export async function where(ctx: JourneysCtx, input: In): Promise<unknown> {
   const j = getJourney(ctx, input.journeyId);

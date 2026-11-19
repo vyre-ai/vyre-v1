@@ -1591,6 +1591,7 @@ export function createClient(transport: Transport) {
         set: call("journeys.rules.set", 1),
       },
       stage_counts: call("journeys.stage_counts", 1),
+      stage_since: call("journeys.stage_since", 1),
       start: call("journeys.start", 1),
       tasks: call("journeys.tasks", 1),
       test_path: call("journeys.test_path", 1),

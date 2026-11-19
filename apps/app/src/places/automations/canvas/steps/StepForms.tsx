@@ -44,6 +44,8 @@ import {
   modeOf,
   schemaFromFields,
   setDoneMeans,
+  setSkills,
+  skillsText,
   setMode,
   setNudgeMinutes,
   setTimeLimit,
@@ -700,6 +702,15 @@ export function AiForm({
           hint="The reviewer checks the work against these"
           onCommit={(t) => writeAi(setDoneMeans(ai, t))}
         />
+        <TextBox
+          label="Skills"
+          value={skillsText(ai)}
+          rows={2}
+          placeholder="One skill name per line"
+          testID="field-skills"
+          hint="The Space's skills the agent starts with; it can load others"
+          onCommit={(t) => writeAi(setSkills(ai, t))}
+        />
         <More head="More" testID="ai-more">
           <TextBox
             label="Time limit (minutes)"
@@ -781,7 +792,16 @@ export function AiForm({
         testID="field-prompt"
         onCommit={(t) => writeInput(withField(input, "prompt", t))}
       />
-      {asksForSkill(input["prompt"]) ? <Hint testID="ai-skill-hint">{SKILL_NEEDS_TASK}</Hint> : null}
+      <TextBox
+        label="Skills"
+        value={skillsText(ai)}
+        rows={2}
+        placeholder="One skill name per line"
+        testID="field-skills"
+        hint="The Space's skills this step follows; their instructions are given to it"
+        onCommit={(t) => writeAi(setSkills(ai, t))}
+      />
+      {asksForSkill(input["prompt"]) && !(ai.skills?.length ?? 0) ? <Hint testID="ai-skill-hint">{SKILL_NEEDS_TASK}</Hint> : null}
       <Rows
         label="Input data"
         pairs={pairsOf(input["inputs"])}

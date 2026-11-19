@@ -10,20 +10,35 @@ export type PathRun = CapMap["journeys.test_path"]["out"]["runs"][number];
 export interface Card {
   id: string;
   name: string;
+  /** What it does, in one sentence, when the list has one. */
+  sentence?: string;
+  state: "on" | "off" | "needs";
 }
 export interface Column {
   key: string;
   title: string;
   count: number;
   over: number;
-  /** "2 days, then Maya is told", or "No limit". */
-  limit: string;
+  /** "2 days, then Maya is told"; absent when the stage has no limit (nothing is said about no limit). */
+  limit?: string;
   final: boolean;
   cards: Card[];
 }
 
-/** The columns, in stage order, each with its members' names (an Automation that is gone shows by what it was, never as a blank). */
-export function columns(j: Journey, counts: StageCounts, name: (id: string) => string): Column[] {
+/** What the list knows of one Automation. */
+export interface AutoInfo {
+  name: string;
+  sentence?: string;
+  state: "on" | "off" | "needs";
+}
+
+/** The columns, in stage order, each with its members (an Automation that is gone shows by what it was, never as a blank). */
+export function columns(
+  j: Journey,
+  counts: StageCounts,
+  info: (id: string) => AutoInfo | undefined,
+  who: (id: string) => string = (id) => id,
+): Column[] {
   return [...j.stages]
     .sort((a, b) => a.order - b.order)
     .map((s) => {
@@ -33,18 +48,51 @@ export function columns(j: Journey, counts: StageCounts, name: (id: string) => s
         title: s.title,
         count: c.count,
         over: c.over,
-        limit: s.timeLimit ? limitWords(s.timeLimit, name) : "No limit",
+        ...(s.timeLimit ? { limit: limitWords(s.timeLimit, who) } : {}),
         final: s.final === true,
-        cards: s.automations.map((id) => ({ id, name: name(id) || "An Automation" })),
+        cards: s.automations.map((id) => {
+          const a = info(id);
+          return {
+            id,
+            name: a?.name || "An Automation",
+            ...(a?.sentence ? { sentence: a.sentence } : {}),
+            state: a?.state ?? "off",
+          };
+        }),
       };
     });
+}
+
+const PAST: Record<string, string> = {
+  created: "is created",
+  added: "is added",
+  updated: "changes",
+  changed: "changes",
+  deleted: "is removed",
+  removed: "is removed",
+  submitted: "is submitted",
+  signed: "is signed",
+  moved: "moves",
+  completed: "is done",
+  received: "arrives",
+  arrived: "arrives",
+};
+/** "lead.created" as the words a person says: "A lead is created". An event it does not know shows as its own words, never as the key. */
+export function eventWords(event: string): string {
+  const [noun, verb] = event.split(".");
+  const n = (noun ?? event).replaceAll("_", " ");
+  if (verb !== undefined && PAST[verb]) return `${/^[aeiou]/i.test(n) ? "An" : "A"} ${n} ${PAST[verb]}`;
+  const all = event.replaceAll(".", " ").replaceAll("_", " ");
+  return all.charAt(0).toUpperCase() + all.slice(1);
 }
 
 /** The three facts on top of the page: how a record gets in, where it is finished, and what travels with it. */
 export function strip(j: Journey): { starts: string; finishes: string; carried: string } {
   const done = [...j.stages].filter((s) => s.final).map((s) => s.title);
   return {
-    starts: startRuleWords(j.startRule),
+    starts: j.startRule
+      ? `${eventWords(j.startRule.event)}${j.startRule.enabled ? "" : " (off)"}`
+      : startRuleWords(j.startRule),
     finishes: done.length === 0 ? "Nowhere yet" : done.join(" or "),
     carried: j.variables && j.variables.length > 0 ? j.variables.map((v) => v.title).join(", ") : "Nothing",
   };
