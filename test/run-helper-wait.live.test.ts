@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   boot,
+  call,
   connect,
   makeAgent,
   ok,
@@ -106,7 +107,7 @@ test("a helper that depends on another waits, then starts; one whose dependency 
       return n?.status === "failed" ? n : null;
     }, 20_000);
     assert.equal(eps.errorCode, "dependency_failed");
-    assert.match(String(eps.errorMessage), /Gamma/);
+    assert.equal(eps.errorMessage, "Didn't start because Gamma failed.");
     assert.equal(calls["DELTA"], 0, "still never started");
   } finally {
     await stop(d);
@@ -189,6 +190,69 @@ test("a re-run: a finished helper is started again with another brief; the new n
     });
     assert.equal(same.threadId, again.threadId, "the same press again is the same helper");
     assert.equal(runs, 2);
+  } finally {
+    await stop(d);
+  }
+});
+
+test("a helper cannot wait for one of earlier work: chat.helper.start refuses it and starts nothing", async () => {
+  let betaCalls = 0;
+  const model = scriptedModel(async function* (input) {
+    const body = String(input.trigger?.body ?? "");
+    if (/HOLD/.test(body)) await new Promise<void>(() => undefined);
+    if (body.includes("BETA")) betaCalls += 1;
+    if (body.includes("ALPHA")) yield { type: "text", text: "alpha done" };
+  });
+  const dir = seededDir();
+  const d = await boot(dir, model);
+  try {
+    await connect(d);
+    const agent = await makeAgent(d, "Lead");
+    const chat = await startChat(d, agent, "oj");
+    await ok(d, "threads.set_mode", { threadId: chat, mode: "auto", idempotencyKey: "oj-auto" });
+    // earlier work: a helper that ran with no job open, so it is a job of its own
+    const first = await ok(d, "chat.helper.start", {
+      threadId: chat,
+      title: "Alpha",
+      instruction: "ALPHA: earlier work",
+      agentId: agent,
+      idempotencyKey: "oj-alpha",
+    });
+    const alphaThread = first.helper.threadId as string;
+    await waitFor(async () => {
+      const f = (await ok(d, "runs.node.find", { threadIds: [alphaThread] })).byThread as Record<string, string>;
+      const id = f[alphaThread];
+      return id && (await ok(d, "runs.node.get", { runId: id })).node.status === "succeeded" ? true : null;
+    }, 30_000);
+    // a new job: the lead's turn is open
+    await ok(d, "chat.post", {
+      threadId: chat,
+      body: "HOLD the new job",
+      mentions: [{ kind: "agent", id: agent }],
+      idempotencyKey: "oj-hold",
+    });
+    await waitFor(async () => {
+      const rows = (await ok(d, "runs.activity.list", {})).rows as Array<{ kind: string; status: string }>;
+      return rows.some((r) => r.kind === "turn" && r.status === "running") ? true : null;
+    }, 20_000);
+    const before = ((await ok(d, "chat.helpers.list", { threadId: chat })).helpers as unknown[]).length;
+    const refused = await call(d, "chat.helper.start", {
+      threadId: chat,
+      title: "Beta",
+      instruction: "BETA: after the earlier work",
+      agentId: agent,
+      dependsOn: ["Alpha"],
+      idempotencyKey: "oj-beta",
+    });
+    assert.notEqual(refused.status, 200, "refused");
+    assert.match(JSON.stringify(refused.data), /no_such_helper|same job/);
+    assert.equal(
+      ((await ok(d, "chat.helpers.list", { threadId: chat })).helpers as unknown[]).length,
+      before,
+      "nothing started",
+    );
+    await new Promise((r) => setTimeout(r, 1_500));
+    assert.equal(betaCalls, 0);
   } finally {
     await stop(d);
   }

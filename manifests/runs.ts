@@ -487,7 +487,7 @@ export default defineManifest({
     ),
     write(
       "runs.node.save_as_agent",
-      "Make a finished piece of work into an agent: its brief becomes the agent's instructions, with the same model and tools. Made as the person who asks, by the agent-creating permission; an agent asking needs the person's ok",
+      "Make a finished piece of work into an agent: its brief becomes the instructions, with the same model and the tool limits it began with (the allowed list only for someone who manages its agent). Made as the person who asks; an agent asking needs the person's ok",
       {
         in: {
           ...nodeTarget,
@@ -501,7 +501,11 @@ export default defineManifest({
           ),
           sharing: t.opt(t.enm("me", "everyone")),
         },
-        out: { agent: t.json(), runId: id.run },
+        out: {
+          agent: t.json(),
+          runId: id.run,
+          toolsCarried: t.enm("kept", "narrowed", "default"),
+        },
         on: ["run", "/runId"],
         level: "manage",
         gate: { act: "approve", when: "actor.kind != 'person'", reason: "Makes a new agent from this work" },

@@ -13,10 +13,13 @@ const AGAIN = `thr_${"c".repeat(32)}`;
 const AGENT = `agt_${"d".repeat(32)}`;
 
 type Seen = { created: Array<Record<string, unknown>>; started: Array<Record<string, unknown>> };
-function rig(first: string | undefined = "Price the Calder bid from the 2025 sheet. Quote the page.") {
+function rig(
+  first: string | undefined = "Price the Calder bid from the 2025 sheet. Quote the page.",
+  authorize?: Parameters<typeof harness>[0] extends infer O ? (O extends { authorize?: infer A } ? A : never) : never,
+) {
   const seen: Seen = { created: [], started: [] };
   const h = harness({
-    authorize: (who, action) => who.id === alice.id || (who.id === bob.id && action.level === "view"),
+    authorize: authorize ?? ((who, action) => who.id === alice.id || (who.id === bob.id && action.level === "view")),
   });
   h.callee("agents.create", (i: Record<string, unknown>) => {
     seen.created.push(i);
@@ -278,4 +281,27 @@ test("compare is for the owner or a manager of runs: a chat member who may only 
   const seen = await h.call("runs.node.get", { runId: n.id }, watcher);
   assert.equal(seen.node.can.manage, false, "a viewer sees the node and is told they cannot press");
   assert.ok((await h.call("runs.node.compare", { runId: n.id }, owner)).sides.length >= 1);
+});
+
+test("save as agent carries the helper's tool limits only for someone who manages the agent it ran as: a manager of runs with fewer rights gets the default tools, never a wider one; what it was denied is always carried", async () => {
+  const policy = { tools: { allowed: ["web_search", "terminal_run"], denied: ["mail_send"] } };
+  const made = async (who: typeof owner) => {
+    const { h, seen } = rig(undefined, (w, action, res) =>
+      w.id === alice.id ? true : w.id === bob.id && res.type !== "agent" && action.level !== "use",
+    );
+    const { n } = await helper(h, { brief: { goal: "g", instructions: "x" }, policy });
+    const out = await h.call("runs.node.save_as_agent", { runId: n.id, name: "Pricer" }, who);
+    return { out, made: seen.created[0]! };
+  };
+  const full = await made(owner);
+  assert.deepEqual(full.made["tools"], { allowed: ["web_search", "terminal_run"], denied: ["mail_send"] });
+  assert.equal(full.out.toolsCarried, "kept");
+  const fewer = await made(watcher);
+  assert.deepEqual(fewer.made["tools"], { allowed: [], denied: ["mail_send"] }, "the wider tools are not granted");
+  assert.equal(fewer.out.toolsCarried, "narrowed");
+  const none = rig();
+  const bare = await helper(none.h, { brief: { goal: "g", instructions: "x" } });
+  const plain = await none.h.call("runs.node.save_as_agent", { runId: bare.n.id, name: "Pricer" }, owner);
+  assert.equal(plain.toolsCarried, "default");
+  assert.ok(!("tools" in none.seen.created[0]!), "no limits recorded: the default tools");
 });

@@ -862,8 +862,16 @@ export function settleDeps(ctx: RunsCtx): Node[] {
   ) as Row[];
   for (const w of waiting) {
     const id = String(w["id"]);
-    const bad = unmetDeps(ctx.db, id).find((x) => x.status === "failed" || x.status === "stopped");
-    if (!bad) continue;
+    const bads = unmetDeps(ctx.db, id).filter((x) => x.status === "failed" || x.status === "stopped");
+    if (bads.length === 0) continue;
+    const names = bads.map((b) =>
+      (b.name ?? "other work")
+        .replace(/\s+/g, " ")
+        .replace(/["\u201c\u201d:]/g, "'")
+        .slice(0, 60),
+    );
+    const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]!;
+    const only = bads.length === 1 && bads[0]!.status === "stopped";
     try {
       out.push(
         moveNode(ctx, id, "failed", {
@@ -871,10 +879,7 @@ export function settleDeps(ctx: RunsCtx): Node[] {
           by: "svc_host",
           error: {
             code: "dependency_failed",
-            message: `It was to start after ${(bad.name ?? "other work")
-              .replace(/\s+/g, " ")
-              .replace(/["\u201c\u201d:]/g, "'")
-              .slice(0, 60)}, which ${bad.status === "stopped" ? "was stopped" : "did not finish"}.`,
+            message: `Didn't start because ${list} ${only ? "was stopped" : "failed"}.`,
           },
         }).node,
       );

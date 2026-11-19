@@ -1,6 +1,6 @@
 # runs.node.save_as_agent
 
-Make a finished piece of work into an agent: its brief becomes the agent's instructions, with the same model and tools. Made as the person who asks, by the agent-creating permission; an agent asking needs the person's ok
+Make a finished piece of work into an agent: its brief becomes the instructions, with the same model and the tool limits it began with (the allowed list only for someone who manages its agent). Made as the person who asks; an agent asking needs the person's ok
 
 | | |
 |---|---|
@@ -39,6 +39,7 @@ type In = {
 type Out = {
   agent: unknown;
   runId: string;
+  toolsCarried: "kept" | "narrowed" | "default";
 };
 ```
 
@@ -66,7 +67,8 @@ type Out = {
   },
   "output": {
     "agent": {},
-    "runId": "run_a1b2c3"
+    "runId": "run_a1b2c3",
+    "toolsCarried": "kept"
   }
 }
 ```

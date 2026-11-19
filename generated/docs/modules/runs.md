@@ -33,7 +33,7 @@ Requires: nothing.
 - [runs.node.move](../capabilities/runs.node.move.md): Move a node to another state; the one way a node changes state (a node already there answers as a no-op, a finished one refuses)
 - [runs.node.reclaim](../capabilities/runs.node.reclaim.md): Put nodes whose worker stopped beating back in the queue with the next attempt (the host's sweep)
 - [runs.node.rerun](../capabilities/runs.node.rerun.md): Start a finished helper again beside the first, with an edited brief or another model; both are kept and read side by side with runs.node.compare
-- [runs.node.save_as_agent](../capabilities/runs.node.save_as_agent.md): Make a finished piece of work into an agent: its brief becomes the agent's instructions, with the same model and tools. Made as the person who asks, by the agent-creating permission; an agent asking needs the person's ok
+- [runs.node.save_as_agent](../capabilities/runs.node.save_as_agent.md): Make a finished piece of work into an agent: its brief becomes the instructions, with the same model and the tool limits it began with (the allowed list only for someone who manages its agent). Made as the person who asks; an agent asking needs the person's ok
 - [runs.node.start](../capabilities/runs.node.start.md): Make a node in the agent work tree: a turn, helper, subagent, handoff, ask, watcher, terminal command or job (the engine, chat and terminal call this)
 - [runs.people_counts](../capabilities/runs.people_counts.md): How many Runs each person's own agents have, counted and never listed: an admin sees the number, not the work
 - [runs.pin_version](../capabilities/runs.pin_version.md): Move an active Run onto a definition version without replaying its steps
