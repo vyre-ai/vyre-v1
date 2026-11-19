@@ -24,7 +24,7 @@ const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith("TILES_01"));
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => /^(TILES_01|PEEKTABS_01)/.test(t.id));
 const report = [];
 for (const t of targets)
   for (const skin of ["paper", "graphite"])
@@ -48,9 +48,31 @@ for (const t of targets)
       const tiles = await page.locator("[data-testid='crew-tiles']").count();
       const sw = await page.locator("[data-testid='crew-strip-view']").count();
       const over = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
-      const file = path.join(out, `${t.id.replace("TILES_01-", "")}-${skin}-${size}.png`);
+      const file = path.join(out, `${t.id.replace(/^(TILES_01|PEEKTABS_01)-/, "")}-${skin}-${size}.png`);
       await page.screenshot({ path: file });
-      report.push({ file: path.basename(file), found, tiles, switchShown: sw, overflowX: over, errs: errs.slice(0, 2) });
+      report.push({
+        file: path.basename(file),
+        found,
+        tiles,
+        switchShown: sw,
+        overflowX: over,
+        errs: errs.slice(0, 2),
+      });
+      // a helper's session: press each tab and shoot it
+      if (t.id.startsWith("PEEKTABS_01")) {
+        for (const tab of ["files", "details"]) {
+          await page.click(`[data-testid='crew-peek-tab-${tab}']`);
+          await page.waitForTimeout(300);
+          await page.screenshot({ path: file.replace(".png", `-${tab}.png`) });
+          const open = await page.evaluate(() =>
+            ["transcript", "files", "details"].map((x) => {
+              const e = document.querySelector(`[data-testid='crew-peek-panel-${x}']`);
+              return e && getComputedStyle(e).display !== "none" ? x : "";
+            }),
+          );
+          report.push({ file: path.basename(file) + " " + tab, panelsShown: open.filter(Boolean) });
+        }
+      }
       // the switch: tiles to rows and back on the same page
       if (t.id.endsWith("-tiles") && sw > 0) {
         await page.click("[data-testid='crew-strip-view']");

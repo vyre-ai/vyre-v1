@@ -449,6 +449,8 @@ type Note = {
 };
 const WHO = { brief: "Brief", person: "You", parent: "Agent", helper: "Helper" } as const;
 
+type PeekTab = "transcript" | "files" | "details";
+
 export function CrewPeek({
   member,
   call,
@@ -468,8 +470,20 @@ export function CrewPeek({
   const [steps, setSteps] = useState<HelperStep[]>([]);
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [tab, setTab] = useState<PeekTab>("transcript");
+  // a different helper opens on its transcript, never on the tab the last one was left on
+  useEffect(() => setTab("transcript"), [member.id]);
   const live = member.state === "working" || member.state === "needs_you";
   const now = useNow(live);
+  const fileCount = member.files?.length ?? 0;
+  // only the tabs that have something: the transcript and the details are always there, the files when it touched any or is code
+  const tabList: Array<{ key: PeekTab; label: string; count?: number }> = [
+    { key: "transcript", label: "Transcript" },
+    ...(isCode(member) || fileCount > 0
+      ? [{ key: "files" as const, label: "Files", ...(fileCount > 0 ? { count: fileCount } : {}) }]
+      : []),
+    { key: "details", label: "Details" },
+  ];
   // a subagent the engine started in its own turn: no chat of its own, so no notes, no steering, no model to change; the row says all there is
   const own = member.kind === "subagent";
   useEffect(() => {
@@ -554,165 +568,191 @@ export function CrewPeek({
           </Text>
         </View>
       </View>
-      {member.state === "needs_you" ? (
-        <View testID="crew-peek-needs" style={st.needs}>
-          <Text style={st.needsT}>Needs your OK</Text>
-          <Text style={st.rowLine}>{lineOf(member)}</Text>
-        </View>
-      ) : null}
-      {member.state === "failed" || member.state === "stopped" ? (
-        <Text testID="crew-peek-line" style={st.rowLine}>
-          {lineOf(member)}
-        </Text>
-      ) : null}
-      {/* a subagent's whole brief is its name above: the engine keeps no more of it, so it is not said twice */}
-      {own ? null : (
-        <>
-          <Text style={st.section}>Brief from {brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"}</Text>
-          <View style={st.brief}>
-            <Text testID="crew-peek-brief" style={st.briefText}>
-              {brief?.body ?? member.title}
+      <View testID="crew-peek-tabs" accessibilityRole="tablist" style={st.tabs}>
+        {/* ui-rows-lint: not a list (the tabs of one pane: a word each, underlined when open) */}
+        {tabList.map((t) => (
+          <Pressable
+            key={t.key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === t.key }}
+            testID={`crew-peek-tab-${t.key}`}
+            onPress={() => setTab(t.key)}
+            style={[st.tab, tab === t.key && st.tabOn]}
+          >
+            <Text style={[st.tabText, tab === t.key && st.tabTextOn]}>
+              {t.label}
+              {t.count !== undefined ? <Text style={st.tabCount}> {t.count}</Text> : null}
             </Text>
+          </Pressable>
+        ))}
+      </View>
+      <View testID="crew-peek-panel-transcript" style={tab === "transcript" ? undefined : st.hidden}>
+        {member.state === "needs_you" ? (
+          <View testID="crew-peek-needs" style={st.needs}>
+            <Text style={st.needsT}>Needs your OK</Text>
+            <Text style={st.rowLine}>{lineOf(member)}</Text>
           </View>
-        </>
-      )}
-      {steps.length > 0 ||
-      (own && ((member.steps?.length ?? 0) > 0 || member.step !== undefined)) ||
-      member.state === "working" ||
-      member.state === "needs_you" ? (
-        <Text style={st.section}>Steps</Text>
-      ) : null}
-      {/* ui-rows-lint: not a list (the steps of one agent's plan on a timeline of dots, not list rows) */}
-      {own
-        ? (member.steps && member.steps.length > 0 ? member.steps : member.step ? [member.step] : []).map((x, i) => (
-            <View key={`${i}-${x}`} testID={`crew-step-${i}`} style={st.step}>
-              <View
-                style={[
-                  st.stepDot,
-                  member.state === "working" && i === (member.steps?.length ?? 0) - 1
-                    ? { backgroundColor: "var(--accent)" as string }
-                    : null,
-                ]}
-              />
-              <Text numberOfLines={1} style={st.rowLine}>
-                {x}
+        ) : null}
+        {member.state === "failed" || member.state === "stopped" ? (
+          <Text testID="crew-peek-line" style={st.rowLine}>
+            {lineOf(member)}
+          </Text>
+        ) : null}
+        {/* a subagent's whole brief is its name above: the engine keeps no more of it, so it is not said twice */}
+        {own ? null : (
+          <>
+            <Text style={st.section}>
+              Brief from {brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"}
+            </Text>
+            <View style={st.brief}>
+              <Text testID="crew-peek-brief" style={st.briefText}>
+                {brief?.body ?? member.title}
               </Text>
             </View>
-          ))
-        : null}
-      {steps.length === 0 && !member.step && (member.state === "working" || member.state === "needs_you") ? (
-        <View style={st.step}>
-          <View style={[st.stepDot, { backgroundColor: "var(--accent)" as string }]} />
-          <Text testID="crew-peek-step-start" style={st.rowLine}>
-            Getting started
-          </Text>
-        </View>
-      ) : null}
-      {/* ui-rows-lint: not a list (what the helper has done, in order: a quiet log of plain-word steps, nothing to press) */}
-      {steps.slice(-6).map((x) => (
-        <View key={x.id} testID={`crew-step-${x.id}`} style={st.step}>
-          <View style={[st.stepDot, x.state === "live" && { backgroundColor: "var(--accent)" as string }]} />
-          <Text numberOfLines={1} style={st.rowLine}>
-            {x.title}
-            {x.sub ? ` · ${x.sub}` : ""}
-          </Text>
-        </View>
-      ))}
-      {!own && member.state === "working" && member.step && !steps.some((x) => x.state === "live") ? (
-        <View style={st.step}>
-          <View style={[st.stepDot, { backgroundColor: "var(--accent)" as string }]} />
-          <Text testID="crew-peek-step" numberOfLines={1} style={st.rowLine}>
-            {member.step}
-          </Text>
-        </View>
-      ) : null}
-      {own ? null : (
-        <>
-          <Text style={st.section}>Runs on</Text>
-          <Text testID="crew-peek-model" style={st.rowLine}>
-            {member.model
-              ? `${modelTag(member)}${member.accountLabel ? ` · ${accountName(member.accountLabel)}` : ""}`
-              : "The same model as the chat"}
-          </Text>
-          {live || member.state === "failed" || member.state === "stopped" ? (
-            <ChangeModel member={member} call={call} onDone={onRefresh} />
-          ) : null}
-          <HelperHooksSection
-            threadId={member.id}
-            call={call}
-            lead={brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"}
-            name={nameOf(member)}
-          />
-        </>
-      )}
-      {member.found ? (
-        <>
-          <Text style={st.section}>{own ? "Returned" : "Answer"}</Text>
-          <Text testID="crew-peek-answer" style={st.rowLine}>
-            {own ? (member.answer ?? member.found) : member.found}
-          </Text>
-        </>
-      ) : null}
-      {isCode(member) ? (
-        <>
-          <Text style={st.section}>Code</Text>
-          <Text testID="crew-peek-code" style={st.mono}>
-            {member.branch} · +{member.added ?? 0} −{member.deleted ?? 0} · {member.files?.length ?? 0} files
-            {member.tests ? ` · ${testsWords(member.tests)}` : ""}
-          </Text>
-          {member.tests?.failing ? (
-            <Text testID="crew-peek-failing" style={[st.mono, { color: "var(--danger)" as string }]}>
-              Failing: {member.tests.failing}
+          </>
+        )}
+        {steps.length > 0 ||
+        (own && ((member.steps?.length ?? 0) > 0 || member.step !== undefined)) ||
+        member.state === "working" ||
+        member.state === "needs_you" ? (
+          <Text style={st.section}>Steps</Text>
+        ) : null}
+        {/* ui-rows-lint: not a list (the steps of one agent's plan on a timeline of dots, not list rows) */}
+        {own
+          ? (member.steps && member.steps.length > 0 ? member.steps : member.step ? [member.step] : []).map((x, i) => (
+              <View key={`${i}-${x}`} testID={`crew-step-${i}`} style={st.step}>
+                <View
+                  style={[
+                    st.stepDot,
+                    member.state === "working" && i === (member.steps?.length ?? 0) - 1
+                      ? { backgroundColor: "var(--accent)" as string }
+                      : null,
+                  ]}
+                />
+                <Text numberOfLines={1} style={st.rowLine}>
+                  {x}
+                </Text>
+              </View>
+            ))
+          : null}
+        {steps.length === 0 && !member.step && (member.state === "working" || member.state === "needs_you") ? (
+          <View style={st.step}>
+            <View style={[st.stepDot, { backgroundColor: "var(--accent)" as string }]} />
+            <Text testID="crew-peek-step-start" style={st.rowLine}>
+              Getting started
             </Text>
-          ) : null}
-        </>
-      ) : null}
-      {(member.files?.length ?? 0) > 0 ? <Text style={st.section}>Files changed</Text> : null}
-      {/* ui-rows-lint: not a list (the files this helper changed, each a path and its change, nothing to press) */}
-      {(member.files ?? []).slice(0, 12).map((f) => (
-        <View key={f.path} testID={`crew-file-${f.path}`} style={st.step}>
-          <Text numberOfLines={1} style={[st.rowLine, { flex: 1 }]}>
-            {f.path}
-          </Text>
-          <Text style={st.mono}>
-            +{f.added} −{f.deleted}
-          </Text>
-        </View>
-      ))}
-      {log.length > 0 ? <Text style={st.section}>Notes</Text> : null}
-      {/* ui-rows-lint: not a list (a read-only log of what was said between the helper and the agent that started it, each entry a sender and words, nothing to press) */}
-      {log.map((n) => (
-        <View key={n.messageId} testID={`crew-note-${n.messageId}`} style={st.note}>
-          <Text style={st.noteWho}>
-            {WHO[n.who]}
-            {n.who === "parent" && n.seenAt !== undefined ? " · seen" : ""}
-          </Text>
-          <Text style={st.rowLine}>{n.body}</Text>
-        </View>
-      ))}
-      <Text style={st.section}>Cost and time</Text>
-      <View style={st.kv}>
-        <Text style={st.k}>Time</Text>
-        <Text testID="crew-peek-time" style={st.v}>
-          {timeOf(member, now)}
-        </Text>
+          </View>
+        ) : null}
+        {/* ui-rows-lint: not a list (what the helper has done, in order: a quiet log of plain-word steps, nothing to press) */}
+        {steps.slice(-6).map((x) => (
+          <View key={x.id} testID={`crew-step-${x.id}`} style={st.step}>
+            <View style={[st.stepDot, x.state === "live" && { backgroundColor: "var(--accent)" as string }]} />
+            <Text numberOfLines={1} style={st.rowLine}>
+              {x.title}
+              {x.sub ? ` · ${x.sub}` : ""}
+            </Text>
+          </View>
+        ))}
+        {!own && member.state === "working" && member.step && !steps.some((x) => x.state === "live") ? (
+          <View style={st.step}>
+            <View style={[st.stepDot, { backgroundColor: "var(--accent)" as string }]} />
+            <Text testID="crew-peek-step" numberOfLines={1} style={st.rowLine}>
+              {member.step}
+            </Text>
+          </View>
+        ) : null}
+        {member.found ? (
+          <>
+            <Text style={st.section}>{own ? "Returned" : "Answer"}</Text>
+            <Text testID="crew-peek-answer" style={st.rowLine}>
+              {own ? (member.answer ?? member.found) : member.found}
+            </Text>
+          </>
+        ) : null}
+        {log.length > 0 ? <Text style={st.section}>Notes</Text> : null}
+        {/* ui-rows-lint: not a list (a read-only log of what was said between the helper and the agent that started it, each entry a sender and words, nothing to press) */}
+        {log.map((n) => (
+          <View key={n.messageId} testID={`crew-note-${n.messageId}`} style={st.note}>
+            <Text style={st.noteWho}>
+              {WHO[n.who]}
+              {n.who === "parent" && n.seenAt !== undefined ? " · seen" : ""}
+            </Text>
+            <Text style={st.rowLine}>{n.body}</Text>
+          </View>
+        ))}
       </View>
-      {member.costMicros > 0 ? (
+      <View testID="crew-peek-panel-files" style={tab === "files" ? undefined : st.hidden}>
+        {isCode(member) ? (
+          <>
+            <Text style={st.section}>Code</Text>
+            <Text testID="crew-peek-code" style={st.mono}>
+              {member.branch} · +{member.added ?? 0} −{member.deleted ?? 0} · {member.files?.length ?? 0} files
+              {member.tests ? ` · ${testsWords(member.tests)}` : ""}
+            </Text>
+            {member.tests?.failing ? (
+              <Text testID="crew-peek-failing" style={[st.mono, { color: "var(--danger)" as string }]}>
+                Failing: {member.tests.failing}
+              </Text>
+            ) : null}
+          </>
+        ) : null}
+        {(member.files?.length ?? 0) > 0 ? <Text style={st.section}>Files changed</Text> : null}
+        {/* ui-rows-lint: not a list (the files this helper changed, each a path and its change, nothing to press) */}
+        {(member.files ?? []).slice(0, 12).map((f) => (
+          <View key={f.path} testID={`crew-file-${f.path}`} style={st.step}>
+            <Text numberOfLines={1} style={[st.rowLine, { flex: 1 }]}>
+              {f.path}
+            </Text>
+            <Text style={st.mono}>
+              +{f.added} −{f.deleted}
+            </Text>
+          </View>
+        ))}
+      </View>
+      <View testID="crew-peek-panel-details" style={tab === "details" ? undefined : st.hidden}>
+        {own ? null : (
+          <>
+            <Text style={st.section}>Runs on</Text>
+            <Text testID="crew-peek-model" style={st.rowLine}>
+              {member.model
+                ? `${modelTag(member)}${member.accountLabel ? ` · ${accountName(member.accountLabel)}` : ""}`
+                : "The same model as the chat"}
+            </Text>
+            {live || member.state === "failed" || member.state === "stopped" ? (
+              <ChangeModel member={member} call={call} onDone={onRefresh} />
+            ) : null}
+            <HelperHooksSection
+              threadId={member.id}
+              call={call}
+              lead={brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"}
+              name={nameOf(member)}
+            />
+          </>
+        )}
+        <Text style={st.section}>Cost and time</Text>
         <View style={st.kv}>
-          <Text style={st.k}>Cost</Text>
-          <Text testID="crew-peek-cost" style={st.v}>
-            {money(member.costMicros)}
+          <Text style={st.k}>Time</Text>
+          <Text testID="crew-peek-time" style={st.v}>
+            {timeOf(member, now)}
           </Text>
         </View>
-      ) : null}
-      {member.tokensIn + member.tokensOut > 0 ? (
-        <View style={st.kv}>
-          <Text style={st.k}>Tokens</Text>
-          <Text testID="crew-peek-tokens" style={st.v}>
-            {tokens(member.tokensIn)} in · {tokens(member.tokensOut)} out
-          </Text>
-        </View>
-      ) : null}
+        {member.costMicros > 0 ? (
+          <View style={st.kv}>
+            <Text style={st.k}>Cost</Text>
+            <Text testID="crew-peek-cost" style={st.v}>
+              {money(member.costMicros)}
+            </Text>
+          </View>
+        ) : null}
+        {member.tokensIn + member.tokensOut > 0 ? (
+          <View style={st.kv}>
+            <Text style={st.k}>Tokens</Text>
+            <Text testID="crew-peek-tokens" style={st.v}>
+              {tokens(member.tokensIn)} in · {tokens(member.tokensOut)} out
+            </Text>
+          </View>
+        ) : null}
+      </View>
       <View style={st.actions}>
         {own ? null : (
           <Pressable
@@ -774,6 +814,19 @@ export function CrewPeek({
 }
 
 const st = StyleSheet.create({
+  tabs: {
+    flexDirection: "row",
+    gap: 2,
+    marginTop: 6,
+    marginBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
+  tab: { height: 32, paddingHorizontal: 10, justifyContent: "center" },
+  tabOn: { boxShadow: "inset 0 -2px 0 var(--ink)" } as object,
+  tabText: { fontSize: 13, color: "var(--ink-3)" as string },
+  tabTextOn: { color: "var(--ink)" as string },
+  tabCount: { fontSize: 11, color: "var(--ink-4)" as string },
   page: { paddingHorizontal: 14, paddingBottom: 18, gap: 4 },
   title: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string, paddingTop: 8 },
   sub: { fontSize: 13, color: "var(--ink-3)" as string },
