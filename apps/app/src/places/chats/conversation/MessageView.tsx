@@ -13,6 +13,7 @@ import { mergeStateOf, subagentIdsOf, totalsOf, withTeammates } from "../crew/mo
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
 import { barShows, citable, citeBody, citeRender } from "../crew/cite.tsx";
 import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
+import type { RunNode } from "../crew/run/model.ts";
 import { useLinkState } from "../../../../../../ui/src/reach/index.tsx";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -229,6 +230,8 @@ export interface MessageActions {
     merge(jobIds: readonly string[]): void;
     /** Read the crew again (a held request was answered on a tile). */
     refresh(): void;
+    /** The runtime's nodes of this chat: the step, stuck and what each waits for, per helper. */
+    nodes?: readonly RunNode[];
   };
   /** A hook line's Edit or Details: the Hooks tab of the right pane at that hook. */
   openHooks?(hookId: string | undefined): void;
@@ -1641,6 +1644,7 @@ function Theirs({
                 onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))}
                 meId={meId}
                 {...(c ? { onAnswered: c.refresh } : {})}
+                {...(c?.nodes ? { nodes: c.nodes } : {})}
                 {...(c
                   ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) }
                   : {})}

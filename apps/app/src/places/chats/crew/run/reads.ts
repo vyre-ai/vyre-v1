@@ -9,6 +9,11 @@ const num = (v: unknown): number | undefined => (typeof v === "number" ? v : und
 const STATUS = new Set(["queued", "running", "waiting", "paused", "succeeded", "failed", "stopped"]);
 
 /** The one current line of what a node is on: the runtime serves it as {icon, text}; a plain string is taken as it is. */
+/** The kind of step, for the mark before its line. */
+function stepIconOf(v: unknown): string | undefined {
+  return v && typeof v === "object" ? str((v as Obj)["icon"]) : undefined;
+}
+
 function stepTextOf(v: unknown): string | undefined {
   return typeof v === "string" ? str(v) : v && typeof v === "object" ? str((v as Obj)["text"]) : undefined;
 }
@@ -209,6 +214,7 @@ export function nodesOf(out: unknown): RunNode[] {
         ...(str(n["whoName"]) !== undefined ? { whoName: str(n["whoName"])! } : {}),
         ...(Array.isArray(n["dependsOn"]) ? { dependsOn: (n["dependsOn"] as unknown[]).filter((x): x is string => typeof x === "string") } : {}),
         ...(stepTextOf(n["step"]) !== undefined ? { step: stepTextOf(n["step"])! } : {}),
+        ...(stepIconOf(n["step"]) !== undefined ? { stepIcon: stepIconOf(n["step"])! } : {}),
         ...(n["stuck"] && typeof n["stuck"] === "object" && str((n["stuck"] as Obj)["reason"]) !== undefined ? { stuck: { since: num((n["stuck"] as Obj)["since"]) ?? 0, reason: str((n["stuck"] as Obj)["reason"])! } } : {}),
         ...(needOf(n["need"]) ? { need: needOf(n["need"])! } : {}),
         ...(num(n["endedAt"]) !== undefined ? { endedAt: num(n["endedAt"])! } : {}),

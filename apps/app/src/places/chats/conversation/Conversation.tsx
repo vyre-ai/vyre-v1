@@ -1873,6 +1873,7 @@ function ConversationView(): ReactElement {
             peek: (id: string) => crew.show(id),
             openPane: () => crew.show(null),
             refresh: () => crew.refresh(),
+            nodes: crew.nodes,
             stopAll: () => void act.stopHelpers(data).then(() => crew.refresh(), fail("Could not stop the helpers.")),
             retry: (id: string) =>
               void act

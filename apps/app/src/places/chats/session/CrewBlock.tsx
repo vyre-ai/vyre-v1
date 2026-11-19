@@ -13,6 +13,7 @@ import { stripTone, faceSeed } from "../crew/model.ts";
 import type { CrewMember, CrewTotals } from "../crew/model.ts";
 import { useNow } from "../crew/strip.tsx";
 import { toRunView } from "../crew/run-view.ts";
+import type { RunNode } from "../crew/run/model.ts";
 import { movesFor } from "../tasks/moves.ts";
 import type { MoveTask } from "../tasks/moves.ts";
 import { CrewTiles } from "./CrewTiles.tsx";
@@ -215,8 +216,11 @@ export function CrewBlock({
   width,
   meId,
   onAnswered,
+  nodes,
   retryMs = 3000,
 }: {
+  /** The runtime's nodes of this chat: what each helper is on, which look stuck, which wait for another. */
+  nodes?: readonly RunNode[] | undefined;
   /** How long before a held request whose permission could not be read is read again (a test shortens it). */
   retryMs?: number;
   /** The person looking: who may answer a held request is read for them. */
@@ -365,7 +369,7 @@ export function CrewBlock({
       </View>
       {shown === "tiles" ? (
         <CrewTiles
-          runs={members.map(toRunView)}
+          runs={members.map((m) => toRunView(m, nodes))}
           now={now}
           selectedId={selectedId}
           onPress={(id) => {

@@ -617,3 +617,71 @@ test("a tile hands its own request to the block when answered, so the block neve
   await press(find(root, "crew-tile-sub_x-allow"));
   assert.deepEqual(got, [["tsk_x", "approve", ""]]);
 });
+
+const NODES = [
+  {
+    id: "run_r",
+    kind: "subagent",
+    name: "Research",
+    status: "running",
+    spent: { tokensIn: 0, tokensOut: 0, cacheRead: 0, usdMicros: 0 },
+    startedAt: 1,
+  },
+  {
+    id: "run_d",
+    kind: "helper",
+    name: "Docs",
+    status: "running",
+    dependsOn: ["run_r"],
+    step: "Adding the bids table",
+    stepIcon: "edit",
+    stuck: { since: 5, reason: "the same step four times" },
+    spent: { tokensIn: 0, tokensOut: 0, cacheRead: 0, usdMicros: 0 },
+    startedAt: 1,
+  },
+];
+
+test("a tile reads the runtime's node for its helper: the kind of step, that it looks stuck, and what it starts after; nothing without a node", async () => {
+  const members = [
+    S({ id: "sub_d", title: "Summary page", runId: "run_d" } as never),
+    S({ id: "sub_n", title: "No node" }),
+  ];
+  const withNodes = await mount(
+    createRoot,
+    <CrewBlock
+      members={members}
+      totals={totalsOf(members)}
+      width={900}
+      nodes={NODES as never}
+      onPeek={() => undefined}
+    />,
+  );
+  assert.ok(find(withNodes, "crew-tile-sub_d-step-icon"));
+  assert.match(textOf(find(withNodes, "crew-tile-sub_d-stuck")), /Looks stuck:\s+the same step four times/);
+  assert.match(textOf(find(withNodes, "crew-tile-sub_d-depends")), /Starts when\s+Research\s+is done/);
+  assert.equal(find(withNodes, "crew-tile-sub_n-stuck"), null, "a helper with no node shows none of it");
+  assert.equal(find(withNodes, "crew-tile-sub_n-depends"), null);
+  const without = await mount(
+    createRoot,
+    <CrewBlock members={members} totals={totalsOf(members)} width={900} onPeek={() => undefined} />,
+  );
+  assert.equal(find(without, "crew-tile-sub_d-stuck"), null, "no nodes read: the tile is as it was");
+  const done = [
+    S({ id: "sub_d", title: "Summary page", runId: "run_d", state: "done", found: "ok" } as never),
+    S({ id: "sub_n", title: "x", state: "done", found: "y" }),
+  ];
+  const ended = await mount(
+    createRoot,
+    <CrewBlock
+      members={done}
+      totals={totalsOf(done)}
+      width={900}
+      view="tiles"
+      nodes={NODES as never}
+      onPeek={() => undefined}
+    />,
+  );
+  assert.equal(find(ended, "crew-tile-sub_d-stuck"), null, "a finished helper is not stuck");
+  assert.equal(find(ended, "crew-tile-sub_d-depends"), null);
+  assert.equal(toRunView(members[0]!, NODES as never).stuck, "the same step four times");
+});

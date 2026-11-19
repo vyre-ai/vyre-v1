@@ -5,10 +5,23 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { MemberRing, timeOf } from "../crew/strip.tsx";
+import { Glyph } from "../conversation/parts.tsx";
+import type { GlyphName } from "../conversation/parts.tsx";
 import { money, tokens, faceSeed } from "../crew/model.ts";
 import type { RunView } from "../crew/run-view.ts";
 
 const web = Platform.OS === "web";
+/** The mark before a live line, from the kind of step the runtime reports (a mark that has no glyph here is left out). */
+const STEP_GLYPH: Record<string, GlyphName> = {
+  read: "file",
+  web: "cloud",
+  term: "term",
+  edit: "edit",
+  find: "search",
+  think: "spark",
+  send: "up",
+  kid: "fork",
+};
 
 export function HelperTile({
   r,
@@ -85,6 +98,11 @@ export function HelperTile({
         </Text>
       </View>
       <View testID={`${id}-window`} style={st.win}>
+        {r.stepIcon !== undefined && STEP_GLYPH[r.stepIcon] !== undefined ? (
+          <View testID={`${id}-step-icon`} accessibilityLabel={r.stepIcon} style={st.stepIcon}>
+            <Glyph name={STEP_GLYPH[r.stepIcon]!} size={12} color="var(--ink-3)" />
+          </View>
+        ) : null}
         {/* ui-rows-lint: not a list (the three live lines of one tile: plain text, no row to press) */}
         {lines.map((x, i) => (
           <Text
@@ -101,6 +119,16 @@ export function HelperTile({
             {x}
           </Text>
         ))}
+        {r.stuck !== undefined ? (
+          <Text numberOfLines={2} testID={`${id}-stuck`} style={st.line}>
+            Looks stuck: {r.stuck}
+          </Text>
+        ) : null}
+        {r.dependsLine !== undefined ? (
+          <Text numberOfLines={1} testID={`${id}-depends`} style={st.dep}>
+            › {r.dependsLine}
+          </Text>
+        ) : null}
         {r.state === "needs_you" &&
         r.holdTaskId !== undefined &&
         onDecide !== undefined &&
@@ -260,6 +288,8 @@ const st = StyleSheet.create({
   dim: { color: "var(--ink-4)" as string },
   lineNeed: { color: "var(--ink)" as string },
   lineFail: { color: "var(--ink)" as string },
+  dep: { fontSize: 11.5, color: "var(--accent)" as string },
+  stepIcon: { position: "absolute", right: 0, top: 3 },
   decide: { gap: 4 },
   decideRow: { flexDirection: "row", gap: 6, marginTop: 6 },
   reason: {

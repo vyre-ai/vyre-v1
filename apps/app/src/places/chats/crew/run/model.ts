@@ -11,6 +11,8 @@ export interface RunNode extends NodeLike {
   whoName?: string;
   /** The one current line of what it is on. */
   step?: string;
+  /** What kind of step it is (read, web, term, edit, find, think, send, cal, wait, kid): the mark before the line. */
+  stepIcon?: string;
   /** Waiting for a person's yes: the request (a Gate task), what for and why. */
   need?: { requestId: string; what: string; why: string };
 }

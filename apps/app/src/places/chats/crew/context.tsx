@@ -4,6 +4,8 @@ import type { ReactElement, ReactNode } from "react";
 import { withLive } from "./model.ts";
 import type { CrewMember, CrewStatusOut } from "./model.ts";
 import { useCrewStatus } from "./status.ts";
+import { useRunData } from "./run/useRun.ts";
+import type { RunNode } from "./run/model.ts";
 import type { Call } from "./status.ts";
 
 export interface CrewCtx {
@@ -23,11 +25,14 @@ export interface CrewCtx {
   close(): void;
   call: Call | undefined;
   threadId: string;
+  /** The nodes of this chat's newest tree of work (the runtime's step, stuck and dependsOn per helper); empty when there is none or this person only watches. */
+  nodes: readonly RunNode[];
 }
 
 const Ctx = createContext<CrewCtx | null>(null);
 export const useCrew = (): CrewCtx | null => useContext(Ctx);
 
+const NO_NODES: readonly RunNode[] = [];
 const same = (a: readonly CrewMember[], b: readonly CrewMember[]): boolean =>
   a.length === b.length && a.every((x, i) => JSON.stringify(x) === JSON.stringify(b[i]));
 
@@ -49,6 +54,10 @@ export function CrewProvider({
   const setLive = useCallback((m: readonly CrewMember[]) => setLiveState((cur) => (same(cur, m) ? cur : m)), []);
   const { status: read } = useCrewStatus(call, threadId, signal);
   const status = useMemo(() => withLive(read, live), [read, live]);
+  // the runtime's view of the same helpers, read once for the chat and shared by every strip and the pane (a server without it gives nothing)
+  const absent = useMemo<Call>(() => async () => Promise.reject(new Error("unknown capability")), []);
+  const run = useRunData(call ?? absent, threadId);
+  const nodes = run.status === "ready" ? run.nodes : NO_NODES;
   const [selected, setSelected] = useState<string | null>(null);
   const [seq, setSeq] = useState(0);
   const [open, setOpen] = useState(false);
@@ -61,6 +70,7 @@ export function CrewProvider({
       seq,
       call,
       threadId,
+      nodes,
       open,
       close: () => {
         setOpen(false);
@@ -73,7 +83,7 @@ export function CrewProvider({
         onShow?.();
       },
     }),
-    [status, selected, seq, call, threadId, onShow, open, refresh, setLive],
+    [status, selected, seq, call, threadId, nodes, onShow, open, refresh, setLive],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
