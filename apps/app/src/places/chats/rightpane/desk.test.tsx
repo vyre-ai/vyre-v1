@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
-import { AgentCursor, DeskHost, MINI, StepRing, edgesOf } from "./Desk.tsx";
+import { AgentCursor, DeskHost, MINI, Scrubbed, StepRing, edgesOf } from "./Desk.tsx";
 import { deskDispatch, deskOpen, deskReset, deskSnapshot } from "./desk-store.ts";
 import type { BrowserData, BrowserView } from "./work-model.ts";
 
@@ -489,7 +489,10 @@ test("the cursor draws with the agent's name, and a ring only when it chose an e
     assert.ok(find(bare, "agent-cursor"));
     assert.match(textOf(find(bare, "agent-cursor")), /Dex/);
     assert.equal(find(bare, "agent-ring"), null);
-    const ringed = await mount(cr, <AgentCursor name="Dex" drawn={{ x: 10, y: 20, ring: { left: 5, top: 6, width: 100, height: 30 } }} />);
+    const ringed = await mount(
+      cr,
+      <AgentCursor name="Dex" drawn={{ x: 10, y: 20, ring: { left: 5, top: 6, width: 100, height: 30 } }} />,
+    );
     assert.ok(find(ringed, "agent-ring"));
   } finally {
     unmountAll();
@@ -500,7 +503,13 @@ test("the cursor draws with the agent's name, and a ring only when it chose an e
 test("the step ring counts what the agent did; a press opens the list of the last eight, newest last, and a second press closes it", async () => {
   const off = installDom();
   try {
-    const steps = Array.from({ length: 10 }, (_, i) => ({ idx: i, at: i, caption: `Step ${i + 1}`, tool: "chrome_click", by: "agent" as const }));
+    const steps = Array.from({ length: 10 }, (_, i) => ({
+      idx: i,
+      at: i,
+      caption: `Step ${i + 1}`,
+      tool: "chrome_click",
+      by: "agent" as const,
+    }));
     const root = await mount(cr, <StepRing steps={steps} />);
     assert.match(textOf(find(root, "step-ring-button")), /10/);
     assert.equal(find(root, "step-list"), null);
@@ -512,6 +521,81 @@ test("the step ring counts what the agent did; a press opens the list of the las
     await press(find(root, "step-ring-button"));
     await flush();
     assert.equal(find(root, "step-list"), null);
+  } finally {
+    unmountAll();
+    off();
+  }
+});
+
+test("pressing a done step shows the screen kept after it, over the live page, with a way back; a step with no picture is not pressable; taking over ends the look back", async () => {
+  const off = installDom();
+  deskReset();
+  try {
+    const r = rig(open);
+    const asked: string[] = [];
+    r.data.steps = async () => [
+      { idx: 0, at: 1, caption: "Opened the portal", tool: "chrome_open", by: "agent", frameFileId: "fil_a" },
+      { idx: 1, at: 2, caption: "Typed the reference", tool: "chrome_type", by: "agent" },
+    ];
+    r.data.frame = async (id) => {
+      asked.push(id);
+      return `/spaces/spc_x/blobs/${id}`;
+    };
+    deskOpen(r.session);
+    const root = await mount(cr, <DeskHost />);
+    await flush();
+    await press(find(root, "step-ring-button"));
+    await flush();
+    assert.equal(find(root, "scrubbed"), null, "live until a step is pressed");
+    await press(find(root, "step-1")).catch(() => undefined);
+    await flush();
+    assert.equal(find(root, "scrubbed"), null, "a step with no picture kept does nothing when pressed");
+    assert.deepEqual(asked, [], "and asks for no picture");
+    await press(find(root, "step-0"));
+    await flush();
+    assert.ok(find(root, "scrubbed"), "the kept screen is up");
+    assert.deepEqual(asked, ["fil_a"]);
+    assert.equal(find(root, "agent-cursor"), null, "the cursor points at the live page, so it is hidden meanwhile");
+    await press(find(root, "scrub-live"));
+    await flush();
+    assert.equal(find(root, "scrubbed"), null);
+    // pressing the same step twice goes back too, and taking over ends the look back
+    await press(find(root, "step-0"));
+    await flush();
+    await press(find(root, "step-0"));
+    await flush();
+    assert.equal(find(root, "scrubbed"), null);
+    await press(find(root, "step-0"));
+    await flush();
+    r.push(hold(true));
+    await flush();
+    assert.equal(find(root, "scrubbed"), null, "you steer the live page now");
+  } finally {
+    unmountAll();
+    deskReset();
+    off();
+  }
+});
+
+test("the scrubbed screen says when it is opening and when it was not kept, and always offers the way back", async () => {
+  const off = installDom();
+  try {
+    const step = {
+      idx: 3,
+      at: 5,
+      caption: "Sent the form",
+      tool: "chrome_send",
+      by: "agent" as const,
+      frameFileId: "fil_z",
+    };
+    let back = 0;
+    const opening = await mount(cr, <Scrubbed step={step} url={undefined} onLive={() => (back += 1)} />);
+    assert.match(textOf(find(opening, "scrubbed")), /Opening the screen/);
+    const none = await mount(cr, <Scrubbed step={step} url={null} onLive={() => (back += 1)} />);
+    assert.match(textOf(find(none, "scrubbed")), /was not kept/);
+    await press(find(none, "scrub-live"));
+    assert.equal(back, 1);
+    assert.match(textOf(find(none, "scrubbed")), /Sent the form/);
   } finally {
     unmountAll();
     off();

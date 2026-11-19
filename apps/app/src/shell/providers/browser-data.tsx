@@ -156,15 +156,37 @@ export function browserData(d: {
         return null;
       }
     },
+    async frame(fileId) {
+      try {
+        const r = (await d.call("files.viewer_data", { fileId })) as { previewUrl?: string };
+        return r.previewUrl ?? null;
+      } catch {
+        return null;
+      }
+    },
     async steps(agentId) {
       try {
         const r = (await d.call("computers.browser.timeline", { agentId })) as {
-          steps?: Array<{ idx: number; at: number; caption: string; tool: string; by: "agent" | "person" }>;
+          steps?: Array<{
+            idx: number;
+            at: number;
+            caption: string;
+            tool: string;
+            by: "agent" | "person";
+            frameFileId?: string;
+          }>;
         };
         return [...(r.steps ?? [])]
           .sort((a, b) => a.idx - b.idx)
           .slice(-30)
-          .map((x) => ({ idx: x.idx, at: x.at, caption: x.caption, tool: x.tool, by: x.by }));
+          .map((x) => ({
+            idx: x.idx,
+            at: x.at,
+            caption: x.caption,
+            tool: x.tool,
+            by: x.by,
+            ...(x.frameFileId ? { frameFileId: x.frameFileId } : {}),
+          }));
       } catch {
         return [];
       }

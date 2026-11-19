@@ -97,6 +97,8 @@ export interface DeskStep {
   caption: string;
   tool: string;
   by: "agent" | "person";
+  /** The picture kept after the step (a file); the desk shows it when you press the step. */
+  frameFileId?: string;
 }
 export interface BrowserData {
   watch(agentId: string, on: (v: BrowserView) => void): () => void;
@@ -113,6 +115,8 @@ export interface BrowserData {
   pointer?(agentId: string): Promise<import("./desk-pointer.ts").PointerView | null>;
   /** What the agent did in its browser, newest last: one line each, for the desk's steps. */
   steps?(agentId: string): Promise<DeskStep[]>;
+  /** The address of a step's picture (a Space blob, drawn with BlobImage), or null when it has none to show. */
+  frame?(fileId: string): Promise<string | null>;
   /** The live view, drawn by the Space browser (Chrome's screencast and input). Absent: a picture of a browser window stands in. */
   renderLive?(agentId: string, o: { state: BrowserState; control: boolean }): ReactElement;
 }

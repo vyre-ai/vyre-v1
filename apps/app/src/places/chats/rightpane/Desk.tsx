@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
+import { BlobImage } from "../../../../../../ui/src/BlobImage/index.tsx";
 import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { Icon } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
@@ -154,7 +155,29 @@ export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "
     deskDispatch({ type: "close" });
   }, [mine, data, agentId]);
   // Esc goes one step down while you only watch; while you hold the browser it belongs to the page
-  useEscapeLayer(full && !mine, () => deskDispatch({ type: "escape" }));
+  // pressing a done step shows the picture kept after it, until Back to live (or Esc, which leaves the picture first and the full view next)
+  const [seen, setSeen] = useState<DeskStep | null>(null);
+  const [seenUrl, setSeenUrl] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (seen?.frameFileId === undefined || !data.frame) {
+      setSeenUrl(undefined);
+      return undefined;
+    }
+    let live = true;
+    setSeenUrl(undefined);
+    void data
+      .frame(seen.frameFileId)
+      .then((u) => live && setSeenUrl(u))
+      .catch(() => live && setSeenUrl(null));
+    return () => {
+      live = false;
+    };
+  }, [seen, data]);
+  // taking over, closing the browser or leaving the full view ends the look back: the live page is what you steer
+  useEffect(() => {
+    if (mine || !full || view.state !== "open") setSeen(null);
+  }, [mine, full, view.state]);
+  useEscapeLayer(full && !mine, () => (seen !== null ? setSeen(null) : deskDispatch({ type: "escape" })));
   const canTake = view.state === "open" && view.canTakeOver && !busy;
   const canPause = view.state === "open" && view.canTakeOver && !busy && data.pause !== undefined;
   const isPaused = view.paused === true;
@@ -199,7 +222,12 @@ export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "
 
   // the agent's cursor, the highlight on its field, and its steps: only while the full view shows a live page
   const watching = full && view.state === "open";
-  const ptr = usePolled<PointerView | null>(() => data.pointer?.(agentId), 400, watching && data.pointer !== undefined, null);
+  const ptr = usePolled<PointerView | null>(
+    () => data.pointer?.(agentId),
+    400,
+    watching && data.pointer !== undefined,
+    null,
+  );
   const steps = usePolled<DeskStep[]>(() => data.steps?.(agentId), 2500, watching && data.steps !== undefined, []);
   const [stage, setStage] = useState({ width: 0, height: 0 });
   const [clock, setClock] = useState(() => Date.now());
@@ -208,7 +236,7 @@ export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "
     const t = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(t);
   }, [watching]);
-  const drawn = watching && showsCursor(ptr, clock) && ptr ? drawnAt(ptr, stage) : null;
+  const drawn = watching && seen === null && showsCursor(ptr, clock) && ptr ? drawnAt(ptr, stage) : null;
 
   const e = edgesOf(mode, win);
   const head = browserHead(view);
@@ -275,7 +303,14 @@ export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "
                 </View>
               )}
               {drawn ? <AgentCursor drawn={drawn} name={name} /> : null}
-              {watching && steps.length > 0 ? <StepRing steps={steps} /> : null}
+              {seen !== null ? <Scrubbed step={seen} url={seenUrl} onLive={() => setSeen(null)} /> : null}
+              {watching && steps.length > 0 ? (
+                <StepRing
+                  steps={steps}
+                  picked={seen?.idx}
+                  onPick={(x) => setSeen((cur) => (cur?.idx === x.idx ? null : x))}
+                />
+              ) : null}
             </View>
             <View
               testID="desk-bar"
@@ -377,7 +412,10 @@ export function AgentCursor({ drawn, name }: { drawn: Drawn; name: string }): Re
       {drawn.ring ? (
         <View
           testID="agent-ring"
-          style={[st.ring, { left: drawn.ring.left, top: drawn.ring.top, width: drawn.ring.width, height: drawn.ring.height } as never]}
+          style={[
+            st.ring,
+            { left: drawn.ring.left, top: drawn.ring.top, width: drawn.ring.width, height: drawn.ring.height } as never,
+          ]}
         />
       ) : null}
       <View style={[st.cursor, { left: drawn.x, top: drawn.y } as never]}>
@@ -393,22 +431,42 @@ export function AgentCursor({ drawn, name }: { drawn: Drawn; name: string }): Re
 }
 
 /** The steps, small: a ring with how many the agent has taken, opening on hover or a press into the list of what it did, newest last. */
-export function StepRing({ steps }: { steps: readonly DeskStep[] }): ReactElement {
+export function StepRing({
+  steps,
+  picked,
+  onPick,
+}: {
+  steps: readonly DeskStep[];
+  picked?: number | undefined;
+  onPick?: (s: DeskStep) => void;
+}): ReactElement {
   const [hover, setHover] = useState(false);
   const [pinned, setPinned] = useState(false);
   const open = hover || pinned;
   const shown = steps.slice(-8);
   return (
-    <View testID="step-ring" style={st.ringBox} {...({ onMouseEnter: () => setHover(true), onMouseLeave: () => setHover(false) } as object)}>
+    <View
+      testID="step-ring"
+      style={st.ringBox}
+      {...({ onMouseEnter: () => setHover(true), onMouseLeave: () => setHover(false) } as object)}
+    >
       {open ? (
         <View testID="step-list" style={st.stepList}>
           {shown.map((x, i) => (
-            <View key={x.idx} style={[st.stepRow, i === shown.length - 1 && st.stepNow]}>
+            <Pressable
+              key={x.idx}
+              testID={`step-${x.idx}`}
+              accessibilityRole={x.frameFileId && onPick ? "button" : "text"}
+              disabled={!x.frameFileId || !onPick}
+              onPress={() => onPick?.(x)}
+              style={[st.stepRow, i === shown.length - 1 && st.stepNow, picked === x.idx && st.stepPicked]}
+              {...(x.frameFileId && onPick ? ({ title: "See the screen after this step" } as object) : {})}
+            >
               <View style={[st.stepDot, i === shown.length - 1 && st.stepDotNow]} />
               <Text style={st.stepText} numberOfLines={1}>
                 {x.caption || x.tool}
               </Text>
-            </View>
+            </Pressable>
           ))}
         </View>
       ) : null}
@@ -426,6 +484,50 @@ export function StepRing({ steps }: { steps: readonly DeskStep[] }): ReactElemen
         </View>
         <Icon name="check" size={13} color="#fff" />
       </Pressable>
+    </View>
+  );
+}
+
+/** The screen as it was after a step, over the live page, with the way back. While it is up the cursor is hidden: it points at the live page, not at this picture. */
+export function Scrubbed({
+  step,
+  url,
+  onLive,
+}: {
+  step: DeskStep;
+  url: string | null | undefined;
+  onLive: () => void;
+}): ReactElement {
+  return (
+    <View testID="scrubbed" style={st.scrub}>
+      {url ? (
+        <BlobImage
+          uri={url}
+          accessibilityLabel={`The screen after: ${step.caption}`}
+          testID="scrubbed-image"
+          resizeMode="contain"
+          style={st.scrubImg}
+        />
+      ) : (
+        <View style={st.scrubEmpty}>
+          <Text style={st.scrubEmptyText}>{url === null ? "That screen was not kept." : "Opening the screen"}</Text>
+        </View>
+      )}
+      <View style={st.scrubPill}>
+        <Icon name="watch" size={14} color="#fff" />
+        <Text style={st.scrubText} numberOfLines={1}>
+          {step.caption || step.tool}
+        </Text>
+        <Pressable
+          testID="scrub-live"
+          accessibilityRole="button"
+          accessibilityLabel="Back to live"
+          onPress={onLive}
+          style={st.scrubLive}
+        >
+          <Text style={st.scrubLiveText}>Back to live</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -596,14 +698,75 @@ const st = StyleSheet.create({
     transitionTimingFunction: "cubic-bezier(.3,.75,.2,1)",
     filter: "drop-shadow(0 3px 6px rgba(20,16,50,.35))",
   } as never,
-  cursorTag: { position: "absolute", left: 14, top: 16, backgroundColor: "var(--accent)" as string, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1 },
+  cursorTag: {
+    position: "absolute",
+    left: 14,
+    top: 16,
+    backgroundColor: "var(--accent)" as string,
+    borderRadius: 9,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+  },
   cursorName: { color: "var(--accent-ink)" as string, fontSize: 11.5, fontWeight: "600" },
   ringBox: { position: "absolute", left: 14, bottom: 14, alignItems: "flex-start", gap: 6 },
-  stepButton: { height: 40, paddingLeft: 5, paddingRight: 14, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(24,22,36,.86)" },
-  stepCount: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "var(--accent)" as string },
+  stepButton: {
+    height: 40,
+    paddingLeft: 5,
+    paddingRight: 14,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(24,22,36,.86)",
+  },
+  stepCount: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "var(--accent)" as string,
+  },
   stepCountText: { color: "#fff", fontSize: 12, fontWeight: "600" },
   stepList: { width: 288, padding: 8, borderRadius: 16, backgroundColor: "rgba(24,22,36,.92)", gap: 1 },
-  stepRow: { minHeight: 32, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, borderRadius: 10 },
+  stepRow: {
+    minHeight: 32,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  stepPicked: { backgroundColor: "var(--accent)" as string },
+  scrub: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "var(--sunk)" as string },
+  scrubImg: { flex: 1 },
+  scrubEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
+  scrubEmptyText: { color: "var(--ink-3)" as string, fontSize: 13 },
+  scrubPill: {
+    position: "absolute",
+    top: 14,
+    alignSelf: "center",
+    maxWidth: "80%",
+    height: 36,
+    paddingLeft: 14,
+    paddingRight: 5,
+    borderRadius: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(24,22,36,.88)",
+  },
+  scrubText: { color: "#fff", fontSize: 12.5, flexShrink: 1 },
+  scrubLive: {
+    height: 26,
+    paddingHorizontal: 12,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent)" as string,
+  },
+  scrubLiveText: { color: "var(--accent-ink)" as string, fontSize: 12, fontWeight: "600" },
   stepNow: { backgroundColor: "rgba(255,255,255,.14)" },
   stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,.35)" },
   stepDotNow: { backgroundColor: "#fff" },
