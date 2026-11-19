@@ -161,7 +161,11 @@ test("the context holds identity, where, skills, what the agent can do and the t
   assert.doesNotMatch(text("identity"), /your context folder/, "no context folder, no line");
   assert.match(text("where"), /Space: Northwind \(team\)\./);
   assert.match(text("here"), /threadId thr_1\. This is a chat called "Intake desk"\./);
-  assert.doesNotMatch(text("where"), /thr_1/, "which thread this is rides outside the shared prefix");
+  assert.doesNotMatch(
+    text("where"),
+    /threadId thr_1\. This is/,
+    "which thread this is rides outside the shared prefix",
+  );
   assert.match(text("where"), /talking with Maya Chen \(usr_maya; /);
   assert.match(text("where"), /Also here: Omar Haddad\./);
   assert.match(
@@ -537,7 +541,7 @@ test("an Ask or comment thread about a record, file, folder, automation or agent
   });
   const where = async (answers: Record<string, unknown>): Promise<string> =>
     (await createContextBuilder({ call: fake(answers).call, now: () => at }).build(input())).sections.find(
-      (s) => s.id === "where",
+      (s) => s.id === "here",
     )?.text ?? "";
   // records.get needs the type; a thread names only the record, so the Space's types are tried until one holds it
   const matter = {
