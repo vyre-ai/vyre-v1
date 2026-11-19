@@ -1,12 +1,13 @@
 // The host of connect in place. It sits above every place, holds at most one open flow, draws it as a sheet over the page the person is on and resolves the picker's promise when it ends.
 // The real flows live in sheets.tsx and load on first use (the Vault's Add an AI provider and Add item, mail.connect, connections.create).
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazyPart } from "../../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement, ReactNode } from "react";
 import type { ShellRuntime } from "../providers/runtime.tsx";
 import { ConnectCtx } from "./context.ts";
 import type { Connected, ConnectNeed } from "./model.ts";
 
-const Sheets = lazy(() => import("./sheets.tsx"));
+const Sheets = lazyPart(() => import("./sheets.tsx"));
 
 export interface FlowProps {
   rt: ShellRuntime;
