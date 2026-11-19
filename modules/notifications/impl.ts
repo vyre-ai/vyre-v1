@@ -227,6 +227,22 @@ function toAdmins(ctx: NotifCtx, line: Omit<SendIn, "to">): Promise<SendIn[]> {
 const healthTitle = (key: string): string =>
   (registry.health as ReadonlyArray<{ key: string; title?: string }>).find((h) => h.key === key)?.title ??
   (key || "A service");
+/**
+ * What an error said, as one short plain line for a notice: its first line only (never a stack), long token-like runs and bearer values taken out, at most 160 characters. The error text comes from the
+ * connector runtime, which already scrubs the secrets it holds; this is a second guard for what that did not know.
+ */
+export function plainReason(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const first = (raw.split(/\r?\n/)[0] ?? "").trim();
+  const clean = first
+    .replace(/\bBearer\s+\S+/gi, "Bearer …")
+    .replace(/\b(?:sk|pk|rk|whsec|xox[a-z]|ghp|gho|github_pat)[-_A-Za-z0-9]{8,}/g, "…")
+    .replace(/[A-Za-z0-9+/_=-]{32,}/g, "…")
+    .replace(/\s+at\s+\S+:\d+(:\d+)?\)?$/, "")
+    .trim()
+    .replace(/[.]+$/, "");
+  return clean.length > 160 ? `${clean.slice(0, 157)}...` : clean;
+}
 /** The events that file sync.attention, and what each names in its line. */
 const SYNC_ATTENTION: Readonly<Record<string, (p: Record<string, unknown>) => string>> = {
   "connection.needs_reconnect": (p) => `the ${String(p.connector ?? "")} connection`.replace("the  ", "a "),
@@ -437,6 +453,23 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
             collapseKey: `sync.attention:${e.name}:${String(p.deviceId ?? "")}`,
           }
         : undefined;
+    // a push that ran out of tries says why, in words a person can act on, and where to look: the line opens the type's Sync page, where the failed push is listed with its error
+    if (e.name === "sync.push_failed") {
+      const reason = plainReason(p.error);
+      const type = typeof p.type === "string" && p.type !== "" ? p.type : undefined;
+      return toAdmins(ctx, {
+        kind: "sync.attention",
+        subject: type ? { type: "record_type", id: type } : { type: "space", id: ctx.space },
+        title: `${device}: the app refused a change${reason ? ` (${reason})` : ""}`,
+        data: {
+          device: `${device}: the app refused a change${reason ? ` (${reason})` : ""}`,
+          ...(reason ? { reason } : {}),
+          ...(typeof p.outboxId === "string" ? { outboxId: p.outboxId } : {}),
+          ...(typeof p.syncTypeId === "string" ? { syncTypeId: p.syncTypeId } : {}),
+        },
+        collapseKey: `sync.attention:${e.name}:${id}`,
+      });
+    }
     return toAdmins(ctx, {
       kind: "sync.attention",
       subject: { type: "space", id: ctx.space },

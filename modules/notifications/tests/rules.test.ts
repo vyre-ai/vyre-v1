@@ -859,3 +859,43 @@ test("the top bar says who wants what for an agent's request, with no label in f
     "any other title keeps its label",
   );
 });
+
+test("a push that ran out of tries tells the admins why, in a short plain line with nothing secret in it, and where to look", async () => {
+  const h = harness();
+  const ctx = {
+    ...h.ctxFor(null, as(svc)),
+    call: async (cap: string) =>
+      cap === "access.roles.list"
+        ? { roles: [{ id: "rol_admin", name: "Admin", permissions: [] }] }
+        : { holders: [{ kind: "person", id: alice.id }] },
+  } as never;
+  const fan = consumers["notifications.fanout"];
+  const made = await fan.run(ctx, {
+    name: "sync.push_failed",
+    payload: {
+      syncTypeId: "syt_1",
+      type: "matter",
+      recordId: "rec_1",
+      outboxId: "out_9",
+      error:
+        "The app refused the request (422). Bearer sk_live_abcdefghijklmnopqrstuvwxyz0123456789\n    at pushOne (file:///srv/vyre/modules/sources/handlers/sync.ts:870:11)",
+      attempts: 3,
+    },
+  } as never);
+  assert.equal(made.length, 1);
+  const r = row(h, made[0]!);
+  assert.equal(r.kind, "sync.attention");
+  assert.match(String(r.title), /matter sync/);
+  assert.match(String(r.title), /the app refused a change \(The app refused the request \(422\)\. Bearer …\)/);
+  assert.doesNotMatch(String(r.title), /sk_live|at pushOne|\/srv\//, "no token and no stack in the line");
+  assert.equal(r.subject_type, "record_type", "the line opens the type's Sync page, where the failed push is listed");
+  assert.equal(r.subject_id, "matter");
+});
+
+test("plainReason keeps one short line and drops long tokens", async () => {
+  const { plainReason } = await import("../impl.ts");
+  assert.equal(plainReason(undefined), "");
+  assert.equal(plainReason("Email is invalid.\nsecond line"), "Email is invalid");
+  assert.ok(plainReason("x".repeat(400)).length <= 160);
+  assert.doesNotMatch(plainReason("token ghp_abcdefghijklmnop1234 refused"), /ghp_/);
+});
