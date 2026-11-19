@@ -92,7 +92,7 @@ const DESIGN = [
   { key: "stage3", title: "Done", order: 2, final: true, tasks: [], automations: [], exit: { requireTasks: false } },
 ];
 
-function sample(o: { actor?: string; failMove?: string } = {}) {
+function sample(o: { actor?: string; failMove?: string; gate?: boolean } = {}) {
   const ahead = { on: false };
   const base = createSampleRecords(space);
   const calls: { cap: string; input: Record<string, unknown> }[] = [];
@@ -141,6 +141,14 @@ function sample(o: { actor?: string; failMove?: string } = {}) {
       if (cap === "journeys.move_stage") {
         calls.push({ cap, input: i });
         if (o.failMove) throw new Error(o.failMove);
+        if (o.gate)
+          throw Object.assign(new Error("fields required"), {
+            details: {
+              reason: "fields_required",
+              toStage: "stage2",
+              fields: [{ key: "owner", title: "Owner", stage: "stage2", when: "enter" }],
+            },
+          });
         const cur = (base.replica.rows(`records:${JOURNEY.key}`) as unknown as RecordRow[]).find(
           (r) => r.id === i["recordId"],
         )!;
@@ -693,6 +701,33 @@ test("a call that never answers frees the board after its wait, and a second bar
     assert.equal(count(b.root, "stage2"), "2");
   } finally {
     (globalThis as { setTimeout: unknown }).setTimeout = realSet;
+    await b.stop();
+    restore();
+  }
+});
+
+test("the form on a card does not overwrite a card that changed while it was open", async () => {
+  const restore = installDom();
+  const s = sample({ gate: true });
+  const b = await mountBoard(s);
+  try {
+    await drag(b.root, "jr_2");
+    await over(b.root, "stage2");
+    await drop(b.root, "stage2");
+    await flush();
+    await flush();
+    assert.ok(find(b.root, "card-fields-jr_2"), "the form opens on the card");
+    s.ahead.on = true;
+    await typeInto(find(b.root, "gate-input-owner"), "usr_maya");
+    await press(find(b.root, "card-fields-save-jr_2"));
+    await flush();
+    assert.match(textOf(find(b.root, "card-fields-error-jr_2")), /It changed first/);
+    assert.deepEqual(
+      s.calls.filter((c) => c.cap === "records.update"),
+      [],
+      "nothing was written over it",
+    );
+  } finally {
     await b.stop();
     restore();
   }

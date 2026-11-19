@@ -171,6 +171,9 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
     if (el?.focus && active && !(active as { matches?: (s: string) => boolean }).matches?.("input,textarea"))
       el.focus();
   }, [focused]);
+  const cancelDrag = useRef<(() => void) | null>(null);
+  // a board that goes away mid-drag puts its lifted copy down
+  useEffect(() => () => cancelDrag.current?.(), []);
   const [hover, setHover] = useState(false);
   // a screen with no hover (a phone, a tablet) has no way to reveal the tick, so it is always drawn there
   const coarse =
@@ -348,7 +351,7 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
         if ((e.button ?? 0) !== 0) return;
         if (board.move.kind === "needs" || board.move.kind === "committing") return;
         if (e.target?.closest?.('input,textarea,button,a,[role="checkbox"]')) return;
-        beginPointerDrag(
+        cancelDrag.current = beginPointerDrag(
           { pointerType: e.pointerType ?? "mouse", pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY },
           e.currentTarget,
           {
@@ -363,7 +366,7 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
       // the same lift and put-down, for a caller that has no pointer
       onDragStart: lift,
       onDragEnd: end,
-      style: { width: "100%", touchAction: "manipulation", userSelect: "none" },
+      style: { width: "100%", touchAction: coarse ? "none" : "manipulation", userSelect: "none" },
     },
     card,
   );

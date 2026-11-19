@@ -97,3 +97,20 @@ test("Escape and a cancelled pointer put the card down without a drop; another p
   c.fire("pointercancel", { pointerId: 1 });
   assert.deepEqual(c.log, ["lift", "cancel", "end"]);
 });
+
+test("a mouse button let go outside the window ends the drag; a second pointer does not start a second drag", () => {
+  const r = rig(() => "prop");
+  const first = beginPointerDrag(down("mouse"), r.card, r.hooks, r.win);
+  const second = beginPointerDrag({ ...down("touch"), pointerId: 2 }, r.card, r.hooks, r.win);
+  assert.equal(second, first, "the drag that is under way is the only one");
+  r.fire("pointermove", { pointerId: 1, clientX: 300, clientY: 300, buttons: 1 });
+  r.fire("pointermove", { pointerId: 1, clientX: 320, clientY: 300, buttons: 0 });
+  assert.deepEqual(r.log, ["lift", "over:prop", "cancel", "end"]);
+  const again = rig(() => null);
+  beginPointerDrag(down("mouse"), again.card, again.hooks, again.win);
+  again.fire("pointerup", { pointerId: 1 });
+  const next = rig(() => null);
+  beginPointerDrag(down("mouse"), next.card, next.hooks, next.win);
+  next.fire("pointermove", { pointerId: 1, clientX: 300, clientY: 300, buttons: 1 });
+  assert.deepEqual(next.log, ["lift"], "a finished drag frees the next one");
+});

@@ -339,13 +339,28 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       say("Nothing to undo.");
       return;
     }
-    setToast(null);
     const list = p.top.moves;
     const rowsBack = list
       .map((m) => ({ m, row: rows.current[m.id], lane: lanes.find((l) => l.key === m.from) }))
       .filter((x) => x.row && x.lane);
+    // nothing is taken off the stack until the undo is really under way
+    if (rowsBack.length === 0) {
+      undo.current = pushUndo(undo.current, p.top);
+      say("Those cards are not on the board.");
+      return;
+    }
     if (rowsBack.length === 1) {
       const x = rowsBack[0]!;
+      if (mvRef.current.kind === "committing" || mvRef.current.kind === "needs") {
+        undo.current = pushUndo(undo.current, p.top);
+        say("One move at a time. Try again in a moment.");
+        return;
+      }
+      if (laneOfRow(field, x.row!, lanes).key === x.lane!.key) {
+        say("It is already there.");
+        return;
+      }
+      setToast(null);
       undoing.current = p.top;
       send({
         t: "start",
@@ -357,6 +372,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       });
       return;
     }
+    setToast(null);
     if (groupBusy.current || mvRef.current.kind === "committing" || mvRef.current.kind === "needs") {
       undo.current = pushUndo(undo.current, p.top);
       say("One move at a time. Try again in a moment.");
@@ -396,6 +412,12 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     if (m.kind !== "needs" || !field) return null;
     const row = rows.current[m.id];
     if (!row) return "That card is not on the board any more.";
+    // the card is read first: newer than the copy the form was opened on means someone got there first
+    const fresh = await data
+      .call("records.get", { type: ctx.type, recordId: row.id })
+      .then((o) => (o as { record?: RecordRow }).record ?? null)
+      .catch(() => null);
+    if (fresh && fresh.version !== row.version) return "It changed first. Look at the card and try again.";
     const res = await fillAndMove(data.call, {
       ...(ctx.journey ? { journeyId: ctx.journey.journeyId } : { plainField: field.key }),
       type: ctx.type,

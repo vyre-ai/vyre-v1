@@ -35,11 +35,14 @@ export interface Win {
   };
 }
 
+let current: (() => void) | null = null;
+
 export const MOUSE_SLOP = 5;
 export const TOUCH_SLOP = 8;
 export const HOLD_MS = 250;
 
 interface Ev {
+  buttons?: number;
   pointerId?: number;
   clientX?: number;
   clientY?: number;
@@ -54,6 +57,8 @@ export function beginPointerDrag(
   hooks: DragHooks,
   win: Win = globalThis as unknown as Win,
 ): () => void {
+  // one drag at a time: a second finger, or a pen beside a mouse, does not start another
+  if (current) return current;
   const touch = start.pointerType === "touch";
   let active = false;
   let done = false;
@@ -94,6 +99,7 @@ export function beginPointerDrag(
   };
   const stop = (): void => {
     done = true;
+    current = null;
     if (timer !== null) win.clearTimeout(timer);
     win.removeEventListener("pointermove", move as never);
     win.removeEventListener("pointerup", up as never);
@@ -105,6 +111,8 @@ export function beginPointerDrag(
   };
   const move = (e: Ev): void => {
     if (e.pointerId !== start.pointerId || done) return;
+    // the button was let go outside the window and the browser never said so
+    if (!touch && e.buttons === 0) return cancel();
     const x = e.clientX ?? 0;
     const y = e.clientY ?? 0;
     const dist = Math.abs(x - start.clientX) + Math.abs(y - start.clientY);
@@ -157,5 +165,6 @@ export function beginPointerDrag(
   win.addEventListener("pointercancel", cancel as never);
   win.addEventListener("keydown", key as never);
   if (touch) timer = win.setTimeout(activate, HOLD_MS);
+  current = cancel;
   return cancel;
 }
