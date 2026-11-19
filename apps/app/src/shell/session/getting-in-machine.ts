@@ -283,7 +283,7 @@ export type OverlayEvent<T = unknown, B = unknown> =
 export function overlayStep<T, B>(o: Overlay<T, B>, ev: OverlayEvent<T, B>): Overlay<T, B> {
   switch (ev.e) {
     case "enter":
-      return { ...o, home: false, trouble: null, browser: null };
+      return { ...o, home: false, reaching: null, busy: false, trouble: null, browser: null };
     case "leave-list":
       return { ...o, home: false };
     case "list":
@@ -300,5 +300,35 @@ export function overlayStep<T, B>(o: Overlay<T, B>, ev: OverlayEvent<T, B>): Ove
       return { ...o, trouble: null, reaching: null, home: false, browser: ev.browser };
     case "back":
       return { ...o, trouble: null, browser: null, home: ev.spaces ? true : o.home };
+  }
+}
+
+// ---- the gate's phase: what is open under the Getting in screens ----
+
+export type GatePhase<S> =
+  | { kind: "opening-personal" }
+  | { kind: "start-failed"; stored: S }
+  | { kind: "signin" }
+  | { kind: "shell"; stored: S };
+
+/** A saved Space is open (`in`; with none it is the sign-in, which is how a gate never carries a prior Space across an address change), nothing is open (`out`), this computer's own Space is
+ * starting (`opening`), or it did not start (`start-failed`: the saved sign-in is kept, Try again or Sign in). The one place the phase changes. */
+export type PhaseEvent<S> =
+  | { e: "in"; stored: S | null }
+  | { e: "out" }
+  | { e: "opening" }
+  | { e: "start-failed"; stored: S };
+
+export function phaseStep<S>(p: GatePhase<S>, ev: PhaseEvent<S>): GatePhase<S> {
+  switch (ev.e) {
+    case "in":
+      if (!ev.stored) return p.kind === "signin" ? p : { kind: "signin" };
+      return p.kind === "shell" && p.stored === ev.stored ? p : { kind: "shell", stored: ev.stored };
+    case "out":
+      return p.kind === "signin" ? p : { kind: "signin" };
+    case "opening":
+      return p.kind === "opening-personal" ? p : { kind: "opening-personal" };
+    case "start-failed":
+      return { kind: "start-failed", stored: ev.stored };
   }
 }

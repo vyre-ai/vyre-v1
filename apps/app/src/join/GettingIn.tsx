@@ -22,6 +22,7 @@ export function YourSpaces({
   reconnecting,
   onOpen,
   onAdd,
+  onBack,
 }: {
   rows: readonly SpaceRow[];
   /** The address of the row being reached again, quietly, after its first try got no answer. */ reconnecting?:
@@ -29,6 +30,8 @@ export function YourSpaces({
     | null;
   onOpen(row: SpaceRow): void;
   onAdd(): void;
+  /** Given when a Space is open underneath (the list was opened from its failed screen): Back returns to it as it was. */
+  onBack?: (() => void) | undefined;
 }): ReactElement {
   const sel = useRef(-1);
   useEffect(() => {
@@ -79,7 +82,7 @@ export function YourSpaces({
   }
   return (
     <JoinFrame>
-      <Panel>
+      <Panel {...(onBack ? { bar: <Bar onBack={onBack} cont={null} /> } : {})}>
         <Step id="your-spaces">
           <Title title="Your Spaces" />
           <View testID="your-spaces" accessibilityLabel="Your Spaces" style={{ gap: 6, marginTop: 22 }}>

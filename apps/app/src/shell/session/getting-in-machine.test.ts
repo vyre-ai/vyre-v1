@@ -8,6 +8,7 @@ import {
   exits,
   opening,
   overlayStep,
+  phaseStep,
   step,
   troubleKind,
 } from "./getting-in-machine.ts";
@@ -308,4 +309,34 @@ test("the model's moves into and out of Your Spaces, a trouble screen and the br
   );
   const b = overlayStep(o, { e: "browser", browser: 2 });
   assert.deepEqual([b.home, b.trouble, b.browser], [false, null, 2], "the browser screen replaces both");
+});
+
+test("the gate's phase: a Space opens, nothing is open, this computer's Space starts or fails to; the same stored value is not a new phase", () => {
+  type P = Parameters<typeof phaseStep<string>>[0];
+  const signin: P = { kind: "signin" };
+  const inA = phaseStep<string>(signin, { e: "in", stored: "a" });
+  assert.deepEqual(inA, { kind: "shell", stored: "a" });
+  assert.equal(phaseStep<string>(inA, { e: "in", stored: "a" }), inA, "no new phase for the same sign-in");
+  assert.deepEqual(phaseStep<string>(inA, { e: "in", stored: "b" }), { kind: "shell", stored: "b" });
+  assert.deepEqual(
+    phaseStep<string>(inA, { e: "in", stored: null }),
+    signin,
+    "no saved sign-in for the address: the sign-in, never the earlier Space",
+  );
+  assert.deepEqual(phaseStep<string>(inA, { e: "out" }), signin);
+  const opening: P = phaseStep<string>(signin, { e: "opening" });
+  assert.deepEqual(phaseStep<string>(opening, { e: "start-failed", stored: "a" }), {
+    kind: "start-failed",
+    stored: "a",
+  });
+  assert.deepEqual(
+    phaseStep<string>({ kind: "start-failed", stored: "a" }, { e: "in", stored: "a" }),
+    { kind: "shell", stored: "a" },
+    "Try again opens it",
+  );
+  assert.deepEqual(
+    phaseStep<string>({ kind: "start-failed", stored: "a" }, { e: "out" }),
+    signin,
+    "Sign in leaves the saved sign-in alone: that is the store's",
+  );
 });

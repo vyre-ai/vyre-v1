@@ -41,8 +41,8 @@ import {
   seenAgo,
 } from "../../join/failure.ts";
 import { InBrowser, NotAnswering, YourSpaces } from "../../join/GettingIn.tsx";
-import { OVERLAY_START, decideEntry, decideLanded, overlayStep } from "./getting-in-machine.ts";
-import type { Overlay } from "./getting-in-machine.ts";
+import { OVERLAY_START, decideEntry, decideLanded, overlayStep, phaseStep } from "./getting-in-machine.ts";
+import type { GatePhase, Overlay } from "./getting-in-machine.ts";
 import { rememberBrowserSpace, rememberSession, yourSpaces } from "./known-spaces.ts";
 import type { SpaceRow } from "./known-spaces.ts";
 import { spaceHost } from "../spaces/space-label.ts";
@@ -80,7 +80,6 @@ import type { OpenSessionOptions, RealSession } from "./session.ts";
 import {
   clearStored,
   lockName,
-  phaseForStoredAddress,
   readStored,
   readStoredPersonal,
   readStoredSessions,
@@ -125,11 +124,7 @@ interface Trouble {
 }
 const OFFLINE: Found = { kind: "offline" };
 
-type Phase =
-  | { kind: "opening-personal" }
-  | { kind: "start-failed"; stored: StoredSession }
-  | { kind: "signin" }
-  | { kind: "shell"; stored: StoredSession };
+type Phase = GatePhase<StoredSession>;
 const noHub = (): void => undefined;
 const hostOf = (baseUrl: string): string => baseUrl.replace(/^https?:\/\//, "").split(":")[0] ?? baseUrl;
 
@@ -1116,7 +1111,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     props.baseUrl === undefined ? spaceAddress() : props.baseUrl === null ? null : spaceEndpoint(props.baseUrl);
   const open = props.open ?? openRealSession;
   const onHub = props.onHub ?? noHub;
-  const [phase, setPhase] = useState<Phase>({ kind: "signin" });
+  const [phase, phaseDo] = useReducer(phaseStep<StoredSession>, { kind: "signin" } as Phase);
   const [ready, setReady] = useState(false);
   const [loadedAddress, setLoadedAddress] = useState<string | null | undefined>(undefined);
   const previousAddress = useRef<string | null | undefined>(undefined);
@@ -1182,15 +1177,15 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       url.searchParams.delete("pair");
       globalThis.history?.replaceState(null, "", url.pathname + url.search + (loc?.hash ?? ""));
       setDesktopRoute(phonePair);
-      setPhase({ kind: "signin" });
+      phaseDo({ e: "out" });
     } else if (baseUrl !== null && incoming?.kind === "join") {
       setDesktopRoute(incoming);
-      setPhase({ kind: "signin" });
+      phaseDo({ e: "out" });
     } else if (stored?.def.kind === "personal" && isLoopbackUrl(stored.baseUrl) && bridge) {
       const invoke = (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
       if (invoke) {
         let alive = true;
-        setPhase({ kind: "opening-personal" });
+        phaseDo({ e: "opening" });
         setLoadedAddress(baseUrl);
         setReady(true);
         void withinStart(
@@ -1203,22 +1198,22 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           .then(({ local, resumed }) => {
             if (alive) {
               setConnectedAddress(local.address);
-              setPhase({ kind: "shell", stored: resumed });
+              phaseDo({ e: "in", stored: resumed });
             }
           })
           .catch((failure: unknown) => {
             if (!alive) return;
             if (failure instanceof Error && failure.message === "Personal Space identity changed") {
-              setPhase({ kind: "signin" });
+              phaseDo({ e: "out" });
               setNotice(true);
-            } else setPhase({ kind: "start-failed", stored });
+            } else phaseDo({ e: "start-failed", stored });
           });
         return () => {
           alive = false;
         };
       }
-      setPhase(phaseForStoredAddress(stored));
-    } else setPhase(phaseForStoredAddress(stored));
+      phaseDo({ e: "in", stored });
+    } else phaseDo({ e: "in", stored });
     setLoadedAddress(baseUrl);
     setReady(true);
   }, [baseUrl, props.baseUrl, bridge, open, startTry]);
@@ -1243,7 +1238,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           setEntry(false);
           setPersonalClaim(null);
           setDesktopRoute({ kind: "signin", address: route.address });
-          setPhase({ kind: "signin" });
+          phaseDo({ e: "out" });
         }
         return;
       }
@@ -1258,7 +1253,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       setOtherAccount(false);
       setDesktopRoute(route);
       setNotice(false);
-      setPhase({ kind: "signin" });
+      phaseDo({ e: "out" });
     })
       .then((off) => {
         if (alive) unlisten = off;
@@ -1323,7 +1318,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     if (target.def.kind === "personal" && bridge) {
       const native = (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
       if (native) {
-        setPhase({ kind: "opening-personal" });
+        phaseDo({ e: "opening" });
         try {
           const local = await ensurePersonalSpace(native);
           if (local.spaceId !== target.def.spaceId || local.claimUrl)
@@ -1332,28 +1327,28 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         } catch {
           setConnectedAddress(target.baseUrl);
           setNotice(true);
-          setPhase({ kind: "signin" });
+          phaseDo({ e: "out" });
           return;
         }
       }
     }
     if (!activateAddress(chosen, true)) return;
     setConnectedAddress(chosen.baseUrl);
-    setPhase({ kind: "shell", stored: chosen });
+    phaseDo({ e: "in", stored: chosen });
   };
   // One saved Space, entered as it was left: this computer's Personal Space is verified at the port it runs on now; any other opens at its own address.
   const enterSaved = async (target: StoredSession): Promise<void> => {
     let chosen = target;
     const native = (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
     if (target.def.kind === "personal" && isLoopbackUrl(target.baseUrl) && bridge && native) {
-      setPhase({ kind: "opening-personal" });
+      phaseDo({ e: "opening" });
       try {
         const local = await withinStart(ensurePersonalSpace(native));
         if (local.spaceId !== target.def.spaceId || local.claimUrl) throw new Error("Personal Space identity changed");
         chosen = await resumePersonal(local, target, open);
       } catch {
         setConnectedAddress(target.baseUrl);
-        setPhase({ kind: "signin" });
+        phaseDo({ e: "out" });
         return;
       }
     }
@@ -1362,7 +1357,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     giDo({ e: "enter" });
     setDesktopRoute(null);
     setConnectedAddress(chosen.baseUrl);
-    setPhase({ kind: "shell", stored: chosen });
+    phaseDo({ e: "in", stored: chosen });
   };
   // Signing out of one Space never signs out of the others (owner, 10 Nov): that Space's sign-in shows, its key alone is forgotten, and Back opens the next saved Space as it was.
   const signedOut = (why?: "manual" | "key", selected?: string): void => {
@@ -1373,7 +1368,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     if (rest.length === 0) forgetKey();
     setReturnSession(rest[0] ?? null);
     setNotice(why === "key" ? KEY_READY_LINE : why !== "manual");
-    setPhase({ kind: "signin" });
+    phaseDo({ e: "out" });
   };
   const signedIn = useCallback(
     (stored: StoredSession) => {
@@ -1382,7 +1377,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       giDo({ e: "enter" });
       setSignInAs(undefined);
       setReturnSession(null);
-      setPhase({ kind: "shell", stored });
+      phaseDo({ e: "in", stored: stored });
     },
     [returnSession],
   );
@@ -1393,7 +1388,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     giDo({ e: "enter" });
     setReturnSession(null);
     setDesktopRoute((route) => consumeDesktopRoute(route));
-    setPhase({ kind: "shell", stored });
+    phaseDo({ e: "in", stored: stored });
   }, []);
 
   const page = (): Location | undefined => (globalThis as { location?: Location }).location;
@@ -1461,7 +1456,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     setConnectedAddress(target.address);
     setDesktopRoute(target);
     setNotice(false);
-    setPhase({ kind: "signin" });
+    phaseDo({ e: "out" });
   };
   /**
    * The one address box (and every link handed to the app): find what is at the address, quietly asking again before saying anything, then go the way that fits. It rejects with the line
@@ -1509,12 +1504,17 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     await enterTarget(target);
   };
   /** Try again on the screen for a Space that did not answer: asked again (quietly, more than once), then in, or the same screen with what is true now. */
+  const troubleNow = useRef(trouble);
+  troubleNow.current = trouble;
   const retryTrouble = async (): Promise<void> => {
     const t = trouble;
     if (!t || troubleBusy) return;
+    const stillHere = (): boolean => troubleNow.current === t;
     giDo({ e: "busy", on: true });
     const found = await findSpaceQuietly(t.target.address).catch(() => OFFLINE);
     giDo({ e: "busy", on: false });
+    // the person went Back (or on elsewhere) while the Space was being asked: the answer is for a screen that is gone
+    if (!stillHere()) return;
     if (found.kind !== "direct") {
       landed(t.target, found, t.stored);
       return;
@@ -1675,7 +1675,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       }
       await new Promise((r) => setTimeout(r, 500));
     }
-    setPhase({ kind: "signin" });
+    phaseDo({ e: "out" });
   };
   const existingScreen = invoke
     ? (back: () => void): ReactElement => (
@@ -1747,7 +1747,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     if (spaces) return;
     setConnectedAddress(null);
     setDesktopRoute(null);
-    setPhase({ kind: "signin" });
+    phaseDo({ e: "out" });
   };
   if (personalClaim)
     return (
@@ -1797,7 +1797,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
             setConnectedAddress(previous.baseUrl);
             consumeBrowserInvite();
             setDesktopRoute(null);
-            setPhase({ kind: "shell", stored: previous });
+            phaseDo({ e: "in", stored: previous });
           }
           setReturnSession(null);
         }}
@@ -1869,7 +1869,51 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       </SpaceImageContext.Provider>
     );
   }
-  if (home && rows.length > 0) return spacesScreen;
+  const renderShell = (phase: Extract<Phase, { kind: "shell" }>): ReactElement => (
+    <KeyGate
+      baseUrl={phase.stored.baseUrl}
+      token={phase.stored.token}
+      name={lockName(phase.stored)}
+      onSignOut={() => signedOut("manual", phase.stored.baseUrl)}
+      onForgot={() => setForgot(true)}
+    >
+      <Suspense fallback={<View style={styles.fill} />}>
+        <SignedInShell
+          key={`${phase.stored.baseUrl}${phase.stored.personId}:${shellTry}`}
+          stored={phase.stored}
+          open={open}
+          onUnreachable={() => shellUnreachable(phase.stored)}
+          onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)}
+          onHub={onHub}
+          voice={props.voice}
+          onSwitchSpace={(id) => void switchSpace(id)}
+          onYourSpaces={() => giDo({ e: "list" })}
+          onAddSpace={() => {
+            setReturnSession(phase.stored);
+            setEntryStart("choice");
+            setEntry(true);
+          }}
+        />
+      </Suspense>
+    </KeyGate>
+  );
+  // Your Spaces over a shell that is open (from the screen for a Space that would not load): the shell stays mounted underneath, so Back returns to the same tabs, drafts and place
+  if (home && rows.length > 0) {
+    if (phase.kind === "shell" && !forgot)
+      return (
+        <>
+          <View style={{ display: "none" }}>{renderShell(phase)}</View>
+          <YourSpaces
+            rows={rows}
+            reconnecting={reaching}
+            onOpen={(row) => void openRow(row)}
+            onAdd={addSpace}
+            onBack={() => giDo({ e: "leave-list" })}
+          />
+        </>
+      );
+    return spacesScreen;
+  }
   if (phase.kind === "opening-personal") return <Opening testID="opening-personal" />;
   // Sign in from here keeps the saved session: the next launch, or Try again, still opens it (a Space that did not start is no reason to forget a sign-in)
   if (phase.kind === "start-failed")
@@ -1877,7 +1921,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       <StartFailed
         onRetry={() => setStartTry((n) => n + 1)}
         onSignIn={() => {
-          setPhase({ kind: "signin" });
+          phaseDo({ e: "out" });
           setConnectedAddress(null);
         }}
       />
@@ -1898,35 +1942,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         />
       </SpaceImageContext.Provider>
     );
-  if (phase.kind === "shell")
-    return (
-      <KeyGate
-        baseUrl={phase.stored.baseUrl}
-        token={phase.stored.token}
-        name={lockName(phase.stored)}
-        onSignOut={() => signedOut("manual", phase.stored.baseUrl)}
-        onForgot={() => setForgot(true)}
-      >
-        <Suspense fallback={<View style={styles.fill} />}>
-          <SignedInShell
-            key={`${phase.stored.baseUrl}${phase.stored.personId}:${shellTry}`}
-            stored={phase.stored}
-            open={open}
-            onUnreachable={() => shellUnreachable(phase.stored)}
-            onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)}
-            onHub={onHub}
-            voice={props.voice}
-            onSwitchSpace={(id) => void switchSpace(id)}
-            onYourSpaces={() => giDo({ e: "list" })}
-            onAddSpace={() => {
-              setReturnSession(phase.stored);
-              setEntryStart("choice");
-              setEntry(true);
-            }}
-          />
-        </Suspense>
-      </KeyGate>
-    );
+  if (phase.kind === "shell") return renderShell(phase);
   if (desktopRoute?.kind === "pair")
     return (
       <DesktopPairScreen

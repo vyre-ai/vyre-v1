@@ -4,10 +4,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { installDom, mount, find, flush, press, typeInto } from "../../onboarding/test-dom.ts";
+import { act } from "react";
+import { installDom, find, flush, press, typeInto } from "../../onboarding/test-dom.ts";
 import type { Node } from "../../../../../ui/src/testing/dom.ts";
 import { setQuietWaitsForTests } from "../../../../../client/src/gateway/find-space.ts";
 import { SessionGate } from "./SessionGate.tsx";
+import { readStoredSessions, writeStored } from "./stored.ts";
+import type { StoredSession } from "./stored.ts";
+import { NORTHWIND } from "../spaces/model.ts";
 
 const g = globalThis as {
   requestAnimationFrame?: (f: (t: number) => void) => number;
@@ -38,17 +42,58 @@ const json = (status: number, body: unknown): Response =>
     headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*" },
   });
 const OPTIONS = {
-  data: { name: "Northwind", fingerprint: "ab12cd34", password: true, github: false, sso: [], secondFactorRequired: false },
+  data: {
+    name: "Northwind",
+    fingerprint: "ab12cd34",
+    password: true,
+    github: false,
+    sso: [],
+    secondFactorRequired: false,
+  },
 };
 const HEALTH = { ok: true, version: "1.0.0-rc.41", roles: ["space"], space: "spc_01NORTH", head: 1, startedAt: 1 };
 const KNOWN = {
   spaces: [
-    { address: "https://northwind.example", name: "Northwind", spaceId: "spc_01NORTH", kind: "team", person: "Imran Ibarra", username: "imran", via: "app", usedAt: 2000 },
+    {
+      address: "https://northwind.example",
+      name: "Northwind",
+      spaceId: "spc_01NORTH",
+      kind: "team",
+      person: "Imran Ibarra",
+      username: "imran",
+      via: "app",
+      usedAt: 2000,
+    },
     { address: "https://lakeside.vyre.run", name: "Lakeside", via: "browser", usedAt: 1000 },
   ],
 };
-const OTHER_KEY = "vyre.test.saved-sign-in";
-const SAVED = JSON.stringify({ note: "a saved sign-in belongs to storage.ts; nothing in this walk may touch it" });
+/** A real saved sign-in, written by the app's own store: the walk presses its row and the Space goes down under it, and it must be there, byte for byte, after every step. */
+const SAVED_SESSION: StoredSession = {
+  baseUrl: "https://northwind.example",
+  token: "vds_fixture",
+  def: { ...NORTHWIND, spaceId: "spc_01NORTH", name: "Northwind" },
+  personId: "per_imran",
+  marker: "ab12",
+  username: "imran",
+  displayName: "Imran Ibarra",
+};
+
+/** The gate in a test root that can be taken down: a shell left mounted keeps timers that hold the test process open. */
+async function mountGate(): Promise<{ root: Node; stop: () => Promise<void> }> {
+  const r = createRoot();
+  await act(async () => {
+    r.render(<SessionGate baseUrl={null} />);
+  });
+  await flush();
+  return {
+    root: r.container as unknown as Node,
+    stop: async () => {
+      await act(async () => {
+        r.unmount();
+      });
+    },
+  };
+}
 
 function rng(seed: number): () => number {
   let x = seed >>> 0 || 1;
@@ -71,6 +116,8 @@ const SCREENS: { screen: string; exits: string[] }[] = [
   { screen: "space-entry-address", exits: ["space-entry-continue", "back"] },
   { screen: "door-me", exits: ["door-existing", "door-invited"] },
   { screen: "opening-personal", exits: [] },
+  // a saved Space that opened its shell and could not reach its server: Try again, and the way to Your Spaces
+  { screen: "state-error", exits: ["state-retry", "state-second"] },
 ];
 const PRESSES = [
   "your-space-0",
@@ -80,6 +127,8 @@ const PRESSES = [
   "not-answering-browser",
   "in-browser-again",
   "back",
+  "state-retry",
+  "state-second",
   "door-invited",
   "door-existing",
 ];
@@ -94,21 +143,28 @@ test("the real gate, 6 walks of 8 random steps: never a dead end, every Space st
       const r = rng(seed * 7919);
       const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)]!;
       installDom();
-      const m = new Map<string, string>([
-        ["vyre.spaces.v1", JSON.stringify(KNOWN)],
-        [OTHER_KEY, SAVED],
-      ]);
+      const m = new Map<string, string>([["vyre.spaces.v1", JSON.stringify(KNOWN)]]);
       g.localStorage = {
         getItem: (k: string) => m.get(k) ?? null,
         setItem: (k: string, v: string) => void m.set(k, v),
         removeItem: (k: string) => void m.delete(k),
       };
+      const kv = g.localStorage as Parameters<typeof writeStored>[1];
+      writeStored(SAVED_SESSION, kv);
+      const savedBefore = JSON.stringify(readStoredSessions(kv));
+      assert.ok(savedBefore.includes("vds_fixture"), "the saved sign-in is in the store the app reads");
       Object.assign(globalThis, {
         __TAURI__: {
           core: {
             invoke: async (c: string) =>
               c === "desktop_info"
-                ? { app: "Vyre", version: "1.0.0-rc.41", platform: "macos", arch: "aarch64", sidecar: { phase: "ready", url: null, version: "1.0.0-rc.41", restarts: 0, error: null } }
+                ? {
+                    app: "Vyre",
+                    version: "1.0.0-rc.41",
+                    platform: "macos",
+                    arch: "aarch64",
+                    sidecar: { phase: "ready", url: null, version: "1.0.0-rc.41", restarts: 0, error: null },
+                  }
                 : null,
           },
           event: { listen: async () => () => undefined },
@@ -125,16 +181,26 @@ test("the real gate, 6 walks of 8 random steps: never a dead end, every Space st
         if (url.hostname.endsWith(".vyre.run") && url.pathname === "/__vyre/info.json") {
           const name = url.hostname.split(".")[0]!;
           if (name === "lakeside" && world.lakeside !== "gone")
-            return json(200, { name, label: "Lakeside", route: "r1", relay: "wss://relay.vyre.run", online: world.lakeside === "awake" });
+            return json(200, {
+              name,
+              label: "Lakeside",
+              route: "r1",
+              relay: "wss://relay.vyre.run",
+              online: world.lakeside === "awake",
+            });
           if (name !== "lakeside") return json(404, { name, held: false });
         }
-        if (init?.mode === "no-cors" && world.lakeside !== "gone" && url.hostname.endsWith(".vyre.run")) return new Response(null, { status: 200 });
+        if (init?.mode === "no-cors" && world.lakeside !== "gone" && url.hostname.endsWith(".vyre.run"))
+          return new Response(null, { status: 200 });
         throw new TypeError("Failed to fetch");
       }) as typeof fetch;
 
       const log: string[] = [];
+      let stop: () => Promise<void> = async () => undefined;
       try {
-        const root = await mount(createRoot, <SessionGate baseUrl={null} />);
+        const gate = await mountGate();
+        stop = gate.stop;
+        const root = gate.root;
         const settle = async (): Promise<void> => {
           for (let i = 0; i < 6; i++) await flush();
           await new Promise((res) => setTimeout(res, 5));
@@ -179,18 +245,72 @@ test("the real gate, 6 walks of 8 random steps: never a dead end, every Space st
             ["https://lakeside.vyre.run", "https://northwind.example"],
             `${where}: a Space left the list`,
           );
-          assert.equal(m.get(OTHER_KEY), SAVED, `${where}: the saved sign-in changed`);
+          assert.equal(JSON.stringify(readStoredSessions(kv)), savedBefore, `${where}: the saved sign-in changed`);
         }
+      } catch (e) {
+        console.error(`WALK FAILED: ${e instanceof Error ? e.message : String(e)}`);
+        throw e;
       } finally {
+        await stop();
         delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
         delete g.localStorage;
       }
     }
-    for (const screen of ["your-spaces", "step-not-answering", "si-user"])
+    for (const screen of ["your-spaces", "step-not-answering", "step-in-browser"])
       assert.ok(visited.has(screen), `the walks never reached ${screen}: ${[...visited].join(", ")}`);
   } finally {
     restore();
     g.fetch = realFetch;
     g.open = realOpen;
+  }
+});
+
+test("a saved Space that answers its health check but fails its calls: Your Spaces opens over it and Back returns to the same failed screen; the saved sign-in is never touched", async () => {
+  const realFetch = g.fetch;
+  const restore = setQuietWaitsForTests([1, 1]);
+  let stopSecond: () => Promise<void> = async () => undefined;
+  try {
+    installDom();
+    const m = new Map<string, string>([["vyre.spaces.v1", JSON.stringify(KNOWN)]]);
+    g.localStorage = {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, v),
+      removeItem: (k: string) => void m.delete(k),
+    };
+    const kv = g.localStorage as Parameters<typeof writeStored>[1];
+    writeStored(SAVED_SESSION, kv);
+    const before = JSON.stringify(readStoredSessions(kv));
+    g.fetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/healthz") return json(200, HEALTH);
+      throw new TypeError("Failed to fetch");
+    }) as typeof fetch;
+    const gate = await mountGate();
+    stopSecond = gate.stop;
+    const root = gate.root;
+    const until = async (id: string): Promise<Node> => {
+      const end = Date.now() + 8000;
+      for (;;) {
+        const n = find(root, id);
+        if (n) return n;
+        if (Date.now() > end) throw new Error(`${id} never showed`);
+        await flush();
+      }
+    };
+    await press(await until("your-space-0"));
+    await until("state-second");
+    assert.ok(find(root, "state-retry"), "Try again is beside it");
+    await press(find(root, "state-second"));
+    await until("your-spaces");
+    await press(await until("back"));
+    await until("state-second");
+    assert.equal(find(root, "your-spaces"), null, "Back leaves the list");
+    assert.equal(JSON.stringify(readStoredSessions(kv)), before, "the saved sign-in is untouched");
+  } finally {
+    await stopSecond();
+    restore();
+    g.fetch = realFetch;
+    delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
+    delete g.localStorage;
   }
 });

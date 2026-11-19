@@ -9,3 +9,5 @@ Every way in asks again quietly before it says anything: the screen says Reconne
 For the relay (takes effect when the relay is next deployed): any page may ask what a vyre.run name is, so a wrong name and a sleeping Space read differently everywhere; and the relay's own page for a device with no key takes the invite or Space link in a box instead of saying to go and find it, with Try again where it could not start.
 
 Getting in is one explicit state machine: from every screen there is a press that moves on and a path to a Space, and a saved sign-in is removed only by signing out, by the Space saying the session ended, or by clearing the browser's own storage. Being offline, slow, asleep, moved or open in two tabs never removes one.
+
+A Space that opens but cannot load its pages now offers Your Spaces beside Try again. Your Spaces opens over the Space, which stays as it was: Back returns to the same screen, and the saved sign-in is never touched. The same extra way out is available to every error screen that needs one.

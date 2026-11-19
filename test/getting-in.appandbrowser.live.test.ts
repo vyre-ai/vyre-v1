@@ -51,16 +51,19 @@ test("the desktop app and a browser on one Space: each keeps its own sign-in, an
       await app.reload();
       await app.getByTestId("shell").waitFor({ timeout: 30_000 });
     });
-    await t.test("3 signed out in the app: Your Spaces lists the Space; the browser signs in again untouched", async () => {
-      await signOut(app);
-      await app.getByTestId("back").click();
-      await app.getByTestId("your-spaces").waitFor({ timeout: 15_000 });
-      assert.match(await app.getByTestId("your-space-0").innerText(), /Fresh Co\s+Sign in/);
-      await web1.getByTestId("si-password").fill(PASSWORD);
-      await web1.getByTestId("next").click();
-      await web1.getByTestId("shell").waitFor({ timeout: 30_000 });
-      await shoot(app, "32-app-signed-out-your-spaces");
-    });
+    await t.test(
+      "3 signed out in the app: Your Spaces lists the Space; the browser signs in again untouched",
+      async () => {
+        await signOut(app);
+        await app.getByTestId("back").click();
+        await app.getByTestId("your-spaces").waitFor({ timeout: 15_000 });
+        assert.match(await app.getByTestId("your-space-0").innerText(), /Fresh Co\s+Sign in/);
+        await web1.getByTestId("si-password").fill(PASSWORD);
+        await web1.getByTestId("next").click();
+        await web1.getByTestId("shell").waitFor({ timeout: 30_000 });
+        await shoot(app, "32-app-signed-out-your-spaces");
+      },
+    );
     assert.deepEqual(errors, [], "no page error in the app or the browser");
   } finally {
     await browser.close();
