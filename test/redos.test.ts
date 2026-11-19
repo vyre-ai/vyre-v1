@@ -438,6 +438,20 @@ test("a style rewrite cannot break out of its attribute (both quote kinds, entit
   assert.equal(cleanHtml(`<p style="font-family:'Segoe UI'">t</p>`), `<p style="font-family:'Segoe UI'">t</p>`);
 });
 
+test("r-review-41's original style breakout string stays closed", () => {
+  for (const q of ["&#39;", "&apos;", "&#x27;"]) {
+    const out = cleanHtml(
+      `<div style='color:red;background:url(javascript:1);${q} onmouseover=alert(1) x=${q}'>hi</div>`,
+    );
+    assert.deepEqual(
+      scanTag(out, 0).attrs.map((a) => a.name),
+      ["style"],
+      out,
+    );
+    assert.match(out, />hi<\/div>$/);
+  }
+});
+
 test("asked: an address pattern reads a long word once (lib/asked.ts)", () => {
   assert.deepEqual(
     askedIn("Please email the report to lee@acme.test").map((a) => `${a.act}:${a.target}`),
