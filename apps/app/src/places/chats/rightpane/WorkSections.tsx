@@ -12,7 +12,7 @@ import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/
 import { dayMonth } from "./model.ts";
 import { Icon, LeadIcon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
-import { BrowserSheet } from "./BrowserSheet.tsx";
+import { deskOpen, useDesk } from "./desk-store.ts";
 import { TerminalSheet } from "./TerminalSheet.tsx";
 import { NO_COMPUTER_LINE, noComputerFor } from "./TerminalPaneTab.tsx";
 import { PreviewImage } from "./PreviewImage.tsx";
@@ -142,7 +142,9 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   const ws = useWatched<WorkspaceView>(data.workspace, agentId);
   const br = useWatched<BrowserView>(data.browser, agentId);
   const [busy, setBusy] = useState(false);
-  const [sheet, setSheet] = useState(false);
+  // the browser opens in the desk (desk-store.ts): a full view that can shrink to a small live picture and stays when this tab is left; this tab only asks for it
+  const desk = useDesk();
+  const sheet = desk.session?.agentId === agentId && desk.state.mode === "full";
   const [termSheet, setTermSheet] = useState<string | null>(null);
   // no computer can open a terminal here (the same fact the released Terminal tab answered with its one line), and the one line why a press did not open
   const [noComputer, setNoComputer] = useState(false);
@@ -468,7 +470,17 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
             view={v}
             name={name}
             caption={caption}
-            onOpen={() => setSheet(true)}
+            onOpen={() => {
+              if (data.browser)
+                deskOpen({
+                  agentId,
+                  name,
+                  data: data.browser,
+                  call: data.call,
+                  note: deps.note,
+                  threadId: data.threadId,
+                });
+            }}
             offline={!online}
             onRestart={() => run(() => data.browser!.open(agentId))}
             live={
@@ -521,16 +533,6 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   return (
     <View style={st.fill}>
       <PaneList entries={entries} {...(window ? { window } : {})} testID="work-list" />
-      {sheet && br.status === "ready" && data.browser ? (
-        <BrowserSheet
-          agentId={agentId}
-          name={name}
-          view={br.view}
-          data={data.browser}
-          onClose={() => setSheet(false)}
-          onNote={deps.note}
-        />
-      ) : null}
       {termSheet !== null && data.terminal ? (
         <TerminalSheet
           data={data.terminal}

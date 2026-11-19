@@ -15,6 +15,7 @@ export interface BrowserRowLike {
   viewers: number;
   lastActiveAt?: number | undefined;
   takeoverBy?: string | undefined;
+  pausedBy?: string | undefined;
   paired: boolean;
   access: "owner" | "admin" | "viewer";
 }
@@ -47,6 +48,7 @@ export function browserView(
   return {
     ...base,
     state: r.running ? "open" : "closed",
+    ...(r.running && r.pausedBy ? { paused: true, pausedBy: r.pausedBy === d.me ? "You" : d.nameOf(r.pausedBy) } : {}),
     ...(!r.running && r.lastActiveAt !== undefined ? { lastActiveAt: r.lastActiveAt } : {}),
     ...(r.running ? { tabs: r.tabs, ...(r.busy ? { caption: "Working in it now" } : {}) } : {}),
   };
@@ -143,6 +145,15 @@ export function browserData(d: {
     },
     takeOver: (agentId) => act("computers.browser.take_over", agentId),
     giveBack: (agentId) => act("computers.browser.give_back", agentId),
+    pause: (agentId) => act("computers.browser.pause", agentId),
+    async resume(agentId, o) {
+      try {
+        await d.call("computers.browser.resume", { agentId, ...(o?.stopped === true ? { stopped: true } : {}) });
+      } catch (e) {
+        throw new Error(sentence(e));
+      }
+      for (const r of refreshers) r();
+    },
     async signOut(agentId, site) {
       try {
         await d.call("computers.browser.sign_out", { agentId, site });

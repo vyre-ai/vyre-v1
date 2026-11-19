@@ -81,6 +81,9 @@ export interface BrowserView {
   /** Takeover: who has the controls, by name; `mine` when it is the person looking. */
   takenBy?: string;
   mine?: boolean;
+  /** Open and paused by a person: the agent's next browser step waits for Resume. `pausedBy`: who, by name. */
+  paused?: boolean;
+  pausedBy?: string;
   /** May this person see its live view and take over? Owner and admin for a team agent; the owner alone for a personal agent. */
   canTakeOver: boolean;
   cannotTakeOver?: string;
@@ -93,6 +96,10 @@ export interface BrowserData {
   open(agentId: string): Promise<void>;
   takeOver(agentId: string): Promise<void>;
   giveBack(agentId: string): Promise<void>;
+  /** Hold the agent's next browser step until Resume (nothing is spent while it waits). */
+  pause?(agentId: string): Promise<void>;
+  /** `stopped`: the agent was stopped while paused, so the step that waits does not run at all. */
+  resume?(agentId: string, o?: { stopped?: boolean }): Promise<void>;
   signOut(agentId: string, site: string): Promise<void>;
   /** The live view, drawn by the Space browser (Chrome's screencast and input). Absent: a picture of a browser window stands in. */
   renderLive?(agentId: string, o: { state: BrowserState; control: boolean }): ReactElement;

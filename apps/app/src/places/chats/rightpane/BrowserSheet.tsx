@@ -147,7 +147,7 @@ interface Bar {
   title: string;
   note?: string;
   tone: "quiet" | "wait" | "bad";
-  action: "take" | "give" | "restart" | null;
+  action: "take" | "give" | "restart" | "resume" | null;
 }
 export function barOf(v: BrowserView, name: string, mine: boolean, elapsedMs: number): Bar {
   if (v.state === "closed" || v.state === "starting")
@@ -159,6 +159,8 @@ export function barOf(v: BrowserView, name: string, mine: boolean, elapsedMs: nu
     return mine
       ? { title: "You have the browser", note: `${name}'s actions wait.`, tone: "quiet", action: "give" }
       : { title: `${v.takenBy ?? "Someone"} has the browser`, tone: "wait", action: null };
+  if (v.paused === true && v.canTakeOver)
+    return { title: "Paused", note: `${name}'s next step waits.`, tone: "wait", action: "resume" };
   if (!v.canTakeOver)
     return {
       title: "You can watch.",

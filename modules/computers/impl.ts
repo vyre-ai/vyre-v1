@@ -1140,7 +1140,7 @@ export const hostCalls = {
     tryRun(ctx.db, "DELETE FROM computers_recordings WHERE agent_id = ?", i.agentId);
     tryRun(ctx.db, "DELETE FROM computers_migration WHERE agent_id = ?", i.agentId);
     tryRun(ctx.db, "DELETE FROM computers_computers WHERE agent_id = ?", i.agentId);
-    for (const t of ["computers_browser_gone", "computers_browser_hold"])
+    for (const t of ["computers_browser_gone", "computers_browser_hold", "computers_browser_pause"])
       tryRun(ctx.db, `DELETE FROM ${t} WHERE profile_id = ?`, profile ?? i.agentId);
     return {};
   },

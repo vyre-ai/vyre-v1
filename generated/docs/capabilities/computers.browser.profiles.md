@@ -41,6 +41,7 @@ type Out = {
       state: "running" | "asleep" | "waiting" | "error";
       line?: string;
       takeoverBy?: string;
+      pausedBy?: string;
       paired: boolean;
       access: "owner" | "admin" | "viewer";
     }>;
@@ -78,6 +79,7 @@ type Out = {
         "lastActiveAt": 1760000000000,
         "line": "example",
         "paired": true,
+        "pausedBy": "usr_a1b2c3",
         "running": true,
         "state": "running",
         "tabs": 1,

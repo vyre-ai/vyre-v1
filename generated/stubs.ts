@@ -568,8 +568,10 @@ export function stubs(ctx: CallCtx) {
       browser: {
         give_back: call("computers.browser.give_back"),
         my_sign_ins: call("computers.browser.my_sign_ins"),
+        pause: call("computers.browser.pause"),
         preview: call("computers.browser.preview"),
         profiles: call("computers.browser.profiles"),
+        resume: call("computers.browser.resume"),
         sessions: call("computers.browser.sessions"),
         sign_out: call("computers.browser.sign_out"),
         stream: call("computers.browser.stream"),

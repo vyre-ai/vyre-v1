@@ -36,8 +36,8 @@ const OURS = [
   "computers.skill_from_step",
 ];
 
-test("the handler table holds the lifecycle capabilities, the 35 tools and the ten of the Space browser (list, live view, a still picture, warm, take over, give back, timeline, sites, sign out, my sign-ins): all 69 computers capabilities, nothing else", () => {
-  assert.equal(mine.length, 69);
+test("the handler table holds the lifecycle capabilities, the 35 tools and the twelve of the Space browser (list, live view, a still picture, warm, pause, resume, take over, give back, timeline, sites, sign out, my sign-ins): all 71 computers capabilities, nothing else", () => {
+  assert.equal(mine.length, 71);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const name of OURS) assert.ok(h[name], name);
   // the eighth of the Space browser: the still picture is a read that never writes and never wakes the browser (its handler answers "asleep" for a sleeping one), at the watch permission

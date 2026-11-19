@@ -10519,6 +10519,7 @@ export type ComputersBrowserGiveBackOut = {
     state: "running" | "asleep" | "waiting" | "error";
     line?: string;
     takeoverBy?: string;
+    pausedBy?: string;
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
@@ -10535,6 +10536,25 @@ export type ComputersBrowserMySignInsOut = {
       since: number;
       lastSeen: number;
     }>;
+};
+export type ComputersBrowserPauseIn = {
+  agentId: string;
+};
+export type ComputersBrowserPauseOut = {
+  profile: {
+    agentId: string;
+    running: boolean;
+    tabs: number;
+    busy: boolean;
+    viewers: number;
+    lastActiveAt?: number;
+    state: "running" | "asleep" | "waiting" | "error";
+    line?: string;
+    takeoverBy?: string;
+    pausedBy?: string;
+    paired: boolean;
+    access: "owner" | "admin" | "viewer";
+  };
 };
 export type ComputersBrowserPreviewIn = {
   agentId: string;
@@ -10559,6 +10579,7 @@ export type ComputersBrowserProfilesOut = {
       state: "running" | "asleep" | "waiting" | "error";
       line?: string;
       takeoverBy?: string;
+      pausedBy?: string;
       paired: boolean;
       access: "owner" | "admin" | "viewer";
     }>;
@@ -10567,6 +10588,26 @@ export type ComputersBrowserProfilesOut = {
     running: number;
     limit: number;
     waiting: number;
+  };
+};
+export type ComputersBrowserResumeIn = {
+  agentId: string;
+  stopped?: boolean;
+};
+export type ComputersBrowserResumeOut = {
+  profile: {
+    agentId: string;
+    running: boolean;
+    tabs: number;
+    busy: boolean;
+    viewers: number;
+    lastActiveAt?: number;
+    state: "running" | "asleep" | "waiting" | "error";
+    line?: string;
+    takeoverBy?: string;
+    pausedBy?: string;
+    paired: boolean;
+    access: "owner" | "admin" | "viewer";
   };
 };
 export type ComputersBrowserSessionsIn = {
@@ -10612,6 +10653,7 @@ export type ComputersBrowserTakeOverOut = {
     state: "running" | "asleep" | "waiting" | "error";
     line?: string;
     takeoverBy?: string;
+    pausedBy?: string;
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
@@ -48717,8 +48759,10 @@ export interface CapMap {
   "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
   "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
   "computers.browser.my_sign_ins": { in: ComputersBrowserMySignInsIn; out: ComputersBrowserMySignInsOut };
+  "computers.browser.pause": { in: ComputersBrowserPauseIn; out: ComputersBrowserPauseOut };
   "computers.browser.preview": { in: ComputersBrowserPreviewIn; out: ComputersBrowserPreviewOut };
   "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
+  "computers.browser.resume": { in: ComputersBrowserResumeIn; out: ComputersBrowserResumeOut };
   "computers.browser.sessions": { in: ComputersBrowserSessionsIn; out: ComputersBrowserSessionsOut };
   "computers.browser.sign_out": { in: ComputersBrowserSignOutIn; out: ComputersBrowserSignOutOut };
   "computers.browser.stream": { in: ComputersBrowserStreamIn; out: ComputersBrowserStreamOut };

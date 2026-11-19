@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { ChatRightPane } from "./rightpane/ChatRightPane.tsx";
+import { DeskHost } from "./rightpane/Desk.tsx";
 import { CrewProvider } from "./crew/context.tsx";
 import { SessionProvider } from "./session/context.tsx";
 import type { ChatRightPaneData } from "./rightpane/data.tsx";
@@ -63,6 +64,7 @@ export function ChatsPlace({
               {...(window ? { window } : {})}
             />
           ) : null}
+          <DeskHost />
         </View>
       </SessionProvider>
     </CrewProvider>

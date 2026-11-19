@@ -54,7 +54,7 @@ export async function warmBrowser(ctx: CompCtx, agentId: string, profileId?: str
   try {
     return await warmNow(ctx, agentId, profileId);
   } catch (e) {
-    ctx.log.info("sbrowser: warm failed", { reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" });
+    ctx.log.debug("sbrowser: warm failed", { reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" });
     return "failed";
   }
 }
@@ -96,7 +96,7 @@ async function warmNow(ctx: CompCtx, agentId: string, profileId?: string): Promi
       await within(WARM_MS, sb.warm({ profileId: pid, space: ctx.space, ...(who ? { agentName: who.name } : {}) }));
     } catch (e) {
       if (had !== "running") releaseRoom(ctx, pid);
-      ctx.log.info("sbrowser: warm failed", { reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" });
+      ctx.log.debug("sbrowser: warm failed", { reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" });
       return "failed";
     }
     return "warmed";

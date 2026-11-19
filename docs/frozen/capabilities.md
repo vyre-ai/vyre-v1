@@ -751,3 +751,13 @@ Signed: lead, 17 Nov 2026
 - Snapshots: docs/frozen/snapshots/computers.json.
 
 Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: pausing an agent's browser (lane r42-computer, lead ruling of 19 Nov)
+
+- `computers.browser.pause` (write, permission computers.watch, level use, sensitive audit, natural idempotency): hold the agent's next browser step. The step does not fail and does not run: it waits, spending nothing, until `computers.browser.resume`, a take-over, a stop, or half an hour. Same people as take over (owner and admins of a team agent, the person for their own profile on a shared agent). Refused with `validation.precondition_failed` while a person holds the controls or another person's pause stands (an admin may take it over).
+- `computers.browser.resume` (write, same gate): lets the waiting step go. `stopped: true` says the agent was stopped meanwhile, and the waiting step then does not run at all (a stop is never followed by one more click). Resuming what is not paused changes nothing.
+- The profile row (`browserRow`, in `computers.browser.profiles` and every browser answer) gains `pausedBy`, the person who paused it.
+- A step that waited five minutes gives up with one plain line and has not run. The Stop button of the desk is the existing `engine.stop`; nothing new there.
+- Snapshots: docs/frozen/snapshots/computers.json.
+
+Signed: pending, lead

@@ -1,0 +1,497 @@
+// The agent's desk (lane r42-computer, approved by the owner 19 Nov): ONE surface for an agent's computer. In the pane (the dock) it is the Computer tab's picture; pressing it grows this surface to about 95%
+// of the window with the app dimmed behind it, and it can shrink to a small live picture that stays over the chat. It is the same element in both shapes: only its edges move (a CSS transition), so the live
+// view never reloads. Esc, a press outside and the shrink button go back to where it was opened from. The shapes and the keys are desk-model.ts; the open desk is desk-store.ts; this file draws it.
+//
+// While you only watch: F full view, T take over, Esc one step down. While you hold the controls every key belongs to the page (the buttons are the way out), and closing hands the browser back, so a
+// closed desk never leaves the agent waiting.
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ReactElement } from "react";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
+import { Icon } from "./parts.tsx";
+import type { IconName } from "./parts.tsx";
+import { PreviewImage } from "./PreviewImage.tsx";
+import { barOf } from "./BrowserSheet.tsx";
+import { browserHead } from "./work-model.ts";
+import type { BrowserView } from "./work-model.ts";
+import { Dot } from "./WorkParts.tsx";
+import { keyAction } from "./desk-model.ts";
+import type { DeskKey, DeskMode } from "./desk-model.ts";
+import { deskDispatch, useDesk } from "./desk-store.ts";
+import type { DeskSession } from "./desk-store.ts";
+
+const MARGIN = 0.025;
+export const MINI = { width: 272, height: 196, right: 20, bottom: 104 } as const;
+const EDGES =
+  "top 320ms cubic-bezier(.2,.8,.2,1), left 320ms cubic-bezier(.2,.8,.2,1), right 320ms cubic-bezier(.2,.8,.2,1), bottom 320ms cubic-bezier(.2,.8,.2,1), border-radius 320ms";
+
+/** The surface's four edges in pixels for a window: full is a 2.5% margin all round, mini a small card over the chat's bottom right. Pure, so it is tested. */
+export function edgesOf(
+  mode: DeskMode,
+  win: { width: number; height: number },
+): { top: number; left: number; right: number; bottom: number; radius: number } {
+  if (mode === "mini")
+    return {
+      top: Math.max(0, win.height - MINI.bottom - MINI.height),
+      left: Math.max(0, win.width - MINI.right - MINI.width),
+      right: MINI.right,
+      bottom: MINI.bottom,
+      radius: 16,
+    };
+  const mx = Math.round(win.width * MARGIN),
+    my = Math.round(win.height * MARGIN);
+  return { top: my, left: mx, right: mx, bottom: my, radius: win.width < 700 ? 0 : 18 };
+}
+
+const UNKNOWN_VIEW: BrowserView = { state: "starting", canTakeOver: false, sites: [] };
+
+/** The browser's view of the agent, watched for as long as the desk is open. `known` is false until the first answer: nothing is woken or decided from a view that has not been read yet. */
+function useView(session: DeskSession): { view: BrowserView; known: boolean } {
+  const [got, setGot] = useState<BrowserView | null>(null);
+  useEffect(() => session.data.watch(session.agentId, setGot), [session.data, session.agentId]);
+  return { view: got ?? UNKNOWN_VIEW, known: got !== null };
+}
+
+const typingIn = (t: unknown): boolean => {
+  const el = t as { tagName?: string; isContentEditable?: boolean } | null;
+  const tag = el?.tagName?.toUpperCase();
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable === true;
+};
+
+export function DeskHost(): ReactElement | null {
+  const { state, session } = useDesk();
+  if (!session || (state.mode !== "full" && state.mode !== "mini")) return null;
+  return (
+    <Overlay>
+      <Desk session={session} mode={state.mode} />
+    </Overlay>
+  );
+}
+
+export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "mini" }): ReactElement {
+  const win = useWindowDimensions();
+  const { view, known } = useView(session);
+  const { agentId, name, data } = session;
+  const mine = view.state === "takeover" && view.mine === true;
+  const [busy, setBusy] = useState(false);
+  const full = mode === "full";
+  // a sleeping browser wakes when the desk opens: the call that hands out the live address is the one that starts it
+  const woke = useRef(false);
+  useEffect(() => {
+    if (!known || view.state !== "closed" || woke.current) return;
+    woke.current = true;
+    data
+      .open(agentId)
+      .catch((e: unknown) => session.note(e instanceof Error && e.message ? e.message : "The browser did not start."));
+  }, [known, view.state, agentId, data, session]);
+  const starting = view.state === "closed" || view.state === "starting";
+  const t0 = useRef(Date.now());
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!starting) return undefined;
+    const i = setInterval(() => tick((n) => n + 1), 500);
+    return () => clearInterval(i);
+  }, [starting]);
+  const run = useCallback(
+    (f: () => Promise<void>): void => {
+      setBusy(true);
+      void f()
+        .catch((e: unknown) =>
+          session.note(e instanceof Error && e.message ? e.message : "That did not work. Try again."),
+        )
+        .finally(() => setBusy(false));
+    },
+    [session],
+  );
+  // Stop is the thread's own turn stop for this agent; if the browser was paused, the step that waits is told the agent was stopped, so it never runs after the stop
+  const canStop = session.threadId !== undefined;
+  const stop = useCallback((): void => {
+    if (session.threadId === undefined) return;
+    const thread = session.threadId;
+    run(async () => {
+      await session.call("engine.stop", { threadId: thread, agentId });
+      if (data.resume) await data.resume(agentId, { stopped: true }).catch(() => undefined);
+    });
+  }, [session, agentId, data, run]);
+  const togglePause = useCallback(
+    (paused: boolean): void => {
+      const f = paused ? data.resume : data.pause;
+      if (f) run(() => f.call(data, agentId));
+    },
+    [data, agentId, run],
+  );
+  const close = useCallback((): void => {
+    if (mine) void data.giveBack(agentId).catch(() => undefined);
+    deskDispatch({ type: "close" });
+  }, [mine, data, agentId]);
+  // Esc goes one step down while you only watch; while you hold the browser it belongs to the page
+  useEscapeLayer(full && !mine, () => deskDispatch({ type: "escape" }));
+  const canTake = view.state === "open" && view.canTakeOver && !busy;
+  const canPause = view.state === "open" && view.canTakeOver && !busy && data.pause !== undefined;
+  const isPaused = view.paused === true;
+  // the keys: only while you watch, never while a field has the keyboard
+  const stateRef = useRef({ mine, canTake, canPause, canStop, isPaused, mode });
+  stateRef.current = { mine, canTake, canPause, canStop, isPaused, mode };
+  useEffect(() => {
+    if (Platform.OS !== "web") return undefined;
+    const doc = (globalThis as { document?: Document }).document;
+    if (!doc) return undefined;
+    const on = (ev: KeyboardEvent): void => {
+      if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      const k: DeskKey | null =
+        ev.key === " "
+          ? "space"
+          : ev.key.length === 1 && "fts".includes(ev.key.toLowerCase())
+            ? (ev.key.toLowerCase() as DeskKey)
+            : null;
+      if (!k) return;
+      const cur = stateRef.current;
+      const act = keyAction({ mode: cur.mode, prev: cur.mode === "full" ? "dock" : null, room: "browser" }, k, {
+        typing: typingIn(ev.target),
+        holding: cur.mine,
+      });
+      if (act === "toggle_full") {
+        ev.preventDefault();
+        deskDispatch({ type: "toggle_full" });
+      } else if (act === "take" && cur.canTake) {
+        ev.preventDefault();
+        run(() => data.takeOver(agentId));
+      } else if (act === "pause" && cur.canPause) {
+        ev.preventDefault();
+        togglePause(cur.isPaused);
+      } else if (act === "stop" && cur.canStop) {
+        ev.preventDefault();
+        stop();
+      }
+    };
+    doc.addEventListener("keydown", on);
+    return () => doc.removeEventListener("keydown", on);
+  }, [data, agentId, run, togglePause, stop]);
+
+  const e = edgesOf(mode, win);
+  const head = browserHead(view);
+  const bar = barOf(view, name, mine, Date.now() - t0.current);
+  const live = view.state === "open" || (view.state === "takeover" && mine);
+  return (
+    <>
+      <Pressable
+        testID="desk-scrim"
+        accessibilityLabel="Back"
+        aria-hidden={!full}
+        onPress={() => deskDispatch({ type: "scrim" })}
+        style={[st.scrim, { opacity: full ? 1 : 0, pointerEvents: full ? "auto" : "none" } as never]}
+      />
+      <View
+        testID={full ? "desk" : "desk-mini"}
+        role="dialog"
+        aria-modal={full}
+        accessibilityLabel={`${name}'s computer`}
+        style={[
+          st.surface,
+          {
+            top: e.top,
+            left: e.left,
+            right: e.right,
+            bottom: e.bottom,
+            borderRadius: e.radius,
+            transition: EDGES,
+          } as never,
+        ]}
+      >
+        {full ? (
+          <>
+            <View style={st.head}>
+              <View style={st.face} accessibilityLabel={`${name}, ${head.word}`}>
+                <Text style={st.faceText}>{name.slice(0, 1).toUpperCase()}</Text>
+                <View style={st.faceDot}>
+                  <Dot tone={head.dot} />
+                </View>
+              </View>
+              <Text style={st.title} numberOfLines={1}>{`${name}'s browser`}</Text>
+              <View style={{ flex: 1 }} />
+              <Tip icon="shrink" tip="Back (Esc)" testID="desk-back" onPress={() => deskDispatch({ type: "back" })} />
+              <Tip
+                icon="pip"
+                tip="Minimise to a picture"
+                testID="desk-minimise"
+                onPress={() => deskDispatch({ type: "minimise" })}
+              />
+              <Tip icon="x" tip="Close" testID="desk-close" onPress={close} />
+            </View>
+            <View testID="browser-live" style={[st.stage, mine && st.stageMine]}>
+              {live ? (
+                data.renderLive?.(agentId, { state: view.state, control: mine })
+              ) : (
+                <View style={st.skeleton}>
+                  <View style={[st.sk, { width: "46%" }]} />
+                  <View style={[st.sk, { width: "70%" }]} />
+                  <View style={[st.sk, { width: "58%" }]} />
+                </View>
+              )}
+            </View>
+            <View
+              testID="desk-bar"
+              style={[st.bar, bar.tone === "wait" && st.barWait, bar.tone === "bad" && st.barBad, mine && st.barMine]}
+            >
+              <Text style={st.barBold} numberOfLines={1}>
+                {bar.title}
+              </Text>
+              {bar.note ? (
+                <Text style={st.barNote} numberOfLines={1}>
+                  {bar.note}
+                </Text>
+              ) : null}
+              <View style={{ flex: 1 }} />
+              {live && view.state === "open" && view.canTakeOver && data.pause ? (
+                isPaused ? null : (
+                  <Tip
+                    icon="pause"
+                    tip="Pause (Space)"
+                    testID="browser-pause"
+                    disabled={busy}
+                    onPress={() => togglePause(false)}
+                  />
+                )
+              ) : null}
+              {live && view.state === "open" && canStop ? (
+                <Tip icon="stop" tip="Stop (S)" testID="browser-stop" disabled={busy} onPress={stop} />
+              ) : null}
+              {bar.action === "resume" ? (
+                <Pill
+                  label="Resume"
+                  hint="Space"
+                  disabled={busy}
+                  onPress={() => togglePause(true)}
+                  testID="browser-resume"
+                />
+              ) : null}
+              {bar.action === "take" || bar.action === "resume" ? (
+                <Pill
+                  label="Take over"
+                  hint="T"
+                  disabled={busy}
+                  onPress={() => run(() => data.takeOver(agentId))}
+                  testID="browser-take"
+                  quiet={bar.action === "resume"}
+                />
+              ) : null}
+              {bar.action === "give" ? (
+                <Pill
+                  label="Give back"
+                  disabled={busy}
+                  onPress={() => run(() => data.giveBack(agentId))}
+                  testID="browser-give"
+                />
+              ) : null}
+              {bar.action === "restart" ? (
+                <Pill
+                  label="Restart"
+                  disabled={busy}
+                  onPress={() => run(() => data.open(agentId))}
+                  testID="browser-restart"
+                />
+              ) : null}
+            </View>
+          </>
+        ) : (
+          <Pressable
+            testID="desk-mini-open"
+            accessibilityLabel={`Open ${name}'s computer`}
+            onPress={() => deskDispatch({ type: "full" })}
+            style={st.mini}
+          >
+            <View style={st.miniPic}>
+              <PreviewImage call={session.call} agentId={agentId} active={live} />
+            </View>
+            <View style={st.miniFoot}>
+              <Dot tone={head.dot} />
+              <Text style={st.miniText} numberOfLines={1}>
+                {view.caption ?? head.word}
+              </Text>
+              <Icon name="expand" size={13} color="var(--ink-3)" />
+            </View>
+          </Pressable>
+        )}
+        {!full ? (
+          <Pressable testID="desk-mini-close" accessibilityLabel="Dismiss" onPress={close} style={st.miniX}>
+            <Icon name="x" size={11} color="#fff" />
+          </Pressable>
+        ) : null}
+      </View>
+    </>
+  );
+}
+
+function Tip({
+  icon,
+  tip,
+  onPress,
+  testID,
+  disabled,
+}: {
+  icon: IconName;
+  tip: string;
+  onPress: () => void;
+  testID: string;
+  disabled?: boolean;
+}): ReactElement {
+  const [over, setOver] = useState(false);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={tip}
+      testID={testID}
+      disabled={disabled === true}
+      accessibilityState={{ disabled: disabled === true }}
+      onPress={onPress}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
+      style={[st.tip, over && st.tipOver]}
+      {...({ title: tip } as object)}
+    >
+      <Icon name={icon} size={15} color="var(--ink-2)" />
+    </Pressable>
+  );
+}
+
+function Pill({
+  label,
+  hint,
+  onPress,
+  disabled,
+  testID,
+  quiet,
+}: {
+  label: string;
+  hint?: string;
+  onPress: () => void;
+  disabled?: boolean;
+  testID: string;
+  quiet?: boolean;
+}): ReactElement {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={hint ? `${label} (${hint})` : label}
+      accessibilityState={{ disabled: disabled === true }}
+      disabled={disabled === true}
+      testID={testID}
+      onPress={onPress}
+      style={[st.pill, quiet === true && st.pillQuiet, disabled === true && { opacity: 0.5 }]}
+      {...({ title: hint ? `${label} (${hint})` : label } as object)}
+    >
+      <Text style={[st.pillText, quiet === true && st.pillTextQuiet]}>{label}</Text>
+      {hint ? <Text style={[st.pillKey, quiet === true && st.pillKeyQuiet]}>{hint}</Text> : null}
+    </Pressable>
+  );
+}
+
+const st = StyleSheet.create({
+  scrim: {
+    position: "fixed" as never,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 99997,
+    backgroundColor: "rgba(10,9,16,0.55)",
+    transitionProperty: "opacity",
+    transitionDuration: "300ms",
+  } as never,
+  surface: {
+    position: "fixed" as never,
+    zIndex: 99998,
+    overflow: "hidden",
+    backgroundColor: "var(--win)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    boxShadow: "0 30px 90px -30px rgba(0,0,0,.7)",
+  } as never,
+  head: {
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "var(--side)" as string,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
+  face: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "var(--accent)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  faceText: { color: "var(--accent-ink)" as string, fontSize: 12.5, fontWeight: "600" },
+  faceDot: { position: "absolute", right: -3, bottom: -3 },
+  title: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1, marginLeft: 4 },
+  tip: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  tipOver: { backgroundColor: "var(--hover)" as string },
+  stage: { flex: 1, minHeight: 0, backgroundColor: "var(--sunk)" as string },
+  stageMine: { borderWidth: 2, borderColor: "var(--accent)" as string },
+  skeleton: { flex: 1, padding: 24, gap: 12 },
+  sk: { height: 10, borderRadius: 5, backgroundColor: "#e3e5ea" as string },
+  bar: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    backgroundColor: "var(--side)" as string,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
+  barWait: { backgroundColor: "var(--warn-soft, var(--side))" as string },
+  barBad: { backgroundColor: "var(--danger-soft, var(--side))" as string },
+  barMine: { backgroundColor: "var(--accent-soft, var(--side))" as string },
+  barBold: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
+  barNote: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },
+  pill: {
+    height: 36,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "var(--accent)" as string,
+  },
+  pillQuiet: { backgroundColor: "var(--sel)" as string },
+  pillTextQuiet: { color: "var(--ink)" as string },
+  pillKeyQuiet: { color: "var(--ink-3)" as string, borderColor: "var(--ink-4)" as string },
+  pillText: { fontSize: 13, fontWeight: "600", color: "var(--accent-ink)" as string },
+  pillKey: {
+    fontSize: 10.5,
+    color: "var(--accent-ink)" as string,
+    opacity: 0.6,
+    borderWidth: 1,
+    borderColor: "var(--accent-ink)" as string,
+    borderRadius: 5,
+    paddingHorizontal: 4,
+  },
+  mini: { flex: 1 },
+  miniPic: { flex: 1, minHeight: 0, backgroundColor: "#f5f6f8" as string, overflow: "hidden" },
+  miniFoot: {
+    height: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    backgroundColor: "var(--side)" as string,
+  },
+  miniText: { flex: 1, fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
+  miniX: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(20,18,30,.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

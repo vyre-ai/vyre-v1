@@ -15,8 +15,10 @@ Area: agents. Risk: low. Applies to: computer.
 ## Capabilities that need it
 
 - computers.browser.give_back
+- computers.browser.pause
 - computers.browser.preview
 - computers.browser.profiles
+- computers.browser.resume
 - computers.browser.sessions
 - computers.browser.sign_out
 - computers.browser.stream
