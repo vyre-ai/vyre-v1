@@ -1,7 +1,7 @@
 // Getting in (rc.41): the three screens that keep every way into a Space from ending on a dead line. Your Spaces lists the Spaces this device has used, one press each. NotAnswering is the
 // one failure screen for a Space that could not be reached: what happened, in the Space's name, with the fix as a button. InBrowser is a Space on Vyre's relay that the desktop app opened in
 // the browser for the person. Prototype: vyre-install.html, States, "Getting in".
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import { Bar, Button, Door, Fixes, JoinFrame, Panel, QuietLine, SpaceFace, Step, Title } from "./kit.tsx";
@@ -125,10 +125,13 @@ export function NotAnswering({
   others?: readonly { key: string; label: string; onPress(): void }[] | undefined;
   onBack?: (() => void) | undefined;
 }): ReactElement {
-  // one button per other saved address: built in a loop, not a list of rows
+  // one button per other saved address: built in a loop, not a list of rows; five show, the rest behind More (a sixth address is never out of reach)
+  const [more, setMore] = useState(false);
+  const all = others ?? [];
+  const shown = more ? all : all.slice(0, 5);
   const otherButtons: ReactElement[] = [];
-  for (let i = 0; i < (others ?? []).length; i++) {
-    const o = others![i]!;
+  for (let i = 0; i < shown.length; i++) {
+    const o = shown[i]!;
     otherButtons.push(
       <Button
         key={o.key}
@@ -141,6 +144,18 @@ export function NotAnswering({
       />,
     );
   }
+  if (!more && all.length > shown.length)
+    otherButtons.push(
+      <Button
+        key="more"
+        quiet
+        icon="redo"
+        testID="not-answering-more"
+        label={`${all.length - shown.length} more`}
+        disabled={!!reconnecting}
+        onPress={() => setMore(true)}
+      />,
+    );
   return (
     <JoinFrame>
       <Panel

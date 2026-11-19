@@ -453,3 +453,82 @@ test("one Space saved at three addresses, the first two not answering: each othe
     delete g.localStorage;
   }
 });
+
+test("one Space saved at seven addresses, only the seventh answering: five are shown, More shows the rest, and the seventh gets the person in", async () => {
+  const realFetch = g.fetch;
+  const restore = setQuietWaitsForTests([1, 1]);
+  let stop: () => Promise<void> = async () => undefined;
+  try {
+    installDom();
+    const hosts = ["a", "b", "c", "d", "e", "f", "g"];
+    const m = new Map<string, string>([
+      [
+        "vyre.spaces.v1",
+        JSON.stringify({
+          spaces: [
+            {
+              address: "https://a.example",
+              name: "Northwind",
+              spaceId: "spc_01NORTH",
+              kind: "team",
+              via: "app",
+              usedAt: 5000,
+            },
+          ],
+        }),
+      ],
+    ]);
+    g.localStorage = {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, v),
+      removeItem: (k: string) => void m.delete(k),
+    };
+    const kv = g.localStorage as Parameters<typeof writeStored>[1];
+    for (const h of hosts) writeStored({ ...SAVED_SESSION, baseUrl: `https://${h}.example`, token: `vds_${h}` }, kv);
+    const before = JSON.stringify(readStoredSessions(kv));
+    g.fetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.origin === "https://g.example" && url.pathname === "/healthz") return json(200, HEALTH);
+      if (url.origin === "https://g.example" && url.pathname.endsWith("sign_in_options")) return json(200, OPTIONS);
+      throw new TypeError("Failed to fetch");
+    }) as typeof fetch;
+    const gate = await mountGate();
+    stop = gate.stop;
+    const root = gate.root;
+    const until = async (id: string): Promise<Node> => {
+      const end = Date.now() + 10000;
+      for (;;) {
+        const n = find(root, id);
+        if (n) return n;
+        if (Date.now() > end) throw new Error(`${id} never showed`);
+        await flush();
+      }
+    };
+    await press(await until("your-space-0"));
+    await until("not-answering-other-0");
+    // six other addresses: five rows and a More row
+    assert.ok(find(root, "not-answering-other-4"), "five rows");
+    assert.equal(find(root, "not-answering-other-5"), null, "not six");
+    assert.match(textOf(await until("not-answering-more")), /1 more/);
+    assert.ok(!textOf(root).includes("g.example"), "the seventh is behind More");
+    await press(find(root, "not-answering-more"));
+    assert.equal(find(root, "not-answering-more"), null, "More is gone once shown");
+    let pressed = false;
+    for (let i = 0; i < 6 && !pressed; i++) {
+      const n = find(root, `not-answering-other-${i}`);
+      if (n && textOf(n).includes("g.example")) {
+        await press(n);
+        pressed = true;
+      }
+    }
+    assert.ok(pressed, "the seventh address is offered");
+    await until("si-user");
+    assert.equal(JSON.stringify(readStoredSessions(kv)), before, "all seven sign-ins are still saved, unchanged");
+  } finally {
+    await stop();
+    restore();
+    g.fetch = realFetch;
+    delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
+    delete g.localStorage;
+  }
+});

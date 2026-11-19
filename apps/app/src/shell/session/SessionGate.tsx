@@ -1905,14 +1905,11 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           {...(oldData ? { onClear: () => void clearOld() } : {})}
           {...(trouble.stored && siblingSessions(trouble.stored).length > 0
             ? {
-                // five other addresses at most: a person has not saved more than that for one Space
-                others: siblingSessions(trouble.stored)
-                  .slice(0, 5)
-                  .map((other) => ({
-                    key: other.baseUrl,
-                    label: `Sign in at ${shortHost(spaceHost(other.baseUrl))}`,
-                    onPress: () => void askNearby(trouble.stored!, other, trouble),
-                  })),
+                others: siblingSessions(trouble.stored).map((other) => ({
+                  key: other.baseUrl,
+                  label: `Sign in at ${shortHost(spaceHost(other.baseUrl))}`,
+                  onPress: () => void askNearby(trouble.stored!, other, trouble),
+                })),
               }
             : {})}
           {...(bridge && !isLoopbackUrl(trouble.target.address)
