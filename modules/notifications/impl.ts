@@ -1,4 +1,5 @@
 import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import { scrubShapes } from "../../lib/secret-shapes.ts";
 import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // Notifications module (lane L6). The host loads these handlers once the host/modules.json row is live (ARCH 12.4, ruling 25).
 // setPushPort is the host's door for the APNs/FCM transport and the computer's idle time (call it at boot); the fanout consumer turns events that name a notification kind into rows.
@@ -234,10 +235,7 @@ const healthTitle = (key: string): string =>
 export function plainReason(raw: unknown): string {
   if (typeof raw !== "string") return "";
   const first = (raw.split(/\r?\n/)[0] ?? "").trim();
-  const clean = first
-    .replace(/\bBearer\s+\S+/gi, "Bearer …")
-    .replace(/\b(?:sk|pk|rk|whsec|xox[a-z]|ghp|gho|github_pat)[-_A-Za-z0-9]{8,}/g, "…")
-    .replace(/[A-Za-z0-9+/_=-]{32,}/g, "…")
+  const clean = scrubShapes(first)
     .replace(/\s+at\s+\S+:\d+(:\d+)?\)?$/, "")
     .trim()
     .replace(/[.]+$/, "");

@@ -10,6 +10,8 @@ export interface Polling {
   dormantSec: number;
 }
 
+/** A key kept for a failed queue is dropped when it is this old (the ask that used it is long over). */
+export const FAILED_KEY_KEEP_MS = 24 * 60 * 60_000;
 /** A running mark older than this is a pass that died: it no longer blocks the connection. */
 export const RUN_STALE_MS = 30 * 60_000;
 /** A planned poll more than this late is a lost job: the chain counts as dead. */
@@ -30,7 +32,7 @@ export const CADENCE_SQL = `
 CREATE TABLE IF NOT EXISTS cn_sync_running (connection_id TEXT PRIMARY KEY, started_at INTEGER NOT NULL);
 -- Failures in a row per synced type, and the earliest time the driver may try again.
 -- Idempotency keys of asks whose pass could not be queued: the next ask with the same key starts a new Run instead of getting the failed one back.
-CREATE TABLE IF NOT EXISTS cn_sync_failed_keys (key TEXT PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS cn_sync_failed_keys (key TEXT PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0, at INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS cn_sync_guard (sync_type_id TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, last_at INTEGER NOT NULL, next_at INTEGER NOT NULL DEFAULT 0);
 `;
 const ready = new WeakSet<object>();

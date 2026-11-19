@@ -886,10 +886,30 @@ test("a push that ran out of tries tells the admins why, in a short plain line w
   const r = row(h, made[0]!);
   assert.equal(r.kind, "sync.attention");
   assert.match(String(r.title), /matter sync/);
-  assert.match(String(r.title), /the app refused a change \(The app refused the request \(422\)\. Bearer …\)/);
+  assert.match(String(r.title), /the app refused a change \(The app refused the request \(422\)\. …\)/);
   assert.doesNotMatch(String(r.title), /sk_live|at pushOne|\/srv\//, "no token and no stack in the line");
   assert.equal(r.subject_type, "record_type", "the line opens the type's Sync page, where the failed push is listed");
   assert.equal(r.subject_id, "matter");
+});
+
+test("plainReason takes out every shape a short secret travels in", async () => {
+  const { plainReason } = await import("../impl.ts");
+  for (const [text, secret] of [
+    ["The app said no: api_key=abc123 is not allowed", "abc123"],
+    ["bad access_token: tok_9f8e7d", "tok_9f8e7d"],
+    ["login failed, password=hunter2 rejected", "hunter2"],
+    ["secret = 'shh-1234' was refused", "shh-1234"],
+    ["Authorization: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz"],
+    ["could not reach https://admin:s3cr3t@crm.example.test/v1", "s3cr3t"],
+    ["Set-Cookie: session=abcdef123456; Path=/", "abcdef123456"],
+    ["token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.c2lnbmF0dXJl rejected", "eyJhbGci"],
+    ["X-Api-Key: k_live_1234567890", "k_live_1234567890"],
+  ] as const) {
+    const out = plainReason(text);
+    assert.ok(!out.includes(secret), `"${text}" kept "${secret}": ${out}`);
+    assert.ok(out.length > 0);
+  }
+  assert.match(plainReason("The app refused the request (422). Email is not valid."), /Email is not valid/);
 });
 
 test("plainReason keeps one short line and drops long tokens", async () => {

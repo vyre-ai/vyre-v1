@@ -8,7 +8,7 @@
 // @reads /modules/connectors/migrations/0001_connectors.sql
 // @reads /modules/sources/migrations/0001_sources.sql
 import type { Tx } from "../../../kernel/src/store/projection.ts";
-import { clearRunning, isRunning, jitterMs, markRunning, noteResult, runsFor } from "./cadence.ts";
+import { FAILED_KEY_KEEP_MS, clearRunning, isRunning, jitterMs, markRunning, noteResult, runsFor } from "./cadence.ts";
 import { ensureTables, mintShort, nowOf, PAGE, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 import { executeAction } from "./runtime.ts";
@@ -1147,10 +1147,16 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       if (ctx.schedule)
         await ctx.schedule(nowOf(deps), "connectors.sync_run", { runId: started.runId }).catch(async () => {
           release(); // nothing will run it: the connection is not busy
-          tx.run(
-            "INSERT INTO cn_sync_failed_keys (key, n) VALUES (?, 1) ON CONFLICT(key) DO UPDATE SET n = n + 1",
-            askKey,
-          );
+          // a job that was queued just before the queue refused would find no request for this Run and not run a second pass beside the retry's
+          tx.run("DELETE FROM cn_sync_requests WHERE run_id = ?", started.runId);
+          if (askKey !== "") {
+            tx.run("DELETE FROM cn_sync_failed_keys WHERE at < ?", nowOf(deps) - FAILED_KEY_KEEP_MS);
+            tx.run(
+              "INSERT INTO cn_sync_failed_keys (key, n, at) VALUES (?, 1, ?) ON CONFLICT(key) DO UPDATE SET n = n + 1, at = excluded.at",
+              askKey,
+              nowOf(deps),
+            );
+          }
           // and the Run does not stay "started" for ever: it ends failed, with the reason
           await ctx
             .call("runs.finish", {
@@ -1231,7 +1237,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       prep();
       await retrySubscriptions(deps, ctx);
       const req = syncRequest(deps, input.runId);
-      if (!req) return refuse(ctx, "validation.not_found", "There is no sync request for that run.");
+      if (!req) return refuse(ctx, "validation.not_found", "That sync has already finished, or it was never queued.");
       {
         const first = tx.get<SyncDb>("SELECT * FROM cn_synced_types WHERE sync_type_id = ?", req.syncTypeIds[0] ?? "");
         const gave = first
@@ -1310,6 +1316,8 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
           ? { runId: input.runId, status: "failed", error: failed }
           : { runId: input.runId, status: "succeeded", summary },
       );
+      // the Run is finished: a second delivery of its job, or a job that was queued before it ended, finds no request and does not run another pass for it
+      tx.run("DELETE FROM cn_sync_requests WHERE run_id = ?", input.runId);
       return { ok: failed === undefined, summary };
     },
 
