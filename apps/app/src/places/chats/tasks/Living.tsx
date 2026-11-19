@@ -44,6 +44,57 @@ export function lookNote(l: { quote: string; by: string; at: number }, nameOf: (
   return `\u201c${l.quote}\u201d, ${l.by === "" ? "someone" : nameOf(l.by)}, ${dateIn(l.at, deviceZone())}`;
 }
 
+/** One row of the card. A looks-done row is drawn only from what the server verified (lookDone), never from text a model wrote: with the quote it shows the words, who wrote them and when, and Done; for a reader who cannot read that chat it says it looks done, offers Open the chat and Not yet, and no words and no Done. */
+export function StillRow({
+  item,
+  nameOf,
+  openTask,
+  openChat,
+  answer,
+}: {
+  item: Card["items"][number];
+  nameOf(id: string): string;
+  openTask(id: string): void;
+  openChat(threadId: string): void;
+  answer(a: "keep" | "archive" | "done"): void;
+}): ReactElement {
+  const look = item.lookDone;
+  const shown = look?.quote !== undefined;
+  return (
+    <Row
+      title={item.task.title}
+      note={
+        look
+          ? shown
+            ? lookNote({ quote: look.quote!, by: look.by ?? "", at: look.at ?? 0 }, nameOf)
+            : "Open the chat to see why"
+          : item.why
+      }
+      {...(look ? { noteLead: "Looks done" } : {})}
+      {...(look && !shown
+        ? { noteAction: { label: "Open the chat", onPress: () => openChat(look.threadId), testID: "still-open-chat" } }
+        : {})}
+      tall
+      {...(look && !shown ? {} : { onPress: () => openTask(item.task.id) })}
+      trailing={
+        <View style={st.btns}>
+          {look ? (
+            <>
+              {shown ? <Btn label="Done" testID="still-done" onPress={() => answer("done")} /> : null}
+              <Btn label="Not yet" testID="still-keep" onPress={() => answer("keep")} />
+            </>
+          ) : (
+            <>
+              <Btn label="Keep" testID="still-keep" onPress={() => answer("keep")} />
+              <Btn label="Archive" testID="still-archive" onPress={() => answer("archive")} />
+            </>
+          )}
+        </View>
+      }
+    />
+  );
+}
+
 /** The card stays open across a redraw of the page (a width change draws it again from nothing), for the same person only. */
 let remembered: { who: string; open: boolean } = { who: "", open: false };
 
@@ -153,48 +204,17 @@ export function StillCard({
           )}
         </View>
         {open
-          ? card.items.map((i) => {
-              // a row the daily look says looks done: the exact words are the proof, and Done closes it
-              // drawn only from what the server verified (lookDone), never from text a model wrote
-              const look = i.lookDone;
-              const shown = look?.quote !== undefined;
-              return (
-                <Row
-                  key={i.task.id}
-                  title={i.task.title}
-                  note={
-                    look
-                      ? shown
-                        ? lookNote({ quote: look.quote!, by: look.by ?? "", at: look.at ?? 0 }, nameOf)
-                        : "Open the chat to see why"
-                      : i.why
-                  }
-                  {...(look ? { noteLead: "Looks done" } : {})}
-                  {...(look && !shown
-                    ? { noteAction: { label: "Open the chat", onPress: () => openChat(look.threadId) } }
-                    : {})}
-                  tall
-                  {...(look && !shown ? {} : { onPress: () => openTask(i.task.id) })}
-                  trailing={
-                    <View style={st.btns}>
-                      {look ? (
-                        <>
-                          {shown ? (
-                            <Btn label="Done" testID="still-done" onPress={() => answer([i.task.id], "done")} />
-                          ) : null}
-                          <Btn label="Not yet" testID="still-keep" onPress={() => answer([i.task.id], "keep")} />
-                        </>
-                      ) : (
-                        <>
-                          <Btn label="Keep" testID="still-keep" onPress={() => answer([i.task.id], "keep")} />
-                          <Btn label="Archive" testID="still-archive" onPress={() => answer([i.task.id], "archive")} />
-                        </>
-                      )}
-                    </View>
-                  }
-                />
-              );
-            })
+          ? card.items.map((i) => (
+              // ui-rows-lint: not a list (each item is StillRow, which is one ui/Row)
+              <StillRow
+                key={i.task.id}
+                item={i}
+                nameOf={nameOf}
+                openTask={openTask}
+                openChat={openChat}
+                answer={(a) => answer([i.task.id], a)}
+              />
+            ))
           : null}
       </View>
     </View>
