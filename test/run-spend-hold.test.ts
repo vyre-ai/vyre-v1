@@ -55,3 +55,30 @@ test("a hold is for one agent in one chat: another agent, or the same one in ano
   assert.equal(holdOff("thr_a"), 1, "a whole chat can be released at once");
   assert.equal((await gate({ threadId: "thr_a", agentId: "agt_one" })).block, null);
 });
+
+test("a model that goes on asking after refusals has its turn ended, once, after three refused calls; raising the limit resets the count; another agent is not counted", async () => {
+  const ended: string[] = [];
+  const gate = createSpendGate(
+    () => null,
+    (t, a, r) => void ended.push(`${t}:${a}:${r}`),
+  );
+  holdOn("thr_e", "agt_one");
+  await gate({ threadId: "thr_e", agentId: "agt_one" });
+  await gate({ threadId: "thr_e", agentId: "agt_one", subagent: "a1" });
+  assert.deepEqual(ended, [], "two refusals: it may still stop by itself");
+  await gate({ threadId: "thr_e", agentId: "agt_one", tool: "Bash" });
+  assert.deepEqual(ended, [`thr_e:agt_one:${HOLD_WORDS}`], "the third ends the turn");
+  await gate({ threadId: "thr_e", agentId: "agt_one" });
+  await gate({ threadId: "thr_e", agentId: "agt_one" });
+  assert.equal(ended.length, 1, "once, not again for each further call");
+  await gate({ threadId: "thr_e", agentId: "agt_two" });
+  assert.equal(ended.length, 1, "another agent is not held and not counted");
+  holdOff("thr_e", "agt_one");
+  holdOn("thr_e", "agt_one");
+  await gate({ threadId: "thr_e", agentId: "agt_one" });
+  await gate({ threadId: "thr_e", agentId: "agt_one" });
+  assert.equal(ended.length, 1, "the count started again when the limit was raised");
+  await gate({ threadId: "thr_e", agentId: "agt_one" });
+  assert.equal(ended.length, 2);
+  holdOff("thr_e");
+});

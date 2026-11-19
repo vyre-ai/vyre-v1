@@ -217,6 +217,8 @@ let host: EngineHostSeam | null = null;
 let building: Promise<TurnEngine | null> | null = null;
 let closeOpener: (() => Promise<void>) | null = null;
 let detachBridge: (() => void) | null = null;
+/** ends a held command-line turn as a pause (set once the engine is built; see createSpendGate) */
+let endCliTurn: ((threadId: string, agentId: string, reason: string) => void) | null = null;
 let closeUnlockWatch: (() => void) | null = null;
 
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
@@ -232,6 +234,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
     // the bridge's looks-again timers stop here, before the databases close
     detachBridge?.();
     detachBridge = null;
+    endCliTurn = null;
     const done = (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve())
       .then(() => closeDefaultSandbox())
       .catch(() => undefined);
@@ -842,7 +845,12 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     },
     ...(h.log ? { log: h.log } : {}),
   });
-  bindSubagentGate(createSpendGate(() => activeSubNodes()));
+  bindSubagentGate(
+    createSpendGate(
+      () => activeSubNodes(),
+      (threadId, agentId, reason) => void endCliTurn?.(threadId, agentId, reason),
+    ),
+  );
   const opener = host.openSession
     ? null
     : buildOpener({
@@ -1692,6 +1700,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       );
     });
     detachBridge = bridge?.attach(engine) ?? null;
+    endCliTurn = (threadId, agentId, reason) => void engine.pauseCli(threadId, { agentId, reason });
     h.extend?.(engine);
     completer = (i) => oneShot(openSession, i, now);
     dropWarm = opener ? (threadId: string) => opener.pool.drop(threadId) : null;
