@@ -1,6 +1,6 @@
 # journeys.migration_state
 
-Where a move onto the pipeline stands: records done, failed (with why) and the Journey's mode
+Where the move onto the pipeline stands
 
 | | |
 |---|---|

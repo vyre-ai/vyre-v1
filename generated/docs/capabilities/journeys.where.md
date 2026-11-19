@@ -1,6 +1,6 @@
 # journeys.where
 
-Where one record is on its Journey: the path with its stage, the time it has been there against the stage limit, and each stage's Automations
+Where one record is on its Journey and how long it has been in its stage
 
 | | |
 |---|---|

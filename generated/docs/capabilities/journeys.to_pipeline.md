@@ -1,6 +1,6 @@
 # journeys.to_pipeline
 
-Move a Journey onto its subject type as a pipeline: the records carry the stage themselves and the per-subject Journey records are folded into them. Safe to run again after a stop; nothing is deleted
+Move a Journey onto its subject type as a pipeline; run again after a stop, nothing is deleted
 
 | | |
 |---|---|

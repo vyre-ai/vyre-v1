@@ -5,23 +5,23 @@ import type { Check } from './core.ts';
 
 function d_s_bacd9d2655(v: unknown, p: string, e: string[]): void {
 {
-const x929 = v;
-const g929 = typeOf(x929);
-const b929: string[] = []; lf(x929, p, b929, L0); if (b929.length) e.push(...b929);
-if (g929 === "object") {
-if (g929 === 'object') { const o929 = x929 as Record<string, unknown>;
-if (!("token" in o929)) e.push(p + "/token" + ': required');
-if (!("visitor" in o929)) e.push(p + "/visitor" + ': required');
-if ("token" in o929) lf(o929["token"], p + "/token", e, L1);
-if ("visitor" in o929) {
+const x925 = v;
+const g925 = typeOf(x925);
+const b925: string[] = []; lf(x925, p, b925, L0); if (b925.length) e.push(...b925);
+if (g925 === "object") {
+if (g925 === 'object') { const o925 = x925 as Record<string, unknown>;
+if (!("token" in o925)) e.push(p + "/token" + ': required');
+if (!("visitor" in o925)) e.push(p + "/visitor" + ': required');
+if ("token" in o925) lf(o925["token"], p + "/token", e, L1);
+if ("visitor" in o925) {
 {
-const x930 = o929["visitor"];
-const g930 = typeOf(x930);
-const b930: string[] = []; lf(x930, p + "/visitor", b930, L0); if (b930.length) e.push(...b930);
-if (g930 === "object") {
-if (g930 === 'object') { const o930 = x930 as Record<string, unknown>;
-if ("ip" in o930) lf(o930["ip"], p + "/visitor" + "/ip", e, L1);
-if ("ua" in o930) lf(o930["ua"], p + "/visitor" + "/ua", e, L1);
+const x926 = o925["visitor"];
+const g926 = typeOf(x926);
+const b926: string[] = []; lf(x926, p + "/visitor", b926, L0); if (b926.length) e.push(...b926);
+if (g926 === "object") {
+if (g926 === 'object') { const o926 = x926 as Record<string, unknown>;
+if ("ip" in o926) lf(o926["ip"], p + "/visitor" + "/ip", e, L1);
+if ("ua" in o926) lf(o926["ua"], p + "/visitor" + "/ua", e, L1);
 }
 }
 }
@@ -33,18 +33,18 @@ if ("ua" in o930) lf(o930["ua"], p + "/visitor" + "/ua", e, L1);
 
 function d_s_cd35d57769(v: unknown, p: string, e: string[]): void {
 {
-const x1016 = v;
-const g1016 = typeOf(x1016);
-const b1016: string[] = []; lf(x1016, p, b1016, L0); if (b1016.length) e.push(...b1016);
-if (g1016 === "object") {
-if (g1016 === 'object') { const o1016 = x1016 as Record<string, unknown>;
-if (!("index" in o1016)) e.push(p + "/index" + ': required');
-if (!("name" in o1016)) e.push(p + "/name" + ': required');
-if ("index" in o1016) lf(o1016["index"], p + "/index", e, L2);
-if ("name" in o1016) lf(o1016["name"], p + "/name", e, L1);
-if ("email" in o1016) lf(o1016["email"], p + "/email", e, L1);
-if ("url" in o1016) lf(o1016["url"], p + "/url", e, L1);
-if ("path" in o1016) lf(o1016["path"], p + "/path", e, L1);
+const x1012 = v;
+const g1012 = typeOf(x1012);
+const b1012: string[] = []; lf(x1012, p, b1012, L0); if (b1012.length) e.push(...b1012);
+if (g1012 === "object") {
+if (g1012 === 'object') { const o1012 = x1012 as Record<string, unknown>;
+if (!("index" in o1012)) e.push(p + "/index" + ': required');
+if (!("name" in o1012)) e.push(p + "/name" + ': required');
+if ("index" in o1012) lf(o1012["index"], p + "/index", e, L2);
+if ("name" in o1012) lf(o1012["name"], p + "/name", e, L1);
+if ("email" in o1012) lf(o1012["email"], p + "/email", e, L1);
+if ("url" in o1012) lf(o1012["url"], p + "/url", e, L1);
+if ("path" in o1012) lf(o1012["path"], p + "/path", e, L1);
 }
 }
 }

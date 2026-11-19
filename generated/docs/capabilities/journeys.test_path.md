@@ -1,6 +1,6 @@
 # journeys.test_path
 
-Try the whole path on one record: every stage's Automations in stage order as tests (reads run, sends and writes are held); each is a Run
+Try every stage's Automations on one record as tests; sends and writes are held
 
 | | |
 |---|---|

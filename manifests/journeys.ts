@@ -57,7 +57,7 @@ const journeyRow = t.obj({
   startRule: t.opt(startRule),
   startAutomationId: t.opt(id.automation),
   mode: t.opt(t.enm("subject", "migrating", "pipeline")),
-  stageField: t.opt(t.str({ description: "On a pipeline: the field of the record type whose options are the stages" })),
+  stageField: t.opt(t.str()),
   variables: t.opt(
     t.arr(t.obj({ key: t.str(), title: t.str() }), { description: "Values the Journey carries from stage to stage" }),
   ),
@@ -346,8 +346,9 @@ export default defineManifest({
     ),
     write(
       "journeys.to_pipeline",
-      "Move a Journey onto its subject type as a pipeline: the records carry the stage themselves and the per-subject Journey records are folded into them. Safe to run again after a stop; nothing is deleted",
+      "Move a Journey onto its subject type as a pipeline; run again after a stop, nothing is deleted",
       {
+        tool: "automations",
         in: { ...target, stageField: t.opt(t.str()) },
         out: {
           journey: journeyRow,
@@ -361,85 +362,74 @@ export default defineManifest({
         risk: "high",
         emits: ["journey.designed"],
         audit: "always",
-        tool: "automations",
+
         errors: ["validation.precondition_failed", "validation.duplicate"],
       },
     ),
-    read(
-      "journeys.where",
-      "Where one record is on its Journey: the path with its stage, the time it has been there against the stage limit, and each stage's Automations",
-      {
-        in: { ...target, recordId: id.record },
-        out: {
-          journeyId: id.journey,
-          recordId: id.record,
-          stage: stageKey,
-          stageTitle: t.str(),
-          enteredAt: t.ts(),
-          hoursIn: t.int({ minimum: 0 }),
-          completed: t.bool(),
-          limitHours: t.opt(t.int()),
-          overByHours: t.opt(t.int()),
-          thenAsks: t.opt(t.obj({ kind: t.enm("role", "person"), id: t.str() })),
-          path: t.arr(
-            t.obj({
-              key: stageKey,
-              title: t.str(),
-              state: t.enm("done", "here", "next"),
-              final: t.bool(),
-              automations: t.arr(id.automation),
-            }),
-          ),
-        },
-        on: ["record", "/recordId"],
-        tool: "automations",
-        errors: ["permission.not_found"],
+    read("journeys.where", "Where one record is on its Journey and how long it has been in its stage", {
+      in: { ...target, recordId: id.record },
+      out: {
+        journeyId: id.journey,
+        recordId: id.record,
+        stage: stageKey,
+        stageTitle: t.str(),
+        enteredAt: t.ts(),
+        hoursIn: t.int({ minimum: 0 }),
+        completed: t.bool(),
+        limitHours: t.opt(t.int()),
+        overByHours: t.opt(t.int()),
+        thenAsks: t.opt(t.obj({ kind: t.enm("role", "person"), id: t.str() })),
+        path: t.arr(
+          t.obj({
+            key: stageKey,
+            title: t.str(),
+            state: t.enm("done", "here", "next"),
+            final: t.bool(),
+            automations: t.arr(id.automation),
+          }),
+        ),
       },
-    ),
-    write(
-      "journeys.test_path",
-      "Try the whole path on one record: every stage's Automations in stage order as tests (reads run, sends and writes are held); each is a Run",
-      {
-        in: { ...target, recordId: t.opt(id.record) },
-        out: {
-          runs: t.arr(
-            t.obj({ stage: stageKey, automationId: id.automation, runId: t.opt(id.run), error: t.opt(t.str()) }),
-          ),
-        },
-        perm: "journeys.manage",
-        level: "use",
-        tool: "automations",
+      on: ["record", "/recordId"],
+      tool: "automations",
+      errors: ["permission.not_found"],
+    }),
+    write("journeys.test_path", "Try every stage's Automations on one record as tests; sends and writes are held", {
+      in: { ...target, recordId: t.opt(id.record) },
+      out: {
+        runs: t.arr(
+          t.obj({ stage: stageKey, automationId: id.automation, runId: t.opt(id.run), error: t.opt(t.str()) }),
+        ),
       },
-    ),
+      perm: "journeys.manage",
+      level: "use",
+      tool: "automations",
+    }),
     write(
       "journeys.adopt",
-      "Bring the records a pipeline's type already had into the Journey where their stage field says they are, a page at a time; runs nothing for them and skips records that are in already",
+      "Bring a pipeline type's existing records into the Journey by their stage field, a page at a time",
       {
+        tool: "automations",
         in: { ...target, ...pageIn },
         out: { adopted: t.int(), skipped: t.int(), next: t.opt(t.str()) },
         perm: "journeys.manage",
         level: "manage",
-        tool: "automations",
+
         idem: "natural",
         errors: ["validation.precondition_failed"],
       },
     ),
-    read(
-      "journeys.migration_state",
-      "Where a move onto the pipeline stands: records done, failed (with why) and the Journey's mode",
-      {
-        in: target,
-        out: {
-          mode: t.enm("subject", "migrating", "pipeline"),
-          total: t.int(),
-          done: t.int(),
-          failed: t.arr(t.obj({ recordId: id.record, error: t.str() })),
-          states: t.json(),
-          pending: t.int(),
-        },
-        tool: "automations",
+    read("journeys.migration_state", "Where the move onto the pipeline stands", {
+      tool: "automations",
+      in: target,
+      out: {
+        mode: t.enm("subject", "migrating", "pipeline"),
+        total: t.int(),
+        done: t.int(),
+        failed: t.arr(t.obj({ recordId: id.record, error: t.str() })),
+        states: t.json(),
+        pending: t.int(),
       },
-    ),
+    }),
     write(
       "journeys.check_limits",
       "Find stages over their time limit, raise Needs you for the owner then the escalation role (called by the scheduler)",

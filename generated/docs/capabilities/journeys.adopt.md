@@ -1,6 +1,6 @@
 # journeys.adopt
 
-Bring the records a pipeline's type already had into the Journey where their stage field says they are, a page at a time; runs nothing for them and skips records that are in already
+Bring a pipeline type's existing records into the Journey by their stage field, a page at a time
 
 | | |
 |---|---|
