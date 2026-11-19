@@ -223,12 +223,10 @@ async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connect
     created && created !== "system" ? created : undefined,
   ].filter((x): x is string => typeof x === "string" && x !== "");
   let who: string | undefined;
-  let sure = true;
   for (const id of candidates) {
-    const m = await memberState(ctx, id);
-    if (m === "no") continue;
+    // fails closed: someone the directory does not vouch for (gone, or the lookup could not be made) is skipped to the next in the chain
+    if ((await memberState(ctx, id)) !== "yes") continue;
     who = id;
-    sure = m === "yes";
     break;
   }
   const title =
@@ -248,7 +246,7 @@ async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connect
     }) as Promise<{ task?: { id?: string } } | undefined>;
   try {
     let made: { task?: { id?: string } } | undefined;
-    // told only when a task exists: the tasks module answers a replayed key with the same task, so an answer without one made none. A person whose membership could not be looked up is told and so are the admins.
+    // told only when a task exists: the tasks module answers a replayed key with the same task, so an answer without one made none
     let told = false;
     if (who) {
       try {
@@ -258,10 +256,7 @@ async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connect
         told = false; // the person cannot be given a task
       }
     }
-    if (!told || !sure) {
-      const forAdmins = await make({ kind: "role", id: "admin" });
-      made = told ? made : forAdmins;
-    }
+    if (!told) made = await make({ kind: "role", id: "admin" });
     const taskId = made?.task?.id;
     if (taskId)
       deps.tx.run(
