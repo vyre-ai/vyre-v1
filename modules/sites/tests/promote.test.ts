@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { dormantEnvSet, hexOf } from "../handlers/deploy.ts";
+import { hexOf } from "../handlers/deploy.ts";
 import { githubRepo, productionHost } from "../handlers/promote.ts";
 import { handlers } from "../handlers/index.ts";
 import { SPACE_DOMAIN } from "../fixtures/fakes.ts";
@@ -69,8 +69,8 @@ function world(): World & { gh: { cap: string; input: unknown }[]; pr: PrScript;
   return Object.assign(w, { gh, pr, db });
 }
 
-async function run<T>(ctx: Ctx, cap: keyof typeof handlers | "sites.env_set", input: unknown): Promise<T> {
-  return (await (cap === "sites.env_set" ? (dormantEnvSet as Fn) : (handlers[cap] as Fn))(ctx, input)) as T;
+async function run<T>(ctx: Ctx, cap: keyof typeof handlers, input: unknown): Promise<T> {
+  return (await (handlers[cap] as Fn)(ctx, input)) as T;
 }
 
 async function code(p: Promise<unknown>): Promise<string> {
@@ -311,26 +311,6 @@ test("promote: a router fault stops the new container, puts the old rows and rou
   assert.equal(rows(w, "sites_promotion").length, 1);
   assert.equal(w.runtime.running.has(String(oldContainer)), true);
   assert.equal(w.runtime.running.size, 2); // staging and the old production container; the new one was stopped
-});
-
-test("promote: environment names are filled from the Vault into the production container; values are never read", async () => {
-  const w = world();
-  const siteId = await readySite(w);
-  await run(w.ctx, "sites.env_set", { siteId, entries: [{ name: "STRIPE_KEY", vaultHandle: "#Stripe.key" }] });
-  const staging = await stage(w, siteId);
-  const prod = await promote(w, siteId, staging);
-  const fills = w.filled.filter((f) => f.kind === "container_env" && f.ref.startsWith(prod.deploymentId));
-  assert.deepEqual(fills, [{ handle: "#Stripe.key", kind: "container_env", ref: `${prod.deploymentId}:STRIPE_KEY` }]);
-  const started = w.runtime.starts.find((s) => s.deploymentId === prod.deploymentId);
-  assert.deepEqual(started?.envRefs, [{ name: "STRIPE_KEY", ref: `${prod.deploymentId}:STRIPE_KEY` }]);
-  assert.equal(JSON.stringify(started).includes("sk_"), false);
-
-  // the owner lost the grant: no production container starts
-  const next = await stage(w, siteId);
-  w.granted.delete("#Stripe.key");
-  const startsBefore = w.runtime.starts.length;
-  assert.equal(await code(run(w.ctx, "sites.promote", { siteId, deploymentId: next })), "permission.no_grant");
-  assert.equal(w.runtime.starts.length, startsBefore);
 });
 
 test("promote with a pull request: failing or running checks block it, passing checks merge first, then the staged build ships", async () => {

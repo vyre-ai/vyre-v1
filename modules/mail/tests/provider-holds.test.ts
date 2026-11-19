@@ -74,10 +74,6 @@ const NOT_HELD: [RegExp, string][] = [
     "a sign-in step with no agent tool (identity.github_link and github_unlink, which change a sign-in method, are held), an anonymous join by invite code, or a plan from an address the person pasted that installs nothing (install.from_link)",
   ],
   [
-    /^sites\.webhook_set$/,
-    "turns on or off a site's own incoming GitHub webhook and makes its secret (shown once); it sends nothing anywhere, and a delivery only counts when it is signed with that secret",
-  ],
-  [
     /^automations\.webhook_url\.rotate$/,
     "makes a new address for the Space's own incoming webhook; it sends nothing anywhere",
   ],
@@ -227,6 +223,7 @@ const KEY_HOST_HELD = [
   "sites.preview_promote",
   "sites.ship",
   "sites.update",
+  "sites.webhook_set",
   "sync_specs.apply",
   "sync_specs.preview",
   "sync_specs.sample",

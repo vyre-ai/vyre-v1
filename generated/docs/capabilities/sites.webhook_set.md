@@ -11,7 +11,7 @@ Turn the GitHub webhook on or off, rotate its secret (shown once), or set the br
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

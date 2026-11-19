@@ -15,6 +15,7 @@ import {
   KEY_HOST_CAPS,
   carriesHandle,
   envHandles,
+  exposesKeys,
   hostOfUrl,
   keyReadHost,
   keySendOf,
@@ -136,7 +137,7 @@ async function appliesWhen(
   }
 }
 
-export { KEY_HOST_CAPS, carriesHandle, keySendOf, siteKeyPairs, sourceKeyHost };
+export { KEY_HOST_CAPS, carriesHandle, exposesKeys, keySendOf, siteKeyPairs, sourceKeyHost };
 
 interface Claims {
   v?: unknown;
@@ -589,6 +590,8 @@ export function moduleWhens(
     if (seed.principal.kind === "person") return false;
     // a Vault key that will reach code from a source (a key given to a site as env, a site moved to another source, a preview from elsewhere promoted) goes only where a person approved that key for that source; anything this cannot read holds
     const asker0 = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+    // what gets built for production on a site that stores Vault keys is a person's to change
+    if (exposesKeys(input, siteFactsOf(input))) return true;
     const pairs = await pairsOf(input, asker0);
     if (pairs.length > 0) {
       const h = db();

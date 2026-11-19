@@ -432,6 +432,7 @@ export default defineManifest({
         },
         out: hookOut,
         on: ["site", "/siteId"],
+        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
         perm: "sites.deploy",
         tool: "sites",
         audit: "sensitive",

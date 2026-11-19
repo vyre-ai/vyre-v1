@@ -66,6 +66,9 @@ export interface SiteSource {
   folderId?: string;
   fileId?: string;
   path?: string;
+  /** The branch of a git source and the app's folder inside it: another branch or folder is another source (an agent can often push a branch it cannot push the production branch). */
+  branch?: string;
+  root?: string;
   /** For uploaded files: a fingerprint of what the files are now (their ids and versions), so replaced files are other code. */
   fp?: string;
 }
@@ -75,6 +78,10 @@ export interface SiteSource {
  * ".git" removed; only the host is lowercased, and on github.com the owner and the name too (GitHub is not case-sensitive, other hosts are). Uploaded files are the site (or the folder or file before it exists) and the fingerprint of
  * the files: replace them and it is another source. Null when no source can be named (it holds).
  */
+/** A git source: where it is, which branch and which folder of it (the branch and the folder are part of what the code is). */
+const gitKey = (url: string, s: SiteSource): string =>
+  `git:${JSON.stringify([url, (s.branch ?? "").trim(), (s.root ?? "").trim()])}`;
+
 export function sourceKey(s: SiteSource | null | undefined, siteId?: string): string | null {
   if (!s) return null;
   if (typeof s.repo === "string" && s.repo.trim() !== "") {
@@ -82,7 +89,11 @@ export function sourceKey(s: SiteSource | null | undefined, siteId?: string): st
     const gh = /^(?:(?:https?:\/\/)?(?:www\.)?github\.com\/)?([A-Za-z0-9_-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/i.exec(
       raw,
     );
-    if (gh) return `git:https://github.com/${(gh[1] as string).toLowerCase()}/${(gh[2] as string).toLowerCase()}`;
+    if (gh) {
+      const [o, n] = [(gh[1] as string).toLowerCase(), (gh[2] as string).toLowerCase()];
+      if (/^\.+$/.test(o) || /^\.+$/.test(n)) return null;
+      return gitKey(`https://github.com/${o}/${n}`, s);
+    }
     if (!/^https:\/\//i.test(raw)) return null;
     let u: URL;
     try {
@@ -93,10 +104,12 @@ export function sourceKey(s: SiteSource | null | undefined, siteId?: string): st
     if (u.username !== "" || u.password !== "" || u.search !== "" || u.hash !== "") return null;
     const path = u.pathname.replace(/\/+$/, "").replace(/\.git$/i, "");
     if (path === "" || path === "/") return null;
-    return `git:https://${u.hostname.toLowerCase()}${u.port ? `:${u.port}` : ""}${path}`;
+    if (path.split("/").some((x) => /^\.+$/.test(x) && x !== "")) return null;
+    return gitKey(`https://${u.hostname.toLowerCase()}${u.port ? `:${u.port}` : ""}${path}`, s);
   }
   const id = siteId ?? s.folderId ?? s.fileId;
-  if ((s.folderId || s.fileId) && id && /^[A-Za-z0-9_]+$/.test(id) && s.fp) return `upload:${id}:${s.fp}`;
+  if ((s.folderId || s.fileId) && id && /^[A-Za-z0-9_]+$/.test(id) && s.fp)
+    return `upload:${JSON.stringify([id, s.fp, (s.root ?? "").trim()])}`;
   if (s.path && siteId && /^[A-Za-z0-9_]+$/.test(siteId)) return `path:${siteId}`;
   return null;
 }
@@ -182,7 +195,7 @@ export function sourceOfInput(input: unknown): SiteSource | null {
   const src = ((input ?? {}) as Record<string, unknown>)["source"];
   if (src === null || typeof src !== "object") return null;
   const out: SiteSource = {};
-  for (const k of ["repo", "folderId", "fileId", "path"] as const) {
+  for (const k of ["repo", "folderId", "fileId", "path", "branch", "root"] as const) {
     const v = (src as Record<string, unknown>)[k];
     if (typeof v === "string") out[k] = v;
   }
@@ -213,11 +226,18 @@ export function siteKeyPairs(
     for (const e of entries) add(e.handle, sourceKey(given, undefined));
     return pairs;
   }
+  // the site's facts could not be read: with a source named, keys given or a preview promoted, nothing can be judged, which holds
+  if (facts === null) {
+    if (given || entries.length > 0 || typeof i["branch"] === "string") add("?", null);
+    return pairs;
+  }
   const storedKey = sourceKey(facts?.source ?? null, siteId);
   const stored = (facts?.env ?? []).filter((e) => e.handle !== "");
   const toward = sourceKey(given ?? facts?.source ?? null, siteId);
   for (const e of entries) if (!stored.some((s) => s.name === e.name && s.handle === e.handle)) add(e.handle, toward);
   const givenKey = given ? sourceKey(given, siteId) : null;
+  // a source that cannot be named is never "the same" as one that cannot be named either
+  if (given && givenKey === null && (stored.length > 0 || entries.length > 0)) add("?", null);
   if (given && givenKey !== storedKey) {
     for (const s of stored) add(s.handle, givenKey);
     for (const e of entries) add(e.handle, givenKey);
@@ -233,11 +253,34 @@ export function siteKeyPairs(
     !Array.isArray(i["entries"]) &&
     !Array.isArray(i["env"]) &&
     i["source"] === undefined;
-  if (promote && facts?.builtFrom) {
-    const builtKey = sourceKey(facts.builtFrom, siteId);
-    if (builtKey !== storedKey) for (const s of stored) if (s.scope !== "previews") add(s.handle, builtKey);
+  if (promote) {
+    const prod = stored.filter((s) => s.scope !== "previews");
+    // a build from before the origin was recorded is not known to be the site's own: it holds
+    if (!facts.builtFrom) {
+      if (prod.length > 0) add("?", null);
+    } else {
+      const builtKey = sourceKey(facts.builtFrom, siteId);
+      if (builtKey === null || builtKey !== storedKey) for (const s of prod) add(s.handle, builtKey);
+      else if (storedKey === null && prod.length > 0) add("?", null);
+    }
   }
   return pairs;
+}
+
+/**
+ * Does a call change what reaches production on a site that stores Vault keys: turning a webhook on or changing which branches it builds, turning deploy on push on, or writing the site's settings. An agent's such call waits for a person;
+ * the keys' own approval is by source (siteKeyPairs), but a change in what gets built for production is no pair. Facts that could not be read hold.
+ */
+export function exposesKeys(input: unknown, facts: SiteFacts | null): boolean {
+  const i = (input ?? {}) as Record<string, unknown>;
+  const changes =
+    Array.isArray(i["follow"]) ||
+    i["enabled"] === true ||
+    i["autoDeploy"] === true ||
+    (i["settings"] !== undefined && i["settings"] !== null);
+  if (!changes || typeof i["siteId"] !== "string") return false;
+  if (facts === null) return true;
+  return facts.env.some((e) => e.handle !== "" && e.scope !== "previews");
 }
 
 /** A Vault handle given as a site's env (sites_env_set entries, sites_ship env): the key goes into the process the site runs, so code a caller chose can send it anywhere. */
@@ -267,6 +310,7 @@ export const KEY_HOST_CAPS: ReadonlySet<string> = new Set([
   "sites.ship",
   "sites.env_set",
   "sites.preview_promote",
+  "sites.webhook_set",
 ]);
 
 /**

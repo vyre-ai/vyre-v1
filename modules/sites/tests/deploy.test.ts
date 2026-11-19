@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { configureSites, dormantEnvSet, hexOf } from "../handlers/deploy.ts";
+import { configureSites, hexOf } from "../handlers/deploy.ts";
 import { consumers, inline } from "../projections.ts";
 import type { ProjEvent, ProjTx } from "../projections.ts";
 import { handleBranchMerged, handlers } from "../handlers/index.ts";
@@ -18,10 +18,9 @@ import type { World } from "../fixtures/world.ts";
 type Row = Record<string, unknown>;
 type Fn = (ctx: Ctx, input: unknown) => Promise<unknown>;
 
-const call = (cap: keyof typeof handlers | "sites.env_set"): Fn =>
-  cap === "sites.env_set" ? (dormantEnvSet as Fn) : (handlers[cap] as Fn);
+const call = (cap: keyof typeof handlers): Fn => handlers[cap] as Fn;
 
-async function run<T>(ctx: Ctx, cap: keyof typeof handlers | "sites.env_set", input: unknown): Promise<T> {
+async function run<T>(ctx: Ctx, cap: keyof typeof handlers, input: unknown): Promise<T> {
   return (await call(cap)(ctx, input)) as T;
 }
 
@@ -430,97 +429,6 @@ test("deploy: a router fault stops the container it started", async () => {
   assert.equal(w.runtime.stops.length, 1);
 });
 
-test("env: names map to Vault handles, values are filled into the container and never stored", async () => {
-  const w = harness();
-  const site = await readySite(w);
-  assert.deepEqual(await run(w.ctx, "sites.env_list", { siteId: site.siteId }), { entries: [] });
-  await run(w.ctx, "sites.env_set", {
-    siteId: site.siteId,
-    entries: [
-      { name: "STRIPE_KEY", vaultHandle: "#Stripe.key" },
-      { name: "DATABASE_URL", vaultHandle: "#Db_Url" },
-    ],
-  });
-  const listed = await run<{ entries: { name: string; vaultName: string; injected: boolean }[] }>(
-    w.ctx,
-    "sites.env_list",
-    { siteId: site.siteId },
-  );
-  assert.deepEqual(listed.entries, [
-    { name: "DATABASE_URL", vaultName: "#Db_Url", injected: false },
-    { name: "STRIPE_KEY", vaultName: "#Stripe.key", injected: false },
-  ]);
-
-  const id = await build(w, site.siteId);
-  const dep = await deploy(w, site.siteId, id);
-  const refs = w.runtime.starts[0]?.envRefs ?? [];
-  assert.deepEqual(refs.map((r) => r.name).sort(), ["DATABASE_URL", "STRIPE_KEY"]);
-  for (const r of refs) assert.equal(r.ref.startsWith(`${dep.deploymentId}:`), true);
-  assert.deepEqual(
-    w.filled
-      .filter((f) => f.kind === "container_env")
-      .map((f) => f.handle)
-      .sort(),
-    ["#Db_Url", "#Stripe.key"],
-  );
-  const after = await run<{ entries: { name: string; injected: boolean }[] }>(w.ctx, "sites.env_list", {
-    siteId: site.siteId,
-  });
-  assert.deepEqual(
-    after.entries.map((e) => e.injected),
-    [true, true],
-  );
-
-  // replacing keeps injected for an unchanged entry, resets it for a changed handle, drops removed names
-  await run(w.ctx, "sites.env_set", {
-    siteId: site.siteId,
-    entries: [
-      { name: "STRIPE_KEY", vaultHandle: "#Stripe.key" },
-      { name: "DATABASE_URL", vaultHandle: "#Staging_Pass" },
-    ],
-  });
-  const replaced = await run<{ entries: { name: string; vaultName: string; injected: boolean }[] }>(
-    w.ctx,
-    "sites.env_list",
-    { siteId: site.siteId },
-  );
-  assert.deepEqual(replaced.entries, [
-    { name: "DATABASE_URL", vaultName: "#Staging_Pass", injected: false },
-    { name: "STRIPE_KEY", vaultName: "#Stripe.key", injected: true },
-  ]);
-  await run(w.ctx, "sites.env_set", { siteId: site.siteId, entries: [] });
-  assert.deepEqual((await run<{ entries: unknown[] }>(w.ctx, "sites.env_list", { siteId: site.siteId })).entries, []);
-});
-
-test("env: bad names, duplicates, bad handles and keys without a grant are refused and change nothing", async () => {
-  const w = harness();
-  const site = await readySite(w);
-  await run(w.ctx, "sites.env_set", { siteId: site.siteId, entries: [{ name: "KEEP", vaultHandle: "#Db_Url" }] });
-  const bad = async (entries: unknown): Promise<string> =>
-    code(run(w.ctx, "sites.env_set", { siteId: site.siteId, entries }));
-  assert.equal(await bad([{ name: "1BAD", vaultHandle: "#Db_Url" }]), "validation.bad_input");
-  assert.equal(await bad([{ name: "A-B", vaultHandle: "#Db_Url" }]), "validation.bad_input");
-  assert.equal(await bad([{ name: "OK", vaultHandle: "Db_Url" }]), "validation.bad_input");
-  assert.equal(
-    await bad([
-      { name: "OK", vaultHandle: "#Db_Url" },
-      { name: "OK", vaultHandle: "#Stripe.key" },
-    ]),
-    "validation.duplicate",
-  );
-  assert.equal(await bad([{ name: "OK", vaultHandle: "#Not_Granted" }]), "permission.no_grant");
-  assert.equal(await bad("nope"), "validation.bad_input");
-  assert.equal(
-    await bad(Array.from({ length: 201 }, (_, i) => ({ name: `N${i}`, vaultHandle: "#Db_Url" }))),
-    "validation.too_large",
-  );
-  const left = await run<{ entries: { name: string }[] }>(w.ctx, "sites.env_list", { siteId: site.siteId });
-  assert.deepEqual(
-    left.entries.map((e) => e.name),
-    ["KEEP"],
-  );
-});
-
 test("previews: one per branch on its own address, built on push, rebuilt in place, removed on request and brought back", async () => {
   const w = harness();
   const site = await readySite(w);
@@ -736,7 +644,13 @@ test("delete: stops containers, removes routes and domains, and the site disappe
   const site = await readySite(w);
   await deploy(w, site.siteId, await build(w, site.siteId));
   await build(w, site.siteId, "feat/login");
-  await run(w.ctx, "sites.env_set", { siteId: site.siteId, entries: [{ name: "K", vaultHandle: "#Db_Url" }] });
+  w.ctx.db.run(
+    "INSERT INTO sites_env (site_id, name, vault_handle, injected) VALUES (?, ?, ?, ?)",
+    site.siteId,
+    "K",
+    "#Db_Url",
+    0,
+  );
   assert.equal(w.runtime.running.size, 2);
   assert.deepEqual(await run(w.ctx, "sites.delete", { siteId: site.siteId }), { deleted: true });
   assert.equal(w.runtime.running.size, 0);

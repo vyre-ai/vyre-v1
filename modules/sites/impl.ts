@@ -37,7 +37,15 @@ const dormant = registry.capabilities.filter((c) => c.module === "sites" && !(c.
 export const handlers = { ...deferredHandlers(dormant), ...live };
 export const consumers = {};
 export { markPushDone, markPushFailed, pendingPushes };
-type Src = { repo?: string; folderId?: string; fileId?: string; path?: string; fp?: string };
+type Src = {
+  repo?: string;
+  folderId?: string;
+  fileId?: string;
+  path?: string;
+  branch?: string;
+  root?: string;
+  fp?: string;
+};
 type Reader = { db: { all(sql: string, ...a: unknown[]): unknown[] } };
 function parseSource(raw: unknown): Src | null {
   if (typeof raw !== "string") return null;
