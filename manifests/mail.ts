@@ -1021,7 +1021,7 @@ const manifest = defineManifest({
         errors: ["validation.bad_input", "validation.not_found", "permission.no_grant"],
       },
     ),
-    read("mail.delivery", "With messageId: that sent message's delivery trail. Without: inbox health, optionally for one mailboxId", {
+    read("mail.delivery_state", "With messageId: that sent message's delivery trail. Without: inbox health, optionally for one mailboxId", {
       in: { messageId: t.opt(emlId), mailboxId: t.opt(id.mailbox) },
       out: { result: t.json() },
       tool: "inbox",
@@ -1198,10 +1198,10 @@ const manifest = defineManifest({
       needs: ["connectors.manage"],
     }),
     screen("mail.templates", "console", "ui:EmailTemplates", {
-      q: { templates: ["mail.template.list", {}, true] },
+      q: { templates: ["mail.templates", { action: "list" }, true] },
       a: {
-        save: ["mail.template.save", { key: "/state/key", subject: "/state/subject", text: "/state/text" }],
-        reset: ["mail.template.reset", { key: "/state/key" }, "Use the template that ships with Vyre?"],
+        save: ["mail.templates", { action: "set", key: "/state/key", subject: "/state/subject", text: "/state/text" }],
+        reset: ["mail.templates", { action: "reset", key: "/state/key" }, "Use the template that ships with Vyre?"],
       },
       empty: "No templates yet",
       needs: ["comms.templates"],

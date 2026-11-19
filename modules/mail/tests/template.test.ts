@@ -254,7 +254,7 @@ test("document wording needs edit on the file and comms.templates; reading needs
 });
 
 import { delivery, templates } from "../handlers/extra/tools.ts";
-test("mail.templates and mail.delivery: the two tools route to the same behaviour, and changing a template asks for the right to", async () => {
+test("mail.templates and mail.delivery_state: the two tools route to the same behaviour, and changing a template asks for the right to", async () => {
   const h = setup();
   const list = (await templates(h.ctx, { action: "list" })).result as { templates: { key: string }[] };
   assert.equal(list.templates.length, 4);
@@ -278,7 +278,7 @@ test("mail.templates and mail.delivery: the two tools route to the same behaviou
   await assert.rejects(templates(h.ctx, { action: "reset", key: "signature.reminder" }), (e) => codeOf(e) === "permission.no_grant");
   assert.equal(((await templates(h.ctx, { action: "list" })).result as { templates: unknown[] }).templates.length, 4); // reading stays open
   // delivery: a message id gives its trail, none gives inbox health
-  assert.deepEqual(contractErrors("mail.delivery", "out", await delivery(h.ctx, {})), []);
+  assert.deepEqual(contractErrors("mail.delivery_state", "out", await delivery(h.ctx, {})), []);
   assert.ok(Array.isArray(((await delivery(h.ctx, {})).result as { inboxes: unknown[] }).inboxes));
   await assert.rejects(delivery(h.ctx, { messageId: "eml_none" }), (e) => codeOf(e) === "validation.not_found");
 });
