@@ -8,6 +8,19 @@ import type { GoalPage as GoalPageView } from "../goals/GoalPage.tsx";
 import type { ProjectScreen as ProjectScreenView } from "../projects/ProjectScreen.tsx";
 import type { TaskDetail as TaskDetailView } from "../tasks/TaskDetail.tsx";
 import type { TasksPage as TasksPageView } from "../tasks/TasksPage.tsx";
+import type { AgentInTrash as AgentInTrashView } from "../agentpage/AgentInTrash.tsx";
+import type { CrewSide as CrewSideView } from "../crew/CrewSide.tsx";
+import type { TerminalList as TerminalListView } from "../terminal/TerminalList.tsx";
+import type { TerminalRules as TerminalRulesView } from "../terminal/TerminalRules.tsx";
+import type { TerminalTab as TerminalTabView } from "../terminal/TerminalTab.tsx";
+import type { AllAgents as AllAgentsView } from "./AllAgents.tsx";
+import type { ArtifactsPage as ArtifactsPageView } from "./ArtifactsPage.tsx";
+import type { ArtifactView as ArtifactViewView } from "./ArtifactView.tsx";
+import type { ReplyDetailsPane as ReplyDetailsPaneView } from "../details/ReplyDetailsPane.tsx";
+import type { ThingPane as ThingPaneView } from "./ThingPane.tsx";
+import type { AgentShareHost as AgentShareHostView } from "../agentform/AgentShare.tsx";
+import type { ProjectChatGate as ProjectChatGateView } from "../projects/ProjectChatGate.tsx";
+import type { PhoneProfile as PhoneProfileView } from "./PhoneProfile.tsx";
 
 /** A page loaded on first draw; once loaded it is drawn directly. */
 function lazyPage<P extends object>(
@@ -58,7 +71,82 @@ export const ProjectScreen = project.Draw;
 export const TaskDetail = task.Draw;
 export const TasksPage = tasks.Draw;
 
+// Parts a person opens on request (r41: out of the first signed-in screen's source)
+const agentInTrashPage = lazyPage<ComponentProps<typeof AgentInTrashView>>(() =>
+  import("../agentpage/AgentInTrash.tsx").then((m) => m.AgentInTrash),
+);
+export const AgentInTrash = agentInTrashPage.Draw;
+const crewSidePage = lazyPage<ComponentProps<typeof CrewSideView>>(() =>
+  import("../crew/CrewSide.tsx").then((m) => m.CrewSide),
+);
+export const CrewSide = crewSidePage.Draw;
+const terminalListPage = lazyPage<ComponentProps<typeof TerminalListView>>(() =>
+  import("../terminal/TerminalList.tsx").then((m) => m.TerminalList),
+);
+export const TerminalList = terminalListPage.Draw;
+const terminalRulesPage = lazyPage<ComponentProps<typeof TerminalRulesView>>(() =>
+  import("../terminal/TerminalRules.tsx").then((m) => m.TerminalRules),
+);
+export const TerminalRules = terminalRulesPage.Draw;
+const terminalTabPage = lazyPage<ComponentProps<typeof TerminalTabView>>(() =>
+  import("../terminal/TerminalTab.tsx").then((m) => m.TerminalTab),
+);
+export const TerminalTab = terminalTabPage.Draw;
+const allAgentsPage = lazyPage<ComponentProps<typeof AllAgentsView>>(() =>
+  import("./AllAgents.tsx").then((m) => m.AllAgents),
+);
+export const AllAgents = allAgentsPage.Draw;
+const artifactsPagePage = lazyPage<ComponentProps<typeof ArtifactsPageView>>(() =>
+  import("./ArtifactsPage.tsx").then((m) => m.ArtifactsPage),
+);
+export const ArtifactsPage = artifactsPagePage.Draw;
+const artifactViewPage = lazyPage<ComponentProps<typeof ArtifactViewView>>(() =>
+  import("./ArtifactView.tsx").then((m) => m.ArtifactView),
+);
+export const ArtifactView = artifactViewPage.Draw;
+const replyDetailsPanePage = lazyPage<ComponentProps<typeof ReplyDetailsPaneView>>(() =>
+  import("../details/ReplyDetailsPane.tsx").then((m) => m.ReplyDetailsPane),
+);
+export const ReplyDetailsPane = replyDetailsPanePage.Draw;
+const thingPanePage = lazyPage<ComponentProps<typeof ThingPaneView>>(() =>
+  import("./ThingPane.tsx").then((m) => m.ThingPane),
+);
+export const ThingPane = thingPanePage.Draw;
+const agentShareHostPage = lazyPage<ComponentProps<typeof AgentShareHostView>>(() =>
+  import("../agentform/AgentShare.tsx").then((m) => m.AgentShareHost),
+);
+export const AgentShareHost = agentShareHostPage.Draw;
+const projectChatGatePage = lazyPage<ComponentProps<typeof ProjectChatGateView>>(() =>
+  import("../projects/ProjectChatGate.tsx").then((m) => m.ProjectChatGate),
+);
+export const ProjectChatGate = projectChatGatePage.Draw;
+const phoneProfilePage = lazyPage<ComponentProps<typeof PhoneProfileView>>(() =>
+  import("./PhoneProfile.tsx").then((m) => m.PhoneProfile),
+);
+export const PhoneProfile = phoneProfilePage.Draw;
+
 /** Fetch every page of this file; after it resolves each draws at once. */
 export function preloadChatsPages(): Promise<void> {
-  return Promise.all([form, goal, project, task, tasks].map((p) => p.preload())).then(() => undefined);
+  return Promise.all(
+    [
+      form,
+      goal,
+      project,
+      task,
+      tasks,
+      agentInTrashPage,
+      crewSidePage,
+      terminalListPage,
+      terminalRulesPage,
+      terminalTabPage,
+      allAgentsPage,
+      artifactsPagePage,
+      artifactViewPage,
+      replyDetailsPanePage,
+      thingPanePage,
+      agentShareHostPage,
+      projectChatGatePage,
+      phoneProfilePage,
+    ].map((p) => p.preload()),
+  ).then(() => undefined);
 }

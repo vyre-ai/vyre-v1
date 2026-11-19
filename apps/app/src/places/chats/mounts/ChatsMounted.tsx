@@ -3,7 +3,6 @@
 // rules) sit over it. Every door is one `Go` function over the pure `step`: a face's "Open Intake's Page", the helper icon, the channel menu's "Connect an Outside Agent", the Computer
 // chip, a face in the sidebar, a request in Needs you all end in the same place. The data comes from the runtime the shell built for the open Space (live queries over the kept copy
 // and `call`), never from sample data. A link from another place arrives as `hash` and becomes the first thing shown.
-import { AgentInTrash } from "../agentpage/AgentInTrash.tsx";
 import { shellTarget, useViewer } from "../../../shell/reach/viewer.ts";
 import { useComputersAvailable } from "../../../shell/computers-available.ts";
 import { ImportedSession } from "../imported/ImportedSession.tsx";
@@ -11,7 +10,6 @@ import type { ImportedData } from "../imported/ImportedSession.tsx";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { PhoneProfile } from "./PhoneProfile.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -30,22 +28,15 @@ import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { AgentPane } from "../AgentPane.tsx";
 import { CrewProvider } from "../crew/context.tsx";
 import { SessionProvider } from "../session/context.tsx";
-import { CrewSide } from "../crew/CrewSide.tsx";
 import { useAddSheet } from "../addsheet/index.ts";
-import { AgentShareHost } from "../agentform/AgentShare.tsx";
 import { pokeInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { usePhone } from "../../inbox/softphone/phone.tsx";
 import { ChatsSidebar, ChatsSidebarSlot } from "../sidebar/ChatsSidebar.tsx";
-import { TerminalList } from "../terminal/TerminalList.tsx";
-import { TerminalRules } from "../terminal/TerminalRules.tsx";
-import { TerminalTab } from "../terminal/TerminalTab.tsx";
-import { AllAgents } from "./AllAgents.tsx";
 import { ConnectOutsideAgent } from "./ConnectOutsideAgent.tsx";
 import type { ConnectProps } from "./ConnectOutsideAgent.tsx";
 import { SearchPage } from "../search/SearchPage.tsx";
 import type { SearchData } from "../search/SearchPage.tsx";
 import { TextButton } from "../conversation/parts.tsx";
-import { ProjectChatGate } from "../projects/ProjectChatGate.tsx";
 import {
   channelThread,
   isChannelId,
@@ -74,15 +65,12 @@ import { PendingChat } from "../landing/PendingChat.tsx";
 import { firstWords, holdPending } from "../landing/pending.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { ThreadSide } from "./ThreadSide.tsx";
-import { ArtifactsPage } from "./ArtifactsPage.tsx";
-import { ArtifactView } from "./ArtifactView.tsx";
 import { NotesArtifactsFrame } from "./NotesArtifactsFrame.tsx";
 import { rememberNotesTab } from "../notes/notes-tab.ts";
 import type { NotesInitial } from "../notes/NotesPage.tsx";
 import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
 import { useDirectory } from "../../../shell/providers/automations-directory.ts";
 import { PANE_MEMORY } from "./pane-memory.ts";
-import { ThingPane } from "./ThingPane.tsx";
 import { nextTrail, thingOf } from "./thing-model.ts";
 import type { Thing } from "./thing-model.ts";
 import { openIn, takeOpenHow } from "../../../shell/tabs/open-how.ts";
@@ -91,14 +79,33 @@ import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
 import type { PaneKind, TabKey } from "../rightpane/model.ts";
 import { ChatDetails } from "../rightpane/ChatDetails.tsx";
 import { paneAction, paneSubject } from "../rightpane/subject.ts";
-import { ReplyDetailsPane } from "../details/ReplyDetailsPane.tsx";
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
 import { ChatWork } from "../tasks/ChatWork.tsx";
 import { NotesPage } from "../notes/NotesPage.tsx";
-import { AgentForm, GoalPage, ProjectScreen, TaskDetail, TasksPage } from "./lazy-pages.tsx";
+import {
+  AgentForm,
+  AgentInTrash,
+  AgentShareHost,
+  AllAgents,
+  ArtifactView,
+  ArtifactsPage,
+  CrewSide,
+  GoalPage,
+  PhoneProfile,
+  ProjectChatGate,
+  ProjectScreen,
+  ReplyDetailsPane,
+  TaskDetail,
+  TasksPage,
+  TerminalList,
+  TerminalRules,
+  TerminalTab,
+  ThingPane,
+  preloadChatsPages,
+} from "./lazy-pages.tsx";
 import { openSkills } from "../install/open.ts";
 import type { Act, Route, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
@@ -195,6 +202,21 @@ export function ChatsMounted({
     (id: string): string => (id === rt.assistant.id ? rt.assistant.name : nameOr(byId.get(id)?.name, id)),
     [byId, rt.assistant.id, rt.assistant.name],
   );
+
+  // the parts a person opens on request (a task, the terminal, the artifacts) are fetched once the first screen is drawn and the page is idle, so a press on them finds their code here
+  useEffect(() => {
+    const w = globalThis as {
+      requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number;
+      cancelIdleCallback?: (n: number) => void;
+    };
+    const go = (): void => void preloadChatsPages().catch(() => undefined);
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(go, { timeout: 2500 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(go, 1500);
+    return () => clearTimeout(t);
+  }, []);
 
   // what someone picked on an agent's page shows on every face of that agent
   useEffect(() => {
