@@ -871,6 +871,22 @@ const steps = [
     in: { ...act, folderId: t.opt(t.str()), search: t.opt(t.str()), top: t.opt(t.int({ minimum: 1, maximum: 1000 })) },
     out: { messages: t.arr(graphMessage) },
   }),
+  step("ms.mail.create_draft", "Microsoft · Draft an Outlook message", "data", "capability", {
+    cap: "ms.mail.create_draft",
+    // the capability is an outward one on the Gate (it writes into a mailbox) but its own act is none: the draft stays in the mailbox and nothing is sent
+    effects: "outward",
+    idempotency: "key",
+    errors: accountErrors,
+    in: { ...act, to: t.arr(email), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()) },
+    out: { draftId: t.str() },
+  }),
+  step("ms.mail.get_message", "Microsoft · Read an Outlook message", "data", "capability", {
+    cap: "ms.mail.get_message",
+    effects: "read",
+    errors: accountErrors,
+    in: { ...act, messageId: t.str() },
+    out: { message: graphMessage, body: t.opt(t.str()) },
+  }),
   step("ms.mail.send_message", "Microsoft · Send an Outlook message", "send", "capability", {
     cap: "ms.mail.send_message",
     effects: "outward",

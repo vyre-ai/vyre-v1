@@ -20,7 +20,7 @@ export type ConnectionState = "pending" | "active" | "paused" | "needs_reconnect
 export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface AuthDef {
-  type: "api_key" | "bearer" | "oauth2" | "client_credentials" | "none";
+  type: "api_key" | "bearer" | "oauth2" | "client_credentials" | "oauth_refresh" | "none";
   /** Declared secret that holds the key or the access token. */
   secret?: string;
   /** api_key: the header the key travels in, and a prefix such as "Token ". Default Authorization. */
@@ -33,6 +33,9 @@ export interface AuthDef {
   scopes?: string[];
   /** The NAME of a declared secret that holds the client secret (never the secret itself). */
   clientSecret?: string;
+  /** oauth_refresh: the NAMES of the declared secrets that hold the client id and the refresh token (clientSecret names the client secret). One Vault item holds all three; a rotated refresh token is written back to it. */
+  clientIdSecret?: string;
+  refreshSecret?: string;
   /** Where a token is revoked when a connection is deleted; optional, best effort. */
   revokeUrl?: string;
   /** api_key or bearer only: send HTTP Basic (user:password) instead of a header. Both are templates (`{secret.Name}` or plain words, "api"); the password may be empty. The joined value is scrubbed like a secret. */
@@ -160,6 +163,13 @@ export interface ConnectorsDeps {
     handle: string,
     binding?: { connector: string; connectionId: string; slot: string },
   ) => Promise<string | undefined>;
+  /** A kept secret is about to be used again: the host asks the access checks of this very call (connection, Vault item). Throws the refusal; false says it cannot tell, and the value is read again. */
+  recheckSecret?: (
+    handle: string,
+    binding: { connector: string; connectionId: string; slot: string },
+  ) => Promise<boolean | void>;
+  /** Waits in line for the connection's budget (the host's timer). Absent in tests, where a call at its limit is refused with the wait. */
+  pace?: (ms: number) => Promise<void>;
   /** Store a secret the module obtained (an OAuth token) in the Vault and return its handle. */
   storeSecret?: (name: string, value: string) => Promise<string>;
   /** The connector folder in Files: parsed into a def (connector.toml, tests). Drafts follow it. */
@@ -188,6 +198,8 @@ export interface ProbeRequest {
   headers?: Record<string, string>;
   domain: string;
   url: string;
+  /** Sign in by trading a refresh token (auth style oauth_refresh): the item's handle is `handle`, and style is bearer once the token is had. */
+  refreshFrom?: { tokenUrl: string };
 }
 export interface ProbeReply {
   status: number;
@@ -417,6 +429,15 @@ export function takeToken(key: string, rate: { rps: number; burst: number } | un
   b.tokens -= 1;
   buckets.set(key, b);
   return true;
+}
+/** The longest wait a call serves in line (when the host gives it a way to wait); a longer one is refused with the wait it needs. */
+export const PACE_LONGEST_MS = 5_000;
+/** The most one call waits in line for the budget altogether; then it fails with the wait it still needs and the pass asks again later. */
+export const PACE_TOTAL_MS = 30_000;
+/** What an app's "slow down" still holds this connection for (0: nothing). */
+export function holdMsOf(key: string, nowMs: number): number {
+  const held = holds.get(key);
+  return held && held.until > nowMs ? held.until - nowMs : 0;
 }
 /** How long until a call on this connection may go (0: now). Reads only. */
 export function tokenWaitMs(key: string, rate: { rps: number; burst: number } | undefined, nowMs: number): number {
@@ -706,7 +727,7 @@ export const secretKeyName = (k: string): boolean => {
 };
 
 /** Known only inside this process: the sync engine's own pass says it (in the action's input) to be given the real values of sealed fields, which it seals at once. Nobody else can. */
-export const SYNC_PASS_TOKEN = `sp_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+export const SYNC_PASS_TOKEN = `sp_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
 export const SEALED_MASK = "[sealed]";
 /**
  * The real values of sealed fields read by one sync pass, kept in this process only, by the pass's nonce and the row's id. They never travel in an action's answer (the answer is masked): the engine takes them

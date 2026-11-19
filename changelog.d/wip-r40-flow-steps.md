@@ -1,0 +1,8 @@
+- A Flow now gets the record: a form, a button, a stage move and a record change each carry `trigger.record` (its fields, sealed ones left out), so `{{trigger.record.email}}` fills.
+- A trigger filter that names a key its trigger does not have (`recordType` on a form, `field` on a record change) is refused when it is saved, with the key to use instead.
+- Every `{{ }}` is checked when the Flow is saved and checked again when it runs: an unknown one is an error that names it and the nearest valid one, and a step that meets one fails instead of sending an empty value.
+- New steps: "Make a form link" (a one-use link for a record, usable in a later email step) and "Move to a stage" (a record to a Journey stage).
+- A button trigger for a record type with no Button field says so in plain words, and the Flow builder offers to add the field in one press.
+- An AI step in Answer mode that asks for a skill is warned that it has no tools and told to switch to Task.
+- A form, a button or a stage move names its record; a step that reads `trigger.record` has it read as the Flow's own principal, so a field its owner may not read never reaches the template. `{{ a ?? 'x' }}` and `||` give a fallback when a name has nothing.
+- An app with its own OAuth client (refresh token in a Vault item) refreshes once per item however many connections and probes use it, saves a rotated refresh token through the connection's own housekeeping (use, not edit) before using the new access token, and treats only 400 and 401 as a refused token.

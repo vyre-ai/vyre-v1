@@ -156,8 +156,13 @@ test("the steps that had no form: their schema was a bare reference, and now lis
     "files.move",
     "files.share",
     "github.pull_request.get",
+    "google.drive.get_file",
+    "google.gmail.get_message",
     "google.gmail.list_messages",
     "google.sheets.get_values",
+    "ms.mail.create_draft",
+    "ms.mail.get_message",
+    "ms.mail.send_message",
     "records.relate",
   ]);
   for (const key of bare) {

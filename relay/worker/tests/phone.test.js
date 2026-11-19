@@ -917,3 +917,15 @@ test("info.json says the relay carries web request triggers, so the box can tell
   const j = await (await call(rt, "https://harbor.vyre.run/__vyre/info.json")).json();
   assert.equal(j.hooks, true);
 });
+
+test("a name that came back to the relay answers /sw.js with a worker that retires the app's own (an address change leaves no stale worker)", async (t) => {
+  const rt = world(t);
+  const a = await box(rt);
+  await a.say({ t: "host.claim", name: "alex-phone", label: "Home" });
+  const r = await rt.fetch("https://alex-phone.vyre.run/sw.js");
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get("content-type") || "", /javascript/);
+  assert.equal(r.headers.get("cache-control"), "no-store");
+  const text = await r.text();
+  for (const w of ["skipWaiting", "clients.claim", "unregister", "navigate"]) assert.ok(text.includes(w), w);
+});

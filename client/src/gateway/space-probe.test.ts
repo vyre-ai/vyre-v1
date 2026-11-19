@@ -117,3 +117,23 @@ test("an address that is not http(s) is never probed", async () => {
     assert.equal(await probeDirectSpace(a, { fetch: f.fetch, routes }), false);
   assert.deepEqual(f.asked, []);
 });
+
+test("spaceIdAt names the Space that answers /healthz, and is null for anything that is not one", async () => {
+  const { spaceIdAt } = await import("./space-probe.ts");
+  const json = (body: unknown, status = 200, type = "application/json") =>
+    (async () =>
+      new Response(JSON.stringify(body), { status, headers: { "content-type": type } })) as unknown as typeof fetch;
+  assert.equal(
+    await spaceIdAt("http://127.0.0.1:4100", { fetch: json({ ok: true, roles: ["space"], space: "spc_north" }) }),
+    "spc_north",
+  );
+  assert.equal(await spaceIdAt("http://127.0.0.1:4100", { fetch: json({ roles: ["relay"], space: "spc_x" }) }), null);
+  assert.equal(await spaceIdAt("http://127.0.0.1:4100", { fetch: json({}, 503) }), null);
+  assert.equal(
+    await spaceIdAt("https://x.example", {
+      fetch: (async () => Promise.reject(new Error("down"))) as unknown as typeof fetch,
+    }),
+    null,
+  );
+  assert.equal(await spaceIdAt("not an address"), null);
+});

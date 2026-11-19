@@ -1,0 +1,1 @@
+- A part's loader runs without an extra async turn (a test or a screen that waits a few turns for a part still sees it), and the guard for the signed-in shell's lazy boundary names the lazyPart form.

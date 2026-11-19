@@ -91,6 +91,18 @@ test("a sign-in from another Space's page makes a carry token: the bundle once, 
       null,
       "https only",
     );
+    // a claim page opened through an SSH tunnel is http on loopback: it is answered too (r40), the same carry calls and nothing more
+    assert.equal(
+      (await preflight(a.url, "/v1/identity/sign_in_options", "http://localhost:8420")).headers.get(
+        "access-control-allow-origin",
+      ),
+      "http://localhost:8420",
+      "a page on this machine over loopback",
+    );
+    assert.equal(
+      (await preflight(a.url, "/v1/spaces/get", "http://localhost:8420")).headers.get("access-control-allow-origin"),
+      null,
+    );
     assert.equal((await post(a.url, "/v1/identity/sign_in_options", {}, { origin: B_PAGE })).acao, B_PAGE);
 
     // the sign-in: a carry token, never a session

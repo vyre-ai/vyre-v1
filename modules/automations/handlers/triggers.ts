@@ -7,6 +7,8 @@
 import { isTrustedService } from "../../../lib/trust.ts";
 import { registry } from "../../../generated/registry.ts";
 import { validateDefinition, webhookSecretMatches } from "./defs.ts";
+import { buttonType, noButtonLine } from "../button.ts";
+import { withoutSealed } from "../../../lib/flow-reads.ts";
 import {
   allAutomations,
   clean,
@@ -179,6 +181,12 @@ export async function testEvents(ctx: AutoCtx, input: In): Promise<unknown> {
 /** The origin of a Run an agent started by hand (runs.ts reads it as the trigger "agent_run", which is from outside). */
 export const AGENT_RUN_ORIGIN = "agent:";
 
+async function mustHaveButton(ctx: AutoCtx, def: Definition, pressed?: unknown): Promise<void> {
+  const type = buttonType(def, pressed);
+  const line = type ? await noButtonLine(ctx, type) : undefined;
+  if (line) raise(ctx, "validation.precondition_failed", line, { reason: "no_button_field", type });
+}
+
 export async function run(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
   onlyAsOwner(ctx, a);
@@ -197,6 +205,7 @@ export async function run(ctx: AutoCtx, input: In): Promise<unknown> {
     key === "manual"
       ? { startedBy: me(ctx), ...(input.payload ? { input: input.payload } : {}) }
       : { pressedBy: me(ctx), ...(input.payload ?? {}) };
+  if (key === "button") await mustHaveButton(ctx, a.definition, (payload as { type?: unknown }).type);
   // a Run an agent starts by hand carries what the agent put in its payload, which may be a stranger's text: it counts as from outside (its brief fences it, its task thread is marked)
   const byAgent = ctx.principal.kind === "agent";
   const runId = await startRun(ctx, a, {
@@ -602,12 +611,12 @@ export function triggerPayload(key: string, ev: LoggedEvent): unknown {
   const op = recordOp(ev.type);
   const fields = p.fields ?? p.prev ?? {};
   return clean({
-    record: fields,
+    record: withoutSealed(fields),
     recordId: p.recordId,
     type: p.type,
     op,
     fields: Object.keys(p.fields ?? p.prev ?? {}),
-    changed: op === "updated" ? p.fields : undefined,
+    changed: op === "updated" ? withoutSealed(p.fields) : undefined,
     version: p.version,
   });
 }

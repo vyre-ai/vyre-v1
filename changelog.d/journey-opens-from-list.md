@@ -1,0 +1,1 @@
+Fixed: a Journey made by an agent or through the API now opens. Clicking its row in the Automations list used to close the view it had just opened and leave the first page, and a Journey link from a task, the Console or a tab opened nothing. The row, its link and "Open in New Tab" all open the Journey as a pipeline of its stages with its records counted.

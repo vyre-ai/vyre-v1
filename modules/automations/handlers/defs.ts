@@ -19,6 +19,7 @@ import {
   isOwner,
   listGroups,
   listVersions,
+  markChecked,
   markDeleted,
   markRestored,
   me,
@@ -39,7 +40,9 @@ import {
   writeDraft,
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
+import { buttonType, noButtonLine } from "../button.ts";
 import { shapeIssues } from "../shape.ts";
+import { readIssues } from "../reads.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
 import { accountUseIssues } from "../account-use.ts";
 import { guardKeySteps, recordStepHosts, usableKeyIds } from "../key-steps.ts";
@@ -50,6 +53,7 @@ import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
 import { containsSecret } from "../trust.ts";
 import { missingMessage } from "../../../lib/words/step-missing.ts";
+import { SKILL_NEEDS_TASK, asksForSkill } from "../../../lib/ai-skill-hint.ts";
 import type { Alerts, AutoCtx, Automation, Db, Definition, Grant, Node, Policy } from "../projections.ts";
 import { findProposal, proposalOut } from "../proposals.ts";
 
@@ -235,6 +239,7 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (d && !d.personalOk && policy.personalSpace) out.push(issue("error", `${d.title} needs a Team Space.`));
   }
   if (def.nodes.length === 0) out.push(issue("warning", "This Automation has no steps yet."));
+  for (const r of readIssues(def)) out.push(issue("error", r.message, r.nodeId));
   for (const n of def.nodes) {
     const s = STEPS.get(n.key);
     if (!s) continue;
@@ -254,6 +259,8 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (n.key === "connector_request" && containsSecret(have["input"]))
       out.push(issue("error", "An authenticated request cannot hold a secret. Use the connection.", n.id));
     if (n.key === "http_request") out.push(...httpIssues(n.id, have));
+    if (n.key === "ai" && n.ai?.mode !== "task" && have["mode"] !== "task" && asksForSkill(have["prompt"]))
+      out.push(issue("warning", SKILL_NEEDS_TASK, n.id));
     if (n.key === "loop") {
       const max = have["maxIterations"];
       if (typeof max === "number" && max > 1000)
@@ -883,6 +890,13 @@ async function goneAgentIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> 
   return ids.filter(([, a]) => set.has(a)).map(([id]) => issue("error", "AI step: choose an agent.", id));
 }
 
+/** A button trigger set to a record type that has no Button field: nothing can press it. */
+async function buttonIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
+  const type = def.triggers.some((t) => t.key === "button") ? buttonType(def) : undefined;
+  const line = type ? await noButtonLine(ctx, type) : undefined;
+  return line ? [issue("error", line)] : [];
+}
+
 export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
   const def = input.definition as Definition;
   // a key-bearing step whose host was taken off its key's list shows before the next Run, with the line that Run would fail with
@@ -891,7 +905,8 @@ export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
     : [];
   const useBlocked = Array.isArray(def?.nodes) ? await accountUseIssues(ctx, def) : [];
   const gone = Array.isArray(def?.nodes) ? await goneAgentIssues(ctx, def) : [];
-  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked, ...useBlocked, ...gone];
+  const button = Array.isArray(def?.triggers) ? await buttonIssues(ctx, def) : [];
+  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked, ...useBlocked, ...gone, ...button];
   return { ok: !hasErrors(issues), issues };
 }
 export async function triggersList(): Promise<unknown> {
@@ -953,7 +968,11 @@ export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
 const EMPTY: Definition = { triggers: [{ key: "manual" }], nodes: [] };
 
 export function checkStructure(ctx: AutoCtx, def: Definition): void {
-  const bad = [...structuralIssues(def), ...shapeIssues(def).map((x) => issue("error", x.message, x.nodeId))];
+  const bad = [
+    ...structuralIssues(def),
+    ...shapeIssues(def).map((x) => issue("error", x.message, x.nodeId)),
+    ...readIssues(def).map((x) => issue("error", x.message, x.nodeId)),
+  ];
   if (bad.length) raise(ctx, "validation.bad_input", bad[0]!.message, { issues: bad });
 }
 
@@ -993,6 +1012,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   });
   saveAutomation(ctx.db, a);
   saveVersion(ctx, a, "Created");
+  markChecked(ctx.db, a.id, a.version);
   rememberAccountPicks(ctx.db, owner, def, now);
   await regrant(ctx, a, "save");
   emitAuto(ctx, "automation.created", a.id, { name: a.name, kind: a.kind });
@@ -1055,6 +1075,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   touch(ctx, a);
   if (definitionChanged) {
     saveVersion(ctx, a);
+    markChecked(ctx.db, a.id, a.version); // edited here, so it passed the save check
     rememberAccountPicks(ctx.db, me(ctx), a.definition, ctx.now());
     await regrant(ctx, a, "save", before);
   }

@@ -3,6 +3,7 @@ import type { InboxData } from "../sidebar/data.tsx";
 import { lastInboundEmail, mailInput, sentNote, smsInput } from "./model.ts";
 import type { Conversation, DraftCard, ComposerDraft, InboxChoice, ThreadItem } from "./model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { capText, stripTags as stripMarkup } from "../../../../../../lib/html-text.ts";
 
 export const newKey = (): string => globalThis.crypto.randomUUID();
 
@@ -177,9 +178,7 @@ export async function listSnippets(data: InboxData): Promise<{ name: string; bod
 }
 
 const stripTags = (html: string): string =>
-  html
-    .replace(/<(br|\/p|\/div|\/h[1-6]|\/li)\s*\/?>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
+  stripMarkup(capText(html).replace(/<(br|\/p|\/div|\/h[1-6]|\/li)\s{0,16}\/?>/gi, "\n"))
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")

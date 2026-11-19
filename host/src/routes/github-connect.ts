@@ -4,6 +4,7 @@
 // The state is "<random>.<base64url(return address)>". The return address is the Space's own origin or a loopback address, as for sign-in with GitHub, so a crafted link cannot hand a code to a stranger's site.
 import http from "node:http";
 import { NO_ADDRESS } from "./own-origin.ts";
+import { safeUrl } from "../safe-url.ts";
 
 const PATH = "/hooks/github/connect";
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -42,7 +43,7 @@ export function createGithubConnectRoute(deps: { origin: (req: http.IncomingMess
   };
   return {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       if (url.pathname !== PATH) return false;
       if ((req.method ?? "GET").toUpperCase() !== "GET") {
         page(res, 405, "Not a way in.");

@@ -271,7 +271,7 @@ test("a path that loops back is an error unless it goes through a Loop step", as
     triggers: trig,
     nodes: [
       node("a", "records.find", find, { next: ["b"] }),
-      node("b", "loop", { items: "{{ steps.a.out.records }}" }, { next: ["a"] }),
+      node("b", "loop", { items: "{{ steps.a.out.rows }}" }, { next: ["a"] }),
     ],
   });
   assert.equal(good.ok, true);
@@ -939,7 +939,7 @@ test("a step that names a Vault key the saver cannot use is refused, and other s
     nodes: [
       seed.node("n1", "http_request", {
         method: "GET",
-        url: "https://{{trigger.host}}/v1",
+        url: "https://{{trigger.record.host}}/v1",
         auth: { kind: "bearer", handle: "#Other" },
       }),
     ],

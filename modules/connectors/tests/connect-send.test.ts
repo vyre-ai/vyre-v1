@@ -2,6 +2,7 @@
 // @reads /modules/connectors/handlers/oauth.ts
 // @reads /modules/connectors/handlers/syncspec.ts
 // @reads /modules/connectors/impl.ts
+// @reads /modules/connectors/handlers/grant-port.ts
 // THE CLASS BEHIND REVIEW ITEM B (b-connect3, 16 Nov 2026): every place a connector's secret leaves toward a host. The sends of this module are listed here, each with the check that stands before it. A new send that is not
 // listed fails this test, so the next person who adds one has to say which rule decides where it goes.
 import test from "node:test";
@@ -35,6 +36,8 @@ test("the sends of the connectors module are exactly the listed ones, and each h
     "handlers/oauth.ts": 2,
     // the door a live connector's request goes through: the host's port checks the domains and where each filled key may go; an unpublished connector may never carry a filled key
     "impl.ts": 4,
+    // the token trade of an app that issues its own OAuth client: checkEgress against the declared domains, then the send
+    "handlers/grant-port.ts": 1,
   });
   const run = read("handlers/runtime.ts");
   const egress = run.indexOf("checkEgress(u.toString(), def.domains)");

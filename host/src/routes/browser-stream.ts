@@ -9,6 +9,7 @@ import type { Duplex } from "node:stream";
 import { acceptPeer as accept } from "../ws.ts";
 import type { Peer } from "../ws.ts";
 import { makeError } from "./errors.ts";
+import { safeUrl } from "../safe-url.ts";
 
 const TRACE = "0".repeat(32);
 const VIEW_PATH = /^\/browsers\/([A-Za-z0-9][A-Za-z0-9_-]{2,79})\/(stream|ws)$/;
@@ -64,7 +65,7 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
   const open = new Set<{ personId: string; end(): void }>();
 
   function mjpeg(req: http.IncomingMessage, res: http.ServerResponse, agentId: string): void {
-    const ticket = new URL(req.url ?? "/", "http://x").searchParams.get("ticket") ?? "";
+    const ticket = safeUrl(req.url, "http://x").searchParams.get("ticket") ?? "";
     if (views >= MAX_VIEWS)
       return plain(res, 429, "rate_limit.exceeded", "Browsers already have as many viewers as the Space serves.");
     views += 1;
@@ -188,7 +189,7 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
   }
 
   function socket(req: http.IncomingMessage, sock: Duplex, head: Buffer, agentId: string): void {
-    const ticket = new URL(req.url ?? "/", "http://x").searchParams.get("ticket") ?? "";
+    const ticket = safeUrl(req.url, "http://x").searchParams.get("ticket") ?? "";
     if (views >= MAX_VIEWS) return refuseUpgrade(sock, "429 Too Many Requests");
     views += 1;
     let counted = true;
@@ -316,15 +317,15 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
 
   return {
     claims(req) {
-      return VIEW_PATH.test(new URL(req.url ?? "/", "http://x").pathname);
+      return VIEW_PATH.test(safeUrl(req.url, "http://x").pathname);
     },
     upgrade(req, sock, head) {
-      const m = VIEW_PATH.exec(new URL(req.url ?? "/", "http://x").pathname);
+      const m = VIEW_PATH.exec(safeUrl(req.url, "http://x").pathname);
       if (!m || m[2] !== "ws") return refuseUpgrade(sock, "404 Not Found");
       socket(req, sock, head, m[1]!);
     },
     handle(req, res) {
-      const m = VIEW_PATH.exec(new URL(req.url ?? "/", "http://x").pathname);
+      const m = VIEW_PATH.exec(safeUrl(req.url, "http://x").pathname);
       if (!m || m[2] !== "stream") return false;
       if (req.method !== "GET") {
         plain(res, 405, "validation.bad_input", "Use GET.");

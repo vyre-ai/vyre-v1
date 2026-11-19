@@ -7,6 +7,7 @@
 //   - 200: text/plain, Cache-Control no-store, attachment named .env, nosniff, no referrer
 import type http from "node:http";
 import { makeError } from "./errors.ts";
+import { safeUrl } from "../safe-url.ts";
 
 export interface VaultExportRouteDeps {
   /** The .env text for this export and token, or a throw (vault.exportPull on the host's vault ctx). A throw of any kind is a refusal. */
@@ -67,7 +68,7 @@ export function createVaultExportRoute(deps: VaultExportRouteDeps): {
 
   return {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       const m = PATH.exec(url.pathname);
       if (!m) return false;
       if ((req.method ?? "GET").toUpperCase() !== "GET") {

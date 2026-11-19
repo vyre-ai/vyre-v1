@@ -8,7 +8,15 @@ import { NOW } from "../fixtures/kit.ts";
 import { ledgerSpec } from "../fixtures/crm.ts";
 import type { RunReport, SyncEngine } from "../handlers/sync.ts";
 import type { ConnectorsCtx } from "../projections.ts";
-import { dueSyncs, runCadence, RUN_STALE_MS } from "../handlers/cadence.ts";
+import {
+  MAX_STARTS_PER_TICK,
+  dueSyncs,
+  clearRunning,
+  markRunning,
+  noteResult,
+  runCadence,
+  RUN_STALE_MS,
+} from "../handlers/cadence.ts";
 
 const SOURCES_SQL = readFileSync(new URL("../../sources/migrations/0001_sources.sql", import.meta.url), "utf8");
 const MIN = 60_000;
@@ -291,4 +299,145 @@ test("a type nobody can be named for (the spec was applied by the server itself)
     w.k.tx.all<{ summary: string }>("SELECT summary FROM sy_log WHERE kind = 'error'")[0]!.summary,
     /^Syncing is paused/,
   );
+});
+
+test("seven types due on seven connections: the driver starts a few a tick and the rest on the next ticks, none lost", async () => {
+  const w = await setup();
+  dropChains(w);
+  for (let i = 1; i <= 5; i++) {
+    w.k.tx.exec(
+      `CREATE TEMP TABLE t1 AS SELECT * FROM cn_connections LIMIT 1; UPDATE t1 SET connection_id = 'con_x${i}'; INSERT INTO cn_connections SELECT * FROM t1; DROP TABLE t1;
+       CREATE TEMP TABLE t2 AS SELECT * FROM cn_synced_types WHERE type = 'org'; UPDATE t2 SET sync_type_id = 'syt_x${i}', type = 'org_x${i}', connection_id = 'con_x${i}'; INSERT INTO cn_synced_types SELECT * FROM t2; DROP TABLE t2;`,
+    );
+  }
+  w.k.clock.t = NOW + 40 * MIN;
+  const seen = new Set<string>();
+  let ticks = 0;
+  for (; ticks < 10; ticks++) {
+    const due = dueSyncs({ tx: w.k.tx, now: () => w.k.clock.t });
+    if (!due.length) break;
+    assert.ok(due.length <= MAX_STARTS_PER_TICK, `a tick starts at most ${MAX_STARTS_PER_TICK} (${due.length})`);
+    for (const d of due) {
+      seen.add(d.syncTypeId);
+      markRunning(w.k.tx, d.connectionId, w.k.clock.t);
+      clearRunning(w.k.tx, d.connectionId); // its pass is over
+      noteResult(w.k.tx, d.syncTypeId, { activeSec: 120, idleSec: 900, dormantSec: 3600 }, true, w.k.clock.t);
+    }
+  }
+  assert.equal(seen.size, 7, "every type got its pass");
+  assert.ok(ticks >= 4, `spread over ${ticks} ticks`);
+});
+
+test("when more types are due than a tick may start, the one synced longest ago goes first and every type is reached", async () => {
+  const w = await setup();
+  dropChains(w);
+  for (let i = 1; i <= 5; i++) {
+    w.k.tx.exec(
+      `CREATE TEMP TABLE t1 AS SELECT * FROM cn_connections LIMIT 1; UPDATE t1 SET connection_id = 'con_s${i}'; INSERT INTO cn_connections SELECT * FROM t1; DROP TABLE t1;
+       CREATE TEMP TABLE t2 AS SELECT * FROM cn_synced_types WHERE type = 'org'; UPDATE t2 SET sync_type_id = 'syt_s${i}', type = 'org_s${i}', connection_id = 'con_s${i}'; INSERT INTO cn_synced_types SELECT * FROM t2; DROP TABLE t2;`,
+    );
+  }
+  w.k.tx.run("UPDATE cn_synced_types SET paused = 1 WHERE type IN ('person', 'org')");
+  // the newest-made types were last synced longest ago (s5 first); the oldest-made were synced a moment ago
+  for (let i = 1; i <= 5; i++)
+    w.k.tx.run(
+      "INSERT INTO cn_sync_guard (sync_type_id, failures, last_at, next_at) VALUES (?, 0, ?, 0) ON CONFLICT(sync_type_id) DO UPDATE SET last_at = excluded.last_at",
+      `syt_s${i}`,
+      NOW + (10 - i) * MIN,
+    );
+  w.k.clock.t = NOW + 60 * MIN;
+  const order: string[] = [];
+  for (let tick = 0; tick < 10; tick++) {
+    const due = dueSyncs({ tx: w.k.tx, now: () => w.k.clock.t }).filter((d) => d.syncTypeId.startsWith("syt_s"));
+    if (!due.length) break;
+    if (tick === 0)
+      assert.deepEqual(
+        due.map((d) => d.syncTypeId),
+        ["syt_s5", "syt_s4"],
+        "the two synced longest ago start first",
+      );
+    for (const d of due) {
+      order.push(d.syncTypeId);
+      noteResult(w.k.tx, d.syncTypeId, { activeSec: 120, idleSec: 900, dormantSec: 3600 }, true, w.k.clock.t);
+    }
+  }
+  assert.equal(new Set(order).size, 5, `every type was reached: ${order.join(", ")}`);
+});
+
+test("under cap pressure a type with a change waiting to go out starts before every idle type, however long they have been idle", async () => {
+  const w = await setup();
+  dropChains(w);
+  for (let i = 1; i <= 5; i++) {
+    w.k.tx.exec(
+      `CREATE TEMP TABLE t1 AS SELECT * FROM cn_connections LIMIT 1; UPDATE t1 SET connection_id = 'con_o${i}'; INSERT INTO cn_connections SELECT * FROM t1; DROP TABLE t1;
+       CREATE TEMP TABLE t2 AS SELECT * FROM cn_synced_types WHERE type = 'org'; UPDATE t2 SET sync_type_id = 'syt_o${i}', type = 'org_o${i}', connection_id = 'con_o${i}'; INSERT INTO cn_synced_types SELECT * FROM t2; DROP TABLE t2;`,
+    );
+  }
+  w.k.tx.run("UPDATE cn_synced_types SET paused = 1 WHERE type IN ('person', 'org')");
+  // o1 was synced a moment ago; o5 is the stalest. o1 has a person's change waiting to go out.
+  for (let i = 1; i <= 5; i++)
+    w.k.tx.run(
+      "INSERT INTO cn_sync_guard (sync_type_id, failures, last_at, next_at) VALUES (?, 0, ?, 0) ON CONFLICT(sync_type_id) DO UPDATE SET last_at = excluded.last_at",
+      `syt_o${i}`,
+      NOW + (10 - i) * MIN,
+    );
+  w.k.tx.run(
+    "INSERT INTO sy_outbox (outbox_id, sync_type, local_id, remote_id, op, fields, values_json, idem_key, status, attempts, error, created_at) VALUES ('out_1', 'syt_o1', 'rec_1', 'r1', 'update', '[\"name\"]', '{}', 'k1', 'pending', 0, NULL, ?)",
+    NOW,
+  );
+  w.k.clock.t = NOW + 60 * MIN;
+  const first = dueSyncs({ tx: w.k.tx, now: () => w.k.clock.t })
+    .map((d) => d.syncTypeId)
+    .filter((id) => id.startsWith("syt_o"));
+  assert.deepEqual(first, ["syt_o1", "syt_o5"], "the type with a waiting change first, then the stalest idle one");
+});
+
+test("types whose pushes are out of tries wait for a person and owe the driver nothing; types with pushes still to try take one start slot a tick, and every idle type is reached", async () => {
+  const w = await setup();
+  dropChains(w);
+  for (let i = 1; i <= 7; i++) {
+    w.k.tx.exec(
+      `CREATE TEMP TABLE t1 AS SELECT * FROM cn_connections LIMIT 1; UPDATE t1 SET connection_id = 'con_f${i}'; INSERT INTO cn_connections SELECT * FROM t1; DROP TABLE t1;
+       CREATE TEMP TABLE t2 AS SELECT * FROM cn_synced_types WHERE type = 'org'; UPDATE t2 SET sync_type_id = 'syt_f${i}', type = 'org_f${i}', connection_id = 'con_f${i}'; INSERT INTO cn_synced_types SELECT * FROM t2; DROP TABLE t2;`,
+    );
+    w.k.tx.run(
+      "INSERT INTO cn_sync_guard (sync_type_id, failures, last_at, next_at) VALUES (?, 0, ?, 0) ON CONFLICT(sync_type_id) DO UPDATE SET last_at = excluded.last_at",
+      `syt_f${i}`,
+      NOW + (10 - i) * MIN,
+    );
+  }
+  w.k.tx.run("UPDATE cn_synced_types SET paused = 1 WHERE type IN ('person', 'org')");
+  // f1 and f2: a push that is out of tries (failed: waits for a person). f3 and f4: a push still to try (pending).
+  const outbox = (id: string, type: string, status: string): void => {
+    w.k.tx.run(
+      "INSERT INTO sy_outbox (outbox_id, sync_type, local_id, remote_id, op, fields, values_json, idem_key, status, attempts, error, created_at) VALUES (?, ?, 'rec_1', 'r1', 'update', '[\"name\"]', '{}', ?, ?, 3, NULL, ?)",
+      id,
+      type,
+      `k_${id}`,
+      status,
+      NOW,
+    );
+  };
+  outbox("o1", "syt_f1", "failed");
+  outbox("o2", "syt_f2", "failed");
+  outbox("o3", "syt_f3", "pending");
+  outbox("o4", "syt_f4", "pending");
+  w.k.clock.t = NOW + 60 * MIN;
+  const reached = new Set<string>();
+  let ticks = 0;
+  for (; ticks < 8; ticks++) {
+    const due = dueSyncs({ tx: w.k.tx, now: () => w.k.clock.t }).filter((d) => d.syncTypeId.startsWith("syt_f"));
+    if (!due.length) break;
+    assert.ok(due.length <= MAX_STARTS_PER_TICK);
+    assert.ok(
+      due.filter((d) => d.syncTypeId === "syt_f3" || d.syncTypeId === "syt_f4").length <= 1,
+      "types with pushes still to try take at most one slot",
+    );
+    for (const d of due) {
+      reached.add(d.syncTypeId);
+      noteResult(w.k.tx, d.syncTypeId, { activeSec: 120, idleSec: 900, dormantSec: 3600 }, true, w.k.clock.t);
+    }
+  }
+  assert.equal(reached.size, 7, `every type was reached, idle ones included: ${[...reached].join(", ")}`);
+  assert.ok(ticks <= 5, `within a few ticks (${ticks})`);
 });

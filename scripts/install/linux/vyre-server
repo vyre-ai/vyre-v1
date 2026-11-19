@@ -1110,7 +1110,13 @@ settle_caddy() {
   cid=$(dc ps -q caddy 2>/dev/null | head -n 1 || true)
   if [ -n "$cid" ]; then
     mode=$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$cid" 2>/dev/null || true)
-    [ "$mode" != "container:$vfull" ] || return 0
+    if [ "$mode" = "container:$vfull" ]; then
+      # same vyred container, but a restart (not a re-creation) gives it a new network namespace: a Caddy that started before this vyred's start is on the dead one
+      vstart=$(docker inspect -f '{{.State.StartedAt}}' "$vid" 2>/dev/null || true)
+      cstart=$(docker inspect -f '{{.State.StartedAt}}' "$cid" 2>/dev/null || true)
+      [ -n "$vstart" ] && [ -n "$cstart" ] && [ "$cstart" != "$vstart" ] || return 0
+      [ "$(printf '%s\n%s\n' "$cstart" "$vstart" | sort | head -n 1)" = "$cstart" ] || return 0
+    fi
   fi
   dc up -d --force-recreate --no-deps caddy >/dev/null 2>&1 || return 1
 }
