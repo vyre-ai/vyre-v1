@@ -142,7 +142,12 @@ export function createFill({ bridge, scripting, rules, now = Date.now, waitMs = 
           ? "password"
           : role.startsWith("cc-")
             ? ((CARD_KEYS[role] || []).find((/** @type {string} */ k) => have.has(k)) ?? "")
-            : "totp";
+            : // a one-time code: the item's totp field, or the secret of an item that is only a one-time-code seed. The Vault answers with the current code; the seed never comes here.
+              have.has("totp")
+              ? "totp"
+              : have.size === 1 && have.has("secret")
+                ? "secret"
+                : "totp";
 
     /** @type {string[]} */
     const filled = [];

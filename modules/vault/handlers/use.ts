@@ -5,6 +5,7 @@
 // DECISION: an export is sealed by the filler when the link is made; the database keeps only the hash of the pull token. exportPull is what the pull route calls; the route itself belongs to the gateway.
 import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { isSystemCall } from "../../../lib/trust.ts";
+import { codeToType, isSeedField } from "../../../lib/totp.ts";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -212,7 +213,8 @@ export function secretPort(db: VaultDb): SecretPort {
           ? fields.find((x) => x.secret)
           : undefined;
     if (!hit) throw new Error(`Name a field after ${handle}.`);
-    return hit.value;
+    // the engine and the agent computers read a value through here: a one-time-code seed comes out as its current code, never as the seed
+    return valueToUse(str(meta, "kind"), hit.key, hit.value, Date.now(), wait);
   };
   const edge = (): VaultCtx => ({
     space: "",
@@ -341,6 +343,21 @@ function parseHandle(ctx: VaultCtx, handle: unknown): { name: string; field?: st
   return { name: m[1]!, ...(m[2] ? { field: m[2] } : {}) };
 }
 
+/** The text to type or send for one field: the value, except for a one-time-code seed, whose value is never handed out. Its current code is, with at least five seconds of its window left (with less, the next window's code after the wait), so the seed stays in the Vault and only six digits leave. */
+async function valueToUse(kind: string, key: string, stored: string, nowMs: number, sleep: (ms: number) => Promise<void>): Promise<string> {
+  if (!isSeedField(kind, key)) return stored;
+  const made = codeToType(stored, nowMs);
+  if (!made) throw new Error("That item's secret is not a one-time-code seed, so no code can be made from it.");
+  if (made.waitMs > 0) await sleep(made.waitMs);
+  return made.code;
+}
+const realWait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+let wait = realWait;
+/** For a test: how a code waits for the next window (null: really). */
+export function setTotpSleep(f: ((ms: number) => Promise<void>) | null): void {
+  wait = f ?? realWait;
+}
+
 function pick(ctx: VaultCtx, r: Row, fields: Field[], name?: string): Field {
   if (name) {
     const f = fields.find((x) => x.key === name);
@@ -375,9 +392,16 @@ export async function fill(
   if (!sink && input.returnValue !== true)
     throw fail("internal.unavailable", ctx.trace.traceId, { message: `This server has no place to fill ${kind} yet.` });
   reachable(ctx, str(r, "id"), "use"); // recheck after asynchronous Mine-key decryption
+  // a one-time-code seed is never filled: its code is
+  let value: string;
+  try {
+    value = await valueToUse(str(r, "kind"), f.key, f.value, ctx.now(), wait);
+  } catch (e) {
+    return bad(ctx, e instanceof Error ? e.message : "No code can be made from that item.");
+  }
   if (sink)
     await sink(
-      { value: f.value, ref, handle: str(r, "handle"), field: f.key, itemId: str(r, "id") },
+      { value, ref, handle: str(r, "handle"), field: f.key, itemId: str(r, "id") },
       {
         space: ctx.space,
         principal: ctx.principal,
@@ -392,7 +416,7 @@ export async function fill(
     filled: sink !== undefined,
     field: f.key,
     where: viaOf(r),
-    ...(input.returnValue === true ? { value: f.value } : {}),
+    ...(input.returnValue === true ? { value } : {}),
   };
 }
 

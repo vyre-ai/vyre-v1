@@ -1148,6 +1148,7 @@ test("the secret check fires: a short code as its own value, as a whole token in
 async function scriptedFill(o: {
   frames: { frameId: number; origin: string; fields: { ref: string; role: string }[] }[];
   fillCall?: (c: string, i: Msg, push: (v: string) => void) => Promise<unknown>;
+  uses?: { handle: string; fields: string[] };
   apply?: (frameId: number) => unknown;
 }) {
   const { createFill } = await import("../src/worker/fill.js");
@@ -1161,7 +1162,7 @@ async function scriptedFill(o: {
         return () => {};
       },
       invoke: async (c: string, i: Msg) => {
-        if (c === "vault.use") return { handle: "#X", fields: ["username", "password"] };
+        if (c === "vault.use") return o.uses ?? { handle: "#X", fields: ["username", "password"] };
         if (c === "vault.fill") {
           const push = (value: string) =>
             void Promise.resolve().then(() => pushes.forEach((p) => p({ type: "fill", ref: i["target"].ref, value })));
@@ -1314,4 +1315,23 @@ test("Connect a Space from the panel: the address opens the Space's page, a code
   assert.deepEqual(st.data.direct, { name: "team.example.com", address: "https://team.example.com" });
   await b.w.onMessage({ type: "panel.link.signout", address: "https://team.example.com" }, panelPage);
   assert.deepEqual((await b.w.onMessage({ type: "panel.link.list" }, panelPage)).data.links, []);
+});
+
+test("a one-time code is filled from a totp item whose only field is its secret, as well as from a login's totp field; what is typed is what the Vault pushed, which is the code", async () => {
+  for (const fields of [["totp", "username", "password"], ["secret"]]) {
+    const wrote: string[] = [];
+    const w = await scriptedFill({
+      frames: [{ frameId: 0, origin: "https://acme.test", fields: [{ ref: "o1", role: "otp" }] }],
+      fillCall: async (_c, i, push) => {
+        wrote.push(String(i["handle"]));
+        push("482913");
+        return { filled: true };
+      },
+      uses: { handle: "#Acme_TOTP", fields },
+    });
+    const done = await w.f.fill({ ...JOB, kind: "otp" });
+    assert.deepEqual(done.filled, ["otp"], JSON.stringify(fields));
+    assert.deepEqual(w.applied.map((a) => a.value), ["482913"]);
+    assert.match(wrote[0]!, fields.includes("totp") ? /\.totp$/ : /\.secret$/);
+  }
 });

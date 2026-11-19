@@ -62,6 +62,16 @@
     }
   }
 
+  /** Is this the page's one-time-code field? Picking a login there fills the code, not the password. @param {any} field */
+  function inOtpField(field) {
+    try {
+      const f = ns.finder && ns.finder.findLoginFields(g.document);
+      return Boolean(f && f.otp && f.otp === field);
+    } catch {
+      return false;
+    }
+  }
+
   /** @param {any} field @param {"login"|"card"} kind */
   function show(field, kind) {
     if (uis.has(field)) {
@@ -148,7 +158,7 @@
                 g.chrome.runtime.sendMessage({
                   type: "vyre.fill",
                   itemId: row.id,
-                  kind: row.kind === "card" ? "card" : row.kind === "totp" ? "otp" : "login",
+                  kind: row.kind === "card" ? "card" : row.kind === "totp" || inOtpField(field) ? "otp" : "login",
                   usernameField: row.usernameField,
                 });
               } catch {

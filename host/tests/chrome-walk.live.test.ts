@@ -315,3 +315,79 @@ test(
     }
   },
 );
+
+// ---- a one-time code, typed from a seed that never leaves the Vault
+
+const SEED = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"; // secret-scan: fake
+const OTP_PAGE = `<!doctype html><meta charset="utf-8"><title>Acme · Two-step</title><body style="font:16px system-ui;padding:40px">
+<form method="post" action="/done"><label for="code">Enter the 6-digit code</label><br><input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"><button type="submit">Verify</button></form>`;
+
+test(
+  "a one-time code: the Vault computes the current RFC 6238 code and only the six digits reach the page; the seed is in no tool answer, storage, page or log",
+  { skip: !found && "no Chromium on this machine", timeout: 120_000 },
+  async () => {
+    const { codeAt, parseSeed } = await import("../../lib/totp.ts");
+    const d = await boot();
+    const srv = await site({ "/otp": OTP_PAGE });
+    try {
+      await provisionAccount(
+        { space: "spc_core", trace: { traceId: "t".repeat(32) }, now: () => Date.now(), db: d.db, emit: () => undefined } as unknown as IdentityCtx,
+        { personId: "usr_olivia", username: "otpwalker", name: "Olivia", secret: "correct horse battery staple 9" },
+      );
+      const owner = signIn(d, "usr_olivia", "otp01");
+      const folder = await call(d, owner, "vault.folders.create", { idempotencyKey: "o-f", name: "Logins", scope: "shared" });
+      assert.equal(folder.status, 200, JSON.stringify(folder.error));
+      const put = await call(d, owner, "vault.item.put", {
+        idempotencyKey: "o-i",
+        folderId: folder.data.folder.id,
+        name: "Acme Login",
+        kind: "login",
+        fields: [
+          { key: "url", value: srv.url },
+          { key: "username", value: "dana@acme.test" },
+          { key: "password", value: "pw-not-the-seed-1" },
+          { key: "totp", value: SEED, secret: true },
+        ],
+      });
+      assert.equal(put.status, 200, JSON.stringify(put.error));
+      const r = await launch(found!, { noHost: true });
+      try {
+        // this Chrome is connected to the Space with a device session of its own (the pairing walk is the other test)
+        await r.worker.evaluate(
+          async (link: unknown) => (globalThis as any).chrome.storage.local.set({ vyreLinks: [link] }),
+          { address: d.url, token: owner, space: "", name: "Space" },
+        );
+        const page = await r.context.newPage();
+        await page.goto(srv.url + "/otp");
+        // the field's badge opens the account picker; picking the login fills the code field, as a person would
+        await page.click("#code");
+        const badge = await boxOf(page, "button", "Sign in with Vyre");
+        await page.mouse.click(badge.x, badge.y);
+        await boxOf(page, "button", "Acme Login");
+        await press(page, "button", "Acme Login");
+        const answer = "badge";
+        for (let i = 0; i < 60 && (await page.inputValue("#code")) === ""; i++) await new Promise((x) => setTimeout(x, 100));
+        const typed = await page.inputValue("#code");
+        const p = parseSeed(SEED)!;
+        const t = Date.now();
+        assert.match(typed, /^\d{6}$/, `what was typed: ${typed} :: ${JSON.stringify(answer)}`);
+        assert.ok([t - 30_000, t, t + 30_000].some((x) => codeAt(p, x).code === typed), "the current RFC 6238 code");
+        assert.notEqual(typed, SEED);
+        // the seed is nowhere the extension, the page or the answer can see
+        const everything = JSON.stringify([
+          answer,
+          await page.content(),
+          await r.worker.evaluate(async () => [await (globalThis as any).chrome.storage.local.get(null), await (globalThis as any).chrome.storage.session.get(null)]),
+        ]);
+        assert.ok(!everything.includes(SEED), "no seed in the answer, the page or the extension's storage");
+        assert.ok(!everything.includes("pw-not-the-seed-1"));
+        await r.shot(page, "totp-filled");
+      } finally {
+        await r.close();
+      }
+    } finally {
+      await srv.close();
+      await d.stop();
+    }
+  },
+);
