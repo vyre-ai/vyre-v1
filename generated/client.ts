@@ -1593,8 +1593,10 @@ export function createClient(transport: Transport) {
       stage_counts: call("journeys.stage_counts", 1),
       start: call("journeys.start", 1),
       tasks: call("journeys.tasks", 1),
+      test_path: call("journeys.test_path", 1),
       to_pipeline: call("journeys.to_pipeline", 1),
       versions: call("journeys.versions", 1),
+      where: call("journeys.where", 1),
     },
     kits: {
       builder_open: call("kits.builder_open", 1),

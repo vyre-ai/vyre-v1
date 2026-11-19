@@ -23,4 +23,5 @@ Area: automations. Risk: medium. Applies to: space.
 - journeys.preview_migrate
 - journeys.rename
 - journeys.rules.set
+- journeys.test_path
 - journeys.to_pipeline

@@ -256,3 +256,65 @@ test("a Journey that is not a pipeline adopts nothing", async () => {
     "not_a_pipeline",
   );
 });
+
+test("where: the path, the stage the record is in and how long it has been there against the limit", async () => {
+  const h = harness();
+  const j = await pipe(h, {
+    stages: [
+      stage("lead", 0, { exit: { requireTasks: false }, automations: ["aut_hello"] }),
+      stage("prop", 1, {
+        exit: { requireTasks: false },
+        timeLimit: { hours: 48, escalateTo: { kind: "person", id: "usr_maya" } },
+        automations: ["aut_prop"],
+      }),
+      stage("won", 2, { final: true, exit: { requireTasks: false } }),
+    ],
+  });
+  await h.call("journeys.start", { journeyId: j.id, subjectRecordId: "rec_c1" }, alice);
+  await h.call("journeys.move_stage", { journeyId: j.id, recordId: "rec_c1", toStage: "prop", reason: "sent" }, alice);
+  h.advance(60 * 3_600_000);
+  const w = await h.call("journeys.where", { journeyId: j.id, recordId: "rec_c1" }, alice);
+  assert.deepEqual(
+    w.path.map((p: any) => [p.key, p.state]),
+    [
+      ["lead", "done"],
+      ["prop", "here"],
+      ["won", "next"],
+    ],
+  );
+  assert.deepEqual(
+    [w.hoursIn, w.limitHours, w.overByHours, w.thenAsks],
+    [60, 48, 12, { kind: "person", id: "usr_maya" }],
+  );
+  assert.deepEqual(w.path[1].automations, ["aut_prop"]);
+  await assert.rejects(
+    h.call("journeys.where", { journeyId: j.id, recordId: "rec_nobody" }, alice),
+    (e) => codeOf(e) === "permission.not_found",
+  );
+});
+
+test("test_path: every stage's Automations are tried in order on the record, a refusal is its own line and does not stop the rest", async () => {
+  const h = harness();
+  const j = await pipe(h, {
+    stages: [
+      stage("lead", 0, { exit: { requireTasks: false }, automations: ["aut_a", "aut_b"] }),
+      stage("won", 1, { final: true, exit: { requireTasks: false }, automations: ["aut_c"] }),
+    ],
+  });
+  h.callee("automations.test", (i) => {
+    if (i.automationId === "aut_b") throw new Error("It needs a mailbox.");
+    return { runId: `run_${i.automationId.slice(-1)}1` };
+  });
+  const r = await h.call("journeys.test_path", { journeyId: j.id, recordId: "rec_c1" }, alice);
+  assert.deepEqual(r.runs, [
+    { stage: "lead", automationId: "aut_a", runId: "run_a1" },
+    { stage: "lead", automationId: "aut_b", error: "It needs a mailbox." },
+    { stage: "won", automationId: "aut_c", runId: "run_c1" },
+  ]);
+  assert.deepEqual(h.only("automations.test")[0]!.input, {
+    automationId: "aut_a",
+    recordId: "rec_c1",
+    recordType: "client",
+  });
+  assert.equal(h.only("records.update").length, 0, "a test changes no record");
+});

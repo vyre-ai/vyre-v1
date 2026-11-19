@@ -365,6 +365,52 @@ export default defineManifest({
         errors: ["validation.precondition_failed", "validation.duplicate"],
       },
     ),
+    read(
+      "journeys.where",
+      "Where one record is on its Journey: the path with its stage, the time it has been there against the stage limit, and each stage's Automations",
+      {
+        in: { ...target, recordId: id.record },
+        out: {
+          journeyId: id.journey,
+          recordId: id.record,
+          stage: stageKey,
+          stageTitle: t.str(),
+          enteredAt: t.ts(),
+          hoursIn: t.int({ minimum: 0 }),
+          completed: t.bool(),
+          limitHours: t.opt(t.int()),
+          overByHours: t.opt(t.int()),
+          thenAsks: t.opt(t.obj({ kind: t.enm("role", "person"), id: t.str() })),
+          path: t.arr(
+            t.obj({
+              key: stageKey,
+              title: t.str(),
+              state: t.enm("done", "here", "next"),
+              final: t.bool(),
+              automations: t.arr(id.automation),
+            }),
+          ),
+        },
+        on: ["record", "/recordId"],
+        tool: "automations",
+        errors: ["permission.not_found"],
+      },
+    ),
+    write(
+      "journeys.test_path",
+      "Try the whole path on one record: every stage's Automations in stage order as tests (reads run, sends and writes are held); each is a Run",
+      {
+        in: { ...target, recordId: t.opt(id.record) },
+        out: {
+          runs: t.arr(
+            t.obj({ stage: stageKey, automationId: id.automation, runId: t.opt(id.run), error: t.opt(t.str()) }),
+          ),
+        },
+        perm: "journeys.manage",
+        level: "use",
+        tool: "automations",
+      },
+    ),
     write(
       "journeys.adopt",
       "Bring the records a pipeline's type already had into the Journey where their stage field says they are, a page at a time; runs nothing for them and skips records that are in already",

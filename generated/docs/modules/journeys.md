@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (19)
+## Capabilities (21)
 
 - [journeys.adopt](../capabilities/journeys.adopt.md): Bring the records a pipeline's type already had into the Journey where their stage field says they are, a page at a time; runs nothing for them and skips records that are in already
 - [journeys.advance](../capabilities/journeys.advance.md): Check the exit rule of the current stage and advance when its required tasks are done (called on task.completed)
@@ -23,8 +23,10 @@ Requires: nothing.
 - [journeys.stage_counts](../capabilities/journeys.stage_counts.md): Records in flight per stage, with how many are over their time limit
 - [journeys.start](../capabilities/journeys.start.md): Start a Journey on a subject record: creates the Journey record with its channel and folder and enters the first stage
 - [journeys.tasks](../capabilities/journeys.tasks.md): The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)
+- [journeys.test_path](../capabilities/journeys.test_path.md): Try the whole path on one record: every stage's Automations in stage order as tests (reads run, sends and writes are held); each is a Run
 - [journeys.to_pipeline](../capabilities/journeys.to_pipeline.md): Move a Journey onto its subject type as a pipeline: the records carry the stage themselves and the per-subject Journey records are folded into them. Safe to run again after a stop; nothing is deleted
 - [journeys.versions](../capabilities/journeys.versions.md): List versions of a Journey definition
+- [journeys.where](../capabilities/journeys.where.md): Where one record is on its Journey: the path with its stage, the time it has been there against the stage limit, and each stage's Automations
 
 ## Events (10)
 

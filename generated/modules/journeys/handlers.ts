@@ -22,6 +22,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "journeys.stage_counts": Handler<"journeys.stage_counts", X>;
   "journeys.start": Handler<"journeys.start", X>;
   "journeys.tasks": Handler<"journeys.tasks", X>;
+  "journeys.test_path": Handler<"journeys.test_path", X>;
   "journeys.to_pipeline": Handler<"journeys.to_pipeline", X>;
   "journeys.versions": Handler<"journeys.versions", X>;
+  "journeys.where": Handler<"journeys.where", X>;
 }

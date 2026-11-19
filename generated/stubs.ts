@@ -1593,8 +1593,10 @@ export function stubs(ctx: CallCtx) {
       stage_counts: call("journeys.stage_counts"),
       start: call("journeys.start"),
       tasks: call("journeys.tasks"),
+      test_path: call("journeys.test_path"),
       to_pipeline: call("journeys.to_pipeline"),
       versions: call("journeys.versions"),
+      where: call("journeys.where"),
     },
     kits: {
       builder_open: call("kits.builder_open"),

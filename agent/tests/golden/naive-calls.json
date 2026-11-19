@@ -2895,11 +2895,18 @@
   "journeys_tasks": {
     "recordId": "rec_a1b2c3"
   },
+  "journeys_test_path": {
+    "journeyId": "jrn_a1b2c3"
+  },
   "journeys_to_pipeline": {
     "journeyId": "jrn_a1b2c3"
   },
   "journeys_versions": {
     "journeyId": "jrn_a1b2c3"
+  },
+  "journeys_where": {
+    "journeyId": "jrn_a1b2c3",
+    "recordId": "rec_a1b2c3"
   },
   "kits_builder_open": {},
   "kits_choose": {

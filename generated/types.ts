@@ -24492,6 +24492,18 @@ export type JourneysTasksOut = {
       };
     }>;
 };
+export type JourneysTestPathIn = {
+  journeyId: string;
+  recordId?: string;
+};
+export type JourneysTestPathOut = {
+  runs: Array<{
+      stage: string;
+      automationId: string;
+      runId?: string;
+      error?: string;
+    }>;
+};
 export type JourneysToPipelineIn = {
   journeyId: string;
   stageField?: string;
@@ -24582,6 +24594,32 @@ export type JourneysVersionsOut = {
       at: number;
       reason?: string;
       name?: string;
+    }>;
+};
+export type JourneysWhereIn = {
+  journeyId: string;
+  recordId: string;
+};
+export type JourneysWhereOut = {
+  journeyId: string;
+  recordId: string;
+  stage: string;
+  stageTitle: string;
+  enteredAt: number;
+  hoursIn: number;
+  completed: boolean;
+  limitHours?: number;
+  overByHours?: number;
+  thenAsks?: {
+    kind: "role" | "person";
+    id: string;
+  };
+  path: Array<{
+      key: string;
+      title: string;
+      state: "done" | "here" | "next";
+      final: boolean;
+      automations: Array<string>;
     }>;
 };
 export type KitsBuilderOpenIn = {
@@ -49706,8 +49744,10 @@ export interface CapMap {
   "journeys.stage_counts": { in: JourneysStageCountsIn; out: JourneysStageCountsOut };
   "journeys.start": { in: JourneysStartIn; out: JourneysStartOut };
   "journeys.tasks": { in: JourneysTasksIn; out: JourneysTasksOut };
+  "journeys.test_path": { in: JourneysTestPathIn; out: JourneysTestPathOut };
   "journeys.to_pipeline": { in: JourneysToPipelineIn; out: JourneysToPipelineOut };
   "journeys.versions": { in: JourneysVersionsIn; out: JourneysVersionsOut };
+  "journeys.where": { in: JourneysWhereIn; out: JourneysWhereOut };
   "kits.builder_open": { in: KitsBuilderOpenIn; out: KitsBuilderOpenOut };
   "kits.choose": { in: KitsChooseIn; out: KitsChooseOut };
   "kits.denials": { in: KitsDenialsIn; out: KitsDenialsOut };
