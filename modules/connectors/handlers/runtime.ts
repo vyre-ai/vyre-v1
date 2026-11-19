@@ -609,13 +609,14 @@ export async function executeAction(
       dryRun: true,
     };
 
-  // the connection's budget: a short wait is served here (in this process, in line) instead of being refused and asked again, which cost a refusal, an access check and a Vault read for every try
+  // the connection's budget: a sync pass (it says so with its own token) waits here for its turn, for 30 s at most, instead of being refused and asked again. A person's own read never queues: it is refused
+  // at once with the wait it needs, as before. A short wait is served here (in this process, in line) instead of being refused and asked again, which cost a refusal, an access check and a Vault read for every try
   if (conn && !o.dryRun) {
     let waited = 0;
     while (!takeToken(conn.connection_id, def.rate, nowOf(deps))) {
       const wait = Math.max(50, tokenWaitMs(conn.connection_id, def.rate, nowOf(deps)));
       const held = holdMsOf(conn.connection_id, nowOf(deps));
-      if (!deps.pace || held > 0 || wait > PACE_LONGEST_MS || waited + wait > PACE_TOTAL_MS)
+      if (!deps.pace || o.keep === undefined || held > 0 || wait > PACE_LONGEST_MS || waited + wait > PACE_TOTAL_MS)
         refuse(
           ctx,
           "rate_limit.exceeded",
