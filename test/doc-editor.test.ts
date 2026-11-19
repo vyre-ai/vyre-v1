@@ -432,6 +432,7 @@ const HOSTILE: Record<string, string> = {
   "a long fence line": `\`\`\`${" ".repeat(100000)}x`,
   "a table cell": `| a |\n| --- |\n| ${" ".repeat(100000)}x |`,
   "table separators": `| ${"- |".repeat(30000)}`,
+  "openers before a fence, closer after": `${"{++a".repeat(25000)}\n\`\`\`\nx\n\`\`\`\n++}`,
   "a rule": `${"- ".repeat(50000)}x`,
   pipes: "|".repeat(100000),
   "a tag with a long gap": `{${" ".repeat(100000)}x}`,

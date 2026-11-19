@@ -103,13 +103,15 @@ function openRanges(md: string): Array<[number, number]> {
 export function listCritic(md: string): CriticChange[] {
   const out: CriticChange[] = [];
   for (const [a, b] of openRanges(md)) {
-    let i = md.indexOf("{", a);
-    while (i >= 0 && i < b) {
-      const c = criticAt(md, i);
-      if (c && c.to <= b) {
-        out.push(c);
-        i = md.indexOf("{", c.to);
-      } else i = md.indexOf("{", i + 1);
+    // each stretch outside fenced code is read as a text of its own, so a closer beyond the fence is never searched for
+    const part = md.slice(a, b);
+    let i = part.indexOf("{");
+    while (i >= 0) {
+      const c = criticAt(part, i);
+      if (c) {
+        out.push({ ...c, from: c.from + a, to: c.to + a });
+        i = part.indexOf("{", c.to);
+      } else i = part.indexOf("{", i + 1);
     }
   }
   return out;

@@ -32,7 +32,8 @@ const RECORD: Record<string, string | null> = {
 };
 
 export default function Mount(): ReactNode {
-  const height = useWindowDimensions().height;
+  const { height, width } = useWindowDimensions();
+  const narrow = width < 700;
   const [part, setPart] = useState<string | null>(null);
   const [value, setValue] = useState("");
   const controller = useMemo(() => new DocController(), []);
@@ -57,14 +58,14 @@ export default function Mount(): ReactNode {
     [part, controller],
   );
   return (
-    <View style={{ height, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
+    <View style={{ height, flexDirection: narrow ? "column" : "row", backgroundColor: "var(--win)" as string }}>
       <View style={{ flex: 1, minWidth: 0 }}>
         {part ? (
           <MarkdownEditor key={part} value={value} onChange={setValue} label="Service agreement" doc={doc} toggle={false} testID="docedit" />
         ) : null}
       </View>
       {part === "suggest" ? (
-        <View style={{ width: 320, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }}>
+        <View style={narrow ? { height: 300, borderTopWidth: 1, borderTopColor: "var(--line)" as string } : { width: 320, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }}>
           <SuggestionsPane controller={controller} />
         </View>
       ) : null}

@@ -1168,7 +1168,8 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
         onField={() => {
           call(editor, "insertContent", "{");
         }}
-        count={changes.length}
+        // a pane beside the page lists the suggestions and settles them, so the strip does not repeat it
+        count={props.doc?.controller ? 0 : changes.length}
         onPrev={() => stepTo(-1)}
         onNext={() => stepTo(1)}
         onAcceptAll={() => settle(true)}
