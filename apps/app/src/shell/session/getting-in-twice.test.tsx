@@ -64,6 +64,22 @@ const SAVED_SESSION: StoredSession = {
 };
 
 /** The gate in a test root that can be taken down: a shell left mounted keeps timers that hold the test process open. */
+/** Two presses inside one act: the same tick, before the screen can re-render (overlapping act calls are not supported by the renderer, which is what made an earlier try hang). */
+async function pressTwice(n: Node): Promise<void> {
+  const event = {
+    stopPropagation() {},
+    preventDefault() {},
+    altKey: false,
+    target: { getAttribute: () => null },
+    currentTarget: { getAttribute: () => null },
+    nativeEvent: {},
+  };
+  await act(async () => {
+    (n.props.onClick as (e: unknown) => void)(event);
+    (n.props.onClick as (e: unknown) => void)(event);
+  });
+}
+
 async function mountGate(): Promise<{ root: Node; stop: () => Promise<void> }> {
   const r = createRoot();
   await act(async () => {
@@ -117,6 +133,8 @@ test("one Space saved at two addresses, the used-last one dead: the list shows i
     const before = JSON.stringify(readStoredSessions(kv));
     const asked: string[] = [];
     const authed: string[] = [];
+    let release: () => void = () => undefined;
+    const slow = new Promise<void>((r) => (release = r));
     g.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
       asked.push(url.origin + url.pathname);
@@ -127,7 +145,10 @@ test("one Space saved at two addresses, the used-last one dead: the list shows i
           .includes("authorization")
       )
         authed.push(url.pathname);
-      if (url.origin === "https://new.example" && url.pathname === "/healthz") return json(200, HEALTH);
+      if (url.origin === "https://new.example" && url.pathname === "/healthz") {
+        await slow;
+        return json(200, HEALTH);
+      }
       if (url.origin === "https://new.example" && url.pathname.endsWith("sign_in_options")) return json(200, OPTIONS);
       throw new TypeError("Failed to fetch");
     }) as typeof fetch;
@@ -151,8 +172,17 @@ test("one Space saved at two addresses, the used-last one dead: the list shows i
       0,
       "nothing is sent to the other address until the person presses it",
     );
-    await press(other);
+    // two presses in one tick (a double click before the screen re-renders), the other address's answer held back, then released
+    await pressTwice(other);
+    const wait = Date.now() + 5000;
+    while (!asked.includes("https://new.example/healthz") && Date.now() < wait) await flush();
+    release();
     await until("si-user");
+    assert.equal(
+      asked.filter((u) => u === "https://new.example/healthz").length,
+      2,
+      "one press worth of questions (is it answering, which Space is it), not two",
+    );
     assert.equal(textOrValue(find(root, "si-user")!), "", "no username is typed for them there");
     // an address nothing proves to be the Space does not borrow its look: the plain host, no name from the saved Space or from the address, no picture asked for, no username
     const screen = textOf(root);
