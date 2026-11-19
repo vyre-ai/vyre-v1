@@ -7,6 +7,7 @@ import { find, flush, installDom, mount, press, textOf } from "../../../../../..
 import { AgentCursor, DeskHost, MINI, Scrubbed, StepRing, edgesOf } from "./Desk.tsx";
 import { deskDispatch, deskOpen, deskReset, deskSnapshot } from "./desk-store.ts";
 import type { BrowserData, BrowserView } from "./work-model.ts";
+import { createSample } from "./sample.ts";
 
 /** Every root a test mounts is unmounted before the fake document goes, so no desk from one test still hears the next test's store. */
 const roots: Array<{ unmount(): void }> = [];
@@ -598,6 +599,93 @@ test("the scrubbed screen says when it is opening and when it was not kept, and 
     assert.match(textOf(find(none, "scrubbed")), /Sent the form/);
   } finally {
     unmountAll();
+    off();
+  }
+});
+
+test("the rooms: Browser, Terminal and Files are one desk; the strip shows only the rooms there are, and switching keeps the desk, the shape and the browser's session", async () => {
+  const off = installDom();
+  deskReset();
+  try {
+    const r = rig(open);
+    // no pane data: the desk is the browser alone, no room switch
+    deskOpen(r.session);
+    const alone = await mount(cr, <DeskHost />);
+    assert.equal(find(alone, "desk-room-term"), null);
+    assert.equal(find(alone, "desk-room-files"), null);
+    unmountAll();
+    deskReset();
+    const s = createSample();
+    const terminal = {
+      call: async () => ({}),
+      connection: { get: () => "online", subscribe: () => () => undefined },
+      nav: { openTerminal() {}, closeTab() {} },
+    } as never;
+    deskOpen({ ...r.session, agentId: s.data.agent.agentId, pane: { ...s.data, terminal } });
+    const root = await mount(cr, <DeskHost />);
+    await flush();
+    assert.ok(find(root, "desk-room-browser") && find(root, "desk-room-term") && find(root, "desk-room-files"));
+    assert.ok(find(root, "browser-live"), "the browser room is first");
+    await press(find(root, "desk-room-term"));
+    await flush();
+    assert.equal(deskSnapshot().state.room, "term");
+    assert.equal(deskSnapshot().state.mode, "full", "switching a room never changes the shape");
+    assert.ok(find(root, "terminal-popup"), "the terminal draws inside the desk");
+    assert.equal(find(root, "browser-live"), null);
+    assert.equal(find(root, "terminal-popup-close"), null, "it has no Close of its own; the desk has it");
+    await press(find(root, "desk-room-files"));
+    await flush();
+    assert.equal(deskSnapshot().state.room, "files");
+    assert.ok(find(root, "files-room"));
+    assert.equal(find(root, "terminal-popup"), null);
+    await press(find(root, "desk-room-browser"));
+    await flush();
+    assert.ok(find(root, "browser-live"));
+    assert.deepEqual(
+      r.calls.filter((c) => c.startsWith("open")),
+      [],
+      "the browser was not woken again",
+    );
+  } finally {
+    unmountAll();
+    deskReset();
+    off();
+  }
+});
+
+test("in the terminal or files room the browser's keys do nothing: Space, S and T are the terminal's and the folder's own, and F still toggles the full view", async () => {
+  const off = installDom();
+  deskReset();
+  try {
+    const keys = keysOf();
+    const r = rig(open);
+    const s = createSample();
+    deskOpen({
+      ...r.session,
+      pane: {
+        ...s.data,
+        terminal: {
+          call: async () => ({}),
+          connection: { get: () => "online", subscribe: () => () => undefined },
+          nav: { openTerminal() {}, closeTab() {} },
+        } as never,
+      },
+    });
+    await mount(cr, <DeskHost />);
+    deskDispatch({ type: "room", room: "term" });
+    await flush();
+    const fire = (k: string): void => keys.forEach((f) => f(key(k)));
+    fire(" ");
+    fire("s");
+    fire("t");
+    await flush();
+    assert.deepEqual([r.calls.filter((c) => /^(pause|resume|take)/.test(c)), r.asked], [[], []]);
+    fire("f");
+    await flush();
+    assert.equal(deskSnapshot().state.mode, "dock");
+  } finally {
+    unmountAll();
+    deskReset();
     off();
   }
 });

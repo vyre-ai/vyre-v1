@@ -4,6 +4,8 @@ import { useSyncExternalStore } from "react";
 import { CLOSED, deskStep } from "./desk-model.ts";
 import type { DeskEvent, DeskState } from "./desk-model.ts";
 import type { BrowserData } from "./work-model.ts";
+import type { ChatRightPaneData } from "./data.tsx";
+import type { PaneDeps } from "./actions.ts";
 
 /** What the desk needs to run the agent's browser: the same data the Computer tab holds, kept by reference. */
 export interface DeskSession {
@@ -14,6 +16,9 @@ export interface DeskSession {
   note: (text: string) => void;
   /** The chat the desk was opened from: Stop is that thread's own turn stop for this agent. Absent: there is no Stop to offer. */
   threadId?: string;
+  /** The pane's own data, so the desk can show the other rooms (Terminal, Files) with the same sources as the Computer tab. Absent: the desk is the browser only. */
+  pane?: ChatRightPaneData;
+  deps?: PaneDeps;
 }
 export interface DeskSnapshot {
   state: DeskState;

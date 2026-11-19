@@ -479,6 +479,8 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
                   call: data.call,
                   note: deps.note,
                   threadId: data.threadId,
+                  pane: data,
+                  deps,
                 });
             }}
             offline={!online}

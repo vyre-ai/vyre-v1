@@ -13,15 +13,21 @@ import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { Icon } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { PreviewImage } from "./PreviewImage.tsx";
+import { TerminalSheet } from "./TerminalSheet.tsx";
+import { FilesTab } from "./FilesTab.tsx";
+import { AGENT_PAGE_SCREEN } from "./ThreadsTab.tsx";
+import { RightPaneDataProvider, useScreenQuery } from "./data.tsx";
+import type { CapMap } from "../../../../../../generated/types.ts";
 import { barOf } from "./BrowserSheet.tsx";
 import { browserHead } from "./work-model.ts";
-import type { DeskStep } from "./work-model.ts";
+import type { DeskStep, WorkspaceView } from "./work-model.ts";
+import type { PaneDeps } from "./actions.ts";
 import type { BrowserView } from "./work-model.ts";
 import { Dot } from "./WorkParts.tsx";
 import { keyAction } from "./desk-model.ts";
 import { drawnAt, showsCursor } from "./desk-pointer.ts";
 import type { Drawn, PointerView } from "./desk-pointer.ts";
-import type { DeskKey, DeskMode } from "./desk-model.ts";
+import type { DeskKey, DeskMode, DeskRoom } from "./desk-model.ts";
 import { deskDispatch, useDesk } from "./desk-store.ts";
 import type { DeskSession } from "./desk-store.ts";
 
@@ -93,12 +99,20 @@ export function DeskHost(): ReactElement | null {
   if (!session || (state.mode !== "full" && state.mode !== "mini")) return null;
   return (
     <Overlay>
-      <Desk session={session} mode={state.mode} />
+      <Desk session={session} mode={state.mode} room={state.room} />
     </Overlay>
   );
 }
 
-export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "mini" }): ReactElement {
+export function Desk({
+  session,
+  mode,
+  room = "browser",
+}: {
+  session: DeskSession;
+  mode: "full" | "mini";
+  room?: DeskRoom;
+}): ReactElement {
   const win = useWindowDimensions();
   const { view, known } = useView(session);
   const { agentId, name, data } = session;
@@ -205,23 +219,23 @@ export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "
       if (act === "toggle_full") {
         ev.preventDefault();
         deskDispatch({ type: "toggle_full" });
-      } else if (act === "take" && cur.canTake) {
+      } else if (act === "take" && cur.canTake && room === "browser") {
         ev.preventDefault();
         run(() => data.takeOver(agentId));
-      } else if (act === "pause" && cur.canPause) {
+      } else if (act === "pause" && cur.canPause && room === "browser") {
         ev.preventDefault();
         togglePause(cur.isPaused);
-      } else if (act === "stop" && cur.canStop) {
+      } else if (act === "stop" && cur.canStop && room === "browser") {
         ev.preventDefault();
         stop();
       }
     };
     doc.addEventListener("keydown", on);
     return () => doc.removeEventListener("keydown", on);
-  }, [data, agentId, run, togglePause, stop]);
+  }, [data, agentId, run, togglePause, stop, room]);
 
   // the agent's cursor, the highlight on its field, and its steps: only while the full view shows a live page
-  const watching = full && view.state === "open";
+  const watching = full && room === "browser" && view.state === "open";
   const ptr = usePolled<PointerView | null>(
     () => data.pointer?.(agentId),
     400,
@@ -277,7 +291,14 @@ export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "
                   <Dot tone={head.dot} />
                 </View>
               </View>
-              <Text style={st.title} numberOfLines={1}>{`${name}'s browser`}</Text>
+              <Text style={st.title} numberOfLines={1}>{`${name}'s computer`}</Text>
+              {session.pane ? (
+                <View accessibilityRole="tablist" style={st.rooms}>
+                  <Room icon="globe" tip="Browser" id="browser" on={room} />
+                  {session.pane.terminal ? <Room icon="terminal" tip="Terminal" id="term" on={room} /> : null}
+                  <Room icon="folder" tip="Files" id="files" on={room} />
+                </View>
+              ) : null}
               <View style={{ flex: 1 }} />
               <Tip icon="shrink" tip="Back (Esc)" testID="desk-back" onPress={() => deskDispatch({ type: "back" })} />
               <Tip
@@ -288,93 +309,106 @@ export function Desk({ session, mode }: { session: DeskSession; mode: "full" | "
               />
               <Tip icon="x" tip="Close" testID="desk-close" onPress={close} />
             </View>
-            <View
-              testID="browser-live"
-              style={[st.stage, mine && st.stageMine]}
-              onLayout={(ev) => setStage({ width: ev.nativeEvent.layout.width, height: ev.nativeEvent.layout.height })}
-            >
-              {live ? (
-                data.renderLive?.(agentId, { state: view.state, control: mine })
-              ) : (
-                <View style={st.skeleton}>
-                  <View style={[st.sk, { width: "46%" }]} />
-                  <View style={[st.sk, { width: "70%" }]} />
-                  <View style={[st.sk, { width: "58%" }]} />
+            {room === "term" && session.pane ? <TerminalRoom session={session} /> : null}
+            {room === "files" && session.pane ? <FilesRoom session={session} /> : null}
+            {room === "browser" || !session.pane ? (
+              <>
+                <View
+                  testID="browser-live"
+                  style={[st.stage, mine && st.stageMine]}
+                  onLayout={(ev) =>
+                    setStage({ width: ev.nativeEvent.layout.width, height: ev.nativeEvent.layout.height })
+                  }
+                >
+                  {live ? (
+                    data.renderLive?.(agentId, { state: view.state, control: mine })
+                  ) : (
+                    <View style={st.skeleton}>
+                      <View style={[st.sk, { width: "46%" }]} />
+                      <View style={[st.sk, { width: "70%" }]} />
+                      <View style={[st.sk, { width: "58%" }]} />
+                    </View>
+                  )}
+                  {drawn ? <AgentCursor drawn={drawn} name={name} /> : null}
+                  {seen !== null ? <Scrubbed step={seen} url={seenUrl} onLive={() => setSeen(null)} /> : null}
+                  {watching && steps.length > 0 ? (
+                    <StepRing
+                      steps={steps}
+                      picked={seen?.idx}
+                      onPick={(x) => setSeen((cur) => (cur?.idx === x.idx ? null : x))}
+                    />
+                  ) : null}
                 </View>
-              )}
-              {drawn ? <AgentCursor drawn={drawn} name={name} /> : null}
-              {seen !== null ? <Scrubbed step={seen} url={seenUrl} onLive={() => setSeen(null)} /> : null}
-              {watching && steps.length > 0 ? (
-                <StepRing
-                  steps={steps}
-                  picked={seen?.idx}
-                  onPick={(x) => setSeen((cur) => (cur?.idx === x.idx ? null : x))}
-                />
-              ) : null}
-            </View>
-            <View
-              testID="desk-bar"
-              style={[st.bar, bar.tone === "wait" && st.barWait, bar.tone === "bad" && st.barBad, mine && st.barMine]}
-            >
-              <Text style={st.barBold} numberOfLines={1}>
-                {bar.title}
-              </Text>
-              {bar.note ? (
-                <Text style={st.barNote} numberOfLines={1}>
-                  {bar.note}
-                </Text>
-              ) : null}
-              <View style={{ flex: 1 }} />
-              {live && view.state === "open" && view.canTakeOver && data.pause ? (
-                isPaused ? null : (
-                  <Tip
-                    icon="pause"
-                    tip="Pause (Space)"
-                    testID="browser-pause"
-                    disabled={busy}
-                    onPress={() => togglePause(false)}
-                  />
-                )
-              ) : null}
-              {live && view.state === "open" && canStop ? (
-                <Tip icon="stop" tip="Stop (S)" testID="browser-stop" disabled={busy} onPress={stop} />
-              ) : null}
-              {bar.action === "resume" ? (
-                <Pill
-                  label="Resume"
-                  hint="Space"
-                  disabled={busy}
-                  onPress={() => togglePause(true)}
-                  testID="browser-resume"
-                />
-              ) : null}
-              {bar.action === "take" || bar.action === "resume" ? (
-                <Pill
-                  label="Take over"
-                  hint="T"
-                  disabled={busy}
-                  onPress={() => run(() => data.takeOver(agentId))}
-                  testID="browser-take"
-                  quiet={bar.action === "resume"}
-                />
-              ) : null}
-              {bar.action === "give" ? (
-                <Pill
-                  label="Give back"
-                  disabled={busy}
-                  onPress={() => run(() => data.giveBack(agentId))}
-                  testID="browser-give"
-                />
-              ) : null}
-              {bar.action === "restart" ? (
-                <Pill
-                  label="Restart"
-                  disabled={busy}
-                  onPress={() => run(() => data.open(agentId))}
-                  testID="browser-restart"
-                />
-              ) : null}
-            </View>
+                <View
+                  testID="desk-bar"
+                  style={[
+                    st.bar,
+                    bar.tone === "wait" && st.barWait,
+                    bar.tone === "bad" && st.barBad,
+                    mine && st.barMine,
+                  ]}
+                >
+                  <Text style={st.barBold} numberOfLines={1}>
+                    {bar.title}
+                  </Text>
+                  {bar.note ? (
+                    <Text style={st.barNote} numberOfLines={1}>
+                      {bar.note}
+                    </Text>
+                  ) : null}
+                  <View style={{ flex: 1 }} />
+                  {live && view.state === "open" && view.canTakeOver && data.pause ? (
+                    isPaused ? null : (
+                      <Tip
+                        icon="pause"
+                        tip="Pause (Space)"
+                        testID="browser-pause"
+                        disabled={busy}
+                        onPress={() => togglePause(false)}
+                      />
+                    )
+                  ) : null}
+                  {live && view.state === "open" && canStop ? (
+                    <Tip icon="stop" tip="Stop (S)" testID="browser-stop" disabled={busy} onPress={stop} />
+                  ) : null}
+                  {bar.action === "resume" ? (
+                    <Pill
+                      label="Resume"
+                      hint="Space"
+                      disabled={busy}
+                      onPress={() => togglePause(true)}
+                      testID="browser-resume"
+                    />
+                  ) : null}
+                  {bar.action === "take" || bar.action === "resume" ? (
+                    <Pill
+                      label="Take over"
+                      hint="T"
+                      disabled={busy}
+                      onPress={() => run(() => data.takeOver(agentId))}
+                      testID="browser-take"
+                      quiet={bar.action === "resume"}
+                    />
+                  ) : null}
+                  {bar.action === "give" ? (
+                    <Pill
+                      label="Give back"
+                      disabled={busy}
+                      onPress={() => run(() => data.giveBack(agentId))}
+                      testID="browser-give"
+                    />
+                  ) : null}
+                  {bar.action === "restart" ? (
+                    <Pill
+                      label="Restart"
+                      disabled={busy}
+                      onPress={() => run(() => data.open(agentId))}
+                      testID="browser-restart"
+                    />
+                  ) : null}
+                </View>
+              </>
+            ) : null}
           </>
         ) : (
           <Pressable
@@ -528,6 +562,79 @@ export function Scrubbed({
           <Text style={st.scrubLiveText}>Back to live</Text>
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+/** One room of the desk, as an icon in the strip: it switches without leaving the desk or reloading the others. */
+function Room({ icon, tip, id, on }: { icon: IconName; tip: string; id: DeskRoom; on: DeskRoom }): ReactElement {
+  const sel = on === id;
+  return (
+    <Pressable
+      testID={`desk-room-${id}`}
+      accessibilityRole="tab"
+      accessibilityLabel={tip}
+      accessibilityState={{ selected: sel }}
+      onPress={() => deskDispatch({ type: "room", room: id })}
+      style={[st.room, sel && st.roomOn]}
+      {...({ title: tip } as object)}
+    >
+      <Icon name={icon} size={16} color={sel ? "var(--accent)" : "var(--ink-3)"} />
+    </Pressable>
+  );
+}
+
+/** The agent's terminals in the desk: the same sheet the Computer tab opens, drawn inside the desk (its own bar and sessions, no window of its own). */
+function TerminalRoom({ session }: { session: DeskSession }): ReactElement | null {
+  const pane = session.pane;
+  const [ws, setWs] = useState<WorkspaceView | null>(null);
+  useEffect(
+    () => (pane?.workspace ? pane.workspace.watch(session.agentId, setWs) : undefined),
+    [pane, session.agentId],
+  );
+  if (!pane?.terminal) return null;
+  const sessions = ws?.sessions ?? [];
+  return (
+    <TerminalSheet
+      embedded
+      data={pane.terminal}
+      agentName={session.name}
+      asleep={ws?.state === "asleep"}
+      watchOnly={ws === null || ws.takeOver === false}
+      sessions={sessions}
+      start={sessions.find((x) => x.terminalId !== undefined)?.terminalId ?? "main"}
+      me={pane.me?.id}
+      nameOf={pane.nameOf}
+      onDrawn={() => pane.workspace?.refresh?.(session.agentId)}
+      onClose={() => deskDispatch({ type: "room", room: "browser" })}
+    />
+  );
+}
+
+/** The agent's own folder in the desk: the Computer tab's Files tab, with the same rows and menus. */
+function FilesRoom({ session }: { session: DeskSession }): ReactElement | null {
+  const pane = session.pane;
+  if (!pane) return null;
+  return (
+    <RightPaneDataProvider value={pane}>
+      <FilesInner agentId={session.agentId} deps={session.deps ?? { call: session.call, note: session.note }} />
+    </RightPaneDataProvider>
+  );
+}
+function FilesInner({ agentId, deps }: { agentId: string; deps: PaneDeps }): ReactElement {
+  const q = useScreenQuery<CapMap["agents.get"]["out"]>(AGENT_PAGE_SCREEN, "agent", { agentId });
+  const folderId = q.status === "ready" ? (q.data.agent?.folderId ?? "") : "";
+  return (
+    <View testID="files-room" style={st.fillRoom}>
+      {q.status === "ready" ? (
+        folderId === "" ? (
+          <Text style={st.roomNote}>{`This agent has no folder yet.`}</Text>
+        ) : (
+          <FilesTab deps={deps} folderId={folderId} />
+        )
+      ) : (
+        <Text style={st.roomNote}>Opening the folder</Text>
+      )}
     </View>
   );
 }
@@ -771,6 +878,18 @@ const st = StyleSheet.create({
   stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,.35)" },
   stepDotNow: { backgroundColor: "#fff" },
   stepText: { flex: 1, color: "rgba(255,255,255,.9)", fontSize: 13 },
+  rooms: {
+    flexDirection: "row",
+    padding: 3,
+    borderRadius: 11,
+    backgroundColor: "var(--sunk)" as string,
+    gap: 1,
+    marginLeft: 6,
+  },
+  room: { width: 34, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  roomOn: { backgroundColor: "var(--win)" as string },
+  fillRoom: { flex: 1, minHeight: 0 },
+  roomNote: { padding: 24, color: "var(--ink-3)" as string, fontSize: 13 },
   mini: { flex: 1 },
   miniPic: { flex: 1, minHeight: 0, backgroundColor: "#f5f6f8" as string, overflow: "hidden" },
   miniFoot: {
