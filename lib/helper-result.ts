@@ -83,9 +83,10 @@ export function frameCode(): string {
  * guessed code inside the helper's words are all just helper text. Nothing of the helper's is rewritten or quoted. `code` is for tests; callers leave it out.
  */
 /** A title is the parent's own words on the thread, but it is one quoted line in a header: control characters and line breaks become spaces, a double quote becomes a single one, and it is cut. */
-const oneLineTitle = (t: string): string =>
+export const oneLineTitle = (t: string): string =>
   t
     .replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, " ")
+    .replace(/["\u201c\u201d]/g, "'")
     .trim()
     .slice(0, 120);
 
