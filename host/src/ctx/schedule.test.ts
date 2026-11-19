@@ -326,11 +326,23 @@ test("system: the mail module's own follow-up runs as the host service, never as
   assert.equal(r.q.forCtx(seed, "mail") !== undefined, true);
   r.clock.t += 61_000;
   await r.q.tick();
-  assert.deepEqual(r.ran.map((c) => [c.cap, c.principal.kind, c.principal.id, c.actingFor]), [["mail.delivery.retry", "service", "svc_host", undefined]]);
+  assert.deepEqual(
+    r.ran.map((c) => [c.cap, c.principal.kind, c.principal.id, c.actingFor]),
+    [["mail.delivery.retry", "service", "svc_host", undefined]],
+  );
   // another module, a capability of another module, and a call from no module are refused
-  await assert.rejects(r.q.forCtx(seed, "tasks")("+1m", "tasks.escalate", {}, { system: true }), bad("permission.no_grant"));
-  await assert.rejects(r.q.forCtx(seed, "mail")("+1m", "gate.expire", {}, { system: true }), bad("permission.no_grant"));
-  await assert.rejects(r.q.forCtx(seed)("+1m", "mail.delivery.retry", {}, { system: true }), bad("permission.no_grant"));
+  await assert.rejects(
+    r.q.forCtx(seed, "tasks")("+1m", "tasks.escalate", {}, { system: true }),
+    bad("permission.no_grant"),
+  );
+  await assert.rejects(
+    r.q.forCtx(seed, "mail")("+1m", "gate.expire", {}, { system: true }),
+    bad("permission.no_grant"),
+  );
+  await assert.rejects(
+    r.q.forCtx(seed)("+1m", "mail.delivery.retry", {}, { system: true }),
+    bad("permission.no_grant"),
+  );
   // an ordinary schedule still runs as the person
   await r.q.forCtx(seed, "mail")("+1m", "mail.sync_now", {});
   r.clock.t += 61_000;

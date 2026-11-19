@@ -12,7 +12,19 @@ const MAX_KEY = 64;
 const MAX_FALLBACK = 200;
 /** The only schemes a link may carry. `cid:` (an image sent inside the email) is allowed for src only. */
 const SAFE_SCHEMES = new Set(["https", "http", "mailto", "tel"]);
-const LINK_ATTRS = new Set(["href", "src", "action", "formaction", "xlink:href", "poster", "background", "cite", "data", "srcset", "ping"]);
+const LINK_ATTRS = new Set([
+  "href",
+  "src",
+  "action",
+  "formaction",
+  "xlink:href",
+  "poster",
+  "background",
+  "cite",
+  "data",
+  "srcset",
+  "ping",
+]);
 
 /** A value as a browser reads it: character references decoded, spaces and control characters dropped. */
 function asBrowserReads(value: string): string {
@@ -74,7 +86,8 @@ export function safeLinks(html: string): string {
       j++;
       while (j < html.length && /\s/.test(html[j] as string)) j++;
       out += html.slice(ps, j);
-      let value: string, q = "";
+      let value: string,
+        q = "";
       if (html[j] === '"' || html[j] === "'") {
         q = html[j] as string;
         const end = html.indexOf(q, j + 1);
@@ -85,7 +98,11 @@ export function safeLinks(html: string): string {
         while (j < html.length && !/[\s>]/.test(html[j] as string)) j++;
         value = html.slice(vs, j);
       }
-      const bad = LINK_ATTRS.has(name.toLowerCase()) && (name.toLowerCase() === "srcset" ? value.split(",").some((p) => unsafeUrl(p.trim().split(/\s+/)[0] ?? "", "src")) : unsafeUrl(value, name));
+      const bad =
+        LINK_ATTRS.has(name.toLowerCase()) &&
+        (name.toLowerCase() === "srcset"
+          ? value.split(",").some((p) => unsafeUrl(p.trim().split(/\s+/)[0] ?? "", "src"))
+          : unsafeUrl(value, name));
       out += `${q}${bad ? "#" : value}${q}`;
     }
     out += html.slice(j, j + 1); // the closing ">"

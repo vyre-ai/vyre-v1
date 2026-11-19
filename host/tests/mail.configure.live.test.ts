@@ -55,6 +55,14 @@ const COMMS = [
   "members.joins.retry",
   "access.requests.approve",
   "engine.subscription_share.set",
+  "memory.promotion.approve",
+  "meetings.closeout.approve",
+  "chat.approve_plan",
+  "changesets.approve",
+  "access.actors.create",
+  "access.exceptions.set",
+  "access.policies.set",
+  "spaces.transfer_ownership",
 ];
 // a Vault key sent to a host the call names
 const KEYED = [
@@ -76,6 +84,9 @@ function world(): AccessSnapshot {
   s.putResource({ id: "dom_1", type: "domain", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "num_1", type: "number", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "fld_1", type: "folder", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
+  s.putResource({ id: "rec_1", type: "record", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
+  s.putResource({ id: "thr_1", type: "thread", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
+  s.putResource({ id: "chg_1", type: "changeset", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "mbx_a", type: "mailbox", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putRole({ id: "member", clearance: 2, perms: [], name: "Member" });
   s.putRole({
@@ -89,6 +100,8 @@ function world(): AccessSnapshot {
       "connectors.manage",
       "members.invite",
       "members.remove",
+      "records.edit",
+      "access.manage",
       "sites.deploy",
     ],
     name: "Admin",
@@ -104,6 +117,8 @@ function world(): AccessSnapshot {
       "connectors.manage",
       "members.invite",
       "members.remove",
+      "records.edit",
+      "access.manage",
       "sites.deploy",
     ],
     name: "Mailer",
@@ -278,6 +293,14 @@ const INPUT: Record<string, Record<string, unknown>> = {
   "members.joins.retry": { personId: "usr_member" },
   "access.requests.approve": { requestId: "arq_1" },
   "engine.subscription_share.set": { enabled: true },
+  "memory.promotion.approve": { promotionId: "mpr_1" },
+  "meetings.closeout.approve": { meetingId: "rec_1" },
+  "chat.approve_plan": { threadId: "thr_1", planId: "pln_1" },
+  "changesets.approve": { changesetId: "chg_1", idempotencyKey: "k30" },
+  "access.actors.create": { name: "Outside", provider: "anthropic", idempotencyKey: "k31" },
+  "access.exceptions.set": { exceptionId: "exc_1", idempotencyKey: "k32" },
+  "access.policies.set": { key: "gate.send", scope: "space", value: {}, idempotencyKey: "k33" },
+  "spaces.transfer_ownership": { to: "usr_member", idempotencyKey: "k34" },
   "webhooks.update": { webhookId: "whk_1", url: "https://attacker.example/in" },
   "twilio.number.configure": { sid: "PN1", voiceUrl: "https://attacker.example/voice", idempotencyKey: "k21" },
   "mail.address.move": {
@@ -316,16 +339,23 @@ test("through the real invoke pipeline: a member without comms.domains is refuse
 test("through the real Gate: an agent changing the mail server or moving an address is held for a person's ok, a person's own change is one step, and reads are not held", async () => {
   for (const name of ["mail.smtp.set", "mail.address.move", ...REROUTES]) {
     const asAgent = rig();
-    const held = await asAgent.invoke(name, { ...INPUT[name] }, seed("agt_bot", "agent", { actingFor: "usr_admin" }));
+    const held = await asAgent
+      .invoke(name, { ...INPUT[name] }, seed("agt_bot", "agent", { actingFor: "usr_admin" }))
+      .catch((e: unknown) => {
+        throw new Error(
+          `${name}: ${e instanceof HostError ? JSON.stringify(e.error.details ?? e.error.code) : String(e)}`,
+        );
+      });
     assert.equal(held.status, "held", `${name}: an agent is held`);
     assert.deepEqual(asAgent.parked, [{ cap: name, act: "send" }]);
     assert.deepEqual(asAgent.ran, [], `${name}: nothing ran before a person said yes`);
     const asPerson = rig();
-    assert.equal(
-      (await asPerson.invoke(name, { ...INPUT[name] }, seed("usr_admin"))).status,
-      "ok",
-      `${name}: a person's own change is one step`,
-    );
+    const one = await asPerson.invoke(name, { ...INPUT[name] }, seed("usr_admin")).catch((e: unknown) => {
+      throw new Error(
+        `${name} as a person: ${e instanceof HostError ? JSON.stringify(e.error.details ?? e.error.code) : String(e)}`,
+      );
+    });
+    assert.equal(one.status, "ok", `${name}: a person's own change is one step`);
     assert.deepEqual(asPerson.parked, []);
   }
   const read = rig();
@@ -345,16 +375,19 @@ test("through the real Gate: a provider-level route or domain write, and the mai
     "settings.reset_space",
   ]) {
     const asAgent = rig();
-    const held = await asAgent.invoke(name, { ...INPUT[name] }, seed("agt_bot", "agent", { actingFor: "usr_admin" }));
+    const held = await asAgent
+      .invoke(name, { ...INPUT[name] }, seed("agt_bot", "agent", { actingFor: "usr_admin" }))
+      .catch((e: unknown) => {
+        throw new Error(`${name}: ${e instanceof HostError ? JSON.stringify(e.error) : String(e)}`);
+      });
     assert.equal(held.status, "held", `${name}: an agent is held`);
-    assert.deepEqual(asAgent.parked, [{ cap: name, act: "send" }]);
+    assert.deepEqual(asAgent.parked, [{ cap: name, act: name === "changesets.approve" ? "push_protected" : "send" }]);
     assert.deepEqual(asAgent.ran, [], `${name}: nothing ran before a person said yes`);
     const asPerson = rig();
-    assert.equal(
-      (await asPerson.invoke(name, { ...INPUT[name] }, seed("usr_admin"))).status,
-      "ok",
-      `${name}: a person's own change is one step`,
-    );
+    const one = await asPerson.invoke(name, { ...INPUT[name] }, seed("usr_admin")).catch((e: unknown) => {
+      throw new Error(`${name} as a person: ${e instanceof HostError ? JSON.stringify(e.error) : String(e)}`);
+    });
+    assert.equal(one.status, "ok", `${name}: a person's own change is one step`);
   }
   const other = rig();
   assert.equal(
@@ -473,9 +506,13 @@ test("through the real Gate: the sync's own pause, resume and sync-state calls (
 test("through the real Gate: an agent changing where calls, texts, voicemail or events go is parked and nothing runs (a number's route, hours or recording, a live call sent to another number, a webhook address); a person's own change is one step", async () => {
   for (const name of COMMS) {
     const asAgent = rig();
-    const held = await asAgent.invoke(name, { ...INPUT[name] }, seed("agt_bot", "agent", { actingFor: "usr_admin" }));
+    const held = await asAgent
+      .invoke(name, { ...INPUT[name] }, seed("agt_bot", "agent", { actingFor: "usr_admin" }))
+      .catch((e: unknown) => {
+        throw new Error(`${name}: ${e instanceof HostError ? JSON.stringify(e.error) : String(e)}`);
+      });
     assert.equal(held.status, "held", `${name}: an agent is held`);
-    assert.deepEqual(asAgent.parked, [{ cap: name, act: "send" }]);
+    assert.deepEqual(asAgent.parked, [{ cap: name, act: name === "changesets.approve" ? "push_protected" : "send" }]);
     assert.deepEqual(asAgent.ran, [], `${name}: nothing ran before a person said yes`);
     const asPerson = rig();
     assert.equal(
@@ -668,6 +705,46 @@ test("through a full invoke: sites.create with a repo on a new host is parked an
     (await person.invoke("sites.create", { ...NEW_REPO, idempotencyKey: "site-3" }, seed("usr_admin"))).status,
     "ok",
   );
+});
+
+test("a service a tenant can make (a form, a site, an Automation's own service) is held like an agent; the host's own services are not", async () => {
+  const r = rig();
+  const at = async (id: string, kind = "service"): Promise<unknown> =>
+    await r.gate.applies(r.defOf("members.invites.create"), INPUT["members.invites.create"], {
+      principal: { kind, id },
+    } as never);
+  for (const id of ["svc_form_x", "svc_site_x", `svc_${"a1".repeat(16)}`, "aut_1"])
+    assert.deepEqual(await at(id), { act: "send" }, `${id} is held`);
+  for (const id of ["svc_host", "svc_engine", "svc_sync", "svc_seed"])
+    assert.equal(await at(id), null, `${id} is one step`);
+  assert.deepEqual(await at("act_1", "actor"), { act: "send" });
+  assert.equal(await at("usr_admin", "person"), null);
+  // a changeset's approval: any agent is held with or without a push; a person only for a push
+  const c = rig();
+  const ask = async (kind: string, id: string, push: boolean): Promise<unknown> =>
+    await c.gate.applies(c.defOf("changesets.approve"), { changesetId: "chg_1", ...(push ? { push: true } : {}) }, {
+      principal: { kind, id },
+    } as never);
+  assert.deepEqual(await ask("agent", "agt_bot", false), { act: "push_protected" });
+  assert.deepEqual(await ask("agent", "agt_bot", true), { act: "push_protected" });
+  assert.equal(await ask("person", "usr_admin", false), null);
+  assert.deepEqual(await ask("person", "usr_admin", true), { act: "push_protected" });
+});
+
+test("in a Personal Space the access checker answers needs_team: an agent's key use is held for a host nobody approved, not refused; any other failure of the check holds too", async () => {
+  for (const code of ["permission.needs_team", "internal.unavailable"]) {
+    const w = keyWorld();
+    const r = rig({
+      ...w.opts,
+      call: async (cap: string) => {
+        if (cap === "access.check")
+          throw new HostError({ code, message: "x", retryable: false, traceId: "t".repeat(32) } as never);
+        return null;
+      },
+    });
+    assert.equal((await r.invoke("sync_specs.sample", SAMPLE("api.crm.example"), asAgent())).status, "held", code);
+    assert.deepEqual(r.ran, []);
+  }
 });
 
 test("a key in a shape the rule cannot read holds an agent (it fails closed), and a call with no key at all is not held", async () => {

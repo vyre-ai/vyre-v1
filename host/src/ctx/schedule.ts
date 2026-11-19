@@ -139,7 +139,9 @@ export class ScheduleQueue {
     if (opts?.system === true) {
       // a follow-up the module owns (a mail retry): it runs as the host service, so a person's or agent's identity is never replayed later. Only a listed module, only its own capabilities.
       if (!module || !SYSTEM_SCHEDULERS.has(module) || typeof cap !== "string" || !cap.startsWith(`${module}.`))
-        throw fail("permission.no_grant", traceId, { message: "Only a module's own follow-up calls run as the system." });
+        throw fail("permission.no_grant", traceId, {
+          message: "Only a module's own follow-up calls run as the system.",
+        });
       principal = { kind: "service", id: HOST_SERVICE };
       actingFor = undefined;
     }

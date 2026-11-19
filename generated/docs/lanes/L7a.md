@@ -9,7 +9,7 @@ Generated from the manifests. The lead completes it by hand (spec sections, reus
 Capabilities to implement: 76. Events to emit: 21. Contract tests that must go green: `generated/tests/access/`.
 
 Capabilities:
-- access.actors.create (write, access.manage, level view)
+- access.actors.create (write, access.manage, level view, gate send)
 - access.actors.list (read, access.manage, level view)
 - access.actors.redeem (write, grant only, level view)
 - access.actors.revoke (write, access.manage, level view)
@@ -28,7 +28,7 @@ Capabilities:
 - access.exceptions.lapse (write, grant only, level view)
 - access.exceptions.list (read, access.manage, level view)
 - access.exceptions.remove (write, access.manage, level view)
-- access.exceptions.set (write, access.manage, level view)
+- access.exceptions.set (write, access.manage, level view, gate send)
 - access.grants.list (read, access.manage, level view)
 - access.grants.update (write, grant only, level view, gate send)
 - access.groups.add_member (write, access.manage, level view, gate send)
@@ -47,7 +47,7 @@ Capabilities:
 - access.make_owner (write, grant only, level view, gate transfer)
 - access.policies.list (read, policy.manage, level view)
 - access.policies.reset (write, policy.manage, level view)
-- access.policies.set (write, policy.manage, level view)
+- access.policies.set (write, policy.manage, level view, gate send)
 - access.principals.effective (read, access.manage, level view)
 - access.principals.get (read, grant only, level view)
 - access.principals.list (read, grant only, level member)
@@ -357,7 +357,7 @@ Capabilities:
 - spaces.switch_address (write, server.network, level manage)
 - spaces.switcher (read, grant only, level member)
 - spaces.timezone.set (write, policy.manage, level view, gate approve)
-- spaces.transfer_ownership (write, grant only, level manage)
+- spaces.transfer_ownership (write, grant only, level manage, gate send)
 - spaces.update (write, policy.manage, level view)
 - stars.list (read, grant only, level view)
 - stars.toggle (write, grant only, level view)

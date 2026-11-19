@@ -10,6 +10,7 @@ import { CARRIES_MARK, HELD_FROM_AUTOMATION_SET } from "../../../lib/automation-
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
+import { isTenantService } from "../../../lib/trust.ts";
 import { KEY_HOST_CAPS, carriesHandle, hostOfUrl, keyReadHost, keySendOf } from "../../../lib/key-target.ts";
 import { resolveKeyRef } from "../seams/key-ref.ts";
 import { HostError, fail } from "../routes/errors.ts";
@@ -161,6 +162,17 @@ function threadsIn(output: unknown): string[] {
   look(output, 0);
   return [...out];
 }
+
+/** An agent, an outside actor, an Automation step, or a service a tenant can make: not a person and not a service the host runs. */
+export function actorLike(p: { kind: string; id: string }): boolean {
+  return (
+    p.kind === "agent" ||
+    p.kind === "actor" ||
+    (p.kind === "service" && (String(p.id).startsWith("aut_") || isTenantService({ kind: "service", id: p.id })))
+  );
+}
+
+const PERSONAL_SPACE = Symbol("personal space");
 
 export function createGateHook(d: GateHookDeps): GateHook {
   const threads = (id: string): string[] => d.threads?.(id) ?? [id];
@@ -454,16 +466,13 @@ export function moduleWhens(
     );
   // Pausing, resuming or marking a mailbox's sync stops incoming mail: held for an agent, an Automation (its step runs as a service named for the automation) and any other actor, and let through for the syncs' own
   // service principals. A list, not "service": the sync's id is not an automation's.
-  out["mail.non_sync_actor"] = (_input, seed) =>
-    seed.principal.kind === "agent" ||
-    seed.principal.kind === "actor" ||
-    (seed.principal.kind === "service" && String(seed.principal.id).startsWith("aut_"));
-  // an invitation made by an agent, an outside actor or an Automation step is an access grant: held (the host's own services, the seed and the join flow, are not an actor here), unless the person gave this outside agent the setup grant ("Act for me, including setup", owner ruling 3 Nov), which names invites
-  out["gate.by_actor"] = (_input, seed) =>
-    (seed.principal.kind === "agent" ||
-      seed.principal.kind === "actor" ||
-      (seed.principal.kind === "service" && String(seed.principal.id).startsWith("aut_"))) &&
-    seed.setupGrant !== true;
+  out["mail.non_sync_actor"] = (_input, seed) => actorLike(seed.principal);
+  // an invitation, a role, a grant or another way in made by an agent, an outside actor, an Automation step or a service a tenant can make (svc_form_*, svc_site_*, svc_<32 hex>) is held; the host's own
+  // services (svc_host, svc_engine, svc_sync: the seed and the join flow among them) are not. The setup grant ("Act for me, including setup", owner ruling 3 Nov) names these, so an outside agent under it is not held.
+  out["gate.by_actor"] = (_input, seed) => actorLike(seed.principal) && seed.setupGrant !== true;
+  // a changeset's approval is a reviewer's: any agent is held, push or not; a person's own approval is held only for a push to a protected branch
+  out["changesets.agent_or_push"] = (input, seed) =>
+    actorLike(seed.principal) || (input as { push?: unknown } | null)?.push === true;
   out["mail.is_provider_setting"] = (input, seed) =>
     seed.principal.kind !== "person" && (input as { key?: unknown } | null)?.key === "mail.provider";
   // an agent's delete inside work/ on its own computer is its own change; anywhere else asks
@@ -526,9 +535,13 @@ export function moduleWhens(
         ...(asker ? { actingFor: { kind: "person", id: asker } } : {}),
         action: { level: "use" },
         resource: { type: "vault_item", id: ref.id },
-      }).catch(() => null)) as { decision?: { effect?: unknown } } | null;
-      // a check that could not be made (null) is not a no: the call goes on to the approved-host rule, which holds it; only an answer that is not "allow" refuses
-      if (r !== null && r.decision?.effect !== "allow")
+      }).catch((e: unknown) => {
+        // the checker is a Team capability: a Personal Space answers permission.needs_team, and there the person's own agents use their own items (nothing is shared), so there is nothing to refuse on
+        if (e instanceof HostError && e.error.code === "permission.needs_team") return PERSONAL_SPACE;
+        return null;
+      })) as { decision?: { effect?: unknown } } | typeof PERSONAL_SPACE | null;
+      // any other check that could not be made (null) is not a no: the call goes on to the approved-host rule, which holds it; only an answer that is not "allow" refuses
+      if (r !== null && r !== PERSONAL_SPACE && r.decision?.effect !== "allow")
         throw fail("permission.no_grant", seed.trace?.traceId ?? "0".repeat(32), {
           message: "This agent may not use that Vault item, so its key cannot be sent anywhere.",
           details: { refusal: true },
