@@ -322,8 +322,9 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         JSON.stringify(secrets),
         now,
       );
-      // only a person is recorded as the maker: an agent or an Automation cannot be told, and the Space's admins are
-      if (ctx.callerKind === "person")
+      // the person is recorded as the maker: for an agent acting on a person's behalf that is the person (the actor is who it acts for, as everywhere in Vyre); an Automation, or an agent with no
+      // person behind it, has no one to tell, and the Space's admins are told instead
+      if (/^usr_/.test(actorOf(ctx)))
         tx.run(
           "INSERT OR REPLACE INTO cn_connection_creators (connection_id, created_by) VALUES (?, ?)",
           id,

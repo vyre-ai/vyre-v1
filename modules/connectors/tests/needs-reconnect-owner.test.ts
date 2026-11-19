@@ -140,7 +140,7 @@ test("a person who has left the Space, or is suspended, is skipped before any ta
   assert.deepEqual(assigned(k), ["person:usr_dana"], "the applier left, the maker is still here");
 });
 
-test("a connection made by an agent or an Automation records no maker, so the admins are told", async () => {
+test("a connection made by an agent with no person behind it, or by an Automation, records no maker, so the admins are told", async () => {
   const k = kit();
   k.install(ACME);
   const byAgent = { ...k.mk("agt_helper"), callerKind: "agent" } as typeof k.ctx;
@@ -169,4 +169,31 @@ test("a task answer without an id does not make a second task for the admins", a
   k.ctx.call = async (cap, input) => (cap === "tasks.create" ? (void call(cap, input), {}) : call(cap, input));
   await refused(k);
   assert.equal(assigned(k).length, 1);
+});
+
+test("a connection an agent made on a person's behalf is credited to that person, who is the one told", async () => {
+  const k = kit();
+  k.install(ACME);
+  // the actor is who the agent acts for, as the host gives it; the caller itself is an agent
+  const onBehalf = { ...k.mk("usr_lena"), callerKind: "agent" } as typeof k.ctx;
+  const made = await k.hs["connections.create"](onBehalf, {
+    connector: "acme",
+    title: "Acme",
+    ownerKind: "space",
+    secrets: { Acme_Key: "#AcmeKey", Acme_Hook: "#AcmeHook" },
+  } as never);
+  assert.deepEqual(
+    k.tx.all("SELECT created_by FROM cn_connection_creators WHERE connection_id = ?", made.connection.connectionId),
+    [{ created_by: "usr_lena" }],
+  );
+  k.state.reply = () => ({ status: 401, body: {} });
+  await assert.rejects(
+    k.hs["connectors.run"](k.ctx, {
+      key: "acme",
+      action: "ping",
+      connectionId: made.connection.connectionId,
+      input: {},
+    }),
+  );
+  assert.deepEqual(assigned(k), ["person:usr_lena"]);
 });
