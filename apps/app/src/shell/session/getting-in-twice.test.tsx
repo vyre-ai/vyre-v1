@@ -293,6 +293,98 @@ test("the person moves on while the other address is being asked: when it answer
   }
 });
 
+test("a press right after Back, while the old probe still hangs, is not blocked: it asks again and gets the person in", async () => {
+  const realFetch = g.fetch;
+  const restore = setQuietWaitsForTests([1, 1]);
+  let stop: () => Promise<void> = async () => undefined;
+  try {
+    installDom();
+    const m = new Map<string, string>([
+      [
+        "vyre.spaces.v1",
+        JSON.stringify({
+          spaces: [
+            {
+              address: "https://old.example",
+              name: "Northwind",
+              spaceId: "spc_01NORTH",
+              kind: "team",
+              via: "app",
+              usedAt: 5000,
+            },
+          ],
+        }),
+      ],
+    ]);
+    g.localStorage = {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, v),
+      removeItem: (k: string) => void m.delete(k),
+    };
+    const kv = g.localStorage as Parameters<typeof writeStored>[1];
+    writeStored({ ...SAVED_SESSION, baseUrl: "https://old.example", token: "vds_old" }, kv);
+    writeStored({ ...SAVED_SESSION, baseUrl: "https://new.example", token: "vds_new" }, kv);
+    const before = JSON.stringify(readStoredSessions(kv));
+    const asked: string[] = [];
+    const authed: string[] = [];
+    let release: () => void = () => undefined;
+    const slow = new Promise<void>((r) => (release = r));
+    g.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      asked.push(url.origin + url.pathname);
+      if (
+        url.origin === "https://new.example" &&
+        JSON.stringify(init?.headers ?? {})
+          .toLowerCase()
+          .includes("authorization")
+      )
+        authed.push(url.pathname);
+      if (url.origin === "https://new.example" && url.pathname === "/healthz") {
+        await slow;
+        return json(200, HEALTH);
+      }
+      if (url.origin === "https://new.example" && url.pathname.endsWith("sign_in_options")) return json(200, OPTIONS);
+      throw new TypeError("Failed to fetch");
+    }) as typeof fetch;
+    const gate = await mountGate();
+    stop = gate.stop;
+    const root = gate.root;
+    const until = async (id: string): Promise<Node> => {
+      const end = Date.now() + 10000;
+      for (;;) {
+        const n = find(root, id);
+        if (n) return n;
+        if (Date.now() > end) throw new Error(`${id} never showed; asked ${asked.join(" ")}`);
+        await flush();
+      }
+    };
+    await press(await until("your-space-0"));
+    const other = await until("not-answering-other-0");
+    await press(other);
+    const first = Date.now() + 5000;
+    while (!asked.includes("https://new.example/healthz") && Date.now() < first) await flush();
+    // Back to the list while that probe hangs, then the same Space again, then its other address again
+    await press(await until("back"));
+    await press(await until("your-space-0"));
+    await press(await until("not-answering-other-0"));
+    const second = Date.now() + 5000;
+    while (asked.filter((u) => u === "https://new.example/healthz").length < 2 && Date.now() < second) await flush();
+    assert.ok(
+      asked.filter((u) => u === "https://new.example/healthz").length >= 2,
+      "the press after Back asked again, it was not blocked",
+    );
+    release();
+    await until("si-user");
+    assert.equal(JSON.stringify(readStoredSessions(kv)), before, "both sign-ins are still saved, unchanged");
+  } finally {
+    await stop();
+    restore();
+    g.fetch = realFetch;
+    delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
+    delete g.localStorage;
+  }
+});
+
 test("the other address now answers as a different Space: its saved sign-in is not sent there, and the person gets the dead Space's own screen", async () => {
   const realFetch = g.fetch;
   const restore = setQuietWaitsForTests([1, 1]);

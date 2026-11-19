@@ -1899,6 +1899,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         value={trouble.stored?.def.image ?? rows.find((r) => r.address === trouble.target.address)?.image}
       >
         <NotAnswering
+          key={trouble.target.address}
           space={trouble.name}
           {...words}
           reconnecting={troubleBusy}
