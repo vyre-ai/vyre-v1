@@ -78,11 +78,20 @@ export function messageLines(
   return [...messages]
     .sort((a, b) => a.at - b.at)
     .slice(-limit)
-    .map((m) => ({ id: m.id, from: first(name(m.fromRun)), to: first(name(m.toRun)), body: m.body, seen: m.seenAt !== undefined }));
+    .map((m) => ({
+      id: m.id,
+      from: first(name(m.fromRun)),
+      to: first(name(m.toRun)),
+      body: m.body,
+      seen: m.seenAt !== undefined,
+    }));
 }
 
 /** "Starts when Research and Numbers are done", only while something it waits for is not done; nothing otherwise. */
-export function dependencyLine(node: Pick<RunNode, "dependsOn" | "status">, nodes: readonly Pick<RunNode, "id" | "name" | "status">[]): string | null {
+export function dependencyLine(
+  node: Pick<RunNode, "dependsOn" | "status">,
+  nodes: readonly Pick<RunNode, "id" | "name" | "status">[],
+): string | null {
   if (node.status === "succeeded" || node.status === "failed" || node.status === "stopped") return null;
   const name = byId(nodes);
   const pending = (node.dependsOn ?? []).filter((id) => {
@@ -146,19 +155,28 @@ export function tokenReport(nodes: readonly RunNode[]): {
 }
 
 /** Everything running or asleep in the Space, in three groups a person reads top down: what needs them (paused or stuck), what runs, what sleeps. */
-export function activityGroups(rows: readonly ActivityRow[]): Array<{ key: "needs" | "running" | "asleep"; title: string; rows: ActivityRow[] }> {
+export function activityGroups(
+  rows: readonly ActivityRow[],
+): Array<{ key: "needs" | "running" | "asleep"; title: string; rows: ActivityRow[] }> {
   const needs = rows.filter((r) => r.status === "paused" || r.stuck !== undefined);
   const rest = rows.filter((r) => !needs.includes(r));
   const g = [
     { key: "needs" as const, title: "Needs you", rows: needs },
-    { key: "running" as const, title: "Running", rows: rest.filter((r) => r.status === "running" || r.status === "queued") },
+    {
+      key: "running" as const,
+      title: "Running",
+      rows: rest.filter((r) => r.status === "running" || r.status === "queued"),
+    },
     { key: "asleep" as const, title: "Asleep", rows: rest.filter((r) => r.status === "waiting") },
   ];
   return g.filter((x) => x.rows.length > 0);
 }
 
 /** Who "@Nu" can mean: a helper or subagent still on it or finished (not stopped), by the start of its first name. */
-export function atCandidates<T extends Pick<RunNode, "id" | "name" | "kind" | "status">>(nodes: readonly T[], query: string): T[] {
+export function atCandidates<T extends Pick<RunNode, "id" | "name" | "kind" | "status">>(
+  nodes: readonly T[],
+  query: string,
+): T[] {
   const q = query.toLowerCase();
   return nodes.filter(
     (n) =>
@@ -194,16 +212,20 @@ export function routeAt<T extends Pick<RunNode, "id" | "name" | "kind" | "status
   nodes: readonly T[],
   otherFirstNames: readonly string[],
 ): AtRoute<T> | null {
-  const m = /^@(\S+)(\s+\(helper\))?\s+(\S[\s\S]*)$/i.exec(text.trim());
+  // "@Ana, use it" and "@Ana: use it" name Ana too: the punctuation after a name is not part of it
+  const m = /^@(\S+?)[,:;.!?]*(\s+\(helper\))?\s+(\S[\s\S]*)$/i.exec(text.trim());
   if (!m) return null;
   const first = m[1]!.toLowerCase();
   const hits = nodes.filter(
-    (n) => (n.kind === "helper" || n.kind === "subagent" || n.kind === "crew") && (n.name ?? "").split(" ")[0]!.toLowerCase() === first,
+    (n) =>
+      (n.kind === "helper" || n.kind === "subagent" || n.kind === "crew") &&
+      (n.name ?? "").split(" ")[0]!.toLowerCase() === first,
   );
   if (hits.length === 0) return null;
   const name = hits[0]!.name ?? "Helper";
   const explicit = m[2] !== undefined && m[2] !== "";
-  if (hits.length > 1 || (!explicit && otherFirstNames.some((o) => o.toLowerCase() === first))) return { kind: "ambiguous", name: name.split(" ")[0]! };
+  if (hits.length > 1 || (!explicit && otherFirstNames.some((o) => o.toLowerCase() === first)))
+    return { kind: "ambiguous", name: name.split(" ")[0]! };
   const n = hits[0]!;
   return n.status === "running" || n.status === "queued" || n.status === "waiting"
     ? { kind: "to", node: n, body: m[3]!.trim() }

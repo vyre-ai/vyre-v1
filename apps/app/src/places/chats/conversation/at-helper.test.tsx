@@ -268,3 +268,59 @@ test("a name that is a helper AND a person of the chat goes nowhere until the pe
     restore();
   }
 });
+
+test("while a steer is still being taken a second send goes nowhere, and a failure puts back only what was sent in front of what was typed since", async () => {
+  const restore = installDom();
+  try {
+    const s = createSample("idle");
+    const calls: string[] = [];
+    let fail: (e: Error) => void = () => undefined;
+    const data = {
+      ...s.data,
+      call: (cap: string, input: unknown) => {
+        calls.push(cap);
+        if (cap === "engine.crew.status")
+          return Promise.resolve({
+            members: [NUMBERS],
+            totals: {
+              members: 1,
+              working: 1,
+              done: 0,
+              needsYou: 0,
+              failed: 0,
+              stopped: 0,
+              tokensIn: 0,
+              tokensOut: 0,
+              costMicros: 0,
+              filesChanged: 0,
+              added: 0,
+              deleted: 0,
+              elapsedMs: 1,
+            },
+          });
+        if (cap === "chat.helper.steer") return new Promise((_, rej) => (fail = rej));
+        return s.data.call(cap, input);
+      },
+    };
+    const root = await mount(
+      createRoot,
+      <CrewProvider call={data.call as never} threadId={data.threadId}>
+        <Conversation data={data as never} />
+      </CrewProvider>,
+    );
+    await flush();
+    await send(root, "@Numbers use the 8% rate");
+    await send(root, "@Numbers use the 9% rate");
+    assert.equal(calls.filter((c) => c === "chat.helper.steer").length, 1, "one in flight per box");
+    assert.equal(calls.includes("chat.post"), false);
+    await typeInto(find(root, "composer-field"), "something else I wrote meanwhile");
+    await act(async () => fail(new Error("gone")));
+    await flush();
+    const box = String(find(root, "composer-field")!.props.value);
+    assert.ok(box.includes("something else I wrote meanwhile"), "what was typed since is kept");
+    assert.ok(box.includes("@Numbers use the 8% rate"), "and the words that were not taken are back");
+    assert.ok(box.indexOf("@Numbers use the 8% rate") < box.indexOf("something else"), "in front of it");
+  } finally {
+    restore();
+  }
+});

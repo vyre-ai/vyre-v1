@@ -516,6 +516,8 @@ function ConversationView(): ReactElement {
   }));
   const [typed, setTyped] = useState(seed.value);
   const typedRef = useRef(seed.value);
+  // one message to a helper in flight per box: a second Enter while the first is still being taken sends nothing more
+  const steerBusy = useRef(false);
   // the unsent line is kept on this device, per chat; a send or an empty line clears it (the sidebar draws a pencil from it)
   useEffect(() => {
     setDraft(data.threadId, typed, scopeOf(data.me?.id));
@@ -1058,10 +1060,13 @@ function ConversationView(): ReactElement {
     closeAsides();
     const route = payload.files.length === 0 ? routeAt(payload.text, atNodes, otherFirsts) : null;
     // the box empties itself when a message is sent: when nothing was sent, the words are put back, so they are never lost
+    // what the person has typed since is never overwritten: the words that were not sent go in front of it
     const keepWords = (): void => {
-      typedRef.current = payload.text;
-      setTyped(payload.text);
-      setSeed((sd) => ({ n: sd.n + 1, value: payload.text }));
+      const now = typedRef.current;
+      const value = now.trim() === "" || now === payload.text ? payload.text : `${payload.text}\n${now}`;
+      typedRef.current = value;
+      setTyped(value);
+      setSeed((sd) => ({ n: sd.n + 1, value }));
     };
     if (route !== null && route.kind === "ambiguous") {
       // nothing is sent and nothing is lost: the words stay in the box
@@ -1076,6 +1081,12 @@ function ConversationView(): ReactElement {
     }
     if (route !== null && route.kind === "to") {
       const toHelper = route;
+      if (steerBusy.current) {
+        say(`Wait a moment: ${toHelper.node.name} is still taking your last message`);
+        keepWords();
+        return;
+      }
+      steerBusy.current = true;
       void Promise.resolve(
         data.call("chat.helper.steer", {
           threadId: toHelper.node.id,
@@ -1084,6 +1095,7 @@ function ConversationView(): ReactElement {
         }),
       ).then(
         () => {
+          steerBusy.current = false;
           // the box is emptied only once the helper has taken it
           unsay();
           setTyped("");
@@ -1093,6 +1105,7 @@ function ConversationView(): ReactElement {
           crew?.refresh();
         },
         () => {
+          steerBusy.current = false;
           say(`${toHelper.node.name} could not take that. Your message is still in the box`);
           keepWords();
         },

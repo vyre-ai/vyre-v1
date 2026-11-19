@@ -18,7 +18,11 @@ import { ActivityList, AtMenu, BoardView, DependencyLine, MessageLines, SleepLin
 import { ACTIVITY, BOARD, MESSAGES, NODES } from "./fixtures.ts";
 
 installDom();
-const say = (n: Parameters<typeof textOf>[0]): string => textOf(n).replace(/\s+/g, " ").replace(/ ([:.,])/g, "$1").trim();
+const say = (n: Parameters<typeof textOf>[0]): string =>
+  textOf(n)
+    .replace(/\s+/g, " ")
+    .replace(/ ([:.,])/g, "$1")
+    .trim();
 const when = (ts: number): string => `day ${Math.round((ts - 1_700_000_000_000) / 86_400_000)}`;
 
 test("the board reads open questions first, then answered, decisions and facts, each oldest first", () => {
@@ -246,15 +250,52 @@ test("the @ menu lists who it can go to with what each is on, marks the chosen o
 });
 
 test("routeAt: one helper at work gets the words; a name shared with a person or agent, or by two helpers, goes nowhere until picked; a finished helper is never messaged; anything else is ordinary", () => {
-  const to = routeAt("@Numbers use the 8% rate", NODES.map((n) => (n.id === "run_n" ? { ...n, status: "running" as const } : n)), []);
+  const to = routeAt(
+    "@Numbers use the 8% rate",
+    NODES.map((n) => (n.id === "run_n" ? { ...n, status: "running" as const } : n)),
+    [],
+  );
   assert.deepEqual(to?.kind === "to" ? [to.node.id, to.body] : null, ["run_n", "use the 8% rate"]);
-  assert.deepEqual(routeAt("@Numbers use it", NODES.map((n) => (n.id === "run_n" ? { ...n, status: "running" as const } : n)), ["Numbers"]), { kind: "ambiguous", name: "Numbers" });
-  const picked = routeAt("@Numbers (helper) use it", NODES.map((n) => (n.id === "run_n" ? { ...n, status: "running" as const } : n)), ["Numbers"]);
+  assert.deepEqual(
+    routeAt(
+      "@Numbers use it",
+      NODES.map((n) => (n.id === "run_n" ? { ...n, status: "running" as const } : n)),
+      ["Numbers"],
+    ),
+    { kind: "ambiguous", name: "Numbers" },
+  );
+  const picked = routeAt(
+    "@Numbers (helper) use it",
+    NODES.map((n) => (n.id === "run_n" ? { ...n, status: "running" as const } : n)),
+    ["Numbers"],
+  );
   assert.deepEqual(picked?.kind === "to" ? [picked.node.id, picked.body] : null, ["run_n", "use it"]);
-  assert.deepEqual(routeAt("@Numbers use it", [...NODES, { ...NODES[1]!, id: "run_n2", name: "Numbers Two", status: "running" as const }], []), { kind: "ambiguous", name: "Numbers" });
+  assert.deepEqual(
+    routeAt(
+      "@Numbers use it",
+      [...NODES, { ...NODES[1]!, id: "run_n2", name: "Numbers Two", status: "running" as const }],
+      [],
+    ),
+    { kind: "ambiguous", name: "Numbers" },
+  );
   assert.deepEqual(routeAt("@Numbers thanks", NODES, []), { kind: "finished", name: "Numbers" });
   assert.equal(routeAt("@Zed hello", NODES, []), null);
   assert.equal(routeAt("hello @Numbers", NODES, []), null);
   assert.equal(routeAt("@Numbers", NODES, []), null, "a name alone is not a message");
-  assert.equal(routeAt("@numbers   spaced   out ", NODES.map((n) => ({ ...n, status: "running" as const })), [])?.kind, "to");
+  assert.equal(
+    routeAt(
+      "@numbers   spaced   out ",
+      NODES.map((n) => ({ ...n, status: "running" as const })),
+      [],
+    )?.kind,
+    "to",
+  );
+});
+
+test("routeAt: punctuation after the name is not part of it", () => {
+  const running = NODES.map((n) => ({ ...n, status: "running" as const }));
+  for (const t of ["@Numbers, use it", "@Numbers: use it", "@numbers; use it"]) {
+    const r = routeAt(t, running, []);
+    assert.deepEqual(r?.kind === "to" ? [r.node.id, r.body] : null, ["run_n", "use it"], t);
+  }
 });
