@@ -1,3 +1,4 @@
+import { tagsNamed } from "../../lib/html-text.ts";
 // The meta of a fetched HTML page, for a link card: title, image address, site name and description, from Open Graph tags, then Twitter tags, then <title> and the description meta.
 // The page is never run or rendered: this reads the first 64 KB of the head as text with patterns. Entities are decoded for the few that appear in titles.
 export interface PageMeta {
@@ -23,20 +24,31 @@ const decode = (s: string): string =>
 
 function attrs(tag: string): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const m of tag.matchAll(/([a-zA-Z:_-]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/g))
+  for (const m of tag.matchAll(/(?<![a-zA-Z:_-])([a-zA-Z:_-]{1,64})\s{0,16}=\s{0,16}("([^"]*)"|'([^']*)'|([^\s>]+))/g))
     out[m[1]!.toLowerCase()] = m[3] ?? m[4] ?? m[5] ?? "";
   return out;
+}
+
+/** The text of the first <title>, found with indexOf (the old regex took quadratic time on a run of "<title"). */
+function titleOf(head: string): string | undefined {
+  const low = head.toLowerCase();
+  const at = low.indexOf("<title");
+  if (at < 0) return undefined;
+  const gt = low.indexOf(">", at);
+  if (gt < 0) return undefined;
+  const e = low.indexOf("</title>", gt + 1);
+  return e < 0 ? undefined : head.slice(gt + 1, e);
 }
 
 export function pageMeta(html: string, base: URL): PageMeta {
   const head = html.slice(0, 65_536);
   const metas = new Map<string, string>();
-  for (const m of head.matchAll(/<meta\b[^>]*>/gi)) {
-    const a = attrs(m[0]);
+  for (const tag of tagsNamed(head, "meta")) {
+    const a = attrs(tag);
     const key = (a["property"] ?? a["name"] ?? "").toLowerCase();
     if (key && a["content"] !== undefined && !metas.has(key)) metas.set(key, decode(a["content"]));
   }
-  const titleTag = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(head)?.[1];
+  const titleTag = titleOf(head);
   const out: PageMeta = {};
   const title = metas.get("og:title") || metas.get("twitter:title") || (titleTag ? decode(titleTag) : "");
   if (title) out.title = title.slice(0, 300);
@@ -55,8 +67,8 @@ export function pageMeta(html: string, base: URL): PageMeta {
   }
   // the site's icon, the fallback picture for a card: an apple-touch-icon (a PNG) first, then any rel icon
   const icons: { rel: string; href: string }[] = [];
-  for (const m of head.matchAll(/<link\b[^>]*>/gi)) {
-    const a = attrs(m[0]);
+  for (const tag of tagsNamed(head, "link")) {
+    const a = attrs(tag);
     const rel = (a["rel"] ?? "").toLowerCase();
     if (a["href"] && /(^|\s)(icon|apple-touch-icon)(\s|$)/.test(rel)) icons.push({ rel, href: a["href"] });
   }

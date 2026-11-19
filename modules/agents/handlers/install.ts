@@ -15,6 +15,7 @@ import { checkFiles, checkPolicy, isAdmin, ownById, ownOf } from "./skill-scopes
 import type { Own } from "./skill-scopes.ts";
 import { mineAdd, spaceInstall } from "./skill-scopes.ts";
 import { treeOf } from "./plugins.ts";
+import { replaceMdLinks } from "../../../lib/html-text.ts";
 
 type Row = Record<string, unknown>;
 type Files = Record<string, string>;
@@ -463,11 +464,10 @@ const MCP_HINT = /modelcontextprotocol|\bmcp[-_ ]?server\b|\bFastMCP\b|\bmcp\b.{
 function summaryOf(files: Files, fallback: string): string {
   const readme = Object.entries(files).find(([p]) => /^readme(\.md)?$/i.test(p))?.[1] ?? "";
   for (const para of readme.split(/\n\s*\n/)) {
-    const t = para.replace(/!\[[^\]]*\]\([^)]*\)|\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)/g, "").trim();
+    const t = replaceMdLinks(para, (m) => (m.image || m.text.trim() === "" ? "" : `[${m.text}](${m.body})`)).trim();
     if (!t || /^(#|\||<|```|---|\[!\[)/.test(t) || t.length < 20) continue;
-    return t
+    return replaceMdLinks(t, (m) => m.text)
       .replace(/\s+/g, " ")
-      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
       .slice(0, 280);
   }
   return fallback.slice(0, 280);

@@ -1,6 +1,7 @@
 // Needs you, with no renderer (spec 3.2 flow 7, 2.8): one list in the queue's order as the prototype lists it (ruling 45), a quiet kind filter, and the request on the right with what, why,
 // source, one primary action and Send back. The rules live here so the tests drive them directly.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { capText, stripTags } from "../../../../../../lib/html-text.ts";
 
 export type Item = CapMap["tasks.needs_you"]["out"]["items"][number];
 export type Task = Item["task"];
@@ -349,9 +350,7 @@ export function blockView(b: Task["blocks"][number]): BlockView {
       .filter((x) => x !== "")
       .join(", ");
     const subject = str(i.subject ?? i.title);
-    const body = str(i.text ?? i.body ?? i.message ?? i.content ?? i.html)
-      .replace(/<[^>]*>/g, "")
-      .trim();
+    const body = stripTags(capText(str(i.text ?? i.body ?? i.message ?? i.content ?? i.html))).trim();
     const pairs: [string, string][] = [];
     if (to) pairs.push(["To", to]);
     if (subject) pairs.push(["Subject", subject]);

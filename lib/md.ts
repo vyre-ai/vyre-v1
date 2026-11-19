@@ -1,5 +1,7 @@
 // Markdown helpers shared by files, memory notes, previews and search. Small on purpose: no parser, no dependencies, same result on a server, a phone and a browser.
 
+import { mdLinks, replaceMdLinks } from "./html-text.ts";
+
 export interface Heading {
   level: number;
   text: string;
@@ -38,22 +40,38 @@ export function headings(md: string): Heading[] {
 
 /** Outgoing links: `[[Wiki links]]` (with an optional `|label`) and `[text](url)`. */
 export function links(md: string): { wiki: string[]; urls: string[] } {
-  const wiki = [...md.matchAll(/\[\[([^\]|\n]+)(?:\|[^\]\n]*)?\]\]/g)].map((m) => m[1]!.trim());
-  const urls = [...md.matchAll(/(?<!!)\[[^\]\n]*\]\(([^)\s]+)[^)]*\)/g)].map((m) => m[1]!);
+  const wiki = [...md.matchAll(/\[\[([^\][|\n]{1,200})(?:\|[^\][\n]{0,200})?\]\]/g)].map((m) => m[1]!.trim());
+  const urls = mdLinks(md)
+    .filter((m) => !m.image && m.url !== "")
+    .map((m) => m.url);
   return { wiki, urls };
+}
+
+/** "```lang\ncode```" becomes "code". One forward pass with indexOf; an unclosed fence stays as text. */
+function unfence(s: string): string {
+  let out = "";
+  let i = 0;
+  for (;;) {
+    const a = s.indexOf("```", i);
+    if (a < 0) break;
+    const nl = s.indexOf("\n", a + 3);
+    if (nl < 0) break;
+    const b = s.indexOf("```", nl + 1);
+    if (b < 0) break;
+    out += s.slice(i, a) + s.slice(nl + 1, b);
+    i = b + 3;
+  }
+  return i === 0 ? s : out + s.slice(i);
 }
 
 /** Markdown to readable plain text for search indexes, notifications and previews. */
 export function toPlain(md: string): string {
-  return frontmatter(md)
-    .body.replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2")
-    .replace(/\[\[([^\]]+)\]\]/g, "$1")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+  return replaceMdLinks(unfence(frontmatter(md).body), (m) => m.text)
+    .replace(/\[\[([^\][|]{1,200})\|([^\][]{1,200})\]\]/g, "$2")
+    .replace(/\[\[([^\][]{1,200})\]\]/g, "$1")
     .replace(/^\s{0,3}#{1,6}[ \t]+/gm, "")
     .replace(/^\s{0,3}>[ \t]?/gm, "")
-    .replace(/^\s*(?:[-*+]|\d+\.)[ \t]+(?:\[[ xX]\][ \t]+)?/gm, "")
+    .replace(/^[ \t]*(?:[-*+]|\d+\.)[ \t]+(?:\[[ xX]\][ \t]+)?/gm, "")
     .replace(/(\*\*|__)(.*?)\1/g, "$2")
     .replace(/(\*|_)(.*?)\1/g, "$2")
     .replace(/~~(.*?)~~/g, "$1")

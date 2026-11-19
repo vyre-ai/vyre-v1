@@ -1,6 +1,7 @@
 // A held send in Needs you: an agent tried to send an email and the Gate parked it. The task carries the whole input of mail.send (doc_excerpt block, { act, cap, input }), so the person can read the
 // draft as it will go out, with the record it is about beside it. This is the pure part: finding the draft in the task, the words of the buttons, and the lines of the record's peek.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { capText, stripTags } from "../../../../../../lib/html-text.ts";
 
 type Task = CapMap["tasks.list"]["out"]["tasks"][number];
 export interface HeldMail {
@@ -19,9 +20,7 @@ const who = (r: unknown): string =>
 
 /** The words of an HTML body, as plain lines: tags out, breaks kept, the common entities back. */
 export function plainOf(html: string): string {
-  return html
-    .replace(/<\s*(br|\/p|\/div|\/li|\/h[1-6])\s*\/?>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
+  return stripTags(capText(html).replace(/<\s{0,16}(br|\/p|\/div|\/li|\/h[1-6])\s{0,16}\/?>/gi, "\n"))
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
