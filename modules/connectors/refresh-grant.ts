@@ -6,7 +6,7 @@ export const REFRESH_SKEW_MS = 60_000;
 const DEFAULT_LIFETIME_S = 1800;
 const MAX_TOKEN = 8192;
 
-export type GrantFailure = "refused" | "unreachable" | "unavailable" | "bad_answer" | "not_saved";
+export type GrantFailure = "refused" | "unreachable" | "unavailable" | "busy" | "bad_answer" | "not_saved";
 export class GrantError extends Error {
   kind: GrantFailure;
   status: number | undefined;
@@ -27,20 +27,39 @@ export interface GrantPort {
   ): Promise<{ status: number; text(): Promise<string> }>;
   /** Write the new refresh token into the same Vault item, in one update. */
   saveRefresh(token: string): Promise<void>;
+  /** Wait between tries; tests pass a no-op. */
+  sleep?(ms: number): Promise<void>;
 }
 
 interface Held {
   access: string;
   endsAt: number;
 }
+// All three are keyed by the Vault item (its handle without the field, in the Space), not by connection: two connections on one item, a probe and a sync, share one refresh.
 const held = new Map<string, Held>();
 const running = new Map<string, Promise<string>>();
-/** A refresh token the app issued that the Vault does not have yet. */
-const unsaved = new Map<string, string>();
+/** A refresh token the app issued that the Vault does not have yet, and the one it replaces: it is saved first on the next grant, and only while the Vault still holds the one it replaces. */
+const unsaved = new Map<string, { from: string; to: string }>();
+
+/** The key of an item for the three tables: the Space (any object that is one per Space's store) and the handle without its field. */
+const spaces = new WeakMap<object, number>();
+export function grantKey(space: object, handle: string): string {
+  let n = spaces.get(space);
+  if (n === undefined) {
+    n = spaces.size + 1;
+    spaces.set(space, n);
+  }
+  return `${n}:${handle.replace(/\.[A-Za-z0-9_]+$/, "")}`;
+}
 
 /** Drop the access token kept for an item: the app rejected it, so the next call asks for a new one. */
 export const forgetAccess = (key: string): void => {
   held.delete(key);
+};
+/** A connection was deleted or its credentials were pasted again: nothing kept for the item may outlive that, least of all a refresh token that was waiting to be saved. */
+export const forgetItem = (key: string): void => {
+  held.delete(key);
+  unsaved.delete(key);
 };
 export const resetGrants = (): void => {
   held.clear();
@@ -48,51 +67,90 @@ export const resetGrants = (): void => {
   unsaved.clear();
 };
 
-async function saveTwice(port: GrantPort, token: string): Promise<boolean> {
-  for (let i = 0; i < 2; i++) {
+const nap = (port: GrantPort, ms: number): Promise<void> =>
+  port.sleep ? port.sleep(ms) : new Promise((r) => setTimeout(r, ms));
+
+async function saveTries(port: GrantPort, token: string): Promise<boolean> {
+  for (let i = 0; i < 3; i++) {
     try {
       await port.saveRefresh(token);
       return true;
     } catch {
-      /* once more */
+      await nap(port, 200 * 2 ** i);
     }
   }
   return false;
 }
 
+const TRANSIENT = (status: number): boolean => status === 408 || status === 429 || status >= 500;
+
+/** One trade at the token address. A transient answer (408, 429, 5xx, the network) is tried again with a pause, three times; only 400 and 401 say the refresh token is refused. */
+async function trade(
+  tokenUrl: string,
+  port: GrantPort,
+  form: string,
+): Promise<{ status: number; text: string } | GrantError> {
+  let last: GrantError | undefined;
+  for (let i = 0; i < 3; i++) {
+    if (i > 0) await nap(port, 250 * 4 ** (i - 1));
+    try {
+      const res = await port.http(tokenUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+        body: form,
+      });
+      if (TRANSIENT(res.status)) {
+        last = new GrantError(
+          res.status >= 500 || res.status === 408 ? "unavailable" : "busy",
+          `The app answered ${res.status} when renewing its sign-in.`,
+          res.status,
+        );
+        continue;
+      }
+      return { status: res.status, text: await res.text() };
+    } catch {
+      last = new GrantError("unreachable", "The app could not be reached to renew its sign-in.");
+    }
+  }
+  return last ?? new GrantError("unreachable", "The app could not be reached to renew its sign-in.");
+}
+
 async function exchange(key: string, tokenUrl: string, port: GrantPort): Promise<string> {
-  // a token the app issued earlier that the Vault never got is the current one, and goes in first
-  const pending = unsaved.get(key);
-  if (pending && (await saveTwice(port, pending))) unsaved.delete(key);
-  const refresh = unsaved.get(key) ?? (await port.fill("refresh_token"));
+  const current = await port.fill("refresh_token");
+  let refresh = current;
+  const waiting = unsaved.get(key);
+  if (waiting && waiting.from === current) {
+    // the app already retired the token the Vault still holds: the one it issued instead goes in first, and is the one to trade
+    if (!(await saveTries(port, waiting.to)))
+      throw new GrantError(
+        "not_saved",
+        "The app renewed the sign-in and retired the old refresh token, but the new one could not be saved to the Vault item yet. It is kept and saved first on the next try.",
+      );
+    unsaved.delete(key);
+    refresh = waiting.to;
+  } else if (waiting) {
+    // the Vault holds something else now (someone pasted a new token): what was waiting is stale
+    unsaved.delete(key);
+  }
   const form = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refresh,
     client_id: await port.fill("client_id"),
     client_secret: await port.fill("client_secret"),
-  });
-  let res: { status: number; text(): Promise<string> };
-  try {
-    res = await port.http(tokenUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
-      body: form.toString(),
-    });
-  } catch {
-    throw new GrantError("unreachable", "The app could not be reached to renew its sign-in.");
-  }
-  const text = await res.text();
-  if (res.status >= 500)
-    throw new GrantError("unavailable", `The app answered ${res.status} when renewing its sign-in.`, res.status);
-  if (res.status >= 400)
+  }).toString();
+  const got = await trade(tokenUrl, port, form);
+  if (got instanceof GrantError) throw got;
+  if (got.status === 400 || got.status === 401)
     throw new GrantError(
       "refused",
       "The app did not accept the refresh token. Check the client id, client secret and refresh token in the Vault item.",
-      res.status,
+      got.status,
     );
+  if (got.status >= 400)
+    throw new GrantError("bad_answer", `The app answered ${got.status} when renewing its sign-in.`, got.status);
   let body: Record<string, unknown>;
   try {
-    body = JSON.parse(text) as Record<string, unknown>;
+    body = JSON.parse(got.text) as Record<string, unknown>;
   } catch {
     throw new GrantError("bad_answer", "The app answered the renewal in an unexpected way.");
   }
@@ -100,12 +158,13 @@ async function exchange(key: string, tokenUrl: string, port: GrantPort): Promise
   if (typeof access !== "string" || access === "" || access.length > MAX_TOKEN)
     throw new GrantError("bad_answer", "The app did not return an access token.");
   const next = body["refresh_token"];
+  // the new refresh token is accepted and saved in this one step, before the access token that came with it is used or kept: if it cannot be saved, the access token is not used
   if (typeof next === "string" && next !== "" && next !== refresh && next.length <= MAX_TOKEN) {
-    unsaved.set(key, next);
-    if (!(await saveTwice(port, next)))
+    unsaved.set(key, { from: refresh, to: next });
+    if (!(await saveTries(port, next)))
       throw new GrantError(
         "not_saved",
-        "The app renewed the sign-in and retired the old refresh token, but the new one could not be saved to the Vault item. It is kept for a retry; check that the item can be edited.",
+        "The app renewed the sign-in and retired the old refresh token, but the new one could not be saved to the Vault item. It is kept and saved first on the next try; check that the item can still be used.",
       );
     unsaved.delete(key);
   }

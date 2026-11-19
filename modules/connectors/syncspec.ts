@@ -25,6 +25,28 @@ export const SECRET_ID =
   /(?<![a-z])(ssn|ein|tin)(?![a-z])|social[ _-]?security|tax[ _-]?id|account[ _-]?(number|no|num)(?![a-z])|routing|licen[cs]e[ _-]?(number|no|num)(?![a-z])|driver'?s?[ _-]?licen[cs]e|passport|card[ _-]?(number|no|num)(?![a-z])/i;
 export const SSN_SHAPE = /^\d{3}-\d{2}-\d{4}$/;
 export const AUTH_STYLES = ["bearer", "header", "basic", "query", "oauth", "oauth_refresh"] as const;
+/** Token addresses that are known to belong to the provider of an OAuth app, whatever the app's own host is called. */
+export const KNOWN_TOKEN_DOMAINS: readonly string[] = [
+  "googleapis.com",
+  "google.com",
+  "microsoftonline.com",
+  "microsoft.com",
+  "clio.com",
+  "salesforce.com",
+  "hubspot.com",
+  "zoho.com",
+  "intuit.com",
+  "xero.com",
+  "dropbox.com",
+  "box.com",
+];
+const TWO_PART_SUFFIX = new Set(["co.uk", "org.uk", "com.au", "co.nz", "com.br", "co.in", "co.jp"]);
+/** The registrable domain of a host: its last two labels (three under a two-part suffix such as co.uk). */
+export function registrable(host: string): string {
+  const labels = host.toLowerCase().replace(/\.$/, "").split(".");
+  const two = labels.slice(-2).join(".");
+  return TWO_PART_SUFFIX.has(two) ? labels.slice(-3).join(".") : two;
+}
 export const CURSOR_KINDS = ["none", "page", "cursor", "offset", "link"] as const;
 export const DIRECTIONS = ["both", "pull", "push", "off"] as const;
 
@@ -200,6 +222,17 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
         "auth.tokenUrl",
         "auth.tokenUrl is the https address that renews the sign-in, such as https://app.example.com/oauth/token.",
       );
+    if (ok) {
+      // a refresh token and a client secret are sent to this address: it is the app's own, or its provider's, or an admin has to say so
+      const host = new URL(token).hostname;
+      const appHost = isObj(app) && typeof app["domain"] === "string" ? app["domain"] : "";
+      const own = appHost !== "" && registrable(host) === registrable(appHost);
+      if (!own && !KNOWN_TOKEN_DOMAINS.includes(registrable(host)))
+        bad(
+          "auth.tokenUrl",
+          `${host} is not on the same domain as ${appHost || "the app"} or a provider Vyre knows. The client secret and refresh token would be sent there, so an admin has to approve this address first.`,
+        );
+    }
     if (String(auth["vaultHandle"] ?? "").includes("."))
       bad(
         "auth.vaultHandle",

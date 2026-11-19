@@ -9,6 +9,8 @@ export interface Read {
   root: string;
   /** the plain parts after the root, in order */
   segs: string[];
+  /** the expression says what to use when the name has nothing (`a ?? "none"`, `a || "none"`, `exists(a)`): a missing name is then no mistake */
+  fallback: boolean;
 }
 
 /** What a place in the scope holds: named parts, or anything (a record, a body, a list of rows). */
@@ -33,6 +35,7 @@ export function bodiesOf(s: string): string[] {
 /** Every name one expression reads. */
 export function readsOfExpr(src: string): Read[] {
   const out: Read[] = [];
+  const fallback = /\|\||\?\?|\b(?:exists|isEmpty)\s*\(/.test(src);
   let i = 0;
   const n = src.length;
   let prev = "";
@@ -72,7 +75,7 @@ export function readsOfExpr(src: string): Read[] {
         break;
       }
       const call = segs.length === 0 && /^\s*\(/.test(src.slice(j));
-      if (!call && !WORDS.has(root)) out.push({ text: src.slice(i, end), root, segs });
+      if (!call && !WORDS.has(root)) out.push({ text: src.slice(i, end), root, segs, fallback });
       i = end;
       prev = "a";
       continue;
@@ -193,6 +196,8 @@ export function unresolvedLine(texts: readonly string[], held: Held): string | u
   for (const text of texts)
     for (const r of readsOf(text)) {
       if (!ROOTS.includes(r.root)) return unknownLine(r, 0, ROOTS);
+      // a name with a fallback written beside it renders the fallback when it has nothing, as it always did
+      if (r.fallback) continue;
       if (r.root === "steps" && held.checkSteps && r.segs[0] !== undefined) {
         const have = held.steps ?? {};
         if (!Object.hasOwn(have, r.segs[0]))
@@ -210,4 +215,11 @@ export function unresolvedLine(texts: readonly string[], held: Held): string | u
       }
     }
   return undefined;
+}
+
+const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+/** A sealed field is held as a reference, never as its value. A Run's `trigger.record` leaves those fields out entirely: a Flow cannot template a secret into an email. */
+export function withoutSealed(fields: unknown): Record<string, unknown> {
+  if (!isRec(fields)) return {};
+  return Object.fromEntries(Object.entries(fields).filter(([, v]) => !(isRec(v) && typeof v["sealed"] === "string")));
 }

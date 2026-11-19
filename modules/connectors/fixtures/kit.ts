@@ -50,6 +50,7 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
   const vaultFolders: { id: string; name: string; scope: string }[] = [];
   const items: Record<string, { handle: string; name: string; value: string; folderId: string }> = {};
   const vaultFault: { next: unknown } = { next: null };
+  const noEdit = { on: false };
   const mk = (actor: string): ConnectorsCtx => ({
     trace: { traceId: "0123456789abcdef0123456789abcdef" },
     actor,
@@ -96,7 +97,16 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
             .map(([id, it]) => ({ id, name: it.name, handle: it.handle })),
         };
       }
+      // the connection's own housekeeping takes one field of an existing item; a person's edit right is not asked for (a test that means an edit-less member sets `noEdit`)
+      if (cap === "vault.item.rotate_field") {
+        const it = items[i["itemId"]];
+        if (!it) throw new Error("no item");
+        vault[`${it.handle}.${i["key"]}`] = i["value"];
+        stored.push({ name: `${it.name}.${i["key"]}`, value: i["value"] });
+        return { item: { id: i["itemId"], handle: it.handle } };
+      }
       if (cap === "vault.item.update") {
+        if (noEdit.on) throw Object.assign(new Error("needs edit"), { error: { code: "permission.no_grant" } });
         const it = items[i["itemId"]];
         if (!it) throw new Error("no item");
         // an item with several fields: the handle plus a dot names one
@@ -170,6 +180,7 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
     vaultFolders,
     items,
     vaultFault,
+    noEdit,
     folders,
     bound,
     sent,

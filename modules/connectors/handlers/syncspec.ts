@@ -23,6 +23,7 @@ import {
   unflatten,
 } from "../syncspec.ts";
 import type { Compiled, CompiledType, Problem, SpecObject, SyncSpec } from "../syncspec.ts";
+import { forgetGrantOf } from "./grant-port.ts";
 import { createConnectionsHandlers } from "./connections.ts";
 import { diffDefs, executeAction, runCases } from "./runtime.ts";
 import type { TestResult } from "./runtime.ts";
@@ -883,6 +884,8 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           }
         : { [slot]: spec.auth.vaultHandle };
     if (conn && JSON.stringify(JSON.parse(conn.secrets)) !== JSON.stringify(held)) {
+      forgetGrantOf(deps, conn as never);
+      forgetGrantOf(deps, conn as never, held);
       tx.run(
         "UPDATE cn_connections SET secrets = ?, state = 'active' WHERE connection_id = ?",
         JSON.stringify(held),

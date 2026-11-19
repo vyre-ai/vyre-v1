@@ -18,7 +18,7 @@ import { createConnectorsHandlers } from "./handlers/index.ts";
 import type { ConnectorsHandlers } from "./handlers/index.ts";
 import { ensureTables, seedBuiltins } from "./projections.ts";
 import { checkEgress, refuse, scrubber } from "./projections.ts";
-import { accessToken, GrantError } from "./refresh-grant.ts";
+import { accessToken, grantKey, GrantError } from "./refresh-grant.ts";
 import type { BuiltinRow, ConnectorsCtx, ConnectionDb, ConnectorDef } from "./projections.ts";
 import type { SyncDeps, SyncEngine } from "./handlers/sync.ts";
 import { runCadence } from "./handlers/cadence.ts";
@@ -280,7 +280,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
                 port.fill(probeExec, { connector: "sync_spec", connectionId: "probe", slot: "probe", handle });
               // an app that issues its own OAuth client: the Vault item holds client_id, client_secret and refresh_token, and the read goes with the access token they are traded for
               const value = req.refreshFrom
-                ? await accessToken(`probe:${req.handle}`, req.refreshFrom.tokenUrl, {
+                ? await accessToken(grantKey(handle.tx as object, req.handle), req.refreshFrom.tokenUrl, {
                     now: () => Date.now(),
                     fill: (field) => fillField(`${req.handle}.${field}`),
                     http: (url, init) => {
@@ -294,10 +294,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
                       };
                       const item = listed.items.find((i) => i.handle === req.handle);
                       if (!item) throw new Error("the Vault item was not found");
-                      await cc.call("vault.item.update", {
-                        itemId: item.id,
-                        fieldsSet: [{ key: "refresh_token", value: token, secret: true }],
-                      });
+                      await cc.call("vault.item.rotate_field", { itemId: item.id, key: "refresh_token", value: token });
                     },
                   }).catch((e: unknown) =>
                     refuse(

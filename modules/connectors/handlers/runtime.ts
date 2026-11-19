@@ -10,7 +10,7 @@ import { buildDef, generateMain } from "./source.ts";
 import { shapeCreated, shapeList, ShapeError } from "./shape.ts";
 import { unflatten } from "../syncspec.ts";
 import { oauthOf, refreshSlot } from "./oauth.ts";
-import { grantPortFor } from "./grant-port.ts";
+import { forgetGrantOf, grantKeyOf, grantPortFor } from "./grant-port.ts";
 import { accessToken, forgetAccess, GrantError } from "../refresh-grant.ts";
 import {
   ensureTables,
@@ -401,7 +401,7 @@ export async function executeAction(
     if (!port || !def.auth.tokenUrl)
       refuse(ctx, "validation.precondition_failed", `${def.title} has no connection to sign in with.`);
     try {
-      tokenValue = await accessToken(conn!.connection_id, def.auth.tokenUrl!, port!, o.refreshed === true);
+      tokenValue = await accessToken(grantKeyOf(deps, def, conn!), def.auth.tokenUrl!, port!, o.refreshed === true);
     } catch (e) {
       if (e instanceof GrantError) {
         if (e.kind === "refused") {
@@ -412,9 +412,11 @@ export async function executeAction(
           ctx,
           e.kind === "unreachable"
             ? "provider.network"
-            : e.kind === "unavailable"
-              ? "provider.unavailable"
-              : "provider.bad_response",
+            : e.kind === "busy"
+              ? "provider.rate_limited"
+              : e.kind === "unavailable" || e.kind === "not_saved"
+                ? "provider.unavailable"
+                : "provider.bad_response",
           e.message,
         );
       }
@@ -597,7 +599,7 @@ export async function executeAction(
       return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
     // the same for an app that issues its own OAuth client: the kept access token is dropped, a new one is asked for, and the call is repeated once
     if (conn && persist && !o.refreshed && def.auth.type === "oauth_refresh") {
-      forgetAccess(conn.connection_id);
+      forgetAccess(grantKeyOf(deps, def, conn));
       return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
     }
     if (conn && persist) await markReconnect(deps, ctx, conn);
@@ -1369,6 +1371,10 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
           conn.connection_id,
         );
         tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", conn.connection_id);
+        {
+          const full = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", conn.connection_id);
+          if (full) forgetGrantOf(deps, full);
+        }
         tx.run("DELETE FROM cn_connections WHERE connection_id = ?", conn.connection_id);
         ctx.emit("connection.deleted", `connection/${conn.connection_id}`, {
           connectionId: conn.connection_id,

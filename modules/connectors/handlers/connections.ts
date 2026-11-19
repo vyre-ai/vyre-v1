@@ -3,6 +3,7 @@
 import { mustUse } from "../../../lib/vault-check.ts";
 import { CONNECTION_KEY_LINE } from "../../../lib/vault-lines.ts";
 import { newPkce, oauthOf, OAUTH_TTL_MS } from "./oauth.ts";
+import { forgetGrantOf } from "./grant-port.ts";
 import {
   checkEgress,
   ensureTables,
@@ -382,6 +383,9 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         (m) => refuse(ctx, "permission.no_grant", m),
       );
       const secrets = { ...secretsOf(r), [input.slot]: input.handle };
+      // credentials pasted again: what was kept for the old ones, and for the new ones, is dropped
+      forgetGrantOf(deps, r);
+      forgetGrantOf(deps, r, secrets);
       const state = r.state === "pending" ? initialState(def, secrets) : r.state;
       tx.run(
         "UPDATE cn_connections SET secrets = ?, state = ? WHERE connection_id = ?",
@@ -772,6 +776,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       );
       tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", r.connection_id);
       tx.run("DELETE FROM cn_connection_hosts WHERE connection_id = ?", r.connection_id);
+      forgetGrantOf(deps, r);
       tx.run("DELETE FROM cn_connections WHERE connection_id = ?", r.connection_id);
       ctx.emit("connection.deleted", `connection/${r.connection_id}`, {
         connectionId: r.connection_id,

@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { kit } from "../fixtures/kit.ts";
 import type { Kit, Sent } from "../fixtures/kit.ts";
-import { resetGrants } from "../refresh-grant.ts";
+import { accessToken, grantKey, resetGrants } from "../refresh-grant.ts";
 import type { ConnectorDef } from "../projections.ts";
 
 const CLIO: ConnectorDef = {
@@ -92,7 +92,8 @@ test("the first call trades the refresh token, sends the access token, and write
   assert.equal(k.vault["#Clio_App.refresh_token"], "rt_2", "the item holds the refresh token the app issued");
   const api = k.sent.find((r) => r.url.includes("/api/v4/ping"))!;
   assert.equal(api.headers["Authorization"], "Bearer at_1");
-  assert.equal(k.calls.filter((c) => c.cap === "vault.item.update").length, 1, "one update");
+  assert.equal(k.calls.filter((c) => c.cap === "vault.item.rotate_field").length, 1, "one housekeeping write");
+  assert.equal(k.calls.filter((c) => c.cap === "vault.item.update").length, 0, "no edit of the item");
 });
 
 test("the access token is kept until a minute before it ends, then renewed with the rotated refresh token", async () => {
@@ -153,11 +154,11 @@ test("a rotated refresh token the Vault could not take is kept and saved first o
   const real = k.mk;
   void real;
   k.vaultFault.next = null;
-  // the Vault refuses the update twice (the grant tries twice), then recovers
-  let refuse = 2;
+  // the Vault refuses the write three times (the grant tries three times), then recovers
+  let refuse = 3;
   const call = k.ctx.call;
   k.ctx.call = async (cap, input) => {
-    if (cap === "vault.item.update" && refuse-- > 0) throw new Error("vault is busy");
+    if (cap === "vault.item.rotate_field" && refuse-- > 0) throw new Error("vault is busy");
     return call(cap, input);
   };
   await assert.rejects(ping(k, id), (e) =>
@@ -169,4 +170,109 @@ test("a rotated refresh token the Vault could not take is kept and saved first o
   assert.equal(out.output, true);
   assert.equal(k.vault["#Clio_App.refresh_token"], "rt_3", "the held token went in first, then the next rotation");
   assert.equal(s.n, 2);
+});
+
+const second = async (k: Kit): Promise<string> =>
+  (
+    await k.hs["connections.create"](k.ctx, {
+      connector: "clio",
+      title: "Clio again",
+      ownerKind: "space",
+      secrets: {
+        Client_id: "#Clio_App.client_id",
+        Client_secret: "#Clio_App.client_secret",
+        Refresh_token: "#Clio_App.refresh_token",
+      },
+    } as never)
+  ).connection.connectionId;
+const stateOf = (k: Kit, id: string): string =>
+  (k.tx.get("SELECT state FROM cn_connections WHERE connection_id = ?", id) as { state: string }).state;
+
+test("two connections on one Vault item and a probe in the middle of a sync make one refresh, and nobody is asked to reconnect", async () => {
+  const k = kit();
+  const s = app(k);
+  const a = await connected(k);
+  const b = await second(k);
+  const probePort = {
+    now: () => k.clock.t,
+    fill: async (f: string) => k.vault[`#Clio_App.${f}`]!,
+    http: async (url: string, init: { body: string }) => k.ctx.http(url, init as never),
+    saveRefresh: async (t: string) => {
+      k.vault["#Clio_App.refresh_token"] = t;
+    },
+  };
+  const out = await Promise.all([
+    ping(k, a),
+    ping(k, b),
+    accessToken(grantKey(k.tx, "#Clio_App"), "https://app.clio.com/oauth/token", probePort as never),
+  ]);
+  assert.equal(out[0]!.output, true);
+  assert.equal(out[1]!.output, true);
+  assert.equal(s.posts, 1, "one refresh for all three");
+  assert.deepEqual([stateOf(k, a), stateOf(k, b)], ["active", "active"]);
+});
+
+test("only a refused refresh token asks for a reconnect; a busy, failing or unreachable app is tried again and the connection stays", async () => {
+  for (const [status, code] of [
+    [429, "provider.rate_limited"],
+    [503, "provider.unavailable"],
+    [408, "provider.unavailable"],
+  ] as const) {
+    const k = kit();
+    app(k);
+    const id = await connected(k);
+    let tries = 0;
+    k.state.reply = () => {
+      tries += 1;
+      return { status, body: {} };
+    };
+    await assert.rejects(ping(k, id), (e) => (e as { error?: { code?: string } }).error?.code === code, String(status));
+    assert.equal(tries, 3, `${status}: tried three times`);
+    assert.equal(stateOf(k, id), "active", `${status}: not asked to reconnect`);
+  }
+  const k = kit();
+  const s = app(k);
+  const id = await connected(k);
+  let flaky = 2;
+  const real = k.state.reply;
+  k.state.reply = (req) => (req.url.endsWith("/oauth/token") && flaky-- > 0 ? { status: 503, body: {} } : real(req));
+  assert.equal((await ping(k, id)).output, true, "two failures, then it works");
+  assert.equal(s.posts, 1);
+  const bad = kit();
+  app(bad);
+  const badId = await connected(bad);
+  bad.vault["#Clio_App.refresh_token"] = "rt_retired";
+  await assert.rejects(ping(bad, badId));
+  assert.equal(stateOf(bad, badId), "needs_reconnect", "400 means refused");
+});
+
+test("a member who may use the item but not edit it runs a pass, and the rotated token still lands in the item", async () => {
+  const k = kit();
+  app(k);
+  const id = await connected(k);
+  k.noEdit.on = true;
+  assert.equal((await ping(k, id)).output, true);
+  assert.equal(k.vault["#Clio_App.refresh_token"], "rt_2");
+  assert.equal(stateOf(k, id), "active");
+});
+
+test("deleting the connection, or pasting its credentials again, drops what was kept for the item, including a token that was waiting to be saved", async () => {
+  const k = kit();
+  const s = app(k);
+  const id = await connected(k);
+  // the save fails every time: the app has rotated, the Vault has not heard
+  const call = k.ctx.call;
+  k.ctx.call = async (cap, input) => {
+    if (cap === "vault.item.rotate_field") throw new Error("vault is down");
+    return call(cap, input);
+  };
+  await assert.rejects(ping(k, id));
+  k.ctx.call = call;
+  // the person pastes the item again with a token the app knows
+  await k.hs["connections.delete"](k.ctx, { connectionId: id } as never);
+  s.refresh = "rt_pasted";
+  k.vault["#Clio_App.refresh_token"] = "rt_pasted";
+  const again = await second(k);
+  assert.equal((await ping(k, again)).output, true, "the stale waiting token was not put over the pasted one");
+  assert.equal(k.vault["#Clio_App.refresh_token"], `rt_${s.n + 1}`);
 });

@@ -2,6 +2,7 @@
 // that puts a rotated refresh token back into the same item.
 import { checkEgress, nowOf } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
+import { forgetItem, grantKey } from "../refresh-grant.ts";
 import type { GrantPort } from "../refresh-grant.ts";
 
 const FIELD_SLOT = {
@@ -48,11 +49,29 @@ export function grantPortFor(
       };
       const item = listed.items.find((i) => i.handle === base);
       if (!item) throw new Error("the Vault item was not found");
-      // one update, one field: the value is the only thing that changes in the item
-      await ctx.call("vault.item.update", {
-        itemId: item.id,
-        fieldsSet: [{ key: "refresh_token", value: token, secret: true }],
-      });
+      // the connection's own housekeeping: it asks for the use the connection holds, not for edit, so a member who may only use the item can still run a pass without losing the connection
+      await ctx.call("vault.item.rotate_field", { itemId: item.id, key: "refresh_token", value: token });
     },
   };
+}
+
+/** The key a connection's grant is kept under: its Vault item, in this Space. */
+export function grantKeyOf(deps: ConnectorsDeps, def: ConnectorDef, conn: ConnectionDb): string {
+  const secrets = JSON.parse(conn.secrets) as Record<string, string>;
+  return grantKey(deps.tx as object, secrets[def.auth.refreshSecret ?? ""] ?? conn.connection_id);
+}
+
+/** A connection of an app that issues its own OAuth client was deleted, or its Vault item was changed: what is kept for that item (the access token, a refresh token waiting to be saved) goes with it. */
+export function forgetGrantOf(
+  deps: ConnectorsDeps,
+  conn: ConnectionDb,
+  secretsOverride?: Record<string, string>,
+): void {
+  const row = deps.tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = ?", conn.connector);
+  if (!row) return;
+  const def = JSON.parse(row.def) as ConnectorDef;
+  if (def.auth.type !== "oauth_refresh") return;
+  const secrets = secretsOverride ?? (JSON.parse(conn.secrets) as Record<string, string>);
+  const handle = secrets[def.auth.refreshSecret ?? ""];
+  if (handle) forgetItem(grantKey(deps.tx as object, handle));
 }
