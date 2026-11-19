@@ -45,7 +45,7 @@ import { useSlide } from "../board/flip.ts";
 import { ColumnHead, FinishStrip } from "../board/Head.tsx";
 import { IDLE, movedWords, popUndo, pushUndo, step } from "../board/machine.ts";
 import type { MoveEffect, MoveEvent, MoveState, Mover, Undoable } from "../board/machine.ts";
-import { performMove, reasonOf, StaleError } from "../board/move.ts";
+import { performMove, reasonOf } from "../board/move.ts";
 import { columnWidth, swimKeys } from "../board/stats.ts";
 import { cardsWords } from "../board/face.ts";
 import { useBoardStages, wipOf } from "../board/stages.ts";
@@ -300,10 +300,20 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
         if (pending) undo.current = pushUndo(undo.current, pending);
         undoing.current = null;
         if (e instanceof GateError) sendRef.current({ t: "gate", missing: e.missing });
-        else if (e instanceof StaleError && e.kind === "moved") {
-          sendRef.current({ t: "remote", id: row.id, to: e.stage, by: { kind: "person", name: "Someone" } });
-          resolveMover(row.id, e.stage);
-          sendRef.current({ t: "refuse", reason: e.message });
+        else if (/changed first/.test(reasonOf(e))) {
+          // newer than the copy held: find out whether it moved (and who moved it), so the board says so
+          void c.data
+            .call("records.get", { type: c.ctx.type, recordId: row.id })
+            .then((o) => (o as { record?: RecordRow }).record)
+            .catch(() => undefined)
+            .then((r) => {
+              const now = r ? laneOfRow(field, r, c.lanes).key : from.key;
+              if (now !== from.key && now !== to.key) {
+                sendRef.current({ t: "remote", id: row.id, to: now, by: { kind: "person", name: "Someone" } });
+                resolveMover(row.id, now);
+              }
+              sendRef.current({ t: "refuse", reason: reasonOf(e) });
+            });
         } else sendRef.current({ t: "refuse", reason: reasonOf(e) });
       },
     );

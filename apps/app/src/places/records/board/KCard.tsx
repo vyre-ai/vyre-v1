@@ -158,7 +158,14 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
       }),
     ),
   ];
-  const trig = menuTrigger((x, y) => {
+  // the shared trigger also opens the menu on a held finger; here a held finger lifts the card, so only the right-click part is used
+  const {
+    onPointerDown: _pd,
+    onPointerMove: _pm,
+    onPointerUp: _pu,
+    onPointerCancel: _pc,
+    ...trig
+  } = menuTrigger((x, y) => {
     board.setFocus(row.id);
     board.show(entries(), x, y);
   });
@@ -171,6 +178,7 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
     if (el?.focus && active && !(active as { matches?: (s: string) => boolean }).matches?.("input,textarea"))
       el.focus();
   }, [focused]);
+  const lastType = useRef("mouse");
   const cancelDrag = useRef<(() => void) | null>(null);
   // a board that goes away mid-drag puts its lifted copy down
   useEffect(() => () => cancelDrag.current?.(), []);
@@ -339,6 +347,13 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
         }
       },
       // one drag for mouse, touch and pen (board/pointerdrag.ts)
+      // a long press with a finger is a drag, not the card's menu (a person on a phone moves cards with the bar)
+      onContextMenuCapture: (e: { preventDefault(): void; stopPropagation(): void }) => {
+        if (lastType.current === "touch") {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      },
       onPointerDownCapture: (e: {
         button?: number;
         pointerType?: string;
@@ -348,6 +363,7 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
         target?: { closest?: (s: string) => unknown };
         currentTarget: { cloneNode(d: boolean): unknown; getBoundingClientRect(): { width: number; height: number } };
       }) => {
+        lastType.current = e.pointerType ?? "mouse";
         if ((e.button ?? 0) !== 0) return;
         if (board.move.kind === "needs" || board.move.kind === "committing") return;
         // the card itself is a button; the tick and anything else that can be pressed on it is not a drag handle

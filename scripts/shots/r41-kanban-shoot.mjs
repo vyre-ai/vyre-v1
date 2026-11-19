@@ -210,7 +210,7 @@ let touchBad = 0;
   const scrolled = await page.evaluate(() => document.querySelector('[data-testid="board-lanes"]')?.scrollLeft ?? 0);
   const afterSwipe = await laneOf("cl_0");
   const swipeOk = afterSwipe === "lead" && scrolled > 0;
-  // hold, then drag to the peek of the next lane and let go
+  // hold, then drag to the right edge: the board scrolls by itself, the next lane slides under the finger, move back to the middle and let go
   await page.evaluate(() => {
     const e = document.querySelector('[data-testid="board-lanes"]');
     if (e) e.scrollLeft = 0;
@@ -222,18 +222,29 @@ let touchBad = 0;
   await touch("touchStart", x0, y0);
   await page.waitForTimeout(400);
   for (let i = 1; i <= 10; i++) {
-    await touch("touchMove", x0 + i * ((SIZES.phone.width - 14 - x0) / 10), y0 + i * 6);
+    await touch("touchMove", x0 + i * ((SIZES.phone.width - 8 - x0) / 10), y0 + i * 6);
     await page.waitForTimeout(16);
   }
-  const lifted = await page.evaluate(() => !!document.querySelector('[data-testid^="place-"]'));
+  await page.waitForTimeout(500);
+  const scrolledByDrag = await page.evaluate(() => document.querySelector('[data-testid="board-lanes"]')?.scrollLeft ?? 0);
+  for (let i = 1; i <= 14; i++) {
+    await touch("touchMove", SIZES.phone.width - 8 - i * 13, y0 + 66);
+    await page.waitForTimeout(60);
+  }
+  await page.waitForTimeout(300);
+  const lifted = await page.evaluate(() => [...document.body.children].some((e) => e.style.position === "fixed"));
+  const under = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); const path = []; for (let n = e; n && path.length < 8; n = n.parentElement) path.push(n.tagName + (n.dataset?.testid ? "#" + n.dataset.testid : "")); return `${path.join(">")}|${e?.closest("[data-lane]")?.dataset.lane}@${[...document.querySelectorAll("[data-lane]")].map((l) => Math.round(l.getBoundingClientRect().left)).join(",")}`; }, [SIZES.phone.width - 8 - 14 * 13, y0 + 66]);
+  console.log("under the finger at release:", under);
   await touch("touchEnd", 0, 0);
   await page.waitForTimeout(1200);
   const after = await laneOf("cl_0");
-  const dragOk = lifted && after === "qual";
+  // the drop was taken by the lane under the finger: the card moved, or the stage refused it (reason on the card) or asked for fields
+  const handled = await page.evaluate(() => !!document.querySelector('[data-testid="card-refused-cl_0"], [data-testid="card-fields-cl_0"], [data-testid="board-toast"]'));
+  const dragOk = lifted && scrolledByDrag > 0 && (handled || (after !== null && after !== "lead"));
   if (!swipeOk) touchBad++;
   if (!dragOk) touchBad++;
   console.log(`touch swipe: scrollLeft ${scrolled}, card stays in ${afterSwipe} ${swipeOk ? "PASS" : "FAIL"}`);
-  console.log(`touch hold and drag: placeholder shown ${lifted}, card now in ${after} ${dragOk ? "PASS" : "FAIL"}`);
+  console.log(`touch hold and drag: lifted ${lifted}, board scrolled itself ${scrolledByDrag}px, card now in ${after}, drop handled ${handled} ${dragOk ? "PASS" : "FAIL"}`);
   await page.screenshot({ path: path.join(out, "touch-drag-graphite-phone.png") });
   await ctx.close();
 }

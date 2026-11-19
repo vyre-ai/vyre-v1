@@ -154,6 +154,7 @@ test("edge scroll: nothing in the middle, faster the nearer the edge, across the
   t.fn();
   assert.ok(across.scrollLeft > 0 && down.scrollTop > 0, "both scroll");
   assert.ok(r.log.includes("over:next"), "the lane under the pointer is looked up again");
+  r.fire("pointerup", { pointerId: 1, clientX: 990, clientY: 690 });
 });
 const down_ = (type: string) => ({ pointerType: type, pointerId: 1, clientX: 100, clientY: 100 });
 

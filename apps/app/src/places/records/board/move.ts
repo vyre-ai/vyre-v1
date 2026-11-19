@@ -9,18 +9,6 @@ import type { FieldDef, Lane, RecordRow } from "../views-a/model.ts";
 
 export { GateError };
 
-/** The card changed after the copy this person held was made: someone moved it (to `stage`), or edited it. */
-export class StaleError extends Error {
-  readonly kind: "moved" | "changed";
-  readonly stage: string;
-  constructor(kind: "moved" | "changed", stage: string) {
-    super(kind === "moved" ? "It was moved first." : "It changed first. Look at the card and try again.");
-    this.name = "StaleError";
-    this.kind = kind;
-    this.stage = stage;
-  }
-}
-
 /** Moves one card. `false` when it was already in that lane (nothing was written). `version` is the version of the card this person was looking at; a card that is newer is refused. */
 export async function performMove(
   data: RecordsData,
@@ -33,17 +21,8 @@ export async function performMove(
 ): Promise<boolean> {
   if (journey) {
     if (to.none) return false;
-    // a Journey move carries no version of its own, so the card is read first: newer than the copy held means someone got there first
-    const fresh = await data
-      .call("records.get", { type, recordId: row.id })
-      .then((o) => (o as { record?: RecordRow }).record ?? null)
-      .catch(() => null);
-    if (fresh && fresh.version !== version) {
-      const now = laneOfRow(field, fresh, lanesOf(field)).key;
-      const was = laneOfRow(field, row, lanesOf(field)).key;
-      throw new StaleError(now !== was && now !== to.key ? "moved" : "changed", now);
-    }
-    return moveInJourney(data.call, journey.journeyId, row, to.key);
+    // the Journey refuses a card that is newer than the one this person was looking at, and writes nothing
+    return moveInJourney(data.call, journey.journeyId, row, to.key, version);
   }
   if (laneOfRow(field, row, lanesOf(field)).key === to.key) return false;
   try {
@@ -51,7 +30,7 @@ export async function performMove(
       type,
       recordId: row.id,
       patch: movePatch(field, to),
-      baseVersion: row.version,
+      baseVersion: version,
     });
   } catch (e) {
     throw gateOf(e) ?? new Error(moveError(e));

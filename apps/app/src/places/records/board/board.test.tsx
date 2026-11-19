@@ -138,6 +138,7 @@ function sample(o: { actor?: string; failMove?: string; gate?: boolean } = {}) {
       }
       if (cap === "records.activity")
         return { entries: [{ id: "e1", kind: "stage", at: NOW, actor: o.actor ?? "usr_omar" }] };
+      if (cap === "journeys.move_stage" && ahead.on) throw new Error("It changed first. Look at the card and try again.");
       if (cap === "journeys.move_stage") {
         calls.push({ cap, input: i });
         if (o.failMove) throw new Error(o.failMove);
@@ -152,6 +153,10 @@ function sample(o: { actor?: string; failMove?: string; gate?: boolean } = {}) {
         const cur = (base.replica.rows(`records:${JOURNEY.key}`) as unknown as RecordRow[]).find(
           (r) => r.id === i["recordId"],
         )!;
+        if (i["expectedVersion"] !== undefined && i["expectedVersion"] !== cur.version) {
+          calls.pop();
+          throw new Error("It changed first. Look at the card and try again.");
+        }
         base.replica.put(`records:${JOURNEY.key}`, [
           { ...cur, version: cur.version + 1, fields: { ...cur.fields, stage: i["toStage"] } } as never,
         ]);
@@ -267,8 +272,9 @@ test("a drag lights the lane it is over with a placeholder, and dropping moves t
     await drop(b.root, "stage2");
     await flush();
     assert.deepEqual(
-      s.calls.map((c) => [c.cap, c.input["recordId"], c.input["toStage"]]),
-      [["journeys.move_stage", "jr_2", "stage2"]],
+      s.calls.map((c) => [c.cap, c.input["recordId"], c.input["toStage"], c.input["expectedVersion"]]),
+      [["journeys.move_stage", "jr_2", "stage2", 1]],
+      "the move carries the version the card was drawn at",
     );
     assert.equal(count(b.root, "stage2"), "2");
     assert.match(textOf(find(b.root, "board-toast-text")), /Moved Onboarding 2 to In review\./);
@@ -633,6 +639,23 @@ test("a card that is newer than the copy held is refused with a reason on the ca
     assert.match(textOf(find(b.root, "card-refused-jr_2")), /It changed first/);
     await press(find(b.root, "card-refused-dismiss-jr_2"));
     await key(b.root, "Escape");
+    // card menu
+    await act(async () => {
+      (find(b.root, "card-jr_2")!.props.onContextMenu as (e: unknown) => void)({
+        preventDefault() {},
+        stopPropagation() {},
+        pageX: 10,
+        pageY: 10,
+        clientX: 10,
+        clientY: 10,
+        nativeEvent: { pageX: 10, pageY: 10 },
+      });
+    });
+    await press(find(b.root, "menu-item-In review"));
+    await flush();
+    await flush();
+    assert.match(textOf(find(b.root, "card-refused-jr_2")), /It changed first/);
+    await press(find(b.root, "card-refused-dismiss-jr_2"));
     // key
     await key(b.root, "ArrowDown");
     await key(b.root, "ArrowRight", { altKey: true });
