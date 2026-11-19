@@ -35370,6 +35370,25 @@ export type RunsEraseIn = {
 export type RunsEraseOut = {
   erased: boolean;
 };
+export type RunsEventsListIn = {
+  runId: string;
+  since?: number;
+  limit?: number;
+  only?: string;
+};
+export type RunsEventsListOut = {
+  events: Array<{
+      rootRun: string;
+      seq: number;
+      runId: string;
+      at: number;
+      type: string;
+      actor?: string;
+      key?: string;
+      payload: unknown;
+    }>;
+  lastSeq: number;
+};
 export type RunsFinishIn = {
   runId: string;
   status: "succeeded" | "failed" | "stopped";
@@ -35524,6 +35543,324 @@ export type RunsMarkWaitingOut = {
       channelId?: string;
     };
   };
+};
+export type RunsNodeBeatIn = {
+  runId: string;
+  holder: string;
+};
+export type RunsNodeBeatOut = {
+  held: boolean;
+};
+export type RunsNodeClaimIn = {
+  runId: string;
+  holder: string;
+};
+export type RunsNodeClaimOut = {
+  node?: {
+    id: string;
+    rootRun: string;
+    parentRun?: string;
+    depth: number;
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    whoKind: string;
+    whoId?: string;
+    engine?: string;
+    model?: string;
+    threadId?: string;
+    status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+    version: number;
+    attempt: number;
+    brief?: unknown;
+    budget?: unknown;
+    spent: {
+      tokensIn: number;
+      tokensOut: number;
+      cacheRead: number;
+      usdMicros: number;
+      calls: number;
+    };
+    wake?: {
+      kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+      label?: string;
+      dueAt?: number;
+      on?: unknown;
+      wokeCount?: number;
+    };
+    result?: unknown;
+    evidence?: unknown;
+    origin?: unknown;
+    summary?: string;
+    errorCode?: string;
+    errorMessage?: string;
+    stopReason?: string;
+    leaseHolder?: string;
+    leaseUntil?: number;
+    startedAt: number;
+    endedAt?: number;
+    updatedAt: number;
+  };
+};
+export type RunsNodeControlIn = {
+  runId: string;
+  action: "pause" | "resume" | "stop";
+  reason?: string;
+  subtree?: boolean;
+};
+export type RunsNodeControlOut = {
+  nodes: Array<{
+      id: string;
+      rootRun: string;
+      parentRun?: string;
+      depth: number;
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      name?: string;
+      owner: string;
+      startedBy: string;
+      whoKind: string;
+      whoId?: string;
+      engine?: string;
+      model?: string;
+      threadId?: string;
+      status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+      version: number;
+      attempt: number;
+      brief?: unknown;
+      budget?: unknown;
+      spent: {
+        tokensIn: number;
+        tokensOut: number;
+        cacheRead: number;
+        usdMicros: number;
+        calls: number;
+      };
+      wake?: {
+        kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+        label?: string;
+        dueAt?: number;
+        on?: unknown;
+        wokeCount?: number;
+      };
+      result?: unknown;
+      evidence?: unknown;
+      origin?: unknown;
+      summary?: string;
+      errorCode?: string;
+      errorMessage?: string;
+      stopReason?: string;
+      leaseHolder?: string;
+      leaseUntil?: number;
+      startedAt: number;
+      endedAt?: number;
+      updatedAt: number;
+    }>;
+};
+export type RunsNodeEventIn = {
+  runId: string;
+  type: string;
+  key?: string;
+  actor?: string;
+  payload?: unknown;
+  at?: number;
+};
+export type RunsNodeEventOut = {
+  seq: number;
+  duplicate: boolean;
+};
+export type RunsNodeGetIn = {
+  runId: string;
+};
+export type RunsNodeGetOut = {
+  node: {
+    id: string;
+    rootRun: string;
+    parentRun?: string;
+    depth: number;
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    whoKind: string;
+    whoId?: string;
+    engine?: string;
+    model?: string;
+    threadId?: string;
+    status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+    version: number;
+    attempt: number;
+    brief?: unknown;
+    budget?: unknown;
+    spent: {
+      tokensIn: number;
+      tokensOut: number;
+      cacheRead: number;
+      usdMicros: number;
+      calls: number;
+    };
+    wake?: {
+      kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+      label?: string;
+      dueAt?: number;
+      on?: unknown;
+      wokeCount?: number;
+    };
+    result?: unknown;
+    evidence?: unknown;
+    origin?: unknown;
+    summary?: string;
+    errorCode?: string;
+    errorMessage?: string;
+    stopReason?: string;
+    leaseHolder?: string;
+    leaseUntil?: number;
+    startedAt: number;
+    endedAt?: number;
+    updatedAt: number;
+  };
+};
+export type RunsNodeMoveIn = {
+  runId: string;
+  to: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+  why: "started" | "claimed" | "slept" | "woke" | "paused" | "resumed" | "done" | "failed" | "stopped" | "worker_lost" | "budget" | "stuck" | "parent_stopped" | "parent_paused" | "retry" | "lease_lost";
+  expectedVersion?: number;
+  expectedFrom?: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+  summary?: string;
+  result?: unknown;
+  evidence?: unknown;
+  error?: {
+    code: string;
+    message: string;
+  };
+  stopReason?: string;
+  wake?: {
+    kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+    label?: string;
+    dueAt?: number;
+    on?: unknown;
+    wokeCount?: number;
+  };
+  checkpoint?: unknown;
+};
+export type RunsNodeMoveOut = {
+  node: {
+    id: string;
+    rootRun: string;
+    parentRun?: string;
+    depth: number;
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    whoKind: string;
+    whoId?: string;
+    engine?: string;
+    model?: string;
+    threadId?: string;
+    status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+    version: number;
+    attempt: number;
+    brief?: unknown;
+    budget?: unknown;
+    spent: {
+      tokensIn: number;
+      tokensOut: number;
+      cacheRead: number;
+      usdMicros: number;
+      calls: number;
+    };
+    wake?: {
+      kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+      label?: string;
+      dueAt?: number;
+      on?: unknown;
+      wokeCount?: number;
+    };
+    result?: unknown;
+    evidence?: unknown;
+    origin?: unknown;
+    summary?: string;
+    errorCode?: string;
+    errorMessage?: string;
+    stopReason?: string;
+    leaseHolder?: string;
+    leaseUntil?: number;
+    startedAt: number;
+    endedAt?: number;
+    updatedAt: number;
+  };
+  changed: boolean;
+};
+export type RunsNodeReclaimIn = Record<string, unknown>;
+export type RunsNodeReclaimOut = {
+  reclaimed: Array<string>;
+};
+export type RunsNodeStartIn = {
+  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+  name?: string;
+  owner: string;
+  parentRun?: string;
+  threadId?: string;
+  whoKind?: string;
+  whoId?: string;
+  engine?: string;
+  model?: string;
+  brief?: unknown;
+  budget?: unknown;
+  origin?: unknown;
+  policy?: unknown;
+  running?: boolean;
+  idemKey?: string;
+};
+export type RunsNodeStartOut = {
+  node: {
+    id: string;
+    rootRun: string;
+    parentRun?: string;
+    depth: number;
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    whoKind: string;
+    whoId?: string;
+    engine?: string;
+    model?: string;
+    threadId?: string;
+    status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+    version: number;
+    attempt: number;
+    brief?: unknown;
+    budget?: unknown;
+    spent: {
+      tokensIn: number;
+      tokensOut: number;
+      cacheRead: number;
+      usdMicros: number;
+      calls: number;
+    };
+    wake?: {
+      kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+      label?: string;
+      dueAt?: number;
+      on?: unknown;
+      wokeCount?: number;
+    };
+    result?: unknown;
+    evidence?: unknown;
+    origin?: unknown;
+    summary?: string;
+    errorCode?: string;
+    errorMessage?: string;
+    stopReason?: string;
+    leaseHolder?: string;
+    leaseUntil?: number;
+    startedAt: number;
+    endedAt?: number;
+    updatedAt: number;
+  };
+  created: boolean;
 };
 export type RunsPeopleCountsIn = {
   statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
@@ -35806,6 +36143,65 @@ export type RunsStopOut = {
       channelId?: string;
     };
   };
+};
+export type RunsTreeGetIn = {
+  runId: string;
+};
+export type RunsTreeGetOut = {
+  nodes: Array<{
+      id: string;
+      rootRun: string;
+      parentRun?: string;
+      depth: number;
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      name?: string;
+      owner: string;
+      startedBy: string;
+      whoKind: string;
+      whoId?: string;
+      engine?: string;
+      model?: string;
+      threadId?: string;
+      status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+      version: number;
+      attempt: number;
+      brief?: unknown;
+      budget?: unknown;
+      spent: {
+        tokensIn: number;
+        tokensOut: number;
+        cacheRead: number;
+        usdMicros: number;
+        calls: number;
+      };
+      wake?: {
+        kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+        label?: string;
+        dueAt?: number;
+        on?: unknown;
+        wokeCount?: number;
+      };
+      result?: unknown;
+      evidence?: unknown;
+      origin?: unknown;
+      summary?: string;
+      errorCode?: string;
+      errorMessage?: string;
+      stopReason?: string;
+      leaseHolder?: string;
+      leaseUntil?: number;
+      startedAt: number;
+      endedAt?: number;
+      updatedAt: number;
+    }>;
+  spent: {
+    tokensIn: number;
+    tokensOut: number;
+    cacheRead: number;
+    usdMicros: number;
+    calls: number;
+  };
+  lastSeq: number;
 };
 export type RunsUndoIn = {
   runId: string;
@@ -50051,10 +50447,19 @@ export interface CapMap {
   "runbooks.targets": { in: RunbooksTargetsIn; out: RunbooksTargetsOut };
   "runs.count": { in: RunsCountIn; out: RunsCountOut };
   "runs.erase": { in: RunsEraseIn; out: RunsEraseOut };
+  "runs.events.list": { in: RunsEventsListIn; out: RunsEventsListOut };
   "runs.finish": { in: RunsFinishIn; out: RunsFinishOut };
   "runs.get": { in: RunsGetIn; out: RunsGetOut };
   "runs.list": { in: RunsListIn; out: RunsListOut };
   "runs.mark_waiting": { in: RunsMarkWaitingIn; out: RunsMarkWaitingOut };
+  "runs.node.beat": { in: RunsNodeBeatIn; out: RunsNodeBeatOut };
+  "runs.node.claim": { in: RunsNodeClaimIn; out: RunsNodeClaimOut };
+  "runs.node.control": { in: RunsNodeControlIn; out: RunsNodeControlOut };
+  "runs.node.event": { in: RunsNodeEventIn; out: RunsNodeEventOut };
+  "runs.node.get": { in: RunsNodeGetIn; out: RunsNodeGetOut };
+  "runs.node.move": { in: RunsNodeMoveIn; out: RunsNodeMoveOut };
+  "runs.node.reclaim": { in: RunsNodeReclaimIn; out: RunsNodeReclaimOut };
+  "runs.node.start": { in: RunsNodeStartIn; out: RunsNodeStartOut };
   "runs.people_counts": { in: RunsPeopleCountsIn; out: RunsPeopleCountsOut };
   "runs.pin_version": { in: RunsPinVersionIn; out: RunsPinVersionOut };
   "runs.preview_undo": { in: RunsPreviewUndoIn; out: RunsPreviewUndoOut };
@@ -50070,6 +50475,7 @@ export interface CapMap {
   "runs.step_io": { in: RunsStepIoIn; out: RunsStepIoOut };
   "runs.steps": { in: RunsStepsIn; out: RunsStepsOut };
   "runs.stop": { in: RunsStopIn; out: RunsStopOut };
+  "runs.tree.get": { in: RunsTreeGetIn; out: RunsTreeGetOut };
   "runs.undo": { in: RunsUndoIn; out: RunsUndoOut };
   "runs.wait_for": { in: RunsWaitForIn; out: RunsWaitForOut };
   "scheduler.can_hold": { in: SchedulerCanHoldIn; out: SchedulerCanHoldOut };
@@ -53597,6 +54003,14 @@ export type RunKeyFallbackPayload = {
   toKey?: string;
   reason: string;
 };
+export type RunNodeStatePayload = {
+  runId: string;
+  rootRun: string;
+  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "watcher" | "terminal" | "job" | "mcp" | "other";
+  from?: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+  to: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+  why: "started" | "claimed" | "slept" | "woke" | "paused" | "resumed" | "done" | "failed" | "stopped" | "worker_lost" | "budget" | "stuck" | "parent_stopped" | "parent_paused" | "retry" | "lease_lost";
+};
 export type RunResumedPayload = {
   runId: string;
   reason: "approval" | "background" | "key";
@@ -55491,6 +55905,7 @@ export interface EventMap {
   "run.erased": RunErasedPayload;
   "run.failed": RunFailedPayload;
   "run.key_fallback": RunKeyFallbackPayload;
+  "run.node_state": RunNodeStatePayload;
   "run.resumed": RunResumedPayload;
   "run.retried": RunRetriedPayload;
   "run.started": RunStartedPayload;

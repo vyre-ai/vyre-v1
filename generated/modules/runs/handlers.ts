@@ -7,10 +7,19 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.count": Handler<"runs.count", X>;
   "runs.erase": Handler<"runs.erase", X>;
+  "runs.events.list": Handler<"runs.events.list", X>;
   "runs.finish": Handler<"runs.finish", X>;
   "runs.get": Handler<"runs.get", X>;
   "runs.list": Handler<"runs.list", X>;
   "runs.mark_waiting": Handler<"runs.mark_waiting", X>;
+  "runs.node.beat": Handler<"runs.node.beat", X>;
+  "runs.node.claim": Handler<"runs.node.claim", X>;
+  "runs.node.control": Handler<"runs.node.control", X>;
+  "runs.node.event": Handler<"runs.node.event", X>;
+  "runs.node.get": Handler<"runs.node.get", X>;
+  "runs.node.move": Handler<"runs.node.move", X>;
+  "runs.node.reclaim": Handler<"runs.node.reclaim", X>;
+  "runs.node.start": Handler<"runs.node.start", X>;
   "runs.people_counts": Handler<"runs.people_counts", X>;
   "runs.pin_version": Handler<"runs.pin_version", X>;
   "runs.preview_undo": Handler<"runs.preview_undo", X>;
@@ -26,6 +35,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.step_io": Handler<"runs.step_io", X>;
   "runs.steps": Handler<"runs.steps", X>;
   "runs.stop": Handler<"runs.stop", X>;
+  "runs.tree.get": Handler<"runs.tree.get", X>;
   "runs.undo": Handler<"runs.undo", X>;
   "runs.wait_for": Handler<"runs.wait_for", X>;
 }

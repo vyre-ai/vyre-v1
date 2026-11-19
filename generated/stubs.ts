@@ -2421,10 +2421,23 @@ export function stubs(ctx: CallCtx) {
     runs: {
       count: call("runs.count"),
       erase: call("runs.erase"),
+      events: {
+        list: call("runs.events.list"),
+      },
       finish: call("runs.finish"),
       get: call("runs.get"),
       list: call("runs.list"),
       mark_waiting: call("runs.mark_waiting"),
+      node: {
+        beat: call("runs.node.beat"),
+        claim: call("runs.node.claim"),
+        control: call("runs.node.control"),
+        event: call("runs.node.event"),
+        get: call("runs.node.get"),
+        move: call("runs.node.move"),
+        reclaim: call("runs.node.reclaim"),
+        start: call("runs.node.start"),
+      },
       people_counts: call("runs.people_counts"),
       pin_version: call("runs.pin_version"),
       preview_undo: call("runs.preview_undo"),
@@ -2440,6 +2453,9 @@ export function stubs(ctx: CallCtx) {
       step_io: call("runs.step_io"),
       steps: call("runs.steps"),
       stop: call("runs.stop"),
+      tree: {
+        get: call("runs.tree.get"),
+      },
       undo: call("runs.undo"),
       wait_for: call("runs.wait_for"),
     },

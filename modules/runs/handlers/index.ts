@@ -20,11 +20,33 @@ import {
   waitFor,
 } from "./engine.ts";
 import { stepIo } from "./step-io.ts";
+import {
+  eventsList,
+  nodeBeat,
+  nodeClaim,
+  nodeControl,
+  nodeEvent,
+  nodeGet,
+  nodeMove,
+  nodeReclaim,
+  nodeStart,
+  treeGet,
+} from "./node.ts";
 import { previewUndo, undo } from "./undo.ts";
 import { erase, purge } from "./purge.ts";
 import { agentsOfRun, withReversals } from "../../../lib/reversal.ts";
 
 const base = {
+  "runs.events.list": eventsList,
+  "runs.node.beat": nodeBeat,
+  "runs.node.claim": nodeClaim,
+  "runs.node.control": nodeControl,
+  "runs.node.event": nodeEvent,
+  "runs.node.get": nodeGet,
+  "runs.node.move": nodeMove,
+  "runs.node.reclaim": nodeReclaim,
+  "runs.node.start": nodeStart,
+  "runs.tree.get": treeGet,
   "runs.erase": erase,
   "runs.purge": purge,
   "runs.count": count,

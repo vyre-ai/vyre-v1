@@ -2421,10 +2421,23 @@ export function createClient(transport: Transport) {
     runs: {
       count: call("runs.count", 1),
       erase: call("runs.erase", 1),
+      events: {
+        list: call("runs.events.list", 1),
+      },
       finish: call("runs.finish", 1),
       get: call("runs.get", 1),
       list: call("runs.list", 1),
       mark_waiting: call("runs.mark_waiting", 1),
+      node: {
+        beat: call("runs.node.beat", 1),
+        claim: call("runs.node.claim", 1),
+        control: call("runs.node.control", 1),
+        event: call("runs.node.event", 1),
+        get: call("runs.node.get", 1),
+        move: call("runs.node.move", 1),
+        reclaim: call("runs.node.reclaim", 1),
+        start: call("runs.node.start", 1),
+      },
       people_counts: call("runs.people_counts", 1),
       pin_version: call("runs.pin_version", 1),
       preview_undo: call("runs.preview_undo", 1),
@@ -2440,6 +2453,9 @@ export function createClient(transport: Transport) {
       step_io: call("runs.step_io", 1),
       steps: call("runs.steps", 1),
       stop: call("runs.stop", 1),
+      tree: {
+        get: call("runs.tree.get", 1),
+      },
       undo: call("runs.undo", 1),
       wait_for: call("runs.wait_for", 1),
     },
