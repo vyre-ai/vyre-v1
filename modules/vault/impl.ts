@@ -36,6 +36,7 @@ export const handlers: Record<string, Handler> = {
   "vault.item.usage": (ctx, i) => h.itemUsage(ctx, i),
   "vault.item.put": (ctx, i) => h.itemPut(ctx, i),
   "vault.item.update": (ctx, i) => h.itemUpdate(ctx, i),
+  "vault.item.rotate_field": (ctx, i) => h.itemRotateField(ctx, i),
   "vault.item.move": (ctx, i) => h.itemMove(ctx, i),
   "vault.item.mark_rotated": (ctx, i) => h.itemMarkRotated(ctx, i),
   "vault.item.delete": (ctx, i) => h.itemDelete(ctx, i),

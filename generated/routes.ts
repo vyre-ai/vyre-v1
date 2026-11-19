@@ -41031,6 +41031,25 @@ const routes7: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/vault/item/rotate_field",
+    "cap": "vault.item.rotate_field",
+    "v": 1,
+    "module": "vault",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "vault_item",
+      "id": "/itemId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/vault/item/update",
     "cap": "vault.item.update",
     "v": 1,

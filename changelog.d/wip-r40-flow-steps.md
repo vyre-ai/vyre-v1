@@ -4,3 +4,5 @@
 - New steps: "Make a form link" (a one-use link for a record, usable in a later email step) and "Move to a stage" (a record to a Journey stage).
 - A button trigger for a record type with no Button field says so in plain words, and the Flow builder offers to add the field in one press.
 - An AI step in Answer mode that asks for a skill is warned that it has no tools and told to switch to Task.
+- A form, a button or a stage move names its record; a step that reads `trigger.record` has it read as the Flow's own principal, so a field its owner may not read never reaches the template. `{{ a ?? 'x' }}` and `||` give a fallback when a name has nothing.
+- An app with its own OAuth client (refresh token in a Vault item) refreshes once per item however many connections and probes use it, saves a rotated refresh token through the connection's own housekeeping (use, not edit) before using the new access token, and treats only 400 and 401 as a refused token.

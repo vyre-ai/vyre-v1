@@ -893,3 +893,39 @@ test("discard_new erases only the key a connect card saved in its open try, for 
   h.actAs("agent", AGENT);
   assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: theirs, requestId: REQ })), "never an agent");
 });
+
+test("a connection's housekeeping: a member at Use rotates one existing secret field; the same change as an edit is refused; no other field or item is touched", async () => {
+  const h = harness();
+  const shared = await folder(h, "shared", "Team keys");
+  h.grant(ROB, shared, "edit");
+  h.actAs("person", ROB);
+  const made = out(
+    await v.itemPut(h.ctx, {
+      folderId: shared,
+      name: "Clio App",
+      kind: "other",
+      fields: [
+        { key: "client_id", value: "cid" },
+        { key: "refresh_token", value: "rt_1", secret: true },
+      ],
+      idempotencyKey: key(),
+    } as Parameters<typeof v.itemPut>[1]),
+  );
+  const id = String(out(made.item).id);
+  h.actAs("person", MAYA);
+  h.grant(MAYA, id, "use");
+  const edit = { itemId: id, fieldsSet: [{ key: "refresh_token", value: "rt_2", secret: true }] };
+  assert.equal(await refusedWith(v.itemUpdate(h.ctx, edit)), "permission.no_grant", "Use is not Edit");
+  await v.itemRotateField(h.ctx, { itemId: id, key: "refresh_token", value: "rt_2" });
+  h.actAs("person", ROB);
+  const fields = (await v.itemReveal(h.ctx, { itemId: id } as never)) as Json;
+  assert.deepEqual((fields.fields as { key: string; value: string }[]).map((f) => [f.key, f.value]).sort(), [
+    ["client_id", "cid"],
+    ["refresh_token", "rt_2"],
+  ]);
+  h.actAs("person", MAYA);
+  assert.equal(
+    await refusedWith(v.itemRotateField(h.ctx, { itemId: id, key: "nope", value: "x" })),
+    "validation.bad_input",
+  );
+});

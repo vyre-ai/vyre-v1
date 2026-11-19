@@ -47,11 +47,11 @@ test("an Automation that belongs to an excluded member reads nothing, and one th
   );
 });
 
-test("the fifteen Google and Microsoft steps are in the catalogue, each over a capability that takes the connection", () => {
+test("the twenty-one Google and Microsoft steps are in the catalogue, each over a capability that takes the connection", () => {
   const steps = (registry as unknown as { steps: { key: string; cap?: string }[] }).steps.filter(
     (s) => s.key.startsWith("google.") || s.key.startsWith("ms."),
   );
-  assert.equal(steps.length, 15);
+  assert.equal(steps.length, 21);
   for (const s of steps) {
     const cap = registry.capabilities.filter((c) => c.name === s.cap).sort((a, b) => b.v - a.v)[0];
     assert.ok(cap, `${s.key} has its capability`);

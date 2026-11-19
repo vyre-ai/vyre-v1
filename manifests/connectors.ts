@@ -252,7 +252,10 @@ const syncSpec = t.obj({
   }),
   auth: t.obj({
     vaultHandle: id.handle,
-    style: t.enm("bearer", "header", "basic", "query", "oauth"),
+    style: t.enm("bearer", "header", "basic", "query", "oauth", "oauth_refresh"),
+    tokenUrl: t.opt(
+      t.str({ description: "oauth_refresh: the https address that trades the refresh token for an access token" }),
+    ),
     header: t.opt(t.str()),
     prefix: t.opt(t.str()),
     headers: t.opt(t.rec(t.str())),

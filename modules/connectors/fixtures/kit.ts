@@ -1,6 +1,7 @@
 // A connectors handle wired to fakes: a clock, a Vault, an app that answers what the test says, and every event, log line and call written down.
 import { openConnectors } from "../impl.ts";
 import { resetRateLimits } from "../projections.ts";
+import { resetKept } from "../handlers/runtime.ts";
 import type { BuiltinRow, ConnectorDef, ConnectorsCtx } from "../projections.ts";
 
 export const NOW = 1_800_000_000_000;
@@ -14,6 +15,7 @@ export type Reply = { status: number; body?: unknown; retryAfter?: string } | Er
 
 export function kit(o: { builtins?: BuiltinRow[] } = {}) {
   resetRateLimits();
+  resetKept();
   const clock = { t: NOW };
   const vault: Record<string, string> = { "#AcmeKey": "sk_live_SECRET123", "#AcmeHook": "whsec_HOOKVALUE9" };
   const stored: { name: string; value: string }[] = [];
@@ -56,6 +58,7 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
   /** the Space as the directory answers it: a team Space with admins, unless a test says otherwise */
   const space = { row: { kind: "team", owner: "usr_owner" } as { kind: string; owner: string }, adminHolders: 2 };
   const people = { left: new Set<string>(), suspended: new Set<string>() };
+  const noEdit = { on: false };
   const mk = (actor: string): ConnectorsCtx => ({
     trace: { traceId: "0123456789abcdef0123456789abcdef" },
     actor,
@@ -80,6 +83,7 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
         if (tasksGone.has(`${to.kind}:${to.id}`)) throw new Error("that person is not in this Space");
         return { task: { id: `tsk_${calls.length}` } };
       }
+      // (r40: the connection's own housekeeping and an edit-less member use the cases above)
       // a small Vault: the folders and items a connection's OAuth tokens are kept in, as the vault capabilities answer them
       const i = input as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
       if (vaultFault.next) {
@@ -107,9 +111,34 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
         if (String(i["item"]).toLowerCase() === "#stripe_live") throw new Error("permission.no_grant");
         return { handle: i["item"], itemId: "vit_kit0001", fields: ["value"] };
       }
-      if (cap === "vault.item.update") {
+      if (cap === "vault.items.list") {
+        const q = String(i["q"] ?? "").toLowerCase();
+        return {
+          items: Object.entries(items)
+            .filter(([, it]) => it.name.toLowerCase().includes(q))
+            .map(([id, it]) => ({ id, name: it.name, handle: it.handle })),
+        };
+      }
+      // the connection's own housekeeping takes one field of an existing item; a person's edit right is not asked for (a test that means an edit-less member sets `noEdit`)
+      if (cap === "vault.item.rotate_field") {
         const it = items[i["itemId"]];
         if (!it) throw new Error("no item");
+        vault[`${it.handle}.${i["key"]}`] = i["value"];
+        stored.push({ name: `${it.name}.${i["key"]}`, value: i["value"] });
+        return { item: { id: i["itemId"], handle: it.handle } };
+      }
+      if (cap === "vault.item.update") {
+        if (noEdit.on) throw Object.assign(new Error("needs edit"), { error: { code: "permission.no_grant" } });
+        const it = items[i["itemId"]];
+        if (!it) throw new Error("no item");
+        // an item with several fields: the handle plus a dot names one
+        if (i["fieldsSet"][0].key !== "token") {
+          for (const f of i["fieldsSet"] as { key: string; value: string }[]) {
+            vault[`${it.handle}.${f.key}`] = f.value;
+            stored.push({ name: `${it.name}.${f.key}`, value: f.value });
+          }
+          return { item: { id: i["itemId"], handle: it.handle } };
+        }
         it.value = i["fieldsSet"][0].value;
         vault[it.handle] = it.value;
         stored.push({ name: it.name, value: it.value });
@@ -176,6 +205,7 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
     tasksGone,
     space,
     people,
+    noEdit,
     folders,
     bound,
     sent,

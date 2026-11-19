@@ -158,6 +158,7 @@ test("a pass for a person's connection that someone else runs says the connectio
   w.state.noConn = 99;
   w.k.tx.run("UPDATE cn_connections SET owner_kind = 'person', owner_id = 'usr_other'");
   const other = { ...w.ctx, actor: "usr_me" } as ConnectorsCtx;
+  w.k.tx.run("DELETE FROM cn_sync_running"); // the first pulls the apply asked for are over: no other pass is on its way on this connection
   const poll = await w.k.hs["connectors.sync_poll"](other, { type: "person" });
   assert.equal(poll.ran, false);
   const log = (await w.k.hs["sync_types.log"]({ ...w.ctx, actor: "usr_other" } as ConnectorsCtx, { type: "person" }))
@@ -231,4 +232,16 @@ test("a poll the server cannot hand to anyone ends its chain and says why, inste
   );
   const log = (await w.k.hs["sync_types.log"](w.ctx, { type: "person" })).entries;
   assert.match(log[0]!.summary, /^Syncing is paused/);
+});
+
+test("a poll that finds another pass on its way on the same connection waits its turn and looks again in a few seconds", async () => {
+  const w = await setup();
+  const before = w.passes.length;
+  const poll = await w.k.hs["connectors.sync_poll"](w.ctx, { type: "person" });
+  assert.equal(poll.ran, false);
+  assert.equal(w.passes.length, before, "no second pass on the connection");
+  const next = w.k.tx.get<{ at: number }>(
+    "SELECT at FROM cn_sync_poll WHERE sync_type_id = (SELECT sync_type_id FROM cn_synced_types WHERE type = 'person')",
+  )!;
+  assert.ok(next.at > w.k.clock.t && next.at - w.k.clock.t < 30_000, "the poll was planned again soon");
 });

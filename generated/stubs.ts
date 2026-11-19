@@ -3106,6 +3106,7 @@ export function stubs(ctx: CallCtx) {
         put: call("vault.item.put"),
         restore: call("vault.item.restore"),
         reveal: call("vault.item.reveal"),
+        rotate_field: call("vault.item.rotate_field"),
         update: call("vault.item.update"),
         usage: call("vault.item.usage"),
       },
