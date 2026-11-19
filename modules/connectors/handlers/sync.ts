@@ -8,7 +8,7 @@
 // @reads /modules/connectors/migrations/0001_connectors.sql
 // @reads /modules/sources/migrations/0001_sources.sql
 import type { Tx } from "../../../kernel/src/store/projection.ts";
-import { clearRunning, markRunning, noteResult, runsFor } from "./cadence.ts";
+import { clearRunning, isRunning, jitterMs, markRunning, noteResult, runsFor } from "./cadence.ts";
 import { ensureTables, mintShort, nowOf, PAGE, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 import { executeAction } from "./runtime.ts";
@@ -660,7 +660,8 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
     const waiting = tx.get<{ at: number }>("SELECT at FROM cn_sync_poll WHERE sync_type_id = ?", r.sync_type_id);
     if (waiting && waiting.at > at && keepDue === undefined) return;
     const polling = parse<PollingRow>(r.polling);
-    const due = keepDue ?? at + (pendingOf(r.sync_type_id) > 0 ? polling.activeSec : polling.idleSec) * 1000;
+    const every = (pendingOf(r.sync_type_id) > 0 ? polling.activeSec : polling.idleSec) * 1000;
+    const due = keepDue ?? at + every + jitterMs(r.sync_type_id, every);
     tx.run(
       "INSERT INTO cn_sync_poll (sync_type_id, at) VALUES (?, ?) ON CONFLICT(sync_type_id) DO UPDATE SET at = excluded.at",
       r.sync_type_id,
@@ -1289,6 +1290,11 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       // woken early only to look for the app's call: nothing to read yet, wait on for the real time
       if (due !== undefined && due > nowOf(deps) && hasHook(r) && !hooked(r)) {
         await planPoll(ctx, r, due);
+        return { ran: false };
+      }
+      // one pass at a time per connection (its calls-a-minute budget is shared by every type of it): a type whose connection is busy looks again in a few seconds, in its own place in line
+      if (isRunning(tx, r.connection_id, nowOf(deps))) {
+        await planPoll(ctx, r, nowOf(deps) + 3_000 + jitterMs(r.sync_type_id, 20_000));
         return { ran: false };
       }
       const conn = connRow(r.connection_id);

@@ -14,6 +14,14 @@ export interface Polling {
 export const RUN_STALE_MS = 30 * 60_000;
 /** A planned poll more than this late is a lost job: the chain counts as dead. */
 export const POLL_GRACE_MS = 5 * 60_000;
+/** Passes the driver starts in one tick, across all connections: a Space of many synced types does not start them all in the same second. The rest follow on the next ticks (30 s apart). */
+export const MAX_STARTS_PER_TICK = 2;
+/** A type's own place inside its interval: the same every time, different between types, so passes that began together drift apart and stay apart. At most a quarter of the interval, never more than a minute. */
+export function jitterMs(syncTypeId: string, intervalMs: number): number {
+  let h = 2166136261;
+  for (let i = 0; i < syncTypeId.length; i++) h = Math.imul(h ^ syncTypeId.charCodeAt(i), 16777619) >>> 0;
+  return h % Math.max(1, Math.min(60_000, Math.floor(intervalMs / 4)));
+}
 /** The longest wait after repeated failures. */
 export const BACKOFF_CAP_MS = 60 * 60_000;
 
@@ -144,6 +152,7 @@ export function dueSyncs(d: Pick<CadenceDeps, "tx" | "now">): Due[] {
     const every = 1000 * (waiting ? polling.activeSec : polling.idleSec);
     const last = Math.max(r.created_at, r.last_run_at ?? 0, r.last_at ?? 0);
     if (now - last < every) continue;
+    if (out.length >= MAX_STARTS_PER_TICK) break;
     busy.add(r.connection_id);
     out.push({
       syncTypeId: r.sync_type_id,

@@ -1,6 +1,7 @@
 // A connectors handle wired to fakes: a clock, a Vault, an app that answers what the test says, and every event, log line and call written down.
 import { openConnectors } from "../impl.ts";
 import { resetRateLimits } from "../projections.ts";
+import { resetKept } from "../handlers/runtime.ts";
 import type { BuiltinRow, ConnectorDef, ConnectorsCtx } from "../projections.ts";
 
 export const NOW = 1_800_000_000_000;
@@ -14,6 +15,7 @@ export type Reply = { status: number; body?: unknown; retryAfter?: string } | Er
 
 export function kit(o: { builtins?: BuiltinRow[] } = {}) {
   resetRateLimits();
+  resetKept();
   const clock = { t: NOW };
   const vault: Record<string, string> = { "#AcmeKey": "sk_live_SECRET123", "#AcmeHook": "whsec_HOOKVALUE9" };
   const stored: { name: string; value: string }[] = [];
