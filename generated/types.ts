@@ -36545,6 +36545,11 @@ export type SchemaDescribeOut = {
       syncedFrom?: string;
       attribution?: boolean;
       retention?: string;
+      card?: {
+        preset: "simple" | "detail" | "visual";
+        fields: Array<string>;
+        mark?: boolean;
+      };
       fields: Array<{
           key: string;
           type: string;
@@ -36771,6 +36776,11 @@ export type SchemaTypesGetOut = {
     syncedFrom?: string;
     attribution?: boolean;
     retention?: string;
+    card?: {
+      preset: "simple" | "detail" | "visual";
+      fields: Array<string>;
+      mark?: boolean;
+    };
     fields: Array<{
         key: string;
         type: string;
