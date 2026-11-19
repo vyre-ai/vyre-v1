@@ -152,9 +152,13 @@ export const scan = (text: unknown): string[] => redact(text).hits;
 // connection string. scrubLog() reads the text one word at a time (no pattern runs over the whole text, so it is linear), removes the value of anything named like a secret in any common spelling, then runs redact()
 // over the result, and cuts to the limit last, at a word boundary, so a key is never split by the cut.
 
-// A secret word ends the name: after the start, a - _ or ., or in camelCase after a lower-case letter (accessToken, secretKey, authToken). Prose that merely ends in such a word is removed too, which a log can afford.
-const SECRET_NAME =
-  /(?:^|[-_.]|(?<=[a-z0-9]))(?:Pass(?:word|wd|phrase)?|Pw|Secret|Token|Apikey|ApiKey|Key|Auth|Authorization|Credentials?|Session|Sid|Cookie|Signature)$|(?:^|[-_.])(?:pass(?:word|wd|phrase)?|pw|secret|token|apikey|api[-_]key|key|auth|authorization|credentials?|session|sid|cookie|signature)$/;
+// A secret word ends the name. snake_case, kebab-case and dotted names in any letter case (api_key, API_KEY, x-api-key, db.password); camelCase after a lower-case letter or digit (accessToken, authToken, secretKey, clientSecret, apiKey).
+const SECRET_WORDS = "pass(?:word|wd|phrase)?|pw|secret|token|apikey|api[-_]?key|key|auth|authorization|credentials?|session|sid|cookie|signature";
+const SECRET_SNAKE = new RegExp(`(?:^|[-_.])(?:${SECRET_WORDS})$`, "i");
+const SECRET_CAMEL = /[a-z0-9](?:Pass(?:word|wd|phrase)?|Pw|Secret|Token|Apikey|ApiKey|Key|Auth|Authorization|Credentials?|Session|Sid|Cookie|Signature)$/;
+// run together in one case (AUTHTOKEN, dbpassword): the words that are never anything else need no boundary; "key" does (monkey)
+const SECRET_STRONG = /(?:token|secret|password|passwd|passphrase|apikey|credentials?)$/i;
+const SECRET_NAME = { test: (w: string): boolean => SECRET_SNAKE.test(w) || SECRET_CAMEL.test(w) || SECRET_STRONG.test(w) };
 const LINE_HEADER = /^(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token|x-amz-security-token):?$/i;
 const FLAG = /^-{1,2}(?:password|passwd|pass|token|secret|api-?key|auth)$/i;
 // -p and -u mean a secret only after a client that takes one (a database client or curl); elsewhere they are "make parents" and "set upstream"
@@ -228,7 +232,10 @@ export function scrubLog(input: unknown, limit = 4000): string {
     for (const part of parts) {
       if (part === "" || /^\s+$/.test(part)) {
         out.push(part);
-        if (toNewline && /[\r\n]/.test(part)) toNewline = false;
+        if (/[\r\n]/.test(part)) {
+          toNewline = false;
+          dbCommand = 0; // -p and -u are read only on the line where the client is named
+        }
         continue;
       }
       const before = last;

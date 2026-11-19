@@ -31,6 +31,13 @@ test("a value is removed whatever the spacing, quoting or place: name=value, spa
   gone("authToken: abcd1", "abcd1");
   gone("secretKey=hunter2", "hunter2");
   gone("clientSecret=hunter2", "hunter2");
+  gone("apiKey=abc", "abc");
+  gone("API_KEY=abc", "abc");
+  gone("ACCESS_TOKEN=abc12", "abc12");
+  gone("access_token=abc12", "abc12");
+  gone("AUTHTOKEN: x1y2", "x1y2");
+  gone("db.password=hunter2", "hunter2");
+  gone('{"ClientSecret":"hunter2","SECRET_KEY":"abc","ok":1}', "hunter2", "abc");
 });
 
 test("headers lose the rest of their line: a second cookie, the attributes of a Set-Cookie, a Basic or Bearer credential", () => {
@@ -99,6 +106,7 @@ test("redact() is unchanged by the move: it is the same function the transcript 
 
 test("what is not a secret stays: -p and -u outside a database client or curl, JSON around a removed value, a bare carriage return after a header", () => {
   assert.equal(scrubLog("mkdir -p /tmp/x"), "mkdir -p /tmp/x");
+  assert.equal(scrubLog("curl https://h/a\nmkdir -p /tmp/x"), "curl https://h/a\nmkdir -p /tmp/x", "the client was named on an earlier line");
   assert.equal(scrubLog("git push -u origin main"), "git push -u origin main");
   gone("curl -u user:pass https://h", "user:pass");
   const json = scrubLog('{"secret":"abc","ok":1}');
