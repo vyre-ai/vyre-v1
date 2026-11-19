@@ -17,6 +17,7 @@ import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { countWords, tokenWords, userKind } from "./model.ts";
 import { ServerKeyLine } from "./ServerKeyLine.tsx";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 type HistoryOut = CapMap["vault.item.history"]["out"];
 
@@ -192,22 +193,21 @@ export function ProviderPage({
           </View>
         </View>
         {ask !== null ? (
-          <View style={s.confirm} testID="provider-confirm" accessibilityRole="alert">
-            <Text style={s.confirmText}>
-              {ask === "trash"
+          <InlineConfirm
+            testID="provider-confirm"
+            question={
+              ask === "trash"
                 ? `Move ${provider.name} to Trash? Agents and Automations that use it lose it until you bring it back.`
-                : `Disconnect ${provider.name}? Its sign-in is removed. Agents that use it move to another account, and you can sign in again any time.`}
-            </Text>
-            <Btn
-              label={ask === "trash" ? "Move to Trash" : "Disconnect"}
-              danger
-              onPress={() => {
-                void (ask === "trash" ? trash() : disconnect());
-              }}
-              testID="provider-confirm-yes"
-            />
-            <Btn label="Cancel" onPress={() => setAsk(null)} testID="provider-confirm-no" />
-          </View>
+                : `Disconnect ${provider.name}? Its sign-in is removed. Agents that use it move to another account, and you can sign in again any time.`
+            }
+            confirmLabel={ask === "trash" ? "Move to Trash" : "Disconnect"}
+            confirmTestID="provider-confirm-yes"
+            cancelTestID="provider-confirm-no"
+            onConfirm={() => {
+              void (ask === "trash" ? trash() : disconnect());
+            }}
+            onCancel={() => setAsk(null)}
+          />
         ) : null}
         {failure ? (
           <Text style={s.error} accessibilityRole="alert" testID="provider-error">

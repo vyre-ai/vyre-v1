@@ -10,6 +10,7 @@ import { Group, Section } from "../shell/ui.tsx";
 import { IconTile } from "./CiRunners.tsx";
 import { Actions, Button, TextBox, Note, ReadState, Select, useAction, useRead, QuietButton } from "./shared.tsx";
 import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type SpaceOut = CapMap["talk.space.status"]["out"];
 type VoiceOut = CapMap["talk.status"]["out"];
@@ -285,11 +286,14 @@ export function VoiceSettings(): ReactElement {
               testID="voice-check"
             />
             {gone ? (
-              <Button
-                danger
-                label="Remove from the Vault"
-                onPress={() => void action.run("talk.space.disconnect", {}, "Key removed").then(() => setGone(false))}
-                testID="voice-remove-yes"
+              <InlineConfirm
+                compact
+                question="Remove the voice key from the Vault?"
+                confirmLabel="Remove from the Vault"
+                confirmTestID="voice-remove-yes"
+                cancelTestID="voice-remove-cancel"
+                onConfirm={() => void action.run("talk.space.disconnect", {}, "Key removed").then(() => setGone(false))}
+                onCancel={() => setGone(false)}
               />
             ) : (
               <QuietButton danger label="Remove key" onPress={() => setGone(true)} testID="voice-remove" />

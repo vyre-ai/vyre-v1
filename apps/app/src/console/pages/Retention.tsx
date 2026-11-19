@@ -7,6 +7,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Help, Actions, Button, TextBox, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
 import { retentionValue, retentionWords } from "./ai-data-values.ts";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type RetentionOut = CapMap["governance.retention.get"]["out"];
 type RetentionRow = RetentionOut["kinds"][number];
@@ -147,26 +148,25 @@ export function Retention(): ReactElement {
             )}
             {confirm === "reset" ? (
               <>
-                <Note>This removes the {recordType ? "record-type" : "Space"} override and restores the default.</Note>
-                <Actions>
-                  <Button label="Cancel" onPress={() => setConfirm(null)} />
-                  <Button
-                    label="Confirm reset"
-                    danger
-                    disabled={action.busy}
-                    onPress={() =>
-                      void action
-                        .run(
-                          "governance.retention.reset",
-                          { kind: selected.key, ...(recordType ? { recordType } : {}) },
-                          "Keep-for time reset",
-                        )
-                        .then((out) => {
-                          if (out) setConfirm(null);
-                        })
-                    }
-                  />
-                </Actions>
+                <InlineConfirm
+                  question={
+                    <>This removes the {recordType ? "record-type" : "Space"} override and restores the default.</>
+                  }
+                  confirmLabel="Confirm reset"
+                  disabled={action.busy}
+                  onConfirm={() =>
+                    void action
+                      .run(
+                        "governance.retention.reset",
+                        { kind: selected.key, ...(recordType ? { recordType } : {}) },
+                        "Keep-for time reset",
+                      )
+                      .then((out) => {
+                        if (out) setConfirm(null);
+                      })
+                  }
+                  onCancel={() => setConfirm(null)}
+                />
               </>
             ) : null}
             {confirm === "run" ? (

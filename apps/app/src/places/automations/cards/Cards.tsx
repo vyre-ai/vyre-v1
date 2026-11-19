@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { CRED_START, credentialStep, credentialView } from "./model.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 import type {
   AppRef,
   CredEvent,
@@ -109,13 +110,15 @@ export function CredentialCard(p: {
         ) : null}
       </View>
       {v.confirmClose ? (
-        <View style={s.stuck}>
-          <Text style={s.title}>{v.confirmClose}</Text>
-          <View style={s.actions}>
-            <CardAction id="cc-keep" label="Keep" primary onPress={() => send({ type: "keep" })} />
-            <CardAction id="cc-discard" label="Discard" onPress={() => send({ type: "discard" })} />
-          </View>
-        </View>
+        <InlineConfirm
+          question={v.confirmClose}
+          cancelLabel="Keep"
+          confirmLabel="Discard"
+          confirmTestID="cc-discard"
+          cancelTestID="cc-keep"
+          onConfirm={() => send({ type: "discard" })}
+          onCancel={() => send({ type: "keep" })}
+        />
       ) : null}
       {v.how ? (
         "steps" in v.how ? (

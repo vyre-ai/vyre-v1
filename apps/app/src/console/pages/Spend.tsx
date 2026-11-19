@@ -8,6 +8,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
 import { capsMatch, dollarInput, dollars, limitDraft, raiseAmount } from "./ai-data-values.ts";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Scope = "space" | "person" | "agent";
 type SpendAgent = CapMap["agents.list"]["out"]["agents"][number];
@@ -320,29 +321,28 @@ function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): Rea
               <Button label="Pause all AI…" danger onPress={() => setConfirmPause(true)} />
               {confirmPause ? (
                 <>
-                  <Note>
-                    Every person and agent in this Space will stop starting new AI work. Reason:{" "}
-                    {pauseReason.trim() || "No reason supplied"}.
-                  </Note>
-                  <Actions>
-                    <Button label="Cancel" onPress={() => setConfirmPause(false)} />
-                    <Button
-                      label="Confirm pause"
-                      danger
-                      disabled={action.busy}
-                      onPress={() =>
-                        void action
-                          .run(
-                            "engine.spend.pause_all",
-                            pauseReason.trim() ? { reason: pauseReason.trim() } : {},
-                            "AI paused",
-                          )
-                          .then((out) => {
-                            if (out) setConfirmPause(false);
-                          })
-                      }
-                    />
-                  </Actions>
+                  <InlineConfirm
+                    question={
+                      <>
+                        Every person and agent in this Space will stop starting new AI work. Reason:{" "}
+                        {pauseReason.trim() || "No reason supplied"}.
+                      </>
+                    }
+                    confirmLabel="Confirm pause"
+                    disabled={action.busy}
+                    onConfirm={() =>
+                      void action
+                        .run(
+                          "engine.spend.pause_all",
+                          pauseReason.trim() ? { reason: pauseReason.trim() } : {},
+                          "AI paused",
+                        )
+                        .then((out) => {
+                          if (out) setConfirmPause(false);
+                        })
+                    }
+                    onCancel={() => setConfirmPause(false)}
+                  />
                 </>
               ) : null}
             </>

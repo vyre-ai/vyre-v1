@@ -37,6 +37,7 @@ import {
   updateTask,
 } from "./model.ts";
 import type { Journey, Ref, Stage, StageCounts, Task, TaskState } from "./model.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 export interface Selection {
   stage: string;
@@ -339,27 +340,28 @@ function Body({
           />
         </View>
         {confirmDelete === g.key ? (
-          <View testID={`confirm-delete-${g.key}`} style={s.confirm}>
-            {canDeleteStage(counts, g.key) ? (
-              <>
-                <Text style={s.confirmText}>{`Delete ${g.title}?`}</Text>
-                <TextButton
-                  label="Delete"
-                  testID={`delete-stage-${g.key}`}
-                  onPress={() => {
-                    setConfirmDelete(null);
-                    edit(removeStage(stages, g.key), `Deleted ${g.title}`);
-                    if (sel?.stage === g.key) choose(null);
-                  }}
-                />
-              </>
-            ) : (
+          canDeleteStage(counts, g.key) ? (
+            <InlineConfirm
+              testID={`confirm-delete-${g.key}`}
+              question={`Delete ${g.title}?`}
+              confirmLabel="Delete"
+              confirmTestID={`delete-stage-${g.key}`}
+              cancelTestID={`cancel-delete-${g.key}`}
+              onConfirm={() => {
+                setConfirmDelete(null);
+                edit(removeStage(stages, g.key), `Deleted ${g.title}`);
+                if (sel?.stage === g.key) choose(null);
+              }}
+              onCancel={() => setConfirmDelete(null)}
+            />
+          ) : (
+            <View testID={`confirm-delete-${g.key}`} style={s.confirm}>
               <Text
                 style={s.confirmText}
               >{`${plural(c.count, "record")} ${c.count === 1 ? "is" : "are"} in ${g.title}. Move them on first, then delete it.`}</Text>
-            )}
-            <TextButton label="Cancel" testID={`cancel-delete-${g.key}`} onPress={() => setConfirmDelete(null)} />
-          </View>
+              <TextButton label="Close" testID={`cancel-delete-${g.key}`} onPress={() => setConfirmDelete(null)} />
+            </View>
+          )
         ) : null}
         {closed ? null : (
           <View style={s.stageBody}>

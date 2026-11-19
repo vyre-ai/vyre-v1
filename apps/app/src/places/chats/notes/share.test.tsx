@@ -8,6 +8,10 @@ import { notePatchOf, noteShareRows } from "./model.ts";
 import type { Note, Who } from "./model.ts";
 import { ShareSheet } from "./NoteSheets.tsx";
 import type { Person } from "./NoteSheets.tsx";
+import { setArmDelay } from "../../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const T0 = Date.UTC(2026, 10, 3, 4, 0);
 const names: Record<string, string> = { usr_me: "Imran", usr_omar: "Omar Reyes", usr_sara: "Sara Malik" };

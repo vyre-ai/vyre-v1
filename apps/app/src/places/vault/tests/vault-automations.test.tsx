@@ -10,6 +10,10 @@ import type { VaultData } from "../layout/data.tsx";
 import { ItemEnv } from "../itemenv/index.ts";
 import { createSampleVault } from "../layout/sample.ts";
 import type { SampleVault } from "../layout/sample.ts";
+import { setArmDelay } from "../../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 installDom();
 const Wrap = ({ data, children }: { data: VaultData; children: ReactNode }): ReactElement => (

@@ -22,4 +22,6 @@ One piece per job. The ratchet `scripts/lint/one-component.test.ts` (run in the 
 
 **Group** (`ui/src/Group`, being added by lane b-cmd to the contract's words): a titled block of rows with its own hairlines. Props: `title`, `count`, `action`, `empty`. Mistake: drawing hairlines in each row. Ratchet: `Section`.
 
+**InlineConfirm** (`ui/src/InlineConfirm`): the one in-place "Delete X? Cancel / Delete" ask, for a strip that replaces or sits beside the button that was pressed (a dialog is `ui/Dialog`). Props: `question`, `note`, `confirmLabel`, `cancelLabel`, `onConfirm`, `onCancel`, `danger`, `busy`, `disabled`, `compact` (only the buttons, for the end of a settings row), `confirmTestID`, `cancelTestID`. Cancel takes focus, Escape cancels, Delete is disabled for 600 ms after it appears (a double-click on the opener or a held key never lands on it) and fires once. Mistake: two buttons of your own with a "sure" flag: use this. Tests of screens that press Delete at once call `setArmDelay(0)`. Ratchet: `InlineConfirm`.
+
 Before merging: run `node --import tsx --test scripts/lint/one-component.test.ts`, the lint (`node scripts/lint/run.ts --files <changed>`), and look at a picture of every visible change in both skins.

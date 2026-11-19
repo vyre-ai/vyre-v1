@@ -10,6 +10,7 @@ import { useSettingsData } from "./data.tsx";
 import { phoneDotHelp, phoneNameOf, phonePollMs, phoneSub, validPhoneName } from "./phone-model.ts";
 import type { PhoneInfo } from "./phone-model.ts";
 import { Glyph, Section, SettingsRow, SmallButton, Tip } from "./ui.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 function Dot({ on, why }: { on: boolean; why?: string }): ReactElement {
   return (
@@ -67,10 +68,15 @@ export function PhoneBody({
           help={WHAT}
           control={
             phone.state === "releasing" ? undefined : confirming ? (
-              <>
-                <SmallButton label="Cancel" onPress={() => onAskRelease(false)} />
-                <SmallButton label="Release" danger testID="phone-release-yes" disabled={busy} onPress={onRelease} />
-              </>
+              <InlineConfirm
+                compact
+                question={`Release ${phone.name}.vyre.run?`}
+                confirmLabel="Release"
+                confirmTestID="phone-release-yes"
+                busy={busy}
+                onConfirm={onRelease}
+                onCancel={() => onAskRelease(false)}
+              />
             ) : (
               <>
                 <SmallButton label="Copy link" testID="phone-copy" onPress={onCopy} />

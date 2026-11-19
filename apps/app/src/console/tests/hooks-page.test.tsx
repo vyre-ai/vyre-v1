@@ -5,6 +5,10 @@ import { HooksPage, LATELY, lastRunWords, madeByWords, needsYou, restoreInput, w
 import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
 import type { Hook } from "../../places/chats/rightpane/hooks-model.ts";
+import { setArmDelay } from "../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const NOW = Date.UTC(2026, 10, 4, 12, 0, 0);
 const hook = (id: string, over: Record<string, unknown> = {}): Hook =>

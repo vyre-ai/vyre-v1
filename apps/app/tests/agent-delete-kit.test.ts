@@ -12,6 +12,10 @@ import { fileURLToPath } from "node:url";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { guardCrashes } from "./crash-guard.ts";
 import { vendor } from "../../../fixtures/model-vendor.ts";
+import { setArmDelay } from "../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const PRELOAD = fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url));
 const KEY = "sk-test-fixture-0123456789abcdef"; // secret-scan: fake

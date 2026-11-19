@@ -10,6 +10,7 @@ import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAc
 import { CommsObject, LongField } from "./common.tsx";
 import { COUNTRY_OPTIONS, draftProblem, registrationDraft, registrationInput, registrationMissing } from "./model.ts";
 import type { RegistrationDraft } from "./model.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 export function TextingPage(): ReactElement {
   const data = useConsoleData();
   const query = useRead<CapMap["telephony.registration.get"]["out"]>("telephony.registration.get", {});
@@ -186,29 +187,30 @@ export function TextingPage(): ReactElement {
         )}
         {confirm && registration ? (
           <ObjectSection title="Review submission">
-            <Note>
-              Submit {registration.legalName} to the carrier? Your saved business and messaging details will be sent to
-              the connected provider. Carrier fees may apply. Editing stops while it is reviewed.
-            </Note>
-            <Actions>
-              <Button label="Cancel" onPress={() => setConfirm(false)} />
-              <Button
-                label="Submit registration"
-                testID="registration-confirm-submit"
-                disabled={action.busy}
-                onPress={() =>
-                  void action
-                    .run(
-                      "telephony.registration.submit",
-                      { registrationId: registration.id, idempotencyKey: attempt() },
-                      "Registration submitted",
-                    )
-                    .then((out) => {
-                      if (out) setConfirm(false);
-                    })
-                }
-              />
-            </Actions>
+            <InlineConfirm
+              question={
+                <>
+                  Submit {registration.legalName} to the carrier? Your saved business and messaging details will be sent
+                  to the connected provider. Carrier fees may apply. Editing stops while it is reviewed.
+                </>
+              }
+              confirmLabel="Submit registration"
+              danger={false}
+              disabled={action.busy}
+              confirmTestID="registration-confirm-submit"
+              onConfirm={() =>
+                void action
+                  .run(
+                    "telephony.registration.submit",
+                    { registrationId: registration.id, idempotencyKey: attempt() },
+                    "Registration submitted",
+                  )
+                  .then((out) => {
+                    if (out) setConfirm(false);
+                  })
+              }
+              onCancel={() => setConfirm(false)}
+            />
           </ObjectSection>
         ) : null}
         {action.note ? <Note>{action.note}</Note> : null}

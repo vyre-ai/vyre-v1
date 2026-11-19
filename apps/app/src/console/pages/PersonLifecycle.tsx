@@ -14,6 +14,7 @@ import { useIdentityName, useObjectNames, typeName } from "../objects/names.ts";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Help, Actions, Button, TextBox, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 type Preview = MembersRemovePreviewOut;
 type Step = MembersRemoveIn["plan"][number];
 export function defaultRemovalPlan(preview: Preview): Step[] {
@@ -96,30 +97,26 @@ export function PersonLifecycle({ personId, refresh }: { personId: string; refre
             ) : null}
             {confirmSuspend ? (
               <>
-                <Note>
-                  Suspend {person.name}? Their access ends and devices purge their local copies on next contact.
-                  Reactivation can restore access later.
-                </Note>
-                <Actions>
-                  <Button label="Cancel suspension" onPress={() => setConfirmSuspend(false)} />
-                  <Button
-                    label="Confirm suspension"
-                    testID="person-suspend-confirm"
-                    danger
-                    disabled={action.busy}
-                    onPress={() =>
-                      void action
-                        .run(
-                          "members.suspend",
-                          { personId, ...(reason.trim() ? { reason: reason.trim() } : {}) },
-                          "Person suspended",
-                        )
-                        .then((result) => {
-                          if (result) setConfirmSuspend(false);
-                        })
-                    }
-                  />
-                </Actions>
+                <InlineConfirm
+                  question={`Suspend ${person.name}?`}
+                  note="Their access ends and devices purge their local copies on next contact. Reactivation can restore access later."
+                  cancelLabel="Cancel suspension"
+                  confirmLabel="Confirm suspension"
+                  confirmTestID="person-suspend-confirm"
+                  disabled={action.busy}
+                  onConfirm={() =>
+                    void action
+                      .run(
+                        "members.suspend",
+                        { personId, ...(reason.trim() ? { reason: reason.trim() } : {}) },
+                        "Person suspended",
+                      )
+                      .then((result) => {
+                        if (result) setConfirmSuspend(false);
+                      })
+                  }
+                  onCancel={() => setConfirmSuspend(false)}
+                />
               </>
             ) : null}
           </>
@@ -220,27 +217,25 @@ function RemovalPlan({
       </Note>
       {confirmed ? (
         <>
-          <Note>{removalImpact(name, preview.data)}</Note>
-          <Actions>
-            <Button label="Back to plan" onPress={() => setConfirmed(false)} />
-            <Button
-              label="Confirm removal"
-              testID="person-remove-confirm"
-              danger
-              disabled={action.busy || invalid}
-              onPress={() =>
-                void action
-                  .run(
-                    "members.remove",
-                    { personId, plan, ...(reason.trim() ? { reason: reason.trim() } : {}) },
-                    "Person removed",
-                  )
-                  .then((result) => {
-                    if (result) onDone();
-                  })
-              }
-            />
-          </Actions>
+          <InlineConfirm
+            question={removalImpact(name, preview.data)}
+            cancelLabel="Back to plan"
+            confirmLabel="Confirm removal"
+            confirmTestID="person-remove-confirm"
+            disabled={action.busy || invalid}
+            onConfirm={() =>
+              void action
+                .run(
+                  "members.remove",
+                  { personId, plan, ...(reason.trim() ? { reason: reason.trim() } : {}) },
+                  "Person removed",
+                )
+                .then((result) => {
+                  if (result) onDone();
+                })
+            }
+            onCancel={() => setConfirmed(false)}
+          />
         </>
       ) : (
         <Button

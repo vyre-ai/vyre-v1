@@ -17,6 +17,10 @@ import {
   WaitingCard,
 } from "./Cards.tsx";
 import type { Credential } from "./model.ts";
+import { setArmDelay } from "../../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 installDom();
 

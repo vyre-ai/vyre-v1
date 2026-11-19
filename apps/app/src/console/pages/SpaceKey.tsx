@@ -11,6 +11,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Group, Section, StatusLabel } from "../shell/ui.tsx";
 import { Choice } from "./ai-controls.tsx";
 import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type KeyOut = CapMap["providers.space_key.get"]["out"];
 type Catalog = CapMap["providers.catalog"]["out"];
@@ -148,15 +149,18 @@ export function SpaceKey({
               testID="space-key-check"
             />
             {confirm ? (
-              <Button
-                danger
-                label="Remove for everyone"
-                onPress={() =>
+              <InlineConfirm
+                compact
+                question="Remove the Space AI key for everyone?"
+                confirmLabel="Remove for everyone"
+                confirmTestID="space-key-remove-yes"
+                cancelTestID="space-key-remove-cancel"
+                onConfirm={() =>
                   void action
                     .run("providers.space_key.remove", {}, "Space AI key removed")
                     .then(() => setConfirm(false))
                 }
-                testID="space-key-remove-yes"
+                onCancel={() => setConfirm(false)}
               />
             ) : (
               <Button label="Remove key" onPress={() => setConfirm(true)} testID="space-key-remove" />

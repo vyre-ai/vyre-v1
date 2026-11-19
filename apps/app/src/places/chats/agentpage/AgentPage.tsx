@@ -48,6 +48,7 @@ import {
 } from "./model.ts";
 import type { TabKey } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 type AgentOut = CapMap["agents.get"]["out"];
 type SummaryOut = CapMap["agents.summary"]["out"];
@@ -274,10 +275,15 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
           <View style={[st.actions, narrow && st.actionsNarrow]}>
             <TextButton label="Chat" primary testID="chat-button" onPress={chat} />
             {outside && sure ? (
-              <>
-                <TextButton label="Cancel" testID="remove-cancel" onPress={() => setSure(false)} />
-                <TextButton label="End its sign-in" testID="remove-sure" onPress={remove} />
-              </>
+              <InlineConfirm
+                compact
+                question="End its sign-in?"
+                confirmLabel="End its sign-in"
+                confirmTestID="remove-sure"
+                cancelTestID="remove-cancel"
+                onConfirm={remove}
+                onCancel={() => setSure(false)}
+              />
             ) : null}
             {outside && !sure ? (
               <TextButton label="Remove" testID="remove-button" onPress={() => setSure(true)} />
