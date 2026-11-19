@@ -9,6 +9,7 @@ import { Empty, Group, Section } from "../../shell/ui.tsx";
 import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
 import { useCommsRows, CommsList, CommsObject } from "./common.tsx";
 import { PRIVACY_OPTIONS } from "./model.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 type Mailbox = CapMap["mail.mailbox.get"]["out"]["mailbox"];
 const providerName = (provider: string): string =>
   ({ google: "Google", microsoft: "Microsoft", imap: "IMAP", inbound_only: "Inbound routes" })[provider] ??
@@ -196,33 +197,32 @@ function InboxObject({ id, onBack }: { id: string; onBack(): void }): ReactEleme
           <RouteEditor mailboxId={id} refresh={routes.refresh} />
           {removeRoute ? (
             <>
-              <Note>
-                Remove this route? New mail to that address will no longer be delivered to this inbox. Existing mail
-                remains.
-              </Note>
-              <Actions>
-                <Button label="Cancel" onPress={() => setRemoveRoute("")} />
-                <Button
-                  label="Confirm route removal"
-                  testID="inbox-route-confirm-remove"
-                  danger
-                  disabled={action.busy}
-                  onPress={() =>
-                    void action
-                      .run(
-                        "mail.route.remove",
-                        {
-                          routeId: removeRoute,
-                          domainId: routeRows.find((route) => route.id === removeRoute)?.domainId ?? "",
-                        },
-                        "Route removed",
-                      )
-                      .then((out) => {
-                        if (out) setRemoveRoute("");
-                      })
-                  }
-                />
-              </Actions>
+              <InlineConfirm
+                question={
+                  <>
+                    Remove this route? New mail to that address will no longer be delivered to this inbox. Existing mail
+                    remains.
+                  </>
+                }
+                confirmLabel="Confirm route removal"
+                disabled={action.busy}
+                confirmTestID="inbox-route-confirm-remove"
+                onConfirm={() =>
+                  void action
+                    .run(
+                      "mail.route.remove",
+                      {
+                        routeId: removeRoute,
+                        domainId: routeRows.find((route) => route.id === removeRoute)?.domainId ?? "",
+                      },
+                      "Route removed",
+                    )
+                    .then((out) => {
+                      if (out) setRemoveRoute("");
+                    })
+                }
+                onCancel={() => setRemoveRoute("")}
+              />
             </>
           ) : null}
         </ObjectSection>

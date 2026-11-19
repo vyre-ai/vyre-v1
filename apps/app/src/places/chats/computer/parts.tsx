@@ -1,6 +1,6 @@
 // Small pieces of the computer popup: stroke icons, the side-rail button, the faux desktop the screen draws until the stream's own pictures arrive, and the buttons on the sheet.
 // The screen is the agent's remote display, so it is dark in every skin; the rail and the sheet use the skin's tokens.
-import { createElement, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -183,17 +183,25 @@ export function SheetButton({
   onPress,
   primary = false,
   disabled = false,
+  focus = false,
   testID,
 }: {
   label: string;
   onPress: () => void;
   primary?: boolean;
   disabled?: boolean;
+  /** Takes focus when it appears: the safe button of an ask, so a stray Enter or Space never confirms it. */
+  focus?: boolean;
   testID?: string;
 }): ReactElement {
   const [over, setOver] = useState(false);
+  const self = useRef<{ focus?: () => void } | null>(null);
+  useEffect(() => {
+    if (focus && Platform.OS === "web") self.current?.focus?.();
+  }, []);
   return (
     <Pressable
+      ref={self as never}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}

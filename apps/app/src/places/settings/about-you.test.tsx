@@ -11,6 +11,10 @@ import { SavedBar, SavedProvider } from "./saved.tsx";
 import { AboutYou, MemoryPage, sourceText } from "./AboutYou.tsx";
 import type { ProfileFact } from "./AboutYou.tsx";
 import { createSampleSettings, northwind } from "./sample.ts";
+import { setArmDelay } from "../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 installDom();
 

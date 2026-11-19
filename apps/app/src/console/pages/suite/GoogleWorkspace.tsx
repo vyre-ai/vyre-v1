@@ -47,6 +47,7 @@ import {
   summaryOf,
 } from "./model.ts";
 import type { GoogleKey, MemberRow } from "./model.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Status = CapMap["google.dwd.status"]["out"];
 
@@ -329,10 +330,16 @@ export function GoogleWorkspacePage(): ReactElement {
             Vyre stops syncing mail, calendars and files for every member. The key stays in the Vault. You can connect
             again at any time.
           </Para>
-          <Actions>
-            <Button label="Turn off" danger testID="google-off-confirm" onPress={() => void off()} />
-            <Button label="Keep it on" testID="google-off-cancel" onPress={() => setConfirmOff(false)} />
-          </Actions>
+          <InlineConfirm
+            compact
+            question="Turn off Google Workspace?"
+            confirmLabel="Turn off"
+            cancelLabel="Keep it on"
+            confirmTestID="google-off-confirm"
+            cancelTestID="google-off-cancel"
+            onConfirm={() => void off()}
+            onCancel={() => setConfirmOff(false)}
+          />
         </Section>
       ) : null}
       {act.note ? <Note>{act.note}</Note> : null}

@@ -9,6 +9,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 import { Empty, Group, Lead, Line, Section } from "../shell/ui.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 import { useConsoleData } from "../shell/data.tsx";
@@ -142,25 +143,21 @@ export function Updates(): ReactElement {
         </Group>
       </Section>
       {review ? (
-        <Section title={review.kind === "apply" ? "Review server update" : "Review rollback"}>
-          <Group>
-            <Note>
+        <InlineConfirm
+          question={review.kind === "apply" ? "Review server update" : "Review rollback"}
+          note={
+            <>
               {review.kind === "apply"
                 ? `Update from ${status.data.current} to ${review.to}? Vyre takes a backup first, checks server health and rolls back if the new version fails.`
                 : `Switch code to ${review.to}? Data written by the newer version stays. The server must still have this version available.`}{" "}
               Connected work may pause during restart.
-            </Note>
-            <Actions>
-              <Button label="Cancel" onPress={() => setReview(null)} />
-              <Button
-                label={review.kind === "apply" ? "Confirm update" : "Confirm rollback"}
-                danger
-                disabled={action.busy}
-                onPress={() => void apply()}
-              />
-            </Actions>
-          </Group>
-        </Section>
+            </>
+          }
+          confirmLabel={review.kind === "apply" ? "Confirm update" : "Confirm rollback"}
+          disabled={action.busy}
+          onConfirm={() => void apply()}
+          onCancel={() => setReview(null)}
+        />
       ) : null}
     </View>
   );
@@ -671,31 +668,27 @@ export function SpaceProfile(): ReactElement {
         </Group>
       </Section>
       {confirm ? (
-        <Section title="Review change">
-          <Group>
-            <Note>{`Change the address to ${mode === "relay" ? "Vyre relay" : host}? Devices keep the pinned Space key.`}</Note>
-            <Actions>
-              <Button label="Cancel" onPress={() => setConfirm(false)} />
-              <Button
-                label="Confirm"
-                testID="infra-space-confirm"
-                danger
-                disabled={action.busy}
-                onPress={() =>
-                  void action
-                    .run(
-                      "spaces.switch_address",
-                      { mode, ...(mode === "own_domain" ? { host: host.trim() } : {}) },
-                      "Change accepted. Refresh this Space to see the current state.",
-                    )
-                    .then((out) => {
-                      if (out) setConfirm(false);
-                    })
-                }
-              />
-            </Actions>
-          </Group>
-        </Section>
+        <InlineConfirm
+          question={"Review change"}
+          note={
+            <>{`Change the address to ${mode === "relay" ? "Vyre relay" : host}? Devices keep the pinned Space key.`}</>
+          }
+          confirmLabel="Confirm"
+          confirmTestID="infra-space-confirm"
+          disabled={action.busy}
+          onConfirm={() =>
+            void action
+              .run(
+                "spaces.switch_address",
+                { mode, ...(mode === "own_domain" ? { host: host.trim() } : {}) },
+                "Change accepted. Refresh this Space to see the current state.",
+              )
+              .then((out) => {
+                if (out) setConfirm(false);
+              })
+          }
+          onCancel={() => setConfirm(false)}
+        />
       ) : null}
       <Section title="Details">
         <Group>

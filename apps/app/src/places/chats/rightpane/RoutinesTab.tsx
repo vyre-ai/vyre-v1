@@ -42,6 +42,7 @@ import { Face, LeadFace, LeadIcon, PaneList, TextButton, Tool } from "./parts.ts
 import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
 import type { Entry } from "./parts.tsx";
 import { nameOr } from "../names.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 type RoutinesOut = CapMap["agents.routines.list"]["out"];
 
@@ -236,26 +237,23 @@ export function RoutinesTab({
         key: "confirm",
         type: "block",
         node: (
-          <View testID="routine-confirm" style={st.confirm}>
-            <Text style={st.confirmHead}>{`Delete “${r.title}”?`}</Text>
-            <Text style={st.hint}>It stops running. Its run history stays in the audit log.</Text>
-            <View style={st.row}>
-              <TextButton
-                label="Delete Routine"
-                primary
-                onPress={() =>
-                  void deleteRoutine(deps, r).then((ok) => {
-                    if (ok) {
-                      setOpenId(null);
-                      setMode("view");
-                    }
-                  })
+          <InlineConfirm
+            testID="routine-confirm"
+            question={`Delete “${r.title}”?`}
+            note="It stops running. Its run history stays in the audit log."
+            confirmLabel="Delete Routine"
+            confirmTestID="routine-delete"
+            cancelTestID="routine-delete-cancel"
+            onConfirm={() =>
+              void deleteRoutine(deps, r).then((ok) => {
+                if (ok) {
+                  setOpenId(null);
+                  setMode("view");
                 }
-                testID="routine-delete"
-              />
-              <TextButton label="Cancel" onPress={() => setMode("view")} testID="routine-delete-cancel" />
-            </View>
-          </View>
+              })
+            }
+            onCancel={() => setMode("view")}
+          />
         ),
       });
     }

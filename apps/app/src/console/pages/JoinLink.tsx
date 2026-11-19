@@ -11,6 +11,7 @@ import { Group, Section } from "../shell/ui.tsx";
 import { emailInvite, endsOn } from "./Invites.tsx";
 import { CopyRow } from "./suite/parts.tsx";
 import { Actions, Button, Note, Segmented, useAction } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 export type JoinLink = CapMap["members.join_link.get"]["out"]["link"];
 export type JoinRequest = CapMap["members.join_requests.list"]["out"]["requests"][number];
@@ -131,21 +132,19 @@ export function JoinLinkSection({
         ) : null}
         {rotating ? (
           <View testID="join-rotate-confirm-box">
-            <Note>The old link stops working.</Note>
-            <Actions>
-              <Button label="Cancel" testID="join-rotate-cancel" onPress={() => setRotating(false)} />
-              <Button
-                label="Rotate link"
-                danger
-                testID="join-rotate-confirm"
-                disabled={action.busy}
-                onPress={() =>
-                  void action
-                    .run("members.join_link.rotate", {}, "New link made. The old one no longer works.")
-                    .then(() => setRotating(false))
-                }
-              />
-            </Actions>
+            <InlineConfirm
+              question={<>The old link stops working.</>}
+              confirmLabel="Rotate link"
+              disabled={action.busy}
+              confirmTestID="join-rotate-confirm"
+              cancelTestID="join-rotate-cancel"
+              onConfirm={() =>
+                void action
+                  .run("members.join_link.rotate", {}, "New link made. The old one no longer works.")
+                  .then(() => setRotating(false))
+              }
+              onCancel={() => setRotating(false)}
+            />
           </View>
         ) : null}
         {copied ? <Note>{copied}</Note> : null}

@@ -164,7 +164,7 @@ test("the list draws every kind of entry at its fixed height inside one window",
     "mark-failed",
     "mark-muted",
     "mark-mention",
-    "row-verb",
+    "row-state",
     "section-error-channels",
     "head-chats",
   ])

@@ -36,13 +36,6 @@ export function UnmountSheet({ mount, onClose, onRemoved }: UnmountSheetProps): 
     <Sheet
       label={words.title}
       onClose={onClose}
-      onKey={(e) => {
-        if (e.key === "Enter") {
-          go();
-          return true;
-        }
-        return false;
-      }}
       testID="unmount-sheet"
       actions={[
         { label: "Cancel", onPress: onClose, testID: "unmount-cancel" },

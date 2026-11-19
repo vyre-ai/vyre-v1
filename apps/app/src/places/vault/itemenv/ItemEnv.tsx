@@ -20,6 +20,7 @@ import { WhoCanUse } from "./WhoCanUse.tsx";
 import { moveChoices, moveEntries, useAgentsThatCannot } from "./restricted.ts";
 import { createRevealStore } from "./reveal.ts";
 import type { RevealStore } from "./reveal.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 type GetOut = CapMap["vault.item.get"]["out"];
 type HistoryOut = CapMap["vault.item.history"]["out"];
@@ -565,18 +566,17 @@ export function ItemEnv({
           ) : null}
 
           {confirmDelete ? (
-            <View style={s.confirm} testID="item-confirm-delete" accessibilityRole="alert">
-              <Text style={s.confirmText}>{trashLine(item, usedBy, usedHidden)}</Text>
-              <Btn
-                label="Move to Trash"
-                danger
-                onPress={() => {
-                  void trash();
-                }}
-                testID="item-delete-yes"
-              />
-              <Btn label="Cancel" onPress={() => setConfirmDelete(false)} testID="item-delete-no" />
-            </View>
+            <InlineConfirm
+              testID="item-confirm-delete"
+              question={trashLine(item, usedBy, usedHidden)}
+              confirmLabel="Move to Trash"
+              confirmTestID="item-delete-yes"
+              cancelTestID="item-delete-no"
+              onConfirm={() => {
+                void trash();
+              }}
+              onCancel={() => setConfirmDelete(false)}
+            />
           ) : null}
           {failure ? (
             <Text style={s.error} accessibilityRole="alert" testID="item-error">

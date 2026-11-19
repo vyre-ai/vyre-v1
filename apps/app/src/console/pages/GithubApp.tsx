@@ -14,6 +14,7 @@ import { LogoTile } from "../../places/vault/layout/parts.tsx";
 import { IconTile } from "./CiRunners.tsx";
 import type { CiSettings } from "./CiRunners.tsx";
 import { Actions, Button, TextBox, FormSheet, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Sign = CapMap["members.sign_in_github.get"]["out"]["github"];
 type App = CapMap["github.app.get"]["out"];
@@ -235,25 +236,23 @@ export function GithubAppPage(): ReactElement {
             }
           />
           {confirm ? (
-            <View testID="gh-off-confirm" style={{ padding: 12, gap: 10 }}>
-              <Text style={{ fontSize: 13, color: "var(--ink)" as string }}>
-                Go back to the Vyre GitHub app? Members connect GitHub once more. Their repos and permissions stay.
-              </Text>
-              <Actions>
-                <Button
-                  label="Switch back"
-                  testID="gh-off-yes"
-                  disabled={action.busy}
-                  onPress={() =>
-                    void action.run("members.sign_in_github.clear", {}, "Members use the Vyre GitHub app").then(() => {
-                      setConfirm(false);
-                      setWantOwn(false);
-                    })
-                  }
-                />
-                <Button label="Cancel" testID="gh-off-cancel" onPress={() => setConfirm(false)} />
-              </Actions>
-            </View>
+            <InlineConfirm
+              testID="gh-off-confirm"
+              danger={false}
+              question="Go back to the Vyre GitHub app?"
+              note="Members connect GitHub once more. Their repos and permissions stay."
+              confirmLabel="Switch back"
+              confirmTestID="gh-off-yes"
+              cancelTestID="gh-off-cancel"
+              disabled={action.busy}
+              onConfirm={() =>
+                void action.run("members.sign_in_github.clear", {}, "Members use the Vyre GitHub app").then(() => {
+                  setConfirm(false);
+                  setWantOwn(false);
+                })
+              }
+              onCancel={() => setConfirm(false)}
+            />
           ) : null}
         </Group>
         {on || acceptUrl ? null : (

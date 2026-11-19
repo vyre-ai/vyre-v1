@@ -50,6 +50,7 @@ import type {
   ShareSubjectKind,
 } from "./props.ts";
 import { isPhoneWidth } from "../SidePane/layout.ts";
+import { InlineConfirm } from "../InlineConfirm/index.tsx";
 
 const web = Platform.OS === "web";
 export const webProps = (props: Record<string, unknown>): Record<string, unknown> => (web ? props : {});
@@ -1245,17 +1246,20 @@ export function AccessList({
               : `Make ${ask.row.name} the owner of “${p.itemName}”? You'll become a manager.`}
           </Text>
           <View style={{ flexDirection: "row", gap: 8, justifyContent: "flex-end" }}>
-            <Pill label="Cancel" testID="as-confirm-no" onPress={() => setAsk(null)} />
-            <Pill
-              label={ask.kind === "self" ? "Remove me" : "Make owner"}
-              primary
-              testID="as-confirm-yes"
-              onPress={() => {
+            <InlineConfirm
+              compact
+              danger={ask.kind === "self"}
+              question={ask.kind === "self" ? "Remove yourself?" : "Make owner?"}
+              confirmLabel={ask.kind === "self" ? "Remove me" : "Make owner"}
+              confirmTestID="as-confirm-yes"
+              cancelTestID="as-confirm-no"
+              onConfirm={() => {
                 const a = ask;
                 setAsk(null);
                 if (a.kind === "self") remove(a.row);
                 else p.onMakeOwner?.({ kind: a.row.subjectKind, id: a.row.subjectId });
               }}
+              onCancel={() => setAsk(null)}
             />
           </View>
         </View>

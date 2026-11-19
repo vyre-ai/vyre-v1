@@ -16,6 +16,7 @@ import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { count, dayLabel } from "../shell/format.ts";
 import { Help, Actions, Button, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 type Review = AccessReviewsListOut["reviews"][number];
 export const reviewTitle = (review: Review): string => `Access review, ${dayLabel(review.openedAt)}`;
 export const closeReviewImpact = (review: Review): string =>
@@ -166,29 +167,26 @@ export function Reviews({ initialId }: { initialId?: string }): ReactElement {
       ) : null}
       {bulk ? (
         <Section title="Review closing impact">
-          <Note>{bulk.length ? bulk.map(closeReviewImpact).join(" ") : "No open reviews selected."}</Note>
-          <Actions>
-            <Button label="Cancel" onPress={() => setBulk(null)} />
-            <Button
-              label="Close selected reviews"
-              danger
-              disabled={action.busy || !bulk.length}
-              onPress={() =>
-                void (async () => {
-                  for (const review of bulk) {
-                    const out = await action.run("access.reviews.close", { reviewId: review.id }, "Review closed");
-                    if (!out) {
-                      setError("Stopped after a rejected close. Earlier successful closes remain.");
-                      setBulk(null);
-                      return;
-                    }
+          <InlineConfirm
+            question={<>{bulk.length ? bulk.map(closeReviewImpact).join(" ") : "No open reviews selected."}</>}
+            confirmLabel="Close selected reviews"
+            disabled={action.busy || !bulk.length}
+            onConfirm={() =>
+              void (async () => {
+                for (const review of bulk) {
+                  const out = await action.run("access.reviews.close", { reviewId: review.id }, "Review closed");
+                  if (!out) {
+                    setError("Stopped after a rejected close. Earlier successful closes remain.");
+                    setBulk(null);
+                    return;
                   }
-                  setBulk(null);
-                  setPicked(new Set());
-                })()
-              }
-            />
-          </Actions>
+                }
+                setBulk(null);
+                setPicked(new Set());
+              })()
+            }
+            onCancel={() => setBulk(null)}
+          />
         </Section>
       ) : null}
       {error ? <Note>{error}</Note> : null}
@@ -319,34 +317,31 @@ function ReviewObject({ reviewId, onBack }: { reviewId: string; onBack: () => vo
       ) : null}
       {removing ? (
         <ObjectSection title="Confirm removing access">
-          <Note>
-            Remove {removing.length} selected items? Their access ends now. Access that comes another way stays.
-          </Note>
-          <Actions>
-            <Button label="Cancel" onPress={() => setRemoving(null)} />
-            <Button
-              label="Remove selected access"
-              danger
-              disabled={action.busy}
-              onPress={() =>
-                void (async () => {
-                  for (const grantId of removing) {
-                    const out = await action.run(
-                      "access.reviews.decide",
-                      { reviewId, grantId, decision: "remove" },
-                      "Access removed",
-                    );
-                    if (!out) {
-                      setRemoving(null);
-                      return;
-                    }
+          <InlineConfirm
+            question={
+              <>Remove {removing.length} selected items? Their access ends now. Access that comes another way stays.</>
+            }
+            confirmLabel="Remove selected access"
+            disabled={action.busy}
+            onConfirm={() =>
+              void (async () => {
+                for (const grantId of removing) {
+                  const out = await action.run(
+                    "access.reviews.decide",
+                    { reviewId, grantId, decision: "remove" },
+                    "Access removed",
+                  );
+                  if (!out) {
+                    setRemoving(null);
+                    return;
                   }
-                  setRemoving(null);
-                  setPicked(new Set());
-                })()
-              }
-            />
-          </Actions>
+                }
+                setRemoving(null);
+                setPicked(new Set());
+              })()
+            }
+            onCancel={() => setRemoving(null)}
+          />
         </ObjectSection>
       ) : null}
       {tab === "tasks" ? <ReviewTasks items={items} onOpen={setTask} /> : null}
@@ -405,29 +400,28 @@ function ReviewGrant({
       />
       {confirm ? (
         <>
-          <Note>
-            Remove {subject}’s {item.grant.level} access to {resource}? This access ends now.
-          </Note>
-          <Actions>
-            <Button label="Cancel" onPress={() => setConfirm(false)} />
-            <Button
-              label="Confirm remove access"
-              danger
-              testID={`review-remove-${item.grant.id}`}
-              disabled={action.busy}
-              onPress={() =>
-                void action
-                  .run(
-                    "access.reviews.decide",
-                    { reviewId, grantId: item.grant.id, decision: "remove" },
-                    "Access removed",
-                  )
-                  .then((out) => {
-                    if (out) setConfirm(false);
-                  })
-              }
-            />
-          </Actions>
+          <InlineConfirm
+            question={
+              <>
+                Remove {subject}’s {item.grant.level} access to {resource}? This access ends now.
+              </>
+            }
+            confirmLabel="Confirm remove access"
+            disabled={action.busy}
+            confirmTestID={`review-remove-${item.grant.id}`}
+            onConfirm={() =>
+              void action
+                .run(
+                  "access.reviews.decide",
+                  { reviewId, grantId: item.grant.id, decision: "remove" },
+                  "Access removed",
+                )
+                .then((out) => {
+                  if (out) setConfirm(false);
+                })
+            }
+            onCancel={() => setConfirm(false)}
+          />
         </>
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}

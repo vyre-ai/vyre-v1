@@ -14,6 +14,7 @@ import type { Design } from "./data.ts";
 import { MigrateSheet } from "./MigrateSheet.tsx";
 import { plural, startRuleWords } from "./model.ts";
 import type { Journey } from "./model.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 export function JourneySettings({
   journey: j,
@@ -128,11 +129,15 @@ export function JourneySettings({
           last
         >
           {confirm ? (
-            <View style={t.confirm}>
-              <Text style={t.confirmText}>Delete it?</Text>
-              <TextButton label="Delete" testID="confirm-delete-journey" onPress={del} />
-              <TextButton label="Cancel" testID="cancel-delete-journey" onPress={() => setConfirm(false)} />
-            </View>
+            <InlineConfirm
+              compact
+              question="Delete it?"
+              confirmLabel="Delete"
+              confirmTestID="confirm-delete-journey"
+              cancelTestID="cancel-delete-journey"
+              onConfirm={del}
+              onCancel={() => setConfirm(false)}
+            />
           ) : (
             <TextButton label="Delete…" icon="trash" testID="delete-journey" onPress={() => setConfirm(true)} />
           )}

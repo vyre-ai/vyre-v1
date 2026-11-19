@@ -11,6 +11,7 @@ import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
 import { Actions, Button, TextBox, FormSheet, Note, pickRow, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type HoldsOut = CapMap["governance.holds.list"]["out"];
 type Hold = HoldsOut["holds"][number];
@@ -274,27 +275,24 @@ export function Holds(): ReactElement {
       ) : null}
       {releasePreview ? (
         <Section title="Release legal hold">
-          <Note>{releasePreview.title} can expire or be erased under the active policies after release.</Note>
-          <Actions>
-            <Button label="Cancel" onPress={() => setReleasePreview(null)} />
-            <Button
-              label="Release legal hold"
-              danger
-              disabled={action.busy}
-              onPress={() =>
-                void action
-                  .run("governance.holds.release", { target: releasePreview.target }, "Legal hold released")
-                  .then((out) => {
-                    if (out) {
-                      const key = `${releasePreview.target.kind}:${releasePreview.target.id}`;
-                      setReleased((current) => new Set([...current, key]));
-                      setMore((current) => current.filter((hold) => `${hold.target.kind}:${hold.target.id}` !== key));
-                      setReleasePreview(null);
-                    }
-                  })
-              }
-            />
-          </Actions>
+          <InlineConfirm
+            question={<>{releasePreview.title} can expire or be erased under the active policies after release.</>}
+            confirmLabel="Release legal hold"
+            disabled={action.busy}
+            onConfirm={() =>
+              void action
+                .run("governance.holds.release", { target: releasePreview.target }, "Legal hold released")
+                .then((out) => {
+                  if (out) {
+                    const key = `${releasePreview.target.kind}:${releasePreview.target.id}`;
+                    setReleased((current) => new Set([...current, key]));
+                    setMore((current) => current.filter((hold) => `${hold.target.kind}:${hold.target.id}` !== key));
+                    setReleasePreview(null);
+                  }
+                })
+            }
+            onCancel={() => setReleasePreview(null)}
+          />
         </Section>
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}

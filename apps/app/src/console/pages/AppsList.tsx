@@ -12,6 +12,7 @@ import { Actions, Button, Note, ReadState, useAction, useRead } from "./shared.t
 import { useIntegrationRows } from "./integration-data.ts";
 import { ConnectionObject, NewConnection } from "./Connections.tsx";
 import { ConnectorObject, NewConnector } from "./Connectors.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Connector = CapMap["connectors.get"]["out"]["connector"];
 type Connection = CapMap["connections.get"]["out"]["connection"];
@@ -249,20 +250,21 @@ export function AppsPage(): ReactElement {
           </Group>
           {confirm === app.key ? (
             <>
-              <Note>
-                Disconnect {app.title}? {people.length === 1 ? "One sign-in ends." : `${people.length} sign-ins end.`}{" "}
-                Automations and syncs that use it stop until someone connects it again.
-              </Note>
-              <Actions>
-                <Button label="Cancel" testID="app-disconnect-cancel" onPress={() => setConfirm("")} />
-                <Button
-                  label="Disconnect"
-                  testID="app-disconnect-confirm"
-                  danger
-                  disabled={action.busy}
-                  onPress={() => void disconnect()}
-                />
-              </Actions>
+              <InlineConfirm
+                question={
+                  <>
+                    Disconnect {app.title}?{" "}
+                    {people.length === 1 ? "One sign-in ends." : `${people.length} sign-ins end.`} Automations and syncs
+                    that use it stop until someone connects it again.
+                  </>
+                }
+                confirmLabel="Disconnect"
+                disabled={action.busy}
+                confirmTestID="app-disconnect-confirm"
+                cancelTestID="app-disconnect-cancel"
+                onConfirm={() => void disconnect()}
+                onCancel={() => setConfirm("")}
+              />
             </>
           ) : null}
         </Section>

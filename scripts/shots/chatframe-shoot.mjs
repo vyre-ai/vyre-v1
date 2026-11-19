@@ -141,10 +141,12 @@ for (const skin of ["graphite", "paper"])
         .first()
         .click({ timeout: 3000, force: true })
         .catch(() => console.log(tag, "no own more"));
-      await page
-        .getByTestId("menu-item-More")
-        .click({ timeout: 3000 })
-        .catch(() => console.log(tag, "no More"));
+      // Delete is on the menu itself since the rc.28 message menu; More is only the way to it when the menu is short (older shape)
+      if ((await page.getByTestId("menu-item-Delete").count()) === 0)
+        await page
+          .getByTestId("menu-item-More")
+          .click({ timeout: 3000 })
+          .catch(() => console.log(tag, "no More"));
       await page
         .getByTestId("menu-item-Delete")
         .click({ timeout: 3000 })

@@ -7,6 +7,10 @@ import { ConsoleDataProvider } from "../shell/data.tsx";
 import { createSampleConsole } from "../shell/sample.ts";
 import { AiAccountsPage, accountMenu, accountState, isSpaceAccount, ownSignIns } from "../pages/AiAccounts.tsx";
 import { dataWith } from "./sheet-helper.tsx";
+import { setArmDelay } from "../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Switch at once
+setArmDelay(0);
 
 const NAMES: Record<string, string> = { usr_maya: "Maya Chen", usr_lena: "Lena Ortiz", usr_imran: "Imran Ibarra" };
 const ACCOUNTS = [

@@ -14,6 +14,7 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { artifactAddress, artifactHostAnswers } from "./artifact-address.ts";
 import { copyLinkText, itemLink } from "../../../share/rows.ts";
 import { available, DesktopArtifactFrame } from "./desktop-frame.tsx";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Site = CapMap["sites.get"]["out"]["site"];
 let seq = 0;
@@ -238,15 +239,17 @@ export function ArtifactView({
         )}
       </View>
       {sure ? (
-        <View testID="artifact-sure" style={s.sure}>
-          <Text style={s.sureText}>{`Delete “${name}”? The link stops working for everyone it was shared with.`}</Text>
-          <Pressable accessibilityRole="button" testID="artifact-keep" onPress={() => setSure(false)} style={s.btn}>
-            <Text style={s.btnText}>Keep it</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" testID="artifact-delete" onPress={remove} style={s.btn}>
-            <Text style={[s.btnText, s.danger]}>Delete</Text>
-          </Pressable>
-        </View>
+        <InlineConfirm
+          testID="artifact-sure"
+          question={`Delete “${name}”?`}
+          note="The link stops working for everyone it was shared with."
+          cancelLabel="Keep it"
+          confirmLabel="Delete"
+          confirmTestID="artifact-delete"
+          cancelTestID="artifact-keep"
+          onConfirm={remove}
+          onCancel={() => setSure(false)}
+        />
       ) : null}
       <View style={s.body}>
         {denied ? (

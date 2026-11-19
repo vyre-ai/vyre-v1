@@ -68,11 +68,40 @@ function ensureCss(): void {
   );
 }
 
-function ActionButton({ a }: { a: DialogAction }): ReactElement {
+/** The action that takes focus when the dialog opens: the one marked `initial`; else, when the dialog destroys something (an action is `danger`) and has no `initial`, its first quiet action (Cancel), so a stray Enter or Space never confirms it. */
+export function focusedAction(actions: readonly DialogAction[]): DialogAction | undefined {
+  const marked = actions.find((a) => a.initial === true);
+  if (marked) return marked;
+  if (!actions.some((a) => a.danger === true)) return undefined;
+  return actions.find((a) => a.primary !== true && a.danger !== true && a.disabled !== true);
+}
+
+/** What takes focus when a dialog opens: its first field when it has one (a type-the-name ask, a rename, a reason: the person types at once), else its safe action. */
+export function pickFocus<T>(field: T | null | undefined, safe: T | null | undefined): T | null {
+  return field ?? safe ?? null;
+}
+
+type Focusable = { focus?: () => void };
+/** The first thing a person types in: a text-like input, a textarea or a select. A checkbox, radio, file or hidden input is not one (Space would toggle it, so a destructive ask opens on Cancel). */
+const FIELD =
+  "input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]):not([type=button]):not([type=submit]),textarea,select";
+
+/** `hold` is given when the dialog itself chooses what takes focus (it knows whether a field is inside): the button then only offers itself. */
+function ActionButton({
+  a,
+  focus,
+  hold,
+}: {
+  a: DialogAction;
+  focus: boolean;
+  hold?: { current: unknown } | undefined;
+}): ReactElement {
   const fill = a.primary || a.danger;
   const self = useRef<unknown>(null);
   useEffect(() => {
-    if (web && a.initial === true) (self.current as { focus?: () => void } | null)?.focus?.();
+    if (!web || !focus) return;
+    if (hold) hold.current = self.current;
+    else (self.current as Focusable | null)?.focus?.();
   }, []);
   return (
     <Tip help={a.disabled === true ? a.why : undefined}>
@@ -123,6 +152,7 @@ export function Dialog({
   onPressOutside,
 }: DialogProps): ReactElement {
   const card = useRef<unknown>(null);
+  const safe = useRef<unknown>(null);
   const win = useWindowDimensions();
   const winW = win.width;
   const winH = win.height;
@@ -175,8 +205,8 @@ export function Dialog({
     if (!web || captureKeys || anchor !== undefined) return;
     ensureCss();
     // the first field inside the card takes focus (a dialog with only buttons keeps none, so no button wears a focus ring before a key is pressed), so the keyboard works at once
-    const el = card.current as { querySelector?: (q: string) => { focus?: () => void } | null } | null;
-    el?.querySelector?.("input,textarea,select")?.focus?.();
+    const el = card.current as { querySelector?: (q: string) => Focusable | null } | null;
+    pickFocus<Focusable>(el?.querySelector?.(FIELD), safe.current as Focusable | null)?.focus?.();
   }, []);
   if (anchor !== undefined)
     return (
@@ -211,8 +241,12 @@ export function Dialog({
     );
   // quiet buttons first, then the primary or danger one, each built in a loop (not a list of rows)
   const buttons: ReactElement[] = [];
-  for (const a of actions) if (!a.primary && !a.danger) buttons.push(<ActionButton key={a.label} a={a} />);
-  for (const a of actions) if (a.primary || a.danger) buttons.push(<ActionButton key={a.label} a={a} />);
+  const first = focusedAction(actions);
+  const hold = !captureKeys && anchor === undefined ? safe : undefined;
+  for (const a of actions)
+    if (!a.primary && !a.danger) buttons.push(<ActionButton key={a.label} a={a} focus={a === first} hold={hold} />);
+  for (const a of actions)
+    if (a.primary || a.danger) buttons.push(<ActionButton key={a.label} a={a} focus={a === first} hold={hold} />);
   return (
     <Overlay>
       <View

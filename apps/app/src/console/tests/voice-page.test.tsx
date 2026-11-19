@@ -4,6 +4,10 @@ import assert from "node:assert/strict";
 import { VoiceSettings } from "../pages/Voice.tsx";
 import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
+import { setArmDelay } from "../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const providers = [
   { key: "deepgram", name: "Deepgram", keyUrl: "https://console.deepgram.com", models: [], languages: [] },

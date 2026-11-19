@@ -15,6 +15,7 @@ import { useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
 import { Glyph, GoToPage, Mark, Section, SettingsRow, SmallButton, Value, pointer, webOnly } from "./ui.tsx";
 import type { PageProps } from "./pages-a.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 const rowOf = (rows: readonly SettingRow[], key: string): SettingRow | undefined => rows.find((r) => r.key === key);
 
@@ -384,23 +385,22 @@ function YourSpaces(): ReactElement {
           .join(", ")}
         control={
           leaving ? (
-            <>
-              <SmallButton label="Cancel" onPress={() => setSure(null)} />
-              <SmallButton
-                label="Leave"
-                danger
-                testID={`leave-yes-${sp.id}`}
-                onPress={() =>
-                  void data
-                    .call("spaces.leave", { confirm: true })
-                    .then(() => {
-                      setSure(null);
-                      saved.saved(`You left ${sp.name}`);
-                    })
-                    .catch((e: unknown) => saved.failed(e instanceof Error ? e.message : "That did not work."))
-                }
-              />
-            </>
+            <InlineConfirm
+              compact
+              question={`Leave ${sp.name}?`}
+              confirmLabel="Leave"
+              confirmTestID={`leave-yes-${sp.id}`}
+              onConfirm={() =>
+                void data
+                  .call("spaces.leave", { confirm: true })
+                  .then(() => {
+                    setSure(null);
+                    saved.saved(`You left ${sp.name}`);
+                  })
+                  .catch((e: unknown) => saved.failed(e instanceof Error ? e.message : "That did not work."))
+              }
+              onCancel={() => setSure(null)}
+            />
           ) : (
             <>
               {sp.current ? (

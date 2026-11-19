@@ -42,6 +42,7 @@ import {
   summaryOf,
 } from "./model.ts";
 import type { MemberRow } from "./model.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Status = CapMap["ms.consent.status"]["out"];
 
@@ -333,10 +334,16 @@ export function Microsoft365Page(): ReactElement {
       {confirmOff ? (
         <Section title="Turn off Microsoft 365?">
           <Para>Syncing stops for every member. The credentials stay in the Vault.</Para>
-          <Actions>
-            <Button label="Turn off" danger testID="ms-off-confirm" onPress={() => void off()} />
-            <Button label="Keep it on" testID="ms-off-cancel" onPress={() => setConfirmOff(false)} />
-          </Actions>
+          <InlineConfirm
+            compact
+            question="Turn off Microsoft 365?"
+            confirmLabel="Turn off"
+            cancelLabel="Keep it on"
+            confirmTestID="ms-off-confirm"
+            cancelTestID="ms-off-cancel"
+            onConfirm={() => void off()}
+            onCancel={() => setConfirmOff(false)}
+          />
         </Section>
       ) : null}
       {act.note ? <Note>{act.note}</Note> : null}
