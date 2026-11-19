@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
-import { Face } from "../sidebar/parts.tsx";
+import { Face, Glyph, typeIcon } from "../sidebar/parts.tsx";
 import { cellText } from "../table/model.ts";
 import { each, laneOfRow } from "../views-a/model.ts";
 import type { Board } from "./ctx.ts";
@@ -98,6 +98,12 @@ export function RecordPeek({
       min={300}
     >
       <ScrollView style={p.body} contentContainerStyle={p.bodyIn} testID="board-peek">
+        <View style={p.head} testID="peek-head">
+          <Glyph name={typeIcon(ctx.def.icon)} size={16} color="var(--ink-3)" />
+          <Text numberOfLines={2} style={p.headName} testID="peek-name">
+            {title}
+          </Text>
+        </View>
         <Path board={board} id={id} />
         {tab === "details" ? (
           <View style={p.kv} testID="peek-details">
@@ -149,6 +155,8 @@ export function RecordPeek({
 const p = StyleSheet.create({
   body: { flex: 1 },
   bodyIn: { padding: 16, gap: 16 },
+  head: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headName: { flex: 1, fontSize: 16, fontWeight: "600", color: "var(--ink)" as string },
   path: { gap: 8 },
   step: { flexDirection: "row", alignItems: "center", gap: 10 },
   dot: { width: 10, height: 10, borderRadius: 10, boxShadow: "inset 0 0 0 1.5px var(--line-2)" } as object,

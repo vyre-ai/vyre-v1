@@ -138,7 +138,8 @@ function sample(o: { actor?: string; failMove?: string; gate?: boolean } = {}) {
       }
       if (cap === "records.activity")
         return { entries: [{ id: "e1", kind: "stage", at: NOW, actor: o.actor ?? "usr_omar" }] };
-      if (cap === "journeys.move_stage" && ahead.on) throw new Error("It changed first. Look at the card and try again.");
+      if (cap === "journeys.move_stage" && ahead.on)
+        throw new Error("It changed first. Look at the card and try again.");
       if (cap === "journeys.move_stage") {
         calls.push({ cap, input: i });
         if (o.failMove) throw new Error(o.failMove);
@@ -767,6 +768,7 @@ test("pressing a card opens it in the side pane on Details with the Journey's pa
     await flush();
     assert.ok(find(b.root, "board-peek"), "the pane opens beside the board");
     assert.deepEqual(opened, [], "no new page");
+    assert.match(textOf(find(b.root, "peek-name")), /Onboarding 1/, "the record's name heads the pane");
     assert.match(textOf(find(b.root, "peek-step-stage1")), /Intake.*Day 5 of 2 d/);
     assert.match(textOf(find(b.root, "peek-step-stage2")), /In review/);
     assert.match(textOf(find(b.root, "peek-details")), /Owner/);
