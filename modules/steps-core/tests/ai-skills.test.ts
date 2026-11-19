@@ -8,10 +8,16 @@ import { aiStep } from "../handlers/ai-step.ts";
 import type { StepCall, StepNode } from "../handlers/control.ts";
 
 type H = ReturnType<typeof harness>;
-const run = (h: H, node: StepNode, c: StepCall) => runStep({ ...h.env, ai: (n, i, cl) => aiStep(h.env, n, i, cl) }, node, c);
+const run = (h: H, node: StepNode, c: StepCall) =>
+  runStep({ ...h.env, ai: (n, i, cl) => aiStep(h.env, n, i, cl) }, node, c);
 const call = (over: Partial<StepCall> = {}): StepCall =>
   ({ attempt: 1, key: "run_t1:ask:1", outputs: {}, resumed: false, trigger: {}, ...over }) as StepCall;
-const ask = (input: Record<string, unknown>, ai?: Record<string, unknown>, key = "ai"): StepNode => ({ id: "ask", key, input, ...(ai ? { ai } : {}) });
+const ask = (input: Record<string, unknown>, ai?: Record<string, unknown>, key = "ai"): StepNode => ({
+  id: "ask",
+  key,
+  input,
+  ...(ai ? { ai } : {}),
+});
 const messageOf = (e: unknown): string => (e as { error?: { message?: string } } | null)?.error?.message ?? "";
 const INTAKE = {
   skill: {
@@ -25,13 +31,21 @@ const turn = { text: "Hi Dana.", keyUsed: "#k", modelUsed: "m", tokensIn: 1, tok
 
 test("an answer step loads the skills it names and puts their instructions in the brief, after the goal", async () => {
   const h = harness({
-    "skills.load": (i) => (i.name === "intake" ? INTAKE : (() => { throw { error: { message: "no" } }; })()),
+    "skills.load": (i) =>
+      i.name === "intake"
+        ? INTAKE
+        : (() => {
+            throw { error: { message: "no" } };
+          })(),
     "engine.step_turn": () => turn,
   });
   await run(h, ask({ prompt: "Draft the welcome email." }, { skills: ["intake"] }), call());
   assert.deepEqual(h.only("skills.load")[0]!.input, { name: "intake" });
   const prompt = String(h.only("engine.step_turn")[0]!.input.prompt);
-  assert.match(prompt, /## Goal\nDraft the welcome email\.\n\n## Skills: your instructions for this work\n### intake: How we take on a new client\nGreet the client by first name\./);
+  assert.match(
+    prompt,
+    /## Goal\nDraft the welcome email\.\n\n## Skills: your instructions for this work\n### intake: How we take on a new client\nGreet the client by first name\./,
+  );
   assert.match(prompt, /File tone\.md:\nWarm, brief, no jargon\./);
   assert.match(prompt, /the skills above are written here for you to follow/);
   assert.doesNotMatch(prompt, /you cannot load a skill/);
@@ -51,7 +65,10 @@ test("a skill that is not there stops the step with its name and nothing is aske
     "engine.step_turn": () => turn,
   });
   await assert.rejects(run(h, ask({ prompt: "Draft it." }, { skills: ["intake"] }), call()), (e) => {
-    assert.match(messageOf(e), /the skill "intake" is not available \(There is no skill called intake\)\. Choose another skill, or ask an admin to add it to the Space\./);
+    assert.match(
+      messageOf(e),
+      /the skill "intake" is not available \(There is no skill called intake\)\. Choose another skill, or ask an admin to add it to the Space\./,
+    );
     return true;
   });
   assert.equal(h.only("engine.step_turn").length, 0);
@@ -68,7 +85,10 @@ test("the same skill named twice is loaded once, at most five are taken, and a l
   const big = { skill: { name: "big", body: "x".repeat(40_000) } };
   const h = harness({ "skills.load": (i) => (i.name === "big" ? big : INTAKE), "engine.step_turn": () => turn });
   await run(h, ask({ prompt: "Go." }, { skills: ["intake", "intake", "big", "a", "b", "c", "d"] }), call());
-  assert.deepEqual(h.only("skills.load").map((c) => c.input.name), ["intake", "big", "a", "b", "c"]);
+  assert.deepEqual(
+    h.only("skills.load").map((c) => c.input.name),
+    ["intake", "big", "a", "b", "c"],
+  );
   const prompt = String(h.only("engine.step_turn")[0]!.input.prompt);
   assert.ok(prompt.length < 60_000, "the skills are cut");
   assert.match(prompt, /xxx\.\.\./);
@@ -88,7 +108,10 @@ test("a task step puts the skills in its brief too, and the agent keeps its own 
       return { ok: true };
     },
   });
-  const node = ask({ prompt: "Draft the welcome email with the intake skill." }, { mode: "task", agentId: "agt_doer", skills: ["intake"] });
+  const node = ask(
+    { prompt: "Draft the welcome email with the intake skill." },
+    { mode: "task", agentId: "agt_doer", skills: ["intake"] },
+  );
   await run(h, node, call()).catch(() => undefined);
   assert.deepEqual(h.only("skills.load")[0]!.input, { name: "intake", agentId: "agt_doer" });
   const made = JSON.stringify(h.log.map((c) => c.input));
