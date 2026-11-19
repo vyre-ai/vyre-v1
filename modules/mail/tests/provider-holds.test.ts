@@ -224,6 +224,7 @@ const KEY_HOST_HELD = [
   "sites.deploy",
   "sites.env_set",
   "sites.plan",
+  "sites.preview_promote",
   "sites.ship",
   "sites.update",
   "sync_specs.apply",

@@ -37,24 +37,52 @@ const dormant = registry.capabilities.filter((c) => c.module === "sites" && !(c.
 export const handlers = { ...deferredHandlers(dormant), ...live };
 export const consumers = {};
 export { markPushDone, markPushFailed, pendingPushes };
-/** A site's stored source (repo, folder, file or path), for the Gate: the place a Vault key given to the site would go. Null when there is none. */
-export function siteSource(
-  ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } },
-  siteId: string,
-): { repo?: string; folderId?: string; fileId?: string; path?: string } | null {
-  const row = ctx.db.all("SELECT source FROM sites_site WHERE id = ? AND deleted_at IS NULL", siteId)[0] as
-    | { source?: unknown }
-    | undefined;
-  if (!row || typeof row.source !== "string") return null;
+type Src = { repo?: string; folderId?: string; fileId?: string; path?: string };
+type Reader = { db: { all(sql: string, ...a: unknown[]): unknown[] } };
+function parseSource(raw: unknown): Src | null {
+  if (typeof raw !== "string") return null;
   try {
-    const s = JSON.parse(row.source) as Record<string, unknown>;
-    const out: { repo?: string; folderId?: string; fileId?: string; path?: string } = {};
+    const s = JSON.parse(raw) as Record<string, unknown>;
+    const out: Src = {};
     for (const k of ["repo", "folderId", "fileId", "path"] as const)
       if (typeof s[k] === "string") out[k] = s[k] as string;
     return out;
   } catch {
     return null;
   }
+}
+/**
+ * What the Gate needs to know about a site: where its code comes from now, the Vault keys in its stored env (with their scope), and, for a branch, where its newest preview was built from. A key that is a plain value is no key.
+ * Null when the site is not there.
+ */
+export function siteFacts(
+  ctx: Reader,
+  siteId: string,
+  branch?: string,
+): { source: Src | null; env: { name: string; handle: string; scope: string }[]; builtFrom: Src | null } | null {
+  const site = ctx.db.all("SELECT source FROM sites_site WHERE id = ? AND deleted_at IS NULL", siteId)[0] as
+    | { source?: unknown }
+    | undefined;
+  if (!site) return null;
+  const env = (
+    ctx.db.all("SELECT name, vault_handle, scope FROM sites_env WHERE site_id = ? AND plain IS NULL", siteId) as {
+      name: string;
+      vault_handle: string;
+      scope: string | null;
+    }[]
+  )
+    .filter((r) => r.vault_handle !== "")
+    .map((r) => ({ name: r.name, handle: r.vault_handle, scope: r.scope ?? "production" }));
+  let builtFrom: Src | null = null;
+  if (branch !== undefined) {
+    const d = ctx.db.all(
+      "SELECT built_from FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND branch = ? AND state = 'ready' AND removed_at IS NULL ORDER BY at DESC",
+      siteId,
+      branch,
+    )[0] as { built_from?: unknown } | undefined;
+    builtFrom = parseSource(d?.built_from);
+  }
+  return { source: parseSource(site.source), env, builtFrom };
 }
 /** /hooks/sites: GitHub's webhook for a site, checked with the site's own secret (handlers/hook.ts). */
 export const hostCalls = { "sites.accept_webhook": acceptWebhook };

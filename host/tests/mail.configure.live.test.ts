@@ -76,6 +76,7 @@ const KEYED = [
   "sites.deploy",
   "sites.ship",
   "sites.env_set",
+  "sites.preview_promote",
 ];
 const defs = [...CALLEES, ...REROUTES, ...PROVIDER, ...MORE, ...COMMS, ...KEYED].map(
   (n) => registry.capabilities.find((c) => c.name === n) as unknown as CapabilityDef,
@@ -833,60 +834,162 @@ test("a Vault key given to a site as env: held for an agent unless a person appr
   );
 });
 
-test("sites_env_set puts a Vault key into a site that exists: the pair is the key and the site's stored source, and the card says so", async () => {
+type Facts = {
+  source: { repo?: string; folderId?: string } | null;
+  env: { name: string; handle: string; scope: string }[];
+  builtFrom: { repo?: string } | null;
+};
+/** A world with a site (sit_1) the Gate can read: where its code comes from, its stored Vault env, and where its preview was built from. */
+function siteWorld(facts: Facts) {
   const w = keyWorld();
-  let stored: { repo?: string; folderId?: string } = { repo: "acme/app" };
+  const holder = { facts };
   const opts = {
     ...w.opts,
-    exports: new Map<string, Record<string, unknown>>([...w.opts.exports, ["sites", { siteSource: () => stored }]]),
+    exports: new Map<string, Record<string, unknown>>([
+      ...w.opts.exports,
+      ["sites", { siteFacts: () => holder.facts }],
+    ]),
   };
-  const entries = [{ name: "K", vaultHandle: "#Crm_Key" }];
-  const input = { siteId: "sit_1", entries };
-  const first = rig(opts);
-  assert.equal((await first.invoke("sites.env_set", input, asAgent())).status, "held");
-  const approved = rig(opts);
-  await approved.gate.seen?.(
-    approved.defOf("sites.env_set"),
-    input,
-    {},
-    { ...asAgent(), approval: "apv_env2", approvedBy: "usr_member" } as never,
-    0,
-  );
+  const yes = async (cap: string, input: unknown, n: string): Promise<void> => {
+    const r = rig(opts);
+    await r.gate.seen?.(r.defOf(cap), input, {}, { ...asAgent(), approval: n, approvedBy: "usr_member" } as never, 0);
+  };
+  return { w, holder, opts, yes };
+}
+const STORED = { name: "K", handle: "#Crm_Key", scope: "production" };
+
+test("sites_env_set: a key added to a site that exists is approved for the site's source once; the same key unchanged is no new pair; another source is held again", async () => {
+  const s = siteWorld({ source: { repo: "acme/app" }, env: [], builtFrom: null });
+  const add = { siteId: "sit_1", entries: [{ name: "K", vaultHandle: "#Crm_Key" }] };
+  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "held");
+  await s.yes("sites.env_set", add, "apv_e1");
   assert.deepEqual(
-    w.hosts.filter((h) => h.host !== "").map((h) => h.host),
+    s.w.hosts.filter((h) => h.host !== "").map((h) => h.host),
     [SRC("acme/app")],
   );
-  assert.equal((await rig(opts).invoke("sites.env_set", input, asAgent())).status, "ok");
-  // the site's source changes to files an agent uploaded: that is another place, held again; its id names the pair
-  stored = { folderId: "fld_up" };
-  assert.equal((await rig(opts).invoke("sites.env_set", input, asAgent())).status, "held");
-  const upload = rig(opts);
-  await upload.gate.seen?.(
-    upload.defOf("sites.env_set"),
-    input,
-    {},
-    { ...asAgent(), approval: "apv_env3", approvedBy: "usr_member" } as never,
-    0,
-  );
-  assert.ok(
-    w.hosts.some((h) => h.host === "sit_1.uploaded.invalid"),
-    "uploaded files are named by the site id",
-  );
-  assert.equal((await rig(opts).invoke("sites.env_set", input, asAgent())).status, "ok");
-  // a site with no source this can read holds; plain values and a person are open
-  stored = {};
-  assert.equal((await rig(opts).invoke("sites.env_set", input, asAgent())).status, "held");
+  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "ok", "approved for that source");
+  // the key is stored now: submitting the same env again is nothing new (a ship that re-sends its env never parks a card)
+  s.holder.facts = { ...s.holder.facts, env: [STORED] };
+  s.w.hosts.length = 0;
+  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "ok");
+  // a changed key (the same name, another item) is new
+  const other = { siteId: "sit_1", entries: [{ name: "K", vaultHandle: "#Crm_Key.other" }] };
+  assert.equal((await rig(s.opts).invoke("sites.env_set", other, asAgent())).status, "held");
+  // the site's files are uploaded files: another source, named by the site id
+  s.holder.facts = { source: { folderId: "fld_up" }, env: [], builtFrom: null };
+  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "held");
+  await s.yes("sites.env_set", add, "apv_e2");
+  assert.ok(s.w.hosts.some((h) => h.host === "sit_1.uploaded.invalid"));
+  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "ok");
+  // a site with no source this can read holds; a plain value and a person are open
+  s.holder.facts = { source: null, env: [], builtFrom: null };
+  assert.equal((await rig(s.opts).invoke("sites.env_set", add, asAgent())).status, "held");
   assert.equal(
-    (await rig(opts).invoke("sites.env_set", { siteId: "sit_1", entries: [{ name: "M", value: "calm" }] }, asAgent()))
+    (await rig(s.opts).invoke("sites.env_set", { siteId: "sit_1", entries: [{ name: "M", value: "calm" }] }, asAgent()))
       .status,
     "ok",
   );
-  assert.equal((await rig(opts).invoke("sites.env_set", input, seed("usr_admin"))).status, "ok");
-  // the card names the key, the site and where its code comes from, never a value
+  assert.equal((await rig(s.opts).invoke("sites.env_set", add, seed("usr_admin"))).status, "ok");
   assert.equal(
-    wantsFromInput("sites.ship", { name: "Dash", source: { repo: "https://github.com/acme/app.git" }, env: entries }),
+    wantsFromInput("sites.ship", {
+      name: "Dash",
+      source: { repo: "https://github.com/acme/app.git" },
+      env: add.entries,
+    }),
     "give the key Crm_Key to the site Dash, built from acme/app",
   );
+});
+
+test("a site with keys stored moved to another source (update, deploy, plan, ship): held until a person approves every stored key for that source; a call that names no source, or the same one, is free", async () => {
+  const s = siteWorld({ source: { repo: "acme/app" }, env: [STORED], builtFrom: null });
+  for (const cap of ["sites.update", "sites.deploy", "sites.plan", "sites.ship"]) {
+    const move = { siteId: "sit_1", source: { repo: "https://attacker.example/x.git" } };
+    assert.equal(
+      (await rig(s.opts).invoke(cap, move, asAgent())).status,
+      "held",
+      `${cap} to another repo with a stored key is held`,
+    );
+  }
+  const move = { siteId: "sit_1", source: { repo: "evil/app" } };
+  assert.equal((await rig(s.opts).invoke("sites.update", move, asAgent())).status, "held", "a public repo, no token");
+  await s.yes("sites.update", move, "apv_m1");
+  assert.deepEqual(
+    s.w.hosts.filter((h) => h.host !== "").map((h) => [h.item_id, h.host]),
+    [["vit_crm", SRC("evil/app")]],
+  );
+  assert.equal((await rig(s.opts).invoke("sites.update", move, asAgent())).status, "ok", "after a yes it goes through");
+  assert.equal((await rig(s.opts).invoke("sites.deploy", move, asAgent())).status, "ok", "and so does its deploy");
+  assert.equal(
+    (await rig(s.opts).invoke("sites.update", { siteId: "sit_1", source: { repo: "other/app" } }, asAgent())).status,
+    "held",
+    "another repo is held again",
+  );
+  // an agent's redeploy of the same source, or with no source named, never waits
+  assert.equal((await rig(s.opts).invoke("sites.deploy", { siteId: "sit_1" }, asAgent())).status, "ok");
+  assert.equal(
+    (
+      await rig(s.opts).invoke(
+        "sites.deploy",
+        { siteId: "sit_1", source: { repo: "https://github.com/Acme/App.git" } },
+        asAgent(),
+      )
+    ).status,
+    "ok",
+  );
+  // a site with no keys stored is nothing to protect
+  s.holder.facts = { source: { repo: "acme/app" }, env: [], builtFrom: null };
+  assert.equal(
+    (await rig(s.opts).invoke("sites.update", { siteId: "sit_1", source: { repo: "new/one" } }, asAgent())).status,
+    "ok",
+  );
+  // a person is one step
+  s.holder.facts = { source: { repo: "acme/app" }, env: [STORED], builtFrom: null };
+  assert.equal(
+    (await rig(s.opts).invoke("sites.update", { siteId: "sit_1", source: { repo: "third/app" } }, seed("usr_admin")))
+      .status,
+    "ok",
+  );
+});
+
+test("sites_preview_promote: a preview built from the site's own repo is the same source; one built from somewhere else puts the production keys in front of that code until a person approves each; previews-scope keys are no part of it", async () => {
+  const P = { name: "P", handle: "#Crm_Key.preview", scope: "previews" };
+  const s = siteWorld({ source: { repo: "acme/app" }, env: [STORED, P], builtFrom: { repo: "acme/app" } });
+  const promote = { siteId: "sit_1", branch: "feat/x" };
+  assert.equal(
+    (await rig(s.opts).invoke("sites.preview_promote", promote, asAgent())).status,
+    "ok",
+    "an agent's own branch in the approved repo is the same source",
+  );
+  s.holder.facts = { ...s.holder.facts, builtFrom: { repo: "fork-owner/app" } };
+  const held = rig(s.opts);
+  assert.equal(
+    (await held.invoke("sites.preview_promote", promote, asAgent())).status,
+    "held",
+    "a fork is another source",
+  );
+  assert.deepEqual(held.parked, [{ cap: "sites.preview_promote", act: "send" }]);
+  await s.yes("sites.preview_promote", promote, "apv_p1");
+  assert.deepEqual(
+    s.w.hosts.filter((h) => h.host !== "").map((h) => [h.item_id, h.host]),
+    [["vit_crm", SRC("fork-owner/app")]],
+    "the production key is approved for the fork; the previews-scope key is not part of it",
+  );
+  assert.equal((await rig(s.opts).invoke("sites.preview_promote", promote, asAgent())).status, "ok");
+  s.holder.facts = { ...s.holder.facts, builtFrom: { repo: "another/app" } };
+  assert.equal(
+    (await rig(s.opts).invoke("sites.preview_promote", promote, asAgent())).status,
+    "held",
+    "a different origin is held again",
+  );
+  assert.equal(
+    (await rig(s.opts).invoke("sites.preview_promote", promote, seed("usr_admin"))).status,
+    "ok",
+    "a person is one step",
+  );
+  // a preview with no recorded origin is the site's own build
+  s.holder.facts = { ...s.holder.facts, builtFrom: null };
+  assert.equal((await rig(s.opts).invoke("sites.preview_promote", promote, asAgent())).status, "ok");
+  assert.equal(wantsFromInput("sites.preview_promote", promote), "serve a preview as production with the site's keys");
 });
 
 test("a service a tenant can make (a form, a site, an Automation's own service) is held like an agent; the host's own services are not", async () => {

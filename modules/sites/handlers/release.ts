@@ -10,6 +10,7 @@
 // @reads ../migrations/0004_deploy.sql
 // @reads ../migrations/0005_deploy_steps.sql
 // @reads ../migrations/0006_env_plain.sql
+// @reads ../migrations/0015_built_from.sql
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
 import {
@@ -710,6 +711,12 @@ async function runJob(j: Job): Promise<void> {
       return;
     }
     live();
+    // where this build's code came from, without the token: a promoted preview is judged by it
+    {
+      const origin: SourceSpec = { ...j.source };
+      delete origin.tokenHandle;
+      j.db.run("UPDATE sites_deployment SET built_from = ? WHERE id = ?", JSON.stringify(origin), j.depId);
+    }
     if (fetched.commit) {
       say(`Commit ${fetched.commit.slice(0, 7)}${fetched.message ? `: ${fetched.message}` : ""}`);
       j.db.run(
@@ -1637,6 +1644,11 @@ async function sitesPreviewPromote(ctx: Ctx, input: unknown): Promise<{ deployme
     prev.commit_sha ?? null,
     by,
     now,
+  );
+  ctx.db.run(
+    "UPDATE sites_deployment SET built_from = ? WHERE id = ?",
+    isNull(prev.built_from) ? null : str(prev.built_from),
+    depId,
   );
   const ac = new AbortController();
   const env = await envForNew(ctx, siteId, depId, "production", ac);

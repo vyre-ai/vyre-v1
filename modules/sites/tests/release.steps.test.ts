@@ -10,7 +10,8 @@ import { configureRoutes, routeByHost } from "../handlers/route.ts";
 import { _test, servingContainers } from "../handlers/release.ts";
 import { acceptWebhook, markPushDone, markPushFailed, pendingPushes, signed, follows } from "../handlers/hook.ts";
 import { createHmac } from "node:crypto";
-import { handlers } from "../impl.ts";
+import { handlers, siteFacts } from "../impl.ts";
+import { deployHandlers } from "../handlers/deploy.ts";
 import { harness as base } from "../fixtures/world.ts";
 
 const FIXTURE = path.join(
@@ -46,6 +47,7 @@ function world(o: Fake = {}) {
     "0009_hook_failures.sql",
     "0013_hook_order.sql",
     "0014_hook_seq.sql",
+    "0015_built_from.sql",
   ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const sdb = {
@@ -1644,6 +1646,59 @@ test("handled pushes are ordered by an explicit counter that is never used again
     await hook(w, secret, "push", mv("b".repeat(40), "c".repeat(40)));
     assert.ok(Math.max(...seqs()) >= 3, `a new row never reuses a number: ${seqs()}`);
     assert.equal(new Set(seqs()).size, seqs().length);
+  } finally {
+    w.done();
+  }
+});
+
+test("sites.env_set has one handler: the old copy in the dormant deploy table is gone", () => {
+  assert.equal("sites.env_set" in deployHandlers, false);
+  assert.equal(typeof handlers["sites.env_set"], "function");
+});
+
+test("promoting a preview fills the production variables only: never a previews-scope one", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Promote vars");
+    await h["sites.env_set"]!(w.ctx, {
+      siteId,
+      entries: [
+        { name: "PROD_ONLY", value: "p" },
+        { name: "PREVIEW_ONLY", value: "v", scope: "previews" },
+        { name: "BOTH", value: "b", scope: "all" },
+      ],
+    });
+    await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "feat/vars", wait: true });
+    const out = await h["sites.preview_promote"]!(w.ctx, { siteId, branch: "feat/vars", wait: true });
+    assert.equal(out.deployment.state, "ready", out.deployment.problem);
+    assert.deepEqual(Object.keys(w.seen.envs[out.deployment.deploymentId]!).sort(), ["BOTH", "PROD_ONLY"]);
+  } finally {
+    w.done();
+  }
+});
+
+test("a build keeps where its code came from (never the token), and the Gate reads it with the site's stored keys", async () => {
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Built from");
+    await h["sites.env_set"]!(w.ctx, {
+      siteId,
+      entries: [
+        { name: "A", value: "plain" },
+        { name: "S", vaultHandle: "#Crm_Key" },
+        { name: "P", vaultHandle: "#Crm_Key.preview", scope: "previews" },
+      ],
+    }).catch(() => undefined);
+    await h["sites.preview_rebuild"]!(w.ctx, { siteId, branch: "feat/b", wait: true });
+    const facts = siteFacts({ db: w.sdb } as never, siteId, "feat/b")!;
+    assert.match(facts.source!.repo!, /acme\/app/);
+    assert.match(facts.builtFrom!.repo!, /acme\/app/);
+    assert.equal(JSON.stringify(facts).includes("tokenHandle"), false);
+    assert.ok(
+      facts.env.every((e) => e.handle.startsWith("#")),
+      "only Vault keys, no plain value",
+    );
+    assert.equal(siteFacts({ db: w.sdb } as never, "sit_nope"), null);
   } finally {
     w.done();
   }

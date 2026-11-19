@@ -1072,52 +1072,6 @@ async function sitesPreviewRemove(ctx: Ctx, input: unknown): Promise<{ removed: 
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
 const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
 
-async function sitesEnvSet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
-  const o = rec(ctx, input);
-  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
-  const entries = o.entries;
-  if (!Array.isArray(entries)) fail(ctx, "validation.bad_input", "The entries are not valid.", { field: "entries" });
-  if (entries.length > 200)
-    fail(ctx, "validation.too_large", "A site takes at most 200 environment names.", { field: "entries" });
-  const seen = new Set<string>();
-  const next: { name: string; handle: string }[] = [];
-  for (const e of entries) {
-    const row = rec(ctx, e);
-    const name = reqStr(ctx, row, "name");
-    const handle = reqStr(ctx, row, "vaultHandle");
-    if (!ENV_NAME.test(name))
-      fail(ctx, "validation.bad_input", "An environment name uses letters, digits and underscores.", {
-        field: "entries.name",
-        name,
-      });
-    if (!HANDLE.test(handle))
-      fail(ctx, "validation.bad_input", "A Vault key is written as #Name or #Name.field.", {
-        field: "entries.vaultHandle",
-        name,
-      });
-    if (seen.has(name)) fail(ctx, "validation.duplicate", "An environment name is listed twice.", { name });
-    seen.add(name);
-    next.push({ name, handle });
-  }
-  for (const e of next) vaultUse(ctx, e.handle);
-  const before = new Map<string, Row>();
-  for (const r of many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", site.id)) before.set(str(r.name), r);
-  ctx.db.run("DELETE FROM sites_env WHERE site_id = ?", site.id);
-  for (const e of next) {
-    const prev = before.get(e.name);
-    const unchanged = prev !== undefined && prev.vault_handle === e.handle;
-    ctx.db.run(
-      "INSERT INTO sites_env (site_id, name, vault_handle, injected) VALUES (?, ?, ?, ?)",
-      site.id,
-      e.name,
-      e.handle,
-      unchanged && flag(prev.injected) ? 1 : 0,
-    );
-  }
-  ctx.db.run("UPDATE sites_site SET updated_at = ? WHERE id = ?", ctx.now(), site.id);
-  return { ok: true };
-}
-
 async function sitesEnvList(
   ctx: Ctx,
   input: unknown,
@@ -1207,6 +1161,53 @@ async function sitesLogs(ctx: Ctx, input: unknown): Promise<{ lines: string[] }>
   return { lines: [...stored, ...running].slice(-tail) };
 }
 
+/** The first env handler (Vault handles only), kept for the dormant pipeline and its tests. It is NOT registered: sites.env_set is answered by handlers/release.ts alone. */
+export async function dormantEnvSet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const entries = o.entries;
+  if (!Array.isArray(entries)) fail(ctx, "validation.bad_input", "The entries are not valid.", { field: "entries" });
+  if (entries.length > 200)
+    fail(ctx, "validation.too_large", "A site takes at most 200 environment names.", { field: "entries" });
+  const seen = new Set<string>();
+  const next: { name: string; handle: string }[] = [];
+  for (const e of entries) {
+    const row = rec(ctx, e);
+    const name = reqStr(ctx, row, "name");
+    const handle = reqStr(ctx, row, "vaultHandle");
+    if (!ENV_NAME.test(name))
+      fail(ctx, "validation.bad_input", "An environment name uses letters, digits and underscores.", {
+        field: "entries.name",
+        name,
+      });
+    if (!HANDLE.test(handle))
+      fail(ctx, "validation.bad_input", "A Vault key is written as #Name or #Name.field.", {
+        field: "entries.vaultHandle",
+        name,
+      });
+    if (seen.has(name)) fail(ctx, "validation.duplicate", "An environment name is listed twice.", { name });
+    seen.add(name);
+    next.push({ name, handle });
+  }
+  for (const e of next) vaultUse(ctx, e.handle);
+  const before = new Map<string, Row>();
+  for (const r of many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", site.id)) before.set(str(r.name), r);
+  ctx.db.run("DELETE FROM sites_env WHERE site_id = ?", site.id);
+  for (const e of next) {
+    const prev = before.get(e.name);
+    const unchanged = prev !== undefined && prev.vault_handle === e.handle;
+    ctx.db.run(
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected) VALUES (?, ?, ?, ?)",
+      site.id,
+      e.name,
+      e.handle,
+      unchanged && flag(prev.injected) ? 1 : 0,
+    );
+  }
+  ctx.db.run("UPDATE sites_site SET updated_at = ? WHERE id = ?", ctx.now(), site.id);
+  return { ok: true };
+}
+
 export const deployHandlers = {
   "sites.create": (ctx: Ctx, input: unknown) => sitesCreate(ctx, input),
   "sites.get": (ctx: Ctx, input: unknown) => sitesGet(ctx, input),
@@ -1219,7 +1220,6 @@ export const deployHandlers = {
   "sites.previews": (ctx: Ctx, input: unknown) => sitesPreviews(ctx, input),
   "sites.preview_rebuild": (ctx: Ctx, input: unknown) => sitesPreviewRebuild(ctx, input),
   "sites.preview_remove": (ctx: Ctx, input: unknown) => sitesPreviewRemove(ctx, input),
-  "sites.env_set": (ctx: Ctx, input: unknown) => sitesEnvSet(ctx, input),
   "sites.env_list": (ctx: Ctx, input: unknown) => sitesEnvList(ctx, input),
   "sites.staging_password_set": (ctx: Ctx, input: unknown) => sitesStagingPasswordSet(ctx, input),
   "sites.service_identity": (ctx: Ctx, input: unknown) => sitesServiceIdentity(ctx, input),

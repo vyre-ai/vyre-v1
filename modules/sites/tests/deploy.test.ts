@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { configureSites, hexOf } from "../handlers/deploy.ts";
+import { configureSites, dormantEnvSet, hexOf } from "../handlers/deploy.ts";
 import { consumers, inline } from "../projections.ts";
 import type { ProjEvent, ProjTx } from "../projections.ts";
 import { handleBranchMerged, handlers } from "../handlers/index.ts";
@@ -18,9 +18,10 @@ import type { World } from "../fixtures/world.ts";
 type Row = Record<string, unknown>;
 type Fn = (ctx: Ctx, input: unknown) => Promise<unknown>;
 
-const call = (cap: keyof typeof handlers): Fn => handlers[cap] as Fn;
+const call = (cap: keyof typeof handlers | "sites.env_set"): Fn =>
+  cap === "sites.env_set" ? (dormantEnvSet as Fn) : (handlers[cap] as Fn);
 
-async function run<T>(ctx: Ctx, cap: keyof typeof handlers, input: unknown): Promise<T> {
+async function run<T>(ctx: Ctx, cap: keyof typeof handlers | "sites.env_set", input: unknown): Promise<T> {
   return (await call(cap)(ctx, input)) as T;
 }
 

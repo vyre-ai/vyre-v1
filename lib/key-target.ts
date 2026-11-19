@@ -102,20 +102,75 @@ export function sourceHost(s: SiteSource | null | undefined, siteId?: string): s
   return null;
 }
 
-/** What a call that gives a site Vault keys as env names: the handles, and the site's source when the call carries one (a site that exists is read by its id). */
-export function envKeyUse(input: unknown): { handles: string[]; source: SiteSource | null; siteId: string | null } {
+/** What the Gate knows about a site the call names: where its code comes from now, its stored Vault env rows, and where a preview of a branch was built from. */
+export interface SiteFacts {
+  source: SiteSource | null;
+  env: { name: string; handle: string; scope: string }[];
+  builtFrom: SiteSource | null;
+}
+
+const envEntries = (input: unknown): { name: string; handle: string }[] => {
   const i = (input ?? {}) as Record<string, unknown>;
-  const src = i["source"];
-  const source =
-    src !== null && typeof src === "object"
-      ? (Object.fromEntries(
-          ["repo", "folderId", "fileId", "path"].flatMap((k) => {
-            const v = (src as Record<string, unknown>)[k];
-            return typeof v === "string" ? [[k, v]] : [];
-          }),
-        ) as SiteSource)
-      : null;
-  return { handles: envHandles(input), source, siteId: typeof i["siteId"] === "string" ? i["siteId"] : null };
+  const out: { name: string; handle: string }[] = [];
+  for (const list of [i["entries"], i["env"]])
+    if (Array.isArray(list))
+      for (const e of list as { name?: unknown; vaultHandle?: unknown }[]) {
+        if (typeof e?.vaultHandle === "string" && e.vaultHandle.trim() !== "")
+          out.push({ name: typeof e.name === "string" ? e.name : "", handle: e.vaultHandle.trim() });
+      }
+  return out;
+};
+
+const sourceOfInput = (input: unknown): SiteSource | null => {
+  const src = ((input ?? {}) as Record<string, unknown>)["source"];
+  if (src === null || typeof src !== "object") return null;
+  const out: SiteSource = {};
+  for (const k of ["repo", "folderId", "fileId", "path"] as const) {
+    const v = (src as Record<string, unknown>)[k];
+    if (typeof v === "string") out[k] = v;
+  }
+  return out;
+};
+
+/**
+ * The (Vault key, source) pairs a call to a site makes new: each is a key that will reach code from that source, and an agent's call waits for a person unless every one is already approved. One rule for every way a key and code meet:
+ *   - a key added or changed in the call (sites_env_set, sites_ship env) reaches the code of the site's source, or of the source the call names;
+ *   - a call that names another source than the site has (update, deploy, plan, ship) puts every key the site stores, and every key in the call, in front of that code;
+ *   - promoting a preview built from somewhere else than the site's source puts the production keys in front of that code (a branch of the site's own repo is the same source).
+ * The same source with the same keys is no pair: an agent's redeploy never waits. Null host: a source this cannot name, which holds.
+ */
+export function siteKeyPairs(input: unknown, facts: SiteFacts | null): { handle: string; host: string | null }[] {
+  const i = (input ?? {}) as Record<string, unknown>;
+  const siteId = typeof i["siteId"] === "string" ? i["siteId"] : undefined;
+  const given = sourceOfInput(input);
+  const entries = envEntries(input);
+  const pairs: { handle: string; host: string | null }[] = [];
+  const add = (handle: string, host: string | null): void => {
+    if (!pairs.some((p) => p.handle === handle && p.host === host)) pairs.push({ handle, host });
+  };
+  if (siteId === undefined) {
+    for (const e of entries) add(e.handle, sourceHost(given, undefined));
+    return pairs;
+  }
+  const storedHost = sourceHost(facts?.source ?? null, siteId);
+  const stored = (facts?.env ?? []).filter((e) => e.handle !== "");
+  const toward = sourceHost(given ?? facts?.source ?? null, siteId);
+  for (const e of entries) if (!stored.some((s) => s.name === e.name && s.handle === e.handle)) add(e.handle, toward);
+  const givenHost = given ? sourceHost(given, siteId) : null;
+  if (given && givenHost !== storedHost) {
+    for (const s of stored) add(s.handle, givenHost);
+    for (const e of entries) add(e.handle, givenHost);
+  }
+  const promote =
+    typeof i["branch"] === "string" &&
+    !Array.isArray(i["entries"]) &&
+    !Array.isArray(i["env"]) &&
+    i["source"] === undefined;
+  if (promote && facts?.builtFrom) {
+    const builtHost = sourceHost(facts.builtFrom, siteId);
+    if (builtHost !== storedHost) for (const s of stored) if (s.scope !== "previews") add(s.handle, builtHost);
+  }
+  return pairs;
 }
 
 /** A Vault handle given as a site's env (sites_env_set entries, sites_ship env): the key goes into the process the site runs, so code a caller chose can send it anywhere. */
@@ -144,6 +199,7 @@ export const KEY_HOST_CAPS: ReadonlySet<string> = new Set([
   "sites.deploy",
   "sites.ship",
   "sites.env_set",
+  "sites.preview_promote",
 ]);
 
 /**

@@ -171,6 +171,12 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
     const key = keys.length > 1 ? `${keys[0]} and ${keys.length - 1} more` : (keys[0] ?? "a key");
     return `give the key ${key} to the site ${str(o["name"]) || "this site"}, built from ${repo || (src["folderId"] || src["fileId"] || src["path"] ? "uploaded files" : "its source")}`;
   }
+  // a site's own keys meeting code from another source: a move to another repo or files, or a preview promoted to production
+  if (cap === "sites.preview_promote") return "serve a preview as production with the site's keys";
+  if (cap.startsWith("sites.") && obj(obj(input)["source"])["repo"] !== undefined && keySendOf(input) === undefined)
+    return `give the site's keys to code from ${str(obj(obj(input)["source"])["repo"])
+      .replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "")
+      .replace(/\.git$/, "")}`;
   // a call that sends a Vault key to a place it names: the card says which key goes to which host (the key's name, never its value)
   if (KEY_HOST_CAPS.has(cap)) {
     const use = keySendOf(input);

@@ -14,12 +14,14 @@ import { isTenantService } from "../../../lib/trust.ts";
 import {
   KEY_HOST_CAPS,
   carriesHandle,
-  envKeyUse,
+  envHandles,
   hostOfUrl,
   keyReadHost,
   keySendOf,
+  siteKeyPairs,
   sourceHost,
 } from "../../../lib/key-target.ts";
+import type { SiteFacts } from "../../../lib/key-target.ts";
 import { resolveKeyRef } from "../seams/key-ref.ts";
 import { HostError, fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
@@ -132,7 +134,7 @@ async function appliesWhen(
   }
 }
 
-export { KEY_HOST_CAPS, carriesHandle, envKeyUse, keySendOf, sourceHost };
+export { KEY_HOST_CAPS, carriesHandle, keySendOf, siteKeyPairs, sourceHost };
 
 interface Claims {
   v?: unknown;
@@ -551,37 +553,37 @@ export function moduleWhens(
         details: { refusal: true },
       });
   };
-  /** The place a Vault key given to a site as env goes: the site's source, read from the call, or from the site it names. */
-  const envTarget = (input: unknown): string | null => {
-    const use = envKeyUse(input);
-    let source = use.source;
-    if (!source && use.siteId) {
-      const fn = exports.get("sites")?.["siteSource"];
-      const h = db();
-      if (typeof fn === "function" && h)
-        source = (fn as (c: { db: ScopedDb }, id: string) => typeof source)({ db: h }, use.siteId);
-    }
-    return sourceHost(source, use.siteId ?? undefined);
+  /** What the Gate knows of the site a call names (its source, stored Vault env, and where a preview was built from), read through the sites module. */
+  const siteFactsOf = (input: unknown): SiteFacts | null => {
+    const i = (input ?? {}) as { siteId?: unknown; branch?: unknown };
+    const fn = exports.get("sites")?.["siteFacts"];
+    const h = db();
+    if (typeof i.siteId !== "string" || typeof fn !== "function" || !h) return null;
+    return (fn as (c: { db: ScopedDb }, id: string, branch?: string) => SiteFacts | null)(
+      { db: h },
+      i.siteId,
+      typeof i.branch === "string" ? i.branch : undefined,
+    );
   };
   out["vault.key_host_unapproved"] = async (input, seed) => {
     if (seed.principal.kind === "person") return false;
-    // a key given to a site as env goes into the process the site runs, which an agent may have chosen the code of: it goes only where a person approved that key for that source, and anything unreadable holds
-    const env = envKeyUse(input);
-    if (env.handles.length > 0) {
-      const target = envTarget(input);
+    // a Vault key that will reach code from a source (a key given to a site as env, a site moved to another source, a preview from elsewhere promoted) goes only where a person approved that key for that source; anything this cannot read holds
+    const pairs = siteKeyPairs(input, siteFactsOf(input));
+    if (pairs.length > 0) {
       const h = db();
-      if (target === null || !h || typeof approved !== "function") return true;
+      if (!h || typeof approved !== "function") return true;
       const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
-      for (const handle of env.handles) {
-        const ref = resolveKeyRef(h, handle, asker);
+      for (const pair of pairs) {
+        if (pair.host === null) return true;
+        const ref = resolveKeyRef(h, pair.handle, asker);
         if (ref === null) return true;
         await mayUse(ref, seed, asker);
-        if (!(approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, target)) return true;
+        if (!(approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, pair.host)) return true;
       }
     }
     const use = keySendOf(input);
     // a Vault handle anywhere in the input that no known shape reads holds: the rule cannot tell where it goes
-    if (use === undefined) return env.handles.length > 0 ? false : carriesHandle(input);
+    if (use === undefined) return envHandles(input).length > 0 ? false : carriesHandle(input);
     const h = db();
     if (use.host === null || !h || typeof approved !== "function") return true;
     const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
@@ -595,21 +597,20 @@ export function moduleWhens(
     const use = keySendOf(input);
     const h = db();
     const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
-    // the keys given to a site as env: each is approved for that source, by the person who pressed yes
-    const envUse = envKeyUse(input);
-    if (envUse.handles.length > 0 && h && asker && callAs) {
-      const target = envTarget(input);
+    // the keys that were to reach code from a source: each pair is approved, by the person who pressed yes
+    const pairs = siteKeyPairs(input, siteFactsOf(input));
+    if (pairs.length > 0 && h && asker && callAs) {
       const approver = seed.approvedBy?.startsWith("usr_") ? seed.approvedBy : asker;
-      if (target !== null)
-        for (const handle of envUse.handles) {
-          const ref = resolveKeyRef(h, handle, asker);
-          if (ref !== null)
-            await callAs("automations.key_hosts.allow", { vaultItemId: ref.id, host: target }, approver).catch(
-              () => undefined,
-            );
-        }
+      for (const pair of pairs) {
+        if (pair.host === null) continue;
+        const ref = resolveKeyRef(h, pair.handle, asker);
+        if (ref !== null)
+          await callAs("automations.key_hosts.allow", { vaultItemId: ref.id, host: pair.host }, approver).catch(
+            () => undefined,
+          );
+      }
     }
-    if (use === undefined || use.host === null || !h || !asker || !callAs) return envUse.handles.length > 0;
+    if (use === undefined || use.host === null || !h || !asker || !callAs) return pairs.length > 0;
     const ref = resolveKeyRef(h, use.handle, asker);
     if (ref === null) return false;
     // through the capability the key's own page uses: it checks that the approving person may use the item. The host is recorded as approved by the person who pressed yes, not the one the agent works for

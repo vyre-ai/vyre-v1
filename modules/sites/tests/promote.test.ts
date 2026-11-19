@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { hexOf } from "../handlers/deploy.ts";
+import { dormantEnvSet, hexOf } from "../handlers/deploy.ts";
 import { githubRepo, productionHost } from "../handlers/promote.ts";
 import { handlers } from "../handlers/index.ts";
 import { SPACE_DOMAIN } from "../fixtures/fakes.ts";
@@ -69,8 +69,8 @@ function world(): World & { gh: { cap: string; input: unknown }[]; pr: PrScript;
   return Object.assign(w, { gh, pr, db });
 }
 
-async function run<T>(ctx: Ctx, cap: keyof typeof handlers, input: unknown): Promise<T> {
-  return (await (handlers[cap] as Fn)(ctx, input)) as T;
+async function run<T>(ctx: Ctx, cap: keyof typeof handlers | "sites.env_set", input: unknown): Promise<T> {
+  return (await (cap === "sites.env_set" ? (dormantEnvSet as Fn) : (handlers[cap] as Fn))(ctx, input)) as T;
 }
 
 async function code(p: Promise<unknown>): Promise<string> {

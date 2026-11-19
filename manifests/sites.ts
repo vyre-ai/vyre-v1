@@ -479,6 +479,7 @@ export default defineManifest({
         in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
         out: { deployment: dep },
         on: ["site", "/siteId"],
+        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
         perm: "sites.deploy",
         tool: "sites",
         audit: "sensitive",
