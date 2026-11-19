@@ -851,6 +851,11 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
     throw stepError("validation.bad_input", "This step cannot hold a secret. Use the connection.", false);
   }
   let input: Record<string, unknown> = ad?.input ? await ad.input(i, env, call) : { ...i };
+  // choosing to send a copy that is not the exact one is a person's, made at the send; an Automation's step never carries it, so a plain copy in a step is held back whoever approves the step
+  if (cap === "esign.send" && "plainOk" in input) {
+    const { plainOk: _dropped, ...rest } = input;
+    input = rest;
+  }
   // every capability that takes a key gets the step's own, so a retry of the same attempt is the same act
   if (
     !("idempotencyKey" in input) &&

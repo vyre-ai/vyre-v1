@@ -444,3 +444,16 @@ test("a template of one line of spaces at the 1 MB limit is read in under 100 ms
     assert.ok(big / small < 10, `${label}: four times the input took ${(big / small).toFixed(1)} times as long`);
   }
 });
+
+test("a table written with Windows line ends reads as a table: the rule line ends in a carriage return and is still a rule", async () => {
+  const { parse } = await import("../handlers/vdoc.ts");
+  const kinds = (md: string) =>
+    parse(md)
+      .map((b) => b.t)
+      .join(",");
+  assert.equal(kinds("| a | b |\r\n| --- | --- |\r\n| 1 | 2 |\r\n"), "table");
+  assert.equal(kinds("| a | b |\r| --- | --- |\r| 1 | 2 |"), "table");
+  const t = parse("| a | b |\r\n|---|---|\r\n| 1 | 2 |")[0];
+  assert.ok(t && t.t === "table");
+  assert.equal(t.rows[0]!.map((c) => c.map((r) => r.text).join("")).join(","), "1,2");
+});

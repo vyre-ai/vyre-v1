@@ -953,3 +953,19 @@ test("an Automation's sign step runs as the person who built it but is not that 
     /^env_/,
   );
 });
+
+test("a person nested inside any other capability (documents.make, a step, a hook) is not the person's choice; only their own top-level call or their own Gate-resumed call is", async () => {
+  const h = await setup();
+  h.callee("documents.signing", () => ({ signers: [], places: [], plain: true }));
+  for (const cap of ["documents.make", "steps-core.run_step", "automations.fire", "esign.hook"]) {
+    const e = await h
+      .call(
+        "esign.send",
+        { fileId: FILE, signers: [ANDREA], plainOk: true, idempotencyKey: `n-${cap}` },
+        { ...dana, depth: 1, callerCap: cap },
+      )
+      .catch((x: unknown) => x);
+    assert.equal((e as { error: { code: string } }).error.code, "permission.needs_approval", cap);
+  }
+  assert.equal(h.rows("esign_envelope").length, 0);
+});

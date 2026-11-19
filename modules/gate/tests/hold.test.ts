@@ -608,3 +608,24 @@ test("a hold an agent parked for Alice is Alice's through that agent: Bob asking
   assert.deepEqual(await ids(via(alice.id)), [mine.holdId], "Alice through the agent");
   assert.deepEqual(await ids(via()), [mine.holdId], "the agent's own turn for nobody");
 });
+
+test("a held signature send of a preview copy says so on its title and its card, built from the call's own flag; an ordinary one does not", async () => {
+  const { actOf, plainCopyNote, previewBlocks } = await import("../projections.ts");
+  const act = actOf("signature_send");
+  const asked = { fileId: "fil_1", signers: [{ name: "Andrea Lindahl" }, { name: "Sam Okafor" }], plainOk: true };
+  assert.equal(
+    summaryLine(act, "esign.send", asked),
+    "Send a document for signature via esign.send as a preview copy in the plain page look",
+  );
+  assert.equal(
+    plainCopyNote(act, asked),
+    "This sends a preview copy of the file to Andrea Lindahl, Sam Okafor for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.",
+  );
+  const card = previewBlocks(act, "esign.send", asked)[0]!.data as { note?: string };
+  assert.match(String(card.note), /preview copy/);
+  const ordinary = { fileId: "fil_1", signers: [{ name: "Andrea Lindahl" }] };
+  assert.equal(summaryLine(act, "esign.send", ordinary), "Send a document for signature via esign.send");
+  assert.equal(plainCopyNote(act, ordinary), undefined);
+  assert.equal((previewBlocks(act, "esign.send", ordinary)[0]!.data as { note?: string }).note, undefined);
+  assert.equal(plainCopyNote(actOf("send"), asked), undefined, "only the signature act");
+});

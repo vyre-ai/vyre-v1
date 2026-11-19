@@ -633,6 +633,9 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
     if (Array.isArray(v)) recipients += v.length;
     else if (typeof v === "string" && v.length > 0) recipients += 1;
   }
+  // a held signature send of a copy that is not the exact one says so in its title (built here, from the call's own flag, never from the caller's words)
+  if (a.key === "signature_send" && o.plainOk === true)
+    return cut(`${a.title} via ${capName} as a preview copy in the plain page look`, 120);
   const parts = [
     a.key === "send" && (outwardOf(capName, input) === null || outwardOf(capName, input)?.channel === "event")
       ? holdTitle(capName, input, a.title)
@@ -643,6 +646,17 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
   if (typeof amount === "number" && Number.isFinite(amount))
     parts.push(`for ${amount}${typeof o.currency === "string" ? ` ${o.currency.slice(0, 3).toUpperCase()}` : ""}`);
   return cut(parts.join(" "), 120);
+}
+
+/** The sentence the card of a held signature send carries when the sender chose a preview copy: built by the server from the call's own input, so the person pressing Allow is told what it is. */
+export function plainCopyNote(a: ActDef, input: unknown): string | undefined {
+  if (a.key !== "signature_send" || !isObj(input) || input.plainOk !== true) return undefined;
+  const who = Array.isArray(input.signers)
+    ? input.signers
+        .flatMap((x) => (isObj(x) && typeof x.name === "string" && x.name !== "" ? [cut(x.name, 60)] : []))
+        .slice(0, 6)
+    : [];
+  return `This sends a preview copy of the file${who.length > 0 ? ` to ${who.join(", ")}` : ""} for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.`;
 }
 
 /** The exact preview (spec 2.14): the whole input, as the act kind's block, so the approver sees what will go out. */
@@ -670,6 +684,7 @@ export function previewBlocks(
         cap: capName,
         input,
         ...(holdId ? { holdId } : {}),
+        ...(plainCopyNote(a, input) ? { note: plainCopyNote(a, input) } : {}),
         ...(outward ? { outward: { ...outward, ...(edited ? { edited } : {}) } } : {}),
       },
     },
