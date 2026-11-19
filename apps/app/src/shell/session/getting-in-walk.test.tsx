@@ -394,6 +394,15 @@ test("one Space saved at two addresses, the used-last one dead: the list shows i
     await press(other);
     await until("si-user");
     assert.equal(textOrValue(find(root, "si-user")!), "", "no username is typed for them there");
+    // an address nothing proves to be the Space does not borrow its look: the plain host, no name from the saved Space or from the address, no picture asked for, no username
+    const screen = textOf(root);
+    assert.match(screen, /Sign in to new\.example/, "the host is the title");
+    assert.ok(!screen.includes("Northwind"), "no Space name on it");
+    assert.deepEqual(
+      asked.filter((u) => u.startsWith("https://new.example") && /image/.test(u)),
+      [],
+      "no Space picture was asked of it",
+    );
     assert.deepEqual(authed, [], "no saved sign-in went to the other address");
     assert.equal(JSON.stringify(readStoredSessions(kv)), before, "both sign-ins are still saved, unchanged");
   } finally {

@@ -320,6 +320,7 @@ function SignInScreen({
   onBack,
   onUnreachable,
   username,
+  unproven,
 }: {
   baseUrl: string;
   open: NonNullable<SessionGateProps["open"]>;
@@ -330,6 +331,8 @@ function SignInScreen({
   onUnreachable?: (found: Found) => void;
   /** The username this device last signed in with here (Your Spaces), so a remembered Space asks for the password alone. */
   username?: string | undefined;
+  /** An address nothing proves is the Space this device knows (a second saved address): its sign-in shows the plain host, never a name or picture the address supplies. */
+  unproven?: boolean;
 }): ReactElement {
   useEffect(() => {
     mark("app.usable");
@@ -382,7 +385,10 @@ function SignInScreen({
       active = false;
     };
   }, [anonymous, baseUrl]);
-  const invite = useMemo(() => signInInvite(baseUrl, options, true, true), [baseUrl, options]);
+  const invite = useMemo(() => {
+    const made = signInInvite(baseUrl, options, true, true);
+    return unproven ? { ...made, space: made.host } : made;
+  }, [baseUrl, options, unproven]);
   const [githubLine, setGithubLine] = useState<string | null>(null);
   useEffect(() => {
     const browser = globalThis as {
@@ -1441,6 +1447,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   };
   /** The address answers as a Space: go in. A saved sign-in opens it; an owner link claims it; anything else is its sign-in or its invite. */
   const enterTarget = async (target: EntryTarget, stored?: StoredSession, fresh = false): Promise<void> => {
+    setUnproven(fresh ? target.address : null);
     const have = fresh ? null : (stored ?? (target.kind === "signin" ? readStored(undefined, target.address) : null));
     if (have && target.kind === "signin") {
       await enterSaved(have);
@@ -1596,6 +1603,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   };
   /** The shell could not open a saved Space: ask where the Space is now. It answers: open once more. It moved to the relay: the browser. Else the screen with the fix. The sign-in is kept. */
   // Your Spaces opened from the failed screen of a Space: the address of that Space, while the list shows (cleared when it closes)
+  const [unproven, setUnproven] = useState<string | null>(null);
   const [underShell, setUnderShell] = useState<string | null>(null);
   useEffect(() => {
     if (!home) setUnderShell(null);
@@ -2031,13 +2039,16 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const activeAddress = desktopRoute?.address ?? connectedAddress ?? baseUrl;
   if (!activeAddress) return firstScreen;
   return (
-    <WithSpaceImage address={activeAddress}>
+    <WithSpaceImage address={unproven === activeAddress ? null : activeAddress}>
       <SignInScreen
         baseUrl={activeAddress}
+        unproven={unproven === activeAddress}
         open={open}
         onSignedIn={signedIn}
         notice={notice}
-        username={signInAs ?? rows.find((r) => r.address === activeAddress)?.username}
+        username={
+          unproven === activeAddress ? undefined : (signInAs ?? rows.find((r) => r.address === activeAddress)?.username)
+        }
         onUnreachable={(found) => landed({ kind: "signin", address: activeAddress }, found)}
         onBack={() => {
           if (returnSession) {
