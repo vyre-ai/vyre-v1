@@ -473,7 +473,7 @@ const manifest = defineManifest({
     }),
     write(
       "mail.mailbox.set_sync_state",
-      "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
+      "A connection reports its sign-in lost (error) or working again (syncing)",
       {
         in: { mailboxId: id.mailbox, state: t.enm("error", "syncing"), reason: t.opt(t.str()) },
         out: { mailbox: mailboxRow },
@@ -496,7 +496,7 @@ const manifest = defineManifest({
     }),
     write(
       "mail.connect",
-      "Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)",
+      "Connect the caller's own Gmail, Outlook or IMAP mailbox",
       {
         in: {
           provider: t.enm("google", "microsoft", "imap"),
@@ -568,7 +568,7 @@ const manifest = defineManifest({
     }),
     read(
       "mail.thread.get",
-      "Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)",
+      "Read one email thread whole, oldest first, with your role in it",
       {
         in: { threadId: t.str({ examples: ["18c2a1f04e9b"] }), images: t.opt(t.bool()) },
         out: {
@@ -727,7 +727,7 @@ const manifest = defineManifest({
         errors: ["provider.auth_failed", "provider.rate_limited"],
       },
     ),
-    write("mail.draft", "Create or update a draft (an agent draft waits for Send, Edit or Discard with a Gate line)", {
+    write("mail.draft", "Create or update a draft (an agent draft waits for a person)", {
       in: { mailboxId: id.mailbox, ...composed, to: t.opt(t.arr(recipient)), subject: t.opt(t.str()) },
       out: {
         draftId: emlId,

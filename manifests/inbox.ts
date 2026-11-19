@@ -222,7 +222,7 @@ const manifest = defineManifest({
     }),
     read(
       "inbox.threads",
-      "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
+      "A contact's email threads, newest first, each whole, with what is new and your role",
       {
         in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), images: t.opt(t.bool()), ...pageIn },
         out: {
@@ -403,7 +403,7 @@ const manifest = defineManifest({
     ),
     read(
       "inbox.thread_conversation",
-      "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
+      "The conversation of an email thread, from its provider thread id",
       {
         in: {
           threadId: t.str({
@@ -499,7 +499,7 @@ const manifest = defineManifest({
     ),
     read(
       "comms.senders.list",
-      "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "Addresses and numbers the caller can send from; one that cannot send now says usable false and why",
       {
         in: { channel: t.opt(senderChannel) },
         out: { senders: t.arr(senderRow) },
