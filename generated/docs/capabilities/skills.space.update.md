@@ -11,7 +11,7 @@ Console: fetch a Space skill again from its link or repo
 | Grant level | manage |
 | Risk | medium |
 | Resource | space |
-| Gate | connection_change when actor.kind != 'person' |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

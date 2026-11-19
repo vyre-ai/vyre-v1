@@ -1517,106 +1517,6 @@
     },
     {
       "blocks": [],
-      "cap": "access.join_share",
-      "deferred": true,
-      "description": "System: the join step of an invite that picked an agent; the new member gets the level as the inviter's act, while the inviter could still give it",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "inviter": {
-            "examples": [
-              "usr_a1b2c3"
-            ],
-            "pattern": "^usr_[a-z0-9]+$",
-            "type": "string"
-          },
-          "level": {
-            "enum": [
-              "view",
-              "use",
-              "edit",
-              "manage"
-            ],
-            "type": "string"
-          },
-          "person": {
-            "examples": [
-              "usr_a1b2c3"
-            ],
-            "pattern": "^usr_[a-z0-9]+$",
-            "type": "string"
-          },
-          "resource": {
-            "properties": {
-              "id": {
-                "examples": [
-                  "rec_a1b2c3"
-                ],
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "space",
-                  "record_type",
-                  "record",
-                  "project",
-                  "folder",
-                  "file",
-                  "channel",
-                  "thread",
-                  "inbox",
-                  "mailbox",
-                  "vault_folder",
-                  "vault_item",
-                  "automation_group",
-                  "automation",
-                  "agent",
-                  "connector",
-                  "connection",
-                  "site",
-                  "form",
-                  "kit",
-                  "terminal",
-                  "computer",
-                  "task",
-                  "run",
-                  "number",
-                  "domain",
-                  "calendar",
-                  "skill"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "id"
-            ],
-            "type": "object"
-          },
-          "source": {
-            "examples": [
-              "invite:inv_a1b2c3"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "resource",
-          "person",
-          "level",
-          "inviter",
-          "source"
-        ],
-        "type": "object"
-      },
-      "name": "access_join_share",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "access.labels.list",
       "deferred": false,
       "description": "The four sensitivity labels with rank, provider rule and laptop-sync rule",
@@ -26261,40 +26161,6 @@
     },
     {
       "blocks": [],
-      "cap": "gate.links.known",
-      "deferred": true,
-      "description": "System: did the person give this link, or did a page already read in this chat link to it",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "threads": {
-            "items": {
-              "examples": [
-                "thr_a1b2c3"
-              ],
-              "pattern": "^thr_[a-z0-9]+$",
-              "type": "string"
-            },
-            "minItems": 1,
-            "type": "array"
-          },
-          "url": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "url",
-          "threads"
-        ],
-        "type": "object"
-      },
-      "name": "gate_links_known",
-      "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "gate.rules.list",
       "deferred": false,
       "description": "List Gate rules: Space defaults, the owner floor and per-agent overrides",
@@ -41139,68 +41005,6 @@
     },
     {
       "blocks": [],
-      "cap": "members.invites.guest",
-      "deferred": true,
-      "description": "System: an email invite as a guest of one chat only, called by threads.invite_guest as the person inviting. The role is guest and the one place is the channel; a guest reads (view) or also writes (reply). No Everyone group, no home channel, no files or records",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "email": {
-            "examples": [
-              "maya@example.com"
-            ],
-            "pattern": "^[^@\\s]+@[^@\\s]+$",
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "level": {
-            "enum": [
-              "view",
-              "reply"
-            ],
-            "type": "string"
-          },
-          "scope": {
-            "properties": {
-              "id": {
-                "examples": [
-                  "chn_a1b2c3"
-                ],
-                "pattern": "^chn_[a-z0-9]+$",
-                "type": "string"
-              },
-              "type": {
-                "const": "channel",
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "id"
-            ],
-            "type": "object"
-          }
-        },
-        "required": [
-          "email",
-          "scope",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "members_invites_guest",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "members.invites.list",
       "deferred": false,
       "description": "List invites",
@@ -43389,32 +43193,6 @@
       },
       "name": "memory_profile_add",
       "planMode": "blocked",
-      "toolset": "memory",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "memory.profile.context",
-      "deferred": true,
-      "description": "The profile lines a turn loads, as the person who asked: their public part, their private part only when nobody else reads the chat, and the public part of the other people in it",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "threadId"
-        ],
-        "type": "object"
-      },
-      "name": "memory_profile_context",
-      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },

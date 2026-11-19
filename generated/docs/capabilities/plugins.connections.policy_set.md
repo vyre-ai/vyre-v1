@@ -11,7 +11,7 @@ Set who may add Space connections (admins, or whoever manages agents) and the al
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | connection_change when actor.kind != 'person' |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

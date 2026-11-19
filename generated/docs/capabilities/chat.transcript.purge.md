@@ -11,7 +11,7 @@ Remove messages and blocks older than a time from chats and channels, a batch at
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | delete when actor.kind != 'person' |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

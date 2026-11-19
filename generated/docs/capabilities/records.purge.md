@@ -11,7 +11,7 @@ Hard-delete one record for good: its fields, history, search entries and Trash r
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | delete when actor.kind != 'person' |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

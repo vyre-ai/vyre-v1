@@ -11,7 +11,7 @@ Space admins: allow or turn off hooks made by agents for the whole Space. Hooks 
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when actor.kind != 'person' |
+| Gate | approve when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

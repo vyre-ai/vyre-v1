@@ -11,7 +11,7 @@ Let a hook that stopped something go by, once, in this chat: the next time it wo
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when actor.kind != 'person' |
+| Gate | approve when actor.kind == 'agent' |
 | Idempotency | none |
 | Offline | online |
 | Audit | always |

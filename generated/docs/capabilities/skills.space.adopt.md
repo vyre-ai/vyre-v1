@@ -11,7 +11,7 @@ Console: make a skill a member shared Space-wide, so it applies to everyone with
 | Grant level | manage |
 | Risk | medium |
 | Resource | space |
-| Gate | connection_change when actor.kind != 'person' |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

@@ -11,7 +11,7 @@ Console: give the tool servers of a Space skill their Vault keys
 | Grant level | manage |
 | Risk | medium |
 | Resource | space |
-| Gate | connection_change when actor.kind != 'person' |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

@@ -11,7 +11,7 @@ Erase one call for good: its transcript, summary and recording file (governance 
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | delete when actor.kind != 'person' |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

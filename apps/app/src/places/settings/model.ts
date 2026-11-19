@@ -16,6 +16,7 @@ export type YouPage =
   | "connected"
   | "mail"
   | "signin"
+  | "outside"
   | "computer"
   | "about";
 export type SpacePage = "space" | "people" | "agents" | "data" | "apps" | "advanced";
@@ -44,6 +45,7 @@ export const PAGES: readonly PageDef[] = [
   { key: "appearance", title: "Appearance", group: "you", icon: "palette", pages: [] },
   { key: "computer", title: "This device", group: "you", icon: "laptop", pages: ["This computer"] },
   { key: "signin", title: "Privacy and security", group: "you", icon: "key", pages: ["Sign-in and devices"] },
+  { key: "outside", title: "Connected apps", group: "you", icon: "link", pages: [] },
   { key: "memory", title: "Memory and privacy", group: "you", icon: "lock", pages: [], hidden: true },
   { key: "notes", title: "Notes", group: "you", icon: "doc", pages: ["Notes"], hidden: true },
   { key: "skills", title: "Skills", group: "you", icon: "spark", pages: ["Skills"], hidden: true },
@@ -67,6 +69,7 @@ export const PAGE_SUB: Readonly<Partial<Record<PageKey, string>>> = {
   appearance: "How Vyre looks for you.",
   computer: "This computer and what Vyre can do on it.",
   signin: "Your password, two-step sign-in and where you are signed in.",
+  outside: "Apps that work in this Space as you.",
   connected: "Your app connections live in Vault now.",
   mail: "Add an inbox or a calendar from Inbox.",
 };
@@ -148,6 +151,7 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   connected: [],
   mail: [],
   signin: [],
+  outside: [],
   computer: [],
   about: [],
 };
@@ -723,6 +727,7 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
     sub: "Touch ID and security keys",
     words: "second factor biometric",
   },
+  { key: "outside.apps", page: "outside", title: "Connected apps", sub: "Claude, ChatGPT, Cursor and other apps that work as you", words: "mcp claude chatgpt cursor connect app agent" },
   { key: "signin.devs", page: "signin", title: "Devices", sub: "Where you are signed in", words: "computers sign out" },
   { key: "signin.spaces", page: "signin", title: "Your Spaces", sub: "Open or leave a Space", words: "switch leave" },
   {

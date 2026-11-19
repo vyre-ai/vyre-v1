@@ -11,7 +11,7 @@ Remove a Browser connection
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | connection_change when actor.kind != 'person' |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

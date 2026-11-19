@@ -11,7 +11,7 @@ A person's press gives a Space Automation use of the mailboxes and numbers its s
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | signin_change when actor.kind != 'person' |
+| Gate | signin_change when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

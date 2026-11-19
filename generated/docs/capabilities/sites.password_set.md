@@ -11,7 +11,7 @@ Set the password visitors type to open a site whose access is password. Kept onl
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | signin_change when actor.kind != 'person' |
+| Gate | signin_change when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

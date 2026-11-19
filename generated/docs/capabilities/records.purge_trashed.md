@@ -11,7 +11,7 @@ Hard-delete records that have been in Trash since before a time (retention)
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | delete when actor.kind != 'person' |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

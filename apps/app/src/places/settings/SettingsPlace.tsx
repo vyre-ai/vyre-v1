@@ -399,9 +399,10 @@ function SettingsBody(props: SettingsProps): ReactElement {
           <>
             <SignInPage />
             <SignInApps />
-            <OutsideAgents />
           </>
         );
+      case "outside":
+        return <OutsideAgents />;
       case "computer":
         return (
           <>

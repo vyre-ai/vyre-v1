@@ -16,9 +16,9 @@ const CALLS: Array<{ act: string; cap: string; tool: string; args: Record<string
   },
   {
     act: "signin_change",
-    cap: "members.invites.guest",
-    tool: "members_invites_guest",
-    args: { email: "guest@walk.test", level: "view", scope: { type: "channel", id: "<made below>" }, idempotencyKey: "h-guest" },
+    cap: "sites.password_set",
+    tool: "sites_password_set",
+    args: { siteId: "<made below>", password: "a-long-password-1" },
   },
   { act: "approve", cap: "hooks.pause", tool: "hooks_pause", args: { id: "hook_walk1", paused: true } },
 ];
@@ -35,12 +35,15 @@ withSpace(
       clientInfo: { name: "claude-code", version: "2.1" },
     });
     const taskOf: Record<string, string> = {};
-    const ch = expectStatus(
-      await s.call("channels.create", owner, { name: "walk-channel", visibility: "public", idempotencyKey: "h-chan" }),
+    // a site the person owns and shares with the whole Space, so the agent acting for them may open it
+    const tree = expectStatus(await s.call("files.tree", owner, {}), 200, "files.tree").roots as Json[];
+    const folderId = tree.find((r) => r.key === "personal")!.folderId as string;
+    const made = expectStatus(
+      await s.call("sites.create", owner, { name: "Walk site", access: "space", folderId, idempotencyKey: "h-site" }),
       200,
-      "channels.create",
+      "sites.create",
     );
-    CALLS[2]!.args["scope"] = { type: "channel", id: (ch.channel?.channelId ?? ch.channelId ?? ch.channel?.id) as string };
+    CALLS[2]!.args["siteId"] = (made.site?.siteId ?? made.siteId) as string;
     for (const k of CALLS) {
       // deferred tools are found first, then called
       const found = (await c.tool("tool_search", { query: k.tool.replace(/_/g, " ") })).json.result.structuredContent.data
@@ -58,7 +61,7 @@ withSpace(
     for (const k of CALLS) {
       const h = holds.find((x) => x.capName === k.cap);
       assert.ok(h, `a held card for ${k.cap}: ${JSON.stringify(holds.map((x) => x.capName))}`);
-      assert.equal(h.askedBy?.id, agentId, `${k.cap} is held as the agent: ${JSON.stringify(h).slice(0, 500)}`);
+      assert.equal(h.askedBy?.id ?? h.principal?.id, agentId, `${k.cap} is held as the agent: ${JSON.stringify(h).slice(0, 500)}`);
       taskOf[k.cap] = h.taskId;
     }
     // it cannot answer its own holds
@@ -83,7 +86,7 @@ withSpace(
     // the ones nobody answered are still waiting, and nothing ran
     const still = expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list")
       .holds as Json[];
-    assert.deepEqual(still.map((x) => x.capName).sort(), ["hooks.pause", "members.invites.guest"]);
+    assert.deepEqual(still.map((x) => x.capName).sort(), ["hooks.pause", "sites.password_set"]);
     // the same capability pressed by a person is never held
     const mine = await s.call("skills.policy.set", owner, { scriptsAdminOnly: false, idempotencyKey: "h-person" });
     assert.notEqual(mine.status, 202, "a person's own press runs at once");

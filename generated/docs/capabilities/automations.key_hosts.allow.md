@@ -11,7 +11,7 @@ A person who may use a Vault key approves one host it may be sent to. A person o
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | connection_change when actor.kind != 'person' |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

@@ -919,6 +919,10 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
         { agentId: "agt_chatgpt", clientName: "ChatGPT", connectedAt: SAMPLE_NOW - 30 * 3_600_000, calls: 0, setup: false },
       ],
     }),
+    "mcp.connected.link": () => ({
+      url: "https://northwind.vyre.run/mcp",
+      claudeCode: "claude mcp add --transport http vyre https://northwind.vyre.run/mcp",
+    }),
     "mcp.activity.list": () => ({
       rows: [
         { id: "mca_1", tool: "tasks_create", cap: "tasks.create", outcome: "ok", did: "Added a task", at: SAMPLE_NOW - 120_000 },

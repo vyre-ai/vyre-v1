@@ -37,7 +37,7 @@ test("a tool that deletes, erases or changes access, a connection or a key is he
     assert.ok(c, `${cap} is in MCP_HELD and is not a capability`);
     assert.ok(MCP_TOOLS[cap], `${cap} is held and is not a tool`);
     assert.equal(c.gate?.act, act, `${cap} should be held as ${act}`);
-    assert.match(c.gate?.when ?? "", /actor\.kind != 'person'/, `${cap} holds an agent, never a person's own press`);
+    assert.match(c.gate?.when ?? "", /actor\.kind == 'agent'/, `${cap} holds an agent, never a person or the host's own press`);
   }
   // every tool that writes at high risk has a gate that is not "none"
   for (const cap of Object.keys(MCP_TOOLS)) {

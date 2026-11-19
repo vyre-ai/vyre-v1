@@ -11,7 +11,7 @@ Console: who may add skills that run scripts or start tool servers (everyone, th
 | Grant level | manage |
 | Risk | medium |
 | Resource | space |
-| Gate | connection_change when actor.kind != 'person' |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

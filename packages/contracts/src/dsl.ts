@@ -219,7 +219,7 @@ function makeCap(kind: CapabilityDef["effects"], name: string, summary: string, 
   const heldAct = MCP_HELD[name];
   const gate =
     o.gate === undefined && heldAct !== undefined
-      ? { act: heldAct, when: "actor.kind != 'person'" }
+      ? { act: heldAct, when: "actor.kind == 'agent'" }
       : o.gate === undefined ? undefined : typeof o.gate === "string" ? { act: o.gate } : o.gate;
   const surfaces: CapabilityDef["surfaces"] = { http: o.http ?? "auto" };
   // the capabilities that became tools afterwards (mcp-coverage.ts) are found with tool_search, never in the short default list

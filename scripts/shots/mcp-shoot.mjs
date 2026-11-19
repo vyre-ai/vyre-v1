@@ -36,7 +36,7 @@ for (const [part, steps] of Object.entries(STEPS))
       const page = await ctx.newPage();
       const errs = [];
       page.on("pageerror", (e) => errs.push(String(e)));
-      const url = routeUrl(real.origin, "/m/SETTINGSAPP_01?part=signin", skin);
+      const url = routeUrl(real.origin, "/m/SETTINGSAPP_01?part=outside", skin);
       await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
       let found = true;
       await page.waitForSelector(row("outside.agt_claude"), { timeout: 20000 }).catch(() => (found = false));

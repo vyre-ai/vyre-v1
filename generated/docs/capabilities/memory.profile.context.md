@@ -17,7 +17,7 @@ The profile lines a turn loads, as the person who asked: their public part, thei
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/memory/profile/context |
-| MCP tool | memory_profile_context (memory, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

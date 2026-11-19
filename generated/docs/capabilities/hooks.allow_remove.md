@@ -11,7 +11,7 @@ Take an always-allow rule away: the hook guards that kind of act again
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when actor.kind != 'person' |
+| Gate | approve when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

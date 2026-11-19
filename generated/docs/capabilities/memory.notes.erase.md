@@ -11,7 +11,7 @@ Erase one memory note for good, with its graph node and links (governance erase)
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | delete when actor.kind != 'person' |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

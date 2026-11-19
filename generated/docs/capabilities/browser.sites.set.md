@@ -11,7 +11,7 @@ Add a Browser connection, or change one: where it runs and which agents may Read
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | connection_change when actor.kind != 'person' |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | sensitive |

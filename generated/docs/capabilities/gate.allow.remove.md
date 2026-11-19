@@ -11,7 +11,7 @@ Take an Always allow rule or an automation's permission back. It stops at the ne
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when actor.kind != 'person' |
+| Gate | approve when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

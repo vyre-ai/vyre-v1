@@ -125,16 +125,6 @@
   "access_groups_update": {
     "groupId": "grp_a1b2c3"
   },
-  "access_join_share": {
-    "resource": {
-      "type": "space",
-      "id": "rec_a1b2c3"
-    },
-    "person": "usr_a1b2c3",
-    "level": "view",
-    "inviter": "usr_a1b2c3",
-    "source": "invite:inv_a1b2c3"
-  },
   "access_labels_list": {},
   "access_labels_set": {
     "resource": {
@@ -2203,12 +2193,6 @@
     "holdId": "hld_a1b2c3"
   },
   "gate_holds_list": {},
-  "gate_links_known": {
-    "url": "https://acme.test/plan",
-    "threads": [
-      "thr_a1b2c3"
-    ]
-  },
   "gate_rules_list": {},
   "gate_rules_set": {
     "act": "send",
@@ -3363,13 +3347,6 @@
     "inviteId": "inv_a1b2c3",
     "expiresInDays": 1
   },
-  "members_invites_guest": {
-    "email": "dana@acme.test",
-    "scope": {
-      "type": "channel",
-      "id": "chn_a1b2c3"
-    }
-  },
   "members_invites_list": {},
   "members_invites_revoke": {
     "inviteId": "inv_a1b2c3"
@@ -3544,7 +3521,6 @@
     "text": "Here is the summary you asked for.",
     "to": "public"
   },
-  "memory_profile_context": {},
   "memory_profile_move": {
     "factId": "fct_a1b2c3",
     "to": "public"

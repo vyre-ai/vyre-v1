@@ -11,7 +11,7 @@ Always allow: a rule the Gate reads, for one agent or one chat, one act and one 
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when actor.kind != 'person' |
+| Gate | approve when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

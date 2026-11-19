@@ -11,7 +11,7 @@ Erase one chat thread for good: messages, blocks, pins, reactions, attachment li
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | delete when actor.kind != 'person' |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

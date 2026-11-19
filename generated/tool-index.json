@@ -157,12 +157,6 @@
       "toolset": "engineer"
     },
     {
-      "deferred": true,
-      "name": "access_join_share",
-      "summary": "System: the join step of an invite that picked an agent; the new member gets the level as the inviter's act, while the inviter could still give it",
-      "toolset": "engineer"
-    },
-    {
       "deferred": false,
       "name": "access_labels_list",
       "summary": "The four sensitivity labels with rank, provider rule and laptop-sync rule",
@@ -3841,12 +3835,6 @@
       "toolset": "meta"
     },
     {
-      "deferred": true,
-      "name": "gate_links_known",
-      "summary": "System: did the person give this link, or did a page already read in this chat link to it",
-      "toolset": "engineer"
-    },
-    {
       "deferred": false,
       "name": "gate_rules_list",
       "summary": "List Gate rules: Space defaults, the owner floor and per-agent overrides",
@@ -5869,12 +5857,6 @@
       "toolset": "meta"
     },
     {
-      "deferred": true,
-      "name": "members_invites_guest",
-      "summary": "System: an email invite as a guest of one chat only, called by threads.invite_guest as the person inviting. The role is guest and the one place is the channel; a guest reads (view) or also writes (reply). No Everyone group, no home channel, no files or records",
-      "toolset": "engineer"
-    },
-    {
       "deferred": false,
       "name": "members_invites_list",
       "summary": "List invites",
@@ -6256,12 +6238,6 @@
       "deferred": true,
       "name": "memory_profile_add",
       "summary": "Add a fact about yourself to your public or private profile",
-      "toolset": "memory"
-    },
-    {
-      "deferred": true,
-      "name": "memory_profile_context",
-      "summary": "The profile lines a turn loads, as the person who asked: their public part, their private part only when nobody else reads the chat, and the public part of the other people in it",
       "toolset": "memory"
     },
     {

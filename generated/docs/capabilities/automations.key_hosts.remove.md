@@ -11,7 +11,7 @@ A person who may use a Vault key removes a host it was approved for. The next us
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | connection_change when actor.kind != 'person' |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

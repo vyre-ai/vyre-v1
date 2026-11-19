@@ -11,7 +11,7 @@ Deny: the stop stands. The stop line is marked for everyone in the chat and the 
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when actor.kind != 'person' |
+| Gate | approve when actor.kind == 'agent' |
 | Idempotency | none |
 | Offline | online |
 | Audit | always |

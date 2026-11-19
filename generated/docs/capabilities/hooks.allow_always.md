@@ -11,7 +11,7 @@ Always allow: from now on this hook lets the same kind of act (the one its newes
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | approve when actor.kind != 'person' |
+| Gate | approve when actor.kind == 'agent' |
 | Idempotency | none |
 | Offline | online |
 | Audit | always |

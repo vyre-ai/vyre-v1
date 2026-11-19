@@ -11,13 +11,13 @@ System: the join step of an invite that picked an agent; the new member gets the
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | signin_change when actor.kind != 'person' |
+| Gate | none |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/access/join_share |
-| MCP tool | access_join_share (engineer, deferred) |
+| MCP tool | none |
 | CLI | none |
 | Emits | grant.created, access.changed |
 
