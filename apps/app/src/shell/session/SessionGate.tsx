@@ -1566,7 +1566,6 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     const target: EntryTarget = { kind: "signin", address: row.address };
     if (row.state === "in" && row.session) {
       shellRetried.current.delete(row.address);
-      nearbyTried.current.clear();
       await enterSaved(row.session);
       return;
     }
@@ -1596,36 +1595,21 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     }
   };
   /** The shell could not open a saved Space: ask where the Space is now. It answers: open once more. It moved to the relay: the browser. Else the screen with the fix. The sign-in is kept. */
-  /** A Space with two saved addresses whose used-last one does not answer: the other is asked, and when it answers its sign-in opens (never its saved token). An address is tried at most once a minute, so two flaky ones never trade places, and a later failure tries it again. The person may have moved on while it was asked: then nothing opens. */
+  // Your Spaces opened from the failed screen of a Space: the address of that Space, while the list shows (cleared when it closes)
   const [underShell, setUnderShell] = useState<string | null>(null);
   useEffect(() => {
     if (!home) setUnderShell(null);
   }, [home]);
-  const nearbyTried = useRef(new Map<string, number>());
-  const homeNow = useRef(home);
-  homeNow.current = home;
-  const tryNearby = async (stored: StoredSession): Promise<boolean> => {
-    const still = (): boolean =>
-      phaseNow.current.kind === "shell" && phaseNow.current.stored.baseUrl === stored.baseUrl && !homeNow.current;
-    const now = Date.now();
-    nearbyTried.current.set(stored.baseUrl, now);
-    for (const other of siblingSessions(stored)) {
-      if (now - (nearbyTried.current.get(other.baseUrl) ?? 0) < 60_000) continue;
-      nearbyTried.current.set(other.baseUrl, now);
-      const found = await findSpaceQuietly(other.baseUrl).catch(() => OFFLINE);
-      if (!still()) return true;
-      if (found.kind !== "direct") continue;
-      // A Space id is public: any server can say it, so naming the same id proves nothing and a saved sign-in is never sent to an address on that word. The person gets the Space's own sign-in
-      // there instead (its name and picture, their username already typed) and signs in with their password. The saved sign-in stays where it is, unused. (A signed proof of the Space's identity
-      // would let this open with one press; the product has no such proof yet.)
-      const named = await spaceIdAt(other.baseUrl);
-      if (named === null || named !== stored.def.spaceId || named !== other.def.spaceId) continue;
-      if (!still()) return true;
-      setSignInAs(other.username);
+  /** A Space saved at two addresses whose used-last one is not answering: the person may press the other. Its own sign-in opens (the address named on the button; no username typed for them), never the saved token, and only when that address answers as a Space naming the same id. (A Space id is public, so this guards an accident, not an attack; the person decides and sees the address.) */
+  const useNearby = async (from: StoredSession, other: StoredSession): Promise<void> => {
+    const found = await findSpaceQuietly(other.baseUrl).catch(() => OFFLINE);
+    const named = found.kind === "direct" ? await spaceIdAt(other.baseUrl) : null;
+    if (found.kind === "direct" && named === from.def.spaceId && named === other.def.spaceId) {
+      setSignInAs(undefined);
       await enterTarget({ kind: "signin", address: other.baseUrl }, undefined, true);
-      return true;
+      return;
     }
-    return false;
+    landed({ kind: "signin", address: other.baseUrl }, found.kind === "direct" ? { kind: "there" } : found, other);
   };
   const shellUnreachable = (stored: StoredSession): void => {
     if (isLoopbackUrl(stored.baseUrl)) return;
@@ -1642,10 +1626,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           setShellTry((n) => n + 1);
           return;
         }
-        void tryNearby(stored).then((went) => {
-          if (!went && phaseNow.current.kind === "shell")
-            landed({ kind: "signin", address: stored.baseUrl }, found, stored);
-        });
+        landed({ kind: "signin", address: stored.baseUrl }, found, stored);
       });
   };
   const invoke = (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
@@ -1898,6 +1879,12 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           reconnecting={troubleBusy}
           onRetry={() => void retryTrouble()}
           {...(oldData ? { onClear: () => void clearOld() } : {})}
+          {...(trouble.stored && siblingSessions(trouble.stored)[0]
+            ? {
+                onOther: () => void useNearby(trouble.stored!, siblingSessions(trouble.stored!)[0]!),
+                otherLabel: `Sign in at ${spaceHost(siblingSessions(trouble.stored)[0]!.baseUrl)}`,
+              }
+            : {})}
           {...(bridge && !isLoopbackUrl(trouble.target.address)
             ? {
                 // a relay Space lives in the browser from now on; any other is only looked at there, and stays what it was here
@@ -1935,7 +1922,6 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           onSwitchSpace={(id) => void switchSpace(id)}
           onYourSpaces={() => {
             setUnderShell(phase.stored.baseUrl);
-            nearbyTried.current.clear();
             giDo({ e: "list" });
           }}
           onAddSpace={() => {
