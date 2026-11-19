@@ -102,7 +102,11 @@ test("a report queued before the session opened is sent once it opens, not left 
     await act(async () => {
       r.render(<ReportHost call={null} place="files" />);
     });
-    win.dispatchEvent(Object.assign(new Event(REPORT_PROBLEM_EVENT), { detail: { traceId: "tr_q", message: "Could not reach the Space" } }));
+    win.dispatchEvent(
+      Object.assign(new Event(REPORT_PROBLEM_EVENT), {
+        detail: { traceId: "tr_q", message: "Could not reach the Space" },
+      }),
+    );
     await flush();
     await press(find(r.container as never, "report-send"));
     await flush();
@@ -112,7 +116,11 @@ test("a report queued before the session opened is sent once it opens, not left 
     });
     await flush();
     await flush();
-    assert.equal(calls.filter((c) => c === "reports.submit").length, 1, "the queued report went once the session opened");
+    assert.equal(
+      calls.filter((c) => c === "reports.submit").length,
+      1,
+      "the queued report went once the session opened",
+    );
   } finally {
     delete (globalThis as { window?: unknown }).window;
     restore();
