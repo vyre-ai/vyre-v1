@@ -22340,6 +22340,7 @@ export type IdentityGithubLinkOut = {
 };
 export type IdentityGithubSignInIn = {
   code: string;
+  verifier?: string;
   deviceName: string;
   deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
 };
@@ -22443,6 +22444,7 @@ export type IdentityLinkAccountOut = {
 };
 export type IdentityPairCreateIn = {
   purpose: "app" | "phone" | "extension" | "daemon";
+  challenge?: string;
   idempotencyKey: string;
 };
 export type IdentityPairCreateOut = {

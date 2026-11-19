@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { currentSignInPolicy, assertSignInPolicy } from "../policy.ts";
 import { carriedFor } from "./carry.ts";
 // Sign-in, second factor, GitHub, pairing, sessions and the TOTP factor (spec 3.13, 2.25). Passkeys are deferred (fork F-A); SSO is reserved.
@@ -262,20 +263,41 @@ const PAIR_CLASSES: Record<string, readonly string[]> = {
   app: ["desktop", "web", "phone"],
 };
 
-export async function pairCreate(ctx: IdentityCtx, input: { purpose: "app" | "phone" | "extension" | "daemon" }) {
+/** A code made for the extension may be bound to a value only that extension holds: the code is kept with the hash of it, and redeeming needs the value itself. Someone who reads the code off a screen cannot use it. */
+const BOUND = "#";
+const sha256hex = (v: string): string => crypto.createHash("sha256").update(v, "utf8").digest("hex");
+
+export async function pairCreate(
+  ctx: IdentityCtx,
+  input: { purpose: "app" | "phone" | "extension" | "daemon"; challenge?: string },
+) {
   const a = me(ctx);
   const code = pairCode();
-  const expiresAt = putCode(ctx, "pair", a.person_id, normCode(code), PAIR_TTL_MS, input.purpose);
+  if (input.challenge !== undefined && input.purpose !== "extension")
+    raise(ctx.trace.traceId, "validation.bad_input", "only a code for the extension is bound to a value");
+  const stored = input.challenge ? `${input.purpose}${BOUND}${input.challenge.toLowerCase()}` : input.purpose;
+  const expiresAt = putCode(ctx, "pair", a.person_id, normCode(code), PAIR_TTL_MS, stored);
   return { code, expiresAt };
 }
 
-export async function pairRedeem(ctx: IdentityCtx, input: Device & { code: string }): Promise<SignInOut> {
+export async function pairRedeem(
+  ctx: IdentityCtx,
+  input: Device & { code: string; verifier?: string },
+): Promise<SignInOut> {
   let spent: { personId: string; purpose: string | null };
   try {
     // the purpose is checked before the code is spent: a code for one kind of device is refused for another, and stays good for the right one
     const peeked = peekCode(ctx, "pair", normCode(input.code));
-    if (peeked.purpose !== null && !(PAIR_CLASSES[peeked.purpose] ?? []).includes(input.deviceClass))
+    const [purpose, bound] = peeked.purpose === null ? [null, null] : peeked.purpose.split(BOUND);
+    if (purpose !== null && !(PAIR_CLASSES[purpose] ?? []).includes(input.deviceClass))
       raise(ctx.trace.traceId, "auth.invalid_code");
+    // a bound code opens only for the one who holds the value it was bound to; a wrong or missing value spends nothing, so the real extension can still redeem it
+    if (bound) {
+      const given = typeof input.verifier === "string" ? sha256hex(input.verifier) : "";
+      const a = Buffer.from(given.padEnd(64, "0").slice(0, 64));
+      const b = Buffer.from(bound.padEnd(64, "0").slice(0, 64));
+      if (given.length !== 64 || !crypto.timingSafeEqual(a, b)) raise(ctx.trace.traceId, "auth.invalid_code");
+    }
     spent = spendCode(ctx, "pair", normCode(input.code));
   } catch (e) {
     noteFail(ctx, undefined, "pair", "bad_code");

@@ -14,6 +14,8 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
+import { provisionAccount } from "../../modules/identity/projections.ts";
+import type { IdentityCtx } from "../../modules/identity/projections.ts";
 import { issueSessionToken } from "../src/daemon/session.ts";
 import { CHROME_SOCKET_PATH } from "../src/routes/chrome-direct.ts";
 
@@ -451,6 +453,131 @@ test("login.check answers known, changed or new for a submitted login, with the 
     const empty = await check({ origin: "https://app.fieldbook.example", username: "x", password: "" });
     assert.equal(empty["ok"], false, "an empty password is refused, not guessed");
     ext.end();
+  } finally {
+    await d.stop();
+  }
+});
+
+test("a pair code made for the extension is bound to a value the extension holds: read off a screen it opens nothing, it works once, and it dies at its time", async () => {
+  const d = await boot();
+  try {
+    // pairing is an account's act: the owner has a password account here, and a session of her own
+    await provisionAccount(
+      {
+        space: "spc_core",
+        trace: { traceId: "t".repeat(32) },
+        now: () => Date.now(),
+        db: d.db,
+        emit: () => undefined,
+      } as unknown as IdentityCtx,
+      { personId: "usr_olivia", username: "pairolivia", name: "Olivia", secret: "correct horse battery staple 9" },
+    );
+    const owner = signIn(d, "usr_olivia", "olivia3");
+    const secret = "extension-held-value-" + "x".repeat(24);
+    const challenge = (await import("node:crypto")).createHash("sha256").update(secret).digest("hex");
+    const anon = async (cap: string, input: Record<string, unknown>) => {
+      const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const body = (await r.json()) as { data?: any; error?: any };
+      return { status: r.status, data: body.data, error: body.error };
+    };
+    const device = { deviceName: "Chrome on this computer", deviceClass: "extension" };
+    const make = async (extra: Record<string, unknown> = {}) => {
+      const m = await call(d, owner, "identity.pair_create", {
+        purpose: "extension",
+        idempotencyKey: `pc-${Math.random()}`,
+        ...extra,
+      });
+      assert.equal(m.status, 200, JSON.stringify(m.error));
+      return m.data.code as string;
+    };
+
+    // a code bound to the extension's value: no value, or the wrong one, opens nothing and spends nothing
+    const code = await make({ challenge });
+    assert.notEqual(
+      (await anon("identity.pair_redeem", { code, ...device })).status,
+      200,
+      "the code alone is not enough",
+    );
+    assert.notEqual(
+      (await anon("identity.pair_redeem", { code, verifier: "a-value-somebody-guessed-1", ...device })).status,
+      200,
+    );
+    const ok = await anon("identity.pair_redeem", { code, verifier: secret, ...device });
+    assert.equal(ok.status, 200, JSON.stringify(ok.error));
+    // the session it made is the extension's own, and the socket takes it as that person
+    const ext = await connect(d, ok.data.session.token);
+    assert.equal((await ext.next("ready", (m) => m["type"] === "ready"))["person"], "usr_olivia");
+    ext.end();
+    // it works once
+    assert.notEqual((await anon("identity.pair_redeem", { code, verifier: secret, ...device })).status, 200, "spent");
+
+    // a code for another kind of device does not open as the extension, even with the value
+    const phone = await call(d, owner, "identity.pair_create", { purpose: "phone", idempotencyKey: "pc-phone" });
+    assert.notEqual(
+      (await anon("identity.pair_redeem", { code: phone.data.code, verifier: secret, ...device })).status,
+      200,
+    );
+    // only a code for the extension can be bound
+    assert.notEqual(
+      (await call(d, owner, "identity.pair_create", { purpose: "phone", challenge, idempotencyKey: "pc-bad" })).status,
+      200,
+    );
+  } finally {
+    await d.stop();
+  }
+});
+
+test("a pair code dies at its time, and a code with no value bound still works as the desktop app uses it", async () => {
+  const d = await boot();
+  try {
+    // pairing is an account's act: the owner has a password account here, and a session of her own
+    await provisionAccount(
+      {
+        space: "spc_core",
+        trace: { traceId: "t".repeat(32) },
+        now: () => Date.now(),
+        db: d.db,
+        emit: () => undefined,
+      } as unknown as IdentityCtx,
+      { personId: "usr_olivia", username: "pairolivia2", name: "Olivia", secret: "correct horse battery staple 9" },
+    );
+    const owner = signIn(d, "usr_olivia", "olivia4");
+    const secret = "extension-held-value-" + "x".repeat(24);
+    const challenge = (await import("node:crypto")).createHash("sha256").update(secret).digest("hex");
+    const anon = async (cap: string, input: Record<string, unknown>) => {
+      const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const body = (await r.json()) as { data?: any; error?: any };
+      return { status: r.status, data: body.data, error: body.error };
+    };
+    const device = { deviceName: "Chrome on this computer", deviceClass: "extension" };
+    const make = async (extra: Record<string, unknown> = {}) => {
+      const m = await call(d, owner, "identity.pair_create", {
+        purpose: "extension",
+        idempotencyKey: `pc-${Math.random()}`,
+        ...extra,
+      });
+      assert.equal(m.status, 200, JSON.stringify(m.error));
+      return m.data.code as string;
+    };
+
+    // it dies at its time
+    const late = await make({ challenge });
+    d.db!.run(`UPDATE identity_codes SET expires_at = ? WHERE used_at IS NULL AND kind = 'pair'`, Date.now() - 1000);
+    const gone = await anon("identity.pair_redeem", { code: late, verifier: secret, ...device });
+    assert.notEqual(gone.status, 200);
+    assert.match(JSON.stringify(gone.error), /expired/);
+
+    // an unbound code still works as it always did (the desktop app's own flow)
+    const plain = await make();
+    assert.equal((await anon("identity.pair_redeem", { code: plain, ...device })).status, 200);
   } finally {
     await d.stop();
   }
