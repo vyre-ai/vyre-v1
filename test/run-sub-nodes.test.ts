@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "../modules/runs/fixtures/db.ts";
-import { createSubNodes } from "../modules/engine/sub-nodes.ts";
+import { createSubNodes, iconOf } from "../modules/engine/sub-nodes.ts";
 
 const host = { id: "svc_host", kind: "service" as const };
 const THREAD = `thr_${"a".repeat(32)}`;
@@ -132,4 +132,44 @@ test("a call that fails is logged and never thrown, and a stream with no person 
   const w = await world();
   await w.mk().feed({ ...call("toolu_a"), asker: "" });
   assert.equal(w.rows().length, 0);
+});
+
+test("the step of the turn and of a subagent is one plain line with an icon, a touched file in it; a subagent's tool goes to the subagent, the turn's own to the turn", async () => {
+  const w = await world();
+  const f = createSubNodes({
+    call: async (cap, input) => {
+      if (cap === "runs.node.start") w.h.advance(1);
+      return w.h.call(cap, input, host);
+    },
+    nodeFor: (turnId) => (turnId === "trn_1" ? w.turn.id : undefined),
+    nameOf: async () => "Calder",
+  });
+  await f.feed({ kind: "step", phase: "call", id: "t1", name: "Read", ...base });
+  await f.feed({ kind: "step", phase: "input", id: "t1", detail: "prices.xlsx", ...base });
+  await f.feed(call("toolu_a"));
+  await f.feed({ kind: "step", phase: "call", id: "t2", name: "WebSearch", parent: "toolu_a", ...base });
+  const step = (id: string) =>
+    JSON.parse(
+      String(
+        (w.h.sqlite.prepare("SELECT step_json FROM runs_node WHERE run_id = ?").get(id) as { step_json: string })
+          .step_json,
+      ),
+    );
+  assert.deepEqual(step(w.turn.id), { icon: "read", text: "Reading prices.xlsx" });
+  const sub = w.rows()[0]!;
+  assert.deepEqual(step(sub.run_id), { icon: "web", text: "Searching the web" });
+  assert.equal(
+    (w.h.sqlite.prepare("SELECT who_name FROM runs_node WHERE run_id = ?").get(sub.run_id) as { who_name: string })
+      .who_name,
+    "Calder",
+  );
+});
+
+test("icons by family of tool", () => {
+  assert.deepEqual(
+    ["Read", "WebFetch", "Bash", "Edit", "Agent", "tool_search", "calendar_create", "mail_send", "records_query"].map(
+      iconOf,
+    ),
+    ["read", "web", "term", "edit", "kid", "find", "cal", "send", "think"],
+  );
 });

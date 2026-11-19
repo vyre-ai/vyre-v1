@@ -3,6 +3,7 @@
 // DECISION: the node is made at the call, so a tile can say Starting at once; the task line (the first input of the call) names it; its result ends it. A subagent launched in the background has no answer yet: its node stays
 // running until its own end (not read here: that comes later and ends it through the Run engine's task path).
 import type { StreamEvent } from "./handlers/bridge.ts";
+import { stepClass, stepWords } from "../../lib/plain-words.ts";
 
 type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 type Step = Extract<StreamEvent, { kind: "step" }>;
@@ -10,10 +11,33 @@ type Sub = Extract<StreamEvent, { kind: "sub" }>;
 const SUBAGENT_CALL = /^(Agent|Task)$/;
 const cut = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1)}…`);
 
+/** The icon a tile draws for a step: from the plain family of the tool. */
+export function iconOf(
+  tool: string,
+): "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid" {
+  const c = stepClass(tool);
+  if (c === "Read") return "read";
+  if (c === "WebFetch" || c === "WebSearch") return "web";
+  if (c === "Bash") return "term";
+  if (c === "Edit") return "edit";
+  if (c === "Agent") return "kid";
+  if (c === "tool_search") return "find";
+  const t = tool.replace(/^mcp__.+?__/, "");
+  if (/calendar|event/i.test(t)) return "cal";
+  if (/mail|message|send|post|sms/i.test(t)) return "send";
+  return "think";
+}
+
 export function createSubNodes(h: {
   call: Call;
   log?: ((msg: string, attrs?: Record<string, unknown>) => void) | undefined;
+  /** the node of a turn this process has seen: where the steps of the turn itself go */
+  nodeFor?: ((turnId: string) => string | undefined) | undefined;
+  /** an agent's name in words, for the row */
+  nameOf?: ((agentId: string) => Promise<string | undefined>) | undefined;
 }) {
+  const names = new Map<string, string>(); // `${threadId}:${callId}` -> the tool's name, to put a touched file in its step
+  const agentNames = new Map<string, string | undefined>();
   const ids = new Map<string, string>(); // `${threadId}:${callId}` -> node id
   const chain = new Map<string, Promise<void>>(); // per thread: in order
   const key = (threadId: string, callId: string): string => `${threadId}:${callId}`;
@@ -31,12 +55,15 @@ export function createSubNodes(h: {
     if (have) return have;
     if (!asker) return undefined;
     const up = parent ? await nodeOf(threadId, turnId, agentId, asker, parent) : undefined;
+    if (!agentNames.has(agentId)) agentNames.set(agentId, await h.nameOf?.(agentId).catch(() => undefined));
+    const who = agentNames.get(agentId);
     const r = (await h.call("runs.node.start", {
       kind: "subagent",
       owner: asker,
       threadId,
       whoKind: "agent",
       whoId: agentId,
+      ...(who ? { whoName: who } : {}),
       engine: "claude_code",
       ...(up ? { parentRun: up } : { parentThread: threadId }),
       idemKey: `sub:${threadId}:${callId}`,
@@ -51,6 +78,15 @@ export function createSubNodes(h: {
     if (e.phase === "call" && typeof e.name === "string" && SUBAGENT_CALL.test(e.name)) {
       await nodeOf(e.threadId, e.turnId, e.agentId, e.asker, e.id, e.parent);
       return;
+    }
+    // what the agent, or the subagent that made the call, is on now: one plain line with its icon
+    if (typeof e.name === "string" && e.phase === "call" && !SUBAGENT_CALL.test(e.name)) {
+      names.set(key(e.threadId, e.id), e.name);
+      if (names.size > 5000) names.delete(names.keys().next().value as string);
+      await stepLine(e, e.name, undefined);
+    } else if (e.phase === "input" && e.title !== true && typeof e.detail === "string" && e.detail !== "") {
+      const n = names.get(key(e.threadId, e.id));
+      if (n) await stepLine(e, n, e.detail);
     }
     const id = ids.get(key(e.threadId, e.id));
     if (!id) return;
@@ -78,6 +114,17 @@ export function createSubNodes(h: {
           : {}),
       });
     }
+  }
+
+  async function stepLine(e: Step, tool: string, detail: string | undefined): Promise<void> {
+    const owner = e.parent ? ids.get(key(e.threadId, e.parent)) : h.nodeFor?.(e.turnId);
+    if (!owner) return;
+    await h.call("runs.node.event", {
+      runId: owner,
+      type: "step",
+      actor: e.agentId,
+      payload: { icon: iconOf(tool), text: stepWords(tool, detail) },
+    });
   }
 
   async function sub(e: Sub & { asker?: string }): Promise<void> {

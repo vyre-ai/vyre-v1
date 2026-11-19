@@ -39,6 +39,7 @@ function world(opts: { broken?: boolean } = {}) {
       if (cap === "runs.node.start") h.advance(1); // nodes started in one millisecond would sort by random id
       return h.call(cap, input, host);
     },
+    nameOf: async () => "Dex",
     log: (m) => logs.push(m),
   });
   const rows = () =>
@@ -168,4 +169,24 @@ test("phases of one turn run in order even when they are sent without waiting", 
     }>
   ).map((e) => JSON.parse(e.payload_json).to);
   assert.deepEqual(why, ["running", "waiting", "succeeded"]);
+});
+
+test("a turn parked on an approval says what it asks, in words, with the task as the request; the row carries the agent's name", async () => {
+  const w = world();
+  const t = turn("trn_9", CHAT);
+  await w.mirror.turn(t, "started");
+  await w.mirror.turn(t, "waiting", { taskId: "tsk_7", tool: "mail_send" });
+  const n = w.h.sqlite.prepare("SELECT status, need_json, who_name FROM runs_node").get() as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.equal(n.status, "waiting");
+  assert.deepEqual(JSON.parse(n.need_json), {
+    requestId: "tsk_7",
+    what: "Mail send",
+    why: "It needs your yes before it goes ahead.",
+  });
+  assert.equal(n.who_name, "Dex");
+  await w.mirror.turn(t, "completed");
+  assert.equal(
+    (w.h.sqlite.prepare("SELECT need_json FROM runs_node").get() as { need_json: string | null }).need_json,
+    null,
+  );
 });

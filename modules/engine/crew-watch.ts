@@ -35,8 +35,19 @@ export function cardBody(o: {
   return `${o.name} finished "${o.title}": ${work}${o.text ? `\n\n${cut(o.text, 1500)}` : ""}`;
 }
 
-export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => number }): (e: StreamEvent) => void {
-  const subNodes = createSubNodes({ call: (cap, input, as) => o.host.call(cap, input, as), log: o.host.log });
+export function createCrewWatcher(o: {
+  db: Db;
+  host: EngineHostSeam;
+  now: () => number;
+  nodeFor?: (turnId: string) => string | undefined;
+  nameOf?: (agentId: string) => Promise<string | undefined>;
+}): (e: StreamEvent) => void {
+  const subNodes = createSubNodes({
+    call: (cap, input, as) => o.host.call(cap, input, as),
+    log: o.host.log,
+    nodeFor: o.nodeFor,
+    nameOf: o.nameOf,
+  });
   const ended = new Map<string, "done" | "failed" | "cancelled" | "waiting" | "lost">();
   const askers = new Map<string, string>(); // turnId -> the person it ran for, kept from its start for the result of a helper
   const warn = (msg: string, attrs: Record<string, unknown>): void => o.host.log?.(msg, attrs);

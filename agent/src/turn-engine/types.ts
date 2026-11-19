@@ -236,6 +236,8 @@ export type EngineEvent =
       agentId: string;
       taskId: string;
       runId?: string;
+      /** the tool the held call was for */
+      tool?: string;
     }
   /** A parked turn is over: its wake started as a turn of its own. */
   | { type: "turn.resumed"; threadId: string; turnId: string; agentId: string }

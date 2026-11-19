@@ -35368,7 +35368,21 @@ export type RunsActivityListOut = {
       name?: string;
       whoKind: string;
       whoId?: string;
+      whoName?: string;
       status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+      step?: {
+        icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+        text: string;
+      };
+      stuck?: {
+        since: number;
+        reason: string;
+      };
+      need?: {
+        requestId: string;
+        what: string;
+        why: string;
+      };
       wake?: {
         kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
         label?: string;
@@ -35763,6 +35777,21 @@ export type RunsNodeClaimOut = {
     evidence?: unknown;
     origin?: unknown;
     summary?: string;
+    step?: {
+      icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+      text: string;
+    };
+    need?: {
+      requestId: string;
+      what: string;
+      why: string;
+    };
+    stuck?: {
+      since: number;
+      reason: string;
+    };
+    whoName?: string;
+    dependsOn?: Array<string>;
     errorCode?: string;
     errorMessage?: string;
     stopReason?: string;
@@ -35817,6 +35846,21 @@ export type RunsNodeControlOut = {
       evidence?: unknown;
       origin?: unknown;
       summary?: string;
+      step?: {
+        icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+        text: string;
+      };
+      need?: {
+        requestId: string;
+        what: string;
+        why: string;
+      };
+      stuck?: {
+        since: number;
+        reason: string;
+      };
+      whoName?: string;
+      dependsOn?: Array<string>;
       errorCode?: string;
       errorMessage?: string;
       stopReason?: string;
@@ -35880,6 +35924,21 @@ export type RunsNodeGetOut = {
     evidence?: unknown;
     origin?: unknown;
     summary?: string;
+    step?: {
+      icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+      text: string;
+    };
+    need?: {
+      requestId: string;
+      what: string;
+      why: string;
+    };
+    stuck?: {
+      since: number;
+      reason: string;
+    };
+    whoName?: string;
+    dependsOn?: Array<string>;
     errorCode?: string;
     errorMessage?: string;
     stopReason?: string;
@@ -35958,6 +36017,21 @@ export type RunsNodeMoveOut = {
     evidence?: unknown;
     origin?: unknown;
     summary?: string;
+    step?: {
+      icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+      text: string;
+    };
+    need?: {
+      requestId: string;
+      what: string;
+      why: string;
+    };
+    stuck?: {
+      since: number;
+      reason: string;
+    };
+    whoName?: string;
+    dependsOn?: Array<string>;
     errorCode?: string;
     errorMessage?: string;
     stopReason?: string;
@@ -35982,6 +36056,8 @@ export type RunsNodeStartIn = {
   threadId?: string;
   whoKind?: string;
   whoId?: string;
+  whoName?: string;
+  dependsOn?: Array<string>;
   engine?: string;
   model?: string;
   brief?: unknown;
@@ -36029,6 +36105,21 @@ export type RunsNodeStartOut = {
     evidence?: unknown;
     origin?: unknown;
     summary?: string;
+    step?: {
+      icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+      text: string;
+    };
+    need?: {
+      requestId: string;
+      what: string;
+      why: string;
+    };
+    stuck?: {
+      since: number;
+      reason: string;
+    };
+    whoName?: string;
+    dependsOn?: Array<string>;
     errorCode?: string;
     errorMessage?: string;
     stopReason?: string;
@@ -36379,6 +36470,21 @@ export type RunsTreeGetOut = {
       evidence?: unknown;
       origin?: unknown;
       summary?: string;
+      step?: {
+        icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+        text: string;
+      };
+      need?: {
+        requestId: string;
+        what: string;
+        why: string;
+      };
+      stuck?: {
+        since: number;
+        reason: string;
+      };
+      whoName?: string;
+      dependsOn?: Array<string>;
       errorCode?: string;
       errorMessage?: string;
       stopReason?: string;

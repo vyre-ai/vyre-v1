@@ -123,6 +123,10 @@ const nodeSpent = t.obj({
   usdMicros: t.int({ minimum: 0 }),
   calls: t.int({ minimum: 0 }),
 });
+const nodeStep = t.obj({
+  icon: t.enm("read", "web", "term", "edit", "find", "think", "send", "cal", "wait", "kid"),
+  text: t.str(),
+});
 const nodeRow = t.obj({
   id: id.run,
   rootRun: id.run,
@@ -148,6 +152,11 @@ const nodeRow = t.obj({
   evidence: t.opt(t.json()),
   origin: t.opt(t.json()),
   summary: t.opt(t.str()),
+  step: t.opt(nodeStep),
+  need: t.opt(t.obj({ requestId: t.str(), what: t.str(), why: t.str() })),
+  stuck: t.opt(t.obj({ since: t.ts(), reason: t.str() })),
+  whoName: t.opt(t.str()),
+  dependsOn: t.opt(t.arr(id.run)),
   errorCode: t.opt(t.str()),
   errorMessage: t.opt(t.str()),
   stopReason: t.opt(t.str()),
@@ -348,6 +357,8 @@ export default defineManifest({
           threadId: t.opt(id.thread),
           whoKind: t.opt(t.str()),
           whoId: t.opt(t.str()),
+          whoName: t.opt(t.str({ maxLength: 120 })),
+          dependsOn: t.opt(t.arr(id.run, { maxItems: 20 })),
           engine: t.opt(t.str()),
           model: t.opt(t.str()),
           brief: t.opt(t.json()),
@@ -493,7 +504,11 @@ export default defineManifest({
               name: t.opt(t.str()),
               whoKind: t.str(),
               whoId: t.opt(t.str()),
+              whoName: t.opt(t.str()),
               status: nodeStatus,
+              step: t.opt(nodeStep),
+              stuck: t.opt(t.obj({ since: t.ts(), reason: t.str() })),
+              need: t.opt(t.obj({ requestId: t.str(), what: t.str(), why: t.str() })),
               wake: t.opt(nodeWake),
               startedAt: t.ts(),
               updatedAt: t.ts(),

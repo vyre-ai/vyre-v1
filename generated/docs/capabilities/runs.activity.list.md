@@ -41,7 +41,21 @@ type Out = {
       name?: string;
       whoKind: string;
       whoId?: string;
+      whoName?: string;
       status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+      step?: {
+        icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+        text: string;
+      };
+      stuck?: {
+        since: number;
+        reason: string;
+      };
+      need?: {
+        requestId: string;
+        what: string;
+        why: string;
+      };
       wake?: {
         kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
         label?: string;
@@ -77,10 +91,23 @@ type Out = {
       {
         "kind": "turn",
         "name": "example",
+        "need": {
+          "requestId": "example",
+          "what": "example",
+          "why": "example"
+        },
         "rootRun": "run_a1b2c3",
         "runId": "run_a1b2c3",
         "startedAt": 1760000000000,
         "status": "queued",
+        "step": {
+          "icon": "read",
+          "text": "example"
+        },
+        "stuck": {
+          "reason": "example",
+          "since": 1760000000000
+        },
         "updatedAt": 1760000000000,
         "usdMicros": 1,
         "wake": {
@@ -91,7 +118,8 @@ type Out = {
           "wokeCount": 1
         },
         "whoId": "example",
-        "whoKind": "example"
+        "whoKind": "example",
+        "whoName": "example"
       }
     ]
   }

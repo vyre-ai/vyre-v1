@@ -73,6 +73,21 @@ type Out = {
       evidence?: unknown;
       origin?: unknown;
       summary?: string;
+      step?: {
+        icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+        text: string;
+      };
+      need?: {
+        requestId: string;
+        what: string;
+        why: string;
+      };
+      stuck?: {
+        since: number;
+        reason: string;
+      };
+      whoName?: string;
+      dependsOn?: Array<string>;
       errorCode?: string;
       errorMessage?: string;
       stopReason?: string;
@@ -110,6 +125,9 @@ type Out = {
         "attempt": 1,
         "brief": {},
         "budget": {},
+        "dependsOn": [
+          "run_a1b2c3"
+        ],
         "depth": 1,
         "endedAt": 1760000000000,
         "engine": "example",
@@ -122,6 +140,11 @@ type Out = {
         "leaseUntil": 1760000000000,
         "model": "example",
         "name": "example",
+        "need": {
+          "requestId": "example",
+          "what": "example",
+          "why": "example"
+        },
         "origin": {},
         "owner": "example",
         "parentRun": "run_a1b2c3",
@@ -137,7 +160,15 @@ type Out = {
         "startedAt": 1760000000000,
         "startedBy": "example",
         "status": "queued",
+        "step": {
+          "icon": "read",
+          "text": "example"
+        },
         "stopReason": "example",
+        "stuck": {
+          "reason": "example",
+          "since": 1760000000000
+        },
         "summary": "example",
         "threadId": "thr_a1b2c3",
         "updatedAt": 1760000000000,
@@ -150,7 +181,8 @@ type Out = {
           "wokeCount": 1
         },
         "whoId": "example",
-        "whoKind": "example"
+        "whoKind": "example",
+        "whoName": "example"
       }
     ]
   }

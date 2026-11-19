@@ -22,6 +22,9 @@ import {
   getNode,
   isTerminal,
   liveNodes,
+  dependsOnOf,
+  detectStuck,
+  settleDeps,
   nodesOfThread,
   moveNode,
   pauseSubtree,
@@ -50,6 +53,11 @@ export function nodeOut(n: Node): Record<string, unknown> {
 
 /** Nodes an agent turn of the engine stands behind: a stop reaches the engine. */
 const ENGINE_KINDS = new Set(["turn", "helper", "crew"]);
+/** The node as the contract says it, with what it starts after. */
+const out = (ctx: RunsCtx, n: Node): Record<string, unknown> => {
+  const deps = dependsOnOf(ctx.db, n.id);
+  return deps.length > 0 ? { ...nodeOut(n), dependsOn: deps } : nodeOut(n);
+};
 const systemOnly = (ctx: RunsCtx): void => {
   if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
     raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
@@ -73,7 +81,7 @@ const manageNode = (ctx: RunsCtx, id: string): Node => {
 export async function nodeStart(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
   const { node, created } = startNode(ctx, input as StartInput);
-  return { node: nodeOut(node), created };
+  return { node: out(ctx, node), created };
 }
 export async function nodeMove(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
@@ -98,7 +106,7 @@ export async function nodeMove(ctx: RunsCtx, input: In): Promise<unknown> {
     wake: input.wake,
     checkpoint: input.checkpoint,
   });
-  return { node: nodeOut(node), changed };
+  return { node: out(ctx, node), changed };
 }
 export async function nodeEvent(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
@@ -113,7 +121,7 @@ export async function nodeEvent(ctx: RunsCtx, input: In): Promise<unknown> {
 export async function nodeClaim(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
   const n = claimNode(ctx, input.runId, input.holder);
-  return n ? { node: nodeOut(n) } : {};
+  return n ? { node: out(ctx, n) } : {};
 }
 export async function nodeBeat(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
@@ -133,7 +141,7 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
         reason: "not_pausable",
       });
     await stop(ctx, { runId: n.id, reason: input.reason });
-    return { nodes: [nodeOut(getNode(ctx, n.id))] };
+    return { nodes: [out(ctx, getNode(ctx, n.id))] };
   }
   const by = ctx.principal.id;
   const reason = typeof input.reason === "string" && input.reason !== "" ? input.reason : undefined;
@@ -191,7 +199,7 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
         ? [moveNode(ctx, n.id, "queued", { why: "resumed", by }).node]
         : resumeSubtree(ctx, n.id, by);
   }
-  return { nodes: moved.map(nodeOut) };
+  return { nodes: moved.map((x) => out(ctx, x)) };
 }
 
 /**
@@ -255,7 +263,7 @@ export function redactedOut(n: Node, label: string): Record<string, unknown> {
 
 export async function nodeGet(ctx: RunsCtx, input: In): Promise<unknown> {
   const { node, full } = look(ctx, input.runId);
-  if (full) return { node: nodeOut(node) };
+  if (full) return { node: out(ctx, node) };
   const labels = labelsOf(treeNodes(ctx.db, node.rootRun));
   return { node: redactedOut(node, labels.get(node.id) ?? "Work") };
 }
@@ -264,7 +272,7 @@ export async function treeGet(ctx: RunsCtx, input: In): Promise<unknown> {
   const all = treeNodes(ctx.db, n.rootRun);
   const nodes = n.id === n.rootRun ? all : subtreeOf(ctx.db, n.id);
   const last = lastSeq(ctx, n.rootRun);
-  if (full) return { nodes: nodes.map(nodeOut), spent: subtreeSpent(ctx.db, n.id), lastSeq: last };
+  if (full) return { nodes: nodes.map((x) => out(ctx, x)), spent: subtreeSpent(ctx.db, n.id), lastSeq: last };
   const labels = labelsOf(all);
   // work in another chat (a handoff, a helper's own thread) that this person cannot open is not shown to them at all
   const mayOpen = (x: Node): boolean =>
@@ -324,7 +332,11 @@ export async function activityList(ctx: RunsCtx, input: In): Promise<unknown> {
       ...(n.name === undefined ? {} : { name: n.name }),
       whoKind: n.whoKind,
       ...(n.whoId === undefined ? {} : { whoId: n.whoId }),
+      ...(n.whoName === undefined ? {} : { whoName: n.whoName }),
       status: n.status,
+      ...(n.step === undefined ? {} : { step: n.step }),
+      ...(n.stuck === undefined ? {} : { stuck: n.stuck }),
+      ...(n.need === undefined ? {} : { need: n.need }),
       ...(n.wake === undefined ? {} : { wake: n.wake }),
       startedAt: n.startedAt,
       updatedAt: n.updatedAt,
@@ -337,6 +349,8 @@ export async function activityList(ctx: RunsCtx, input: In): Promise<unknown> {
 export const NODE_SWEEP_MS = 5_000;
 export function nodeSweep(ctx: RunsCtx): void {
   reclaimExpired(ctx);
+  settleDeps(ctx);
+  detectStuck(ctx);
 }
 
 // ---- the board and the messages of a tree (board.ts) ----

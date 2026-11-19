@@ -1790,6 +1790,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         agentId: turn.agentId,
         taskId: parked.held.taskId,
         ...(parked.held.runId === undefined ? {} : { runId: parked.held.runId }),
+        ...(parked.name ? { tool: parked.name } : {}),
       });
       return;
     }

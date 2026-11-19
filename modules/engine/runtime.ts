@@ -24,6 +24,7 @@ import { ANSWER_HELD } from "../../agent/src/turn-engine/engine.ts";
 import { clearReads } from "../../host/src/seams/answer-reads.ts";
 import { createCrewWatcher } from "./crew-watch.ts";
 import { createNodeMirror } from "./node-mirror.ts";
+import { UNNAMED_AGENT, agentDisplay } from "./agent-names.ts";
 import { createBackground } from "./background.ts";
 import { backgroundLine } from "./own-subagents.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
@@ -1042,7 +1043,15 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
-    const crewWatch = h.postAs ? createCrewWatcher({ db: ctx.db, host: h, now }) : null;
+    // an agent's name in words for the rows of the Run tree; "An agent" is no name, so none is given
+    const nameOf = async (agentId: string): Promise<string | undefined> => {
+      const r = await agentDisplay((cap, input) => h.call(cap, input), agentId);
+      return r.name === UNNAMED_AGENT ? undefined : r.name;
+    };
+    let mirrorRef: ReturnType<typeof createNodeMirror> | null = null;
+    const crewWatch = h.postAs
+      ? createCrewWatcher({ db: ctx.db, host: h, now, nodeFor: (turnId) => mirrorRef?.nodeFor(turnId), nameOf })
+      : null;
     const live = h.stream ? coalesceLive(h.stream, { now }) : null;
     setupLine = live;
     // the chat message a turn's reply became, so the reply's Details find its turn (chat.reply_details); a reply without its turn only loses its Details, never the post
@@ -1152,7 +1161,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       ...(h.log ? { log: h.log } : {}),
     });
     // every turn is also a node of the Run tree (node-mirror.ts); it never holds a turn up
-    const mirror = createNodeMirror({ call: h.call, ...(h.log ? { log: h.log } : {}) });
+    const mirror = createNodeMirror({ call: h.call, nameOf, ...(h.log ? { log: h.log } : {}) });
+    mirrorRef = mirror;
     const engine = createTurnEngine({
       hooks: hooksPort,
       holder: h.holder,
@@ -1425,7 +1435,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         ...(ev.type === "turn.failed" ? { code: ev.code, message: ev.message } : {}),
         ...(ev.type === "turn.cancelled" && typeof ev.reason === "string" ? { reason: ev.reason } : {}),
         ...(ev.type === "turn.waiting" && "taskId" in ev
-          ? { taskId: ev.taskId, ...(ev.runId ? { runId: ev.runId } : {}) }
+          ? { taskId: ev.taskId, ...(ev.runId ? { runId: ev.runId } : {}), ...(ev.tool ? { tool: ev.tool } : {}) }
           : {}),
       });
       const done = (recording.get(turnId) ?? Promise.resolve())
