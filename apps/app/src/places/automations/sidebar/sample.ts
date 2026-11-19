@@ -806,6 +806,23 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
         }),
       };
     },
+    "automations.would_run": () => ({
+      supported: true,
+      days: 7,
+      n: 1,
+      of: 1,
+      capped: false,
+      what: "forms submitted",
+      starts: [
+        {
+          eventId: "evt_past1",
+          at: SAMPLE_NOW - 86_400_000,
+          starts: true,
+          name: "Sam Reyes",
+          change: "Intake form submitted",
+        },
+      ],
+    }),
     "automations.test_events": () => ({
       events: [
         {
