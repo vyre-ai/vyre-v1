@@ -296,7 +296,11 @@ test("a swap that fails puts the names back and says the database was left as it
   assert.equal(r.ok, false);
   assert.match(r.detail, /left as it was/);
   assert.ok(has(w, "ALTER DATABASE app ALLOW_CONNECTIONS true"), "new connections are allowed again");
-  assert.equal(has(w, "ALTER DATABASE app_old RENAME TO app"), false, "app was never renamed, so nothing is renamed back");
+  assert.equal(
+    has(w, "ALTER DATABASE app_old RENAME TO app"),
+    false,
+    "app was never renamed, so nothing is renamed back",
+  );
   assert.equal(has(w, "ALTER DATABASE app_restore RENAME TO app"), false);
 });
 
@@ -519,14 +523,19 @@ test("the first rename is retried while the ended connections let go, and the sw
   await ready(w);
   const r = await call(w.ctx, "sites.backup_restore", { siteId: "sit_a", backupId: "bkp_a" });
   assert.equal(r.ok, true, r.detail);
-  assert.equal(w.execs.map((c) => c.join(" ")).filter((c) => c.includes("RENAME TO app_old")).length, 3, "two refusals, then it went");
+  assert.equal(
+    w.execs.map((c) => c.join(" ")).filter((c) => c.includes("RENAME TO app_old")).length,
+    3,
+    "two refusals, then it went",
+  );
 });
 
 test("a failure after the first rename puts the live database back under its name and opens it", async () => {
   const w = world();
   await ready(w);
   const orig = w.runner.exec;
-  w.runner.exec = async (c: string, cmd: string[]) => (cmd.join(" ").includes("app_restore RENAME TO app") ? { code: 1, out: "ERROR: nope" } : orig(c, cmd));
+  w.runner.exec = async (c: string, cmd: string[]) =>
+    cmd.join(" ").includes("app_restore RENAME TO app") ? { code: 1, out: "ERROR: nope" } : orig(c, cmd);
   const r = await call(w.ctx, "sites.backup_restore", { siteId: "sit_a", backupId: "bkp_a" });
   assert.equal(r.ok, false);
   assert.ok(has(w, "ALTER DATABASE app_old RENAME TO app"));

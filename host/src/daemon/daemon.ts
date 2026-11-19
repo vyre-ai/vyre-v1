@@ -5589,7 +5589,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   sitesExports?.["recordSkippedBackup"] as
                     | ((c: { db: unknown }, id: string, now: number, why: string) => void)
                     | undefined
-                )?.({ db: db! }, o2.siteId, Date.now(), e instanceof Error ? e.message : "the site's owner can no longer make backups");
+                )?.(
+                  { db: db! },
+                  o2.siteId,
+                  Date.now(),
+                  e instanceof Error ? e.message : "the site's owner can no longer make backups",
+                );
                 sink.log({
                   space: spaceId,
                   level: 30,

@@ -18,7 +18,11 @@ const DUMP_CMD = ["sh", "-c", `pg_dump -U app -d app --no-owner -Z gzip -f ${DUM
 export const PART_BYTES = 32 * 1024 * 1024;
 let partBytes = PART_BYTES;
 /** for tests: a small part size so a short dump is several parts */
-export const _test = { setRetryMs: (n: number): void => void (retryMs = n), setPartBytes: (n: number): void => void (partBytes = n), clearSizes: (): void => sizes.clear() };
+export const _test = {
+  setRetryMs: (n: number): void => void (retryMs = n),
+  setPartBytes: (n: number): void => void (partBytes = n),
+  clearSizes: (): void => sizes.clear(),
+};
 export const MAX_PINNED = 3;
 const RESTORE_GLOB = "/tmp/vyre-restore.*.gz";
 const SQL = (...c: string[]): string[] => [
@@ -45,7 +49,10 @@ const DROP_OLD = SQL("DROP DATABASE IF EXISTS app_old WITH (FORCE)");
 const DROP_NEW = SQL("DROP DATABASE IF EXISTS app_restore WITH (FORCE)");
 /** The switch in separate steps: the old copy is dropped, new connections are refused and the live ones ended, then the names are swapped. Ending connections is asynchronous, so the first rename is retried briefly before it counts as failed. */
 const DROP_OLD_FIRST = SQL("DROP DATABASE IF EXISTS app_old WITH (FORCE)");
-const CUT = SQL("ALTER DATABASE app ALLOW_CONNECTIONS false", "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'app'");
+const CUT = SQL(
+  "ALTER DATABASE app ALLOW_CONNECTIONS false",
+  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'app'",
+);
 const RENAME_LIVE = SQL("ALTER DATABASE app RENAME TO app_old");
 const RENAME_NEW = SQL("ALTER DATABASE app_restore RENAME TO app");
 const REOPEN = SQL("ALTER DATABASE app ALLOW_CONNECTIONS true");
@@ -135,7 +142,9 @@ export async function dump(
     let total = 0;
     try {
       total = await r.getFileParts(container, DUMP, MAX_BACKUP_BYTES, partBytes, async (part) => {
-        const blob = await ctx.blobs!.put(part, "application/gzip", { resource: { type: "site_backup", id: b.siteId } });
+        const blob = await ctx.blobs!.put(part, "application/gzip", {
+          resource: { type: "site_backup", id: b.siteId },
+        });
         ids.push(blob.id);
       });
     } catch (e) {

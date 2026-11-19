@@ -11,6 +11,12 @@ test("a database backup takes manage on the site it belongs to, so a member who 
 });
 
 test("a preview, a thumbnail or a site's own file keeps the view level", () => {
-  assert.deepEqual(blobReadCheck({ type: "file", id: "fil_a" }), { action: { perm: null, level: "view" }, resource: { type: "file", id: "fil_a" } });
-  assert.deepEqual(blobReadCheck({ type: "site", id: "sit_a" }), { action: { perm: null, level: "view" }, resource: { type: "site", id: "sit_a" } });
+  assert.deepEqual(blobReadCheck({ type: "file", id: "fil_a" }), {
+    action: { perm: null, level: "view" },
+    resource: { type: "file", id: "fil_a" },
+  });
+  assert.deepEqual(blobReadCheck({ type: "site", id: "sit_a" }), {
+    action: { perm: null, level: "view" },
+    resource: { type: "site", id: "sit_a" },
+  });
 });
