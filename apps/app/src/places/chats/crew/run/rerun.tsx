@@ -15,6 +15,9 @@ import { readCompare, readMayAct, refusalWords } from "./reads.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 
+/** The most the server takes in each field (the manifest's maxLength; a test reads them from the generated registry), so a field stops there and nothing is cut after the person has read it. */
+export const LIMITS = { name: 60, role: 200, saveInstructions: 4000, rerunInstructions: 20000 } as const;
+
 /** The first run and what was started again from it. Reads once, then every 5 s while a side is still going (or `refresh()` was asked), so a re-run fills in by itself and the reads stop when all are finished. */
 export function useCompare(
   call: Call,
@@ -166,6 +169,7 @@ export function RerunForm({
         onChangeText={setText}
         multiline
         numberOfLines={5}
+        maxLength={LIMITS.rerunInstructions}
         style={st.area}
       />
       <View style={st.line}>
@@ -280,6 +284,7 @@ export function SaveAgentForm({
         placeholder="Name"
         value={name}
         onChangeText={setName}
+        maxLength={LIMITS.name}
         style={st.input}
       />
       <TextField
@@ -288,6 +293,7 @@ export function SaveAgentForm({
         placeholder="What it does"
         value={role}
         onChangeText={setRole}
+        maxLength={LIMITS.role}
         style={st.input}
       />
       <Text style={st.hint}>What it will be told</Text>
@@ -298,13 +304,9 @@ export function SaveAgentForm({
         onChangeText={setText}
         multiline
         numberOfLines={6}
+        maxLength={LIMITS.saveInstructions}
         style={st.area}
       />
-      {text.length > 4000 ? (
-        <Text testID="save-agent-cut" style={st.hint}>
-          Only the first 4,000 characters are kept.
-        </Text>
-      ) : null}
       <Segmented
         label="Who can use it"
         testID="save-agent-sharing"

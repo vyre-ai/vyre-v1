@@ -8,6 +8,8 @@ import type { CrewMember } from "./model.ts";
 import { compareDiff, sideLabel, sideOpen } from "./run/model.ts";
 import type { CompareSide } from "./run/model.ts";
 import { refusalWords, sidesOf } from "./run/reads.ts";
+import { LIMITS } from "./run/rerun.tsx";
+import fs from "node:fs";
 
 installDom();
 
@@ -91,7 +93,7 @@ function setup(
       throw over.refuse[cap];
     if (cap === "runs.node.get") {
       if (over.get instanceof Error) throw over.get;
-      return over.get ?? {};
+      return over.get ?? { node: { can: { manage: true } } };
     }
     if (cap === "engine.helper_models") return over.models ?? {};
     if (cap === "chat.helper.notes")
@@ -313,8 +315,8 @@ test("someone who may not make agents is told so, in the words of agents.create'
   assert.match(textOf(find(root, "save-agent-error")), /not allowed to make agents/);
 });
 
-test("someone who only watches the chat is offered nothing: no Save, no Run again, no Compare read", async () => {
-  for (const get of [{ full: false, node: {} }, { node: { can: { manage: false } } }, new Error("down")]) {
+test("someone who only watches the chat is offered nothing (the field missing counts as no): no Save, no Run again, no Compare read", async () => {
+  for (const get of [{ node: { can: { manage: false } } }, { node: {} }, {}, new Error("down")]) {
     const { calls, view } = setup({ get });
     const root = await view();
     assert.ok(find(root, "crew-finish-actions") === null);
@@ -346,4 +348,23 @@ test("Another model lists only what the Space's helper rule allows, and a refusa
   await press(find(root, "rerun-go"));
   await flush();
   assert.match(textOf(find(root, "rerun-error")), /another provider|same provider/);
+});
+
+test("what the form sends and the limits it keeps are the server's own: every key is in the manifest's input, every maxLength matches", () => {
+  const reg = JSON.parse(
+    fs.readFileSync(new URL("../../../../../../generated/registry.json", import.meta.url), "utf8"),
+  ) as { capabilities: Array<{ name: string; input: { properties: Record<string, { maxLength?: number }> } }> };
+  const props = (cap: string): Record<string, { maxLength?: number }> =>
+    reg.capabilities.find((c) => c.name === cap)!.input.properties;
+  const save = props("runs.node.save_as_agent");
+  for (const k of ["runId", "name", "role", "instructions", "sharing"])
+    assert.ok(k in save, `save_as_agent takes ${k}`);
+  assert.equal(save.name!.maxLength, LIMITS.name);
+  assert.equal(save.role!.maxLength, LIMITS.role);
+  assert.equal(save.instructions!.maxLength, LIMITS.saveInstructions);
+  const again = props("runs.node.rerun");
+  for (const k of ["runId", "instructions", "model"]) assert.ok(k in again, `rerun takes ${k}`);
+  assert.equal(again.instructions!.maxLength, LIMITS.rerunInstructions);
+  assert.ok("runId" in props("runs.node.compare"));
+  assert.ok(reg.capabilities.some((c) => c.name === "runs.node.get"));
 });

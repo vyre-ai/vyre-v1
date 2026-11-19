@@ -311,14 +311,11 @@ export function refusalWords(e: unknown, what: "save" | "rerun"): string {
   return what === "save" ? "It could not be saved as an agent. Try again." : "It could not run again. Try again.";
 }
 
-/** Whether this person may save the work as an agent, run it again or compare the runs: not someone who only watches the chat (the server cuts what they see, and refuses the rest). A failed read says no, so nothing offered can only fail. */
+/** Whether this person may save the work as an agent, run it again or compare the runs: only when the server says so (node.can.manage is true). Anything else, a missing field or a failed read, is no, so nothing is offered that can only fail. */
 export async function readMayAct(call: Call, runId: string): Promise<boolean> {
   try {
-    const out = (await call("runs.node.get", { runId })) as {
-      full?: unknown;
-      node?: { can?: { manage?: unknown } };
-    } | null;
-    return out?.full !== false && out?.node?.can?.manage !== false;
+    const out = (await call("runs.node.get", { runId })) as { node?: { can?: { manage?: unknown } } } | null;
+    return out?.node?.can?.manage === true;
   } catch {
     return false;
   }
