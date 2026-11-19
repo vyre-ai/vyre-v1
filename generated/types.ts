@@ -12848,6 +12848,24 @@ export type DocumentsFillOut = {
   signers?: Array<string>;
   layout?: "word" | "simple" | {"description":"word: the Word page kept; simple: plain page look (no converter)"};
 };
+export type DocumentsMakeIn = {
+  template: string;
+  recordId: string;
+  values?: Record<string, unknown>;
+  signingDate?: string;
+  name?: string;
+  format?: "docx" | "pdf" | "md";
+};
+export type DocumentsMakeOut = {
+  file: {
+    fileId: string;
+    name: string;
+    versionId: string;
+  };
+  missing: Array<string>;
+  signers?: Array<string>;
+  layout?: "word" | "simple";
+};
 export type DocumentsMakePdfIn = {
   fileId: string;
   intoFolderId: string;
@@ -48910,6 +48928,7 @@ export interface CapMap {
   "documenso.status": { in: DocumensoStatusIn; out: DocumensoStatusOut };
   "documents.fields": { in: DocumentsFieldsIn; out: DocumentsFieldsOut };
   "documents.fill": { in: DocumentsFillIn; out: DocumentsFillOut };
+  "documents.make": { in: DocumentsMakeIn; out: DocumentsMakeOut };
   "documents.make_pdf": { in: DocumentsMakePdfIn; out: DocumentsMakePdfOut };
   "documents.mark_template": { in: DocumentsMarkTemplateIn; out: DocumentsMarkTemplateOut };
   "documents.preview_fill": { in: DocumentsPreviewFillIn; out: DocumentsPreviewFillOut };

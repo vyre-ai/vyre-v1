@@ -130,6 +130,26 @@ export default defineManifest({
         errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
       },
     ),
+    write(
+      "documents.make",
+      "Make a document for a record from a template by name: it lands in the record's files and the answer is the file and what was missing, never the text",
+      {
+        in: {
+          template: t.str({ description: "The template's name, or its file id", examples: ["Service agreement"] }),
+          recordId: id.record,
+          values: t.opt(t.rec()),
+          signingDate: t.opt(t.str({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "ISO date", examples: ["2026-10-24"] })),
+          name: t.opt(t.str()),
+          format: t.opt(t.enm("docx", "pdf", "md")),
+        },
+        out: { file: savedFile, missing: t.arr(t.str()), signers, layout: t.opt(t.enm("word", "simple")) },
+        on: ["record", "/recordId"],
+        level: "use",
+        emits: ["document.filled", "file.created", "file.version_added"],
+        tool: "files",
+        errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
+      },
+    ),
     create(
       "documents.make_pdf",
       "Make a PDF of a Vyre document (.md) in a folder; a blank still in its text stops it and is named",

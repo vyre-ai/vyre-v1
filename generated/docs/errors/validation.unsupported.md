@@ -7,6 +7,7 @@ HTTP 422. Retryable: no.
 ## Raised by
 
 - documents.fill
+- documents.make
 - documents.make_pdf
 - documents.mark_template
 - files.read

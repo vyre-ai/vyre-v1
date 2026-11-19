@@ -214,3 +214,55 @@ test("places belong to the version they were set on: a newer version of the file
   assert.equal(stale.stale, true);
   assert.deepEqual(stale.places, []);
 });
+
+// ---- documents.make: a template by name, for a record, landing in the record's files ----
+
+/** A Space with a record whose files folder is the main folder. */
+function linked(): World {
+  const w = world();
+  w.records.set("rec_imran", { name: "Imran Ibarra" });
+  return w;
+}
+
+test("documents.make: a template by name, a record, and the document is in the record's files; the answer is small and never the text", async () => {
+  const w = linked();
+  const id = w.add("Service agreement.md", enc(AGREEMENT));
+  await handlers["documents.mark_template"](w.ctx, { fileId: id, isTemplate: true });
+  const out = await handlers["documents.make"](w.ctx, {
+    template: "service agreement",
+    recordId: "rec_imran",
+    values: VALUES,
+    signingDate: "2026-11-19",
+  });
+  assert.deepEqual(out.missing, []);
+  assert.deepEqual(out.signers, ["client", "firm"]);
+  assert.match(out.file.name, /\.pdf$/);
+  assert.equal(w.files.get(out.file.fileId)?.folderId, FOLDER);
+  // under about 200 tokens of answer whatever the document's length
+  assert.ok(JSON.stringify(out).length < 800, JSON.stringify(out).length + " characters");
+});
+
+test("documents.make: a name that is nowhere or means two is answered with what there is, and a missing field is named", async () => {
+  const w = linked();
+  const a = w.add("Service agreement.md", enc(AGREEMENT));
+  const b = w.add("Service agreement - long form.md", enc(AGREEMENT));
+  await handlers["documents.mark_template"](w.ctx, { fileId: a, isTemplate: true });
+  await handlers["documents.mark_template"](w.ctx, { fileId: b, isTemplate: true });
+  const none = await expectCode("validation.not_found", () =>
+    handlers["documents.make"](w.ctx, { template: "Lease", recordId: "rec_imran", values: VALUES, signingDate: "2026-11-19" }),
+  );
+  assert.match(none.error.message, /Service agreement/);
+  const two = await expectCode("validation.bad_input", () =>
+    handlers["documents.make"](w.ctx, { template: "agreement", recordId: "rec_imran", values: VALUES, signingDate: "2026-11-19" }),
+  );
+  assert.match(two.error.message, /More than one/);
+  const miss = await expectCode("validation.precondition_failed", () =>
+    handlers["documents.make"](w.ctx, { template: "Service agreement", recordId: "rec_imran", signingDate: "2026-11-19" }),
+  );
+  assert.match(miss.error.message, /client\.name|firm\.name/);
+  const empty = linked();
+  await expectCode("validation.not_found", () =>
+    handlers["documents.make"](empty.ctx, { template: "Anything", recordId: "rec_imran" }),
+  );
+  assert.equal(empty.files.size, 0);
+});

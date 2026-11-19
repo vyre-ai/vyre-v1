@@ -7,6 +7,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "documents.fields": async (ctx) => { throw new VyreErr(notImplemented("documents.fields", ctx.trace)); },
   "documents.fill": async (ctx) => { throw new VyreErr(notImplemented("documents.fill", ctx.trace)); },
+  "documents.make": async (ctx) => { throw new VyreErr(notImplemented("documents.make", ctx.trace)); },
   "documents.make_pdf": async (ctx) => { throw new VyreErr(notImplemented("documents.make_pdf", ctx.trace)); },
   "documents.mark_template": async (ctx) => { throw new VyreErr(notImplemented("documents.mark_template", ctx.trace)); },
   "documents.preview_fill": async (ctx) => { throw new VyreErr(notImplemented("documents.preview_fill", ctx.trace)); },

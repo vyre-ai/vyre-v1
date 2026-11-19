@@ -222,6 +222,14 @@ export function world(): World {
             throw err("validation.not_found", "That record does not exist.");
           return { record: { id: i.recordId, type: i.type, fields } };
         }
+        // the module's own capabilities answer each other, as they do through the host; a record's files folder is the main folder
+        case "projects.files_folder":
+          return { folderId: FOLDER };
+        case "documents.fill":
+        case "documents.templates.list": {
+          const { handlers } = await import("../impl.ts");
+          return (handlers as Record<string, (c: Ctx, x: unknown) => Promise<unknown>>)[cap]!(ctx, input);
+        }
         default:
           throw new Error(`unexpected call ${cap}`);
       }

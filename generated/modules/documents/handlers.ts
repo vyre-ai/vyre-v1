@@ -7,6 +7,7 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "documents.fields": Handler<"documents.fields", X>;
   "documents.fill": Handler<"documents.fill", X>;
+  "documents.make": Handler<"documents.make", X>;
   "documents.make_pdf": Handler<"documents.make_pdf", X>;
   "documents.mark_template": Handler<"documents.mark_template", X>;
   "documents.preview_fill": Handler<"documents.preview_fill", X>;

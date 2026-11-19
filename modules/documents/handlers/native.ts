@@ -291,7 +291,48 @@ async function signing(
   };
 }
 
+/** A template by its name (any case, with or without its extension) or by its file id; the answer for a name that is not there or means two says what there is. */
+async function templateNamed(ctx: Ctx, wanted: string): Promise<string> {
+  const text = wanted.trim();
+  if (/^fil_[A-Za-z0-9]+$/.test(text)) return text;
+  const list = async (name?: string) =>
+    ((await ctx.call("documents.templates.list", name === undefined ? {} : { name })) as { templates?: { fileId: string; name: string }[] })
+      .templates ?? [];
+  const exact = await list(text);
+  if (exact.length === 1) return exact[0]!.fileId;
+  const all = exact.length > 1 ? exact : await list();
+  const near = exact.length > 1 ? all : all.filter((t) => t.name.toLowerCase().includes(text.toLowerCase()));
+  if (near.length === 1) return near[0]!.fileId;
+  const names = (near.length > 0 ? near : all).slice(0, 6).map((t) => `"${baseName(t.name)}"`);
+  return fail(
+    ctx,
+    near.length > 1 || exact.length > 1 ? "validation.bad_input" : "validation.not_found",
+    near.length > 1 || exact.length > 1
+      ? `More than one template is called like that: ${names.join(", ")}. Say which.`
+      : all.length === 0
+        ? "There are no templates in this Space yet. Mark a Word file or a Vyre document as a template first."
+        : `No template is called "${text}". The templates are: ${names.join(", ")}.`,
+    { template: text },
+  );
+}
+
+/** Make a document for a record from a template by name: no ids to look up, no folder to choose. The record's own files are where it lands. */
+async function make(ctx: Ctx, input: unknown): Promise<Filled> {
+  const o = rec(ctx, input);
+  const recordId = reqStr(ctx, o, "recordId");
+  const templateFileId = await templateNamed(ctx, reqStr(ctx, o, "template"));
+  const folder = (await ctx.call("projects.files_folder", { recordId })) as { folderId?: string | null };
+  if (typeof folder.folderId !== "string")
+    fail(ctx, "validation.precondition_failed", "That record has no files folder to put the document in.", { recordId });
+  const pass: Record<string, unknown> = { templateFileId, intoFolderId: folder.folderId, recordId };
+  for (const k of ["values", "signingDate", "name", "format"]) if (o[k] !== undefined) pass[k] = o[k];
+  // a retry of the same ask makes the same file: the key is the ask itself
+  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${typeof o.idempotencyKey === "string" ? o.idempotencyKey : ""}`;
+  return (await ctx.call("documents.fill", pass)) as Filled;
+}
+
 export const nativeHandlers = {
+  "documents.make": make,
   "documents.fields": fields,
   "documents.preview_fill": preview,
   "documents.fill": fill,

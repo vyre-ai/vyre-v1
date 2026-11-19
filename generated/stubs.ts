@@ -778,6 +778,7 @@ export function stubs(ctx: CallCtx) {
     documents: {
       fields: call("documents.fields"),
       fill: call("documents.fill"),
+      make: call("documents.make"),
       make_pdf: call("documents.make_pdf"),
       mark_template: call("documents.mark_template"),
       preview_fill: call("documents.preview_fill"),
