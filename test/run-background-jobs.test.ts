@@ -1,9 +1,9 @@
 // The node of a command left running (r42-runtime): made when the call outlives its grace, kept alive by this process, ended with the call; a server that dies leaves a lease that runs out and the sweep ends it failed.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { harness } from "../../runs/fixtures/db.ts";
-import { createBackgroundPort } from "../background-jobs.ts";
-import { LEASE_TTL_MS } from "../../runs/node.ts";
+import { harness } from "../modules/runs/fixtures/db.ts";
+import { createBackgroundPort } from "../modules/engine/background-jobs.ts";
+import { LEASE_TTL_MS } from "../modules/runs/node.ts";
 
 const host = { id: "svc_host", kind: "service" as const };
 const tctx = {
@@ -72,7 +72,11 @@ test("the server dies while it waits: the lease runs out and the sweep ends the 
 test("a command held for approval ends its node as stopped (it has not started), never failed", async () => {
   const w = world();
   const a = (await w.port.begin(tctx, tool))!;
-  await w.port.end(a.runId, { ok: false, held: true, summary: "It waits for a person's approval; it starts when allowed." });
+  await w.port.end(a.runId, {
+    ok: false,
+    held: true,
+    summary: "It waits for a person's approval; it starts when allowed.",
+  });
   assert.equal(w.row(a.runId)?.status, "stopped");
   assert.equal(w.row(a.runId)?.error_code, null);
 });
