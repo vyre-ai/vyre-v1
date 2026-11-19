@@ -54,6 +54,7 @@ import {
 import type { MailCtx, Party, Row } from "../projections.ts";
 import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
 import { autoReplyGuard } from "./extra/inbound.ts";
+import { fillSend } from "./extra/template.ts";
 
 // ---- shapes
 
@@ -84,6 +85,11 @@ export interface SendIn {
   sendAt?: number;
   /** Carry an unsubscribe link and the List-Unsubscribe headers. */
   unsubscribe?: boolean;
+  /** A named template (mail.template.*) in place of subject and text, filled from the record and vars; the document's own version wins when documentId names one. */
+  templateKey?: string;
+  documentId?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
   idempotencyKey: string;
 }
 
@@ -540,6 +546,9 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     "refId",
   );
   if (prior) return JSON.parse(prior) as SendOut;
+  // a template becomes a subject and a body here, once, so a message held for later carries its words and does not fill again
+  if (input.templateKey !== undefined) input = await fillSend(ctx, input);
+  else if (typeof input.subject !== "string") bad(ctx, "Subject is required.");
 
   const pending = input.draftId === undefined ? null : loadPending(ctx, input.draftId, input.mailboxId);
   // An agent's draft goes out as it is stored: its own words, recipients, Cc and subject, whatever a composer or a card holds at the moment of Send (the person edits it with mail.draft first). Never a preview.

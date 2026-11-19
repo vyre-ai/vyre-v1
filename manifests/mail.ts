@@ -642,6 +642,12 @@ const manifest = defineManifest({
           ),
           route: t.opt(t.enm("mailbox", "space_domain")),
           ...composed,
+          // a template names the subject and the body: send `templateKey` (with the document and record it is about, and any values) in place of subject and text
+          subject: t.opt(t.str()),
+          templateKey: t.opt(tplKey),
+          documentId: t.opt(id.file),
+          recordId: t.opt(id.record),
+          vars: t.opt(t.rec()),
           sendAt: t.opt(t.ts()),
           unsubscribe: t.opt(t.bool()), // carry an unsubscribe link and the List-Unsubscribe headers: every Automations email does
         },

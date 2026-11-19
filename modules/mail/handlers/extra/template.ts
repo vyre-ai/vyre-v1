@@ -4,6 +4,7 @@
 // {{field}} or {{field|fallback}}; the same tokens the email builder uses. A preview fills them from a real record (read as the caller, so a record the caller
 // may not see is not found) and from `vars` a caller passes (vars win), and says which fields would go out blank. A Space template is edited by people who hold
 // comms.templates; a document's version by people who may edit the document.
+import { fail } from "../../../../host/src/routes/errors.ts";
 import { findRecord } from "../../../../lib/record-type.ts";
 import { fillTokens, tokensIn } from "../../../../lib/merge-tokens.ts";
 import { bad, first, missing, newId, num, rowsOf, statements, str, strOrNull } from "../../projections.ts";
@@ -310,3 +311,29 @@ export async function render(
 }
 
 export const preview = render;
+
+/**
+ * The send input with its template filled in: subject, text and html set, the template fields removed. Refuses, saying which fields, when any would go out
+ * blank, and when the caller also wrote their own subject or text (one source of words, never two).
+ */
+export async function fillSend<T extends { templateKey?: string; documentId?: string; recordId?: string; vars?: Record<string, unknown>; subject?: string; text?: string; html?: string }>(
+  ctx: MailCtx,
+  input: T,
+): Promise<Omit<T, "templateKey" | "documentId" | "recordId" | "vars"> & { subject: string }> {
+  if (input.subject !== undefined || input.text !== undefined || input.html !== undefined)
+    bad(ctx, "Send either a template or your own subject and text, not both.");
+  const r = await render(ctx, {
+    key: input.templateKey as string,
+    ...(input.documentId !== undefined ? { documentId: input.documentId } : {}),
+    ...(input.recordId !== undefined ? { recordId: input.recordId } : {}),
+    ...(input.vars !== undefined ? { vars: input.vars } : {}),
+  });
+  if (r.blanks.length > 0) {
+    const list = r.blanks.join(", ");
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: `Not sent. The template ${input.templateKey} still needs a value for ${list}.`,
+    });
+  }
+  const { templateKey: _k, documentId: _d, recordId: _r, vars: _v, ...rest } = input;
+  return { ...rest, subject: r.subject, text: r.text, ...(r.html ? { html: r.html } : {}) };
+}
