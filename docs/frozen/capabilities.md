@@ -760,4 +760,4 @@ Signed: lead, 19 Nov 2026
 - A step that waited five minutes gives up with one plain line and has not run. The Stop button of the desk is the existing `engine.stop`; nothing new there.
 - Snapshots: docs/frozen/snapshots/computers.json.
 
-Signed: pending, lead
+Signed: lead, 19 Nov 2026
