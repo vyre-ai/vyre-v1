@@ -303,6 +303,9 @@ test("a saved Space that answers its health check but fails its calls: Your Spac
     await press(await until("your-space-0"));
     await until("state-second");
     assert.ok(find(root, "state-retry"), "Try again is beside it");
+    // nothing typed can be lost on the way to Your Spaces: a shell that shows this screen never opened a place, so there is no composer in it to hold a draft
+    for (const id of ["composer", "tasks-composer", "contact-composer-field"])
+      assert.equal(find(root, id), null, `${id} is not on the failed screen`);
     await press(find(root, "state-second"));
     await until("your-spaces");
     assert.equal(find(root, "state-second"), null, "nothing of the failed shell is mounted behind the list");
