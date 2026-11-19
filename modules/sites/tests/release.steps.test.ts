@@ -1574,7 +1574,10 @@ test("rows handled in the same millisecond keep the order they were written in",
     await hook(w, secret, "push", mv(Z, A));
     await hook(w, secret, "push", mv(A, B));
     // a delete of the commit the branch had left (A) is old news, though it carries the same time as the push after it
-    await assert.rejects(() => hook(w, secret, "push", mv(A, Z, { deleted: true }), { delivery: "ms0000aa-aaaa" }), /older than/);
+    await assert.rejects(
+      () => hook(w, secret, "push", mv(A, Z, { deleted: true }), { delivery: "ms0000aa-aaaa" }),
+      /older than/,
+    );
     // a delete of the current head is taken
     assert.equal((await hook(w, secret, "push", mv(B, Z, { deleted: true }))).nudge, true);
   } finally {
