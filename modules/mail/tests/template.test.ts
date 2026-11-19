@@ -189,3 +189,45 @@ test("saving a key twice, with a reset between, leaves one live template", async
   await save(h.ctx, { key: "signature.request", subject: "C", text: "c" });
   assert.equal(h.rows(`SELECT id FROM mail_template WHERE key = ? AND deleted_at IS NULL`, "signature.request").length, 1);
 });
+
+test("a link is judged on the value as rendered: a > inside a quoted attribute, a scheme split over two fields, entities, and unquoted values", () => {
+  const f = (tpl: string, v: Record<string, string>) => fillTokens(tpl, v, { html: true }).text;
+  assert.equal(f('<a title="a>b" href="{{u}}">x</a>', { u: "javascript:alert(1)" }), '<a title="a>b" href="#">x</a>');
+  assert.equal(f("<a title='a>b' href='{{u}}'>x</a>", { u: "javascript:alert(1)" }), "<a title='a>b' href='#'>x</a>");
+  assert.equal(f('<a href="{{a}}{{b}}">x</a>', { a: "javascript", b: ":alert(1)" }), '<a href="#">x</a>');
+  assert.equal(f('<a href="java{{x}}">x</a>', { x: "script:alert(1)" }), '<a href="#">x</a>');
+  assert.equal(f('<a href="{{u}}">x</a>', { u: "jav&#x61;script:alert(1)" }), '<a href="#">x</a>'); // escaped, then read as the browser reads it
+  assert.equal(f('<a href="{{u}}">x</a>', { u: "&#106;avascript&colon;alert(1)" }), '<a href="#">x</a>');
+  assert.equal(f("<a href={{u}}>x</a>", { u: "javascript:alert(1)" }), "<a href=#>x</a>");
+  assert.equal(f('<a HREF="{{u}}">x</a>', { u: " \tjava\nscript:alert(1)" }), '<a HREF="#">x</a>');
+  assert.equal(f('<a href="{{u}}">x</a>', { u: ":alert(1)" }), '<a href="#">x</a>');
+  assert.equal(f('<img src="{{u}}">', { u: "cid:logo@vyre" }), '<img src="cid:logo@vyre">'); // an image inside the email
+  assert.equal(f('<a href="{{u}}">x</a>', { u: "cid:logo@vyre" }), '<a href="#">x</a>');
+  assert.equal(f('<a href="{{u}}">x</a>', { u: "https://sign.vyre.test/a?x=1&y=2" }), '<a href="https://sign.vyre.test/a?x=1&amp;y=2">x</a>');
+  assert.equal(f("<p>1 < 2 and {{u}}</p>", { u: "javascript:x" }), "<p>1 < 2 and javascript:x</p>");
+});
+
+test("a template cannot merge a private field, and a record's value under such a name is never merged", async () => {
+  const h = setup({ signer_name: "Sam", ssn: "123-45-6789", card_number: "4111" });
+  await assert.rejects(save(h.ctx, { key: "a.b", subject: "x", text: "Your {{ssn}}" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(save(h.ctx, { key: "a.b", subject: "x {{password|}}", text: "y" }), (e) => codeOf(e) === "validation.bad_input");
+  const out = await preview(h.ctx, { subject: "x", text: "{{signer_name}} {{ssn_x|none}}", recordId: REC });
+  assert.equal(out.text, "Sam none");
+  // a field that only looks private is not blocked
+  await save(h.ctx, { key: "a.b", subject: "Your {{cardinal_direction|north}}", text: "y" });
+});
+
+test("document wording needs edit on the file and comms.templates; reading needs view", async () => {
+  const h = setup();
+  const set = () => forDocumentSet(h.ctx, { documentId: DOC, key: "signature.reminder", subject: "S", text: "T" });
+  await set();
+  h.denied.add(DOC);
+  await assert.rejects(set(), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(forDocumentClear(h.ctx, { documentId: DOC, key: "signature.reminder" }), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(forDocumentGet(h.ctx, { documentId: DOC, key: "signature.reminder" }), (e) => codeOf(e) === "validation.not_found");
+  h.denied.delete(DOC);
+  h.denied.add("spc_mailtest"); // no comms.templates
+  await assert.rejects(set(), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(forDocumentClear(h.ctx, { documentId: DOC, key: "signature.reminder" }), (e) => codeOf(e) === "permission.no_grant");
+  assert.equal((await forDocumentGet(h.ctx, { documentId: DOC, key: "signature.reminder" })).override, true);
+});

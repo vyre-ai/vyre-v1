@@ -2,7 +2,9 @@
 // the one thing to do, and mail.inbox.monitor says per inbox how it is fed and whether it works. Addresses end in .test; nothing leaves the process.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { autoReason, ingestWatched, monitor, syncWatched } from "../handlers/extra/inbound.ts";
+import { AUTO_PER_HOUR, MAX_PROBLEMS, autoReason, ingestWatched, monitor, noteAuto, syncWatched } from "../handlers/extra/inbound.ts";
+import { isOwnRetry } from "../handlers/extra/delivery.ts";
+import { sendAs } from "../handlers/send.ts";
 import { ingest } from "../handlers/ingest.ts";
 import { send } from "../handlers/send.ts";
 import { codeOf, contractErrors, letter, NOW } from "../fixtures/harness.ts";
@@ -13,7 +15,11 @@ const MIN = 60_000;
 test("machine-made mail is recognised by its headers and sender, and mail from a person is not", () => {
   assert.equal(autoReason({ "auto-submitted": "auto-replied" }, "pat@acme.test"), "an automatic reply");
   assert.equal(autoReason({ "auto-submitted": "no" }, "pat@acme.test"), null);
-  assert.equal(autoReason({ "x-auto-response-suppress": "All" }, "pat@acme.test"), "an automatic reply");
+  // Exchange and Outlook put this on ordinary mail from people: alone it says nothing
+  assert.equal(autoReason({ "x-auto-response-suppress": "All" }, "pat@acme.test"), null);
+  assert.equal(autoReason({ "x-autoreply": "yes" }, "pat@acme.test"), "an automatic reply");
+  // a person's reply sent through a list address carries list headers, and answers something
+  assert.equal(autoReason({ "list-id": "<news.acme.test>", "in-reply-to": "<x@acme.test>" }, "pat@acme.test"), null);
   assert.equal(autoReason({ precedence: "Bulk" }, "pat@acme.test"), "bulk mail");
   assert.equal(autoReason({ "list-id": "<news.acme.test>" }, "pat@acme.test"), "a mailing list");
   assert.equal(autoReason({ "content-type": "multipart/report; report-type=delivery-status" }, "mailer-daemon@acme.test"), "a delivery report");
@@ -96,4 +102,86 @@ test("a paused inbox says paused; an inbox the caller may not see is left out, a
   assert.equal(all.some((i) => i.mailboxId === "mbx_sam"), false);
   await assert.rejects(monitor(r.ctx, { mailboxId: "mbx_sam" }), (e) => codeOf(e) === "validation.not_found");
   await assert.rejects(monitor(r.ctx, { mailboxId: "nope" }), (e) => codeOf(e) === "validation.bad_input");
+});
+
+test("the unrouted-address list is for people who manage sending domains, and it keeps only the newest hundred", async () => {
+  const r = rig();
+  for (let n = 0; n < MAX_PROBLEMS + 25; n++) {
+    r.h.advance(1000);
+    const input = letter("pat@acme.test", `<u${n}@acme.test>`, `mg_u${n}`, { source: "mailgun", envelopeTo: `ghost${n}@vyre.test` });
+    await assert.rejects(ingestWatched(r.ctx, input, () => ingest(r.ctx, input)));
+  }
+  assert.equal(r.h.rows(`SELECT id FROM mail_inbound_problem WHERE kind = ?`, "no_inbox").length, MAX_PROBLEMS);
+  const out = await monitor(r.ctx, {});
+  assert.equal(out.unrouted.length, 20);
+  assert.equal(out.unrouted[0]!.address, `ghost${MAX_PROBLEMS + 24}@vyre.test`); // newest first; the oldest are gone
+  assert.equal(r.h.rows(`SELECT id FROM mail_inbound_problem WHERE address = ?`, "ghost0@vyre.test").length, 0);
+  r.h.denied.add("spc_mailtest"); // the caller does not manage sending domains
+  assert.deepEqual((await monitor(r.ctx, {})).unrouted, []);
+  assert.ok((await monitor(r.ctx, {})).inboxes.length > 0);
+});
+
+test("a fresh message to an address that sent machine-made mail is refused to an Automation, not to a person", async () => {
+  const r = rig({ origin: "automation" });
+  await ingest(r.ctx, letter("noreply@acme.test", "<n1@acme.test>", "gm_n1", { mailboxId: "mbx_maya" })); // a no-reply sender
+  const fresh = (to: string) => sendIn({ mailboxId: "mbx_maya", to: [{ address: to }], subject: "Hello", text: "Hi" }); // no replyToMessageId at all
+  await assert.rejects(send(r.ctx, fresh("noreply@acme.test")), (e) => /could start a loop/.test(String((e as Error).message)));
+  assert.equal((await send(r.ctx, fresh("kim@acme.test"))).status, "sent");
+  const person = rig();
+  await ingest(person.ctx, letter("noreply@acme.test", "<n2@acme.test>", "gm_n2", { mailboxId: "mbx_maya" }));
+  assert.equal((await send(person.ctx, fresh("noreply@acme.test"))).status, "sent");
+});
+
+test("an Automation may send one address only so many automatic emails an hour, and a person is never counted", async () => {
+  const r = rig({ origin: "automation" });
+  for (let n = 0; n < AUTO_PER_HOUR; n++)
+    assert.equal((await send(r.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }] }))).status, "sent");
+  await assert.rejects(send(r.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }] })), (e) => /automatic emails in the last hour/.test(String((e as Error).message)));
+  r.h.advance(61 * MIN);
+  assert.equal((await send(r.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }] }))).status, "sent");
+  const person = rig();
+  for (let n = 0; n < AUTO_PER_HOUR + 2; n++) await send(person.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "kim@acme.test" }] }));
+  assert.equal(person.sent().length, AUTO_PER_HOUR + 2);
+});
+
+test("our own retry in flight is never refused by the guard; a forged retry key is", async () => {
+  const r = rig({ origin: "automation" });
+  await ingest(r.ctx, letter("noreply@acme.test", "<n3@acme.test>", "gm_n3", { mailboxId: "mbx_maya" }));
+  const { ensureDelivery } = await import("../handlers/extra/delivery.ts");
+  ensureDelivery(r.ctx);
+  const key = "retry:eml_orig0001:noreply@acme.test:1";
+  const mk = () => sendIn({ mailboxId: "mbx_maya", to: [{ address: "noreply@acme.test" }], idempotencyKey: key });
+  assert.equal(isOwnRetry(r.ctx, key), false);
+  await assert.rejects(send(r.ctx, mk()), (e) => /could start a loop/.test(String((e as Error).message))); // a forged key
+  r.h.ctx.db.run(`INSERT INTO mail_delivery_retry ("messageId", address, attempts, "nextAt", state) VALUES (?, ?, ?, ?, ?)`, "eml_orig0001", "noreply@acme.test", 1, r.ctx.now(), "sending");
+  assert.equal(isOwnRetry(r.ctx, key), true);
+  assert.equal((await send(r.ctx, mk())).status, "sent");
+});
+
+test("a person's scheduled message keeps the person as the actor when it comes due", async () => {
+  const person = rig();
+  await ingest(person.ctx, letter("noreply@acme.test", "<n4@acme.test>", "gm_n4", { mailboxId: "mbx_maya" }));
+  const out = await send(person.ctx, sendIn({ mailboxId: "mbx_maya", to: [{ address: "noreply@acme.test" }], sendAt: person.ctx.now() + 3_600_000 }));
+  assert.equal(out.status, "queued");
+  person.h.advance(2 * 3_600_000);
+  person.ctx.origin = "automation"; // the scheduler's call at due time
+  const due = await send(person.ctx, person.scheduled[0]!.input as never);
+  assert.equal(due.status, "sent");
+});
+
+test("mail.send_as goes through the same guard", async () => {
+  const r = rig({ origin: "automation" });
+  const auto = await ingest(r.ctx, letter("pat@acme.test", "<s1@acme.test>", "gm_s1", { mailboxId: "mbx_maya", headers: { "Auto-Submitted": "auto-replied" } }));
+  await assert.rejects(
+    sendAs(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Re: x", text: "y", replyToMessageId: auto.messageId, idempotencyKey: "sa-1" }),
+    (e) => /could start a loop/.test(String((e as Error).message)),
+  );
+});
+
+test("noteAuto remembers the sender once and moves the time forward", async () => {
+  const r = rig();
+  noteAuto(r.ctx, "eml_a", "a mailing list", "News@Acme.test");
+  r.h.advance(MIN);
+  noteAuto(r.ctx, "eml_b", "a mailing list", "news@acme.test");
+  assert.equal(r.h.rows(`SELECT address FROM mail_auto_sender`).length, 1);
 });

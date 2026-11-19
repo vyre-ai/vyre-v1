@@ -221,7 +221,7 @@ export async function ingest(ctx: MailCtx, input: IngestIn): Promise<IngestOut> 
     // machine-made mail (an auto-reply, a delivery report, a list, a no-reply sender) is marked, so no Flow or agent answers it by itself and starts a loop
     const machine = autoReason(parsed.headers, parsed.from.address);
     if (machine) {
-      noteAuto(ctx, messageId, machine);
+      noteAuto(ctx, messageId, machine, parsed.from.address);
       payload.auto = true;
     }
     // Mail kept in the mailbox view is announced to the mailbox owner only.

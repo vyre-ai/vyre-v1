@@ -63,6 +63,10 @@ const readableDocument = (ctx: MailCtx, v: unknown): string => {
   return id;
 };
 
+/** Field names that hold something private. A template may not merge them, and a record's value under such a name is never merged into an email. */
+const PRIVATE_FIELD = /(^|_)(ssn|password|passwd|secret|token|apikey|api_key|private_key|tax_id|ein|dob|birth|birthday|card|cvv|iban|account_number|routing)(_|$)/;
+export const isPrivateField = (key: string): boolean => PRIVATE_FIELD.test(key.toLowerCase());
+
 interface Body {
   subject: string;
   text: string;
@@ -80,6 +84,8 @@ function bodyOf(ctx: MailCtx, input: Record<string, unknown>): Body {
   const html = input.html;
   if (html !== undefined && typeof html !== "string") bad(ctx, "The html body is text.");
   if (typeof html === "string" && html.length > MAX_HTML) bad(ctx, "The html body is over 1 MB.");
+  for (const part of [subject, text, typeof html === "string" ? html : ""])
+    for (const t of tokensIn(part)) if (isPrivateField(t.key)) bad(ctx, `A template cannot merge ${t.key.replace(/_/g, " ")}: it holds something private.`);
   return { subject, text, ...(typeof html === "string" && html !== "" ? { html } : {}) };
 }
 
@@ -203,10 +209,18 @@ export async function reset(ctx: MailCtx, input: { key: string }): Promise<{ res
   return { reset: true };
 }
 
+/** Whoever changes the words of a document's emails may edit the document and hold comms.templates: both, because the words go to clients in the Space's name. */
+function mayChangeDocument(ctx: MailCtx, id: unknown): string {
+  const documentId = readableDocument(ctx, id);
+  if (!can(ctx, "edit", { type: "file", id: documentId }) || ctx.authorize({ perm: "comms.templates", level: "use" }, { type: "space", id: ctx.space }).effect !== "allow")
+    throw fail("permission.no_grant", ctx.trace.traceId);
+  return documentId;
+}
+
 export async function forDocumentGet(ctx: MailCtx, input: { documentId: string; key: string }): Promise<{ override: boolean; template: TemplateOut }> {
   ensureTemplates(ctx);
   const key = keyOf(ctx, input.key);
-  const documentId = documentOf(ctx, input.documentId);
+  const documentId = readableDocument(ctx, input.documentId);
   const t = resolve(ctx, key, documentId);
   if (!t) return missing(ctx, "There is no template with that key.");
   return { override: t.source === "document", template: t };
@@ -218,7 +232,7 @@ export async function forDocumentSet(
 ): Promise<{ template: TemplateOut }> {
   ensureTemplates(ctx);
   const key = keyOf(ctx, input.key);
-  const documentId = documentOf(ctx, input.documentId);
+  const documentId = mayChangeDocument(ctx, input.documentId);
   if (!BUILTINS.some((b) => b.key === key) && !spaceRow(ctx, key)) return missing(ctx, "There is no template with that key.");
   const body = bodyOf(ctx, input as unknown as Record<string, unknown>);
   const by = ctx.actingFor ?? ctx.principal.id;
@@ -238,7 +252,7 @@ export async function forDocumentSet(
 export async function forDocumentClear(ctx: MailCtx, input: { documentId: string; key: string }): Promise<{ cleared: boolean }> {
   ensureTemplates(ctx);
   const key = keyOf(ctx, input.key);
-  const documentId = documentOf(ctx, input.documentId);
+  const documentId = mayChangeDocument(ctx, input.documentId);
   if (!docRow(ctx, documentId, key)) return { cleared: false };
   ctx.db.run(`DELETE FROM mail_template_doc WHERE "documentId" = ? AND key = ?`, documentId, key);
   return { cleared: true };
@@ -259,7 +273,7 @@ function valuesOf(fields: unknown): Record<string, string> {
   const out: Record<string, string> = Object.create(null) as Record<string, string>;
   if (typeof fields !== "object" || fields === null) return out;
   for (const [k, v] of Object.entries(fields as Record<string, unknown>))
-    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") out[k.toLowerCase()] = String(v);
+    if ((typeof v === "string" || typeof v === "number" || typeof v === "boolean") && !isPrivateField(k)) out[k.toLowerCase()] = String(v);
   return out;
 }
 
@@ -334,6 +348,7 @@ export async function fillSend<T extends { templateKey?: string; documentId?: st
 ): Promise<Omit<T, "templateKey" | "documentId" | "recordId" | "vars"> & { subject: string }> {
   if (input.subject !== undefined || input.text !== undefined || input.html !== undefined)
     bad(ctx, "Send either a template or your own subject and text, not both.");
+  if ((input as { draftId?: unknown }).draftId !== undefined) bad(ctx, "A draft carries its own words; send it without a template.");
   const r = await render(ctx, {
     key: input.templateKey as string,
     ...(input.documentId !== undefined ? { documentId: input.documentId } : {}),

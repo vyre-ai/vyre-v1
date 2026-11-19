@@ -9,16 +9,89 @@ const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"
 const escape = (s: string): string => s.replace(/[&<>"']/g, (c) => ESC[c] ?? c);
 const humanize = (key: string): string => key.replace(/_/g, " ");
 const MAX_KEY = 64;
-/** The only schemes a value may carry inside an HTML tag (an href or a src). Anything else becomes "#": never a link. */
+/** The only schemes a link may carry. `cid:` (an image sent inside the email) is allowed for src only. */
 const SAFE_SCHEMES = new Set(["https", "http", "mailto", "tel"]);
+const LINK_ATTRS = new Set(["href", "src", "action", "formaction", "xlink:href", "poster", "background", "cite", "data", "srcset", "ping"]);
 
-/** True when a value would act as a link with a scheme that is not allowed (javascript:, data:, vbscript:, file: ...). Spaces and control characters inside the scheme are ignored, as browsers do. */
-export function unsafeUrl(value: string): boolean {
-  const flat = value.replace(/[\u0000-\u0020\u007f-\u009f]/g, "");
-  const m = /^([a-z][a-z0-9+.-]*):/i.exec(flat);
-  return m !== null && !SAFE_SCHEMES.has((m[1] ?? "").toLowerCase());
+/** A value as a browser reads it: character references decoded, spaces and control characters dropped. */
+function asBrowserReads(value: string): string {
+  const decoded = value
+    .replace(/&#x([0-9a-f]{1,6});?/gi, (_m, h: string) => String.fromCodePoint(Math.min(parseInt(h, 16), 0x10ffff)))
+    .replace(/&#([0-9]{1,7});?/g, (_m, d: string) => String.fromCodePoint(Math.min(parseInt(d, 10), 0x10ffff)))
+    .replace(/&colon;/gi, ":")
+    .replace(/&(tab|newline);/gi, "");
+  return decoded.replace(/[\u0000-\u0020\u007f-\u009f]/g, "");
 }
-const MAX_FALLBACK = 200;
+
+/** True when a link value carries a scheme that is not allowed (javascript:, data:, vbscript:, file: ...). */
+export function unsafeUrl(value: string, attr = "href"): boolean {
+  const flat = asBrowserReads(value);
+  const m = /^([a-z][a-z0-9+.-]*):/i.exec(flat);
+  if (m) {
+    const scheme = (m[1] ?? "").toLowerCase();
+    return !(SAFE_SCHEMES.has(scheme) || (scheme === "cid" && attr.toLowerCase() === "src"));
+  }
+  return flat.startsWith(":"); // a scheme with no name is what two merged pieces can leave
+}
+
+/**
+ * Neutralise every link attribute of finished HTML whose value would act on an unsafe scheme, judged on the value AS RENDERED (after every merge field is filled,
+ * so a scheme split across two fields is caught). Tags are read with quotes in mind: a ">" inside a quoted value does not end the tag. The value becomes "#".
+ */
+export function safeLinks(html: string): string {
+  let out = "";
+  let i = 0;
+  while (i < html.length) {
+    const lt = html.indexOf("<", i);
+    if (lt < 0 || !/[a-z]/i.test(html[lt + 1] ?? "")) {
+      const next = lt < 0 ? html.length : lt + 1;
+      out += html.slice(i, next);
+      i = next;
+      continue;
+    }
+    out += html.slice(i, lt);
+    let j = lt + 1;
+    while (j < html.length && !/[\s/>]/.test(html[j] as string)) j++;
+    out += html.slice(lt, j);
+    // attributes, until the ">" that is outside a quote
+    while (j < html.length && html[j] !== ">") {
+      const ws = j;
+      while (j < html.length && /[\s/]/.test(html[j] as string)) j++;
+      out += html.slice(ws, j);
+      if (j >= html.length || html[j] === ">") break;
+      const ns = j;
+      while (j < html.length && !/[\s=/>]/.test(html[j] as string)) j++;
+      const name = html.slice(ns, j);
+      out += name;
+      const ps = j;
+      while (j < html.length && /\s/.test(html[j] as string)) j++;
+      if (html[j] !== "=") {
+        out += html.slice(ps, j);
+        continue;
+      }
+      j++;
+      while (j < html.length && /\s/.test(html[j] as string)) j++;
+      out += html.slice(ps, j);
+      let value: string, q = "";
+      if (html[j] === '"' || html[j] === "'") {
+        q = html[j] as string;
+        const end = html.indexOf(q, j + 1);
+        value = html.slice(j + 1, end < 0 ? html.length : end);
+        j = end < 0 ? html.length : end + 1;
+      } else {
+        const vs = j;
+        while (j < html.length && !/[\s>]/.test(html[j] as string)) j++;
+        value = html.slice(vs, j);
+      }
+      const bad = LINK_ATTRS.has(name.toLowerCase()) && (name.toLowerCase() === "srcset" ? value.split(",").some((p) => unsafeUrl(p.trim().split(/\s+/)[0] ?? "", "src")) : unsafeUrl(value, name));
+      out += `${q}${bad ? "#" : value}${q}`;
+    }
+    out += html.slice(j, j + 1); // the closing ">"
+    j++;
+    i = j;
+  }
+  return out;
+}
 
 export interface Filled {
   text: string;
@@ -85,14 +158,9 @@ export function fillTokens(source: string, values: Record<string, string>, opts:
   const blanks = new Set<string>();
   const fallbacks = new Set<string>();
   let text = "";
-  let inTag = false; // inside <...>: a value there is an attribute, so a link scheme must be safe
   for (const p of scan(source)) {
     if (p.literal !== undefined) {
       text += p.literal;
-      const lt = p.literal.lastIndexOf("<");
-      const gt = p.literal.lastIndexOf(">");
-      if (lt > gt) inTag = true;
-      else if (gt > lt) inTag = false;
       continue;
     }
     const key = p.key as string;
@@ -106,10 +174,9 @@ export function fillTokens(source: string, values: Record<string, string>, opts:
       blanks.add(key);
       out = humanize(key);
     }
-    if (opts.html && inTag && unsafeUrl(out)) out = "#";
     text += opts.html ? escape(out) : out;
   }
-  return { text, blanks: [...blanks], fallbacks: [...fallbacks] };
+  return { text: opts.html ? safeLinks(text) : text, blanks: [...blanks], fallbacks: [...fallbacks] };
 }
 
 /** Every field a text names, in order of first appearance. */

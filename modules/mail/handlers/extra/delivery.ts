@@ -170,7 +170,8 @@ export async function trail(ctx: MailCtx, input: { messageId: string }): Promise
   const failed = new Set(events.filter((e) => e.kind === "bounced" || e.kind === "complained").map((e) => e.address));
   const named = [...new Set(recipients)].filter((a) => failed.has(a) || failed.size === 0);
   if (state === "bounced" || state === "complained") {
-    const checked = (await ctx.call("contacts.suppression.check", { channel: "email", addresses: named })) as {
+    // a viewer without the contacts permission still reads the trail, just without the blocked line
+    const checked = (await ctx.call("contacts.suppression.check", { channel: "email", addresses: named }).catch(() => ({}))) as {
       suppressed?: { address: string; reason?: string }[];
     };
     for (const s of Array.isArray(checked?.suppressed) ? checked.suppressed : []) {
@@ -502,7 +503,8 @@ export function childEnded(
   const root = first(ctx.db.all(`SELECT * FROM mail_message WHERE id = ?`, rootId));
   if (!root) return;
   const current = str(root, "status");
-  if (["bounced", "complained", "failed"].includes(current) && !(status === "complained" && current !== "complained")) return;
+  // once the message the person sent is delivered (or already ended), a later failure of a retry stays on the trail; it never changes the original
+  if (["delivered", "bounced", "complained", "failed"].includes(current)) return;
   ctx.db.run(
     `UPDATE mail_message SET status = ?, version = ?, updated_at = ? WHERE id = ?`,
     status,
@@ -566,4 +568,14 @@ export function childDelivered(ctx: MailCtx, rootId: string, address: string): v
     );
     ctx.emit("message.delivered", `mail_message/${rootId}`, { messageId: rootId, channel: "email" });
   }
+}
+
+/** True when a send is one of our own retries in flight: its key names a message and address whose retry is claimed at that attempt. Nobody else can hold such a key. */
+export function isOwnRetry(ctx: MailCtx, key: string | undefined): boolean {
+  if (!key || !key.startsWith("retry:")) return false;
+  const m = /^retry:(eml_[a-z0-9]+):(.+):([1-9])$/.exec(key);
+  if (!m) return false;
+  ensureDelivery(ctx);
+  const row = first(ctx.db.all(`SELECT state, attempts FROM mail_delivery_retry WHERE "messageId" = ? AND address = ?`, m[1], m[2]));
+  return !!row && str(row, "state") === "sending" && num(row, "attempts") === Number(m[3]);
 }

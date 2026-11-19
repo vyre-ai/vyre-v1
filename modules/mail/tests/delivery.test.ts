@@ -291,3 +291,27 @@ test("two calls for the same attempt at once: only one sends", async () => {
   assert.deepEqual(both.map((b) => b.outcome).sort(), ["sent", "skipped"]);
   assert.equal(sent.length, 1);
 });
+
+test("a failure of a retry never flips an original that is already delivered; it stays on the trail", async () => {
+  const { h } = setup();
+  seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1", to: ["pat@acme.test", "kim@acme.test"] });
+  await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "soft", address: "pat@acme.test", reason: "Mailbox full" }));
+  await statusUpdate(h.ctx, event("re_1", "delivered", { address: "kim@acme.test" })); // the other recipient got it
+  const r = await retry(h, { messageId: "eml_m1", address: "pat@acme.test", attempt: 1 });
+  seedSent(h, { id: String(r.messageId), mailboxId: "mbx_maya", providerId: "re_2" });
+  await statusUpdate(h.ctx, event("re_2", "bounced", { kind: "hard", reason: "No such user" }));
+  assert.equal(status(h, "eml_m1"), "delivered");
+  assert.equal(h.named("message.bounced").filter((e) => e.payload.messageId === "eml_m1").length, 0);
+  assert.ok((await trail(h.ctx, { messageId: "eml_m1" })).events.some((e) => e.kind === "bounced"));
+  assert.equal(h.rows(`SELECT state FROM mail_delivery_retry`)[0]!.state, "gave_up");
+});
+
+test("a viewer without the contacts permission still reads the trail", async () => {
+  const { h } = setup();
+  script(h, { "contacts.suppression.check": () => { throw new Error("permission.no_grant"); } });
+  seedSent(h, { id: "eml_m1", mailboxId: "mbx_maya", providerId: "re_1" });
+  await statusUpdate(h.ctx, event("re_1", "bounced", { kind: "hard", reason: "No such user" }));
+  const out = await trail(h.ctx, { messageId: "eml_m1" });
+  assert.equal(out.state, "bounced");
+  assert.deepEqual(out.blocked, []);
+});

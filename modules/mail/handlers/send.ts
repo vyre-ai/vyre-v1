@@ -55,7 +55,8 @@ import type { MailCtx, Party, Row } from "../projections.ts";
 import { dkimOf } from "./extra/domains.ts";
 import { smtpDeliver } from "./smtp.ts";
 import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
-import { autoReplyGuard } from "./extra/inbound.ts";
+import { autoReplyGuard, noteAutoSend } from "./extra/inbound.ts";
+import { isOwnRetry } from "./extra/delivery.ts";
 import { fillSend } from "./extra/template.ts";
 
 // ---- shapes
@@ -185,6 +186,9 @@ const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const text = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
 const isInt = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v);
+/** Every address a send names, whatever shape the input has (a bad one is refused later, with its own words). */
+const addressesOf = (input: { to?: unknown; cc?: unknown; bcc?: unknown }): string[] =>
+  [input.to, input.cc, input.bcc].flatMap((l) => (Array.isArray(l) ? l : [])).flatMap((p) => (typeof (p as Party)?.address === "string" ? [(p as Party).address] : []));
 const refuse = (ctx: SendCtx, message: string): never => {
   throw fail("validation.precondition_failed", ctx.trace.traceId, { message });
 };
@@ -560,8 +564,13 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     input = asStored(ctx, input, pending);
   const parent = input.replyToMessageId === undefined ? null : loadParent(ctx, input.replyToMessageId, input.mailboxId);
   // an Automation or an agent never answers machine-made mail (an auto-reply, a delivery report, a list, a no-reply sender) by itself: that is how a loop starts
-  const stop = autoReplyGuard(ctx, input.replyToMessageId, actorOf(ctx.principal.kind, ctx.origin));
-  if (stop) refuse(ctx, stop);
+  // Exempt: our own retry in flight (a resend of what a person or Automation already sent), and a held message coming back at its time (the guard ran, with the real actor, when it was composed).
+  const actor = actorOf(ctx.principal.kind, ctx.origin);
+  const comingBack = pending !== null && str(pending, "status") === "queued";
+  if (!comingBack && !isOwnRetry(ctx, input.idempotencyKey)) {
+    const stop = autoReplyGuard(ctx, input.replyToMessageId, actor, addressesOf(input));
+    if (stop) refuse(ctx, stop);
+  }
   const composed = compose(ctx, input, pending);
   const p = await makePlan(ctx, input, composed, input.route, true);
   const now = p.now;
@@ -604,6 +613,7 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     });
   }
 
+  if (!comingBack && !isOwnRetry(ctx, input.idempotencyKey)) noteAutoSend(ctx, actor, p.allowed.map((a) => a.address));
   let when = Math.max(now, input.sendAt ?? now);
   const row = pending ? str(pending, "id") : newId("eml", now);
   // the Space's sending limits; a queued message coming back at its time already holds its slot
@@ -1079,6 +1089,9 @@ export async function sendAs(ctx: SendCtx, input: SendAsIn): Promise<{ messageId
     const pending = input.draftId === undefined ? null : loadPending(ctx, input.draftId, input.mailboxId);
     const parent =
       input.replyToMessageId === undefined ? null : loadParent(ctx, input.replyToMessageId, input.mailboxId);
+    const asActor = actorOf(ctx.principal.kind, ctx.origin);
+    const stop = autoReplyGuard(ctx, input.replyToMessageId, asActor, addressesOf(input));
+    if (stop) refuse(ctx, stop);
     const composed = compose(ctx, input, pending);
     const p = await makePlan(ctx, input, composed, "mailbox", true);
     if (p.suppressed.length > 0) {

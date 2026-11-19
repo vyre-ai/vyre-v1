@@ -10,7 +10,9 @@ import type { MailCtx, Row } from "../../projections.ts";
 import { ensureAll } from "./common.ts";
 import { DOWN_MS, HEALTHY_MS } from "./status.ts";
 
-const SQL = readFileSync(fileURLToPath(new URL("../../migrations/0012_inbound_watch.sql", import.meta.url)), "utf8");
+const SQL = ["0012_inbound_watch.sql", "0014_inbound_guard.sql"]
+  .map((f) => readFileSync(fileURLToPath(new URL(`../../migrations/${f}`, import.meta.url)), "utf8"))
+  .join("\n");
 const ready = new WeakSet<object>();
 
 export function ensureInbound(ctx: Pick<MailCtx, "db">): void {
@@ -19,6 +21,8 @@ export function ensureInbound(ctx: Pick<MailCtx, "db">): void {
   try {
     ctx.db.all(`SELECT "messageId" FROM mail_inbound_ext WHERE "messageId" = ?`, "probe");
     ctx.db.all(`SELECT id FROM mail_inbound_problem WHERE id = ?`, "probe");
+    ctx.db.all(`SELECT address FROM mail_auto_sender WHERE address = ?`, "probe");
+    ctx.db.all(`SELECT id FROM mail_auto_send WHERE id = ?`, "probe");
   } catch {
     for (const statement of statements(SQL)) ctx.db.run(statement);
   }
@@ -34,11 +38,12 @@ export function autoReason(headers: Record<string, string> | undefined, fromAddr
   const h = headers ?? {};
   const submitted = h["auto-submitted"]?.trim().toLowerCase();
   if (submitted && submitted !== "no") return "an automatic reply";
-  if (h["x-auto-response-suppress"] !== undefined || h["x-autoreply"] !== undefined || h["x-autorespond"] !== undefined)
-    return "an automatic reply";
+  // x-auto-response-suppress is set by Exchange and Outlook on ordinary mail from people, so it is not a sign of a machine on its own
+  if (h["x-autoreply"] !== undefined || h["x-autorespond"] !== undefined) return "an automatic reply";
   const precedence = h["precedence"]?.trim().toLowerCase();
   if (precedence && ["bulk", "junk", "list", "auto_reply"].includes(precedence)) return "bulk mail";
-  if (h["list-id"] !== undefined || h["list-unsubscribe"] !== undefined) return "a mailing list";
+  // a person's reply that happens to carry list headers (it answers something: it has In-Reply-To) is still a person's
+  if ((h["list-id"] !== undefined || h["list-unsubscribe"] !== undefined) && h["in-reply-to"] === undefined) return "a mailing list";
   if (/multipart\/report/i.test(h["content-type"] ?? "")) return "a delivery report";
   const local = fromAddress.split("@")[0] ?? "";
   if (NOREPLY.test(local)) return "a sender that does not read replies";
@@ -46,9 +51,14 @@ export function autoReason(headers: Record<string, string> | undefined, fromAddr
 }
 
 /** Remember that a received message is machine-made. Safe to call twice. */
-export function noteAuto(ctx: MailCtx, messageId: string, reason: string): void {
+export function noteAuto(ctx: MailCtx, messageId: string, reason: string, from?: string): void {
   ensureInbound(ctx);
   ctx.db.run(`INSERT OR IGNORE INTO mail_inbound_ext ("messageId", auto, why) VALUES (?, ?, ?)`, messageId, 1, reason);
+  if (!from) return;
+  const address = from.trim().toLowerCase();
+  if (first(ctx.db.all(`SELECT address FROM mail_auto_sender WHERE address = ?`, address)))
+    ctx.db.run(`UPDATE mail_auto_sender SET why = ?, at = ? WHERE address = ?`, reason, ctx.now(), address);
+  else ctx.db.run(`INSERT INTO mail_auto_sender (address, why, at) VALUES (?, ?, ?)`, address, reason, ctx.now());
 }
 
 export function autoOf(ctx: MailCtx, messageId: string): string | null {
@@ -57,17 +67,55 @@ export function autoOf(ctx: MailCtx, messageId: string): string | null {
   return row && num(row, "auto") === 1 ? (strOrNull(row, "why") ?? "machine-made") : null;
 }
 
+const AUTO_SENDER_MS = 7 * 86_400_000;
+const AUTO_HOUR_MS = 3_600_000;
+/** The most automatic emails one address may get from this Space in an hour; a loop between two auto-responders stops here. */
+export const AUTO_PER_HOUR = 5;
+
 /**
- * Refuse an automatic reply to machine-made mail. A person replying by hand is never stopped; an Automation or an agent replying to a message that is
- * an auto-reply, a delivery report, a list or a no-reply sender is. The refusal says why.
+ * Refuse an automatic message that could start or feed a loop. A person writing by hand is never stopped. An Automation or an agent is stopped when
+ * (a) it answers machine-made mail (an auto-reply, a delivery report, a list, a no-reply sender), or (b) it writes, reply or fresh, to an address that sent us
+ * machine-made mail in the last week, or (c) it has already sent that address AUTO_PER_HOUR automatic emails in the last hour. The refusal says why.
  */
-export function autoReplyGuard(ctx: MailCtx, replyToMessageId: string | undefined, actor: "person" | "agent" | "automation"): string | null {
-  if (actor === "person" || !replyToMessageId) return null;
-  const why = autoOf(ctx, replyToMessageId);
-  return why ? `Not sent. That message is ${why}; an automatic reply to it could start a loop.` : null;
+export function autoReplyGuard(
+  ctx: MailCtx,
+  replyToMessageId: string | undefined,
+  actor: "person" | "agent" | "automation",
+  recipients: string[] = [],
+): string | null {
+  if (actor === "person") return null;
+  if (replyToMessageId) {
+    const why = autoOf(ctx, replyToMessageId);
+    if (why) return `Not sent. That message is ${why}; an automatic reply to it could start a loop.`;
+  }
+  ensureInbound(ctx);
+  const now = ctx.now();
+  for (const raw of recipients) {
+    const address = raw.trim().toLowerCase();
+    const known = first(ctx.db.all(`SELECT * FROM mail_auto_sender WHERE address = ?`, address));
+    if (known && now - num(known, "at") < AUTO_SENDER_MS)
+      return `Not sent. ${address} sent this Space ${str(known, "why")} recently; writing to it automatically could start a loop.`;
+    const recent = rowsOf(ctx.db.all(`SELECT at FROM mail_auto_send WHERE address = ?`, address)).filter((r) => now - num(r, "at") < AUTO_HOUR_MS);
+    if (recent.length >= AUTO_PER_HOUR)
+      return `Not sent. This Space has already sent ${address} ${recent.length} automatic emails in the last hour.`;
+  }
+  return null;
+}
+
+/** An automatic send went out to these addresses: counted, and anything older than a day forgotten. */
+export function noteAutoSend(ctx: MailCtx, actor: "person" | "agent" | "automation", recipients: string[]): void {
+  if (actor === "person") return;
+  ensureInbound(ctx);
+  const now = ctx.now();
+  for (const raw of recipients) ctx.db.run(`INSERT INTO mail_auto_send (id, address, at) VALUES (?, ?, ?)`, newId("aus", now), raw.trim().toLowerCase(), now);
+  for (const r of rowsOf(ctx.db.all(`SELECT id, at FROM mail_auto_send WHERE address = ?`, recipients[0]?.trim().toLowerCase() ?? "")))
+    if (now - num(r, "at") > 86_400_000) ctx.db.run(`DELETE FROM mail_auto_send WHERE id = ?`, str(r, "id"));
 }
 
 // ---- what went wrong on the way in
+
+/** The most problems of one kind kept. */
+export const MAX_PROBLEMS = 100;
 
 export function recordProblem(ctx: MailCtx, p: { mailboxId?: string; address?: string; kind: string; reason: string }): void {
   ensureInbound(ctx);
@@ -83,11 +131,16 @@ export function recordProblem(ctx: MailCtx, p: { mailboxId?: string; address?: s
     `INSERT INTO mail_inbound_problem (id, "mailboxId", address, kind, reason, at) VALUES (?, ?, ?, ?, ?, ?)`,
     newId("ibp", ctx.now()),
     p.mailboxId ?? null,
-    p.address ?? null,
+    p.address ? p.address.slice(0, 254) : null,
     p.kind,
-    p.reason,
+    p.reason.slice(0, 400),
     ctx.now(),
   );
+  // the list is bounded: only the newest MAX_PROBLEMS of a kind are kept, so a sender mailing a hundred thousand made-up addresses cannot grow it
+  const all = rowsOf(ctx.db.all(`SELECT id, at FROM mail_inbound_problem WHERE kind = ?`, p.kind));
+  if (all.length > MAX_PROBLEMS)
+    for (const old of all.sort((a, b) => num(b, "at") - num(a, "at") || str(b, "id").localeCompare(str(a, "id"))).slice(MAX_PROBLEMS))
+      ctx.db.run(`DELETE FROM mail_inbound_problem WHERE id = ?`, str(old, "id"));
 }
 
 /** Run mail.ingest and keep what went wrong: mail for an address no inbox answers to is a problem to show, not only an error to the provider. */
@@ -164,7 +217,7 @@ export async function monitor(ctx: MailCtx, input: { mailboxId?: string }): Prom
     const provider = str(r, "provider");
     const how: MonitorRow["how"] = provider === "imap" ? "imap" : provider === "google" ? "google" : provider === "microsoft" ? "microsoft" : "provider_webhook";
     const received = rowsOf(ctx.db.all(`SELECT "sentAt" FROM mail_message WHERE direction = ? AND deleted_at IS NULL AND "mailboxId" = ?`, "in", id)).map((m) => num(m, "sentAt"));
-    const last = received.length ? Math.max(...received) : undefined;
+    const last = received.length ? received.reduce((m, t) => (t > m ? t : m), 0) : undefined;
     const lastSync = typeof r.lastSyncAt === "number" ? r.lastSyncAt : undefined;
     const problemRow = rowsOf(ctx.db.all(`SELECT * FROM mail_inbound_problem WHERE "mailboxId" = ?`, id)).sort((a, b) => num(b, "at") - num(a, "at"))[0];
     // a problem counts until something good happened after it
@@ -189,7 +242,9 @@ export async function monitor(ctx: MailCtx, input: { mailboxId?: string }): Prom
       row.problem = { reason: "The mailbox has not synced for hours.", fix: fixFor("sync", ""), at: lastSync ?? num(r, "updated_at") };
     out.push(row);
   }
-  const unrouted = input.mailboxId
+  // addresses senders chose are shown only to people who manage sending domains
+  const mayManage = ctx.authorize({ perm: "comms.domains", level: "use" }, { type: "space", id: ctx.space }).effect === "allow";
+  const unrouted = input.mailboxId || !mayManage
     ? []
     : rowsOf(ctx.db.all(`SELECT * FROM mail_inbound_problem WHERE kind = ?`, "no_inbox"))
         .filter((p) => now - num(p, "at") < DAY * 3)

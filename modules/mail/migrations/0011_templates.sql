@@ -15,8 +15,6 @@ CREATE TABLE IF NOT EXISTS mail_template (
   deleted_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS mail_template__key ON mail_template (key);
--- one live template per key: a reset leaves its old row behind, but never two live ones
-CREATE UNIQUE INDEX IF NOT EXISTS mail_template__live_key ON mail_template (key) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS mail_template_doc (
   "documentId" TEXT NOT NULL,
