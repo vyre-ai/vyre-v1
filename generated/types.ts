@@ -36708,6 +36708,14 @@ export type SchemaSetLabelIn = {
 export type SchemaSetLabelOut = {
   ok: boolean;
 };
+export type SchemaSetMergeableIn = {
+  type: string;
+  field: string;
+  mergeable: boolean;
+};
+export type SchemaSetMergeableOut = {
+  ok: boolean;
+};
 export type SchemaTrashListIn = Record<string, unknown>;
 export type SchemaTrashListOut = {
   items: Array<{
@@ -50363,6 +50371,7 @@ export interface CapMap {
   "schema.restore_field": { in: SchemaRestoreFieldIn; out: SchemaRestoreFieldOut };
   "schema.sensitivity.scan": { in: SchemaSensitivityScanIn; out: SchemaSensitivityScanOut };
   "schema.set_label": { in: SchemaSetLabelIn; out: SchemaSetLabelOut };
+  "schema.set_mergeable": { in: SchemaSetMergeableIn; out: SchemaSetMergeableOut };
   "schema.trash.list": { in: SchemaTrashListIn; out: SchemaTrashListOut };
   "schema.types.get": { in: SchemaTypesGetIn; out: SchemaTypesGetOut };
   "schema.types.list": { in: SchemaTypesListIn; out: SchemaTypesListOut };

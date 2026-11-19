@@ -2515,6 +2515,7 @@ export function stubs(ctx: CallCtx) {
         scan: call("schema.sensitivity.scan"),
       },
       set_label: call("schema.set_label"),
+      set_mergeable: call("schema.set_mergeable"),
       trash: {
         list: call("schema.trash.list"),
       },

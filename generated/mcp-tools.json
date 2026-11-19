@@ -55450,6 +55450,44 @@
     },
     {
       "blocks": [],
+      "cap": "schema.set_mergeable",
+      "deferred": false,
+      "description": "Switch \"Can go in emails\" on or off for one field: whether a template may merge its value into an email. Private and secret fields can never be switched on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "field": {
+            "examples": [
+              "phone"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "mergeable": {
+            "type": "boolean"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "field",
+          "mergeable"
+        ],
+        "type": "object"
+      },
+      "name": "schema_set_mergeable",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "schema.trash.list",
       "deferred": false,
       "description": "Dropped fields and types still held in Trash (30 days)",

@@ -8084,6 +8084,12 @@
     },
     {
       "deferred": false,
+      "name": "schema_set_mergeable",
+      "summary": "Switch \"Can go in emails\" on or off for one field: whether a template may merge its value into an email. Private and secret fields can never be switched on",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "schema_trash_list",
       "summary": "Dropped fields and types still held in Trash (30 days)",
       "toolset": "engineer"

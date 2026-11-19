@@ -2515,6 +2515,7 @@ export function createClient(transport: Transport) {
         scan: call("schema.sensitivity.scan", 1),
       },
       set_label: call("schema.set_label", 1),
+      set_mergeable: call("schema.set_mergeable", 1),
       trash: {
         list: call("schema.trash.list", 1),
       },
