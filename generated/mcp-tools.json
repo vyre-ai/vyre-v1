@@ -18384,7 +18384,7 @@
       "blocks": [],
       "cap": "documents.mark_template",
       "deferred": false,
-      "description": "Mark a docx file as a template, or unmark it",
+      "description": "Mark a docx file as a template (optionally for one record type), or unmark it",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18397,6 +18397,13 @@
           },
           "isTemplate": {
             "type": "boolean"
+          },
+          "recordType": {
+            "description": "Key of the record type this template is for",
+            "examples": [
+              "customer"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -18484,6 +18491,17 @@
             "maximum": 500,
             "minimum": 1,
             "type": "integer"
+          },
+          "name": {
+            "description": "Only the template with this name, any case, with or without .docx",
+            "type": "string"
+          },
+          "recordType": {
+            "description": "Only templates for this record type",
+            "examples": [
+              "customer"
+            ],
+            "type": "string"
           }
         },
         "type": "object"

@@ -3,12 +3,12 @@
   "capabilities": {
     "documents.fields@1": "c0b8bc3bd02030e8fa9bb4e88a826711219f9368d398b312209a13bab656f7a7",
     "documents.fill@1": "7876e57b8c41ce86b670215219f81b93054b1c14e90136f872c2608c6cf5bf76",
-    "documents.mark_template@1": "5119bcd0698f0fef784edacb5d5a87cd54ac655b85ac0b6214fa89788e5141cf",
+    "documents.mark_template@1": "5afd68a0b7d21b055ef9fc4e495cc9a09743b79ed2e0ad4ee7162fdcd2eca962",
     "documents.preview_fill@1": "64d17d00db438f7794fad07c3365318b7779936e274eddb51fb6a7650a97f305",
-    "documents.templates.list@1": "9314b1620358b699bd60ca26995c58c44f21c122cf44bf5b917b4bc0df88860c"
+    "documents.templates.list@1": "2c7097963a74fafc1be5f7c1f8637b1062ba6277fcb28a3618fa6e7b71c276a5"
   },
   "events": {
     "document.filled": "e61945f4acf1690b0f5ebfb8b433478d2ca70568a48e57c5688d73078d5e008a",
-    "document.template_marked": "e8e435dcdbeebfb8fc08e03e06dd216205c4bf18b4fc2cc0dc7812cd6f0e004b"
+    "document.template_marked": "a4782469f2a506ab702b6de42e9a5940369ecaab21a8326d93d07757d01a7523"
   }
 }

@@ -20,5 +20,6 @@ A file was marked or unmarked as a template
 type Payload = {
   fileId: string;
   isTemplate: boolean;
+  recordType?: string;
 };
 ```

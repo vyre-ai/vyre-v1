@@ -1,6 +1,6 @@
 # documents.mark_template
 
-Mark a docx file as a template, or unmark it
+Mark a docx file as a template (optionally for one record type), or unmark it
 
 | | |
 |---|---|
@@ -27,6 +27,7 @@ Mark a docx file as a template, or unmark it
 type In = {
   fileId: string;
   isTemplate: boolean;
+  recordType?: string;
 };
 ```
 
@@ -55,7 +56,8 @@ type Out = {
   "name": "example",
   "input": {
     "fileId": "fil_a1b2c3",
-    "isTemplate": true
+    "isTemplate": true,
+    "recordType": "customer"
   },
   "output": {
     "ok": true

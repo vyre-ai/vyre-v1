@@ -2607,7 +2607,7 @@
     {
       "deferred": false,
       "name": "documents_mark_template",
-      "summary": "Mark a docx file as a template, or unmark it",
+      "summary": "Mark a docx file as a template (optionally for one record type), or unmark it",
       "toolset": "files"
     },
     {

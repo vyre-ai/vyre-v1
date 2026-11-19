@@ -52,6 +52,9 @@ function populated(): World {
   const w = world();
   w.add("Template.docx", docx(para("Static line")), "fld_a1b2c3", "fil_a1b2c3");
   w.records.set("rec_a1b2c3", { name: "Example" });
+  // the examples mark a template for the record type "customer": the Space has one
+  w.records.set("rec_b2c3d4", { name: "Northwind" });
+  w.recordTypes.set("rec_b2c3d4", "customer");
   return w;
 }
 

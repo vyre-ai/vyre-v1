@@ -624,3 +624,153 @@ test("a group of values with no one text form is refused naming the field, never
   const e = await refusedWith(w, para("Who: {client}"), { client: { name: "Imran Ibarra", city: "Northwind" } });
   assert.match(e.error.message, /client is a group of values; name one part of it, such as \{client\.name\}/);
 });
+
+// ---- r42-docs: a template for a record type, values read through a link, a template found by name ----
+
+const REC = (c: string): string => `rec_${c.repeat(16)}`;
+
+/** A customer with a contact (one link), two team members (a list of links) and a link to a record nobody may read. */
+function customerWorld(): World {
+  const w = world();
+  w.records.set(REC("a1"), {
+    name: "Lindahl Studio",
+    plan: "Studio plan",
+    contact: REC("b2"),
+    team: [REC("c3"), REC("d4")],
+    reviewer: [REC("c3"), REC("d4")],
+    lost: REC("e5"),
+  });
+  w.recordTypes.set(REC("a1"), "customer");
+  w.records.set(REC("b2"), { name: "Andrea Lindahl", email: "andrea@lindahl.example", employer: REC("a1") });
+  w.records.set(REC("c3"), { name: "Imran Ibarra", email: "imran@northwind.example" });
+  w.records.set(REC("d4"), { name: "Lena Ortiz", email: "lena@northwind.example" });
+  return w;
+}
+
+test("a tag that reads through a link is fed from the linked record, one step away; a repeat walks every linked record; a plain link still prints its name", async () => {
+  const w = customerWorld();
+  const id = w.add(
+    "Service agreement.docx",
+    docx(
+      para("{name} takes the {plan}.") +
+        para("Notices go to {contact.name} at {contact.email}.") +
+        para("{#team}{name} ({email}); {/team}") +
+        para("First reviewer: {reviewer.name}. Contact again: {contact.name}."),
+    ),
+  );
+  const out = await filled(w, id, { recordId: REC("a1") });
+  assert.deepEqual(textOf(out.bytes), [
+    "Lindahl Studio takes the Studio plan.",
+    "Notices go to Andrea Lindahl at andrea@lindahl.example.",
+    "Imran Ibarra (imran@northwind.example); Lena Ortiz (lena@northwind.example); ",
+    "First reviewer: Imran Ibarra. Contact again: Andrea Lindahl.",
+  ]);
+  // each linked record is read once, however many tags read through it
+  const reads = w.calls.filter(
+    (c) => c.cap === "records.get" && c.input.recordId === REC("b2") && c.input.type === "contact",
+  );
+  assert.equal(reads.length, 1, "the contact is read once");
+  // the same record and template give the same bytes
+  const again = await filled(w, id, { recordId: REC("a1"), name: "again" });
+  assert.ok(out.bytes.equals(again.bytes), "same input, same bytes");
+
+  // a link printed whole is still its name (no dotted tag reads through it)
+  const plain = w.add("Plain.docx", docx(para("Contact: {contact}")));
+  assert.deepEqual(textOf((await filled(w, plain, { recordId: REC("a1") })).bytes), ["Contact: Andrea Lindahl"]);
+
+  // one step only: the contact's own link back to the customer is not followed
+  const two = w.add("Two steps.docx", docx(para("{contact.employer.name}")));
+  const e = await expectCode("validation.precondition_failed", () =>
+    handlers["documents.fill"](w.ctx, { templateFileId: two, intoFolderId: FOLDER, recordId: REC("a1") }),
+  );
+  assert.deepEqual((e.error.details as { missing?: string[] }).missing, ["contact.employer.name"]);
+});
+
+test("explicit values win over a linked record, and a mapping may read through a link", async () => {
+  const w = customerWorld();
+  const id = w.add("Notice.docx", docx(para("To {contact.name} at {contact.email}.") + para("{who}, {mail}")));
+  const out = await filled(w, id, {
+    recordId: REC("a1"),
+    values: { contact: { name: "A. Lindahl" }, who: "x", mail: "y" },
+  });
+  assert.equal(textOf(out.bytes)[0], "To A. Lindahl at andrea@lindahl.example.");
+  const mapped = await filled(w, w.add("Mapped.docx", docx(para("{who}, {mail}"))), {
+    recordId: REC("a1"),
+    mapping: { who: "contact.name", mail: "contact.email" },
+  });
+  assert.deepEqual(textOf(mapped.bytes), ["Andrea Lindahl, andrea@lindahl.example"]);
+});
+
+test("a link to a record the caller cannot read stops the document, names the field and makes no file", async () => {
+  const w = customerWorld();
+  const id = w.add("Lost.docx", docx(para("{name}: {lost.name}")));
+  const before = w.files.size;
+  const e = await expectCode("validation.precondition_failed", () =>
+    handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: FOLDER, recordId: REC("a1") }),
+  );
+  assert.match(e.error.message, /lost links to a record that cannot be read here/);
+  assert.doesNotMatch(e.error.message, /rec_/, "no id in the words a person reads");
+  assert.deepEqual((e.error.details as { fields?: string[] }).fields, ["lost"]);
+  assert.equal(w.files.size, before);
+  assert.equal(w.events.length, 0);
+  // the preview refuses the same way: it never shows a half-read document
+  await expectCode("validation.precondition_failed", () =>
+    handlers["documents.preview_fill"](w.ctx, { templateFileId: id, recordId: REC("a1") }),
+  );
+});
+
+test("a template is marked for a record type; the list filters on the type and finds a template by its name", async () => {
+  const w = customerWorld();
+  const a = w.add("Service agreement.docx", docx(para("{name}")));
+  const b = w.add("Offer letter.docx", docx(para("{name}")));
+  const c = w.add("Anything.docx", docx(para("{x}")));
+  await handlers["documents.mark_template"](w.ctx, { fileId: a, isTemplate: true, recordType: "customer" });
+  await handlers["documents.mark_template"](w.ctx, { fileId: b, isTemplate: true, recordType: "contact" });
+  await handlers["documents.mark_template"](w.ctx, { fileId: c, isTemplate: true });
+  assert.deepEqual(w.events.at(-3)?.payload, { fileId: a, isTemplate: true, recordType: "customer" });
+  assert.deepEqual(w.events.at(-1)?.payload, { fileId: c, isTemplate: true });
+
+  const all = await handlers["documents.templates.list"](w.ctx, {});
+  assert.deepEqual(
+    all.templates.map((t) => [t.name, t.recordType]),
+    [
+      ["Anything.docx", undefined],
+      ["Offer letter.docx", "contact"],
+      ["Service agreement.docx", "customer"],
+    ],
+  );
+  const mine = await handlers["documents.templates.list"](w.ctx, { recordType: "customer" });
+  assert.deepEqual(
+    mine.templates.map((t) => t.fileId),
+    [a],
+  );
+  assert.equal(mine.total, 1);
+  for (const name of ["service agreement", "Service Agreement.docx", " SERVICE AGREEMENT "]) {
+    const found = await handlers["documents.templates.list"](w.ctx, { name });
+    assert.deepEqual(
+      found.templates.map((t) => t.fileId),
+      [a],
+      name,
+    );
+  }
+  assert.equal((await handlers["documents.templates.list"](w.ctx, { name: "service" })).total, 0, "a name is whole");
+
+  // the type can be changed by marking again; the same type again is quiet; a type the Space does not have is refused in plain words
+  const n = w.events.length;
+  await handlers["documents.mark_template"](w.ctx, { fileId: a, isTemplate: true, recordType: "customer" });
+  assert.equal(w.events.length, n, "marking for the same type twice is quiet");
+  await handlers["documents.mark_template"](w.ctx, { fileId: a, isTemplate: true, recordType: "contact" });
+  assert.equal(w.events.length, n + 1);
+  assert.equal((await handlers["documents.templates.list"](w.ctx, { recordType: "customer" })).total, 0);
+  const e = await expectCode("validation.not_found", () =>
+    handlers["documents.mark_template"](w.ctx, { fileId: c, isTemplate: true, recordType: "invoice" }),
+  );
+  assert.equal(e.error.message, "There is no record type called invoice.");
+  // unmarking forgets the type with the mark
+  await handlers["documents.mark_template"](w.ctx, { fileId: a, isTemplate: false });
+  await handlers["documents.mark_template"](w.ctx, { fileId: a, isTemplate: true });
+  assert.equal(
+    (await handlers["documents.templates.list"](w.ctx, { name: "Service agreement" })).templates[0]?.recordType,
+    undefined,
+  );
+});

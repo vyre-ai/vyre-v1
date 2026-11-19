@@ -9,6 +9,9 @@
 // signing_day_ordinal, signing_month, signing_month_number and signing_year, unless the caller gave that value itself.
 // Records: when recordId is given the record's fields feed the tags (mapping names which record field feeds which tag; without a mapping a field feeds the tag of the same name).
 // The record type comes from values.recordType when present; otherwise it is looked up from the id (records.get reads a record by type and id).
+// Linked records: a tag that reads through a link field ({contact.name}, or a repeat {#contacts}{name}{/contacts}) is fed from the linked record, one step away and no further, read with the
+// caller's own access. A link the caller cannot read stops the document and names the field; several records behind a plain tag feed it from the first, in the order the record holds them.
+// Record type: a template can be marked for one record type (documents.mark_template recordType); the list filters on it. A template with none is for any record.
 // Names: a given name keeps its own spelling; the default is the template name and "(filled)"; a taken name gets " 2", " 3" and so on, an existing file is never replaced.
 // PDF: format "pdf" converts the filled Word file through the converter the host gave to configureDocuments; without one the request is refused and the Word file works anywhere.
 
@@ -740,10 +743,68 @@ async function nameIds(ctx: Ctx, value: unknown, seen: Map<string, string | unde
   return seen.get(id) ?? value;
 }
 
-/** The values to render with, the keys the caller gave itself, and the record they came from. */
+const recIds = (v: unknown): string[] | null => {
+  if (typeof v === "string") return isRawId(v) && v.trim().startsWith("rec_") ? [v.trim()] : null;
+  if (
+    Array.isArray(v) &&
+    v.length > 0 &&
+    v.every((x) => typeof x === "string" && isRawId(x) && x.trim().startsWith("rec_"))
+  )
+    return (v as string[]).map((x) => x.trim());
+  return null;
+};
+
+/** The first step of every dotted name: the fields a template (or a mapping) reads through. */
+const headsOf = (names: readonly string[]): Set<string> =>
+  new Set(names.filter((n) => n.includes(".")).map((n) => n.slice(0, n.indexOf("."))));
+
+/**
+ * The record's fields with each link the template reads through replaced by the linked record's own fields: one record for a plain tag ({contact.name}), a list for a repeat ({#contacts}).
+ * One step only: a link inside a linked record stays what it was. A linked record the caller cannot read stops the document and names the field.
+ */
+async function withLinks(
+  ctx: Ctx,
+  fields: Record<string, unknown>,
+  heads: Set<string>,
+  loops: readonly string[],
+): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = { ...fields };
+  const call = (cap: string, input: unknown): Promise<unknown> => ctx.call(cap as never, input as never);
+  const seen = new Map<string, Record<string, unknown> | undefined>();
+  for (const head of new Set([...heads, ...loops])) {
+    const ids = recIds(fields[head]);
+    if (ids === null) continue;
+    const linked: Record<string, unknown>[] = [];
+    for (const id of loops.includes(head) ? ids : ids.slice(0, 1)) {
+      if (!seen.has(id)) {
+        let found: { record: { fields?: unknown } } | undefined;
+        try {
+          found = await findRecord(call, id);
+        } catch (e) {
+          if (!(e instanceof VyreErr)) throw e;
+        }
+        seen.set(id, found && isPlain(found.record.fields) ? found.record.fields : undefined);
+      }
+      const got = seen.get(id);
+      if (got === undefined)
+        fail(
+          ctx,
+          "validation.precondition_failed",
+          `The document was not made: ${head} links to a record that cannot be read here (it may be gone, or not yours to open).`,
+          { fields: [head] },
+        );
+      linked.push(got);
+    }
+    out[head] = loops.includes(head) ? linked : linked[0];
+  }
+  return out;
+}
+
+/** The values to render with, the keys the caller gave itself, and the record they came from. `info` is what the template asks for: it decides which links are followed. */
 async function valuesOf(
   ctx: Ctx,
   o: Record<string, unknown>,
+  info: Placeholders | null,
 ): Promise<{ values: Record<string, unknown>; given: string[] }> {
   const explicit = optRec(ctx, o, "values") ?? {};
   const mapping = optRec(ctx, o, "mapping");
@@ -760,15 +821,28 @@ async function valuesOf(
         : { record: (await findRecord(call, recordId))?.record };
     if (!got.record) fail(ctx, "validation.not_found", "That record does not exist.");
     const rawFields = got.record?.fields;
-    const fields = isPlain(rawFields) ? rawFields : {};
+    const own = isPlain(rawFields) ? rawFields : {};
     if (mapping) {
-      for (const [tag, key] of Object.entries(mapping)) {
+      const keys: string[] = [];
+      for (const key of Object.values(mapping)) {
         if (typeof key !== "string") fail(ctx, "validation.bad_input", "The input is not valid.", { field: "mapping" });
-        setPath(values, tag, fields[key]);
+        keys.push(key);
+      }
+      // a mapping may read through a link ("contact.email"); a key the record holds under that very name wins
+      const fields = await withLinks(ctx, own, headsOf(keys.filter((k) => !(k in own))), []);
+      for (const [tag, key] of Object.entries(mapping) as [string, string][]) {
+        setPath(values, tag, key in own ? own[key] : lookup([fields], key));
         given.push(tag);
       }
     } else {
-      values = { ...fields };
+      values = info
+        ? await withLinks(
+            ctx,
+            own,
+            headsOf([...info.names, ...Object.values(info.loopLeaves).flat()]),
+            info.loops.filter((l) => !l.includes(".")),
+          )
+        : { ...own };
     }
   }
   values = merge(values, explicit);
@@ -785,13 +859,23 @@ async function valuesOf(
   return { values, given: given.filter((k) => k !== "recordType") };
 }
 
+/** What a template asks for, or null when it cannot be read (the fill then says why, in its own words). */
+function asked(bytes: Buffer): Placeholders | null {
+  try {
+    return placeholders(bytes);
+  } catch (e) {
+    if (e instanceof FillError) return null;
+    throw e;
+  }
+}
+
 async function previewFill(
   ctx: Ctx,
   input: unknown,
 ): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[] }> {
   const o = rec(ctx, input);
   const bytes = await templateBytes(ctx, reqStr(ctx, o, "templateFileId"));
-  const { values, given } = await valuesOf(ctx, o);
+  const { values, given } = await valuesOf(ctx, o, asked(bytes));
   try {
     return preview(bytes, values, given);
   } catch (e) {
@@ -824,7 +908,7 @@ async function documentsFill(
   const template = (await ctx.call("files.get", { fileId: templateFileId })) as { file?: { name?: unknown } };
   const templateName = typeof template.file?.name === "string" ? template.file.name : "document.docx";
   const bytes = await templateBytes(ctx, templateFileId);
-  const { values, given } = await valuesOf(ctx, o);
+  const { values, given } = await valuesOf(ctx, o, asked(bytes));
   let made: { buffer: Buffer; used: string[] };
   let unused: string[];
   try {
@@ -882,12 +966,22 @@ async function templatesList(
   ctx: Ctx,
   input: unknown,
 ): Promise<{
-  templates: { fileId: string; name: string; folderId: string; fields: number; updatedAt: number }[];
+  templates: {
+    fileId: string;
+    name: string;
+    folderId: string;
+    fields: number;
+    updatedAt: number;
+    recordType?: string;
+  }[];
   next?: string;
   total: number;
 }> {
   const o = rec(ctx, input);
   const folder = optStr(ctx, o, "folder");
+  const recordType = optStr(ctx, o, "recordType");
+  // a name is matched whole, whatever its case and with or without ".docx": "service agreement" finds "Service agreement.docx"
+  const wanted = optStr(ctx, o, "name")?.trim().toLowerCase();
   const limit = typeof o.limit === "number" ? o.limit : 100;
   if (!Number.isInteger(limit) || limit < 1 || limit > PAGE_MAX)
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
@@ -895,9 +989,18 @@ async function templatesList(
   const cursor = optStr(ctx, o, "cursor");
   const offset = cursor !== undefined && /^[0-9]+$/.test(cursor) ? Number(cursor) : 0;
   const marked = ctx.db.all("SELECT * FROM documents_template") as Row[];
-  const rows: { fileId: string; name: string; folderId: string; version: number; updatedAt: number }[] = [];
+  const rows: {
+    fileId: string;
+    name: string;
+    folderId: string;
+    version: number;
+    updatedAt: number;
+    recordType?: string;
+  }[] = [];
   for (const m of marked) {
     const fileId = String(m.file_id);
+    const type = typeof m.record_type === "string" && m.record_type !== "" ? m.record_type : undefined;
+    if (recordType !== undefined && type !== recordType) continue;
     try {
       const got = (await ctx.call("files.get", { fileId })) as {
         file?: { name?: unknown; folderId?: unknown; version?: unknown; updatedAt?: unknown; deletedAt?: unknown };
@@ -905,12 +1008,15 @@ async function templatesList(
       const f = got.file;
       if (!f || (f.deletedAt !== undefined && f.deletedAt !== null)) continue;
       if (folder !== undefined && f.folderId !== folder) continue;
+      const name = String(f.name);
+      if (wanted !== undefined && name.toLowerCase() !== wanted && baseName(name).toLowerCase() !== wanted) continue;
       rows.push({
         fileId,
-        name: String(f.name),
+        name,
         folderId: String(f.folderId),
         version: Number(f.version) || 1,
         updatedAt: Number(f.updatedAt) || 0,
+        ...(type !== undefined ? { recordType: type } : {}),
       });
     } catch (e) {
       // not visible to the caller or gone: not in their list
@@ -927,6 +1033,7 @@ async function templatesList(
       folderId: r.folderId,
       fields: await fieldCount(ctx, r.fileId, r.version),
       updatedAt: r.updatedAt,
+      ...(r.recordType !== undefined ? { recordType: r.recordType } : {}),
     });
   const out: { templates: typeof templates; next?: string; total: number } = { templates, total: rows.length };
   if (offset + limit < rows.length) out.next = String(offset + limit);
@@ -939,22 +1046,45 @@ async function markTemplate(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> 
   if (typeof o.isTemplate !== "boolean")
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: "isTemplate" });
   const isTemplate = o.isTemplate;
+  const recordType = optStr(ctx, o, "recordType");
   const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown } };
   const name = typeof got.file?.name === "string" ? got.file.name : "";
   if (isTemplate && !/\.docx$/i.test(name))
     fail(ctx, "validation.unsupported", "Only a Word (.docx) file can be a template.", { fileId });
+  if (isTemplate && recordType !== undefined) {
+    // the type must be one this Space has: a template for a type that does not exist would never show on any record
+    let known = false;
+    let cursor: string | undefined;
+    do {
+      const page = (await ctx.call("schema.types.list", cursor !== undefined ? { cursor } : {})) as {
+        types?: { key?: unknown }[];
+        next?: unknown;
+      };
+      known = (page.types ?? []).some((t) => t.key === recordType);
+      cursor = typeof page.next === "string" ? page.next : undefined;
+    } while (!known && cursor !== undefined);
+    if (!known)
+      fail(ctx, "validation.not_found", `There is no record type called ${recordType}.`, { field: "recordType" });
+  }
   const row = (ctx.db.all("SELECT * FROM documents_template WHERE file_id = ?", fileId) as Row[])[0];
   if (isTemplate && !row)
     ctx.db.run(
-      "INSERT INTO documents_template (file_id, marked_by, marked_at) VALUES (?, ?, ?)",
+      "INSERT INTO documents_template (file_id, marked_by, marked_at, record_type) VALUES (?, ?, ?, ?)",
       fileId,
       ctx.principal.id,
       ctx.now(),
+      recordType ?? null,
     );
+  else if (isTemplate && row && recordType !== undefined && row.record_type !== recordType)
+    ctx.db.run("UPDATE documents_template SET record_type = ? WHERE file_id = ?", recordType, fileId);
   else if (!isTemplate && row) ctx.db.run("DELETE FROM documents_template WHERE file_id = ?", fileId);
   else return { ok: true };
-  ctx.emit("document.template_marked", `file/${fileId}`, { fileId, isTemplate });
-  ctx.log.info("documents.mark_template", { fileId, isTemplate });
+  ctx.emit("document.template_marked", `file/${fileId}`, {
+    fileId,
+    isTemplate,
+    ...(isTemplate && recordType !== undefined ? { recordType } : {}),
+  });
+  ctx.log.info("documents.mark_template", { fileId, isTemplate, recordType: recordType ?? null });
   return { ok: true };
 }
 

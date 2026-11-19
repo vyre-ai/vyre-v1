@@ -3,7 +3,9 @@
 // DECISION: a template is a docx file flagged with documents.mark_template; the flag is metadata on the file, not a new version.
 // DECISION: documents.fill checks Edit on the target folder; the handler also checks View on the template file, because a capability binds one resource.
 // DECISION: values are never typed into a date by the model: the signing date is an explicit input, ISO form, and formats come from the template tags.
-import { create, defineManifest, ev, read, screen, t, write } from "../packages/contracts/src/index.ts";
+// DECISION (r42-docs): a template can be for one record type (mark_template recordType); a tag that reads through a link field ({contact.name}) is fed from the linked record, one step away.
+// DECISION (r42-docs): making a document is a Flow step (documents.fill): fill, then the sign step, is one Flow. It writes a file and sends nothing, so it is not a Gate act.
+import { create, defineManifest, ev, read, screen, step, t, write } from "../packages/contracts/src/index.ts";
 import { id, pageIn, pageOut } from "./_common.ts";
 
 const fieldInfo = t.obj({
@@ -27,7 +29,11 @@ const templateRow = t.obj({
   folderId: id.folder,
   fields: t.int({ minimum: 0 }),
   updatedAt: t.ts(),
+  recordType: t.opt(
+    t.str({ description: "Key of the record type this template is for; absent when it is for any record" }),
+  ),
 });
+const tpl = (d: string) => t.str({ description: `${d}. Templating allowed: {{ trigger.x }}, {{ steps.name.out.y }}` });
 
 export default defineManifest({
   id: "documents",
@@ -41,7 +47,7 @@ export default defineManifest({
       trigger: { title: "A document is filled from a template", fields: ["/templateFileId"] },
     }),
     ev("document.template_marked", "A file was marked or unmarked as a template", {
-      p: { fileId: id.file, isTemplate: t.bool() },
+      p: { fileId: id.file, isTemplate: t.bool(), recordType: t.opt(t.str()) },
       subject: ["file", "/fileId"],
       label: "subject",
     }),
@@ -94,19 +100,54 @@ export default defineManifest({
       },
     ),
     read("documents.templates.list", "List files marked as templates the caller can open", {
-      in: { folder: t.opt(id.folder), ...pageIn },
+      in: {
+        folder: t.opt(id.folder),
+        recordType: t.opt(t.str({ description: "Only templates for this record type", examples: ["customer"] })),
+        name: t.opt(t.str({ description: "Only the template with this name, any case, with or without .docx" })),
+        ...pageIn,
+      },
       out: { templates: t.arr(templateRow), ...pageOut },
       tool: "files",
       label: "filter",
     }),
-    write("documents.mark_template", "Mark a docx file as a template, or unmark it", {
-      in: { fileId: id.file, isTemplate: t.bool() },
+    write("documents.mark_template", "Mark a docx file as a template (optionally for one record type), or unmark it", {
+      in: {
+        fileId: id.file,
+        isTemplate: t.bool(),
+        recordType: t.opt(
+          t.str({ description: "Key of the record type this template is for", examples: ["customer"] }),
+        ),
+      },
       out: { ok: t.bool() },
       on: ["file", "/fileId"],
       perm: "files.write",
       emits: ["document.template_marked"],
       tool: "files",
-      errors: ["validation.unsupported"],
+      errors: ["validation.unsupported", "validation.not_found"],
+    }),
+  ],
+  steps: [
+    step("documents.fill", "Documents · Make a document from a template", "data", "capability", {
+      cap: "documents.fill",
+      effects: "write",
+      idempotency: "key",
+      errors: [
+        "validation.bad_input",
+        "internal.unexpected",
+        "validation.precondition_failed",
+        "validation.not_found",
+        "validation.unsupported",
+      ],
+      in: {
+        templateFileId: id.file,
+        intoFolderId: id.folder,
+        recordId: t.opt(id.record),
+        values: t.opt(t.rec()),
+        signingDate: t.opt(tpl("Signing date, ISO form")),
+        name: t.opt(tpl("File name")),
+        format: t.opt(t.enm("docx", "pdf")),
+      },
+      out: { file: t.obj({ fileId: id.file, name: t.str(), versionId: id.version }), missing: t.arr(t.str()) },
     }),
   ],
   screens: [

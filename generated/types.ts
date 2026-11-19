@@ -12848,6 +12848,7 @@ export type DocumentsFillOut = {
 export type DocumentsMarkTemplateIn = {
   fileId: string;
   isTemplate: boolean;
+  recordType?: string;
 };
 export type DocumentsMarkTemplateOut = {
   ok: boolean;
@@ -12873,6 +12874,8 @@ export type DocumentsPreviewFillOut = {
 };
 export type DocumentsTemplatesListIn = {
   folder?: string;
+  recordType?: string;
+  name?: string;
   cursor?: string;
   limit?: number;
 };
@@ -12883,6 +12886,7 @@ export type DocumentsTemplatesListOut = {
       folderId: string;
       fields: number;
       updatedAt: number;
+      recordType?: string;
     }>;
   next?: string;
   total?: number;
@@ -51575,6 +51579,7 @@ export type DocumentFilledPayload = {
 export type DocumentTemplateMarkedPayload = {
   fileId: string;
   isTemplate: boolean;
+  recordType?: string;
 };
 export type DocusignWebhookReceivedPayload = {
   providerEventId: string;

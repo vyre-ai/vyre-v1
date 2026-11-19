@@ -8,5 +8,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "documents.fill": async () => ({"file":{"fileId":"fil_a1b2c3","name":"example","versionId":"ver_a1b2c3"},"missing":["example"],"unused":["example"]} as unknown) as never,
   "documents.mark_template": async () => ({"ok":true} as unknown) as never,
   "documents.preview_fill": async () => ({"excerpt":[{"filled":[{"field":"example","from":1,"to":1}],"text":"example"}],"missing":["example"],"unused":["example"]} as unknown) as never,
-  "documents.templates.list": async () => ({"next":"example","templates":[{"fields":1,"fileId":"fil_a1b2c3","folderId":"fld_a1b2c3","name":"example","updatedAt":1760000000000}],"total":1} as unknown) as never,
+  "documents.templates.list": async () => ({"next":"example","templates":[{"fields":1,"fileId":"fil_a1b2c3","folderId":"fld_a1b2c3","name":"example","recordType":"example","updatedAt":1760000000000}],"total":1} as unknown) as never,
 };
