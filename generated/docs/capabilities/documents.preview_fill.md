@@ -48,7 +48,6 @@ type Out = {
   missing: Array<string>;
   unused: Array<string>;
   digest: string;
-  templateVersion?: string;
 };
 ```
 
@@ -89,7 +88,6 @@ type Out = {
     "missing": [
       "example"
     ],
-    "templateVersion": "example",
     "unused": [
       "example"
     ]

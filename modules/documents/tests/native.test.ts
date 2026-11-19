@@ -368,6 +368,7 @@ test("documents.make: a retry gives the same document, with the caller's key or 
   assert.notEqual(await key({ values: { ...VALUES, matter: { fee: 7 } } }), base, "another value");
   assert.notEqual(await key({}, "per_b"), base, "another person");
   w.files.get(id)!.versions = 2;
+  w.files.get(id)!.bytes = enc(`${AGREEMENT}\nA new closing line.\n`); // edited: new words, new version
   assert.notEqual(await key(), base, "an edited template");
   // the caller's key: a retry is the same, another key is another
   const k1 = await key({ idempotencyKey: "retry-1" });
@@ -538,4 +539,19 @@ test("documents.make with no key is keyed on every resolved value, not on the sh
   };
   assert.ok(!shown.excerpt.some((e) => e.text.includes("2,500")), "past the cap, not shown");
   assert.match(shown.digest, /^[0-9a-f]{64}$/);
+});
+
+test("the preview digest follows the template's own bytes too: an edit to the template changes it even when no version is reported", async () => {
+  const w = linked();
+  const id = w.add("Letter.md", enc("Dear {name}, welcome.\n"));
+  const digest = async () =>
+    (
+      (await handlers["documents.preview_fill"](w.ctx, { templateFileId: id, recordId: "rec_imran" })) as {
+        digest: string;
+      }
+    ).digest;
+  const a = await digest();
+  assert.equal(await digest(), a);
+  w.files.get(id)!.bytes = enc("Dear {name}, welcome back.\n"); // edited; the version number is not touched
+  assert.notEqual(await digest(), a);
 });

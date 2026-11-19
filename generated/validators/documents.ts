@@ -528,7 +528,6 @@ lf(a2758[i2758], p + "/unused" + '/' + i2758, e, L1);
 }
 }
 if ("digest" in o2752) lf(o2752["digest"], p + "/digest", e, L1);
-if ("templateVersion" in o2752) lf(o2752["templateVersion"], p + "/templateVersion", e, L1);
 }
 }
 }

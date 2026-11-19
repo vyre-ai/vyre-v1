@@ -76,17 +76,13 @@ export async function sha256Of(bytes: Uint8Array): Promise<string> {
 }
 
 /**
- * What a fill would say, in one word: the SHA-256 of every resolved value (each tag the template uses in any part, headers and footers included, read from the record and the typed values) and the version of
- * the template it was read from. The excerpt a person is shown is capped and covers the body; this is not, so a retry with no key is the same document only when nothing it says has changed.
+ * What a fill would say, in one word: the SHA-256 of every resolved value (as the record and the typed values give them, headers and footers included) and of the template bytes they were read with. The excerpt a
+ * person is shown is capped and covers the body; this is not, so a retry with no key is the same document only when nothing it says has changed, the template's own words included. The bytes come from the same
+ * read that renders the preview, so the digest and what it describes cannot come apart. (The values are what the engine resolved, which can be more than the tags the template uses: an unrelated field edit is
+ * then a new document too, which errs on the side of a fresh one.)
  */
-export async function askDigest(
-  ctx: Ctx,
-  fileId: string,
-  values: unknown,
-): Promise<{ digest: string; templateVersion?: string }> {
-  const got = (await ctx.call("files.get", { fileId })) as { file?: { version?: unknown } };
-  const v = got.file?.version;
-  return { digest: await askKey([values, v]), ...(v !== undefined ? { templateVersion: String(v) } : {}) };
+export async function askDigest(bytes: Uint8Array, values: unknown): Promise<{ digest: string }> {
+  return { digest: await askKey([values, await sha256Of(bytes)]) };
 }
 
 // ---- drivers ----
@@ -940,13 +936,13 @@ function asked(bytes: Buffer): Placeholders | null {
 export async function previewFill(
   ctx: Ctx,
   input: unknown,
-): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[]; digest: string; templateVersion?: string }> {
+): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[]; digest: string }> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "templateFileId");
   const bytes = await templateBytes(ctx, fileId);
   const { values, given } = await valuesOf(ctx, o, asked(bytes));
   try {
-    return { ...preview(bytes, values, given), ...(await askDigest(ctx, fileId, values)) };
+    return { ...preview(bytes, values, given), ...(await askDigest(bytes, values)) };
   } catch (e) {
     return refuse(ctx, e);
   }

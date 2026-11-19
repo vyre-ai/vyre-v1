@@ -113,7 +113,7 @@ async function fields(ctx: Ctx, input: unknown): Promise<Fields> {
 async function preview(
   ctx: Ctx,
   input: unknown,
-): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[]; digest: string; templateVersion?: string }> {
+): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[]; digest: string }> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "templateFileId");
   if (!isVyreDoc(await fileName(ctx, fileId))) return previewFill(ctx, input);
@@ -121,7 +121,7 @@ async function preview(
   const { values, given } = await valuesOf(ctx, o, asked);
   try {
     const got = mdExcerpt(text, values);
-    return { ...got, unused: unusedFor(asked, given), ...(await askDigest(ctx, fileId, values)) };
+    return { ...got, unused: unusedFor(asked, given), ...(await askDigest(new TextEncoder().encode(text), values)) };
   } catch (e) {
     return refuse(ctx, e);
   }
@@ -400,7 +400,7 @@ async function make(ctx: Ctx, input: unknown): Promise<Filled> {
       ...(o.values !== undefined ? { values: o.values } : {}),
       ...(o.signingDate !== undefined ? { signingDate: o.signingDate } : {}),
     })) as { digest?: unknown };
-    // the digest covers every resolved value and the template version it was read at (one read, so an edit between the two cannot split them)
+    // the digest covers every resolved value and the template bytes they were read with (one read, so an edit between the two cannot split them)
     ask = await askKey([shown.digest, o.name, o.format, recordId, folder.folderId, ctx.actingFor ?? ctx.principal.id]);
   }
   pass.idempotencyKey = `make:${recordId}:${templateFileId}:${given !== "" ? given : ask}`;
