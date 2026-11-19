@@ -102,12 +102,12 @@ if ("deletionAt" in o721) lf(o721["deletionAt"], p + "/space" + "/deletionAt", e
 
 function d_s_d1a8b362dd(v: unknown, p: string, e: string[]): void {
 {
-const x1039 = v;
-const g1039 = typeOf(x1039);
-const b1039: string[] = []; lf(x1039, p, b1039, L0); if (b1039.length) e.push(...b1039);
-if (g1039 === "object") {
-if (g1039 === 'object') { const o1039 = x1039 as Record<string, unknown>;
-if ("type" in o1039) d_s_96787fc2f6(o1039["type"], p + "/type", e);
+const x1038 = v;
+const g1038 = typeOf(x1038);
+const b1038: string[] = []; lf(x1038, p, b1038, L0); if (b1038.length) e.push(...b1038);
+if (g1038 === "object") {
+if (g1038 === 'object') { const o1038 = x1038 as Record<string, unknown>;
+if ("type" in o1038) d_s_96787fc2f6(o1038["type"], p + "/type", e);
 }
 }
 }

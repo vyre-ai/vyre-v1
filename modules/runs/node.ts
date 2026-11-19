@@ -52,6 +52,18 @@ export const isTerminal = (s: NodeStatus): boolean => s === "succeeded" || s ===
 export const isLive = (s: NodeStatus): boolean => !isTerminal(s);
 
 /** The legal edges. Terminal states have none: a retry is a new attempt on a new node. waiting goes to queued, never straight to running: a woken node passes the scheduler again (budget, slots, dependencies). waiting may end succeeded: a parked turn is over when its wake starts a turn of its own. */
+/** The words a person reads for why a node failed. A dependency that failed already says it in plain words; every other failure is a short fixed phrase for its kind, never the raw error. */
+export function readableReason(code: string | undefined, message: string | undefined): string {
+  const c = (code ?? "").toLowerCase();
+  if (c === "dependency_failed" && message) return message;
+  if (c === "worker_lost") return "The server restarted while it was working.";
+  if (c === "result_invalid") return "Its answer did not fit what was asked for.";
+  if (/rate|quota|limit|spend/.test(c)) return "The AI account reached a limit.";
+  if (/auth|key|credential|sign_?in|token/.test(c)) return "The AI account could not be used.";
+  if (/timeout|timed_out/.test(c)) return "It took too long.";
+  return "It could not finish.";
+}
+
 export const EDGES: Readonly<Record<NodeStatus, readonly NodeStatus[]>> = {
   queued: ["running", "paused", "stopped", "failed"],
   running: ["waiting", "paused", "succeeded", "failed", "stopped", "queued"],
@@ -139,6 +151,8 @@ export interface Node {
   spendScope?: "space" | "own";
   errorCode?: string;
   errorMessage?: string;
+  /** why it failed, in words a person can read: never the raw error (which can name paths and hosts), which stays for the logs */
+  reason?: string;
   stopReason?: string;
   leaseHolder?: string;
   leaseUntil?: number;
@@ -198,6 +212,9 @@ export function nodeOf(r: Row): Node {
       r["spend_scope"] === "space" || r["spend_scope"] === "own" ? (r["spend_scope"] as "space" | "own") : undefined,
     errorCode: str(r["error_code"]),
     errorMessage: str(r["error_message"]),
+    ...(str(r["status"]) === "failed" || str(r["error_code"]) !== undefined
+      ? { reason: readableReason(str(r["error_code"]), str(r["error_message"])) }
+      : {}),
     stopReason: str(r["stop_reason"]),
     leaseHolder: str(r["lease_holder"]),
     leaseUntil: int(r["lease_until"]),

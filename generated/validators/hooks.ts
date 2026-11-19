@@ -87,66 +87,66 @@ if ("at" in o667) lf(o667["at"], p + "/runs" + '/' + i666 + "/at", e, L17);
 
 function d_s_dd5380ebe2(v: unknown, p: string, e: string[]): void {
 {
-const x1113 = v;
+const x1112 = v;
+const g1112 = typeOf(x1112);
+const b1112: string[] = []; lf(x1112, p, b1112, L0); if (b1112.length) e.push(...b1112);
+if (g1112 === "object") {
+if (g1112 === 'object') { const o1112 = x1112 as Record<string, unknown>;
+if (!("id" in o1112)) e.push(p + "/id" + ': required');
+if (!("scope" in o1112)) e.push(p + "/scope" + ': required');
+if (!("event" in o1112)) e.push(p + "/event" + ': required');
+if (!("kind" in o1112)) e.push(p + "/kind" + ': required');
+if (!("matcher" in o1112)) e.push(p + "/matcher" + ': required');
+if (!("line" in o1112)) e.push(p + "/line" + ': required');
+if (!("paused" in o1112)) e.push(p + "/paused" + ': required');
+if (!("madeBy" in o1112)) e.push(p + "/madeBy" + ': required');
+if (!("madeByKind" in o1112)) e.push(p + "/madeByKind" + ': required');
+if (!("helpers" in o1112)) e.push(p + "/helpers" + ': required');
+if (!("timeoutSec" in o1112)) e.push(p + "/timeoutSec" + ': required');
+if (!("createdAt" in o1112)) e.push(p + "/createdAt" + ': required');
+if (!("updatedAt" in o1112)) e.push(p + "/updatedAt" + ': required');
+if (!("spec" in o1112)) e.push(p + "/spec" + ': required');
+if (!("mine" in o1112)) e.push(p + "/mine" + ': required');
+if (!("allowed" in o1112)) e.push(p + "/allowed" + ': required');
+if (!("canChange" in o1112)) e.push(p + "/canChange" + ': required');
+if ("id" in o1112) lf(o1112["id"], p + "/id", e, L1);
+if ("scope" in o1112) lf(o1112["scope"], p + "/scope", e, L447);
+if ("event" in o1112) lf(o1112["event"], p + "/event", e, L448);
+if ("kind" in o1112) lf(o1112["kind"], p + "/kind", e, L449);
+if ("matcher" in o1112) lf(o1112["matcher"], p + "/matcher", e, L1);
+if ("line" in o1112) lf(o1112["line"], p + "/line", e, L1);
+if ("paused" in o1112) lf(o1112["paused"], p + "/paused", e, L3);
+if ("madeBy" in o1112) lf(o1112["madeBy"], p + "/madeBy", e, L1);
+if ("madeByKind" in o1112) lf(o1112["madeByKind"], p + "/madeByKind", e, L450);
+if ("threadId" in o1112) lf(o1112["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o1112) lf(o1112["agentId"], p + "/agentId", e, L10);
+if ("helpers" in o1112) lf(o1112["helpers"], p + "/helpers", e, L3);
+if ("timeoutSec" in o1112) lf(o1112["timeoutSec"], p + "/timeoutSec", e, L451);
+if ("createdAt" in o1112) lf(o1112["createdAt"], p + "/createdAt", e, L17);
+if ("updatedAt" in o1112) lf(o1112["updatedAt"], p + "/updatedAt", e, L17);
+if ("mine" in o1112) lf(o1112["mine"], p + "/mine", e, L3);
+if ("allowed" in o1112) {
+{
+const x1113 = o1112["allowed"];
 const g1113 = typeOf(x1113);
-const b1113: string[] = []; lf(x1113, p, b1113, L0); if (b1113.length) e.push(...b1113);
-if (g1113 === "object") {
-if (g1113 === 'object') { const o1113 = x1113 as Record<string, unknown>;
-if (!("id" in o1113)) e.push(p + "/id" + ': required');
-if (!("scope" in o1113)) e.push(p + "/scope" + ': required');
-if (!("event" in o1113)) e.push(p + "/event" + ': required');
-if (!("kind" in o1113)) e.push(p + "/kind" + ': required');
-if (!("matcher" in o1113)) e.push(p + "/matcher" + ': required');
-if (!("line" in o1113)) e.push(p + "/line" + ': required');
-if (!("paused" in o1113)) e.push(p + "/paused" + ': required');
-if (!("madeBy" in o1113)) e.push(p + "/madeBy" + ': required');
-if (!("madeByKind" in o1113)) e.push(p + "/madeByKind" + ': required');
-if (!("helpers" in o1113)) e.push(p + "/helpers" + ': required');
-if (!("timeoutSec" in o1113)) e.push(p + "/timeoutSec" + ': required');
-if (!("createdAt" in o1113)) e.push(p + "/createdAt" + ': required');
-if (!("updatedAt" in o1113)) e.push(p + "/updatedAt" + ': required');
-if (!("spec" in o1113)) e.push(p + "/spec" + ': required');
-if (!("mine" in o1113)) e.push(p + "/mine" + ': required');
-if (!("allowed" in o1113)) e.push(p + "/allowed" + ': required');
-if (!("canChange" in o1113)) e.push(p + "/canChange" + ': required');
-if ("id" in o1113) lf(o1113["id"], p + "/id", e, L1);
-if ("scope" in o1113) lf(o1113["scope"], p + "/scope", e, L447);
-if ("event" in o1113) lf(o1113["event"], p + "/event", e, L448);
-if ("kind" in o1113) lf(o1113["kind"], p + "/kind", e, L449);
-if ("matcher" in o1113) lf(o1113["matcher"], p + "/matcher", e, L1);
-if ("line" in o1113) lf(o1113["line"], p + "/line", e, L1);
-if ("paused" in o1113) lf(o1113["paused"], p + "/paused", e, L3);
-if ("madeBy" in o1113) lf(o1113["madeBy"], p + "/madeBy", e, L1);
-if ("madeByKind" in o1113) lf(o1113["madeByKind"], p + "/madeByKind", e, L450);
-if ("threadId" in o1113) lf(o1113["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o1113) lf(o1113["agentId"], p + "/agentId", e, L10);
-if ("helpers" in o1113) lf(o1113["helpers"], p + "/helpers", e, L3);
-if ("timeoutSec" in o1113) lf(o1113["timeoutSec"], p + "/timeoutSec", e, L451);
-if ("createdAt" in o1113) lf(o1113["createdAt"], p + "/createdAt", e, L17);
-if ("updatedAt" in o1113) lf(o1113["updatedAt"], p + "/updatedAt", e, L17);
-if ("mine" in o1113) lf(o1113["mine"], p + "/mine", e, L3);
-if ("allowed" in o1113) {
+const b1113: string[] = []; lf(x1113, p + "/allowed", b1113, L4); if (b1113.length) e.push(...b1113);
+if (g1113 === "array") {
+if (g1113 === 'array') { const a1113 = x1113 as unknown[];
+for (let i1113 = 0; i1113 < a1113.length; i1113++) {
 {
-const x1114 = o1113["allowed"];
+const x1114 = a1113[i1113];
 const g1114 = typeOf(x1114);
-const b1114: string[] = []; lf(x1114, p + "/allowed", b1114, L4); if (b1114.length) e.push(...b1114);
-if (g1114 === "array") {
-if (g1114 === 'array') { const a1114 = x1114 as unknown[];
-for (let i1114 = 0; i1114 < a1114.length; i1114++) {
-{
-const x1115 = a1114[i1114];
-const g1115 = typeOf(x1115);
-const b1115: string[] = []; lf(x1115, p + "/allowed" + '/' + i1114, b1115, L0); if (b1115.length) e.push(...b1115);
-if (g1115 === "object") {
-if (g1115 === 'object') { const o1115 = x1115 as Record<string, unknown>;
-if (!("id" in o1115)) e.push(p + "/allowed" + '/' + i1114 + "/id" + ': required');
-if (!("what" in o1115)) e.push(p + "/allowed" + '/' + i1114 + "/what" + ': required');
-if (!("by" in o1115)) e.push(p + "/allowed" + '/' + i1114 + "/by" + ': required');
-if (!("createdAt" in o1115)) e.push(p + "/allowed" + '/' + i1114 + "/createdAt" + ': required');
-if ("id" in o1115) lf(o1115["id"], p + "/allowed" + '/' + i1114 + "/id", e, L1);
-if ("what" in o1115) lf(o1115["what"], p + "/allowed" + '/' + i1114 + "/what", e, L1);
-if ("by" in o1115) lf(o1115["by"], p + "/allowed" + '/' + i1114 + "/by", e, L1);
-if ("createdAt" in o1115) lf(o1115["createdAt"], p + "/allowed" + '/' + i1114 + "/createdAt", e, L17);
+const b1114: string[] = []; lf(x1114, p + "/allowed" + '/' + i1113, b1114, L0); if (b1114.length) e.push(...b1114);
+if (g1114 === "object") {
+if (g1114 === 'object') { const o1114 = x1114 as Record<string, unknown>;
+if (!("id" in o1114)) e.push(p + "/allowed" + '/' + i1113 + "/id" + ': required');
+if (!("what" in o1114)) e.push(p + "/allowed" + '/' + i1113 + "/what" + ': required');
+if (!("by" in o1114)) e.push(p + "/allowed" + '/' + i1113 + "/by" + ': required');
+if (!("createdAt" in o1114)) e.push(p + "/allowed" + '/' + i1113 + "/createdAt" + ': required');
+if ("id" in o1114) lf(o1114["id"], p + "/allowed" + '/' + i1113 + "/id", e, L1);
+if ("what" in o1114) lf(o1114["what"], p + "/allowed" + '/' + i1113 + "/what", e, L1);
+if ("by" in o1114) lf(o1114["by"], p + "/allowed" + '/' + i1113 + "/by", e, L1);
+if ("createdAt" in o1114) lf(o1114["createdAt"], p + "/allowed" + '/' + i1113 + "/createdAt", e, L17);
 }
 }
 }
@@ -155,8 +155,8 @@ if ("createdAt" in o1115) lf(o1115["createdAt"], p + "/allowed" + '/' + i1114 + 
 }
 }
 }
-if ("canChange" in o1113) lf(o1113["canChange"], p + "/canChange", e, L3);
-if ("endedAt" in o1113) lf(o1113["endedAt"], p + "/endedAt", e, L17);
+if ("canChange" in o1112) lf(o1112["canChange"], p + "/canChange", e, L3);
+if ("endedAt" in o1112) lf(o1112["endedAt"], p + "/endedAt", e, L17);
 }
 }
 }

@@ -211,6 +211,22 @@ export async function crewStatus(ctx: EngineCtx, input: { threadId: string }) {
       const id = m.kind === "subagent" ? found.byKey?.[`sub:${m.parentThreadId}:${m.id}`] : found.byThread?.[m.id];
       if (id) m.runId = id;
     }
+    // a member whose own chat never started (a helper that was to start after another that failed) still reads "working" there: its node knows better. A failed or stopped node ends it, and the totals follow.
+    for (const m of members) {
+      if (!m.runId || (m.state !== "working" && m.state !== "needs_you")) continue;
+      const n = (await ctx.call("runs.node.get", { runId: m.runId }).catch(() => undefined)) as
+        | { node?: { status?: string; endedAt?: number } }
+        | undefined;
+      const st = n?.node?.status;
+      if (st !== "failed" && st !== "stopped") continue;
+      m.state = st;
+      const ended = n?.node?.endedAt;
+      if (ended !== undefined) {
+        m.endedAt = ended;
+        m.elapsedMs = Math.max(0, ended - m.startedAt);
+      }
+      delete m.step;
+    }
   } catch {
     /* no run tree to ask, or nothing there: the members stand as they were */
   }

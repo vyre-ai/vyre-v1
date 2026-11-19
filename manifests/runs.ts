@@ -159,7 +159,7 @@ const nodeRow = t.obj({
   whoName: t.opt(t.str()),
   dependsOn: t.opt(t.arr(id.run)),
   errorCode: t.opt(t.str()),
-  errorMessage: t.opt(t.str()),
+  reason: t.opt(t.str({ description: "Why it failed, in words a person can read; the raw error stays in the logs" })),
   stopReason: t.opt(t.str()),
   leaseHolder: t.opt(t.str()),
   leaseUntil: t.opt(t.ts()),

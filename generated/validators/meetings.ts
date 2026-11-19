@@ -63,46 +63,46 @@ d_s_f953700f1c(a750[i750], p + '/' + i750, e);
 
 function d_s_c29a5a4deb(v: unknown, p: string, e: string[]): void {
 {
-const x971 = v;
-const g971 = typeOf(x971);
-const b971: string[] = []; lf(x971, p, b971, L0); if (b971.length) e.push(...b971);
-if (g971 === "object") {
-if (g971 === 'object') { const o971 = x971 as Record<string, unknown>;
-if (!("id" in o971)) e.push(p + "/id" + ': required');
-if (!("title" in o971)) e.push(p + "/title" + ': required');
-if (!("startsAt" in o971)) e.push(p + "/startsAt" + ': required');
-if (!("provider" in o971)) e.push(p + "/provider" + ': required');
-if (!("status" in o971)) e.push(p + "/status" + ': required');
-if (!("attendeeIds" in o971)) e.push(p + "/attendeeIds" + ': required');
-if (!("recordingState" in o971)) e.push(p + "/recordingState" + ': required');
-if (!("hasTranscript" in o971)) e.push(p + "/hasTranscript" + ': required');
-if (!("hasSummary" in o971)) e.push(p + "/hasSummary" + ': required');
-if ("id" in o971) lf(o971["id"], p + "/id", e, L28);
-if ("title" in o971) lf(o971["title"], p + "/title", e, L1);
-if ("startsAt" in o971) lf(o971["startsAt"], p + "/startsAt", e, L17);
-if ("endsAt" in o971) lf(o971["endsAt"], p + "/endsAt", e, L17);
-if ("provider" in o971) lf(o971["provider"], p + "/provider", e, L391);
-if ("joinUrl" in o971) lf(o971["joinUrl"], p + "/joinUrl", e, L1);
-if ("status" in o971) lf(o971["status"], p + "/status", e, L404);
-if ("organizer" in o971) lf(o971["organizer"], p + "/organizer", e, L16);
-if ("attendeeIds" in o971) {
+const x970 = v;
+const g970 = typeOf(x970);
+const b970: string[] = []; lf(x970, p, b970, L0); if (b970.length) e.push(...b970);
+if (g970 === "object") {
+if (g970 === 'object') { const o970 = x970 as Record<string, unknown>;
+if (!("id" in o970)) e.push(p + "/id" + ': required');
+if (!("title" in o970)) e.push(p + "/title" + ': required');
+if (!("startsAt" in o970)) e.push(p + "/startsAt" + ': required');
+if (!("provider" in o970)) e.push(p + "/provider" + ': required');
+if (!("status" in o970)) e.push(p + "/status" + ': required');
+if (!("attendeeIds" in o970)) e.push(p + "/attendeeIds" + ': required');
+if (!("recordingState" in o970)) e.push(p + "/recordingState" + ': required');
+if (!("hasTranscript" in o970)) e.push(p + "/hasTranscript" + ': required');
+if (!("hasSummary" in o970)) e.push(p + "/hasSummary" + ': required');
+if ("id" in o970) lf(o970["id"], p + "/id", e, L28);
+if ("title" in o970) lf(o970["title"], p + "/title", e, L1);
+if ("startsAt" in o970) lf(o970["startsAt"], p + "/startsAt", e, L17);
+if ("endsAt" in o970) lf(o970["endsAt"], p + "/endsAt", e, L17);
+if ("provider" in o970) lf(o970["provider"], p + "/provider", e, L391);
+if ("joinUrl" in o970) lf(o970["joinUrl"], p + "/joinUrl", e, L1);
+if ("status" in o970) lf(o970["status"], p + "/status", e, L404);
+if ("organizer" in o970) lf(o970["organizer"], p + "/organizer", e, L16);
+if ("attendeeIds" in o970) {
 {
-const x972 = o971["attendeeIds"];
-const g972 = typeOf(x972);
-const b972: string[] = []; lf(x972, p + "/attendeeIds", b972, L4); if (b972.length) e.push(...b972);
-if (g972 === "array") {
-if (g972 === 'array') { const a972 = x972 as unknown[];
-for (let i972 = 0; i972 < a972.length; i972++) {
-lf(a972[i972], p + "/attendeeIds" + '/' + i972, e, L28);
+const x971 = o970["attendeeIds"];
+const g971 = typeOf(x971);
+const b971: string[] = []; lf(x971, p + "/attendeeIds", b971, L4); if (b971.length) e.push(...b971);
+if (g971 === "array") {
+if (g971 === 'array') { const a971 = x971 as unknown[];
+for (let i971 = 0; i971 < a971.length; i971++) {
+lf(a971[i971], p + "/attendeeIds" + '/' + i971, e, L28);
 }
 }
 }
 }
 }
-if ("calendarEventId" in o971) lf(o971["calendarEventId"], p + "/calendarEventId", e, L153);
-if ("recordingState" in o971) lf(o971["recordingState"], p + "/recordingState", e, L405);
-if ("hasTranscript" in o971) lf(o971["hasTranscript"], p + "/hasTranscript", e, L3);
-if ("hasSummary" in o971) lf(o971["hasSummary"], p + "/hasSummary", e, L3);
+if ("calendarEventId" in o970) lf(o970["calendarEventId"], p + "/calendarEventId", e, L153);
+if ("recordingState" in o970) lf(o970["recordingState"], p + "/recordingState", e, L405);
+if ("hasTranscript" in o970) lf(o970["hasTranscript"], p + "/hasTranscript", e, L3);
+if ("hasSummary" in o970) lf(o970["hasSummary"], p + "/hasSummary", e, L3);
 }
 }
 }

@@ -45,7 +45,8 @@ type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-expl
 
 /** A node as the contract says it: the checkpoint and the policy stay inside; the rest goes out. */
 export function nodeOut(n: Node): Record<string, unknown> {
-  const { checkpoint: _c, policy: _p, idemKey: _i, heartbeatAt: _h, ...rest } = n;
+  const { checkpoint: _c, policy: _p, idemKey: _i, heartbeatAt: _h, errorMessage: _e, ...rest } = n;
+  void _e;
   void _c;
   void _p;
   void _i;

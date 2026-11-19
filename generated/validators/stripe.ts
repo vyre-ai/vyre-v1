@@ -186,13 +186,13 @@ lf(o742[k], p + "/metadata" + '/' + k, e, L1);
 
 function d_s_c89719c3d9(v: unknown, p: string, e: string[]): void {
 {
-const x998 = v;
-const g998 = typeOf(x998);
-const b998: string[] = []; lf(x998, p, b998, L0); if (b998.length) e.push(...b998);
-if (g998 === "object") {
-if (g998 === 'object') { const o998 = x998 as Record<string, unknown>;
-if (!("customer" in o998)) e.push(p + "/customer" + ': required');
-if ("customer" in o998) d_s_8ec0b22028(o998["customer"], p + "/customer", e);
+const x997 = v;
+const g997 = typeOf(x997);
+const b997: string[] = []; lf(x997, p, b997, L0); if (b997.length) e.push(...b997);
+if (g997 === "object") {
+if (g997 === 'object') { const o997 = x997 as Record<string, unknown>;
+if (!("customer" in o997)) e.push(p + "/customer" + ': required');
+if ("customer" in o997) d_s_8ec0b22028(o997["customer"], p + "/customer", e);
 }
 }
 }
@@ -200,13 +200,13 @@ if ("customer" in o998) d_s_8ec0b22028(o998["customer"], p + "/customer", e);
 
 function d_s_dbc080deb1(v: unknown, p: string, e: string[]): void {
 {
-const x1101 = v;
-const g1101 = typeOf(x1101);
-const b1101: string[] = []; lf(x1101, p, b1101, L0); if (b1101.length) e.push(...b1101);
-if (g1101 === "object") {
-if (g1101 === 'object') { const o1101 = x1101 as Record<string, unknown>;
-if (!("subscription" in o1101)) e.push(p + "/subscription" + ': required');
-if ("subscription" in o1101) d_s_22aca4e091(o1101["subscription"], p + "/subscription", e);
+const x1100 = v;
+const g1100 = typeOf(x1100);
+const b1100: string[] = []; lf(x1100, p, b1100, L0); if (b1100.length) e.push(...b1100);
+if (g1100 === "object") {
+if (g1100 === 'object') { const o1100 = x1100 as Record<string, unknown>;
+if (!("subscription" in o1100)) e.push(p + "/subscription" + ': required');
+if ("subscription" in o1100) d_s_22aca4e091(o1100["subscription"], p + "/subscription", e);
 }
 }
 }

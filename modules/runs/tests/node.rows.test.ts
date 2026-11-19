@@ -104,7 +104,8 @@ test("a node that starts after another is not taken until it has succeeded, and 
   assert.equal(statusOf(h, d2.id), "failed");
   const e = (await h.call("runs.node.get", { runId: d2.id }, owner)).node;
   assert.equal(e.errorCode, "dependency_failed");
-  assert.match(e.errorMessage, /Numbers/);
+  assert.match(e.reason, /Numbers/);
+  assert.equal(e.errorMessage, undefined);
 });
 
 test("a dependency must be work of the same job, and a node that is already running cannot wait for another", async () => {

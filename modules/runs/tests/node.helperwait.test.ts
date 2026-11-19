@@ -212,7 +212,7 @@ test("a helper made after the one it waits for had already failed is failed at o
   const got = (await h.call("runs.node.get", { runId: docs.id }, owner)).node;
   assert.equal(got.status, "failed", "failed straight away, with no sweep");
   assert.equal(got.errorCode, "dependency_failed");
-  assert.equal(got.errorMessage, "Didn't start because Numbers failed.");
+  assert.equal(got.reason, "Didn't start because Numbers failed.");
 });
 
 test("several failed dependencies are named together in one short sentence", async () => {
@@ -242,5 +242,5 @@ test("several failed dependencies are named together in one short sentence", asy
     )
   ).node as { id: string };
   const got = (await h.call("runs.node.get", { runId: docs.id }, owner)).node;
-  assert.match(got.errorMessage, /^Didn't start because (Alpha and Gamma|Gamma and Alpha) failed\.$/);
+  assert.match(got.reason, /^Didn't start because (Alpha and Gamma|Gamma and Alpha) failed\.$/);
 });

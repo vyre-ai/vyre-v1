@@ -69,7 +69,7 @@ test("a helper that depends on another waits, then starts; one whose dependency 
         status: string;
         dependsOn?: string[];
         errorCode?: string;
-        errorMessage?: string;
+        reason?: string;
       }>
     > => (await ok(d, "runs.tree.get", { runId: lead.runId })).nodes;
     const named = async (name: string) => (await nodes()).find((n) => n.name === name);
@@ -107,8 +107,15 @@ test("a helper that depends on another waits, then starts; one whose dependency 
       return n?.status === "failed" ? n : null;
     }, 20_000);
     assert.equal(eps.errorCode, "dependency_failed");
-    assert.equal(eps.errorMessage, "Didn't start because Gamma failed.");
+    assert.equal(eps.reason, "Didn't start because Gamma failed.");
     assert.equal(calls["DELTA"], 0, "still never started");
+    // and the crew list agrees: those two are failed, not working
+    const crew = (await ok(d, "engine.crew.status", { threadId: chat })).members as Array<{
+      title: string;
+      state: string;
+    }>;
+    for (const t of ["Delta", "Epsilon"])
+      assert.equal(crew.find((m) => m.title === t)?.state, "failed", `${t} is not working`);
   } finally {
     await stop(d);
   }
