@@ -4,7 +4,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  isScriptUrl,
   lc,
+  neutralizeUrlAttrs,
   replaceAnchors,
   stripEventAttrs,
   capText,
@@ -302,8 +304,10 @@ test("raw-text elements, comments and unterminated tags are read as a browser re
   assert.equal(stripEventAttrs("<p>a</p>"), "<p>a</p>");
   fast('<style><a b=" N', () => stripEventAttrs('<style><a b="'.repeat(N / 13)));
   fast("<!-- N", () => stripEventAttrs("<!--".repeat(N / 4)));
-  for (const c of ["<!--!>", "<!--a--!>", "<!----!>", "<!-- -->", "<!--!><!--", "<!--a-->"])
+  for (const c of ["<!--!>", "<!--a--!>", "<!----!>", "<!-- -->", "<!--!><!--", "<!--a-->"]) {
     fast(`${c} x 500 KB`, () => cleanHtml(c.repeat(500_000 / c.length)));
+    fast(`${c} x 1 MB`, () => stripEventAttrs(c.repeat(1_000_000 / c.length)));
+  }
   fast("<textarea N", () => stripEventAttrs("<textarea>".repeat(N / 10)));
   fast("<title <a N", () => stripEventAttrs('<title><a b="</title>'.repeat(N / 22)));
 });
@@ -314,6 +318,59 @@ test("only HTML whitespace separates a tag's parts (space, tab, LF, FF, CR)", ()
     assert.doesNotMatch(cleanHtml(html), /onerror\s*=/i, JSON.stringify(ws));
   }
   assert.equal(cleanHtml("<img\tsrc=x\nonerror=1\fonclick=2\ralt=a>"), "<img\tsrc=x\ralt=a>");
+});
+
+test("script URLs are neutralised however the scheme is spelled, quoted or not (cleanHtml)", () => {
+  const spellings = [
+    "javascript:alert(1)",
+    "JaVaScRiPt:alert(1)",
+    "java\tscript:alert(1)",
+    "java\nscript:alert(1)",
+    "java\r\nscr\tipt:alert(1)",
+    "\u0001 javascript:alert(1)",
+    "  javascript:alert(1)",
+    "&#106;avascript:alert(1)",
+    "&#x6A;&#x61;vascript&colon;alert(1)",
+    "java&Tab;script:alert(1)",
+    "java&#9;script:alert(1)",
+    "java&#x0A;script:alert(1)",
+    "javascript&#58;alert(1)",
+    "vbscript:msgbox(1)",
+    "data:text/html,<script>alert(1)</script>",
+    "DATA:text/html;base64,PHNjcmlwdD4=",
+  ];
+  for (const v of spellings) {
+    assert.equal(isScriptUrl(v), true, JSON.stringify(v));
+    const safe = v.replace(/"/g, "&quot;");
+    // quoted both ways, unquoted (a value cannot hold a space, so only the spellings without one), and other URL attributes
+    assert.equal(cleanHtml(`<a href="${safe}">x</a>`), '<a href="#">x</a>', v);
+    assert.equal(cleanHtml(`<a href='${v.replace(/'/g, "&#39;")}'>x</a>`), "<a href='#'>x</a>", v);
+    // unquoted: a space, tab or newline would end the value in a browser, so only the spellings without one
+    if (!/[\s"'<>=`]/.test(v)) assert.equal(cleanHtml(`<a href=${v}>x</a>`), '<a href="#">x</a>', v);
+    assert.equal(cleanHtml(`<iframe-less src="${safe}">`.replace("iframe-less", "img")), '<img src="#">', v);
+    assert.equal(cleanHtml(`<form action="${safe}"></form>`), "", v);
+  }
+  assert.equal(cleanHtml("<a href=javascript:alert(1)>x</a>"), '<a href="#">x</a>');
+  assert.equal(cleanHtml("<a href=java&Tab;script:alert(1)>x</a>"), '<a href="#">x</a>');
+  assert.equal(
+    cleanHtml('<svg><a xlink:href="java\tscript:alert(1)">x</a></svg>'),
+    '<svg><a xlink:href="#">x</a></svg>',
+  );
+  // ordinary links and data images are left alone
+  for (const ok of [
+    "https://northwind.example/a?b=1&amp;c=2",
+    "mailto:imran@northwind.example",
+    "/relative",
+    "#top",
+    "tel:+15550100",
+    "data:image/png;base64,iVBORw0=",
+    "{{unsubscribe_url}}",
+  ])
+    assert.equal(cleanHtml(`<a href="${ok}">x</a>`), `<a href="${ok}">x</a>`, ok);
+  assert.equal(neutralizeUrlAttrs('<p title="javascript:x">t</p>'), '<p title="javascript:x">t</p>');
+  fast("href=javascript N", () => cleanHtml('<a href="javascript:x">'.repeat(N / 24)));
+  fast("href=java&#9; N", () => cleanHtml("<a href=java&#9;script:x>".repeat(N / 25)));
+  fast("long value", () => cleanHtml('<a href="' + "java&Tab;".repeat(N / 9) + '">'));
 });
 
 test("asked: an address pattern reads a long word once (lib/asked.ts)", () => {

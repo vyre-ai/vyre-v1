@@ -311,6 +311,10 @@ export interface TagAttr {
   /** index just past the value; equal to the name's end when there is no value */
   end: number;
   hasValue: boolean;
+  /** the value's own text is s.slice(vs, ve) (inside the quotes when it has them) */
+  vs: number;
+  ve: number;
+  quoted: boolean;
 }
 export interface TagScan {
   /** the ">" that ends the tag, or -1 when it never ends (an open quote runs to the end of the text, as a browser reads it) */
@@ -350,6 +354,9 @@ export function scanTag(s: string, at: number): TagScan {
     while (q < n && isWs(s.charCodeAt(q))) q += 1;
     let hasValue = false;
     let end = p;
+    let vs = p;
+    let ve = p;
+    let quoted = false;
     if (s.charCodeAt(q) === 61) {
       hasValue = true;
       q += 1;
@@ -358,17 +365,30 @@ export function scanTag(s: string, at: number): TagScan {
       if (v === 34 || v === 39) {
         const e = s.indexOf(String.fromCharCode(v), q + 1);
         if (e < 0) {
-          attrs.push({ start: sep >= 0 && sep === ns - 1 ? sep : ns, name, end: n, hasValue });
+          attrs.push({
+            start: sep >= 0 && sep === ns - 1 ? sep : ns,
+            name,
+            end: n,
+            hasValue,
+            vs: q + 1,
+            ve: n,
+            quoted: true,
+          });
           return { end: -1, attrs };
         }
+        vs = q + 1;
+        ve = e;
+        quoted = true;
         end = e + 1;
       } else {
         end = q;
         while (end < n && !isWs(s.charCodeAt(end)) && s.charCodeAt(end) !== 62) end += 1;
+        vs = q;
+        ve = end;
       }
       p = end;
     }
-    attrs.push({ start: sep >= 0 && sep === ns - 1 ? sep : ns, name, end, hasValue });
+    attrs.push({ start: sep >= 0 && sep === ns - 1 ? sep : ns, name, end, hasValue, vs, ve, quoted });
   }
 }
 
@@ -513,10 +533,12 @@ function rawTextEnd(low: string, name: string, from: number): number {
   return low.length;
 }
 
-/** Ranges [start, end) of on* attributes in `s`; a tag that never ends is a range to the end of the text. `browser` reads comments and raw-text elements as a browser does. */
-function eventRanges(s: string, low: string, browser: boolean): Array<[number, number]> {
+type Edit = [start: number, end: number, replacement: string];
+
+/** Edits to the tags of `s`: pick(attr) may give one edit per attribute; a tag that never ends is an edit to the end of the text. `browser` reads comments and raw-text elements as a browser does. */
+function tagEdits(s: string, low: string, browser: boolean, pick: (a: TagAttr) => Edit | null): Edit[] {
   const n = s.length;
-  const out: Array<[number, number]> = [];
+  const out: Edit[] = [];
   let from = 0;
   let e1 = -2;
   let e2 = -2;
@@ -554,9 +576,12 @@ function eventRanges(s: string, low: string, browser: boolean): Array<[number, n
       continue;
     }
     const tag = scanTag(s, at);
-    for (const a of tag.attrs) if (a.hasValue && /^on[a-z]+$/i.test(a.name)) out.push([a.start, a.end]);
+    for (const a of tag.attrs) {
+      const e = pick(a);
+      if (e) out.push(e);
+    }
     if (tag.end < 0) {
-      out.push([at, n]); // a tag that never ends: dropped with everything after it, never kept with an open quote
+      out.push([at, n, ""]); // a tag that never ends: dropped with everything after it, never kept with an open quote
       break;
     }
     from = tag.end + 1;
@@ -578,16 +603,89 @@ function eventRanges(s: string, low: string, browser: boolean): Array<[number, n
  * inside noscript, read it). A tag that never ends is dropped with the rest of the text.
  */
 export function stripEventAttrs(s: string): string {
-  const low = lc(s);
-  const ranges = [...eventRanges(s, low, true), ...eventRanges(s, low, false)].sort(
-    (a, b) => a[0] - b[0] || b[1] - a[1],
-  );
+  const pick = (a: TagAttr): Edit | null => (a.hasValue && /^on[a-z]+$/i.test(a.name) ? [a.start, a.end, ""] : null);
+  return applyEdits(s, tagEdits(s, lc(s), true, pick), tagEdits(s, lc(s), false, pick));
+}
+
+/** The edits of both readings, in order, with overlapping ones dropped. */
+function applyEdits(s: string, ...lists: Edit[][]): string {
+  const edits = lists.flat().sort((a, b) => a[0] - b[0] || b[1] - a[1]);
   let out = "";
   let i = 0;
-  for (const [a, b] of ranges) {
+  for (const [a, b, r] of edits) {
     if (b <= i) continue;
-    out += s.slice(i, Math.max(a, i));
+    out += s.slice(i, Math.max(a, i)) + r;
     i = b;
   }
   return out + s.slice(i);
+}
+
+const URL_ATTRS = new Set([
+  "href",
+  "src",
+  "action",
+  "background",
+  "poster",
+  "formaction",
+  "xlink:href",
+  "data",
+  "codebase",
+  "cite",
+  "longdesc",
+  "usemap",
+  "profile",
+]);
+const NAMED_CHARS: Record<string, string> = {
+  tab: "\t",
+  newline: "\n",
+  colon: ":",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: "\u00a0",
+  lpar: "(",
+  rpar: ")",
+  sol: "/",
+  period: ".",
+};
+
+/**
+ * A URL as a browser reads it before it looks at the scheme: character references decoded, ASCII tab, LF and CR removed from anywhere,
+ * leading control characters and spaces removed. Lowercased for the scheme test.
+ */
+export function urlForScheme(v: string): string {
+  const decoded = v.replace(
+    /&(?:#x([0-9a-f]{1,6})|#(\d{1,7})|([a-z]{2,8}));?/gi,
+    (m, hex?: string, dec?: string, name?: string) => {
+      if (hex !== undefined || dec !== undefined) {
+        const cp = hex !== undefined ? parseInt(hex, 16) : Number(dec);
+        return cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : "";
+      }
+      return NAMED_CHARS[lc(name ?? "")] ?? m;
+    },
+  );
+  // eslint-disable-next-line no-control-regex
+  return lc(decoded.replace(/[\t\n\r\0]/g, "").replace(/^[\u0000-\u0020]+/, ""));
+}
+
+/** True for a URL a page must not carry: a script scheme, or an HTML document in a data: URL. */
+export function isScriptUrl(v: string): boolean {
+  const u = urlForScheme(v);
+  return /^(?:javascript|vbscript|livescript|mocha):/.test(u) || /^data:\s*(?:text\/html|application\/xhtml)/.test(u);
+}
+
+/**
+ * Replaces the value of every URL attribute (href, src, action, ...) that holds a script URL with "#", quoted or not, however the scheme
+ * is spelled (tabs, newlines, control characters and character references inside it). Linear; read the way stripEventAttrs reads.
+ */
+export function neutralizeUrlAttrs(s: string): string {
+  const pick = (a: TagAttr): Edit | null =>
+    a.hasValue && URL_ATTRS.has(lc(a.name)) && isScriptUrl(s.slice(a.vs, a.ve))
+      ? a.quoted
+        ? [a.vs, a.ve, "#"]
+        : [a.vs, a.ve, '"#"']
+      : null;
+  return applyEdits(s, tagEdits(s, lc(s), true, pick), tagEdits(s, lc(s), false, pick));
 }
