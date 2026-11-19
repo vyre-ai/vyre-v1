@@ -86,7 +86,9 @@ test("task states: Done is the filled check, In review and Blocked are named at 
 
 test("task states: a state set through the shell is kept and shows the next time the page opens", () => {
   const s = nw();
-  assert.ok(!has(page(s, <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />), 'data-testid="state-t_confirm"'));
+  assert.ok(
+    !has(page(s, <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />), 'data-testid="state-t_confirm"'),
+  );
   s.extras.setTaskState?.("jrn_onboard", "t_confirm", "Doing");
   s.extras.setTaskState?.("jrn_onboard", "t_review", "Awaiting approval");
   const out = page(s, <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />);

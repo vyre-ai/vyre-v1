@@ -61,12 +61,22 @@ export function PathTab({ journey: j, counts }: { journey: Journey; counts: Stag
     if (test.phase === "starting") return;
     send({ type: "start", ...(rec ? { recordName: rec.name } : {}) });
     try {
-      const out = (await data.call("journeys.test_path", { journeyId: j.id, ...(rec ? { recordId: rec.id } : {}) })) as {
-        runs: Parameters<typeof pathTest>[1] extends infer E ? (E extends { type: "started"; runs: infer R } ? R : never) : never;
+      const out = (await data.call("journeys.test_path", {
+        journeyId: j.id,
+        ...(rec ? { recordId: rec.id } : {}),
+      })) as {
+        runs: Parameters<typeof pathTest>[1] extends infer E
+          ? E extends { type: "started"; runs: infer R }
+            ? R
+            : never
+          : never;
       };
       send({ type: "started", runs: out.runs });
     } catch (e) {
-      send({ type: "failed", message: (e as { error?: { message?: string } } | null)?.error?.message ?? "The test did not start." });
+      send({
+        type: "failed",
+        message: (e as { error?: { message?: string } } | null)?.error?.message ?? "The test did not start.",
+      });
     }
   };
   const here = where && where !== "none" ? where.stage : null;
@@ -135,7 +145,15 @@ export function PathTab({ journey: j, counts }: { journey: Journey; counts: Stag
   );
 }
 
-function ColumnView({ col, here, test }: { col: Column; here: boolean; test: Parameters<typeof runOf>[0] }): ReactElement {
+function ColumnView({
+  col,
+  here,
+  test,
+}: {
+  col: Column;
+  here: boolean;
+  test: Parameters<typeof runOf>[0];
+}): ReactElement {
   return (
     <View style={[s.col, col.final ? s.colFinal : null]} testID={`path-col-${col.key}`}>
       <View style={s.colHead}>
@@ -145,7 +163,9 @@ function ColumnView({ col, here, test }: { col: Column; here: boolean; test: Par
         <Text style={s.colCount}>{col.count}</Text>
         {here ? <View style={s.here} testID={`path-here-${col.key}`} /> : null}
       </View>
-      <Text style={[s.quiet, col.over > 0 ? s.late : null]}>{col.over > 0 ? `${col.limit}. ${col.over} late` : col.limit}</Text>
+      <Text style={[s.quiet, col.over > 0 ? s.late : null]}>
+        {col.over > 0 ? `${col.limit}. ${col.over} late` : col.limit}
+      </Text>
       {/* ui-rows-lint: not a list (Automation cards) */}
       {col.cards.map((a) => {
         const r = runOf(test, a.id, col.key);
@@ -154,25 +174,49 @@ function ColumnView({ col, here, test }: { col: Column; here: boolean; test: Par
             <Text style={s.cardName} numberOfLines={2}>
               {a.name}
             </Text>
-            {r ? <Text style={[s.quiet, r.error ? s.late : null]}>{r.error ?? "Test started. Nothing is sent."}</Text> : null}
+            {r ? (
+              <Text style={[s.quiet, r.error ? s.late : null]}>{r.error ?? "Test started. Nothing is sent."}</Text>
+            ) : null}
           </View>
         );
       })}
-      {col.cards.length === 0 ? <Text style={s.quiet}>{col.final ? "A record here has finished." : "Nothing runs here."}</Text> : null}
+      {col.cards.length === 0 ? (
+        <Text style={s.quiet}>{col.final ? "A record here has finished." : "Nothing runs here."}</Text>
+      ) : null}
     </View>
   );
 }
 
 const s = StyleSheet.create({
   root: { gap: 12 },
-  pick: { height: 32, paddingHorizontal: 12, borderRadius: 12, justifyContent: "center", borderWidth: 1, borderColor: "var(--line-2)" as string },
+  pick: {
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+  },
   pickText: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   strip: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   fact: { flexGrow: 1, flexBasis: 180, padding: 12, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
-  factKey: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--ink-3)" as string },
+  factKey: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "var(--ink-3)" as string,
+  },
   factVal: { marginTop: 2, fontSize: 13, color: "var(--ink)" as string },
   bar: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 36 },
-  testBar: { flexDirection: "row", alignItems: "center", gap: 12, padding: 10, borderRadius: 12, backgroundColor: "var(--accent-wash)" as string },
+  testBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "var(--accent-wash)" as string,
+  },
   testText: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
   quiet: { fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
   late: { color: "var(--warn)" as string },

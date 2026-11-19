@@ -31,6 +31,15 @@ export interface FieldDefT {
   options?: Record<string, unknown>;
 }
 
+/** What a card of this type shows on a board (rc.41): a preset and the fields on it. The one place agents, the API and the visual editor all write; a person's own face is a personal view's config. */
+export interface CardFaceT {
+  preset: "simple" | "detail" | "visual";
+  /** Field keys shown on the card, in order, after the title. */
+  fields: string[];
+  /** The journey mark and the progress ring of required stage fields. Shown unless false. */
+  mark?: boolean;
+}
+
 export interface TypeDefT {
   key: string;
   title: string;
@@ -49,6 +58,7 @@ export interface TypeDefT {
   syncedFrom?: string;
   attribution?: boolean;
   retention?: string;
+  card?: CardFaceT;
   fields: FieldDefT[];
   version: number;
 }
