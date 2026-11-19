@@ -5,6 +5,7 @@ import type { SpaceDef } from "../spaces/model.ts";
 
 import { forgetDrafts } from "../../places/chats/conversation/drafts.ts";
 import { forgetNotesTab } from "../../places/chats/notes/notes-tab.ts";
+import { clearRecordNames } from "../../places/records/recordpage/name-hint.ts";
 const KEY = "vyre.session.v1";
 
 export interface StoredSession {
@@ -162,6 +163,7 @@ export function writeStored(s: StoredSession, store: KeyValueStore | undefined =
 
 export function clearStored(store: KeyValueStore | undefined = browserStore(), baseUrl?: string): void {
   forgetNotesTab(); // the next person to sign in starts on Notes, not on this person's tab
+  clearRecordNames(); // and sees none of the record names this person had open
   // a sign-out forgets what the person had half written on this browser (drafts are kept per person): the people of the sessions that end, or everyone when every session ends
   try {
     const held = sessions(store);

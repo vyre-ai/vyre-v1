@@ -9,3 +9,6 @@ export function rememberRecordName(id: string, name: string): void {
 
 /** The name remembered for a record, or an empty text. */
 export const recordNameHint = (id: string): string => names.get(id) ?? "";
+
+/** Forget every remembered name: a sign-out must not leave one person's record names for the next. */
+export const clearRecordNames = (): void => names.clear();
