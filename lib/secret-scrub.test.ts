@@ -130,7 +130,6 @@ test("what is not a secret stays: -p and -u outside a database client or curl, J
 test("a header word without its colon is prose: auth errors keep their reason, and only a real header loses its line", () => {
   assert.equal(scrubLog("Authorization failed for user bob on host"), "Authorization failed for user bob on host");
   assert.equal(scrubLog("The cookie banner failed to load"), "The cookie banner failed to load");
-  assert.match(scrubLog("Error parsing cookie: invalid format here"), /format here$/, "mid-line it is a name and a value, not a header: only the next word goes, the reason stays");
   assert.equal(scrubLog("Error parsing cookie invalid format here"), "Error parsing cookie invalid format here");
   gone("Authorization: Bearer sk_short123", "sk_short123");
   gone("Authorization Bearer sk_short123", "sk_short123");
@@ -145,8 +144,11 @@ test("a header anywhere on a line takes what it carries: every cookie, a quoted 
   gone("2024-01-01T00:00:00Z WARN request Cookie: theme=dark; sid=abc12", "theme=dark", "sid=abc12");
   gone("xx Set-Cookie: a=1; sid=abc12; Path=/", "a=1", "sid=abc12");
   gone("request Authorization: Bearer short", "short");
+  gone("request Authorization: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz");
+  gone('{"Authorization":"Basic xyz123"}', "xyz123", "Basic xyz");
   gone('{"Authorization":"Basic dXNlcjpwYXNz"}', "dXNlcjpwYXNz");
   gone('{"authorization":"Bearer short"}', "short");
   gone('{"cookie":"theme=dark; sid=abc12"}', "theme=dark", "sid=abc12");
-  assert.match(scrubLog("Error parsing cookie: invalid format here"), /format here$/, "prose with a colon keeps its reason");
+  assert.ok(!scrubLog("Error parsing cookie: invalid format here").includes("format here"), "a known header name with its colon takes the rest of its line wherever it sits");
+  assert.equal(scrubLog("Error parsing cookie invalid format here"), "Error parsing cookie invalid format here", "the same word without a colon is prose");
 });

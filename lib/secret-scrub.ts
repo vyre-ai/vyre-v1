@@ -233,7 +233,6 @@ export function scrubLog(input: unknown, limit = 4000): string {
     let toNewline = false; // a header: the rest of the line goes
     let quote = ""; // a quoted value that spans words: removed to its closing quote
     let last = ""; // the word before this one, for a separator that stands alone
-    let lineStart = true; // a header is a header only at the start of a line
     let userinfo = 0; // a password with a space in it: words until the one that carries the @
     let dbCommand = 0; // words since a database client was named: its -pPASSWORD flag takes the password glued on
     let stopQuote = ""; // a header inside a quoted string (curl -H "Cookie: ...") ends at the closing quote
@@ -242,15 +241,12 @@ export function scrubLog(input: unknown, limit = 4000): string {
       if (part === "" || /^\s+$/.test(part)) {
         out.push(part);
         if (/[\r\n]/.test(part)) {
-          lineStart = true;
           toNewline = false;
           dbCommand = 0; // -p and -u are read only on the line where the client is named
         }
         continue;
       }
       const before = last;
-      const atStart = lineStart;
-      lineStart = false;
       last = part;
       if (DB_TOOL.test(part)) dbCommand = 24;
       else if (dbCommand > 0) dbCommand -= 1;
@@ -296,22 +292,15 @@ export function scrubLog(input: unknown, limit = 4000): string {
         out.push("-p" + REMOVED);
         continue;
       }
-      // a header is its colon: at the start of a line it takes the line; anywhere else it takes the line when what follows is what a header of that kind carries (a cookie pair, a scheme word or a long value),
-      // so "cookie: invalid format here" stays prose. Inside a quoted string it ends at the closing quote.
+      // a header is its colon: a known header name followed by a colon takes the rest of its line wherever it sits (after a timestamp, after "error:", inside a quoted curl header up to the closing quote).
+      // The same word without a colon is prose and is left ("Authorization failed for bob", "the cookie banner").
       const bare = w.replace(/^["'`{[(]+/, "");
       if (LINE_HEADER.test(bare)) {
         const lead = w.slice(0, w.length - bare.length);
-        let next = "";
-        for (let k = at + 1; k < parts.length && k <= at + 2; k++) if (!/^\s*$/.test(parts[k] as string)) next = parts[k] as string;
-        const cookieLike = /^(?:cookie|set-cookie):$/i.test(bare);
-        const authLike = /^(?:authorization|proxy-authorization):$/i.test(bare);
-        const carries = cookieLike ? next.includes("=") : authLike ? SCHEME_WORD.test(next) || next.length >= 16 : true;
-        if (atStart || carries) {
-          toNewline = true;
-          stopQuote = /["'`]/.test(lead) ? (lead.match(/["'`]/) as RegExpMatchArray)[0] : "";
-          out.push(w);
-          continue;
-        }
+        toNewline = true;
+        stopQuote = /["'`]/.test(lead) ? (lead.match(/["'`]/) as RegExpMatchArray)[0] : "";
+        out.push(w);
+        continue;
       }
       if (SCHEME_WORD.test(w) || FLAG.test(w) || (dbCommand > 0 && SHORT_FLAG.test(w))) {
         hide = 1;
