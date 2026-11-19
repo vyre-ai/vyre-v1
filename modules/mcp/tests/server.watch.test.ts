@@ -298,3 +298,29 @@ test("a live stream keeps its place for as long as it lives, not for the time a 
   r.server.end(imran.sessionId);
   await Promise.all(live.map((x) => x.finished));
 });
+
+test("a client that drops during setup leaves no place taken: the stream starts already closed, ends at once, and the slot count is zero", async () => {
+  const r = rig();
+  const res = await r.server.handle({
+    method: "POST",
+    headers: { authorization: "Bearer out", "mcp-protocol-version": V, "mcp-method": "subscriptions/listen" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "subscriptions/listen", params: { notifications: {}, _meta: META } }),
+  });
+  assert.equal(res.status, 200);
+  assert.equal(r.server.streamSlots(), 1, "the place is taken when the response is given out");
+  // the app was gone before the host began the response: `closed` is already settled
+  await res.stream!({ write: () => undefined, closed: Promise.resolve() });
+  assert.equal(r.server.streamSlots(), 0, "the place came back");
+  assert.equal(r.server.listeners(), 0);
+  // and the same for a hundred that drop during setup: nothing accumulates
+  for (let i = 0; i < 100; i++) {
+    const x = await r.server.handle({
+      method: "POST",
+      headers: { authorization: "Bearer out", "mcp-protocol-version": V, "mcp-method": "subscriptions/listen" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: i + 2, method: "subscriptions/listen", params: { notifications: {}, _meta: META } }),
+    });
+    assert.equal(x.status, 200, `request ${i} was not refused for places left behind`);
+    await x.stream!({ write: () => undefined, closed: Promise.resolve() });
+  }
+  assert.equal(r.server.streamSlots(), 0);
+});

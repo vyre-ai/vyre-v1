@@ -120,4 +120,6 @@ export interface McpServer {
   changed(change: McpChange): Promise<number>;
   /** Open notification streams. */
   listeners(): number;
+  /** Stream places taken: open streams, and responses given out that have not begun. Zero when nothing is open. */
+  streamSlots(): number;
 }

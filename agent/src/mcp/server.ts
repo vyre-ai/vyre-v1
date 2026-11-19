@@ -1304,5 +1304,6 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     },
     changed,
     listeners: () => listeners.size,
+    streamSlots: () => takenTotal,
   };
 }
