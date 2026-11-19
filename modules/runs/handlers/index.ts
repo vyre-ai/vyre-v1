@@ -21,6 +21,7 @@ import {
 } from "./engine.ts";
 import { stepIo } from "./step-io.ts";
 import {
+  budgetSet,
   nodeLabel,
   treeFind,
   boardAnswerCap,
@@ -49,6 +50,7 @@ import { agentsOfRun, withReversals } from "../../../lib/reversal.ts";
 const base = {
   "runs.activity.list": activityList,
   "runs.board.answer": boardAnswerCap,
+  "runs.budget.set": budgetSet,
   "runs.board.list": boardListCap,
   "runs.board.put": boardPutCap,
   "runs.message.list": messageListCap,

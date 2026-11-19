@@ -717,3 +717,23 @@ export function incidentNote(ctx: EngineCtx, input: { incidentId: string; text: 
   addNote(ctx, input.incidentId, input.text);
   return { incident: loadIncident(ctx, input.incidentId) };
 }
+
+/**
+ * Pause one agent's turn in a thread at its next safe point (after the call it is on), keeping everything it did; it goes on with engine.resume_paused. The same reach as Stop: a person may pause what they could stop.
+ */
+export async function pause(ctx: EngineCtx, input: { threadId: string; agentId?: string; reason?: string }): Promise<{ paused: number }> {
+  const engine = await open(ctx, input.threadId);
+  const own = ctx.principal.kind === "agent" && ctx.actingFor === undefined ? await ownsHelper(ctx, input.threadId) : false;
+  const { none, ...reach } = stopReach(ctx, input.agentId, false, input.agentId === undefined, own);
+  if (none) return { paused: 0 };
+  return { paused: engine.pause(input.threadId, { ...(reach.agentId === undefined ? {} : { agentId: reach.agentId }), reason: input.reason ?? "a limit was reached" }) };
+}
+
+/** Go on with the turns paused in a thread: each starts again as a turn of its own, told what it had done. */
+export async function resumePaused(ctx: EngineCtx, input: { threadId: string; agentId?: string }): Promise<{ resumed: number; lost: number }> {
+  const engine = await open(ctx, input.threadId);
+  const own = ctx.principal.kind === "agent" && ctx.actingFor === undefined ? await ownsHelper(ctx, input.threadId) : false;
+  const { none, ...reach } = stopReach(ctx, input.agentId, false, input.agentId === undefined, own);
+  if (none) return { resumed: 0, lost: 0 };
+  return engine.resumePaused(input.threadId, reach.agentId === undefined ? undefined : { agentId: reach.agentId });
+}

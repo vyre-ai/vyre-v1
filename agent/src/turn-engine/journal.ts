@@ -116,9 +116,12 @@ export const summaryOf = (content: unknown): string => {
 export function resumeNote(
   done: readonly JournalEntry[],
   replayed: ReadonlyArray<{ entry: JournalEntry; ok: boolean; summary: string }>,
+  paused?: string,
 ): string {
   const lines = [
-    "The server stopped while you were working on this and has started again. You are continuing the same request. Do not repeat what is already done.",
+    paused !== undefined
+      ? `You were paused at a safe point (${paused}) and are going on now. You are continuing the same request. Do not repeat what is already done.`
+      : "The server stopped while you were working on this and has started again. You are continuing the same request. Do not repeat what is already done.",
   ];
   const shown = [...done].slice(-MAX_NOTE_ENTRIES);
   if (done.length > shown.length) lines.push(`(${done.length - shown.length} earlier steps are not listed.)`);

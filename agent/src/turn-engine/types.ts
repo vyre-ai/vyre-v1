@@ -11,7 +11,7 @@ export type ChatMode = "ask" | "auto" | "plan";
 export type Effort = "low" | "medium" | "high" | "max";
 export type QueueKind = "message" | "interrupt" | "wake" | "handoff";
 /** stopping: the person (or an interrupt) stopped this running or starting turn; written before the Stop answers, so a restart before the turn has ended closes it as cancelled instead of running it again */
-export type QueueState = "queued" | "running" | "stopping" | "done" | "consumed" | "cancelled";
+export type QueueState = "queued" | "running" | "stopping" | "done" | "consumed" | "cancelled" | "paused";
 export type TurnState = "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type AccountReason = "starter" | "steerer";
 export type Placement = "host" | "device";

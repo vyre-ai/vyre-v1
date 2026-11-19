@@ -197,6 +197,8 @@ export interface EngineOptions {
     turnId: string;
     agentId: string;
   }) => Promise<ReadonlyArray<{ from: string; body: string }>>;
+  /** A model call of a turn reported what it used (the turn's totals so far are on the row): told as it happens, so a limit on a job can act at the next safe point and not only when the turn is over. */
+  onUsage?: (turn: Readonly<TurnRow>) => void;
   /** Where the tool calls of a turn are written as they happen. Memory by default; the engine module keeps them in SQL. */
   journal?: JournalStore;
   /** Most reads run at the same time. Default 6. */
@@ -266,9 +268,10 @@ interface Running {
   lostLease: boolean;
   /** why it was cancelled, said in the chat */ why?: string;
   /** who stopped it, said in the chat */ by?: StoppedBy;
+  /** a pause was asked for: the turn stops at its next safe point (after the tool call it is on) and keeps its place */ pausing?: string;
 }
 /** Why a turn ends that nobody pressed: the engine's own doing, said as the system. */
-const SYSTEM_WHY: ReadonlySet<string> = new Set(["lease", "closing", "limit", "update", "left", "moved"]);
+const SYSTEM_WHY: ReadonlySet<string> = new Set(["lease", "closing", "limit", "update", "left", "moved", "paused"]);
 /** Agent-to-agent hand-offs that may follow one person's message, and how many times one pair may pass it between them. */
 const MENTION_HOPS = 3;
 const MAX_PAIR_PASSES = 2;
@@ -415,6 +418,15 @@ export interface TurnEngine {
    * a person decides (hole 12).
    */
   recover(threadId: string): boolean;
+  /**
+   * Ask the turn an agent is working on to pause: it finishes the call it is on, then stops at that safe point with everything it did kept (the journal), and its queue row waits as paused. Not a Stop: nothing is
+   * lost and it can go on. Returns the turns asked. A turn that is not working, or whose engine runs its own tools (it cannot be held between calls), is not paused.
+   */
+  pause(threadId: string, o: { agentId?: string; reason: string }): number;
+  /** Go on with turns that were paused: each is started again as a turn of its own, told what it had done. A turn whose journal is gone (kept a day) cannot go on and is ended host_lost. */
+  resumePaused(threadId: string, o?: { agentId?: string }): { resumed: number; lost: number };
+  /** The turns waiting paused in a thread. */
+  paused(threadId: string): QueueItem[];
   /** Run what is queued in a thread that is open here (a retry queued by a capability). */
   kick(threadId: string): void;
   idle(threadId: string): Promise<void>;
@@ -434,7 +446,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const queue = opts.queue ?? createMemoryQueue();
   // the tool calls of each turn as they happen, and the plan of a turn a dead host left that is to be resumed, by queue row (journal.ts)
   const toolLog = opts.journal ?? createMemoryJournal();
-  const resumes = new Map<string, ResumePlan & { turnId: string }>();
+  const resumes = new Map<string, ResumePlan & { turnId: string; paused?: string }>();
   const keySeq = new Map<string, number>();
   const noted = new Map<string, Array<{ from: string; body: string }>>();
   const rowKey = (threadId: string, qseq: number): string => `${threadId}:${qseq}`;
@@ -489,7 +501,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // a turn that ended for good has no more use for its calls; one a dead host left (host_lost) keeps them until its resume has read them
     if (
       (e.type === "turn.completed" ||
-        e.type === "turn.cancelled" ||
+        (e.type === "turn.cancelled" && e.reason !== "paused") ||
         (e.type === "turn.failed" && e.code !== "host_lost" && e.code !== "host_resumed")) &&
       "turnId" in e
     )
@@ -1026,6 +1038,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   function steerBoundary(st: ThreadState, run: Running, turn: TurnRow): void {
     if (!run.session) return;
+    // a pause was asked for: this is the safe point (the call is done and its answer is on its way back); the turn stops here and keeps its place
+    if (run.pausing !== undefined && !run.cancelled) {
+      void cancelRunning(st, run, "paused");
+      return;
+    }
     const said = noted.get(turn.id);
     if (said && said.length > 0) {
       noted.delete(turn.id);
@@ -1137,7 +1154,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         );
         replayed.push({ entry: e, ok: r.ok, summary: summaryOf(r.content) });
       }
-      resumeText = resumeNote(resumePlan.done, replayed);
+      resumeText = resumeNote(resumePlan.done, replayed, resumePlan.paused);
       try {
         toolLog.drop(resumePlan.turnId);
       } catch {
@@ -1591,6 +1608,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             case "usage":
               turn.tokensIn += ev.inputTokens;
               turn.tokensOut += ev.outputTokens;
+              try {
+                opts.onUsage?.(turn);
+              } catch {
+                /* metering the run tree never touches the turn */
+              }
               // the driver says which model ran: an agent that picked none runs on the engine's own default, and a turn moved to a Space account's model ran on that one. That is the turn's model, never "unknown"
               if (ev.model) turn.model = ev.model;
               if (ev.contextTokens !== undefined) info.contextTokens = ev.contextTokens;
@@ -1820,7 +1842,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       st.active = false;
       return;
     }
-    queue.setState(st.thread.id, item.qseq, turn.state === "cancelled" ? "cancelled" : "done");
+    queue.setState(
+      st.thread.id,
+      item.qseq,
+      turn.state === "cancelled" ? (run.why === "paused" ? "paused" : "cancelled") : "done",
+    );
     recordSpend(turn);
     if (opts.hooks && hooksAsked) {
       const base = {
@@ -2307,6 +2333,47 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       kick(st);
       return true;
     },
+    pause(threadId, o) {
+      const st = need(threadId);
+      let n = 0;
+      for (const run of st.running.values()) {
+        if (run.cancelled || run.pausing !== undefined) continue;
+        if (o.agentId !== undefined && run.agentId !== o.agentId) continue;
+        run.pausing = o.reason;
+        n += 1;
+      }
+      return n;
+    },
+    resumePaused(threadId, o) {
+      const st = need(threadId);
+      let resumed = 0;
+      let lost = 0;
+      for (const row of queue.list(threadId).filter((r) => r.state === "paused")) {
+        if (o?.agentId !== undefined && row.agentId !== o.agentId) continue;
+        const turnId = opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`;
+        const plan = opts.toolSafety ? planResume(toolLog.list(turnId)) : undefined;
+        if (plan?.resumable || (opts.toolSafety && toolLog.list(turnId).length === 0 && row.touched !== true)) {
+          resumes.set(rowKey(threadId, row.qseq), { ...(plan ?? { resumable: true, done: [], replay: [] }), turnId, paused: "a limit was reached" });
+          queue.setState(threadId, row.qseq, "queued");
+          resumed += 1;
+        } else {
+          queue.setState(threadId, row.qseq, "done");
+          lost += 1;
+          emit({
+            type: "turn.failed",
+            threadId,
+            turnId,
+            agentId: row.agentId,
+            code: "host_lost",
+            qseq: row.qseq,
+            asker: row.from.startsWith("usr_") ? row.from : st.thread.starter,
+          });
+        }
+      }
+      if (resumed > 0) kick(st);
+      return { resumed, lost };
+    },
+    paused: (threadId) => queue.list(threadId).filter((r) => r.state === "paused"),
     kick(threadId) {
       kick(need(threadId));
     },

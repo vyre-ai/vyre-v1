@@ -2,6 +2,7 @@
 // runs.node.control (pause, resume, stop) and the three reads. Who may see a tree: whoever may see its root (its owner, who started it, a Manage holder).
 import { isSystemCall } from "../../../lib/trust.ts";
 import { stop } from "./engine.ts";
+import { enforceBudgets, limited, reached, setBudget } from "../budget.ts";
 import {
   boardAnswer,
   boardList,
@@ -110,13 +111,16 @@ export async function nodeMove(ctx: RunsCtx, input: In): Promise<unknown> {
 }
 export async function nodeEvent(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
-  return writeEvent(ctx, input.runId, {
+  const w = writeEvent(ctx, input.runId, {
     type: input.type,
     key: input.key,
     actor: input.actor ?? ctx.principal.id,
     payload: input.payload,
     at: input.at,
   });
+  // what a model call used may reach a limit above this node: the work under it is paused at its next safe point and the owner is told
+  if (input.type === "usage" && !w.duplicate) await enforceBudgets(ctx, getNode(ctx, input.runId));
+  return w;
 }
 export async function nodeClaim(ctx: RunsCtx, input: In): Promise<unknown> {
   systemOnly(ctx);
@@ -194,6 +198,18 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
         reason: "not_paused",
         status: n.status,
       });
+    // paused at a limit: it goes on only when no limit above it is reached (raise it first); the turn then starts again as a turn of its own and this node has done its part
+    if (ENGINE_KINDS.has(n.kind) && n.threadId !== undefined && n.whoId !== undefined) {
+      if (limited(ctx, n).some((a) => reached(ctx.db, a)))
+        raise(ctx, "validation.precondition_failed", "It is at its limit. Raise the limit first, or stop it.", { reason: "over_budget" });
+      if (!ctx.call) raise(ctx, "internal.unavailable", "That cannot be resumed from here right now.", { reason: "no_engine" });
+      try {
+        await ctx.call("engine.resume_paused", { threadId: n.threadId, agentId: n.whoId });
+      } catch {
+        raise(ctx, "internal.unavailable", "It could not be started again just now. Try again.", { reason: "resume_failed" });
+      }
+      return { nodes: [out(ctx, moveNode(ctx, n.id, "stopped", { why: "stopped", stopReason: "resumed", by }).node)] };
+    }
     moved =
       input.subtree === false
         ? [moveNode(ctx, n.id, "queued", { why: "resumed", by }).node]
@@ -457,4 +473,12 @@ export async function nodeLabel(ctx: RunsCtx, input: In): Promise<unknown> {
   if (name !== "" && n.name === undefined)
     ctx.db.run("UPDATE runs_node SET name = ?, updated_at = ? WHERE run_id = ?", name, ctx.now(), n.id);
   return { ok: true };
+}
+
+/** Set, raise or clear the limit of a node (and everything under it). If nothing above the paused work is still reached, what it paused goes on. */
+export async function budgetSet(ctx: RunsCtx, input: In): Promise<unknown> {
+  const n = manageNode(ctx, input.runId);
+  const clear = input.clear === true || (input.usdMicros === undefined && input.tokens === undefined);
+  const r = await setBudget(ctx, n.id, clear ? null : { ...(input.usdMicros === undefined ? {} : { usdMicros: input.usdMicros }), ...(input.tokens === undefined ? {} : { tokens: input.tokens }) });
+  return { node: out(ctx, r.node), resumed: r.resumed };
 }

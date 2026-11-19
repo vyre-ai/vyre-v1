@@ -1253,6 +1253,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       messages: sqlMessages(ctx.db, now),
       waits: sqlWaits(ctx.db),
       journal: sqlJournal(ctx.db, now),
+      onUsage: (turn) => void mirror.usage(turn),
       // what other nodes of this work told this turn (runs.message.take): handed over at the next step boundary
       takeNotes: async (c) => {
         const id = mirror.nodeFor(c.turnId);

@@ -3,6 +3,7 @@
 // written once as a usage event. Nothing here can stop or slow a turn: a call that fails is logged and the next phase repairs the node.
 // DECISION: the mirror reads nothing the engine does not already hold (the turn row) except the thread's kind, title and parent, asked once per thread from threads.get and kept.
 import { stepWords } from "../../lib/plain-words.ts";
+import { costOf } from "./turn-cost.ts";
 import type { TurnRow } from "../../agent/src/turn-engine/types.ts";
 
 export type Phase = "started" | "waiting" | "completed" | "failed" | "cancelled";
@@ -81,6 +82,32 @@ export function createNodeMirror(h: MirrorHost) {
     }
   }
 
+  const told = new Map<string, { i: number; o: number }>(); // what of a turn's use the node has been told, so each call adds only its own
+  async function usage(id: string, turn: TurnFacts): Promise<void> {
+    const i = turn.tokensIn ?? 0;
+    const o = turn.tokensOut ?? 0;
+    const was = told.get(turn.id) ?? { i: 0, o: 0 };
+    if (i <= was.i && o <= was.o) return;
+    told.set(turn.id, { i, o });
+    if (told.size > 2000) told.delete(told.keys().next().value as string);
+    const di = Math.max(0, i - was.i);
+    const dout = Math.max(0, o - was.o);
+    let usd = 0;
+    try {
+      const c = turn.model ? costOf({ model: turn.model, tokensIn: di, tokensOut: dout }) : undefined;
+      if (c && (c.source === "catalog" || c.source === "reported") && c.micros) usd = c.micros;
+    } catch {
+      /* no price: tokens only */
+    }
+    await h.call("runs.node.event", {
+      runId: id,
+      type: "usage",
+      key: `u:${turn.id}:${i}:${o}`,
+      actor: turn.agentId,
+      payload: { tokensIn: di, tokensOut: dout, ...(usd > 0 ? { usdMicros: usd } : {}) },
+    });
+  }
+
   async function one(turn: TurnFacts, phase: Phase, extra: Extra): Promise<void> {
     const f = await threadFacts(turn.threadId, turn.asker ?? "");
     const asker = turn.asker ?? f?.starter;
@@ -124,13 +151,7 @@ export function createNodeMirror(h: MirrorHost) {
       return;
     }
     if (phase === "completed") {
-      await h.call("runs.node.event", {
-        runId: id,
-        type: "usage",
-        key: `turn:${turn.id}:usage`,
-        actor: turn.agentId,
-        payload: { tokensIn: turn.tokensIn ?? 0, tokensOut: turn.tokensOut ?? 0 },
-      });
+      await usage(id, turn); // what is left that no model call told on its way (all of it, for an engine that reports once)
       await h.call("runs.node.move", { runId: id, to: "succeeded", why: "done" });
       return;
     }
@@ -146,6 +167,11 @@ export function createNodeMirror(h: MirrorHost) {
       });
       return;
     }
+    // a turn paused at a safe point keeps its place: its node is paused, not stopped
+    if (extra.reason === "paused") {
+      await h.call("runs.node.move", { runId: id, to: "paused", why: "budget" });
+      return;
+    }
     await h.call("runs.node.move", {
       runId: id,
       to: "stopped",
@@ -155,6 +181,24 @@ export function createNodeMirror(h: MirrorHost) {
   }
 
   return {
+    /** A model call of a turn reported its use: the node is told what that call added. */
+    usage(turn: TurnFacts): Promise<void> {
+      const prev = chain.get(turn.id) ?? Promise.resolve();
+      const next = prev
+        .then(async () => {
+          await one(turn, "started", {}); // makes the node if it is not there yet (the same call a first phase makes)
+          const id = nodeOf.get(turn.id);
+          if (id) await usage(id, turn);
+        })
+        .catch((err: unknown) => {
+          h.log?.("a turn's use could not be told to the run tree", {
+            turnId: turn.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+      chain.set(turn.id, next);
+      return next;
+    },
     /** The node of a turn this process has seen, if any. */
     nodeFor: (turnId: string): string | undefined => nodeOf.get(turnId),
     /** Mirror one phase of a turn. Phases of one turn run in order; a failure is logged, never thrown. */

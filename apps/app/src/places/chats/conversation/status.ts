@@ -379,6 +379,8 @@ export function stoppedWords(
       return "Stopped. The steps so far are kept.";
     case "limit":
       return "Stopped because it reached a spending or turn limit.";
+    case "paused":
+      return "Paused at a safe point: it reached a limit you set. Raise the limit to let it go on, or stop it.";
     case "left":
       return "Stopped because the person it was working for left.";
     case "moved":
