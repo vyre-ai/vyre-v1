@@ -38,7 +38,10 @@ export interface Board {
   counts: { current: Record<string, number> };
   /** A move asked for from a menu, the bar or a key (not a drag). */
   moveTo: (rows: readonly RecordRow[], to: Lane, via: "menu" | "bar" | "key") => void;
+  /** A card pressed: it opens in the side pane beside the board. */
   open: (id: string) => void;
+  /** The full record page, in a tab of its own. */
+  openPage: (id: string) => void;
   show: (items: readonly MenuEntry[], x: number, y: number) => void;
   /** Stage start time of a card; the stand-in is the record's last change until the Journey tells it. */
   enteredAt: (r: RecordRow) => number | undefined;

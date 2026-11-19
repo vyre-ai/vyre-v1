@@ -732,3 +732,25 @@ test("the form on a card does not overwrite a card that changed while it was ope
     restore();
   }
 });
+
+test("pressing a card opens it in the side pane on Details with the Journey's path at the top; Activity is the next tab; the page is one press away", async () => {
+  const restore = installDom();
+  const s = sample();
+  const opened: string[] = [];
+  s.data.nav = { ...s.data.nav, openRecord: (id: string) => void opened.push(id) };
+  const b = await mountBoard(s);
+  try {
+    await press(find(b.root, "card-jr_1"));
+    await flush();
+    assert.ok(find(b.root, "board-peek"), "the pane opens beside the board");
+    assert.deepEqual(opened, [], "no new page");
+    assert.match(textOf(find(b.root, "peek-step-stage1")), /Intake.*Day 5 of 2 d/);
+    assert.match(textOf(find(b.root, "peek-step-stage2")), /In review/);
+    assert.match(textOf(find(b.root, "peek-details")), /Owner/);
+    await press(find(b.root, "peek-open-page"));
+    assert.deepEqual(opened, ["jr_1"]);
+  } finally {
+    await b.stop();
+    restore();
+  }
+});

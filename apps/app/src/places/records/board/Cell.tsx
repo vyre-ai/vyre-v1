@@ -105,6 +105,7 @@ export function Cell({
       style={[c.lane, { width }, over && c.over, over && blocked ? c.blocked : null, maxHeight ? { maxHeight } : null]}
     >
       <ScrollView
+        {...({ dataSet: { scrollY: "1" } } as object)}
         style={c.body}
         contentContainerStyle={c.cards}
         scrollEventThrottle={32}

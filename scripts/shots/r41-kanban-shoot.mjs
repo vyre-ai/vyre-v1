@@ -156,6 +156,87 @@ for (const sc of SCENES) {
       await ctx.close();
     }
 }
+// a mouse drag moves a card (pointer path in a real browser)
+let mouseBad = 0;
+{
+  const ctx = await browser.newContext({ viewport: SIZES.wide });
+  const page = await ctx.newPage();
+  await page.goto(routeUrl(real.origin, "/m/R41_02?part=board", "graphite"), { waitUntil: "load", timeout: 60000 });
+  await page.waitForSelector(tid("records-board"), { timeout: 12000 });
+  await page.waitForTimeout(1500);
+  await dragTo(page, "cl_4", "prop", true);
+  const lifted = await page.evaluate(
+    () =>
+      !!document.querySelector('[data-testid^="place-"]') &&
+      [...document.body.children].some((e) => e.style.position === "fixed"),
+  );
+  await page.mouse.up();
+  await page.waitForTimeout(1200);
+  const lane = await page.evaluate(
+    () => document.querySelector('[data-card-id="cl_4"]')?.closest("[data-lane]")?.dataset.lane ?? null,
+  );
+  const ok = lifted && lane === "prop";
+  if (!ok) mouseBad++;
+  console.log(`mouse drag: lifted with placeholder ${lifted}, card now in ${lane} ${ok ? "PASS" : "FAIL"}`);
+  await ctx.close();
+}
+// real touch through CDP on a phone-size viewport: a hold then a drag moves the card; a swipe scrolls the board and moves nothing
+let touchBad = 0;
+{
+  const ctx = await browser.newContext({ viewport: SIZES.phone, hasTouch: true, isMobile: true });
+  const page = await ctx.newPage();
+  await page.goto(routeUrl(real.origin, "/m/R41_02?part=board", "graphite"), { waitUntil: "load", timeout: 60000 });
+  await page.waitForSelector(tid("records-board"), { timeout: 12000 });
+  await page.waitForTimeout(1500);
+  const cdp = await ctx.newCDPSession(page);
+  const touch = (type, x, y) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
+  const laneOf = (id) =>
+    page.evaluate(
+      (i) => document.querySelector(`[data-card-id="${i}"]`)?.closest("[data-lane]")?.dataset.lane ?? null,
+      id,
+    );
+  const card = await page.locator(tid("drag-cl_0")).first().boundingBox();
+  const cx = card.x + card.width / 2,
+    cy = card.y + 30;
+  // swipe: quick move before the hold
+  await touch("touchStart", cx, cy);
+  for (let i = 1; i <= 8; i++) {
+    await touch("touchMove", cx - i * 20, cy);
+    await page.waitForTimeout(12);
+  }
+  await touch("touchEnd", 0, 0);
+  await page.waitForTimeout(500);
+  const scrolled = await page.evaluate(() => document.querySelector('[data-testid="board-lanes"]')?.scrollLeft ?? 0);
+  const afterSwipe = await laneOf("cl_0");
+  const swipeOk = afterSwipe === "lead" && scrolled > 0;
+  // hold, then drag to the peek of the next lane and let go
+  await page.evaluate(() => {
+    const e = document.querySelector('[data-testid="board-lanes"]');
+    if (e) e.scrollLeft = 0;
+  });
+  await page.waitForTimeout(300);
+  const c2 = await page.locator(tid("drag-cl_0")).first().boundingBox();
+  const x0 = c2.x + c2.width / 2,
+    y0 = c2.y + 30;
+  await touch("touchStart", x0, y0);
+  await page.waitForTimeout(400);
+  for (let i = 1; i <= 10; i++) {
+    await touch("touchMove", x0 + i * ((SIZES.phone.width - 14 - x0) / 10), y0 + i * 6);
+    await page.waitForTimeout(16);
+  }
+  const lifted = await page.evaluate(() => !!document.querySelector('[data-testid^="place-"]'));
+  await touch("touchEnd", 0, 0);
+  await page.waitForTimeout(1200);
+  const after = await laneOf("cl_0");
+  const dragOk = lifted && after === "qual";
+  if (!swipeOk) touchBad++;
+  if (!dragOk) touchBad++;
+  console.log(`touch swipe: scrollLeft ${scrolled}, card stays in ${afterSwipe} ${swipeOk ? "PASS" : "FAIL"}`);
+  console.log(`touch hold and drag: placeholder shown ${lifted}, card now in ${after} ${dragOk ? "PASS" : "FAIL"}`);
+  await page.screenshot({ path: path.join(out, "touch-drag-graphite-phone.png") });
+  await ctx.close();
+}
 // the finish strips are on screen at 1280, 1440 and 1920 (exit 1 if not)
 let bad = 0;
 for (const w of [1280, 1440, 1920]) {
@@ -177,5 +258,5 @@ for (const w of [1280, 1440, 1920]) {
 }
 await browser.close();
 real.close();
-if (bad) process.exitCode = 1;
+if (bad || touchBad || mouseBad) process.exitCode = 1;
 process.exit(process.exitCode ?? 0);

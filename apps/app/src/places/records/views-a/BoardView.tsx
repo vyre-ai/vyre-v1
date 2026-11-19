@@ -40,6 +40,7 @@ import { Hints, SelectBar, Toast } from "../board/Chrome.tsx";
 import type { ToastLine } from "../board/Chrome.tsx";
 import type { Board } from "../board/ctx.ts";
 import { FacePanel } from "../board/FacePanel.tsx";
+import { RecordPeek } from "../board/RecordPeek.tsx";
 import { useSlide } from "../board/flip.ts";
 import { ColumnHead, FinishStrip } from "../board/Head.tsx";
 import { IDLE, movedWords, popUndo, pushUndo, step } from "../board/machine.ts";
@@ -146,6 +147,8 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const undo = useRef<Undoable[]>([]);
   const undoing = useRef<Undoable | null>(null);
   const groupBusy = useRef(false);
+  const moveSeq = useRef(0);
+  const stalled = useRef(new Set<number>());
   const toastId = useRef(0);
   const say = useCallback((text: string, canUndo = false): void => {
     toastId.current += 1;
@@ -167,6 +170,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   });
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [faceOpen, setFaceOpen] = useState(false);
+  const [peek, setPeek] = useState<string | null>(null);
   const [localFace, setLocalFace] = useState<CardFace | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
   const [boxW, setBoxW] = useState(0);
@@ -257,10 +261,24 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       return;
     }
     // a call that never answers frees the board after 20 s
-    const stuck = setTimeout(() => sendRef.current({ t: "timeout" }), 20_000);
+    const mine = ++moveSeq.current;
+    const current = (): boolean => mine === moveSeq.current;
+    const stuck = setTimeout(() => {
+      if (!current()) return;
+      // an undo that never answered is not lost
+      if (pending) undo.current = pushUndo(undo.current, pending);
+      undoing.current = null;
+      stalled.current.add(mine);
+      sendRef.current({ t: "timeout" });
+    }, 20_000);
     performMove(c.data, c.ctx.type, field, c.ctx.journey, row, to, version).then(
       (did) => {
         clearTimeout(stuck);
+        // an answer to a move the board gave up on, or that a newer move has replaced, changes nothing on the board
+        if (!current() || stalled.current.has(mine)) {
+          c.bs.refresh();
+          return;
+        }
         undoing.current = null;
         sendRef.current({ t: "ok" });
         if (!did) return;
@@ -277,6 +295,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       },
       (e: unknown) => {
         clearTimeout(stuck);
+        if (!current() || stalled.current.has(mine)) return;
         // a refused undo is not lost: it goes back on the stack
         if (pending) undo.current = pushUndo(undo.current, pending);
         undoing.current = null;
@@ -416,7 +435,8 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     const fresh = await data
       .call("records.get", { type: ctx.type, recordId: row.id })
       .then((o) => (o as { record?: RecordRow }).record ?? null)
-      .catch(() => null);
+      .catch(() => undefined);
+    if (fresh === undefined) return "Could not check the card. Try again.";
     if (fresh && fresh.version !== row.version) return "It changed first. Look at the card and try again.";
     const res = await fillAndMove(data.call, {
       ...(ctx.journey ? { journeyId: ctx.journey.journeyId } : { plainField: field.key }),
@@ -749,7 +769,8 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     cellOf,
     counts,
     moveTo,
-    open: data.nav.openRecord,
+    open: setPeek,
+    openPage: data.nav.openRecord,
     show: menu.show,
     enteredAt,
     names: data.nameOf,
@@ -834,7 +855,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       return;
     }
     if (key === "Enter") {
-      data.nav.openRecord(focus);
+      setPeek(focus);
       return;
     }
     if (key === "ArrowDown" || key === "ArrowUp") {
@@ -912,6 +933,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
             }}
           />
         ) : null}
+        {peek ? <RecordPeek board={board} id={peek} onClose={() => setPeek(null)} /> : null}
         <Toast line={toast} onUndo={undoLast} onClose={() => setToast(null)} />
       </View>
       <Hints open={keysOpen} onToggle={() => setKeysOpen((o) => !o)} />
@@ -948,7 +970,7 @@ function Bands({
 
 const s = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
-  sheet: { flex: 1, minHeight: 0 },
+  sheet: { flex: 1, minHeight: 0, flexDirection: "row" },
   lanes: { flex: 1 },
   lanesIn: { padding: 16, height: "100%", minWidth: "100%" },
   inner: { flex: 1, minHeight: 0 },

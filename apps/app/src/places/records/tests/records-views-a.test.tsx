@@ -622,3 +622,14 @@ test("a card face: the person's own view first, then the type's, then the plain 
     "a named field shows even when the view hid it",
   );
 });
+
+test("a column's total is exact over a thousand cards: the head reads every card of the column, not the loaded page", () => {
+  const s = createViewsSample(northwind, { bulk: 1000 });
+  const out = views("board", { type: "clients" }, s);
+  const rows = (s.replica.rows("records:clients") as unknown as RecordRow[]).filter((r) => r.fields["stage"] === "intake");
+  assert.ok(rows.length > 200, "the lane holds more cards than one page");
+  const sum = rows.reduce((n, r) => n + (typeof (r.fields["value"] as { amount?: number } | undefined)?.amount === "number" ? (r.fields["value"] as { amount: number }).amount : typeof r.fields["value"] === "number" ? (r.fields["value"] as number) : 0), 0);
+  const m = new RegExp(`data-testid="col-total-intake"[^>]*>([^<]*)<`).exec(out)?.[1];
+  assert.ok(sum > 0 && m, `a total is drawn (${m})`);
+  assert.ok(!m!.endsWith("+"), "no plus: every card was summed");
+});
