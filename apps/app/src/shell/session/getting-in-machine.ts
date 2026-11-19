@@ -104,7 +104,7 @@ type Tr = { address: string; kind: TroubleKind };
 type Br = { address: string };
 const toOverlay = (st: State): Overlay<Tr, Br> => ({
   ...(OVERLAY_START as Overlay<Tr, Br>),
-  home: st.s === "list",
+  home: st.s === "list" || (st.s === "finding" && st.from === "row"),
   trouble: st.s === "trouble" ? { address: st.address, kind: st.kind } : null,
   browser: st.s === "browser" ? { address: st.address } : null,
   reaching: st.s === "finding" && st.from === "row" ? st.address : null,

@@ -11,3 +11,5 @@ For the relay (takes effect when the relay is next deployed): any page may ask w
 Getting in is one explicit state machine: from every screen there is a press that moves on and a path to a Space, and a saved sign-in is removed only by signing out, by the Space saying the session ended, or by clearing the browser's own storage. Being offline, slow, asleep, moved or open in two tabs never removes one.
 
 A Space that opens but cannot load its pages now offers Your Spaces beside Try again. Your Spaces opens over the Space, which stays as it was: Back returns to the same screen, and the saved sign-in is never touched. The same extra way out is available to every error screen that needs one.
+
+A Space saved at two addresses (a Personal Space that changed port, a team Space that moved) no longer leaves a person on the address that does not answer: the list shows the one used last, and when it does not answer the other is tried and opened. Both sign-ins stay saved.

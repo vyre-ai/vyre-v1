@@ -43,7 +43,7 @@ import {
 import { InBrowser, NotAnswering, YourSpaces } from "../../join/GettingIn.tsx";
 import { OVERLAY_START, decideEntry, decideLanded, overlayStep, phaseStep } from "./getting-in-machine.ts";
 import type { GatePhase, Overlay } from "./getting-in-machine.ts";
-import { rememberBrowserSpace, rememberSession, yourSpaces } from "./known-spaces.ts";
+import { rememberBrowserSpace, rememberSession, siblingSessions, yourSpaces } from "./known-spaces.ts";
 import type { SpaceRow } from "./known-spaces.ts";
 import { spaceHost } from "../spaces/space-label.ts";
 import { Welcome } from "../../join/Welcome.tsx";
@@ -1555,6 +1555,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     const target: EntryTarget = { kind: "signin", address: row.address };
     if (row.state === "in" && row.session) {
       shellRetried.current.delete(row.address);
+      nearbyTried.current.clear();
       await enterSaved(row.session);
       return;
     }
@@ -1584,6 +1585,22 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     }
   };
   /** The shell could not open a saved Space: ask where the Space is now. It answers: open once more. It moved to the relay: the browser. Else the screen with the fix. The sign-in is kept. */
+  /** A Space with two saved addresses whose used-last one does not answer: the other is asked, and opened when it does. Each address is tried once per press, so two flaky ones never trade places. */
+  const nearbyTried = useRef(new Set<string>());
+  const tryNearby = async (stored: StoredSession): Promise<boolean> => {
+    nearbyTried.current.add(stored.baseUrl);
+    for (const other of siblingSessions(stored)) {
+      if (nearbyTried.current.has(other.baseUrl)) continue;
+      nearbyTried.current.add(other.baseUrl);
+      const found = await findSpaceQuietly(other.baseUrl).catch(() => OFFLINE);
+      if (found.kind === "direct") {
+        shellRetried.current.delete(other.baseUrl);
+        await enterSaved(other);
+        return true;
+      }
+    }
+    return false;
+  };
   const shellUnreachable = (stored: StoredSession): void => {
     if (isLoopbackUrl(stored.baseUrl)) return;
     // a worker left in this browser from before the Space moved comes first: the page loads again without it
@@ -1599,7 +1616,10 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           setShellTry((n) => n + 1);
           return;
         }
-        landed({ kind: "signin", address: stored.baseUrl }, found, stored);
+        void tryNearby(stored).then((went) => {
+          if (!went && phaseNow.current.kind === "shell")
+            landed({ kind: "signin", address: stored.baseUrl }, found, stored);
+        });
       });
   };
   const invoke = (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;

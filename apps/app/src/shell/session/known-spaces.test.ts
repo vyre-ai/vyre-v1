@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { forgetKnown, readKnown, rememberBrowserSpace, rememberSession, yourSpaces } from "./known-spaces.ts";
-import { clearStored, writeStored } from "./stored.ts";
+import {
+  forgetKnown,
+  readKnown,
+  rememberBrowserSpace,
+  rememberSession,
+  siblingSessions,
+  yourSpaces,
+} from "./known-spaces.ts";
+import { clearStored, readStoredSessions, writeStored } from "./stored.ts";
 import type { KeyValueStore, StoredSession } from "./stored.ts";
 import { NORTHWIND, PERSONAL } from "../spaces/model.ts";
 
@@ -158,4 +165,18 @@ test("two saved sign-ins with one Space id are one row, the one used last; the o
     rows.map((r) => r.address),
     ["http://127.0.0.1:4202"],
   );
+});
+
+test("the other saved sign-ins of one Space id are found, and never deleted", () => {
+  const store = memory();
+  const a = session({ baseUrl: "https://old.example", def: { ...team, spaceId: "spc_x", name: "X" } });
+  const b = session({ baseUrl: "https://new.example", def: { ...team, spaceId: "spc_x", name: "X" } });
+  const c = session({ baseUrl: "https://else.example", def: { ...team, spaceId: "spc_y", name: "Y" } });
+  for (const s of [a, b, c]) writeStored(s, store);
+  assert.deepEqual(
+    siblingSessions(a, store).map((s) => s.baseUrl),
+    ["https://new.example"],
+  );
+  assert.deepEqual(siblingSessions(c, store), []);
+  assert.equal(readStoredSessions(store).length, 3);
 });

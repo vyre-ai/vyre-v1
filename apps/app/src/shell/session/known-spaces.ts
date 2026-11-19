@@ -170,3 +170,14 @@ export function yourSpaces(store: KeyValueStore | undefined = browserStore()): S
   }
   return rows.sort((a, b) => b.usedAt - a.usedAt);
 }
+
+/** The other saved sign-ins of the same Space (one Space id at another address: a Personal Space that changed port, a team Space that moved). The list shows the one used last; when that address
+ * does not answer, these are tried so a person is never left on the dead one. Never deleted, only tried. */
+export function siblingSessions(
+  of: Pick<StoredSession, "baseUrl" | "def">,
+  store: KeyValueStore | undefined = browserStore(),
+): StoredSession[] {
+  const id = of.def.spaceId;
+  if (!id) return [];
+  return readStoredSessions(store).filter((s) => s.def.spaceId === id && s.baseUrl !== of.baseUrl);
+}

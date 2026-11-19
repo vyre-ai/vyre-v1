@@ -314,3 +314,70 @@ test("a saved Space that answers its health check but fails its calls: Your Spac
     delete g.localStorage;
   }
 });
+
+test("one Space saved at two addresses, the used-last one dead: the list shows it, one press opens the other that answers, and both sign-ins stay saved", async () => {
+  const realFetch = g.fetch;
+  const restore = setQuietWaitsForTests([1, 1]);
+  let stop: () => Promise<void> = async () => undefined;
+  try {
+    installDom();
+    const m = new Map<string, string>([
+      [
+        "vyre.spaces.v1",
+        JSON.stringify({
+          spaces: [
+            {
+              address: "https://old.example",
+              name: "Northwind",
+              spaceId: "spc_01NORTH",
+              kind: "team",
+              via: "app",
+              usedAt: 5000,
+            },
+          ],
+        }),
+      ],
+    ]);
+    g.localStorage = {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, v),
+      removeItem: (k: string) => void m.delete(k),
+    };
+    const kv = g.localStorage as Parameters<typeof writeStored>[1];
+    writeStored({ ...SAVED_SESSION, baseUrl: "https://old.example", token: "vds_old" }, kv);
+    writeStored({ ...SAVED_SESSION, baseUrl: "https://new.example", token: "vds_new" }, kv);
+    const before = JSON.stringify(readStoredSessions(kv));
+    const asked: string[] = [];
+    g.fetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      asked.push(url.origin + url.pathname);
+      if (url.origin === "https://new.example" && url.pathname === "/healthz") return json(200, HEALTH);
+      throw new TypeError("Failed to fetch");
+    }) as typeof fetch;
+    const gate = await mountGate();
+    stop = gate.stop;
+    const root = gate.root;
+    const until = async (id: string): Promise<Node> => {
+      const end = Date.now() + 10000;
+      for (;;) {
+        const n = find(root, id);
+        if (n) return n;
+        if (Date.now() > end) throw new Error(`${id} never showed; asked ${asked.join(" ")}`);
+        await flush();
+      }
+    };
+    await press(await until("your-space-0"));
+    const end = Date.now() + 10000;
+    while (!asked.includes("https://new.example/healthz") && Date.now() < end) await flush();
+    assert.ok(asked.includes("https://new.example/healthz"));
+    for (let i = 0; i < 30; i++) await flush();
+    assert.equal(find(root, "step-not-answering"), null, "the person is not left on the dead address");
+    assert.equal(JSON.stringify(readStoredSessions(kv)), before, "both sign-ins are still saved, unchanged");
+  } finally {
+    await stop();
+    restore();
+    g.fetch = realFetch;
+    delete (globalThis as { __TAURI__?: unknown }).__TAURI__;
+    delete g.localStorage;
+  }
+});

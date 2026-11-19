@@ -340,3 +340,12 @@ test("the gate's phase: a Space opens, nothing is open, this computer's Space st
     "Sign in leaves the saved sign-in alone: that is the store's",
   );
 });
+
+test("Back while a row is being reached shows Your Spaces, and reaching never takes the list away", () => {
+  const ctx: Ctx = { place: "app", saved: [], known: [A, B] };
+  const reaching: State = { s: "finding", address: B, from: "row", attempt: 1 };
+  assert.deepEqual(step(reaching, { e: "back" }, ctx).state, { s: "list" });
+  const o = overlayStep({ ...OVERLAY_START, home: true, reaching: B }, { e: "back", spaces: true });
+  assert.deepEqual([o.home, o.reaching], [true, B], "the list stays up while the Space is asked");
+  assert.equal(overlayStep(o, { e: "reach", address: null }).home, true);
+});
