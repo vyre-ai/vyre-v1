@@ -335,6 +335,13 @@ test("script URLs are neutralised however the scheme is spelled, quoted or not (
     "java&Tab;script:alert(1)",
     "java&#9;script:alert(1)",
     "java&#x0A;script:alert(1)",
+    "&#000000106;avascript:alert(1)",
+    "&#00000106;avascript:alert(1)",
+    "&#x0000006A;avascript:alert(1)",
+    "jav&#0000000097;script:alert(1)",
+    "javascript&#00000000058;alert(1)",
+    "java&#0000000009;script:alert(1)",
+    "&#x00000000000000000006a;avascript:alert(1)",
     "javascript&#58;alert(1)",
     "vbscript:msgbox(1)",
     "data:text/html,<script>alert(1)</script>",
@@ -371,6 +378,7 @@ test("script URLs are neutralised however the scheme is spelled, quoted or not (
   assert.equal(neutralizeUrlAttrs('<p title="javascript:x">t</p>'), '<p title="javascript:x">t</p>');
   fast("href=javascript N", () => cleanHtml('<a href="javascript:x">'.repeat(N / 24)));
   fast("href=java&#9; N", () => cleanHtml("<a href=java&#9;script:x>".repeat(N / 25)));
+  fast("1 MB of zeros in a reference", () => cleanHtml(`<a href="&#${"0".repeat(1_000_000)}106;avascript:x">`));
   fast("long value", () => cleanHtml('<a href="' + "java&Tab;".repeat(N / 9) + '">'));
 });
 

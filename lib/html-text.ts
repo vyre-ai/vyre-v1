@@ -657,16 +657,13 @@ const NAMED_CHARS: Record<string, string> = {
  */
 /** Character references decoded: &#106; &#x6A; and the few names that matter inside a URL or style value. */
 function decodeRefs(v: string): string {
-  return v.replace(
-    /&(?:#x([0-9a-f]{1,6})|#(\d{1,7})|([a-z]{2,8}));?/gi,
-    (m, hex?: string, dec?: string, name?: string) => {
-      if (hex !== undefined || dec !== undefined) {
-        const cp = hex !== undefined ? parseInt(hex, 16) : Number(dec);
-        return cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : "";
-      }
-      return NAMED_CHARS[lc(name ?? "")] ?? m;
-    },
-  );
+  return v.replace(/&(?:#x([0-9a-f]+)|#(\d+)|([a-z]{2,8}));?/gi, (m, hex?: string, dec?: string, name?: string) => {
+    if (hex !== undefined || dec !== undefined) {
+      const cp = hex !== undefined ? parseInt(hex, 16) : Number(dec);
+      return cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : "";
+    }
+    return NAMED_CHARS[lc(name ?? "")] ?? m;
+  });
 }
 
 export function urlForScheme(v: string): string {
