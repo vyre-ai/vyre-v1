@@ -160,12 +160,38 @@ const ROUTE: Record<SetupToolIn["action"], string> = {
   address_move: "mail.address.move",
 };
 
+/** What each action takes: required fields, then optional ones (a trailing ?). A call that is wrong or short is answered with this, for that action, in one line. */
+const SHAPE: Record<SetupToolIn["action"], string> = {
+  status: "",
+  test: "to",
+  smtp_get: "",
+  smtp_set: "host, port, username, passwordHandle, security?",
+  smtp_verify: "host?, port?, security?, username?, passwordHandle?",
+  address_list: "domainId?",
+  address_add: "domainId, localPart, mailboxId?, title?",
+  address_move: "domainId, localPart, fromMailboxId, mailboxId",
+};
+const fieldsOf = (shape: string): { name: string; required: boolean }[] =>
+  shape
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .map((x) => ({ name: x.replace(/\?$/, ""), required: !x.endsWith("?") }));
+
 /** Routes to the capability behind the screen, so its permission, Gate and audit apply exactly as when a person presses the button. Nothing is decided here. */
 export async function setupTool(ctx: MailCtx, input: SetupToolIn): Promise<{ result: unknown }> {
   const cap = ROUTE[input.action];
-  if (!cap)
-    bad(ctx, "action is status, test, smtp_get, smtp_set, smtp_verify, address_list, address_add or address_move.");
+  if (!cap) bad(ctx, `mail.configure action is one of: ${Object.keys(ROUTE).join(", ")}.`);
   const { action: _action, ...rest } = input;
+  const fields = fieldsOf(SHAPE[input.action]);
+  const given = Object.keys(rest).filter((k) => rest[k] !== undefined);
+  const unknown = given.filter((k) => !fields.some((f) => f.name === k));
+  const missing = fields.filter((f) => f.required && rest[f.name] === undefined).map((f) => f.name);
+  if (unknown.length || missing.length)
+    bad(
+      ctx,
+      `mail.configure ${input.action} takes {${SHAPE[input.action]}}${missing.length ? `; missing ${missing.join(", ")}` : ""}${unknown.length ? `; not used: ${unknown.join(", ")}` : ""}.`,
+    );
   // a call that needs a key to be safe to repeat gets one made from what it asks, so asking twice is one call
   const keyed = ["test", "address_add", "address_move"].includes(input.action)
     ? { ...rest, idempotencyKey: `tool:${input.action}:${JSON.stringify(rest)}`.slice(0, 200) }

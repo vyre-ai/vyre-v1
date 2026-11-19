@@ -196,13 +196,18 @@ test("mail.configure routes each action to the capability behind the screen, key
     ["address_add", "mail.address.add"],
     ["address_move", "mail.address.move"],
   ];
+  const ARGS: Record<string, Record<string, unknown>> = {
+    status: {},
+    test: { to: "maya@example.com" },
+    smtp_get: {},
+    smtp_set: { host: "smtp.northwind.example", port: 587, username: "hello", passwordHandle: "#Smtp_Password" },
+    smtp_verify: {},
+    address_list: {},
+    address_add: { domainId: "dom_1", localPart: "billing" },
+    address_move: { domainId: "dom_1", localPart: "billing", fromMailboxId: "mbx_a", mailboxId: "mbx_b" },
+  };
   for (const [action, cap] of route) {
-    const out = await setupTool(h.ctx, {
-      action: action as never,
-      to: "maya@example.com",
-      domainId: "dom_1",
-      localPart: "billing",
-    });
+    const out = await setupTool(h.ctx, { action: action as never, ...ARGS[action] });
     assert.deepEqual(out, { result: { ok: cap } });
   }
   assert.deepEqual(
@@ -225,5 +230,44 @@ test("mail.configure routes each action to the capability behind the screen, key
   await assert.rejects(
     () => setupTool(h.ctx, { action: "nothing" as never }),
     (e: unknown) => codeOf(e) === "validation.bad_input",
+  );
+});
+
+test("mail.configure answers a wrong or short call with that action's exact shape in one line, and calls nothing", async () => {
+  const h = harness();
+  const seen: string[] = [];
+  script(h, {
+    "mail.address.add": () => (seen.push("add"), {}),
+    "mail.setup.test_send": () => (seen.push("test"), {}),
+  });
+  const said = async (input: Record<string, unknown>): Promise<string> =>
+    setupTool(h.ctx, input as never).then(
+      () => "",
+      (e: unknown) =>
+        (e as { error: { message: string; code: string } }).error.code +
+        ": " +
+        (e as { error: { message: string } }).error.message,
+    );
+  assert.equal(
+    await said({ action: "address_add", domainId: "dom_1" }),
+    "validation.bad_input: mail.configure address_add takes {domainId, localPart, mailboxId?, title?}; missing localPart.",
+  );
+  assert.equal(
+    await said({ action: "test", address: "maya@example.com" }),
+    "validation.bad_input: mail.configure test takes {to}; missing to; not used: address.",
+  );
+  assert.equal(
+    await said({ action: "status", host: "x" }),
+    "validation.bad_input: mail.configure status takes {}; not used: host.",
+  );
+  assert.match(
+    await said({ action: "everything" }),
+    /^validation\.bad_input: mail\.configure action is one of: status, test, smtp_get/,
+  );
+  assert.ok(!(await said({ action: "address_add", domainId: "dom_1", localPart: "a" })), "a right call goes through");
+  assert.deepEqual(seen, ["add"], "the wrong calls reached no capability");
+  assert.ok(
+    !(await said({ action: "address_add", domainId: "dom_1", localPart: "a" }).then((x) => x.includes("\n"))),
+    "one line",
   );
 });
