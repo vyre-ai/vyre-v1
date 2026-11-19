@@ -83,10 +83,12 @@ export function frameCode(): string {
  * guessed code inside the helper's words are all just helper text. Nothing of the helper's is rewritten or quoted. `code` is for tests; callers leave it out.
  */
 /** A title is the parent's own words on the thread, but it is one quoted line in a header: control characters and line breaks become spaces, a double quote becomes a single one, and it is cut. */
-/** A person's or agent's chosen name where Vyre's own line mentions it: one line, no colon or bracket to build a "Vyre:" or a marker from, and short. */
+/** A person's or agent's chosen name where Vyre's own line mentions it: one line of letters, digits, spaces and . , ' - only (no colon, bracket or quote to build a "Vyre:" or a marker from; fullwidth forms fold first), and short. */
 export const nameTag = (n: string): string =>
   n
-    .replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029:\[\]<>"\u201c\u201d]+/g, " ")
+    .normalize("NFKC")
+    .replace(/[\u200B-\u200F\u2060\uFEFF\u202A-\u202E\u2066-\u2069\u00AD]/g, "")
+    .replace(/[^\p{L}\p{N} .,'\-]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 40);

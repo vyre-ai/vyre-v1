@@ -881,3 +881,30 @@ test("a chosen display name is one short plain line wherever the context uses it
   assert.doesNotMatch(where, /Vyre:|\[waiting words/);
   assert.match(where, /talking with Maya Chen/);
 });
+
+test("two people whose names fold to nothing stay apart in the roster", async () => {
+  const f = fake({
+    ...FULL,
+    "access.principals.list": {
+      principals: [
+        { id: "usr_maya", kind: "person", name: "Maya Chen" },
+        { id: "usr_omar", kind: "person", name: "\u2728\u2728" },
+        { id: "usr_lena", kind: "person", name: ":::" },
+      ],
+    },
+    "threads.get": {
+      thread: {
+        kind: "chat",
+        title: "t",
+        members: [
+          { kind: "person", id: "usr_maya" },
+          { kind: "person", id: "usr_omar" },
+          { kind: "person", id: "usr_lena" },
+        ],
+        agents: [{ agentId: "agt_intake", mode: "lead" }],
+      },
+    },
+  });
+  const ctx = await createContextBuilder({ call: f.call, skills, now: () => at }).build(input());
+  assert.match(ctx.sections.find((s) => s.id === "where")!.text, /Also here: teammate mar, teammate ena\./);
+});

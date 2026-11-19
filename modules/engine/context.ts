@@ -502,7 +502,7 @@ export function createContextBuilder(d: ContextDeps) {
       const id = str(p["id"]),
         n = str(p["name"]);
       // a chosen name is one short plain line wherever Vyre's own sentences use it (lib/helper-result.ts nameTag): "where" is stable and cannot carry a code
-      if (id && n) map[id] = nameTag(n) || "a teammate";
+      if (id && n) map[id] = nameTag(n) || `teammate ${id.slice(-4)}`;
     }
     map["svc_host"] = "Vyre"; // the server's own lines in a thread (a nudge, an escalation) read as Vyre
     return map;
