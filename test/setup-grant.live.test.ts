@@ -7,10 +7,6 @@ import { expectStatus } from "../golden/steps/02-space.ts";
 import type { FlowSpace } from "../golden/steps/02-space.ts";
 import { Client, signIn, withOutsideSpace } from "./support/outside-client.ts";
 
-// The Vault's key check is the one part of this test that would call a real vendor. scripts/test-run.ts sets this switch, but a test run any other way (node --test on the file) did not, and the fake key was sent to
-// api.anthropic.com. Set here too, so the test never leaves the machine whoever runs it.
-process.env["VYRE_TEST_KEY_CHECK"] ??= "accept";
-
 type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const INIT = { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "2.1" } };
 const google = (over: Record<string, unknown> = {}) => ({
