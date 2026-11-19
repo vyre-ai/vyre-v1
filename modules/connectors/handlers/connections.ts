@@ -106,7 +106,7 @@ export interface ForService {
     choice?: {
       name: string;
       label: string;
-      options: { value: string; label: string; connector: string; hosts: string[]; version: string }[];
+      options: { value: string; label: string; connector: string; hosts: string[]; revision: string }[];
     };
     site?: string;
     host?: string;
@@ -145,6 +145,18 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     seedBuiltins(deps);
   };
   const actorOf = (ctx: ConnectorsCtx): string => ctx.actor ?? "system";
+  /**
+   * What the server counts of a connector's publishes: the newest cn_versions row (its row id and time), so a republish changes it whatever version text the new definition carries. A connector shipped with the
+   * product has no rows and changes with a release (its code version).
+   */
+  const revisionOf = (def: ConnectorDef): string => {
+    if (def.builtin === true) return `b${def.version}`;
+    const r = tx.get<{ id: number; at: number }>(
+      "SELECT rowid AS id, at FROM cn_versions WHERE key = ? ORDER BY at DESC, rowid DESC LIMIT 1",
+      def.key,
+    );
+    return r ? `${r.id}.${r.at}` : "0";
+  };
   /** The Space's built-in connectors: what a connector somebody else published may not overlap (destination.ts). */
   const builtinDefs = (): ConnectorDef[] =>
     tx
@@ -285,6 +297,14 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     "connections.create": async (ctx, input) => {
       ready();
       const def = defOf(ctx, input.connector);
+      // what a card showed is what is connected: a connector published again, or with other addresses, since is refused before anything is made
+      if (
+        input.pin &&
+        (input.pin[0] !== revisionOf(def) ||
+          [...new Set(input.pin.slice(1).map((h) => h.toLowerCase()))].sort().join("\n") !==
+            [...new Set(keyHosts(def).map((h) => h.toLowerCase()))].sort().join("\n"))
+      )
+        refuse(ctx, "validation.precondition_failed", `${def.title} changed since you looked. Open the card again.`);
       const c = tx.get<{ state: string }>("SELECT state FROM cn_connectors WHERE key = ?", input.connector)!;
       if (c.state === "draft")
         refuse(
@@ -664,7 +684,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
                 label: x.o.label,
                 connector: x.o.connector,
                 hosts: keyHosts(x.def!),
-                version: x.def!.version,
+                revision: revisionOf(x.def!),
               })),
             }
           : undefined;
@@ -686,7 +706,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         found: true,
         connector: {
           key: hit.key,
-          version: hit.version,
+          revision: revisionOf(hit),
           title: hit.title,
           scope: hit.scope,
           mode: hit.mode,

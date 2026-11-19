@@ -58,6 +58,10 @@ export interface Script {
   thirdParty?: boolean;
   /** the connector has no call that tries a key */
   noProbe?: boolean;
+  /** the revision connectors.for_service reports (r1 when left out); read at each call */
+  revision?: () => string;
+  /** runs when a typed key is tried (a republish between the try and the keeping) */
+  onCheck?: () => void;
   /** what trying a typed key answers */
   check?: "ok" | "rejected" | "limited" | "unreachable";
   /** what probing a connection made from a saved key answers */
@@ -174,7 +178,7 @@ export function world(over: Partial<Script> = {}) {
           found: true,
           connector: {
             key,
-            version: "1.0.0",
+            revision: script.revision ? script.revision() : "r1",
             title: c.title,
             scope: c.scope,
             mode: "api",
@@ -189,6 +193,7 @@ export function world(over: Partial<Script> = {}) {
         };
       }
       case "connectors.check_key":
+        script.onCheck?.();
         return {
           result: script.check ?? "ok",
           ...((script.check ?? "ok") === "ok" && script.noProbe !== true ? { tested: "Reached Fathom" } : {}),

@@ -70,7 +70,7 @@ test("it says whether the caller already has the service connected, and whose co
   await k.hs["connections.test"](k.ctx, { connectionId: made.connection.connectionId });
   const r = await k.hs["connectors.for_service"](k.ctx, { service: "fathom" });
   assert.deepEqual(r.connection, { connectionId: made.connection.connectionId, owner: "mine", state: "active" });
-  assert.equal(r.connector?.version, FATHOM.version, "the card is told the version it shows");
+  assert.equal(typeof r.connector?.revision, "string", "the card is told the revision it shows");
   const other = await k.hs["connectors.for_service"](k.mk("usr_other"), { service: "fathom" });
   assert.equal(other.connection, undefined, "someone else's own connection is not theirs");
 });
@@ -455,6 +455,59 @@ test("B: a connector that gains a host does not send the key there on its own: t
   // a connector that lost a host: the old host is simply not called; nothing is refused for it
   k.install(linkApp({ domains: ["api.fathom.test"], actions: [{ name: "list", url: "https://api.fathom.test/p" }] }));
   await k.hs["connectors.run"](k.ctx, { key: "wide2", action: "list", connectionId: id, input: {} } as never);
+});
+
+const msg = (e: unknown): string => JSON.stringify(e);
+test("the revision the card pins is the server's: a republish that keeps the same version text still changes it, and connections.create refuses a stale pin", async () => {
+  const k = kit();
+  k.vault["#PinKey"] = "pin-key-value-1";
+  const def = (path: string) =>
+    k.hs["connectors.define"](k.ctx, {
+      key: "pinapp",
+      domains: ["api.pin.test"],
+      auth: { type: "bearer", secret: "Pin_Key" },
+      secrets: [{ name: "Pin_Key", description: "k" }],
+      actions: [{ name: "ping", url: `https://api.pin.test/${path}` }],
+    } as never);
+  await k.hs["connectors.init"](k.ctx, { key: "pinapp", title: "Pin", mode: "api", source: false } as never);
+  await def("a");
+  await k.hs["connectors.publish"](k.ctx, { key: "pinapp" });
+  const shown = (await k.hs["connectors.for_service"](k.ctx, { service: "pinapp" })).connector!;
+  const pin = [shown.revision, ...shown.hosts];
+  await def("b");
+  await k.hs["connectors.publish"](k.ctx, { key: "pinapp" });
+  // the author's version text is put back to what the card saw: the server's revision does not depend on it
+  const first = k.tx.get<{ version: string }>(
+    "SELECT version FROM cn_versions WHERE key = 'pinapp' ORDER BY at, rowid LIMIT 1",
+  )!.version;
+  const live = JSON.parse(k.tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = 'pinapp'")!.def) as {
+    version: string;
+  };
+  k.tx.run(
+    "UPDATE cn_connectors SET version = ?, def = ? WHERE key = 'pinapp'",
+    first,
+    JSON.stringify({ ...live, version: first }),
+  );
+  const after = (await k.hs["connectors.for_service"](k.ctx, { service: "pinapp" })).connector!;
+  assert.notEqual(after.revision, shown.revision, "a republish changes the revision");
+  await assert.rejects(
+    k.hs["connections.create"](k.ctx, {
+      connector: "pinapp",
+      title: "P",
+      ownerKind: "space",
+      secrets: { Pin_Key: "#PinKey" },
+      pin,
+    } as never),
+    (e) => /validation\.precondition_failed/.test(msg(e)) && /changed since you looked/.test(msg(e)),
+  );
+  const fresh = await k.hs["connections.create"](k.ctx, {
+    connector: "pinapp",
+    title: "P",
+    ownerKind: "space",
+    secrets: { Pin_Key: "#PinKey" },
+    pin: [after.revision, ...after.hosts],
+  } as never);
+  assert.ok(fresh.connection.connectionId);
 });
 
 test("approve_hosts takes a list with a repeated address as the same list, and records each address once", async () => {

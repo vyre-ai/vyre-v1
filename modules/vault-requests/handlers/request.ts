@@ -523,6 +523,8 @@ export async function storeKey(
     shared?: boolean;
     /** one per try: a retry after a refused connect must not replay the earlier try's key */
     attempt?: string;
+    /** what the connect card showed: the service is read again, and nothing is kept when its revision or addresses are no longer these */
+    pin?: { connector: string; revision: string; hosts: string[] };
   },
 ): Promise<Stored> {
   const trace = ctx.trace.traceId;
@@ -535,6 +537,20 @@ export async function storeKey(
   const hasFields = !!input.fields && input.fields.length > 0;
   if (!input.itemId === !hasFields)
     raise(trace, "validation.bad_input", "Attach an item, or give the fields for a new one, not both and not neither.");
+  if (input.pin) {
+    const got = asRow(await ctx.call("connectors.for_service", { service: input.pin.connector }));
+    const now = asRow(got?.["connector"]);
+    const nowHosts = Array.isArray(now?.["hosts"])
+      ? (now["hosts"] as unknown[]).map((h) => String(h).toLowerCase())
+      : [];
+    if (
+      !now ||
+      strOf(now["revision"]) !== input.pin.revision ||
+      [...new Set(nowHosts)].sort().join("\n") !==
+        [...new Set(input.pin.hosts.map((h) => h.toLowerCase()))].sort().join("\n")
+    )
+      raise(trace, "validation.precondition_failed", "This service changed since the card was shown. Open it again.");
+  }
   const wanted = idsOf(row.fields_json);
   // a company key is kept from every agent on purpose, and a name-only ask gets no Use: neither is a key the requester is to use
   const forAgent = row.handle_only !== 1 && !isCompanyKey(`#${row.name}`);

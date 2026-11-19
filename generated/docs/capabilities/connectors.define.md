@@ -1,6 +1,6 @@
 # connectors.define
 
-Say what a draft connector is in one call: hosts, sign-in (key, bearer, basic, or a header template over secret slots) and actions (paginate and health too). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?} (optional). Replaces the draft.
+Define a draft connector in one call: hosts, sign-in (key, bearer, basic, or a header template) and actions (paginate, health). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?}. Replaces the draft.
 
 | | |
 |---|---|

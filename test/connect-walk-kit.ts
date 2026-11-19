@@ -520,9 +520,9 @@ export async function teamWalk(t: { skip(m: string): void }, SKINS: Skins, label
       await op.waitForTimeout(1500);
       await op.screenshot({ path: `${shotAs("olivia")}inbox-${tag}.png` });
       const wrong = await olivia("vault.connect_card.submit", {
-        version: (
-          (await olivia("vault.connect_card.get", { requestId })).data as { card: { service: { version: string } } }
-        ).card.service.version,
+        revision: (
+          (await olivia("vault.connect_card.get", { requestId })).data as { card: { service: { revision: string } } }
+        ).card.service.revision,
         hosts: ["api.crmapp.example"],
         requestId,
         fields: [{ key: "api_key", value: "bad-crm-0001" }],
@@ -538,9 +538,9 @@ export async function teamWalk(t: { skip(m: string): void }, SKINS: Skins, label
         "nothing connected",
       );
       const right = await olivia("vault.connect_card.submit", {
-        version: (
-          (await olivia("vault.connect_card.get", { requestId })).data as { card: { service: { version: string } } }
-        ).card.service.version,
+        revision: (
+          (await olivia("vault.connect_card.get", { requestId })).data as { card: { service: { revision: string } } }
+        ).card.service.revision,
         hosts: ["api.crmapp.example"],
         requestId,
         fields: [{ key: "api_key", value: GOOD }],

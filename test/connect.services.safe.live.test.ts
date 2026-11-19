@@ -76,9 +76,9 @@ test("every offered service: asked by name, wrong and limited and unreachable ke
         s.title === "Mailgun"
           ? card.choice.options.find((o: { value: string }) => o.value === s.choice).hosts
           : card.checksWith.split(", ");
-      const version: string = s.choice
-        ? card.choice.options.find((o: { value: string }) => o.value === s.choice).version
-        : card.service.version;
+      const revision: string = s.choice
+        ? card.choice.options.find((o: { value: string }) => o.value === s.choice).revision
+        : card.service.revision;
       const submit = (tag: string) => {
         const fields = s.fields.map((f) => {
           const v = `sentinel_${tag}_${s.key}_${f}_0123456789`;
@@ -87,7 +87,7 @@ test("every offered service: asked by name, wrong and limited and unreachable ke
         });
         return own.call("vault.connect_card.submit", {
           requestId,
-          version,
+          revision,
           hosts,
           ...(s.choice ? { choice: s.choice } : {}),
           fields,
@@ -101,7 +101,7 @@ test("every offered service: asked by name, wrong and limited and unreachable ke
         for (const wrong of [other, [...hosts, ...other], []]) {
           const refused = await own.attempt("vault.connect_card.submit", {
             requestId,
-            version,
+            revision,
             hosts: wrong,
             choice: s.choice,
             fields: s.fields.map((f) => ({ key: f, value: `sentinel_MISMATCH_${s.key}_${f}_0123456789` })),

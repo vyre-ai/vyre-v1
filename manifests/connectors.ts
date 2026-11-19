@@ -84,23 +84,21 @@ const connectionRow = t.obj({
   createdAt: t.ts(),
   handles: t.arr(id.handle, { description: "The Vault handles this connection uses. Names only, never a value." }),
   filled: t.arr(t.str(), { description: "Secret slots holding a Vault handle; a declared slot not listed is empty." }),
-  pendingHosts: t.opt(
-    t.arr(t.str(), {
-      description: "The connector's addresses, when not all are allowed yet; what approve_hosts takes.",
-    }),
-  ),
+  /** The connector's addresses, when not all are allowed yet: what approve_hosts takes */
+  pendingHosts: t.opt(t.arr(t.str())),
 });
 
 const serviceChoice = t.obj({
   name: t.str(),
   label: t.str(),
   options: t.arr(
-    t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()), version: t.str() }),
+    t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()), revision: t.str() }),
   ),
 });
 const serviceRow = t.obj({
   key: id.connector,
-  version: t.str(),
+  /** The server's count of this connector's publishes: changes on every publish, whatever the version text says */
+  revision: t.str(),
   title: t.str(),
   scope: t.enm("person", "space"),
   mode,
@@ -485,7 +483,7 @@ export default defineManifest({
     }),
     write(
       "connectors.define",
-      "Say what a draft connector is in one call: hosts, sign-in (key, bearer, basic, or a header template over secret slots) and actions (paginate and health too). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?} (optional). Replaces the draft.",
+      "Define a draft connector in one call: hosts, sign-in (key, bearer, basic, or a header template) and actions (paginate, health). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?}. Replaces the draft.",
       {
         in: {
           key: id.connector,
@@ -689,6 +687,7 @@ export default defineManifest({
           ownerKind: t.enm("person", "space"),
           secrets: t.opt(t.rec(id.handle)),
           scopes: t.opt(t.arr(t.str())),
+          pin: t.opt(t.arr(t.str())),
         },
         out: { connection: connectionRow, authUrl: t.opt(t.str()) },
         make: ["connection", "/connector"],

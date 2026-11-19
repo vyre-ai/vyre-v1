@@ -22,7 +22,8 @@ interface Field {
 }
 interface Service {
   key: string;
-  version: string;
+  /** the server's count of the connector's publishes (connectors.for_service); the card pins it */
+  revision: string;
   title: string;
   scope: "person" | "space";
   fields: Field[];
@@ -33,7 +34,7 @@ interface Service {
   choice?: {
     name: string;
     label: string;
-    options: { value: string; label: string; connector: string; hosts: string[]; version: string }[];
+    options: { value: string; label: string; connector: string; hosts: string[]; revision: string }[];
   };
   builtin: boolean;
   checks: boolean;
@@ -59,7 +60,7 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
   const conn = asRow(got["connection"]);
   return {
     key: String(c["key"]),
-    version: String(c["version"] ?? ""),
+    revision: String(c["revision"] ?? ""),
     title: String(c["title"]),
     scope: c["scope"] === "space" ? "space" : "person",
     fields: (Array.isArray(c["fields"]) ? (c["fields"] as unknown[]) : []).map((f) => {
@@ -84,7 +85,7 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
                 label: String(o["label"]),
                 connector: String(o["connector"]),
                 hosts: Array.isArray(o["hosts"]) ? (o["hosts"] as unknown[]).map(String) : [],
-                version: String(o["version"] ?? ""),
+                revision: String(o["revision"] ?? ""),
               };
             }),
           },
@@ -183,7 +184,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
   if (!row.service) raise(ctx.trace.traceId, "validation.not_found", "No such request.");
   const svc = (await serviceOf(ctx, row.service)) ?? {
     key: row.service,
-    version: "",
+    revision: "",
     title: row.service,
     scope: "person" as const,
     fields: [],
@@ -246,7 +247,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
   return {
     requestId: row.id,
     state,
-    service: { key: svc.key, version: svc.version, title: svc.title, ...(svc.site ? { site: svc.site } : {}) },
+    service: { key: svc.key, revision: svc.revision, title: svc.title, ...(svc.site ? { site: svc.site } : {}) },
     fields: svc.fields,
     ...(row.requester_kind === "agent" ? { agentId: row.requester_id } : {}),
     mayFill,
@@ -479,8 +480,8 @@ export async function connectSubmit(
     folderId?: string;
     audience?: KeyAudience;
     hosts: string[];
-    /** the service version the card showed */
-    version: string;
+    /** the service revision the card showed */
+    revision: string;
     /** the option the person picked for the service's choice (a region); the first one when left out */
     choice?: string;
   },
@@ -517,7 +518,7 @@ export async function connectSubmit(
     )
   )
     raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
-  if (input.version !== svc.version)
+  if (input.revision !== svc.revision)
     raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
   const card = await cardOf(ctx, row.id);
   if (!card.mayFill)
@@ -591,12 +592,15 @@ export async function connectSubmit(
   }
 
   // 2 keep the key where it goes (a new item, or the saved one attached)
+  // the card's pin travels with the key: kept and connected only if the service is still what the card showed
+  const pin = { connector: svc.key, revision: svc.revision, hosts: svc.hosts };
   const stored = await storeKey(
     ctx,
     decided,
     saved
-      ? { itemId: saved.itemId }
+      ? { itemId: saved.itemId, pin }
       : {
+          pin,
           fields: [...given].map(([key, value]) => ({ key, value })),
           ...(folderId ? { folderId } : {}),
           ...(input.audience ? { audience: input.audience } : {}),
@@ -667,6 +671,7 @@ export async function connectSubmit(
         title: svc.title,
         ownerKind: svc.scope === "space" ? "space" : "person",
         secrets: slots,
+        pin: [svc.revision, ...svc.hosts],
       }),
     );
     // no id back means the next call refuses, which takes the key back below

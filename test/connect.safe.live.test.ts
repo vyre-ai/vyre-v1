@@ -90,9 +90,9 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
     assert.equal(
       (
         await b.attempt("vault.connect_card.submit", {
-          version: (
-            (await a.call("vault.connect_card.get", { requestId })) as { card: { service: { version: string } } }
-          ).card.service.version,
+          revision: (
+            (await a.call("vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } }
+          ).card.service.revision,
           hosts: ["api.fathom.ai"],
           requestId,
           fields: [{ key: "api_key", value: SECRET }],
@@ -110,8 +110,8 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
 
     // a wrong key keeps nothing; the right one connects
     const wrong = await a.call("vault.connect_card.submit", {
-      version: ((await a.call("vault.connect_card.get", { requestId })) as { card: { service: { version: string } } })
-        .card.service.version,
+      revision: ((await a.call("vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } })
+        .card.service.revision,
       hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: "bad-key-1" }],
@@ -124,8 +124,8 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
       "only the hand-made key is in the Vault",
     );
     const good = await a.call("vault.connect_card.submit", {
-      version: ((await a.call("vault.connect_card.get", { requestId })) as { card: { service: { version: string } } })
-        .card.service.version,
+      revision: ((await a.call("vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } })
+        .card.service.revision,
       hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: SECRET }],
@@ -227,8 +227,8 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
     const TYPED = "fth_scan_FAKEsecretVALUE9876543210zyxwvu"; // secret-scan: fake
     await a.attempt("connectors.check_key", { connector: "fathom", secrets: { api_key: TYPED } });
     await a.attempt("vault.connect_card.submit", {
-      version: ((await a.call("vault.connect_card.get", { requestId })) as { card: { service: { version: string } } })
-        .card.service.version,
+      revision: ((await a.call("vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } })
+        .card.service.revision,
       hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: TYPED }],

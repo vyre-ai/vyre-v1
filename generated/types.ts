@@ -11680,6 +11680,7 @@ export type ConnectionsCreateIn = {
   ownerKind: "person" | "space";
   secrets?: Record<string, string>;
   scopes?: Array<string>;
+  pin?: Array<string>;
   idempotencyKey: string;
 };
 export type ConnectionsCreateOut = {
@@ -11930,7 +11931,7 @@ export type ConnectorsForServiceOut = {
   found: boolean;
   connector?: {
     key: string;
-    version: string;
+    revision: string;
     title: string;
     scope: "person" | "space";
     mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
@@ -11947,7 +11948,7 @@ export type ConnectorsForServiceOut = {
           label: string;
           connector: string;
           hosts: Array<string>;
-          version: string;
+          revision: string;
         }>;
     };
     site?: string;
@@ -46861,7 +46862,7 @@ export type VaultConnectCardAskAdminOut = {
     state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
     service: {
       key: string;
-      version: string;
+      revision: string;
       title: string;
       site?: string;
     };
@@ -46878,7 +46879,7 @@ export type VaultConnectCardAskAdminOut = {
           label: string;
           connector: string;
           hosts: Array<string>;
-          version: string;
+          revision: string;
         }>;
     };
     problem?: "permission";
@@ -46915,7 +46916,7 @@ export type VaultConnectCardDisconnectOut = {
     state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
     service: {
       key: string;
-      version: string;
+      revision: string;
       title: string;
       site?: string;
     };
@@ -46932,7 +46933,7 @@ export type VaultConnectCardDisconnectOut = {
           label: string;
           connector: string;
           hosts: Array<string>;
-          version: string;
+          revision: string;
         }>;
     };
     problem?: "permission";
@@ -46969,7 +46970,7 @@ export type VaultConnectCardGetOut = {
     state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
     service: {
       key: string;
-      version: string;
+      revision: string;
       title: string;
       site?: string;
     };
@@ -46986,7 +46987,7 @@ export type VaultConnectCardGetOut = {
           label: string;
           connector: string;
           hosts: Array<string>;
-          version: string;
+          revision: string;
         }>;
     };
     problem?: "permission";
@@ -47054,7 +47055,7 @@ export type VaultConnectCardReopenOut = {
     state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
     service: {
       key: string;
-      version: string;
+      revision: string;
       title: string;
       site?: string;
     };
@@ -47071,7 +47072,7 @@ export type VaultConnectCardReopenOut = {
           label: string;
           connector: string;
           hosts: Array<string>;
-          version: string;
+          revision: string;
         }>;
     };
     problem?: "permission";
@@ -47110,7 +47111,7 @@ export type VaultConnectCardSubmitIn = {
   audience?: "asker" | "anyone";
   choice?: string;
   hosts: Array<string>;
-  version: string;
+  revision: string;
 };
 export type VaultConnectCardSubmitOut = {
   result: "connected" | "wrong" | "offline";
@@ -47119,7 +47120,7 @@ export type VaultConnectCardSubmitOut = {
     state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
     service: {
       key: string;
-      version: string;
+      revision: string;
       title: string;
       site?: string;
     };
@@ -47136,7 +47137,7 @@ export type VaultConnectCardSubmitOut = {
           label: string;
           connector: string;
           hosts: Array<string>;
-          version: string;
+          revision: string;
         }>;
     };
     problem?: "permission";

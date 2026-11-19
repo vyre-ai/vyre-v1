@@ -30,6 +30,7 @@ type In = {
   ownerKind: "person" | "space";
   secrets?: Record<string, string>;
   scopes?: Array<string>;
+  pin?: Array<string>;
   idempotencyKey: string;
 };
 ```
@@ -77,6 +78,9 @@ type Out = {
     "connector": "hubspot",
     "idempotencyKey": "idem_1",
     "ownerKind": "person",
+    "pin": [
+      "example"
+    ],
     "scopes": [
       "example"
     ],
