@@ -14,7 +14,7 @@ import { collectItems, groupItems, transformValue } from "./data-steps.ts";
 import { nextOpen } from "./hours.ts";
 import type { OpenHours } from "./hours.ts";
 import { SHEET_STEPS } from "./sheets.ts";
-import { readsOf, shapeOf, textsIn, unresolvedLine, withoutSealed } from "../../../lib/flow-reads.ts";
+import { readsOf, textsIn, triggerShapeOf, unresolvedLine, withoutSealed } from "../../../lib/flow-reads.ts";
 import { clean, durationMs, evalExpr, momentMs, raise, render, stepError, truthy } from "../projections.ts";
 import type { Scope, StepsCtx } from "../projections.ts";
 
@@ -119,6 +119,13 @@ export interface StepEnv {
 const STEPS = new Map(registry.steps.map((s) => [s.key, s] as const));
 const DEFS = ((registry as unknown as { $defs?: Record<string, unknown> }).$defs ?? {}) as Record<string, unknown>;
 const TRIGGER_PAYLOADS = new Map(registry.triggers.map((t) => [t.key, t.payload] as const));
+const EVENT_PAYLOADS = new Map(registry.events.map((e) => [e.name, e.payload] as const));
+const TRIGGER_EVENTS = new Map(
+  registry.triggers.map((t) => {
+    const src = t.source as { event?: string; events?: string[] };
+    return [t.key, src.events ?? (src.event ? [src.event] : [])] as const;
+  }),
+);
 const CAPS = new Map(registry.capabilities.map((c) => [c.name, c] as const));
 const DAY30 = "30d";
 
@@ -961,7 +968,11 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
   const unresolved = unresolvedLine(textsIn(node.input), {
     trigger,
     steps: scope.steps,
-    declared: shapeOf(TRIGGER_PAYLOADS.get(env.run.trigger ?? ""), DEFS),
+    declared: triggerShapeOf(
+      TRIGGER_PAYLOADS.get(env.run.trigger ?? ""),
+      (TRIGGER_EVENTS.get(env.run.trigger ?? "") ?? []).map((n) => EVENT_PAYLOADS.get(n)),
+      DEFS,
+    ),
     checkSteps: !(call.sandbox && Object.keys(call.outputs).length === 0),
   });
   if (unresolved) throw stepError("validation.bad_input", `${def.title}: ${unresolved}`, false);
