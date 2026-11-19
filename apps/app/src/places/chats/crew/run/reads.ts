@@ -1,0 +1,135 @@
+// The reads behind the run views, in one file (lane r42-subagents): what the runtime serves (manifests/runs.ts on wip/r42-runtime: runs.activity.list, runs.board.list, runs.message.list, runs.node.get) turned into the
+// shapes run/model.ts draws. A server that does not have a read yet answers with an error; every function here then says "nothing", never throws at a screen. When the runtime renames a field, this is the one file to change.
+import type { ActivityRow, BoardEntry, NodeMessage } from "./model.ts";
+
+type Call = (cap: string, input: unknown) => Promise<unknown>;
+type Obj = Record<string, unknown>;
+const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
+const num = (v: unknown): number | undefined => (typeof v === "number" ? v : undefined);
+const STATUS = new Set(["queued", "running", "waiting", "paused", "succeeded", "failed", "stopped"]);
+
+/** runs.activity.list rows as the list draws them; a row with no id or an unknown status is dropped, a missing name reads "Helper" (an id is never shown). */
+export function activityRowsOf(out: unknown): ActivityRow[] {
+  const rows = (out as { rows?: unknown } | null)?.rows;
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((r: Obj) => {
+    const runId = str(r["runId"]);
+    const status = str(r["status"]);
+    if (runId === undefined || status === undefined || !STATUS.has(status)) return [];
+    const wake = r["wake"] as Obj | undefined;
+    const stuck = r["stuck"] as Obj | undefined;
+    return [
+      {
+        runId,
+        rootRun: str(r["rootRun"]) ?? runId,
+        kind: str(r["kind"]) ?? "helper",
+        name: str(r["name"]) ?? "Helper",
+        status: status as ActivityRow["status"],
+        ...(str(r["step"]) !== undefined ? { step: str(r["step"])! } : {}),
+        ...(wake
+          ? {
+              wake: {
+                kind: str(wake["kind"]) ?? "event",
+                ...(str(wake["label"]) !== undefined ? { label: str(wake["label"])! } : {}),
+                ...(num(wake["dueAt"]) !== undefined ? { dueAt: num(wake["dueAt"])! } : {}),
+                ...(num(wake["wokeCount"]) !== undefined ? { wokeCount: num(wake["wokeCount"])! } : {}),
+              },
+            }
+          : {}),
+        ...(stuck && str(stuck["reason"]) !== undefined
+          ? { stuck: { since: num(stuck["since"]) ?? 0, reason: str(stuck["reason"])! } }
+          : {}),
+        startedAt: num(r["startedAt"]) ?? 0,
+      },
+    ];
+  });
+}
+
+/** Everything of the Space that runs or sleeps, or null when this server cannot say. */
+export async function readActivity(call: Call): Promise<ActivityRow[] | null> {
+  try {
+    return activityRowsOf(await call("runs.activity.list", { scope: "mine", limit: 100 }));
+  } catch {
+    return null;
+  }
+}
+
+/** The chat thread behind a run (a helper's own chat), if it has one: the session a press opens. */
+export async function threadOfRun(call: Call, runId: string): Promise<string | null> {
+  try {
+    const node = (await call("runs.node.get", { runId })) as { node?: { threadId?: unknown } } | null;
+    return str(node?.node?.threadId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** runs.board.list entries as the board draws them. */
+export function boardOf(out: unknown): BoardEntry[] {
+  const e = (out as { entries?: unknown } | null)?.entries;
+  if (!Array.isArray(e)) return [];
+  return e.flatMap((r: Obj) => {
+    const id = str(r["id"]);
+    const kind = str(r["kind"]);
+    const text = str(r["text"]);
+    const byRun = str(r["byRun"]);
+    if (!id || !text || !byRun || (kind !== "fact" && kind !== "decision" && kind !== "question")) return [];
+    if (str(r["supersededBy"]) !== undefined) return [];
+    const a = r["answer"] as Obj | undefined;
+    return [
+      {
+        id,
+        kind,
+        text,
+        byRun,
+        at: num(r["at"]) ?? 0,
+        ...(Array.isArray(r["evidence"]) && r["evidence"].length > 0
+          ? { evidence: (r["evidence"] as unknown[]).filter((x): x is string => typeof x === "string") }
+          : {}),
+        ...(a && str(a["text"]) !== undefined
+          ? { answer: { byRun: str(a["byRun"]) ?? "", text: str(a["text"])!, at: num(a["at"]) ?? 0 } }
+          : {}),
+      },
+    ];
+  });
+}
+
+/** runs.message.list messages as the lines draw them. */
+export function messagesOf(out: unknown): NodeMessage[] {
+  const m = (out as { messages?: unknown } | null)?.messages;
+  if (!Array.isArray(m)) return [];
+  return m.flatMap((r: Obj) => {
+    const id = str(r["id"]);
+    const fromRun = str(r["fromRun"]);
+    const toRun = str(r["toRun"]);
+    const body = str(r["body"]);
+    if (!id || !fromRun || !toRun || !body) return [];
+    return [
+      {
+        id,
+        fromRun,
+        toRun,
+        body,
+        at: num(r["at"]) ?? 0,
+        ...(num(r["deliveredAt"]) !== undefined ? { deliveredAt: num(r["deliveredAt"])! } : {}),
+        ...(num(r["seenAt"]) !== undefined ? { seenAt: num(r["seenAt"])! } : {}),
+      },
+    ];
+  });
+}
+
+export async function readBoard(call: Call, runId: string): Promise<BoardEntry[] | null> {
+  try {
+    return boardOf(await call("runs.board.list", { runId }));
+  } catch {
+    return null;
+  }
+}
+
+export async function readMessages(call: Call, runId: string): Promise<NodeMessage[] | null> {
+  try {
+    return messagesOf(await call("runs.message.list", { runId, tree: true }));
+  } catch {
+    return null;
+  }
+}

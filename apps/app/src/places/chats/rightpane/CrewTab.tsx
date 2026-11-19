@@ -133,6 +133,7 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
             threadId={data.threadId}
             onPeek={(id) => crew.show(id)}
             onRefresh={crew.refresh}
+            onOpenThread={(id) => data.nav.openHelper(id)}
           />
         )}
         {jobs.length > 0 && !sel ? list : null}

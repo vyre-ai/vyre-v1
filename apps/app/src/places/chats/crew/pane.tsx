@@ -12,6 +12,7 @@ import { blockLine } from "../helper/model.ts";
 import { HelperHooksSection } from "../helper/HelperHooks.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { FolderMovePicker } from "../../files/tree/FolderMovePicker.tsx";
+import { ActivitySection } from "./run/ActivitySection.tsx";
 import { RecordPicker } from "../../records/RecordPicker.tsx";
 import type { PickedRecord } from "../../records/RecordPicker.tsx";
 import { HelperChip, MemberRing, timeOf, useNow } from "./strip.tsx";
@@ -90,6 +91,7 @@ export function CrewOverview({
   threadId,
   onPeek,
   onRefresh,
+  onOpenThread,
   initialShow = "all",
 }: {
   status: CrewStatusOut;
@@ -97,6 +99,8 @@ export function CrewOverview({
   threadId: string;
   onPeek: (id: string) => void;
   onRefresh: () => void;
+  /** Opens a helper's own chat: what a press on a row of "Running and asleep" does when that run has one. */
+  onOpenThread?: (threadId: string) => void;
   initialShow?: Show;
 }): ReactElement {
   const [show, setShow] = useState<Show>(initialShow);
@@ -269,6 +273,7 @@ export function CrewOverview({
           </Text>
         </View>
       ) : null}
+      <ActivitySection call={call} {...(onOpenThread ? { onOpenThread } : {})} />
       <Text testID="crew-keys" style={st.keys}>
         ⌘ . stops all · ⌥ 1 to ⌥ 9 jump to a helper
       </Text>
@@ -614,7 +619,12 @@ export function CrewPeek({
     const name = `${nameOf(member)} result.md`;
     const result = member.answer ?? member.found ?? "";
     let noted = false;
-    const note = [result, "", `From ${nameOf(member)} in vyre://chat/${member.parentThreadId}`, ...(saved !== null ? [`Saved as ${saved}`] : [])].join("\n");
+    const note = [
+      result,
+      "",
+      `From ${nameOf(member)} in vyre://chat/${member.parentThreadId}`,
+      ...(saved !== null ? [`Saved as ${saved}`] : []),
+    ].join("\n");
     void Promise.resolve(
       call("records.comments.add", {
         type: r.type,
@@ -640,7 +650,12 @@ export function CrewPeek({
       })
       .then(
         () => undefined,
-        () => setErr(!noted ? "It could not be added. Try again." : "The note was added, but the file could not be saved on the record."),
+        () =>
+          setErr(
+            !noted
+              ? "It could not be added. Try again."
+              : "The note was added, but the file could not be saved on the record.",
+          ),
       );
   };
   const send = (): void => {
