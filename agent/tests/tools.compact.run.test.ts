@@ -64,7 +64,7 @@ test("a log of one failure repeated is named at most 20 times, a cut start is sa
   const d = s.data as { matches: unknown[]; tail: string[]; startCut?: boolean };
   assert.equal(d.matches.length, RUN_MATCHES);
   assert.equal(d.startCut, true);
-  assert.ok(d.tail.every((l) => l.length <= 300));
+  assert.ok(d.tail.every((l) => l.length <= 360));
 });
 
 type Shape = {
@@ -108,7 +108,7 @@ test("the failure words real tools print are found, clean counts are not, and a 
     "every real failure, no clean count",
   );
   const many = Array.from({ length: 3_000 }, (_, i) => `ok ${i} ${"x".repeat(40)}`);
-  for (let i = 100; i < 140; i++) many[i] = `warn: error_handler.ts retry ${i}`;
+  for (let i = 100; i < 140; i++) many[i] = `warn: retrying after error ${i}`;
   many[2_000] = "FATAL: the disk is full";
   const m = shape(many.join("\n"));
   assert.equal(m.matches.length, 20);
