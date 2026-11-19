@@ -780,6 +780,13 @@ export function isMyTurn(ctx: TasksCtx, t: Task, idx: OpenIndex): boolean {
   );
 }
 
+/** Freshness of a Needs you row, 1 down to 0: whole until it is 2 days late, then halved every 3 days. Rows that are not late are 1. */
+export function needsScore(reason: Reason, due: number | undefined, startOfToday: number): number {
+  if (reason !== "overdue" || due === undefined) return 1;
+  const lateDays = (startOfToday - due) / DAY;
+  return Math.pow(0.5, Math.max(0, lateDays - 2) / 3);
+}
+
 /** The Needs you rule of spec 2.8: my Ready requests (Approve, Review, Answer, Unblock), or tasks due today or overdue, or tasks that block someone.
  *  Snoozed requests are hidden until their time. Requests I did not get to because a role-mate acted show "handled by". */
 export function needsYou(ctx: TasksCtx): NeedsItem[] {
@@ -820,12 +827,14 @@ export function needsYou(ctx: TasksCtx): NeedsItem[] {
       continue;
     items.push({ task: t, reason: "ready", handledBy: t.handledBy });
   }
-  const rank: Record<Reason, number> = { overdue: 0, due_today: 1, blocking: 2, ready: 3 };
+  // What is asked of the person, times how fresh it is: a late due date loses weight (half every 3 days after the 2nd), so work from two weeks ago is not the top row
+  const base: Record<Reason, number> = { overdue: 4, due_today: 4, blocking: 3, ready: 2 };
   const handledLast = (i: NeedsItem): number => (i.handledBy === undefined ? 0 : 1);
+  const score = (i: NeedsItem): number => needsScore(i.reason, i.task.due, sod) * base[i.reason];
   items.sort(
     (a, b) =>
       handledLast(a) - handledLast(b) ||
-      rank[a.reason] - rank[b.reason] ||
+      score(b) - score(a) ||
       (a.task.due ?? Infinity) - (b.task.due ?? Infinity) ||
       b.task.createdAt - a.task.createdAt,
   );

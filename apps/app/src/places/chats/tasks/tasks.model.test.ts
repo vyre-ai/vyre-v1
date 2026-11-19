@@ -319,3 +319,27 @@ test("a due chip in a Space's zone: the day is the Space's day, hover names both
   assert.equal(dueLabel(Date.parse("2026-11-05T05:00:00Z"), now, z).late, true, "last night in the Space");
   assert.equal(dueLabel(Date.parse("2026-12-12T20:00:00Z"), now, z).text, "12 Dec");
 });
+
+test("an Approve that was sent back is not under way: it never sits in Now, and folds into quiet when it has not moved", () => {
+  const back = row({ id: "back", kind: "approve", state: "doing" });
+  const s = sectionsOf([back, row({ id: "mine", state: "doing" })], me, NOW, 0, new Set());
+  assert.deepEqual(
+    s.now.map((r) => r.id),
+    ["mine"],
+  );
+  assert.deepEqual(
+    s.next.map((r) => r.id),
+    ["back"],
+  );
+  const old = sectionsOf(
+    [row({ id: "back", kind: "approve", state: "doing", updatedAt: NOW - QUIET_MS - 1 })],
+    me,
+    NOW,
+    0,
+    new Set(),
+  );
+  assert.deepEqual(
+    old.quiet.map((r) => r.id),
+    ["back"],
+  );
+});

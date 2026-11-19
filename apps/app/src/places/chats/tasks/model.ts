@@ -94,11 +94,13 @@ export function sectionsOf(
       out.waiting.push(t);
       continue;
     }
-    if (t.due === undefined && t.state !== "doing" && now - t.updatedAt > QUIET_MS) {
+    // an Approve sent back is open for its thread and nobody waits on it: it is never "under way"
+    const underWay = t.state === "doing" && !(t.kind === "approve");
+    if (t.due === undefined && !underWay && now - t.updatedAt > QUIET_MS) {
       out.quiet.push(t);
       continue;
     }
-    if ((t.due !== undefined && t.due < end) || t.state === "doing") out.now.push(t);
+    if ((t.due !== undefined && t.due < end) || underWay) out.now.push(t);
     else out.next.push(t);
   }
   out.now = byDue(out.now);
