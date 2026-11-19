@@ -71,11 +71,13 @@ export function splitResult(text: string): Split {
  * have written anything, including a line that looks like a reference. The real reference is built here from `ref` and comes after the closing marker.
  */
 /** A line of the helper's own that imitates one of Vyre's (its end marker, or a line that starts "Vyre:") is quoted, so only the lines Vyre writes carry those words. */
-const IMITATION = /^[ \t]*(?:Vyre:|\[end of the helper's words)/i;
+const INVISIBLE = /[\u200B-\u200F\u2060\uFEFF\u202A-\u202E\u2066-\u2069\u00AD]/g;
+const IMITATION = /^[\s>*_#\-+•]*(?:vyre\s*:|\[\s*end\s+of\s+the\s+helper)/i;
+const imitates = (line: string): boolean => IMITATION.test(line.normalize("NFKC").replace(INVISIBLE, ""));
 const quoted = (text: string): string =>
   text
-    .split("\n")
-    .map((l) => (IMITATION.test(l) ? `(the helper wrote:) ${l}` : l))
+    .split(/\r\n|[\n\r\u2028\u2029\u0085]/)
+    .map((l) => (imitates(l) ? `(the helper wrote:) ${l}` : l))
     .join("\n");
 
 export function parentBody(title: string, text: string, ref?: { threadId: string; messageId: string }): string {
@@ -84,8 +86,8 @@ export function parentBody(title: string, text: string, ref?: { threadId: string
   const s = splitResult(text);
   const parts = [head, quoted(s.summary)];
   if (s.fields) parts.push(`Fields it gave:\n${quoted(s.fields)}`);
+  parts.push("[end of the helper's words]");
   if (s.detail !== "") {
-    parts.push("[end of the helper's words]");
     parts.push(
       ref
         ? `Vyre: the full result is ${text.trim().length.toLocaleString("en-US")} characters, ${s.detail.length.toLocaleString("en-US")} not shown here. Read it with chat_message_get {threadId "${ref.threadId}", messageId "${ref.messageId}"}.`
