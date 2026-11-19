@@ -550,8 +550,15 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.recordId !== undefined) t.recordId = input.recordId;
   // a task that says it is the Gate's is the Gate's: made by the Gate (a nested call from a gate capability, which the pipeline sets and a caller cannot) or by the server. Anyone else naming a gate source would
   // dress their own task in the Gate's card, so it is refused.
-  if (input.source && (input.source as { kind?: string }).kind === "gate" && !mayMakeGateTask(ctx))
+  const sourceKind = (input.source as { kind?: string } | undefined)?.kind;
+  if (sourceKind === "gate" && !mayMakeGateTask(ctx))
     raise(ctx, "validation.field_locked", "Only the Gate makes a held act.", { field: "source" });
+  // the other system sources (a Run's, a Journey's, a meeting's, a goal's) are named by the server's own modules, never by a person or an agent at the top of a call
+  if (
+    (sourceKind === "run" || sourceKind === "journey" || sourceKind === "meeting" || sourceKind === "goal") &&
+    !(isTrustedService(ctx.principal) || typeof ctx.callerCap === "string")
+  )
+    raise(ctx, "validation.field_locked", "That source is set by the server, not by a caller.", { field: "source" });
   if (input.source) t.source = input.source as TaskSource;
   if (input.parentTaskId !== undefined) t.parentTaskId = input.parentTaskId;
   if (input.expiresAt !== undefined) t.expiresAt = input.expiresAt;
